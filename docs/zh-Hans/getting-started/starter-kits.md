@@ -197,6 +197,24 @@ PAT 证明在应用数据库中只保存摘要，绑定用户、当前PAT、用�
 
 密码错误422，一分钟内5次失败后429并带 `Retry-After`；缺少令牌能力403。消息跟随请求语言，证明、密码和令牌秘密不会进入旧输入；包含新证明／令牌的响应使用 `no-store`。完整账户中心、头像、设备列表和账户注销仍在开发。
 
+### 退出全部设备
+
+`POST /api/auth/logout-all` 使套件全部旧会话、remember Cookie 和个人访问令牌失效，包括调用方当前令牌；不会修改密码。PAT 须有 `account:update`，并提交 `purpose: "devices"` 的单次近期证明；Cookie 认证须有原生近期确认及 CSRF。成功204空正文。只撤销当前 PAT 时使用 `/api/auth/logout`。
+
+```sh
+curl -i -X POST http://localhost:8000/api/auth/confirm \
+  -H 'Authorization: Bearer <token>' -H 'Content-Type: application/json' \
+  -d '{"purpose":"devices","password":"long-password-123"}'
+
+curl -i -X POST http://localhost:8000/api/auth/logout-all \
+  -H 'Authorization: Bearer <token>' -H 'X-Auth-Confirmation: <proof>' \
+  -H 'Content-Type: application/json' -d '{}'
+```
+
+持久化凭据版本在与令牌签发共用的用户锁中变更，模型事件结束后、提交前再次核对证明期限。保存被取消或失败时撤销事务回滚；失败可消费证明，重试前重新确认。成功撤销不依赖删除全部会话文件或扫描 Redis 键，各节点后续认证读取会拒绝旧版本。旧令牌记录仍可显式管理或清理，但不能认证。已进入业务执行的请求不被追溯取消；重新登录才能建立新凭据。
+
+此操作与[设备列表](#scope)是两个能力，撤销可用不代表所有会话驱动都已提供设备枚举。
+
 ## 无会话客户端注册与邮件恢复 {#client-mail}
 
 显式安装套件后，以下路由读取 `api.prefix`（默认 `/api`）。它们复用 Fortify Action、验证器、密码代理和通知；独立 Fortify 的原有 Cookie／CSRF 路由不变。

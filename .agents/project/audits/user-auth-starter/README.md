@@ -245,3 +245,19 @@ API路径跟随既有`api.prefix`；端点由显式套件Provider注册，不改
 本单元不将账户中心、设备列表、注销／头像持久化清理、无密码PAT的Passkey近期确认、可选因素UI及最终安装矩阵计为闭合。认证默认邮件当前同步发送；自动队列重试／故障恢复尚待单独实现及真实Worker验收，真实外部SMTP和供应商收信留发布验收。自定义认证标识与模型主键不同的邮件生成／更新组合仍需在S10专项核对，不用默认User通过冒充高级自定义全部通过。
 
 最终组合`985c71511`：`mail-api-final-gates-second.log`中新增URL所属应用时钟隔离1项通过；随后新增匿名Cookie断言初次引用了夹具不存在的`/api/admin/user`而返回404，改为夹具已有受保护`/api/token-me`后，`mail-api-final-gates-third.log`的5项通过，并确认匿名Cookie不能登录浏览器。该日志workspace严格Clippy54.30秒、Fortify+Sanctum严格Clippy36.46秒及全workspace格式检查均退出0。最终内容以`mail-api-final-source-sha.json`为准，临时SMTP／HTTP进程均已退出；文档构建输出直接删除，正常增量缓存保留，空间记录`mail-api-delivery-space.json`。
+
+## A01-02／03：全设备退出（本子单元验收通过）
+
+沿用S02既有持久化凭据版本及共享用户写锁，不增加第二套会话存储或撤销缓存。[Jetstream浏览器会话](https://jetstream.laravel.com/features/browser-sessions.html)区分database设备列表与其他会话退出；固定[SessionGuard](https://github.com/laravel/framework/blob/v13.40.0/src/Illuminate/Auth/SessionGuard.php)区分当前设备退出。套件此处按已确认S02额外提供全凭据撤销，不将新增HTTP路由称为Laravel默认路由。旧v0.x Fortify目录及API适配未找到可直接复用的全设备版本撤销实现，继续复用当前已验的凭据服务和近期证明。
+
+- `POST /api/auth/logout-all`，路由名`user.devices.logout-all`，跟随API前缀。PAT须有`account:update`及绑定当前PAT／用户的`devices`用途单次近期证明；Cookie须有原生Session近期确认与CSRF。成功204零正文，no-store；无密码不能自动确认。
+- 用户共同写锁内重新校验当前PAT、归属、配置及证明，变更持久化凭据版本并清空remember token；保存事件结束后、提交前再查期限。取消保存、事务异常或期限在异步保存中失效，均回滚版本。失败可以消费近期证明，须重新确认后重试。
+- Cookie当前设备使用原生`logout_current_device`清除当前Guard状态，再invalidate／轮换CSRF，避免版本提交后从旧用户快照写回remember token。无显式Fortify guard时选择静态`auth.defaults.guard`，不误用请求已选的Sanctum驱动。
+- 此后新认证读取拒绝全部旧PAT、database／file／Redis会话及旧remember Cookie，不扫描Redis键或假设删一张sessions表等于通用撤销。已进入业务执行的请求不承诺撤回；用户仍可用原密码重新登录。旧PAT行保留供显式管理／清理，但不再能认证；此入口不声称设备枚举已完成。
+- 同时将账户内部能力错误的缺失项按实际要求输出，避免account:update路径错误报告tokens:manage。
+
+实际证据：`devices-matrix-first.log`，SQLite array、独立MySQL8.4.13／PostgreSQL18.7的database会话、SQLite file和独立Redis8.10.3会话五组各4项通过，覆盖Cookie确认、旧remember拒绝、多PAT撤销、错误设备证明、只读能力403、模型取消回滚、保存中到期回滚及并发单次证明一胜一拒。临时Redis使用tmpfs数据路径且无持久化，不清理现有实例／数据卷；三种临时容器退出。
+
+`devices-runtime-first.log`／`devices-runtime-http.json`：生成full应用真实重建、两个应用进程及file会话，共21次TCP通过，跨节点PAT／Cookie全设备退出、错误设备证明、新登录、旧PAT与浏览器失效。`devices-docs.log`：三语站构建与正文两挂载／桌面手机12组浏览器检查通过。该项只闭合全设备退出，不将设备列表、头像、注销或剩余账户中心计为完成。
+
+最终`devices-final-gates.log`：SQLite套件29项、凭据生命周期1项通过；未提供环境的另外2个生命周期目标ignored，独立数据库证据以矩阵日志为准。workspace严格Clippy25.50秒、Fortify+Sanctum严格Clippy13.08秒及全workspace格式检查退出0。吸收其间纯计划提交后的组合复核`devices-combination-gates.log`退出0，源码未夹带其他任务改动。交付清单／SHA为`devices-files.json`／`devices-final-source-sha.json`，空间及本批文档产物直接清理见`devices-delivery-space.json`；正常增量缓存、数据库、日志保留。

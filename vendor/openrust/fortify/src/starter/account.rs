@@ -37,7 +37,9 @@ fn actor<M: HasApiTokens>(
         Some(AccessToken::Personal(token)) => {
             if ability.is_some_and(|ability| !token.can(ability)) {
                 return Err(HttpError::MissingAbility(
-                    openrust::sanctum::MissingAbilityException::new(["tokens:manage"]),
+                    openrust::sanctum::MissingAbilityException::new([
+                        ability.unwrap_or("tokens:manage")
+                    ]),
                 ));
             }
             Ok(Some(token.id.clone()))
@@ -79,7 +81,7 @@ async fn check_actor<M: HasApiTokens>(
     {
         return Err(
             HttpError::MissingAbility(openrust::sanctum::MissingAbilityException::new([
-                "tokens:manage",
+                ability.unwrap_or("tokens:manage")
             ]))
             .into(),
         );
@@ -285,6 +287,60 @@ where
             })
         })
         .await?;
+        Ok(client::no_store(Response::empty(StatusCode::NO_CONTENT)))
+    })
+}
+
+/// 近期重新认证后撤销全部旧凭据；持久化版本覆盖全部节点与会话存储。
+pub fn logout_all<M>(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
+where
+    M: HasApiTokens + TwoFactorAuthenticatable + Clone,
+{
+    Box::pin(async move {
+        use openrust::contracts::session::Session as _;
+        let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
+        let mut user = user::<M>(request).await?;
+        let actor = actor(request, &user, Some("account:update"))?;
+        let cookie = actor.is_none();
+        let proof = confirmation::claim(request, &user, Purpose::Devices, &fortify).await?;
+        let sanctum = App::make::<Sanctum>().await?;
+        let database = App::make::<DatabaseManager>().await?;
+        let policy = fortify.clone();
+        credentials::with_locked(&mut user, move |locked, transaction| {
+            Box::pin(async move {
+                proof.validate(locked, &policy)?;
+                check_actor(
+                    locked,
+                    transaction,
+                    &sanctum,
+                    &database,
+                    actor,
+                    Some("account:update"),
+                    &[],
+                )
+                .await?;
+                let before = locked.clone();
+                credentials::rotate_locked(locked, transaction, None).await?;
+                // 自身变更有意使旧证明失效；提交前仍检查原证明的期限及配置。
+                proof.validate(&before, &policy)
+            })
+        })
+        .await?;
+        if cookie {
+            openrust::auth::Auth::session_guard(
+                request,
+                Some(
+                    &fortify
+                        .guard()
+                        .unwrap_or_else(|| fortify.string("auth.defaults.guard", "web")),
+                ),
+            )?
+            .logout_current_device()
+            .await?;
+            let session = request.session_mut()?;
+            session.invalidate().await?;
+            session.regenerate_token().map_err(internal)?;
+        }
         Ok(client::no_store(Response::empty(StatusCode::NO_CONTENT)))
     })
 }

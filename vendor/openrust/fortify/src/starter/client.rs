@@ -639,6 +639,10 @@ where
                 .middleware_name("auth:sanctum")
                 .name("user.tokens.logout");
             router
+                .post("/auth/logout-all", super::account::logout_all::<M>)?
+                .middleware_name("auth:sanctum")
+                .name("user.devices.logout-all");
+            router
                 .get("/user/tokens", super::account::tokens::<M>)?
                 .middleware_name("auth:sanctum")
                 .name("user.tokens.index");

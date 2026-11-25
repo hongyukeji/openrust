@@ -197,6 +197,24 @@ PAT proofs are hashed in the application's database, bound to the `user`, `curre
 
 Password errors return422; five failed confirmations within a minute cause429 with `Retry-After`. Missing `token` capabilities return403. All displayed messages use the request locale. Proofs, passwords and `token` secrets are excluded from old input. Responses containing a new proof/token use `no-store`. The complete account center, avatar, device list and account deletion remain in progress.
 
+### Log out all devices
+
+`POST /api/auth/logout-all` invalidates every previous suite session, remember Cookie and personal access token, including the caller's token. It does not change the password. A PAT requires `account:update` and a single-use confirmation for `purpose: "devices"`; Cookie authentication requires the native recent confirmation and CSRF. Success is 204 with no body. Use `/api/auth/logout` to revoke only the current PAT.
+
+```sh
+curl -i -X POST http://localhost:8000/api/auth/confirm \
+  -H 'Authorization: Bearer <token>' -H 'Content-Type: application/json' \
+  -d '{"purpose":"devices","password":"long-password-123"}'
+
+curl -i -X POST http://localhost:8000/api/auth/logout-all \
+  -H 'Authorization: Bearer <token>' -H 'X-Auth-Confirmation: <proof>' \
+  -H 'Content-Type: application/json' -d '{}'
+```
+
+The durable credential version changes under the same user lock as token issuance; proof expiry is rechecked after model events and before commit. A cancelled or failed save rolls back the revocation. A failed attempt may consume the proof, so confirm again before retrying. Successful revocation does not delete all session files or scan Redis keys: subsequent authentication reads reject the old credential version on every node. Previously issued token rows remain available for explicit management or pruning, but cannot authenticate. Requests already executing are not retroactively cancelled. Sign in again to establish new credentials.
+
+This operation and [device enumeration](#scope) are separate capabilities; revocation does not claim that a device list is available for every session driver.
+
 ## Stateless registration and recovery {#client-mail}
 
 The explicitly installed suite registers these routes beneath `api.prefix` (default `/api`). They reuse Fortify Actions, validation, the password broker and notifications; standalone Fortify routes retain their Cookie/CSRF behavior.

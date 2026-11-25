@@ -2612,3 +2612,339 @@ async fn mail_api_smtp_failure_is_reported_and_explicit_resend_delivers_to_local
     assert_eq!(inbox.len(), 3);
     assert!(inbox[2].contains("/reset-password/"));
 }
+
+#[cfg(feature = "sanctum")]
+#[tokio::test]
+async fn devices_logout_all_requires_bound_proof_and_revokes_every_old_token() {
+    let server = start().await;
+    register_token_user(&server).await;
+    let (_, _, first) =
+        token_client_request(server.address, "/api/auth/token", device_login()).await;
+    let first = first["data"]["token"].as_str().unwrap();
+    let (_, _, second) =
+        token_client_request(server.address, "/api/auth/token", device_login()).await;
+    let second = second["data"]["token"].as_str().unwrap();
+    assert_eq!(
+        account_request(
+            server.address,
+            first,
+            "POST",
+            "/api/auth/logout-all",
+            json!({})
+        )
+        .await
+        .0,
+        401
+    );
+    let proof = confirmation(&server, first, "devices").await;
+    assert_eq!(
+        account_request(
+            server.address,
+            second,
+            "POST",
+            "/api/auth/logout-all",
+            json!({"proof":proof})
+        )
+        .await
+        .0,
+        401
+    );
+    assert_eq!(bearer_request(server.address, first).await, 200);
+    assert_eq!(bearer_request(server.address, second).await, 200);
+    let pending = confirmation(&server, second, "tokens").await;
+    let (status, headers, body) = account_request(
+        server.address,
+        first,
+        "POST",
+        "/api/auth/logout-all",
+        json!({"proof":proof}),
+    )
+    .await;
+    assert_eq!(status, 204, "{body}");
+    assert!(body.is_null());
+    assert!(headers.to_ascii_lowercase().contains("no-store"));
+    for token in [first, second] {
+        assert_eq!(bearer_request(server.address, token).await, 401);
+    }
+    assert_eq!(
+        account_request(
+            server.address,
+            second,
+            "POST",
+            "/api/user/tokens",
+            json!({"proof":pending,"device_name":"stale"})
+        )
+        .await
+        .0,
+        401
+    );
+    let (status, _, body) =
+        token_client_request(server.address, "/api/auth/token", device_login()).await;
+    assert_eq!(status, 201, "{}", token_failure(&body));
+    let new = body["data"]["token"].as_str().unwrap();
+    assert_eq!(bearer_request(server.address, new).await, 200);
+    let mut login = device_login();
+    login["abilities"] = json!(["account:read"]);
+    let (_, _, body) = token_client_request(server.address, "/api/auth/token", login).await;
+    let limited = body["data"]["token"].as_str().unwrap();
+    assert_eq!(
+        account_request(
+            server.address,
+            limited,
+            "POST",
+            "/api/auth/logout-all",
+            json!({})
+        )
+        .await
+        .0,
+        403
+    );
+    assert_eq!(bearer_request(server.address, new).await, 200);
+}
+
+#[cfg(feature = "sanctum")]
+#[tokio::test]
+async fn devices_cookie_logout_all_requires_confirmation_and_invalidates_remember_cookies() {
+    let server = start().await;
+    let mut owner = Client {
+        address: server.address,
+        cookies: Default::default(),
+        csrf: String::new(),
+    };
+    assert_eq!(owner.send("GET", "/register", "", false).await.0, 200);
+    let registration = json!({"name":"所有设备","email":"device@example.test","password":"long-password-123","password_confirmation":"long-password-123"});
+    assert_eq!(
+        owner
+            .send("POST", "/register", &registration.to_string(), true)
+            .await
+            .0,
+        201
+    );
+    assert_eq!(owner.send("GET", "/home", "", false).await.0, 200);
+    let mut other = Client {
+        address: server.address,
+        cookies: Default::default(),
+        csrf: String::new(),
+    };
+    assert_eq!(other.send("GET", "/login", "", false).await.0, 200);
+    assert_eq!(
+        other
+            .send(
+                "POST",
+                "/login",
+                r#"{"email":"device@example.test","password":"long-password-123","remember":true}"#,
+                true
+            )
+            .await
+            .0,
+        200
+    );
+    let mut remembered = Client {
+        address: server.address,
+        cookies: other
+            .cookies
+            .iter()
+            .filter(|(name, _)| name.starts_with("remember_"))
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect(),
+        csrf: String::new(),
+    };
+    assert!(!remembered.cookies.is_empty());
+    let (_, _, body) =
+        token_client_request(server.address, "/api/auth/token", device_login()).await;
+    let token = body["data"]["token"].as_str().unwrap();
+    assert_eq!(
+        owner
+            .exchange_origin("POST", "/api/auth/logout-all", "{}", true, true)
+            .await
+            .0,
+        423
+    );
+    assert_eq!(
+        owner
+            .send(
+                "POST",
+                "/user/confirm-password",
+                r#"{"password":"long-password-123"}"#,
+                true
+            )
+            .await
+            .0,
+        201
+    );
+    let (status, headers, body) = owner
+        .exchange_origin("POST", "/api/auth/logout-all", "{}", true, true)
+        .await;
+    assert_eq!(status, 204, "{body}");
+    assert!(body.is_empty());
+    assert!(headers.to_ascii_lowercase().contains("no-store"));
+    for client in [&mut owner, &mut other, &mut remembered] {
+        assert_eq!(client.send("GET", "/home", "", true).await.0, 401);
+    }
+    assert_eq!(bearer_request(server.address, token).await, 401);
+}
+
+#[cfg(feature = "sanctum")]
+struct RejectCredentialRotation(std::sync::atomic::AtomicBool);
+#[cfg(feature = "sanctum")]
+impl openrust::database::eloquent::concerns::ModelEventListener<app::models::User>
+    for RejectCredentialRotation
+{
+    fn handle<'a>(
+        &'a self,
+        _: openrust::database::eloquent::concerns::ModelEvent,
+        model: &'a mut app::models::User,
+        _: &'a openrust::database::Connection,
+    ) -> openrust::database::DatabaseFuture<
+        'a,
+        openrust::database::DatabaseResult<
+            openrust::database::eloquent::concerns::ModelEventResponse,
+        >,
+    > {
+        Box::pin(async move {
+            use openrust::database::eloquent::Model as _;
+            let changed = model.get_attribute("credential_version")
+                != model.get_raw_original("credential_version");
+            Ok(
+                if changed && self.0.load(std::sync::atomic::Ordering::SeqCst) {
+                    openrust::database::eloquent::concerns::ModelEventResponse::Cancel
+                } else {
+                    openrust::database::eloquent::concerns::ModelEventResponse::Continue
+                },
+            )
+        })
+    }
+}
+#[cfg(feature = "sanctum")]
+#[tokio::test]
+async fn devices_cancelled_rotation_rolls_back_and_old_credentials_remain_usable() {
+    use openrust::database::eloquent::{Model as _, concerns::ModelEvent};
+    let server = start().await;
+    register_token_user(&server).await;
+    let (_, _, body) =
+        token_client_request(server.address, "/api/auth/token", device_login()).await;
+    let token = body["data"]["token"].as_str().unwrap();
+    let proof = confirmation(&server, token, "devices").await;
+    app::models::User::register_model_event(
+        server._kernel.get_application(),
+        ModelEvent::Saving,
+        RejectCredentialRotation(std::sync::atomic::AtomicBool::new(true)),
+    )
+    .unwrap();
+    let (status, headers, _) = account_request(
+        server.address,
+        token,
+        "POST",
+        "/api/auth/logout-all",
+        json!({"proof":proof}),
+    )
+    .await;
+    assert_eq!(status, 500);
+    assert!(headers.to_ascii_lowercase().contains("no-store"));
+    assert_eq!(bearer_request(server.address, token).await, 200);
+    // 证明可以在失败时被消费；账号与凭据事务仍须完整回滚，可重新认证。
+    assert_eq!(
+        token_client_request(server.address, "/api/auth/token", device_login())
+            .await
+            .0,
+        201
+    );
+}
+
+#[cfg(feature = "sanctum")]
+struct ExpireCredentialRotation {
+    clock: Arc<openrust::support::DateFactory>,
+    at: jiff::Timestamp,
+}
+#[cfg(feature = "sanctum")]
+impl openrust::database::eloquent::concerns::ModelEventListener<app::models::User>
+    for ExpireCredentialRotation
+{
+    fn handle<'a>(
+        &'a self,
+        _: openrust::database::eloquent::concerns::ModelEvent,
+        model: &'a mut app::models::User,
+        _: &'a openrust::database::Connection,
+    ) -> openrust::database::DatabaseFuture<
+        'a,
+        openrust::database::DatabaseResult<
+            openrust::database::eloquent::concerns::ModelEventResponse,
+        >,
+    > {
+        Box::pin(async move {
+            use openrust::database::eloquent::Model as _;
+            if model.get_attribute("credential_version")
+                != model.get_raw_original("credential_version")
+            {
+                self.clock
+                    .set_test_now(Some(openrust::support::Date::from_utc(
+                        self.at,
+                        jiff::tz::TimeZone::UTC,
+                    )));
+            }
+            Ok(openrust::database::eloquent::concerns::ModelEventResponse::Continue)
+        })
+    }
+}
+#[cfg(feature = "sanctum")]
+#[tokio::test]
+async fn devices_expired_during_model_save_rolls_back_and_concurrent_proof_has_one_winner() {
+    use openrust::database::eloquent::{Model as _, concerns::ModelEvent};
+    let server = start().await;
+    register_token_user(&server).await;
+    let (_, _, body) =
+        token_client_request(server.address, "/api/auth/token", device_login()).await;
+    let token = body["data"]["token"].as_str().unwrap();
+    let proof = confirmation(&server, token, "devices").await;
+    let clock = server
+        ._kernel
+        .get_application()
+        .make::<openrust::support::DateFactory>()
+        .await
+        .unwrap();
+    app::models::User::register_model_event(
+        server._kernel.get_application(),
+        ModelEvent::Saving,
+        ExpireCredentialRotation {
+            clock,
+            at: jiff::Timestamp::now() + jiff::SignedDuration::from_secs(10801),
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        account_request(
+            server.address,
+            token,
+            "POST",
+            "/api/auth/logout-all",
+            json!({"proof":proof})
+        )
+        .await
+        .0,
+        401
+    );
+    assert_eq!(bearer_request(server.address, token).await, 200);
+    // 本次证明在存储动作中才到期，版本变更仍必须回滚；新证明使用新的应用时钟。
+    let proof = confirmation(&server, token, "devices").await;
+    let payload = json!({"proof":proof});
+    let (a, b) = tokio::join!(
+        account_request(
+            server.address,
+            token,
+            "POST",
+            "/api/auth/logout-all",
+            payload.clone()
+        ),
+        account_request(
+            server.address,
+            token,
+            "POST",
+            "/api/auth/logout-all",
+            payload
+        )
+    );
+    let mut statuses = [a.0, b.0];
+    statuses.sort();
+    assert_eq!(statuses, [204, 401]);
+    assert_eq!(bearer_request(server.address, token).await, 401);
+}

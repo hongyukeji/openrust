@@ -197,6 +197,24 @@ PAT 證明在應用資料庫中僅儲存雜湊，綁定使用者、目前PAT、�
 
 密碼錯誤422，一分鐘內5次失敗後429並帶 `Retry-After`；缺少權杖能力403。訊息跟隨請求語言，證明、密碼與權杖秘密不會進入舊輸入；包含新證明／權杖的回應使用 `no-store`。完整帳戶中心、頭像、裝置清單與帳戶註銷仍在開發。
 
+### 登出全部裝置
+
+`POST /api/auth/logout-all` 使套件全部舊會話、remember Cookie 和個人存取權杖失效，包括呼叫方目前權杖；不會修改密碼。PAT 須有 `account:update`，並提交 `purpose: "devices"` 的單次近期證明；Cookie 認證須有原生近期確認與 CSRF。成功204空本文。只撤銷目前 PAT 時使用 `/api/auth/logout`。
+
+```sh
+curl -i -X POST http://localhost:8000/api/auth/confirm \
+  -H 'Authorization: Bearer <token>' -H 'Content-Type: application/json' \
+  -d '{"purpose":"devices","password":"long-password-123"}'
+
+curl -i -X POST http://localhost:8000/api/auth/logout-all \
+  -H 'Authorization: Bearer <token>' -H 'X-Auth-Confirmation: <proof>' \
+  -H 'Content-Type: application/json' -d '{}'
+```
+
+持久化憑據版本在與權杖簽發共用的使用者鎖中變更，模型事件結束後、提交前再次核對證明期限。儲存被取消或失敗時撤銷交易回復；失敗可消費證明，重試前重新確認。成功撤銷不依賴刪除全部會話檔案或掃描 Redis 鍵，各節點後續認證讀取會拒絕舊版本。舊權杖記錄仍可明確管理或清理，但不能認證。已進入業務執行的請求不被追溯取消；重新登入才能建立新憑據。
+
+此操作與[裝置列表](#scope)是兩種能力，撤銷可用不代表所有會話驅動都已提供裝置列舉。
+
 ## 無會話用戶端註冊與郵件恢復 {#client-mail}
 
 明確安裝套件後，以下路由讀取 `api.prefix`（預設 `/api`）。它們重用 Fortify Action、驗證器、密碼代理和通知；獨立 Fortify 原有的 Cookie／CSRF 路由不變。

@@ -122,7 +122,19 @@ async fn change<M: Model + Authenticatable + Clone>(
     let connection = user.get_connection()?;
     let mut transaction = connection.begin_transaction().await?;
     lock(&mut locked, &mut transaction).await?;
-    let next = version(&locked)?
+    rotate_locked(&mut locked, &mut transaction, password).await?;
+    transaction.commit().await?;
+    *user = locked;
+    Ok(())
+}
+
+/// 调用方已持有共同用户写锁；将撤销点与其敏感操作放在同一事务内。
+pub(crate) async fn rotate_locked<M: Model + Authenticatable>(
+    locked: &mut M,
+    transaction: &mut Transaction,
+    password: Option<String>,
+) -> AuthResult<()> {
+    let next = version(locked)?
         .checked_add(1)
         .filter(|value| *value <= i64::MAX as u64)
         .ok_or(AuthError::Configuration("凭据版本已达到数据库整数上限"))?;
@@ -132,11 +144,9 @@ async fn change<M: Model + Authenticatable + Clone>(
         locked.set_attribute_value(&column, password)?;
     }
     locked.set_remember_token(None);
-    if !locked.save_in_transaction(&mut transaction).await? {
+    if !locked.save_in_transaction(transaction).await? {
         return Err(DatabaseError::InvalidQuery("用户模型取消凭据变更").into());
     }
-    transaction.commit().await?;
-    *user = locked;
     Ok(())
 }
 
