@@ -90,3 +90,20 @@ let output = Image::from_bytes(bytes)?
 內建轉換使用變體原名，如 `Resize` 或 `Grayscale`，同名處理器覆寫內建操作。自訂轉換使用傳入名稱，建議加應用命名空間以避免衝突。回呼接收驅動實際物件的 `&mut dyn Any`，內建驅動使用 `NativeImage`；回傳錯誤即停止流水線。原生動畫處理器逐一處理參與轉換的影格，修改後的影格仍須符合設定限額。
 
 `using_gd()` 和 `using_imagick()` 分別選擇應用已註冊的 `gd` 和 `imagick` 驅動。框架內建原生 `image` 後端；轉換需要的後端未註冊時回傳 `UnknownDriver`，原樣讀取位元組不解析所選後端。
+
+## 單張圖片限額 {#per-image-limits}
+
+上傳檔案需要比應用預設值更嚴格的限制時，在圖片物件上使用 `with_limits`：
+
+```rust
+use openrust::{image::Limits, support::facades::Image};
+
+let image = Image::from_bytes(bytes)?.with_limits(Limits {
+    max_input_bytes: 2 * 1024 * 1024,
+    max_dimension: 4096,
+    max_pixels: 4096 * 4096,
+});
+let (width, height) = image.dimensions().await?;
+```
+
+各項上限取請求值與目前值中的較小者，不能放寬應用上限或已收緊的限制，也不修改其他圖片。已快取的輸入、渲染與主色結果會重新校驗；保留驅動選擇、轉換及所屬應用的處理信號量。輸入限額在解碼、縮放之前生效，不能靠把大圖縮成縮圖繞過。和其他轉換一樣，已渲染圖片以處理後的位元組開始；請求主體大小與允許檔案類型仍分別校驗。

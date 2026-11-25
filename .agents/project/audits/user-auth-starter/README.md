@@ -491,3 +491,11 @@ Native Worker删除幂等，完成后重复任务为no-op；文件失败由原�
 - resource-cleanup-docs.log：三语站点构建及12组两挂载／桌面移动页面通过，无页面异常或横向溢出，说明后台Worker、升级配置、范围及尚未交付的消费者。
 
 冻结组合基于38285b7c1及此前已提交主线83个路径更新，未吸收Root在途Pulse／Webhooks／Cargo.lock。实际通过不代表其他协作者未提交功能已通过。源码清单／SHA及清理空间见resource-cleanup-files.json、resource-cleanup-final-source-sha.json、resource-cleanup-delivery-space.json。只清理本批文档输出，保留记录、源码、数据库／数据卷和可复用Cargo缓存，不推送。
+
+## S09前置：图片值对象的单次限额
+
+新增Image::with_limits，复用所属ImageManager／驱动注册、转换和Semaphore，只取当前与请求上限的较小者，不建立第二套头像解码器。输入／渲染／主色缓存会在收紧后重新校验，限制在原生解码与缩放前生效；不能用缩略图输出绕过原图限额。已渲染对象仍按既有流水线从结果字节建立下一阶段。此为Rust原生值对象扩展，不宣称固定Laravel Image门面存在同名方法。旧版没有对应ImageManager／同契约图片流水线；复用当前Limits、NativeDriver及既有错误类型。
+
+image-limits-second.log：4项公开Image值对象测试通过，覆盖分支隔离、缩放前拒绝、缓存重新校验、不能放宽全局／先前限制、保留具名驱动及流水线选择；既有reads_exif_orientation_and_checks_inputs_and_limits专项1项通过。workspace和Fortify+Sanctum严格Clippy通过，最终格式检查随冻结源码完成。未重跑未受影响的全部编码器矩阵，也未把此项当作头像HTTP操作验收。首轮测试Probe缺少Driver必需的dominant_color实现已补齐，仅测试夹具变化；首次失败不计通过。
+
+image-limits-docs.log三语构建及12组两挂载／桌面移动页面检查通过。应用可通过正式Image门面取得值对象后链式调用with_limits，示例区分HTTP请求体／类型校验和图片解码限制。头像控制器的门面消费、真实上传及故障补偿接续实现。清单／SHA和本批文档清理空间见target/tmp/user-starter/image-limits-files.json、image-limits-final-source-sha.json、image-limits-delivery-space.json；保留所有源码／验收证据及正常复用缓存，不推送。

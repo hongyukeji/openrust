@@ -90,3 +90,20 @@ let output = Image::from_bytes(bytes)?
 Built-in handlers use the transformation variant's exact name, such as `Resize` or `Grayscale`, and override that built-in operation. Custom transformations use their supplied name; use an application namespace to avoid collisions. The callback receives the actual driver object as `&mut dyn Any`; the built-in driver uses `NativeImage`. An error stops the pipeline. Native animation callbacks run on each processed frame, and modified frames must still satisfy the configured limits.
 
 `using_gd()` and `using_imagick()` select application-registered `gd` and `imagick` drivers. The framework ships the native `image` backend; selecting an unavailable backend returns `UnknownDriver` when a transformation needs it. Reading unchanged bytes does not resolve the selected backend.
+
+## Per-image limits {#per-image-limits}
+
+Use `with_limits` on an image when an upload needs stricter bounds than the application defaults:
+
+```rust
+use openrust::{image::Limits, support::facades::Image};
+
+let image = Image::from_bytes(bytes)?.with_limits(Limits {
+    max_input_bytes: 2 * 1024 * 1024,
+    max_dimension: 4096,
+    max_pixels: 4096 * 4096,
+});
+let (width, height) = image.dimensions().await?;
+```
+
+Each bound is the smaller of the requested and current bound. It cannot relax application limits or a previous restriction, and does not change other images. Cached input, rendering and dominant-color results are revalidated. Driver selection, transformations and the application's processing semaphore are retained. Input bounds apply before decoding and resizing; resizing a large image to a thumbnail does not bypass them. As with other transformations, a previously rendered image starts from its processed bytes. Request-body limits and allowed file types are separate checks.

@@ -213,6 +213,16 @@ impl ImageManager {
         Ok(driver)
     }
 
+    pub(super) fn with_limits(&self, limits: Limits) -> Self {
+        let mut bounded = self.clone();
+        bounded.limits = Limits {
+            max_input_bytes: self.limits.max_input_bytes.min(limits.max_input_bytes),
+            max_dimension: self.limits.max_dimension.min(limits.max_dimension),
+            max_pixels: self.limits.max_pixels.min(limits.max_pixels),
+        };
+        bounded
+    }
+
     pub(super) fn limits(&self) -> Limits {
         self.limits
     }

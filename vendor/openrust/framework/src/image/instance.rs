@@ -74,6 +74,15 @@ impl Image {
         self
     }
 
+    /// 为本次图片处理收紧限额，不放宽所属管理器的限制或修改其他图片。
+    pub fn with_limits(mut self, limits: Limits) -> Self {
+        self.new_clone();
+        self.manager = self.manager.with_limits(limits);
+        // 已读取或已渲染的数据也须在新限额下重新校验。
+        self.loaded = Arc::default();
+        self
+    }
+
     pub fn transform(mut self, transformation: Transformation) -> Self {
         self.new_clone();
         self.pipeline.transformations.push(transformation);
