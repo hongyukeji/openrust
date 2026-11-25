@@ -1,6 +1,8 @@
 // 第三方许可见 LICENSE.renderer。
 mod dom;
 mod layout;
+mod palette;
+mod style_tokens;
 use super::ComponentContext;
 use crate::console::{AsOutput, ConsoleError, OutputOptions};
 /// 组件拥有的渲染策略；编译结果、选项及原输出上下文按次传递。

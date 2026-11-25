@@ -1,0 +1,43 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "termwind_commit": "6fb2a640ff502caace8e05fd7be3b503a7e1c017",
+  "status": "verified_preset_palette_and_responsive_existing_styles_terminal_sdk_partial",
+  "native_entry": "Component::render_view/render_view_with -> BuiltinComponentViewRenderer",
+  "scope": [
+    "237个固定颜色常量的text/bg类及0/前导零/科学记数/小数/Unicode大小写/下划线别名；未知颜色、非法变体及不属于该调色板的CSS颜色表达式报错。",
+    "sm64/md76/lg102/xl128/2xl153；基础类优先、断点升序、同断点顺序、原类名保留、不激活分支不解析。",
+    "方括号内空白不分词、NBSP不作ASCII空白、裸0过滤而激活sm:0仍报错、sm:空方法忽略；响应式flex-1不创建源hasStyle所需字面flex-1标记。"
+  ],
+  "source_constants": {
+    "count": 237,
+    "sha256": "41c11c2882b6e9d6f236cc5eba4815eb44d78335aaee207c58f7515144840b9b"
+  },
+  "source_oracle": {
+    "component-palette-oracle.json": 2288,
+    "errors": 72,
+    "output_modes": [
+      "Ansi4_full_palette",
+      "Ansi8_representatives",
+      "Ansi24_representatives",
+      "Raw_and_formatted",
+      "decorated_and_undecorated"
+    ]
+  },
+  "runtime": {
+    "real_artisan_processes": 4,
+    "real_http_requests": 15,
+    "isolated_http_width": 80,
+    "formal_document_consumers": 159,
+    "browser_checks": 12
+  },
+  "adaptations": [
+    "复用已验input_scalars数值转换、Str::upper和原格式器颜色模式，不另造RGB量化/ANSI或颜色包依赖。237事实值按固定源定义保留，既有MIT许可随分发。旧版无对应控制台调色/样式管线可提取。",
+    "纯私有预设查询与词法后端，无新公开Rust方法或公开名称重命名，不改命令、序列化/事件/配置。正式入口仍逐项实际调用Component及编译trait。",
+    "源正则的负前瞻分隔用反向单次扫描实现，保留方括号/ASCII空白语义，避免每个空白重复搜索；不声称量化性能收益。",
+    "来源特性不擅改：原始媒体类名、非激活未知样式、裸0过滤、额外颜色参数忽略等均在真实源向量中检验。自定义Style仓库仍开放，未来必须在媒体过滤前处理原始仓库名称，不能把本预设表冒充已支持。"
+  ],
+  "remaining": [
+    "终端布局SDK继续：分数宽度、分布对齐、font-normal及其余Styles变换、table/code/pre/list/dl/hr专用渲染、自定义样式/颜色仓库；通用HTML4/HTML5恢复与实体差异仍待核对。固定预设颜色与现有样式的五断点解析已验，不重复开发。",
+    "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
+  ]
+}

@@ -1,6 +1,7 @@
 // 第三方许可见 ../LICENSE.renderer。只在已实现的样式范围内渲染，未知样式明确报错。
 use super::super::display::{trim_text, visible_width};
 use super::dom::{self, Node};
+use super::{palette, style_tokens};
 use crate::{
     console::{ConsoleError, Terminal},
     support::Str,
@@ -52,12 +53,13 @@ fn classes(node: &Node) -> Result<Style, ConsoleError> {
         "a" if !node.attr("href").is_empty() => s.href = Some(node.attr("href").to_owned()),
         _ => {}
     }
-    for class in node.attr("class").split_whitespace() {
+    for token in style_tokens::tokens(node.attr("class"), Terminal::new().get_width()) {
+        let class = token.resolved;
         match class {
             "block" => s.display = "block",
             "flex" => s.display = "flex",
             "hidden" => s.display = "hidden",
-            "flex-1" => s.flex = true,
+            "flex-1" => s.flex |= token.original == "flex-1",
             "w-full" => s.full = true,
             "w-auto" => {
                 s.width = None;
@@ -123,17 +125,26 @@ fn classes(node: &Node) -> Result<Style, ConsoleError> {
                     continue;
                 }
                 if let Some(value) = class.strip_prefix("text-") {
+                    let (base, _) = palette::arguments(value)?;
+                    if matches!(base, "left" | "right" | "center") {
+                        s.align = match base {
+                            "left" => "left",
+                            "right" => "right",
+                            _ => "center",
+                        };
+                        continue;
+                    }
                     if s.fg.is_none() {
                         s.color_order.push("fg");
                     }
-                    s.fg = Some(color(value)?);
+                    s.fg = Some(palette::color(value)?);
                     continue;
                 }
                 if let Some(value) = class.strip_prefix("bg-") {
                     if s.bg.is_none() {
                         s.color_order.push("bg");
                     }
-                    s.bg = Some(color(value)?);
+                    s.bg = Some(palette::color(value)?);
                     continue;
                 }
                 let Some((kind, value)) = class.rsplit_once('-') else {
@@ -195,14 +206,6 @@ fn classes(node: &Node) -> Result<Style, ConsoleError> {
         s.modifiers.push(code);
     }
     Ok(s)
-}
-fn color(value: &str) -> Result<String, ConsoleError> {
-    match value {
-        "black" | "white" | "gray" | "red" | "green" | "blue" | "yellow" | "cyan" | "magenta" => {
-            Ok(value.to_owned())
-        }
-        _ => Err(error(value)),
-    }
 }
 fn normalized(text: &str, first: bool, last: bool) -> String {
     if text == " " {

@@ -351,12 +351,13 @@
         "factory-registry-contracts.json",
         "component-core-contracts.json",
         "component-compile-contracts.json",
-        "component-render-contracts.json"
+        "component-render-contracts.json",
+        "component-palette-contracts.json"
       ],
       "native": "console::CommandIo",
       "remaining": [
-        "通用终端布局SDK尚未闭合：table/code/pre/list/dl/hr、颜色变体、响应式样式、分数宽度、分布对齐、自定义样式仓库及其余Styles入口；HTML4/HTML5任意畸形恢复和实体差异仍需逐项核对，不能由四模板和当前子集测试关闭。",
-        "Factory的Command容器构造/覆盖生命周期、Helper/HelperSet/Time其余SDK及Artisan其他锚点继续；不宣称整章完成。"
+        "终端布局SDK继续：分数宽度、分布对齐、font-normal及其余Styles变换、table/code/pre/list/dl/hr专用渲染、自定义样式/颜色仓库；通用HTML4/HTML5恢复与实体差异仍待核对。固定预设颜色与现有样式的五断点解析已验，不重复开发。",
+        "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
       ]
     },
     {
@@ -540,48 +541,56 @@
     "status": "verified_typed_factory_and_command_io_original_style_binding",
     "contract": "factory-typed-contracts.json",
     "remaining": [
-      "通用终端布局SDK尚未闭合：table/code/pre/list/dl/hr、颜色变体、响应式样式、分数宽度、分布对齐、自定义样式仓库及其余Styles入口；HTML4/HTML5任意畸形恢复和实体差异仍需逐项核对，不能由四模板和当前子集测试关闭。",
-      "Factory的Command容器构造/覆盖生命周期、Helper/HelperSet/Time其余SDK及Artisan其他锚点继续；不宣称整章完成。"
+      "终端布局SDK继续：分数宽度、分布对齐、font-normal及其余Styles变换、table/code/pre/list/dl/hr专用渲染、自定义样式/颜色仓库；通用HTML4/HTML5恢复与实体差异仍待核对。固定预设颜色与现有样式的五断点解析已验，不重复开发。",
+      "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
     ]
   },
   "dynamic_component_factory": {
     "status": "verified_builtin_dynamic_factory_dispatch_native_parameters",
     "contract": "factory-dispatch-contracts.json",
     "remaining": [
-      "通用终端布局SDK尚未闭合：table/code/pre/list/dl/hr、颜色变体、响应式样式、分数宽度、分布对齐、自定义样式仓库及其余Styles入口；HTML4/HTML5任意畸形恢复和实体差异仍需逐项核对，不能由四模板和当前子集测试关闭。",
-      "Factory的Command容器构造/覆盖生命周期、Helper/HelperSet/Time其余SDK及Artisan其他锚点继续；不宣称整章完成。"
+      "终端布局SDK继续：分数宽度、分布对齐、font-normal及其余Styles变换、table/code/pre/list/dl/hr专用渲染、自定义样式/颜色仓库；通用HTML4/HTML5恢复与实体差异仍待核对。固定预设颜色与现有样式的五断点解析已验，不重复开发。",
+      "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
     ]
   },
   "custom_component_factory": {
     "status": "verified_compiled_custom_component_construction_registry_and_application_ownership",
     "contract": "factory-registry-contracts.json",
     "remaining": [
-      "通用终端布局SDK尚未闭合：table/code/pre/list/dl/hr、颜色变体、响应式样式、分数宽度、分布对齐、自定义样式仓库及其余Styles入口；HTML4/HTML5任意畸形恢复和实体差异仍需逐项核对，不能由四模板和当前子集测试关闭。",
-      "Factory的Command容器构造/覆盖生命周期、Helper/HelperSet/Time其余SDK及Artisan其他锚点继续；不宣称整章完成。"
+      "终端布局SDK继续：分数宽度、分布对齐、font-normal及其余Styles变换、table/code/pre/list/dl/hr专用渲染、自定义样式/颜色仓库；通用HTML4/HTML5恢复与实体差异仍待核对。固定预设颜色与现有样式的五断点解析已验，不重复开发。",
+      "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
     ]
   },
   "component_core": {
     "status": "verified_component_owned_construction_mutate_and_question_scope",
     "contract": "component-core-contracts.json",
     "remaining": [
-      "通用终端布局SDK尚未闭合：table/code/pre/list/dl/hr、颜色变体、响应式样式、分数宽度、分布对齐、自定义样式仓库及其余Styles入口；HTML4/HTML5任意畸形恢复和实体差异仍需逐项核对，不能由四模板和当前子集测试关闭。",
-      "Factory的Command容器构造/覆盖生命周期、Helper/HelperSet/Time其余SDK及Artisan其他锚点继续；不宣称整章完成。"
+      "终端布局SDK继续：分数宽度、分布对齐、font-normal及其余Styles变换、table/code/pre/list/dl/hr专用渲染、自定义样式/颜色仓库；通用HTML4/HTML5恢复与实体差异仍待核对。固定预设颜色与现有样式的五断点解析已验，不重复开发。",
+      "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
     ]
   },
   "component_compile": {
     "status": "verified_owned_component_compile_four_embedded_templates_and_per_instance_override",
     "contract": "component-compile-contracts.json",
     "remaining": [
-      "通用终端布局SDK尚未闭合：table/code/pre/list/dl/hr、颜色变体、响应式样式、分数宽度、分布对齐、自定义样式仓库及其余Styles入口；HTML4/HTML5任意畸形恢复和实体差异仍需逐项核对，不能由四模板和当前子集测试关闭。",
-      "Factory的Command容器构造/覆盖生命周期、Helper/HelperSet/Time其余SDK及Artisan其他锚点继续；不宣称整章完成。"
+      "终端布局SDK继续：分数宽度、分布对齐、font-normal及其余Styles变换、table/code/pre/list/dl/hr专用渲染、自定义样式/颜色仓库；通用HTML4/HTML5恢复与实体差异仍待核对。固定预设颜色与现有样式的五断点解析已验，不重复开发。",
+      "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
     ]
   },
   "component_render": {
     "status": "partial_render_view_dispatch_default_catalog_and_listed_markup_styles_verified_terminal_sdk_pending",
     "contract": "component-render-contracts.json",
     "remaining": [
-      "通用终端布局SDK尚未闭合：table/code/pre/list/dl/hr、颜色变体、响应式样式、分数宽度、分布对齐、自定义样式仓库及其余Styles入口；HTML4/HTML5任意畸形恢复和实体差异仍需逐项核对，不能由四模板和当前子集测试关闭。",
-      "Factory的Command容器构造/覆盖生命周期、Helper/HelperSet/Time其余SDK及Artisan其他锚点继续；不宣称整章完成。"
+      "终端布局SDK继续：分数宽度、分布对齐、font-normal及其余Styles变换、table/code/pre/list/dl/hr专用渲染、自定义样式/颜色仓库；通用HTML4/HTML5恢复与实体差异仍待核对。固定预设颜色与现有样式的五断点解析已验，不重复开发。",
+      "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
+    ]
+  },
+  "component_palette": {
+    "status": "verified_preset_palette_and_responsive_existing_styles_terminal_sdk_partial",
+    "contract": "component-palette-contracts.json",
+    "remaining": [
+      "终端布局SDK继续：分数宽度、分布对齐、font-normal及其余Styles变换、table/code/pre/list/dl/hr专用渲染、自定义样式/颜色仓库；通用HTML4/HTML5恢复与实体差异仍待核对。固定预设颜色与现有样式的五断点解析已验，不重复开发。",
+      "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
     ]
   }
 }

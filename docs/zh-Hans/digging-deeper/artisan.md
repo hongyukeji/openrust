@@ -2033,8 +2033,44 @@ fn register_component_rendering() -> Result<(), ConsoleError> {
 }
 ```
 
-默认渲染器复用 HTML 解析器和现有输出格式器，支持四个内置模板、行内／块级／弹性布局、边距、内距、固定／完整宽度、最小／最大宽度、对齐与大小写、基本具名颜色、粗体／斜体／下划线／删除线、链接及弹性重复填充。它还不是完整的终端 HTML/CSS 引擎：表格／代码／预格式／列表渲染、颜色变体、响应式类、分数宽度、分布对齐和自定义样式仓库仍未支持。未支持的样式返回错误，不会静默丢弃布局。宽度和填充有安全上限，嵌套上限为 256 层。
+默认渲染器复用 HTML 解析器和现有输出格式器，支持四个内置模板、行内／块级／弹性布局、边距、内距、固定／完整宽度、最小／最大宽度、对齐与大小写、固定预设颜色及色阶、粗体／斜体／下划线／删除线、链接及弹性重复填充。它还不是完整的终端 HTML/CSS 引擎：表格／代码／预格式／列表渲染、分数宽度、分布对齐和自定义样式仓库仍未支持。未支持的样式返回错误，不会静默丢弃布局。宽度和填充有安全上限，嵌套上限为 256 层。
 
 `ComponentViewRenderer` 收到实际编译结果、`OutputOptions` 和原 `ComponentContext`。通过 `set_view_renderer(Some(Box::new(renderer)))` 安装组件拥有的渲染器，可保留实例状态、委托 `BuiltinComponentViewRenderer` 或返回错误；`set_view_renderer(None)` 恢复默认。自定义编译结果也沿同一路径，不按内置视图名称替换 HTML，不切换全局终端输出。编译失败不会调用渲染器；渲染失败保留已经发生的写入并向调用者传播。
 
 后端按 HTML5 解析。任意畸形标记的恢复行为及 HTML4 特有兼容性尚未因内置模板测试而闭合。显式 `strong`、`italic`、`underline`、`line-through` 和 `invisible` 样式直接生成终端转义序列，在 Raw 输出或关闭装饰时也会保留；`font-bold` 则使用输出格式器。
+
+### 组件颜色与断点 {#component-color-breakpoints}
+
+终端渲染器支持固定预设调色板，包括 `text-amber-200`、`bg-slate-900`、基本颜色及 `text-brightgreen` 等亮色名称。名称与色阶按固定集合提供，不接受任意 CSS 颜色表达式。无效颜色在布局写入前返回错误。下面的 Raw 模式用于检查生成的格式器标签。
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, OutputFormat,
+    view::components::{BuiltinComponentViewCompiler, Component, ComponentContext, ComponentViewCompiler}};
+use openrust::support::facades::Artisan;
+use serde_json::{Value, json};
+struct PaletteCompiler;
+impl ComponentViewCompiler for PaletteCompiler {
+    fn compile(&mut self, view: &str, data: Value, output: &mut ComponentContext<'_>) -> Result<String, ConsoleError> {
+        if view == "palette" {
+            return Ok("<span class='bg-slate-900 text-amber-200 px-1 sm:px-2'>Palette</span>".into());
+        }
+        BuiltinComponentViewCompiler::new().compile(view, data, output)
+    }
+}
+fn register_component_colors() -> Result<(), ConsoleError> {
+    Artisan::command_with("components:colors", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let mut component = Component::new(output);
+            component.set_view_compiler(Some(Box::new(PaletteCompiler)));
+            component.render_view("palette", json!({}))?;
+            component.render_view_with("palette", json!({}), OutputFormat::Raw)?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+响应式前缀按终端列宽启用：`sm:64`、`md:76`、`lg:102`、`xl:128`、`2xl:153`。先应用无前缀类，再按断点升序应用已激活的前缀；未激活的前缀不解析对应样式，因此其中的未知样式不会触发错误。这里使用终端列，不是浏览器像素。
+
+类名拆分保留方括号内的空白，例如 `content-repeat-[. ]`；不换行空格不是类名分隔符。原始类名会保留：带前缀的 `sm:flex-1` 不会生成用于判定弹性增长的无前缀 `flex-1` 标记。自定义样式仓库及其他待补的布局功能仍不属于当前支持子集。

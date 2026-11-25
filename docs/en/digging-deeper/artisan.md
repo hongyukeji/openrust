@@ -2033,8 +2033,44 @@ fn register_component_rendering() -> Result<(), ConsoleError> {
 }
 ```
 
-The default renderer uses an HTML parser and the existing output formatter. It supports the four built-in templates, inline/block/flex layout, margins, padding, fixed/full width, minimum/maximum width, text alignment and case, basic named colors, bold/italic/underline/strikethrough, links and repeated flex content. This is not a complete terminal HTML/CSS engine: table/code/pre/list renderers, color variants, responsive classes, fractional widths, justification and custom style repositories remain unsupported. Unsupported styles return errors rather than silently dropping layout. Width and padding are bounded, and nesting is limited to 256 levels.
+The default renderer uses an HTML parser and the existing output formatter. It supports the four built-in templates, inline/block/flex layout, margins, padding, fixed/full width, minimum/maximum width, text alignment and case, preset colors and color variants, bold/italic/underline/strikethrough, links and repeated flex content. This is not a complete terminal HTML/CSS engine: table/code/pre/list renderers, fractional widths, justification and custom style repositories remain unsupported. Unsupported styles return errors rather than silently dropping layout. Width and padding are bounded, and nesting is limited to 256 levels.
 
 A `ComponentViewRenderer` receives the actual compiled HTML, `OutputOptions` and the original `ComponentContext`. Install an owned renderer with `set_view_renderer(Some(Box::new(renderer)))`; it may maintain per-instance state, delegate to `BuiltinComponentViewRenderer`, or return errors. `set_view_renderer(None)` restores the default. A custom compiler's markup follows this same path; it is not replaced by a lookup of the built-in view name. Rendering does not change a global terminal output. Compile failures do not invoke the renderer; rendering failures preserve writes already performed and propagate to the caller.
 
 The backend parses HTML5. General malformed-markup recovery and HTML4-only compatibility have not been closed by the built-in template tests. Explicit `strong`, `italic`, `underline`, `line-through` and `invisible` styles emit terminal escape sequences, including with Raw output or decoration disabled; `font-bold` uses the output formatter instead.
+
+### Component colors and breakpoints {#component-color-breakpoints}
+
+The terminal renderer supports its preset palette, including `text-amber-200`, `bg-slate-900`, basic colors and bright names such as `text-brightgreen`. This palette has fixed names and shades; it does not accept every CSS color expression. Invalid colors return errors before writing the rendered layout. Raw mode below lets you inspect the generated formatter tags.
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, OutputFormat,
+    view::components::{BuiltinComponentViewCompiler, Component, ComponentContext, ComponentViewCompiler}};
+use openrust::support::facades::Artisan;
+use serde_json::{Value, json};
+struct PaletteCompiler;
+impl ComponentViewCompiler for PaletteCompiler {
+    fn compile(&mut self, view: &str, data: Value, output: &mut ComponentContext<'_>) -> Result<String, ConsoleError> {
+        if view == "palette" {
+            return Ok("<span class='bg-slate-900 text-amber-200 px-1 sm:px-2'>Palette</span>".into());
+        }
+        BuiltinComponentViewCompiler::new().compile(view, data, output)
+    }
+}
+fn register_component_colors() -> Result<(), ConsoleError> {
+    Artisan::command_with("components:colors", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let mut component = Component::new(output);
+            component.set_view_compiler(Some(Box::new(PaletteCompiler)));
+            component.render_view("palette", json!({}))?;
+            component.render_view_with("palette", json!({}), OutputFormat::Raw)?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+Responsive prefixes activate at terminal widths `sm:64`, `md:76`, `lg:102`, `xl:128` and `2xl:153`. Unprefixed classes apply first, followed by active prefixes in ascending breakpoint order. An inactive prefix does not resolve its style, so an inactive unknown style does not raise an error. Widths refer to terminal columns, not browser pixels.
+
+Class separation respects whitespace inside square brackets, for example `content-repeat-[. ]`; a nonbreaking space is not a class separator. Original class names are retained: a prefixed `sm:flex-1` does not create the unprefixed `flex-1` marker used to determine flexible growth. Custom style repositories and the remaining layout features are still outside the supported subset.

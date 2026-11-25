@@ -302,6 +302,9 @@ async fn formal_progress_example(){
     render_code=re.search(r'```rust\n(.*?)```',text.split('{#component-markup-rendering}',1)[1],re.S).group(1)
     render_checks='use openrust::console::Output;\n'+progress_checks.replace('formal_progress_example','formal_component_rendering_example').replace('register_progress)', 'register_component_rendering)').replace('"reports:progress"','"components:render"').replace('assert!(output.stdout.contains("CSV,JSON,HTML:11"));assert_eq!(output.stdout.matches("100%").count(),2);assert!(output.stdout.contains("build"));','assert!(output.stdout.contains("INFO"));assert!(output.stdout.contains("Rendered <report>"));assert!(output.stdout.contains("⇂ First"));assert!(!output.stdout.contains("<div"));')
     parts.append('mod '+locale.replace('-','_').lower()+'_component_rendering{\n'+render_code+render_checks+'}\n')
+    palette_code=re.search(r'```rust\n(.*?)```',text.split('{#component-color-breakpoints}',1)[1],re.S).group(1)
+    palette_checks='use openrust::console::Output;\n'+progress_checks.replace('formal_progress_example','formal_component_colors_example').replace('register_progress)', 'register_component_colors)').replace('"reports:progress"','"components:colors"').replace('assert!(output.stdout.contains("CSV,JSON,HTML:11"));assert_eq!(output.stdout.matches("100%").count(),2);assert!(output.stdout.contains("build"));','assert!(output.stdout.contains("Palette"));assert!(output.stdout.contains("<bg=#0f172a;fg=#fde68a>"));')
+    parts.append('mod '+locale.replace('-','_').lower()+'_component_colors{\n'+palette_code+palette_checks+'}\n')
 
 
 

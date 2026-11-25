@@ -1,0 +1,44 @@
+{
+  "source_base": "1b8a95265c42f5967c9beee5cef049fe33c70666",
+  "contract": "component-palette-contracts.json",
+  "gates": [
+    "target/tmp/artisan-tutorial-20261125/component-palette-gates-final.log",
+    "target/tmp/artisan-tutorial-20261125/component-palette-gates-zero.log",
+    "target/tmp/artisan-tutorial-20261125/component-palette-site.log"
+  ],
+  "tests_before_zero": [
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.43s",
+    "test result: ok. 6 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.22s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 1.50s",
+    "test result: ok. 159 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.61s"
+  ],
+  "final_delta_tests": [
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.43s",
+    "test result: ok. 6 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.22s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 1.43s"
+  ],
+  "runtime": {
+    "real_artisan_processes": 4,
+    "real_http_requests": 15,
+    "isolated_http_width": 80,
+    "formal_document_consumers": 159,
+    "browser_checks": 12
+  },
+  "source_oracle": {
+    "component-palette-oracle.json": 2288,
+    "errors": 72,
+    "output_modes": [
+      "Ansi4_full_palette",
+      "Ansi8_representatives",
+      "Ansi24_representatives",
+      "Raw_and_formatted",
+      "decorated_and_undecorated"
+    ]
+  },
+  "failed_gate_not_counted": "component-palette-gates.log: nonminimal_bool fixed without lint exemptions",
+  "remaining": [
+    "终端布局SDK继续：分数宽度、分布对齐、font-normal及其余Styles变换、table/code/pre/list/dl/hr专用渲染、自定义样式/颜色仓库；通用HTML4/HTML5恢复与实体差异仍待核对。固定预设颜色与现有样式的五断点解析已验，不重复开发。",
+    "Factory的Command容器构造/覆盖、Helper/HelperSet/Time其余继承与Artisan剩余锚点仍开放。"
+  ],
+  "pushed": false
+}

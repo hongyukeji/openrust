@@ -741,3 +741,16 @@ Component::compile/set_view_compiler、正式ComponentViewCompiler/BuiltinCompon
 本批曾触32GB停线，首次守卫因瞬时进程归属未知保持产物；该进程结束后重新取得锁，安全清理释放65,077,530,624字节，可用恢复96,785,072,128字节，随后继续原验收，停线退出75不计通过。保留源码/WIP/日志/下载/数据库/锁inode，临时Source容器均--rm，无服务/数据库变更，无新增独立二进制；热缓存按规则保留。命令和日志见accepted-component-render.json与target/tmp/artisan-tutorial-20261125/component-render-*。
 
 本簇不是完整终端HTML/CSS SDK闭合。专用表格/代码/预格式/列表/dl/hr、颜色变体、响应式与分数宽、分布对齐、样式仓库及其余Styles继续逐项实现和消费者验收；Factory容器构造/覆盖、Helper/HelperSet/Time其余继承和Artisan其他锚点仍开放。只本地提交，不推送，保留全部其他在途改动。
+
+
+## 52. 组件预设颜色、响应式排序与原类名词法（2026-11-26）
+
+前簇51已提交1b8a95265c42f5967c9beee5cef049fe33c70666，未推送。本簇沿同一Component::render_view/render_view_with与正式ComponentViewCompiler消费，不创建平行输出/渲染API。私有palette移植固定Termwind2.3.3的237颜色事实值，复用input_scalars、Str::upper和已有Ansi4/8/24格式器，补text/bg色阶、亮色名及源数值别名。无新依赖、环境配置、命令/事件或序列化格式变更；旧v0.x无对应控制台管线可复用，原MIT许可继续保留。
+
+StyleToMethod的媒体排序和正则分隔逐项源核对：基础类先于媒体、断点sm64/md76/lg102/xl128/2xl153依次应用；未激活样式不解析，未知样式因此不会在未激活时失败。分隔器以反向单次扫描实现源负前瞻的方括号/ASCII空白含义，不用通用split_whitespace误拆重复内容或把NBSP当分隔符。保留原类名，不能把sm:flex-1标准化成flex-1并改变源hasStyle判定。裸类0经源array_filter过滤，但激活的sm:0仍StyleNotFound；sm:空方法忽略。调色板错误、0/前导零/小数/指数/Unicode大小写及额外参数均实际对照，未为了更合理而擅改源可观察行为。
+
+真实源2288场景全部逐行核对输出/错误，含所有预设颜色的text/bg、Raw/装饰开关、8/24模式代表、全部断点两侧、反序与同断点排序、空/0/未知/括号空白和原flex标记。真实Artisan4子进程覆盖色阶、错误1、未激活未知样式和已激活断点；固定COLUMNS80的独立HTTP进程15次请求验证错误500后恢复、响应式/未激活输出和12并发颜色请求。根正式三语示例直接提取159消费者全部执行，原默认渲染914场景/显示组件外围回归通过，3目标12父消费者通过。忽略项为父进程明确调用的驱动，不计额外功能通过。三语站点、12手机/桌面组合、workspace/all-targets严格Clippy和全workspace格式通过。
+
+初次严格Clippy发现词法条件可简化，按建议改布尔式且无allow，完整门禁复验；新增裸0边界后再跑全部受影响三目标与严格门禁。159文档消费者在component-palette-gates-final.log中通过，后续差异仅私有裸0过滤及其16来源场景；正式示例未变。日志和最终源码SHA记录见accepted-component-palette.json。使用既有独占热缓存、项目内TMPDIR，无独立发布二进制/数据库/持久服务；所有Source容器--rm，文档服务器/浏览器及HTTP子驱动正常退出，未开启新大型冷缓存。
+
+颜色和现有类的响应式子集完成不关闭终端布局SDK。分数宽度/分布对齐/其他Styles、table/code/pre/list/dl/hr专用渲染、自定义样式及颜色仓库、通用HTML恢复继续；自定义仓库需在媒体过滤前按原名查找，这是下一实现不能遗漏的源时机。Factory容器覆盖及Helper/HelperSet/Time等继续。只本地提交、不推送，保留其他协作者在途差异。
