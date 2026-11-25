@@ -352,7 +352,7 @@ impl Helper {
                     Some(ViewValue::String(locale)) => Some(locale.as_str()),
                     _ => return Err(render_error("翻译语言必须是字符串或 null。")),
                 };
-                crate::translation::Lang::has_for_locale(key, locale)
+                crate::localization::Lang::has_for_locale(key, locale)
                     .map(ViewValue::Bool)
                     .map_err(|source| super::ViewError::RenderFailed(Box::new(source)))
             }

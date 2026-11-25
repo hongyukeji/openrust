@@ -1,4 +1,4 @@
-use openrust::translation::{MessageSelector, TranslationError};
+use openrust::localization::{MessageSelector, TranslationError};
 
 #[test]
 fn choice_applies_ranges_then_locale_rules_and_preserves_exact_integers() {
@@ -39,9 +39,9 @@ fn choice_applies_ranges_then_locale_rules_and_preserves_exact_integers() {
 
 #[tokio::test]
 async fn translator_uses_replaced_selector_and_exposes_its_real_loader() {
-    use openrust::contracts::translation::Loader as _;
-    use openrust::translation::{
-        FileLoader, Line, PluralCount, Selector, TranslationResult, Translator,
+    use openrust::contracts::localization::Loader as _;
+    use openrust::localization::{
+        FileLoader, Line, Localizer, PluralCount, Selector, TranslationResult,
     };
     use std::{collections::BTreeMap, sync::Arc};
 
@@ -66,41 +66,41 @@ async fn translator_uses_replaced_selector_and_exposes_its_real_loader() {
         r#"{"name":"loaded"}"#,
     )
     .unwrap();
-    let translator = Translator::new(
+    let localizer = Localizer::new(
         FileLoader::new(resources.path().to_owned()),
         "en".into(),
         "en".into(),
     )
     .unwrap();
-    translator
+    localizer
         .add_lines(
             BTreeMap::from([("messages.items".into(), Line::Text("one|many".into()))]),
             "en",
             None,
         )
         .unwrap();
-    let loader = translator.get_loader();
-    assert!(Arc::ptr_eq(&loader, &translator.get_loader()));
+    let loader = localizer.get_loader();
+    assert!(Arc::ptr_eq(&loader, &localizer.get_loader()));
     assert_eq!(
         loader.load("en", "file", None).await.unwrap().get("name"),
         Some(&Line::Text("loaded".into()))
     );
     assert_eq!(
-        translator
+        localizer
             .string("file.name", &BTreeMap::new(), None)
             .unwrap(),
         "loaded"
     );
-    let original = translator.get_selector();
+    let original = localizer.get_selector();
     assert_eq!(
-        translator
+        localizer
             .choose("messages.items", 2_i64, &BTreeMap::new(), None)
             .unwrap(),
         "many"
     );
-    translator.set_selector(Custom);
+    localizer.set_selector(Custom);
     assert_eq!(
-        translator
+        localizer
             .choose("messages.items", 2_i64, &BTreeMap::new(), None)
             .unwrap(),
         "2 selected"
@@ -109,9 +109,9 @@ async fn translator_uses_replaced_selector_and_exposes_its_real_loader() {
         original.choose("one|many", 2_i64.into(), "en").unwrap(),
         "many"
     );
-    translator.set_selector(MessageSelector);
+    localizer.set_selector(MessageSelector);
     assert_eq!(
-        translator
+        localizer
             .choose("messages.items", 2_i64, &BTreeMap::new(), None)
             .unwrap(),
         "many"

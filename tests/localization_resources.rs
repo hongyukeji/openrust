@@ -1,7 +1,7 @@
 //! 正式资源必须逐语言精确加载，不能靠英语回退掩盖缺项。
 use openrust::{
     contracts::validation::{Factory as _, Validator as _},
-    translation::{FileLoader, Translator},
+    localization::{FileLoader, Localizer},
     validation::{Data, RuleSet},
 };
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
@@ -10,7 +10,8 @@ const LOCALES: &[&str] = &[
     "vi", "th", "tr", "nl",
 ];
 fn root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("vendor/openrust/framework/src/translation/lang")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("vendor/openrust/framework/src/localization/lang")
 }
 fn leaves(value: &serde_json::Value, prefix: &str, out: &mut Vec<String>) {
     for (key, value) in value.as_object().unwrap() {
@@ -29,8 +30,8 @@ fn leaves(value: &serde_json::Value, prefix: &str, out: &mut Vec<String>) {
 #[tokio::test]
 async fn eighteen_catalogs_load_exactly_and_validation_consumes_the_active_translation() {
     for locale in LOCALES {
-        let translator = Arc::new(
-            Translator::new(FileLoader::new(root()), (*locale).into(), "en".into()).unwrap(),
+        let localizer = Arc::new(
+            Localizer::new(FileLoader::new(root()), (*locale).into(), "en".into()).unwrap(),
         );
         for group in [
             "welcome",
@@ -49,12 +50,12 @@ async fn eighteen_catalogs_load_exactly_and_validation_consumes_the_active_trans
             leaves(&value, group, &mut keys);
             for key in keys {
                 assert!(
-                    translator.has_for_locale(&key, Some(locale)).unwrap(),
+                    localizer.has_for_locale(&key, Some(locale)).unwrap(),
                     "{locale}: {key}"
                 );
             }
         }
-        let factory = openrust::validation::Factory::new(translator.clone());
+        let factory = openrust::validation::Factory::new(localizer.clone());
         let mut validator = factory
             .make(
                 Data::new(serde_json::json!({})).unwrap(),
@@ -64,7 +65,7 @@ async fn eighteen_catalogs_load_exactly_and_validation_consumes_the_active_trans
             )
             .unwrap();
         assert!(validator.validate().await.is_err());
-        let expected = translator
+        let expected = localizer
             .string(
                 "validation.required",
                 &BTreeMap::from([("attribute".into(), "email".into())]),
@@ -83,7 +84,7 @@ async fn eighteen_catalogs_load_exactly_and_validation_consumes_the_active_trans
             "All rights reserved.",
         ] {
             assert!(
-                translator.has_for_locale(key, Some(locale)).unwrap(),
+                localizer.has_for_locale(key, Some(locale)).unwrap(),
                 "{locale}: {key}"
             );
         }
@@ -139,7 +140,7 @@ async fn eighteen_notification_messages_render_to_local_capture_and_restore_loca
 
 #[test]
 fn eighteen_number_locales_and_fixed_plural_rules_are_supported() {
-    use openrust::{support::Number, translation::MessageSelector};
+    use openrust::{localization::MessageSelector, support::Number};
     let counts = [0.0, 1.0, 2.0, 3.0, 5.0, 11.0, 21.0, 1.5];
     for locale in LOCALES {
         let mut number = Number::default();
@@ -190,7 +191,7 @@ fn eighteen_number_locales_and_fixed_plural_rules_are_supported() {
 #[tokio::test]
 async fn application_keys_override_embedded_defaults_without_replacing_the_group() {
     use openrust::contracts::{
-        container::Container as _, foundation::Application as _, translation::Loader as _,
+        container::Container as _, foundation::Application as _, localization::Loader as _,
     };
     struct Directory(PathBuf);
     impl Directory {
@@ -224,26 +225,23 @@ async fn application_keys_override_embedded_defaults_without_replacing_the_group
         .create()
         .unwrap();
     app.boot().await.unwrap();
-    let loader = app
-        .container()
-        .get::<FileLoader>("translation.loader")
-        .unwrap();
+    let loader = app.container().make::<FileLoader>().unwrap();
     let values = loader.load("fr", "validation", None).await.unwrap();
-    let defaults: openrust::translation::Lines =
+    let defaults: openrust::localization::Lines =
         serde_json::from_slice(&std::fs::read(root().join("fr/validation.json")).unwrap()).unwrap();
     assert_eq!(
         values["required"],
-        openrust::translation::Line::Text("personnalisé :attribute".into())
+        openrust::localization::Line::Text("personnalisé :attribute".into())
     );
-    let openrust::translation::Line::Group(minimum) = &values["min"] else {
+    let openrust::localization::Line::Group(minimum) = &values["min"] else {
         panic!("min应保持分组");
     };
-    let openrust::translation::Line::Group(default_minimum) = &defaults["min"] else {
+    let openrust::localization::Line::Group(default_minimum) = &defaults["min"] else {
         panic!("默认min应保持分组");
     };
     assert_eq!(
         minimum["string"],
-        openrust::translation::Line::Text("personnalisé :min".into())
+        openrust::localization::Line::Text("personnalisé :min".into())
     );
     assert_eq!(minimum["numeric"], default_minimum["numeric"]);
     assert_eq!(values["email"], defaults["email"]);
@@ -258,16 +256,16 @@ async fn application_keys_override_embedded_defaults_without_replacing_the_group
     let sentences = loader.load("fr", "*", Some("*")).await.unwrap();
     assert_eq!(
         sentences["Hello!"],
-        openrust::translation::Line::Text("Bonjour personnalisé".into())
+        openrust::localization::Line::Text("Bonjour personnalisé".into())
     );
     assert!(sentences.contains_key("All rights reserved."));
     assert_eq!(
         sentences["Only extra"],
-        openrust::translation::Line::Text("extra".into())
+        openrust::localization::Line::Text("extra".into())
     );
     assert_ne!(
         sentences["Reset Password"],
-        openrust::translation::Line::Text("extra".into())
+        openrust::localization::Line::Text("extra".into())
     );
     assert!(
         loader

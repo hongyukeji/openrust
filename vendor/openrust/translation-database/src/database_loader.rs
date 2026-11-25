@@ -5,9 +5,9 @@ use std::{
 };
 
 use openrust::{
-    contracts::translation::Loader,
+    contracts::localization::Loader,
     database::{Connection, Value},
-    translation::{
+    localization::{
         Line, Lines, TranslationError, TranslationFuture, TranslationResult, canonical_locale,
     },
 };
@@ -18,12 +18,12 @@ use openrust::{
 /// mapping canonical locales to strings. Package namespaces use the file source.
 ///
 /// ```no_run
-/// use openrust::{database::Connection, translation::{Translator, TranslationResource, TranslationResult}};
+/// use openrust::{database::Connection, localization::{Localizer, TranslationResource, TranslationResult}};
 /// use openrust_translation_database::DatabaseLoader;
 ///
-/// async fn publish(connection: Connection, translator: &Translator) -> TranslationResult<()> {
+/// async fn publish(connection: Connection, localizer: &Localizer) -> TranslationResult<()> {
 ///     let loader = DatabaseLoader::new(connection).with_table("language_lines")?;
-///     translator.load_from(&loader, &[TranslationResource {
+///     localizer.load_from(&loader, &[TranslationResource {
 ///         locale: "en", group: "messages", namespace: None,
 ///     }]).await
 /// }
@@ -140,7 +140,7 @@ impl Loader for DatabaseLoader {
                 let Some(text) = text.as_object() else {
                     return Err(invalid("Translation text must be a locale map"));
                 };
-                // Locale fallback belongs to the existing Translator, not this source.
+                // Locale fallback belongs to the existing Localizer, not this source.
                 let value = match text.get(&locale) {
                     None | Some(serde_json::Value::Null) => continue,
                     Some(serde_json::Value::String(value)) => Line::Text(value.clone()),

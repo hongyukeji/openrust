@@ -1,20 +1,20 @@
 use std::{any::Any, collections::BTreeMap, future::Future, path::PathBuf};
 
-use crate::{container::ServiceKey, contracts::translation::Loader, support::facades::Facade};
+use crate::{container::ServiceKey, contracts::localization::Loader, support::facades::Facade};
 
 use super::{
-    Line, Lines, MissingTranslation, PluralCount, Replacement, TranslationResource,
-    TranslationResult, Translator,
+    Line, Lines, Localizer, MissingTranslation, PluralCount, Replacement, TranslationResource,
+    TranslationResult,
 };
 
-/// Accesses the translator for the current application.
+/// Accesses the localizer for the current application.
 pub struct Lang;
 
 impl Facade for Lang {
-    type Service = Translator;
+    type Service = Localizer;
 
     fn get_facade_accessor() -> ServiceKey {
-        "translator".into()
+        "lang".into()
     }
 }
 

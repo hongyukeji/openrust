@@ -565,7 +565,7 @@ impl Application {
             Box::new(crate::view::ViewServiceProvider),
             Box::new(super::vite::ViteServiceProvider),
             Box::new(crate::pagination::PaginationServiceProvider),
-            Box::new(crate::translation::TranslationServiceProvider),
+            Box::new(crate::localization::LocalizationServiceProvider),
             Box::new(crate::mail::MailServiceProvider),
             Box::new(crate::notifications::NotificationServiceProvider),
             Box::new(crate::validation::ValidationServiceProvider),

@@ -1,4 +1,4 @@
-use openrust::translation::__;
+use openrust::localization::__;
 // Translated from the framework Fortify 1.43.0 (MIT, Taylor Otwell).
 use openrust::database::{
     DatabaseFuture, DatabaseResult,

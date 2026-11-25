@@ -1,7 +1,7 @@
 use std::{borrow::Cow, collections::BTreeMap, sync::Arc};
 
 use crate::{
-    contracts::validation::Validator as Contract, support::MessageBag, translation::Translator,
+    contracts::validation::Validator as Contract, localization::Localizer, support::MessageBag,
 };
 
 use super::{
@@ -11,7 +11,7 @@ use super::{
 };
 
 /// Rust 使用类型化异常工厂替代运行期异常类名。
-pub type ValidationExceptionFactory = fn(MessageBag, Option<&Translator>) -> ValidationException;
+pub type ValidationExceptionFactory = fn(MessageBag, Option<&Localizer>) -> ValidationException;
 
 type AfterValidation = dyn Fn(&mut Validator) -> ValidationResult<()> + Send + Sync;
 
@@ -66,7 +66,7 @@ pub struct Validator {
     running: bool,
     compilation_error: Option<super::rule_compiler::CompilationError>,
     exception: ValidationExceptionFactory,
-    translator: Option<Arc<Translator>>,
+    localizer: Option<Arc<Localizer>>,
     pub(super) presence: Option<DatabasePresenceVerifier>,
     user_resolver: Option<Arc<super::current_password::UserResolver>>,
     messages: BTreeMap<String, String>,
@@ -86,7 +86,7 @@ impl Validator {
     pub(super) fn new(
         data: Data,
         rules: RuleSet,
-        translator: Option<Arc<Translator>>,
+        localizer: Option<Arc<Localizer>>,
         presence: Option<DatabasePresenceVerifier>,
         messages: BTreeMap<String, String>,
         attributes: BTreeMap<String, String>,
@@ -94,7 +94,7 @@ impl Validator {
         Self::from_shared(
             Arc::new(data),
             rules,
-            translator,
+            localizer,
             presence,
             messages,
             attributes,
@@ -104,7 +104,7 @@ impl Validator {
     pub(super) fn from_shared(
         data: Arc<Data>,
         rules: RuleSet,
-        translator: Option<Arc<Translator>>,
+        localizer: Option<Arc<Localizer>>,
         presence: Option<DatabasePresenceVerifier>,
         messages: BTreeMap<String, String>,
         attributes: BTreeMap<String, String>,
@@ -123,7 +123,7 @@ impl Validator {
             compilation_error,
             exception: ValidationException::localized,
             rules: Arc::new(rules),
-            translator,
+            localizer,
             presence,
             user_resolver: None,
             messages,
@@ -183,7 +183,7 @@ impl Validator {
     pub(super) fn aware_snapshot(&self) -> super::aware_rule::Snapshot {
         super::aware_rule::Snapshot {
             data: self.data.clone(),
-            translator: self.translator.clone(),
+            localizer: self.localizer.clone(),
             messages: self.messages.clone(),
             attributes: self.attributes.clone(),
         }
@@ -309,12 +309,12 @@ impl Validator {
         self
     }
 
-    pub fn get_translator(&self) -> Option<&Arc<Translator>> {
-        self.translator.as_ref()
+    pub fn get_localizer(&self) -> Option<&Arc<Localizer>> {
+        self.localizer.as_ref()
     }
 
-    pub fn set_translator(&mut self, translator: Arc<Translator>) {
-        self.translator = Some(translator);
+    pub fn set_localizer(&mut self, localizer: Arc<Localizer>) {
+        self.localizer = Some(localizer);
         self.invalidate();
     }
 
@@ -1120,7 +1120,7 @@ impl Validator {
             let context = RuleContext {
                 data: &self.data,
                 original_data: None,
-                translator: self.translator.as_deref(),
+                localizer: self.localizer.as_deref(),
                 attribute,
                 messages: &self.messages,
                 attributes: &self.attributes,
@@ -1690,7 +1690,7 @@ impl Validator {
                 let context = RuleContext {
                     data: &self.data,
                     original_data: None,
-                    translator: self.translator.as_deref(),
+                    localizer: self.localizer.as_deref(),
                     attribute,
                     messages: &self.messages,
                     attributes: &self.attributes,
@@ -1821,9 +1821,9 @@ impl Validator {
 
     fn display_attribute(&self, pattern: &str, attribute: &str) -> String {
         let translated = self
-            .translator
+            .localizer
             .as_ref()
-            .map(|translator| super::message_catalog::lines(translator, "validation.attributes"));
+            .map(|localizer| super::message_catalog::lines(localizer, "validation.attributes"));
         for name in [attribute, pattern] {
             if let Some(name) = super::message_catalog::attribute(&self.attributes, name) {
                 return name.into();
@@ -1860,9 +1860,9 @@ impl Validator {
         {
             return value.clone();
         }
-        if let Some(translator) = &self.translator {
+        if let Some(localizer) = &self.localizer {
             let key = format!("validation.values.{field}.{key_value}");
-            if let Ok(text) = translator.string(&key, &Default::default(), None)
+            if let Ok(text) = localizer.string(&key, &Default::default(), None)
                 && text != key
             {
                 return text;
@@ -1927,7 +1927,7 @@ impl Validator {
         {
             return render(message);
         }
-        if let Some(translator) = &self.translator {
+        if let Some(localizer) = &self.localizer {
             if let Some(rule) = rule {
                 let category = rule_key
                     .and_then(|key| key.strip_prefix(rule)?.strip_prefix('.'))
@@ -1935,12 +1935,12 @@ impl Validator {
                         matches!(*category, "numeric" | "array" | "file" | "string")
                     });
                 if let Some(message) =
-                    super::message_catalog::custom(translator, &attribute, rule, category)
+                    super::message_catalog::custom(localizer, &attribute, rule, category)
                 {
                     return render(&message);
                 }
             }
-            if let Ok(message) = translator.string(&failure.message, &Default::default(), None)
+            if let Ok(message) = localizer.string(&failure.message, &Default::default(), None)
                 && message != failure.message
             {
                 return render(&message);
@@ -1980,7 +1980,7 @@ impl Contract for Validator {
         if !self.errors.is_empty() {
             return Err(ValidationError::Invalid(Box::new((self.exception)(
                 self.errors.clone(),
-                self.translator.as_deref(),
+                self.localizer.as_deref(),
             ))));
         }
         self.result.as_ref().ok_or(ValidationError::NotValidated)?;

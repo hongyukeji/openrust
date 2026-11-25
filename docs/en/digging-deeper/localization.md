@@ -1,5 +1,7 @@
 # Localization
 
+Rust applications import `Lang`, `__`, and `trans_choice` from `openrust::localization`. The concrete service and its contract are both named `Localizer`, under `openrust::localization` and `openrust::contracts::localization` respectively. When upgrading older Rust imports, replace `Translator` with `Localizer` and change the container keys `translator` and `translation.loader` to `lang` and `lang.loader`. Resolve the concrete `FileLoader` by type when registering file paths. Application `lang/` directories and template helpers keep their existing syntax.
+
 ## Configuring the Locale
 
 Configure `locale` and `fallback_locale` in `config/app.rs` through the root `.env`:
@@ -39,13 +41,13 @@ fn greeting(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 }
 ```
 
-`App::get_locale` is an alias for `current_locale`; `get_fallback_locale` and `set_fallback_locale` read and update the fallback locale. `set_locale` updates both `app.locale` and the translator, then dispatches `foundation::events::LocaleUpdated` with `locale` and `previous_locale`. Rust event listeners may be asynchronous, so this method requires `.await` and returns failures through `Result`. Request and queue-task changes are isolated; changes during startup become that application's defaults.
+`App::get_locale` is an alias for `current_locale`; `get_fallback_locale` and `set_fallback_locale` read and update the fallback locale. `set_locale` updates both `app.locale` and the localizer, then dispatches `foundation::events::LocaleUpdated` with `locale` and `previous_locale`. Rust event listeners may be asynchronous, so this method requires `.await` and returns failures through `Result`. Request and queue-task changes are isolated; changes during startup become that application's defaults.
 
-Service failures propagate at the step where they occur: configuration is written before the translator is updated, followed by event dispatch. On first resolution, the long-lived translator reads application defaults separately from the current scope configuration, so the first request cannot become the application default. A listener failure keeps the updated configuration and translator until the current lifecycle ends; the error retains its original source. Setting the same locale again still dispatches the event, while changing the fallback locale does not.
+Service failures propagate at the step where they occur: configuration is written before the localizer is updated, followed by event dispatch. On first resolution, the long-lived localizer reads application defaults separately from the current scope configuration, so the first request cannot become the application default. A listener failure keeps the updated configuration and localizer until the current lifecycle ends; the error retains its original source. Setting the same locale again still dispatches the event, while changing the fallback locale does not.
 
 Language identifiers use BCP 47 throughout configuration, APIs, resources, documentation URLs, HTML and HTTP. `set_locale("zh-CN")` keeps `zh-CN`; `is_locale("ZH-cn")` is true and `is_locale("zh-Hans")` is false. Normalization preserves script, region, variants and supported extensions; choosing a translation resource is a separate operation. Old underscore input returns an error.
 
-The `App` facade currently exposes these locale methods; other the framework App methods are not exposed through this facade. Templates use the translation helpers below. `Lang::with_locale` provides a temporary translator-only locale scope without changing application locale configuration.
+The `App` facade currently exposes these locale methods; other the framework App methods are not exposed through this facade. Templates use the translation helpers below. `Lang::with_locale` provides a temporary localizer-only locale scope without changing application locale configuration.
 
 ### Browser Language {#welcome-page-language}
 
@@ -65,7 +67,7 @@ Use [`app.supported_locales`](#available-locales) to restrict or order languages
 
 Candidates are canonicalized as BCP 47. Invalid tags return `TranslationError` and preserve the previous setting; repeated calls use the last successful setting. Pass an empty list with `middleware.set_locale(&[])` to disable detection. The middleware then leaves the locale and response headers untouched and emits no locale update event; the application retains `app.locale` and manual `App::set_locale` calls. For specific routes only, disable global detection and attach `SetLocale::new(&["en", "fr"])?` through existing route or group middleware.
 
-Before dispatching downstream, the middleware calls `App::set_locale`, updating configuration, the translator, and the `LocaleUpdated` event. Listener errors use the existing exception handler and stop downstream dispatch. After downstream processing, including rendered exception responses, it reads the final locale, adds `Content-Language` only when absent, and merges the enabled configured language header (default `Accept-Language`) into `Vary`, preserving existing values and wildcards. Automatic selection never writes a preference or changes other requests, queue jobs, or application defaults. The default route placement follows input transformations and protected Cookie setup; see [Automatic and fixed language](#locale-preference). Earlier responses from CORS preflight, maintenance mode, or request size checks do not pass through locale selection.
+Before dispatching downstream, the middleware calls `App::set_locale`, updating configuration, the localizer, and the `LocaleUpdated` event. Listener errors use the existing exception handler and stop downstream dispatch. After downstream processing, including rendered exception responses, it reads the final locale, adds `Content-Language` only when absent, and merges the enabled configured language header (default `Accept-Language`) into `Vary`, preserving existing values and wildcards. Automatic selection never writes a preference or changes other requests, queue jobs, or application defaults. The default route placement follows input transformations and protected Cookie setup; see [Automatic and fixed language](#locale-preference). Earlier responses from CORS preflight, maintenance mode, or request size checks do not pass through locale selection.
 
 Remove the previous application `SetLocale` file and its `append` registration to avoid duplicate execution. Use the empty-list setting above to disable detection.
 
@@ -73,13 +75,13 @@ The welcome page uses the current application locale for HTML `lang` and `Conten
 
 ### Framework defaults and application overrides {#default-translations}
 
-The 18 default locales live in `vendor/openrust/framework/src/translation/lang/` and are embedded in the binary. The default application keeps editable `en`, `zh-Hans` and `zh-Hant` welcome.json files under `lang/`; other built-in catalogs do not need application copies. Create only the keys you want to override, for example `lang/fr/validation.json`:
+The 18 default locales live in `vendor/openrust/framework/src/localization/lang/` and are embedded in the binary. The default application keeps editable `en`, `zh-Hans` and `zh-Hant` welcome.json files under `lang/`; other built-in catalogs do not need application copies. Create only the keys you want to override, for example `lang/fr/validation.json`:
 
 ```json
 {"required": "Custom message for :attribute", "min": {"string": "At least :min characters"}}
 ```
 
-Grouped resources are merged recursively: these keys win while other French validation messages remain available from the framework. A sentence catalog such as `lang/fr.json` overrides matching top-level sentence keys. Missing keys then follow the configured fallback language. Invalid application JSON remains an error; defaults do not hide broken files. Changing an override requires refreshing an already-loaded translator by restarting persistent processes.
+Grouped resources are merged recursively: these keys win while other French validation messages remain available from the framework. A sentence catalog such as `lang/fr.json` overrides matching top-level sentence keys. Missing keys then follow the configured fallback language. Invalid application JSON remains an error; defaults do not hide broken files. Changing an override requires refreshing an already-loaded localizer by restarting persistent processes.
 
 Framework defaults require neither runtime source files nor publishing. `lang:publish` optionally publishes all bundled groups and sentence catalogs for customization; existing files remain protected unless overwrite is requested. Namespaced package translation rules stay separate.
 
@@ -258,7 +260,7 @@ Read translations directly in templates. The controller only supplies page data:
 
 <code v-pre>{{ ... }}</code> escapes HTML. `@lang('messages.title')` and `@choice('messages.items', $count)` output raw text, as does `{!! __('messages.title') !!}`; use these only with trusted HTML and replacement values. Includes and components inherit the rendering language, and compiled templates resolve translations at render time. The helpers require an active application translation service. Helpers return text or a translation group/list. Use groups and lists in `@foreach` or read an entry with an array offset; directly echoing an array returns an error. Rust callers can use `Lang::array`.
 
-`@lang ... @endlang` renders a translation block, trims surrounding whitespace, and translates the resulting key. Use `@lang(['name' => $name]) ... @endlang` for replacements; output is raw text. Nested blocks share replacement state: starting an inner block replaces the outer replacement array. `__()` and `__(null)` return `null`, which echoes as empty text. `@lang('messages.title', [], null, false)` disables group fallback for that call. For plural translations, `count => null` uses the actual count, while explicit zero and empty strings remain replacements. `trans()` / `trans(null)` would return a translator object, which the template value model does not expose; use `Lang` from Rust instead. Arbitrary PHP functions, facade method calls, and named arguments are not implemented. Argument counts and types are checked explicitly rather than relying on PHP coercion.
+`@lang ... @endlang` renders a translation block, trims surrounding whitespace, and translates the resulting key. Use `@lang(['name' => $name]) ... @endlang` for replacements; output is raw text. Nested blocks share replacement state: starting an inner block replaces the outer replacement array. `__()` and `__(null)` return `null`, which echoes as empty text. `@lang('messages.title', [], null, false)` disables group fallback for that call. For plural translations, `count => null` uses the actual count, while explicit zero and empty strings remain replacements. `trans()` / `trans(null)` would return a localizer object, which the template value model does not expose; use `Lang` from Rust instead. Arbitrary PHP functions, facade method calls, and named arguments are not implemented. Argument counts and types are checked explicitly rather than relying on PHP coercion.
 
 ## Publishing Language Files {#publishing-the-language-files}
 
@@ -286,7 +288,7 @@ use std::path::PathBuf;
 
 use openrust::{
     support::facades::Lang,
-    translation::{Line, TranslationResult},
+    localization::{Line, TranslationResult},
 };
 
 pub fn register_translations(directory: PathBuf) -> TranslationResult<()> {
@@ -306,9 +308,9 @@ Pass a `Loader` to `Lang::load_from` at an async application boundary. Each reso
 
 ```rust
 use openrust::{
-    contracts::translation::Loader,
+    contracts::localization::Loader,
     support::facades::Lang,
-    translation::{TranslationResource, TranslationResult},
+    localization::{TranslationResource, TranslationResult},
 };
 
 pub async fn load_notice(source: &dyn Loader) -> TranslationResult<()> {
@@ -353,7 +355,7 @@ use std::{path::PathBuf, sync::Arc};
 use openrust::{
     database::Connection,
     support::facades::Lang,
-    translation::{FileLoader, TranslationResource, TranslationResult},
+    localization::{FileLoader, TranslationResource, TranslationResult},
 };
 use openrust_translation_database::DatabaseLoader;
 
@@ -377,11 +379,11 @@ pub async fn load_database_translations(
 
 The selected connection's table prefix applies. The table name is an unqualified identifier. The default table is `language_lines`, and the default maximum is 10,000 rows per group. Exceeding the configured limit fails the load without truncating the result.
 
-`with_fallback` loads the same locale/group/namespace from the file source and overlays database entries. Groups and list indexes merge recursively; literal JSON values are replaced as a whole. Empty database strings remain valid overrides. After deleting a row, explicitly reload its resource to restore the file value. The translator retains its configured language fallback; load database resources for both the selected and fallback languages when needed.
+`with_fallback` loads the same locale/group/namespace from the file source and overlays database entries. Groups and list indexes merge recursively; literal JSON values are replaced as a whole. Empty database strings remain valid overrides. After deleting a row, explicitly reload its resource to restore the file value. The localizer retains its configured language fallback; load database resources for both the selected and fallback languages when needed.
 
 `Lang::load_from` publishes all requested groups together. Database, file, or parsing failures leave the previous published catalog available and return an error; missing rows produce an empty database overlay. Reads occur per group; publication atomicity does not provide a transaction spanning all database reads. Reloads are explicit. Applications manage writes, migrations, and refresh timing; the package does not automatically select a source or start background tasks.
 
-Unlike Spatie’s PHP model, this source does not perform locale fallback while reading each row: the translator applies its configured fallback after loading exact locales. This also preserves file translations for the selected locale. A missing table returns an error so a failed explicit reload cannot silently replace a published database catalog with files.
+Unlike Spatie’s PHP model, this source does not perform locale fallback while reading each row: the localizer applies its configured fallback after loading exact locales. This also preserves file translations for the selected locale. A missing table returns an error so a failed explicit reload cannot silently replace a published database catalog with files.
 
 ## Retrieving Translation Strings
 
@@ -392,7 +394,7 @@ Use `__` to retrieve text. Placeholders support `:name`, `:Name` and `:NAME`. Us
 Use `Lang::has(key, locale, true)` to check fallback translations and `Lang::has_for_locale(key, locale)` for an exact locale. Existence checks skip the missing-key handler. Register lookup hooks inside the application scope. The locale callback can reorder grouped lookups. A literal JSON match takes precedence. The missing-key handler can return replacement text, which then receives normal placeholder replacements. Returning `None` keeps the original key.
 
 ```rust
-use openrust::{support::facades::Lang, translation::TranslationResult};
+use openrust::{support::facades::Lang, localization::TranslationResult};
 
 pub fn register_lookup_hooks() -> TranslationResult<()> {
     Lang::determine_locales_using(|locales| {
@@ -426,7 +428,7 @@ For example, define `payments.notice` in `lang/en/payments.json`.
 ```rust
 use openrust::{
     support::facades::Lang,
-    translation::{Replacement, TranslationResult},
+    localization::{Replacement, TranslationResult},
 };
 
 pub struct Amount(pub u32);
@@ -456,7 +458,7 @@ use std::collections::BTreeMap;
 
 use openrust::{
     support::facades::Lang,
-    translation::{TranslationResult, __, trans_choice},
+    localization::{TranslationResult, __, trans_choice},
 };
 
 pub async fn summary(locale: &str) -> TranslationResult<(String, String)> {
@@ -493,7 +495,7 @@ Production confirmations and cancellation messages use the same translation grou
 
 ## Locale contract methods
 
-The Translator contract, concrete translator, and Lang facade expose `get_locale`, `set_locale`, `get_fallback`, and `set_fallback`. Boot-time changes configure application defaults; request/queue changes stay in the current scope. Nested `with_locale` restores its caller’s locale; fallback is set separately. Rust methods use native snake_case names; update older camelCase Rust callers to these methods. Existing template expressions keep their own names.
+The Localizer contract, concrete localizer, and Lang facade expose `get_locale`, `set_locale`, `get_fallback`, and `set_fallback`. Boot-time changes configure application defaults; request/queue changes stay in the current scope. Nested `with_locale` restores its caller’s locale; fallback is set separately. Rust methods use native snake_case names; update older camelCase Rust callers to these methods. Existing template expressions keep their own names.
 
 ## Locale Ownership
 
@@ -520,7 +522,7 @@ Faker keeps native provider keys private; `locale()` and `random_locale()` retur
 
 ## Replacing plural selection
 
-`Translator::get_selector()` returns the active `Arc<dyn Selector>`. Implement `openrust::translation::Selector` and pass the instance to `set_selector` to customize plural branch selection. Its `choose` method receives the untranslated line, `PluralCount`, and resolved locale, and returns `TranslationResult<String>`. Replacement of `:count` and other placeholders happens afterward. Restore the default with `set_selector(MessageSelector)`. `get_loader()` returns the actual shared `Arc<FileLoader>`; previously returned selector and loader handles remain valid.
+`Localizer::get_selector()` returns the active `Arc<dyn Selector>`. Implement `openrust::localization::Selector` and pass the instance to `set_selector` to customize plural branch selection. Its `choose` method receives the untranslated line, `PluralCount`, and resolved locale, and returns `TranslationResult<String>`. Replacement of `:count` and other placeholders happens afterward. Restore the default with `set_selector(MessageSelector)`. `get_loader()` returns the actual shared `Arc<FileLoader>`; previously returned selector and loader handles remain valid.
 
 ## Bundled Language Resources {#bundled-locales}
 

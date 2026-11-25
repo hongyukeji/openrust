@@ -64,7 +64,7 @@ pub type Value = serde_json::Value;
 pub struct RuleContext<'a> {
     pub data: &'a Data,
     pub(crate) original_data: Option<&'a Data>,
-    pub(crate) translator: Option<&'a crate::translation::Translator>,
+    pub(crate) localizer: Option<&'a crate::localization::Localizer>,
     pub(crate) attribute: &'a str,
     pub(crate) messages: &'a std::collections::BTreeMap<String, String>,
     pub(crate) attributes: &'a std::collections::BTreeMap<String, String>,
@@ -102,8 +102,8 @@ impl RuleFailure {
         locale: Option<&str>,
     ) -> Self {
         self.message = context
-            .translator
-            .and_then(|translator| translator.string(&self.message, &replacements, locale).ok())
+            .localizer
+            .and_then(|localizer| localizer.string(&self.message, &replacements, locale).ok())
             .unwrap_or_else(|| validator::replace(&self.message, &replacements));
         // 参数已在翻译阶段替换，最终只处理验证器字段占位符，避免二次展开。
         self.replacements.clear();
@@ -115,14 +115,14 @@ impl RuleFailure {
     pub fn translate_choice(
         mut self,
         context: &RuleContext<'_>,
-        count: impl Into<crate::translation::PluralCount>,
+        count: impl Into<crate::localization::PluralCount>,
         replacements: std::collections::BTreeMap<String, String>,
         locale: Option<&str>,
     ) -> Self {
         self.message = context
-            .translator
-            .and_then(|translator| {
-                translator
+            .localizer
+            .and_then(|localizer| {
+                localizer
                     .choose(&self.message, count, &replacements, locale)
                     .ok()
             })

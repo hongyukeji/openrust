@@ -74,7 +74,7 @@ thread_local! {
     static MISSING_ACTIVE: RefCell<Vec<*const LookupHooks>> = const { RefCell::new(Vec::new()) };
 }
 
-/// Synchronous re-entry by the same translator skips its missing-key callback.
+/// Synchronous re-entry by the same localizer skips its missing-key callback.
 struct MissingGuard(*const LookupHooks);
 
 impl MissingGuard {

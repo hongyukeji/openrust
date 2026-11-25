@@ -322,7 +322,7 @@ async fn template_helpers_preserve_missing_key_hook_context_and_replacements() {
     kernel
         .get_application()
         .container()
-        .get::<openrust::translation::Translator>("translator")
+        .get::<openrust::localization::Localizer>("lang")
         .unwrap()
         .handle_missing_keys_using(|missing| {
             assert_eq!(missing.key, "hook.missing");

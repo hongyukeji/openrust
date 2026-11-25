@@ -5,7 +5,7 @@ use crate::{
         foundation::Application as _,
     },
     events::{Dispatcher, EventContext},
-    translation::{TranslationError, TranslationResult, Translator, canonical_locale},
+    localization::{Localizer, TranslationError, TranslationResult, canonical_locale},
 };
 use std::sync::Arc;
 
@@ -40,7 +40,7 @@ impl Application {
             .set("app.locale", locale.clone().into())
             .map_err(source)?;
         self.container()
-            .get::<Translator>("translator")?
+            .get::<Localizer>("lang")?
             .set_locale(&locale)?;
         let events = self.container().get::<Dispatcher>("events")?;
         events
@@ -63,7 +63,7 @@ impl Application {
             .set("app.fallback_locale", locale.clone().into())
             .map_err(source)?;
         self.container()
-            .get::<Translator>("translator")?
+            .get::<Localizer>("lang")?
             .set_fallback(&locale)
     }
 

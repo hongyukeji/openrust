@@ -271,7 +271,7 @@ impl View {
                 })?;
             let context = crate::support::facades::context_snapshot();
             let url = crate::http::request_context::UrlSnapshot::capture(request);
-            let locale = crate::translation::LocaleSnapshot::capture();
+            let locale = crate::localization::LocaleSnapshot::capture();
             let scope = crate::container::ScopeSnapshot::capture();
             let errors = middleware::shared_errors();
             let (check_sender, mut checks) = tokio::sync::mpsc::channel(1);

@@ -33,9 +33,9 @@ macro_rules! binding_boundary {
 }
 
 binding_boundary!(
-    translation,
-    openrust::translation::TranslationError,
-    openrust::translation::TranslationError::Unavailable
+    localization,
+    openrust::localization::TranslationError,
+    openrust::localization::TranslationError::Unavailable
 );
 binding_boundary!(
     view,
@@ -320,7 +320,7 @@ fn concrete_http_conversions_keep_the_original_source() {
         key: "private-key".into(),
     });
     check(Container::default().make::<String>().unwrap_err());
-    check(openrust::translation::TranslationError::InvalidLocale);
+    check(openrust::localization::TranslationError::InvalidLocale);
     check(openrust::view::ViewError::RenderFailed(Box::new(
         std::io::Error::other("view-source"),
     )));

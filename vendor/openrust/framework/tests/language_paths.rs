@@ -1,9 +1,9 @@
 use openrust::{
     contracts::{container::Container as _, foundation::Application as Contract},
     foundation::Application,
+    localization::Localizer,
     support::{facades::App, lang_path},
     testing::TestApp,
-    translation::Translator,
 };
 use std::{collections::BTreeMap, fs, path::PathBuf};
 
@@ -87,7 +87,7 @@ async fn custom_language_path_connects_loader_publisher_facade_and_package_overr
                             "custom"
                         );
                         assert_eq!(
-                            openrust::translation::__("messages.greeting", &BTreeMap::new())
+                            openrust::localization::__("messages.greeting", &BTreeMap::new())
                                 .unwrap(),
                             "custom"
                         );
@@ -115,9 +115,9 @@ async fn custom_language_path_connects_loader_publisher_facade_and_package_overr
         let command = app.artisan(["path:probe"]).await;
         command.assert_successful();
         assert_eq!(command.stdout, custom.to_string_lossy());
-        let translator = app.app().make::<Translator>().await.unwrap();
+        let localizer = app.app().make::<Localizer>().await.unwrap();
         assert_eq!(
-            translator
+            localizer
                 .string("messages.greeting", &BTreeMap::new(), None)
                 .unwrap(),
             "custom"
@@ -133,7 +133,7 @@ async fn custom_language_path_connects_loader_publisher_facade_and_package_overr
         )
         .unwrap();
         assert_eq!(
-            translator
+            localizer
                 .string("probe::messages.greeting", &BTreeMap::new(), None)
                 .unwrap(),
             "override"

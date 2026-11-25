@@ -6,22 +6,22 @@ mod choice_case;
 mod facade;
 mod file_loader;
 mod locale;
+mod localization_service_provider;
+mod localizer;
 mod lookup;
 mod message_selector;
 mod replacement;
-mod translation_service_provider;
-mod translator;
 
 use std::{collections::BTreeMap, future::Future, pin::Pin};
 
 pub use facade::{__, Lang, trans_choice};
 pub use file_loader::FileLoader;
 pub use locale::canonical_locale;
+pub use localization_service_provider::LocalizationServiceProvider;
+pub use localizer::Localizer;
 pub use lookup::MissingTranslation;
 pub use message_selector::{MessageSelector, PluralCount, Selector};
 pub use replacement::Replacement;
-pub use translation_service_provider::TranslationServiceProvider;
-pub use translator::Translator;
 
 /// Identifies one exact group to load from an asynchronous translation source.
 #[derive(Clone, Copy, Debug)]
@@ -112,7 +112,7 @@ pub(crate) fn language_path(root: &std::path::Path) -> std::path::PathBuf {
     }
 }
 
-pub(crate) use translator::LocaleSnapshot;
+pub(crate) use localizer::LocaleSnapshot;
 
 impl From<crate::contracts::container::BindingResolutionError> for TranslationError {
     fn from(source: crate::contracts::container::BindingResolutionError) -> Self {

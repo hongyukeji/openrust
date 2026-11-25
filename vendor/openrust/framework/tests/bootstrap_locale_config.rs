@@ -1,11 +1,15 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 use openrust::{
-    contracts::{container::Container as _, foundation::Application as _},
+    contracts::{
+        container::Container as _,
+        foundation::Application as _,
+        localization::{Loader, Localizer as LocalizerContract},
+    },
     foundation::Application,
     http::HttpFuture,
+    localization::{FileLoader, Localizer},
     support::{ProviderResult, ServiceProvider, facades::Config},
-    translation::Translator,
 };
 
 struct Settings;
@@ -52,9 +56,28 @@ async fn bootstrap_configuration_survives_register_boot_and_booted_callbacks() {
     assert_eq!(config.get("app.booted").unwrap(), true);
     assert_eq!(app.get_locale().unwrap(), "zh-Hans");
     assert_eq!(app.get_fallback_locale().unwrap(), "en");
-    let translator = app.container().get::<Translator>("translator").unwrap();
-    assert_eq!(translator.get_locale(), "zh-Hans");
-    assert_eq!(translator.get_fallback(), "en");
+    let localizer = app.container().get::<Localizer>("lang").unwrap();
+    let container = app.container();
+    assert!(Arc::ptr_eq(
+        &localizer,
+        &container.make::<Localizer>().unwrap()
+    ));
+    let contract: Arc<dyn LocalizerContract> = localizer.clone();
+    assert!(Arc::ptr_eq(
+        &contract,
+        &container.make::<dyn LocalizerContract>().unwrap()
+    ));
+    let file_loader: Arc<dyn Loader> = container.make::<FileLoader>().unwrap();
+    let named_loader = container.get::<dyn Loader>("lang.loader").unwrap();
+    assert!(Arc::ptr_eq(&named_loader, &file_loader));
+    assert!(Arc::ptr_eq(
+        &named_loader,
+        &container.make::<dyn Loader>().unwrap()
+    ));
+    assert!(!container.has("translator"));
+    assert!(!container.has("translation.loader"));
+    assert_eq!(localizer.get_locale(), "zh-Hans");
+    assert_eq!(localizer.get_fallback(), "en");
 
     // 启动结束后，显式任务作用域仍隔离父对象与译器语言。
     app.container()
@@ -68,12 +91,12 @@ async fn bootstrap_configuration_survives_register_boot_and_booted_callbacks() {
             app.set_locale("en").await.unwrap();
             app.set_fallback_locale("zh-Hant").unwrap();
             assert!(config.get("app.key").is_none());
-            assert_eq!(translator.get_locale(), "en");
-            assert_eq!(translator.get_fallback(), "zh-Hant");
+            assert_eq!(localizer.get_locale(), "en");
+            assert_eq!(localizer.get_fallback(), "zh-Hant");
         })
         .await;
     assert_eq!(config.get("app.key").unwrap(), "k".repeat(32));
     assert_eq!(app.get_locale().unwrap(), "zh-Hans");
-    assert_eq!(translator.get_locale(), "zh-Hans");
-    assert_eq!(translator.get_fallback(), "en");
+    assert_eq!(localizer.get_locale(), "zh-Hans");
+    assert_eq!(localizer.get_fallback(), "en");
 }

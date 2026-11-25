@@ -1,7 +1,7 @@
 use super::Facade;
 use crate::{
     container::ServiceKey, contracts::container::BindingResolutionError, foundation::Application,
-    translation::TranslationResult,
+    localization::TranslationResult,
 };
 
 /// 当前应用入口，复用 Application 与现有请求／任务作用域。

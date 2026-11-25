@@ -192,8 +192,8 @@ impl From<crate::contracts::container::BindingResolutionError> for HttpError {
     }
 }
 
-impl From<crate::translation::TranslationError> for HttpError {
-    fn from(source: crate::translation::TranslationError) -> Self {
+impl From<crate::localization::TranslationError> for HttpError {
+    fn from(source: crate::localization::TranslationError) -> Self {
         Self::Internal {
             source: Box::new(source),
         }

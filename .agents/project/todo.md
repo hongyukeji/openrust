@@ -39,7 +39,7 @@ L01–L22本批实现和实际验收见[审计修复节](audits/laravel-code-aud
   - **验收：** 外部测试驱动经Provider注册，使用原Pay入口执行支付、查询、关闭、退款及回调，明确不支持操作；内置协议正反例继续通过。保持DatabaseNotifications的去重、行锁、业务回调及完成标记在同一事务边界；涉及共享存储的改动按项目三库规则实测。未知驱动、工厂失败重试、具名隔离、替换／旧句柄、配置缓存、HTTP与独立Artisan均需覆盖。
 
 - [ ] **DRV-03 文本机器翻译与七个内置驱动（范围已确认／待实施）**。命名、分批迁移及验收见[本地化与文本翻译拆分计划](plans/localization-and-text-translation.md)。
-  - **需求与现状：** 接收原文与目标语言，返回翻译后的文本；源语言显式指定或按服务商能力自动识别。现有[translation模块](../../vendor/openrust/framework/src/translation/mod.rs)负责语言资源查询、替换及复数选择，[Loader](../../vendor/openrust/framework/src/contracts/translation/loader.rs)负责词条来源，不能据此认定已有机器翻译能力；本次源码核对未确认可直接承担该需求的公开模块及驱动入口。
+  - **需求与现状：** 接收原文与目标语言，返回翻译后的文本；源语言显式指定或按服务商能力自动识别。现有[localization 模块](../../vendor/openrust/framework/src/localization/mod.rs)负责语言资源查询、替换及复数选择，[Loader](../../vendor/openrust/framework/src/contracts/localization/loader.rs)负责词条来源，不能据此认定已有机器翻译能力；本次源码核对未确认可直接承担该需求的公开模块及驱动入口。
   - **处理范围：** 按拆分计划交付 DeepL、LibreTranslate、Azure、Google Cloud、腾讯云、阿里云及百度翻译开放平台，分批适配和逐家验收。提供异步文本翻译契约、具名服务商配置、默认驱动解析、外部crate可实现的驱动与应用Provider工厂注册；明确原文／译文、源／目标语言及供应商错误语义。支持同驱动多份配置、应用隔离和可预测的实例复用／配置刷新，复用现有HTTP Client、配置与容器机制；不预先引入复杂翻译平台，也不把网络翻译隐式接入Lang／__／Blade词条查询。
   - **验收：** 独立消费crate实现自定义驱动，经正式公开入口把文本翻译为指定语言；实测HTTP、独立Artisan和Worker装配及配置缓存前后。覆盖未知驱动、配置错误、空文本、Unicode、语言标签与不支持语言、服务商超时／限流／错误响应、工厂失败重试、同驱动具名隔离、替换／旧句柄和多应用隔离。对未实现的自动识别／批量等可选能力明确边界；模拟服务商验收记录协议与装配覆盖，真实供应商凭据就绪后另验实际译文和错误，不把模拟成功当成真实翻译效果。同步三语用法及验收记录，不改既有Lang公开契约。
 
@@ -51,8 +51,8 @@ L01–L22本批实现和实际验收见[审计修复节](audits/laravel-code-aud
   - **已有能力：** [SmsDriver／SmsManager::extend](../../vendor/openrust/framework/src/notifications/sms/sms_manager.rs)及[自定义驱动测试](../../vendor/openrust/framework/tests/sms_manager.rs)已存在，覆盖实例复用、显式配置刷新、失败重试、工厂替换及应用隔离。此项不是新增短信驱动引擎，也不以Sms门面没有同名extend就判为无法扩展。
   - **处理与验收：** 在[三语短信指南](../../docs/zh-Hans/digging-deeper/sms.md#custom-sms-providers)补外部SmsDriver实现、Provider解析Manager注册工厂、具名配置及Sms::driver调用的完整可编译示例，并实测HTTP与独立Artisan／队列Worker的装配。替换工厂／修改配置后，沿用forget_drivers与旧SmsSender保留快照的既有规则；常驻进程须获得自己的注册，不序列化闭包或依赖父进程内存。
 
-- [ ] **DRV-06 语言资源默认 Loader 可替换性（待实施）**。按[拆分计划的 L10N-02](plans/localization-and-text-translation.md#实施顺序)核对默认本地化读取及数据库词条源。
-  - **当前证据：** [Loader契约](../../vendor/openrust/framework/src/contracts/translation/loader.rs)、Lang::load_from及DatabaseLoader已有自定义来源导入能力；[Translator](../../vendor/openrust/framework/src/translation/translator.rs)及[TranslationServiceProvider](../../vendor/openrust/framework/src/translation/translation_service_provider.rs)仍具体依赖FileLoader。只替换容器中的dyn Loader绑定，不能保证默认Lang查询使用该实现；不应把显式预加载记为默认加载器可替换。
+- [ ] **DRV-06 语言资源默认 Loader 可替换性（待实施）**。L10N-01 核心迁移已完成，[验收记录](audits/localization-and-text-translation/README.md#l10n-01-核心迁移)。接续[拆分计划的 L10N-02](plans/localization-and-text-translation.md#实施顺序)核对默认本地化读取及数据库词条源。
+  - **当前证据：** [Loader契约](../../vendor/openrust/framework/src/contracts/localization/loader.rs)、Lang::load_from及DatabaseLoader已有自定义来源导入能力；[Localizer](../../vendor/openrust/framework/src/localization/localizer.rs)及[LocalizationServiceProvider](../../vendor/openrust/framework/src/localization/localization_service_provider.rs)仍具体依赖FileLoader。只替换容器中的dyn Loader绑定，不能保证默认Lang查询使用该实现；不应把显式预加载记为默认加载器可替换。
   - **处理范围：** 按固定Laravel Loader／Translator／Provider契约核定默认来源替换、文件与数据库组合、缺失／回退及缓存的接线。Rust同步查询与异步Loader的边界须明确，保留既有Lang::load_from批量原子发布、FileLoader句柄及命名空间／JSON／复数行为，不偷偷阻塞异步运行时或每次翻译都发网络请求。不为表面统一强造Lang::driver；本项只处理语言词条加载，不承担DRV-03的文本机器翻译需求。
   - **验收：** 独立crate实现Loader并经正式装配后，让真实HTTP、Artisan及Worker中的Lang查询实际消费它；覆盖locale／fallback、命名空间与JSON、文件覆盖、加载失败和并发更新冲突、缓存与应用隔离。复验已有十八语默认资源和数据库加载三库行为，不能只测直接调用自定义Loader。
 

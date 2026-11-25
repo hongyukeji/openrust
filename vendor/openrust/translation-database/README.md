@@ -41,7 +41,7 @@ use std::{path::PathBuf, sync::Arc};
 use openrust::{
     database::Connection,
     support::facades::Lang,
-    translation::{FileLoader, TranslationResource, TranslationResult},
+    localization::{FileLoader, TranslationResource, TranslationResult},
 };
 use openrust_translation_database::DatabaseLoader;
 

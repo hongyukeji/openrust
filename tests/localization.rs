@@ -5,8 +5,8 @@ use openrust::{
     contracts::http::Kernel as _,
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{Body, HttpError, HttpFuture, Request, Response, StatusCode},
+    localization::{__, Line, Replacement, TranslationError, trans_choice},
     support::facades::{Lang, Route},
-    translation::{__, Line, Replacement, TranslationError, trans_choice},
 };
 use serde_json::{Value, json};
 use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
@@ -205,7 +205,7 @@ fn mixed_translation(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErr
 
 fn register_runtime_lines(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        use openrust::translation::Line;
+        use openrust::localization::Line;
         Lang::load(None, "messages", "zh-Hans")?;
         Lang::add_lines(
             [("messages.welcome".into(), Line::Text("运行期 :name".into()))],
@@ -218,7 +218,7 @@ fn register_runtime_lines(_: &mut Request) -> HttpFuture<'_, Result<Response, Ht
 
 fn load_external_lines(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        use openrust::translation::TranslationResource;
+        use openrust::localization::TranslationResource;
         Lang::load_from(
             &ExternalLoader,
             &[TranslationResource {
@@ -234,22 +234,22 @@ fn load_external_lines(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpE
 
 struct ExternalLoader;
 
-impl openrust::contracts::translation::Loader for ExternalLoader {
+impl openrust::contracts::localization::Loader for ExternalLoader {
     fn load<'a>(
         &'a self,
         locale: &'a str,
         group: &'a str,
         namespace: Option<&'a str>,
-    ) -> openrust::translation::TranslationFuture<
+    ) -> openrust::localization::TranslationFuture<
         'a,
-        openrust::translation::TranslationResult<openrust::translation::Lines>,
+        openrust::localization::TranslationResult<openrust::localization::Lines>,
     > {
         Box::pin(async move {
             tokio::task::yield_now().await;
             assert_eq!((locale, group, namespace), ("zh-Hant", "messages", None));
             Ok(BTreeMap::from([(
                 "welcome".into(),
-                openrust::translation::Line::Text("外部 :name".into()),
+                openrust::localization::Line::Text("外部 :name".into()),
             )]))
         })
     }
@@ -358,33 +358,33 @@ async fn localizes_http_requests_with_isolated_defaults_and_fallback() {
 
 #[test]
 fn normalizes_bcp47_without_merging_region_resources() {
-    use openrust::translation::{FileLoader, Translator};
+    use openrust::localization::{FileLoader, Localizer};
 
     let root = Root::new("locale-aliases");
     let lang = root.0.join("lang");
-    let translator =
-        Translator::new(FileLoader::new(lang.clone()), "zh-Hans".into(), "en".into()).unwrap();
+    let localizer =
+        Localizer::new(FileLoader::new(lang.clone()), "zh-Hans".into(), "en".into()).unwrap();
     let args = BTreeMap::new();
-    assert_eq!(translator.locale(), "zh-Hans");
-    assert_eq!(translator.string("Hello", &args, None).unwrap(), "你好");
+    assert_eq!(localizer.locale(), "zh-Hans");
+    assert_eq!(localizer.string("Hello", &args, None).unwrap(), "你好");
     assert_eq!(
-        translator.string("messages.fallback", &args, None).unwrap(),
+        localizer.string("messages.fallback", &args, None).unwrap(),
         "English fallback"
     );
     for alias in ["zh-Hans", "ZH-hans"] {
         assert_eq!(
-            translator.string("Hello", &args, Some(alias)).unwrap(),
+            localizer.string("Hello", &args, Some(alias)).unwrap(),
             "你好"
         );
     }
-    translator.set_locale("zh-CN").unwrap();
-    assert_eq!(translator.get_locale(), "zh-CN");
-    assert_eq!(translator.string("Hello", &args, None).unwrap(), "Hello");
-    assert!(translator.set_locale("zh_CN").is_err());
-    translator.set_locale("zh-SG").unwrap();
-    assert_eq!(translator.get_locale(), "zh-SG");
-    assert!(translator.set_locale("../zh-CN").is_err());
-    assert_eq!(translator.get_locale(), "zh-SG");
+    localizer.set_locale("zh-CN").unwrap();
+    assert_eq!(localizer.get_locale(), "zh-CN");
+    assert_eq!(localizer.string("Hello", &args, None).unwrap(), "Hello");
+    assert!(localizer.set_locale("zh_CN").is_err());
+    localizer.set_locale("zh-SG").unwrap();
+    assert_eq!(localizer.get_locale(), "zh-SG");
+    assert!(localizer.set_locale("../zh-CN").is_err());
+    assert_eq!(localizer.get_locale(), "zh-SG");
 
     for (input, canonical) in [
         ("EN-gb", "en-GB"),
@@ -408,26 +408,26 @@ fn normalizes_bcp47_without_merging_region_resources() {
             format!(r#"{{"locale":"{canonical}"}}"#),
         )
         .unwrap();
-        translator.set_locale(input).unwrap();
-        assert_eq!(translator.get_locale(), canonical);
+        localizer.set_locale(input).unwrap();
+        assert_eq!(localizer.get_locale(), canonical);
         assert_eq!(
-            translator
+            localizer
                 .string("identity.locale", &args, Some(input))
                 .unwrap(),
             canonical
         );
     }
-    assert!(translator.string("Hello", &args, Some("en--GB")).is_err());
+    assert!(localizer.string("Hello", &args, Some("en--GB")).is_err());
 
-    let translator = Translator::new(FileLoader::new(lang), "en".into(), "zh-Hans".into()).unwrap();
+    let localizer = Localizer::new(FileLoader::new(lang), "en".into(), "zh-Hans".into()).unwrap();
     assert_eq!(
-        translator
+        localizer
             .string("messages.welcome", &args, Some("fr"))
             .unwrap(),
         "你好，:name"
     );
     assert_eq!(
-        translator.string("Hello", &args, Some("fr")).unwrap(),
+        localizer.string("Hello", &args, Some("fr")).unwrap(),
         "Hello"
     );
 }
@@ -435,8 +435,8 @@ fn normalizes_bcp47_without_merging_region_resources() {
 #[tokio::test]
 async fn loads_package_overrides_and_keeps_invalid_catalogs_retryable() {
     use openrust::{
-        contracts::translation::Loader as _,
-        translation::{FileLoader, Line, Translator},
+        contracts::localization::Loader as _,
+        localization::{FileLoader, Line, Localizer},
     };
 
     let root = Root::new("loader");
@@ -464,10 +464,10 @@ async fn loads_package_overrides_and_keeps_invalid_catalogs_retryable() {
         loader.load("en", "sub/../cart", Some("shop")).await,
         Err(TranslationError::InvalidKey)
     ));
-    let translator = Translator::new(loader, "en".into(), "en".into()).unwrap();
+    let localizer = Localizer::new(loader, "en".into(), "en".into()).unwrap();
     let replacements = BTreeMap::from([("name".to_owned(), "Ada".to_owned())]);
     assert_eq!(
-        translator
+        localizer
             .array("shop::cart.summary", &replacements, None)
             .unwrap(),
         BTreeMap::from([
@@ -478,12 +478,12 @@ async fn loads_package_overrides_and_keeps_invalid_catalogs_retryable() {
     let broken = lang.join("en/broken.json");
     fs::write(&broken, "{invalid").unwrap();
     assert!(matches!(
-        translator.string("broken.value", &replacements, None),
+        localizer.string("broken.value", &replacements, None),
         Err(TranslationError::Source(_))
     ));
     fs::write(&broken, r#"{"value":"fixed"}"#).unwrap();
     assert_eq!(
-        translator
+        localizer
             .string("broken.value", &replacements, None)
             .unwrap(),
         "fixed"
@@ -516,14 +516,14 @@ async fn translation_lookup_hooks_are_local_to_each_http_application() {
 
 #[test]
 fn translation_existence_and_hooks_preserve_exact_lookup_and_recovery() {
-    use openrust::translation::{FileLoader, Translator};
+    use openrust::localization::{FileLoader, Localizer};
     use std::{
         panic::AssertUnwindSafe,
         sync::atomic::{AtomicUsize, Ordering},
     };
 
     let root = Root::new("lookup-hooks");
-    let translator = Translator::new(
+    let localizer = Localizer::new(
         FileLoader::new(root.0.join("lang")),
         "en".into(),
         "en".into(),
@@ -532,56 +532,56 @@ fn translation_existence_and_hooks_preserve_exact_lookup_and_recovery() {
     let args = BTreeMap::new();
     let calls = Arc::new(AtomicUsize::new(0));
     let count = Arc::clone(&calls);
-    translator.handle_missing_keys_using(move |missing| {
+    localizer.handle_missing_keys_using(move |missing| {
         assert_eq!(missing.locale, "en");
         assert!(missing.fallback);
         count.fetch_add(1, Ordering::Relaxed);
         None
     });
     for key in ["messages.identity", "messages.empty", "missing.key"] {
-        assert!(!translator.has_for_locale(key, None).unwrap());
-        assert!(!translator.has(key, None, true).unwrap());
+        assert!(!localizer.has_for_locale(key, None).unwrap());
+        assert!(!localizer.has(key, None, true).unwrap());
     }
     assert!(
-        translator
+        localizer
             .has("Literal Zero", Some("zh-Hans"), true)
             .unwrap()
     );
     assert_eq!(calls.load(Ordering::Relaxed), 0);
     assert_eq!(
-        translator.string("missing.key", &args, None).unwrap(),
+        localizer.string("missing.key", &args, None).unwrap(),
         "missing.key"
     );
     assert_eq!(calls.load(Ordering::Relaxed), 1);
 
-    translator.determine_locales_using(|_| vec!["../unsafe".into()]);
-    assert!(translator.has_for_locale("messages.welcome", None).unwrap());
+    localizer.determine_locales_using(|_| vec!["../unsafe".into()]);
+    assert!(localizer.has_for_locale("messages.welcome", None).unwrap());
     assert_eq!(
-        translator.string("Hello", &args, Some("zh-Hans")).unwrap(),
+        localizer.string("Hello", &args, Some("zh-Hans")).unwrap(),
         "你好"
     );
     assert!(matches!(
-        translator.string("messages.welcome", &args, None),
+        localizer.string("messages.welcome", &args, None),
         Err(TranslationError::InvalidLocale)
     ));
-    translator.clear_locale_resolver();
-    translator.handle_missing_keys_using(|_| panic!("test-only hook panic"));
+    localizer.clear_locale_resolver();
+    localizer.handle_missing_keys_using(|_| panic!("test-only hook panic"));
     assert!(
-        std::panic::catch_unwind(AssertUnwindSafe(|| translator.string(
+        std::panic::catch_unwind(AssertUnwindSafe(|| localizer.string(
             "missing.key",
             &args,
             None
         )))
         .is_err()
     );
-    translator.handle_missing_keys_using(|_| Some("restored".into()));
+    localizer.handle_missing_keys_using(|_| Some("restored".into()));
     assert_eq!(
-        translator.string("missing.key", &args, None).unwrap(),
+        localizer.string("missing.key", &args, None).unwrap(),
         "restored"
     );
-    translator.clear_missing_key_handler();
+    localizer.clear_missing_key_handler();
     assert_eq!(
-        translator.string("missing.key", &args, None).unwrap(),
+        localizer.string("missing.key", &args, None).unwrap(),
         "missing.key"
     );
 }
@@ -604,7 +604,7 @@ async fn runtime_translation_lines_extend_a_loaded_group_in_only_one_http_applic
 
 #[test]
 fn translation_catalogs_obey_path_order_and_runtime_line_registration() {
-    use openrust::translation::{FileLoader, Line, Translator};
+    use openrust::localization::{FileLoader, Line, Localizer};
 
     let root = Root::new("paths");
     let lang = root.0.join("lang");
@@ -652,43 +652,43 @@ fn translation_catalogs_obey_path_order_and_runtime_line_registration() {
     )
     .unwrap();
 
-    let translator = Translator::new(FileLoader::new(lang), "en".into(), "en".into()).unwrap();
+    let localizer = Localizer::new(FileLoader::new(lang), "en".into(), "en".into()).unwrap();
     let args = BTreeMap::new();
-    translator.load(Some("*"), "messages", "EN").unwrap();
-    translator.add_path(extra);
-    translator.add_json_path(json);
-    translator.add_namespace("shop", package).unwrap();
+    localizer.load(Some("*"), "messages", "EN").unwrap();
+    localizer.add_path(extra);
+    localizer.add_json_path(json);
+    localizer.add_namespace("shop", package).unwrap();
     assert_eq!(
-        translator.string("messages.welcome", &args, None).unwrap(),
+        localizer.string("messages.welcome", &args, None).unwrap(),
         "Hi :Name / :NAME"
     );
     assert_eq!(
-        translator.string("layered.labels.0", &args, None).unwrap(),
+        localizer.string("layered.labels.0", &args, None).unwrap(),
         "overlay"
     );
     assert_eq!(
-        translator.string("layered.labels.1", &args, None).unwrap(),
+        localizer.string("layered.labels.1", &args, None).unwrap(),
         "second"
     );
     assert_eq!(
-        translator.string("layered.view.note", &args, None).unwrap(),
+        localizer.string("layered.view.note", &args, None).unwrap(),
         "keep"
     );
     assert_eq!(
-        translator.string("JSON only", &args, None).unwrap(),
+        localizer.string("JSON only", &args, None).unwrap(),
         "second path"
     );
     assert_eq!(
-        translator.array("Shared", &args, None).unwrap(),
+        localizer.array("Shared", &args, None).unwrap(),
         BTreeMap::from([("first".into(), Line::Text("application".into()))])
     );
 
-    translator.load(Some("shop"), "cart", "en").unwrap();
+    localizer.load(Some("shop"), "cart", "en").unwrap();
     assert_eq!(
-        translator.string("shop::cart.title", &args, None).unwrap(),
+        localizer.string("shop::cart.title", &args, None).unwrap(),
         "local"
     );
-    translator
+    localizer
         .add_lines(
             [
                 ("cart.title".into(), Line::Text("runtime".into())),
@@ -699,21 +699,21 @@ fn translation_catalogs_obey_path_order_and_runtime_line_registration() {
         )
         .unwrap();
     assert_eq!(
-        translator
+        localizer
             .string("shop::cart.summary.stock", &args, None)
             .unwrap(),
         "ready"
     );
     assert_eq!(
-        translator.string("shop::cart.title", &args, None).unwrap(),
+        localizer.string("shop::cart.title", &args, None).unwrap(),
         "runtime"
     );
     assert_eq!(
-        translator.string("shop::cart.detail", &args, None).unwrap(),
+        localizer.string("shop::cart.detail", &args, None).unwrap(),
         "package detail"
     );
 
-    translator
+    localizer
         .add_lines(
             [
                 (
@@ -728,24 +728,24 @@ fn translation_catalogs_obey_path_order_and_runtime_line_registration() {
         )
         .unwrap();
     assert_eq!(
-        translator.string("layered.labels.0", &args, None).unwrap(),
+        localizer.string("layered.labels.0", &args, None).unwrap(),
         "overlay"
     );
     assert_eq!(
-        translator.string("layered.labels.1", &args, None).unwrap(),
+        localizer.string("layered.labels.1", &args, None).unwrap(),
         "updated second"
     );
     assert_eq!(
-        translator.string("layered.labels.7", &args, None).unwrap(),
+        localizer.string("layered.labels.7", &args, None).unwrap(),
         "sparse"
     );
     assert_eq!(
-        translator.string("cold.runtime", &args, None).unwrap(),
+        localizer.string("cold.runtime", &args, None).unwrap(),
         "registered"
     );
-    assert!(!translator.has_for_locale("cold.existing", None).unwrap());
+    assert!(!localizer.has_for_locale("cold.existing", None).unwrap());
 
-    let error = translator
+    let error = localizer
         .add_lines(
             [
                 (
@@ -760,9 +760,7 @@ fn translation_catalogs_obey_path_order_and_runtime_line_registration() {
         .unwrap_err();
     assert!(matches!(error, TranslationError::InvalidKey));
     assert_eq!(
-        translator
-            .string("layered.view.title", &args, None)
-            .unwrap(),
+        localizer.string("layered.view.title", &args, None).unwrap(),
         "overlay"
     );
 }
@@ -786,7 +784,7 @@ async fn asynchronous_source_loads_for_only_the_selected_http_application() {
 
 #[tokio::test]
 async fn asynchronous_translation_source_publishes_only_complete_batches() {
-    use openrust::translation::{FileLoader, TranslationResource, Translator};
+    use openrust::localization::{FileLoader, Localizer, TranslationResource};
 
     let root = Root::new("batch-loader");
     let source = root.0.join("source");
@@ -798,7 +796,7 @@ async fn asynchronous_translation_source_publishes_only_complete_batches() {
     .unwrap();
     fs::write(source.join("zh-Hans.json"), "{invalid").unwrap();
     let loader = FileLoader::new(source.clone());
-    let translator = Translator::new(
+    let localizer = Localizer::new(
         FileLoader::new(root.0.join("lang")),
         "zh-Hans".into(),
         "en".into(),
@@ -818,27 +816,27 @@ async fn asynchronous_translation_source_publishes_only_complete_batches() {
         },
     ];
     assert_eq!(
-        translator.string("messages.welcome", &args, None).unwrap(),
+        localizer.string("messages.welcome", &args, None).unwrap(),
         "你好，Ada"
     );
     assert!(matches!(
-        translator.load_from(&loader, &resources).await,
+        localizer.load_from(&loader, &resources).await,
         Err(TranslationError::Source(_))
     ));
     assert_eq!(
-        translator.string("messages.welcome", &args, None).unwrap(),
+        localizer.string("messages.welcome", &args, None).unwrap(),
         "你好，Ada"
     );
-    assert_eq!(translator.string("Hello", &args, None).unwrap(), "你好");
+    assert_eq!(localizer.string("Hello", &args, None).unwrap(), "你好");
     fs::write(source.join("zh-Hans.json"), r#"{"Hello":"新字面鍵"}"#).unwrap();
-    translator.load_from(&loader, &resources).await.unwrap();
+    localizer.load_from(&loader, &resources).await.unwrap();
     assert_eq!(
-        translator.string("messages.welcome", &args, None).unwrap(),
+        localizer.string("messages.welcome", &args, None).unwrap(),
         "新 Ada"
     );
-    assert_eq!(translator.string("Hello", &args, None).unwrap(), "新字面鍵");
+    assert_eq!(localizer.string("Hello", &args, None).unwrap(), "新字面鍵");
     assert_eq!(
-        translator.string("messages.fallback", &args, None).unwrap(),
+        localizer.string("messages.fallback", &args, None).unwrap(),
         "English fallback"
     );
 }
@@ -846,10 +844,10 @@ async fn asynchronous_translation_source_publishes_only_complete_batches() {
 #[tokio::test]
 async fn asynchronous_translation_source_preserves_concurrent_writes() {
     use openrust::{
-        contracts::translation::Loader,
-        translation::{
-            FileLoader, Line, Lines, TranslationFuture, TranslationResource, TranslationResult,
-            Translator,
+        contracts::localization::Loader,
+        localization::{
+            FileLoader, Line, Lines, Localizer, TranslationFuture, TranslationResource,
+            TranslationResult,
         },
     };
     use tokio::sync::Notify;
@@ -880,7 +878,7 @@ async fn asynchronous_translation_source_preserves_concurrent_writes() {
     }
 
     let root = Root::new("loader-concurrent");
-    let translator = Translator::new(
+    let localizer = Localizer::new(
         FileLoader::new(root.0.join("lang")),
         "zh-Hans".into(),
         "en".into(),
@@ -900,16 +898,16 @@ async fn asynchronous_translation_source_preserves_concurrent_writes() {
     ];
     let loader = PausedLoader::default();
     let result = tokio::time::timeout(std::time::Duration::from_secs(3), async {
-        tokio::join!(translator.load_from(&loader, &resources), async {
+        tokio::join!(localizer.load_from(&loader, &resources), async {
             loader.started.notified().await;
             // An ordinary lazy read can race with a load without becoming a runtime write.
             assert_eq!(
-                translator
+                localizer
                     .string("messages.welcome", &BTreeMap::new(), None)
                     .unwrap(),
                 "你好，:name"
             );
-            translator
+            localizer
                 .add_lines(
                     [("messages.welcome".into(), Line::Text("concurrent".into()))],
                     "zh-Hans",
@@ -923,7 +921,7 @@ async fn asynchronous_translation_source_preserves_concurrent_writes() {
     .unwrap();
     assert!(matches!(result.0, Err(TranslationError::CatalogChanged)));
     assert_eq!(
-        translator
+        localizer
             .string("messages.welcome", &BTreeMap::new(), None)
             .unwrap(),
         "concurrent"
@@ -954,17 +952,17 @@ async fn translation_replacements_are_isolated_across_http_applications() {
 
 #[test]
 fn translation_replacements_follow_tag_order_and_walk_group_leaves() {
-    use openrust::translation::{FileLoader, Translator};
+    use openrust::localization::{FileLoader, Localizer};
     use std::cell::Cell;
 
     let root = Root::new("replacement-order");
-    let translator = Translator::new(
+    let localizer = Localizer::new(
         FileLoader::new(root.0.join("lang")),
         "en".into(),
         "en".into(),
     )
     .unwrap();
-    translator
+    localizer
         .add_lines(
             [
                 (
@@ -996,7 +994,7 @@ fn translation_replacements_follow_tag_order_and_walk_group_leaves() {
         ("name", "ada".into()),
         ("s", "some name".into()),
     ];
-    let rendered = translator.array_with("render.leaves", &args, None).unwrap();
+    let rendered = localizer.array_with("render.leaves", &args, None).unwrap();
     assert_eq!(rendered["0"], Line::Text("[ada][x]".into()));
     assert_eq!(
         rendered["1"],
@@ -1004,7 +1002,7 @@ fn translation_replacements_follow_tag_order_and_walk_group_leaves() {
     );
     assert_eq!(calls.get(), 2);
     assert_eq!(
-        translator
+        localizer
             .string_with(
                 ":name-long :name <mark>tail</mark> <mark>X<mark>Y</mark>Z</mark>",
                 &[
@@ -1018,13 +1016,13 @@ fn translation_replacements_follow_tag_order_and_walk_group_leaves() {
         ":name <mark>literal</mark> [tail] [X<mark>Y]Z</mark>"
     );
     assert_eq!(
-        translator
+        localizer
             .choice_with("render.items", 2_i64, &[("count", "two".into())], None,)
             .unwrap(),
         "two Two TWO"
     );
     assert!(matches!(
-        translator.string_with(
+        localizer.string_with(
             ":label",
             &[("label", Replacement::object(&NoticeLabel("x")))],
             None
@@ -1032,26 +1030,26 @@ fn translation_replacements_follow_tag_order_and_walk_group_leaves() {
         Err(TranslationError::MissingStringable(_))
     ));
     assert!(matches!(
-        translator.string_with("hello", &[("x.*", Replacement::tag(str::to_owned))], None),
+        localizer.string_with("hello", &[("x.*", Replacement::tag(str::to_owned))], None),
         Err(TranslationError::InvalidTag)
     ));
 }
 
 #[test]
 fn stringable_callbacks_can_reenter_the_translator() {
-    use openrust::translation::{FileLoader, Translator};
+    use openrust::localization::{FileLoader, Localizer};
 
     let root = Root::new("replacement-reentry");
-    let translator = Arc::new(
-        Translator::new(
+    let localizer = Arc::new(
+        Localizer::new(
             FileLoader::new(root.0.join("lang")),
             "en".into(),
             "en".into(),
         )
         .unwrap(),
     );
-    let owner = Arc::downgrade(&translator);
-    translator.stringable(move |label: &NoticeLabel| {
+    let owner = Arc::downgrade(&localizer);
+    localizer.stringable(move |label: &NoticeLabel| {
         let owner = owner.upgrade().unwrap();
         owner.stringable(|_: &NoticeLabel| "new".into());
         owner.string(label.0, &BTreeMap::new(), None).unwrap()
@@ -1059,11 +1057,8 @@ fn stringable_callbacks_can_reenter_the_translator() {
     let value = NoticeLabel("messages.fallback");
     let args = [("label", Replacement::object(&value))];
     assert_eq!(
-        translator.string_with(":label", &args, None).unwrap(),
+        localizer.string_with(":label", &args, None).unwrap(),
         "English fallback"
     );
-    assert_eq!(
-        translator.string_with(":label", &args, None).unwrap(),
-        "new"
-    );
+    assert_eq!(localizer.string_with(":label", &args, None).unwrap(), "new");
 }

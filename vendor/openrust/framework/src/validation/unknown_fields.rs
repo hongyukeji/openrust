@@ -39,9 +39,9 @@ pub(crate) fn reject_unknown_fields(
             let replacements =
                 std::collections::BTreeMap::from([("attribute".into(), attribute.clone())]);
             let message = validator
-                .get_translator()
-                .and_then(|translator| {
-                    translator
+                .get_localizer()
+                .and_then(|localizer| {
+                    localizer
                         .string("validation.prohibited", &replacements, None)
                         .ok()
                 })

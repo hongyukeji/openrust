@@ -15,11 +15,11 @@ use openrust::{
     events::{Delivery, EventContext, EventFuture, EventResult, ListenerResponse},
     foundation::{Application, configuration::Routing, events::LocaleUpdated, http::Kernel},
     http::{Body, HttpError, HttpFuture, Request, Response, StatusCode},
+    localization::TranslationError,
     support::{
         ProviderResult, ServiceProvider,
         facades::{App, Config, Event, Lang, Route},
     },
-    translation::TranslationError,
     view::view,
 };
 
@@ -289,26 +289,26 @@ async fn application_instance_and_facade_share_locale_and_fallback_state() {
     assert_eq!(application.current_locale().unwrap(), "zh-Hans");
     application.set_fallback_locale("zh-Hant").unwrap();
     assert_eq!(application.get_fallback_locale().unwrap(), "zh-Hant");
-    let translator = application
+    let localizer = application
         .container()
-        .get::<openrust::translation::Translator>("translator")
+        .get::<openrust::localization::Localizer>("lang")
         .unwrap();
-    assert_eq!(translator.get_locale(), "zh-Hans");
-    assert_eq!(translator.get_fallback(), "zh-Hant");
+    assert_eq!(localizer.get_locale(), "zh-Hans");
+    assert_eq!(localizer.get_fallback(), "zh-Hant");
     application
         .container()
         .scope(async {
             application.set_locale("en").await.unwrap();
             application.set_fallback_locale("en").unwrap();
             assert_eq!(application.current_locale().unwrap(), "en");
-            assert_eq!(translator.get_locale(), "en");
+            assert_eq!(localizer.get_locale(), "en");
         })
         .await;
     assert_eq!(application.current_locale().unwrap(), "zh-Hans");
     assert_eq!(application.get_fallback_locale().unwrap(), "zh-Hant");
-    assert_eq!(translator.get_locale(), "zh-Hans");
+    assert_eq!(localizer.get_locale(), "zh-Hans");
     assert_eq!(
-        translator
+        localizer
             .string("messages.welcome", &BTreeMap::new(), None)
             .unwrap(),
         "你好，:name"
@@ -439,9 +439,9 @@ async fn unavailable_locale_services_fail_at_the_upstream_update_step() {
     let root = Root::new("en");
     let kernel = root.kernel(Arc::default()).await;
     let application = kernel.get_application();
-    let translator = application
+    let localizer = application
         .container()
-        .get::<openrust::translation::Translator>("translator")
+        .get::<openrust::localization::Localizer>("lang")
         .unwrap();
     application
         .container()
@@ -452,14 +452,14 @@ async fn unavailable_locale_services_fail_at_the_upstream_update_step() {
         Err(TranslationError::Unavailable(_))
     ));
     assert_eq!(application.get_locale().unwrap(), "zh-Hant");
-    assert_eq!(translator.get_locale(), "zh-Hant");
+    assert_eq!(localizer.get_locale(), "zh-Hant");
 
     let other = Root::new("en");
     let kernel = other.kernel(Arc::default()).await;
     let application = kernel.get_application();
     application
         .container()
-        .instance_named("translator", Arc::new("invalid translator".to_owned()))
+        .instance_named("lang", Arc::new("invalid translator".to_owned()))
         .unwrap();
     assert!(matches!(
         application.set_locale("zh-Hans").await,
@@ -497,12 +497,12 @@ async fn first_translation_after_scoped_configuration_does_not_replace_applicati
     assert_eq!(send(&kernel, "/first-config", "en").await, "scoped");
     assert_eq!(send(&kernel, "/default", "en").await, r#"{"locale":"en"}"#);
     let application = kernel.get_application();
-    let translator = application
+    let localizer = application
         .container()
-        .get::<openrust::translation::Translator>("translator")
+        .get::<openrust::localization::Localizer>("lang")
         .unwrap();
-    assert_eq!(translator.get_locale(), "en");
-    assert_eq!(translator.get_fallback(), "en");
+    assert_eq!(localizer.get_locale(), "en");
+    assert_eq!(localizer.get_fallback(), "en");
 
     // 队列等任务共用相同容器生命周期，首次解析同样不能污染默认值。
     let task_root = Root::new("en");
@@ -519,21 +519,21 @@ async fn first_translation_after_scoped_configuration_does_not_replace_applicati
                     serde_json::json!({"locale":"zh-Hans", "fallback_locale":"zh-Hant"}),
                 )
                 .unwrap();
-            let translator = application
+            let localizer = application
                 .container()
-                .get::<openrust::translation::Translator>("translator")
+                .get::<openrust::localization::Localizer>("lang")
                 .unwrap();
-            assert_eq!(translator.get_locale(), "zh-Hans");
-            assert_eq!(translator.get_fallback(), "zh-Hant");
+            assert_eq!(localizer.get_locale(), "zh-Hans");
+            assert_eq!(localizer.get_fallback(), "zh-Hant");
             tokio::task::yield_now().await;
-            assert_eq!(translator.get_locale(), "zh-Hans");
+            assert_eq!(localizer.get_locale(), "zh-Hans");
         })
         .await;
     assert_eq!(application.get_locale().unwrap(), "en");
-    let translator = application
+    let localizer = application
         .container()
-        .get::<openrust::translation::Translator>("translator")
+        .get::<openrust::localization::Localizer>("lang")
         .unwrap();
-    assert_eq!(translator.get_locale(), "en");
-    assert_eq!(translator.get_fallback(), "en");
+    assert_eq!(localizer.get_locale(), "en");
+    assert_eq!(localizer.get_fallback(), "en");
 }

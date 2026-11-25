@@ -6,7 +6,7 @@ use std::{
     sync::{Arc, Mutex, RwLock},
 };
 
-use crate::contracts::translation::{Loader, Translator as Contract};
+use crate::contracts::localization::{Loader, Localizer as Contract};
 
 use super::{
     FileLoader, Line, Lines, MessageSelector, PluralCount, Replacement, Selector, TranslationError,
@@ -76,7 +76,7 @@ struct Locales {
 pub(crate) struct LocaleState(Mutex<HashMap<usize, (Arc<()>, Locales)>>);
 
 /// Resolves translations using one application's catalog and locale defaults.
-pub struct Translator {
+pub struct Localizer {
     loader: Arc<FileLoader>,
     selector: RwLock<Arc<dyn Selector>>,
     defaults: Mutex<Locales>,
@@ -87,7 +87,7 @@ pub struct Translator {
     stringables: Stringables,
 }
 
-impl Translator {
+impl Localizer {
     pub fn new(loader: FileLoader, locale: String, fallback: String) -> TranslationResult<Self> {
         Self::with_loader(Arc::new(loader), locale, fallback)
     }
@@ -497,7 +497,7 @@ impl Translator {
             .replace(chosen, args, Some(count.to_string()))
     }
 
-    /// Registers a formatter for one concrete Rust type on this translator.
+    /// Registers a formatter for one concrete Rust type on this localizer.
     pub fn stringable<T: Any>(&self, formatter: impl Fn(&T) -> String + Send + Sync + 'static) {
         self.stringables.register(formatter);
     }
@@ -631,7 +631,7 @@ impl Translator {
     }
 }
 
-impl Translator {
+impl Localizer {
     pub(crate) fn with_owner(
         mut self,
         owner: std::sync::Weak<crate::container::Container>,
@@ -691,7 +691,7 @@ impl Translator {
     }
 }
 
-impl Contract for Translator {
+impl Contract for Localizer {
     fn get_fallback(&self) -> String {
         self.get_fallback()
     }

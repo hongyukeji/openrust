@@ -22,11 +22,11 @@ use openrust::{
         Body, HeaderMap, HttpError, HttpFuture, Request, Response, StatusCode,
         middleware::SetLocale,
     },
+    localization::TranslationError,
     support::{
         ProviderResult, ServiceProvider,
         facades::{App, Config, Event, Lang, Route},
     },
-    translation::TranslationError,
 };
 
 struct Root(PathBuf);

@@ -4,8 +4,8 @@ use crate::{
     config::ConfigError,
     contracts::http::Middleware,
     http::{HttpError, HttpFuture, Next, Request, Response},
+    localization::{TranslationResult, canonical_locale},
     support::facades::{App, Config, Cookie},
-    translation::{TranslationResult, canonical_locale},
 };
 
 #[derive(Clone)]
@@ -79,9 +79,9 @@ impl SetLocale {
         if self.discover {
             let config = app
                 .config()
-                .map_err(crate::translation::TranslationError::Unavailable)?;
+                .map_err(crate::localization::TranslationError::Unavailable)?;
             let invalid = || {
-                crate::translation::TranslationError::Source(Box::new(ConfigError::InvalidType {
+                crate::localization::TranslationError::Source(Box::new(ConfigError::InvalidType {
                     key: "app.supported_locales".into(),
                     expected: "* 或 BCP 47 语言标签数组",
                 }))
@@ -106,12 +106,12 @@ impl SetLocale {
             }
             let loader = app
                 .container()
-                .get::<crate::translation::FileLoader>("translation.loader")
-                .map_err(crate::translation::TranslationError::Unavailable)?;
+                .make::<crate::localization::FileLoader>()
+                .map_err(crate::localization::TranslationError::Unavailable)?;
             self.supported = tokio::task::spawn_blocking(move || loader.available_locales())
                 .await
                 .map_err(|source| {
-                    crate::translation::TranslationError::Source(Box::new(source))
+                    crate::localization::TranslationError::Source(Box::new(source))
                 })??;
             self.discover = false;
         }

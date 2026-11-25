@@ -66,17 +66,17 @@ impl DatabaseManager {
         self
     }
 
-    pub(super) fn translator(&self) -> DatabaseResult<Arc<crate::translation::Translator>> {
+    pub(super) fn localizer(&self) -> DatabaseResult<Arc<crate::localization::Localizer>> {
         if let Some(container) = self.container.upgrade() {
-            return container.get("translator").map_err(Into::into);
+            return container.get("lang").map_err(Into::into);
         }
         let locale = |key| match self.config.get(key) {
             None => Ok("en".to_owned()),
             Some(Value::String(value)) => Ok(value),
             _ => Err(DatabaseError::InvalidConfiguration(key)),
         };
-        Ok(Arc::new(crate::translation::Translator::new(
-            crate::translation::FileLoader::new(crate::translation::language_path(&self.root)),
+        Ok(Arc::new(crate::localization::Localizer::new(
+            crate::localization::FileLoader::new(crate::localization::language_path(&self.root)),
             locale("app.locale")?,
             locale("app.fallback_locale")?,
         )?))

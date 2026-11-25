@@ -7,7 +7,7 @@ use std::{
 
 use cap_std::{ambient_authority, fs::Dir};
 
-use crate::contracts::translation::Loader;
+use crate::contracts::localization::Loader;
 
 pub(super) mod merge;
 

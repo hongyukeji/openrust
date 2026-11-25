@@ -1,4 +1,4 @@
-use openrust::translation::__;
+use openrust::localization::__;
 // Translated from the framework Passkeys 0.3.0 (MIT).
 use openrust::database::{
     DatabaseFuture, DatabaseResult,

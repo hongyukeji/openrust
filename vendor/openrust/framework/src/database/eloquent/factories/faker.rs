@@ -28,8 +28,8 @@ use crate::{
     container::Container,
     contracts::{config::Repository, container::Container as _},
     database::{Connection, DatabaseError, DatabaseResult},
+    localization::canonical_locale,
     support::{Str, calendar},
-    translation::canonical_locale,
 };
 use ::fake::{Fake, faker, locales};
 use aws_lc_rs::digest;

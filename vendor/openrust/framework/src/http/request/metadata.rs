@@ -184,8 +184,8 @@ impl Request {
         }
         content_types::parse_accept(&headers)
     }
-    pub fn set_locale(&mut self, locale: &str) -> crate::translation::TranslationResult<()> {
-        let locale = crate::translation::canonical_locale(locale)?;
+    pub fn set_locale(&mut self, locale: &str) -> crate::localization::TranslationResult<()> {
+        let locale = crate::localization::canonical_locale(locale)?;
         self.update_metadata(|metadata| metadata.locale = Some(locale));
         Ok(())
     }
@@ -197,8 +197,8 @@ impl Request {
     pub fn set_default_locale(
         &mut self,
         locale: &str,
-    ) -> crate::translation::TranslationResult<()> {
-        let locale = crate::translation::canonical_locale(locale)?;
+    ) -> crate::localization::TranslationResult<()> {
+        let locale = crate::localization::canonical_locale(locale)?;
         self.update_metadata(|metadata| metadata.default_locale = Some(locale));
         Ok(())
     }
@@ -210,13 +210,13 @@ impl Request {
     pub fn set_request_locale(
         &mut self,
         locale: &str,
-    ) -> crate::translation::TranslationResult<()> {
+    ) -> crate::localization::TranslationResult<()> {
         self.set_locale(locale)
     }
     pub fn set_default_request_locale(
         &mut self,
         locale: &str,
-    ) -> crate::translation::TranslationResult<()> {
+    ) -> crate::localization::TranslationResult<()> {
         self.set_default_locale(locale)
     }
     pub fn set_request_format(&mut self, format: Option<&str>) {

@@ -1,6 +1,6 @@
 use openrust::{
     contracts::validation::{Factory as _, Validator as _},
-    translation::{FileLoader, Line, Translator},
+    localization::{FileLoader, Line, Localizer},
     validation::{Data, Factory, RuleSet, ValidationError, Validator},
 };
 use serde_json::json;
@@ -151,15 +151,15 @@ async fn message_attribute_value_and_translator_changes_recompute_errors() {
     assert!(validator.validate().await.is_err());
     assert_eq!(validator.errors().first(Some("kind"), None), "kind a");
     let resources = tempfile::tempdir().unwrap();
-    let translator = Arc::new(
-        Translator::new(
+    let localizer = Arc::new(
+        Localizer::new(
             FileLoader::new(resources.path().into()),
             "en".into(),
             "en".into(),
         )
         .unwrap(),
     );
-    translator
+    localizer
         .add_lines(
             BTreeMap::from([(
                 "validation.required".into(),
@@ -169,11 +169,8 @@ async fn message_attribute_value_and_translator_changes_recompute_errors() {
             None,
         )
         .unwrap();
-    validator.set_translator(translator.clone());
-    assert!(Arc::ptr_eq(
-        validator.get_translator().unwrap(),
-        &translator
-    ));
+    validator.set_localizer(localizer.clone());
+    assert!(Arc::ptr_eq(validator.get_localizer().unwrap(), &localizer));
     validator.set_rules(RuleSet::parse([("missing", "required")]).unwrap());
     assert!(validator.validate().await.is_err());
     assert_eq!(validator.errors().first(None, None), "新的必填错误");
@@ -183,7 +180,7 @@ async fn message_attribute_value_and_translator_changes_recompute_errors() {
 async fn typed_exception_factory_controls_actual_validation_rejection_and_is_instance_local() {
     fn custom(
         errors: openrust::support::MessageBag,
-        _: Option<&Translator>,
+        _: Option<&Localizer>,
     ) -> openrust::validation::ValidationException {
         let mut error = openrust::validation::ValidationException::new(errors);
         error

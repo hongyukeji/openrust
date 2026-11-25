@@ -1,9 +1,9 @@
-use crate::translation::{Line, Translator};
+use crate::localization::{Line, Localizer};
 use std::collections::BTreeMap;
 
 /// 复用翻译器的组级回退；不能逐键回退后让后备语言覆盖当前语言的通配词条。
-pub(super) fn lines(translator: &Translator, group: &str) -> BTreeMap<String, String> {
-    let Ok(lines) = translator.array(group, &Default::default(), None) else {
+pub(super) fn lines(localizer: &Localizer, group: &str) -> BTreeMap<String, String> {
+    let Ok(lines) = localizer.array(group, &Default::default(), None) else {
         return BTreeMap::new();
     };
     let mut pending: Vec<_> = lines.into_iter().collect();
@@ -42,7 +42,7 @@ pub(super) fn attribute<'a>(names: &'a BTreeMap<String, String>, name: &str) -> 
 }
 
 pub(super) fn custom(
-    translator: &Translator,
+    localizer: &Localizer,
     attribute: &str,
     rule: &str,
     category: Option<&str>,
@@ -55,12 +55,12 @@ pub(super) fn custom(
     let mut catalog = None;
     for short in keys {
         let key = format!("validation.custom.{short}");
-        if let Ok(message) = translator.string(&key, &Default::default(), None)
+        if let Ok(message) = localizer.string(&key, &Default::default(), None)
             && message != key
         {
             return Some(message);
         }
-        let catalog = catalog.get_or_insert_with(|| lines(translator, "validation.custom"));
+        let catalog = catalog.get_or_insert_with(|| lines(localizer, "validation.custom"));
         if let Some((_, message)) = catalog.iter().find(|(pattern, _)| {
             *pattern == &short
                 || pattern.contains('*') && crate::support::Str::is(&[pattern], &short, false)

@@ -1,5 +1,7 @@
 # 本地化
 
+Rust 应用从 `openrust::localization` 导入 `Lang`、`__` 和 `trans_choice`。具体服务和 trait 都称为 `Localizer`，分别位于 `openrust::localization` 和 `openrust::contracts::localization`。更新旧 Rust 导入时，将 `Translator` 改为 `Localizer`，容器键 `translator`、`translation.loader` 分别改为 `lang`、`lang.loader`。注册文件路径时按类型解析 `FileLoader`。应用 `lang/` 目录和模板助手沿用原有写法。
+
 ## 配置语言
 
 通过 `config/app.rs` 的 `locale`、`fallback_locale` 配置默认语言及缺失分组词条的回退语言，对应根 `.env`：
@@ -73,7 +75,7 @@ fn greeting(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 
 ### 框架默认译文与应用覆盖 {#default-translations}
 
-18语默认资源位于 `vendor/openrust/framework/src/translation/lang/`，随二进制编译交付；默认应用在 `lang/` 保留英语、简体中文、繁体中文三份可编辑的 `welcome.json`；其他默认词典无需复制到应用。只创建需要覆盖的键，例如 `lang/fr/validation.json`：
+18语默认资源位于 `vendor/openrust/framework/src/localization/lang/`，随二进制编译交付；默认应用在 `lang/` 保留英语、简体中文、繁体中文三份可编辑的 `welcome.json`；其他默认词典无需复制到应用。只创建需要覆盖的键，例如 `lang/fr/validation.json`：
 
 ```json
 {"required": "自定义提示：:attribute 必填", "min": {"string": "至少输入 :min 个字符"}}
@@ -286,7 +288,7 @@ use std::path::PathBuf;
 
 use openrust::{
     support::facades::Lang,
-    translation::{Line, TranslationResult},
+    localization::{Line, TranslationResult},
 };
 
 pub fn register_translations(directory: PathBuf) -> TranslationResult<()> {
@@ -306,9 +308,9 @@ pub fn register_translations(directory: PathBuf) -> TranslationResult<()> {
 
 ```rust
 use openrust::{
-    contracts::translation::Loader,
+    contracts::localization::Loader,
     support::facades::Lang,
-    translation::{TranslationResource, TranslationResult},
+    localization::{TranslationResource, TranslationResult},
 };
 
 pub async fn load_notice(source: &dyn Loader) -> TranslationResult<()> {
@@ -353,7 +355,7 @@ use std::{path::PathBuf, sync::Arc};
 use openrust::{
     database::Connection,
     support::facades::Lang,
-    translation::{FileLoader, TranslationResource, TranslationResult},
+    localization::{FileLoader, TranslationResource, TranslationResult},
 };
 use openrust_translation_database::DatabaseLoader;
 
@@ -392,7 +394,7 @@ pub async fn load_database_translations(
 使用 `Lang::has(key, locale, true)` 检查包含回退语言的翻译，使用 `Lang::has_for_locale(key, locale)` 仅检查指定语言。两种检查都会跳过缺键回调。在应用作用域内登记钩子后，可调整分组翻译的回退顺序，JSON 字面键仍优先。缺键回调返回的文本会继续处理占位符，返回 `None` 时使用原键。
 
 ```rust
-use openrust::{support::facades::Lang, translation::TranslationResult};
+use openrust::{support::facades::Lang, localization::TranslationResult};
 
 pub fn register_lookup_hooks() -> TranslationResult<()> {
     Lang::determine_locales_using(|locales| {
@@ -426,7 +428,7 @@ pub fn register_lookup_hooks() -> TranslationResult<()> {
 ```rust
 use openrust::{
     support::facades::Lang,
-    translation::{Replacement, TranslationResult},
+    localization::{Replacement, TranslationResult},
 };
 
 pub struct Amount(pub u32);
@@ -456,7 +458,7 @@ use std::collections::BTreeMap;
 
 use openrust::{
     support::facades::Lang,
-    translation::{TranslationResult, __, trans_choice},
+    localization::{TranslationResult, __, trans_choice},
 };
 
 pub async fn summary(locale: &str) -> TranslationResult<(String, String)> {
@@ -493,7 +495,7 @@ APP_LOCALE=zh-Hant ./artisan help list
 
 ## 契约语言设置
 
-Translator 契约、具体实现和 Lang Facade 均提供 `get_locale`、`set_locale`、`get_fallback`、`set_fallback`。启动时设置应用默认值；请求／队列作用域内设置只影响当前执行。`with_locale` 支持嵌套并在离开后恢复，回退语言独立设置。Rust 方法采用原生 snake_case 命名；旧 camelCase Rust 消费者改用上述方法。模板表达式保持各自既有名称。
+Localizer 契约、具体实现和 Lang Facade 均提供 `get_locale`、`set_locale`、`get_fallback`、`set_fallback`。启动时设置应用默认值；请求／队列作用域内设置只影响当前执行。`with_locale` 支持嵌套并在离开后恢复，回退语言独立设置。Rust 方法采用原生 snake_case 命名；旧 camelCase Rust 消费者改用上述方法。模板表达式保持各自既有名称。
 
 ## 语言设置的所有权
 
@@ -520,7 +522,7 @@ Faker 原生 provider 键仅保留在私有边界，`locale()`、`random_locale(
 
 ## 替换复数选择器
 
-`Translator::get_selector()` 返回当前 `Arc<dyn Selector>`。实现 `openrust::translation::Selector` 后传入 `set_selector`，即可自定义复数分支选择。其 `choose` 接收原始文案、`PluralCount` 和解析后的语言，返回 `TranslationResult<String>`，之后才替换 `:count` 等占位符。通过 `set_selector(MessageSelector)` 恢复默认选择器。`get_loader()` 返回实际共享的 `Arc<FileLoader>`；先前取出的选择器和加载器句柄仍然有效。
+`Localizer::get_selector()` 返回当前 `Arc<dyn Selector>`。实现 `openrust::localization::Selector` 后传入 `set_selector`，即可自定义复数分支选择。其 `choose` 接收原始文案、`PluralCount` 和解析后的语言，返回 `TranslationResult<String>`，之后才替换 `:count` 等占位符。通过 `set_selector(MessageSelector)` 恢复默认选择器。`get_loader()` 返回实际共享的 `Arc<FileLoader>`；先前取出的选择器和加载器句柄仍然有效。
 
 ## 随附语言资源 {#bundled-locales}
 

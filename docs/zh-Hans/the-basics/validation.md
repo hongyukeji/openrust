@@ -557,9 +557,9 @@ assert_eq!(errors.count(), 0);
 
 用 `get_data`、`get_value` 和 `get_rules` 读取输入及展开后的规则。`get_rules` 按声明顺序返回 `(字段路径, 规则)`，路径使用原生转义。`set_value` 更新一个具体路径，拒绝通配符。`set_data` 替换输入，并恢复最近一次 `set_rules` 或工厂创建时的规则。`add_rules` 合并临时规则；`append_rules` 同时将合并后的声明作为下次重置的基准。
 
-`set_custom_messages` 合并消息。`set_attribute_names`、`set_value_names` 替换对应映射；`add_custom_attributes`、`add_custom_values` 按字段合并。`get_translator`、`set_translator` 读取或替换错误消息使用的译器。在验证执行之外修改后，会丢弃缓存的成功结果和错误，需要重新执行 `validate().await`，再读取 `validated()` 或 `safe()`。
+`set_custom_messages` 合并消息。`set_attribute_names`、`set_value_names` 替换对应映射；`add_custom_attributes`、`add_custom_values` 按字段合并。`get_localizer`、`set_localizer` 读取或替换错误消息使用的译器。在验证执行之外修改后，会丢弃缓存的成功结果和错误，需要重新执行 `validate().await`，再读取 `validated()` 或 `safe()`。
 
-`get_exception`、`set_exception` 使用类型化函数 `fn(MessageBag, Option<&Translator>) -> ValidationException`，可定制实际拒绝响应的状态、错误包和重定向。固定返回类型替代运行期异常类名及继承，每个验证器独立保存工厂。
+`get_exception`、`set_exception` 使用类型化函数 `fn(MessageBag, Option<&Localizer>) -> ValidationException`，可定制实际拒绝响应的状态、错误包和重定向。固定返回类型替代运行期异常类名及继承，每个验证器独立保存工厂。
 
 ## 注册验证扩展
 

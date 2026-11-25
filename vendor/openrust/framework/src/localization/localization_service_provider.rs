@@ -5,35 +5,39 @@ use crate::{
         config::Repository,
         container::{BindingResolutionError, Container as _},
         foundation::Application as _,
-        translation::{Loader, Translator as TranslatorContract},
+        localization::{Loader, Localizer as LocalizerContract},
     },
     foundation::Application,
     http::HttpFuture,
     support::{ProviderResult, ServiceProvider},
 };
 
-use super::{FileLoader, TranslationError, Translator};
+use super::{FileLoader, Localizer, TranslationError};
 
-/// Registers the file loader and application translator.
-pub struct TranslationServiceProvider;
+/// Registers the file loader and application localizer.
+pub struct LocalizationServiceProvider;
 
-impl ServiceProvider for TranslationServiceProvider {
+impl ServiceProvider for LocalizationServiceProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
             let container = app.container();
             let paths = container.make::<crate::foundation::Paths>()?;
-            container.singleton_named("translation.loader", move |_| {
+            container.singleton::<FileLoader, _>(move |_| {
                 Ok(Arc::new(FileLoader::with_defaults(paths.lang_path(""))))
             })?;
-            container.singleton::<dyn Loader, _>(|container| {
-                Ok(container.get::<FileLoader>("translation.loader")?)
+            container.singleton_named::<dyn Loader, _>("lang.loader", |container| {
+                Ok(container.make::<FileLoader>()?)
             })?;
-            container.scoped::<super::translator::LocaleState, _>(|_| Ok(Arc::default()))?;
+            container.alias(
+                "lang.loader",
+                crate::container::ServiceKey::typed::<dyn Loader>(),
+            )?;
+            container.scoped::<super::localizer::LocaleState, _>(|_| Ok(Arc::default()))?;
             let owner = Arc::downgrade(&app.container_handle());
-            container.singleton_named("translator", move |container| {
+            container.singleton_named("lang", move |container| {
                 let config = container.get::<dyn Repository>("config")?;
-                let loader = container.get::<FileLoader>("translation.loader")?;
-                let make = || -> Result<Translator, TranslationError> {
+                let loader = container.make::<FileLoader>()?;
+                let make = || -> Result<Localizer, TranslationError> {
                     let selected = locale(config.as_ref(), "app.locale")?;
                     let fallback = locale(config.as_ref(), "app.fallback_locale")?;
                     // 首次解析也可能发生在请求内；常驻默认值不能取自请求配置。
@@ -44,26 +48,23 @@ impl ServiceProvider for TranslationServiceProvider {
                                 locale(config.as_ref(), "app.fallback_locale")?,
                             ))
                         })?;
-                    let translator =
-                        Translator::with_loader(loader, default_locale, default_fallback)?
+                    let localizer =
+                        Localizer::with_loader(loader, default_locale, default_fallback)?
                             .with_owner(owner.clone());
-                    translator.set_locale(&selected)?;
-                    translator.set_fallback(&fallback)?;
-                    Ok(translator)
+                    localizer.set_locale(&selected)?;
+                    localizer.set_fallback(&fallback)?;
+                    Ok(localizer)
                 };
                 make()
                     .map(Arc::new)
                     .map_err(|source| BindingResolutionError::FactoryFailed {
-                        service: "translator",
+                        service: "lang",
                         source: Box::new(source),
                     })
             })?;
-            container.alias(
-                "translator",
-                crate::container::ServiceKey::typed::<Translator>(),
-            )?;
-            container.singleton::<dyn TranslatorContract, _>(|container| {
-                Ok(container.get::<Translator>("translator")?)
+            container.alias("lang", crate::container::ServiceKey::typed::<Localizer>())?;
+            container.singleton::<dyn LocalizerContract, _>(|container| {
+                Ok(container.get::<Localizer>("lang")?)
             })?;
             Ok(())
         })

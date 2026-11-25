@@ -105,7 +105,7 @@ pub enum DatabaseError {
     AttributeHashing(crate::hashing::HashError),
     InvalidSchema(&'static str),
     SchemaIo(std::io::Error),
-    Translation(Box<crate::translation::TranslationError>),
+    Translation(Box<crate::localization::TranslationError>),
     DatabaseCreationDeclined,
     SchemaProcess {
         program: &'static str,
@@ -295,8 +295,8 @@ impl From<crate::pagination::PaginationError> for DatabaseError {
     }
 }
 
-impl From<crate::translation::TranslationError> for DatabaseError {
-    fn from(error: crate::translation::TranslationError) -> Self {
+impl From<crate::localization::TranslationError> for DatabaseError {
+    fn from(error: crate::localization::TranslationError) -> Self {
         Self::Translation(Box::new(error))
     }
 }
