@@ -20,45 +20,45 @@
         "method": "setPlaceholderFormatterDefinition",
         "source_line": 105,
         "native": "console::ProgressBar::set_placeholder_formatter_definition",
-        "status": "verified_native_callback_with_output_argument_adapter_pending",
+        "status": "verified_native_callback_and_safe_selected_output_view",
         "evidence": [
           "console_progress_tutorial",
           "progress-core-final-framework.log"
         ],
-        "adaptation": "Native callback borrows bar and returns Result<String,ConsoleError>; explicit output-view adaptation is separately open."
+        "adaptation": "Callback borrows bar; bar.get_output() lends the selected ProgressOutput sequentially, avoiding aliased mutable references. Write/read metadata verified; output SDK configuration setters and formatter replacement remain separate."
       },
       {
         "method": "getPlaceholderFormatterDefinition",
         "source_line": 117,
         "native": "console::ProgressBar::get_placeholder_formatter_definition",
-        "status": "verified_native_callback_with_output_argument_adapter_pending",
+        "status": "verified_native_callback_and_safe_selected_output_view",
         "evidence": [
           "console_progress_tutorial",
           "progress-core-final-framework.log"
         ],
-        "adaptation": "Native callback borrows bar and returns Result<String,ConsoleError>; explicit output-view adaptation is separately open."
+        "adaptation": "Callback borrows bar; bar.get_output() lends the selected ProgressOutput sequentially, avoiding aliased mutable references. Write/read metadata verified; output SDK configuration setters and formatter replacement remain separate."
       },
       {
         "method": "setPlaceholderFormatter",
         "source_line": 129,
         "native": "console::ProgressBar::set_placeholder_formatter",
-        "status": "verified_native_callback_with_output_argument_adapter_pending",
+        "status": "verified_native_callback_and_safe_selected_output_view",
         "evidence": [
           "console_progress_tutorial",
           "progress-core-final-framework.log"
         ],
-        "adaptation": "Native callback borrows bar and returns Result<String,ConsoleError>; explicit output-view adaptation is separately open."
+        "adaptation": "Callback borrows bar; bar.get_output() lends the selected ProgressOutput sequentially, avoiding aliased mutable references. Write/read metadata verified; output SDK configuration setters and formatter replacement remain separate."
       },
       {
         "method": "getPlaceholderFormatter",
         "source_line": 139,
         "native": "console::ProgressBar::get_placeholder_formatter",
-        "status": "verified_native_callback_with_output_argument_adapter_pending",
+        "status": "verified_native_callback_and_safe_selected_output_view",
         "evidence": [
           "console_progress_tutorial",
           "progress-core-final-framework.log"
         ],
-        "adaptation": "Native callback borrows bar and returns Result<String,ConsoleError>; explicit output-view adaptation is separately open."
+        "adaptation": "Callback borrows bar; bar.get_output() lends the selected ProgressOutput sequentially, avoiding aliased mutable references. Write/read metadata verified; output SDK configuration setters and formatter replacement remain separate."
       },
       {
         "method": "setFormatDefinition",
@@ -408,6 +408,11 @@
       "contract": "Awaited and mutable task callbacks",
       "reason": "Reuse ConsoleFuture and current execution scope; borrowed boxed futures await real I/O before advancing. Explicit mutable variants preserve models without Clone; numeric vs iterable names retain distinct return types. No implicit transaction or rollback.",
       "evidence": "console_progress_async; progress-async-mysql.log"
+    },
+    {
+      "contract": "Placeholder output argument",
+      "reason": "Borrow the selected stream sequentially through bar.get_output, without unsafe overlapping mutable references, runtime alias locks or cloned buffers. Both actual CLI stderr and captured output reuse the existing formatter and sink.",
+      "evidence": "console_progress_output; progress-output-oracle.json; progress-output-cli-oracle.json"
     }
   ],
   "remaining": [
@@ -423,8 +428,8 @@
     },
     {
       "contract": "Placeholder callback output argument",
-      "status": "pending_safe_native_output_view",
-      "requirements": "Expose selected output stream safely; do not give overlapping mutable aliases or raw stdout for stderr progress."
+      "status": "verified_safe_native_selected_output_view",
+      "requirements": "ProgressBar::get_output -> ProgressOutput; 60 captured and 60 real ConsoleOutput dual-stream cases, error/recovery, metadata, formats and output levels. Callback receives bar only because output is part of that mutable borrow."
     },
     {
       "contract": "Inherited OutputInterface / complete components / Table SDK",
@@ -435,6 +440,96 @@
       "contract": "Windows progress terminal",
       "status": "release_matrix_pending",
       "requirements": "Real Windows terminal acceptance remains separate from already-closed Worker/Runner validation."
+    }
+  ],
+  "output_view_inventory": [
+    {
+      "method": "write",
+      "native": "console::ProgressOutput::{write,write_iter}",
+      "status": "verified_native_typed_options",
+      "evidence": [
+        "console_progress_output"
+      ]
+    },
+    {
+      "method": "writeln",
+      "native": "console::ProgressOutput::{writeln,writeln_iter}",
+      "status": "verified_native_typed_options",
+      "evidence": [
+        "console_progress_output"
+      ]
+    },
+    {
+      "method": "getVerbosity",
+      "native": "console::ProgressOutput::get_verbosity",
+      "status": "verified_native_typed_level",
+      "evidence": [
+        "console_progress_output"
+      ]
+    },
+    {
+      "method": "isQuiet",
+      "native": "console::ProgressOutput::is_quiet",
+      "status": "verified",
+      "evidence": [
+        "console_progress_output"
+      ]
+    },
+    {
+      "method": "isVerbose",
+      "native": "console::ProgressOutput::is_verbose",
+      "status": "verified",
+      "evidence": [
+        "console_progress_output"
+      ]
+    },
+    {
+      "method": "isVeryVerbose",
+      "native": "console::ProgressOutput::is_very_verbose",
+      "status": "verified",
+      "evidence": [
+        "console_progress_output"
+      ]
+    },
+    {
+      "method": "isDebug",
+      "native": "console::ProgressOutput::is_debug",
+      "status": "verified",
+      "evidence": [
+        "console_progress_output"
+      ]
+    },
+    {
+      "method": "isDecorated",
+      "native": "console::ProgressOutput::is_decorated",
+      "status": "verified",
+      "evidence": [
+        "console_progress_output"
+      ]
+    },
+    {
+      "method": "setVerbosity",
+      "native": null,
+      "status": "pending_inherited_sdk_configuration",
+      "evidence": []
+    },
+    {
+      "method": "setDecorated",
+      "native": null,
+      "status": "pending_inherited_sdk_configuration",
+      "evidence": []
+    },
+    {
+      "method": "setFormatter",
+      "native": null,
+      "status": "pending_inherited_sdk_formatter_contract",
+      "evidence": []
+    },
+    {
+      "method": "getFormatter",
+      "native": null,
+      "status": "pending_inherited_sdk_formatter_contract",
+      "evidence": []
     }
   ]
 }

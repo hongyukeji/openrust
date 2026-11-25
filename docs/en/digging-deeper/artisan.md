@@ -743,3 +743,36 @@ fn register_progress_async() -> Result<(), ConsoleError> {
 ```
 
 `ProgressIterableMut` supports slices, arrays, vectors, ordered maps, base collections, model collections and mutable references. Keys and model identities are preserved. A mutable model callback can await `model.save()` and propagate its concrete error through `ConsoleError::from_source`. `with_progress_bar_iter_mut` is the synchronous alternative. In-place changes are explicit native behavior; default callbacks remain read-only. The helpers do not implicitly create transactions or roll back completed writes. Errors and cancellation do not finish the bar; passing a mutable reference retains ownership and any changes already made.
+
+## Placeholder output access {#progress-placeholder-output}
+
+Within a `ProgressFormatter`, use `bar.get_output()` to borrow the actual `ProgressOutput` stream. It exposes `write`, `writeln`, single-pass iterable variants, verbosity queries and `is_decorated`. `OutputOptions` controls format and message verbosity. CLI writes target stderr; captured calls retain the same output buffer.
+
+```rust
+use openrust::{
+    console::{ConsoleError, Input, Output, OutputFormat, ProgressFormatter},
+    support::facades::Artisan,
+};
+use std::sync::Arc;
+
+fn register_progress_output() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:progress-output", |input: &Input, output: &mut Output| {
+        let mut io = input.io(output);
+        let mut bar = io.get_output().create_progress_bar(2)?;
+        let label: ProgressFormatter = Arc::new(|bar| {
+            let current = bar.get_progress();
+            bar.get_output().writeln(format!("step:{current}").as_str(), OutputFormat::Raw)?;
+            Ok(format!("stage:{current}"))
+        });
+        bar.set_format("%stage%")
+            .set_placeholder_formatter("stage", label);
+        bar.start()?;
+        bar.advance_by(2)?;
+        bar.finish()?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
+The callback receives the bar; its output is borrowed only while used. This avoids overlapping mutable references to the bar and its output. Read the needed bar state before borrowing the output, then continue after that borrow ends. Writes share the existing formatter and error chain and do not update outer style newline counters. A placeholder may be evaluated repeatedly while formatting; keep business side effects outside it. This view does not claim the complete inherited output SDK: formatter replacement and output configuration setters remain separate entries.

@@ -219,3 +219,16 @@ workspace all-targets严格Clippy、fmt、实际main重建、三语站点构建�
 6个新增父消费者通过，1个被ignore的子进程夹具由真实驱动调用不计通过；MySQL专项同一个消费者重跑不叠加为新测试。最终7框架目标60项、根6目标86项，共146个不同父消费者，其中45个正式三语正文直接编译运行；数字／只读／可变公开入口均有实际调用，不以内部实现替代。workspace格式与all-targets严格Clippy（27.72s）、main(pail)、三语构建／12组浏览器及实际main／HTTP／Artisan／Pail／Ctrl+C再通过。证据progress-async-final-*、progress-async-gates-results.json、progress-async-mysql.log、progress-async-browser.log和progress-async-runtime.log，源SHA见accepted-progress-async.json。
 
 只提交本批核定源、三语与记录，保留其他认证／事务／生成器在途。回收本批运行夹具、无遗留容器服务，保留共享缓存与原始证据。继续占位符输出借用及其余辅助SDK、生成注册／信号／事件等未核对入口，不关闭整章或持续目标，不推送。
+
+
+## 第十五簇：占位符的安全输出借用（2026-11-25）
+
+第十四簇6fac15cd3已本地提交。固定ProgressBar占位符回调的第二参数为实际OutputInterface，原生不能同时提供整个进度条及其内部输出的重叠可变引用。本簇为ProgressFormatter保留进度条参数，通过bar.get_output逐次安全借出公开ProgressOutput，回调先取需要的进度值，再读写同一实际输出。无unsafe、RefCell别名或复制输出缓冲；复用Output原格式化／过滤／底层写入，原emit_progress委托到同一带格式及详细程度的消息入口，非第二套输出机制。
+
+ProgressOutput的write／writeln及单次迭代器变体、类型化OutputOptions、实际装饰／详细程度和四种级别查询逐项调用。固定真实源码60份数据覆盖装饰开关、Silent／Quiet／Normal／Verbose／Debug、Normal／Raw／Plain、原始／样式进度；自定义回调读元数据、写多条消息及按Debug过滤，保留实际求值次数与OutputStyle计数。额外60次真正ConsoleOutput固定源码双流对照：真实原生Artisan自定义占位符内容与进度全部写stderr、stdout保持独立；捕获调用仍写原缓冲。源stderr无VM告警，原始脚本仅target/tmp，必要数据progress-output-oracle及progress-output-cli-oracle.json入库，不引入PHP运行依赖。
+
+4个新增父消费者通过，1个ignore子进程夹具由真实驱动执行不计通过。另实际写入无效颜色保留ConsoleFormatError::InvalidColor来源，随后Raw／Plain／迭代器内容恢复；真实TCP普通／Plain成功200、错误500、后续200。公开类型ProgressOutput由正式console路径显式导入，不只靠隐藏返回类型推导。占位符会在排版中多次求值，三语明确业务副作用不应写在其中。回调的单参数＋借用getter为具体Rust别名约束适配，不冒充PHP两独立可变引用。
+
+最终8框架目标64项＋根6目标89项，共153个不同父消费者，含48个直接提取正式三语示例；此前各进度／问答／选择／表格入口同时回归。workspace格式、all-targets严格Clippy、main(pail)、三语构建／12组浏览器及实际HTTP／Artisan／Pail／Ctrl+C复验通过，命令与源码SHA见accepted-progress-output.json，日志progress-output-final-*、progress-output-gates-results.json、progress-output-runtime.log及progress-output-browser.log。首次check的未使用reexport源于缺少根公开导出，已补齐并由实际显式导入消费者验证，不屏蔽lint。
+
+本视图只闭合已列出的读写及元数据入口，不将它替代完整OutputInterface／Formatter SDK；setVerbosity、setDecorated、setFormatter、getFormatter继续在progress-contracts.json逐项待办，其他Table／组件／注册生成／事件信号与Tinker等依旧开放。回收本批运行夹具，无本批服务或容器遗留，保留共享缓存和证据；仅本地提交本簇，不推送，保护其他认证／事务／生成器在途。

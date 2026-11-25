@@ -51,7 +51,7 @@ pub use output_style::{OutputFormat, OutputMessages, OutputOptions, OutputStyle,
 pub(crate) use progress_bar::ProgressDefinitions;
 pub use progress_bar::{
     ConsoleProgressError, ProgressBar, ProgressFormatter, ProgressIterable, ProgressIterableMut,
-    ProgressIterator, ProgressStyleIterator,
+    ProgressIterator, ProgressOutput, ProgressStyleIterator,
 };
 pub use prompting::{CommandRegistration, MissingInputPrompt};
 pub use question::{

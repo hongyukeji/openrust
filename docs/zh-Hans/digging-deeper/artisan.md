@@ -743,3 +743,36 @@ fn register_progress_async() -> Result<(), ConsoleError> {
 ```
 
 `ProgressIterableMut` 支持切片、数组、向量、有序映射、基础集合、模型集合及可变借用，保留键与模型身份。可变模型回调可等待 `model.save()`，并用 `ConsoleError::from_source` 传播具体错误。同步原地处理另有 `with_progress_bar_iter_mut`。原地修改属于显式原生行为，默认回调保持只读；帮助方法不隐式开启事务或回滚已经完成的写入。错误和取消均不补完成帧；传入可变借用保留调用方所有权及已经发生的修改。
+
+## 占位符输出访问 {#progress-placeholder-output}
+
+在 `ProgressFormatter` 中通过 `bar.get_output()` 借用实际 `ProgressOutput` 输出流。它提供 `write`、`writeln`、单次消费的迭代器变体、详细程度查询及 `is_decorated`；`OutputOptions` 控制格式和消息级别。真实 CLI 写入 stderr，捕获调用继续使用原缓冲。
+
+```rust
+use openrust::{
+    console::{ConsoleError, Input, Output, OutputFormat, ProgressFormatter},
+    support::facades::Artisan,
+};
+use std::sync::Arc;
+
+fn register_progress_output() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:progress-output", |input: &Input, output: &mut Output| {
+        let mut io = input.io(output);
+        let mut bar = io.get_output().create_progress_bar(2)?;
+        let label: ProgressFormatter = Arc::new(|bar| {
+            let current = bar.get_progress();
+            bar.get_output().writeln(format!("step:{current}").as_str(), OutputFormat::Raw)?;
+            Ok(format!("stage:{current}"))
+        });
+        bar.set_format("%stage%")
+            .set_placeholder_formatter("stage", label);
+        bar.start()?;
+        bar.advance_by(2)?;
+        bar.finish()?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
+回调接收进度条，输出仅在使用期间借出，避免同时取得进度条及其内部输出的重叠可变引用。先读取所需进度状态，再借用输出，借用结束后可继续操作进度条。写入复用既有格式器与错误链，不更新外层样式换行计数。占位符在排版时可能重复求值，业务副作用应放在回调之外。本视图不代表完整继承输出 SDK；格式器替换和输出配置设置器仍为单独入口。

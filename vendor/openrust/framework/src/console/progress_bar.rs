@@ -11,6 +11,8 @@ pub use error::ConsoleProgressError;
 mod definitions;
 pub(crate) use definitions::Definitions as ProgressDefinitions;
 mod callbacks;
+mod output;
+pub use output::ProgressOutput;
 mod iterable;
 mod iterator;
 pub use iterable::{ProgressIterable, ProgressIterableMut};

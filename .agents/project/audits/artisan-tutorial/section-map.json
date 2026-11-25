@@ -343,7 +343,7 @@
     },
     {
       "anchor": "progress-bars",
-      "status": "verified_tutorial_helpers_remaining_output_adapter_and_sdk",
+      "status": "verified_tutorial_helpers_and_native_output_adaptation_remaining_sdk",
       "evidence": [
         "console_progress_tutorial",
         "progress-contracts.json",
@@ -352,11 +352,13 @@
         "console_progress_iteration",
         "accepted-progress-iteration.json",
         "console_progress_async",
-        "accepted-progress-async.json"
+        "accepted-progress-async.json",
+        "console_progress_output",
+        "accepted-progress-output.json"
       ],
       "native": "console::{CommandIo, OutputStyle, ProgressBar, ProgressIterable}",
       "remaining": [
-        "安全占位符输出适配及其余继承SDK继续；不关闭整章。"
+        "继承输出SDK的配置设置器／格式器类型及其余章锚点继续；不关闭整章。"
       ]
     },
     {

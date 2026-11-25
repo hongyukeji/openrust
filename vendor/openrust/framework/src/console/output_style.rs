@@ -501,19 +501,28 @@ impl Output {
     }
     /// 实际控制台的进度写入stderr；缓冲调用仍沿用单一输出，不建立第二份捕获结果。
     pub(super) fn emit_progress(&mut self, message: &str) -> Result<(), ConsoleError> {
-        if self.is_silent() || self.verbosity() < OutputVerbosity::Normal {
+        self.emit_progress_message(
+            message,
+            false,
+            OutputFormat::Normal,
+            OutputVerbosity::Normal,
+        )
+    }
+    pub(super) fn emit_progress_message(
+        &mut self,
+        message: &str,
+        newline: bool,
+        format: OutputFormat,
+        level: OutputVerbosity,
+    ) -> Result<(), ConsoleError> {
+        if self.is_silent() || self.verbosity() < level {
             return Ok(());
         }
         if !self.terminal {
-            return self.emit_formatted(
-                message,
-                false,
-                OutputFormat::Normal,
-                OutputVerbosity::Normal,
-            );
+            return self.emit_formatted(message, newline, format, level);
         }
-        self.emit_rendered("", OutputVerbosity::Normal)?;
-        let rendered = self.render_message(message, false, OutputFormat::Normal, true)?;
+        self.emit_rendered("", level)?;
+        let rendered = self.render_message(message, newline, format, true)?;
         use std::io::Write as _;
         let mut stderr = std::io::stderr().lock();
         if !self.stderr.is_empty() {

@@ -1,0 +1,1670 @@
+[
+    {
+        "decorated": false,
+        "level": 8,
+        "format": 0,
+        "styled": false,
+        "calls": 2,
+        "metadata": [
+            [
+                8,
+                false,
+                false,
+                false,
+                false,
+                false
+            ],
+            [
+                8,
+                false,
+                false,
+                false,
+                false,
+                false
+            ]
+        ],
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 8,
+        "format": 0,
+        "styled": true,
+        "calls": 2,
+        "metadata": [
+            [
+                8,
+                false,
+                false,
+                false,
+                false,
+                false
+            ],
+            [
+                8,
+                false,
+                false,
+                false,
+                false,
+                false
+            ]
+        ],
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 8,
+        "format": 2,
+        "styled": false,
+        "calls": 2,
+        "metadata": [
+            [
+                8,
+                false,
+                false,
+                false,
+                false,
+                false
+            ],
+            [
+                8,
+                false,
+                false,
+                false,
+                false,
+                false
+            ]
+        ],
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 8,
+        "format": 2,
+        "styled": true,
+        "calls": 2,
+        "metadata": [
+            [
+                8,
+                false,
+                false,
+                false,
+                false,
+                false
+            ],
+            [
+                8,
+                false,
+                false,
+                false,
+                false,
+                false
+            ]
+        ],
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 8,
+        "format": 4,
+        "styled": false,
+        "calls": 2,
+        "metadata": [
+            [
+                8,
+                false,
+                false,
+                false,
+                false,
+                false
+            ],
+            [
+                8,
+                false,
+                false,
+                false,
+                false,
+                false
+            ]
+        ],
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 8,
+        "format": 4,
+        "styled": true,
+        "calls": 2,
+        "metadata": [
+            [
+                8,
+                false,
+                false,
+                false,
+                false,
+                false
+            ],
+            [
+                8,
+                false,
+                false,
+                false,
+                false,
+                false
+            ]
+        ],
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 16,
+        "format": 0,
+        "styled": false,
+        "calls": 0,
+        "metadata": [],
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 16,
+        "format": 0,
+        "styled": true,
+        "calls": 0,
+        "metadata": [],
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 16,
+        "format": 2,
+        "styled": false,
+        "calls": 0,
+        "metadata": [],
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 16,
+        "format": 2,
+        "styled": true,
+        "calls": 0,
+        "metadata": [],
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 16,
+        "format": 4,
+        "styled": false,
+        "calls": 0,
+        "metadata": [],
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 16,
+        "format": 4,
+        "styled": true,
+        "calls": 0,
+        "metadata": [],
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 32,
+        "format": 0,
+        "styled": false,
+        "calls": 2,
+        "metadata": [
+            [
+                32,
+                false,
+                false,
+                false,
+                false,
+                false
+            ],
+            [
+                32,
+                false,
+                false,
+                false,
+                false,
+                false
+            ]
+        ],
+        "output": "note\/0\/row\ntail\nbar:0note\/2\/row\ntail\n\nbar:2",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 32,
+        "format": 0,
+        "styled": true,
+        "calls": 2,
+        "metadata": [
+            [
+                32,
+                false,
+                false,
+                false,
+                false,
+                false
+            ],
+            [
+                32,
+                false,
+                false,
+                false,
+                false,
+                false
+            ]
+        ],
+        "output": "note\/0\/row\ntail\nbar:0note\/2\/row\ntail\n\nbar:2",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 32,
+        "format": 2,
+        "styled": false,
+        "calls": 2,
+        "metadata": [
+            [
+                32,
+                false,
+                false,
+                false,
+                false,
+                false
+            ],
+            [
+                32,
+                false,
+                false,
+                false,
+                false,
+                false
+            ]
+        ],
+        "output": "<info>note<\/info>\/0\/<comment>row<\/comment>\ntail\nbar:0<info>note<\/info>\/2\/<comment>row<\/comment>\ntail\n\nbar:2",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 32,
+        "format": 2,
+        "styled": true,
+        "calls": 2,
+        "metadata": [
+            [
+                32,
+                false,
+                false,
+                false,
+                false,
+                false
+            ],
+            [
+                32,
+                false,
+                false,
+                false,
+                false,
+                false
+            ]
+        ],
+        "output": "<info>note<\/info>\/0\/<comment>row<\/comment>\ntail\nbar:0<info>note<\/info>\/2\/<comment>row<\/comment>\ntail\n\nbar:2",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 32,
+        "format": 4,
+        "styled": false,
+        "calls": 2,
+        "metadata": [
+            [
+                32,
+                false,
+                false,
+                false,
+                false,
+                false
+            ],
+            [
+                32,
+                false,
+                false,
+                false,
+                false,
+                false
+            ]
+        ],
+        "output": "note\/0\/row\ntail\nbar:0note\/2\/row\ntail\n\nbar:2",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 32,
+        "format": 4,
+        "styled": true,
+        "calls": 2,
+        "metadata": [
+            [
+                32,
+                false,
+                false,
+                false,
+                false,
+                false
+            ],
+            [
+                32,
+                false,
+                false,
+                false,
+                false,
+                false
+            ]
+        ],
+        "output": "note\/0\/row\ntail\nbar:0note\/2\/row\ntail\n\nbar:2",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 64,
+        "format": 0,
+        "styled": false,
+        "calls": 2,
+        "metadata": [
+            [
+                64,
+                false,
+                false,
+                true,
+                false,
+                false
+            ],
+            [
+                64,
+                false,
+                false,
+                true,
+                false,
+                false
+            ]
+        ],
+        "output": "note\/0\/row\ntail\nbar:0note\/2\/row\ntail\n\nbar:2",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 64,
+        "format": 0,
+        "styled": true,
+        "calls": 2,
+        "metadata": [
+            [
+                64,
+                false,
+                false,
+                true,
+                false,
+                false
+            ],
+            [
+                64,
+                false,
+                false,
+                true,
+                false,
+                false
+            ]
+        ],
+        "output": "note\/0\/row\ntail\nbar:0note\/2\/row\ntail\n\nbar:2",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 64,
+        "format": 2,
+        "styled": false,
+        "calls": 2,
+        "metadata": [
+            [
+                64,
+                false,
+                false,
+                true,
+                false,
+                false
+            ],
+            [
+                64,
+                false,
+                false,
+                true,
+                false,
+                false
+            ]
+        ],
+        "output": "<info>note<\/info>\/0\/<comment>row<\/comment>\ntail\nbar:0<info>note<\/info>\/2\/<comment>row<\/comment>\ntail\n\nbar:2",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 64,
+        "format": 2,
+        "styled": true,
+        "calls": 2,
+        "metadata": [
+            [
+                64,
+                false,
+                false,
+                true,
+                false,
+                false
+            ],
+            [
+                64,
+                false,
+                false,
+                true,
+                false,
+                false
+            ]
+        ],
+        "output": "<info>note<\/info>\/0\/<comment>row<\/comment>\ntail\nbar:0<info>note<\/info>\/2\/<comment>row<\/comment>\ntail\n\nbar:2",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 64,
+        "format": 4,
+        "styled": false,
+        "calls": 2,
+        "metadata": [
+            [
+                64,
+                false,
+                false,
+                true,
+                false,
+                false
+            ],
+            [
+                64,
+                false,
+                false,
+                true,
+                false,
+                false
+            ]
+        ],
+        "output": "note\/0\/row\ntail\nbar:0note\/2\/row\ntail\n\nbar:2",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 64,
+        "format": 4,
+        "styled": true,
+        "calls": 2,
+        "metadata": [
+            [
+                64,
+                false,
+                false,
+                true,
+                false,
+                false
+            ],
+            [
+                64,
+                false,
+                false,
+                true,
+                false,
+                false
+            ]
+        ],
+        "output": "note\/0\/row\ntail\nbar:0note\/2\/row\ntail\n\nbar:2",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 256,
+        "format": 0,
+        "styled": false,
+        "calls": 2,
+        "metadata": [
+            [
+                256,
+                false,
+                false,
+                true,
+                true,
+                true
+            ],
+            [
+                256,
+                false,
+                false,
+                true,
+                true,
+                true
+            ]
+        ],
+        "output": "note\/0\/row\ntail\nhiddenbar:0note\/2\/row\ntail\nhidden\nbar:2",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 256,
+        "format": 0,
+        "styled": true,
+        "calls": 2,
+        "metadata": [
+            [
+                256,
+                false,
+                false,
+                true,
+                true,
+                true
+            ],
+            [
+                256,
+                false,
+                false,
+                true,
+                true,
+                true
+            ]
+        ],
+        "output": "note\/0\/row\ntail\nhiddenbar:0note\/2\/row\ntail\nhidden\nbar:2",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 256,
+        "format": 2,
+        "styled": false,
+        "calls": 2,
+        "metadata": [
+            [
+                256,
+                false,
+                false,
+                true,
+                true,
+                true
+            ],
+            [
+                256,
+                false,
+                false,
+                true,
+                true,
+                true
+            ]
+        ],
+        "output": "<info>note<\/info>\/0\/<comment>row<\/comment>\ntail\nhiddenbar:0<info>note<\/info>\/2\/<comment>row<\/comment>\ntail\nhidden\nbar:2",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 256,
+        "format": 2,
+        "styled": true,
+        "calls": 2,
+        "metadata": [
+            [
+                256,
+                false,
+                false,
+                true,
+                true,
+                true
+            ],
+            [
+                256,
+                false,
+                false,
+                true,
+                true,
+                true
+            ]
+        ],
+        "output": "<info>note<\/info>\/0\/<comment>row<\/comment>\ntail\nhiddenbar:0<info>note<\/info>\/2\/<comment>row<\/comment>\ntail\nhidden\nbar:2",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 256,
+        "format": 4,
+        "styled": false,
+        "calls": 2,
+        "metadata": [
+            [
+                256,
+                false,
+                false,
+                true,
+                true,
+                true
+            ],
+            [
+                256,
+                false,
+                false,
+                true,
+                true,
+                true
+            ]
+        ],
+        "output": "note\/0\/row\ntail\nhiddenbar:0note\/2\/row\ntail\nhidden\nbar:2",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 256,
+        "format": 4,
+        "styled": true,
+        "calls": 2,
+        "metadata": [
+            [
+                256,
+                false,
+                false,
+                true,
+                true,
+                true
+            ],
+            [
+                256,
+                false,
+                false,
+                true,
+                true,
+                true
+            ]
+        ],
+        "output": "note\/0\/row\ntail\nhiddenbar:0note\/2\/row\ntail\nhidden\nbar:2",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 8,
+        "format": 0,
+        "styled": false,
+        "calls": 3,
+        "metadata": [
+            [
+                8,
+                true,
+                false,
+                false,
+                false,
+                false
+            ],
+            [
+                8,
+                true,
+                false,
+                false,
+                false,
+                false
+            ],
+            [
+                8,
+                true,
+                false,
+                false,
+                false,
+                false
+            ]
+        ],
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 8,
+        "format": 0,
+        "styled": true,
+        "calls": 3,
+        "metadata": [
+            [
+                8,
+                true,
+                false,
+                false,
+                false,
+                false
+            ],
+            [
+                8,
+                true,
+                false,
+                false,
+                false,
+                false
+            ],
+            [
+                8,
+                true,
+                false,
+                false,
+                false,
+                false
+            ]
+        ],
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 8,
+        "format": 2,
+        "styled": false,
+        "calls": 3,
+        "metadata": [
+            [
+                8,
+                true,
+                false,
+                false,
+                false,
+                false
+            ],
+            [
+                8,
+                true,
+                false,
+                false,
+                false,
+                false
+            ],
+            [
+                8,
+                true,
+                false,
+                false,
+                false,
+                false
+            ]
+        ],
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 8,
+        "format": 2,
+        "styled": true,
+        "calls": 3,
+        "metadata": [
+            [
+                8,
+                true,
+                false,
+                false,
+                false,
+                false
+            ],
+            [
+                8,
+                true,
+                false,
+                false,
+                false,
+                false
+            ],
+            [
+                8,
+                true,
+                false,
+                false,
+                false,
+                false
+            ]
+        ],
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 8,
+        "format": 4,
+        "styled": false,
+        "calls": 3,
+        "metadata": [
+            [
+                8,
+                true,
+                false,
+                false,
+                false,
+                false
+            ],
+            [
+                8,
+                true,
+                false,
+                false,
+                false,
+                false
+            ],
+            [
+                8,
+                true,
+                false,
+                false,
+                false,
+                false
+            ]
+        ],
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 8,
+        "format": 4,
+        "styled": true,
+        "calls": 3,
+        "metadata": [
+            [
+                8,
+                true,
+                false,
+                false,
+                false,
+                false
+            ],
+            [
+                8,
+                true,
+                false,
+                false,
+                false,
+                false
+            ],
+            [
+                8,
+                true,
+                false,
+                false,
+                false,
+                false
+            ]
+        ],
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 16,
+        "format": 0,
+        "styled": false,
+        "calls": 0,
+        "metadata": [],
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 16,
+        "format": 0,
+        "styled": true,
+        "calls": 0,
+        "metadata": [],
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 16,
+        "format": 2,
+        "styled": false,
+        "calls": 0,
+        "metadata": [],
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 16,
+        "format": 2,
+        "styled": true,
+        "calls": 0,
+        "metadata": [],
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 16,
+        "format": 4,
+        "styled": false,
+        "calls": 0,
+        "metadata": [],
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 16,
+        "format": 4,
+        "styled": true,
+        "calls": 0,
+        "metadata": [],
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 32,
+        "format": 0,
+        "styled": false,
+        "calls": 3,
+        "metadata": [
+            [
+                32,
+                true,
+                false,
+                false,
+                false,
+                false
+            ],
+            [
+                32,
+                true,
+                false,
+                false,
+                false,
+                false
+            ],
+            [
+                32,
+                true,
+                false,
+                false,
+                false,
+                false
+            ]
+        ],
+        "output": "\u001b[32mnote\u001b[39m\/0\/\u001b[33mrow\u001b[39m\ntail\nbar:0\u001b[32mnote\u001b[39m\/2\/\u001b[33mrow\u001b[39m\ntail\n\u001b[1G\u001b[2Kbar:2\u001b[32mnote\u001b[39m\/2\/\u001b[33mrow\u001b[39m\ntail\n",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 32,
+        "format": 0,
+        "styled": true,
+        "calls": 3,
+        "metadata": [
+            [
+                32,
+                true,
+                false,
+                false,
+                false,
+                false
+            ],
+            [
+                32,
+                true,
+                false,
+                false,
+                false,
+                false
+            ],
+            [
+                32,
+                true,
+                false,
+                false,
+                false,
+                false
+            ]
+        ],
+        "output": "\u001b[32mnote\u001b[39m\/0\/\u001b[33mrow\u001b[39m\ntail\nbar:0\u001b[32mnote\u001b[39m\/2\/\u001b[33mrow\u001b[39m\ntail\n\u001b[1G\u001b[2Kbar:2\u001b[32mnote\u001b[39m\/2\/\u001b[33mrow\u001b[39m\ntail\n",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 32,
+        "format": 2,
+        "styled": false,
+        "calls": 3,
+        "metadata": [
+            [
+                32,
+                true,
+                false,
+                false,
+                false,
+                false
+            ],
+            [
+                32,
+                true,
+                false,
+                false,
+                false,
+                false
+            ],
+            [
+                32,
+                true,
+                false,
+                false,
+                false,
+                false
+            ]
+        ],
+        "output": "<info>note<\/info>\/0\/<comment>row<\/comment>\ntail\nbar:0<info>note<\/info>\/2\/<comment>row<\/comment>\ntail\n\u001b[1G\u001b[2Kbar:2<info>note<\/info>\/2\/<comment>row<\/comment>\ntail\n",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 32,
+        "format": 2,
+        "styled": true,
+        "calls": 3,
+        "metadata": [
+            [
+                32,
+                true,
+                false,
+                false,
+                false,
+                false
+            ],
+            [
+                32,
+                true,
+                false,
+                false,
+                false,
+                false
+            ],
+            [
+                32,
+                true,
+                false,
+                false,
+                false,
+                false
+            ]
+        ],
+        "output": "<info>note<\/info>\/0\/<comment>row<\/comment>\ntail\nbar:0<info>note<\/info>\/2\/<comment>row<\/comment>\ntail\n\u001b[1G\u001b[2Kbar:2<info>note<\/info>\/2\/<comment>row<\/comment>\ntail\n",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 32,
+        "format": 4,
+        "styled": false,
+        "calls": 3,
+        "metadata": [
+            [
+                32,
+                true,
+                false,
+                false,
+                false,
+                false
+            ],
+            [
+                32,
+                true,
+                false,
+                false,
+                false,
+                false
+            ],
+            [
+                32,
+                true,
+                false,
+                false,
+                false,
+                false
+            ]
+        ],
+        "output": "\u001b[32mnote\u001b[39m\/0\/\u001b[33mrow\u001b[39m\ntail\nbar:0\u001b[32mnote\u001b[39m\/2\/\u001b[33mrow\u001b[39m\ntail\n\u001b[1G\u001b[2Kbar:2\u001b[32mnote\u001b[39m\/2\/\u001b[33mrow\u001b[39m\ntail\n",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 32,
+        "format": 4,
+        "styled": true,
+        "calls": 3,
+        "metadata": [
+            [
+                32,
+                true,
+                false,
+                false,
+                false,
+                false
+            ],
+            [
+                32,
+                true,
+                false,
+                false,
+                false,
+                false
+            ],
+            [
+                32,
+                true,
+                false,
+                false,
+                false,
+                false
+            ]
+        ],
+        "output": "\u001b[32mnote\u001b[39m\/0\/\u001b[33mrow\u001b[39m\ntail\nbar:0\u001b[32mnote\u001b[39m\/2\/\u001b[33mrow\u001b[39m\ntail\n\u001b[1G\u001b[2Kbar:2\u001b[32mnote\u001b[39m\/2\/\u001b[33mrow\u001b[39m\ntail\n",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 64,
+        "format": 0,
+        "styled": false,
+        "calls": 3,
+        "metadata": [
+            [
+                64,
+                true,
+                false,
+                true,
+                false,
+                false
+            ],
+            [
+                64,
+                true,
+                false,
+                true,
+                false,
+                false
+            ],
+            [
+                64,
+                true,
+                false,
+                true,
+                false,
+                false
+            ]
+        ],
+        "output": "\u001b[32mnote\u001b[39m\/0\/\u001b[33mrow\u001b[39m\ntail\nbar:0\u001b[32mnote\u001b[39m\/2\/\u001b[33mrow\u001b[39m\ntail\n\u001b[1G\u001b[2Kbar:2\u001b[32mnote\u001b[39m\/2\/\u001b[33mrow\u001b[39m\ntail\n",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 64,
+        "format": 0,
+        "styled": true,
+        "calls": 3,
+        "metadata": [
+            [
+                64,
+                true,
+                false,
+                true,
+                false,
+                false
+            ],
+            [
+                64,
+                true,
+                false,
+                true,
+                false,
+                false
+            ],
+            [
+                64,
+                true,
+                false,
+                true,
+                false,
+                false
+            ]
+        ],
+        "output": "\u001b[32mnote\u001b[39m\/0\/\u001b[33mrow\u001b[39m\ntail\nbar:0\u001b[32mnote\u001b[39m\/2\/\u001b[33mrow\u001b[39m\ntail\n\u001b[1G\u001b[2Kbar:2\u001b[32mnote\u001b[39m\/2\/\u001b[33mrow\u001b[39m\ntail\n",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 64,
+        "format": 2,
+        "styled": false,
+        "calls": 3,
+        "metadata": [
+            [
+                64,
+                true,
+                false,
+                true,
+                false,
+                false
+            ],
+            [
+                64,
+                true,
+                false,
+                true,
+                false,
+                false
+            ],
+            [
+                64,
+                true,
+                false,
+                true,
+                false,
+                false
+            ]
+        ],
+        "output": "<info>note<\/info>\/0\/<comment>row<\/comment>\ntail\nbar:0<info>note<\/info>\/2\/<comment>row<\/comment>\ntail\n\u001b[1G\u001b[2Kbar:2<info>note<\/info>\/2\/<comment>row<\/comment>\ntail\n",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 64,
+        "format": 2,
+        "styled": true,
+        "calls": 3,
+        "metadata": [
+            [
+                64,
+                true,
+                false,
+                true,
+                false,
+                false
+            ],
+            [
+                64,
+                true,
+                false,
+                true,
+                false,
+                false
+            ],
+            [
+                64,
+                true,
+                false,
+                true,
+                false,
+                false
+            ]
+        ],
+        "output": "<info>note<\/info>\/0\/<comment>row<\/comment>\ntail\nbar:0<info>note<\/info>\/2\/<comment>row<\/comment>\ntail\n\u001b[1G\u001b[2Kbar:2<info>note<\/info>\/2\/<comment>row<\/comment>\ntail\n",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 64,
+        "format": 4,
+        "styled": false,
+        "calls": 3,
+        "metadata": [
+            [
+                64,
+                true,
+                false,
+                true,
+                false,
+                false
+            ],
+            [
+                64,
+                true,
+                false,
+                true,
+                false,
+                false
+            ],
+            [
+                64,
+                true,
+                false,
+                true,
+                false,
+                false
+            ]
+        ],
+        "output": "\u001b[32mnote\u001b[39m\/0\/\u001b[33mrow\u001b[39m\ntail\nbar:0\u001b[32mnote\u001b[39m\/2\/\u001b[33mrow\u001b[39m\ntail\n\u001b[1G\u001b[2Kbar:2\u001b[32mnote\u001b[39m\/2\/\u001b[33mrow\u001b[39m\ntail\n",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 64,
+        "format": 4,
+        "styled": true,
+        "calls": 3,
+        "metadata": [
+            [
+                64,
+                true,
+                false,
+                true,
+                false,
+                false
+            ],
+            [
+                64,
+                true,
+                false,
+                true,
+                false,
+                false
+            ],
+            [
+                64,
+                true,
+                false,
+                true,
+                false,
+                false
+            ]
+        ],
+        "output": "\u001b[32mnote\u001b[39m\/0\/\u001b[33mrow\u001b[39m\ntail\nbar:0\u001b[32mnote\u001b[39m\/2\/\u001b[33mrow\u001b[39m\ntail\n\u001b[1G\u001b[2Kbar:2\u001b[32mnote\u001b[39m\/2\/\u001b[33mrow\u001b[39m\ntail\n",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 256,
+        "format": 0,
+        "styled": false,
+        "calls": 3,
+        "metadata": [
+            [
+                256,
+                true,
+                false,
+                true,
+                true,
+                true
+            ],
+            [
+                256,
+                true,
+                false,
+                true,
+                true,
+                true
+            ],
+            [
+                256,
+                true,
+                false,
+                true,
+                true,
+                true
+            ]
+        ],
+        "output": "\u001b[32mnote\u001b[39m\/0\/\u001b[33mrow\u001b[39m\ntail\nhiddenbar:0\u001b[32mnote\u001b[39m\/2\/\u001b[33mrow\u001b[39m\ntail\nhidden\u001b[1G\u001b[2Kbar:2\u001b[32mnote\u001b[39m\/2\/\u001b[33mrow\u001b[39m\ntail\nhidden",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 256,
+        "format": 0,
+        "styled": true,
+        "calls": 3,
+        "metadata": [
+            [
+                256,
+                true,
+                false,
+                true,
+                true,
+                true
+            ],
+            [
+                256,
+                true,
+                false,
+                true,
+                true,
+                true
+            ],
+            [
+                256,
+                true,
+                false,
+                true,
+                true,
+                true
+            ]
+        ],
+        "output": "\u001b[32mnote\u001b[39m\/0\/\u001b[33mrow\u001b[39m\ntail\nhiddenbar:0\u001b[32mnote\u001b[39m\/2\/\u001b[33mrow\u001b[39m\ntail\nhidden\u001b[1G\u001b[2Kbar:2\u001b[32mnote\u001b[39m\/2\/\u001b[33mrow\u001b[39m\ntail\nhidden",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 256,
+        "format": 2,
+        "styled": false,
+        "calls": 3,
+        "metadata": [
+            [
+                256,
+                true,
+                false,
+                true,
+                true,
+                true
+            ],
+            [
+                256,
+                true,
+                false,
+                true,
+                true,
+                true
+            ],
+            [
+                256,
+                true,
+                false,
+                true,
+                true,
+                true
+            ]
+        ],
+        "output": "<info>note<\/info>\/0\/<comment>row<\/comment>\ntail\nhiddenbar:0<info>note<\/info>\/2\/<comment>row<\/comment>\ntail\nhidden\u001b[1G\u001b[2Kbar:2<info>note<\/info>\/2\/<comment>row<\/comment>\ntail\nhidden",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 256,
+        "format": 2,
+        "styled": true,
+        "calls": 3,
+        "metadata": [
+            [
+                256,
+                true,
+                false,
+                true,
+                true,
+                true
+            ],
+            [
+                256,
+                true,
+                false,
+                true,
+                true,
+                true
+            ],
+            [
+                256,
+                true,
+                false,
+                true,
+                true,
+                true
+            ]
+        ],
+        "output": "<info>note<\/info>\/0\/<comment>row<\/comment>\ntail\nhiddenbar:0<info>note<\/info>\/2\/<comment>row<\/comment>\ntail\nhidden\u001b[1G\u001b[2Kbar:2<info>note<\/info>\/2\/<comment>row<\/comment>\ntail\nhidden",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 256,
+        "format": 4,
+        "styled": false,
+        "calls": 3,
+        "metadata": [
+            [
+                256,
+                true,
+                false,
+                true,
+                true,
+                true
+            ],
+            [
+                256,
+                true,
+                false,
+                true,
+                true,
+                true
+            ],
+            [
+                256,
+                true,
+                false,
+                true,
+                true,
+                true
+            ]
+        ],
+        "output": "\u001b[32mnote\u001b[39m\/0\/\u001b[33mrow\u001b[39m\ntail\nhiddenbar:0\u001b[32mnote\u001b[39m\/2\/\u001b[33mrow\u001b[39m\ntail\nhidden\u001b[1G\u001b[2Kbar:2\u001b[32mnote\u001b[39m\/2\/\u001b[33mrow\u001b[39m\ntail\nhidden",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 256,
+        "format": 4,
+        "styled": true,
+        "calls": 3,
+        "metadata": [
+            [
+                256,
+                true,
+                false,
+                true,
+                true,
+                true
+            ],
+            [
+                256,
+                true,
+                false,
+                true,
+                true,
+                true
+            ],
+            [
+                256,
+                true,
+                false,
+                true,
+                true,
+                true
+            ]
+        ],
+        "output": "\u001b[32mnote\u001b[39m\/0\/\u001b[33mrow\u001b[39m\ntail\nhiddenbar:0\u001b[32mnote\u001b[39m\/2\/\u001b[33mrow\u001b[39m\ntail\nhidden\u001b[1G\u001b[2Kbar:2\u001b[32mnote\u001b[39m\/2\/\u001b[33mrow\u001b[39m\ntail\nhidden",
+        "new_lines": 1,
+        "new_line": false
+    }
+]
