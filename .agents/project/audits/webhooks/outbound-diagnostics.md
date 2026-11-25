@@ -4,7 +4,7 @@
 
 `webhook-server:inspect` 将相同契约写成单行 JSON。Artisan 由可信运维操作，支持指定数据库和范围。扩展未注册对公网的诊断路由。应用按自身授权规则开放范围后可重用公开服务。输出不含请求或响应正文、URL、密钥、Header、幂等键或完整快照。借鉴 Svix 分开查询消息与尝试、按已授权应用隔离并有界分页的职责。 [Svix 投递诊断说明](https://www.svix.com/webhook-monitoring/)
 
-直接 Builder 提交目前以投递 ID 查询；按任意 Builder 指定的外部消息 UUID 聚合、端点维度列表、批量重放、留存清理和多主机验收仍跟踪。普通 CONNECT 代理仍在 WS-08。
+直接 Builder 提交目前以投递 ID 查询；按任意 Builder 指定的外部消息 UUID 聚合、端点维度列表、批量重放、共享正文与墓碑回收和多主机验收仍跟踪。[出站快照与尝试留存](outbound-retention.md)已接入。普通 CONNECT 代理仍在 WS-08。
 
 ## 验收
 

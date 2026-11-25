@@ -7,7 +7,9 @@ use openrust::{
     support::facades::Artisan,
 };
 
-use crate::{DeliveryService, DeliveryStore, Error, delivery::RegisteredDeliveryPolicy};
+use crate::{
+    DeliveryRetention, DeliveryService, DeliveryStore, Error, delivery::RegisteredDeliveryPolicy,
+};
 
 pub(super) fn register() -> Result<(), ConsoleError> {
     let syntax = Syntax::new("webhook-server:send")
@@ -86,7 +88,34 @@ pub(super) fn register() -> Result<(), ConsoleError> {
                 .requires("attempts")
                 .value_parser(value_parser!(u32).range(1..=100)),
         );
-    Artisan::add(Box::new(Inspect(CommandDefinition::new(inspect))))
+    Artisan::add(Box::new(Inspect(CommandDefinition::new(inspect))))?;
+    let prune = Syntax::new("webhook-server:prune")
+        .about("分批清理已过保留期的出站快照或尝试")
+        .arg(Arg::new("scope").long("scope").required(true))
+        .arg(Arg::new("database").long("database"))
+        .arg(
+            Arg::new("attempts")
+                .long("attempts")
+                .action(ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::new("pretend")
+                .long("pretend")
+                .action(ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::new("days")
+                .long("days")
+                .required(true)
+                .value_parser(value_parser!(u32).range(0..=36_500)),
+        )
+        .arg(
+            Arg::new("limit")
+                .long("limit")
+                .default_value("100")
+                .value_parser(value_parser!(u32).range(1..=500)),
+        );
+    Artisan::add(Box::new(Prune(CommandDefinition::new(prune))))
 }
 
 struct Send(CommandDefinition);
@@ -250,6 +279,42 @@ impl Command for Inspect {
                 )
             }
             .map_err(ConsoleError::from_source)?;
+            output
+                .write_raw(&format!("{json}\n"))
+                .map_err(ConsoleError::from_source)?;
+            Ok(0)
+        })
+    }
+}
+
+struct Prune(CommandDefinition);
+
+impl Command for Prune {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+
+    fn handle<'a>(
+        &'a self,
+        app: &'a Application,
+        input: &'a Input,
+        output: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            let store = delivery_store(app, input).await?;
+            let args = input.matches();
+            let artifact = if args.get_flag("attempts") {
+                DeliveryRetention::Attempts
+            } else {
+                DeliveryRetention::Payloads
+            };
+            let days = *args.get_one::<u32>("days").expect("必填保留天数");
+            let limit = *args.get_one::<u32>("limit").expect("默认批次大小");
+            let report = store
+                .prune(artifact, days, limit, args.get_flag("pretend"))
+                .await
+                .map_err(ConsoleError::from_source)?;
+            let json = serde_json::to_string(&report).map_err(ConsoleError::from_source)?;
             output
                 .write_raw(&format!("{json}\n"))
                 .map_err(ConsoleError::from_source)?;

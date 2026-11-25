@@ -218,6 +218,7 @@ impl DeliveryStore {
         let row = self
             .owned_row(self.connection.table(DELIVERIES), id)
             .use_write_pdo()
+            .where_null("payload_pruned_at")
             .select(["state", "snapshot", "digest"])
             .first()
             .await?
@@ -281,6 +282,19 @@ impl DeliveryStore {
             let (inserted, _) = self.insert_delivery(&mut tx, id, snapshot).await?;
             if inserted != 1 {
                 return Err(Error::ReplayConflict);
+            }
+            // SQLite 已先写入新投递，其他后端在这里锁定原始投递再检查留存。
+            if self
+                .owned_row(tx.table(DELIVERIES), &record.original_id)
+                .where_null("payload_pruned_at")
+                .r#where("state", "=", record.source_state.as_str())
+                .select(["id"])
+                .lock_for_update()
+                .first()
+                .await?
+                .is_none()
+            {
+                return Err(Error::ReplayUnavailable);
             }
             let now = self.time_in(&mut tx).await?;
             if let Some(limit) = limit {
@@ -790,7 +804,7 @@ impl DeliveryStore {
         })
     }
 
-    fn clock(&self) -> &'static str {
+    pub(crate) fn clock(&self) -> &'static str {
         match self.connection.get_driver_name() {
             "sqlite" => "unixepoch()",
             "pgsql" => "floor(extract(epoch from statement_timestamp()))::bigint",

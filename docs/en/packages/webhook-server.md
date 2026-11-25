@@ -169,6 +169,13 @@ pub async fn inspect_invoice_attempts(
     store.inspect_attempts(id, after, 25).await
 }
 
+
+pub async fn preview_invoice_pruning(
+    store: &openrust_webhook_server::DeliveryStore,
+) -> Result<openrust_webhook_server::DeliveryPruneReport> {
+    store.prune(openrust_webhook_server::DeliveryRetention::Payloads, 30, 100, true).await
+}
+
 ```
 
 
@@ -254,6 +261,12 @@ When a send reaches a limit, the delivery waits until the bucket resets with its
 Use `./artisan webhook-server:inspect <id> --scope=<scope>` for a delivery ID. Add `--message` for the internal message ID returned by `publish`. Add `--attempts --limit=25` for an attempt page, then pass the returned `next_after` to `--after` if another page exists. All timestamps are Unix seconds. `--database` selects a named database connection.
 
 Results include state, timing, HTTP status and bounded attempt outcomes. Published message summaries include the event type, schema version and original delivery IDs. The package does not mount a diagnostics HTTP route. Authorize the scope in the application before calling the read-only `DeliveryStore` methods. Give Artisan access to trusted operators because the command accepts a database and scope. Diagnostics contain no request URL, body, headers, signing material or remote response body.
+
+### Prune outgoing delivery data {#prune}
+
+Run `./artisan webhook-server:prune --scope=<scope> --days=30 --pretend` to preview candidates. Remove `--pretend` to clear the stored request snapshot while retaining the delivery ID, state and idempotency digest. The cutoff is measured from the delivery deadline. Add `--attempts` to prune finished attempt rows separately using their completion time. Each invocation handles up to 500 rows, with 100 by default. `--database` selects a named connection.
+
+Apply migrations and upgrade all processes that can register replays before enabling pruning. Only terminal deliveries qualify. A pruned original can no longer be used to register a replay. Replays already registered can still send their own stored request. Diagnostics expose `payload_pruned_at` in Unix seconds after pruning. Shared publication bodies and idempotency tombstones remain available.
 
 ### Publish to subscriptions {#subscriptions}
 

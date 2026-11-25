@@ -243,6 +243,105 @@ def exercise(binary, env, log, receiver, driver, sql):
         finally:
             connection.close()
 
+    if env.get("FIXTURE_SEND_RETENTION"):
+        def prune(*args, scope=SCOPE, success=True):
+            output = command("webhook-server:prune", "--scope", scope, *args, success=success)
+            return json.loads(output) if success else None
+
+        def replay_args(identifier):
+            return ("webhook-server:replay", identifier, "--scope", SCOPE,
+                    "--actor=fixture-operator", "--reason=test-retention")
+
+        def age(identifier):
+            update(identifier, "deadline=1")
+            routes["write_database"](driver, sql,
+                f"UPDATE webhook_delivery_attempts SET finished_at=2 WHERE delivery_id='{identifier}'")
+
+        winner = submit("replay-failed-retention-wins", "fail-once")
+        enqueue(winner)
+        command(*worker)
+        assert read(winner) == "failed\t1"
+        loser = submit("replay-failed-retention-loses", "fail-once")
+        enqueue(loser)
+        command(*worker)
+        assert read(loser) == "failed\t1"
+        pending = submit("retry")
+        enqueue(pending)
+        command(*worker)
+        assert read(pending) == "pending\t1"
+        for identifier in (winner, loser, pending):
+            age(identifier)
+
+        assert prune("--days=0", "--limit=1", "--pretend") == {
+            "artifact": "payloads", "pretend": True, "candidates": 1, "pruned": 0
+        }
+        assert prune("--days=0", scope="different-scope")["candidates"] == 0
+        assert prune("--days=36501", success=False) is None
+        assert prune("--days=0", "--limit=501", success=False) is None
+
+        migration = ("--path=vendor/openrust/webhook-server/database/migrations/"
+                     "2026_11_25_000000_extend_webhook_deliveries_for_retention.rs")
+        assert "extend_webhook_deliveries_for_retention" in command("migrate:rollback", migration, "--force")
+        assert "extend_webhook_deliveries_for_retention" in command("migrate", migration, "--force")
+
+        saved = command(*replay_args(winner))
+        child = json.loads(re.search(r"\{[^\n]+\}", saved)[0])["delivery_id"]
+        marker = Path(env["APP_BASE_PATH"])
+        replay = subprocess.Popen(
+            [str(binary), "artisan", *replay_args(loser)],
+            env=env | {"FIXTURE_REPLAY_WAIT_FOR_PRUNE": "1"}, text=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        )
+        try:
+            deadline = time.monotonic() + 6
+            while not (marker / "retention-replay-ready").exists():
+                assert replay.poll() is None and time.monotonic() < deadline
+                time.sleep(0.01)
+            assert prune("--days=0")["pruned"] == 2
+            (marker / "retention-replay-release").touch()
+            _, error = replay.communicate(timeout=10)
+            assert replay.returncode != 0 and "暂不能重放" in error, error
+        finally:
+            if replay.poll() is None:
+                replay.kill()
+                replay.wait(timeout=5)
+        assert sql(f"SELECT count(*) FROM webhook_delivery_replays WHERE original_id='{loser}'") == "0"
+        assert sql(f"SELECT count(*) FROM webhook_deliveries WHERE id IN ('{winner}','{loser}') And snapshot='' AND payload_pruned_at IS NOT NULL") == "2"
+        assert sql(f"SELECT count(*) FROM webhook_deliveries WHERE id='{pending}' AND payload_pruned_at IS NULL") == "1"
+        assert submit("replay-failed-retention-loses", "fail-once") == loser
+        submit("replay-failed-retention-loses", "fail-once", b"changed", expected=409)
+        assert prune("--days=0")["candidates"] == 0
+        command(*replay_args(loser), success=False)
+
+        enqueue(child)
+        command(*worker)
+        assert read(child) == "succeeded\t1"
+        captured("replay-failed-retention-wins", 2, rotated=(1,))
+        tombstone = json.loads(command("webhook-server:inspect", loser, "--scope", SCOPE))
+        assert tombstone["payload_pruned_at"] > 0 and tombstone["attempts"] == 1
+        assert prune("--days=1", "--attempts", "--pretend")["candidates"] == 2
+        assert prune("--days=1", "--attempts", "--limit=1")["pruned"] == 1
+        assert prune("--days=1", "--attempts")["pruned"] == 1
+        assert bool(attempts(child)) and bool(attempts(pending))
+        assert not attempts(winner) and not attempts(loser)
+        assert prune("--days=1", "--attempts")["pruned"] == 0
+
+        admin("create", "primary")
+        admin("subscribe", "primary", "--topic=invoice.paid", "--schema=1")
+        published = publish("retention-fanout")
+        fanout = published["delivery_ids"][0]
+        enqueue(fanout)
+        command(*worker)
+        assert read(fanout) == "succeeded\t1"
+        age(fanout)
+        assert prune("--days=0")["pruned"] == 1
+        assert sql(f"SELECT count(*) FROM webhook_messages WHERE id='{published['message_id']}' AND body<>''") == "1"
+        assert publish("retention-fanout") == published
+        command("migrate:rollback", migration, "--force", success=False)
+        assert prune("--days=0")["pruned"] == 0
+        print(f"{driver}: 终态隔离、分批留存、墓碑去重、并发重放和共享正文保护通过")
+        return
+
     if env.get("FIXTURE_SEND_DIAGNOSTICS"):
         def inspect(kind, identifier, expected=200, scope=SCOPE, auth=True, **options):
             connection = http.client.HTTPConnection("127.0.0.1", int(env["APP_PORT"]), timeout=20)
@@ -1425,7 +1524,7 @@ def main():
         if not (os.environ.get("FIXTURE_SEND_SCHEDULE") or os.environ.get("FIXTURE_SEND_REPLAY")
                 or os.environ.get("FIXTURE_SEND_ENDPOINTS") or os.environ.get("FIXTURE_SEND_LIMITS")
                 or os.environ.get("FIXTURE_SEND_FANOUT") or os.environ.get("FIXTURE_SEND_TLS")
-                or os.environ.get("FIXTURE_SEND_DIAGNOSTICS")):
+                or os.environ.get("FIXTURE_SEND_DIAGNOSTICS") or os.environ.get("FIXTURE_SEND_RETENTION")):
             print(f"{driver}: HTTP 签名和字节、事务回滚、重复领取、重试预算、撤销、超时、崩溃恢复、Builder 分支、投递事件与自定义 Job 通过")
     finally:
         if proxy_thread is not None:

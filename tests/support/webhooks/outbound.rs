@@ -146,6 +146,21 @@ impl ReplayPolicy for FixtureReplayPolicy {
         request: ReplayRequest<'a>,
     ) -> HttpFuture<'a, Result<Option<ReplayLimits>>> {
         Box::pin(async move {
+            if request.phase == ReplayPhase::Request
+                && std::env::var_os("FIXTURE_REPLAY_WAIT_FOR_PRUNE").is_some()
+            {
+                let root = std::path::PathBuf::from(std::env::var_os("APP_BASE_PATH").unwrap());
+                tokio::fs::write(root.join("retention-replay-ready"), b"ready")
+                    .await
+                    .map_err(|_| Error::InvalidRecord)?;
+                tokio::time::timeout(std::time::Duration::from_secs(10), async {
+                    while !root.join("retention-replay-release").exists() {
+                        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                    }
+                })
+                .await
+                .map_err(|_| Error::InvalidRecord)?;
+            }
             let allowed = request.scope == SCOPE
                 && (request.original_credential == Some(REFERENCE)
                     || request.original_credential == Some(ROTATED_REFERENCE)
@@ -325,7 +340,8 @@ pub(super) async fn register(app: &Application) -> ProviderResult {
         if (std::env::var_os("FIXTURE_SEND_REPLAY").is_some()
             || std::env::var_os("FIXTURE_SEND_ENDPOINTS").is_some()
             || std::env::var_os("FIXTURE_SEND_LIMITS").is_some()
-            || std::env::var_os("FIXTURE_SEND_FANOUT").is_some())
+            || std::env::var_os("FIXTURE_SEND_FANOUT").is_some()
+            || std::env::var_os("FIXTURE_SEND_RETENTION").is_some())
             && std::env::var_os("FIXTURE_REPLAY_UNREGISTERED").is_none()
         {
             register_replay_policy(app.container(), Arc::new(FixtureReplayPolicy))?;

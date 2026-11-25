@@ -169,6 +169,13 @@ pub async fn inspect_invoice_attempts(
     store.inspect_attempts(id, after, 25).await
 }
 
+
+pub async fn preview_invoice_pruning(
+    store: &openrust_webhook_server::DeliveryStore,
+) -> Result<openrust_webhook_server::DeliveryPruneReport> {
+    store.prune(openrust_webhook_server::DeliveryRetention::Payloads, 30, 100, true).await
+}
+
 ```
 
 
@@ -254,6 +261,12 @@ Builder 的 `dispatch`、`dispatch_if` 和 `dispatch_unless` 登记投递并入�
 使用 `./artisan webhook-server:inspect <id> --scope=<scope>` 查询投递 ID。查询 `publish` 返回的内部消息 ID 时添加 `--message`。添加 `--attempts --limit=25` 读取一页尝试，下一页通过 `--after` 传入返回的 `next_after`。时间字段以 Unix 秒表示。使用 `--database` 选择具名数据库连接。
 
 查询返回状态、时间、HTTP 状态码及有限的尝试结果。已发布消息的摘要还包含事件类型、schema 版本和首次投递 ID。包不注册诊断 HTTP 路由，应用授权范围后可调用 `DeliveryStore` 的只读方法。Artisan 允许选择数据库和范围，仅交给可信运维人员。诊断输出不包含请求 URL、正文、Header、签名材料或远端响应正文。
+
+### 清理出站投递数据 {#prune}
+
+先用 `./artisan webhook-server:prune --scope=<scope> --days=30 --pretend` 预演候选记录。移除 `--pretend` 后清理已保存的请求快照，保留投递 ID、状态和幂等摘要。从投递截止时间起算保留期。添加 `--attempts` 单独清理已完成的尝试，保留期按完成时间计算。每批最多 500 条，默认 100 条。使用 `--database` 选择具名连接。
+
+启用清理前先执行迁移，并升级所有可登记重放的进程。仅清理终态投递。清理后，原始记录无法再登记新重放，已有重放仍可使用自身保存的请求。诊断结果以 Unix 秒返回 `payload_pruned_at`。共享发布正文和幂等墓碑继续保留。
 
 ### 按订阅发布 {#subscriptions}
 

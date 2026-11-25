@@ -15,6 +15,8 @@ pub struct DeliveryDiagnostics {
     pub available_at: i64,
     pub deadline: i64,
     pub lease_until: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payload_pruned_at: Option<i64>,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -56,6 +58,7 @@ impl DeliveryStore {
                 "available_at",
                 "deadline",
                 "lease_until",
+                "payload_pruned_at",
             ])
             .first()
             .await?
@@ -77,6 +80,7 @@ impl DeliveryStore {
                     available_at: number(&row, "available_at")?,
                     deadline: number(&row, "deadline")?,
                     lease_until: optional_number(&row, "lease_until")?,
+                    payload_pruned_at: optional_number(&row, "payload_pruned_at")?,
                 })
             })
             .transpose()
