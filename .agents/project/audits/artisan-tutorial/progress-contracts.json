@@ -403,6 +403,11 @@
       "contract": "Lazy iteration count and errors",
       "reason": "IntoIterator conversion is deferred to first next. Exact size_hint infers total; no exact hint leaves unknown or retains existing manual max. Errors are terminal Result items; early drop does not finish.",
       "evidence": "console_progress_iteration"
+    },
+    {
+      "contract": "Awaited and mutable task callbacks",
+      "reason": "Reuse ConsoleFuture and current execution scope; borrowed boxed futures await real I/O before advancing. Explicit mutable variants preserve models without Clone; numeric vs iterable names retain distinct return types. No implicit transaction or rollback.",
+      "evidence": "console_progress_async; progress-async-mysql.log"
     }
   ],
   "remaining": [
@@ -413,8 +418,8 @@
     },
     {
       "contract": "Native asynchronous and mutable task callbacks",
-      "status": "pending_implementation_and_real_consumers",
-      "requirements": "Actual awaited model persistence without cloning, failures and cancellation preserve progress state."
+      "status": "verified_native_async_and_mutable_consumers",
+      "requirements": "Numeric/read-only/mutable callbacks, failures, cancellation, preserved keys and identity, actual SQLite and MySQL8.4 model.save, HTTP and CLI passed."
     },
     {
       "contract": "Placeholder callback output argument",

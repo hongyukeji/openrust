@@ -343,18 +343,20 @@
     },
     {
       "anchor": "progress-bars",
-      "status": "verified_sync_and_lazy_core_remaining_async_sdk",
+      "status": "verified_tutorial_helpers_remaining_output_adapter_and_sdk",
       "evidence": [
         "console_progress_tutorial",
         "progress-contracts.json",
         "accepted-progress-core.json",
         "formal_progress_example",
         "console_progress_iteration",
-        "accepted-progress-iteration.json"
+        "accepted-progress-iteration.json",
+        "console_progress_async",
+        "accepted-progress-async.json"
       ],
       "native": "console::{CommandIo, OutputStyle, ProgressBar, ProgressIterable}",
       "remaining": [
-        "异步／可变任务回调、安全占位符输出适配及其余继承SDK继续；不关闭整章。"
+        "安全占位符输出适配及其余继承SDK继续；不关闭整章。"
       ]
     },
     {

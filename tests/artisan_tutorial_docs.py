@@ -178,5 +178,9 @@ async fn formal_progress_example(){
     iteration_code=re.search(r'```rust\n(.*?)```',text.split('{#lazy-progress-iteration}',1)[1],re.S).group(1)
     iteration_checks=progress_checks.replace('formal_progress_example','formal_progress_iteration_example').replace('register_progress)', 'register_progress_iteration)').replace('"reports:progress"','"reports:iterate"').replace('assert!(output.stdout.contains("CSV,JSON,HTML:11"));assert_eq!(output.stdout.matches("100%").count(),2);assert!(output.stdout.contains("build"));','assert!(output.stdout.contains("sum:12"));assert_eq!(output.stdout.matches("100%").count(),1);')
     parts.append('mod '+locale.replace('-','_').lower()+'_progress_iteration{\n'+iteration_code+iteration_checks+'}\n')
+    async_progress_code=re.search(r'```rust\n(.*?)```',text.split('{#async-progress-callbacks}',1)[1],re.S).group(1)
+    async_progress_checks=progress_checks.replace('formal_progress_example','formal_async_progress_example').replace('register_progress)', 'register_progress_async)').replace('"reports:progress"','"reports:async"').replace('assert!(output.stdout.contains("CSV,JSON,HTML:11"));assert_eq!(output.stdout.matches("100%").count(),2);assert!(output.stdout.contains("build"));','assert!(output.stdout.contains("values:12"));assert_eq!(output.stdout.matches("100%").count(),2);')
+    async_progress_checks='use openrust::console::Output;\n'+async_progress_checks
+    parts.append('mod '+locale.replace('-','_').lower()+'_progress_async{\n'+async_progress_code+async_progress_checks+'}\n')
 target=source/'tests/artisan_docs_generated.rs';target.write_text('\n'.join(parts));subprocess.run(['rustfmt','+1.94.0','--edition','2024',str(target)],check=True)
 print('generated',len(parts),'direct formal consumers')

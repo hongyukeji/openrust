@@ -176,13 +176,15 @@
         "method": "withProgressBar",
         "source_line": 274,
         "signature": "public function withProgressBar($totalSteps, Closure $callback)",
-        "status": "verified_sync_core_async_mutable_consumers_pending",
-        "native": "console::CommandIo::{with_progress_bar, with_progress_bar_iter}",
+        "status": "verified_numeric_keyed_and_native_async_mutable",
+        "native": "console::CommandIo::{with_progress_bar,with_progress_bar_iter,with_progress_bar_async,with_progress_bar_iter_async,with_progress_bar_iter_mut,with_progress_bar_iter_mut_async}",
         "evidence": [
           "console_progress_tutorial",
           "progress-contracts.json",
           "accepted-progress-core.json",
-          "formal_progress_example"
+          "formal_progress_example",
+          "console_progress_async",
+          "accepted-progress-async.json"
         ]
       },
       {

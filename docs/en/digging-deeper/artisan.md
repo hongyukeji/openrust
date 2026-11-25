@@ -702,4 +702,44 @@ fn register_progress_iteration() -> Result<(), ConsoleError> {
 }
 ```
 
-Manual bars provide `iterate(items)` and `iterate_with_max(items, max)`; use `iterator.progress_bar()` to access that same bar between items. The style variants include `progress_iterate_with_max`. `None` and `Some(0)` infer the total from an exact iterator size hint; otherwise the total remains unknown or the existing manual maximum is retained. A positive explicit total overrides inference. Items, tuple keys, and borrowed model identities remain unchanged; conversion to the underlying iterator is also deferred. An empty exact iterator finishes without a start frame. Asynchronous and mutable callback helpers are separate work; these entries do not block or run tasks in the background.
+Manual bars provide `iterate(items)` and `iterate_with_max(items, max)`; use `iterator.progress_bar()` to access that same bar between items. The style variants include `progress_iterate_with_max`. `None` and `Some(0)` infer the total from an exact iterator size hint; otherwise the total remains unknown or the existing manual maximum is retained. A positive explicit total overrides inference. Items, tuple keys, and borrowed model identities remain unchanged; conversion to the underlying iterator is also deferred. An empty exact iterator finishes without a start frame. Asynchronous and mutable callback helpers are described below; these entries do not block or run tasks in the background.
+
+## Awaited and mutable progress callbacks {#async-progress-callbacks}
+
+Use `with_progress_bar_async` for a numeric total, `with_progress_bar_iter_async` for read-only items, or `with_progress_bar_iter_mut_async` for explicit in-place changes. These use the same progress and command execution pipeline; each boxed future is awaited before advancing.
+
+```rust
+use openrust::{
+    console::{AsyncCommandCallback, ConsoleError},
+    support::facades::Artisan,
+};
+
+fn register_progress_async() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:async", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut io = input.io(output);
+            io.with_progress_bar_async(1, |bar| Box::pin(async move {
+                tokio::task::yield_now().await;
+                bar.advance()?;
+                Ok(())
+            })).await?;
+            io.new_line(1)?;
+
+            let mut values = vec![1, 2, 3];
+            io.with_progress_bar_iter_mut_async(&mut values, |value, _, _key| {
+                Box::pin(async move {
+                    tokio::task::yield_now().await;
+                    *value *= 2;
+                    Ok(())
+                })
+            }).await?;
+            io.new_line(1)?;
+            io.info(&format!("values:{}", values.iter().sum::<i32>()))?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+`ProgressIterableMut` supports slices, arrays, vectors, ordered maps, base collections, model collections and mutable references. Keys and model identities are preserved. A mutable model callback can await `model.save()` and propagate its concrete error through `ConsoleError::from_source`. `with_progress_bar_iter_mut` is the synchronous alternative. In-place changes are explicit native behavior; default callbacks remain read-only. The helpers do not implicitly create transactions or roll back completed writes. Errors and cancellation do not finish the bar; passing a mutable reference retains ownership and any changes already made.

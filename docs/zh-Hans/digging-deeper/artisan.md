@@ -702,4 +702,44 @@ fn register_progress_iteration() -> Result<(), ConsoleError> {
 }
 ```
 
-手动进度条提供 `iterate(items)` 和 `iterate_with_max(items, max)`，可在项之间通过 `iterator.progress_bar()` 访问同一条进度。样式入口另有 `progress_iterate_with_max`。`None` 与 `Some(0)` 从迭代器精确长度提示推导总数；无精确提示时保持未知，或保留手动进度条已有总数。显式正总数覆盖推导。元素、元组键及借用模型身份保持不变，转成底层迭代器的动作也推迟到首次取值。精确空迭代器直接完成，不绘制启动帧。异步和可变回调帮助方法仍待单独实现与验收；这些入口不会阻塞执行异步任务或把任务放到后台。
+手动进度条提供 `iterate(items)` 和 `iterate_with_max(items, max)`，可在项之间通过 `iterator.progress_bar()` 访问同一条进度。样式入口另有 `progress_iterate_with_max`。`None` 与 `Some(0)` 从迭代器精确长度提示推导总数；无精确提示时保持未知，或保留手动进度条已有总数。显式正总数覆盖推导。元素、元组键及借用模型身份保持不变，转成底层迭代器的动作也推迟到首次取值。精确空迭代器直接完成，不绘制启动帧。异步和可变回调帮助方法见下节；这些入口不会阻塞执行异步任务或把任务放到后台。
+
+## 异步与原地处理回调 {#async-progress-callbacks}
+
+数字总数使用 `with_progress_bar_async`，只读集合使用 `with_progress_bar_iter_async`，显式原地修改使用 `with_progress_bar_iter_mut_async`。它们复用同一进度条和命令执行管线，等待每个装箱 Future 完成后才推进。
+
+```rust
+use openrust::{
+    console::{AsyncCommandCallback, ConsoleError},
+    support::facades::Artisan,
+};
+
+fn register_progress_async() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:async", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut io = input.io(output);
+            io.with_progress_bar_async(1, |bar| Box::pin(async move {
+                tokio::task::yield_now().await;
+                bar.advance()?;
+                Ok(())
+            })).await?;
+            io.new_line(1)?;
+
+            let mut values = vec![1, 2, 3];
+            io.with_progress_bar_iter_mut_async(&mut values, |value, _, _key| {
+                Box::pin(async move {
+                    tokio::task::yield_now().await;
+                    *value *= 2;
+                    Ok(())
+                })
+            }).await?;
+            io.new_line(1)?;
+            io.info(&format!("values:{}", values.iter().sum::<i32>()))?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+`ProgressIterableMut` 支持切片、数组、向量、有序映射、基础集合、模型集合及可变借用，保留键与模型身份。可变模型回调可等待 `model.save()`，并用 `ConsoleError::from_source` 传播具体错误。同步原地处理另有 `with_progress_bar_iter_mut`。原地修改属于显式原生行为，默认回调保持只读；帮助方法不隐式开启事务或回滚已经完成的写入。错误和取消均不补完成帧；传入可变借用保留调用方所有权及已经发生的修改。

@@ -702,4 +702,44 @@ fn register_progress_iteration() -> Result<(), ConsoleError> {
 }
 ```
 
-手動進度條提供 `iterate(items)` 和 `iterate_with_max(items, max)`，可在項之間透過 `iterator.progress_bar()` 存取同一條進度。樣式入口另有 `progress_iterate_with_max`。`None` 與 `Some(0)` 從迭代器精確長度提示推導總數；無精確提示時保持未知，或保留手動進度條既有總數。明確正總數覆蓋推導。元素、元組鍵及借用模型身分保持不變，轉成底層迭代器的動作也延後至首次取值。精確空迭代器直接完成，不繪製啟動影格。非同步和可變回呼輔助方法仍待單獨實作與驗收；這些入口不會阻塞執行非同步任務或將任務放到背景。
+手動進度條提供 `iterate(items)` 和 `iterate_with_max(items, max)`，可在項之間透過 `iterator.progress_bar()` 存取同一條進度。樣式入口另有 `progress_iterate_with_max`。`None` 與 `Some(0)` 從迭代器精確長度提示推導總數；無精確提示時保持未知，或保留手動進度條既有總數。明確正總數覆蓋推導。元素、元組鍵及借用模型身分保持不變，轉成底層迭代器的動作也延後至首次取值。精確空迭代器直接完成，不繪製啟動影格。非同步和可變回呼輔助方法見下節；這些入口不會阻塞執行非同步任務或將任務放到背景。
+
+## 非同步與原地處理回呼 {#async-progress-callbacks}
+
+數字總數使用 `with_progress_bar_async`，唯讀集合使用 `with_progress_bar_iter_async`，明確原地修改使用 `with_progress_bar_iter_mut_async`。它們複用同一進度條和命令執行管線，等待每個裝箱 Future 完成後才推進。
+
+```rust
+use openrust::{
+    console::{AsyncCommandCallback, ConsoleError},
+    support::facades::Artisan,
+};
+
+fn register_progress_async() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:async", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut io = input.io(output);
+            io.with_progress_bar_async(1, |bar| Box::pin(async move {
+                tokio::task::yield_now().await;
+                bar.advance()?;
+                Ok(())
+            })).await?;
+            io.new_line(1)?;
+
+            let mut values = vec![1, 2, 3];
+            io.with_progress_bar_iter_mut_async(&mut values, |value, _, _key| {
+                Box::pin(async move {
+                    tokio::task::yield_now().await;
+                    *value *= 2;
+                    Ok(())
+                })
+            }).await?;
+            io.new_line(1)?;
+            io.info(&format!("values:{}", values.iter().sum::<i32>()))?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+`ProgressIterableMut` 支援切片、陣列、向量、有序映射、基礎集合、模型集合及可變借用，保留鍵與模型身分。可變模型回呼可等待 `model.save()`，並用 `ConsoleError::from_source` 傳播具體錯誤。同步原地處理另有 `with_progress_bar_iter_mut`。原地修改屬於明確原生行為，預設回呼保持唯讀；輔助方法不隱式開啟交易或回復已完成的寫入。錯誤和取消均不補完成影格；傳入可變借用保留呼叫方所有權及已發生的修改。

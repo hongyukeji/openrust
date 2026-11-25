@@ -206,3 +206,16 @@ workspace all-targets严格Clippy、fmt、实际main重建、三语站点构建�
 4个新增父消费者通过，1个ignore子进程由实际驱动调用不计通过；覆盖源全部48份、非Clone元素原指针／原借用、错误后迭代终止及重新创建成功，真实TCP六请求核对200／格式错误500／后续200。最终6框架目标54项、根6目标83项，共137个不同父消费者，含42个直接提取正式三语示例。workspace格式、all-targets严格Clippy、main(pail)、三语构建和12组浏览器通过；真实main／HTTP／Artisan／Pail／Ctrl+C复验见progress-iterator-runtime.log。命令／源SHA见accepted-progress-iteration.json；早期生命周期返回内部借用的编译错误已按准确输出生命周期修正，路由消费者用正式HttpFuture函数签名，未降低公开入口验收。
 
 结束删除本批运行夹具，保留热缓存、原始源对照与日志，不遗留服务／容器。完整异步／可变任务帮助回调、安全占位符输出适配、Table继承SDK及其余Artisan章节继续；本簇不关闭整章或总目标，不推送，其他在途保留。
+
+
+## 第十四簇：异步与可变进度回调（2026-11-25）
+
+第十三簇24aa23fc6已本地提交。本簇继续沿固定withProgressBar等待任务完成再推进的机制，复用CommandIo、ConsoleFuture及既有ProgressBar；新增数字异步、只读集合异步、原地同步及原地异步四个明确入口。ProgressIterableMut沿用同一计数与键规范，覆盖切片／数组／Vec／有序映射／基础集合／模型集合／可变借用；基础Collection::iter_mut及模型Collection::entries_mut只借出值，不更改键或复制模型。借用装箱Future符合现有命令异步边界，逐项await，不引入调度器、后台任务或依赖；不声称额外装箱无成本或有未经测量的性能收益。
+
+真实SQLite与独立MySQL8.4.13查询Contact非Clone模型，移动带自定义first／second键的原集合进入帮助方法，在回调中真正await model.save，返回同一底层原指针，数据库回读两行保存内容完全匹配。模型夹具初轮遗漏默认时间戳列导致prepare失败，保持progress-async-tests2.log；按实际Model时间戳契约补齐表结构后两库均通过，不通过关闭时间戳或改保存方法绕行。首次测试误读私有exists字段已改用正式exists()；不扩大可见性。MySQL使用既有mysql_acceptance.py独占URL、容器和tmpfs，批次9f24ba98534a274feda57809dcf0e018已清理，不能将环境缺URL时的SQLite成功冒称MySQL成功。
+
+另实际验证数字异步和只读键回调的await顺序、所有可变集合原键、部分修改后具体来源错误、回调已进入后取消及后续成功，取消／错误不补100%完成。原生显式可变入口改变调用方原值，默认只读入口不模仿PHP对象别名；传借用可保留原所有权，已完成修改／数据库写入不自动撤销。真实TCP成功200、任务失败500、后续200；真正handle_command子进程成功0／失败1／再成功0，stdout业务输出与stderr进度／错误分别检查。
+
+6个新增父消费者通过，1个被ignore的子进程夹具由真实驱动调用不计通过；MySQL专项同一个消费者重跑不叠加为新测试。最终7框架目标60项、根6目标86项，共146个不同父消费者，其中45个正式三语正文直接编译运行；数字／只读／可变公开入口均有实际调用，不以内部实现替代。workspace格式与all-targets严格Clippy（27.72s）、main(pail)、三语构建／12组浏览器及实际main／HTTP／Artisan／Pail／Ctrl+C再通过。证据progress-async-final-*、progress-async-gates-results.json、progress-async-mysql.log、progress-async-browser.log和progress-async-runtime.log，源SHA见accepted-progress-async.json。
+
+只提交本批核定源、三语与记录，保留其他认证／事务／生成器在途。回收本批运行夹具、无遗留容器服务，保留共享缓存与原始证据。继续占位符输出借用及其余辅助SDK、生成注册／信号／事件等未核对入口，不关闭整章或持续目标，不推送。

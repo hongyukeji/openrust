@@ -6,6 +6,8 @@ Git 默认流程已于 2026-11-23 更新：已授权任务完成并通过相关�
 
 ## 正在推进与等待条件
 
+- 2026-11-25 Artisan第十四簇异步／可变进度回调通过：数字与只读／可变集合、真实SQLite＋MySQL8.4.13模型save、取消／错误／恢复、HTTP／独立Artisan、146父消费者含三语45例及严格门禁，见[第十四簇](audits/artisan-tutorial/README.md)。继续安全输出适配与其余公开SDK／章锚点，整章未闭合，不推送。
+
 - 2026-11-25 Artisan第十三簇惰性进度迭代通过：48生命周期＋48真实ConsoleOutput双流向量，延迟启动／提前退出／空与未知长度、真实HTTP／Artisan、137父消费者含三语42例及严格门禁通过，见[第十三簇](audits/artisan-tutorial/README.md)。继续异步／可变任务和其余SDK，整章与持续目标未闭合，不推送。
 
 - 2026-11-25 Artisan第十二簇同步进度条通过：数字／有键非Clone模型集合、真实stderr／刷新／时间与应用隔离；修复极大恢复步数溢出和NaN间隔，130个父消费者含三语39例、实际HTTP／Artisan／主程序／浏览器与严格门禁通过。见[第十二簇](audits/artisan-tutorial/README.md)与[入口清单](audits/artisan-tutorial/progress-contracts.json)。惰性／异步／可变回调及其余SDK继续，整章未闭合，不推送。

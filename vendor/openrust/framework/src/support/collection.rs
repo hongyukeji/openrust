@@ -155,6 +155,11 @@ impl<T> Collection<T> {
         self.items.iter()
     }
 
+    /// 原地借用集合值，保留键、顺序及后续数字索引。
+    pub fn iter_mut(&mut self) -> indexmap::map::IterMut<'_, ArrayKey, T> {
+        self.items.iter_mut()
+    }
+
     pub fn get(&self, key: impl Into<ArrayKey>) -> Option<&T> {
         self.items.get(&key.into().normalized())
     }

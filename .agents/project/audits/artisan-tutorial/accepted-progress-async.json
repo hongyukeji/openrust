@@ -1,0 +1,31 @@
+{
+  "base": "24aa23fc6f99704d19b49d20ea7f6b1238e52904",
+  "source": "target/tmp/logging-tutorial-20261124/source",
+  "source_sha256": {
+    "vendor/openrust/framework/src/console/mod.rs": "89b1665ae8c9f4c72a2c76b5abb278027e8ee87ba2803f915ffbed07835b4475",
+    "vendor/openrust/framework/src/console/progress_bar.rs": "3fcd4c03163d51755b81c1e4c086b476260d7aef926186416804ee188d1ef6fb",
+    "vendor/openrust/framework/src/console/progress_bar/iterable.rs": "32bff0923dd9c3f74563a96106b8435f49d37763cb4cd7bc0522422d285043ae",
+    "vendor/openrust/framework/src/console/progress_bar/callbacks.rs": "a85fa2b1cb50b7725e8478392c33e65a1a036825653fb285aa2cc23afa8e8104",
+    "vendor/openrust/framework/src/support/collection.rs": "bf37bf851aefd956a8b67318b8d92bee671cc2520016df326a0ecb7d390d175e",
+    "vendor/openrust/framework/src/database/eloquent/collection.rs": "f8cef0b9b3f49a7f53c0135cc392b78a99979708faa27b94fea543f29640c5e1",
+    "vendor/openrust/framework/tests/console_progress_async.rs": "70862642c834bb23c674eb324e67776954fda4ff41fc2f37b5e831739dfd847e",
+    "docs/en/digging-deeper/artisan.md": "f7919d99eabf394ce178ef23a1606d2a380c42581497784bdf378ccf57721295",
+    "docs/zh-Hans/digging-deeper/artisan.md": "1375c034d3e66d3b9ae9fa885475d7dc906dba85959d0a9465e2f0eedecc5fad",
+    "docs/zh-Hant/digging-deeper/artisan.md": "a75d082d0fa26ea40e4502cdf9b18699b5fa2d0e2b8f62409b693c58df0a91a7",
+    "docs/tests/check_artisan_tutorial.mjs": "855e96deedd2f02fa9fa41a0ba799058e921ced0fc7f1c98fcd2f9caf643c762",
+    "tests/artisan_tutorial_docs.py": "b62fe265d2e49a938eb3bfb04a94f509e536683e32a9ab901f08fba4ecaaa075"
+  },
+  "acceptance": {
+    "framework_parent_tests": 60,
+    "root_parent_tests": 86,
+    "total_distinct_parent_tests": 146,
+    "formal_docs_consumers": 45,
+    "ignored_fixtures_excluded": 7,
+    "mysql_version": "8.4.13",
+    "mysql": "progress-async-mysql.log",
+    "gates": "progress-async-gates-results.json",
+    "runtime": "progress-async-runtime.log",
+    "browser": "progress-async-browser.log"
+  },
+  "scope": "Awaited numeric and keyed read-only/mutable callbacks; synchronous mutable helper; actual non-Clone model persistence and cancellation. Remaining output view and inherited SDK remain open."
+}

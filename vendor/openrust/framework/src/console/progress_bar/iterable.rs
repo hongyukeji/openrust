@@ -69,3 +69,59 @@ impl<M: crate::database::eloquent::Model> ProgressIterable
         self.entries()
     }
 }
+
+/// 显式选择原地处理；默认只读迭代不会改变调用方集合中的值。
+pub trait ProgressIterableMut: ProgressIterable {
+    fn progress_iter_mut(&mut self) -> impl ExactSizeIterator<Item = (ArrayKey, &mut Self::Item)>;
+}
+impl<T> ProgressIterableMut for [T] {
+    fn progress_iter_mut(&mut self) -> impl ExactSizeIterator<Item = (ArrayKey, &mut T)> {
+        self.iter_mut().enumerate().map(|(index, value)| {
+            (
+                ArrayKey::Integer(i64::try_from(index).expect("集合下标位于整数范围内")),
+                value,
+            )
+        })
+    }
+}
+impl<T> ProgressIterableMut for Vec<T> {
+    fn progress_iter_mut(&mut self) -> impl ExactSizeIterator<Item = (ArrayKey, &mut T)> {
+        self.as_mut_slice().progress_iter_mut()
+    }
+}
+impl<T, const N: usize> ProgressIterableMut for [T; N] {
+    fn progress_iter_mut(&mut self) -> impl ExactSizeIterator<Item = (ArrayKey, &mut T)> {
+        self.as_mut_slice().progress_iter_mut()
+    }
+}
+impl<I: ProgressIterableMut + ?Sized> ProgressIterableMut for &mut I {
+    fn progress_iter_mut(&mut self) -> impl ExactSizeIterator<Item = (ArrayKey, &mut Self::Item)> {
+        I::progress_iter_mut(&mut **self)
+    }
+}
+impl<K: Clone + Into<ArrayKey> + Ord, T> ProgressIterableMut for std::collections::BTreeMap<K, T> {
+    fn progress_iter_mut(&mut self) -> impl ExactSizeIterator<Item = (ArrayKey, &mut T)> {
+        self.iter_mut()
+            .map(|(key, value)| (key.clone().into().normalized(), value))
+    }
+}
+impl<K: Clone + Into<ArrayKey> + Eq + std::hash::Hash, T, S: std::hash::BuildHasher>
+    ProgressIterableMut for indexmap::IndexMap<K, T, S>
+{
+    fn progress_iter_mut(&mut self) -> impl ExactSizeIterator<Item = (ArrayKey, &mut T)> {
+        self.iter_mut()
+            .map(|(key, value)| (key.clone().into().normalized(), value))
+    }
+}
+impl<T> ProgressIterableMut for crate::support::Collection<T> {
+    fn progress_iter_mut(&mut self) -> impl ExactSizeIterator<Item = (ArrayKey, &mut T)> {
+        self.iter_mut().map(|(key, value)| (key.clone(), value))
+    }
+}
+impl<M: crate::database::eloquent::Model> ProgressIterableMut
+    for crate::database::eloquent::Collection<M>
+{
+    fn progress_iter_mut(&mut self) -> impl ExactSizeIterator<Item = (ArrayKey, &mut M)> {
+        self.entries_mut()
+    }
+}

@@ -516,6 +516,21 @@ impl<M: Model> Collection<M> {
             .map(|(index, model)| (self.key_at(index), model))
     }
 
+    /// 原地借用模型，不复制或重新生成自定义集合键。
+    pub fn entries_mut(&mut self) -> impl ExactSizeIterator<Item = (ArrayKey, &mut M)> {
+        let keys = self.keys.as_ref();
+        self.models
+            .iter_mut()
+            .enumerate()
+            .map(move |(index, model)| {
+                let key = keys.map_or_else(
+                    || ArrayKey::Integer(i64::try_from(index).expect("集合下标位于整数范围内")),
+                    |keys| keys[index].clone(),
+                );
+                (key, model)
+            })
+    }
+
     fn key_at(&self, index: usize) -> ArrayKey {
         self.keys.as_ref().map_or_else(
             || ArrayKey::Integer(i64::try_from(index).expect("collection index fits i64")),
