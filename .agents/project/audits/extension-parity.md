@@ -363,6 +363,8 @@ PHP 8.5.12 探针使用固定上游的四个实际包装类型并调用 `JobPayl
 
 实际 HTTP 生产者与 Redis 8.10.3 验证五类载荷，含加密和自定义中间件命名的通知、与内置处理器同名的普通任务、旧版序列化及事件失败后的原生 `horizon:retry`。macOS 隔离快照沿用 `eb189cfb1` 及已提交的 Redis 事件、载荷补齐代码，再叠加本批分类代码。三包默认 84 项、Horizon Redis 19 项、严格 Clippy、快照全仓格式、三语内容构建及 12 组文档浏览器检查通过。Windows 11 ARM64 以相同源码快照在专用 NTFS 卷编译，14 项 Redis Runtime 通过，包含本批类型与上一批重试元数据。证据为 `target/tmp/observability-parity/horizon-job-types-{verified,docs-verified}.log` 和 `target/tmp/observability-windows/horizon-job-types-arm64.log`。完整发布组合待验。
 
+Linux 7.0.14 ARM64 用与 `52848e62b` 可观测性代码一致的快照，Rust 1.94.0 和独占 Redis 8.10.3 冷构建后通过全部 14 项 Horizon Redis Runtime，含类型与上一批载荷重试元数据。日志为 `target/tmp/observability-parity/horizon-job-types-linux.log`。
+
 PHP 8.5.12 探针按固定源码给四类包装设置对应底层对象。广播取事件对象，监听器取监听器类名，邮件取 Mailable，通知取 Notification。实现 `Silenced`、配置命中底层类型或标签任一条件成立时静默；只配置包装类名不命中。无任务对象的原始重试即使保留静默标签也会清除静默状态。Rust 当前已保存配置名称与标签求值结果，包装任务的底层名称与显式静默标记仍须接入实际 Redis 生产者。对照证据为 `target/tmp/observability-parity/horizon-wrapper-silence-upstream.log`。显式预置标签合并与公开载荷的值、解码、名称、ID 回退和可变字段操作仍需逐项核对。
 
 基于 `eb189cfb1` 加已提交 Redis 事件与本批文件的 macOS 隔离快照，独占 Redis 8.10.3 和 SQLite 验证 `JobPending`、`JobPushed`、保留和结算读取相同的标签及静默结果。原生 Artisan 验证标签回调仅在入队执行一次、成功完成后保留原静默结果、Horizon 重试保留标签及原投递引用并重算截止时间。授权 HTTP 验证旧失败任务的重投递和标签回退。Horizon Redis 18 项与三包默认 84 项、无 Horizon 的框架 Redis Worker、真实 Artisan 进程矩阵、全仓格式、Horizon 全目标严格 Clippy、三语站点和 12 组浏览器检查通过。新载荷行为的 Linux、Windows 和完整发布组合待验。验证日志位于 `target/tmp/observability-parity/horizon-payload-{verified,core,process,docs}.log`。
