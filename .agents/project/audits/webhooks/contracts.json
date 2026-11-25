@@ -462,7 +462,7 @@
         "uuid",
         "outputType"
       ],
-      "notes": "HTTP 尝试、状态码、重试时序、原生 Worker、结果事件与定时补派已验。具名 trait 提供停止重试、终态失败钩子、正文及有界响应。PHP 继承不移植，底层请求选项、传输失败回补事件和双拓扑仍开放。",
+      "notes": "HTTP 尝试、状态码、重试时序、原生 Worker、结果事件与定时补派已验。具名 trait 提供停止重试、终态失败钩子、正文及有界响应，断连分类与结果事件一致。PHP 继承不移植，底层请求选项、崩溃记录回补事件和外部多主机拓扑仍开放。",
       "evidence": [
         "tests/webhooks_send_acceptance.py",
         ".agents/project/audits/webhooks/custom-job.md"
@@ -558,9 +558,10 @@
         "uuid",
         "transferStats"
       ],
-      "notes": "共同载荷提供范围、ID、方法、去查询串 URL、请求头名称、原始签名字节、Meta／Tags、状态码与尝试结果。敏感头值、完整响应及 PHP 序列化不暴露；无 Debug／自动诊断属性。",
+      "notes": "共同载荷提供范围、ID、方法、去查询串 URL、请求头名称、原始签名字节、Meta／Tags、状态码与尝试结果。同步结果事件提供核心 HTTP Client 的实际传输耗时及脱敏失败类别。敏感头值、完整响应及 PHP 序列化不暴露；无 Debug／自动诊断属性。",
       "evidence": [
         "tests/webhooks_send_acceptance.py",
+        ".agents/project/audits/webhooks/transport-events.md",
         ".agents/project/audits/webhooks/dispatch-events.md"
       ],
       "rust_source": "vendor/openrust/webhook-server/src/events.rs"

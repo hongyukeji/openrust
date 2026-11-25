@@ -868,7 +868,6 @@ impl ConnectorService {
             } => {
                 if dst.scheme() == Some(&Scheme::HTTPS) {
                     use hyper_rustls::{DefaultServerNameResolver, ResolveServerName};
-                    use std::convert::TryFrom;
                     use tokio_rustls::TlsConnector as RustlsConnector;
 
                     log::trace!("tunneling HTTPS over proxy");

@@ -6,7 +6,7 @@
 
 Builder 复用准备快照、同范围数据库登记以及统一领取；异步先校验具名 Worker 与队列连接。异步事件在投递记录提交后、原生 Queue 推送前同步派发。入队前监听器失败返回脱敏错误及投递 ID，保留记录供扫描恢复。尝试结果在租约校验及事务提交后派发；监听器失败只记通用警告，无法撤销已提交的状态或增加尝试次数。过期旧令牌不能派发该次结果事件。事件送达与数据库提交之间仍可能因进程退出而中断，进程崩溃后的 Unknown 补记和消息重放事件另随恢复工作验收。
 
-Laravel 事件的 PHP 序列化和完整 Guzzle 响应不沿用。Rust 同步事件显式提供范围、稳定 ID、记录 ID、请求方法、裁剪查询串后的 URL、原始签名字节及应用 Meta／Tags、请求头名称和单次尝试状态／耗时。头值、签名密钥或引用、响应内容、传输原始错误不进入事件。该载荷没有 Debug 或通用序列化，现有事件诊断不会自动复制正文，业务监听器可显式访问正文并承担其使用边界。[固定 WebhookCallEvent](https://github.com/spatie/laravel-webhook-server/blob/6da6be3a721190bcdedcdef32d31d5980b77eb0e/src/Events/WebhookCallEvent.php)
+Laravel 事件的 PHP 序列化和完整 Guzzle 响应不沿用。Rust 同步事件显式提供范围、稳定 ID、记录 ID、请求方法、裁剪查询串后的 URL、原始签名字节及应用 Meta／Tags、请求头名称和单次尝试状态／耗时。头值、签名密钥或引用、响应内容、传输原始错误不进入事件。该载荷没有 Debug 或通用序列化，现有事件诊断不会自动复制正文，业务监听器可显式访问正文并承担其使用边界。[后续传输统计批次](transport-events.md)为结果事件提供了实际 HTTP 耗时及脱敏失败类别。[固定 WebhookCallEvent](https://github.com/spatie/laravel-webhook-server/blob/6da6be3a721190bcdedcdef32d31d5980b77eb0e/src/Events/WebhookCallEvent.php)
 
 ## 验收范围
 

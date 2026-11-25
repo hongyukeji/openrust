@@ -50,6 +50,10 @@ class Receiver(http.server.BaseHTTPRequestHandler):
             owner.entered[key].set()
             if not owner.release[key].wait(timeout=12):
                 return
+        if key == "transport-disconnected":
+            self.connection.shutdown(socket.SHUT_RDWR)
+            self.close_connection = True
+            return
         status = 204
         if (key in ("retry", "retry-date") and attempt == 1) or key in ("exhausted", "excluded", "sync-throws", "worker-throws"):
             status = 503
@@ -63,6 +67,8 @@ class Receiver(http.server.BaseHTTPRequestHandler):
             status = 503
         if key == "redirect":
             status = 302
+        if key == "transport-large-response":
+            status = 200
         self.send_response(status)
         if key == "retry" and attempt == 1:
             self.send_header("Retry-After", "15")
@@ -71,6 +77,8 @@ class Receiver(http.server.BaseHTTPRequestHandler):
         if key == "redirect":
             self.send_header("Location", "/unapproved")
         response_body = b"fixture-remote-response" if key.startswith("custom-") and status == 503 else b""
+        if key == "transport-large-response":
+            response_body = b"fixture-private-response" * 3000
         self.send_header("Content-Length", str(len(response_body)))
         try:
             self.end_headers()
@@ -1644,6 +1652,16 @@ def exercise(binary, env, log, receiver, driver, sql):
     finally:
         receiver.release["timeout"].set()
 
+    for key in ("transport-disconnected", "transport-large-response"):
+        if key == "transport-disconnected":
+            identifier = submit(key, "builder-custom-async")
+        else:
+            identifier = submit(key)
+            enqueue(identifier)
+        command(*worker)
+        assert attempts(identifier) == "1\tunknown\t0"
+        captured(key)
+
     stale = submit("stale")
     process = subprocess.Popen(
         [str(binary), "artisan", "webhook-server:send", stale, "--scope", SCOPE],
@@ -1771,6 +1789,7 @@ def exercise(binary, env, log, receiver, driver, sql):
 
     hooks = [json.loads(line) for line in Path(env["FIXTURE_JOB_HOOK_LOG"]).read_text().splitlines()]
     assert [(item["message"], item["kind"]) for item in hooks] == [
+        ("transport-disconnected", "should_remove"), ("transport-disconnected", "failed"),
         ("custom-stop-sync", "should_remove"), ("custom-stop-sync", "failed"),
         ("custom-stop-worker", "should_remove"), ("custom-stop-worker", "failed"),
         ("custom-continue", "should_remove"), ("custom-revoked", "failed"),
@@ -1779,10 +1798,15 @@ def exercise(binary, env, log, receiver, driver, sql):
         assert hook["scope"] == SCOPE and hook["number"] == 1 and hook["id"]
         assert hook["meta"] == {"trace": "fixture"} and hook["tags"] == ["audit"]
         assert hook["url"] == env["FIXTURE_SEND_TARGET"] and hook["request_matches"]
-        if hook["message"] == "custom-revoked":
+        if hook["message"] == "transport-disconnected":
+            assert hook["outcome"] == "unknown" and hook["transport_failure"] == "Connection"
+            assert hook["status"] is None and not hook["response_matches"]
+        elif hook["message"] == "custom-revoked":
             assert hook["outcome"] == "rejected" and hook["status"] is None and not hook["response_matches"]
+            assert hook["transport_failure"] is None
         else:
             assert hook["outcome"] == "http_failure" and hook["status"] == 503 and hook["response_matches"]
+            assert hook["transport_failure"] is None
 
     recorded = Path(env["FIXTURE_SEND_EVENTS"]).read_text()
     assert SECRET.decode() not in recorded and "fixture-sensitive-listener-sentinel" not in recorded
@@ -1796,6 +1820,8 @@ def exercise(binary, env, log, receiver, driver, sql):
     assert queued[1]["state"] == "succeeded" and queued[1]["attempt"] == {
         "number": 1, "status": 204, "outcome": "succeeded", "progress": "succeeded",
     }
+    assert queued[0]["transfer_seconds"] is None and queued[0]["transport_failure"] is None
+    assert queued[1]["transfer_seconds"] > 0 and queued[1]["transport_failure"] is None
     for event in queued:
         assert event["id"] and event["scope"] == SCOPE and event["method"] == "POST"
         assert event["body_length"] == len(BODY) and event["url"] == env["FIXTURE_SEND_TARGET"]
@@ -1809,14 +1835,33 @@ def exercise(binary, env, log, receiver, driver, sql):
     assert [event["kind"] for event in retry_events] == ["WebhookCallFailedEvent", "WebhookCallSucceededEvent"]
     assert [event["attempt"]["number"] for event in retry_events] == [1, 2]
     assert [event["state"] for event in retry_events] == ["pending", "succeeded"]
+    assert all(event["transfer_seconds"] > 0 and event["transport_failure"] is None for event in retry_events)
+    assert activity("revoked")[0]["transport_failure"] is None
+    for key, expected, kinds in (
+        ("timeout", {"DeadlineExceeded", "Timeout"}, ["WebhookCallFailedEvent"]),
+        ("transport-disconnected", {"Connection"},
+         ["DispatchingWebhookCallEvent", "WebhookCallFailedEvent", "FinalWebhookCallFailedEvent"]),
+        ("transport-large-response", {"ResponseTooLarge"}, ["DispatchingWebhookCallEvent", "WebhookCallFailedEvent"]),
+    ):
+        observations = activity(key)
+        assert [event["kind"] for event in observations] == kinds, observations
+        for observation in observations:
+            assert observation["transfer_seconds"] is None
+            if observation["attempt"] is None:
+                assert observation["transport_failure"] is None
+            else:
+                assert observation["transport_failure"] in expected, observation
+                assert observation["attempt"]["number"] == 1 and observation["attempt"]["status"] is None
     assert [event["kind"] for event in activity("stale")] == ["WebhookCallSucceededEvent"]
     assert not [event for event in events if event["message_id"].startswith("skip-")]
+    assert "fixture-private-response" not in recorded and "fixture-remote-response" not in recorded
     log.flush()
     logs = [Path(log.name), *(Path(env["APP_BASE_PATH"]) / "storage/logs").glob("*.log")]
     for path in logs:
         output = path.read_bytes()
         assert SECRET not in output and b"fixture-sensitive-listener-sentinel" not in output
         assert b"fixture-custom-hook-sensitive" not in output
+        assert b"fixture-private-response" not in output
 
 
 class SocksProxy(socketserver.BaseRequestHandler):

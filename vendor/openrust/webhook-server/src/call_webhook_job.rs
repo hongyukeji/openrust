@@ -1,7 +1,7 @@
 use openrust::http::client::Response;
 use serde_json::Value;
 
-use crate::{Result, snapshot::Snapshot};
+use crate::{Result, events::WebhookTransportFailure, snapshot::Snapshot};
 
 /// 应用代码在同一投递尝试中借用的数据，不进入事件队列或诊断序列化。
 pub struct WebhookJobAttempt<'a> {
@@ -11,6 +11,7 @@ pub struct WebhookJobAttempt<'a> {
     pub outcome: &'static str,
     pub(crate) snapshot: &'a Snapshot,
     pub(crate) response: Option<&'a Response>,
+    pub(crate) transport_failure: Option<WebhookTransportFailure>,
 }
 
 impl WebhookJobAttempt<'_> {
@@ -25,6 +26,9 @@ impl WebhookJobAttempt<'_> {
     }
     pub fn get_response(&self) -> Option<&Response> {
         self.response
+    }
+    pub fn transport_failure(&self) -> Option<WebhookTransportFailure> {
+        self.transport_failure
     }
     pub fn tags(&self) -> &[String] {
         &self.snapshot.tags

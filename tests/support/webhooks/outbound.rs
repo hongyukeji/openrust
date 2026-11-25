@@ -268,6 +268,8 @@ impl Listener for RecordDeliveryEvent {
                 "method": payload.method(), "url": payload.url(), "body_length": body.len(),
                 "headers": payload.header_names().collect::<Vec<_>>(), "meta": payload.meta(),
                 "tags": payload.tags(), "state": state, "jobs": jobs,
+                "transfer_seconds": payload.transfer_stats().map(|stats| stats.get_transfer_time()),
+                "transport_failure": payload.transport_failure().map(|failure| format!("{failure:?}")),
                 "attempt": payload.attempt.as_ref().map(|attempt| json!({
                     "number": attempt.number, "status": attempt.status, "outcome": attempt.outcome,
                     "progress": attempt.progress,
@@ -319,6 +321,7 @@ impl CallWebhookJob for FixtureCustomJob {
     fn should_be_removed_from_queue(&self, attempt: &WebhookJobAttempt<'_>) -> bool {
         record_hook("should_remove", attempt).expect("记录测试 Job 重试判定");
         attempt.message_id().starts_with("custom-stop")
+            || attempt.message_id() == "transport-disconnected"
     }
 
     fn failed(&self, attempt: &WebhookJobAttempt<'_>) -> Result<()> {
@@ -343,6 +346,7 @@ fn record_hook(kind: &str, attempt: &WebhookJobAttempt<'_>) -> std::io::Result<(
         "scope": attempt.scope, "outcome": attempt.outcome, "message": attempt.message_id(),
         "url": attempt.get_webhook_url(), "meta": attempt.meta(), "tags": attempt.tags(),
         "status": attempt.get_response().map(|value| value.status().as_u16()),
+        "transport_failure": attempt.transport_failure().map(|failure| format!("{failure:?}")),
         "request_matches": body_matches, "response_matches": matches_peer });
     let mut log = std::fs::OpenOptions::new()
         .create(true)

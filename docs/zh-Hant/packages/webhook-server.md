@@ -275,7 +275,7 @@ Builder 的 `dispatch`、`dispatch_if` 和 `dispatch_unless` 登記投遞並入�
 
 投遞成功後重試同步呼叫時，沿用同一範圍的冪等鍵與快照。即使重試交由使用同一資料庫的另一個應用程式執行個體處理，也會回傳既有投遞 ID，且不會再次送出請求。
 
-在 `openrust_webhook_server::events` 下註冊同步監聽器。`DispatchingWebhookCallEvent` 在投遞記錄提交後、入佇列前觸發。`WebhookCallSucceededEvent` 和 `WebhookCallFailedEvent` 在嘗試結果提交後觸發，最終失敗隨後還會派發 `FinalWebhookCallFailedEvent`。共用載荷提供訊息與投遞 ID、請求方法、URL 路徑、本文和中繼資料的存取方法，以及嘗試狀態。事件省略 URL 查詢字串、請求標頭的值和回應內容。入佇列前監聽器失敗時可從持久記錄繼續投遞，結果監聽器失敗時以已提交的結果為準。
+在 `openrust_webhook_server::events` 下註冊同步監聽器。`DispatchingWebhookCallEvent` 在投遞記錄提交後、入佇列前觸發。`WebhookCallSucceededEvent` 和 `WebhookCallFailedEvent` 在嘗試結果提交後觸發，最終失敗隨後還會派發 `FinalWebhookCallFailedEvent`。共用載荷提供訊息與投遞 ID、請求方法、URL 路徑、本文和中繼資料的存取方法，以及嘗試狀態。事件省略 URL 查詢字串、請求標頭的值和回應內容。入佇列前監聽器失敗時可從持久記錄繼續投遞，結果監聽器失敗時以已提交的結果為準。可用 `transfer_stats()` 查看收到回應時的 HTTP 傳輸時間，並用 `transport_failure()` 區分逾時、連線失敗、回應超過大小限制等去識別化類別。自訂 Job 鉤子也可讀取同一失敗類別。
 
 ```sh
 ./artisan webhook-server:send <delivery-id> --scope=billing

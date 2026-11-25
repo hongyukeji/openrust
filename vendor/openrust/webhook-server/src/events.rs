@@ -2,6 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use openrust::{
     contracts::events::Event,
+    http::client::TransferStats,
     support::facades::{Event as Events, Log},
 };
 use serde_json::Value;
@@ -15,6 +16,20 @@ pub struct WebhookCallEvent {
     pub delivery_id: String,
     pub attempt: Option<WebhookAttempt>,
     pub(crate) snapshot: Snapshot,
+    transfer_stats: Option<TransferStats>,
+    transport_failure: Option<WebhookTransportFailure>,
+}
+
+/// 进程内可观察的失败类别，诊断不携带底层错误或凭据。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum WebhookTransportFailure {
+    DeadlineExceeded,
+    Timeout,
+    Connection,
+    ResponseBody,
+    ResponseTooLarge,
+    Other,
 }
 
 pub struct WebhookAttempt {
@@ -60,17 +75,30 @@ impl WebhookCallEvent {
         &self.snapshot.tags
     }
 
+    /// 仅返回实际取得的 HTTP Client 传输统计。
+    pub fn transfer_stats(&self) -> Option<&TransferStats> {
+        self.transfer_stats.as_ref()
+    }
+
+    pub fn transport_failure(&self) -> Option<WebhookTransportFailure> {
+        self.transport_failure
+    }
+
     pub(crate) fn new(
         scope: &str,
         id: &str,
         snapshot: Snapshot,
         attempt: Option<WebhookAttempt>,
+        transfer_stats: Option<TransferStats>,
+        transport_failure: Option<WebhookTransportFailure>,
     ) -> Arc<Self> {
         Arc::new(Self {
             scope: scope.into(),
             delivery_id: id.into(),
             attempt,
             snapshot,
+            transfer_stats,
+            transport_failure,
         })
     }
 }
@@ -92,7 +120,7 @@ delivery_event!(WebhookCallFailedEvent);
 delivery_event!(FinalWebhookCallFailedEvent);
 
 pub(crate) async fn dispatching(scope: &str, id: &str, snapshot: Snapshot) -> Result<()> {
-    let event = WebhookCallEvent::new(scope, id, snapshot, None);
+    let event = WebhookCallEvent::new(scope, id, snapshot, None, None, None);
     Events::dispatch(DispatchingWebhookCallEvent(event))
         .await
         .map(|_| ())

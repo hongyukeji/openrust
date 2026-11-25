@@ -9,7 +9,10 @@ use openrust::{
     contracts::container::Container as _,
     http::{
         HttpFuture,
-        client::{Factory, PinnedProxy, Response, RetryAfter, TlsCertificate, TlsIdentity},
+        client::{
+            Error as HttpClientError, Factory, PinnedProxy, Response, RetryAfter, TlsCertificate,
+            TlsIdentity,
+        },
     },
     log::Log,
 };
@@ -19,7 +22,7 @@ use zeroize::Zeroizing;
 use crate::{
     DeliveryProgress, DeliveryStore, Error, Result, TargetPolicy, WebhookJobAttempt,
     delivery_store::{AttemptResult, Claim},
-    events::{self, WebhookAttempt, WebhookCallEvent},
+    events::{self, WebhookAttempt, WebhookCallEvent, WebhookTransportFailure},
     extensions, limits, replay,
     snapshot::Snapshot,
 };
@@ -209,9 +212,10 @@ impl DeliveryService {
             result: attempt,
             response,
             retry_at,
+            failure,
         } = match tokio::time::timeout_at(deadline, self.attempt(id, &claim, deadline)).await {
             Ok(outcome) => outcome,
-            Err(_) => AttemptResult::transient("unknown").into(),
+            Err(_) => TransportAttempt::failed(WebhookTransportFailure::DeadlineExceeded),
         };
         if attempt.outcome == "paused" || retry_at.is_some() {
             self.store.defer_claim(id, &claim, retry_at).await?;
@@ -226,6 +230,7 @@ impl DeliveryService {
             outcome,
             snapshot: &claim.snapshot,
             response: response.as_ref(),
+            transport_failure: failure,
         };
         let backoff = if attempt.retry_after.is_some()
             && claim.number < claim.snapshot.tries
@@ -251,6 +256,10 @@ impl DeliveryService {
                 progress,
                 elapsed,
             }),
+            response
+                .as_ref()
+                .and_then(|response| response.transfer_stats.clone()),
+            failure,
         );
         events::attempted(event.clone(), progress).await;
         if let Some(job) = handler
@@ -263,6 +272,7 @@ impl DeliveryService {
                     outcome,
                     snapshot: &event.snapshot,
                     response: response.as_ref(),
+                    transport_failure: failure,
                 })
                 .is_err()
         {
@@ -403,6 +413,7 @@ impl DeliveryService {
                         result: AttemptResult::failure("rate_limited"),
                         response: None,
                         retry_at: Some(retry_at),
+                        failure: None,
                     };
                 }
                 Err(_) => return AttemptResult::transient("unresolved").into(),
@@ -452,12 +463,17 @@ impl DeliveryService {
                     result,
                     response: Some(response),
                     retry_at: None,
+                    failure: None,
                 }
             }
-            Err(openrust::http::client::Error::Configuration) => {
-                AttemptResult::failure("rejected").into()
-            }
-            Err(_) => AttemptResult::transient("unknown").into(),
+            Err(HttpClientError::Configuration) => AttemptResult::failure("rejected").into(),
+            Err(error) => TransportAttempt::failed(match error {
+                HttpClientError::Timeout => WebhookTransportFailure::Timeout,
+                HttpClientError::Connection => WebhookTransportFailure::Connection,
+                HttpClientError::ResponseBody(_) => WebhookTransportFailure::ResponseBody,
+                HttpClientError::BodyTooLarge => WebhookTransportFailure::ResponseTooLarge,
+                _ => WebhookTransportFailure::Other,
+            }),
         }
     }
 }
@@ -466,6 +482,16 @@ struct TransportAttempt {
     result: AttemptResult,
     response: Option<Response>,
     retry_at: Option<i64>,
+    failure: Option<WebhookTransportFailure>,
+}
+
+impl TransportAttempt {
+    fn failed(failure: WebhookTransportFailure) -> Self {
+        Self {
+            failure: Some(failure),
+            ..AttemptResult::transient("unknown").into()
+        }
+    }
 }
 
 impl From<AttemptResult> for TransportAttempt {
@@ -474,6 +500,7 @@ impl From<AttemptResult> for TransportAttempt {
             result,
             response: None,
             retry_at: None,
+            failure: None,
         }
     }
 }

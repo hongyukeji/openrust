@@ -110,7 +110,7 @@
 - `BackoffStrategy`／`ExponentialBackoffStrategy`：waitInSecondsAfterAttempt；源码默认等待数值与实际配置有记录，不把某平台重试时间表误当所有服务约定。
 - `CallWebhookJob`：handle、tags、getResponse、getBody、getWebhookUrl、failed；自定义Job的公开契约与失败行为从实际Worker测试。
 - `SerializesWebhookData`、WebhookCallEvent的__serialize／__unserialize：保留数据往返／恢复语义，用有版本的Rust DTO／注册名表达，不引入PHP对象或反射序列化。无法表达部分单列裁决，不能无声丢掉meta／tags／原始body。
-- 事件：DispatchingWebhookCallEvent、WebhookCallSucceededEvent、WebhookCallFailedEvent、FinalWebhookCallFailedEvent及WebhookCallEvent基础载荷。核对发送前、单次失败、最终失败和恢复重放的触发次数／时机；事件中敏感请求／响应受控，不直接Debug整包。
+- 事件：DispatchingWebhookCallEvent、WebhookCallSucceededEvent、WebhookCallFailedEvent、FinalWebhookCallFailedEvent及WebhookCallEvent基础载荷。核对发送前、单次失败、最终失败和恢复重放的触发次数／时机；事件中敏感请求／响应受控，不直接Debug整包。结果事件和 Job 可读取的传输诊断见[三库验收](../audits/webhooks/transport-events.md)。
 - 异常：CouldNotCallWebhook的urlNotSet／secretNotSet、InvalidBackoffStrategy、InvalidSigner、InvalidWebhookJob；按项目错误分层保留可诊断分类。
 - 配置覆盖queue、connection、http_verb、proxy、signer、signature_header_name、timestamp_header_name、webhook_id_header_name、headers、timeout_in_seconds、tries、backoff_strategy、retryable_status_codes、respect_retry_after、retry_with_jitter、webhook_job、verify_ssl、throw_exception_on_failure、tags。
 - 调研快照默认值：超时3秒、tries=3、POST、Signature／Timestamp／Webhook-Id Header、证书校验true、retryable_status_codes=null代表重试所有非成功状态，respect_retry_after和retry_with_jitter默认false。实现前分别验证继承／覆盖；原生推荐生产策略可显式选取408／429／5xx、有限退避和Retry-After，不能暗改兼容模式默认或把所有4xx无限重试。
