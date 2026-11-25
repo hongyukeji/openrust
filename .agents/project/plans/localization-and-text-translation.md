@@ -77,6 +77,8 @@ let translation = Translate::driver("office")?
 
 ## 后续可选能力：AI Agent 翻译
 
+2026-11-25 用户确认后续再安排，暂不实施。现阶段的预留来自已有 `Translator` 自定义驱动契约。Agent 适配、专用配置及模拟 Agent 验收均归后续批次，TR-01 使用普通外部驱动夹具验证公开扩展入口。
+
 | 参考 | 用于本计划的部分 |
 | --- | --- |
 | [Laravel AI SDK 固定 Agent 契约](https://raw.githubusercontent.com/laravel/ai/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Contracts/Agent.php) · [结构化输出](https://laravel.com/framework/docs/13.x/ai-sdk#structured-output) | 借鉴一个专用 Agent 封装翻译指令与输出结构，模型和供应商由 AI 侧管理。OpenRust 开发者通过应用 Provider 装配既有 `Translator`，与普通具名驱动的用法一致。 |
@@ -86,7 +88,7 @@ let translation = Translate::driver("office")?
 - **预留现有入口。** `Translator` 持续接收 `TranslationRequest`，返回统一译文结果。应用可自行注册 `agent` 类型工厂，并用 `translate.drivers.<profile>` 择一绑定已配置的专用 Agent。`Translate::driver("editorial")` 与其他 profile 一样返回驱动句柄。模型、供应商凭据、固定指令、术语和调用预算在应用的 Agent 配置管理。翻译公共请求保持原文及语言字段的供应商无关性。
 - **优先交付一轮调用。** 未来适配器把原文作为数据传给只允许翻译的 Agent，以简单结构返回译文。只有实际可用的识别来源才填源语言。校验非空结果和业务声明的受保护占位符，例如 `:name`。结果截断、模型拒绝、超时或格式不符映射到现有错误类别。原文中的命令、链接或工具调用请求均按文本处理。本轮建议使用无工具、无会话历史的翻译 Agent。
 - **把增强留给具名场景。** 需要润色、专业术语或人工复核时，由业务显式选用其他 profile 或在应用工作流中编排。若后续采用初译、审校、修订，固定步骤上限、总体超时、输入上限及模型调用预算，比较固定语料的遗漏、术语一致性、占位符、延迟和费用。各 profile 的数据去向可审计，文本采用既有脱敏策略。
-- **验收扩展接缝。** 在 TR-01 的外部驱动消费者中，用假 Agent 通过既有工厂走正式 `Translate` 入口，确认七家适配器与 `Lang` 装配均独立。可选 Agent 实现另立批次，实测格式错误、超时、无工具执行、占位符和费用上限。生产交付按实际采用的模型逐项复验。
+- **后续批次验收。** 届时用模拟 Agent 通过既有工厂走正式 `Translate` 入口，确认 Agent、七家适配器与 `Lang` 各自独立装配。实测格式错误、超时、无工具执行、占位符和费用上限，生产交付按实际采用的模型逐项复验。
 
 ## 实施顺序与验收
 
