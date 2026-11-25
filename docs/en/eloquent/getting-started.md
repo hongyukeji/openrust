@@ -228,6 +228,12 @@ Use `fill_and_insert(rows)` on an Eloquent query to apply model defaults, pendin
 
 Enable soft deletes with `soft_deletes("deleted_at")`. Model queries exclude soft-deleted rows by default. Use `with_trashed` or `only_trashed` to include them, `restore` to clear the deletion timestamp, and `force_delete` to remove a row permanently.
 
+## Pruning Models {#pruning-models}
+
+Implement `openrust::database::eloquent::ModelPruner` in the service that owns the records. Register the strategy in a provider with `app.make::<ModelPruners>().await?.register("app::models::Archive", "app/models/archive.rs", &ArchivePruner)?`. Its `count` method previews the eligible records. Its `prune_batch` method deletes up to the given batch size and returns the number deleted.
+
+Run `./artisan model:prune --pretend` to preview models registered under `app/models`. Use `--model=<name>` to select a registered model explicitly, or `--path=<directory>` and `--except=<name>` to filter by source directory and name. Actual pruning emits `ModelPruningStarting`, cumulative `ModelsPruned` counts, and `ModelPruningFinished`.
+
 ## Replicating Models {#replicating-models}
 
 Call `replicate(&[]).await?` to create an unsaved copy. The primary key, configured timestamps, and internal through key are excluded. Pass additional column names to omit them. Loaded relations are available on the copy and can be removed independently. The copy keeps the source database connection and receives the `Replicating` lifecycle event. Use `replicate_quietly` to skip that event. Call `save` to insert the copy.

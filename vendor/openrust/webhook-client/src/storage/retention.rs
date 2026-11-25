@@ -1,8 +1,6 @@
 use super::{DatabaseWebhookStore, attachments::AttachmentReference, scope_key, text};
-use crate::{Error, Result};
+use crate::{Error, Result, retention::MAX_CHUNK};
 use openrust::database::{Row, Value, query::Builder};
-
-const MAX_PRUNABLE: u32 = 500;
 
 impl DatabaseWebhookStore {
     fn retention_query<'a>(&self, builder: Builder<'a>, days: u32) -> Result<Builder<'a>> {
@@ -25,7 +23,7 @@ impl DatabaseWebhookStore {
     }
 
     fn retention_candidates(&self, days: u32, limit: u32) -> Result<Builder<'static>> {
-        if !(1..=MAX_PRUNABLE).contains(&limit) {
+        if !(1..=MAX_CHUNK).contains(&limit) {
             return Err(Error::InvalidConfig("prune.limit"));
         }
         Ok(self
@@ -34,6 +32,14 @@ impl DatabaseWebhookStore {
             .order_by("created_at", "asc")
             .order_by("id", "asc")
             .limit(u64::from(limit)))
+    }
+
+    pub(crate) async fn count_prunable(&self, days: u32) -> Result<u64> {
+        Ok(self
+            .retention_query(self.connection.table("webhook_calls"), days)?
+            .use_write_pdo()
+            .count("*")
+            .await?)
     }
 
     pub(crate) async fn prunable_ids(&self, days: u32, limit: u32) -> Result<Vec<String>> {

@@ -32,6 +32,7 @@ mod processing_recovery_migration;
 pub mod replay;
 #[path = "../database/migrations/2026_11_25_000015_create_webhook_replays_table.rs"]
 mod replay_migration;
+mod retention;
 mod routes;
 pub use routes::{WebhookRouteOptions, WebhookRouter, WebhookRoutes};
 pub mod events;
@@ -130,6 +131,13 @@ impl ServiceProvider for WebhookClientServiceProvider {
                 .await?;
             self.publishes(app, MIGRATION_SOURCES, "webhook-client-migrations")?;
             self.commands(app, console::register);
+            app.make::<openrust::database::eloquent::ModelPruners>()
+                .await?
+                .register(
+                    retention::MODEL,
+                    "vendor/openrust/webhook-client/src/models.rs",
+                    &retention::PruneWebhookCalls,
+                )?;
             self.publishes(
                 app,
                 &[(

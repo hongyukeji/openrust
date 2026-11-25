@@ -64,6 +64,9 @@ impl ServiceProvider for DatabaseServiceProvider {
             container.singleton_if::<super::seeder::SeederRegistry, _>(|_| {
                 Ok(Arc::new(super::seeder::SeederRegistry::default()))
             })?;
+            container.singleton::<super::eloquent::ModelPruners, _>(|_| {
+                Ok(Arc::new(super::eloquent::ModelPruners::default()))
+            })?;
             Ok(())
         })
     }

@@ -1,11 +1,11 @@
-use crate::{DatabaseWebhookStore, Error, jobs::QueuedWebhookJob, models::WebhookCall};
+use crate::{DatabaseWebhookStore, jobs::QueuedWebhookJob, models::WebhookCall};
 use clap::{Arg, ArgAction, Command as Syntax, value_parser};
 use openrust::{
     console::{Command, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output},
     database::DatabaseManager,
     foundation::Application,
     queue::QueueManager,
-    support::facades::{Artisan, Config},
+    support::facades::Artisan,
 };
 
 pub(crate) fn register() -> Result<(), ConsoleError> {
@@ -90,24 +90,13 @@ impl Command for Prune {
             let matches = input.matches();
             let staging = matches.get_flag("attachment-staging");
             let days = if staging {
-                0
+                Some(0)
             } else {
-                let value = Config::get("webhook-client.delete_after_days")
-                    .map_err(ConsoleError::from_source)?;
-                match value {
-                    None => 30,
-                    Some(serde_json::Value::Null) => {
-                        output.info("Webhook 接收记录保留期清理已停用");
-                        return Ok(0);
-                    }
-                    Some(value) => value
-                        .as_u64()
-                        .filter(|days| *days <= 36_500)
-                        .and_then(|days| u32::try_from(days).ok())
-                        .ok_or_else(|| {
-                            ConsoleError::from_source(Error::InvalidConfig("delete_after_days"))
-                        })?,
-                }
+                crate::retention::retention_days()?
+            };
+            let Some(days) = days else {
+                output.info("Webhook 接收记录保留期清理已停用");
+                return Ok(0);
             };
             let scope = matches.get_one::<String>("scope").expect("必填范围");
             let connection = matches.get_one::<String>("database").map(String::as_str);

@@ -227,6 +227,12 @@ pub async fn count_visit_quietly<M: Model>(model: &mut M) -> DatabaseResult<u64>
 
 使用 `soft_deletes("deleted_at")` 启用软删除。模型查询默认排除软删除记录，可用 `with_trashed` 或 `only_trashed` 查询它们，用 `restore` 清除删除时间，用 `force_delete` 永久删除。
 
+## 清理模型 {#pruning-models}
+
+在记录所属的服务中实现 `openrust::database::eloquent::ModelPruner`，并在服务提供者用 `app.make::<ModelPruners>().await?.register("app::models::Archive", "app/models/archive.rs", &ArchivePruner)?` 注册。用 `count` 统计符合条件的记录，实现 `prune_batch` 以指定上限做分批删除并返回实际删除数量。
+
+运行 `./artisan model:prune --pretend` 预演注册在 `app/models` 下的模型。可用 `--model=<name>` 精确选择，也可用 `--path=<directory>` 和 `--except=<name>` 按源目录和名称筛选。实际清理会派发 `ModelPruningStarting`、带累计计数的 `ModelsPruned` 和 `ModelPruningFinished`。
+
 ## 复制模型 {#replicating-models}
 
 调用 `replicate(&[]).await?` 创建尚未保存的副本。框架会排除主键、已配置的时间戳和内部中间表键。可传入其他要排除的列名。副本保留已加载的关系，也可以单独移除关系。副本沿用源模型的数据库连接并触发 `Replicating` 生命周期事件。使用 `replicate_quietly` 跳过该事件，调用 `save` 插入副本。

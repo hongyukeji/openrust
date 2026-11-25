@@ -591,6 +591,44 @@ impl openrust::contracts::events::Listener for ControlAfterRedisEnqueue {
         })
     }
 }
+struct RecordPruning(std::path::PathBuf);
+impl openrust::contracts::events::Listener for RecordPruning {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn openrust::contracts::events::Event,
+        _: &'a mut openrust::events::EventContext<'_>,
+    ) -> openrust::events::EventFuture<
+        'a,
+        openrust::events::EventResult<Option<openrust::events::ListenerResponse>>,
+    > {
+        Box::pin(async move {
+            use openrust::database::events::{
+                ModelPruningFinished, ModelPruningStarting, ModelsPruned,
+            };
+            use std::io::Write as _;
+
+            let record = if let Some(event) = event.downcast_ref::<ModelPruningStarting>() {
+                json!(["starting", event.models])
+            } else if let Some(event) = event.downcast_ref::<ModelsPruned>() {
+                json!(["pruned", event.model, event.count])
+            } else if let Some(event) = event.downcast_ref::<ModelPruningFinished>() {
+                json!(["finished", event.models])
+            } else {
+                return Ok(None);
+            };
+            std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&self.0)
+                .and_then(|mut file| writeln!(file, "{record}"))
+                .map_err(|source| openrust::events::EventError::Listener {
+                    source: Box::new(source),
+                })?;
+            Ok(None)
+        })
+    }
+}
+
 struct FixtureReplayPolicy;
 
 impl openrust_webhook_client::replay::ReplayPolicy for FixtureReplayPolicy {
@@ -800,6 +838,17 @@ impl openrust::support::ServiceProvider for FixtureProvider {
                     ))
                 },
             )?;
+            if std::env::var_os("FIXTURE_OVERRIDE_DATABASE_STORE").is_some() {
+                WebhookRuntime::register_webhook_store(
+                    openrust::contracts::foundation::Application::container(app),
+                    "database",
+                    |_, _| {
+                        Err(openrust_webhook_client::Error::InvalidConfig(
+                            "fixture-store-override",
+                        ))
+                    },
+                )?;
+            }
             Ok(())
         })
     }
@@ -809,6 +858,21 @@ impl openrust::support::ServiceProvider for FixtureProvider {
     ) -> HttpFuture<'a, openrust::support::ProviderResult> {
         Box::pin(async move {
             outbound::register(app).await?;
+            if let Some(path) = std::env::var_os("FIXTURE_MODEL_PRUNING_EVENTS") {
+                use openrust::contracts::events::Dispatcher as _;
+                use openrust::database::events::{
+                    ModelPruningFinished, ModelPruningStarting, ModelsPruned,
+                };
+                let events = app.make::<openrust::events::Dispatcher>().await?;
+                let listener = std::sync::Arc::new(RecordPruning(path.into()));
+                for event in [
+                    ModelPruningStarting::NAME,
+                    ModelsPruned::NAME,
+                    ModelPruningFinished::NAME,
+                ] {
+                    events.listen(event, listener.clone(), openrust::events::Delivery::Sync)?;
+                }
+            }
             if std::env::var_os("FIXTURE_AUDIT_LISTENER_FAIL").is_some() {
                 use openrust::contracts::{
                     container::Container as _, events::Dispatcher as _,
@@ -1381,6 +1445,7 @@ async fn main() -> ExitCode {
                 {"name":"ignored","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"}},
                 {"name":"dispatch-fails","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"}},
                 {"name":"default","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"fixture","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database"},
+                {"name":"custom","webhook_model":"database","scope":"webhook-custom"},
                 {"name":"custom","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"signature_header_name":"X-Webhook","scope":"webhook-custom","process_webhook_job":"fixture-custom","signature_validator":"custom","webhook_model":"custom","webhook_response":"custom","webhook_profile":"process-everything"},
                 {"name":"package-ignored","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"webhook_profile":"ignored","webhook_model":"missing","process_webhook_job":"fixture","signature_validator":"default"},
                 {"name":"discarded","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"fixture","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database"},

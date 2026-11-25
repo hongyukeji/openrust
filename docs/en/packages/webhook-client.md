@@ -242,6 +242,8 @@ The package’s `delete_after_days` defaults to 30. Set it to `null` to disable 
 
 The database store prunes receipts whose creation and terminal timestamps are both outside the retention window. Pending receipts, active leases and receipts without a terminal marker are retained. Receipt deletion also removes the associated event keys and processing attempts. Each command processes up to 500 records. `WebhookCall::prunable` previews candidate IDs through the storage adapter.
 
+To prune the database profiles together, preview with `./artisan model:prune --model=openrust_webhook_client::models::WebhookCall --pretend` and remove `--pretend` to run. The model command reads the scopes and named connections declared on active profiles that use the built-in database store. It prunes in batches of at most 500. Use the package command when targeting a single scope or collecting detached attachment objects.
+
 ### Lookup hints from unsigned callbacks {#unverified-hints}
 
 For a supplier that supplies no signature, explicitly set `unverified_hint_receiver` to an implementation registered with `WebhookRuntime::register_unverified_hint_receiver`. The receiver gets an `UnverifiedHint`. The default verifier requires its signature header to be absent for this path. The Standard verifier requires all three protocol headers to be absent. Signed requests follow the normal verification and response path. Custom verifiers with other signature fields can override `SignatureValidator::has_signature`. The built-in receiver uses the profile’s configured `scope`.

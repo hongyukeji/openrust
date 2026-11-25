@@ -554,8 +554,30 @@ def check_retention(binary, env, root, port, driver, sql):
             assert "已清理 1 条" in command(binary, current, "webhook-client:prune",
                                           "--scope=" + scope, "--limit=1")
             assert oldest not in ids() and (preserved | {older, stopped}) <= ids()
-            assert "已清理 2 条" in command(binary, current, "webhook-client:prune",
-                                          "--scope=" + scope, "--database=" + driver, "--limit=2")
+            model = "openrust_webhook_client::models::WebhookCall"
+            event_log = root / "pruning-events.jsonl"
+            model_env = current | {"FIXTURE_MODEL_PRUNING_EVENTS": str(event_log)}
+            model_env.pop("FIXTURE_SPATIE_SECRET")
+            model_env.pop("FIXTURE_STANDARD_SECRET")
+            assert "没有找到可清理模型" in command(binary, model_env, "model:prune", "--pretend")
+            model_path = "vendor/openrust/webhook-client/src"
+            assert "没有找到可清理模型" in command(binary, model_env, "model:prune",
+                                                       "--path=" + model_path, "--except=" + model)
+            invalid = subprocess.run([str(binary), "artisan", "model:prune",
+                                      "--model=" + model, "--except=" + model],
+                                     env=model_env, capture_output=True, text=True, timeout=15)
+            assert invalid.returncode != 0
+            assert "可清理 2 条" in command(binary, model_env, "model:prune", "--path=" + model_path,
+                                          "--pretend", "--chunk=1")
+            assert "可清理 0 条" in command(binary, model_env | {"FIXTURE_OVERRIDE_DATABASE_STORE": "1"},
+                                          "model:prune", "--model=" + model, "--pretend")
+            assert (preserved | {older, stopped}) <= ids() and not event_log.exists()
+            command(binary, model_env, "config:cache")
+            assert "已清理 2 条" in command(binary, model_env, "model:prune", "--model=" + model, "--chunk=1")
+            command(binary, model_env, "config:clear")
+            assert [json.loads(line) for line in event_log.read_text().splitlines()] == [
+                ["starting", [model]], ["pruned", model, 1], ["pruned", model, 2], ["finished", [model]],
+            ]
             assert not (eligible & ids()) and preserved <= ids()
             assert not (eligible & set(sql("SELECT call_id FROM webhook_event_receipts").split()))
             assert not (eligible & set(sql("SELECT call_id FROM webhook_processing_attempts").split()))
@@ -566,7 +588,7 @@ def check_retention(binary, env, root, port, driver, sql):
             raise
         finally:
             http_helpers["stop"](server)
-    print(f"{driver}: 保留期清理 5 个真实 HTTP、4 次 Worker、7 次 Artisan；范围、终态、待处理、预演和联动清理通过")
+    print(f"{driver}: 保留期清理 5 个真实 HTTP、4 次 Worker；包命令与模型命令的范围、终态、预演和分批事件通过")
 
 
 def check_unverified_hints(binary, env, root, port, driver, sql):
@@ -923,13 +945,14 @@ def check_attachment_storage(binary, env, root, port, driver, sql):
             write_database(driver, sql,
                            "INSERT INTO webhook_attachment_staging (id,scope_key,disk,created_at) "
                            f"VALUES ('{receipt}','{scope_hash}','local',1)")
-            result = subprocess.run([str(binary), "artisan", *prune, "--limit=1"], env=current,
+            model_prune = ("model:prune", "--model=openrust_webhook_client::models::WebhookCall", "--chunk=1")
+            result = subprocess.run([str(binary), "artisan", *model_prune], env=current,
                                     capture_output=True, text=True, timeout=20)
             assert result.returncode != 0 and obj.exists(), result
             assert sql(f"SELECT COUNT(*) FROM webhook_calls WHERE id='{receipt}'") == "1"
             write_database(driver, sql, f"DELETE FROM webhook_attachment_staging WHERE id='{receipt}'")
 
-            assert "已清理 1 条" in command(binary, current, *prune, "--limit=1")
+            assert "已清理 1 条" in command(binary, current, *model_prune)
             assert sql(f"SELECT COUNT(*) FROM webhook_calls WHERE id='{receipt}'") == "0"
             assert sql(f"SELECT COUNT(*) FROM webhook_attachment_staging WHERE id='{receipt}'") == "1"
             assert obj.exists()

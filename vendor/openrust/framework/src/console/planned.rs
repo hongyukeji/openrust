@@ -99,7 +99,6 @@ const FRAMEWORK_COMMANDS: &[(&str, &str)] = &[
     ("migrate:reset", "Roll back all applied migrations"),
     ("migrate:rollback", "Undo the latest migration batch"),
     ("migrate:status", "Show applied and pending migrations"),
-    ("model:prune", "Remove model records eligible for pruning"),
     ("model:show", "Inspect a model and its attributes"),
     (
         "package:discover",

@@ -2,6 +2,7 @@
 
 pub(crate) mod factories;
 pub(crate) mod migrations;
+pub(crate) mod prune_command;
 pub(crate) mod seeds;
 
 use crate::{console::ConsoleError, foundation::Application};

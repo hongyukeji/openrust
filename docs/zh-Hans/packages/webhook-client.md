@@ -242,6 +242,8 @@ pub fn register_replay_policy(
 
 数据库存储只清理创建时间和终态时间都超过保留期的记录。待处理记录、仍持有租约的记录及缺少终态标记的记录会保留。删除接收记录会一并删除关联去重键和处理尝试。每条命令最多处理 500 条。`WebhookCall::prunable` 通过存储适配器预览候选记录 ID。
 
+要统一清理已配置的数据库范围，先运行 `./artisan model:prune --model=openrust_webhook_client::models::WebhookCall --pretend` 预演，再移除 `--pretend` 执行。模型命令读取使用内置数据库存储的有效配置中的范围和具名连接，每批最多处理 500 条。只清理一个范围或回收已经解绑的附件对象时，用包命令。
+
 ### 无签名回调的查单提示 {#unverified-hints}
 
 供应商无法提供签名时，可在 profile 中将 `unverified_hint_receiver` 指向通过 `WebhookRuntime::register_unverified_hint_receiver` 注册的实现。接收器拿到 `UnverifiedHint`。默认验证器仅在签名头缺失时进入此路径。Standard 验证器要求三个协议头全部缺失。携带签名字段的请求继续走常规验签与响应。自定义验证器若使用其他签名字段，可覆盖 `SignatureValidator::has_signature`。内置接收器要求存储范围与 profile 配置的 `scope` 一致。

@@ -470,21 +470,10 @@ impl WebhookConfigRepository {
         Self::default()
     }
     pub fn from_configuration(value: &Value, env: Arc<Environment>) -> Result<Self> {
-        let configs = value["configs"]
-            .as_array()
-            .filter(|configs| configs.len() <= 128)
-            .ok_or(Error::InvalidConfig("configs"))?;
-        for config in configs {
-            if config["name"]
-                .as_str()
-                .is_none_or(|name| name.is_empty() || name.len() > 128)
-            {
-                return Err(Error::InvalidConfig("name"));
-            }
-        }
+        let configs = configured_profiles(&value["configs"])?;
         Ok(Self {
             configs: RwLock::default(),
-            source: Some((configs.clone(), env)),
+            source: Some((configs.to_vec(), env)),
         })
     }
     /// 按固定 Provider 的当前路由名选择配置；唯一令牌模式取第一个点之前的名称。
@@ -539,4 +528,20 @@ impl WebhookConfigRepository {
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         Ok(Some(resolved.entry(name.into()).or_insert(config).clone()))
     }
+}
+
+pub(crate) fn configured_profiles(configs: &Value) -> Result<&[Value]> {
+    let configs = configs
+        .as_array()
+        .filter(|configs| configs.len() <= 128)
+        .ok_or(Error::InvalidConfig("configs"))?;
+    for config in configs {
+        if config["name"]
+            .as_str()
+            .is_none_or(|name| name.is_empty() || name.len() > 128)
+        {
+            return Err(Error::InvalidConfig("name"));
+        }
+    }
+    Ok(configs)
 }

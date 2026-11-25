@@ -22,6 +22,49 @@ use super::{
     bindings::render_query,
 };
 
+pub struct ModelPruningStarting {
+    pub models: Vec<&'static str>,
+}
+
+impl ModelPruningStarting {
+    pub const NAME: &'static str = r"OpenRust\Database\Events\ModelPruningStarting";
+}
+
+impl Event for ModelPruningStarting {
+    fn name(&self) -> &str {
+        Self::NAME
+    }
+}
+
+pub struct ModelsPruned {
+    pub model: &'static str,
+    pub count: u64,
+}
+
+impl ModelsPruned {
+    pub const NAME: &'static str = r"OpenRust\Database\Events\ModelsPruned";
+}
+
+impl Event for ModelsPruned {
+    fn name(&self) -> &str {
+        Self::NAME
+    }
+}
+
+pub struct ModelPruningFinished {
+    pub models: Vec<&'static str>,
+}
+
+impl ModelPruningFinished {
+    pub const NAME: &'static str = r"OpenRust\Database\Events\ModelPruningFinished";
+}
+
+impl Event for ModelPruningFinished {
+    fn name(&self) -> &str {
+        Self::NAME
+    }
+}
+
 /// An application connection has been resolved for use.
 pub struct ConnectionEstablished {
     pub connection: Connection,

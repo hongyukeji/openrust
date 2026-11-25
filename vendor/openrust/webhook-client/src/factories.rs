@@ -15,6 +15,7 @@ use std::sync::{Arc, Mutex};
 type Creator<T> = dyn Fn(&WebhookConfig, &Container) -> Result<Arc<T>> + Send + Sync;
 struct Factory<T: ?Sized> {
     create: Arc<Creator<T>>,
+    builtin: bool,
 }
 pub(crate) fn validate_reference(role: &'static str, name: &str) -> Result<()> {
     if name.is_empty()
@@ -38,15 +39,45 @@ fn register<T: ?Sized + Send + Sync + 'static>(
     name: &str,
     create: impl Fn(&WebhookConfig, &Container) -> Result<Arc<T>> + Send + Sync + 'static,
 ) -> Result<()> {
+    register_factory::<T>(
+        container,
+        role,
+        name,
+        Factory {
+            create: Arc::new(create),
+            builtin: false,
+        },
+    )
+}
+
+fn register_factory<T: ?Sized + Send + Sync + 'static>(
+    container: &Container,
+    role: &'static str,
+    name: &str,
+    factory: Factory<T>,
+) -> Result<()> {
     container
-        .instance_named(
-            &key(role, name)?,
-            Arc::new(Factory {
-                create: Arc::new(create),
-            }),
-        )
+        .instance_named(&key(role, name)?, Arc::new(factory))
         .map_err(Error::binding)?;
     Ok(())
+}
+
+pub(crate) fn uses_builtin_database_store(container: &Container) -> Result<bool> {
+    get::<dyn WebhookStore>(container, "webhook_model", "database").map(|factory| factory.builtin)
+}
+
+pub(crate) fn database_store_options(config: &serde_json::Value) -> Result<(&str, Option<&str>)> {
+    let scope = config["scope"]
+        .as_str()
+        .ok_or(Error::InvalidConfig("scope"))?;
+    let connection = match &config["connection"] {
+        serde_json::Value::Null => None,
+        serde_json::Value::String(name) if !name.is_empty() && name.len() <= 128 => {
+            Some(name.as_str())
+        }
+        _ => return Err(Error::InvalidConfig("connection")),
+    };
+    Ok((scope, connection))
 }
 fn get<T: ?Sized + Send + Sync + 'static>(
     container: &Container,
@@ -250,30 +281,24 @@ pub(crate) fn defaults(container: &Container) -> Result<()> {
         "default",
         |_, _| Ok(Arc::new(DefaultRespondsTo))
     );
-    default!(
-        register_webhook_store,
-        "webhook_model",
-        "database",
-        |config, container| {
-            let scope = config.options()["scope"]
-                .as_str()
-                .ok_or(Error::InvalidConfig("scope"))?;
-            let connection = match &config.options()["connection"] {
-                serde_json::Value::Null => None,
-                serde_json::Value::String(name) if !name.is_empty() && name.len() <= 128 => {
-                    Some(name.as_str())
-                }
-                _ => return Err(Error::InvalidConfig("connection")),
-            };
-            let manager = container
-                .make::<openrust::database::DatabaseManager>()
-                .map_err(Error::binding)?;
-            Ok(Arc::new(DatabaseWebhookStore::new(
-                manager.connection(connection)?,
-                scope,
-            )?))
-        }
-    );
+    if !container.has(key("webhook_model", "database")?.as_str()) {
+        register_factory::<dyn WebhookStore>(
+            container,
+            "webhook_model",
+            "database",
+            Factory {
+                builtin: true,
+                create: Arc::new(|config, container| {
+                    let (scope, connection) = database_store_options(config.options())?;
+                    let manager = container.make::<openrust::database::DatabaseManager>()?;
+                    Ok(Arc::new(DatabaseWebhookStore::new(
+                        manager.connection(connection)?,
+                        scope,
+                    )?))
+                }),
+            },
+        )?;
+    }
     Ok(())
 }
 struct DeferredStore {

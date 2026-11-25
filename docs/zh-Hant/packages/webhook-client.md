@@ -242,6 +242,8 @@ pub fn register_replay_policy(
 
 資料庫儲存只清理建立時間及結案時間都超過保留期的記錄。待處理記錄、仍持有租約的記錄及缺少結案標記的記錄會保留。刪除接收記錄時，會一併刪除關聯去重鍵與處理嘗試。每次指令最多處理 500 筆。`WebhookCall::prunable` 透過儲存配接器預覽候選記錄 ID。
 
+要統一清理已設定的資料庫範圍，先執行 `./artisan model:prune --model=openrust_webhook_client::models::WebhookCall --pretend` 預演，再移除 `--pretend` 執行。模型命令讀取使用內建資料庫儲存的有效設定內的範圍及具名連線，每批最多處理 500 筆。只清理一個範圍或回收已解除綁定的附件物件時，使用套件命令。
+
 ### 無簽名回呼的查詢提示 {#unverified-hints}
 
 供應商無法提供簽名時，可在 profile 將 `unverified_hint_receiver` 指向透過 `WebhookRuntime::register_unverified_hint_receiver` 註冊的實作。接收器取得 `UnverifiedHint`。預設驗證器僅在簽名欄位缺失時採用此流程。Standard 驗證器要求三個協定欄位全部缺失。帶有簽名欄位的請求沿用一般驗簽及回應流程。自訂驗證器若使用其他簽名欄位，可覆寫 `SignatureValidator::has_signature`。內建接收器要求儲存範圍與 profile 設定的 `scope` 一致。
