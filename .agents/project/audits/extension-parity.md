@@ -200,3 +200,7 @@ Provider 按固定 [ExpireSupervisors](https://github.com/laravel/horizon/blob/b
 固定 [Laravel HTTP Kernel::terminate](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Http/Kernel.php) 在终止中间件和应用终止回调结束后，才使用同一次结束时间调用请求生命周期处理器。Pulse 的两个请求 Recorder 都使用该入口。Rust HTTP 内核新增 `after_termination`，以同一个单调时钟耗时通知已注册回调，覆盖所有响应状态，防止同一请求的重复终止提前触发观察。原有 `RequestHandled` 的派发点保留；Pulse 在该事件中捕获认证身份和已解码的路由数据，实际记录与归档移到终止之后。手工调用记录器且无活跃 HTTP 生命周期时，仍使用事件本身的耗时。
 
 通过真实应用内核回归：422 响应前认证用户，响应后由终止中间件等待 25ms、始终执行的延后任务及其嵌套任务各等待 45ms，慢请求达到至少 115ms 并持久化普通及慢用户计数。Pulse Provider 11 项、框架 HTTP 中间件生命周期 5 项（含响应流与关停）、快照全仓格式、Pulse 全目标与框架库严格 Clippy、三语构建及 12 组浏览器检查通过。请求级回归使用 SQLite；最终生产组合、被中断的传输与外部 Livewire 客户端仍需验收。
+
+### Pulse 响应传输中断验收
+
+从独立 Artisan 启动真实 HTTP 服务，以 SQLite 存储和原生请求认证发送请求。夹具返回持续打开的分块流，客户端读到首段后继续连接至少 150ms；在流仍打开时没有请求指标。客户端提前关闭 TCP 后，数据库收到一条不少于 150ms 的慢请求、一个普通用户计数和一个慢用户计数，用户 ID 均为 42。夹具首次发现未显式启用普通用户 Recorder，补齐测试配置后通过；生产配置与采集实现无需改动。使用内核分配的端口，测试结束关闭子进程。相同快照的 Provider 11 项、全仓格式和 Pulse 全目标严格 Clippy 通过。仍需最终生产组合、其他平台及外部 Livewire 客户端验收。

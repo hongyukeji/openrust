@@ -1,4 +1,5 @@
 //! Native HTTP acceptance host; never installed in the application skeleton.
+use futures_util::{StreamExt as _, stream};
 use openrust::{
     foundation::{Application, configuration::Routing, run_application},
     http::{HttpError, HttpFuture, Request, Response},
@@ -85,6 +86,17 @@ fn probe(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         Ok(Response::from("observed"))
     })
 }
+
+fn interrupted_stream(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        openrust::support::facades::Auth::user(request).await?;
+        Ok(Response::stream(
+            openrust::http::StatusCode::OK,
+            stream::once(async { Ok::<_, std::io::Error>("pulse-stream-started") })
+                .chain(stream::pending()),
+        ))
+    })
+}
 fn create() -> Result<Application, Box<dyn std::error::Error + Send + Sync>> {
     Ok(Application::configure(std::env::var("APP_BASE_PATH")?.into()).with_config(|base,_|Ok(std::collections::BTreeMap::from([
         ("app".into(),json!({"env":"production","debug":false,"key":"01234567890123456789012345678901","cipher":"AES-256-CBC"})),
@@ -92,8 +104,12 @@ fn create() -> Result<Application, Box<dyn std::error::Error + Send + Sync>> {
         ("cache".into(),json!({"default":"file","stores":{"file":{"driver":"file","path":base.join("cache"),"lock_path":base.join("locks")}}})),
         ("session".into(),json!({"driver":"array"})),
         ("auth".into(),json!({"defaults":{"guard":"web"},"guards":{"web":{"driver":"pulse-test"}}})),
-        ("pulse".into(),json!({"path":"operations/pulse","domain":"127.0.0.1","recorders":{"Servers":false,"SlowQueries":false},"ingest":{"driver":"storage","buffer":5000,"trim":{"lottery":[0,1]}}})),
-    ]))).with_providers(vec![Box::new(openrust_pulse::PulseServiceProvider),Box::new(Access)]).with_routing(Routing::default().api(||{Route::get("/probe",probe)?;Ok(())})).create()?)
+        ("pulse".into(),json!({"path":"operations/pulse","domain":"127.0.0.1","recorders":if std::env::var("PULSE_PROBE_TRANSPORT").as_deref() == Ok("1") {
+            json!({"Servers":false,"SlowQueries":false,"UserRequests":{},"SlowRequests":{"threshold":{"#^/api/stream$#":100}}})
+        } else {
+            json!({"Servers":false,"SlowQueries":false})
+        },"ingest":{"driver":"storage","buffer":5000,"trim":{"lottery":[0,1]}}})),
+    ]))).with_providers(vec![Box::new(openrust_pulse::PulseServiceProvider),Box::new(Access)]).with_routing(Routing::default().api(||{Route::get("/probe",probe)?;Route::get("/stream",interrupted_stream)?;Ok(())})).create()?)
 }
 #[tokio::main]
 async fn main() -> std::process::ExitCode {
