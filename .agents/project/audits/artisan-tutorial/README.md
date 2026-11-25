@@ -528,3 +528,22 @@ TableHeaders::Cells/Rows明确区分PHP单层／多层数组，普通平面字�
 首轮参考脚本漏传ConsoleSectionOutput必需格式器参数已修正，不计为源验收通过。完整回归前32GB守卫中断并等待其他构建安全退出，空间恢复后原源码全部门禁重跑；中断不计通过。原始日志target/tmp/artisan-tutorial-20261125/style-interface-*与三份oracle保留，正式核对accepted-style-interface.json。临时应用／PTY／HTTP服务／参考容器回收，保留源码／日志／可复用缓存与数据库／数据卷。
 
 同步把当前余项清单收为实际未闭合项，历史验收不改写。get_error_style的基类身份、tree/create_tree、完整组件Factory与通用OutputInterface及其余章节继续，不把本Trait完成当整章或全工作区完成；Windows实机仍属发布待验。仅本批本地提交，不推送，其他在途保留。
+
+
+## 第三十六簇：错误样式、基础类型与所选stderr（2026-11-25）
+
+第三十五簇已提交34450634376d0c2cd4d093f9de2f465578f50b68。固定getErrorStyle返回new self基础类，不能直接返回派生OutputStyle。新增中性ConsoleStyle，console及console::style导出同一基础类型，内部复用现有引擎，不Deref、不实现NewLineAware、不暴露派生计数。原有51助手与StyleInterface薄转发，无第二套渲染器／执行器／依赖／生产unsafe。旧版无同等完整SDK，沿用已核结论；源方法与必要适配见error-style-contracts.json。
+
+OutputReference保留私有所选stderr；只有直接实际控制台切换，捕获／分区／包装样式仍用本目标。格式器／装饰／详细程度、普通与Raw写入、输入回显、表格与进度均跟随目标；直接stderr设置不污染stdout。基础样式阻断NewLineAware查找，真实写入仍传到下面派生层。以Option<NonZeroUsize>缓存连续aware起点，普通读计数仍O(1)，新增父层常数时间更新，仅显式剥离时重算；普通根Vec仍为空，不复制输出，不声称实测吞吐收益。
+
+240固定捕获／分区场景与120个真实PHP ConsoleOutput进程，对应原生真实公开类型／120独立Artisan进程逐一匹配输出、物理stdout／stderr、各层计数、格式器／级别与能力。覆盖十种L/B混合链、quiet／normal、装饰、错误恢复、表格追加目标身份、问答与进度。已重新从固定SHA官方raw源核对OutputStyle文件字节完全一致，本地参考是解包源码，无.git；错误使用git show查询解包目录不计作源校验。
+
+基础类51个已有公开助手经单独固定源完整序列和实际消费者验证，非只查名称或测试内部引擎；18个StyleInterface入口额外用96固定基础类序列，经generic／dyn两路共192序列核对。测试消费者原样提取到support/style_interface.rs复用，原派生接口回归保持。基础类不需派生换行预统计，write_iter／writeln_iter按源逐条输出；2个真实源门闩与2个实际Native二进制门闩证明首项在请求下一项前输出，未改变派生类型既有预收集契约。
+
+实际HTTP直接／混合200、格式错误JSON500、再次200恢复及12并发通过；独立失败进程OS1、正常进程0通过。ConsoleStyle有3个精确负编译消费者验证缺NewLineAware、无计数方法和独占借用。三语正式正文直接提取111份运行，对照4组单独源教程序列。完整框架29目标166父消费者、根6目标152父消费者共318通过，48个ignored驱动不叠加；fmt、workspace all-targets严格Clippy、Rustdoc、main(pail)与三语构建通过。
+
+真实TTY错误样式在stderr读写，原派生动态样式仍走stdout，两者各验坏值重试、隐藏ECHO关闭、口令不回显、正常0／Ctrl+C130和完整termios恢复；33分区编辑器与Ctrl+C130复验通过。终端工具新增可选prompt-stream参数，默认stdout不变。主程序HTTP/up／静态／HTML与JSON404／HEAD、Artisan inspire/list/Pail过滤／详细输出／超时回收／Ctrl+C及三语12浏览器检查通过。
+
+首轮导出／导入及多行委托接收者编译问题已修正；32GB守卫中断不计通过，源码／日志保留后恢复同源验收。Clippy指出8参数内部转发，已合并所选目标参数为元组，不新增豁免；完整回归重新通过。终端初轮误用旧构建文件名，FileNotFound不计通过，失败日志独立保留，最终从本轮编译日志解析实际产物并重跑通过，避免把旧二进制当最终源码。Rust1.94版本化文档访问失败，仅用现行官方资料补充组合实践，NonZero布局另核本机1.94源码，编译和消费者仍固定1.94。
+
+正式证据error-style-contracts.json、accepted-error-style.json及六份oracle；原始target/tmp/artisan-tutorial-20261125/error-style-*与base-*保留。临时应用／HTTP服务／PTY／参考容器与门闩目录回收，保留源码／日志／可复用缓存与数据库／数据卷。树及TreeNode／TreeHelper／TreeStyle、完整组件Factory、通用OutputInterface／ConsoleOutputInterface和任意流／程序化缓冲继续，未声称整章或全工作区闭合；Windows实机属发布待验。仅本簇本地提交，不推送，其他在途保留。

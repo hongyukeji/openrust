@@ -1,0 +1,22 @@
+[
+    {
+        "decorated": false,
+        "level": 16,
+        "output": ""
+    },
+    {
+        "decorated": false,
+        "level": 32,
+        "output": "\n [WARNING] Review                                                               \n\n ------ ------- \n  Name   Value  \n ------ ------- \n  Ada    42     \n ------ ------- \n\n\n [INFO] Done                                                                    \n\n"
+    },
+    {
+        "decorated": true,
+        "level": 16,
+        "output": ""
+    },
+    {
+        "decorated": true,
+        "level": 32,
+        "output": "\n\u001b[30;43m                                                                                \u001b[39;49m\n\u001b[30;43m [WARNING] Review                                                               \u001b[39;49m\n\u001b[30;43m                                                                                \u001b[39;49m\n\n ------ ------- \n \u001b[32m Name \u001b[39m \u001b[32m Value \u001b[39m \n ------ ------- \n  Ada    42     \n ------ ------- \n\n\n\u001b[32m                                                                                \u001b[39m\n\u001b[32m [INFO] Done                                                                    \u001b[39m\n\u001b[32m                                                                                \u001b[39m\n\n"
+    }
+]

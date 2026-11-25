@@ -4,7 +4,7 @@ if sys.platform=="win32":raise SystemExit("此验收需要POSIX终端；Windows�
 import fcntl,pty,struct,termios
 from pathlib import Path
 root=Path(__file__).resolve().parents[1]
-p=argparse.ArgumentParser();p.add_argument('--binary',type=Path,required=True);p.add_argument('--report',type=Path,required=True);p.add_argument('--fixture',default='style_questions_cli_driver');args=p.parse_args();binary=args.binary.resolve()
+p=argparse.ArgumentParser();p.add_argument('--binary',type=Path,required=True);p.add_argument('--report',type=Path,required=True);p.add_argument('--fixture',default='style_questions_cli_driver');p.add_argument('--prompt-stream',choices=['stdout','stderr'],default='stdout');args=p.parse_args();binary=args.binary.resolve()
 if not binary.is_relative_to(root/'target/tmp')or not args.report.resolve().is_relative_to(root/'target/tmp'):p.error('二进制与报告必须位于项目target/tmp中')
 space=root/'target/tmp/pv';space.mkdir(parents=True,exist_ok=True);results=[]
 def session():os.setsid();fcntl.ioctl(0,termios.TIOCSCTTY,0)
@@ -26,14 +26,15 @@ for cancel in [False,True]:
       elif stream is child.stderr:errors+=data
       else:echo+=data
      if child.poll()is not None and not predicate():raise AssertionError(('命令提前退出',child.returncode,output,errors))
-   wait_for(lambda:b'Name'in output and output.endswith(b' > '));time.sleep(.1)
+   def prompt_data():return errors if args.prompt_stream=="stderr"else output
+   wait_for(lambda:b'Name'in prompt_data() and prompt_data().endswith(b' > '));time.sleep(.1)
    if not cancel:
-    os.write(master,b'bad\r');wait_for(lambda:output.count(b'Name')>=2 and output.endswith(b' > '));assert b'Try again'in output
-   os.write(master,b'Ada\r');wait_for(lambda:b'Password'in output and output.endswith(b' > '));time.sleep(.1)
+    os.write(master,b'bad\r');wait_for(lambda:prompt_data().count(b'Name')>=2 and prompt_data().endswith(b' > '));assert b'Try again'in prompt_data()
+   os.write(master,b'Ada\r');wait_for(lambda:b'Password'in prompt_data() and prompt_data().endswith(b' > '));time.sleep(.1)
    assert not termios.tcgetattr(slave)[3]&termios.ECHO,'隐藏输入未关闭终端回显'
    if cancel:os.write(master,b'\x03')
    else:
-    os.write(master,b'sample-secret\r');wait_for(lambda:b'Continue'in output and output.endswith(b' > '));os.write(master,b'\r');wait_for(lambda:b'Color'in output and output.endswith(b' > '));os.write(master,b'\r')
+    os.write(master,b'sample-secret\r');wait_for(lambda:b'Continue'in prompt_data() and prompt_data().endswith(b' > '));os.write(master,b'\r');wait_for(lambda:b'Color'in prompt_data() and prompt_data().endswith(b' > '));os.write(master,b'\r')
    expected=130 if cancel else 0;marker=f'STYLE_QUESTIONS_STATUS:{expected}'.encode();wait_for(lambda:marker in errors)
    assert termios.tcgetattr(slave)==original,'命令完成后未恢复完整终端属性'
    assert b'sample-secret'not in output+errors+echo,'隐藏输入发生回显'

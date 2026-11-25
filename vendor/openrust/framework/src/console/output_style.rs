@@ -4,9 +4,11 @@ use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
 };
+mod base;
 mod block;
 mod definition;
 mod table;
+pub use base::ConsoleStyle;
 pub use definition::DefinitionListItem;
 mod text;
 pub use block::BlockOptions;
@@ -124,6 +126,7 @@ pub struct OutputStyle<'a> {
     output: super::OutputReference<'a>,
 }
 pub(super) struct StyleState {
+    pub(super) new_line_aware: bool,
     history: Vec<u8>,
     history_formatter: super::formatting::Formatter,
     history_verbosity: OutputVerbosity,
@@ -216,7 +219,7 @@ impl super::AsOutput for OutputStyle<'_> {
     fn as_output(&mut self) -> super::OutputReference<'_> {
         self.state.settle_question();
         let mut output = self.output.reborrow();
-        output.parents.push(&mut self.state);
+        output.push_style(&mut self.state);
         output
     }
 }
@@ -247,6 +250,7 @@ impl<'a> OutputStyle<'a> {
             progress: None,
             line_length,
             state: StyleState {
+                new_line_aware: true,
                 history: Vec::new(),
                 history_formatter,
                 history_verbosity,
@@ -639,6 +643,8 @@ impl<'a> OutputStyle<'a> {
                 output,
                 section: Some(id),
                 parents: Vec::new(),
+                error_stream: false,
+                new_line_start: None,
             },
         )
     }

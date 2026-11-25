@@ -485,7 +485,9 @@
           "console_style_interface",
           "style-interface-oracle.json",
           "style-interface-contracts.json",
-          "artisan_docs_generated"
+          "artisan_docs_generated",
+          "console_error_style",
+          "base-style-interface-oracle.json"
         ]
       },
       {
@@ -498,7 +500,9 @@
           "console_style_interface",
           "style-interface-oracle.json",
           "style-interface-contracts.json",
-          "artisan_docs_generated"
+          "artisan_docs_generated",
+          "console_error_style",
+          "base-style-interface-oracle.json"
         ]
       },
       {
@@ -511,7 +515,9 @@
           "console_style_interface",
           "style-interface-oracle.json",
           "style-interface-contracts.json",
-          "artisan_docs_generated"
+          "artisan_docs_generated",
+          "console_error_style",
+          "base-style-interface-oracle.json"
         ]
       },
       {
@@ -524,7 +530,9 @@
           "console_style_interface",
           "style-interface-oracle.json",
           "style-interface-contracts.json",
-          "artisan_docs_generated"
+          "artisan_docs_generated",
+          "console_error_style",
+          "base-style-interface-oracle.json"
         ]
       },
       {
@@ -537,7 +545,9 @@
           "console_style_interface",
           "style-interface-oracle.json",
           "style-interface-contracts.json",
-          "artisan_docs_generated"
+          "artisan_docs_generated",
+          "console_error_style",
+          "base-style-interface-oracle.json"
         ]
       },
       {
@@ -550,7 +560,9 @@
           "console_style_interface",
           "style-interface-oracle.json",
           "style-interface-contracts.json",
-          "artisan_docs_generated"
+          "artisan_docs_generated",
+          "console_error_style",
+          "base-style-interface-oracle.json"
         ]
       },
       {
@@ -563,7 +575,9 @@
           "console_style_interface",
           "style-interface-oracle.json",
           "style-interface-contracts.json",
-          "artisan_docs_generated"
+          "artisan_docs_generated",
+          "console_error_style",
+          "base-style-interface-oracle.json"
         ]
       },
       {
@@ -576,7 +590,9 @@
           "console_style_interface",
           "style-interface-oracle.json",
           "style-interface-contracts.json",
-          "artisan_docs_generated"
+          "artisan_docs_generated",
+          "console_error_style",
+          "base-style-interface-oracle.json"
         ]
       },
       {
@@ -589,7 +605,9 @@
           "console_style_interface",
           "style-interface-oracle.json",
           "style-interface-contracts.json",
-          "artisan_docs_generated"
+          "artisan_docs_generated",
+          "console_error_style",
+          "base-style-interface-oracle.json"
         ]
       },
       {
@@ -602,7 +620,9 @@
           "console_style_interface",
           "style-interface-oracle.json",
           "style-interface-contracts.json",
-          "artisan_docs_generated"
+          "artisan_docs_generated",
+          "console_error_style",
+          "base-style-interface-oracle.json"
         ]
       },
       {
@@ -615,7 +635,9 @@
           "console_style_interface",
           "style-interface-oracle.json",
           "style-interface-contracts.json",
-          "artisan_docs_generated"
+          "artisan_docs_generated",
+          "console_error_style",
+          "base-style-interface-oracle.json"
         ]
       },
       {
@@ -628,7 +650,9 @@
           "console_style_interface",
           "style-interface-oracle.json",
           "style-interface-contracts.json",
-          "artisan_docs_generated"
+          "artisan_docs_generated",
+          "console_error_style",
+          "base-style-interface-oracle.json"
         ]
       },
       {
@@ -641,7 +665,9 @@
           "console_style_interface",
           "style-interface-oracle.json",
           "style-interface-contracts.json",
-          "artisan_docs_generated"
+          "artisan_docs_generated",
+          "console_error_style",
+          "base-style-interface-oracle.json"
         ]
       },
       {
@@ -654,7 +680,9 @@
           "console_style_interface",
           "style-interface-oracle.json",
           "style-interface-contracts.json",
-          "artisan_docs_generated"
+          "artisan_docs_generated",
+          "console_error_style",
+          "base-style-interface-oracle.json"
         ]
       },
       {
@@ -667,7 +695,9 @@
           "console_style_interface",
           "style-interface-oracle.json",
           "style-interface-contracts.json",
-          "artisan_docs_generated"
+          "artisan_docs_generated",
+          "console_error_style",
+          "base-style-interface-oracle.json"
         ]
       },
       {
@@ -680,7 +710,9 @@
           "console_style_interface",
           "style-interface-oracle.json",
           "style-interface-contracts.json",
-          "artisan_docs_generated"
+          "artisan_docs_generated",
+          "console_error_style",
+          "base-style-interface-oracle.json"
         ]
       },
       {
@@ -693,7 +725,9 @@
           "console_style_interface",
           "style-interface-oracle.json",
           "style-interface-contracts.json",
-          "artisan_docs_generated"
+          "artisan_docs_generated",
+          "console_error_style",
+          "base-style-interface-oracle.json"
         ]
       },
       {
@@ -706,7 +740,594 @@
           "console_style_interface",
           "style-interface-oracle.json",
           "style-interface-contracts.json",
-          "artisan_docs_generated"
+          "artisan_docs_generated",
+          "console_error_style",
+          "base-style-interface-oracle.json"
+        ]
+      }
+    ],
+    "ConsoleStyle": [
+      {
+        "method": "new",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::new",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "get_error_style",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::get_error_style",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "set_verbosity",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::set_verbosity",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "get_verbosity",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::get_verbosity",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "get_formatter",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::get_formatter",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "set_formatter",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::set_formatter",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "set_decorated",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::set_decorated",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "is_decorated",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::is_decorated",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "is_silent",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::is_silent",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "is_quiet",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::is_quiet",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "is_verbose",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::is_verbose",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "is_very_verbose",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::is_very_verbose",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "is_debug",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::is_debug",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "write",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::write",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "writeln",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::writeln",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "write_iter",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::write_iter",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "writeln_iter",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::writeln_iter",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "ask_question",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::ask_question",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "new_line",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::new_line",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "progress_start",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::progress_start",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "progress_advance",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::progress_advance",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "progress_advance_by",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::progress_advance_by",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "progress_finish",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::progress_finish",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "title",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::title",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "section",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::section",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "listing",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::listing",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "text",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::text",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "block",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::block",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "comment",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::comment",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "success",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::success",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "error",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::error",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "warning",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::warning",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "note",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::note",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "info",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::info",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "caution",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::caution",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "create_table",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::create_table",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "table",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::table",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "horizontal_table",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::horizontal_table",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "definition_list",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::definition_list",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "ask",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::ask",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "ask_with",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::ask_with",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "confirm",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::confirm",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "confirm_with",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::confirm_with",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "ask_with_validator",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::ask_with_validator",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "ask_hidden",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::ask_hidden",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "ask_hidden_with",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::ask_hidden_with",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "ask_with_completion",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::ask_with_completion",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "choice",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::choice",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "choice_with",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::choice_with",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "choice_pairs_with",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::choice_pairs_with",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "create_progress_bar",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::create_progress_bar",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "progress_iterate",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::progress_iterate",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
+        ]
+      },
+      {
+        "method": "progress_iterate_with_max",
+        "status": "verified_actual_public_base_consumer",
+        "native": "console::ConsoleStyle::progress_iterate_with_max",
+        "evidence": [
+          "console_error_style",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-contracts.json"
         ]
       }
     ]
@@ -763,7 +1384,8 @@
     "Output::section and actual Table::append_row are verified. ConsoleSectionOutput exposes output options, formatter/verbosity controls, height/clear/overwrite/content; safe handles replace shared mutable stream references. OutputStyle::section(message) remains a separate heading SDK gap. Section-bound progress and interactive input are not claimed by this batch.",
     "OutputStyle now stores the selected OutputReference; get_output returns a mutable borrow of it. AsOutput constructors borrow plain Output, current references and sections without moving an existing &mut Output. Read-only Deref preserves capture-buffer reads, no DerefMut allows bypassing selection. Explicit concrete raw-output helper annotations may use &mut impl AsOutput; Nested style/counter forwarding is verified by nested-style-contracts.json; arbitrary OutputInterface sinks remain separately open.",
     "The terminal completion state machine tracks entered text, accepted full choice and active suggestions separately. First backspace removes the visible suggestion; later backspace removes input, and completion takes precedence over multiline reading. Existing key-event lease/polling, input normalization, callbacks, validators and formatter are reused; no second dispatcher or dependency is introduced.",
-    "StyleInterface在console::style和console根导出同一真实Trait，18方法经过泛型／dyn连续消费者；四个异步Trait入口使用ConsoleFuture装箱以保持对象安全，具体类型inherent async不增加该层。Trait要求Send，不要求NewLineAware。"
+    "StyleInterface在console::style和console根导出同一真实Trait，18方法经过泛型／dyn连续消费者；四个异步Trait入口使用ConsoleFuture装箱以保持对象安全，具体类型inherent async不增加该层。Trait要求Send，不要求NewLineAware。",
+    "ConsoleStyle是独立基础类型，复用现有引擎但不Deref/实现NewLineAware；selected output增加私有stderr选择及连续aware起点缓存，普通计数维持O(1)。Base iterable逐项写出，derived保留换行统计预收集，均有真实门闩和源对照。"
   ],
   "inherited_output_style_inventory": {
     "OutputStyle": [
@@ -1212,7 +1834,18 @@
       {
         "method": "getErrorStyle",
         "source_line": 355,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_base_style_identity_selected_stderr_and_mixed_count_boundaries",
+        "native": "console::OutputStyle::get_error_style / ConsoleStyle::get_error_style",
+        "evidence": [
+          "console_error_style",
+          "error-style-contracts.json",
+          "error-style-oracle.json",
+          "error-style-console-oracle.json",
+          "base-style-api-oracle.json",
+          "base-style-interface-oracle.json",
+          "error-style-stream-oracle.json",
+          "error-style-docs-oracle.json"
+        ]
       },
       {
         "method": "createTable",
@@ -1239,8 +1872,8 @@
     ]
   },
   "remaining_output_style_behaviors": [
-    "SymfonyStyle继承仍需get_error_style、tree、create_tree的完整公开类型与实际消费者；既有标题／文本／块／问答／表格／进度及StyleInterface已验，不重开。",
-    "完整组件Factory仍需逐类型核对，不以现有OutputStyle助手代替组件公开入口。",
-    "通用OutputInterface及任意自定义输出／Artisan.call第三参数仍待专用类型与消费者；AsOutput不冒充完整接口。"
+    "SymfonyStyle继承的tree、create_tree及对应TreeNode/TreeHelper/TreeStyle逐类型入口继续；错误基础类型及已实现51助手／StyleInterface均已验。",
+    "完整组件Factory继续逐类型核对，不以既有OutputStyle助手代替组件公开入口。",
+    "通用OutputInterface、ConsoleOutputInterface及任意自定义输出／Artisan.call第三参数仍待完整类型与消费者；当前所选内置stderr借用不冒充完整接口。"
   ]
 }

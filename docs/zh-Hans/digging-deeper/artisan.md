@@ -1475,3 +1475,35 @@ fn register_style_interface() -> Result<(), ConsoleError> {
 Trait 调用显式传入原可选参数：`ask` 接受可选默认值与校验器，`ask_hidden` 接受可选校验器，`confirm` 接受布尔默认值，`choice` 接受有序 `Vec<(ChoiceKey, Value)>` 与可选默认值；整数键表达顺序选择，字符串键保留关联结果。问答保留完整 `serde_json::Value` 返回值。`table` 接受 `TableHeaders` 与 `Vec<TableRow>`，消息复用 `OutputMessages`，`new_line`／`progress_advance` 显式传入次数。具体类型的既有便利方法继续可用。
 
 四类异步 Trait 方法返回既有 `ConsoleFuture`，为支持动态派发，在 Trait 边界增加一次 Future 装箱；直接调用具体 `OutputStyle` 的异步方法不增加这一层。同步 Trait 方法不装箱 Future。Trait 为既有异步命令执行要求 `Send`，不要求实现 `NewLineAware`。连续问答共享同一输入与输出历史，包含隐藏输入和失败恢复。
+
+## 错误样式与基础样式类型 {#error-style}
+
+`OutputStyle::get_error_style` 返回基础类型 `ConsoleStyle`，也可从 `openrust::console::ConsoleStyle` 导入。基础类型提供同一套已有渲染助手并实现 `StyleInterface`，但不实现 `NewLineAware`，也不暴露派生类型的换行计数。也可以使用 `ConsoleStyle::new(input, output)` 直接构造。
+
+直接包装真实控制台时选择 stderr；捕获流、分区和包装样式继续使用已选输出，不会一律切换到独立错误缓冲。格式器、装饰和详细程度跟随该目标；修改直接控制台错误样式的设置，不会改变 stdout 的设置。
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, OutputStyle};
+use openrust::console::style::ConsoleStyle;
+use openrust::support::facades::Artisan;
+
+fn register_error_style() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:error-style", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut original = OutputStyle::new(input, output);
+            {
+                let mut errors: ConsoleStyle<'_> = original.get_error_style();
+                errors.warning("Review")?;
+                errors.table(["Name", "Value"], [["Ada", "42"]])?;
+            }
+            original.info("Done")?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+返回的样式独占借用输出，结束其作用域后再通过原样式写入；它共享真实目标，不复制输出缓冲。换行计数查询在基础样式边界停止，实际写入仍到达底层目标。嵌套调用 `get_error_style` 仍返回基础类型。
+
+`ConsoleStyle::write_iter` 和 `writeln_iter` 在请求下一项之前逐条写出；派生 `OutputStyle` 保留原有的换行统计准备。两种类型复用同一格式器与渲染引擎，不代表通用第三方 `OutputInterface` 已实现。树助手及其余组件 API 另行跟踪。

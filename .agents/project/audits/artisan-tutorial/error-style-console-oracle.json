@@ -1,0 +1,3946 @@
+[
+  {
+    "shape": "L",
+    "section": false,
+    "variant": 0,
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        [
+          0,
+          false
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "L",
+    "section": false,
+    "variant": 0,
+    "decorated": false,
+    "level": 32,
+    "stdout": "\nMain\n====\n\ntail",
+    "stderr": " Error text\n\n [ERROR] Failure                                                                \n\n\n\nabdone\n --- --- \n  K   V  \n --- --- \n  x   y  \n --- --- \n0/2\n2/2\n\n\n ! [NOTE] Nested                                                                \n\n Recovered\n",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        [
+          0,
+          false
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "L",
+    "section": false,
+    "variant": 0,
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": true,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": true,
+        "probe": false
+      },
+      "layers": [
+        [
+          0,
+          false
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "L",
+    "section": false,
+    "variant": 0,
+    "decorated": true,
+    "level": 32,
+    "stdout": "\n\u001b[33mMain\u001b[39m\n\u001b[33m====\u001b[39m\n\ntail",
+    "stderr": " Error text\n\n\u001b[37;41m                                                                                \u001b[39;49m\n\u001b[37;41m [ERROR] Failure                                                                \u001b[39;49m\n\u001b[37;41m                                                                                \u001b[39;49m\n\n\n\nabdone\n --- --- \n \u001b[32m K \u001b[39m \u001b[32m V \u001b[39m \n --- --- \n  x   y  \n --- --- \n0/2\u001b[1G\u001b[2K2/2\n\n\n\u001b[33m ! [NOTE] Nested                                                                \u001b[39m\n\n Recovered\n",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": true,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": true,
+        "probe": false
+      },
+      "layers": [
+        [
+          0,
+          false
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "L",
+    "section": false,
+    "variant": 1,
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "\u001b[35merr\u001b[39m\n",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": true,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        [
+          0,
+          false
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "L",
+    "section": false,
+    "variant": 1,
+    "decorated": false,
+    "level": 32,
+    "stdout": "\nMain\n====\n\ntail",
+    "stderr": "\u001b[35merr\u001b[39m\n",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": true,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        [
+          0,
+          false
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "L",
+    "section": false,
+    "variant": 1,
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "err\n",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": false,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": true,
+        "probe": false
+      },
+      "layers": [
+        [
+          0,
+          false
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "L",
+    "section": false,
+    "variant": 1,
+    "decorated": true,
+    "level": 32,
+    "stdout": "\n\u001b[33mMain\u001b[39m\n\u001b[33m====\u001b[39m\n\ntail",
+    "stderr": "err\n",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": false,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": true,
+        "probe": false
+      },
+      "layers": [
+        [
+          0,
+          false
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "L",
+    "section": false,
+    "variant": 2,
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "L",
+    "section": false,
+    "variant": 2,
+    "decorated": false,
+    "level": 32,
+    "stdout": "\nMain\n====\n\ntailend\n",
+    "stderr": "\n Recovered\n",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "L",
+    "section": false,
+    "variant": 2,
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": true,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "L",
+    "section": false,
+    "variant": 2,
+    "decorated": true,
+    "level": 32,
+    "stdout": "\n\u001b[33mMain\u001b[39m\n\u001b[33m====\u001b[39m\n\ntailend\n",
+    "stderr": "\n Recovered\n",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": true,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "B",
+    "section": false,
+    "variant": 0,
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        null
+      ]
+    }
+  },
+  {
+    "shape": "B",
+    "section": false,
+    "variant": 0,
+    "decorated": false,
+    "level": 32,
+    "stdout": "\nMain\n====\n\ntail",
+    "stderr": " Error text\n\n [ERROR] Failure                                                                \n\n\n\nabdone\n --- --- \n  K   V  \n --- --- \n  x   y  \n --- --- \n0/2\n2/2\n\n\n ! [NOTE] Nested                                                                \n\n Recovered\n",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        null
+      ]
+    }
+  },
+  {
+    "shape": "B",
+    "section": false,
+    "variant": 0,
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": true,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": true,
+        "probe": false
+      },
+      "layers": [
+        null
+      ]
+    }
+  },
+  {
+    "shape": "B",
+    "section": false,
+    "variant": 0,
+    "decorated": true,
+    "level": 32,
+    "stdout": "\n\u001b[33mMain\u001b[39m\n\u001b[33m====\u001b[39m\n\ntail",
+    "stderr": " Error text\n\n\u001b[37;41m                                                                                \u001b[39;49m\n\u001b[37;41m [ERROR] Failure                                                                \u001b[39;49m\n\u001b[37;41m                                                                                \u001b[39;49m\n\n\n\nabdone\n --- --- \n \u001b[32m K \u001b[39m \u001b[32m V \u001b[39m \n --- --- \n  x   y  \n --- --- \n0/2\u001b[1G\u001b[2K2/2\n\n\n\u001b[33m ! [NOTE] Nested                                                                \u001b[39m\n\n Recovered\n",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": true,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": true,
+        "probe": false
+      },
+      "layers": [
+        null
+      ]
+    }
+  },
+  {
+    "shape": "B",
+    "section": false,
+    "variant": 1,
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "\u001b[35merr\u001b[39m\n",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": true,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        null
+      ]
+    }
+  },
+  {
+    "shape": "B",
+    "section": false,
+    "variant": 1,
+    "decorated": false,
+    "level": 32,
+    "stdout": "\nMain\n====\n\ntail",
+    "stderr": "\u001b[35merr\u001b[39m\n",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": true,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        null
+      ]
+    }
+  },
+  {
+    "shape": "B",
+    "section": false,
+    "variant": 1,
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "err\n",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": false,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": true,
+        "probe": false
+      },
+      "layers": [
+        null
+      ]
+    }
+  },
+  {
+    "shape": "B",
+    "section": false,
+    "variant": 1,
+    "decorated": true,
+    "level": 32,
+    "stdout": "\n\u001b[33mMain\u001b[39m\n\u001b[33m====\u001b[39m\n\ntail",
+    "stderr": "err\n",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": false,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": true,
+        "probe": false
+      },
+      "layers": [
+        null
+      ]
+    }
+  },
+  {
+    "shape": "B",
+    "section": false,
+    "variant": 2,
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        null
+      ]
+    }
+  },
+  {
+    "shape": "B",
+    "section": false,
+    "variant": 2,
+    "decorated": false,
+    "level": 32,
+    "stdout": "\nMain\n====\n\ntailend\n",
+    "stderr": "\n Recovered\n",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        null
+      ]
+    }
+  },
+  {
+    "shape": "B",
+    "section": false,
+    "variant": 2,
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": true,
+        "probe": false
+      },
+      "layers": [
+        null
+      ]
+    }
+  },
+  {
+    "shape": "B",
+    "section": false,
+    "variant": 2,
+    "decorated": true,
+    "level": 32,
+    "stdout": "\n\u001b[33mMain\u001b[39m\n\u001b[33m====\u001b[39m\n\ntailend\n",
+    "stderr": "\n Recovered\n",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": true,
+        "probe": false
+      },
+      "layers": [
+        null
+      ]
+    }
+  },
+  {
+    "shape": "LL",
+    "section": false,
+    "variant": 0,
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "LL",
+    "section": false,
+    "variant": 0,
+    "decorated": false,
+    "level": 32,
+    "stdout": "\nMain\n====\n\ntail Error text\n\n [ERROR] Failure                                                                \n\n\n\nabdone\n --- --- \n  K   V  \n --- --- \n  x   y  \n --- --- \n0/2\n2/2\n\n\n ! [NOTE] Nested                                                                \n\n Recovered\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "LL",
+    "section": false,
+    "variant": 0,
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": true,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": true,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "LL",
+    "section": false,
+    "variant": 0,
+    "decorated": true,
+    "level": 32,
+    "stdout": "\n\u001b[33mMain\u001b[39m\n\u001b[33m====\u001b[39m\n\ntail Error text\n\n\u001b[37;41m                                                                                \u001b[39;49m\n\u001b[37;41m [ERROR] Failure                                                                \u001b[39;49m\n\u001b[37;41m                                                                                \u001b[39;49m\n\n\n\nabdone\n --- --- \n \u001b[32m K \u001b[39m \u001b[32m V \u001b[39m \n --- --- \n  x   y  \n --- --- \n0/2\u001b[1G\u001b[2K2/2\n\n\n\u001b[33m ! [NOTE] Nested                                                                \u001b[39m\n\n Recovered\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": true,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": true,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "LL",
+    "section": false,
+    "variant": 1,
+    "decorated": false,
+    "level": 16,
+    "stdout": "\u001b[35merr\u001b[39m\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": true,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 64,
+        "decorated": true,
+        "probe": true
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "LL",
+    "section": false,
+    "variant": 1,
+    "decorated": false,
+    "level": 32,
+    "stdout": "\nMain\n====\n\ntail\u001b[35merr\u001b[39m\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": true,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 64,
+        "decorated": true,
+        "probe": true
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "LL",
+    "section": false,
+    "variant": 1,
+    "decorated": true,
+    "level": 16,
+    "stdout": "err\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": false,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 64,
+        "decorated": false,
+        "probe": true
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "LL",
+    "section": false,
+    "variant": 1,
+    "decorated": true,
+    "level": 32,
+    "stdout": "\n\u001b[33mMain\u001b[39m\n\u001b[33m====\u001b[39m\n\ntailerr\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": false,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 64,
+        "decorated": false,
+        "probe": true
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "LL",
+    "section": false,
+    "variant": 2,
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "LL",
+    "section": false,
+    "variant": 2,
+    "decorated": false,
+    "level": 32,
+    "stdout": "\nMain\n====\n\ntail\n Recovered\nend\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "LL",
+    "section": false,
+    "variant": 2,
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "LL",
+    "section": false,
+    "variant": 2,
+    "decorated": true,
+    "level": 32,
+    "stdout": "\n\u001b[33mMain\u001b[39m\n\u001b[33m====\u001b[39m\n\ntail\n Recovered\nend\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "LB",
+    "section": false,
+    "variant": 0,
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        null
+      ]
+    }
+  },
+  {
+    "shape": "LB",
+    "section": false,
+    "variant": 0,
+    "decorated": false,
+    "level": 32,
+    "stdout": "\nMain\n====\n\ntail Error text\n\n [ERROR] Failure                                                                \n\n\n\nabdone\n --- --- \n  K   V  \n --- --- \n  x   y  \n --- --- \n0/2\n2/2\n\n\n ! [NOTE] Nested                                                                \n\n Recovered\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        null
+      ]
+    }
+  },
+  {
+    "shape": "LB",
+    "section": false,
+    "variant": 0,
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": true,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": true,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        null
+      ]
+    }
+  },
+  {
+    "shape": "LB",
+    "section": false,
+    "variant": 0,
+    "decorated": true,
+    "level": 32,
+    "stdout": "\n\u001b[33mMain\u001b[39m\n\u001b[33m====\u001b[39m\n\ntail Error text\n\n\u001b[37;41m                                                                                \u001b[39;49m\n\u001b[37;41m [ERROR] Failure                                                                \u001b[39;49m\n\u001b[37;41m                                                                                \u001b[39;49m\n\n\n\nabdone\n --- --- \n \u001b[32m K \u001b[39m \u001b[32m V \u001b[39m \n --- --- \n  x   y  \n --- --- \n0/2\u001b[1G\u001b[2K2/2\n\n\n\u001b[33m ! [NOTE] Nested                                                                \u001b[39m\n\n Recovered\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": true,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": true,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        null
+      ]
+    }
+  },
+  {
+    "shape": "LB",
+    "section": false,
+    "variant": 1,
+    "decorated": false,
+    "level": 16,
+    "stdout": "\u001b[35merr\u001b[39m\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": true,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 64,
+        "decorated": true,
+        "probe": true
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        null
+      ]
+    }
+  },
+  {
+    "shape": "LB",
+    "section": false,
+    "variant": 1,
+    "decorated": false,
+    "level": 32,
+    "stdout": "\nMain\n====\n\ntail\u001b[35merr\u001b[39m\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": true,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 64,
+        "decorated": true,
+        "probe": true
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        null
+      ]
+    }
+  },
+  {
+    "shape": "LB",
+    "section": false,
+    "variant": 1,
+    "decorated": true,
+    "level": 16,
+    "stdout": "err\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": false,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 64,
+        "decorated": false,
+        "probe": true
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        null
+      ]
+    }
+  },
+  {
+    "shape": "LB",
+    "section": false,
+    "variant": 1,
+    "decorated": true,
+    "level": 32,
+    "stdout": "\n\u001b[33mMain\u001b[39m\n\u001b[33m====\u001b[39m\n\ntailerr\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": false,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 64,
+        "decorated": false,
+        "probe": true
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        null
+      ]
+    }
+  },
+  {
+    "shape": "LB",
+    "section": false,
+    "variant": 2,
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        null
+      ]
+    }
+  },
+  {
+    "shape": "LB",
+    "section": false,
+    "variant": 2,
+    "decorated": false,
+    "level": 32,
+    "stdout": "\nMain\n====\n\ntail\n Recovered\nend\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        null
+      ]
+    }
+  },
+  {
+    "shape": "LB",
+    "section": false,
+    "variant": 2,
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        null
+      ]
+    }
+  },
+  {
+    "shape": "LB",
+    "section": false,
+    "variant": 2,
+    "decorated": true,
+    "level": 32,
+    "stdout": "\n\u001b[33mMain\u001b[39m\n\u001b[33m====\u001b[39m\n\ntail\n Recovered\nend\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        null
+      ]
+    }
+  },
+  {
+    "shape": "BL",
+    "section": false,
+    "variant": 0,
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        null,
+        [
+          0,
+          false
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "BL",
+    "section": false,
+    "variant": 0,
+    "decorated": false,
+    "level": 32,
+    "stdout": "\nMain\n====\n\ntail Error text\n\n [ERROR] Failure                                                                \n\n\n\nabdone\n --- --- \n  K   V  \n --- --- \n  x   y  \n --- --- \n0/2\n2/2\n\n\n ! [NOTE] Nested                                                                \n\n Recovered\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        null,
+        [
+          0,
+          false
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "BL",
+    "section": false,
+    "variant": 0,
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": true,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": true,
+        "probe": false
+      },
+      "layers": [
+        null,
+        [
+          0,
+          false
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "BL",
+    "section": false,
+    "variant": 0,
+    "decorated": true,
+    "level": 32,
+    "stdout": "\n\u001b[33mMain\u001b[39m\n\u001b[33m====\u001b[39m\n\ntail Error text\n\n\u001b[37;41m                                                                                \u001b[39;49m\n\u001b[37;41m [ERROR] Failure                                                                \u001b[39;49m\n\u001b[37;41m                                                                                \u001b[39;49m\n\n\n\nabdone\n --- --- \n \u001b[32m K \u001b[39m \u001b[32m V \u001b[39m \n --- --- \n  x   y  \n --- --- \n0/2\u001b[1G\u001b[2K2/2\n\n\n\u001b[33m ! [NOTE] Nested                                                                \u001b[39m\n\n Recovered\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": true,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": true,
+        "probe": false
+      },
+      "layers": [
+        null,
+        [
+          0,
+          false
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "BL",
+    "section": false,
+    "variant": 1,
+    "decorated": false,
+    "level": 16,
+    "stdout": "\u001b[35merr\u001b[39m\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": true,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 64,
+        "decorated": true,
+        "probe": true
+      },
+      "layers": [
+        null,
+        [
+          0,
+          false
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "BL",
+    "section": false,
+    "variant": 1,
+    "decorated": false,
+    "level": 32,
+    "stdout": "\nMain\n====\n\ntail\u001b[35merr\u001b[39m\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": true,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 64,
+        "decorated": true,
+        "probe": true
+      },
+      "layers": [
+        null,
+        [
+          0,
+          false
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "BL",
+    "section": false,
+    "variant": 1,
+    "decorated": true,
+    "level": 16,
+    "stdout": "err\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": false,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 64,
+        "decorated": false,
+        "probe": true
+      },
+      "layers": [
+        null,
+        [
+          0,
+          false
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "BL",
+    "section": false,
+    "variant": 1,
+    "decorated": true,
+    "level": 32,
+    "stdout": "\n\u001b[33mMain\u001b[39m\n\u001b[33m====\u001b[39m\n\ntailerr\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": false,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 64,
+        "decorated": false,
+        "probe": true
+      },
+      "layers": [
+        null,
+        [
+          0,
+          false
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "BL",
+    "section": false,
+    "variant": 2,
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        null,
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "BL",
+    "section": false,
+    "variant": 2,
+    "decorated": false,
+    "level": 32,
+    "stdout": "\nMain\n====\n\ntail\n Recovered\nend\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        null,
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "BL",
+    "section": false,
+    "variant": 2,
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        null,
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "BL",
+    "section": false,
+    "variant": 2,
+    "decorated": true,
+    "level": 32,
+    "stdout": "\n\u001b[33mMain\u001b[39m\n\u001b[33m====\u001b[39m\n\ntail\n Recovered\nend\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        null,
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "LBL",
+    "section": false,
+    "variant": 0,
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        null,
+        [
+          0,
+          false
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "LBL",
+    "section": false,
+    "variant": 0,
+    "decorated": false,
+    "level": 32,
+    "stdout": "\nMain\n====\n\ntail Error text\n\n [ERROR] Failure                                                                \n\n\n\nabdone\n --- --- \n  K   V  \n --- --- \n  x   y  \n --- --- \n0/2\n2/2\n\n\n ! [NOTE] Nested                                                                \n\n Recovered\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        null,
+        [
+          0,
+          false
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "LBL",
+    "section": false,
+    "variant": 0,
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": true,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": true,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        null,
+        [
+          0,
+          false
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "LBL",
+    "section": false,
+    "variant": 0,
+    "decorated": true,
+    "level": 32,
+    "stdout": "\n\u001b[33mMain\u001b[39m\n\u001b[33m====\u001b[39m\n\ntail Error text\n\n\u001b[37;41m                                                                                \u001b[39;49m\n\u001b[37;41m [ERROR] Failure                                                                \u001b[39;49m\n\u001b[37;41m                                                                                \u001b[39;49m\n\n\n\nabdone\n --- --- \n \u001b[32m K \u001b[39m \u001b[32m V \u001b[39m \n --- --- \n  x   y  \n --- --- \n0/2\u001b[1G\u001b[2K2/2\n\n\n\u001b[33m ! [NOTE] Nested                                                                \u001b[39m\n\n Recovered\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": true,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": true,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        null,
+        [
+          0,
+          false
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "LBL",
+    "section": false,
+    "variant": 1,
+    "decorated": false,
+    "level": 16,
+    "stdout": "\u001b[35merr\u001b[39m\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": true,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 64,
+        "decorated": true,
+        "probe": true
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        null,
+        [
+          0,
+          false
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "LBL",
+    "section": false,
+    "variant": 1,
+    "decorated": false,
+    "level": 32,
+    "stdout": "\nMain\n====\n\ntail\u001b[35merr\u001b[39m\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": true,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 64,
+        "decorated": true,
+        "probe": true
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        null,
+        [
+          0,
+          false
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "LBL",
+    "section": false,
+    "variant": 1,
+    "decorated": true,
+    "level": 16,
+    "stdout": "err\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": false,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 64,
+        "decorated": false,
+        "probe": true
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        null,
+        [
+          0,
+          false
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "LBL",
+    "section": false,
+    "variant": 1,
+    "decorated": true,
+    "level": 32,
+    "stdout": "\n\u001b[33mMain\u001b[39m\n\u001b[33m====\u001b[39m\n\ntailerr\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": false,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 64,
+        "decorated": false,
+        "probe": true
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        null,
+        [
+          0,
+          false
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "LBL",
+    "section": false,
+    "variant": 2,
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        null,
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "LBL",
+    "section": false,
+    "variant": 2,
+    "decorated": false,
+    "level": 32,
+    "stdout": "\nMain\n====\n\ntail\n Recovered\nend\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        null,
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "LBL",
+    "section": false,
+    "variant": 2,
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        null,
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "LBL",
+    "section": false,
+    "variant": 2,
+    "decorated": true,
+    "level": 32,
+    "stdout": "\n\u001b[33mMain\u001b[39m\n\u001b[33m====\u001b[39m\n\ntail\n Recovered\nend\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        null,
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "BLB",
+    "section": false,
+    "variant": 0,
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        null,
+        [
+          1,
+          true
+        ],
+        null
+      ]
+    }
+  },
+  {
+    "shape": "BLB",
+    "section": false,
+    "variant": 0,
+    "decorated": false,
+    "level": 32,
+    "stdout": "\nMain\n====\n\ntail Error text\n\n [ERROR] Failure                                                                \n\n\n\nabdone\n --- --- \n  K   V  \n --- --- \n  x   y  \n --- --- \n0/2\n2/2\n\n\n ! [NOTE] Nested                                                                \n\n Recovered\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        null,
+        [
+          1,
+          true
+        ],
+        null
+      ]
+    }
+  },
+  {
+    "shape": "BLB",
+    "section": false,
+    "variant": 0,
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": true,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": true,
+        "probe": false
+      },
+      "layers": [
+        null,
+        [
+          1,
+          true
+        ],
+        null
+      ]
+    }
+  },
+  {
+    "shape": "BLB",
+    "section": false,
+    "variant": 0,
+    "decorated": true,
+    "level": 32,
+    "stdout": "\n\u001b[33mMain\u001b[39m\n\u001b[33m====\u001b[39m\n\ntail Error text\n\n\u001b[37;41m                                                                                \u001b[39;49m\n\u001b[37;41m [ERROR] Failure                                                                \u001b[39;49m\n\u001b[37;41m                                                                                \u001b[39;49m\n\n\n\nabdone\n --- --- \n \u001b[32m K \u001b[39m \u001b[32m V \u001b[39m \n --- --- \n  x   y  \n --- --- \n0/2\u001b[1G\u001b[2K2/2\n\n\n\u001b[33m ! [NOTE] Nested                                                                \u001b[39m\n\n Recovered\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": true,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": true,
+        "probe": false
+      },
+      "layers": [
+        null,
+        [
+          1,
+          true
+        ],
+        null
+      ]
+    }
+  },
+  {
+    "shape": "BLB",
+    "section": false,
+    "variant": 1,
+    "decorated": false,
+    "level": 16,
+    "stdout": "\u001b[35merr\u001b[39m\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": true,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 64,
+        "decorated": true,
+        "probe": true
+      },
+      "layers": [
+        null,
+        [
+          1,
+          true
+        ],
+        null
+      ]
+    }
+  },
+  {
+    "shape": "BLB",
+    "section": false,
+    "variant": 1,
+    "decorated": false,
+    "level": 32,
+    "stdout": "\nMain\n====\n\ntail\u001b[35merr\u001b[39m\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": true,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 64,
+        "decorated": true,
+        "probe": true
+      },
+      "layers": [
+        null,
+        [
+          1,
+          true
+        ],
+        null
+      ]
+    }
+  },
+  {
+    "shape": "BLB",
+    "section": false,
+    "variant": 1,
+    "decorated": true,
+    "level": 16,
+    "stdout": "err\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": false,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 64,
+        "decorated": false,
+        "probe": true
+      },
+      "layers": [
+        null,
+        [
+          1,
+          true
+        ],
+        null
+      ]
+    }
+  },
+  {
+    "shape": "BLB",
+    "section": false,
+    "variant": 1,
+    "decorated": true,
+    "level": 32,
+    "stdout": "\n\u001b[33mMain\u001b[39m\n\u001b[33m====\u001b[39m\n\ntailerr\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": false,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 64,
+        "decorated": false,
+        "probe": true
+      },
+      "layers": [
+        null,
+        [
+          1,
+          true
+        ],
+        null
+      ]
+    }
+  },
+  {
+    "shape": "BLB",
+    "section": false,
+    "variant": 2,
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        null,
+        [
+          1,
+          true
+        ],
+        null
+      ]
+    }
+  },
+  {
+    "shape": "BLB",
+    "section": false,
+    "variant": 2,
+    "decorated": false,
+    "level": 32,
+    "stdout": "\nMain\n====\n\ntail\n Recovered\nend\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        null,
+        [
+          1,
+          true
+        ],
+        null
+      ]
+    }
+  },
+  {
+    "shape": "BLB",
+    "section": false,
+    "variant": 2,
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        null,
+        [
+          1,
+          true
+        ],
+        null
+      ]
+    }
+  },
+  {
+    "shape": "BLB",
+    "section": false,
+    "variant": 2,
+    "decorated": true,
+    "level": 32,
+    "stdout": "\n\u001b[33mMain\u001b[39m\n\u001b[33m====\u001b[39m\n\ntail\n Recovered\nend\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        null,
+        [
+          1,
+          true
+        ],
+        null
+      ]
+    }
+  },
+  {
+    "shape": "LBLL",
+    "section": false,
+    "variant": 0,
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        null,
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "LBLL",
+    "section": false,
+    "variant": 0,
+    "decorated": false,
+    "level": 32,
+    "stdout": "\nMain\n====\n\ntail Error text\n\n [ERROR] Failure                                                                \n\n\n\nabdone\n --- --- \n  K   V  \n --- --- \n  x   y  \n --- --- \n0/2\n2/2\n\n\n ! [NOTE] Nested                                                                \n\n Recovered\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        null,
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "LBLL",
+    "section": false,
+    "variant": 0,
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": true,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": true,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        null,
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "LBLL",
+    "section": false,
+    "variant": 0,
+    "decorated": true,
+    "level": 32,
+    "stdout": "\n\u001b[33mMain\u001b[39m\n\u001b[33m====\u001b[39m\n\ntail Error text\n\n\u001b[37;41m                                                                                \u001b[39;49m\n\u001b[37;41m [ERROR] Failure                                                                \u001b[39;49m\n\u001b[37;41m                                                                                \u001b[39;49m\n\n\n\nabdone\n --- --- \n \u001b[32m K \u001b[39m \u001b[32m V \u001b[39m \n --- --- \n  x   y  \n --- --- \n0/2\u001b[1G\u001b[2K2/2\n\n\n\u001b[33m ! [NOTE] Nested                                                                \u001b[39m\n\n Recovered\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": true,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": true,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        null,
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "LBLL",
+    "section": false,
+    "variant": 1,
+    "decorated": false,
+    "level": 16,
+    "stdout": "\u001b[35merr\u001b[39m\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": true,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 64,
+        "decorated": true,
+        "probe": true
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        null,
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "LBLL",
+    "section": false,
+    "variant": 1,
+    "decorated": false,
+    "level": 32,
+    "stdout": "\nMain\n====\n\ntail\u001b[35merr\u001b[39m\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": true,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 64,
+        "decorated": true,
+        "probe": true
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        null,
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "LBLL",
+    "section": false,
+    "variant": 1,
+    "decorated": true,
+    "level": 16,
+    "stdout": "err\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": false,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 64,
+        "decorated": false,
+        "probe": true
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        null,
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "LBLL",
+    "section": false,
+    "variant": 1,
+    "decorated": true,
+    "level": 32,
+    "stdout": "\n\u001b[33mMain\u001b[39m\n\u001b[33m====\u001b[39m\n\ntailerr\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": false,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 64,
+        "decorated": false,
+        "probe": true
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        null,
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "LBLL",
+    "section": false,
+    "variant": 2,
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        null,
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "LBLL",
+    "section": false,
+    "variant": 2,
+    "decorated": false,
+    "level": 32,
+    "stdout": "\nMain\n====\n\ntail\n Recovered\nend\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        null,
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "LBLL",
+    "section": false,
+    "variant": 2,
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        null,
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "LBLL",
+    "section": false,
+    "variant": 2,
+    "decorated": true,
+    "level": 32,
+    "stdout": "\n\u001b[33mMain\u001b[39m\n\u001b[33m====\u001b[39m\n\ntail\n Recovered\nend\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        null,
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "shape": "LLB",
+    "section": false,
+    "variant": 0,
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ],
+        null
+      ]
+    }
+  },
+  {
+    "shape": "LLB",
+    "section": false,
+    "variant": 0,
+    "decorated": false,
+    "level": 32,
+    "stdout": "\nMain\n====\n\ntail Error text\n\n [ERROR] Failure                                                                \n\n\n\nabdone\n --- --- \n  K   V  \n --- --- \n  x   y  \n --- --- \n0/2\n2/2\n\n\n ! [NOTE] Nested                                                                \n\n Recovered\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ],
+        null
+      ]
+    }
+  },
+  {
+    "shape": "LLB",
+    "section": false,
+    "variant": 0,
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": true,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": true,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ],
+        null
+      ]
+    }
+  },
+  {
+    "shape": "LLB",
+    "section": false,
+    "variant": 0,
+    "decorated": true,
+    "level": 32,
+    "stdout": "\n\u001b[33mMain\u001b[39m\n\u001b[33m====\u001b[39m\n\ntail Error text\n\n\u001b[37;41m                                                                                \u001b[39;49m\n\u001b[37;41m [ERROR] Failure                                                                \u001b[39;49m\n\u001b[37;41m                                                                                \u001b[39;49m\n\n\n\nabdone\n --- --- \n \u001b[32m K \u001b[39m \u001b[32m V \u001b[39m \n --- --- \n  x   y  \n --- --- \n0/2\u001b[1G\u001b[2K2/2\n\n\n\u001b[33m ! [NOTE] Nested                                                                \u001b[39m\n\n Recovered\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": true,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": true,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ],
+        null
+      ]
+    }
+  },
+  {
+    "shape": "LLB",
+    "section": false,
+    "variant": 1,
+    "decorated": false,
+    "level": 16,
+    "stdout": "\u001b[35merr\u001b[39m\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": true,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 64,
+        "decorated": true,
+        "probe": true
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ],
+        null
+      ]
+    }
+  },
+  {
+    "shape": "LLB",
+    "section": false,
+    "variant": 1,
+    "decorated": false,
+    "level": 32,
+    "stdout": "\nMain\n====\n\ntail\u001b[35merr\u001b[39m\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": true,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 64,
+        "decorated": true,
+        "probe": true
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ],
+        null
+      ]
+    }
+  },
+  {
+    "shape": "LLB",
+    "section": false,
+    "variant": 1,
+    "decorated": true,
+    "level": 16,
+    "stdout": "err\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": false,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 64,
+        "decorated": false,
+        "probe": true
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ],
+        null
+      ]
+    }
+  },
+  {
+    "shape": "LLB",
+    "section": false,
+    "variant": 1,
+    "decorated": true,
+    "level": 32,
+    "stdout": "\n\u001b[33mMain\u001b[39m\n\u001b[33m====\u001b[39m\n\ntailerr\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": false,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 64,
+        "decorated": false,
+        "probe": true
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ],
+        null
+      ]
+    }
+  },
+  {
+    "shape": "LLB",
+    "section": false,
+    "variant": 2,
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ],
+        null
+      ]
+    }
+  },
+  {
+    "shape": "LLB",
+    "section": false,
+    "variant": 2,
+    "decorated": false,
+    "level": 32,
+    "stdout": "\nMain\n====\n\ntail\n Recovered\nend\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ],
+        null
+      ]
+    }
+  },
+  {
+    "shape": "LLB",
+    "section": false,
+    "variant": 2,
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ],
+        null
+      ]
+    }
+  },
+  {
+    "shape": "LLB",
+    "section": false,
+    "variant": 2,
+    "decorated": true,
+    "level": 32,
+    "stdout": "\n\u001b[33mMain\u001b[39m\n\u001b[33m====\u001b[39m\n\ntail\n Recovered\nend\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ],
+        null
+      ]
+    }
+  },
+  {
+    "shape": "BB",
+    "section": false,
+    "variant": 0,
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        null,
+        null
+      ]
+    }
+  },
+  {
+    "shape": "BB",
+    "section": false,
+    "variant": 0,
+    "decorated": false,
+    "level": 32,
+    "stdout": "\nMain\n====\n\ntail Error text\n\n [ERROR] Failure                                                                \n\n\n\nabdone\n --- --- \n  K   V  \n --- --- \n  x   y  \n --- --- \n0/2\n2/2\n\n\n ! [NOTE] Nested                                                                \n\n Recovered\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        null,
+        null
+      ]
+    }
+  },
+  {
+    "shape": "BB",
+    "section": false,
+    "variant": 0,
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": true,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": true,
+        "probe": false
+      },
+      "layers": [
+        null,
+        null
+      ]
+    }
+  },
+  {
+    "shape": "BB",
+    "section": false,
+    "variant": 0,
+    "decorated": true,
+    "level": 32,
+    "stdout": "\n\u001b[33mMain\u001b[39m\n\u001b[33m====\u001b[39m\n\ntail Error text\n\n\u001b[37;41m                                                                                \u001b[39;49m\n\u001b[37;41m [ERROR] Failure                                                                \u001b[39;49m\n\u001b[37;41m                                                                                \u001b[39;49m\n\n\n\nabdone\n --- --- \n \u001b[32m K \u001b[39m \u001b[32m V \u001b[39m \n --- --- \n  x   y  \n --- --- \n0/2\u001b[1G\u001b[2K2/2\n\n\n\u001b[33m ! [NOTE] Nested                                                                \u001b[39m\n\n Recovered\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "append_error": true,
+      "ask": "Fallback",
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": true,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": true,
+        "probe": false
+      },
+      "layers": [
+        null,
+        null
+      ]
+    }
+  },
+  {
+    "shape": "BB",
+    "section": false,
+    "variant": 1,
+    "decorated": false,
+    "level": 16,
+    "stdout": "\u001b[35merr\u001b[39m\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": true,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 64,
+        "decorated": true,
+        "probe": true
+      },
+      "layers": [
+        null,
+        null
+      ]
+    }
+  },
+  {
+    "shape": "BB",
+    "section": false,
+    "variant": 1,
+    "decorated": false,
+    "level": 32,
+    "stdout": "\nMain\n====\n\ntail\u001b[35merr\u001b[39m\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": true,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 64,
+        "decorated": true,
+        "probe": true
+      },
+      "layers": [
+        null,
+        null
+      ]
+    }
+  },
+  {
+    "shape": "BB",
+    "section": false,
+    "variant": 1,
+    "decorated": true,
+    "level": 16,
+    "stdout": "err\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": false,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 64,
+        "decorated": false,
+        "probe": true
+      },
+      "layers": [
+        null,
+        null
+      ]
+    }
+  },
+  {
+    "shape": "BB",
+    "section": false,
+    "variant": 1,
+    "decorated": true,
+    "level": 32,
+    "stdout": "\n\u001b[33mMain\u001b[39m\n\u001b[33m====\u001b[39m\n\ntailerr\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": false,
+      "error_properties": {
+        "verbosity": 64,
+        "decorated": false,
+        "probe": true
+      },
+      "original_properties": {
+        "verbosity": 64,
+        "decorated": false,
+        "probe": true
+      },
+      "layers": [
+        null,
+        null
+      ]
+    }
+  },
+  {
+    "shape": "BB",
+    "section": false,
+    "variant": 2,
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        null,
+        null
+      ]
+    }
+  },
+  {
+    "shape": "BB",
+    "section": false,
+    "variant": 2,
+    "decorated": false,
+    "level": 32,
+    "stdout": "\nMain\n====\n\ntail\n Recovered\nend\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        null,
+        null
+      ]
+    }
+  },
+  {
+    "shape": "BB",
+    "section": false,
+    "variant": 2,
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 16,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        null,
+        null
+      ]
+    }
+  },
+  {
+    "shape": "BB",
+    "section": false,
+    "variant": 2,
+    "decorated": true,
+    "level": 32,
+    "stdout": "\n\u001b[33mMain\u001b[39m\n\u001b[33m====\u001b[39m\n\ntail\n Recovered\nend\n",
+    "stderr": "",
+    "metadata": {
+      "new_line_aware": false,
+      "is_laravel_style": false,
+      "failure": true,
+      "error_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "original_properties": {
+        "verbosity": 32,
+        "decorated": false,
+        "probe": false
+      },
+      "layers": [
+        null,
+        null
+      ]
+    }
+  }
+]

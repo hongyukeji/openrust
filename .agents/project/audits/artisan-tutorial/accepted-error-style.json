@@ -1,0 +1,99 @@
+{
+  "source_base": "1420c1cd7267c8e42e2b7fae039dd2d26cd3add4",
+  "source_hashes": {
+    "docs/en/digging-deeper/artisan.md": "c177004f202e700ab5bba577e8bc8f29916dcf4c9796b22a33e4234484b035e5",
+    "docs/tests/check_artisan_tutorial.mjs": "19d91a7dfb12805b7d1978245fbd19c5591f4044cc55d70a27ad3292c9856ed2",
+    "docs/zh-Hans/digging-deeper/artisan.md": "acb98d20554e5676987aa4aa75adac791fb7e7326713a0f9b60910c859005423",
+    "docs/zh-Hant/digging-deeper/artisan.md": "ba652f7ee7111c3a6b695e38c738c39d710f4c69c22fd0764615cad40cd12972",
+    "tests/artisan_style_questions.py": "030c7a2a9e6909559c1f39e8149e99c9165e89cedaa11c54e91f130734edb80d",
+    "tests/artisan_tutorial_docs.py": "5050017d0d011f0390dbbc5542592238771a3971300864c6eaf9de2608402459",
+    "vendor/openrust/framework/src/console/mod.rs": "3e1898a8163faa865eced3e8d97b41d68f662f5d4ead2208d4495f1f166b3f14",
+    "vendor/openrust/framework/src/console/output_reference.rs": "43d3b7e776282969dac27d2fab8e7105c2142dea777fe019c7060d4ae9929a28",
+    "vendor/openrust/framework/src/console/output_style.rs": "39b7cc72d1b8c39306ff6968c279196365770f80fbec03f292a230265f66104f",
+    "vendor/openrust/framework/src/console/section_output.rs": "b2bd9db2862be02a8bfa964841c2da76131def031dd1340b91c5abb957c3af07",
+    "vendor/openrust/framework/src/console/style.rs": "17ca0fc1124fd35df99abe201d74979e2d31a5ff1e94b5dd946abfc2bc2be31c",
+    "vendor/openrust/framework/tests/console_style_interface.rs": "e53f995c5376cbda1f2615b807f5db797685e32098fad484ae4118c0c75babe9",
+    "vendor/openrust/framework/src/console/output_style/base.rs": "3c0c985ab5a8ae94019cf22fb6b8d0ff7413cf40bfd09808babe536bfb302de7",
+    "vendor/openrust/framework/tests/console_error_style.rs": "87683ed636f53095803e5ea2b475055edb76009750e66c8754bc49acc1614e54",
+    "vendor/openrust/framework/tests/support/style_interface.rs": "165d80e9be8e378a7a0a27a48fa3d0356eaabd663e4747b1fd320da0e5abbc04",
+    ".agents/project/audits/artisan-tutorial/error-style-oracle.json": "847bc680980883b418b7e418068538bde1e8a66e7a5b0a7cecc107f2beaeba4b",
+    ".agents/project/audits/artisan-tutorial/error-style-console-oracle.json": "6d97a1d21f5ee8f488125a0ba6a78926e9455d5d9edb521ccd4d9adf397ae847",
+    ".agents/project/audits/artisan-tutorial/base-style-api-oracle.json": "bc9f0c501721c0553df43d1a4250d7d04632021a389aad839511c37aa468421b",
+    ".agents/project/audits/artisan-tutorial/base-style-interface-oracle.json": "5b48899756fc64df257c688dbeb1f40a762e664e58260ee5d92668861ef30274",
+    ".agents/project/audits/artisan-tutorial/error-style-stream-oracle.json": "dcf3b136f050e25212813af9a78ab309b3b551325199c4c28954312dba664511",
+    ".agents/project/audits/artisan-tutorial/error-style-docs-oracle.json": "e120bf773a71b9d708773863ee207fc99afca8db516ae903f6cdc156f41c9e3f",
+    ".agents/project/audits/artisan-tutorial/io-contracts.json": "c766479237f87a3e8dd248701e7d94fd12f49e184b333ea938b415fd27433a15",
+    ".agents/project/audits/artisan-tutorial/section-map.json": "98a12285046a7287e46df9bff16b7af3365c3ad43aa30c5b122eca945a194bdf"
+  },
+  "parent_consumers": {
+    "framework": {
+      "targets": 29,
+      "passed": 166,
+      "ignored_drivers": 48
+    },
+    "root": {
+      "targets": 6,
+      "passed": 152,
+      "ignored_drivers": 0
+    }
+  },
+  "total_distinct_parents": 318,
+  "formal_examples": 111,
+  "capture_source_cases": 240,
+  "actual_console_source_and_native_processes_each": 120,
+  "base_helpers_actual_consumers": 51,
+  "base_interface_source_sequences": 96,
+  "native_base_dispatch_sequences": 192,
+  "source_stream_gates": 2,
+  "native_stream_gates": 2,
+  "actual_http": {
+    "sequence": [
+      "direct200",
+      "mixed200",
+      "JSON500",
+      "direct200 recovery"
+    ],
+    "concurrent": 12
+  },
+  "actual_cli_exit_codes": [
+    0,
+    1
+  ],
+  "actual_terminal": {
+    "base_stderr": [
+      0,
+      130
+    ],
+    "derived_stdout": [
+      0,
+      130
+    ],
+    "section_editors": 33,
+    "section_ctrl_c": 130,
+    "secret_not_echoed": true,
+    "full_terminal_restored": true
+  },
+  "rustdoc_exact_negatives": 3,
+  "workspace_all_targets_strict_clippy": true,
+  "fmt": true,
+  "browser_checks": 12,
+  "actual_main_runtime": true,
+  "final_terminal_binaries": {
+    "console_section_editors": "target/tmp/rust-naming/cargo-target/debug/deps/console_section_editors-4dcc5b65cdd43911",
+    "console_error_style": "target/tmp/rust-naming/cargo-target/debug/deps/console_error_style-54467acd8b16d2ac",
+    "console_style_interface": "target/tmp/rust-naming/cargo-target/debug/deps/console_style_interface-9ed9cf7d7ea739e9"
+  },
+  "failures_preserved": [
+    "first compile had missing root reexport/imports and two multiline delegate receivers; corrected before acceptance",
+    "32GB guards stopped compile; generated profiles reclaimed, interrupted check not counted, final gates rerun",
+    "strict Clippy rejected eight forward parameters; grouped selected target into tuple, no lint exemption",
+    "initial final terminal probes used old artifact names; FileNotFound not counted; resolved current binary names from actual build log and reran all terminal cases"
+  ],
+  "logs": "target/tmp/artisan-tutorial-20261125/error-style-*; base-api-*; base-style-*",
+  "scope_limits": [
+    "Not full Artisan chapter or active worktree",
+    "Tree/component/general output interfaces continue",
+    "Windows native terminal release verification pending"
+  ],
+  "pushed": false
+}

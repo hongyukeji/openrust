@@ -65,8 +65,8 @@ pub use generator_command::GeneratorCommand;
 pub(crate) use isolation::IsolatedCommand;
 pub(crate) use localization::text as localized_text;
 pub use output_style::{
-    BlockOptions, DefinitionListItem, OutputFormat, OutputMessages, OutputOptions, OutputStyle,
-    OutputVerbosity,
+    BlockOptions, ConsoleStyle, DefinitionListItem, OutputFormat, OutputMessages, OutputOptions,
+    OutputStyle, OutputVerbosity,
 };
 pub(crate) use progress_bar::ProgressDefinitions;
 pub use progress_bar::{

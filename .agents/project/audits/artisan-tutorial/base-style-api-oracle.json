@@ -1,0 +1,124 @@
+{
+    "metadata": {
+        "values": {
+            "decorated": false,
+            "formatter": true,
+            "ask_question": {
+                "value": "Answer",
+                "error": false
+            },
+            "ask": {
+                "value": null,
+                "error": false
+            },
+            "ask_with": {
+                "value": "Guest",
+                "error": false
+            },
+            "confirm": {
+                "value": true,
+                "error": false
+            },
+            "confirm_with": {
+                "value": false,
+                "error": false
+            },
+            "ask_with_validator": {
+                "value": {
+                    "value": "Guest"
+                },
+                "error": false
+            },
+            "ask_hidden": {
+                "value": null,
+                "error": false
+            },
+            "ask_hidden_with": {
+                "value": null,
+                "error": false
+            },
+            "ask_with_completion": {
+                "value": "JSON",
+                "error": false
+            },
+            "choice": {
+                "value": null,
+                "error": false
+            },
+            "choice_with": {
+                "value": "green",
+                "error": false
+            },
+            "choice_pairs_with": {
+                "value": "g",
+                "error": false
+            },
+            "progress_iterate": [
+                "a",
+                "b"
+            ],
+            "progress_iterate_with_max": [
+                "c",
+                "d"
+            ]
+        },
+        "flags": [
+            {
+                "verbosity": 8,
+                "silent": true,
+                "quiet": false,
+                "verbose": false,
+                "very_verbose": false,
+                "debug": false
+            },
+            {
+                "verbosity": 16,
+                "silent": false,
+                "quiet": true,
+                "verbose": false,
+                "very_verbose": false,
+                "debug": false
+            },
+            {
+                "verbosity": 32,
+                "silent": false,
+                "quiet": false,
+                "verbose": false,
+                "very_verbose": false,
+                "debug": false
+            },
+            {
+                "verbosity": 64,
+                "silent": false,
+                "quiet": false,
+                "verbose": true,
+                "very_verbose": false,
+                "debug": false
+            },
+            {
+                "verbosity": 128,
+                "silent": false,
+                "quiet": false,
+                "verbose": true,
+                "very_verbose": true,
+                "debug": false
+            },
+            {
+                "verbosity": 256,
+                "silent": false,
+                "quiet": false,
+                "verbose": true,
+                "very_verbose": true,
+                "debug": true
+            }
+        ],
+        "trace": [
+            "write:one",
+            "write:two",
+            "writeln:one",
+            "writeln:two"
+        ],
+        "completion_called": false
+    },
+    "output": "writeline\nonetwoone\ntwo\n\n0\/3\n3\/3\n\nTitle\n=====\n\nSection\n-------\n\n * a\n * b\n\n line1\n line2\n\n [BUILD] block                                                                  \n\n \/\/ comment                                                                     \n\n [OK] success                                                                   \n\n [ERROR] error                                                                  \n\n [WARNING] warning                                                              \n\n ! [NOTE] note                                                                  \n\n [INFO] info                                                                    \n\n ! [CAUTION] caution                                                            \n\n --- --- \n  K   V  \n --- --- \n  x   y  \n --- --- \n --- --- \n  K   V  \n --- --- \n  x   y  \n --- --- \n\n --- --- \n  K   x  \n  V   y  \n --- --- \n\n ------ ----- \n  Profile     \n  Name   Ada  \n ------ ----- \n\n0\/2\n2\/2\n0\/2\n2\/2\n\n0\/5\n5\/5\n\n"
+}

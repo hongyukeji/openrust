@@ -1,3 +1,4 @@
+pub use super::ConsoleStyle;
 use super::{
     ChoiceKey, ConsoleError, ConsoleFuture, OutputMessages, OutputStyle, QuestionCallback,
     TableHeaders, TableRow,

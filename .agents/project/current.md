@@ -6,6 +6,8 @@ Git 默认流程已于 2026-11-23 更新：已授权任务完成并通过相关�
 
 ## 正在推进与等待条件
 
+- 2026-11-25 Artisan第三十六簇基础ConsoleStyle／get_error_style已验：240捕获／分区与120真实控制台逐一对照，51公开助手／基础Trait双路／真实流式门闩及stdout／stderr TTY0／130通过；三语111例、318父消费者、HTTP恢复／并发、独立CLI与严格门禁通过。见[最新记录](audits/artisan-tutorial/README.md)。树／组件／通用输出及整章继续，不推送。
+
 - 2026-11-25 Artisan第三十五簇StyleInterface全部18入口已验：96源连续序列经泛型／dyn两路核对，修复连续问答历史；三语108例、308父消费者、真实HTTP／CLI与动态和具体TTY0／130、严格门禁通过。见[最新记录](audits/artisan-tutorial/README.md)。基类错误流样式／树／组件／通用输出及整章继续，不推送。
 
 - 2026-11-25 Artisan第三十四簇样式表格／水平表格／定义列表已验：432源向量／48预期错误，修复null与空字符串转置差异；三语105例、301父消费者、真实HTTP恢复／并发与CLI0／1、严格门禁通过。见[最新记录](audits/artisan-tutorial/README.md)。完整Trait／树／组件／错误流／通用输出及整章继续，不推送。

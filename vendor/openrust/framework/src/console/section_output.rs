@@ -268,6 +268,8 @@ impl ConsoleSectionOutput<'_> {
             output: self.output,
             section: Some(self.id),
             parents: Vec::new(),
+            error_stream: false,
+            new_line_start: None,
         }
     }
 

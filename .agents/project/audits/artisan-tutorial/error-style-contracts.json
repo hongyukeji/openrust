@@ -1,0 +1,106 @@
+{
+  "reference": "Symfony Console7.4.0 SymfonyStyle/getErrorStyle, OutputStyle/getErrorOutput; framework1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "status": "verified_error_style_base_class_and_existing_helpers",
+  "types": [
+    "console::ConsoleStyle",
+    "console::style::ConsoleStyle (same reexport)",
+    "OutputStyle::get_error_style",
+    "ConsoleStyle::get_error_style"
+  ],
+  "source_capture_section_scenes": 240,
+  "source_actual_console_processes": 120,
+  "base_interface_source_sequences": 96,
+  "base_interface_native_sequences": 192,
+  "existing_public_helpers": [
+    "set_verbosity",
+    "get_verbosity",
+    "get_formatter",
+    "set_formatter",
+    "set_decorated",
+    "is_decorated",
+    "is_silent",
+    "is_quiet",
+    "is_verbose",
+    "is_very_verbose",
+    "is_debug",
+    "write",
+    "writeln",
+    "write_iter",
+    "writeln_iter",
+    "ask_question",
+    "new_line",
+    "progress_start",
+    "progress_advance",
+    "progress_advance_by",
+    "progress_finish",
+    "title",
+    "section",
+    "listing",
+    "text",
+    "block",
+    "comment",
+    "success",
+    "error",
+    "warning",
+    "note",
+    "info",
+    "caution",
+    "create_table",
+    "table",
+    "horizontal_table",
+    "definition_list",
+    "ask",
+    "ask_with",
+    "confirm",
+    "confirm_with",
+    "ask_with_validator",
+    "ask_hidden",
+    "ask_hidden_with",
+    "ask_with_completion",
+    "choice",
+    "choice_with",
+    "choice_pairs_with",
+    "create_progress_bar",
+    "progress_iterate",
+    "progress_iterate_with_max"
+  ],
+  "native_adaptations": [
+    "Neutral ConsoleStyle maps the upstream base class; no NewLineAware/Deref/counter method leakage.3 exact compiler negatives verify trait, method and exclusive borrow.",
+    "Exclusive short borrow replaces PHP simultaneous mutable aliases; real target remains shared, not copied.",
+    "Only directly wrapped actual console selects stderr; capture/section/style preserve target; settings follow that channel.",
+    "Private bool identifies the known counted/base styles; Option<NonZeroUsize> caches contiguous counted-parent boundary; O(1) default count queries, no new default root Vec allocation. Explicit pop recomputes boundary.",
+    "Base write_iter/writeln_iter stream each message through existing writer before requesting next; derived precollection for trailing counts remains.",
+    "All51 existing helpers and18 StyleInterface entries have actual base public consumers; common test exercise moved intact into support module.",
+    "No new renderer/executor/dependency/production unsafe; no benchmarked throughput gain claimed."
+  ],
+  "proofs": [
+    "error-style-oracle.json",
+    "error-style-console-oracle.json",
+    "base-style-api-oracle.json",
+    "base-style-interface-oracle.json",
+    "error-style-stream-oracle.json",
+    "error-style-docs-oracle.json"
+  ],
+  "source_output_style_sha": {
+    "url": "https://raw.githubusercontent.com/laravel/framework/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Console/OutputStyle.php",
+    "sha256": "6bbb7e1fd19da44690344576282912041a42b2ce830c1067691c99ee0fdb139c",
+    "local_snapshot_equal": true
+  },
+  "design_references": [
+    {
+      "url": "https://doc.rust-lang.org/std/num/type.NonZeroUsize.html",
+      "note": "current1.100 page, exact layout guarantee independently checked local1.94 core source; versioned web failed"
+    },
+    {
+      "url": "https://doc.rust-lang.org/std/io/struct.BufWriter.html",
+      "note": "composition and selected trait forwarding only; no new buffering behavior adopted"
+    }
+  ],
+  "remaining": [
+    "tree/create_tree and TreeNode/TreeHelper/TreeStyle",
+    "Full component Factory",
+    "General OutputInterface/ConsoleOutputInterface/arbitrary sinks",
+    "Windows terminal release matrix",
+    "Other chapter anchors"
+  ]
+}

@@ -12,6 +12,8 @@ use super::{
 /// let raw: &mut Output = &mut *selected;
 /// ```
 pub struct OutputReference<'a> {
+    pub(super) error_stream: bool,
+    pub(super) new_line_start: Option<std::num::NonZeroUsize>,
     pub(super) output: &'a mut Output,
     pub(super) section: Option<usize>,
     pub(super) parents: Vec<&'a mut super::output_style::StyleState>,
@@ -26,6 +28,8 @@ impl AsOutput for Output {
             output: self,
             section: None,
             parents: Vec::new(),
+            error_stream: false,
+            new_line_start: None,
         }
     }
 }
@@ -50,6 +54,8 @@ impl<'a> From<&'a mut Output> for OutputReference<'a> {
             output,
             section: None,
             parents: Vec::new(),
+            error_stream: false,
+            new_line_start: None,
         }
     }
 }
@@ -61,6 +67,9 @@ impl std::ops::Deref for OutputReference<'_> {
 }
 impl OutputReference<'_> {
     pub(super) fn formatter(&mut self) -> &mut super::formatting::Formatter {
+        if self.error_stream {
+            return self.output.progress_formatter();
+        }
         if let Some(id) = self.section {
             &mut self.output.sections[id].formatter
         } else {
@@ -72,15 +81,23 @@ impl OutputReference<'_> {
             output: self.output,
             section: self.section,
             parents: self.parents.iter_mut().map(|state| &mut **state).collect(),
+            error_stream: self.error_stream,
+            new_line_start: self.new_line_start,
         }
     }
     pub(super) fn for_style_table(&mut self) -> OutputReference<'_> {
-        if self.parents.is_empty() && self.section.is_none() && self.output.streams_to_terminal() {
+        if self.parents.is_empty()
+            && self.section.is_none()
+            && !self.error_stream
+            && self.output.streams_to_terminal()
+        {
             let id = self.output.new_section_id();
             OutputReference {
                 output: self.output,
                 section: Some(id),
                 parents: Vec::new(),
+                error_stream: false,
+                new_line_start: None,
             }
         } else {
             self.reborrow()
@@ -90,10 +107,15 @@ impl OutputReference<'_> {
         self.parents.is_empty().then_some(self.section).flatten()
     }
     pub(super) fn parent_count(&self) -> Option<usize> {
-        self.parents.first().map(|state| state.count())
+        self.new_line_start
+            .map(|start| self.parents[start.get() - 1].count())
     }
     pub(super) fn parent_line_written(&self) -> bool {
-        self.parents.iter().any(|state| state.line_written())
+        self.new_line_start.is_some_and(|start| {
+            self.parents[start.get() - 1..]
+                .iter()
+                .any(|state| state.line_written())
+        })
     }
     /// 继续借用被包装样式的底层输出；普通流没有下一层样式。
     pub fn get_output(&mut self) -> Option<OutputReference<'_>> {
@@ -102,11 +124,26 @@ impl OutputReference<'_> {
         }
         let mut output = self.reborrow();
         output.parents.pop();
+        output.new_line_start = if output
+            .parents
+            .last()
+            .is_some_and(|state| state.new_line_aware)
+        {
+            let start = output
+                .parents
+                .iter()
+                .rposition(|state| !state.new_line_aware)
+                .map_or(0, |index| index + 1);
+            std::num::NonZeroUsize::new(start + 1)
+        } else {
+            None
+        };
         Some(output)
     }
     pub fn as_new_line_aware(&self) -> Option<NewLineView<'_, '_>> {
-        (!self.parents.is_empty()).then_some(NewLineView {
+        self.new_line_start.map(|start| NewLineView {
             states: &self.parents,
+            start,
         })
     }
     pub fn as_section(&mut self) -> Result<super::ConsoleSectionOutput<'_>, ConsoleError> {
@@ -116,12 +153,27 @@ impl OutputReference<'_> {
         Ok(super::ConsoleSectionOutput::from_reference(self.output, id))
     }
     pub fn get_formatter(&self) -> FormatterHandle {
+        if self.error_stream {
+            return self
+                .output
+                .error_formatter
+                .as_ref()
+                .expect("错误流选择前已初始化格式器")
+                .handle();
+        }
         self.section.map_or_else(
             || self.output.get_formatter(),
             |id| self.output.sections[id].formatter.handle(),
         )
     }
     pub fn set_formatter(&mut self, formatter: FormatterHandle) {
+        if self.error_stream {
+            self.output.error_formatter =
+                Some(super::formatting::Formatter::from_handle(formatter));
+            self.output.error_formatter_generation =
+                self.output.error_formatter_generation.wrapping_add(1);
+            return;
+        }
         if let Some(id) = self.section {
             self.output.sections[id].formatter =
                 super::formatting::Formatter::from_handle(formatter);
@@ -133,12 +185,19 @@ impl OutputReference<'_> {
         self.get_verbosity()
     }
     pub fn get_verbosity(&self) -> OutputVerbosity {
+        if self.error_stream {
+            return self.output.progress_verbosity();
+        }
         self.section.map_or_else(
             || self.output.verbosity(),
             |id| self.output.sections[id].verbosity,
         )
     }
     pub fn set_verbosity(&mut self, level: OutputVerbosity) {
+        if self.error_stream {
+            self.output.error_verbosity = Some(level);
+            return;
+        }
         if let Some(id) = self.section {
             self.output.sections[id].verbosity = level;
         } else {
@@ -149,6 +208,10 @@ impl OutputReference<'_> {
         self.get_formatter().is_decorated()
     }
     pub fn set_decorated(&mut self, decorated: bool) {
+        if self.error_stream {
+            self.output.set_progress_decorated(decorated);
+            return;
+        }
         if self.section.is_some() {
             self.get_formatter().set_decorated(decorated);
         } else {
@@ -187,7 +250,7 @@ impl OutputReference<'_> {
     ) -> Result<(), ConsoleError> {
         forward(
             self.output,
-            self.section,
+            (self.section, self.error_stream),
             &mut self.parents,
             messages,
             newline,
@@ -196,7 +259,7 @@ impl OutputReference<'_> {
         )
     }
     pub fn write_raw(&mut self, message: &str) -> std::io::Result<()> {
-        if self.parents.is_empty() && self.section.is_none() {
+        if self.parents.is_empty() && self.section.is_none() && !self.error_stream {
             return self.output.write_raw(message);
         }
         self.write(message, false, OutputFormat::Raw)
@@ -210,6 +273,14 @@ impl OutputReference<'_> {
         self.forward(messages.into(), true, options.into(), true)
     }
     pub(super) fn emit_input_echo(&mut self, message: &str) -> Result<(), ConsoleError> {
+        if self.error_stream {
+            return self.output.emit_progress_message(
+                message,
+                false,
+                OutputFormat::Raw,
+                OutputVerbosity::Normal,
+            );
+        }
         if self.section.is_some() {
             if self.get_verbosity() < OutputVerbosity::Normal || self.is_silent() {
                 return Ok(());
@@ -318,18 +389,21 @@ impl OutputReference<'_> {
 /// 底层样式的只读换行能力；普通输出流不提供此能力。
 pub struct NewLineView<'view, 'state> {
     states: &'view [&'state mut super::output_style::StyleState],
+    start: std::num::NonZeroUsize,
 }
 impl super::contracts::NewLineAware for NewLineView<'_, '_> {
     fn new_lines_written(&self) -> usize {
-        self.states.first().map_or(0, |state| state.count())
+        self.states[self.start.get() - 1].count()
     }
     fn new_line_written(&self) -> bool {
-        self.states.iter().any(|state| state.line_written())
+        self.states[self.start.get() - 1..]
+            .iter()
+            .any(|state| state.line_written())
     }
 }
 fn forward(
     output: &mut Output,
-    section: Option<usize>,
+    (section, error_stream): (Option<usize>, bool),
     states: &mut [&mut super::output_style::StyleState],
     messages: OutputMessages<'_>,
     newline: bool,
@@ -337,13 +411,16 @@ fn forward(
     writeln: bool,
 ) -> Result<(), ConsoleError> {
     if let Some((state, parents)) = states.split_last_mut() {
-        let verbosity =
-            section.map_or_else(|| output.verbosity(), |id| output.sections[id].verbosity);
+        let verbosity = if error_stream {
+            output.progress_verbosity()
+        } else {
+            section.map_or_else(|| output.verbosity(), |id| output.sections[id].verbosity)
+        };
         state.update(messages, newline, options, writeln, verbosity);
         let mut one = |message: &str| -> Result<(), ConsoleError> {
             forward(
                 output,
-                section,
+                (section, error_stream),
                 parents,
                 OutputMessages::Text(message),
                 newline,
@@ -368,6 +445,9 @@ fn forward(
             .unwrap_or(OutputVerbosity::Normal);
         let mut one = |message: &str| match section {
             Some(id) => output.emit_section(id, message, newline, options.format, level),
+            None if error_stream => {
+                output.emit_progress_message(message, newline, options.format, level)
+            }
             None => output.emit_formatted(message, newline, options.format, level),
         };
         match messages {
@@ -378,6 +458,37 @@ fn forward(
                 }
                 Ok(())
             }
+        }
+    }
+}
+
+impl<'a> OutputReference<'a> {
+    pub(super) fn push_style(&mut self, state: &'a mut super::output_style::StyleState) {
+        if state.new_line_aware {
+            if self.new_line_start.is_none() {
+                self.new_line_start = std::num::NonZeroUsize::new(self.parents.len() + 1);
+            }
+        } else {
+            self.new_line_start = None;
+        }
+        self.parents.push(state);
+    }
+    pub(super) fn for_error_style(&mut self) -> OutputReference<'_> {
+        if self.parents.is_empty()
+            && self.section.is_none()
+            && !self.error_stream
+            && self.output.streams_to_terminal()
+        {
+            self.output.progress_formatter();
+            OutputReference {
+                output: self.output,
+                section: None,
+                parents: Vec::new(),
+                error_stream: true,
+                new_line_start: None,
+            }
+        } else {
+            self.reborrow()
         }
     }
 }

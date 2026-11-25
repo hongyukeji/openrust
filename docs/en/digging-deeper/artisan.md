@@ -1475,3 +1475,35 @@ fn register_style_interface() -> Result<(), ConsoleError> {
 Trait calls use explicit parameters instead of optional PHP arguments: `ask` takes an optional default and validator, `ask_hidden` an optional validator, `confirm` a boolean default, and `choice` an ordered `Vec<(ChoiceKey, Value)>` with an optional default. Integer keys express sequential choices; string keys preserve associative results. Questions retain the complete `serde_json::Value` result. `table` takes `TableHeaders` and `Vec<TableRow>`, messages use the existing `OutputMessages`, and `new_line`/`progress_advance` take explicit counts. The existing concrete-type convenience methods remain available.
 
 The four asynchronous trait methods return the existing `ConsoleFuture`. This adds one future box at the trait boundary to support dynamic dispatch; directly calling the concrete `OutputStyle` async methods does not add this layer. Synchronous trait methods do not box futures. The trait requires `Send` for the existing asynchronous command execution, and does not require `NewLineAware`. Consecutive questions share the same input and output history, including hidden input and failure recovery.
+
+## Error styles and the base style type {#error-style}
+
+`OutputStyle::get_error_style` returns the base `ConsoleStyle`, also available at `openrust::console::ConsoleStyle`. The base provides the same existing rendering helpers and implements `StyleInterface`, but does not implement `NewLineAware` or expose the derived newline counters. You can also construct it with `ConsoleStyle::new(input, output)`.
+
+A directly wrapped real console selects stderr. Capture streams, sections and wrapped styles keep their selected output; the method does not force all output into a separate error buffer. Formatter, decoration and verbosity settings follow that selected target. Changing a direct console error style’s settings does not change stdout settings.
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, OutputStyle};
+use openrust::console::style::ConsoleStyle;
+use openrust::support::facades::Artisan;
+
+fn register_error_style() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:error-style", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut original = OutputStyle::new(input, output);
+            {
+                let mut errors: ConsoleStyle<'_> = original.get_error_style();
+                errors.warning("Review")?;
+                errors.table(["Name", "Value"], [["Ada", "42"]])?;
+            }
+            original.info("Done")?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+The returned style borrows its output exclusively. End its scope before writing through the original style; it shares the real target rather than copying buffered output. Newline-counter lookup stops at a base-style boundary, while actual writes still reach the underlying target. Nested error-style creation returns another base style.
+
+`ConsoleStyle::write_iter` and `writeln_iter` write each item before requesting the next one. The derived `OutputStyle` retains its existing preparation for newline statistics. Both types use the same formatter and rendering engine; this does not add general third-party `OutputInterface` support. Tree helpers and the remaining component APIs are tracked separately.

@@ -1,0 +1,16 @@
+[
+  {
+    "newline": false,
+    "first_before_release": "FIRST",
+    "stdout": "",
+    "stderr": "FIRSTSECOND",
+    "exitcode": 0
+  },
+  {
+    "newline": true,
+    "first_before_release": "FIRST\n",
+    "stdout": "",
+    "stderr": "FIRST\nSECOND\n",
+    "exitcode": 0
+  }
+]
