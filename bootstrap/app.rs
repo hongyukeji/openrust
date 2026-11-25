@@ -22,7 +22,7 @@ pub(crate) fn create_application() -> Result<Application, Box<dyn Error + Send +
                 .commands(routes::console::register)
                 .health("/up"),
         )
-        .with_middleware(|_middleware| {
+        .with_middleware(|#[allow(unused_variables)] middleware| {
             //
         })
         .with_exceptions(|exceptions| {
