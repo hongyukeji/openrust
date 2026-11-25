@@ -21,6 +21,8 @@ mod groups;
 #[cfg(feature = "webhooks")]
 pub(crate) use callback::ProviderTask;
 mod query;
+mod rates;
+pub(crate) use rates::RateBudget;
 mod recovery;
 mod submission;
 
@@ -32,6 +34,7 @@ const CHECKS: &str = "moderation_checks";
 pub struct ModerationStore {
     connection: Connection,
     scope_key: String,
+    application_key: String,
 }
 
 impl ModerationStore {
@@ -42,6 +45,7 @@ impl ModerationStore {
         Ok(Self {
             connection,
             scope_key: digest(&format!("{application}\n{tenant}")),
+            application_key: digest(application),
         })
     }
 

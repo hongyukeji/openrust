@@ -4,7 +4,10 @@ use openrust::database::{DatabaseError, Value};
 
 use crate::{ModerationError, ModerationResult, ReviewState, VideoReview, VideoSubmission};
 
-use super::{CHECKS, ModerationStore, REVIEWS, database_clock, database_clock_query, integer};
+use super::{
+    CHECKS, ModerationStore, REVIEWS, RateBudget, database_clock, database_clock_query, integer,
+    rates::RESERVATION_STALE,
+};
 
 // 给当前最长 120 秒的供应商请求留出提交上下文时间，到期只转未知。
 const SUBMISSION_LEASE_SECONDS: i64 = 150;
@@ -20,12 +23,13 @@ impl ModerationStore {
     pub(crate) async fn claim_submission(
         &self,
         review: &VideoReview,
+        budget: RateBudget,
     ) -> ModerationResult<Option<VideoReview>> {
-        self.transition(review, Action::Claim).await
+        self.transition(review, Action::Claim, Some(budget)).await
     }
 
     pub(crate) async fn recover_submission(&self, review: &VideoReview) -> ModerationResult<()> {
-        self.transition(review, Action::Recover).await?;
+        self.transition(review, Action::Recover, None).await?;
         Ok(())
     }
 
@@ -34,7 +38,8 @@ impl ModerationStore {
         claim: &VideoReview,
         outcome: VideoSubmission,
     ) -> ModerationResult<()> {
-        self.transition(claim, Action::Finish(outcome)).await?;
+        self.transition(claim, Action::Finish(outcome), None)
+            .await?;
         Ok(())
     }
 
@@ -72,26 +77,41 @@ impl ModerationStore {
         &self,
         review: &VideoReview,
         action: Action,
+        budget: Option<RateBudget>,
     ) -> ModerationResult<Option<VideoReview>> {
         let review = Arc::new(review.clone());
         let scope = self.scope_key.clone();
         let clock = database_clock_query(&self.connection);
-        self.connection
+        let result = self
+            .connection
             .transaction(
                 move |transaction| {
                     let review = review.clone();
                     let scope = scope.clone();
                     let clock = clock.clone();
                     let action = action.clone();
+                    let budget = budget.clone();
                     Box::pin(async move {
                         let now = transaction
                             .select_one(&clock, &[])
                             .await?
                             .and_then(|row| integer(&row, "created_at"))
                             .ok_or(DatabaseError::InvalidQuery("无法读取审核存储时钟"))?;
-                        let Some(next) = next_state(&review, action, now) else {
+                        let Some(mut next) = next_state(&review, action, now) else {
                             return Ok(None);
                         };
+                        let mut charged = false;
+                        if let Some(budget) = budget {
+                            match budget.reserve(transaction, now).await? {
+                                Some(available) => {
+                                    next.state = review.state;
+                                    next.submission = review.submission.clone();
+                                    next.submit_lease_until = review.submit_lease_until;
+                                    next.available_at = available.min(review.deadline_at);
+                                }
+                                None => charged = true,
+                            }
+                        }
                         let affected = transaction
                             .table(REVIEWS)
                             .r#where("id", "=", review.id.as_str())
@@ -107,10 +127,15 @@ impl ModerationStore {
                             )
                             .await?;
                         if affected == 0 {
-                            return Ok(None);
+                            return if charged {
+                                Err(DatabaseError::InvalidQuery(RESERVATION_STALE))
+                            } else {
+                                Ok(None)
+                            };
                         }
                         if next.submission == review.submission
                             && next.submit_lease_until == review.submit_lease_until
+                            && next.available_at == review.available_at
                         {
                             return Ok(Some(next));
                         }
@@ -149,13 +174,17 @@ impl ModerationStore {
                         if changed_check != 1 {
                             return Err(DatabaseError::InvalidQuery("送审检查状态与父审核不一致"));
                         }
-                        Ok(Some(next))
+                        Ok((next.submission == VideoSubmission::Submitting).then_some(next))
                     })
                 },
                 3,
             )
-            .await
-            .map_err(|_| ModerationError::ReviewStorage)
+            .await;
+        match result {
+            Ok(next) => Ok(next),
+            Err(DatabaseError::InvalidQuery(RESERVATION_STALE)) => Ok(None),
+            Err(_) => Err(ModerationError::ReviewStorage),
+        }
     }
 }
 
@@ -165,11 +194,17 @@ fn next_state(review: &VideoReview, action: Action, now: i64) -> Option<VideoRev
     }
     let expired = review.deadline_at <= now;
     let (state, submission, lease) = match action {
-        Action::Claim if !expired && review.submission == VideoSubmission::Ready => (
-            ReviewState::Running,
-            VideoSubmission::Submitting,
-            Some((now + SUBMISSION_LEASE_SECONDS).min(review.deadline_at)),
-        ),
+        Action::Claim
+            if !expired
+                && review.submission == VideoSubmission::Ready
+                && review.available_at <= now =>
+        {
+            (
+                ReviewState::Running,
+                VideoSubmission::Submitting,
+                Some((now + SUBMISSION_LEASE_SECONDS).min(review.deadline_at)),
+            )
+        }
         Action::Finish(result) if review.submission == VideoSubmission::Submitting => {
             let state = if expired {
                 ReviewState::Expired

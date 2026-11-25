@@ -200,6 +200,8 @@ Call `VideoReviewService::query(review_id)` to advance a confirmed task. Set `qu
 
 Read the normalized evidence with `VideoReview::assessment()` and the policy decision with `VideoReview::decision()`. The decision is available after all required modalities have complete coverage. A remote task can finish with partial coverage, in which case the review stores the evidence and reports the coverage failure.
 
+Durable video submissions and lookups share separate rate budgets by application, provider driver and account across all tenants and pinned profile revisions. The defaults are 60 submissions and 300 lookups per 60 seconds. Override them in `moderation.account_rate_limits.<driver>.<account>` using `submit`, `query`, and `window_seconds`. Limits accept 1–10,000 operations and windows of 1–300 seconds. Replicas of the same application use the same application ID, configuration and database. Work that waits for rate capacity retains its review deadline and lookup attempt budget. Calls made straight to a driver do not use these durable budgets.
+
 ### Reviews with multiple required checks {#video-review-groups}
 
 Use `VideoReviewGroupRequest::new` and `ModerationStore::stage_video_group` to save two to eight distinct, pinned profiles for one content revision and one media version. Explicitly select the profiles for each required modality. A repeat with the same intent and the same ordered profiles returns the original group. Changes to the order, profiles, content or media version on the same intent are rejected.

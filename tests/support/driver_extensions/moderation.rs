@@ -66,6 +66,10 @@ pub(super) fn configuration(env: &Environment) -> Result<Value, ConfigError> {
         "comments":{"driver":"fixture-text"},
         "video":{"driver":"fixture-media","region":env.get_utf8("MODERATION_FIXTURE_REGION")?.unwrap_or("original")},
     }});
+    if let Some(limits) = env.get_utf8("MODERATION_FIXTURE_ACCOUNT_RATES")? {
+        configuration["account_rate_limits"] =
+            serde_json::from_str(limits).expect("验收账户速率配置");
+    }
     if env.get_utf8("MODERATION_FIXTURE_GROUP")? == Some("1") {
         for (mode, modality) in [
             ("visual", "visual"),
@@ -268,6 +272,16 @@ pub(super) fn configuration(env: &Environment) -> Result<Value, ConfigError> {
                     _ => (),
                 }
                 if change != Some("missing") {
+                    if configuration.get("account_rate_limits").is_some() {
+                        let mut alternate = original.clone();
+                        alternate["policy_revision"] = json!("policy-alternate");
+                        configuration["profile_revisions"]["same-account-videos"]["original"] =
+                            alternate;
+                        let mut separate = original.clone();
+                        separate["account"] = json!("separate-account");
+                        configuration["profile_revisions"]["separate-account-videos"]["original"] =
+                            separate;
+                    }
                     configuration["profile_revisions"]["sightengine-videos"]["original"] = original;
                 }
                 configuration["default"] = json!("video");
@@ -651,15 +665,16 @@ fn video_route<'a>(
     profile: &'static str,
 ) -> HttpFuture<'a, Result<Response, HttpError>> {
     Box::pin(async move {
+        let tenant = request.header("x-fixture-tenant")?.unwrap_or("tenant");
         let result = if let Some(id) = request.header("x-fixture-query-review")? {
-            query_review("app", "tenant", id).await
+            query_review("app", tenant, id).await
         } else if let Some(id) = request.header("x-fixture-submit-review")? {
-            submit_review("app", "tenant", id).await
+            submit_review("app", tenant, id).await
         } else if let Some(intent) = request.header("x-fixture-review-intent")? {
             let version = request
                 .header("x-fixture-version")?
                 .ok_or(HttpError::InvalidRequest)?;
-            stage_review("app", "tenant", intent, version).await
+            stage_review("app", tenant, intent, version).await
         } else if let Some(query) = request.header("x-fixture-pinned-query")? {
             let query = serde_json::from_str(query).map_err(|_| HttpError::InvalidRequest)?;
             query_pinned(&query).await

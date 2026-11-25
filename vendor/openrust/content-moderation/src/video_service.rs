@@ -5,7 +5,7 @@ use crate::{
     ModerationResult, ModerationStore, Operation, ProviderCancellation, QueryFailure,
     ReviewDecision, ReviewDecisionRequest, ReviewState, SubmissionFailure, TaskId, TaskStatus,
     VideoInput, VideoReview, VideoReviewGroup, VideoReviewTarget, VideoSubmission,
-    review::QueryOutcome, storage::Cancellation,
+    rate_policy::RateOperation, review::QueryOutcome, storage::Cancellation,
 };
 
 /// 点播送审流程，使用已落库的对象版本、配置修订和租约。
@@ -86,7 +86,16 @@ impl VideoReviewService {
     }
 
     async fn submit_review(&self, review: &VideoReview) -> ModerationResult<()> {
-        if let Some(claim) = self.store.claim_submission(review).await? {
+        if !matches!(review.state(), ReviewState::Pending | ReviewState::Running)
+            || review.submission() != &VideoSubmission::Ready
+        {
+            return self.store.recover_submission(review).await;
+        }
+        let rates = self.manager.account_rates(review.profile())?;
+        let budget = self
+            .store
+            .rate_budget(review.profile(), RateOperation::Submit, rates);
+        if let Some(claim) = self.store.claim_submission(review, budget).await? {
             let outcome = match self.driver(&claim) {
                 Ok(driver) if self.store.submission_is_live(&claim).await? => {
                     Self::send(driver.as_ref(), claim.source().clone()).await
@@ -190,7 +199,16 @@ impl VideoReviewService {
     }
 
     async fn query_review(&self, review: &VideoReview) -> ModerationResult<()> {
-        let Some(claim) = self.store.claim_query(review).await? else {
+        if review.state() != ReviewState::Running
+            || !matches!(review.submission(), VideoSubmission::Submitted(_))
+        {
+            return Ok(());
+        }
+        let rates = self.manager.account_rates(review.profile())?;
+        let budget = self
+            .store
+            .rate_budget(review.profile(), RateOperation::Query, rates);
+        let Some(claim) = self.store.claim_query(review, budget).await? else {
             return Ok(());
         };
         let VideoSubmission::Submitted(task) = claim.submission() else {

@@ -7,7 +7,7 @@ use std::{
 
 use crate::{
     ModerationDriver, ModerationError, ModerationResult, ProfileRevision,
-    credentials::valid_identifier,
+    credentials::valid_identifier, rate_policy::AccountRates,
 };
 
 type DriverFactory = dyn Fn(&Value) -> ModerationResult<Arc<dyn ModerationDriver>> + Send + Sync;
@@ -118,6 +118,28 @@ impl ModerationManager {
             return Err(ModerationError::ProfileRevisionChanged);
         }
         Ok(profile)
+    }
+
+    pub(crate) fn account_rates(
+        &self,
+        profile: &ProfileRevision,
+    ) -> ModerationResult<AccountRates> {
+        let Some(config) = self.config.get("moderation.account_rate_limits") else {
+            return AccountRates::configured(None);
+        };
+        let invalid = || ModerationError::InvalidConfiguration("account_rate_limits");
+        let accounts = config
+            .as_object()
+            .ok_or_else(invalid)?
+            .get(profile.driver());
+        let configured = match accounts {
+            None => None,
+            Some(accounts) => accounts
+                .as_object()
+                .ok_or_else(invalid)?
+                .get(profile.account()),
+        };
+        AccountRates::configured(configured)
     }
 
     pub fn driver(&self, name: &str) -> ModerationResult<Arc<dyn ModerationDriver>> {

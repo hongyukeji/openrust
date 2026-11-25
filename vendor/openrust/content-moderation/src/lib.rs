@@ -18,6 +18,7 @@ mod provider;
 #[cfg(feature = "webhooks")]
 mod provider_webhooks;
 mod query_policy;
+mod rate_policy;
 mod recovery;
 mod result;
 mod review;

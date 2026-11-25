@@ -200,6 +200,8 @@ let recommendation = result.decision(&[Modality::Text]);
 
 通过 `VideoReview::assessment()` 读取归一化证据，通过 `VideoReview::decision()` 读取审核决定。全部必检模态覆盖完整后，审核才有决定。供应商完成但覆盖不足时，审核保留证据并报告覆盖失败。
 
+持久化点播送审与查单分别按应用、供应商驱动和账号共享速率额度，覆盖该应用的不同租户及固定配置修订。默认每 60 秒允许 60 次送审和 300 次查单。可在 `moderation.account_rate_limits.<driver>.<account>` 设置 `submit`、`query` 和 `window_seconds`，次数支持 1–10,000，窗口支持 1–300 秒。同一应用的副本使用相同应用 ID、配置和数据库。等待额度时，原审核截止时间和查单次数预算仍有效。直接调用驱动的应用自行管理调用频率。
+
 ### 多项必检的审核 {#video-review-groups}
 
 通过 `VideoReviewGroupRequest::new` 和 `ModerationStore::stage_video_group` 为同一内容修订和媒体版本保存 2–8 个不同的固定配置修订，显式选择各必检模态对应的配置。同一意图及相同顺序的检查返回原审核组。同一意图下更改顺序、配置、内容或媒体版本时返回冲突。

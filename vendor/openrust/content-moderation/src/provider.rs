@@ -13,6 +13,8 @@ use crate::{
     drivers,
 };
 
+#[path = "../database/migrations/2026_11_26_000012_create_moderation_account_rate_buckets_table.rs"]
+mod account_rates_migration;
 #[path = "../database/migrations/2026_11_26_000006_add_moderation_callback_reference.rs"]
 mod callback_reference_migration;
 #[path = "../database/migrations/2026_11_26_000009_add_moderation_cancellation.rs"]
@@ -101,6 +103,7 @@ openrust::compiled_migration_assets!("content-moderation";
     "2026_11_26_000009_add_moderation_cancellation.rs" => cancellation_migration,
     "2026_11_26_000010_create_moderation_review_decisions_table.rs" => decisions_migration,
     "2026_11_26_000011_add_moderation_query_retry_at.rs" => query_retry_migration,
+    "2026_11_26_000012_create_moderation_account_rate_buckets_table.rs" => account_rates_migration,
 );
 
 impl ModerationServiceProvider {

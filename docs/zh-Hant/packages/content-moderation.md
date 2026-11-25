@@ -200,6 +200,8 @@ let recommendation = result.decision(&[Modality::Text]);
 
 透過 `VideoReview::assessment()` 讀取正規化證據，透過 `VideoReview::decision()` 讀取審核決定。所有必檢模態涵蓋完整後，審核才有決定。供應商完成但涵蓋不足時，審核保留證據並回報涵蓋失敗。
 
+持久化隨選送審與查詢分別依應用程式、供應商驅動和帳號共享速率額度，涵蓋該應用程式的不同租戶及固定設定修訂。預設每 60 秒允許 60 次送審和 300 次查詢。可在 `moderation.account_rate_limits.<driver>.<account>` 設定 `submit`、`query` 和 `window_seconds`，次數支援 1–10,000，視窗支援 1–300 秒。同一應用程式的副本使用相同應用程式 ID、設定和資料庫。等待額度時，原審核截止時間和查詢次數預算仍有效。直接呼叫驅動的應用程式自行管理呼叫頻率。
+
 ### 多項必查的審核 {#video-review-groups}
 
 透過 `VideoReviewGroupRequest::new` 和 `ModerationStore::stage_video_group` 為同一內容修訂和媒體版本保存 2–8 個相異的固定設定修訂，明確選擇各必查模態對應的設定。同一意圖及相同順序的檢查會傳回原審核群組。同一意圖下變更順序、設定、內容或媒體版本時會傳回衝突。

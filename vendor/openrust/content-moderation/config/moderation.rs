@@ -7,6 +7,7 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
         "default": env.get_utf8("MODERATION_DRIVER")?,
         "credential_directory": env.get_utf8("MODERATION_CREDENTIAL_DIRECTORY")?,
         "profile_revisions": {},
+        "account_rate_limits": {},
         "drivers": {}
     }))
 }

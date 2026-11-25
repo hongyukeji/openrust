@@ -8,8 +8,8 @@ use crate::{
 };
 
 use super::{
-    CHECKS, ModerationStore, REVIEWS, assessment_record, database_clock, database_clock_query,
-    integer,
+    CHECKS, ModerationStore, REVIEWS, RateBudget, assessment_record, database_clock,
+    database_clock_query, integer, rates::RESERVATION_STALE,
 };
 
 const QUERY_LEASE_SECONDS: i64 = 150;
@@ -25,8 +25,10 @@ impl ModerationStore {
     pub(crate) async fn claim_query(
         &self,
         review: &VideoReview,
+        budget: RateBudget,
     ) -> ModerationResult<Option<VideoReview>> {
-        self.transition_query(review, Action::Claim).await
+        self.transition_query(review, Action::Claim, Some(budget))
+            .await
     }
 
     pub(crate) async fn finish_query(
@@ -52,7 +54,7 @@ impl ModerationStore {
                 }
             }
         };
-        self.transition_query(claim, action).await?;
+        self.transition_query(claim, action, None).await?;
         Ok(())
     }
 
@@ -90,6 +92,7 @@ impl ModerationStore {
         &self,
         review: &VideoReview,
         action: Action,
+        budget: Option<RateBudget>,
     ) -> ModerationResult<Option<VideoReview>> {
         if review.state != ReviewState::Running
             || !matches!(review.submission, VideoSubmission::Submitted(_))
@@ -99,22 +102,37 @@ impl ModerationStore {
         let scope = self.scope_key.clone();
         let clock = database_clock_query(&self.connection);
         let review = Arc::new(review.clone());
-        self.connection
+        let result = self
+            .connection
             .transaction(
                 move |transaction| {
                     let review = review.clone();
                     let scope = scope.clone();
                     let clock = clock.clone();
                     let action = action.clone();
+                    let budget = budget.clone();
                     Box::pin(async move {
                         let now = transaction
                             .select_one(&clock, &[])
                             .await?
                             .and_then(|row| integer(&row, "created_at"))
                             .ok_or(DatabaseError::InvalidQuery("无法读取审核存储时钟"))?;
-                        let Some((next, assessment)) = plan_query(&review, action, now) else {
+                        let Some((mut next, assessment)) = plan_query(&review, action, now) else {
                             return Ok(None);
                         };
+                        let mut charged = false;
+                        if let Some(budget) = budget
+                            && next.query_lease_until.is_some()
+                        {
+                            match budget.reserve(transaction, now).await? {
+                                Some(available) => {
+                                    next.query_attempts = review.query_attempts;
+                                    next.query_lease_until = None;
+                                    next.available_at = available.min(review.deadline_at);
+                                }
+                                None => charged = true,
+                            }
+                        }
                         let changed = transaction
                             .table(REVIEWS)
                             .r#where("id", "=", next.id.as_str())
@@ -130,7 +148,11 @@ impl ModerationStore {
                             )
                             .await?;
                         if changed == 0 {
-                            return Ok(None);
+                            return if charged {
+                                Err(DatabaseError::InvalidQuery(RESERVATION_STALE))
+                            } else {
+                                Ok(None)
+                            };
                         }
                         if next.state == ReviewState::Expired
                             && review.query_lease_until.is_none()
@@ -184,8 +206,12 @@ impl ModerationStore {
                 },
                 3,
             )
-            .await
-            .map_err(|_| ModerationError::ReviewStorage)
+            .await;
+        match result {
+            Ok(next) => Ok(next),
+            Err(DatabaseError::InvalidQuery(RESERVATION_STALE)) => Ok(None),
+            Err(_) => Err(ModerationError::ReviewStorage),
+        }
     }
 }
 

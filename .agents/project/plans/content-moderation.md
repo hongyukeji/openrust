@@ -362,7 +362,7 @@ D-05 的出站实现和挂载／环境双模式验收见[凭据修订记录](../
 
 ### 8.7 D-06：限流、在途上限、查询预算与可观察性
 
-[供应商 Retry-After 与回调等待门禁](../audits/content-moderation/README.md#query-retry-after)已通过三库。
+[供应商 Retry-After 与回调等待门禁](../audits/content-moderation/README.md#query-retry-after)和[持久点播共享账户速率](../audits/content-moderation/README.md#account-rates)已通过三库。账户在途租约和实际供应商额度继续验收。
 
 - 每个profile／账号／租户使用已注册的RateLimiter策略和队列middleware，区分submit与query额度；多Worker／多实例使用既有共享缓存／数据库，不能仅有进程内Semaphore。包未注册限流策略、参数非法或共享存储不可用时明确失败／延后，不能沿现有middleware的未注册放行路径失控提交。
 - 速率与并发是两类限制。为远端在途任务维护有期限的租约／计数，提交、终态、取消／过期和Unknown补偿按同一记录核算；不能在提交HTTP结束就释放远端在途名额，也不能用单一互斥锁冒充N路并发。
