@@ -37,8 +37,11 @@ Provider 可以解析 `BroadcastManager`，用 `extend` 注册驱动名和构造
 锁已被持有时，队列派发 `UniqueJobSkipped`。重试期间继续持锁，任务成功或永久失败后释放。同步广播无需唯一锁。显式 Rust 事务中的唯一队列投递在提交时获取锁，事务回滚会丢弃待投递任务。事务活跃期间，唯一投递若显式指定 `broadcast_after_commit() == Some(false)`，会返回配置错误。
 
 内置连接为 `null` 和 `log`。启用 [Reverb 扩展包](../packages/reverb.md) 后可使用兼容 Pusher 的传输。
+
 ## 用户认证路由
 
-`Broadcast::user_routes(group, connection)` 注册 GET、POST `/broadcasting/user-auth`，使用 web 中间件组并豁免 CSRF。默认路由组或连接传入 `None`。通过 `authenticateUserUsing` 登记可读取当前请求的解析回调，返回用户 JSON 数据，访客返回无用户。用户认证和频道认证各自独立。
+`Broadcast::user_routes(group, connection)` 注册 GET、POST `/broadcasting/user-auth`，使用 web 中间件组并豁免 CSRF。默认路由组或连接传入 `None`。
 
-Reverb 驱动校验 socket ID，并按 Pusher 协议签名用户认证响应，具名连接使用各自凭据。其他未实现的驱动返回 `UnsupportedUserAuthentication`。该接口不会为 Reverb 服务端增加 `pusher:signin` 处理器；托管平台和完整客户端登录仍需单独集成。
+用 `Broadcast::resolve_authenticated_user_using` 注册读取当前请求的回调。已认证用户返回包含非空字符串 `id` 的 JSON 对象，访客返回无用户。用户认证和频道授权分别处理，具名连接使用各自的签名凭据。
+
+在 pusher-js 中将 `userAuthentication.endpoint` 设为 `/broadcasting/user-auth`，然后调用 `pusher.signin()`。通过 Echo 使用时，从 `echo.connector.pusher` 获取客户端。Reverb 按当前套接字 ID 和原始 JSON 字符串验签，客户端重连后会重新登录。使用 `pusher.user.bind(event, callback)` 接收定向事件，服务端可通过签名 HTTP 请求向 `#server-to-user-<id>` 投递。每个套接字只能订阅自己已认证用户的频道，同一流程也支持 Redis 扩展。

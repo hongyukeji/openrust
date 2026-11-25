@@ -86,7 +86,7 @@ async def verify(base):
             with urllib.request.urlopen(f"http://127.0.0.1:{standalone}/socket/up", timeout=3) as health:
                 assert json.load(health) == {"health": "OK"}
             async with connect(f"ws://127.0.0.1:{standalone}/socket/app/probe") as ws:
-                assert json.loads(await ws.recv())["event"] == "pusher:connection_established"
+                _, greeting = await frame(ws, "pusher:connection_established")
                 await ws.send(json.dumps({"event": "pusher:ping"}))
                 await frame(ws, "pusher:pong")
                 await ws.send(json.dumps({"event": "pusher:subscribe", "data": {"channel": "probe-debug"}}))
@@ -95,6 +95,12 @@ async def verify(base):
                     "channel": "probe-debug", "name": "debug-event", "data": '"probe-opaque-value"',
                 }, server_prefix="/socket") == {}
                 assert (await frame(ws, "debug-event"))[1] == "probe-opaque-value"
+                user = "probe-user-id-canary"
+                channel = await sign_in(ws, greeting["socket_id"], user)
+                assert signed_api(standalone, "/apps/42/events", {
+                    "channel": channel, "name": "debug-user-event", "data": '"probe-user-data"',
+                }, server_prefix="/socket") == {}
+                assert (await frame(ws, "debug-user-event"))[1] == "probe-user-data"
                 skipped = command(env, "reload", "--except=queue,schedule,reverb:restart")
                 assert skipped.returncode == 0 and "reverb ... " not in skipped.stdout, skipped
                 assert server.poll() is None
@@ -112,6 +118,8 @@ async def verify(base):
     assert b'[reverb] publishing' in err and b'event="debug-event"' in err, err
     assert b"configured-reverb.example.test" not in out
     assert b"probe-secret" not in err and b"probe-opaque-value" not in err
+    assert b"#server-to-user-[redacted]" in err
+    assert b"probe-user-id-canary" not in err and b"probe-user-data" not in err
     print("Embedded HTTP and WebSocket, Artisan help, hostname overrides, debug opt-in and restart passed")
 
 
@@ -181,12 +189,30 @@ async def verify_redis(base, redis_url):
                 _, hello = await frame(newcomer, "pusher:connection_established")
                 await subscribe(newcomer, hello["socket_id"], cache, "probe")
                 assert (await frame(newcomer, "last"))[1] == {"version": 2}
+            user_channel = await sign_in(second, socket_ids[1], "007")
+            await first.send(json.dumps({"event": "pusher:subscribe", "data": {"channel": user_channel}}))
+            assert (await frame(first, "pusher:error"))[1]["code"] == 4009
+            assert signed_api(ports[0], "/apps/42/events", {
+                "channel": user_channel, "name": "user-probe", "data": '{"sequence":1}',
+            }) == {}
+            assert (await frame(second, "user-probe"))[1] == {"sequence": 1}
+            await quiet(first, second)
+            await second.close()
+            async with connect(f"ws://127.0.0.1:{ports[0]}/app/probe") as replacement:
+                _, hello = await frame(replacement, "pusher:connection_established")
+                assert hello["socket_id"] != socket_ids[1]
+                await sign_in(replacement, hello["socket_id"], "007")
+                assert signed_api(ports[1], "/apps/42/events", {
+                    "channel": user_channel, "name": "user-probe", "data": '{"sequence":2}',
+                }) == {}
+                assert (await frame(replacement, "user-probe"))[1] == {"sequence": 2}
+                await quiet(first, replacement)
     finally:
         for process in processes:
             if process.poll() is None:
                 process.terminate()
             assert process.wait(timeout=5) == 0, process.communicate()
-    print("Two Redis nodes passed signed metrics, deduplicated users, ordered batch delivery, socket exclusion and cache replay")
+    print("Two Artisan Redis nodes passed signed delivery, metrics, presence, cache and user sign-in after reconnect to another node")
 
 
 async def frame(peer, event, timeout=3):
@@ -210,6 +236,20 @@ async def open_peer(stack, port, key):
     peer = await stack.enter_async_context(connect(f"ws://127.0.0.1:{port}/app/{key}"))
     _, greeting = await frame(peer, "pusher:connection_established")
     return peer, greeting["socket_id"]
+
+
+async def sign_in(peer, socket_id, user_id):
+    user_data = json.dumps({"id": user_id})
+    signed = f"{socket_id}::user::{user_data}"
+    signature = hmac.new(b"probe-secret", signed.encode(), hashlib.sha256).hexdigest()
+    await peer.send(json.dumps({"event": "pusher:signin", "data": {
+        "auth": f"probe:{signature}", "user_data": user_data,
+    }}))
+    assert (await frame(peer, "pusher:signin_success"))[1]["user_data"] == user_data
+    channel = f"#server-to-user-{user_id}"
+    await peer.send(json.dumps({"event": "pusher:subscribe", "data": {"channel": channel}}))
+    assert (await frame(peer, "pusher_internal:subscription_succeeded"))[0]["channel"] == channel
+    return channel
 
 
 async def subscribe(peer, socket_id, channel, key, user=None):

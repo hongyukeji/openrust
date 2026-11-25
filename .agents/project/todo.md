@@ -18,7 +18,7 @@ L01–L22本批实现和实际验收见[审计修复节](audits/laravel-code-aud
 
 - [ ] **完整API候选核对**：以[全仓声明裁决队列（audit_tables.api_review_queue）](plans/framework-parity-data-2026-11-22.json)及[原名候选（audit_tables.api_candidates）](plans/framework-parity-data-2026-11-22.json)接续初审，按固定Framework v13.40.0核对所属类型、签名、生命周期、已有原名、宏、trait和Rust适配；Validation的PHP规则／全部PCRE选项与日期语法、完整TestResponse、其余Query／ORM接口逐项裁决，不能以关键词扫描认定缺陷或全部支持。原始计数属于旧快照，当前结论须重新核对。
 - [ ] **ART-01 Artisan固定教程剩余入口（实施中／整章未闭合）**：接续[48节清单](audits/artisan-tutorial/section-map.json)和[逐簇验收](audits/artisan-tutorial/README.md)。签名／声明式依赖、CommandInput、Isolatable ID／期限／取消与六存储验证已有已验批次，不重复实现。继续核对缺失输入提示、问答／表格／进度、生成／注册、信号、事件／Dev等未闭合入口，区分未实现与已有但未验；每项从正式命令声明和实际消费者实测HTTP、独立Artisan、三语直接示例及严格门禁。Tinker仍Planned，不能计作已有REPL；Sail／PHP生态及Rust交互环境须单独核定，不暗中引入PHP运行时。保留当前其他对话的Console在途改动，不用早期簇的未完成列表覆盖后续已验结果。
-- [ ] **Reverb完整用户登录协议**：已有`userRoutes`／`authenticateUser`与真实HTTP签名回归，但服务端完整`pusher:signin`客户端处理尚未实现。这是实现缺口，不是仅缺外部凭据；需协议实现和真实客户端握手／拒绝／重连验收，不能由HTTP签名端点代替。
+- [x] **Reverb 用户登录协议**：`userRoutes`／`authenticateUser` 与 `pusher:signin`、套接字身份、定向投递及重连已通过真实 HTTP、Artisan、Echo、HTTPS 和两节点 Redis 验收。托管 Pusher 实例另按发布范围核对。[验收记录](audits/08-02/README.md#user-sign-in)
 - [ ] **Fortify偶发Session失败复现**：本批隔离MySQL的accounts_http曾一次返回Storage失败，同二进制连续12轮、四扩展后续整批、PG／MySQL完整生成应用均通过。尚无可靠根因，保留`fortify-stability.log`及原失败批；重现时保留SQL／连接和Session日志，不把未定位事件写成已修复生产缺陷。
 - [ ] **PCRE2补丁上游跟进**：现有0.2.11本地补丁只开放原生DOLLAR_ENDONLY编译选项，上游提供等价builder方法后移除本地补丁，并复验D／mD与三语支持矩阵。实际分发继续复核MIT／Unlicense选择和notice。
 

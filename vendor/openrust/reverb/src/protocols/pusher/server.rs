@@ -23,7 +23,7 @@ use tokio::{
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
 use super::{
-    channels::{ChannelBroker, Frame, Member},
+    channels::{ChannelBroker, Frame, Member, user_channel_id},
     scaling::{Delivery, Message as ScalingMessage, PRESENCE_SWEEP, Publisher, Subscriber},
     signatures,
 };
@@ -413,9 +413,10 @@ async fn session(mut websocket: WebSocket, app: Arc<App>, allowed: bool, state: 
             };
             if let Some(frame) = outgoing {
                 if state.debug {
+                    let channel = frame.channel.as_deref().map(debug_channel);
                     eprintln!(
                         "[reverb] sending socket={socket} event={:?} channel={:?}",
-                        frame.event, frame.channel
+                        frame.event, channel
                     );
                 }
                 if !send_frame(&mut websocket, frame).await {
@@ -484,6 +485,7 @@ async fn client_message(
     match message.event.as_str() {
         "pusher:ping" => Some(Frame::new("pusher:pong", "{}".into(), None)),
         "pusher:pong" => None,
+        "pusher:signin" => Some(user_sign_in(app, socket, message.data)),
         "pusher:subscribe" | "pusher:unsubscribe" => {
             let subscription = match message.data {
                 Value::String(data) => serde_json::from_str(&data),
@@ -515,6 +517,61 @@ async fn client_message(
         }
         _ => Some(error(4200, "Invalid message format")),
     }
+}
+
+#[derive(Deserialize)]
+struct UserSignIn {
+    auth: String,
+    user_data: String,
+}
+
+#[derive(Deserialize)]
+struct UserIdentity {
+    id: String,
+}
+
+fn user_sign_in(app: &App, socket: &str, data: Value) -> Frame {
+    if !data.is_object() {
+        return error(4200, "Invalid sign-in message");
+    }
+    let Ok(request) = serde_json::from_value::<UserSignIn>(data) else {
+        return error(4200, "Invalid sign-in message");
+    };
+    let authenticated = request
+        .auth
+        .split_once(':')
+        .is_some_and(|(key, signature)| {
+            key == app.configuration.key
+                && signatures::verify_user(
+                    app.configuration.secret.as_bytes(),
+                    socket,
+                    &request.user_data,
+                    signature,
+                )
+        });
+    if !authenticated {
+        return error(4009, "Connection is unauthorized");
+    }
+    let Some(identity) = request
+        .user_data
+        .trim_start()
+        .starts_with('{')
+        .then(|| serde_json::from_str::<UserIdentity>(&request.user_data).ok())
+        .flatten()
+    else {
+        return error(4200, "Invalid sign-in user data");
+    };
+    if identity.id.is_empty() {
+        return error(4200, "Invalid sign-in user data");
+    }
+    if !app.broker.sign_in(socket, identity.id) {
+        return error(4009, "Connection is unauthorized");
+    }
+    Frame::new(
+        "pusher:signin_success",
+        json!({"user_data": request.user_data}).to_string(),
+        None,
+    )
 }
 
 async fn subscribe(
@@ -567,9 +624,13 @@ async fn subscribe(
     } else {
         None
     };
-    app.broker
-        .subscribe(socket, channel, member)
-        .map_err(|_| error(4200, "Invalid channel subscription"))
+    app.broker.subscribe(socket, channel, member).map_err(|_| {
+        if user_channel_id(channel).is_some() {
+            error(4009, "Connection is unauthorized")
+        } else {
+            error(4200, "Invalid channel subscription")
+        }
+    })
 }
 
 async fn client_event(
@@ -628,4 +689,12 @@ fn error(code: u16, message: &str) -> Frame {
         json!({"code": code, "message": message}).to_string(),
         None,
     )
+}
+
+fn debug_channel(channel: &str) -> &str {
+    if user_channel_id(channel).is_some() {
+        "#server-to-user-[redacted]"
+    } else {
+        channel
+    }
 }

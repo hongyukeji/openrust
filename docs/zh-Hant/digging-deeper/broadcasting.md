@@ -37,8 +37,11 @@ Provider 可以解析 `BroadcastManager`，用 `extend` 註冊驅動名稱及建
 鎖定已被持有時，佇列派送 `UniqueJobSkipped`。重試期間維持鎖定，工作成功或永久失敗後釋放。同步廣播無需唯一鎖定。顯式 Rust 交易中的唯一佇列投遞在提交時取得鎖定，交易回復會捨棄待投遞工作。交易進行期間，唯一投遞若明確指定 `broadcast_after_commit() == Some(false)`，會回傳設定錯誤。
 
 內建連線為 `null` 和 `log`。啟用 [Reverb 擴充套件](../packages/reverb.md) 後可使用相容 Pusher 的傳輸。
+
 ## 使用者認證路由
 
-`Broadcast::user_routes(group, connection)` 註冊 GET、POST `/broadcasting/user-auth`，使用 web 中介軟體群組並豁免 CSRF。預設路由群組或連線傳入 `None`。透過 `authenticateUserUsing` 登記可讀取目前請求的解析回呼，傳回使用者 JSON 資料，訪客傳回無使用者。使用者認證和頻道認證各自獨立。
+`Broadcast::user_routes(group, connection)` 註冊 GET、POST `/broadcasting/user-auth`，使用 web 中介軟體群組並豁免 CSRF。預設路由群組或連線傳入 `None`。
 
-Reverb 驅動驗證 socket ID，並按 Pusher 協定簽署使用者認證回應，具名連線使用各自憑證。其他未實作驅動傳回 `UnsupportedUserAuthentication`。該介面不會為 Reverb 伺服器增加 `pusher:signin` 處理器；託管平台和完整用戶端登入仍需另行整合。
+用 `Broadcast::resolve_authenticated_user_using` 註冊讀取目前請求的回呼。已認證使用者傳回包含非空字串 `id` 的 JSON 物件，訪客傳回無使用者。使用者認證和頻道授權分別處理，具名連線使用各自的簽署憑證。
+
+在 pusher-js 中將 `userAuthentication.endpoint` 設為 `/broadcasting/user-auth`，然後呼叫 `pusher.signin()`。透過 Echo 使用時，從 `echo.connector.pusher` 取得用戶端。Reverb 按目前通訊端 ID 和原始 JSON 字串驗章，用戶端重新連線後會再次登入。使用 `pusher.user.bind(event, callback)` 接收指定使用者的事件，伺服器可透過簽章 HTTP 請求向 `#server-to-user-<id>` 投遞。每個通訊端只能訂閱自己已認證使用者的頻道，同一流程也支援 Redis 擴充。

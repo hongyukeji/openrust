@@ -138,5 +138,13 @@ fn decode_signature(signature: &str) -> Option<[u8; 32]> {
 
 /// Pusher 用户认证签名，签署实际返回的 JSON 字节。
 pub fn sign_user(secret: &[u8], socket: &str, user_data: &str) -> String {
-    sign(secret, &format!("{socket}::user::{user_data}"))
+    sign(secret, &user_message(socket, user_data))
+}
+
+pub(crate) fn verify_user(secret: &[u8], socket: &str, user_data: &str, signature: &str) -> bool {
+    verify(secret, &user_message(socket, user_data), signature)
+}
+
+fn user_message(socket: &str, user_data: &str) -> String {
+    format!("{socket}::user::{user_data}")
 }

@@ -52,9 +52,13 @@ try {
     const page = await browser.newPage();
     page.setDefaultTimeout(12_000);
     const authStatuses = [];
+    const userAuthStatuses = [];
     page.on("response", response => {
         if (response.url() === `${http}/broadcasting/auth`) {
             authStatuses.push(response.status());
+        }
+        if (response.url() === `${http}/broadcasting/user-auth`) {
+            userAuthStatuses.push(response.status());
         }
     });
     await page.goto(http);
@@ -78,8 +82,16 @@ try {
                 transport: "ajax",
                 headers: { Accept: "application/json", "X-Identity": "0042" },
             },
+            userAuthentication: {
+                endpoint: `${http}/broadcasting/user-auth`,
+                transport: "ajax",
+                headers: { Accept: "application/json", "X-Identity": "0042" },
+            },
         });
-        window.probe = { subscriptions: [0, 0, 0], messages: [], roster: [] };
+        window.probe = { subscriptions: [0, 0, 0], messages: [], roster: [], userMessages: [] };
+        const pusher = echo.connector.pusher;
+        pusher.user.bind("echo.probe", data => probe.userMessages.push(data.sequence));
+        pusher.signin();
         const channels = [echo.channel("echo.news"), echo.private("orders.9"), echo.join("room.9")];
         for (const [index, channel] of channels.entries()) {
             channel.subscribed(() => probe.subscriptions[index]++)
@@ -89,7 +101,8 @@ try {
     }, { http, ws, prefix, driver });
 
     const waitForSubscriptions = count => page.waitForFunction(
-        count => probe.subscriptions.every(value => value === count),
+        count => probe.subscriptions.every(value => value === count)
+            && echo.connector.pusher.user.serverToUserChannel?.subscribed,
         count,
     );
     const publish = async sequence => {
@@ -125,12 +138,21 @@ try {
         assert.equal(response.status, 200);
         assert.deepEqual(await response.json(), {});
     };
+    const publishUser = async sequence => {
+        const response = await fetch(`${http}/fixture/publish/${sequence}?user=true`, {
+            method: "POST",
+            signal: AbortSignal.timeout(3_000),
+        });
+        assert.equal(response.status, 204);
+        await page.waitForFunction(sequence => probe.userMessages.includes(sequence), sequence);
+    };
     const readMessages = () => page.evaluate(() => probe.messages);
 
     await waitForSubscriptions(1);
     assert.deepEqual(await page.evaluate(() => probe.roster), [{ name: "member", room: "9" }]);
     const firstSocket = await page.evaluate(() => echo.socketId());
     await publish(1);
+    await publishUser(1);
     await page.waitForFunction(() => probe.messages.length === 3);
 
     await page.evaluate(() => {
@@ -140,6 +162,7 @@ try {
     const nextSocket = await page.evaluate(() => echo.socketId());
     assert.ok(nextSocket && nextSocket !== firstSocket);
     await publish(2);
+    await publishUser(2);
     await page.waitForFunction(() => probe.messages.length === 6);
 
     const messages = await readMessages();
@@ -147,12 +170,16 @@ try {
         [0, 1], [1, 1], [2, 1], [0, 2], [1, 2], [2, 2],
     ]);
     assert.deepEqual(authStatuses, [200, 200, 200, 200]);
+    assert.deepEqual(userAuthStatuses, [200, 200]);
+    assert.deepEqual(await page.evaluate(() => probe.userMessages), [1, 2]);
+    assert.deepEqual(await page.evaluate(() => echo.connector.pusher.user.user_data),
+        { id: "0042", user_info: { name: "signed user" } });
     if (certPath) {
         const protocol = await page.evaluate(() => echo.connector.pusher.connection.connection.transport.socket.url);
         assert.ok(protocol.startsWith("wss://"), protocol);
     }
     await page.evaluate(() => echo.disconnect());
-    console.log(`Chromium Echo (${driver}, ${certPath ? "HTTPS/WSS certificate pinned" : "HTTP/WS"}) public, private and presence subscriptions, signed delivery and automatic reconnect passed`);
+    console.log(`Chromium Echo (${driver}, ${certPath ? "HTTPS/WSS certificate pinned" : "HTTP/WS"}) public, private and presence subscriptions, user sign-in, Artisan delivery and automatic reconnect passed`);
 } finally {
     await browser?.close();
     for (const socket of sockets) socket.destroy();

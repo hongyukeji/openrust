@@ -14,9 +14,9 @@ use axum::{
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
 
-use super::{App, ServerState, signatures};
+use super::{App, ServerState, debug_channel, signatures};
 use crate::protocols::pusher::{
-    channels::{ChannelMetrics, Metrics, valid_channel},
+    channels::{ChannelMetrics, Metrics, valid_delivery_channel},
     scaling::Delivery,
 };
 
@@ -110,9 +110,14 @@ impl SignedRequest {
     async fn dispatch(&self, deliveries: Vec<Delivery>) -> Result<(), StatusCode> {
         for delivery in deliveries {
             if self.state.debug {
+                let channels: Vec<_> = delivery
+                    .channels
+                    .iter()
+                    .map(|channel| debug_channel(channel))
+                    .collect();
                 eprintln!(
                     "[reverb] publishing app={:?} event={:?} channels={:?}",
-                    delivery.app_id, delivery.event, delivery.channels
+                    delivery.app_id, delivery.event, channels
                 );
             }
             if let Some(publisher) = &self.state.publisher {
@@ -149,7 +154,7 @@ impl EventInput {
         if self.name.trim().is_empty()
             || self.data.trim().is_empty()
             || channels.is_empty()
-            || channels.iter().any(|name| !valid_channel(name))
+            || channels.iter().any(|name| !valid_delivery_channel(name))
         {
             return Err(StatusCode::UNPROCESSABLE_ENTITY);
         }

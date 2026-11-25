@@ -48,3 +48,13 @@
 - 真实框架 HTTP 验证拒绝无效身份、私有及在线签名、字符串成员 ID。实际 Artisan 命令通过具名驱动向模拟服务发送签名 HTTP 请求。Chrome 中使用 Laravel Echo 2.2.6 和 pusher-js 8.6.0 的 `pusher` 配置验证公开、私有及在线频道的订阅和送达，断线后取得新套接字并重新授权。重连前后各由 Artisan 发布一次，三个频道分别各收一条。原 `reverb` 驱动的同类浏览器验收通过。
 - Rust 1.94.0 锁定离线通过 9 项 Reverb 回归、全工作区严格 Clippy、实际应用二进制构建及内嵌与独立 Artisan 运行回归。三语文档站构建、12 项浏览器检查与三语章节锚点通过。已清理临时客户端、站点和本批测试可执行文件。
 - 08-02 按模拟验收口径闭合。托管 Pusher 的 TLS 和部署配置仍待实机验证。
+
+## 客户端用户登录与定向投递 {#user-sign-in}
+
+Laravel Reverb 固定版 v1.8.1 的 EventHandler 不处理用户登录。OpenRust 基于已有 `Broadcast::user_routes`、解析回调及 HMAC 构建规则，按 Pusher Channels 7 接通 `pusher:signin`。验证当前应用 Key、当前套接字、原始用户 JSON 及非空字符串 ID。成功响应原样返回已签 JSON。相同 ID 可重复登录，同一连接切换 ID、复用旧套接字的签名及跨应用签名返回协议错误。 [固定 Reverb EventHandler](https://github.com/laravel/reverb/blob/70e3d28ed31466da34de0c055f3681b75a5a538c/src/Protocols/Pusher/EventHandler.php) · [Pusher 协议](https://pusher.com/docs/channels/library_auth_reference/pusher-websockets-protocol/) · [签名规则及示例](https://pusher.com/docs/channels/library_auth_reference/auth-signatures/)
+
+pusher-js 8.6.0 登录后订阅 `#server-to-user-<id>` 并在重连时重新认证。该频道由每应用连接身份限定，拒绝访客、其他身份订阅和普通客户端事件。签名 HTTP 发布沿用原 REST 验证和本机／Redis 投递，同一用户在不同应用仍隔离。频道统计和调试输出省略用户 ID，调试只保留事件及脱敏频道名。 [固定客户端 UserFacade](https://raw.githubusercontent.com/pusher/pusher-js/v8.6.0/src/core/user.ts) · [固定服务端 SDK 的 sendToUser](https://github.com/pusher/pusher-http-node/blob/v5.2.0/lib/pusher.js)
+
+基线 `d31032e98`，Rust 1.94.0。Reverb 包 12 项通过。真实 WebSocket 覆盖同一身份重复登录、签名改写与重放、无效 JSON 与 ID 类型、身份切换、跨应用阻断、客户端伪造与签名定向投递。Chrome 通过 Echo 2.2.6 和 pusher-js 8.6.0，用真实框架 HTTP 获取签名并重新登录，分别以 `reverb` 和具名 `pusher` 配置验收 HTTP／WS 及 HTTPS／WSS。Artisan 两次分别向登录和重连后的用户送达。HTTPS 替身拒绝默认未信任 CA、错误 CA 及主机名错配。真实二进制 `artisan reverb:start` 检查调试脱敏；同主机两个实际进程、专用 Redis 8.10.3，实测跨节点定向投递、未登录连接阻断、在另一节点重连及重新认证。修改范围格式、严格 Clippy 和三语站点构建与浏览器导航通过。
+
+本轮验收范围是用户登录、相应身份隔离、定向发送和重连。托管 Pusher 实例、跨物理主机、Pusher Watchlist、基于用户 ID 的远端断连管理以及在线频道用户资料继承分别保留原支持范围。一次磁盘停线由项目守卫处理，清理后冷构建。TLS 首轮夹具提前解析了账户而缓存默认传输，在配置 TLS 后再注册解析回调并复验。

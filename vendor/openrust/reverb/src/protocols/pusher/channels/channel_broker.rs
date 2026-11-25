@@ -44,6 +44,7 @@ impl Frame {
 struct Connection {
     send: mpsc::Sender<Frame>,
     disconnect: CancellationToken,
+    user_id: Option<String>,
 }
 
 struct Subscription {
@@ -116,9 +117,26 @@ impl ChannelBroker {
         {
             return false;
         }
-        state
-            .connections
-            .insert(socket, Connection { send, disconnect });
+        state.connections.insert(
+            socket,
+            Connection {
+                send,
+                disconnect,
+                user_id: None,
+            },
+        );
+        true
+    }
+
+    pub(crate) fn sign_in(&self, socket: &str, user_id: String) -> bool {
+        let mut state = self.state.lock().unwrap();
+        let Some(connection) = state.connections.get_mut(socket) else {
+            return false;
+        };
+        if let Some(current) = &connection.user_id {
+            return current == &user_id;
+        }
+        connection.user_id = Some(user_id);
         true
     }
 
@@ -128,7 +146,7 @@ impl ChannelBroker {
         channel: &str,
         member: Option<Member>,
     ) -> Result<(), SubscriptionError> {
-        if !valid_channel(channel) {
+        if !valid_delivery_channel(channel) {
             return Err(SubscriptionError::InvalidChannel);
         }
         let presence = channel.starts_with("presence-");
@@ -141,8 +159,14 @@ impl ChannelBroker {
         }
 
         let mut state = self.state.lock().unwrap();
-        if !state.connections.contains_key(socket) {
-            return Err(SubscriptionError::UnknownSocket);
+        let connection = state
+            .connections
+            .get(socket)
+            .ok_or(SubscriptionError::UnknownSocket)?;
+        if let Some(user_id) = user_channel_id(channel)
+            && connection.user_id.as_deref() != Some(user_id)
+        {
+            return Err(SubscriptionError::InvalidChannel);
         }
 
         let subscribers = state.channels.entry(channel.into()).or_default();
@@ -343,6 +367,7 @@ impl ChannelBroker {
         let channels = state
             .channels
             .iter()
+            .filter(|(name, _)| user_channel_id(name).is_none())
             .filter(|(channel, _)| selected.is_empty() || selected.contains(channel))
             .filter(|(channel, _)| prefix.is_none_or(|prefix| channel.starts_with(prefix)))
             .filter_map(|(name, subscribers)| {
@@ -454,4 +479,15 @@ pub(crate) fn valid_channel(channel: &str) -> bool {
             byte.is_ascii_alphanumeric()
                 || matches!(byte, b'_' | b'-' | b'=' | b'@' | b',' | b'.' | b';')
         })
+}
+
+pub(crate) fn user_channel_id(channel: &str) -> Option<&str> {
+    channel.strip_prefix("#server-to-user-")
+}
+
+pub(crate) fn valid_delivery_channel(channel: &str) -> bool {
+    user_channel_id(channel).map_or_else(
+        || valid_channel(channel),
+        |id| !id.is_empty() && !id.chars().any(char::is_control),
+    )
 }

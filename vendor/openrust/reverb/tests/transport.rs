@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, net::SocketAddr, time::Duration};
 use futures_util::{SinkExt as _, StreamExt as _};
 use openrust_reverb::protocols::pusher::{
     server::{Application, ClientEvents, Server},
-    signatures::{sign_channel, sign_request},
+    signatures::{sign_channel, sign_request, sign_user},
 };
 use serde_json::{Value, json};
 use tokio::{
@@ -174,6 +174,112 @@ async fn hello(socket: &mut Socket) -> String {
     let data = expected(socket, "pusher:connection_established").await;
     assert_eq!(data["activity_timeout"], 30);
     data["socket_id"].as_str().unwrap().to_owned()
+}
+
+#[tokio::test]
+async fn signed_user_socket_identity_and_delivery_remain_application_scoped() {
+    let run = Running::start(vec![
+        application("test", "test-key"),
+        application("other", "other-key"),
+    ])
+    .await;
+    let mut signed_in = run.socket("test-key", ORIGIN).await;
+    let mut guest = run.socket("test-key", ORIGIN).await;
+    let mut other = run.socket("other-key", ORIGIN).await;
+    let socket = hello(&mut signed_in).await;
+    let guest_id = hello(&mut guest).await;
+    let other_id = hello(&mut other).await;
+    let raw = r#"{ "user_info": {"name":"Pusher"}, "id":"actual-用戶" }"#;
+    let channel = "#server-to-user-actual-用戶";
+    let proof = |key: &str, socket: &str, data: &str| {
+        format!("{key}:{}", sign_user(SECRET.as_bytes(), socket, data))
+    };
+    let signin = |auth: &str, data: &str| json!({"event":"pusher:signin","data":{"auth":auth,"user_data":data}});
+    let join = |channel: &str| json!({"event":"pusher:subscribe","data":{"channel":channel}});
+
+    send(&mut guest, join(channel)).await;
+    assert_eq!(expected(&mut guest, "pusher:error").await["code"], 4009);
+    let auth = proof("test-key", &socket, raw);
+    send(&mut guest, signin(&auth, raw)).await;
+    assert_eq!(expected(&mut guest, "pusher:error").await["code"], 4009);
+    send(&mut signed_in, signin(&auth, raw.trim_end_matches(" }"))).await;
+    assert_eq!(expected(&mut signed_in, "pusher:error").await["code"], 4009);
+    send(&mut other, signin(&proof("test-key", &other_id, raw), raw)).await;
+    assert_eq!(expected(&mut other, "pusher:error").await["code"], 4009);
+    for invalid in [
+        r#"{"id":""}"#,
+        r#"{"id":123}"#,
+        r#"{"id":"a","id":"b"}"#,
+        r#"["guest"]"#,
+    ] {
+        send(
+            &mut guest,
+            signin(&proof("test-key", &guest_id, invalid), invalid),
+        )
+        .await;
+        assert_eq!(expected(&mut guest, "pusher:error").await["code"], 4200);
+    }
+    for _ in 0..2 {
+        send(&mut signed_in, signin(&auth, raw)).await;
+        assert_eq!(
+            expected(&mut signed_in, "pusher:signin_success").await["user_data"],
+            raw
+        );
+    }
+    let forged = r#"{"id":"different"}"#;
+    send(
+        &mut signed_in,
+        signin(&proof("test-key", &socket, forged), forged),
+    )
+    .await;
+    assert_eq!(expected(&mut signed_in, "pusher:error").await["code"], 4009);
+    send(&mut signed_in, join("#server-to-user-different")).await;
+    assert_eq!(expected(&mut signed_in, "pusher:error").await["code"], 4009);
+    send(&mut signed_in, join(channel)).await;
+    expected(&mut signed_in, "pusher_internal:subscription_succeeded").await;
+    send(&mut other, signin(&proof("other-key", &other_id, raw), raw)).await;
+    expected(&mut other, "pusher:signin_success").await;
+    send(&mut other, join(channel)).await;
+    expected(&mut other, "pusher_internal:subscription_succeeded").await;
+
+    send(
+        &mut signed_in,
+        json!({"event":"client-forged","channel":channel,"data":{}}),
+    )
+    .await;
+    assert_eq!(expected(&mut signed_in, "pusher:error").await["code"], 4009);
+    let body = json!({"name":"direct","data":r#"{"sequence":7}"#,"channel":channel}).to_string();
+    assert_eq!(
+        run.publish("test", "test-key", &body, true).await.status(),
+        401
+    );
+    assert_eq!(
+        run.publish("test", "test-key", &body, false).await.status(),
+        200
+    );
+    assert_eq!(
+        expected(&mut signed_in, "direct").await,
+        json!({"sequence":7})
+    );
+    assert_quiet(&mut guest).await;
+    assert_quiet(&mut other).await;
+    assert_eq!(
+        run.get("/apps/test/channels", &[])
+            .await
+            .json::<Value>()
+            .await
+            .unwrap(),
+        json!({"channels":{}})
+    );
+    signed_in.close(None).await.unwrap();
+    let mut next_socket = run.socket("test-key", ORIGIN).await;
+    assert_ne!(hello(&mut next_socket).await, socket);
+    send(&mut next_socket, signin(&auth, raw)).await;
+    assert_eq!(
+        expected(&mut next_socket, "pusher:error").await["code"],
+        4009
+    );
+    run.stop().await;
 }
 
 async fn send(socket: &mut Socket, value: Value) {
@@ -404,6 +510,10 @@ async fn framework_http(
     kernel.handle_transport(request).await
 }
 
+fn user_routes() -> Result<(), openrust::routing::RoutingError> {
+    openrust::support::facades::Broadcast::user_routes(None, None)
+}
+
 struct PublishProbe(openrust::console::CommandDefinition);
 
 impl openrust::console::Command for PublishProbe {
@@ -424,17 +534,21 @@ impl openrust::console::Command for PublishProbe {
         };
         Box::pin(async move {
             let sequence = input.matches().get_one::<u32>("sequence").unwrap();
-            let channels = [
-                BroadcastChannel::from("echo.news"),
-                PrivateChannel {
-                    name: "orders.9".into(),
-                }
-                .into(),
-                PresenceChannel {
-                    name: "room.9".into(),
-                }
-                .into(),
-            ];
+            let channels = if input.matches().get_flag("user") {
+                vec![BroadcastChannel::from("#server-to-user-0042")]
+            } else {
+                vec![
+                    BroadcastChannel::from("echo.news"),
+                    PrivateChannel {
+                        name: "orders.9".into(),
+                    }
+                    .into(),
+                    PresenceChannel {
+                        name: "room.9".into(),
+                    }
+                    .into(),
+                ]
+            };
             let connection = Broadcast::connection(None)
                 .map_err(|error| ConsoleError::new(error.to_string()))?;
             connection
@@ -455,11 +569,17 @@ fn register_probe(
     artisan: &mut openrust::console::Application,
 ) -> Result<(), openrust::console::ConsoleError> {
     use openrust::console::CommandDefinition;
-    let command = clap::Command::new("pusher:probe").arg(
-        clap::Arg::new("sequence")
-            .required(true)
-            .value_parser(clap::value_parser!(u32)),
-    );
+    let command = clap::Command::new("pusher:probe")
+        .arg(
+            clap::Arg::new("sequence")
+                .required(true)
+                .value_parser(clap::value_parser!(u32)),
+        )
+        .arg(
+            clap::Arg::new("user")
+                .long("user")
+                .action(clap::ArgAction::SetTrue),
+        );
     artisan.add_command(Box::new(PublishProbe(CommandDefinition::new(command))))
 }
 
@@ -478,6 +598,7 @@ async fn framework_application(
             .into())
         })
         .with_broadcasting(room_channel)
+        .with_routing(openrust::foundation::configuration::Routing::default().web(user_routes))
         .with_commands(register_probe)
         .with_providers(vec![
             Box::new(openrust_reverb::ReverbServiceProvider),
@@ -583,6 +704,27 @@ async fn verify_framework_broadcast(driver: &'static str) {
     if let Some(port) = publish_port {
         configure_tls_publishing(&app, port).await;
     }
+    app.call(
+        openrust::container::Callback::new(&[], |_| async {
+            openrust::support::facades::Broadcast::resolve_authenticated_user_using(
+                std::sync::Arc::new(|request| {
+                    Box::pin(async move {
+                        Ok(request
+                            .headers()
+                            .get("x-identity")
+                            .is_some_and(|value| value == "0042")
+                            .then(|| json!({"id":"0042","user_info":{"name":"signed user"}})))
+                    })
+                }),
+                None,
+            )
+            .unwrap();
+            Ok(())
+        }),
+        Default::default(),
+    )
+    .await
+    .unwrap();
     let connection = app
         .make::<BroadcastManager>()
         .await
@@ -599,17 +741,20 @@ async fn verify_framework_broadcast(driver: &'static str) {
         .route(
             "/fixture/publish/{sequence}",
             axum::routing::post(
-                move |axum::extract::Path(sequence): axum::extract::Path<u32>| {
+                move |axum::extract::Path(sequence): axum::extract::Path<u32>,
+                      uri: axum::http::Uri| {
                     let test_root = test_root.clone();
                     async move {
                         let artisan = framework_application(&test_root, reverb_port, driver).await;
                         if let Some(port) = publish_port {
                             configure_tls_publishing(&artisan, port).await;
                         }
-                        match artisan
-                            .handle_command(&["pusher:probe".into(), sequence.to_string().into()])
-                            .await
-                        {
+                        let mut arguments =
+                            vec!["pusher:probe".into(), sequence.to_string().into()];
+                        if uri.query() == Some("user=true") {
+                            arguments.push("--user".into());
+                        }
+                        match artisan.handle_command(&arguments).await {
                             Ok(0) => axum::http::StatusCode::NO_CONTENT,
                             _ => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                         }
