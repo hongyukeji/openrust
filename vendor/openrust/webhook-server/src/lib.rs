@@ -49,6 +49,7 @@ mod recovery_migration;
 mod replay;
 #[path = "../database/migrations/2026_11_25_000000_extend_webhook_deliveries_for_replay.rs"]
 mod replay_migration;
+mod replay_retention;
 mod retention;
 mod retention_hold;
 #[path = "../database/migrations/2026_11_25_000000_extend_webhook_deliveries_for_retention.rs"]
@@ -84,6 +85,7 @@ pub use recovery::RecoveryReport;
 pub use replay::{
     ReplayDelivery, ReplayLimits, ReplayPhase, ReplayPolicy, ReplayRequest, register_replay_policy,
 };
+pub use replay_retention::ReplayAuditPruneReport;
 pub use retention::{DeliveryPruneReport, DeliveryRetention};
 pub use retention_hold::RetentionRecord;
 pub use signer::{DefaultSigner, Signer, SigningContext, StandardWebhookSigner};

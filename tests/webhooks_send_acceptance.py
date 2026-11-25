@@ -270,6 +270,7 @@ def exercise(binary, env, log, receiver, driver, sql):
         result = command("webhook-server:replay", original, "--scope", SCOPE,
                          "--actor=fixture-operator", "--reason=test-history")
         replayed = json.loads(re.search(r"\{[^\n]+\}", result)[0])["delivery_id"]
+        assert prune("--days=0", "--replay-audit")["candidates"] == 0
         enqueue(replayed)
         command(*worker)
         assert read(replayed) == "succeeded\t1"
@@ -288,6 +289,7 @@ def exercise(binary, env, log, receiver, driver, sql):
         for identifier in (direct, retained, original, replayed, fanout):
             update(identifier, "payload_pruned_at=1")
         assert prune("--days=1", "--idempotency=delivery")["expired"] == 5
+        assert prune("--days=1", "--replay-audit")["candidates"] == 0
         assert prune("--days=1", "--history=delivery")["candidates"] == 0
         for identifier in (direct, retained, original, replayed, fanout):
             update(identifier, "idempotency_expired_at=1")
@@ -338,7 +340,57 @@ def exercise(binary, env, log, receiver, driver, sql):
         hold(retained, "--release")
         assert prune("--days=1", "--history=delivery")["deleted"] == 1
         assert prune("--days=1", "--history=delivery")["scanned"] == 0
-        print(f"{driver}: 历史元数据、留存与依赖保护、并发清理及旧队列隔离通过")
+        assert prune("--days=1", "--replay-audit", scope="unknown-scope")["candidates"] == 0
+        assert prune("--days=1", "--replay-audit", "--history=delivery", success=False) is None
+        assert prune("--days=1", "--replay-audit", f"--after={replayed}", success=False) is None
+        assert prune("--days=1", "--replay-audit", "--limit=1", "--pretend") == {
+            "candidates": 1, "deleted": 0, "pretend": True,
+        }
+        for identifier in (original, replayed):
+            hold(identifier)
+            assert prune("--days=1", "--replay-audit")["deleted"] == 0
+            assert prune("--days=1", "--history=delivery")["deleted"] == 0
+            hold(identifier, "--release")
+
+        marker = Path(env["APP_BASE_PATH"])
+        holder = subprocess.Popen(
+            [str(binary), "artisan", "webhooks:fixture-endpoint", "hold-before-prune", original],
+            env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        )
+        cleaner = None
+        try:
+            deadline = time.monotonic() + 6
+            while not (marker / "prune-hold-ready").exists():
+                assert holder.poll() is None and time.monotonic() < deadline
+                time.sleep(0.01)
+            cleaner = subprocess.Popen(
+                [str(binary), "artisan", "webhook-server:prune", "--scope", SCOPE, "--days=1", "--replay-audit"],
+                env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            )
+            time.sleep(0.2)
+            assert cleaner.poll() is None
+            (marker / "prune-hold-release").touch()
+            _, error = holder.communicate(timeout=10)
+            assert holder.returncode == 0, error
+            output, error = cleaner.communicate(timeout=10)
+            assert cleaner.returncode == 0 and json.loads(output)["deleted"] == 0, error
+        finally:
+            for process in (holder, cleaner):
+                if process is not None and process.poll() is None:
+                    process.kill()
+                    process.wait(timeout=5)
+        assert sql(f"SELECT count(*) FROM webhook_delivery_replays WHERE original_id='{original}'") == "1"
+        hold(original, "--release")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            jobs = [pool.submit(prune, "--days=1", "--replay-audit") for _ in range(2)]
+            assert sum(job.result()["deleted"] for job in jobs) == 1
+        assert inspect_history(original) and inspect_history(replayed)
+        assert prune("--days=1", "--replay-audit")["candidates"] == 0
+        command("webhook-server:replay", original, "--scope", SCOPE, "--actor=fixture-operator",
+                "--reason=test-history-after-audit-pruned", success=False)
+        assert prune("--days=1", "--history=delivery")["deleted"] == 2
+        assert inspect_history(original) is None and inspect_history(replayed) is None
+        print(f"{driver}: 历史元数据、重放审计、留存保护、并发清理及旧队列隔离通过")
         return
 
     if env.get("FIXTURE_SEND_KEY_EXPIRY"):

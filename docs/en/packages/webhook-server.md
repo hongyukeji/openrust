@@ -203,6 +203,12 @@ pub async fn preview_invoice_history_pruning(
     store.prune_history(openrust_webhook_server::IdempotencyKind::Delivery, 90, 100, after, true).await
 }
 
+pub async fn preview_invoice_replay_audit_pruning(
+    store: &openrust_webhook_server::DeliveryStore,
+) -> Result<openrust_webhook_server::ReplayAuditPruneReport> {
+    store.prune_replay_audit(90, 100, true).await
+}
+
 ```
 
 
@@ -314,6 +320,12 @@ Reusing a released key creates a new record with a new ID. Old queue tasks still
 Use `./artisan webhook-server:prune --scope=<scope> --days=90 --history=delivery --pretend` to preview historical delivery deletion. Select `--history=publication` for publication receipts. The period starts when the idempotency key expired. Keep using `next_after` with `--after` to scan later pages. Restart without a cursor on a subsequent pass to revisit blocked records.
 
 Delivery metadata is eligible when attempts have been cleaned, no replay audit refers to it and no shared publication body still depends on it. Publication receipt deletion requires prior body cleanup and key expiry. Holds block both operations. Removing historical metadata makes that ID unavailable in diagnostics.
+
+### Prune replay audit records {#replay-retention}
+
+Use `./artisan webhook-server:prune --scope=<scope> --days=90 --replay-audit --pretend` to preview audit cleanup, then remove `--pretend` when ready. Both request snapshots must have been pruned, both idempotency keys must have passed the requested retention period, and neither delivery may have a hold. A run handles at most 500 audit records.
+
+This removes the replay relationship and its operator metadata. The original and replay delivery histories remain until their own history cleanup runs. An original whose payload has been pruned remains ineligible for new replays.
 
 ### Publish to subscriptions {#subscriptions}
 

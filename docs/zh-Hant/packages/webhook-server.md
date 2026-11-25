@@ -203,6 +203,12 @@ pub async fn preview_invoice_history_pruning(
     store.prune_history(openrust_webhook_server::IdempotencyKind::Delivery, 90, 100, after, true).await
 }
 
+pub async fn preview_invoice_replay_audit_pruning(
+    store: &openrust_webhook_server::DeliveryStore,
+) -> Result<openrust_webhook_server::ReplayAuditPruneReport> {
+    store.prune_replay_audit(90, 100, true).await
+}
+
 ```
 
 
@@ -314,6 +320,12 @@ Builder 的 `dispatch`、`dispatch_if` 和 `dispatch_unless` 登記投遞並入�
 使用 `./artisan webhook-server:prune --scope=<scope> --days=90 --history=delivery --pretend` 預演歷史投遞清理。發布收據使用 `--history=publication`。期限從冪等鍵到期起算，使用回傳的 `next_after` 與 `--after` 繼續分頁。下一輪從頭重新檢查先前未符合清理條件的記錄。
 
 投遞歷史只有在嘗試均已清理、重放稽核與現存共享本文皆未引用時才可刪除。發布收據需先清理本文並釋放冪等鍵。業務保留會阻止兩類清理。歷史中繼資料刪除後，診斷無法再查詢該 ID。
+
+### 清理重放稽核 {#replay-retention}
+
+使用 `./artisan webhook-server:prune --scope=<scope> --days=90 --replay-audit --pretend` 預演稽核清理，移除 `--pretend` 後執行。兩筆投遞均須已清理請求快照，且各自的冪等鍵到期均已達指定留存期限，同時兩筆記錄都沒有業務保留。每批最多清理 500 筆稽核。
+
+此操作清理重放關係與操作者中繼資料。原投遞和重放投遞仍依各自的歷史清理規則回收。原快照已清理時仍無法登記新的重放。
 
 ### 依訂閱發布 {#subscriptions}
 

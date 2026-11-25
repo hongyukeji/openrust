@@ -1,5 +1,5 @@
 use openrust::database::{
-    Row, Value,
+    Row, Transaction, Value,
     query::{Builder, Expression, UpdateValue},
 };
 
@@ -98,29 +98,7 @@ impl DeliveryStore {
         let parents = row_ids(candidates, "delivery_id")?;
         let mut tx = self.connection.begin_transaction().await?;
         let result = async {
-            if self.connection.get_driver_name() == "sqlite" {
-                // SQLite 先取得写事务，防止在读快照上升级时与保留变更竞争。
-                tx.table(DELIVERIES)
-                    .r#where("scope_key", "=", self.scope_key.as_str())
-                    .where_in("id", parents.clone())
-                    .update_with(
-                        [(
-                            "retention_hold_at".into(),
-                            UpdateValue::Operand(Expression::new("retention_hold_at").into()),
-                        )]
-                        .into_iter()
-                        .collect(),
-                    )
-                    .await?;
-            }
-            let locked = self
-                .terminal_deliveries(tx.table(DELIVERIES))
-                .where_in("id", parents)
-                .order_by("id", "asc")
-                .select(["id"])
-                .lock_for_update()
-                .get()
-                .await?;
+            let locked = self.lock_prunable_deliveries(&mut tx, parents).await?;
             if locked.is_empty() {
                 return Ok(0);
             }
@@ -133,6 +111,36 @@ impl DeliveryStore {
         }
         .await;
         settle(tx, result).await
+    }
+
+    pub(crate) async fn lock_prunable_deliveries(
+        &self,
+        tx: &mut Transaction,
+        parents: Vec<Value>,
+    ) -> Result<Vec<Row>> {
+        if self.connection.get_driver_name() == "sqlite" {
+            // SQLite 先取得写事务，防止在读快照上升级时与保留变更竞争。
+            tx.table(DELIVERIES)
+                .r#where("scope_key", "=", self.scope_key.as_str())
+                .where_in("id", parents.clone())
+                .update_with(
+                    [(
+                        "retention_hold_at".into(),
+                        UpdateValue::Operand(Expression::new("retention_hold_at").into()),
+                    )]
+                    .into_iter()
+                    .collect(),
+                )
+                .await?;
+        }
+        Ok(self
+            .terminal_deliveries(tx.table(DELIVERIES))
+            .where_in("id", parents)
+            .order_by("id", "asc")
+            .select(["id"])
+            .lock_for_update()
+            .get()
+            .await?)
     }
 
     fn attempts_before<'a>(&self, query: Builder<'a>, seconds: i64) -> Builder<'a> {
@@ -159,7 +167,7 @@ impl DeliveryStore {
         }
     }
 
-    fn terminal_deliveries<'a>(&self, query: Builder<'a>) -> Builder<'a> {
+    pub(crate) fn terminal_deliveries<'a>(&self, query: Builder<'a>) -> Builder<'a> {
         query
             .r#where("scope_key", "=", self.scope_key.as_str())
             .where_null("lease_until")

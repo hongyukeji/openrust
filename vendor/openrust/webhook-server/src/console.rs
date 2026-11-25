@@ -117,6 +117,12 @@ pub(super) fn register() -> Result<(), ConsoleError> {
                 .conflicts_with_all(["messages", "attempts", "idempotency"])
                 .value_parser(["delivery", "publication"]),
         )
+        .arg(
+            Arg::new("replay-audit")
+                .long("replay-audit")
+                .conflicts_with_all(["attempts", "messages", "idempotency", "history"])
+                .action(ArgAction::SetTrue),
+        )
         .group(clap::ArgGroup::new("prune-with-cursor").args(["messages", "history"]))
         .arg(
             Arg::new("after")
@@ -352,7 +358,14 @@ impl Command for Prune {
             let days = *args.get_one::<u32>("days").expect("必填保留天数");
             let limit = *args.get_one::<u32>("limit").expect("默认批次大小");
             let pretend = args.get_flag("pretend");
-            let json = if let Some(kind) = args.get_one::<String>("history") {
+            let json = if args.get_flag("replay-audit") {
+                serde_json::to_string(
+                    &store
+                        .prune_replay_audit(days, limit, pretend)
+                        .await
+                        .map_err(ConsoleError::from_source)?,
+                )
+            } else if let Some(kind) = args.get_one::<String>("history") {
                 let kind = if kind == "delivery" {
                     IdempotencyKind::Delivery
                 } else {
