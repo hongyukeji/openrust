@@ -60,6 +60,14 @@
 
 响应确认静态图仅一帧、审核时间戳为零，且每个识别块都有所有必检类别结果时，可计为完整覆盖。动图和证据不全时保持部分覆盖。适配器保留类别级证据和原始严重度，省略 OCR 原文、命中值和坐标。 [Hive OCR 审核](https://docs.thehive.ai/reference/ocr-moderation)
 
+## 阿里云点播视频 {#aliyun-video}
+
+在具名 `aliyun` 配置设置 `video_service`。上海、北京和杭州支持 `videoDetection`，上海和北京支持 `videoDetectionByVL`。私有版本化 S3 对象使用 `media_disk`、`media_origin`，驱动为指定版本生成五分钟有效的 HTTPS 签名下载链接。
+
+`submit_video()` 返回供应商任务 ID。保留原具名配置和 ID，再通过 `query_video()` 查单。阿里云建议提交至少 30 秒后首次查询，结果保留 24 小时。提交响应丢失时先核对 `SubmissionUnknown`，再决定是否新建任务。阿里云的远端取消接口适用于直播流。
+
+完成任务仍可能只有部分画面、语音或 OCR 覆盖。`Assessment::evidence_span()` 使用原视频起点后的毫秒表示抽帧或语音证据。识别原文和证据临时链接均不进入结果。 [阿里云点播视频 API](https://help.aliyun.com/zh/document_detail/2505810.html)
+
 ## 自定义驱动 {#custom-drivers}
 
 以下示例将文本送人工复核。在包 Provider 之后注册示例 Provider，HTTP、Artisan 和 Worker 都可解析相同的具名配置。

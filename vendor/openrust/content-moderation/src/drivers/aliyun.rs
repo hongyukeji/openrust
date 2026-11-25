@@ -5,15 +5,17 @@ use openrust::{
     filesystem::FilesystemManager,
     http::client::{Factory, aliyun_rpc::AliyunRpcSigner},
 };
-use serde::Deserialize;
+use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::{Value, json};
 use zeroize::Zeroizing;
 
-use super::{Endpoint, field, http_status, media::VersionedMediaLinks, secret};
+use super::{
+    Endpoint, aliyun_video::VideoService, field, http_status, media::VersionedMediaLinks, secret,
+};
 use crate::{
     Assessment, Confidence, Coverage, Decision, Finding, ImageInput, Modality, ModerationDriver,
-    ModerationError, ModerationFuture, ModerationResult, Operation, TextInput,
-    input::valid_language_hint,
+    ModerationError, ModerationFuture, ModerationResult, Operation, TaskId, TaskStatus, TextInput,
+    VideoInput, input::valid_language_hint,
 };
 
 pub(super) struct Aliyun {
@@ -24,6 +26,7 @@ pub(super) struct Aliyun {
     text_service: Option<String>,
     text_languages: Vec<String>,
     image: Option<ImageService>,
+    video: Option<VideoService>,
 }
 
 struct ImageService {
@@ -55,11 +58,12 @@ impl Aliyun {
             .map(|name| {
                 Ok::<_, ModerationError>(ImageService {
                     name: name.to_owned(),
-                    media: VersionedMediaLinks::new(storage, profile)?,
+                    media: VersionedMediaLinks::new(storage.clone(), profile)?,
                 })
             })
             .transpose()?;
-        if text_service.is_none() && image.is_none() {
+        let video = VideoService::configured(storage, profile, region)?;
+        if text_service.is_none() && image.is_none() && video.is_none() {
             return Err(ModerationError::InvalidConfiguration("aliyun services"));
         }
         let mut text_languages = Vec::new();
@@ -87,6 +91,7 @@ impl Aliyun {
             text_service,
             text_languages,
             image,
+            video,
         })
     }
 
@@ -96,6 +101,24 @@ impl Aliyun {
         service: &str,
         parameters: Value,
     ) -> ModerationResult<Output> {
+        let output: Output = self.rpc(action, service, parameters).await?;
+        match output.code {
+            200 => Ok(output),
+            400 => Err(ModerationError::Rejected),
+            408 => Err(ModerationError::Unauthorized),
+            581 => Err(ModerationError::Timeout),
+            588 => Err(ModerationError::Throttled),
+            500..=599 => Err(ModerationError::ServiceUnavailable),
+            _ => Err(ModerationError::Protocol),
+        }
+    }
+
+    pub(super) async fn rpc<T: DeserializeOwned>(
+        &self,
+        action: &str,
+        service: &str,
+        parameters: Value,
+    ) -> ModerationResult<T> {
         const MEDIA_TYPE: &str = "application/x-www-form-urlencoded";
         let encoded = parameters.to_string();
         let body = url::form_urlencoded::Serializer::new(String::new())
@@ -119,16 +142,7 @@ impl Aliyun {
             .post_encoded(headers, body, MEDIA_TYPE)
             .await?;
         http_status(response.status().as_u16())?;
-        let output: Output = response.json().map_err(|_| ModerationError::Protocol)?;
-        match output.code {
-            200 => Ok(output),
-            400 => Err(ModerationError::Rejected),
-            408 => Err(ModerationError::Unauthorized),
-            581 => Err(ModerationError::Timeout),
-            588 => Err(ModerationError::Throttled),
-            500..=599 => Err(ModerationError::ServiceUnavailable),
-            _ => Err(ModerationError::Protocol),
-        }
+        response.json().map_err(|_| ModerationError::Protocol)
     }
 }
 
@@ -160,6 +174,7 @@ impl ModerationDriver for Aliyun {
         match operation {
             Operation::Text => self.text_service.is_some(),
             Operation::Image => self.image.is_some(),
+            Operation::SubmitVideo | Operation::QueryVideo => self.video.is_some(),
             _ => false,
         }
     }
@@ -212,6 +227,26 @@ impl ModerationDriver for Aliyun {
             read_image(output)
         })
     }
+
+    fn submit_video<'a>(&'a self, input: &'a VideoInput) -> ModerationFuture<'a, TaskId> {
+        Box::pin(async move {
+            let service = self
+                .video
+                .as_ref()
+                .ok_or(ModerationError::Unsupported(Operation::SubmitVideo))?;
+            service.submit(self, input).await
+        })
+    }
+
+    fn query_video<'a>(&'a self, id: &'a TaskId) -> ModerationFuture<'a, TaskStatus> {
+        Box::pin(async move {
+            let service = self
+                .video
+                .as_ref()
+                .ok_or(ModerationError::Unsupported(Operation::QueryVideo))?;
+            service.query(self, id).await
+        })
+    }
 }
 
 fn read_text(output: Output) -> ModerationResult<Assessment> {
@@ -254,7 +289,7 @@ fn read_text(output: Output) -> ModerationResult<Assessment> {
     .map_err(|_| ModerationError::Protocol)
 }
 
-fn category(label: &str) -> &'static str {
+pub(super) fn category(label: &str) -> &'static str {
     match label {
         "sexual_content" => "sexual",
         "violence" => "violence",
@@ -339,7 +374,7 @@ fn read_image(output: Output) -> ModerationResult<Assessment> {
     Ok(assessment)
 }
 
-fn image_category(label: &str) -> &'static str {
+pub(super) fn image_category(label: &str) -> &'static str {
     match label.split('_').next().unwrap_or_default() {
         "porn" | "sexual" => "sexual",
         "violent" | "violence" => "violence",

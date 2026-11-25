@@ -23,6 +23,7 @@ use serde_json::{Value, json};
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 
 const JOB: &str = "moderation.fixture.query";
+const ALIYUN_JOB: &str = "moderation.fixture.aliyun-query";
 
 pub(super) fn configuration(env: &Environment) -> Result<Value, ConfigError> {
     let mut configuration = json!({"default":"comments","drivers":{
@@ -43,6 +44,17 @@ pub(super) fn configuration(env: &Environment) -> Result<Value, ConfigError> {
                 "security_token_env":"FIXTURE_ALIYUN_TOKEN", "timeout_ms":3000,
             });
         }
+    }
+    if let Some(endpoint) = env.get_utf8("MODERATION_FIXTURE_ALIYUN_VIDEO")? {
+        let media = env.get_utf8("MODERATION_FIXTURE_IMAGE_ORIGIN")?;
+        configuration["drivers"]["aliyun-videos"] = json!({
+            "driver":"aliyun", "base_url":endpoint,
+            "video_service":env.get_utf8("MODERATION_FIXTURE_VIDEO_SERVICE")?.unwrap_or("videoDetection"),
+            "region":env.get_utf8("MODERATION_FIXTURE_VIDEO_REGION")?.unwrap_or("cn-shanghai"),
+            "media_disk":"s3", "media_origin":media,
+            "access_key_id_env":"FIXTURE_ALIYUN_ID", "access_key_secret_env":"FIXTURE_ALIYUN_SECRET",
+            "security_token_env":"FIXTURE_ALIYUN_TOKEN", "timeout_ms":500,
+        });
     }
     if let Some(endpoint) = env.get_utf8("MODERATION_FIXTURE_TENCENT")? {
         configuration["drivers"]["tencent-default"] = json!({
@@ -150,6 +162,7 @@ impl ServiceProvider for ExternalProvider {
                 Ok(Arc::new(Media(region.to_owned())))
             });
             Queue::register(JOB, Arc::new(Query))?;
+            Queue::register(ALIYUN_JOB, Arc::new(AliyunVideoQuery))?;
             Ok(())
         })
     }
@@ -265,6 +278,65 @@ async fn aliyun_image(version: &str, disk: &str) -> ModerationResult<Value> {
     Ok(render_assessment(result, Modality::Visual))
 }
 
+async fn aliyun_submit_video(version: &str, disk: &str) -> ModerationResult<Value> {
+    let source = StoredMedia::new(disk, "versions/clip.mp4", version)?;
+    let driver = Moderation::driver("aliyun-videos")?;
+    let task = driver.submit_video(&VideoInput::new(source)).await?;
+    Ok(json!({"task":task,"cancel":driver.supports(Operation::CancelVideo)}))
+}
+
+async fn aliyun_query_video(id: &TaskId) -> ModerationResult<Value> {
+    let driver = Moderation::driver("aliyun-videos")?;
+    let status = driver.query_video(id).await?;
+    let stage = match status {
+        TaskStatus::Pending => "Pending",
+        TaskStatus::Running => "Running",
+        TaskStatus::Failed => "Failed",
+        TaskStatus::Cancelled => "Cancelled",
+        TaskStatus::Expired => "Expired",
+        TaskStatus::Succeeded(result) => {
+            let modalities = [Modality::Visual, Modality::Speech, Modality::Ocr];
+            let coverage: BTreeMap<_, _> = modalities
+                .into_iter()
+                .map(|modality| {
+                    (
+                        format!("{modality:?}"),
+                        format!("{:?}", result.coverage(modality)),
+                    )
+                })
+                .collect();
+            let decision = result
+                .decision(&modalities)
+                .map(|value| format!("{value:?}"));
+            let mut response = render_assessment(result, Modality::Visual);
+            response["decision"] = json!(decision);
+            response["coverage"] = json!(coverage);
+            return Ok(json!({"status":"Succeeded","assessment":response}));
+        }
+    };
+    Ok(json!({"status":stage}))
+}
+
+pub(super) fn aliyun_video_route(
+    request: &mut Request,
+) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let result = if let Some(id) = request.header("x-fixture-task")? {
+            match TaskId::new(id) {
+                Ok(id) => aliyun_query_video(&id).await,
+                Err(error) => Err(error),
+            }
+        } else {
+            let version = request
+                .header("x-fixture-version")?
+                .ok_or(HttpError::InvalidRequest)?;
+            let disk = request.header("x-fixture-disk")?.unwrap_or("s3");
+            aliyun_submit_video(version, disk).await
+        };
+        provider_response(result)
+    })
+}
+
 fn render_assessment(result: Assessment, modality: Modality) -> Value {
     let labels: Vec<_> = result
         .findings()
@@ -274,6 +346,10 @@ fn render_assessment(result: Assessment, modality: Modality) -> Value {
             let mut value = json!({"category":finding.category,"provider":finding.provider_label});
             if let Some(score) = result.confidence(index) {
                 value["confidence"] = json!({"value":score.value(),"maximum":score.maximum()});
+            }
+            if let Some(span) = result.evidence_span(index) {
+                value["span_ms"] = json!([span.start_ms(), span.end_ms()]);
+                value["modality"] = json!(format!("{:?}", finding.modality));
             }
             value
         })
@@ -464,6 +540,26 @@ impl JobHandler for Query {
     }
 }
 
+struct AliyunVideoQuery;
+
+impl JobHandler for AliyunVideoQuery {
+    fn handle<'a>(
+        &'a self,
+        _: &'a mut JobContext<'_>,
+        payload: &'a Payload,
+    ) -> QueueFuture<'a, QueueResult<()>> {
+        Box::pin(async move {
+            let id: TaskId = serde_json::from_value(payload.data().clone())
+                .map_err(|_| QueueError::InvalidPayload)?;
+            let record = aliyun_query_video(&id).await.map_err(queue_error)?;
+            let path = std::env::var_os("MODERATION_FIXTURE_RESULT")
+                .map(PathBuf::from)
+                .ok_or(QueueError::InvalidPayload)?;
+            std::fs::write(path, record.to_string()).map_err(queue_error)
+        })
+    }
+}
+
 fn queue_error(source: impl std::error::Error + Send + Sync + 'static) -> QueueError {
     QueueError::Execution {
         source: Arc::new(source),
@@ -527,6 +623,15 @@ pub(super) fn register_command(artisan: &mut Artisan) -> Result<(), ConsoleError
                     .action(clap::ArgAction::SetTrue),
             ),
     ))))?;
+    artisan.add_command(Box::new(AliyunVideoProbe(CommandDefinition::new(
+        clap::Command::new("drivers:moderation-aliyun-video")
+            .arg(
+                clap::Arg::new("action")
+                    .required(true)
+                    .value_parser(["submit", "query", "queue"]),
+            )
+            .arg(clap::Arg::new("reference").required(true)),
+    ))))?;
     for (name, profile) in [
         ("drivers:moderation-sightengine", "sightengine-rules"),
         ("drivers:moderation-hive", "hive-text"),
@@ -559,6 +664,52 @@ pub(super) fn register_command(artisan: &mut Artisan) -> Result<(), ConsoleError
                     .action(clap::ArgAction::SetTrue),
             ),
     ))))
+}
+
+struct AliyunVideoProbe(CommandDefinition);
+
+impl Command for AliyunVideoProbe {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+
+    fn handle<'a>(
+        &'a self,
+        _: &'a Application,
+        input: &'a Input,
+        output: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            let action = input.argument("action").expect("fixture action");
+            let reference = input.argument("reference").expect("fixture reference");
+            let reference = reference.as_str().expect("fixture reference text");
+            let result = match action.as_str() {
+                Some("submit") => aliyun_submit_video(reference, "s3")
+                    .await
+                    .map_err(ConsoleError::from_source)?,
+                Some("query") => {
+                    let id = TaskId::new(reference).map_err(ConsoleError::from_source)?;
+                    aliyun_query_video(&id)
+                        .await
+                        .map_err(ConsoleError::from_source)?
+                }
+                Some("queue") => {
+                    let id = TaskId::new(reference).map_err(ConsoleError::from_source)?;
+                    let payload =
+                        Payload::new(ALIYUN_JOB, &id).map_err(ConsoleError::from_source)?;
+                    Queue::dispatch(payload, DispatchOptions::default(), None)
+                        .await
+                        .map_err(ConsoleError::from_source)?;
+                    json!({"queued":true})
+                }
+                _ => unreachable!("fixture action validated"),
+            };
+            output
+                .write_raw(&format!("{result}\n"))
+                .map_err(ConsoleError::from_source)?;
+            Ok(0)
+        })
+    }
 }
 
 struct NamedTextProbe(CommandDefinition, &'static str);

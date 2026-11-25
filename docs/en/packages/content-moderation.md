@@ -60,6 +60,14 @@ Set `ocr_project`, `ocr_token_env`, `ocr_classes`, and `ocr_review_severity` in 
 
 Hive can establish complete coverage for a confirmed still image with one frame at timestamp zero and results for every required class in each detected block. Animation or incomplete evidence remains partial. The adapter preserves category-level findings and their original severity, without returning recognized text, matched values, or coordinates. [Hive OCR moderation](https://docs.thehive.ai/reference/ocr-moderation)
 
+## Alibaba Cloud video {#aliyun-video}
+
+Set `video_service` in a named `aliyun` profile. `videoDetection` supports Shanghai, Beijing and Hangzhou, and `videoDetectionByVL` supports Shanghai and Beijing. Set `media_disk` and `media_origin` for a versioned private S3 object. The driver signs a five-minute HTTPS download URL for the requested version.
+
+`submit_video()` returns a provider task ID. Keep it with the original profile and query it through `query_video()`. Alibaba Cloud recommends waiting at least 30 seconds before the first query and retains results for 24 hours. If the submission response is lost, resolve `SubmissionUnknown` before creating another task. Remote cancellation is only documented for live streams.
+
+A finished task can still report partial visual, speech or OCR coverage. `Assessment::evidence_span()` locates sampled frames or audio findings in milliseconds from the start of the original video. Recognized text and temporary evidence links are omitted. [Alibaba Cloud video API](https://help.aliyun.com/en/document_detail/2505810.html)
+
 ## Custom drivers {#custom-drivers}
 
 This example sends every text assessment to manual review. Register its provider after the package provider so HTTP, Artisan, and Workers can resolve the same named profiles.

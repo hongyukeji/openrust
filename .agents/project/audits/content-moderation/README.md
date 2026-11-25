@@ -104,3 +104,13 @@
 明确 `PHOTO`、原件一帧、时长与输出时间均为零时，配合已返回的帧和已配置类别建立静态结果覆盖。OCR 无识别块的同一静态帧可报告完整。动图、缺少帧数、类别不可用或证据不全保持部分，完全缺少输出时记录无覆盖。Hive 视觉项目使用同样的静态元数据规则。
 
 基线 `f74bbcb9a`，Rust 1.94.0。10 次本机协议请求由真实 HTTP／Artisan 触发，核对独立令牌、同一私有 S3 对象的两个版本、匿名 403、配置和路由缓存、双帧 GIF 采样、静态图完整与空识别、不可用类别和缺字段、模型错配、超分以及隐私截断。复跑 Hive 视觉／文本 HTTP 和 Artisan，视觉增验静态完整条件。3 个包契约、全工作区格式、审核包与应用验收目标严格 Clippy、三语文档检查通过。真实 OCR 项目许可、识别质量与地区费用继续按 CM-04 验收。
+
+## CM-03A 阿里云点播提交与查单 {#aliyun-video}
+
+对照 `Green/2022-03-02` 与固定 Go SDK `v2.23.0`，复用 ACS3 HTTPS RPC formData。提交使用 `VideoModeration` 的 `ServiceParameters.url`，查单用同一服务的 `VideoModerationResult` 与 `taskId`。中国内地 `videoDetection` 对应上海、北京和杭州，`videoDetectionByVL` 对应上海和北京。点播取消能力返回 Unsupported，直播取消是另一契约。 [提交源码](https://github.com/alibabacloud-go/green-20220302/blob/v2.23.0/client/client.go#L1265) · [查单源码](https://github.com/alibabacloud-go/green-20220302/blob/v2.23.0/client/client.go#L1389) · [点播 API](https://help.aliyun.com/zh/document_detail/2505810.html)
+
+回传 288／280 区分排队及运行，200 完成结果必须匹配原 ID。视频下载和格式失败映射 Failed，409 表示结果不可再查并映射 Expired，403／480 单独报告限流。提交响应丢失、远端失败或成功响应缺少合法 ID 时报告 `SubmissionUnknown`，没有盲目重试。供应商建议首次查询至少等 30 秒，有效结果保留 24 小时。私有视频沿用来源和不可变对象版本校验。画面、语音、OCR 分开记录覆盖，允许在部分覆盖时保留复审或拦截证据。帧和语音时间按原素材时间轴转换为毫秒，省略识别原文、供应商解释和证据下载链接。
+
+基线 `11a2220e0`，Rust 1.94.0。真实 HTTP、Artisan 及独立 SQLite 数据库 Worker 经替身复算 ACS3 签名。5 次提交和 15 次查询覆盖配置及路由缓存、服务／区域门禁、两个真实 MP4 私有对象版本、未接受／近线待定／运行／到期／失败、响应丢失、结果任务错配、非法片段及敏感数据过滤。测试使用 FFmpeg／FFprobe 生成并核对有声和无声样本，替身读取固定 SeaweedFS 4.53 上的对应版本。框架 Worker 的任务载荷仅含子任务 ID，独立查询证据与 HTTP 结果相同，退出后两张队列表为空。阿里云文本／图片 HTTP／Artisan 回归、3 个契约、全工作区格式、审核包和应用验收目标严格 Clippy、三语文档检查通过。
+
+本批验证点播协议和跨进程查单。父子任务持久化、审核配置修订、回调验签与提前到达补偿、其他供应商以及实际阿里云账号的下载时限、采样质量、费用和保留设置继续跟踪。

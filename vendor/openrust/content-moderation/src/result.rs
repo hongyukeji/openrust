@@ -53,6 +53,30 @@ impl Confidence {
     }
 }
 
+/// 从原始素材起点计时的证据位置，单位为毫秒。静止帧使用相同的起止值。
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct EvidenceSpan {
+    start_ms: u64,
+    end_ms: u64,
+}
+
+impl EvidenceSpan {
+    pub fn new(start_ms: u64, end_ms: u64) -> ModerationResult<Self> {
+        if end_ms < start_ms {
+            return Err(ModerationError::InvalidInput("evidence span"));
+        }
+        Ok(Self { start_ms, end_ms })
+    }
+
+    pub fn start_ms(&self) -> u64 {
+        self.start_ms
+    }
+
+    pub fn end_ms(&self) -> u64 {
+        self.end_ms
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Finding {
     pub modality: Modality,
@@ -68,6 +92,7 @@ pub struct Assessment {
     findings: Vec<Finding>,
     request_id: Option<String>,
     confidences: BTreeMap<usize, Confidence>,
+    spans: BTreeMap<usize, EvidenceSpan>,
 }
 
 impl Assessment {
@@ -82,6 +107,7 @@ impl Assessment {
             findings,
             request_id: None,
             confidences: BTreeMap::new(),
+            spans: BTreeMap::new(),
         }
     }
 
@@ -112,6 +138,22 @@ impl Assessment {
 
     pub fn confidence(&self, finding: usize) -> Option<Confidence> {
         self.confidences.get(&finding).copied()
+    }
+
+    pub fn with_evidence_span(
+        mut self,
+        finding: usize,
+        span: EvidenceSpan,
+    ) -> ModerationResult<Self> {
+        if finding >= self.findings.len() {
+            return Err(ModerationError::InvalidInput("span finding index"));
+        }
+        self.spans.insert(finding, span);
+        Ok(self)
+    }
+
+    pub fn evidence_span(&self, finding: usize) -> Option<EvidenceSpan> {
+        self.spans.get(&finding).copied()
     }
 
     pub fn coverage(&self, modality: Modality) -> Coverage {

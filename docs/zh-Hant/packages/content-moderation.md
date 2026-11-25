@@ -60,6 +60,14 @@
 
 回應確認靜態圖僅一個影格、審核時間戳為零，且每個辨識區塊都具備必查類別的結果時，可算完整涵蓋。動態圖與證據不完整時仍為部分涵蓋。介接器保留類別層級的證據和原始嚴重度，省略 OCR 原文、命中值與座標。 [Hive OCR 審核](https://docs.thehive.ai/reference/ocr-moderation)
 
+## 阿里雲隨選影片 {#aliyun-video}
+
+在具名 `aliyun` 設定指定 `video_service`。上海、北京、杭州支援 `videoDetection`，上海和北京支援 `videoDetectionByVL`。私人版本化 S3 物件使用 `media_disk`、`media_origin`，驅動會為指定版本產生五分鐘有效的 HTTPS 簽名下載連結。
+
+`submit_video()` 傳回供應商工作 ID。保留原具名設定與 ID，再透過 `query_video()` 查詢。阿里雲建議提交至少 30 秒後首次查詢，結果保留 24 小時。提交回應遺失時先核對 `SubmissionUnknown`，再決定是否建立新工作。阿里雲的遠端取消介面適用於直播串流。
+
+完成的工作仍可能只有部分畫面、語音或 OCR 涵蓋。`Assessment::evidence_span()` 使用原影片起點後的毫秒表示取樣影格或語音證據。辨識原文及證據暫時連結均不出現在結果中。 [阿里雲隨選影片 API](https://help.aliyun.com/zh/document_detail/2505810.html)
+
 ## 自訂驅動 {#custom-drivers}
 
 以下範例會將文字送人工複核。在套件 Provider 之後註冊範例 Provider，HTTP、Artisan 和 Worker 都可解析相同的具名設定。

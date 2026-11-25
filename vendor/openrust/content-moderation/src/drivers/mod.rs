@@ -1,4 +1,5 @@
 mod aliyun;
+mod aliyun_video;
 mod hive;
 mod hive_image;
 mod hive_ocr;
