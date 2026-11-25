@@ -68,6 +68,21 @@ pub type DatabaseFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 pub type DatabaseCursor<'a, T = Row> =
     Pin<Box<dyn futures_util::Stream<Item = DatabaseResult<T>> + Send + 'a>>;
 
+/// 为数据库游标提供带源码位置的消费入口。
+pub trait DatabaseCursorExt<T> {
+    /// 从当前位置读取下一项，并在本次读取触发 SQL 时记录此调用位置。
+    #[track_caller]
+    fn try_next_with_source(&mut self) -> impl Future<Output = DatabaseResult<Option<T>>> + Send;
+}
+
+impl<T> DatabaseCursorExt<T> for DatabaseCursor<'_, T> {
+    #[track_caller]
+    fn try_next_with_source(&mut self) -> impl Future<Output = DatabaseResult<Option<T>>> + Send {
+        use futures_util::TryStreamExt as _;
+        events::with_stream_consumer(std::panic::Location::caller(), self.try_next())
+    }
+}
+
 /// The result of a database operation.
 pub type DatabaseResult<T> = Result<T, DatabaseError>;
 

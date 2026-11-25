@@ -120,16 +120,41 @@ pub struct QueryExecuted {
     pub callers: Vec<&'static Location<'static>>,
 }
 
+#[derive(Clone, Copy)]
+enum QueryCaller {
+    Operation(&'static Location<'static>),
+    StreamCreation(&'static Location<'static>),
+    StreamConsumption(&'static Location<'static>),
+}
+
 thread_local! {
-    static QUERY_CALLERS: RefCell<Vec<&'static Location<'static>>> = const { RefCell::new(Vec::new()) };
+    static QUERY_CALLERS: RefCell<Vec<QueryCaller>> = const { RefCell::new(Vec::new()) };
 }
 
 pub(super) fn query_callers() -> Vec<&'static Location<'static>> {
-    QUERY_CALLERS.with_borrow(|callers| callers.iter().rev().copied().collect())
+    QUERY_CALLERS.with_borrow(|callers| {
+        // 有明确消费位置时，流内部的创建帧不属于本次读取。
+        let consumer = callers
+            .iter()
+            .position(|caller| matches!(caller, QueryCaller::StreamConsumption(_)));
+        callers
+            .iter()
+            .enumerate()
+            .rev()
+            .filter_map(|(index, caller)| match *caller {
+                QueryCaller::StreamCreation(_) if consumer.is_some_and(|start| start < index) => {
+                    None
+                }
+                QueryCaller::Operation(location)
+                | QueryCaller::StreamCreation(location)
+                | QueryCaller::StreamConsumption(location) => Some(location),
+            })
+            .collect()
+    })
 }
 
 fn poll_query_callers<T>(
-    callers: impl IntoIterator<Item = &'static Location<'static>>,
+    callers: impl IntoIterator<Item = QueryCaller>,
     poll: impl FnOnce() -> T,
 ) -> T {
     struct RestoreCaller(usize);
@@ -154,6 +179,17 @@ pub(in crate::database) fn with_query_caller<F: Future>(
     caller: &'static Location<'static>,
     future: F,
 ) -> impl Future<Output = F::Output> {
+    with_caller(QueryCaller::Operation(caller), future)
+}
+
+pub(super) fn with_stream_consumer<F: Future>(
+    caller: &'static Location<'static>,
+    future: F,
+) -> impl Future<Output = F::Output> {
+    with_caller(QueryCaller::StreamConsumption(caller), future)
+}
+
+fn with_caller<F: Future>(caller: QueryCaller, future: F) -> impl Future<Output = F::Output> {
     let mut future = Box::pin(future);
     std::future::poll_fn(move |context| {
         poll_query_callers([caller], || future.as_mut().poll(context))
@@ -184,7 +220,9 @@ pub(in crate::database) fn stream_with_query_caller<S: futures_util::Stream>(
 ) -> impl futures_util::Stream<Item = S::Item> {
     let mut stream = Box::pin(stream);
     futures_util::stream::poll_fn(move |context| {
-        poll_query_callers([caller], || stream.as_mut().poll_next(context))
+        poll_query_callers([QueryCaller::StreamCreation(caller)], || {
+            stream.as_mut().poll_next(context)
+        })
     })
 }
 

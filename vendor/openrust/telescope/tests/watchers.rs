@@ -171,7 +171,10 @@ async fn seed_relationship_source() -> openrust::database::Connection {
 
 fn chunk_callers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     use futures_util::TryStreamExt as _;
-    use openrust::database::eloquent::{Model as _, relations::HasMany};
+    use openrust::database::{
+        DatabaseCursorExt as _,
+        eloquent::{Model as _, relations::HasMany},
+    };
 
     Box::pin(async {
         let connection = seed_relationship_source().await;
@@ -215,6 +218,16 @@ fn chunk_callers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
         unrelated.await?;
         assert_eq!(stream.try_collect::<Vec<_>>().await?.len(), 1);
 
+        let mut stream = children.lazy(&parent, 1);
+        let first_poll = line!() + 1;
+        assert!(stream.try_next_with_source().await?.is_some());
+        let between_polls = line!() + 1;
+        PageProbe::query_on(&connection).find_or_fail(2).await?;
+        let second_poll = line!() + 1;
+        assert!(stream.try_next_with_source().await?.is_some());
+        let end_poll = line!() + 1;
+        assert!(stream.try_next_with_source().await?.is_none());
+
         Response::json(
             http::StatusCode::OK,
             json!([
@@ -224,7 +237,11 @@ fn chunk_callers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
                 [each_line, 3],
                 [relation_line, 3],
                 [lazy_line, 3],
-                [outside, 1]
+                [outside, 1],
+                [first_poll, 1],
+                [between_polls, 1],
+                [second_poll, 1],
+                [end_poll, 1]
             ]),
         )
     })

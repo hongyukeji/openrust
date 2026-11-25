@@ -243,6 +243,8 @@ Linux 7.0.14 ARM64 与 Windows 11 ARM64 用 `f14c6a340` 的变更源码通过 SQ
 
 真实回环 HTTP 与 SQLite 应用仓储覆盖上传成功、连接被拒、脱敏、原生 `Part` 兼容及两种重复字段覆盖。服务端检查附件字节、文件名和上传顺序。框架回归验证未知长度流到发送阶段才被读取，正文流只执行一次，快照长度为空。验证使用 `8041ae15a` 加前批和本批文件的隔离快照。Telescope 32 项、框架 HTTP 客户端 20 项、快照全仓格式、框架库及 Telescope 全目标严格 Clippy、三语站点及 12 组浏览器检查通过。Telescope 独立 Redis 用例本批未执行；出站 multipart 未遍历部署数据库或目标平台。保留原生 `Part`、预格式化输入与中间件替换流的差异，见[包审计](telescope/README.md#出站-multipart)。
 
+PHP 8.5.12 运行固定 Laravel HTTP Client 和 Telescope `ClientRequestWatcher::input`，以 Guzzle MockHandler 检查线上请求。跨源 302 第二跳以空正文 GET 发送，保留原 multipart 媒体类型，响应事件仍从原始参数给出文件名、大小、部件头部和表单字段。可回卷的 PHP 文件流在 307 和 422 重试时重新发送；重试回调更新请求头，当前请求继续使用首次解析的附件列表。发送回调替换正文时诊断仍显示原始参数。证据为 `target/tmp/observability-parity/multipart-combinations-upstream.log`。Rust 原先从末跳线上正文判断是否提供 multipart 快照，导致 302 成功条目缺失原始参数。定向修复与真实回环 HTTP、入库和脱敏用例待验。正文清空后的媒体类型、流重放、独立重试和发送回调的组合继续核对。
+
 ### Telescope 非 multipart 出站诊断载荷
 
 在 PHP 8.5.12 容器里运行固定 [Laravel PendingRequest](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Client/PendingRequest.php) 和 [Request](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Client/Request.php)，用 Guzzle MockHandler 观察真实 `beforeSending` 回调。9 组用例确认 JSON／表单正文不会混入 URL 查询，普通 GET 使用传入地址的 query，`withQueryParameters` 修改线上地址，HEAD 及不透明原始正文的载荷为空，原始 JSON 可以解码，JSON 构建器覆盖媒体类型仍保留结构化正文。参考日志为 `target/tmp/observability-parity/diagnostic-payload-upstream.log`。
@@ -335,11 +337,15 @@ Rust 为公开 `Relation::get_results`、批量匹配与事务匹配接入位置
 
 PHP 8.5.12 使用固定 Telescope QueryWatcher 实测 Query Builder 的 `chunk`、Eloquent 的 `eachById`、HasMany 的 `chunkById` 和 `lazy`。停止回调在第二批返回 `false`，准确产生两条 SQL。其余三个入口各产生三条 SQL，含最后一次空查询，全部来源为各自应用调用行。证据为 `target/tmp/observability-parity/query-chunks-upstream.log`。 [固定分块与惰性读取](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Concerns/BuildsQueries.php)
 
-PHP 将回调内主动执行的查询归到回调行，将惰性集合的实际 SQL 分别归到 `rewind` 和各次 `next`，创建集合和取得迭代器时无查询。两次惰性读取之间的独立查询仍归到自己的应用行。证据为 `target/tmp/observability-parity/query-chunks-poll-upstream.log`。Rust 的标准 `Stream` 消费入口经异步轮询，当前源码位置取公开流构造处，并在每次轮询恢复这个位置。逐次消费行的等价入口仍在对齐范围内。
+PHP 将回调内主动执行的查询归到回调行，将惰性集合的实际 SQL 分别归到 `rewind` 和各次 `next`，创建集合和取得迭代器时无查询。两次惰性读取之间的独立查询仍归到自己的应用行。证据为 `target/tmp/observability-parity/query-chunks-poll-upstream.log`。Rust 标准 `Stream` 消费入口使用公开流构造位置，并在轮询时恢复。
 
 Rust Query Builder、Eloquent Builder 和直接、反向、多对多、Through、多态关系的公开分块／遍历／惰性方法已接入现有查询调用位置作用域。偏移与按键推进方法在创建 Future 或流时捕获位置，轮询返回后恢复作用域。SQLite、PostgreSQL 18.7、MySQL 8.4.13 的实际 Telescope HTTP 路由核对两批提前停止、回调查询各自的来源、Eloquent 和 HasMany 的末次空查询，以及流两次轮询之间的独立查询来源。证据为 `target/tmp/observability-parity/query-chunks-macos.log`。其他关系变体的来源逐项实测仍待完成。
 
 macOS 隔离快照通过框架分页／关系／惰性集合回归、Telescope Watcher 15 项、严格 Clippy 和全仓格式。三扩展默认组合 100 项通过，23 项按环境条件跳过。框架分页 14 项通过，另在真实 MySQL 8.4.13 上验收完整分页 HTTP 流程，含分块、反向关系、按键遍历和惰性读取。Windows 11 ARM64 在 SQLite 上通过本批真实 Telescope HTTP 来源专项。Linux ARM64 复用同一构建目录，排在 Pulse 原生报告单作业重跑之后。证据为 `target/tmp/observability-parity/query-chunks-{macos,pagination-macos,pagination-mysql-retry,windows}.log`。
+
+逐次消费由 `DatabaseCursorExt::try_next_with_source` 捕获调用位置。它在本次轮询作用域内登记消费位置，并跳过该消费位置内部的流创建帧。已经捕获的独立数据库操作、外层作用域和 Telescope 的路径过滤继续生效。普通 `TryStreamExt` 产物仍使用公开创建位置。
+
+在隔离快照上，macOS 的 SQLite、PostgreSQL 18.7、MySQL 8.4.13，以及 Windows 11 ARM64 的 SQLite 均通过 Telescope 真实 HTTP 路由验证两次读取、末次空查询及中间独立查询的精确源码行。普通消费者的流创建位置也随同复验。macOS 的框架惰性集合、关系和多态聚合回归通过，三个扩展的默认组合 100 项通过、23 项按环境条件跳过。快照全仓格式、所涉框架与扩展目标严格 Clippy、三语站点构建和 12 组浏览器检查通过。证据为 `target/tmp/observability-parity/query-consumer-{macos-verified,windows,docs}.log`。Linux ARM64 同源码组合已启动，完整发布组合继续验收。
 
 ### Telescope Query 多对多中间表调用来源
 
@@ -430,6 +436,8 @@ macOS 真实 HTTP 通过 Manager 与 Facade 报告，验证事件可读取同一
 三语指南与浏览器验收检查原生报告方法、对应事件及位置捕获入口。站点构建和根路径、子目录下的桌面／手机共 12 组验证通过。Windows 11 ARM64 最终源码通过 4 项模式测试和 17 项 Pulse Provider 测试，含 SQLite 上的原生报告事件和关闭记录专项。Linux ARM64 最终源码复验已启动。证据为 `target/tmp/observability-parity/pulse-native-report-{docs,windows}.log`。
 
 Linux ARM64 首次构建在 Provider 链接阶段收到信号 9，未取得该次运行的测试结果。已用单作业重跑。证据为 `target/tmp/observability-parity/pulse-native-report-linux{,-serial}.log`。
+
+单作业重跑在编译阶段触及 32 GB 停线，独占容器已退出，尚未进入测试。本机项目产物随后按守卫协议持锁清理。证据为 `target/tmp/observability-parity/query-consumer-cleanup.log`。Pulse 原生报告及 Telescope 分块的 Linux 最终源码验收仍待补齐。
 
 ### Horizon Linux ARM64 Release 进程矩阵
 
