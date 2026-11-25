@@ -331,6 +331,10 @@ Rust 为公开 `Relation::get_results`、批量匹配与事务匹配接入位置
 
 同一快照 macOS Release 的 SQLite Watcher 9 项通过，PostgreSQL 18.7 和 MySQL 8.4.13 分别用相同 Release 二进制复测分页、模型写入和关系读取来源，三项均通过。其他目标平台及部署组合仍需验收。
 
+### Telescope Query 分块与惰性读取来源
+
+PHP 8.5.12 使用固定 Telescope QueryWatcher 实测 Query Builder 的 `chunk`、Eloquent 的 `eachById`、HasMany 的 `chunkById` 和 `lazy`。停止回调在第二批返回 `false`，准确产生两条 SQL。其余三个入口各产生三条 SQL，含最后一次空查询，全部来源为各自应用调用行。证据为 `target/tmp/observability-parity/query-chunks-upstream.log`。Rust 现有分页与游标位置传播可复用。分块回调、惰性流实际轮询、应用 SQL 的来源隔离和关系包装变体仍待实现核对与实测。
+
 ### Telescope Query 多对多中间表调用来源
 
 固定 [InteractsWithPivotTable](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/Concerns/InteractsWithPivotTable.php) 的附加、修订、同步、切换、移除均通过原生查询事件。PHP 8.5.12 和 SQLite 的参考探针实际注册固定 QueryWatcher，使用 `attach`、`updateExistingPivotOrFail`、`sync`、`toggleOrFail`、`detachOrFail`，九条 SQL 分别归到五处调用行。参考夹具使用 Laravel 声明的 Doctrine Inflector 2.0.5；旧版 SeaORM 链接查询无对应诊断来源。
@@ -405,7 +409,7 @@ Rust 的 `Error` trait 不提供创建位置与调用栈。应用可在实际构
 
 macOS 隔离快照经真实 HTTP 覆盖公开报告、HTTP 直接返回、经 HTTP 包装后显式报告、缺少位置与关闭位置。SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 均读取到预期的具体错误类型与创建行号。框架异常回归 43 项、Pulse Provider 17 项和 Telescope Provider 15 项通过，另有 1 项 Telescope Provider 按环境条件跳过。快照全仓格式、选定目标严格 Clippy 和三扩展默认组合通过，组合 99 项通过、23 项按环境条件跳过。证据为 `target/tmp/observability-parity/pulse-exception-origin-macos-accepted.log`。
 
-Windows 11 ARM64 使用同源码通过 4 项模式测试和 17 项 Pulse Provider 测试，含 SQLite 上的普通异常与 Blade 异常 HTTP 专项。Linux ARM64 同源码复验已经启动。Windows 证据为 `target/tmp/observability-parity/pulse-exception-origin-windows-accepted.log`。
+Windows 11 ARM64 和 Linux 7.0.14 ARM64 使用同源码各通过 4 项模式测试和 17 项 Pulse Provider 测试，含 SQLite 上的普通异常与 Blade 异常 HTTP 专项。Linux 同批通过 Telescope Provider 15 项，1 项按环境条件跳过。测试结果完整写入后构建守卫结束本批，停线清理已持锁完成。证据为 `target/tmp/observability-parity/pulse-exception-origin-{windows-accepted,linux}.log`。
 
 无调用帧的部署行为继续按来源核对。
 
@@ -417,7 +421,7 @@ Rust Manager 与 Facade 提供 `report_exception(error)`。事件 `NativeExcepti
 
 macOS 真实 HTTP 通过 Manager 与 Facade 报告，验证事件可读取同一错误、停止记录时继续派发且数据库不增加条目、仅通过框架报告的自定义处理器与 Pulse 显式入口各按自己的行为执行。SQLite、PostgreSQL 18.7、MySQL 8.4.13 均通过。实际存储核对类型、捕获位置和关闭位置。严格 Clippy、快照全仓格式及三扩展默认组合通过，组合 99 项通过、23 项按环境条件跳过。证据为 `target/tmp/observability-parity/pulse-native-report-macos-verified.log`。
 
-三语指南与浏览器验收检查原生报告方法、对应事件及位置捕获入口。站点构建和根路径、子目录下的桌面／手机共 12 组验证通过。证据为 `target/tmp/observability-parity/pulse-native-report-docs.log`。本批最终源码的 Linux ARM64 与 Windows 11 ARM64 仍需复验。
+三语指南与浏览器验收检查原生报告方法、对应事件及位置捕获入口。站点构建和根路径、子目录下的桌面／手机共 12 组验证通过。Windows 11 ARM64 最终源码通过 4 项模式测试和 17 项 Pulse Provider 测试，含 SQLite 上的原生报告事件和关闭记录专项。Linux ARM64 最终源码复验已启动。证据为 `target/tmp/observability-parity/pulse-native-report-{docs,windows}.log`。
 
 ### Horizon Linux ARM64 Release 进程矩阵
 
