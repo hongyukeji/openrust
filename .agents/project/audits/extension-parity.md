@@ -329,6 +329,8 @@ Rust 在 BelongsToMany 的中间表入口传播调用位置，覆盖带属性及
 
 PHP 8.5.12、固定 Laravel 和固定 Telescope、真实 SQLite 连接。`Schema` Builder 的 `create`、`hasTable`、`table`、`hasColumn`、`dropIfExists` 以及删除后再查表，共七条 SQL 落到对应六行，其中 `hasColumn` 发出两条目录查询。证据为 `target/tmp/observability-parity/query-schema-source-upstream.log`。 [固定 Schema Builder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Builder.php)
 
+公开 Facade 探针另确认 `whenTableHasColumn` 的目录读取及实际 DDL 共三条都归到条件入口，`getForeignKeys` 归到实际目录入口，`withoutForeignKeyConstraints` 的两条外键设置归到包装调用，回调内的业务查询单独归到回调实际行。证据为 `target/tmp/observability-parity/query-schema-facade-upstream.log`。
+
 Rust `Schema` Facade、Builder 与目录检查仍需传播应用调用位置，并通过真实入口验证 DDL 和目录查询，包括一次入口生成多条 SQL 的情况。现有查询来源作用域已用于 Query Builder 和 Eloquent，Schema 构建器尚未接入。
 
 ### Pulse SlowQueries 数据库调用来源
