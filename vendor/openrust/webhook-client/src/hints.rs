@@ -10,6 +10,7 @@ use std::{sync::Arc, time::Duration};
 mod storage;
 mod worker;
 use storage::HintStore;
+pub(crate) use storage::prune_expired_hints;
 
 /// 仅在接收端按协议确认签名字段完全缺失时产生。
 pub struct UnverifiedHint<'a> {

@@ -254,6 +254,8 @@ pub fn register_replay_policy(
 
 查单处理器须按业务契约独立验证供应商响应。原始通知始终保留为无签名提示，提示任务只携带提示 ID 和修订。可信接收记录和队列继续处理已验签回调。
 
+定期运行 `./artisan webhook-client:prune --scope=billing/site-a --lookup-hints`，清理该范围内已过期的提示记录。用 `--pretend` 查看候选数，`--limit` 设置单批上限。运行中的提示在过期后保留 60 秒宽限，供 Worker 结束处理。该命令只处理提示记录，已验签收件和业务任务各自保留。
+
 ### 保留验签判定依据 {#verification-audit}
 
 在设有可信 `scope` 的 profile 中启用 `verification_audit: true`，并运行 `./artisan migrate`。审计使用 profile 的 `connection`。账本保存验证器和策略名称、profile 修订、UTC 分钟以及分类和固定原因。修订是配置中的凭据集合标签，凭据集合变化时应更新。

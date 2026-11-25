@@ -13,6 +13,43 @@ use openrust::{
 };
 use std::sync::Arc;
 
+const RUNNING_GRACE_SECONDS: i64 = 60;
+
+/// 清理本范围已过期提示，给领到提示的 Worker 保留退出时间。
+pub(crate) async fn prune_expired_hints(
+    connection: Connection,
+    scope: &str,
+    limit: u32,
+    pretend: bool,
+) -> Result<u64> {
+    if !super::valid_identifier(scope) || !(1..=500).contains(&limit) {
+        return Err(Error::InvalidConfig("unverified_hint_retention"));
+    }
+    let clock = database_clock(&connection);
+    let key = scope_key(scope);
+    let expired = || {
+        connection
+            .table("webhook_hints")
+            .r#where("scope_key", "=", key.as_str())
+            .where_exact_text("scope", scope)
+            .where_raw(
+                &format!("expires_at <= {clock} and (status <> 'running' or expires_at <= {clock} - {RUNNING_GRACE_SECONDS})"),
+                Vec::new(),
+            )
+    };
+    let ids = expired()
+        .use_write_pdo()
+        .order_by("expires_at", "asc")
+        .order_by("id", "asc")
+        .limit(u64::from(limit))
+        .pluck("id")
+        .await?;
+    if ids.is_empty() || pretend {
+        return Ok(ids.len() as u64);
+    }
+    Ok(expired().where_in("id", ids).delete().await?)
+}
+
 #[derive(Clone)]
 pub(super) struct HintStore {
     database: Connection,

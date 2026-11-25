@@ -10,7 +10,7 @@ use openrust::{
 
 pub(crate) fn register() -> Result<(), ConsoleError> {
     let syntax = Syntax::new("webhook-client:prune")
-        .about("清理当前范围内的过期 Webhook 记录或附件暂存对象")
+        .about("清理当前范围内的过期 Webhook 记录、查单提示或附件暂存对象")
         .arg(Arg::new("scope").long("scope").required(true))
         .arg(Arg::new("database").long("database"))
         .arg(
@@ -28,6 +28,12 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
             Arg::new("attachment-staging")
                 .long("attachment-staging")
                 .conflicts_with("verification-audit")
+                .action(ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::new("lookup-hints")
+                .long("lookup-hints")
+                .conflicts_with_all(["verification-audit", "attachment-staging"])
                 .action(ArgAction::SetTrue),
         )
         .arg(
@@ -89,7 +95,8 @@ impl Command for Prune {
         Box::pin(async move {
             let matches = input.matches();
             let staging = matches.get_flag("attachment-staging");
-            let days = if staging {
+            let lookup_hints = matches.get_flag("lookup-hints");
+            let days = if staging || lookup_hints {
                 Some(0)
             } else {
                 crate::retention::retention_days()?
@@ -108,10 +115,18 @@ impl Command for Prune {
             let connection = manager
                 .connection(connection)
                 .map_err(ConsoleError::from_source)?;
+            let pretend = matches.get_flag("pretend");
+            if lookup_hints {
+                let rows = crate::hints::prune_expired_hints(connection, scope, limit, pretend)
+                    .await
+                    .map_err(ConsoleError::from_source)?;
+                let action = if pretend { "可清理" } else { "已清理" };
+                output.info(&format!("{action} {rows} 条 Webhook 查单提示"));
+                return Ok(0);
+            }
             if matches.get_flag("verification-audit") {
                 let audit = crate::verification::DatabaseVerificationAudit::new(connection, scope)
                     .map_err(ConsoleError::from_source)?;
-                let pretend = matches.get_flag("pretend");
                 let rows = audit
                     .prune(days, limit, pretend)
                     .await
@@ -123,7 +138,6 @@ impl Command for Prune {
             let store =
                 DatabaseWebhookStore::new(connection, scope).map_err(ConsoleError::from_source)?;
             if staging {
-                let pretend = matches.get_flag("pretend");
                 let report = store
                     .prune_attachment_staging(limit, pretend)
                     .await
@@ -138,7 +152,7 @@ impl Command for Prune {
                 }
                 return Ok(i32::from(report.failed > 0));
             }
-            if matches.get_flag("pretend") {
+            if pretend {
                 let ids = WebhookCall::prunable(&store, days, limit)
                     .await
                     .map_err(ConsoleError::from_source)?;

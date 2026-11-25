@@ -254,6 +254,8 @@ Use `QueuedWebhookHint` with a database queue on the same connection as the hint
 
 The lookup handler validates the supplier response in its own domain. The original notice stays an unverified hint. The hint transport carries the receipt ID and revision. The trusted receipt and processing queue continue to handle verified callbacks.
 
+Schedule `./artisan webhook-client:prune --scope=billing/site-a --lookup-hints` to remove expired hint records in that scope. Use `--pretend` to count candidates and `--limit` to set the batch size. Running hints retain a 60-second grace period after expiry so a worker can finish. The command leaves verified receipts and the domain tasks in place.
+
 ### Retain verification evidence {#verification-audit}
 
 Set `verification_audit: true` on a profile with a trusted `scope` and run `./artisan migrate`. The database connection follows the profile’s `connection`. The audit records the validator and policy names, profile revision, UTC minute, and a classification with a fixed reason. The revision is the configured label for the credential set, so update it when the set changes.

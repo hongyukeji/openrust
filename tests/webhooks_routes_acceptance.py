@@ -779,6 +779,42 @@ def check_unverified_hints(binary, env, root, port, driver, sql):
     print(f"{driver}: 无签名提示 12 个真实 HTTP、5 次 Worker；限额、签名和范围隔离、入队回滚、重复、过期及撤销通过")
 
 
+def check_hint_retention(binary, env, driver, sql):
+    scope = "webhook-acceptance"
+    command_args = ("webhook-client:prune", "--lookup-hints")
+    before = sql("SELECT COUNT(*) FROM webhook_calls")
+    now = int(time.time())
+    write_database(driver, sql, "UPDATE webhook_hints SET expires_at=1 WHERE status='completed'")
+
+    def insert_hint(suffix, status, expires, owner=scope):
+        key = hashlib.sha256(owner.encode()).hexdigest()
+        write_database(driver, sql,
+                       "INSERT INTO webhook_hints (id,scope_key,scope,profile,revision,task_id,status,expires_at) "
+                       f"VALUES ('11111111-1111-4111-8111-{suffix:012d}', '{key}', '{owner}', "
+                       f"'hint', 'hint-one', 'local-task', '{status}', {expires})")
+
+    insert_hint(1, "running", now - 10)
+    insert_hint(2, "running", now - 180)
+    insert_hint(3, "pending", now + 300)
+    insert_hint(4, "failed", 1, "unrelated-scope")
+    result = command(binary, env, *command_args, f"--scope={scope}", "--pretend", "--limit=2")
+    assert "可清理 2 条" in result and sql("SELECT COUNT(*) FROM webhook_hints") == "7"
+    result = command(binary, env, *command_args, f"--scope={scope}", "--limit=1")
+    assert "已清理 1 条" in result and sql("SELECT COUNT(*) FROM webhook_hints") == "6"
+    result = command(binary, env, *command_args, f"--scope={scope}")
+    assert "已清理 2 条" in result
+    assert sql("SELECT status FROM webhook_hints ORDER BY status").splitlines() == [
+        "failed", "ignored", "pending", "running",
+    ]
+    assert sql("SELECT COUNT(*) FROM jobs") == "0"
+    assert sql("SELECT COUNT(*) FROM webhook_calls") == before
+    assert "已清理 0 条" in command(binary, env, *command_args, f"--scope={scope}")
+    denied = subprocess.run([str(binary), "artisan", *command_args, f"--scope={scope}",
+                             "--verification-audit"], env=env, capture_output=True, timeout=15)
+    assert denied.returncode != 0
+    print(f"{driver}: Artisan 查单提示预演、过期清理、批次上限、运行宽限和范围隔离通过")
+
+
 def check_verification_audit(binary, env, root, port, driver, sql):
     body = b"private-body-for-audit"
     listener = root / "audit-listener-ran"
@@ -1659,6 +1695,7 @@ def main():
   check_deferred_processing(binary,env,root,port,driver,sql)
   check_body_deduplication(binary,env,root,port,driver,sql)
   check_unverified_hints(binary,env,root,port,driver,sql)
+  check_hint_retention(binary,env,driver,sql)
   check_verification_audit(binary,env,root,port,driver,sql)
   check_attachment_storage(binary,env,root,port,driver,sql)
   check_retention(binary,env,root,port,driver,sql)
