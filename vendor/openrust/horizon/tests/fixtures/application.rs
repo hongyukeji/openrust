@@ -11,9 +11,9 @@ use openrust::{
     support::{ProviderResult, ServiceProvider},
 };
 use openrust_horizon::{
-    Horizon, HorizonServiceProvider, MasterSupervisor, MasterSupervisorDeployed,
-    MasterSupervisorLooped, MasterSupervisorOutOfMemory, SupervisorLooped, SupervisorOutOfMemory,
-    UnableToLaunchProcess, WorkerProcessRestarting,
+    AddSupervisor, Horizon, HorizonServiceProvider, MasterSupervisor, MasterSupervisorDeployed,
+    MasterSupervisorLooped, MasterSupervisorOutOfMemory, RedisHorizonCommandQueue,
+    SupervisorLooped, SupervisorOutOfMemory, UnableToLaunchProcess, WorkerProcessRestarting,
 };
 use serde_json::json;
 use std::{collections::BTreeMap, path::Path, sync::Arc, time::Duration};
@@ -234,6 +234,19 @@ impl ServiceProvider for ProbeProvider {
             if let Ok(basename) = std::env::var("HORIZON_PROBE_MASTER_BASENAME") {
                 MasterSupervisor::determine_name_using(move || basename.clone())?;
             }
+            if std::env::var_os("HORIZON_PROBE_PRELOAD_MASTER_COMMAND").is_some()
+                && std::env::args().nth(2).as_deref() == Some("horizon")
+            {
+                let queue = app.make::<RedisHorizonCommandQueue>().await?;
+                let name = MasterSupervisor::process_name()?;
+                queue
+                    .push(
+                        &MasterSupervisor::command_queue()?,
+                        AddSupervisor::NAME,
+                        json!({"name": format!("{name}:stale")}),
+                    )
+                    .await?;
+            }
             app.make::<QueueManager>().await?.register(
                 "probe",
                 Arc::new(Probe(app.base_path().join("completed.log"))),
@@ -300,6 +313,41 @@ fn create() -> Result<Application, Box<dyn std::error::Error + Send + Sync>> {
 }
 #[tokio::main]
 async fn main() -> std::process::ExitCode {
+    if std::env::var_os("HORIZON_PROBE_RECORD_SUPERVISOR_CWD").is_some()
+        && std::env::args().nth(2).as_deref() == Some("horizon:supervisor")
+    {
+        let path = std::path::PathBuf::from(std::env::var_os("APP_BASE_PATH").unwrap());
+        std::fs::write(
+            path.join("supervisor-cwd.json"),
+            json!(std::env::current_dir().unwrap()).to_string(),
+        )
+        .unwrap();
+    }
+    if let Ok(probe) = std::env::var("HORIZON_PROBE_COMMAND_QUEUE") {
+        let mut app = create().unwrap();
+        app.boot().await.unwrap();
+        let queue = app.make::<RedisHorizonCommandQueue>().await.unwrap();
+        let args: Value = serde_json::from_str(&probe).unwrap();
+        let name = args["name"].as_str().unwrap();
+        let name = if args["master"].as_bool() == Some(true) {
+            MasterSupervisor::command_queue_for(Some(name)).unwrap()
+        } else {
+            name.to_owned()
+        };
+        match args["action"].as_str().unwrap() {
+            "push" => {
+                let command = args["command"].as_str().unwrap_or(AddSupervisor::NAME);
+                queue
+                    .push(&name, command, args["options"].clone())
+                    .await
+                    .unwrap();
+            }
+            "pending" => println!("{}", json!(queue.pending(&name).await.unwrap())),
+            "flush" => queue.flush(&name).await.unwrap(),
+            _ => panic!("unknown action"),
+        }
+        return std::process::ExitCode::SUCCESS;
+    }
     if std::env::var("HORIZON_PROBE_PREPARE_DATABASE").as_deref() == Ok("1") {
         let mut app = create().unwrap();
         app.boot().await.unwrap();

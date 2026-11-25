@@ -32,8 +32,9 @@ pub use events::{
 pub use job_payload::{JobPayload, JobPayloadMetadata};
 pub use job_trim::{TrimFailedJobs, TrimMonitoredJobs, TrimRecentJobs};
 pub use master_supervisor::{
-    ExpireSupervisors, MasterSupervisor, MasterSupervisorDeployed, MasterSupervisorLooped,
-    MasterSupervisorReviving, SupervisorProcess, SupervisorProcessRestarting,
+    AddSupervisor, ExpireSupervisors, MasterSupervisor, MasterSupervisorDeployed,
+    MasterSupervisorLooped, MasterSupervisorReviving, SupervisorProcess,
+    SupervisorProcessRestarting,
 };
 pub use options::{AutoScaler, SupervisorOptions};
 pub use process_memory::{
@@ -43,7 +44,8 @@ pub use process_memory::{
 pub use provider::HorizonServiceProvider;
 pub use repository::{
     JobDetails, JobRecord, JobRepository, MasterSupervisorRepository, Metrics, MetricsRepository,
-    ProcessRepository, Repository, SupervisorRepository, TagRepository, WorkloadRepository,
+    ProcessRepository, QueuedCommand, RedisHorizonCommandQueue, Repository, SupervisorRepository,
+    TagRepository, WorkloadRepository,
 };
 pub use silenced::Silenced;
 pub use supervisor::{

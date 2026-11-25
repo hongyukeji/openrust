@@ -299,12 +299,22 @@ async fn same_named_master_cannot_overwrite_an_owner_or_remove_its_replacement()
                     } => {},
                     result = &mut first_run => panic!("first Master stopped before contention: {result:?}"),
                 }
+                let commands = repository.command_queue();
+                let target = MasterSupervisor::command_queue_for(Some(&name)).unwrap();
+                commands
+                    .push(&target, "OwnerProbe", json!(["retained"]))
+                    .await
+                    .unwrap();
                 let (a, b) = tokio::join!(
                     create("competitor-a").run(&next_shutdown),
                     create("competitor-b").run(&next_shutdown)
                 );
                 assert!(matches!(a, Err(Error::MasterAlreadyRunning)));
                 assert!(matches!(b, Err(Error::MasterAlreadyRunning)));
+                let pending = commands.pending(&target).await.unwrap();
+                assert_eq!(pending.len(), 1);
+                assert_eq!(pending[0].command, "OwnerProbe");
+                assert_eq!(pending[0].options, json!(["retained"]));
                 assert!(matches!(
                     masters.update(&name, &json!({"name":name})).await,
                     Err(Error::MasterAlreadyRunning)

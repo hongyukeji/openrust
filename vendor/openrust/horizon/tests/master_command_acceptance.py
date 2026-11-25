@@ -1,0 +1,103 @@
+"""Exercise the public command queue against a native Horizon Master and Redis."""
+import json
+import os
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import time
+
+
+def main():
+    assert os.environ['HORIZON_REQUIRE_REDIS'] == '1'
+    binary = str(Path(sys.argv[1]).resolve())
+    with tempfile.TemporaryDirectory(prefix='horizon-master-command-') as base:
+        root = Path(base)
+        (root / 'database.sqlite').touch()
+        env = dict(os.environ, APP_BASE_PATH=base, APP_ENV='testing', LOG_CHANNEL='null',
+                   HORIZON_PREFIX='master-command:', HORIZON_PROBE_MASTER_BASENAME='North:東京 1',
+                   HORIZON_PROBE_EMPTY_DEFAULTS='1', HORIZON_PROBE_PRELOAD_MASTER_COMMAND='1',
+                   HORIZON_PROBE_RECORD_SUPERVISOR_CWD='1')
+
+        def run(*args, accepted=(0,), **variables):
+            result = subprocess.run([binary, *args], env=dict(env, **variables),
+                                    capture_output=True, text=True, timeout=15)
+            assert result.returncode in accepted, (args, result.returncode, result.stdout, result.stderr)
+            return result.stdout.strip()
+
+        def queue(action, name, **values):
+            return run(HORIZON_PROBE_COMMAND_QUEUE=json.dumps(dict(action=action, name=name, **values)))
+
+        def statuses():
+            return json.loads(run('artisan', 'horizon:status', '--json', accepted=(0, 1, 2)))
+
+        def until(predicate):
+            end = time.monotonic() + 15
+            while time.monotonic() < end:
+                if value := predicate():
+                    return value
+                time.sleep(.15)
+            raise AssertionError(f'Acceptance condition not reached: {statuses()}')
+
+        run(HORIZON_PROBE_PREPARE_DATABASE='1')
+        queue('push', 'public-probe', command='One', options=[])
+        queue('push', 'public-probe', command='Two', options={'nested': [False, '東京']})
+        queue('push', 'other-probe', command='Other', options={})
+        with ThreadPoolExecutor(max_workers=2) as readers:
+            batches = list(readers.map(lambda _: json.loads(queue('pending', 'public-probe')), range(2)))
+        assert sorted(batches, key=len) == [[], [
+            {'command': 'One', 'options': []}, {'command': 'Two', 'options': {'nested': [False, '東京']}},
+        ]]
+        assert json.loads(queue('pending', 'public-probe')) == []
+        queue('flush', 'other-probe')
+        assert json.loads(queue('pending', 'other-probe')) == []
+
+        master = subprocess.Popen([binary, 'artisan', 'horizon'], env=env,
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        try:
+            row = until(lambda: next((row for row in statuses() if row['pid'] == master.pid), None))
+            name = row['name']
+            child = name + ':部署 queue'
+            directory = root / 'child cwd'
+            assert not row['supervisors']
+            run('artisan', 'horizon:pause')
+            until(lambda: any(row['status'] == 'paused' for row in statuses()))
+            queue('push', name, master=True, command='Unknown', options={})
+            queue('push', name, master=True, options={'name': 'another-master:foreign'})
+            queue('push', name, master=True, options={'name': child, 'queue': ['added'], 'maxProcesses': 1,
+                                                      'directory': str(directory)})
+            queue('push', name, master=True, options={'name': child, 'queue': ['wrong'], 'maxProcesses': 1})
+
+            paused = until(lambda: next((row for row in statuses() if child in row['supervisors']), None))
+            assert paused['supervisors'] == [child] and not paused['workers'], paused
+            run('artisan', 'horizon:continue')
+            failed_start = until(lambda: next((row for row in statuses() if row['unexpected_exits']), None))
+            assert not failed_start['workers']
+            directory.mkdir()
+            live = until(lambda: next((row for row in statuses() if row['workers']), None))
+            assert live['supervisors'] == [child], live
+            assert live['workers'][0]['supervisor'] == child and live['workers'][0]['queue'] == 'added', live
+            assert Path(json.loads((root / 'supervisor-cwd.json').read_text())).resolve() == directory.resolve()
+            assert json.loads(queue('pending', name, master=True)) == []
+            job = run(HORIZON_PROBE_DISPATCH='{}', HORIZON_PROBE_DISPATCH_UUID='1',
+                      HORIZON_PROBE_DISPATCH_QUEUE='added')
+            completed = root / 'completed.log'
+            until(lambda: completed.exists() and job in completed.read_text())
+            run('artisan', 'horizon:terminate')
+            stdout, stderr = master.communicate(timeout=15)
+            assert master.returncode == 0, (stdout, stderr)
+            assert statuses() == []
+            print('PASS: public FIFO queue, startup flush, paused dynamic deployment, actual Worker and scoped shutdown')
+        finally:
+            if master.poll() is None:
+                master.terminate()
+                try:
+                    master.communicate(timeout=12)
+                except subprocess.TimeoutExpired:
+                    master.kill()
+                    master.communicate()
+
+
+if __name__ == '__main__':
+    main()

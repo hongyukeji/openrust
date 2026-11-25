@@ -82,6 +82,8 @@ def main():
             owner_key, master_key = prefix + "master-owner:" + name, prefix + "master:" + name
             suffix = supervisor.encode().hex()
             child_key, commands_key = prefix + "supervisor:" + suffix, prefix + "commands:" + suffix
+            master_commands = prefix + "commands:queued:master:" + name
+            successor_command = json.dumps({"command": "SuccessorProbe", "options": []})
             old_token, token = redis("GET", owner_key), str(uuid.uuid4())
             assert old_token
             child = json.loads(redis("GET", child_key))
@@ -95,7 +97,7 @@ def main():
                 until(lambda: process_state(pid).startswith("T"))
             replacement = dict(child, probe="replacement")
             ready = f"{root.name}:queues:default"
-            keys = [owner_key, master_key, child_key, commands_key]
+            keys = [owner_key, master_key, child_key, commands_key, master_commands]
             if blocking:
                 job = dispatch("takeover-staging")
                 keys += [f"{root.name}:queues:takeover-staging", ready, f"{ready}:notify"]
@@ -110,14 +112,15 @@ def main():
                     redis.call('SET', KEYS[2], ARGV[2], 'EX', 60)
                     redis.call('SET', KEYS[3], ARGV[3], 'EX', 60)
                     redis.call('RPUSH', KEYS[4], 'continue')
-                    if #KEYS == 7 then
-                        redis.call('RPUSH', KEYS[6], redis.call('LPOP', KEYS[5]))
-                        redis.call('RPUSH', KEYS[7], 1)
+                    redis.call('RPUSH', KEYS[5], ARGV[4])
+                    if #KEYS == 8 then
+                        redis.call('RPUSH', KEYS[7], redis.call('LPOP', KEYS[6]))
+                        redis.call('RPUSH', KEYS[8], 1)
                     end
                     return 1
                     """,
                     str(len(keys)), *keys, token, json.dumps(dict(active, environment="replacement")),
-                    json.dumps(replacement),
+                    json.dumps(replacement), successor_command,
                 ) == "1"
 
             assert take_over()
@@ -154,6 +157,7 @@ def main():
             assert json.loads(redis("GET", master_key))["environment"] == "replacement"
             assert json.loads(redis("GET", child_key)) == replacement
             assert redis("LRANGE", commands_key, "0", "-1") == "continue"
+            assert redis("LRANGE", master_commands, "0", "-1") == successor_command
             mode = "with Redis BLPOP in flight" if blocking else "without blocking"
             print(f"PASS: stale Supervisor and Worker cannot mutate new records or reserve jobs after takeover ({mode})")
         finally:

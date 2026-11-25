@@ -16,6 +16,7 @@ pub struct SupervisorProcess {
     process: Option<InvokedProcess>,
     restart_again_at: Instant,
     dead: bool,
+    from_command: bool,
 }
 
 impl SupervisorProcess {
@@ -26,6 +27,7 @@ impl SupervisorProcess {
             process,
             restart_again_at: Instant::now(),
             dead: false,
+            from_command: false,
         }
     }
 
@@ -43,6 +45,42 @@ impl SupervisorProcess {
 
     pub fn is_dead(&self) -> bool {
         self.dead
+    }
+}
+
+/// 在运行中的 Master 上登记并启动额外的 Supervisor。
+pub struct AddSupervisor;
+
+impl AddSupervisor {
+    pub const NAME: &str = "Laravel\\Horizon\\MasterSupervisorCommands\\AddSupervisor";
+
+    pub fn process(&self, master: &mut MasterSupervisor, options: serde_json::Value) -> Result<()> {
+        let mut options = SupervisorOptions::from_array(options)?;
+        let Some(suffix) = crate::master_names::supervisor_suffix(&master.id, &options.name) else {
+            return Err(Error::InvalidConfiguration);
+        };
+        if !crate::master_names::valid_process_name(&options.name) {
+            return Err(Error::InvalidConfiguration);
+        }
+        let existing = master
+            .supervisors
+            .iter_mut()
+            .find(|child| child.name == options.name);
+        if existing
+            .as_ref()
+            .map_or_else(|| master.options.contains_key(suffix), |child| !child.dead)
+        {
+            return Ok(());
+        }
+        options.parent_id = std::process::id();
+        let mut child = SupervisorProcess::new(options, None);
+        child.from_command = true;
+        if let Some(existing) = existing {
+            *existing = child;
+        } else {
+            master.supervisors.push(child);
+        }
+        Ok(())
     }
 }
 
@@ -244,6 +282,17 @@ impl MasterSupervisor {
         Ok(crate::master_names::process_name(&Self::basename()?))
     }
 
+    pub fn command_queue() -> Result<String> {
+        Ok(format!("master:{}", Self::process_name()?))
+    }
+
+    pub fn command_queue_for(name: Option<&str>) -> Result<String> {
+        match name.filter(|name| !name.is_empty() && *name != "0") {
+            Some(name) => Ok(format!("master:{name}")),
+            None => Self::command_queue(),
+        }
+    }
+
     /// 在当前应用内设置 Master 名称前缀解析器。
     pub fn determine_name_using(
         resolve: impl Fn() -> String + Send + Sync + 'static,
@@ -331,6 +380,18 @@ impl MasterSupervisor {
             return Ok(false);
         }
         let paused = masters.paused(&self.id).await?;
+        for item in lease.pending_commands().await? {
+            let result = match item.command.as_str() {
+                AddSupervisor::NAME => AddSupervisor.process(self, item.options),
+                _ => Err(Error::InvalidRecord),
+            };
+            if let Err(error) = result {
+                let _ = openrust::support::facades::Log::warning(
+                    &format!("Horizon Master 命令未执行: {error}"),
+                    &Default::default(),
+                );
+            }
+        }
         for supervisor in &mut self.supervisors {
             if supervisor
                 .process
@@ -357,22 +418,42 @@ impl MasterSupervisor {
             }
             if supervisor.dead
                 || supervisor.process.is_some()
+                || (paused && supervisor.from_command)
                 || Instant::now() < supervisor.restart_again_at
             {
                 continue;
             }
             let arguments = supervisor.options.to_supervisor_command(&self.executable)?;
             lease.forget_supervisor(&supervisor.name).await?;
+            let directory = if supervisor.from_command {
+                supervisor
+                    .options
+                    .directory
+                    .as_deref()
+                    .unwrap_or(&self.base)
+            } else {
+                &self.base
+            };
             let child = Factory::new()
                 .command(arguments)
-                .path(&self.base)
+                .path(directory)
                 .env([("APP_BASE_PATH", self.base.as_os_str().to_owned())])
                 .env(lease.ownership().environment())
                 .forever()
                 .quietly();
             #[cfg(windows)]
             let child = child.with_shutdown_pipe();
-            supervisor.process = Some(child.start().map_err(|_| Error::Process)?);
+            match child.start() {
+                Ok(process) => supervisor.process = Some(process),
+                Err(error) if supervisor.from_command => {
+                    self.failures = self.failures.saturating_add(1);
+                    let _ = openrust::support::facades::Log::warning(
+                        &format!("Horizon 无法启动排队部署的 Supervisor: {error}"),
+                        &Default::default(),
+                    );
+                }
+                Err(_) => return Err(Error::Process),
+            }
             // Failed children cannot spin in a tight restart loop.
             supervisor.restart_again_at = Instant::now() + Duration::from_secs(1);
         }

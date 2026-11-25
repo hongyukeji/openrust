@@ -54,7 +54,17 @@ macOS 与 Linux ARM64 使用真实 Redis 8.10.3 与实际 Master、Supervisor �
 
 阻塞接管用例确认 Redis 中的 Worker 处于 `BLPOP` 后，在同一条脚本内写入继任令牌、追加真实派发的任务并唤醒旧 Worker。旧 Worker 消费通知后退出，任务留在待处理列表，尝试次数仍为 0、保留集合为空。持新令牌的 `horizon:work --once` 处理同一任务。macOS 与 Linux ARM64 在 Redis 8.10.3 上通过阻塞与非阻塞回归，macOS 的普通 Redis 队列 HTTP 与阻塞领取回归、Horizon Worker 回归、所涉严格 Clippy 和格式检查通过。证据为 `target/tmp/observability-parity/horizon-blocking-ownership-{before,macos,linux,plain-queue,format}.log`。
 
-Master 的 `commandQueue`、`commandQueueFor`、公开重启与输出回调也有独立契约待核对。
+### Master 命令队列与动态部署
+
+固定上游的本机队列名称为 `master:<Master 全名>`。`commandQueueFor` 在未传名称、传入空串或 `"0"` 时使用本机队列。Redis 按顺序推送 `command` 与 `options`，`pending` 领取后移除，`flush` 清空指定队列。固定 PHP 探针使用真实 Redis 8.10.3 验证名称、空与嵌套选项、FIFO、领取后的空队列和清空，再调用 `AddSupervisor::process` 验证新 Supervisor 的名称与队列。Symfony 启动动作由探针替身承接，Rust 用实际子进程复验。上游证据为 `target/tmp/observability-parity/horizon-master-command-upstream.log`。 [固定 MasterSupervisor](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/MasterSupervisor.php) [固定 RedisHorizonCommandQueue](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/RedisHorizonCommandQueue.php) [固定 AddSupervisor](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/MasterSupervisorCommands/AddSupervisor.php)
+
+Rust 提供 `MasterSupervisor::command_queue`／`command_queue_for`、可由应用容器解析的 `RedisHorizonCommandQueue`，以及 `AddSupervisor::process`。领取与删除在同一条 Redis 脚本内完成。Master 获得名称所有权时清空旧命令，运行中领取须持当前令牌。旧的 Supervisor 文本命令与结构化队列使用不同 Redis 键。动态 Supervisor 校验完整父名称并采用当前 Master 的 PID，活跃同名请求只保留一份。暂停期间先接受部署，继续后启动。显式工作目录用于动态 Supervisor 子进程，目录暂不可用时继续监控并重试。同批无效命令不会阻断后续有效命令。
+
+macOS 和 Linux ARM64 用真实 Redis 验证并发领取、FIFO 与嵌套参数、启动清空、暂停继续、无效命令与去重、工作目录恢复以及新 Worker 的真实任务。旧 Master 退出保留接管方排队的命令，竞争同名启动也不会清空现有持有者的待办。Windows 11 ARM64 通过公开队列把空部署扩展为真实进程树并执行任务，原生排空与意外退出回归通过。证据为 `target/tmp/observability-parity/horizon-master-command-{macos-final,process-regression,competing,linux-final,windows-verified}.log`。
+
+剩余契约包括通过正式 `ProvisioningPlan` 发送默认部署命令、可替换的命令队列接口、命令类的应用容器解析、Supervisor 的结构化命令消费，以及 Master 公开重启和输出回调。
+
+`ProvisioningPlan` 的固定 PHP 参考已生成。环境名称按输入顺序列出，精确存在检查和通配部署分开。部署 `testing` 时优先采用排在前面的 `testing*`，递归合并保留未覆盖的队列位置。有效 Supervisor 通过同一命令队列提交，再派发部署事件。未匹配环境无命令及事件。证据为 `target/tmp/observability-parity/horizon-provisioning-upstream.log`。
 
 ### Windows 原生进程树
 

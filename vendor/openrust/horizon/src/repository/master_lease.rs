@@ -1,6 +1,6 @@
 use super::{MasterSupervisorRepository, Result, text};
 use crate::{
-    Error,
+    Error, QueuedCommand,
     master_names::{supervisor_suffix, valid_process_name},
 };
 use openrust::redis::Value;
@@ -69,6 +69,8 @@ impl MasterSupervisorRepository {
             return Err(Error::InvalidRecord);
         }
         let now = self.0.now().await?;
+        let mut keys = self.master_keys(name).to_vec();
+        keys.push(self.0.command_queue_key(&format!("master:{name}")));
         let reply = self
             .0
             .eval(
@@ -76,7 +78,7 @@ impl MasterSupervisorRepository {
 local owner = redis.call('GET', KEYS[1])
 if ARGV[1] == 'claim' then
     if owner or redis.call('EXISTS', KEYS[2]) == 1 then return 0 end
-    redis.call('DEL', KEYS[4], KEYS[5])
+    redis.call('DEL', KEYS[4], KEYS[5], KEYS[6])
 elseif ARGV[1] == 'refresh' then
     if owner ~= ARGV[2] then return 0 end
 elseif owner then return 0 end
@@ -88,7 +90,7 @@ redis.call('EXPIRE', KEYS[3], 60)
 redis.call('EXPIRE', KEYS[4], 30)
 return 1
 "#,
-                self.master_keys(name).to_vec(),
+                keys,
                 vec![
                     mode.into(),
                     token.into(),
@@ -169,6 +171,14 @@ return 1
 }
 
 impl MasterLease {
+    pub(crate) async fn pending_commands(&self) -> Result<Vec<QueuedCommand>> {
+        self.repository
+            .0
+            .command_queue()
+            .pending_for_master(&self.ownership.name, &self.ownership.token)
+            .await
+    }
+
     pub(crate) fn ownership(&self) -> &MasterOwnership {
         &self.ownership
     }

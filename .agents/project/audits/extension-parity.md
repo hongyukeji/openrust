@@ -129,6 +129,8 @@ Redis 中已阻塞的 Horizon Worker 会在被唤醒后、再次请求领取前�
 
 Horizon 的 Master 名称验证已接通空前缀、Unicode、冒号及超过原限制的长名称，使用完整父名称聚合子进程心跳。Windows ARM64 的受管子树现已通过真实 Redis 的启动、暂停续跑、排空、快速终止和父进程丢失回归。Windows x86_64、优化构建及正式服务管理器组合仍待验。固定 PHP 包依赖 `ext-pcntl` 和 `ext-posix`。 [Windows 进程树证据](horizon/README.md#windows-原生进程树) [固定 Horizon Composer 依赖](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/composer.json)
 
+Horizon 增加 Master 命令队列和动态 `AddSupervisor` 消费。真实 Redis 和运行中的 Master 验证启动时清除旧命令、暂停后恢复部署、启动失败后的恢复，以及新 Worker 处理实际任务。 [Master 命令队列](horizon/README.md#master-命令队列与动态部署)
+
 ### Horizon 分组等待时间与 HTTP 排序
 
 固定上游 [RedisWorkloadRepository::get](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Repositories/RedisWorkloadRepository.php) 与 [WaitTimeCalculator::calculateTimeToClear](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/WaitTimeCalculator.php) 分别确定各分队列先取整再累加、整组以原始总量独立取整的行为。[WorkloadController::index](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Http/Controllers/WorkloadController.php) 对 HTTP 结果按名称排序，仓储按等待时间降序供监控消费。Rust 已补齐两处规则。

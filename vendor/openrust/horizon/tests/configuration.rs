@@ -17,6 +17,15 @@ async fn master_names_use_a_process_token_and_an_application_local_resolver() {
             assert_eq!(MasterSupervisor::basename().unwrap(), "first.cluster");
             let first = MasterSupervisor::process_name().unwrap();
             assert_eq!(MasterSupervisor::process_name().unwrap(), first);
+            let queue = format!("master:{first}");
+            assert_eq!(MasterSupervisor::command_queue().unwrap(), queue);
+            for default in [None, Some(""), Some("0")] {
+                assert_eq!(MasterSupervisor::command_queue_for(default).unwrap(), queue);
+            }
+            assert_eq!(
+                MasterSupervisor::command_queue_for(Some("North:東京")).unwrap(),
+                "master:North:東京"
+            );
             MasterSupervisor::determine_name_using(|| "second_cluster".into()).unwrap();
             let second = MasterSupervisor::process_name().unwrap();
             let (_, token) = second.rsplit_once('-').unwrap();

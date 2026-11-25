@@ -86,6 +86,10 @@ impl ServiceProvider for HorizonServiceProvider {
                 repository.master_names = container.make::<crate::master_names::MasterNames>()?;
                 Ok(Arc::new(repository))
             })?;
+            app.container()
+                .singleton::<crate::RedisHorizonCommandQueue, _>(|container| {
+                    Ok(Arc::new(container.make::<Repository>()?.command_queue()))
+                })?;
             Ok(())
         })
     }

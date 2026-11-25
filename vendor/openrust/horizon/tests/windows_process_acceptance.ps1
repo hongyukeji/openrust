@@ -59,6 +59,8 @@ foreach ($mode in @('idle', 'wait', 'fast', 'parent-exit')) {
     New-Item -ItemType File (Join-Path $fixture 'database.sqlite') | Out-Null
     $env:APP_BASE_PATH = $fixture
     $env:HORIZON_PROBE_FAST_TERMINATION = if ($mode -in @('wait', 'fast')) { '1' } else { '0' }
+    $env:HORIZON_PROBE_EMPTY_DEFAULTS = if ($mode -eq 'idle') { '1' } else { '0' }
+    $env:HORIZON_PROBE_PRELOAD_MASTER_COMMAND = if ($mode -eq 'idle') { '1' } else { $null }
     $env:HORIZON_PROBE_PREPARE_DATABASE = '1'
     try {
         & $Binary
@@ -74,6 +76,23 @@ foreach ($mode in @('idle', 'wait', 'fast', 'parent-exit')) {
             -RedirectStandardOutput (Join-Path $fixture 'master.stdout') `
             -RedirectStandardError (Join-Path $fixture 'master.stderr')
         $null = $master.Handle
+        if ($mode -eq 'idle') {
+            $empty = Wait-For 'empty Master' {
+                $row = Status
+                if ($row.pid -eq $master.Id) { $row }
+            }
+            if ($empty.supervisors.Count -ne 0) { throw 'A command survived the startup flush.' }
+            $env:HORIZON_PROBE_COMMAND_QUEUE = @{
+                action = 'push'; name = $empty.name; master = $true
+                options = @{ name = $empty.name + ':supervisor-1'; queue = @('default'); maxProcesses = 1 }
+            } | ConvertTo-Json -Depth 4 -Compress
+            try {
+                & $Binary
+                if ($LASTEXITCODE -ne 0) { throw 'Public Master command enqueue failed.' }
+            } finally {
+                Remove-Item Env:HORIZON_PROBE_COMMAND_QUEUE
+            }
+        }
         $active = Wait-For 'native Worker' {
             $row = Status
             if ($row.pid -eq $master.Id -and @($row.workers).Count -eq 1) { $row }
@@ -90,6 +109,11 @@ foreach ($mode in @('idle', 'wait', 'fast', 'parent-exit')) {
             throw 'Unexpected native process ancestry.'
         }
         $null = Artisan horizon:supervisor-status $name
+
+        if ($mode -eq 'idle') {
+            $dynamic = Dispatch 20
+            Wait-For 'job on the dynamically added Worker' { Recorded 'completed.log' $dynamic } | Out-Null
+        }
 
         if ($mode -eq 'wait') {
             $null = Artisan horizon:pause
