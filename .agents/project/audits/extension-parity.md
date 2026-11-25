@@ -361,6 +361,8 @@ Rust Horizon 在应用自己的 Redis 写入入口生成观测元数据。即时
 
 Rust 原生 Redis 在事务中登记延迟投递时先保存观测元数据，提交回调消费这一份数据。即时投递在提交回调中求值。两种方式都在该回调内写入 Redis 和派发公开入队事件。SQLite 回滚测试确认延迟标签回调已执行，但 Redis 和任务仓储均无新增投递；提交测试改变静默配置，延迟任务仍使用先前的判定，即时任务使用提交时的判定。延迟提交路径已在 macOS 通过真实 Redis 测试，Horizon Redis 20 项、三包默认 84 项、严格 Clippy、全仓格式、三语内容构建和 12 组文档浏览器检查通过。证据为 `target/tmp/observability-parity/horizon-delayed-commit-{verified,docs}.log`。包装后的 Redis（例如 failover）及其他提交驱动的同类组合仍待核对。
 
+Linux ARM64 与 Windows 11 ARM64 用同一事务时机代码和 Rust 1.94.0，分别在独占 Redis 8.10.3 上通过该真实 SQLite 提交／回滚专项。证据为 `target/tmp/observability-parity/horizon-delayed-commit-linux.log` 与 `target/tmp/observability-windows/horizon-delayed-commit-arm64.log`。
+
 PHP 8.5.12 探针使用固定上游的四个实际包装类型并调用 `JobPayload::determineType`，验证广播 `broadcast`、监听器 `event`、邮件 `mail`、通知 `notification` 和普通对象 `job`，另通过公开的 `prepare(null)` 验证原始重试回到 `job`。Rust 类型由原生包装入口在创建任务时写入。应用自定义的监听器名称、通知中间件和加密正文均沿用对应入口的类型。Horizon 原始重试的观测类型为 `job`，原生处理器和运输类型随核心载荷保存。旧数据缺少类型时反序列化为 `job`。上游对照证据为 `target/tmp/observability-parity/horizon-job-types-upstream.log`。
 
 实际 HTTP 生产者与 Redis 8.10.3 验证五类载荷，含加密和自定义中间件命名的通知、与内置处理器同名的普通任务、旧版序列化及事件失败后的原生 `horizon:retry`。macOS 隔离快照沿用 `eb189cfb1` 及已提交的 Redis 事件、载荷补齐代码，再叠加本批分类代码。三包默认 84 项、Horizon Redis 19 项、严格 Clippy、快照全仓格式、三语内容构建及 12 组文档浏览器检查通过。Windows 11 ARM64 以相同源码快照在专用 NTFS 卷编译，14 项 Redis Runtime 通过，包含本批类型与上一批重试元数据。证据为 `target/tmp/observability-parity/horizon-job-types-{verified,docs-verified}.log` 和 `target/tmp/observability-windows/horizon-job-types-arm64.log`。完整发布组合待验。
