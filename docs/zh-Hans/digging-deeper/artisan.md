@@ -1634,3 +1634,32 @@ fn register_line_components() -> Result<(), ConsoleError> {
 组件文字会合并 ASCII 空格、制表符和换行；NUL 转为空格，其他 C0 控制字符被移除，包括原始 ANSI 转义字符，不换行空格保留。需要样式时使用格式器标签。长文本不自动折行。支持换行统计的样式决定前置间距，底层样式和原始捕获使用一行前置间距。
 
 `OutputFormat::Normal` 保持原有默认值 0。`ExplicitNormal` 对应显式 normal 位 1，保留与输出级别组合时的换行计数。穷尽匹配 `OutputFormat` 的代码需要加入该分支。
+
+## 提示框、列表与双列详情 {#display-components}
+
+这些组件借用所选输出，保留其格式器以及 stdout／stderr 选择。`render` 使用普通输出级别，`render_with` 接受 `OutputOptions` 或输出级别门槛。终端宽度优先读取 `COLUMNS`。
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, OutputStyle, OutputVerbosity,
+    view::components::{Alert, BulletList, TwoColumnDetail}};
+use openrust::support::facades::Artisan;
+
+fn register_display_components() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:display", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut style = OutputStyle::new(input, output);
+            Alert::new(&mut style).render("Review [reports]")?;
+            BulletList::new(&mut style).render(["CSV.", "JSON.", "HTML."])?;
+            TwoColumnDetail::new(&mut style).render("Report [daily].", Some("Ready"))?;
+            TwoColumnDetail::new(&mut style).render("Optional value.", None)?;
+            Alert::new(&mut style).render_with("Verbose alert", OutputVerbosity::Verbose)?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+`Alert` 使用整行背景，将内容转为大写并居中；内容超过可用宽度时按带样式文本规则截断，无法处理的宽度返回 `ConsoleError`。`BulletList` 对每项高亮方括号内容、移除一个末尾 ASCII 标点，并解析相对路径。输入只收集一次，随后逐阶段处理所有项目，再一次写入；空列表仍写入一个换行。
+
+`TwoColumnDetail` 移除第一列的末尾标点，保留第二列标点。`None` 和 `Some("")` 省略第二列，其他输入在文字规范化后仍保留列位置。点状填充按至多 150 列的布局宽度计算，过长的列内容仍完整输出。组件构造后，通过原共享句柄变更格式器样式仍立即生效。

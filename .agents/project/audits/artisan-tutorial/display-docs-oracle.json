@@ -1,0 +1,26 @@
+[
+    {
+        "level": 32,
+        "decorated": false,
+        "output": "\n                                                                                \n                               REVIEW [REPORTS].                                \n                                                                                \n  ⇂ CSV  \n  ⇂ JSON  \n  ⇂ HTML  \n  Report [daily] ....................................................... Ready  \n  Optional value .............................................................  \n",
+        "new_lines": 1
+    },
+    {
+        "level": 32,
+        "decorated": true,
+        "output": "\n  \u001b[30;43m                                                                            \u001b[39;49m  \n  \u001b[30;43m                             REVIEW \u001b[39;49m\u001b[1m[REPORTS]\u001b[22m\u001b[30;43m.                              \u001b[39;49m  \n  \u001b[30;43m                                                                            \u001b[39;49m  \n  \u001b[90m⇂ CSV\u001b[39m  \n  \u001b[90m⇂ JSON\u001b[39m  \n  \u001b[90m⇂ HTML\u001b[39m  \n  Report \u001b[1m[daily]\u001b[22m \u001b[90m.......................................................\u001b[39m Ready  \n  Optional value \u001b[90m.............................................................\u001b[39m  \n",
+        "new_lines": 1
+    },
+    {
+        "level": 16,
+        "decorated": false,
+        "output": "",
+        "new_lines": 1
+    },
+    {
+        "level": 8,
+        "decorated": false,
+        "output": "",
+        "new_lines": 1
+    }
+]

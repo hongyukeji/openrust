@@ -500,5 +500,10 @@
     "status": "verified_concrete_line_family_builtin_outputs",
     "contracts": "line-components-contracts.json",
     "full_factory": "pending"
+  },
+  "display_components": {
+    "status": "verified_concrete_display_components_builtin_outputs",
+    "contracts": "display-components-contracts.json",
+    "full_factory": "pending"
   }
 }

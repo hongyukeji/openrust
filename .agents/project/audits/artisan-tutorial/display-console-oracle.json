@@ -1,0 +1,1034 @@
+[
+  {
+    "kind": "Alert",
+    "arguments": [
+      "Careful [report]"
+    ],
+    "width": 16,
+    "side": "stdout",
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "Alert",
+    "arguments": [
+      "Careful [report]"
+    ],
+    "width": 16,
+    "side": "stdout",
+    "decorated": false,
+    "level": 32,
+    "stdout": "\n                \n  CAREFUL [REP  \n                \n",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "Alert",
+    "arguments": [
+      "Careful [report]"
+    ],
+    "width": 16,
+    "side": "stdout",
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "Alert",
+    "arguments": [
+      "Careful [report]"
+    ],
+    "width": 16,
+    "side": "stdout",
+    "decorated": true,
+    "level": 32,
+    "stdout": "\n  \u001b[30;43m            \u001b[39;49m  \n  \u001b[30;43mCAREFUL \u001b[39;49m\u001b[1m[REP\u001b[22m  \n  \u001b[30;43m            \u001b[39;49m  \n",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "Alert",
+    "arguments": [
+      "Careful [report]"
+    ],
+    "width": 16,
+    "side": "stderr",
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "Alert",
+    "arguments": [
+      "Careful [report]"
+    ],
+    "width": 16,
+    "side": "stderr",
+    "decorated": false,
+    "level": 32,
+    "stdout": "",
+    "stderr": "\n                \n  CAREFUL [REP  \n                \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "Alert",
+    "arguments": [
+      "Careful [report]"
+    ],
+    "width": 16,
+    "side": "stderr",
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "Alert",
+    "arguments": [
+      "Careful [report]"
+    ],
+    "width": 16,
+    "side": "stderr",
+    "decorated": true,
+    "level": 32,
+    "stdout": "",
+    "stderr": "\n  \u001b[30;43m            \u001b[39;49m  \n  \u001b[30;43mCAREFUL \u001b[39;49m\u001b[1m[REP\u001b[22m  \n  \u001b[30;43m            \u001b[39;49m  \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "Alert",
+    "arguments": [
+      "Careful [report]"
+    ],
+    "width": 80,
+    "side": "stdout",
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "Alert",
+    "arguments": [
+      "Careful [report]"
+    ],
+    "width": 80,
+    "side": "stdout",
+    "decorated": false,
+    "level": 32,
+    "stdout": "\n                                                                                \n                               CAREFUL [REPORT].                                \n                                                                                \n",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "Alert",
+    "arguments": [
+      "Careful [report]"
+    ],
+    "width": 80,
+    "side": "stdout",
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "Alert",
+    "arguments": [
+      "Careful [report]"
+    ],
+    "width": 80,
+    "side": "stdout",
+    "decorated": true,
+    "level": 32,
+    "stdout": "\n  \u001b[30;43m                                                                            \u001b[39;49m  \n  \u001b[30;43m                             CAREFUL \u001b[39;49m\u001b[1m[REPORT]\u001b[22m\u001b[30;43m.                              \u001b[39;49m  \n  \u001b[30;43m                                                                            \u001b[39;49m  \n",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "Alert",
+    "arguments": [
+      "Careful [report]"
+    ],
+    "width": 80,
+    "side": "stderr",
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "Alert",
+    "arguments": [
+      "Careful [report]"
+    ],
+    "width": 80,
+    "side": "stderr",
+    "decorated": false,
+    "level": 32,
+    "stdout": "",
+    "stderr": "\n                                                                                \n                               CAREFUL [REPORT].                                \n                                                                                \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "Alert",
+    "arguments": [
+      "Careful [report]"
+    ],
+    "width": 80,
+    "side": "stderr",
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "Alert",
+    "arguments": [
+      "Careful [report]"
+    ],
+    "width": 80,
+    "side": "stderr",
+    "decorated": true,
+    "level": 32,
+    "stdout": "",
+    "stderr": "\n  \u001b[30;43m                                                                            \u001b[39;49m  \n  \u001b[30;43m                             CAREFUL \u001b[39;49m\u001b[1m[REPORT]\u001b[22m\u001b[30;43m.                              \u001b[39;49m  \n  \u001b[30;43m                                                                            \u001b[39;49m  \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "Alert",
+    "arguments": [
+      "Careful [report]"
+    ],
+    "width": 200,
+    "side": "stdout",
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "Alert",
+    "arguments": [
+      "Careful [report]"
+    ],
+    "width": 200,
+    "side": "stdout",
+    "decorated": false,
+    "level": 32,
+    "stdout": "\n                                                                                                                                                                                                        \n                                                                                           CAREFUL [REPORT].                                                                                            \n                                                                                                                                                                                                        \n",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "Alert",
+    "arguments": [
+      "Careful [report]"
+    ],
+    "width": 200,
+    "side": "stdout",
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "Alert",
+    "arguments": [
+      "Careful [report]"
+    ],
+    "width": 200,
+    "side": "stdout",
+    "decorated": true,
+    "level": 32,
+    "stdout": "\n  \u001b[30;43m                                                                                                                                                                                                    \u001b[39;49m  \n  \u001b[30;43m                                                                                         CAREFUL \u001b[39;49m\u001b[1m[REPORT]\u001b[22m\u001b[30;43m.                                                                                          \u001b[39;49m  \n  \u001b[30;43m                                                                                                                                                                                                    \u001b[39;49m  \n",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "Alert",
+    "arguments": [
+      "Careful [report]"
+    ],
+    "width": 200,
+    "side": "stderr",
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "Alert",
+    "arguments": [
+      "Careful [report]"
+    ],
+    "width": 200,
+    "side": "stderr",
+    "decorated": false,
+    "level": 32,
+    "stdout": "",
+    "stderr": "\n                                                                                                                                                                                                        \n                                                                                           CAREFUL [REPORT].                                                                                            \n                                                                                                                                                                                                        \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "Alert",
+    "arguments": [
+      "Careful [report]"
+    ],
+    "width": 200,
+    "side": "stderr",
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "Alert",
+    "arguments": [
+      "Careful [report]"
+    ],
+    "width": 200,
+    "side": "stderr",
+    "decorated": true,
+    "level": 32,
+    "stdout": "",
+    "stderr": "\n  \u001b[30;43m                                                                                                                                                                                                    \u001b[39;49m  \n  \u001b[30;43m                                                                                         CAREFUL \u001b[39;49m\u001b[1m[REPORT]\u001b[22m\u001b[30;43m.                                                                                          \u001b[39;49m  \n  \u001b[30;43m                                                                                                                                                                                                    \u001b[39;49m  \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "BulletList",
+    "arguments": [
+      [
+        "First.",
+        "[second]"
+      ]
+    ],
+    "width": 16,
+    "side": "stdout",
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "BulletList",
+    "arguments": [
+      [
+        "First.",
+        "[second]"
+      ]
+    ],
+    "width": 16,
+    "side": "stdout",
+    "decorated": false,
+    "level": 32,
+    "stdout": "  ⇂ First  \n  ⇂ [second]  \n",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "BulletList",
+    "arguments": [
+      [
+        "First.",
+        "[second]"
+      ]
+    ],
+    "width": 16,
+    "side": "stdout",
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "BulletList",
+    "arguments": [
+      [
+        "First.",
+        "[second]"
+      ]
+    ],
+    "width": 16,
+    "side": "stdout",
+    "decorated": true,
+    "level": 32,
+    "stdout": "  \u001b[90m⇂ First\u001b[39m  \n  \u001b[90m⇂ \u001b[39m\u001b[1m[second]\u001b[22m  \n",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "BulletList",
+    "arguments": [
+      [
+        "First.",
+        "[second]"
+      ]
+    ],
+    "width": 16,
+    "side": "stderr",
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "BulletList",
+    "arguments": [
+      [
+        "First.",
+        "[second]"
+      ]
+    ],
+    "width": 16,
+    "side": "stderr",
+    "decorated": false,
+    "level": 32,
+    "stdout": "",
+    "stderr": "  ⇂ First  \n  ⇂ [second]  \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "BulletList",
+    "arguments": [
+      [
+        "First.",
+        "[second]"
+      ]
+    ],
+    "width": 16,
+    "side": "stderr",
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "BulletList",
+    "arguments": [
+      [
+        "First.",
+        "[second]"
+      ]
+    ],
+    "width": 16,
+    "side": "stderr",
+    "decorated": true,
+    "level": 32,
+    "stdout": "",
+    "stderr": "  \u001b[90m⇂ First\u001b[39m  \n  \u001b[90m⇂ \u001b[39m\u001b[1m[second]\u001b[22m  \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "BulletList",
+    "arguments": [
+      [
+        "First.",
+        "[second]"
+      ]
+    ],
+    "width": 80,
+    "side": "stdout",
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "BulletList",
+    "arguments": [
+      [
+        "First.",
+        "[second]"
+      ]
+    ],
+    "width": 80,
+    "side": "stdout",
+    "decorated": false,
+    "level": 32,
+    "stdout": "  ⇂ First  \n  ⇂ [second]  \n",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "BulletList",
+    "arguments": [
+      [
+        "First.",
+        "[second]"
+      ]
+    ],
+    "width": 80,
+    "side": "stdout",
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "BulletList",
+    "arguments": [
+      [
+        "First.",
+        "[second]"
+      ]
+    ],
+    "width": 80,
+    "side": "stdout",
+    "decorated": true,
+    "level": 32,
+    "stdout": "  \u001b[90m⇂ First\u001b[39m  \n  \u001b[90m⇂ \u001b[39m\u001b[1m[second]\u001b[22m  \n",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "BulletList",
+    "arguments": [
+      [
+        "First.",
+        "[second]"
+      ]
+    ],
+    "width": 80,
+    "side": "stderr",
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "BulletList",
+    "arguments": [
+      [
+        "First.",
+        "[second]"
+      ]
+    ],
+    "width": 80,
+    "side": "stderr",
+    "decorated": false,
+    "level": 32,
+    "stdout": "",
+    "stderr": "  ⇂ First  \n  ⇂ [second]  \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "BulletList",
+    "arguments": [
+      [
+        "First.",
+        "[second]"
+      ]
+    ],
+    "width": 80,
+    "side": "stderr",
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "BulletList",
+    "arguments": [
+      [
+        "First.",
+        "[second]"
+      ]
+    ],
+    "width": 80,
+    "side": "stderr",
+    "decorated": true,
+    "level": 32,
+    "stdout": "",
+    "stderr": "  \u001b[90m⇂ First\u001b[39m  \n  \u001b[90m⇂ \u001b[39m\u001b[1m[second]\u001b[22m  \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "BulletList",
+    "arguments": [
+      [
+        "First.",
+        "[second]"
+      ]
+    ],
+    "width": 200,
+    "side": "stdout",
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "BulletList",
+    "arguments": [
+      [
+        "First.",
+        "[second]"
+      ]
+    ],
+    "width": 200,
+    "side": "stdout",
+    "decorated": false,
+    "level": 32,
+    "stdout": "  ⇂ First  \n  ⇂ [second]  \n",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "BulletList",
+    "arguments": [
+      [
+        "First.",
+        "[second]"
+      ]
+    ],
+    "width": 200,
+    "side": "stdout",
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "BulletList",
+    "arguments": [
+      [
+        "First.",
+        "[second]"
+      ]
+    ],
+    "width": 200,
+    "side": "stdout",
+    "decorated": true,
+    "level": 32,
+    "stdout": "  \u001b[90m⇂ First\u001b[39m  \n  \u001b[90m⇂ \u001b[39m\u001b[1m[second]\u001b[22m  \n",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "BulletList",
+    "arguments": [
+      [
+        "First.",
+        "[second]"
+      ]
+    ],
+    "width": 200,
+    "side": "stderr",
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "BulletList",
+    "arguments": [
+      [
+        "First.",
+        "[second]"
+      ]
+    ],
+    "width": 200,
+    "side": "stderr",
+    "decorated": false,
+    "level": 32,
+    "stdout": "",
+    "stderr": "  ⇂ First  \n  ⇂ [second]  \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "BulletList",
+    "arguments": [
+      [
+        "First.",
+        "[second]"
+      ]
+    ],
+    "width": 200,
+    "side": "stderr",
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "BulletList",
+    "arguments": [
+      [
+        "First.",
+        "[second]"
+      ]
+    ],
+    "width": 200,
+    "side": "stderr",
+    "decorated": true,
+    "level": 32,
+    "stdout": "",
+    "stderr": "  \u001b[90m⇂ First\u001b[39m  \n  \u001b[90m⇂ \u001b[39m\u001b[1m[second]\u001b[22m  \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "TwoColumnDetail",
+    "arguments": [
+      "File [report].",
+      "Ready"
+    ],
+    "width": 16,
+    "side": "stdout",
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "TwoColumnDetail",
+    "arguments": [
+      "File [report].",
+      "Ready"
+    ],
+    "width": 16,
+    "side": "stdout",
+    "decorated": false,
+    "level": 32,
+    "stdout": "  File [report]  Ready  \n",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "TwoColumnDetail",
+    "arguments": [
+      "File [report].",
+      "Ready"
+    ],
+    "width": 16,
+    "side": "stdout",
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "TwoColumnDetail",
+    "arguments": [
+      "File [report].",
+      "Ready"
+    ],
+    "width": 16,
+    "side": "stdout",
+    "decorated": true,
+    "level": 32,
+    "stdout": "  File \u001b[1m[report]\u001b[22m  Ready  \n",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "TwoColumnDetail",
+    "arguments": [
+      "File [report].",
+      "Ready"
+    ],
+    "width": 16,
+    "side": "stderr",
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "TwoColumnDetail",
+    "arguments": [
+      "File [report].",
+      "Ready"
+    ],
+    "width": 16,
+    "side": "stderr",
+    "decorated": false,
+    "level": 32,
+    "stdout": "",
+    "stderr": "  File [report]  Ready  \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "TwoColumnDetail",
+    "arguments": [
+      "File [report].",
+      "Ready"
+    ],
+    "width": 16,
+    "side": "stderr",
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "TwoColumnDetail",
+    "arguments": [
+      "File [report].",
+      "Ready"
+    ],
+    "width": 16,
+    "side": "stderr",
+    "decorated": true,
+    "level": 32,
+    "stdout": "",
+    "stderr": "  File \u001b[1m[report]\u001b[22m  Ready  \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "TwoColumnDetail",
+    "arguments": [
+      "File [report].",
+      "Ready"
+    ],
+    "width": 80,
+    "side": "stdout",
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "TwoColumnDetail",
+    "arguments": [
+      "File [report].",
+      "Ready"
+    ],
+    "width": 80,
+    "side": "stdout",
+    "decorated": false,
+    "level": 32,
+    "stdout": "  File [report] ........................................................ Ready  \n",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "TwoColumnDetail",
+    "arguments": [
+      "File [report].",
+      "Ready"
+    ],
+    "width": 80,
+    "side": "stdout",
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "TwoColumnDetail",
+    "arguments": [
+      "File [report].",
+      "Ready"
+    ],
+    "width": 80,
+    "side": "stdout",
+    "decorated": true,
+    "level": 32,
+    "stdout": "  File \u001b[1m[report]\u001b[22m \u001b[90m........................................................\u001b[39m Ready  \n",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "TwoColumnDetail",
+    "arguments": [
+      "File [report].",
+      "Ready"
+    ],
+    "width": 80,
+    "side": "stderr",
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "TwoColumnDetail",
+    "arguments": [
+      "File [report].",
+      "Ready"
+    ],
+    "width": 80,
+    "side": "stderr",
+    "decorated": false,
+    "level": 32,
+    "stdout": "",
+    "stderr": "  File [report] ........................................................ Ready  \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "TwoColumnDetail",
+    "arguments": [
+      "File [report].",
+      "Ready"
+    ],
+    "width": 80,
+    "side": "stderr",
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "TwoColumnDetail",
+    "arguments": [
+      "File [report].",
+      "Ready"
+    ],
+    "width": 80,
+    "side": "stderr",
+    "decorated": true,
+    "level": 32,
+    "stdout": "",
+    "stderr": "  File \u001b[1m[report]\u001b[22m \u001b[90m........................................................\u001b[39m Ready  \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "TwoColumnDetail",
+    "arguments": [
+      "File [report].",
+      "Ready"
+    ],
+    "width": 200,
+    "side": "stdout",
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "TwoColumnDetail",
+    "arguments": [
+      "File [report].",
+      "Ready"
+    ],
+    "width": 200,
+    "side": "stdout",
+    "decorated": false,
+    "level": 32,
+    "stdout": "  File [report] .............................................................................................................................. Ready  \n",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "TwoColumnDetail",
+    "arguments": [
+      "File [report].",
+      "Ready"
+    ],
+    "width": 200,
+    "side": "stdout",
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "TwoColumnDetail",
+    "arguments": [
+      "File [report].",
+      "Ready"
+    ],
+    "width": 200,
+    "side": "stdout",
+    "decorated": true,
+    "level": 32,
+    "stdout": "  File \u001b[1m[report]\u001b[22m \u001b[90m..............................................................................................................................\u001b[39m Ready  \n",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "TwoColumnDetail",
+    "arguments": [
+      "File [report].",
+      "Ready"
+    ],
+    "width": 200,
+    "side": "stderr",
+    "decorated": false,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "TwoColumnDetail",
+    "arguments": [
+      "File [report].",
+      "Ready"
+    ],
+    "width": 200,
+    "side": "stderr",
+    "decorated": false,
+    "level": 32,
+    "stdout": "",
+    "stderr": "  File [report] .............................................................................................................................. Ready  \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "TwoColumnDetail",
+    "arguments": [
+      "File [report].",
+      "Ready"
+    ],
+    "width": 200,
+    "side": "stderr",
+    "decorated": true,
+    "level": 16,
+    "stdout": "",
+    "stderr": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "TwoColumnDetail",
+    "arguments": [
+      "File [report].",
+      "Ready"
+    ],
+    "width": 200,
+    "side": "stderr",
+    "decorated": true,
+    "level": 32,
+    "stdout": "",
+    "stderr": "  File \u001b[1m[report]\u001b[22m \u001b[90m..............................................................................................................................\u001b[39m Ready  \n",
+    "new_lines": 1
+  }
+]

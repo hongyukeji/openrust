@@ -599,3 +599,15 @@ Line/Info/Success/Warn/Error以真实公开类型、显式new和render/render_wi
 首轮新增CLI夹具对Option<Value>误用借用方法指针编译失败，改闭包后通过，失败日志保留。扩展格式器场景后主动终止旧检查，守卫收尾返回Operation not permitted；保留pre-custom日志；最终复查本批无存活构建，冻结源码对应的完整验收均通过，不把中断当通过。守卫停止的EPERM另列工具诊断，未声称已查明原因。32GB按守卫持锁清理恢复，无删除源码/日志/下载/其他工作区；不在此重复计入其他批次释放量。最终源码SHA、原始PHP工具/输出及门禁日志在target/tmp/artisan-tutorial-20261125/line-*，原许可随组件源码保留，未增依赖。原生本批为macOS ARM64/Rust1.94，源为Linux；其他实机/Windows发布矩阵未计通过。
 
 当前只闭合五种具体行组件在所选内置输出上的构造/渲染，不以它们冒充完整Component、其余9种组件、Factory/CommandIo或任意第三方OutputInterface。下一簇继续显示组件/任务，再接专用QuestionHelper及Factory；整章仍开放。仅本簇本地提交，不推送，保留其他在途改动。
+
+## 第四十一簇：Alert、BulletList 与 TwoColumnDetail（2026-11-26）
+
+三种具体公开类型以new/render/render_with接通，复用既有AsOutput/OutputReference/Mutator与Str::upper/width/limit。已核旧版，无对应具体组件/TaskResult可复用；旧calendar interval只解析日期区间，未冒充耗时人类化实现。固定行/列表/双列模板由原生排版生成相同格式器输入，不引入PHP进程级静态渲染器；不是通用HTML/CSS或完整Component编译器的替代完成声明。无新增依赖、命名豁免或未经测量的性能结论。
+
+固定PHP8.5.12、框架13.40.0、Symfony7.4.0与Termwind2.3.3产生555个真实源场景：479数据/宽度/ANSI/级别/模式/父样式/相对路径/构造后格式器变更矩阵、72个真实ConsoleOutput进程及4份正式示例序列。原生每个宽度使用设置真实COLUMNS的独立子进程，不在并发测试中unsafe修改全局环境。Alert按源整段大写、中心填充及原字节位置样式标记截断；宽度0～4的负数mb_strimwidth语义和6个ValueError边界均实测。BulletList空数组仍换行，输入一次收集后逐变换器阶段处理全部项目再一次写入。双列第一格移除一个末尾标点，第二格保留；null/空字符串/空白格区分、填充布局最多150列而不截断长格内容均按源保留。Unicode复用已测mb_strwidth表，未改成终端字素宽度；PHP引擎弃用信息不移植，窄宽度失败转ConsoleError。
+
+真实Artisan72组物理stdout/stderr/meta与失败OS1、HTTP21请求（含3次500、恢复及12并发）通过；构造后三种组件各自使用原共享格式器句柄更改样式立即可见。三语正式正文直接提取126例，根Artisan入口/Facade回归通过；源公开类型/入口/默认值/必要适配逐项见display-components-contracts.json。完整workspace/all-targets严格Clippy、格式、既有借用负编译、三语构建及12浏览器检查通过。原生/源的实际目标计数和忽略驱动位见accepted-display-components.json，不按关键词或数量宣称接口存在。繁体说明把既有“反白”纠为实际粗体行为，示例与ANSI证据对应。
+
+初次构建触32GB由守卫安全停止并持锁清理，日志实际释放75,102,064,640字节并恢复到107,279,638,528字节；源码/日志/下载/锁/其他工作区保留，随后恢复。中断未计通过，最终冻结源码SHA吻合；原始证据target/tmp/artisan-tutorial-20261125/display-*。当前不重复已闭合URL/Validation/Error/Logging/Settings或Windows发布矩阵。实际本批为macOS ARM64/Rust1.94，源为Linux/PHP8.5.12。
+
+当前合计8种具体显示组件已验，Task/TaskResult/耗时格式化、5种问答组件/专用QuestionHelper、抽象Component扩展/编译/变换生命周期、Factory/CommandIo与任意第三方输出仍开放；下一簇按这些依赖继续，不把显示类型当成工厂或整章完成。仅本批本地提交，不推送，保留所有无关在途改动。

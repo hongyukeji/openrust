@@ -1605,7 +1605,7 @@ fn transform_component_text(value: &str) -> Result<String, ConsoleError> {
 
 ## 行元件 {#line-components}
 
-`Info`、`Success`、`Warn` 和 `Error` 加入標籤、反白方括號內的動態內容，並補齊句末標點。各型別透過 `new(output)` 借用所選輸出，`render(text)` 使用一般輸出層級，`render_with(text, verbosity)` 指定層級門檻。`render_with` 也接受 `OutputOptions`，保留輸出層級門檻以及 raw／plain 輸出模式。
+`Info`、`Success`、`Warn` 和 `Error` 加入標籤、以粗體顯示方括號內的動態內容，並補齊句末標點。各型別透過 `new(output)` 借用所選輸出，`render(text)` 使用一般輸出層級，`render_with(text, verbosity)` 指定層級門檻。`render_with` 也接受 `OutputOptions`，保留輸出層級門檻以及 raw／plain 輸出模式。
 
 ```rust
 use openrust::console::{AsyncCommandCallback, ConsoleError, OutputStyle, OutputVerbosity,
@@ -1634,3 +1634,32 @@ fn register_line_components() -> Result<(), ConsoleError> {
 元件文字會合併 ASCII 空格、定位字元與換行；NUL 轉為空格，其他 C0 控制字元被移除，包括原始 ANSI 跳脫字元，不換行空格保留。需要樣式時使用格式器標籤。長文字不自動折行。支援換行統計的樣式決定前置間距，底層樣式與原始擷取使用一行前置間距。
 
 `OutputFormat::Normal` 保持原有預設值 0。`ExplicitNormal` 對應明確指定的 normal 位 1，保留與輸出層級組合時的換行計數。窮盡比對 `OutputFormat` 的程式碼需要加入該分支。
+
+## 提示框、清單與雙欄詳細資料 {#display-components}
+
+這些元件借用所選輸出，保留其格式器及 stdout／stderr 選擇。`render` 使用一般輸出層級，`render_with` 接受 `OutputOptions` 或輸出層級門檻。終端寬度優先讀取 `COLUMNS`。
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, OutputStyle, OutputVerbosity,
+    view::components::{Alert, BulletList, TwoColumnDetail}};
+use openrust::support::facades::Artisan;
+
+fn register_display_components() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:display", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut style = OutputStyle::new(input, output);
+            Alert::new(&mut style).render("Review [reports]")?;
+            BulletList::new(&mut style).render(["CSV.", "JSON.", "HTML."])?;
+            TwoColumnDetail::new(&mut style).render("Report [daily].", Some("Ready"))?;
+            TwoColumnDetail::new(&mut style).render("Optional value.", None)?;
+            Alert::new(&mut style).render_with("Verbose alert", OutputVerbosity::Verbose)?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+`Alert` 使用整行背景，將內容轉為大寫並置中；內容超過可用寬度時按帶樣式文字規則截斷，無法處理的寬度回傳 `ConsoleError`。`BulletList` 對每項以粗體顯示方括號內容、移除一個末尾 ASCII 標點，並解析相對路徑。輸入只收集一次，隨後逐階段處理所有項目，再一次寫入；空清單仍寫入一個換行。
+
+`TwoColumnDetail` 移除第一欄的末尾標點，保留第二欄標點。`None` 和 `Some("")` 省略第二欄，其他輸入在文字正規化後仍保留欄位置。點狀填充按至多 150 欄的版面寬度計算，過長的欄內容仍完整輸出。元件建構後，透過原共用控制代碼變更格式器樣式仍立即生效。

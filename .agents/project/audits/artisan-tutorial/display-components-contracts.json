@@ -1,0 +1,102 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "renderer_reference": {
+    "framework": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+    "termwind_version": "2.3.3",
+    "termwind_commit": "6fb2a640ff502caace8e05fd7be3b503a7e1c017",
+    "archive_sha256": "16f11245ceb6d7fbd5c00d67f62500577998e551654a464ff134b52ee2d349ae",
+    "production_dependency_added": false
+  },
+  "status": "verified_concrete_display_components_builtin_outputs",
+  "types": [
+    {
+      "source_type": "Alert",
+      "native": "console::view::components::Alert",
+      "constructor": {
+        "source": "Component::__construct (inherited)",
+        "native": "new",
+        "status": "verified_builtin_outputs"
+      },
+      "render": {
+        "native": [
+          "render",
+          "render_with"
+        ],
+        "status": "verified_actual_source_and_consumers"
+      }
+    },
+    {
+      "source_type": "BulletList",
+      "native": "console::view::components::BulletList",
+      "constructor": {
+        "source": "Component::__construct (inherited)",
+        "native": "new",
+        "status": "verified_builtin_outputs"
+      },
+      "render": {
+        "native": [
+          "render",
+          "render_with"
+        ],
+        "status": "verified_actual_source_and_consumers"
+      }
+    },
+    {
+      "source_type": "TwoColumnDetail",
+      "native": "console::view::components::TwoColumnDetail",
+      "constructor": {
+        "source": "Component::__construct (inherited)",
+        "native": "new",
+        "status": "verified_builtin_outputs"
+      },
+      "render": {
+        "native": [
+          "render",
+          "render_with"
+        ],
+        "status": "verified_actual_source_and_consumers"
+      }
+    }
+  ],
+  "source_scenes": {
+    "display-components-oracle.json": 479,
+    "display-console-oracle.json": 72,
+    "display-docs-oracle.json": 4
+  },
+  "evidence": [
+    "console_display_components",
+    "display-components-{consumers,docs-consumers,rustdoc,clippy,fmt,docs,browser}.log"
+  ],
+  "invariants": [
+    "Current selected output, formatter identity and original stderr/stdout selection preserved.",
+    "479 source matrix cases run against real COLUMNS in isolated processes: 0/1/2/3/4/8/16/40/80/200; no unsafe process-global mutation.",
+    "Alert uppercase, full-row background, styled truncation, negative-width behavior and ValueError boundary preserved.",
+    "BulletList collects once and applies each mutation stage across all values before one output write; empty list writes newline.",
+    "TwoColumnDetail preserves first/second punctuation differences, null/empty/whitespace cell distinction, and dot layout cap150 without truncating cell content.",
+    "Native Str::upper/width/limit and existing mutators/OutputReference reused; no duplicate Unicode-width table or general HTML/CSS runtime.",
+    "Live formatter replacement after each constructor verified on real source and native types."
+  ],
+  "adaptations": [
+    "Native render_with accepts existing OutputOptions or OutputVerbosity; render keeps normal default.",
+    "TwoColumnDetail second cell uses explicit Option<&str>, including None for source default null.",
+    "BulletList accepts native IntoIterator<AsRef<str>> and collects before mutation; this does not claim PHP arbitrary generator/object input.",
+    "Source narrow-width ValueError becomes ConsoleError before output; source deprecation diagnostics suppressed in reference fixture are not reproduced.",
+    "Text/outputs use valid UTF-8; no general PHP mixed coercion claim."
+  ],
+  "runtime": {
+    "physical_source_console_processes": 72,
+    "native_artisan_console_processes": 72,
+    "native_artisan_failure_exit": 1,
+    "http_requests": 21,
+    "http_failure_status": 500,
+    "recovery_verified": true,
+    "parallel_requests": 12
+  },
+  "remaining": [
+    "Task/TaskResult and duration formatting remain pending; next dependency cluster.",
+    "Five question components, dedicated QuestionHelper swap/restore and following output state remain pending.",
+    "Component base protected extension/compile/mutate lifecycle, Factory/CommandIo and arbitrary third-party output interfaces remain pending.",
+    "Full Artisan chapter and other-platform release matrix remain open."
+  ],
+  "pushed": false
+}

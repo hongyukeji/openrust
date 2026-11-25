@@ -1634,3 +1634,32 @@ fn register_line_components() -> Result<(), ConsoleError> {
 Component text collapses ASCII spaces, tabs and line endings. NUL becomes a space and other C0 controls are removed, including raw ANSI escape characters; nonbreaking spaces are retained. Use formatter tags for styled content. Long text is not automatically wrapped. Existing newline-aware styles determine the leading margin; base styles and raw captures use a one-line margin.
 
 `OutputFormat::Normal` retains the existing default value 0. `ExplicitNormal` represents the explicit normal flag 1, preserving newline counting when combined with verbosity. Exhaustive matches over `OutputFormat` need this additional variant.
+
+## Alerts, lists and two-column details {#display-components}
+
+These component types borrow the selected output and keep its formatter and stdout/stderr selection. `render` uses normal verbosity; `render_with` accepts `OutputOptions` or a verbosity threshold. `COLUMNS` takes precedence when determining terminal width.
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, OutputStyle, OutputVerbosity,
+    view::components::{Alert, BulletList, TwoColumnDetail}};
+use openrust::support::facades::Artisan;
+
+fn register_display_components() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:display", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut style = OutputStyle::new(input, output);
+            Alert::new(&mut style).render("Review [reports]")?;
+            BulletList::new(&mut style).render(["CSV.", "JSON.", "HTML."])?;
+            TwoColumnDetail::new(&mut style).render("Report [daily].", Some("Ready"))?;
+            TwoColumnDetail::new(&mut style).render("Optional value.", None)?;
+            Alert::new(&mut style).render_with("Verbose alert", OutputVerbosity::Verbose)?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+`Alert` centers uppercase text on a full-width background. Text longer than the available width follows styled-text truncation rules; an impossible width returns `ConsoleError`. `BulletList` highlights bracketed values, removes one final ASCII punctuation character and resolves relative paths for each item. Input items are collected once, then each mutation stage runs over all items before any output is written. An empty list still writes one newline.
+
+`TwoColumnDetail` removes final punctuation from the first cell and retains it in the second. `None` and `Some("")` omit the second cell; other input keeps its cell position after text normalization. Dot padding uses a layout width capped at 150 columns; long cell content remains intact. Formatter changes through the original shared handle remain visible after component construction.

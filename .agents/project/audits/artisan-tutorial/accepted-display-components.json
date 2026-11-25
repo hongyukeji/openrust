@@ -1,0 +1,78 @@
+{
+  "source_base": "e3fe39dd604433eeb1269c55feb9f7611763641b",
+  "source_hashes": {
+    "vendor/openrust/framework/src/console/view/components/display.rs": "c258182d0a6a6ca04aeefb559bd726df84eda196b8273487bbc2f36ec3ef65de",
+    "vendor/openrust/framework/src/console/view/components/mod.rs": "d840236c3669ea58697e162200b46f353b4a1f57eabb6a503382d57a909e3660",
+    ".agents/project/audits/artisan-tutorial/display-components-oracle.json": "766f3857ab3a8953286a4a118f6e0e179c608e5eb1db091e6ba9b4f7c4801358",
+    "vendor/openrust/framework/tests/console_display_components.rs": "edab1cdd5209143c7aca30e504f61ebc327f049b5ceb947d3ca7f0a5d7665e01",
+    ".agents/project/audits/artisan-tutorial/display-console-oracle.json": "cb94fe3f80eea2b495f951b38cafb58612424c21b47fdcadf2abe3d0b1206f79",
+    "docs/en/digging-deeper/artisan.md": "dba32a3649e264aab3b50131b07072715dce49391fc75b67542ce5a64afa3872",
+    "docs/zh-Hans/digging-deeper/artisan.md": "c947bdefe12fdfb32db98e4c5c62d723d01bacece4625dac5542ab71467cd382",
+    "docs/zh-Hant/digging-deeper/artisan.md": "1259a7613aba4270ffe8818def70bb1615a4209c9eb3c946ffa5c1eafc2495b1",
+    "tests/artisan_tutorial_docs.py": "91815c039bfe9b6913cea17da6a337aa1bd277b5937d522158911192a24617a5",
+    "docs/tests/check_artisan_tutorial.mjs": "c54fa5c44eeb1ee666e88002cc932816e2516d82cfc11c5b0473a9a5abf3af75",
+    ".agents/project/audits/artisan-tutorial/display-docs-oracle.json": "2fca3dfce52f844f04ceeb435b83d01cc320e5e3b0b52c660c0103de96a280e5",
+    ".agents/project/audits/artisan-tutorial/display-components-contracts.json": "20e008b5345add5c53f56f2dc82e9c3e28b3e99e2deb7b08e1b43638652c75e6",
+    ".agents/project/audits/artisan-tutorial/component-factory-contracts.json": "681f54cdbbc89209f1e3cea0d7d52c28e388261ca6860565679a10c1d472ba37",
+    ".agents/project/audits/artisan-tutorial/io-contracts.json": "8301146adde13f174fd9ec4fdc442d62495f7c4a96561b3124d2989bbf6e379a",
+    ".agents/project/audits/artisan-tutorial/section-map.json": "8a9f4379c588c2f3dec371f411cb390f19a011e8ec245cf0490e8e43eb4f4638",
+    ".agents/project/audits/artisan-tutorial/README.md": "bcea48999c5eb9510a9867ec8e1f41ece29d84866c1f40ecbff2aaaf3a182ecf",
+    ".agents/project/current.md": "149717e76079c5eebae7fe0cbcde07ec13ce30f3b6fcea570ed84c141c26d75e"
+  },
+  "gates": [
+    {
+      "name": "fmt",
+      "returncode": 0
+    },
+    {
+      "name": "consumers",
+      "returncode": 0
+    },
+    {
+      "name": "docs-consumers",
+      "returncode": 0
+    },
+    {
+      "name": "rustdoc",
+      "returncode": 0
+    },
+    {
+      "name": "clippy",
+      "returncode": 0
+    },
+    {
+      "name": "docs",
+      "returncode": 0
+    }
+  ],
+  "counts": {
+    "consumers": {
+      "targets": 6,
+      "passed": 41,
+      "ignored_driver_slots": 14
+    },
+    "docs-consumers": {
+      "targets": 3,
+      "passed": 135,
+      "ignored_driver_slots": 0
+    },
+    "rustdoc": {
+      "targets": 2,
+      "passed": 1,
+      "ignored_driver_slots": 0
+    }
+  },
+  "source_scenes": {
+    "display-components-oracle.json": 479,
+    "display-console-oracle.json": 72,
+    "display-docs-oracle.json": 4
+  },
+  "scope": "verified_concrete_display_components_builtin_outputs",
+  "remaining": [
+    "Task/TaskResult and duration formatting remain pending; next dependency cluster.",
+    "Five question components, dedicated QuestionHelper swap/restore and following output state remain pending.",
+    "Component base protected extension/compile/mutate lifecycle, Factory/CommandIo and arbitrary third-party output interfaces remain pending.",
+    "Full Artisan chapter and other-platform release matrix remain open."
+  ],
+  "pushed": false
+}

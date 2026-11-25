@@ -1848,6 +1848,57 @@
         "status": "verified_actual_source_and_consumers",
         "evidence": "line-components-contracts.json"
       }
+    ],
+    "Alert": [
+      {
+        "method": "__construct (inherited)",
+        "native": "console::view::components::Alert::new",
+        "status": "verified_builtin_outputs",
+        "evidence": "display-components-contracts.json"
+      },
+      {
+        "method": "render",
+        "native": [
+          "console::view::components::Alert::render",
+          "console::view::components::Alert::render_with"
+        ],
+        "status": "verified_actual_source_and_consumers",
+        "evidence": "display-components-contracts.json"
+      }
+    ],
+    "BulletList": [
+      {
+        "method": "__construct (inherited)",
+        "native": "console::view::components::BulletList::new",
+        "status": "verified_builtin_outputs",
+        "evidence": "display-components-contracts.json"
+      },
+      {
+        "method": "render",
+        "native": [
+          "console::view::components::BulletList::render",
+          "console::view::components::BulletList::render_with"
+        ],
+        "status": "verified_actual_source_and_consumers",
+        "evidence": "display-components-contracts.json"
+      }
+    ],
+    "TwoColumnDetail": [
+      {
+        "method": "__construct (inherited)",
+        "native": "console::view::components::TwoColumnDetail::new",
+        "status": "verified_builtin_outputs",
+        "evidence": "display-components-contracts.json"
+      },
+      {
+        "method": "render",
+        "native": [
+          "console::view::components::TwoColumnDetail::render",
+          "console::view::components::TwoColumnDetail::render_with"
+        ],
+        "status": "verified_actual_source_and_consumers",
+        "evidence": "display-components-contracts.json"
+      }
     ]
   },
   "notes": [
@@ -2418,7 +2469,7 @@
     ]
   },
   "remaining_output_style_behaviors": [
-    "4种文本变换器及Line/Info/Success/Warn/Error已验；完整Component、其余9种具体组件、Factory/CommandIo与专用QuestionHelper仍开放。",
+    "4种文本变换器及8种显示组件已验；Task/TaskResult/耗时格式化、5种问答组件/QuestionHelper、完整Component/Factory/CommandIo仍开放。",
     "通用OutputInterface、ConsoleOutputInterface及任意自定义输出／Artisan.call第三参数仍待完整类型与消费者；当前所选内置stderr借用不冒充完整接口。"
   ],
   "output_format_explicit_normal": {

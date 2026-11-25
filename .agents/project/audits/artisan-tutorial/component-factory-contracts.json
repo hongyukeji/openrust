@@ -8,7 +8,9 @@
         "render"
       ],
       "protected": [],
-      "status": "pending_native_type_and_actual_consumer"
+      "status": "verified_concrete_display_components_builtin_outputs",
+      "native": "console::view::components::Alert",
+      "evidence": "display-components-contracts.json"
     },
     {
       "source_type": "Ask",
@@ -32,7 +34,9 @@
         "render"
       ],
       "protected": [],
-      "status": "pending_native_type_and_actual_consumer"
+      "status": "verified_concrete_display_components_builtin_outputs",
+      "native": "console::view::components::BulletList",
+      "evidence": "display-components-contracts.json"
     },
     {
       "source_type": "Choice",
@@ -137,7 +141,9 @@
         "render"
       ],
       "protected": [],
-      "status": "pending_native_type_and_actual_consumer"
+      "status": "verified_concrete_display_components_builtin_outputs",
+      "native": "console::view::components::TwoColumnDetail",
+      "evidence": "display-components-contracts.json"
     },
     {
       "source_type": "Warn",
@@ -150,6 +156,6 @@
       "evidence": "line-components-contracts.json"
     }
   ],
-  "inheritance": "Line family constructors/render verified on selected built-in outputs; abstract Component protected extensibility/lifecycle and remaining concrete types/Factory remain open.",
+  "inheritance": "Eight concrete display constructors/render verified on selected built-in outputs; abstract Component protected extensibility/lifecycle, Task, question types and Factory remain open.",
   "mutators": "component-mutators-contracts.json"
 }
