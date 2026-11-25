@@ -150,6 +150,16 @@ pub fn grant_invoice_tls(
         .with_mutual_tls(client_chain, client_key)
 }
 
+
+pub fn grant_invoice_proxy(
+    permission: openrust_webhook_server::DeliveryPermission,
+    address: std::net::SocketAddr,
+) -> Result<openrust_webhook_server::DeliveryPermission> {
+    let proxy = openrust::http::client::PinnedSocksProxy::new(address)
+        .map_err(|_| openrust_webhook_server::Error::InvalidConfig("proxy"))?;
+    permission.with_proxy("corp-egress", proxy)
+}
+
 ```
 
 
@@ -159,13 +169,19 @@ pub fn grant_invoice_tls(
 
 POST 等正文方法使用已准备的字节。GET 将载荷编码为 RFC 3986 查询串，Spatie 签名继续使用已准备的 JSON。原始正文模式可以保留任意字节。快照限制正文为 16 MiB、Header 为 64 KiB。通过 `register_signer` 和 `register_backoff_strategy` 把外部实现注册到应用容器。
 
-默认目的地策略要求 HTTPS，并复核解析出的全部 Socket 地址。内部端点使用应用可信配置提供固定来源、路径与地址。`PreparedWebhook::bind_target` 可验证单次尝试的地址列表。HTTP 客户端固定实际连接地址，保留 Host 与 SNI，禁止重定向和代理转发，HTTPS 默认证书校验。
+默认目的地策略要求 HTTPS，并复核解析出的全部 Socket 地址。内部端点使用应用可信配置提供固定来源、路径与地址。`PreparedWebhook::bind_target` 可验证单次尝试的地址列表。HTTP 客户端固定实际连接地址，保留 Host 与 SNI，禁止重定向，默认直连并校验 HTTPS 证书。
 
 ### 配置 TLS {#tls}
 
 使用私有 CA 或双向 TLS 时，应用的 `DeliveryPolicy` 先授权范围和具体目的地，再通过 `DeliveryPermission::with_tls_ca(&pem_bundle)` 为该对端替换系统信任库，或通过 `with_mutual_tls(&certificate_chain, &private_key)` 提供客户端身份。Worker 从可信应用配置读取 PEM 材料，私钥由应用在运行时解密。队列、投递快照和事件均不包含 PEM 材料。连接保留目的地主机名用于 SNI 和证书校验。
 
 隔离测试中，调用 `do_not_verify_ssl()` 且投递策略同时返回 `allow_unverified_tls()` 时，才关闭服务端证书及主机名校验。未得到策略许可、指定了自定义 CA 或附带客户端证书时，该请求会被拒绝。调用 `verify_ssl(true)` 可恢复校验。
+
+### 使用具名出站代理 {#proxy}
+
+在 `webhook-server.proxy` 中设置已批准的名称，例如 `corp-egress`，也可为单次投递调用 `use_proxy(Some("corp-egress".into()))`。调用 `use_proxy(None)` 可选择直连。应用策略授权投递范围和目的地后，用 `DeliveryPermission::with_proxy` 批准相同名称。可覆写 `DeliveryPolicy::authorize_transport` 读取所请求的名称。投递记录只保存名称。用可信配置中的数字 Socket 地址创建 `PinnedSocksProxy`，并在运行时提供可选凭据。
+
+此路径使用本地解析的 SOCKS5 和经验证的 HTTPS。代理收到已校验的目标 IP，HTTP 和 TLS 仍使用原主机。SOCKS5 认证不加密，Worker 与代理之间应使用可信网络。缺少许可或无法经代理连接时，投递不会转为直连。HTTP CONNECT 和 SOCKS5 远程 DNS 尚未支持。
 
 ### 登记和投递 {#delivery}
 

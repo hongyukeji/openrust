@@ -50,6 +50,8 @@ pub(crate) struct Snapshot {
     pub hydrated_body: Option<String>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub unverified_tls: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub proxy: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]

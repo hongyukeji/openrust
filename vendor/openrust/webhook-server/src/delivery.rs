@@ -12,7 +12,7 @@ use openrust::{
     contracts::container::Container as _,
     http::{
         HttpFuture,
-        client::{Factory, Response, TlsCertificate, TlsIdentity},
+        client::{Factory, PinnedSocksProxy, Response, TlsCertificate, TlsIdentity},
     },
     log::Log,
 };
@@ -44,6 +44,7 @@ pub struct DeliveryPermission {
     tls_ca: Option<Vec<TlsCertificate>>,
     tls_identity: Option<TlsIdentity>,
     allow_unverified_tls: bool,
+    proxy: Option<(String, PinnedSocksProxy)>,
 }
 
 impl DeliveryPermission {
@@ -54,6 +55,7 @@ impl DeliveryPermission {
             tls_ca: None,
             tls_identity: None,
             allow_unverified_tls: false,
+            proxy: None,
         }
     }
 
@@ -101,7 +103,29 @@ impl DeliveryPermission {
         self
     }
 
-    fn permits_tls(&self, snapshot: &Snapshot, https: bool) -> bool {
+    /// 为当前授权范围和目的地提供具名 SOCKS5 代理。认证材料保留在调用进程。
+    pub fn with_proxy(
+        mut self,
+        reference: impl Into<String>,
+        proxy: PinnedSocksProxy,
+    ) -> Result<Self> {
+        let reference = reference.into();
+        extensions::validate_name("delivery.proxy", &reference)?;
+        self.proxy = Some((reference, proxy));
+        Ok(self)
+    }
+
+    fn permits_transport(&self, snapshot: &Snapshot, https: bool) -> bool {
+        if let Some(reference) = &snapshot.proxy
+            && (!https
+                || snapshot.unverified_tls
+                || self
+                    .proxy
+                    .as_ref()
+                    .is_none_or(|(name, _)| name != reference))
+        {
+            return false;
+        }
         let uses_credentials = self.tls_ca.is_some() || self.tls_identity.is_some();
         if snapshot.unverified_tls {
             https && !uses_credentials && self.allow_unverified_tls
@@ -117,6 +141,15 @@ pub trait DeliveryPolicy: Send + Sync {
         &'a self,
         context: DeliveryContext<'a>,
     ) -> HttpFuture<'a, Result<Option<DeliveryPermission>>>;
+
+    /// 应用可按所请求的代理名称进一步授权投递。
+    fn authorize_transport<'a>(
+        &'a self,
+        context: DeliveryContext<'a>,
+        _proxy: Option<&'a str>,
+    ) -> HttpFuture<'a, Result<Option<DeliveryPermission>>> {
+        self.authorize(context)
+    }
 }
 
 pub(crate) struct RegisteredDeliveryPolicy(pub Arc<dyn DeliveryPolicy>);
@@ -249,13 +282,16 @@ impl DeliveryService {
         self.store.check_endpoint(snapshot).await?;
         let permission = self
             .policy
-            .authorize(DeliveryContext {
-                scope: self.store.scope(),
-                delivery_id: id,
-                message_id: &snapshot.uuid,
-                url: &snapshot.url,
-                credential: snapshot.credential.as_deref(),
-            })
+            .authorize_transport(
+                DeliveryContext {
+                    scope: self.store.scope(),
+                    delivery_id: id,
+                    message_id: &snapshot.uuid,
+                    url: &snapshot.url,
+                    credential: snapshot.credential.as_deref(),
+                },
+                snapshot.proxy.as_deref(),
+            )
             .await
             .map_err(|_| Error::ReplayDenied)?
             .ok_or(Error::ReplayDenied)?;
@@ -265,7 +301,7 @@ impl DeliveryService {
             .target
             .validate_target(&url)
             .map_err(|_| Error::ReplayDenied)?;
-        if !permission.permits_tls(snapshot, url.scheme() == "https")
+        if !permission.permits_transport(snapshot, url.scheme() == "https")
             || snapshot.credential.is_some() && permission.secret.is_none()
         {
             return Err(Error::ReplayDenied);
@@ -302,13 +338,16 @@ impl DeliveryService {
         }
         let permission = self
             .policy
-            .authorize(DeliveryContext {
-                scope: self.store.scope(),
-                delivery_id: id,
-                message_id: &snapshot.uuid,
-                url: &snapshot.url,
-                credential: snapshot.credential.as_deref(),
-            })
+            .authorize_transport(
+                DeliveryContext {
+                    scope: self.store.scope(),
+                    delivery_id: id,
+                    message_id: &snapshot.uuid,
+                    url: &snapshot.url,
+                    credential: snapshot.credential.as_deref(),
+                },
+                snapshot.proxy.as_deref(),
+            )
             .await;
         let Ok(Some(permission)) = permission else {
             return AttemptResult::failure("rejected").into();
@@ -320,7 +359,7 @@ impl DeliveryService {
             }
             Err(_) => return AttemptResult::failure("rejected").into(),
         };
-        if !permission.permits_tls(snapshot, target.url().scheme() == "https") {
+        if !permission.permits_transport(snapshot, target.url().scheme() == "https") {
             return AttemptResult::failure("rejected").into();
         }
         let secret = permission.secret.as_ref().map(|value| value.as_str());
@@ -348,6 +387,11 @@ impl DeliveryService {
         }
         if snapshot.unverified_tls {
             request = request.without_verifying();
+        }
+        if snapshot.proxy.is_some()
+            && let Some((_, proxy)) = permission.proxy
+        {
+            request = request.through_pinned_socks_proxy(proxy);
         }
         let Ok(limits) = limits::current() else {
             return AttemptResult::transient("unresolved").into();

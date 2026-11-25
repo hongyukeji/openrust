@@ -10,12 +10,15 @@ import os
 from pathlib import Path
 import re
 import runpy
+import select
 import socket
+import socketserver
 import ssl
 import subprocess
 import tempfile
 import threading
 import time
+from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 routes = runpy.run_path(str(ROOT / "tests/webhooks_routes_acceptance.py"))
@@ -133,8 +136,9 @@ def exercise(binary, env, log, receiver, driver, sql):
         assert len(hits) == count, (key, len(hits), count)
         for index, (path, headers, body) in enumerate(hits):
             assert path == "/receiver"
-            assert headers["Host"] == f"outgoing-fixture.invalid:{receiver.server_port}"
+            assert headers["Host"] == urlsplit(env["FIXTURE_SEND_TARGET"]).netloc
             assert headers["webhook-id"] == key
+            assert headers.get("Proxy-Authorization") is None
             assert int(headers["Timestamp"]) > 0
             assert body == BODY
             assert hmac.compare_digest(
@@ -162,6 +166,20 @@ def exercise(binary, env, log, receiver, driver, sql):
                 ("tls-client-mismatched", "normal", "rejected"),
                 ("tls-client-unverified", "tls-insecure", "rejected"),
             ],
+            "proxy": [
+                ("proxy-missing", "proxy", "rejected"),
+                ("proxy-wrong-name", "proxy", "rejected"),
+                ("proxy-wrong-password", "proxy", "unknown"),
+                ("proxy-good", "proxy", "succeeded"),
+                ("redirect", "proxy", "http_failure"),
+                ("proxy-direct", "normal", "succeeded"),
+            ],
+            "proxy-ip": [("proxy-good", "proxy", "succeeded")],
+            "proxy-mutual": [
+                ("tls-client", "proxy", "succeeded"),
+                ("tls-no-client", "proxy", "unknown"),
+            ],
+            "proxy-wrong-host": [("tls-ca", "proxy", "unknown")],
             "wrong-host": [("tls-ca", "normal", "unknown")],
             "expired": [("tls-ca", "normal", "unknown")],
         }[profile]
@@ -170,11 +188,18 @@ def exercise(binary, env, log, receiver, driver, sql):
             enqueue(identifier)
             queue = sql("SELECT payload FROM jobs WHERE queue='webhook-outgoing'")
             assert identifier in queue and "PRIVATE KEY" not in queue and "BEGIN CERTIFICATE" not in queue
+            assert "fixture-user" not in queue and "local p@ss" not in queue
             command(*worker)
             status = {"succeeded": 204, "http_failure": 302}.get(outcome, 0)
             assert attempts(identifier) == f"1\t{outcome}\t{status}", (key, attempts(identifier))
             snapshot = sql(f"SELECT snapshot FROM webhook_deliveries WHERE id='{identifier}'")
             assert "PRIVATE KEY" not in snapshot and "FIXTURE_SEND_TLS_DIR" not in snapshot
+            if mode == "proxy":
+                assert json.loads(snapshot)["proxy"] == "fixture-egress"
+                assert "fixture-user" not in snapshot and "local p@ss" not in snapshot
+                assert env["FIXTURE_SEND_PROXY_ADDRESS"] not in snapshot
+            else:
+                assert "proxy" not in json.loads(snapshot)
             if mode == "tls-insecure":
                 assert json.loads(snapshot)["unverified_tls"] is True
             else:
@@ -183,13 +208,19 @@ def exercise(binary, env, log, receiver, driver, sql):
                 captured(key)
             else:
                 assert key not in receiver.received, key
-        if profile == "mutual":
+        if profile in ("mutual", "proxy-mutual"):
             certificate = Path(env["FIXTURE_SEND_TLS_DIR"]) / "client.pem"
             assert receiver.client_certificates == {
                 "tls-client": ssl.PEM_cert_to_DER_cert(certificate.read_text())
             }
         assert not receiver.unexpected
-        assert receiver.tls_names and set(receiver.tls_names) == {"outgoing-fixture.invalid"}
+        expected_sni = None if profile == "proxy-ip" else "outgoing-fixture.invalid"
+        assert receiver.tls_names and set(receiver.tls_names) == {expected_sni}
+        if profile.startswith("proxy"):
+            destination = ("127.0.0.1", receiver.server_port)
+            proxy = receiver.proxy
+            assert proxy.targets == [destination] * (2 if profile in ("proxy", "proxy-mutual") else 1), proxy.targets
+            assert proxy.rejected == (1 if profile == "proxy" else 0)
         print(f"{driver}: TLS {profile} HTTP、Artisan、Worker 及固定连接通过")
         return
 
@@ -1134,6 +1165,45 @@ def exercise(binary, env, log, receiver, driver, sql):
         assert b"fixture-custom-hook-sensitive" not in output
 
 
+class SocksProxy(socketserver.BaseRequestHandler):
+    def read(self, count):
+        result = b""
+        while len(result) < count:
+            data = self.request.recv(count - len(result))
+            if not data:
+                raise ConnectionError("incomplete SOCKS5 request")
+            result += data
+        return result
+
+    def handle(self):
+        self.request.settimeout(6)
+        version, count = self.read(2)
+        assert version == 5 and 2 in self.read(count)
+        self.request.sendall(b"\x05\x02")
+        version, size = self.read(2)
+        username = self.read(size)
+        password = self.read(self.read(1)[0])
+        if (version, username, password) != (1, b"fixture-user", b"local p@ss/%"):
+            self.server.rejected += 1
+            self.request.sendall(b"\x01\x01")
+            return
+        self.request.sendall(b"\x01\x00")
+        # 被授权的回环目标固定为数字 IPv4，收到域名即为回归。
+        assert self.read(4) == b"\x05\x01\x00\x01"
+        target = socket.inet_ntoa(self.read(4)), int.from_bytes(self.read(2), "big")
+        assert target == self.server.expected, target
+        self.server.targets.append(target)
+        with socket.create_connection(target, timeout=6) as peer:
+            self.request.sendall(b"\x05\x00\x00\x01\x00\x00\x00\x00\x00\x00")
+            swap = {self.request: peer, peer: self.request}
+            while ready := select.select(list(swap), [], [], 6)[0]:
+                for source in ready:
+                    data = source.recv(8192)
+                    if not data:
+                        return
+                    swap[source].sendall(data)
+
+
 def configure_tls(receiver, folder, profile):
     def openssl(*tokens):
         subprocess.run(["openssl", *tokens], cwd=folder, check=True, capture_output=True, timeout=10)
@@ -1155,10 +1225,14 @@ def configure_tls(receiver, folder, profile):
     old = ("-not_before", "200101000000Z", "-not_after", "200102000000Z")
     ca("ca")
     ca("other-ca")
-    domain = "wrong-name.invalid" if profile == "wrong-host" else "outgoing-fixture.invalid"
-    certificate("server", "ca", 1, f"subjectAltName=DNS:{domain}\nextendedKeyUsage=serverAuth\n",
+    san = {
+        "wrong-host": "DNS:wrong-name.invalid",
+        "proxy-wrong-host": "DNS:wrong-name.invalid",
+        "proxy-ip": "IP:127.0.0.1",
+    }.get(profile, "DNS:outgoing-fixture.invalid")
+    certificate("server", "ca", 1, f"subjectAltName={san}\nextendedKeyUsage=serverAuth\n",
                 old if profile == "expired" else ("-days", "2"))
-    if profile == "mutual":
+    if profile in ("mutual", "proxy-mutual"):
         certificate("client", "ca", 2, "extendedKeyUsage=clientAuth\n")
         certificate("other-client", "other-ca", 3, "extendedKeyUsage=clientAuth\n")
         certificate("expired-client", "ca", 4, "extendedKeyUsage=clientAuth\n", old)
@@ -1170,7 +1244,7 @@ def configure_tls(receiver, folder, profile):
 
     context.set_servername_callback(store_sni)
     context.load_cert_chain(folder / "server.pem", folder / "server.key")
-    if profile == "mutual":
+    if profile in ("mutual", "proxy-mutual"):
         context.verify_mode = ssl.CERT_REQUIRED
         context.load_verify_locations(folder / "ca.pem")
     receiver.socket = context.wrap_socket(receiver.socket, server_side=True)
@@ -1187,6 +1261,7 @@ def main():
     receiver.entered = {name: threading.Event() for name in ("crash", "concurrent", "stale", "timeout", "endpoint-inflight")}
     receiver.release = {name: threading.Event() for name in receiver.entered}
     peer = threading.Thread(target=receiver.serve_forever, daemon=True)
+    proxy = proxy_thread = None
     try:
         with tempfile.TemporaryDirectory(dir=ROOT / "target/tmp", prefix="webhook-send-") as root:
             profile = os.environ.get("FIXTURE_SEND_TLS")
@@ -1194,6 +1269,14 @@ def main():
                 tls = Path(root) / "tls"
                 tls.mkdir(mode=0o700)
                 configure_tls(receiver, tls, profile)
+            if profile and profile.startswith("proxy"):
+                proxy = socketserver.ThreadingTCPServer(("127.0.0.1", 0), SocksProxy)
+                proxy.expected = ("127.0.0.1", receiver.server_port)
+                proxy.targets = []
+                proxy.rejected = 0
+                receiver.proxy = proxy
+                proxy_thread = threading.Thread(target=proxy.serve_forever, daemon=True)
+                proxy_thread.start()
             peer.start()
             with socket.socket() as sock:
                 sock.bind(("127.0.0.1", 0))
@@ -1220,6 +1303,10 @@ def main():
             if profile:
                 env["FIXTURE_SEND_TLS_DIR"] = str(tls)
                 env["FIXTURE_SEND_TARGET"] = env["FIXTURE_SEND_TARGET"].replace("http:", "https:", 1)
+                if profile == "proxy-ip":
+                    env["FIXTURE_SEND_TARGET"] = env["FIXTURE_SEND_TARGET"].replace("outgoing-fixture.invalid", "127.0.0.1")
+            if proxy:
+                env["FIXTURE_SEND_PROXY_ADDRESS"] = f"127.0.0.1:{proxy.server_address[1]}"
             if url:
                 env["DB_URL"] = url
             else:
@@ -1253,6 +1340,10 @@ def main():
                 or os.environ.get("FIXTURE_SEND_FANOUT") or os.environ.get("FIXTURE_SEND_TLS")):
             print(f"{driver}: HTTP 签名和字节、事务回滚、重复领取、重试预算、撤销、超时、崩溃恢复、Builder 分支、投递事件与自定义 Job 通过")
     finally:
+        if proxy_thread is not None:
+            proxy.shutdown()
+            proxy_thread.join(timeout=5)
+            proxy.server_close()
         if peer.ident is not None:
             receiver.shutdown()
             peer.join(timeout=5)

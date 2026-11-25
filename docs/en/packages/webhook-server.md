@@ -150,6 +150,16 @@ pub fn grant_invoice_tls(
         .with_mutual_tls(client_chain, client_key)
 }
 
+
+pub fn grant_invoice_proxy(
+    permission: openrust_webhook_server::DeliveryPermission,
+    address: std::net::SocketAddr,
+) -> Result<openrust_webhook_server::DeliveryPermission> {
+    let proxy = openrust::http::client::PinnedSocksProxy::new(address)
+        .map_err(|_| openrust_webhook_server::Error::InvalidConfig("proxy"))?;
+    permission.with_proxy("corp-egress", proxy)
+}
+
 ```
 
 
@@ -159,13 +169,19 @@ Use `WebhookCall::create()` in a booted application to load the package configur
 
 POST and other body methods use the prepared bytes. GET sends an RFC 3986 query and uses the prepared JSON for the Spatie signature. The raw body option preserves arbitrary bytes. The snapshot is bounded to 16 MiB of body data and 64 KiB of headers. Register external implementations in the application container with `register_signer` and `register_backoff_strategy`.
 
-The default target policy requires HTTPS and validates every resolved socket address. Use a policy built from trusted endpoint configuration for an internal route with a fixed origin, path and addresses. Applications can use `PreparedWebhook::bind_target` to validate an address list for one attempt. The HTTP client provides a pinned transport that preserves Host and SNI and disables redirects and proxy routing. HTTPS certificate verification remains the default.
+The default target policy requires HTTPS and validates every resolved socket address. Use a policy built from trusted endpoint configuration for an internal route with a fixed origin, path and addresses. Applications can use `PreparedWebhook::bind_target` to validate an address list for one attempt. The HTTP client provides a pinned transport that preserves Host and SNI and disables redirects and uses a direct connection by default. HTTPS certificate verification remains the default.
 
 ### Configure TLS {#tls}
 
 For a private CA or mutual TLS, let the application's `DeliveryPolicy` authorize the scope and exact destination first. Return a `DeliveryPermission` with `with_tls_ca(&pem_bundle)` to replace the system roots for that peer, or `with_mutual_tls(&certificate_chain, &private_key)` to present a client identity. The Worker loads PEM material from trusted application configuration. Supply the decrypted private key at runtime. The queue, delivery snapshot and events carry no PEM material. The connection preserves the destination hostname for both SNI and certificate verification.
 
 For an isolated test, `do_not_verify_ssl()` disables server certificate and hostname verification only when the application's policy also returns `allow_unverified_tls()`. An attempt to skip verification is denied without policy permission or when custom CA or client credentials are attached to that call. Restore verification with `verify_ssl(true)`.
+
+### Use a named outbound proxy {#proxy}
+
+Set `webhook-server.proxy` to an approved name such as `corp-egress`, or select it per delivery with `use_proxy(Some("corp-egress".into()))`. Use `use_proxy(None)` to send directly. The application policy grants the matching name with `DeliveryPermission::with_proxy` after authorizing the delivery scope and destination. Override `DeliveryPolicy::authorize_transport` to inspect the requested name. Only the name is stored with the delivery. Build `PinnedSocksProxy` from a trusted numeric socket address and supply optional credentials at runtime.
+
+This path uses SOCKS5 with local address resolution and verified HTTPS. The proxy receives the validated destination IP while the HTTP request and TLS handshake use the original host. Use a trusted network between the Worker and the SOCKS5 server because its authentication is unencrypted. A missing authorization or failed proxy connection never falls back to direct delivery. HTTP CONNECT and SOCKS5 remote DNS are outside the supported path.
 
 ### Submit and send a delivery {#delivery}
 

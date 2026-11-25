@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 
 use http::{HeaderMap, HeaderValue, Method, StatusCode, header};
-use openrust_webhook_server::{TargetPolicy, WebhookCall};
+use openrust_webhook_server::{Error, TargetPolicy, WebhookCall};
 use serde_json::json;
 
 #[test]
@@ -226,4 +226,51 @@ fn builder_rejects_invalid_material_before_preparation() {
             .prepare(&policy)
             .is_err()
     );
+}
+
+#[test]
+fn proxy_requires_a_named_reference_and_verified_https() {
+    let url = "https://example.test/callback";
+    let policy = TargetPolicy::default();
+    let build = || WebhookCall::new().unwrap().url(url).do_not_sign();
+    assert!(
+        build()
+            .use_proxy(Some("corp-egress".into()))
+            .prepare(&policy)
+            .is_ok()
+    );
+    for reference in ["", "socks5://127.0.0.1:1080", "egress/extra"] {
+        assert!(matches!(
+            build().use_proxy(Some(reference.into())).prepare(&policy),
+            Err(Error::InvalidConfig("proxy"))
+        ));
+    }
+    assert!(matches!(
+        build()
+            .use_proxy(Some("corp-egress".into()))
+            .do_not_verify_ssl()
+            .prepare(&policy),
+        Err(Error::InvalidConfig("proxy"))
+    ));
+    assert!(WebhookCall::from_configuration(&json!({"proxy": ["bad"]})).is_err());
+    assert!(
+        WebhookCall::from_configuration(&json!({"proxy": "corp-egress"}))
+            .unwrap()
+            .url(url)
+            .do_not_sign()
+            .use_proxy(None)
+            .do_not_verify_ssl()
+            .prepare(&policy)
+            .is_ok()
+    );
+    let internal = "http://internal.test:8080/callback";
+    let internal_policy =
+        TargetPolicy::trusted_endpoint(internal, vec!["127.0.0.1:8080".parse().unwrap()]).unwrap();
+    assert!(matches!(
+        build()
+            .url(internal)
+            .use_proxy(Some("corp-egress".into()))
+            .prepare(&internal_policy),
+        Err(Error::InvalidConfig("proxy"))
+    ));
 }

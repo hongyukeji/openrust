@@ -54,7 +54,7 @@ struct CallConfig {
     webhook_job: String,
     verify_ssl: bool,
     throw_exception_on_failure: bool,
-    proxy: Value,
+    proxy: Option<String>,
     tags: Vec<String>,
 }
 
@@ -278,6 +278,12 @@ impl WebhookCall {
         self.verify_ssl(false)
     }
 
+    /// 选择由应用投递策略在执行时授权的具名代理。
+    pub fn use_proxy(mut self, reference: Option<String>) -> Self {
+        self.config.proxy = reference;
+        self
+    }
+
     pub fn throw_exception_on_failure(mut self, enabled: bool) -> Self {
         self.config.throw_exception_on_failure = enabled;
         self
@@ -288,6 +294,9 @@ impl WebhookCall {
         policy.validate_target(&url)?;
         validate_message_id(&self.uuid)?;
         let method = self.config.validate(&self.meta)?;
+        if self.config.proxy.is_some() && (url.scheme() != "https" || !self.config.verify_ssl) {
+            return Err(Error::InvalidConfig("proxy"));
+        }
         let (bytes, query) = self.payload.prepare(method == Method::GET)?;
         let mut target = url.clone();
         if let Some(query) = query {
@@ -363,12 +372,10 @@ impl CallConfig {
         }) {
             return Err(Error::InvalidConfig("retryable_status_codes"));
         }
-        if !self.proxy.is_null() {
-            return Err(Error::InvalidConfig("proxy"));
-        }
         for (field, name) in [
             ("webhook_job", Some(self.webhook_job.as_str())),
             ("queue", self.queue.as_deref()),
+            ("proxy", self.proxy.as_deref()),
             ("connection", self.connection.as_deref()),
         ] {
             if let Some(name) = name {
@@ -495,6 +502,7 @@ impl PreparedWebhook {
             message_ref: None,
             hydrated_body: None,
             unverified_tls: !self.config.verify_ssl,
+            proxy: self.config.proxy.clone(),
         })
     }
 

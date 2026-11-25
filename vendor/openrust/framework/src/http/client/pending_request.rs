@@ -104,6 +104,7 @@ pub struct PendingRequest {
     verify_tls: bool,
     tls_ca: Option<Vec<super::TlsCertificate>>,
     tls_identity: Option<super::TlsIdentity>,
+    pinned_proxy: Option<super::PinnedSocksProxy>,
     unix_socket: Option<std::path::PathBuf>,
     destination: Option<PinnedDestination>,
     timeout: Duration,
@@ -136,6 +137,7 @@ impl PendingRequest {
             verify_tls: true,
             tls_ca: None,
             tls_identity: None,
+            pinned_proxy: None,
             unix_socket: None,
             destination: None,
             timeout: TIMEOUT,
@@ -242,6 +244,12 @@ impl PendingRequest {
     /// 仅向固定地址的 HTTPS 对端出示此客户端证书。
     pub fn with_tls_identity(mut self, identity: super::TlsIdentity) -> Self {
         self.tls_identity = Some(identity);
+        self
+    }
+
+    /// 仅在固定地址且启用证书及主机名校验的 HTTPS 连接上使用显式 SOCKS5。
+    pub fn through_pinned_socks_proxy(mut self, proxy: super::PinnedSocksProxy) -> Self {
+        self.pinned_proxy = Some(proxy);
         self
     }
 
@@ -574,7 +582,7 @@ impl PendingRequest {
         if self.timeout.is_zero() || self.connect_timeout.is_zero() {
             return Err(Error::Configuration);
         }
-        if (self.tls_ca.is_some() || self.tls_identity.is_some())
+        if (self.tls_ca.is_some() || self.tls_identity.is_some() || self.pinned_proxy.is_some())
             && (!self.verify_tls
                 || self.tls_ca.as_ref().is_some_and(Vec::is_empty)
                 || !self
@@ -594,6 +602,7 @@ impl PendingRequest {
                 destination,
                 self.tls_ca,
                 self.tls_identity,
+                self.pinned_proxy,
             )?
         } else if self.unix_socket.is_some() {
             build_client_with_socket(

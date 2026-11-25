@@ -1,8 +1,36 @@
-use std::{net::SocketAddr, sync::Arc};
+use std::{
+    net::{IpAddr, SocketAddr},
+    sync::Arc,
+};
 
 use url::{Host, Origin, Url};
 
 use super::{Error, Result};
+
+/// 通过应用指定的数字地址连接 SOCKS5，目标只使用本地校验的地址。
+pub struct PinnedSocksProxy(pub(super) reqwest::Proxy);
+
+impl PinnedSocksProxy {
+    pub fn new(address: SocketAddr) -> Result<Self> {
+        if address.port() == 0 || address.ip().is_unspecified() || address.ip().is_multicast() {
+            return Err(Error::Configuration);
+        }
+        reqwest::Proxy::all(format!("socks5://{address}"))
+            .map(Self)
+            .map_err(|_| Error::Configuration)
+    }
+
+    pub fn with_credentials(self, username: &str, password: &str) -> Result<Self> {
+        if [username, password].iter().any(|value| {
+            value.is_empty()
+                || value.len() > 255
+                || value.bytes().any(|byte| byte.is_ascii_control())
+        }) {
+            return Err(Error::Configuration);
+        }
+        Ok(Self(self.0.basic_auth(username, password)))
+    }
+}
 
 pub(super) struct PinnedDestination {
     origin: Origin,
@@ -74,11 +102,15 @@ struct PinnedResolver {
 
 impl reqwest::dns::Resolve for PinnedResolver {
     fn resolve(&self, name: reqwest::dns::Name) -> reqwest::dns::Resolving {
-        let addresses = self
-            .domain
-            .as_ref()
-            .filter(|domain| domain.eq_ignore_ascii_case(name.as_str()))
-            .map(|_| self.addresses.clone());
+        let host = name.as_str();
+        let matches = match &self.domain {
+            Some(domain) => domain.eq_ignore_ascii_case(host),
+            None => host
+                .trim_matches(['[', ']'])
+                .parse::<IpAddr>()
+                .is_ok_and(|ip| self.addresses.first().is_some_and(|addr| addr.ip() == ip)),
+        };
+        let addresses = matches.then(|| self.addresses.clone());
         Box::pin(async move {
             let addresses =
                 addresses.ok_or_else(|| std::io::Error::other("HTTP 目标域名未固定"))?;

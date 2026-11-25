@@ -735,7 +735,7 @@
       "status": "partial_delivery_verified",
       "parent_classes": [],
       "declared_public_properties": [],
-      "notes": "已验请求准备、稳定 ID、正文／GET 查询、具名签名及退避、目的地和固定连接地址；六个公开派发及条件入口已接入持久登记、同步尝试及原生 Worker。具名 use_job 已接入停止重试和终态钩子；自定义 CA 和 mTLS 通过当前应用策略提供，已验真实 TLS，显式跳过验证需要 Builder 和策略同时许可。显式代理仍开放。",
+      "notes": "已验请求准备、稳定 ID、正文／GET 查询、具名签名及退避、目的地和固定连接地址；六个公开派发及条件入口已接入持久登记、同步尝试及原生 Worker。具名 use_job 已接入停止重试和终态钩子；自定义 CA 和 mTLS 通过当前应用策略提供，已验真实 TLS，显式跳过验证需要 Builder 和策略同时许可。具名 SOCKS5 代理及认证已验，普通 CONNECT 代理及映射仍开放。",
       "rust_source": "vendor/openrust/webhook-server/src/webhook_call.rs",
       "evidence": [
         "vendor/openrust/webhook-server/tests/builder.rs",

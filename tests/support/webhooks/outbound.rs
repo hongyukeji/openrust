@@ -46,6 +46,14 @@ impl DeliveryPolicy for FixturePolicy {
         &'a self,
         context: DeliveryContext<'a>,
     ) -> HttpFuture<'a, Result<Option<DeliveryPermission>>> {
+        self.authorize_transport(context, None)
+    }
+
+    fn authorize_transport<'a>(
+        &'a self,
+        context: DeliveryContext<'a>,
+        requested_proxy: Option<&'a str>,
+    ) -> HttpFuture<'a, Result<Option<DeliveryPermission>>> {
         Box::pin(async move {
             let permitted_scope = context.scope == SCOPE
                 || context.scope == ALTERNATE_LIMIT_SCOPE
@@ -104,6 +112,26 @@ impl DeliveryPolicy for FixturePolicy {
                 if let Some((certificate, key)) = pair {
                     permission = permission.with_mutual_tls(&read(certificate)?, &read(key)?)?;
                 }
+            }
+            if let Ok(address) = std::env::var("FIXTURE_SEND_PROXY_ADDRESS")
+                && requested_proxy == Some("fixture-egress")
+                && context.message_id != "proxy-missing"
+            {
+                let address = address.parse().map_err(|_| Error::InvalidRecord)?;
+                let password = if context.message_id == "proxy-wrong-password" {
+                    "invalid"
+                } else {
+                    "local p@ss/%"
+                };
+                let proxy = openrust::http::client::PinnedSocksProxy::new(address)
+                    .and_then(|proxy| proxy.with_credentials("fixture-user", password))
+                    .map_err(|_| Error::InvalidRecord)?;
+                let name = if context.message_id == "proxy-wrong-name" {
+                    "other-egress"
+                } else {
+                    "fixture-egress"
+                };
+                permission = permission.with_proxy(name, proxy)?;
             }
             Ok(Some(permission))
         })
@@ -380,6 +408,9 @@ pub(super) fn submit(
             } else {
                 2
             });
+        if mode == "proxy" {
+            call = call.use_proxy(Some("fixture-egress".to_owned()));
+        }
         if mode == "tls-insecure" {
             call = call.do_not_verify_ssl();
         }
