@@ -104,3 +104,5 @@ fn register() -> Result<(), RoutingError> {
 可選的[使用者套件](../getting-started/starter-kits.md#credential-lifecycle)增加持久化撤銷，不修改獨立 Sanctum 預設值。`Sanctum::validate_token_owner_using` 註冊應用作用域內的檢查，在標準權杖檢查及歸屬解析後執行，回呼收到權杖和實際使用者。`PersonalAccessToken::get_attribute_value` 讀取自訂模型存取器／轉換，不序列化隱藏屬性。含暫態欄位的模型可覆寫 `PersonalAccessTokenModel::clone_token_model` 保留這些欄位。
 
 自訂工作流程可用 `PersonalAccessTokens::create_token_in_transaction`，傳入交易、歸屬類型、歸屬識別碼和 `TokenOptions::new(name)`；建構器提供 `abilities`、`expires_at`、`attributes`、`secret`。交易必須屬於同一連線。額外屬性不能覆寫憑據欄位、時間戳記或所設定的主鍵，包括 JSON 路徑寫法。此儲存操作不能取代應用授權、近期驗證或套件的使用者列鎖／版本策略。一般呼叫繼續使用標準 `create_token`。期限檢查與清理使用應用時鐘，包括 `Date` 的測試時鐘覆寫。
+
+帳戶操作需要共同交易時，`PersonalAccessTokens::find_owned_in_transaction` 僅鎖定並讀取本人權杖；`revoke_token_in_transaction` 透過設定的模型刪除，保留 Scope、屬性轉換及模型事件。兩者拒絕不同連線的交易；模型取消刪除會回傳錯誤，由呼叫方回滾整筆操作。鎖內重新檢查權杖時，`Sanctum::validate_token_for_owner(token, owner, now)` 重用有效期及應用回呼；呼叫方須傳入已驗證的歸屬身分、核對精確歸屬／Provider，並使用所屬應用時鐘。一般應用優先使用[使用者套件介面](../getting-started/starter-kits.md#account-tokens)。

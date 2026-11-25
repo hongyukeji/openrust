@@ -179,3 +179,43 @@
 - 生成项目仅Fortify而关闭Sanctum的 `cargo check --no-default-features --features fortify --bin main` 通过，记录在 `client-runtime-feature-off.log`。最终源码范围／SHA为 `client-files.json`、`client-final-source-sha.json`；上游复用及协议差异见本节和唯一计划S01至S10。
 
 三库临时容器已由验收入口回收；三个HTTP节点退出；保留源码、日志、数据与正常增量缓存。本批收尾空间见 `client-delivery-space.json`。仍继续实现近期重新认证、当前令牌退出和本人令牌管理、无会话邮件闭环、完整账户中心／头像／注销、可选因素UI、SMTP／队列与最终安装矩阵，不将本单元当作任一整阶段闭合。真实手机、供应商短信／邮件、Windows和生产部署不由本机TCP测试冒充通过。
+
+## 近期确认与本人令牌管理（A01-03 本单元验收通过）
+
+本单元复用已发布挑战表、Fortify确认回调、Sanctum模型和Eloquent事务，未添加第二套认证凭据。完整账户中心、退出所有设备、注销和无状态邮件闭环仍继续开发。
+
+### 公开入口与安全裁决
+
+| 入口 | 实际契约 |
+| --- | --- |
+| `POST /api/auth/confirm` | 验证密码／应用确认回调，失败422并受5次／分钟限制；PAT返回201及单次proof／到期时间，Cookie写原生Session确认并返回201空载荷。 |
+| `GET /api/user/tokens` | 本人安全元数据白名单，不含令牌摘要、版本摘要或内部归属；PAT须有tokens:manage。 |
+| `POST /api/user/tokens` | 近期确认后201，仅本次返回明文；服务端／未验证策略与父令牌能力共同限制，未指定abilities时默认交集。 |
+| `DELETE /api/user/tokens/{token}` | 近期确认、本人归属及能力检查，成功204空正文；其他用户ID404。 |
+| `POST /api/auth/logout` | 只撤销本次实际PAT，成功204，不接受其他token参数替代当前凭据，不要求近期证明；其他设备和Cookie不受影响。 |
+
+API路径跟随既有`api.prefix`；端点由显式套件Provider注册，不改变普通Fortify路由和默认Cookie登录。
+
+- Cookie沿用原生`auth.password_confirmed_at`，可以使用`/user/confirm-password`或原生Passkey确认后的标记；不同Session不共享。缺失／过期423，CSRF仍419。按固定[Framework RequirePassword](https://github.com/laravel/framework/blob/v13.40.0/src/Illuminate/Auth/Middleware/RequirePassword.php)的Unix秒边界，在timeout当秒仍有效、下一秒过期。PAT证明在到期秒即失效并且单次消费。
+- 核对固定[Fortify ConfirmablePasswordController](https://github.com/laravel/fortify/blob/v1.43.0/src/Http/Controllers/ConfirmablePasswordController.php)发现原生实现使用应用Date时钟；本地Session确认原先用系统时钟，导致应用测试时钟与密码中间件不一致。现仅确认写入／检查共用应用时钟，不改Cookie会话载荷寿命的系统时钟。2030测试覆盖原生中间件与套件接口的相同边界。
+- PAT证明绑定身份、实际当前PAT、用途、AppKey及有效凭据／因素／邮箱状态；持有其他设备Token、其他用户、错误用途或旧证明不能换取权限。只存摘要，失败可消耗证明，重试先重新确认。无密码账户不会自动通过；无状态Passkey适配仍未交付。
+- 签发及撤销使用同一用户写锁；重新锁定当前PAT后再次执行原生期限／自定义认证和归属回调，并核对最新能力。签发在模型事件之前和提交之前均检查证明，事件期间到期回滚，不只在Controller入口检查时间。目标令牌锁定后、删除事件结束后再次检查期限。
+- 补齐`Builder::lock_for_update`和`get_in_transaction`的正式公开读取入口，保留Scope、转换、retrieved事件及预加载。声明连接及执行Scope后的真实主查询连接均须匹配事务，不静默改走池连接；内部既有跨连接关系加载语义不改。SQLite调用方先取得用户写锁。
+- `PersonalAccessTokens::find_owned_in_transaction`／`revoke_token_in_transaction`沿用配置模型，精确检查原始主键及多态归属；支持整数、UUID和ULID。Scope不能放宽归属；删除事件取消返回错误并由外层回滚。`Sanctum::validate_token_for_owner`复用既有期限和回调，不平行实现凭据有效性。
+- 错误／成功消息沿用本地化ApiResponse；证明、密码和令牌不进入old input。新证明／令牌成功响应no-store；204零正文。额外展示字段使用白名单，没有序列化整个令牌模型。
+
+### 实际证据与边界
+
+父提交`cf774d781`。冻结源码`target/tmp/user-starter/source`，交付清单／SHA：`account-files.json`／`account-final-source-sha.json`。
+
+- `account-tests-eighth.log`：SQLite完整TCP20、生命周期1通过；原生Sanctum整数／UUID／ULID父用例1通过；Request输入30、Session／Response门面8、密码校验3、Web验证4通过。两个未提供数据库环境的生命周期目标保持ignored，不计外部通过。新增错误测试夹具先缺Facade trait import、启用2FA后误将待挑战响应当登录成功、遗漏确认选项等问题已修正，失败日志保留。
+- `account-matrix-final.log`：MySQL8.4.13、PostgreSQL18.7各生命周期1、数据库Session HTTP20、原生三主键模型1通过。最后新增的Scope连接拒绝、原始归属复查、Cookie临界秒和默认父能力交集再由`account-final-matrix.log`明确验证：两库各生命周期1、账户HTTP4、原生三主键模型1通过；需外部环境的目标显式`--ignored`运行，没有把缺环境分支当真实验收。
+- `account-final-gates-second.log`：公开账户HTTP4、SQLite生命周期1、原生三主键1通过，workspace/all-targets与Fortify sanctum/all-targets严格Clippy、Fortify无Sanctum的all-targets检查通过。最终默认能力交集及缺键语言回归通过 `account-delivery-gates.log`；吸收无重叠的Console提交a0e4dcbdb后，`account-combination-gates.log` 的workspace与Fortify sanctum两组严格Clippy已通过，清理中断的单个命令／语言用例由 `account-combination-resumed.log` 恢复后1项通过，不把中断计通过。
+- `account-runtime-final.log`：真实生成项目重新构建，30次TCP请求验证跨进程近期证明、七字段安全元数据、父能力控制的子令牌创建／撤销、当前PAT退出以及既有2FA重启／并发／不同AppKey拒绝；不绕过正式HTTP入口。`account-runtime-language.log`进一步通过31次TCP请求，补上旧应用字典缺键时的423中文回退；仅Fortify／关闭Sanctum的真实生成项目检查也通过。三节点退出；原生CLI升级／重入和迁移证据复用上一单元未变路径。
+- 三语入门套件／Eloquent／Sanctum正文同步；`account-docs-final.log`文档构建与36组页面检查通过，覆盖三语、两种挂载路径、桌面／手机及新锚点／接口／无横向溢出。最终默认能力说明更新后 `account-docs-delivery.log` 再次构建及36组页面检查通过；随后无重叠Console正文提交不改变本批9份正文及浏览器路径，复用上述页面证据。
+
+当前证明协议不接受测试假Token冒充真实可撤销PAT；敏感生命周期验收使用真实持久化凭据。Cookie原生Passkey确认标记可复用，但纯PAT无密码确认和可选因素的完整UI／接口仍按后续A01-04实现，不能据此宣称全套可选认证闭合。真实供应商、硬件、Windows与生产发布未由本机HTTP证据替代。
+
+本单元实际父提交为 `a0e4dcbdb`；仅将已提交的41份Console／语言资源变化纳入组合快照复核，不提交它们。无重叠的在途 `tests/artisan_tutorial_docs.py` 保留；下一邮件单元的独立 `starter/api.rs` 草稿不纳入本单元。
+
+磁盘守卫在组合用例代码生成时触及32GB，安全终止后取得所有Cargo锁，直接释放81,531,502,592字节，之后可用113,549,819,904字节。两项已完成Clippy证据保留，未运行完的单个用例恢复冷构建并通过；日志／源码／依赖下载／数据库与卷保留。两库临时容器与三HTTP节点均退出，正常增量缓存继续复用；收尾实际空间见 `account-delivery-space.json`。

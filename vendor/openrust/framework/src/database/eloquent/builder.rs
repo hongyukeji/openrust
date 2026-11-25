@@ -961,7 +961,8 @@ impl<M: Model> Builder<'static, M> {
         self
     }
 
-    pub(super) fn lock_for_update(mut self) -> Self {
+    /// 在调用者事务内锁定读取；SQLite仍须先取得写锁。
+    pub fn lock_for_update(mut self) -> Self {
         self.query = self.query.lock_for_update();
         self
     }
@@ -1829,6 +1830,26 @@ impl<M: Model> Builder<'static, M> {
         self.get_with_transaction(None).await
     }
 
+    /// 从明确的同连接事务水合模型，保留Scope、retrieved事件与关系加载。
+    /// 连接不匹配时拒绝，不能悄悄改用池连接冒充事务读取。
+    pub fn get_in_transaction<'a>(
+        self,
+        transaction: &'a mut crate::database::Transaction,
+    ) -> crate::database::DatabaseFuture<'a, DatabaseResult<Collection<M>>> {
+        if !transaction.belongs_to(&self.connection) {
+            return Box::pin(async {
+                Err(DatabaseError::InvalidQuery(
+                    "模型查询与事务必须使用同一连接",
+                ))
+            });
+        }
+        Box::pin(async move {
+            self.get_models_using_transaction(Some(transaction), true)
+                .await
+                .map(M::new_collection)
+        })
+    }
+
     pub(super) fn get_with_transaction<'a>(
         self,
         transaction: Option<&'a mut crate::database::Transaction>,
@@ -1842,9 +1863,24 @@ impl<M: Model> Builder<'static, M> {
 
     pub(super) async fn get_models_with_transaction(
         self,
+        transaction: Option<&mut crate::database::Transaction>,
+    ) -> DatabaseResult<Vec<M>> {
+        self.get_models_using_transaction(transaction, false).await
+    }
+
+    async fn get_models_using_transaction(
+        self,
         mut transaction: Option<&mut crate::database::Transaction>,
+        strict: bool,
     ) -> DatabaseResult<Vec<M>> {
         let (query, hydration) = self.hydration_query()?;
+        if strict
+            && transaction
+                .as_deref()
+                .is_some_and(|tx| !tx.belongs_to(&hydration.connection))
+        {
+            return Err(DatabaseError::InvalidQuery("模型Scope切换了事务连接"));
+        }
         let mut models = hydration.rows(
             query
                 .get_with_transaction(transaction.as_deref_mut())

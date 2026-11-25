@@ -328,10 +328,129 @@ async fn verify(database: serde_json::Value) {
                 .unwrap()
                 .is_none()
         );
+        // 同一事务读写配置的令牌模型，拒绝越权归属并验证回滚。
+        let id = token.access_token.id.clone();
+        let owner = token.access_token.tokenable_type.as_str();
+        let mut tx = connection.begin_transaction().await.unwrap();
+        assert!(
+            store
+                .find_owned_in_transaction(&mut tx, &owner.to_uppercase(), 1_u64, id.clone())
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            store
+                .find_owned_in_transaction(&mut tx, owner, 2_u64, id.clone())
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            store
+                .find_owned_in_transaction(&mut tx, owner, 1_u64, id.clone())
+                .await
+                .unwrap()
+                .is_some()
+        );
+        assert!(
+            store
+                .revoke_token_in_transaction(&mut tx, owner, 1_u64, id)
+                .await
+                .unwrap()
+        );
+        tx.roll_back(None).await.unwrap();
+        assert!(
+            store
+                .find_token(&token.plain_text_token)
+                .await
+                .unwrap()
+                .is_some()
+        );
+        credentials::CredentialToken::register_model_event(
+            &app,
+            openrust::database::eloquent::concerns::ModelEvent::Deleting,
+            CancelTokenRevocation,
+        )
+        .unwrap();
+        let protected = credentials::issue(
+            &mut user,
+            &sanctum,
+            &db,
+            config.as_ref(),
+            "keep",
+            &["account:read"],
+        )
+        .await
+        .unwrap();
+        let mut tx = connection.begin_transaction().await.unwrap();
+        assert!(
+            store
+                .revoke_token_in_transaction(
+                    &mut tx,
+                    owner,
+                    1_u64,
+                    protected.access_token.id.clone()
+                )
+                .await
+                .is_err()
+        );
+        tx.roll_back(None).await.unwrap();
+        assert!(
+            store
+                .find_token(&protected.plain_text_token)
+                .await
+                .unwrap()
+                .is_some()
+        );
         token.plain_text_token.to_string()
     })
     .await;
     let other = application(&root).await;
+    let independent = other
+        .make::<DatabaseManager>()
+        .await
+        .unwrap()
+        .connection(None)
+        .unwrap();
+    let mut foreign = independent.begin_transaction().await.unwrap();
+    assert!(
+        User::query_on(&connection)
+            .get_in_transaction(&mut foreign)
+            .await
+            .is_err()
+    );
+    let configured = app.make::<Sanctum>().await.unwrap();
+    let store = configured.personal_access_tokens(&db, "").unwrap();
+    assert!(
+        store
+            .find_owned_in_transaction(&mut foreign, "credential-users", 1_u64, 1_u64)
+            .await
+            .is_err()
+    );
+    assert!(
+        store
+            .revoke_token_in_transaction(&mut foreign, "credential-users", 1_u64, 1_u64)
+            .await
+            .is_err()
+    );
+    foreign.roll_back(None).await.unwrap();
+    let mut own = connection.begin_transaction().await.unwrap();
+    let redirected = User::query_on(&connection)
+        .with_global_scope(
+            "other_connection",
+            SwitchUserConnection(independent.clone()),
+        )
+        .unwrap()
+        .get_in_transaction(&mut own)
+        .await;
+    assert!(matches!(
+        redirected,
+        Err(openrust::database::DatabaseError::InvalidQuery(
+            "模型Scope切换了事务连接"
+        ))
+    ));
+    own.roll_back(None).await.unwrap();
     let remote_clock = other
         .make::<openrust::support::DateFactory>()
         .await
@@ -995,5 +1114,43 @@ impl openrust::sanctum::PersonalAccessTokenModel for SnapshotToken {
             model.marker = true;
         }
         Ok(result)
+    }
+}
+
+struct CancelTokenRevocation;
+impl openrust::database::eloquent::concerns::ModelEventListener<credentials::CredentialToken>
+    for CancelTokenRevocation
+{
+    fn handle<'a>(
+        &'a self,
+        _: openrust::database::eloquent::concerns::ModelEvent,
+        model: &'a mut credentials::CredentialToken,
+        _: &'a openrust::database::Connection,
+    ) -> openrust::database::DatabaseFuture<
+        'a,
+        openrust::database::DatabaseResult<
+            openrust::database::eloquent::concerns::ModelEventResponse,
+        >,
+    > {
+        Box::pin(async move {
+            Ok(
+                if model.get_attribute("name") == Some(&Value::Text("keep".into())) {
+                    openrust::database::eloquent::concerns::ModelEventResponse::Cancel
+                } else {
+                    openrust::database::eloquent::concerns::ModelEventResponse::Continue
+                },
+            )
+        })
+    }
+}
+
+struct SwitchUserConnection(openrust::database::Connection);
+impl openrust::database::eloquent::Scope<User> for SwitchUserConnection {
+    fn apply(
+        &self,
+        query: &mut openrust::database::eloquent::Builder<'_, User>,
+    ) -> openrust::database::DatabaseResult<()> {
+        *query = User::query_on(&self.0);
+        Ok(())
     }
 }

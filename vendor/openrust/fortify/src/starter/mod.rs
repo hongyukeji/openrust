@@ -1,10 +1,14 @@
 //! 显式安装的用户套件；不改变独立 Fortify 应用的响应与功能默认值。
 
 #[cfg(feature = "sanctum")]
+pub mod account;
+#[cfg(feature = "sanctum")]
 mod challenges;
 #[cfg(feature = "sanctum")]
 pub mod client;
 mod configuration;
+#[cfg(feature = "sanctum")]
+pub mod confirmation;
 mod messages;
 #[cfg(feature = "sanctum")]
 pub(crate) use challenges::prune_for as prune_challenges_for;

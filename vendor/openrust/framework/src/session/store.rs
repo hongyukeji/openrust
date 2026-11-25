@@ -28,6 +28,11 @@ pub(crate) fn unix_seconds() -> i64 {
     crate::support::timestamp_seconds(jiff::Timestamp::now())
 }
 
+pub(crate) fn confirmation_seconds() -> i64 {
+    let owner = crate::support::facades::current_container();
+    crate::support::timestamp_seconds(crate::support::utc_now_for(owner.as_deref()))
+}
+
 /// The state of one HTTP session, with a request-owned storage handler.
 pub struct Store {
     name: String,
@@ -138,7 +143,7 @@ impl Store {
 
     /// Records that the password for this session was confirmed.
     pub fn password_confirmed(&mut self) -> SessionResult<()> {
-        self.put(PASSWORD_CONFIRMED_AT, unix_seconds().into())
+        self.put(PASSWORD_CONFIRMED_AT, confirmation_seconds().into())
     }
 
     /// 只在当前请求保留该值，保存时按旧闪存清除。

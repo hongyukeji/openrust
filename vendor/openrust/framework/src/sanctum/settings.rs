@@ -234,6 +234,24 @@ impl Sanctum {
             .expect("Sanctum owner authentication lock") = Some(Arc::new(callback));
     }
 
+    /// 对锁内重新读取的本人令牌复用有效期、自定义认证及归属检查。
+    /// 调用者仍须先核对Provider和精确归属，时钟来自所属应用。
+    pub fn validate_token_for_owner(
+        &self,
+        token: &PersonalAccessToken,
+        owner: &dyn crate::contracts::auth::Authenticatable,
+        now: jiff::Timestamp,
+    ) -> AuthResult<bool> {
+        let expiration = self
+            .config
+            .as_deref()
+            .map(super::guard::expiration)
+            .transpose()?
+            .flatten();
+        Ok(self.valid(token, !token.is_expired(now, expiration))
+            && self.valid_owner(token, owner)?)
+    }
+
     pub(super) fn valid_owner(
         &self,
         token: &PersonalAccessToken,

@@ -70,7 +70,7 @@ let plaintext = token.plain_text_token;
 
 修改憑據與簽發權杖會在提交前鎖定並重新核對目前身分／版本，要求使用者和權杖使用同一資料庫連線身分；獨立設定的權杖連線會明確失敗，不假裝具有原子安全保證。自訂使用者模型實作 `Clone` 並保留 `credential_version`；自訂權杖模型保留 `credential_stamp` 並在序列化中隱藏。含暫態欄位的權杖模型可覆寫 `PersonalAccessTokenModel::clone_token_model` 回傳 `self.clone()`，使屬性存取器保留這些狀態。
 
-以上為生命週期服務和產生的密碼 Action。近期確認證明及完整帳戶中心仍在開發；裝置權杖登入見下節。僅註冊回應適配器不會啟用憑據策略。
+以上為生命週期服務和產生的密碼 Action。完整帳戶中心仍在開發；裝置登入及近期確認／權杖管理見下節。僅註冊回應適配器不會啟用憑據策略。
 
 ## 明確選擇裝置權杖登入 {#client-tokens}
 
@@ -146,4 +146,53 @@ curl -X POST http://localhost:8000/api/auth/token \
 
 訊息遵循應用／請求語言及回退。已發佈的 `lang/{locale}/user.json` 優先於套件編譯預設值；升級補足英語、簡體中文和繁體中文缺鍵，保留既有自訂翻譯。
 
-本節涵蓋裝置登入和 TOTP／恢復碼挑戰。純權杖客戶端註冊、郵件驗證／找回、近期確認證明及完整帳戶中心仍在接線，另行追蹤剩餘工作。
+本節涵蓋裝置登入和 TOTP／恢復碼挑戰。純權杖客戶端註冊、郵件驗證／找回及完整帳戶中心仍在接線，近期確認與權杖管理見下節，另行追蹤剩餘工作。
+
+## 近期確認與個人權杖管理 {#account-tokens}
+
+下列端點屬於明確安裝的使用者套件。API 路徑跟隨 `API_PREFIX`，範例使用 `/api`。一般 JSON 登入繼續使用 Cookie 工作階段。
+
+| 方法與路徑 | 行為 |
+| --- | --- |
+| `POST /api/auth/confirm` | 驗證目前使用者密碼，或呼叫應用設定的確認回呼。 |
+| `GET /api/user/tokens` | 僅列本人的安全權杖中繼資料；PAT 用戶端需要 `tokens:manage`。 |
+| `POST /api/user/tokens` | 近期確認後建立裝置權杖，成功201。 |
+| `DELETE /api/user/tokens/{`token`}` | 近期確認後僅撤銷本人權杖，成功204。 |
+| `POST /api/auth/logout` | 撤銷本次實際驗證的 PAT，成功204，不要求近期證明。 |
+
+PAT 用戶端先確認密碼，使用與後續敏感操作相同的 Bearer Token：
+
+```http
+POST /api/auth/confirm
+Authorization: Bearer YOUR_TOKEN
+Content-Type: application/json
+Accept: application/json
+
+{"purpose":"tokens","password":"YOUR_PASSWORD"}
+```
+
+```json
+{"success":true,"code":"ok","message":"成功","data":{"proof":"OPAQUE_SINGLE_USE_PROOF","expires_at":"2030-01-01T03:00:00Z"}}
+```
+
+證明透過 `X-Auth-Confirmation` 標頭或 JSON 的 `proof` 欄位提交，只能使用一次。再次建立或撤銷前重新確認：
+
+```http
+POST /api/user/tokens
+Authorization: Bearer YOUR_TOKEN
+X-Auth-Confirmation: OPAQUE_SINGLE_USE_PROOF
+Content-Type: application/json
+Accept: application/json
+
+{"device_name":"tablet","abilities":["account:read"]}
+```
+
+201回應與[裝置登入](#client-tokens)使用相同的 `token_type`、`token`、`expires_at` 和 `user` 欄位。省略 `abilities` 時採用伺服器策略與目前父權杖的交集。失敗可能消耗證明，重試前重新確認。子權杖不能超過伺服器白名單、未驗證帳戶策略及目前父權杖的能力。妥善保管僅回傳一次的明文權杖，權杖清單不會再次顯示它。
+
+`GET /api/user/tokens` 的 `data` 為陣列，每項僅包含 `id`、`name`、`abilities`、`created_at`、`last_used_at`、`expires_at` 和 `current`，沒有雜湊、憑據版本摘要或內部歸屬屬性。撤銷其他使用者ID回傳404；`POST /api/auth/logout` 不接受用戶端指定其他憑據代替本次驗證權杖。成功204沒有本文，撤銷後驗證回傳401，其他裝置仍可使用。
+
+第一方 Cookie／SPA 保留正常 CSRF 流程並傳送憑據。`POST /user/confirm-password` 將確認狀態記入目前 Session，原生 Passkey 確認也寫入相同狀態；隨後向 `POST /api/user/tokens` 提交 `device_name` 和 `abilities`，此模式不需要另一份不透明證明。`POST /api/auth/confirm` 也接受有狀態 Cookie 請求，成功201且不回傳 `data`。其他瀏覽器工作階段不會繼承確認；缺少或過期回傳423及本地化 code `password_confirmation_required`，缺少 CSRF 權杖仍回傳419。
+
+PAT 證明在應用資料庫中僅儲存雜湊，綁定使用者、目前PAT、用途、憑據版本及有效的因素／郵箱狀態。`auth.password_timeout` 為正整數秒，預設10800；不等清理工作就會到期。錯誤裝置／用途、竄改或重放回傳401。簽發／撤銷使用共同使用者鎖及權杖列鎖，模型事件取消或提交前證明過期會回滾資料庫變更。應用確認回呼可支援自己的身分流程，沒有本機密碼不代表自動確認。無狀態 Passkey 重新驗證適配仍另列待補。
+
+密碼錯誤422，一分鐘內5次失敗後429並帶 `Retry-After`；缺少權杖能力403。訊息跟隨請求語言，證明、密碼與權杖秘密不會進入舊輸入；包含新證明／權杖的回應使用 `no-store`。完整帳戶中心、頭像、裝置清單與帳戶註銷仍在開發。

@@ -70,7 +70,7 @@ The generated password Action increments a durable user credential version in th
 
 User mutation and token issuance lock and recheck the current identity/version before committing. They require the same database connection identity; a separately configured token connection fails explicitly rather than claiming an atomic security change. Custom user models implement `Clone` and retain `credential_version`. A custom token model retains `credential_stamp` and hides it from serialization. Models with transient fields can override `PersonalAccessTokenModel::clone_token_model` to return `self.clone()` so attribute accessors retain that state.
 
-These are lifecycle services and the generated password Actions. Recent confirmation proofs and the complete account center remain in progress. Device-token login is described below. Registering only the response adapter does not enable the credential policy.
+These are lifecycle services and the generated password Actions. The complete account center remains in progress. Device-token login, recent confirmation and token management are described below. Registering only the response adapter does not enable the credential policy.
 
 ## Explicit device-token login {#client-tokens}
 
@@ -146,4 +146,53 @@ The command retains expired records for 24 hours by default; `--hours=0` removes
 
 Messages follow the application/request locale and fallback. Published `lang/{locale}/user.json` entries override compiled starter defaults. Upgrades fill missing English, Simplified Chinese and Traditional Chinese keys while preserving custom translations.
 
-This section covers device login and TOTP/recovery challenges. Token-client registration, mail verification/recovery, recent confirmation proofs and the complete account center remain in progress.
+This section covers device login and TOTP/recovery challenges. Token-client registration, mail verification/recovery and the complete account center remain in progress; recent confirmation and token management are described below.
+
+## Recent confirmation and personal tokens {#account-tokens}
+
+These endpoints belong to the explicitly installed `user` kit. Prefix every API path with your configured `API_PREFIX`; the examples use `/api`. Ordinary JSON login continues to use Cookie sessions.
+
+| Method and path | Behavior |
+| --- | --- |
+| `POST /api/auth/confirm` | Verify the `current` `user`'s password, or the application's configured confirmation callback. |
+| `GET /api/user/tokens` | List only the authenticated `user`'s safe `token` metadata. Requires `tokens:manage` for PAT clients. |
+| `POST /api/user/tokens` | Create a device `token` after recent confirmation; return201. |
+| `DELETE /api/user/tokens/{`token`}` | Revoke only an owned `token` after fresh confirmation; return204. |
+| `POST /api/auth/logout` | Revoke the PAT actually authenticating this request; return204. No recent `proof` is required. |
+
+For a PAT client, confirm the password with the same Bearer `token` that will perform the sensitive operation:
+
+```http
+POST /api/auth/confirm
+Authorization: Bearer YOUR_TOKEN
+Content-Type: application/json
+Accept: application/json
+
+{"purpose":"tokens","password":"YOUR_PASSWORD"}
+```
+
+```json
+{"success":true,"code":"ok","message":"Success","data":{"proof":"OPAQUE_SINGLE_USE_PROOF","expires_at":"2030-01-01T03:00:00Z"}}
+```
+
+Use the `proof` once, through `X-Auth-Confirmation` or the JSON `proof` field. Obtain a new `proof` before another creation or revocation:
+
+```http
+POST /api/user/tokens
+Authorization: Bearer YOUR_TOKEN
+X-Auth-Confirmation: OPAQUE_SINGLE_USE_PROOF
+Content-Type: application/json
+Accept: application/json
+
+{"device_name":"tablet","abilities":["account:read"]}
+```
+
+The201 response uses the same `token_type`, `token`, `expires_at` and `user` fields as [device login](#client-tokens). Omitting `abilities` selects the intersection of the server policy and the current parent token. A failed operation may consume its proof; confirm again before retrying. A child `token` cannot exceed the server whitelist, the unverified-account policy or its `current` parent `token`'s `abilities`. Retain the plain `token` securely: it is returned once and never included in the `token` list.
+
+`GET /api/user/tokens` returns `data` as an array of `id`, `name`, `abilities`, `created_at`, `last_used_at`, `expires_at` and `current`. It excludes hashes, credential stamps and internal owner attributes. Revoking another `user`'s ID returns404; the client cannot choose which credential `POST /api/auth/logout` logs out. Successful204 responses have an empty body. Authentication after revocation returns401, while other devices remain authenticated.
+
+For first-party Cookie/SPA clients, retain the normal CSRF flow and send credentials. `POST /user/confirm-password` records confirmation in the `current` Session; native Passkey confirmation records the same state. Then `POST /api/user/tokens` with `device_name` and `abilities`. A separate opaque `proof` is not required for this browser mode. `POST /api/auth/confirm` also accepts a stateful Cookie request and returns201 without `data`. Another browser session does not inherit confirmation; missing/expired confirmation returns423 with localized code `password_confirmation_required`. A missing CSRF `token` remains419.
+
+PAT proofs are hashed in the application's database, bound to the `user`, `current` PAT, purpose, credential version and effective factor/email state. `auth.password_timeout` is a positive number of seconds, default10800. Proofs expire without waiting for cleanup; wrong devices/purposes, tampering and replay return401. User and `token` row locks cover issuance/revocation. A late expiry or a cancelled model event rolls back the database mutation. Password callbacks may support an application-specific identity flow; an account without a local password is never automatically confirmed. Stateless Passkey reauthentication remains a separate pending adapter.
+
+Password errors return422; five failed confirmations within a minute cause429 with `Retry-After`. Missing `token` capabilities return403. All displayed messages use the request locale. Proofs, passwords and `token` secrets are excluded from old input. Responses containing a new proof/token use `no-store`. The complete account center, avatar, device list and account deletion remain in progress.

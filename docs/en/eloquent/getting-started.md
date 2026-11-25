@@ -155,6 +155,20 @@ pub async fn reload_locked<M: Model>(
 }
 ```
 
+### Reading models inside an explicit transaction {#explicit-transactions}
+
+Use `get_in_transaction(&mut transaction)` when hydrated models must participate in an existing write transaction. It preserves scopes, casts, retrieved events and eager loading. A connection mismatch fails before running the query; it never silently reads through a different pooled connection. `lock_for_update()` applies the database row lock. SQLite callers must obtain a write lock before a read-modify-write operation; a plain `SELECT FOR UPDATE` provides no SQLite lock.
+
+```rust
+let connection = Db::connection(None)?;
+let mut transaction = connection.begin_transaction().await?;
+let users = User::query_on(&connection)
+    .lock_for_update()
+    .get_in_transaction(&mut transaction)
+    .await?;
+transaction.commit().await?;
+```
+
 ### Cursors {#cursors}
 
 Call `cursor()` to hydrate one model per row as the stream is polled. Model scopes, casts and the `Retrieved` event still apply. For eager-loaded relations, use a batched query. The cursor holds a database connection while it is being read. If a retrieved listener makes a query, it needs a separate available connection.

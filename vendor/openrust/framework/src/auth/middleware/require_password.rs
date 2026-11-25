@@ -2,7 +2,7 @@ use crate::{
     auth::{Auth, AuthError},
     contracts::{http::Middleware, session::Session as _},
     http::{HttpError, HttpFuture, Next, Request, Response, StatusCode},
-    session::{PASSWORD_CONFIRMED_AT, unix_seconds},
+    session::{PASSWORD_CONFIRMED_AT, confirmation_seconds},
     support::facades::{Redirect, Url},
 };
 
@@ -57,7 +57,8 @@ impl Middleware for RequirePassword {
                 .get(PASSWORD_CONFIRMED_AT)
                 .and_then(serde_json::Value::as_i64);
             let timeout = self.timeout()?;
-            if confirmed.is_some_and(|time| unix_seconds().saturating_sub(time) <= timeout) {
+            if confirmed.is_some_and(|time| confirmation_seconds().saturating_sub(time) <= timeout)
+            {
                 return Ok(next.run(request).await);
             }
             if request.expects_json() {

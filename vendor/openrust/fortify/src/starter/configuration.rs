@@ -124,6 +124,7 @@ pub async fn configure(app: &Application) -> ProviderResult {
                 "two_factor_recovery_codes",
                 "credential",
                 "challenge",
+                "proof",
                 "reauthentication_token",
                 "access_token",
             ]);

@@ -104,3 +104,5 @@ fn register() -> Result<(), RoutingError> {
 可选的[用户套件](../getting-started/starter-kits.md#credential-lifecycle)增加持久化撤销，不修改独立 Sanctum 默认值。`Sanctum::validate_token_owner_using` 注册应用作用域内的校验，在标准令牌检查及归属解析后执行，回调收到令牌和实际用户。`PersonalAccessToken::get_attribute_value` 读取自定义模型访问器／转换，不序列化隐藏属性。含瞬态字段的模型可覆写 `PersonalAccessTokenModel::clone_token_model` 保留这些字段。
 
 自定义工作流可用 `PersonalAccessTokens::create_token_in_transaction`，传入事务、归属类型、归属标识和 `TokenOptions::new(name)`；构造器提供 `abilities`、`expires_at`、`attributes`、`secret`。事务必须属于同一连接。额外属性不能覆盖凭据字段、时间戳或所配置的主键，包括 JSON 路径写法。此存储操作不能替代应用授权、近期认证或套件的用户行锁／版本策略。普通调用继续使用标准 `create_token`。期限校验与清理使用应用时钟，包括 `Date` 的测试时钟覆写。
+
+账户操作需要共同事务时，`PersonalAccessTokens::find_owned_in_transaction` 只锁定并读取本人令牌；`revoke_token_in_transaction` 通过配置的模型删除，保留 Scope、属性转换及模型事件。两者拒绝不同连接的事务；模型取消删除会返回错误，由调用者回滚整笔操作。锁内重新检查令牌时，`Sanctum::validate_token_for_owner(token, owner, now)` 复用有效期和应用回调；调用者须传入已认证的归属身份、核对精确归属／Provider，并使用所属应用时钟。普通应用优先使用[用户套件接口](../getting-started/starter-kits.md#account-tokens)。

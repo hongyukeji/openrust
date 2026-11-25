@@ -154,6 +154,10 @@ async fn start_security_catalog(
             Box::new(installed_provider::FortifyServiceProvider),
         ])
         .with_routing(openrust::foundation::configuration::Routing::default().web(fixture_routes))
+        .with_middleware(|_middleware| {
+            #[cfg(feature = "sanctum")]
+            _middleware.stateful_api();
+        })
         .create()
         .unwrap();
     let package = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -183,6 +187,10 @@ async fn start_security_catalog(
             let mut values: Value = serde_json::from_str(&original).unwrap();
             values.as_object_mut().unwrap().remove("challenge_required");
             values.as_object_mut().unwrap().remove("challenges_pruned");
+            values
+                .as_object_mut()
+                .unwrap()
+                .remove("confirmation_required");
             values["login"] = json!("自定义登录");
             std::fs::write(target, serde_json::to_vec(&values).unwrap()).unwrap();
         } else {
@@ -334,11 +342,22 @@ impl Client {
         body: &str,
         json: bool,
     ) -> (u16, String, String) {
+        self.exchange_origin(method, path, body, json, false).await
+    }
+    async fn exchange_origin(
+        &mut self,
+        method: &str,
+        path: &str,
+        body: &str,
+        json: bool,
+        origin: bool,
+    ) -> (u16, String, String) {
         tokio::time::timeout(std::time::Duration::from_secs(10),async{
             let mut socket=TcpStream::connect(self.address).await.unwrap();
             let cookies=self.cookies.iter().map(|(k,v)|format!("{k}={v}")).collect::<Vec<_>>().join("; ");
+            let origin=if origin {format!("Origin: http://{}\r\n",self.address)}else{String::new()};
             let accept=if json{"application/json"}else{"text/html"};
-            let wire=format!("{method} {path} HTTP/1.1\r\nHost: {}\r\nAccept: {accept}\r\nContent-Type: application/json\r\nX-CSRF-TOKEN: {}\r\nCookie: {cookies}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",self.address,self.csrf,body.len());
+            let wire=format!("{method} {path} HTTP/1.1\r\nHost: {}\r\n{origin}Accept: {accept}\r\nContent-Type: application/json\r\nX-CSRF-TOKEN: {}\r\nCookie: {cookies}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",self.address,self.csrf,body.len());
             socket.write_all(wire.as_bytes()).await.unwrap();let mut wire=String::new();socket.read_to_string(&mut wire).await.unwrap();
             let (headers,body)=wire.split_once("\r\n\r\n").unwrap();
             let status=headers.split_whitespace().nth(1).unwrap().parse().unwrap();
@@ -431,7 +450,7 @@ async fn validation_redirect_keeps_public_input_without_authentication_secrets()
     };
     let (status, body) = client.send("GET", "/register", "", false).await;
     assert_eq!(status, 200, "{body}");
-    let payload = json!({"name":"允许回填","email":"invalid-email","password":"private-password","password_confirmation":"mismatch","token":"reset-secret","code":"otp-secret","recovery_code":"private-recovery","credential":{"response":{"authenticator_data":"private-data"}}});
+    let payload = json!({"name":"允许回填","email":"invalid-email","password":"private-password","password_confirmation":"mismatch","token":"reset-secret","code":"otp-secret","recovery_code":"private-recovery","credential":{"response":{"authenticator_data":"private-data"}},"proof":"private-proof"});
     let (status, body) = client
         .send("POST", "/register", &payload.to_string(), false)
         .await;
@@ -447,6 +466,7 @@ async fn validation_redirect_keeps_public_input_without_authentication_secrets()
         "code",
         "recovery_code",
         "credential",
+        "proof",
     ] {
         assert!(
             value.get(field).is_none(),
@@ -503,6 +523,7 @@ fn full_configuration(
         ("cache".into(),json!({"default":"array","stores":{"array":{"driver":"array"},"redis":{"driver":"redis","connection":"default","prefix":format!("{}:",base.file_name().unwrap().to_string_lossy())}}})),
         ("hashing".into(),json!({"driver":"bcrypt","bcrypt":{"rounds":4}})),
         ("auth".into(),json!({"defaults":{"guard":"web","passwords":"users"},"guards":{"web":{"driver":"session","provider":"users"}},"providers":{"users":{"driver":"eloquent","model":"StarterUser"}},"passwords":{"users":{"provider":"users","table":"password_reset_tokens","expire":60,"throttle":60}}})),
+        ("fortify-options".into(),json!({"two-factor-authentication":{"confirm":true,"confirmPassword":true}})),
         ("mail".into(),json!({"default":"array","mailers":{"array":{"transport":"array"}},"from":{"address":"admin@example.test","name":"用户套件测试"}})),
     ].into())
 }
@@ -1334,6 +1355,31 @@ async fn compiled_user_messages_preserve_overrides_and_artisan_prunes_challenges
     assert_eq!(status, 200);
     assert!(page.contains("自定义登录"));
     register_token_user(&server).await;
+    assert_eq!(
+        browser
+            .send(
+                "POST",
+                "/login",
+                r#"{"email":"device@example.test","password":"long-password-123"}"#,
+                true
+            )
+            .await
+            .0,
+        200
+    );
+    assert_eq!(browser.send("GET", "/home", "", false).await.0, 200);
+    let (status, _, body) = browser
+        .exchange_origin(
+            "POST",
+            "/api/user/tokens",
+            r#"{"device_name":"legacy-browser"}"#,
+            true,
+            true,
+        )
+        .await;
+    assert_eq!(status, 423);
+    let body: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(body["message"], "请先确认身份，再继续操作。");
     App::set_facade_application(Some(server._kernel.get_application()), async {
         let app = server._kernel.get_application();
         let fortify = app.make::<openrust_fortify::Fortify>().await.unwrap();
@@ -1435,4 +1481,724 @@ async fn compiled_user_messages_preserve_overrides_and_artisan_prunes_challenges
         );
     })
     .await;
+}
+
+#[cfg(feature = "sanctum")]
+async fn account_request(
+    address: SocketAddr,
+    token: &str,
+    method: &str,
+    path: &str,
+    payload: Value,
+) -> (u16, String, Value) {
+    account_request_with_proof(address, token, method, path, payload, None).await
+}
+#[cfg(feature = "sanctum")]
+async fn account_request_with_proof(
+    address: SocketAddr,
+    token: &str,
+    method: &str,
+    path: &str,
+    payload: Value,
+    proof: Option<&str>,
+) -> (u16, String, Value) {
+    tokio::time::timeout(std::time::Duration::from_secs(10),async {
+        let mut socket=TcpStream::connect(address).await.unwrap();let body=payload.to_string();
+        let extra=proof.map(|value|format!("X-Auth-Confirmation: {value}\r\n")).unwrap_or_default();
+        socket.write_all(format!("{method} {path} HTTP/1.1\r\nHost: {address}\r\nAccept: application/json\r\nContent-Type: application/json\r\nAuthorization: Bearer {token}\r\n{extra}Content-Length: {}\r\nConnection: close\r\n\r\n{body}",body.len()).as_bytes()).await.unwrap();
+        let mut wire=String::new();socket.read_to_string(&mut wire).await.unwrap();
+        let(headers,body)=wire.split_once("\r\n\r\n").unwrap();let status=headers.split_whitespace().nth(1).unwrap().parse().unwrap();
+        assert!(!headers.to_ascii_lowercase().contains("set-cookie:"));
+        (status,headers.to_owned(),if body.is_empty(){Value::Null}else{serde_json::from_str(body).unwrap()})
+    }).await.unwrap()
+}
+#[cfg(feature = "sanctum")]
+async fn confirmation(server: &Server, token: &str, purpose: &str) -> String {
+    let (status, _, body) = account_request(
+        server.address,
+        token,
+        "POST",
+        "/api/auth/confirm",
+        json!({"purpose":purpose,"password":"long-password-123"}),
+    )
+    .await;
+    assert_eq!(status, 201, "{}", token_failure(&body));
+    body["data"]["proof"].as_str().unwrap().into()
+}
+#[cfg(feature = "sanctum")]
+#[tokio::test]
+async fn account_tokens_require_bound_single_use_confirmation_and_logout_only_current_token() {
+    let server = start().await;
+    register_token_user(&server).await;
+    let (status, _, body) =
+        token_client_request(server.address, "/api/auth/token", device_login()).await;
+    assert_eq!(status, 201, "{}", token_failure(&body));
+    let first = body["data"]["token"].as_str().unwrap();
+    let (status, _, body) = account_request(
+        server.address,
+        first,
+        "GET",
+        "/api/user/tokens",
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status, 200, "{}", token_failure(&body));
+    assert_eq!(body["data"].as_array().unwrap().len(), 1);
+    assert_eq!(body["data"][0]["current"], true);
+    for item in body["data"].as_array().unwrap() {
+        for key in ["token", "credential_stamp", "tokenable_id"] {
+            assert!(item.get(key).is_none());
+        }
+    }
+    assert_eq!(
+        account_request(
+            server.address,
+            first,
+            "POST",
+            "/api/user/tokens",
+            json!({"device_name":"tablet"})
+        )
+        .await
+        .0,
+        401
+    );
+    assert_eq!(
+        account_request(
+            server.address,
+            first,
+            "POST",
+            "/api/auth/confirm",
+            json!({"purpose":"tokens","password":"wrong"})
+        )
+        .await
+        .0,
+        422
+    );
+    let proof = confirmation(&server, first, "tokens").await;
+    let (status, _, second) =
+        token_client_request(server.address, "/api/auth/token", device_login()).await;
+    assert_eq!(status, 201, "{}", token_failure(&second));
+    let second = second["data"]["token"].as_str().unwrap();
+    assert_eq!(
+        account_request(
+            server.address,
+            second,
+            "POST",
+            "/api/user/tokens",
+            json!({"device_name":"tablet","proof":proof})
+        )
+        .await
+        .0,
+        401
+    );
+    let (status, _, created) = account_request(
+        server.address,
+        first,
+        "POST",
+        "/api/user/tokens",
+        json!({"device_name":"tablet","abilities":["account:read"],"proof":proof}),
+    )
+    .await;
+    assert_eq!(status, 201, "{}", token_failure(&created));
+    let child = created["data"]["token"].as_str().unwrap();
+    assert_eq!(bearer_request(server.address, child).await, 200);
+    assert_eq!(
+        account_request(
+            server.address,
+            first,
+            "POST",
+            "/api/user/tokens",
+            json!({"device_name":"replay","proof":proof})
+        )
+        .await
+        .0,
+        401
+    );
+    let wrong = confirmation(&server, first, "password").await;
+    assert_eq!(
+        account_request(
+            server.address,
+            first,
+            "POST",
+            "/api/user/tokens",
+            json!({"device_name":"wrong-purpose","proof":wrong})
+        )
+        .await
+        .0,
+        401
+    );
+    assert_eq!(
+        account_request(
+            server.address,
+            child,
+            "GET",
+            "/api/user/tokens",
+            Value::Null
+        )
+        .await
+        .0,
+        403
+    );
+    let (status, headers, body) = account_request(
+        server.address,
+        child,
+        "POST",
+        "/api/auth/logout",
+        json!({"token":first.split('|').next()}),
+    )
+    .await;
+    assert_eq!(status, 204, "{}", token_failure(&body));
+    assert!(body.is_null());
+    assert!(headers.to_ascii_lowercase().contains("no-store"));
+    assert_eq!(bearer_request(server.address, child).await, 401);
+    assert_eq!(bearer_request(server.address, first).await, 200);
+    assert_eq!(
+        account_request(
+            server.address,
+            child,
+            "POST",
+            "/api/auth/logout",
+            Value::Null
+        )
+        .await
+        .0,
+        401
+    );
+    let proof = confirmation(&server, first, "tokens").await;
+    let id = second.split('|').next().unwrap();
+    let (status, _, body) = account_request(
+        server.address,
+        first,
+        "DELETE",
+        &format!("/api/user/tokens/{id}"),
+        json!({"proof":proof}),
+    )
+    .await;
+    assert_eq!(status, 204, "{}", token_failure(&body));
+    assert!(body.is_null());
+    assert_eq!(bearer_request(server.address, second).await, 401);
+    assert_eq!(bearer_request(server.address, first).await, 200);
+}
+
+#[cfg(feature = "sanctum")]
+#[tokio::test]
+async fn account_confirmation_expires_and_one_concurrent_token_grant_wins() {
+    use openrust::support::facades::{App, Facade as _};
+    let server = start().await;
+    register_token_user(&server).await;
+    let (status, _, body) =
+        token_client_request(server.address, "/api/auth/token", device_login()).await;
+    assert_eq!(status, 201, "{}", token_failure(&body));
+    let token = body["data"]["token"].as_str().unwrap();
+    let proof = confirmation(&server, token, "tokens").await;
+    let payload = json!({"device_name":"concurrent","proof":proof});
+    let (a, b) = tokio::join!(
+        account_request(
+            server.address,
+            token,
+            "POST",
+            "/api/user/tokens",
+            payload.clone()
+        ),
+        account_request(server.address, token, "POST", "/api/user/tokens", payload)
+    );
+    let mut statuses = [a.0, b.0];
+    statuses.sort();
+    assert_eq!(statuses, [201, 401]);
+    let proof = confirmation(&server, token, "tokens").await;
+    App::set_facade_application(Some(server._kernel.get_application()), async {
+        use openrust::database::eloquent::{Model as _, concerns::ModelEvent};
+        let app = server._kernel.get_application();
+        let clock = app.make::<openrust::support::DateFactory>().await.unwrap();
+        let at = openrust::support::facades::Date::now(None)
+            .unwrap()
+            .as_date_time()
+            .timestamp()
+            .checked_add(jiff::SignedDuration::from_secs(10800))
+            .unwrap();
+        openrust_fortify::starter::credentials::CredentialToken::register_model_event(
+            app,
+            ModelEvent::Creating,
+            ExpireTokenCreation { clock, at },
+        )
+        .unwrap();
+    })
+    .await;
+    assert_eq!(
+        account_request(
+            server.address,
+            token,
+            "POST",
+            "/api/user/tokens",
+            json!({"device_name":"expire-while-creating","proof":proof})
+        )
+        .await
+        .0,
+        401
+    );
+    let (status, _, listed) = account_request(
+        server.address,
+        token,
+        "GET",
+        "/api/user/tokens",
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status, 200, "{}", token_failure(&listed));
+    assert!(
+        listed["data"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|item| item["name"] != "expire-while-creating")
+    );
+    let proof = confirmation(&server, token, "tokens").await;
+    App::set_facade_application(Some(server._kernel.get_application()), async {
+        let app = server._kernel.get_application();
+        let clock = app.make::<openrust::support::DateFactory>().await.unwrap();
+        let instant = openrust::support::facades::Date::now(None)
+            .unwrap()
+            .as_date_time()
+            .timestamp()
+            .checked_add(jiff::SignedDuration::from_secs(10800))
+            .unwrap();
+        clock.set_test_now(Some(openrust::support::Date::from_utc(
+            instant,
+            jiff::tz::TimeZone::UTC,
+        )));
+    })
+    .await;
+    assert_eq!(
+        account_request(
+            server.address,
+            token,
+            "POST",
+            "/api/user/tokens",
+            json!({"device_name":"expired","proof":proof})
+        )
+        .await
+        .0,
+        401
+    );
+    assert_eq!(bearer_request(server.address, token).await, 200);
+}
+
+#[cfg(feature = "sanctum")]
+struct ExpireTokenCreation {
+    clock: Arc<openrust::support::DateFactory>,
+    at: jiff::Timestamp,
+}
+#[cfg(feature = "sanctum")]
+impl
+    openrust::database::eloquent::concerns::ModelEventListener<
+        openrust_fortify::starter::credentials::CredentialToken,
+    > for ExpireTokenCreation
+{
+    fn handle<'a>(
+        &'a self,
+        _: openrust::database::eloquent::concerns::ModelEvent,
+        model: &'a mut openrust_fortify::starter::credentials::CredentialToken,
+        _: &'a openrust::database::Connection,
+    ) -> openrust::database::DatabaseFuture<
+        'a,
+        openrust::database::DatabaseResult<
+            openrust::database::eloquent::concerns::ModelEventResponse,
+        >,
+    > {
+        Box::pin(async move {
+            use openrust::database::eloquent::Model as _;
+            if model.get_attribute("name")
+                == Some(&openrust::database::Value::Text(
+                    "expire-while-creating".into(),
+                ))
+            {
+                self.clock
+                    .set_test_now(Some(openrust::support::Date::from_utc(
+                        self.at,
+                        jiff::tz::TimeZone::UTC,
+                    )));
+            }
+            Ok(openrust::database::eloquent::concerns::ModelEventResponse::Continue)
+        })
+    }
+}
+
+#[cfg(feature = "sanctum")]
+#[tokio::test]
+async fn account_proofs_reject_other_users_and_token_creation_cannot_expand_parent_abilities() {
+    let server = start().await;
+    register_token_user(&server).await;
+    let (status, _, first) =
+        token_client_request(server.address, "/api/auth/token", device_login()).await;
+    assert_eq!(status, 201, "{}", token_failure(&first));
+    let first = first["data"]["token"].as_str().unwrap();
+    let mut other = Client {
+        address: server.address,
+        cookies: Default::default(),
+        csrf: String::new(),
+    };
+    assert_eq!(other.send("GET", "/register", "", false).await.0, 200);
+    assert_eq!(other.send("POST","/register",r#"{"name":"其他用户","email":"other@example.test","password":"long-password-123","password_confirmation":"long-password-123"}"#,true).await.0,201);
+    let mut login = device_login();
+    login["email"] = json!("other@example.test");
+    let (status, _, second) = token_client_request(server.address, "/api/auth/token", login).await;
+    assert_eq!(status, 201, "{}", token_failure(&second));
+    let second = second["data"]["token"].as_str().unwrap();
+    let proof = confirmation(&server, second, "tokens").await;
+    assert_eq!(
+        account_request(
+            server.address,
+            first,
+            "POST",
+            "/api/user/tokens",
+            json!({"device_name":"forged","proof":proof})
+        )
+        .await
+        .0,
+        401
+    );
+    let (status, _, created) = account_request_with_proof(
+        server.address,
+        second,
+        "POST",
+        "/api/user/tokens",
+        json!({"device_name":"other-device"}),
+        Some(&proof),
+    )
+    .await;
+    assert_eq!(status, 201, "{}", token_failure(&created));
+    let foreign = created["data"]["token"].as_str().unwrap();
+    let proof = confirmation(&server, first, "tokens").await;
+    assert_eq!(
+        account_request(
+            server.address,
+            first,
+            "DELETE",
+            &format!("/api/user/tokens/{}", foreign.split('|').next().unwrap()),
+            json!({"proof":proof})
+        )
+        .await
+        .0,
+        404
+    );
+    assert_eq!(bearer_request(server.address, foreign).await, 200);
+    let mut limited = device_login();
+    limited["abilities"] = json!(["tokens:manage"]);
+    let (status, _, limited) =
+        token_client_request(server.address, "/api/auth/token", limited).await;
+    assert_eq!(status, 201, "{}", token_failure(&limited));
+    let limited = limited["data"]["token"].as_str().unwrap();
+    let proof = confirmation(&server, limited, "tokens").await;
+    let (status, _, body) = account_request(
+        server.address,
+        limited,
+        "POST",
+        "/api/user/tokens",
+        json!({"device_name":"escalation","abilities":["account:read"],"proof":proof}),
+    )
+    .await;
+    assert_eq!(status, 403, "{}", token_failure(&body));
+    let (status, _, listed) = account_request(
+        server.address,
+        limited,
+        "GET",
+        "/api/user/tokens",
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status, 200, "{}", token_failure(&listed));
+    assert!(
+        listed["data"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|item| item["name"] != "escalation")
+    );
+    let proof = confirmation(&server, limited, "tokens").await;
+    let (status, _, child) = account_request(
+        server.address,
+        limited,
+        "POST",
+        "/api/user/tokens",
+        json!({"device_name":"restricted-default","proof":proof}),
+    )
+    .await;
+    assert_eq!(status, 201, "{}", token_failure(&child));
+    let (status, _, listed) = account_request(
+        server.address,
+        limited,
+        "GET",
+        "/api/user/tokens",
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status, 200, "{}", token_failure(&listed));
+    let item = listed["data"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|item| item["name"] == "restricted-default")
+        .unwrap();
+    assert_eq!(item["abilities"], json!(["tokens:manage"]));
+    for _ in 0..5 {
+        assert_eq!(
+            account_request(
+                server.address,
+                limited,
+                "POST",
+                "/api/auth/confirm",
+                json!({"purpose":"tokens","password":"wrong"})
+            )
+            .await
+            .0,
+            422
+        );
+    }
+    let (status, headers, _) = account_request(
+        server.address,
+        limited,
+        "POST",
+        "/api/auth/confirm",
+        json!({"purpose":"tokens","password":"long-password-123"}),
+    )
+    .await;
+    assert_eq!(status, 429);
+    assert!(headers.to_ascii_lowercase().contains("retry-after"));
+}
+
+#[cfg(feature = "sanctum")]
+#[tokio::test]
+async fn account_cookie_management_uses_native_session_confirmation_and_csrf() {
+    use openrust::support::facades::Facade as _;
+    let server = start_security("full", true, true, "api").await;
+    let mut browser = Client {
+        address: server.address,
+        cookies: Default::default(),
+        csrf: String::new(),
+    };
+    assert_eq!(browser.send("GET", "/register", "", false).await.0, 200);
+    assert_eq!(browser.send("POST","/register",r#"{"name":"浏览器确认","email":"browser@example.test","password":"long-password-123","password_confirmation":"long-password-123"}"#,true).await.0,201);
+    assert_eq!(browser.send("GET", "/home", "", false).await.0, 200);
+    let (status, _, body) = browser
+        .exchange_origin(
+            "POST",
+            "/api/user/tokens",
+            r#"{"device_name":"browser-managed"}"#,
+            true,
+            true,
+        )
+        .await;
+    assert_eq!(
+        status,
+        423,
+        "{}",
+        token_failure(&serde_json::from_str(&body).unwrap_or(Value::Null))
+    );
+    let csrf = std::mem::take(&mut browser.csrf);
+    assert_eq!(
+        browser
+            .exchange_origin(
+                "POST",
+                "/api/auth/confirm",
+                r#"{"purpose":"tokens","password":"long-password-123"}"#,
+                true,
+                true
+            )
+            .await
+            .0,
+        419
+    );
+    browser.csrf = csrf;
+    openrust::support::facades::App::set_facade_application(
+        Some(server._kernel.get_application()),
+        async {
+            let clock = server
+                ._kernel
+                .get_application()
+                .make::<openrust::support::DateFactory>()
+                .await
+                .unwrap();
+            let at = "2030-01-01T00:00:00Z".parse::<jiff::Timestamp>().unwrap();
+            clock.set_test_now(Some(openrust::support::Date::from_utc(
+                at,
+                jiff::tz::TimeZone::UTC,
+            )));
+        },
+    )
+    .await;
+    // 沿用原生确认端点，不另外签发Cookie证明；Passkey确认写入同一Session标记。
+    assert_eq!(
+        browser
+            .send(
+                "POST",
+                "/user/confirm-password",
+                r#"{"password":"long-password-123"}"#,
+                true
+            )
+            .await
+            .0,
+        201
+    );
+    let (status, _, body) = browser
+        .exchange_origin(
+            "POST",
+            "/api/user/tokens",
+            r#"{"device_name":"browser-managed"}"#,
+            true,
+            true,
+        )
+        .await;
+    assert_eq!(
+        status,
+        201,
+        "{}",
+        token_failure(&serde_json::from_str(&body).unwrap_or(Value::Null))
+    );
+    let created: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(
+        bearer_request(server.address, created["data"]["token"].as_str().unwrap()).await,
+        200
+    );
+    let mut other = Client {
+        address: server.address,
+        cookies: Default::default(),
+        csrf: String::new(),
+    };
+    assert_eq!(other.send("GET", "/login", "", false).await.0, 200);
+    assert_eq!(
+        other
+            .send(
+                "POST",
+                "/login",
+                r#"{"email":"browser@example.test","password":"long-password-123"}"#,
+                true
+            )
+            .await
+            .0,
+        200
+    );
+    assert_eq!(other.send("GET", "/home", "", false).await.0, 200);
+    assert_eq!(
+        other
+            .exchange_origin(
+                "POST",
+                "/api/user/tokens",
+                r#"{"device_name":"unconfirmed-other-browser"}"#,
+                true,
+                true
+            )
+            .await
+            .0,
+        423
+    );
+    let (status, _, body) = other
+        .exchange_origin(
+            "POST",
+            "/api/auth/confirm",
+            r#"{"purpose":"tokens","password":"long-password-123"}"#,
+            true,
+            true,
+        )
+        .await;
+    assert_eq!(
+        status,
+        201,
+        "{}",
+        token_failure(&serde_json::from_str(&body).unwrap_or(Value::Null))
+    );
+    let response: Value = serde_json::from_str(&body).unwrap();
+    assert!(response.get("data").is_none());
+    assert_eq!(
+        other
+            .exchange_origin(
+                "POST",
+                "/api/user/tokens",
+                r#"{"device_name":"confirmed-other-browser"}"#,
+                true,
+                true
+            )
+            .await
+            .0,
+        201
+    );
+    assert_eq!(
+        browser
+            .send("POST", "/user/two-factor-authentication", "{}", true)
+            .await
+            .0,
+        200
+    );
+    openrust::support::facades::App::set_facade_application(
+        Some(server._kernel.get_application()),
+        async {
+            let clock = server
+                ._kernel
+                .get_application()
+                .make::<openrust::support::DateFactory>()
+                .await
+                .unwrap();
+            clock.set_test_now(Some(openrust::support::Date::from_utc(
+                "2030-01-01T03:00:00Z".parse().unwrap(),
+                jiff::tz::TimeZone::UTC,
+            )));
+        },
+    )
+    .await;
+    assert_eq!(
+        browser
+            .exchange_origin(
+                "POST",
+                "/api/user/tokens",
+                r#"{"device_name":"cookie-exact-boundary"}"#,
+                true,
+                true
+            )
+            .await
+            .0,
+        201
+    );
+    assert_eq!(
+        browser
+            .send("POST", "/user/two-factor-authentication", "{}", true)
+            .await
+            .0,
+        200
+    );
+    openrust::support::facades::App::set_facade_application(
+        Some(server._kernel.get_application()),
+        async {
+            let clock = server
+                ._kernel
+                .get_application()
+                .make::<openrust::support::DateFactory>()
+                .await
+                .unwrap();
+            let at = "2030-01-01T03:00:01Z".parse::<jiff::Timestamp>().unwrap();
+            clock.set_test_now(Some(openrust::support::Date::from_utc(
+                at,
+                jiff::tz::TimeZone::UTC,
+            )));
+        },
+    )
+    .await;
+    assert_eq!(
+        browser
+            .exchange_origin(
+                "POST",
+                "/api/user/tokens",
+                r#"{"device_name":"expired-cookie-confirmation"}"#,
+                true,
+                true
+            )
+            .await
+            .0,
+        423
+    );
+    assert_eq!(
+        browser
+            .send("POST", "/user/two-factor-authentication", "{}", true)
+            .await
+            .0,
+        423
+    );
 }

@@ -70,7 +70,7 @@ let plaintext = token.plain_text_token;
 
 修改凭据与签发令牌会在提交前锁定并重新核对当前身份／版本，要求用户和令牌使用同一数据库连接身份；独立配置的令牌连接会明确失败，不假装具有原子安全保证。自定义用户模型实现 `Clone` 并保留 `credential_version`；自定义令牌模型保留 `credential_stamp` 并在序列化中隐藏。含瞬态字段的令牌模型可覆写 `PersonalAccessTokenModel::clone_token_model` 返回 `self.clone()`，使属性访问器保留这些状态。
 
-以上为生命周期服务和生成的密码 Action。近期确认证明及完整账户中心仍在开发；设备令牌登录见下节。仅注册响应适配器不会启用凭据策略。
+以上为生命周期服务和生成的密码 Action。完整账户中心仍在开发；设备登录及近期确认／令牌管理见下节。仅注册响应适配器不会启用凭据策略。
 
 ## 显式设备令牌登录 {#client-tokens}
 
@@ -146,4 +146,53 @@ curl -X POST http://localhost:8000/api/auth/token \
 
 消息遵循应用／请求语言及回退。已发布的 `lang/{locale}/user.json` 优先于套件编译默认值；升级补足英语、简体中文和繁体中文缺键，保留已有自定义翻译。
 
-本节覆盖设备登录和 TOTP／恢复码挑战。纯令牌客户端注册、邮件验证／找回、近期确认证明及完整账户中心仍在接线，单独跟踪剩余工作。
+本节覆盖设备登录和 TOTP／恢复码挑战。纯令牌客户端注册、邮件验证／找回及完整账户中心仍在接线，近期确认与令牌管理见下节，单独跟踪剩余工作。
+
+## 近期确认与个人令牌管理 {#account-tokens}
+
+下列端点属于显式安装的用户套件。API 路径跟随 `API_PREFIX`，示例使用 `/api`。普通 JSON 登录继续使用 Cookie 会话。
+
+| 方法和路径 | 行为 |
+| --- | --- |
+| `POST /api/auth/confirm` | 验证当前用户密码，或调用应用配置的确认回调。 |
+| `GET /api/user/tokens` | 仅列本人令牌的安全元数据；PAT 客户端需要 `tokens:manage`。 |
+| `POST /api/user/tokens` | 近期确认后创建设备令牌，成功201。 |
+| `DELETE /api/user/tokens/{`token`}` | 近期确认后仅撤销本人令牌，成功204。 |
+| `POST /api/auth/logout` | 撤销本次实际认证的 PAT，成功204，不要求近期证明。 |
+
+PAT 客户端先确认密码，使用与随后敏感操作相同的 Bearer Token：
+
+```http
+POST /api/auth/confirm
+Authorization: Bearer YOUR_TOKEN
+Content-Type: application/json
+Accept: application/json
+
+{"purpose":"tokens","password":"YOUR_PASSWORD"}
+```
+
+```json
+{"success":true,"code":"ok","message":"成功","data":{"proof":"OPAQUE_SINGLE_USE_PROOF","expires_at":"2030-01-01T03:00:00Z"}}
+```
+
+证明通过 `X-Auth-Confirmation` 请求头或 JSON 的 `proof` 字段提交，只能使用一次。再次创建或撤销前重新确认：
+
+```http
+POST /api/user/tokens
+Authorization: Bearer YOUR_TOKEN
+X-Auth-Confirmation: OPAQUE_SINGLE_USE_PROOF
+Content-Type: application/json
+Accept: application/json
+
+{"device_name":"tablet","abilities":["account:read"]}
+```
+
+201响应与[设备登录](#client-tokens)使用相同的 `token_type`、`token`、`expires_at` 和 `user` 字段。省略 `abilities` 时采用服务端策略与当前父令牌的交集。失败可能消耗证明，重试前重新确认。子令牌不能超过服务端白名单、未验证账户策略和当前父令牌的能力。妥善保管仅返回一次的明文令牌，令牌列表不会再次显示它。
+
+`GET /api/user/tokens` 的 `data` 为数组，每项只包含 `id`、`name`、`abilities`、`created_at`、`last_used_at`、`expires_at` 和 `current`；没有摘要、凭据版本摘要或内部归属属性。撤销其他用户的ID返回404；`POST /api/auth/logout` 不接受客户端指定其他凭据代替本次认证令牌。成功204没有正文，撤销后认证返回401，其他设备仍可使用。
+
+第一方 Cookie／SPA 保留正常 CSRF 流程并发送凭据。`POST /user/confirm-password` 将确认状态记入当前 Session，原生 Passkey 确认也写入相同状态；随后向 `POST /api/user/tokens` 提交 `device_name` 和 `abilities`，此模式不需要另一份不透明证明。`POST /api/auth/confirm` 也接受有状态 Cookie 请求，成功201且不返回 `data`。其他浏览器会话不会继承确认；缺失或过期返回423及本地化 code `password_confirmation_required`，缺少 CSRF 令牌仍返回419。
+
+PAT 证明在应用数据库中只保存摘要，绑定用户、当前PAT、用途、凭据版本和有效的因素／邮箱状态。`auth.password_timeout` 为正整数秒，默认10800；不等清理任务就会到期。错误设备／用途、篡改或重放返回401。签发／撤销使用共同用户锁和令牌行锁，模型事件取消或提交前证明过期会回滚数据库变更。应用确认回调可支持自己的身份流程，没有本地密码不代表自动确认。无状态 Passkey 重新认证适配仍单独待补。
+
+密码错误422，一分钟内5次失败后429并带 `Retry-After`；缺少令牌能力403。消息跟随请求语言，证明、密码和令牌秘密不会进入旧输入；包含新证明／令牌的响应使用 `no-store`。完整账户中心、头像、设备列表和账户注销仍在开发。

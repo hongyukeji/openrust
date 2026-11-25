@@ -153,6 +153,20 @@ pub async fn reload_locked<M: Model>(
     Ok(())
 }
 ```
+### 在明確交易中讀取模型 {#explicit-transactions}
+
+需要將水合模型納入既有寫入交易時，使用 `get_in_transaction(&mut transaction)`。它保留 Scope、屬性轉換、retrieved 事件及預載入；連線不符時在查詢前拒絕，不會悄悄改用另一條集區連線。`lock_for_update()` 使用資料庫列鎖。SQLite 的讀改寫操作須先取得寫鎖，不能依賴被忽略的 `SELECT FOR UPDATE`。
+
+```rust
+let connection = Db::connection(None)?;
+let mut transaction = connection.begin_transaction().await?;
+let users = User::query_on(&connection)
+    .lock_for_update()
+    .get_in_transaction(&mut transaction)
+    .await?;
+transaction.commit().await?;
+```
+
 
 ### 游標 {#cursors}
 

@@ -140,6 +140,27 @@ async fn change<M: Model + Authenticatable + Clone>(
     Ok(())
 }
 
+/// 在与签发／凭据更新相同的用户写锁内执行账户操作，失败不会替换调用者模型。
+pub(crate) async fn with_locked<M, F, T>(user: &mut M, action: F) -> AuthResult<T>
+where
+    M: Model + Authenticatable + Clone,
+    F: for<'a> FnOnce(
+            &'a mut M,
+            &'a mut Transaction,
+        ) -> openrust::auth::AuthFuture<'a, AuthResult<T>>
+        + Send,
+    T: Send,
+{
+    let mut locked = user.clone();
+    let connection = user.get_connection()?;
+    let mut transaction = connection.begin_transaction().await?;
+    lock(&mut locked, &mut transaction).await?;
+    let result = action(&mut locked, &mut transaction).await?;
+    transaction.commit().await?;
+    *user = locked;
+    Ok(result)
+}
+
 /// 新注册模型读取数据库默认值时，不能把期间发生的安全变更当成原登录证明。
 pub async fn refresh_created<M: Model + Authenticatable + Clone>(user: &mut M) -> AuthResult<()> {
     if !user.state().was_recently_created() {
@@ -208,7 +229,7 @@ pub async fn issue_with_expiration<M: openrust::sanctum::HasApiTokens + Clone>(
             abilities,
             expires_at,
         },
-        |_| Ok(()),
+        |_, _| Box::pin(async { Ok(()) }),
     )
     .await
 }
@@ -226,11 +247,12 @@ pub(crate) async fn issue_checked<M, F>(
     database: &openrust::database::DatabaseManager,
     config: &dyn Repository,
     grant: Grant<'_>,
-    check: F,
+    mut check: F,
 ) -> AuthResult<NewAccessToken>
 where
     M: openrust::sanctum::HasApiTokens + Clone,
-    F: FnOnce(&M) -> AuthResult<()> + Send,
+    F: for<'a> FnMut(&'a M, &'a mut Transaction) -> openrust::auth::AuthFuture<'a, AuthResult<()>>
+        + Send,
 {
     let Grant {
         name,
@@ -279,7 +301,7 @@ where
     let mut locked = user.clone();
     let mut transaction = connection.begin_transaction().await?;
     lock(&mut locked, &mut transaction).await?;
-    check(&locked)?;
+    check(&locked, &mut transaction).await?;
     let owner_type = locked.get_morph_class()?;
     let owner_id = AuthIdentifier::try_from(locked.get_key().ok_or(AuthError::InvalidIdentity)?)?;
     let token = tokens
@@ -300,6 +322,7 @@ where
                 ),
         )
         .await?;
+    check(&locked, &mut transaction).await?;
     transaction.commit().await?;
     *user = locked;
     Ok(token)

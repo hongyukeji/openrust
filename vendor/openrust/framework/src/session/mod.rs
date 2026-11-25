@@ -30,8 +30,8 @@ pub use session_manager::SessionManager;
 pub use session_service_provider::SessionServiceProvider;
 pub use store::Store;
 pub(crate) use store::{
-    CacheAttributes, PASSWORD_CONFIRMED_AT, get as get_attribute, insert as insert_attribute,
-    remove as remove_attribute, unix_seconds,
+    CacheAttributes, PASSWORD_CONFIRMED_AT, confirmation_seconds, get as get_attribute,
+    insert as insert_attribute, remove as remove_attribute,
 };
 
 /// An asynchronous session or storage operation.

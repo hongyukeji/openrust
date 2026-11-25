@@ -330,6 +330,41 @@ impl PersonalAccessTokens {
             .map_err(AuthError::backend)
     }
 
+    /// 在账户共同事务中锁定并读取本人令牌；支持配置的模型、Scope及属性转换。
+    pub async fn find_owned_in_transaction(
+        &self,
+        transaction: &mut crate::database::Transaction,
+        owner: &str,
+        owner_id: impl Into<AuthIdentifier>,
+        id: impl Into<AuthIdentifier>,
+    ) -> AuthResult<Option<PersonalAccessToken>> {
+        if !transaction.belongs_to(&self.connection) {
+            return Err(AuthError::Configuration("令牌与账户必须使用同一事务连接"));
+        }
+        self.model
+            .owned_in_transaction(transaction, owner, owner_id.into(), id.into(), false)
+            .await
+            .map_err(AuthError::backend)
+    }
+
+    /// 原子撤销本人令牌；模型事件取消会返回错误，由调用者回滚整笔安全操作。
+    pub async fn revoke_token_in_transaction(
+        &self,
+        transaction: &mut crate::database::Transaction,
+        owner: &str,
+        owner_id: impl Into<AuthIdentifier>,
+        id: impl Into<AuthIdentifier>,
+    ) -> AuthResult<bool> {
+        if !transaction.belongs_to(&self.connection) {
+            return Err(AuthError::Configuration("令牌与账户必须使用同一事务连接"));
+        }
+        self.model
+            .owned_in_transaction(transaction, owner, owner_id.into(), id.into(), true)
+            .await
+            .map(|value| value.is_some())
+            .map_err(AuthError::backend)
+    }
+
     pub(super) async fn record_use(
         &self,
         token: &mut PersonalAccessToken,

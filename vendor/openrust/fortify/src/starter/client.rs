@@ -28,7 +28,7 @@ use serde_json::json;
 use std::sync::Arc;
 use zeroize::Zeroizing;
 
-fn provider(fortify: &Fortify) -> AuthResult<Arc<dyn UserProvider>> {
+pub(super) fn provider(fortify: &Fortify) -> AuthResult<Arc<dyn UserProvider>> {
     let guard = fortify
         .guard()
         .or_else(|| {
@@ -47,7 +47,7 @@ fn provider(fortify: &Fortify) -> AuthResult<Arc<dyn UserProvider>> {
         ))?;
     Auth::manager()?.create_user_provider(&provider)
 }
-fn failed(field: &str, key: &str) -> HttpError {
+pub(super) fn failed(field: &str, key: &str) -> HttpError {
     match Lang::get(key, &[("attribute".into(), field.into())].into(), None) {
         Ok(message) => {
             HttpError::Validation(Box::new(crate::http::responses::invalid(field, message)))
@@ -55,13 +55,13 @@ fn failed(field: &str, key: &str) -> HttpError {
         Err(error) => internal(error),
     }
 }
-fn no_store(response: Response) -> Response {
+pub(super) fn no_store(response: Response) -> Response {
     response.header(
         "cache-control".parse().expect("静态头名称"),
         "no-store".parse().expect("静态头值"),
     )
 }
-fn same_binding(actual: &str, expected: &str) -> bool {
+pub(super) fn same_binding(actual: &str, expected: &str) -> bool {
     use subtle::ConstantTimeEq as _;
     bool::from(actual.as_bytes().ct_eq(expected.as_bytes()))
 }
@@ -72,7 +72,10 @@ fn attribute(user: &dyn Authenticatable, name: &'static str) -> AuthResult<Optio
         _ => Err(openrust::auth::AuthError::Configuration(name)),
     }
 }
-fn security<M: TwoFactorAuthenticatable>(user: &M, fortify: &Fortify) -> AuthResult<String> {
+pub(super) fn security<M: TwoFactorAuthenticatable>(
+    user: &M,
+    fortify: &Fortify,
+) -> AuthResult<String> {
     let payload = serde_json::to_vec(&json!({
         "credential":credentials::stamp(user)?,
         "email":attribute(user,"email")?,
@@ -104,7 +107,7 @@ fn security<M: TwoFactorAuthenticatable>(user: &M, fortify: &Fortify) -> AuthRes
         .map(|byte| format!("{byte:02x}"))
         .collect())
 }
-fn abilities<M: Authenticatable>(
+pub(super) fn abilities<M: Authenticatable>(
     user: &M,
     fortify: &Fortify,
     requested: Option<&serde_json::Value>,
@@ -297,7 +300,7 @@ where
 
 async fn issue<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
     user: &mut M,
-    fortify: &Fortify,
+    fortify: &Arc<Fortify>,
     device: &str,
     chosen: &[String],
     binding: &str,
@@ -306,6 +309,9 @@ async fn issue<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
     let sanctum = App::make::<Sanctum>().await?;
     let database = App::make::<DatabaseManager>().await?;
     let borrowed = chosen.iter().map(String::as_str).collect::<Vec<_>>();
+    let checked_fortify = fortify.clone();
+    let checked_chosen = chosen.to_vec();
+    let binding = binding.to_owned();
     let token = credentials::issue_checked(
         user,
         &sanctum,
@@ -316,23 +322,30 @@ async fn issue<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
             abilities: &borrowed,
             expires_at: None,
         },
-        |locked| {
-            if let Some(deadline) = deadline {
-                let now = openrust::support::facades::Date::now(None)
-                    .map_err(|error| openrust::auth::AuthError::Backend(Box::new(error)))?
-                    .as_date_time()
-                    .timestamp()
-                    .as_second();
-                if now >= deadline {
+        move |locked, _| {
+            let checked_fortify = checked_fortify.clone();
+            let checked_chosen = checked_chosen.clone();
+            let binding = binding.clone();
+            Box::pin(async move {
+                let fortify = checked_fortify.as_ref();
+                let chosen = checked_chosen;
+                if let Some(deadline) = deadline {
+                    let now = openrust::support::facades::Date::now(None)
+                        .map_err(|error| openrust::auth::AuthError::Backend(Box::new(error)))?
+                        .as_date_time()
+                        .timestamp()
+                        .as_second();
+                    if now >= deadline {
+                        return Err(HttpError::Unauthenticated.into());
+                    }
+                }
+                abilities(locked, fortify, Some(&json!(chosen)))
+                    .map_err(openrust::auth::AuthError::from)?;
+                if !same_binding(&security(locked, fortify)?, &binding) {
                     return Err(HttpError::Unauthenticated.into());
                 }
-            }
-            abilities(locked, fortify, Some(&json!(chosen)))
-                .map_err(openrust::auth::AuthError::from)?;
-            if !same_binding(&security(locked, fortify)?, binding) {
-                return Err(HttpError::Unauthenticated.into());
-            }
-            Ok(())
+                Ok(())
+            })
         },
     )
     .await?;
@@ -572,6 +585,26 @@ where
             router
                 .post("/auth/token/challenge", challenge::<M>)?
                 .name("user.tokens.challenge");
+            router
+                .post("/auth/confirm", super::confirmation::confirm::<M>)?
+                .middleware_name("auth:sanctum")
+                .name("user.confirmation");
+            router
+                .post("/auth/logout", super::account::logout::<M>)?
+                .middleware_name("auth:sanctum")
+                .name("user.tokens.logout");
+            router
+                .get("/user/tokens", super::account::tokens::<M>)?
+                .middleware_name("auth:sanctum")
+                .name("user.tokens.index");
+            router
+                .post("/user/tokens", super::account::create_token::<M>)?
+                .middleware_name("auth:sanctum")
+                .name("user.tokens.store");
+            router
+                .delete("/user/tokens/{token}", super::account::revoke_token::<M>)?
+                .middleware_name("auth:sanctum")
+                .name("user.tokens.destroy");
             Ok(())
         },
     )

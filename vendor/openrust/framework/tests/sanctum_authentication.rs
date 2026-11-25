@@ -777,6 +777,143 @@ async fn verify_with_fingerprints<const KEY: u8>(
     .await
     .unwrap();
 
+    // 同一公开事务入口覆盖整数／UUID／ULID，以及自定义模型Scope、转换和取消事件。
+    let transaction_connection = database
+        .connection(Some(tokens.get_connection_name()))
+        .unwrap();
+    let probe = tokens
+        .create_token(
+            "transaction_owner",
+            owner(999),
+            "transaction",
+            &["read"],
+            None,
+        )
+        .await
+        .unwrap();
+    let mut transaction = transaction_connection.begin_transaction().await.unwrap();
+    assert!(
+        tokens
+            .find_owned_in_transaction(
+                &mut transaction,
+                "TRANSACTION_OWNER",
+                owner(999),
+                probe.access_token.id.clone()
+            )
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        tokens
+            .find_owned_in_transaction(
+                &mut transaction,
+                "transaction_owner",
+                owner(998),
+                probe.access_token.id.clone()
+            )
+            .await
+            .unwrap()
+            .is_none()
+    );
+    let found = tokens
+        .find_owned_in_transaction(
+            &mut transaction,
+            "transaction_owner",
+            owner(999),
+            probe.access_token.id.clone(),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(found.id, probe.access_token.id);
+    assert!(
+        tokens
+            .revoke_token_in_transaction(
+                &mut transaction,
+                "transaction_owner",
+                owner(999),
+                probe.access_token.id.clone()
+            )
+            .await
+            .unwrap()
+    );
+    transaction.roll_back(None).await.unwrap();
+    assert!(
+        tokens
+            .find_token(&probe.plain_text_token)
+            .await
+            .unwrap()
+            .is_some()
+    );
+    let mut transaction = transaction_connection.begin_transaction().await.unwrap();
+    assert!(
+        tokens
+            .revoke_token_in_transaction(
+                &mut transaction,
+                "transaction_owner",
+                owner(999),
+                probe.access_token.id
+            )
+            .await
+            .unwrap()
+    );
+    transaction.commit().await.unwrap();
+    assert!(
+        tokens
+            .find_token(&probe.plain_text_token)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    if custom_csrf {
+        let mut transaction = transaction_connection.begin_transaction().await.unwrap();
+        assert!(
+            tokens
+                .revoke_token_in_transaction(
+                    &mut transaction,
+                    "users_alias",
+                    owner(1),
+                    read.access_token.id.clone()
+                )
+                .await
+                .is_err()
+        );
+        transaction.roll_back(None).await.unwrap();
+        assert!(
+            tokens
+                .find_token(&read.plain_text_token)
+                .await
+                .unwrap()
+                .is_some()
+        );
+        let hidden = tokens
+            .create_token("transaction_owner", owner(999), "hidden", &[], None)
+            .await
+            .unwrap();
+        let mut transaction = transaction_connection.begin_transaction().await.unwrap();
+        assert!(
+            tokens
+                .find_owned_in_transaction(
+                    &mut transaction,
+                    "transaction_owner",
+                    owner(999),
+                    hidden.access_token.id
+                )
+                .await
+                .unwrap()
+                .is_none()
+        );
+        transaction.roll_back(None).await.unwrap();
+        transaction_connection
+            .table(&tokens.get_table())
+            .r#where("tokenable_type", "=", "transaction_owner")
+            .delete()
+            .await
+            .unwrap();
+    }
+    model_events.take();
+
     assert!(
         tokens
             .revoke_token("USERS_ALIAS", owner(4), case_variant.access_token.id)

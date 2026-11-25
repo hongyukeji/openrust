@@ -53,6 +53,14 @@ pub(super) trait ModelStore: Send + Sync {
         owner_id: AuthIdentifier,
         id: Option<AuthIdentifier>,
     ) -> DatabaseFuture<'a, DatabaseResult<u64>>;
+    fn owned_in_transaction<'a>(
+        &'a self,
+        transaction: &'a mut Transaction,
+        owner: &'a str,
+        owner_id: AuthIdentifier,
+        id: AuthIdentifier,
+        revoke: bool,
+    ) -> DatabaseFuture<'a, DatabaseResult<Option<PersonalAccessToken>>>;
     fn prune(
         &self,
         column: &'static str,
@@ -236,6 +244,55 @@ impl<M: PersonalAccessTokenModel> ModelStore for EloquentTokenStore<M> {
                 query.where_key(key);
             }
             query.delete().await
+        })
+    }
+
+    fn owned_in_transaction<'a>(
+        &'a self,
+        transaction: &'a mut Transaction,
+        owner: &'a str,
+        owner_id: AuthIdentifier,
+        id: AuthIdentifier,
+        revoke: bool,
+    ) -> DatabaseFuture<'a, DatabaseResult<Option<PersonalAccessToken>>> {
+        Box::pin(async move {
+            let Some(key) = credential_key::<M>(&id.to_string(), &self.connection) else {
+                return Ok(None);
+            };
+            let expected_owner = identifier(&owner_id.clone().into())?;
+            let expected_key = token_key(&key)?;
+            let mut query = self.owner_query(owner, owner_id);
+            query.where_key(key);
+            let Some(mut model) = query
+                .lock_for_update()
+                .limit(1)
+                .get_in_transaction(transaction)
+                .await?
+                .into_iter()
+                .next()
+            else {
+                return Ok(None);
+            };
+            // Scope、accessor和retrieved钩子不能放宽调用者指定的原始主键／归属。
+            if token_key(
+                model
+                    .get_raw_original(model.get_key_name())
+                    .ok_or_else(invalid_row)?,
+            )? != expected_key
+                || identifier(
+                    model
+                        .get_raw_original("tokenable_id")
+                        .ok_or_else(invalid_row)?,
+                )? != expected_owner
+                || model.get_raw_original("tokenable_type") != Some(&Value::from(owner))
+            {
+                return Ok(None);
+            }
+            let token = snapshot(&model)?;
+            if revoke && !model.delete_in_transaction(transaction).await? {
+                return Err(DatabaseError::InvalidQuery("令牌模型取消撤销"));
+            }
+            Ok(Some(token))
         })
     }
 
