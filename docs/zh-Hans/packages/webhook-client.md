@@ -159,6 +159,8 @@ Provider 注册 `webhook_calls` 迁移，使用 `DatabaseWebhookStore` 前运行
 
 覆盖 `ProcessWebhookJob::handle_outcome`，在业务记录尚未就绪时返回 `WebhookProcessingOutcome::Deferred { delay_seconds }`。延迟必须为正数并处于剩余期限内。业务处理成功返回 `Completed`，按原生队列策略重试返回 `RetryableFailure`，立即停止返回 `PermanentFailure`。延期时在同一事务保存下次执行时间并入队，新任务使用独立的队列尝试预算。记录保持待处理，直至 Worker 完成处理或延期预算耗尽。返回 `Deferred` 时不要同时调用 `JobContext::release`。
 
+业务记录就绪并完成关联后，应用可调用 `QueuedWebhookJob::wake_deferred(&store, queue, receipt_id)` 提前唤醒。传入可信范围对应的存储及应用的 `Arc<QueueManager>`。方法沿用延期时保存的处理器和队列地址。创建唤醒任务返回 `true`，记录已到期可领取、已终结或不属于该范围时返回 `false`。
+
 ## 使用边界 {#scope}
 
 应用网络与任务执行复用现有 [HTTP 客户端](../digging-deeper/http-client.md)和[队列](../digging-deeper/queues.md)。持久恢复、完整投递状态机仍未实现。

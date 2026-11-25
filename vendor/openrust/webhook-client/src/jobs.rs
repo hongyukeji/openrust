@@ -1,7 +1,7 @@
 //! 通过原生队列在独立 Worker 中重新读取接收记录。
 use crate::{
     DatabaseWebhookStore,
-    storage::{ProcessingClaim, ProcessingOutcome},
+    storage::{DeferredWakeup, ProcessingClaim, ProcessingOutcome},
 };
 use crate::{Error, Result, WebhookJobDispatcher, WebhookStore, models::WebhookCall};
 use openrust::{
@@ -154,6 +154,37 @@ impl QueuedWebhookJob {
         Ok(())
     }
 
+    /// 从已有接收记录的原队列快照提前唤醒。重复或不适用的请求返回 false。
+    pub async fn wake_deferred(
+        store: &DatabaseWebhookStore,
+        queue: Arc<QueueManager>,
+        receipt_id: &str,
+    ) -> Result<bool> {
+        store
+            .wake_deferred(receipt_id, move |transaction, wakeup| {
+                Box::pin(async move {
+                    let DeferredWakeup {
+                        id,
+                        scope,
+                        profile,
+                        revision,
+                        route,
+                    } = wakeup;
+                    let receipt = Receipt {
+                        id: &id,
+                        scope: &scope,
+                        profile: &profile,
+                        revision: &revision,
+                    };
+                    receipt.validate()?;
+                    let route = DeferredRoute::decode(&route)?;
+                    let payload = route.payload(receipt)?;
+                    route.enqueue(&queue, payload, None, transaction).await
+                })
+            })
+            .await
+    }
+
     fn payload(&self, call: &WebhookCall) -> Result<Payload> {
         let receipt = Receipt {
             id: call.id(),
@@ -208,9 +239,11 @@ impl WebhookJobDispatcher for QueuedWebhookJob {
     }
 }
 
+const JOB_PREFIX: &str = "openrust_webhook_client::jobs::";
+
 fn job_name(name: &str) -> Result<String> {
     crate::factories::validate_reference("process_webhook_job", name)?;
-    Ok(format!("openrust_webhook_client::jobs::{name}"))
+    Ok(format!("{JOB_PREFIX}{name}"))
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -366,28 +399,93 @@ impl RegisteredJob {
         (seconds, policy): (u32, DeferredProcessingPolicy),
     ) -> QueueResult<bool> {
         let manager = QueueFacade::manager()?;
-        let options = DispatchOptions {
-            connection: Some(context.connection().to_owned()),
-            queue: Some(context.queue().to_owned()),
-            delay: Some(Delay::For(Duration::from_secs(u64::from(seconds)))),
-            ..Default::default()
+        let route = DeferredRoute {
+            connection: context.connection().to_owned(),
+            queue: context.queue().to_owned(),
+            job: payload
+                .name()
+                .strip_prefix(JOB_PREFIX)
+                .ok_or(QueueError::InvalidPayload)?
+                .to_owned(),
+            options: payload.options().clone(),
         };
-        let next =
-            Payload::new(payload.name(), payload.data())?.with_options(payload.options().clone());
+        let route_snapshot = route.encode().map_err(queue_error)?;
+        let next = route
+            .payload(Receipt::deserialize_from(payload)?)
+            .map_err(queue_error)?;
+        let delay = Delay::For(Duration::from_secs(u64::from(seconds)));
         store
-            .defer_processing(call, token, seconds, policy, move |transaction| {
-                Box::pin(async move {
-                    match manager
-                        .dispatch_in_database_transaction(next, options, transaction)
-                        .await?
-                    {
-                        DispatchResult::Queued(_) => Ok(()),
-                        _ => Err(QueueError::InvalidConfiguration.into()),
-                    }
-                })
-            })
+            .defer_processing(
+                call,
+                token,
+                seconds,
+                policy,
+                route_snapshot,
+                move |transaction| {
+                    Box::pin(async move {
+                        route
+                            .enqueue(&manager, next, Some(delay), transaction)
+                            .await
+                    })
+                },
+            )
             .await
             .map_err(queue_error)
+    }
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DeferredRoute {
+    connection: String,
+    queue: String,
+    job: String,
+    options: JobOptions,
+}
+
+impl DeferredRoute {
+    fn encode(&self) -> Result<String> {
+        let value = serde_json::to_string(self).map_err(|_| Error::InvalidRecord)?;
+        if value.len() > 16 * 1024 {
+            return Err(Error::InvalidRecord);
+        }
+        Ok(value)
+    }
+
+    fn decode(value: &str) -> Result<Self> {
+        if value.len() > 16 * 1024 {
+            return Err(Error::InvalidRecord);
+        }
+        serde_json::from_str(value).map_err(|_| Error::InvalidRecord)
+    }
+
+    fn payload(&self, receipt: Receipt<'_>) -> Result<Payload> {
+        Ok(Payload::new(job_name(&self.job)?, receipt)?.with_options(self.options.clone()))
+    }
+
+    async fn enqueue(
+        self,
+        queue: &QueueManager,
+        payload: Payload,
+        delay: Option<Delay>,
+        transaction: &mut openrust::database::Transaction,
+    ) -> Result<()> {
+        if !queue.has_handler(payload.name()) {
+            return Err(QueueError::UnknownJob(payload.name().to_owned()).into());
+        }
+        let options = DispatchOptions {
+            connection: Some(self.connection),
+            queue: Some(self.queue),
+            delay,
+            ..Default::default()
+        };
+        match queue
+            .dispatch_in_database_transaction(payload, options, transaction)
+            .await?
+        {
+            DispatchResult::Queued(_) => Ok(()),
+            _ => Err(QueueError::InvalidConfiguration.into()),
+        }
     }
 }
 

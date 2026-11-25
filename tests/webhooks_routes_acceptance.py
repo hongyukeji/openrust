@@ -328,6 +328,37 @@ def check_deferred_processing(binary, env, root, port, driver, sql):
             assert (root / "ready").exists() and state(waiting) == "2\t1\t0\t1\t0"
             assert sql("SELECT COUNT(*) FROM jobs") == "0"
 
+            waking, _ = dispatch(b"deferred-wake")
+            work("wake-pending")
+            assert state(waking) == "1\t1\t1\t0\t0"
+            wake_command = "webhooks:wake-fixture"
+            scope = "webhook-acceptance"
+            wake_at = sql(f"SELECT processing_next_at FROM webhook_calls WHERE id='{waking}'")
+            result = subprocess.run(
+                [str(binary), "artisan", wake_command, waking, scope],
+                env=current | {"DB_QUEUE_TABLE": "missing_wake_queue"},
+                capture_output=True, text=True, timeout=15,
+            )
+            assert result.returncode != 0
+            assert sql(f"SELECT processing_next_at FROM webhook_calls WHERE id='{waking}'") == wake_at
+            assert sql("SELECT COUNT(*) FROM jobs") == "1"
+            assert command(binary, current, wake_command, waking, "webhook-custom").strip() == "false"
+
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=2) as callers:
+                requests = [callers.submit(command, binary, current, wake_command, waking, scope)
+                            for _ in range(2)]
+                assert sorted(request.result().strip() for request in requests) == ["false", "true"]
+            assert sql("SELECT COUNT(*) FROM jobs") == "2"
+            work("woken", FIXTURE_DEFERRED_READY="1")
+            assert state(waking) == "2\t1\t0\t1\t0" and (root / "woken").exists()
+            assert sql(f"SELECT COUNT(processing_deferred_route) FROM webhook_calls WHERE id='{waking}'") == "0"
+            assert command(binary, current, wake_command, waking, scope).strip() == "false"
+            time.sleep(6.2)
+            work("wake-duplicate", FIXTURE_DEFERRED_READY="1")
+            assert state(waking) == "2\t1\t0\t1\t0" and not (root / "wake-duplicate").exists()
+            assert sql("SELECT COUNT(*) FROM jobs") == "0"
+
             exhausted, _ = dispatch(b"deferred-exhaust")
             work("exhaust")
             assert state(exhausted) == "1\t1\t1\t0\t0"
@@ -355,7 +386,7 @@ def check_deferred_processing(binary, env, root, port, driver, sql):
             assert state(expired) == "1\t1\t0\t0\t1" and not (root / "expired").exists()
             assert sql("SELECT COUNT(*) FROM jobs") == "0"
             for receipt, expected in (
-                (waiting, "deferred\ncompleted"), (exhausted, "deferred\nstopped"),
+                (waiting, "deferred\ncompleted"), (waking, "deferred\ncompleted"), (exhausted, "deferred\nstopped"),
                 (permanent, "stopped"), (retryable, "failed"), (expired, "deferred"),
             ):
                 assert sql("SELECT outcome FROM webhook_processing_attempts "
@@ -366,7 +397,7 @@ def check_deferred_processing(binary, env, root, port, driver, sql):
             raise
         finally:
             http_helpers["stop"](server)
-    print(f"{driver}: 待关联延期 5 个真实 HTTP、9 次 Artisan Worker；跨任务预算、早到副本、领域期限及结果分类通过")
+    print(f"{driver}: 待关联延期和唤醒 6 个真实 HTTP、12 次 Worker、5 次 Artisan 唤醒；预算、期限、竞争与回滚通过")
 
 
 def main():
@@ -563,7 +594,7 @@ def main():
   check_verified_event_identity(binary,env,root,port,driver,sql)
   check_deferred_processing(binary,env,root,port,driver,sql)
   legacy_id=sql("SELECT id FROM webhook_calls WHERE name='default' ORDER BY id LIMIT 1")
-  assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate:rollback","--step=5","--force")
+  assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate:rollback","--step=6","--force")
   assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate","--force")
   legacy=json.loads(command(binary,env,"webhooks:record",legacy_id,"webhook-acceptance"))
   assert bytes(legacy["body"])==b"default" and legacy["payload"] is None and legacy["attachments"] is None

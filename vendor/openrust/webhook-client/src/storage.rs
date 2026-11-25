@@ -7,7 +7,7 @@ use http::{
     HeaderMap,
     header::{HeaderName, HeaderValue},
 };
-pub(crate) use lease::{ProcessingClaim, ProcessingOutcome};
+pub(crate) use lease::{DeferredWakeup, ProcessingClaim, ProcessingOutcome};
 use openrust::{
     database::{Connection, Row, Value},
     http::HttpFuture,

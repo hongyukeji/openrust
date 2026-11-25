@@ -159,6 +159,8 @@ For jobs that can receive a notification before the matching business record exi
 
 Override `ProcessWebhookJob::handle_outcome` to return `WebhookProcessingOutcome::Deferred { delay_seconds }` when the record is still missing. Use a positive delay that fits within the remaining budget. Return `Completed` after business processing, `RetryableFailure` to apply native retry settings, or `PermanentFailure` to stop. A deferral records the next processing time and enqueues a new job in one transaction. The new job has its own queue attempt budget. The receipt remains pending until a Worker completes it or the deferral budget expires. Do not call `JobContext::release` when returning `Deferred`.
 
+When the application associates the business record, it can call `QueuedWebhookJob::wake_deferred(&store, queue, receipt_id)` to make a pending receipt eligible immediately. Pass the store for the trusted scope and the application’s `Arc<QueueManager>`. The method uses the destination and handler saved with the deferral. It returns `true` when it creates a wake-up job, or `false` when the receipt is already due, settled, or outside that scope.
+
 ## Scope {#scope}
 
 Use the existing [HTTP client](../digging-deeper/http-client.md) and [queues](../digging-deeper/queues.md) for application networking and jobs. Persistent recovery and a complete delivery state machine remain outside the current implementation.

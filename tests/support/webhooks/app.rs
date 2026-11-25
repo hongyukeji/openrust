@@ -238,6 +238,47 @@ impl Command for Record {
         })
     }
 }
+struct WakeDeferred(CommandDefinition);
+impl Command for WakeDeferred {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+
+    fn handle<'a>(
+        &'a self,
+        application: &'a Application,
+        input: &'a Input,
+        output: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            let id = input.matches().get_one::<String>("id").unwrap();
+            let scope = input.matches().get_one::<String>("scope").unwrap();
+            let manager = application
+                .make::<openrust::database::DatabaseManager>()
+                .await
+                .map_err(ConsoleError::from_source)?;
+            let queue = application
+                .make::<openrust::queue::QueueManager>()
+                .await
+                .map_err(ConsoleError::from_source)?;
+            let store = openrust_webhook_client::DatabaseWebhookStore::new(
+                manager
+                    .connection(None)
+                    .map_err(ConsoleError::from_source)?,
+                scope,
+            )
+            .map_err(ConsoleError::from_source)?;
+            let woke =
+                openrust_webhook_client::jobs::QueuedWebhookJob::wake_deferred(&store, queue, id)
+                    .await
+                    .map_err(ConsoleError::from_source)?;
+            output
+                .write_raw(&format!("{woke}\n"))
+                .map_err(ConsoleError::from_source)?;
+            Ok(0)
+        })
+    }
+}
 async fn read_receipt(
     call: &openrust_webhook_client::models::WebhookCall,
     store: &dyn openrust_webhook_client::WebhookStore,
@@ -343,6 +384,9 @@ impl openrust_webhook_client::jobs::ProcessWebhookJob for FixtureJob {
             match call.raw_body() {
                 b"deferred-wait" if std::env::var_os("FIXTURE_DEFERRED_READY").is_none() => {
                     return Ok(WebhookProcessingOutcome::Deferred { delay_seconds: 2 });
+                }
+                b"deferred-wake" if std::env::var_os("FIXTURE_DEFERRED_READY").is_none() => {
+                    return Ok(WebhookProcessingOutcome::Deferred { delay_seconds: 6 });
                 }
                 b"deferred-exhaust" | b"deferred-expire" => {
                     return Ok(WebhookProcessingOutcome::Deferred { delay_seconds: 2 });
@@ -855,6 +899,11 @@ fn commands(artisan: &mut Artisan) -> Result<(), ConsoleError> {
     artisan.add_command(Box::new(Enqueue(CommandDefinition::new(syntax(
         "webhooks:enqueue",
     )))))?;
+    artisan.add_command(Box::new(WakeDeferred(CommandDefinition::new(
+        clap::Command::new("webhooks:wake-fixture")
+            .arg(clap::Arg::new("id").required(true))
+            .arg(clap::Arg::new("scope").required(true)),
+    ))))?;
     artisan.add_command(Box::new(Record(CommandDefinition::new(
         clap::Command::new("webhooks:record")
             .arg(clap::Arg::new("id").required(true))

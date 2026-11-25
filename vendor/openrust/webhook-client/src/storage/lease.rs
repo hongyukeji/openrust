@@ -86,6 +86,7 @@ impl DatabaseWebhookStore {
                 .update_with(
                     [
                         assignment("processing_next_at", Value::Null),
+                        assignment("processing_deferred_route", Value::Null),
                         assignment("processing_token", Value::from(token.clone())),
                         assignment(
                             "processing_until",
@@ -203,6 +204,7 @@ impl DatabaseWebhookStore {
         token: &str,
         delay: u32,
         policy: DeferredProcessingPolicy,
+        route: String,
         enqueue: impl for<'a> FnOnce(&'a mut Transaction) -> HttpFuture<'a, Result<()>> + Send,
     ) -> Result<bool> {
         let clock = self.clock();
@@ -237,6 +239,7 @@ impl DatabaseWebhookStore {
                                 "processing_deferrals",
                                 Expression::new("processing_deferrals + 1"),
                             ),
+                            assignment("processing_deferred_route", route),
                             assignment("processing_token", Value::Null),
                             assignment("processing_until", Value::Null),
                         ]
@@ -259,6 +262,69 @@ impl DatabaseWebhookStore {
             }
             attempts::finish(&mut transaction, call.id(), token, "stopped", clock).await?;
             Ok(false)
+        }
+        .await;
+        settle_transaction(transaction, result).await
+    }
+
+    pub(crate) async fn wake_deferred(
+        &self,
+        id: &str,
+        enqueue: impl for<'a> FnOnce(&'a mut Transaction, DeferredWakeup) -> HttpFuture<'a, Result<()>>
+        + Send,
+    ) -> Result<bool> {
+        if id.len() != 36 {
+            return Ok(false);
+        }
+        let clock = self.clock();
+        let scope = scope_key(&self.scope);
+        let mut transaction = self.connection.begin_transaction().await?;
+        let result = async {
+            let changed = transaction
+                .table("webhook_calls")
+                .r#where("scope_key", "=", scope.as_str())
+                .r#where("id", "=", id)
+                .where_null("processed_at")
+                .where_null("processing_stopped_at")
+                .where_null("processing_until")
+                .where_not_null("processing_deferred_route")
+                .where_raw(
+                    &format!("processing_next_at > {clock} and processing_deadline > {clock}"),
+                    vec![],
+                )
+                .update_with(
+                    [assignment("processing_next_at", Expression::new(clock))]
+                        .into_iter()
+                        .collect(),
+                )
+                .await?;
+            if changed == 0 {
+                return Ok(false);
+            }
+            let row = transaction
+                .table("webhook_calls")
+                .select(["scope", "name", "revision", "processing_deferred_route"])
+                .r#where("scope_key", "=", scope.as_str())
+                .r#where("id", "=", id)
+                .first()
+                .await?
+                .ok_or(Error::InvalidRecord)?;
+            let text = |key| match row.get(key) {
+                Some(Value::Text(value)) => Ok(value.to_owned()),
+                _ => Err(Error::InvalidRecord),
+            };
+            let notice = DeferredWakeup {
+                id: id.to_owned(),
+                scope: text("scope")?,
+                profile: text("name")?,
+                revision: text("revision")?,
+                route: text("processing_deferred_route")?,
+            };
+            if notice.scope != self.scope {
+                return Err(Error::RecordNotFound);
+            }
+            enqueue(&mut transaction, notice).await?;
+            Ok(true)
         }
         .await;
         settle_transaction(transaction, result).await
@@ -292,6 +358,14 @@ impl DatabaseWebhookStore {
     }
 }
 
+pub(crate) struct DeferredWakeup {
+    pub id: String,
+    pub scope: String,
+    pub profile: String,
+    pub revision: String,
+    pub route: String,
+}
+
 async fn settle_transaction<T>(mut transaction: Transaction, result: Result<T>) -> Result<T> {
     match result {
         Ok(value) => {
@@ -310,6 +384,7 @@ fn stopped_assignments(clock: &str) -> BTreeMap<String, UpdateValue<'static, 'st
         assignment("processing_token", Value::Null),
         assignment("processing_until", Value::Null),
         assignment("processing_next_at", Value::Null),
+        assignment("processing_deferred_route", Value::Null),
         assignment("processing_stopped_at", Expression::new(clock)),
         assignment(
             "exception",
