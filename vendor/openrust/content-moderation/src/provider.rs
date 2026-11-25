@@ -39,6 +39,8 @@ mod recovery_dispatch_migration;
 mod remote_leases_migration;
 #[path = "../database/migrations/2026_11_26_000001_create_moderation_reviews_table.rs"]
 mod reviews_migration;
+#[path = "../database/migrations/2026_11_26_000016_add_moderation_video_segment_plan.rs"]
+mod segment_plan_migration;
 #[path = "../database/migrations/2026_11_26_000003_add_moderation_submission_lease.rs"]
 mod submission_lease_migration;
 #[path = "../database/migrations/2026_11_26_000014_add_moderation_video_duration.rs"]
@@ -113,6 +115,7 @@ openrust::compiled_migration_assets!("content-moderation";
     "2026_11_26_000013_create_moderation_remote_leases_table.rs" => remote_leases_migration,
     "2026_11_26_000014_add_moderation_video_duration.rs" => video_duration_migration,
     "2026_11_26_000015_create_moderation_late_notices_table.rs" => late_notices_migration,
+    "2026_11_26_000016_add_moderation_video_segment_plan.rs" => segment_plan_migration,
 );
 
 impl ModerationServiceProvider {

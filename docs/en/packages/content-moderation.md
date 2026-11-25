@@ -116,6 +116,12 @@ Create a separate named `sightengine` profile with `video_speech_categories`, fo
 
 Attach the duration verified by your application to the exact source version with `StoredMedia::with_video_duration_ms`. Sightengine's short-video endpoint takes clips under 60 seconds. For a durable check, pin the profile with `required_modalities = ["speech"]` and stage it normally. The submit Worker saves the completed result in one transition. Categories, severity labels and time spans are retained. Transcribed matches stay out of durable records and application diagnostics. Missing audio leaves speech coverage unavailable. For other required modalities on the same source, configure separate checks in a review group. [Audio moderation](https://sightengine.com/docs/audio-moderation-model) · [Short-video API](https://sightengine.com/docs/moderate-stored-video)
 
+### Speech segments for longer videos {#sightengine-speech-segments}
+
+Supply 2–64 clips generated and verified by your application from the same original media version. Use `VideoReviewSegment::new` with each clip’s start offset in the original timeline. Attach verified durations to the original and each clip with `StoredMedia::with_video_duration_ms`. Clips are shorter than 60 seconds, use distinct media versions, and cover the complete timeline in increasing order. Overlap can preserve context.
+
+Use `VideoReviewGroupRequest::for_speech_segments` with the original version, fixed speech profile, and clip list. Stage and advance the checks through the usual group and Worker flow. `segment_window_ms(index)` locates each result on the original timeline. Add the window start to clip-relative evidence timestamps when rendering them. For publication, use the group target and the original content revision. Every clip needs complete speech coverage.
+
 ### Account-level video callbacks {#sightengine-callbacks}
 
 Enable `content-moderation` and `webhook-client`. Point the Sightengine account’s callback URL at a route registered through Webhook Client. Use a separate route profile for each supplier account and set its `signature_validator` to `moderation-sightengine`. Set `moderation_callback_credential` to an object such as `{"name":"sightengine-callback","revision":"r2"}` and keep `signing_secret` in the mounted `sightengine-callback.r2.json` file. Select the Webhook Client store and processing job for the application.

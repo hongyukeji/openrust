@@ -4,11 +4,14 @@ use openrust::database::{DatabaseError, Row, Transaction, Value};
 
 use super::{
     ModerationStore, REVIEWS, ReviewIds, database_clock_query, decode, digest, new_id, read_clock,
-    write_check,
+    segment_record, write_check,
 };
 use crate::{
-    ModerationError, ModerationResult, VideoReviewGroup, VideoReviewGroupRequest,
-    credentials::valid_identifier, review_group::MAX_GROUP_CHECKS,
+    Modality, ModerationError, ModerationResult, VideoReview, VideoReviewGroup,
+    VideoReviewGroupRequest,
+    credentials::valid_identifier,
+    review_group::MAX_GROUP_CHECKS,
+    segment_plan::{MAX_VIDEO_SEGMENTS, SegmentPlan},
 };
 use std::sync::Arc;
 
@@ -34,6 +37,13 @@ impl ModerationStore {
         let clock = database_clock_query(&self.connection);
         let checks = Arc::new(request.checks.clone());
         let members = Arc::new(ids);
+        let plan = Arc::new(
+            request
+                .segments
+                .as_ref()
+                .map(segment_record::encode)
+                .transpose()?,
+        );
         let group_id = id.clone();
         let group_intent = intent.clone();
         let saved = self
@@ -46,10 +56,11 @@ impl ModerationStore {
                         scope.clone(),
                         clock.clone(),
                     );
-                    let (checks, members) = (checks.clone(), members.clone());
+                    let (checks, members, plan) = (checks.clone(), members.clone(), plan.clone());
                     Box::pin(async move {
                         let now = read_clock(transaction, &clock).await?;
-                        insert_group(transaction, &id, &scope, &intent, &members).await?;
+                        insert_group(transaction, &id, &scope, &intent, &members, plan.as_deref())
+                            .await?;
                         for (request, ids) in checks.iter().zip(members.iter()) {
                             let child_intent = digest(&format!("group-check:{}", ids.review));
                             write_check(transaction, ids, &scope, &child_intent, request, now)
@@ -99,12 +110,22 @@ impl ModerationStore {
         };
         let id = text(&row, "id")?;
         let serialized = text(&row, "member_ids")?;
-        if serialized.len() > MAX_GROUP_CHECKS * 40 {
+        let segments = match row.get("segment_plan") {
+            Some(Value::Null) => None,
+            Some(Value::Text(plan)) => Some(segment_record::decode(plan)?),
+            _ => return Err(ModerationError::ReviewStorage),
+        };
+        let maximum = if segments.is_some() {
+            MAX_VIDEO_SEGMENTS
+        } else {
+            MAX_GROUP_CHECKS
+        };
+        if serialized.len() > maximum * 40 {
             return Err(ModerationError::ReviewStorage);
         }
         let members: Vec<String> =
             serde_json::from_str(serialized).map_err(|_| ModerationError::ReviewStorage)?;
-        if !(2..=MAX_GROUP_CHECKS).contains(&members.len()) {
+        if !(2..=maximum).contains(&members.len()) {
             return Err(ModerationError::ReviewStorage);
         }
         let rows = self
@@ -116,7 +137,7 @@ impl ModerationStore {
                     .map(|member| member.as_str().into())
                     .collect(),
             )
-            .limit(MAX_GROUP_CHECKS as u64)
+            .limit(maximum as u64)
             .get()
             .await
             .map_err(|_| ModerationError::ReviewStorage)?;
@@ -136,16 +157,35 @@ impl ModerationStore {
         if checks.iter().any(|check| {
             check.content_id() != original.content_id()
                 || check.content_revision() != original.content_revision()
-                || check.source() != original.source()
                 || check.created_at() != original.created_at()
                 || check.deadline_at() != original.deadline_at()
-        }) {
+        }) || !valid_scope(&checks, segments.as_ref())
+        {
             return Err(ModerationError::ReviewStorage);
         }
         Ok(Some(VideoReviewGroup {
             id: id.to_owned(),
             checks,
+            segments,
         }))
+    }
+}
+
+fn valid_scope(checks: &[VideoReview], segments: Option<&SegmentPlan>) -> bool {
+    let first = &checks[0];
+    match segments {
+        None => checks.iter().all(|check| check.source() == first.source()),
+        Some(plan) => {
+            first.profile().required_modalities().len() == 1
+                && first
+                    .profile()
+                    .required_modalities()
+                    .contains(&Modality::Speech)
+                && checks
+                    .iter()
+                    .all(|check| check.profile() == first.profile())
+                && plan.covers(checks.iter().map(VideoReview::source))
+        }
     }
 }
 
@@ -160,7 +200,8 @@ fn existing(
     group: VideoReviewGroup,
     request: &VideoReviewGroupRequest,
 ) -> ModerationResult<VideoReviewGroup> {
-    if group.checks.len() == request.checks.len()
+    if group.segments == request.segments
+        && group.checks.len() == request.checks.len()
         && group
             .checks
             .iter()
@@ -179,6 +220,7 @@ async fn insert_group(
     scope: &str,
     intent: &str,
     members: &[ReviewIds],
+    plan: Option<&str>,
 ) -> Result<(), DatabaseError> {
     let ids: Vec<_> = members
         .iter()
@@ -193,6 +235,7 @@ async fn insert_group(
             ("scope_key".into(), scope.into()),
             ("intent_key".into(), intent.into()),
             ("member_ids".into(), ids.into()),
+            ("segment_plan".into(), plan.map_or(Value::Null, Value::from)),
         ]
         .into_iter()
         .collect()])

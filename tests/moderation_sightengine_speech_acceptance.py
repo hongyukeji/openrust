@@ -14,6 +14,7 @@ import subprocess
 import tempfile
 import threading
 from urllib.parse import parse_qs, urlsplit
+import xml.etree.ElementTree as XML
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -82,19 +83,68 @@ class Supplier(VIDEO["Supplier"]):
         self.respond(405, {"status": "failure"})
 
 
-def exercise(binary, driver, url, root, storage_env, storage):
-    version, silent_version, original, silent = VIDEO["versioned_clips"](root, storage)
+def probe_ms(path):
+    result = subprocess.check_output(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+         "-of", "default=noprint_wrappers=1:nokey=1", str(path)], timeout=10,
+    )
+    return round(float(result) * 1000)
 
-    def probe_ms(filename):
-        result = subprocess.check_output(
-            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-             "-of", "default=noprint_wrappers=1:nokey=1", str(root / filename)], timeout=10,
-        )
-        return round(float(result) * 1000)
 
-    duration = probe_ms("original.mp4")
-    silent_duration = probe_ms("changed.mp4")
-    assert 980 <= duration < 60_000 and 0 < silent_duration < 60_000
+def versioned_segments(root, storage):
+    storage("PUT", query="versioning", content=(
+        b'<VersioningConfiguration xmlns="http://s3.amazonaws.com/doc/2006-03-01/">'
+        b'<Status>Enabled</Status></VersioningConfiguration>'))
+    source = root / "long.mp4"
+    common = ["ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", "-threads", "1"]
+    codecs = ["-c:v", "mpeg4", "-c:a", "aac"]
+    subprocess.run(common + [
+        "-f", "lavfi", "-i", "color=navy:s=64x64:r=8:d=70",
+        "-f", "lavfi", "-i", "sine=frequency=220:duration=70", "-shortest",
+        *codecs, str(source),
+    ], check=True, timeout=30)
+    assert probe_ms(source) == 70_000
+    frames = [source]
+    for name, start, duration in (("head", 0, 40), ("tail", 33, 37)):
+        path = root / f"{name}.mp4"
+        subprocess.run(common + [
+            "-ss", str(start), "-i", str(source), "-t", str(duration), *codecs, str(path),
+        ], check=True, timeout=30)
+        frames.append(path)
+    lengths = [probe_ms(path) for path in frames[1:]]
+    assert 33_000 < lengths[0] < 60_000 and 33_000 + lengths[1] == probe_ms(source), lengths
+
+    def upload(path):
+        body = path.read_bytes()
+        storage("PUT", VIDEO["KEY"], content=body)
+        versions = XML.fromstring(storage("GET", query=f"versions&prefix={VIDEO['KEY']}"))
+        version, = [
+            node.findtext("{*}VersionId") for node in versions.findall("{*}Version")
+            if node.findtext("{*}Key") == VIDEO["KEY"] and node.findtext("{*}IsLatest") == "true"
+        ]
+        assert version not in {"", "null"}
+        return version, body
+
+    original_version, original = upload(frames[0])
+    first, second = map(upload, frames[1:])
+    assert len({original_version, first[0], second[0]}) == 3
+    storage("GET", VIDEO["KEY"], status=403, signed=False)
+    return original_version, original, (first, second), lengths
+
+
+def exercise(binary, driver, url, root, storage_env, storage, *, test_segments=False):
+    if test_segments:
+        version, original, clips, lengths = versioned_segments(root, storage)
+        duration = 70_000
+        timeline = [
+            {"start_ms": 0, "duration_ms": lengths[0], "version": clips[0][0]},
+            {"start_ms": 33_000, "duration_ms": lengths[1], "version": clips[1][0]},
+        ]
+    else:
+        version, silent_version, original, silent = VIDEO["versioned_clips"](root, storage)
+        duration = probe_ms(root / "original.mp4")
+        silent_duration = probe_ms(root / "changed.mp4")
+        assert 980 <= duration < 60_000 and 0 < silent_duration < 60_000
     supplier = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Supplier)
     supplier.lock, supplier.mode = threading.Lock(), "clean"
     supplier.expected_secret, supplier.gate = VIDEO["SECRET"], None
@@ -134,6 +184,9 @@ def exercise(binary, driver, url, root, storage_env, storage):
         "MODERATION_FIXTURE_GROUP": "1", "MODERATION_FIXTURE_DURABLE_VIDEO_PROFILE": PRIMARY,
     }
     env.pop("MODERATION_FIXTURE_VIDEO_DURATION_MS", None)
+    if test_segments:
+        env["MODERATION_FIXTURE_VIDEO_DURATION_MS"] = str(duration)
+        env["MODERATION_FIXTURE_SEGMENT_PLAN"] = json.dumps(timeline)
     if url:
         env["DB_URL"] = url
     else:
@@ -183,6 +236,167 @@ def exercise(binary, driver, url, root, storage_env, storage):
         finally:
             connection.close()
 
+    def group_http(expected=200, **values):
+        connection = http.client.HTTPConnection("127.0.0.1", port, timeout=20)
+        try:
+            headers = {"Accept": "application/json"} | {
+                "X-Fixture-" + name.replace("_", "-").title(): str(value) for name, value in values.items()
+            }
+            connection.request("POST", "/api/drivers/moderation/group", headers=headers)
+            response = connection.getresponse()
+            body = response.read()
+            assert response.status == expected and all(value.encode() not in body for value in (VIDEO["SECRET"], PRIVATE_MATCH))
+            return json.loads(body)
+        finally:
+            connection.close()
+
+    def exercise_segments():
+        def stage_group(intent, layout=timeline, total=duration, profile=PRIMARY, successful=True):
+            result = artisan(
+                COMMAND, "stage-segments", "app", "tenant", intent, version, profile,
+                extra={"MODERATION_FIXTURE_SEGMENT_PLAN": json.dumps(layout),
+                       "MODERATION_FIXTURE_VIDEO_DURATION_MS": str(total)},
+                successful=successful,
+            )
+            return json.loads(result) if successful else None
+
+        for bad in (
+            [timeline[0], timeline[1] | {"start_ms": 41_000, "duration_ms": 29_000}],
+            [timeline[0], timeline[1] | {"version": timeline[0]["version"]}],
+            [timeline[0] | {"duration_ms": 60_000}, timeline[1]],
+            [timeline[0], timeline[1] | {"duration_ms": 36_999}],
+            [timeline[0], timeline[1] | {"start_ms": 0}],
+        ):
+            stage_group("bad-plan", bad, successful=False)
+        stage_group("bad-profile", profile="sightengine-speech-visual", successful=False)
+        assert sql("SELECT COUNT(*) FROM moderation_review_groups") == "0" and not supplier.posted
+
+        stage_input = {"segment_plan": 1, "review_intent": "segmented", "version": version, "profiles": PRIMARY}
+        group = group_http(**stage_input)
+        assert group == stage_group("segmented")
+        assert group["original_version"] == version and group["original_duration_ms"] == duration
+        assert group["segment_windows_ms"] == [[0, lengths[0]], [33_000, 70_000]]
+        plan_query = f"WHERE id = '{group['id']}'"
+        encoded = sql("SELECT segment_plan FROM moderation_review_groups " + plan_query)
+        sql("UPDATE moderation_review_groups SET segment_plan = '{}' " + plan_query)
+        assert group_http(group_id=group["id"], expected=502)["error"] == "ReviewStorage"
+        escaped = encoded.replace("'", "''")
+        sql(f"UPDATE moderation_review_groups SET segment_plan = '{escaped}' " + plan_query)
+        assert group_http(group_id=group["id"]) == group
+        changed = [timeline[0] | {"duration_ms": lengths[0] + 1}, timeline[1]]
+        stage_group("segmented", changed, successful=False)
+        assert group_http(group_id=group["id"], tenant="Tenant", expected=404)["error"] == "ReviewNotFound"
+
+        first, second = group["checks"]
+        assert [first["object_version"], second["object_version"]] == [clips[0][0], clips[1][0]]
+        assert worker("submit", first)["decision"] == "allow"
+        assert group_http(group_id=group["id"])["decision"] is None
+        assert not group_http(group_id=group["id"], operation="publish",
+                              content_revision="content-v1", decision_revision=0, expected=403)["permitted"]
+        supplier.mode = "findings"
+        assert submit_http(second)["decision"] == "review"
+        final = group_http(group_id=group["id"])
+        assert (final["state"], final["decision"]) == ("Succeeded", "review")
+        speech_end = next(item["span_ms"][1] for item in final["checks"][1]["assessment"]["labels"]
+                          if item["provider"] == "phone_number")
+        assert final["segment_windows_ms"][1][0] + speech_end == 33_980
+        assert final == command("find-group", group)
+        decision = group_http(group_id=group["id"], operation="record",
+                              decision="allow", decision_revision=0, actor="moderator-test")
+        assert decision["revision"] == 1
+        assert group_http(group_id=group["id"], operation="publish",
+                          content_revision="content-v1", decision_revision=1)["permitted"]
+
+        no_audio = stage_group("incomplete-segments")
+        supplier.mode = "clean"
+        assert worker("submit", no_audio["checks"][0])["decision"] == "allow"
+        supplier.mode = "missing-track"
+        assert worker("submit", no_audio["checks"][1])["state"] == "Failed"
+        assert group_http(group_id=no_audio["id"])["decision"] is None
+
+        many = [{"start_ms": number * 1000, "duration_ms": 1000, "version": f"stage-only-{number}"}
+                for number in range(65)]
+        maximum = stage_group("bounded-plan", many[:64], 64_000)
+        assert len(maximum["checks"]) == 64 and maximum["segment_windows_ms"][-1] == [63_000, 64_000]
+        stage_group("too-many-segments", many, 65_000, successful=False)
+        assert sql("SELECT COUNT(*) FROM moderation_review_groups") == "3"
+        assert sql("SELECT COUNT(*) FROM moderation_checks") == "68"
+        assert supplier.posted == list(clips) * 2 and not supplier.queried
+        assert event_log.read_text().splitlines() == ["POST"] * 4
+
+    def exercise_short():
+        for intent, ms in (("missing-duration", None), ("at-limit", 60_000)):
+            failed = submit_http(stage(intent, ms=ms))
+            assert failed["state"] == "Failed" and failed["submission"] == {"state": "Failed", "reason": "input"}
+            assert failed["decision"] is None
+        assert stage("zero-duration", ms=0, successful=False) is None and not supplier.posted
+
+        clean = stage("short-clean")
+        assert stage("short-clean") == clean
+        stage("short-clean", ms=duration + 1, successful=False)
+        assert sql("SELECT video_duration_ms FROM moderation_reviews "
+                   f"WHERE id = '{clean['id']}'") == str(duration)
+        inspected = submit_http(clean)
+        assert inspected["state"] == "Succeeded" and inspected["decision"] == "allow"
+        assert inspected["query_attempts"] == 0 and inspected["next_query_at"] is None
+        assert inspected["assessment"]["coverage"] == {"Speech": "Complete", "Visual": "Unavailable", "Ocr": "Unavailable"}
+        assert command("find", clean) == command("query", clean) == inspected
+        assert submit_http(clean) == inspected and len(supplier.posted) == 1
+
+        supplier.mode = "findings"
+        flagged = worker("submit", stage("short-findings"))
+        assert flagged["state"] == "Succeeded" and flagged["decision"] == "review"
+        assert {item["provider"]: item["span_ms"] for item in flagged["assessment"]["labels"]} == {
+            "insult/high": [150, 400], "phone_number": [650, 980],
+        }
+        assert flagged["assessment"]["labels"][0]["modality"] == "Speech"
+
+        supplier.mode = "missing-track"
+        missing = worker("submit", stage("silent-video", clip=silent_version, ms=silent_duration))
+        assert missing["state"] == "Failed" and missing["query_failure"] == "incomplete_coverage"
+        assert missing["decision"] is None and missing["assessment"]["coverage"]["Speech"] == "Unavailable"
+
+        for bad in ("duplicate", "bad-time"):
+            supplier.mode = bad
+            invalid = submit_http(stage(f"short-{bad}"))
+            assert invalid["state"] == "Running" and invalid["submission"] == {"state": "Unknown"}
+            assert invalid["decision"] is None and invalid["assessment"] is None
+
+        supplier.mode = "clean"
+        wider = worker("submit", stage("short-also-visual", profile="sightengine-speech-visual"))
+        assert wider["state"] == "Failed" and wider["query_failure"] == "incomplete_coverage"
+        assert wider["decision"] is None and wider["assessment"]["coverage"]["Speech"] == "Complete"
+
+        group = json.loads(artisan(COMMAND, "stage-group", "app", "tenant", "with-speech",
+                                   version, f"group-visual,{PRIMARY}",
+                                   extra={"MODERATION_FIXTURE_VIDEO_DURATION_MS": str(duration)}))
+        visual, speech = group["checks"]
+        assert worker("submit", speech)["state"] == "Succeeded"
+        assert command("find-group", group)["decision"] is None
+        assert worker("submit", visual)["state"] == "Running"
+        sql(f"UPDATE moderation_checks SET available_at = 1 WHERE id = '{visual['check_id']}'")
+        assert worker("query", visual)["state"] == "Succeeded"
+        assert command("find-group", group)["decision"] == "allow"
+
+        late = stage("short-late")
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            arrived, release = supplier.gate = (threading.Event(), threading.Event())
+            sending = pool.submit(submit_http, late)
+            try:
+                assert arrived.wait(8)
+                cancelled = command("cancel", late)
+                assert cancelled["state"] == "Cancelled" and cancelled["provider_cancellation"] == "task_unknown"
+            finally:
+                release.set()
+            assert sending.result(timeout=12) == cancelled
+            supplier.gate = None
+        assert cancelled["decision"] is None and cancelled["assessment"] is None
+        assert supplier.posted == [(version, original)] * 2 + [(silent_version, silent)] + [(version, original)] * 5
+        assert not supplier.queried and event_log.read_text().splitlines() == ["POST"] * 8
+        assert sql("SELECT COUNT(*) FROM moderation_remote_leases") == "3"
+        assert PRIVATE_MATCH not in sql("SELECT assessment FROM moderation_checks WHERE assessment IS NOT NULL")
+        assert sql("SELECT COUNT(*) FROM jobs") == sql("SELECT COUNT(*) FROM failed_jobs") == "0"
+
     try:
         artisan("migrate", "--force")
         artisan("config:cache")
@@ -190,85 +404,22 @@ def exercise(binary, driver, url, root, storage_env, storage):
         with (root / "http.log").open("w+") as log:
             app = HTTP["serve"](binary, env, log)
             try:
-                for intent, ms in (("missing-duration", None), ("at-limit", 60_000)):
-                    failed = submit_http(stage(intent, ms=ms))
-                    assert failed["state"] == "Failed" and failed["submission"] == {"state": "Failed", "reason": "input"}
-                    assert failed["decision"] is None
-                assert stage("zero-duration", ms=0, successful=False) is None and not supplier.posted
-
-                clean = stage("short-clean")
-                assert stage("short-clean") == clean
-                stage("short-clean", ms=duration + 1, successful=False)
-                assert sql("SELECT video_duration_ms FROM moderation_reviews "
-                           f"WHERE id = '{clean['id']}'") == str(duration)
-                inspected = submit_http(clean)
-                assert inspected["state"] == "Succeeded" and inspected["decision"] == "allow"
-                assert inspected["query_attempts"] == 0 and inspected["next_query_at"] is None
-                assert inspected["assessment"]["coverage"] == {"Speech": "Complete", "Visual": "Unavailable", "Ocr": "Unavailable"}
-                assert command("find", clean) == command("query", clean) == inspected
-                assert submit_http(clean) == inspected and len(supplier.posted) == 1
-
-                supplier.mode = "findings"
-                flagged = worker("submit", stage("short-findings"))
-                assert flagged["state"] == "Succeeded" and flagged["decision"] == "review"
-                assert {item["provider"]: item["span_ms"] for item in flagged["assessment"]["labels"]} == {
-                    "insult/high": [150, 400], "phone_number": [650, 980],
-                }
-                assert flagged["assessment"]["labels"][0]["modality"] == "Speech"
-
-                supplier.mode = "missing-track"
-                missing = worker("submit", stage("silent-video", clip=silent_version, ms=silent_duration))
-                assert missing["state"] == "Failed" and missing["query_failure"] == "incomplete_coverage"
-                assert missing["decision"] is None and missing["assessment"]["coverage"]["Speech"] == "Unavailable"
-
-                for bad in ("duplicate", "bad-time"):
-                    supplier.mode = bad
-                    invalid = submit_http(stage(f"short-{bad}"))
-                    assert invalid["state"] == "Running" and invalid["submission"] == {"state": "Unknown"}
-                    assert invalid["decision"] is None and invalid["assessment"] is None
-
-                supplier.mode = "clean"
-                wider = worker("submit", stage("short-also-visual", profile="sightengine-speech-visual"))
-                assert wider["state"] == "Failed" and wider["query_failure"] == "incomplete_coverage"
-                assert wider["decision"] is None and wider["assessment"]["coverage"]["Speech"] == "Complete"
-
-                group = json.loads(artisan(COMMAND, "stage-group", "app", "tenant", "with-speech",
-                                           version, f"group-visual,{PRIMARY}",
-                                           extra={"MODERATION_FIXTURE_VIDEO_DURATION_MS": str(duration)}))
-                visual, speech = group["checks"]
-                assert worker("submit", speech)["state"] == "Succeeded"
-                assert command("find-group", group)["decision"] is None
-                assert worker("submit", visual)["state"] == "Running"
-                sql(f"UPDATE moderation_checks SET available_at = 1 WHERE id = '{visual['check_id']}'")
-                assert worker("query", visual)["state"] == "Succeeded"
-                assert command("find-group", group)["decision"] == "allow"
-
-                late = stage("short-late")
-                with ThreadPoolExecutor(max_workers=1) as pool:
-                    arrived, release = supplier.gate = (threading.Event(), threading.Event())
-                    sending = pool.submit(submit_http, late)
-                    try:
-                        assert arrived.wait(8)
-                        cancelled = command("cancel", late)
-                        assert cancelled["state"] == "Cancelled" and cancelled["provider_cancellation"] == "task_unknown"
-                    finally:
-                        release.set()
-                    assert sending.result(timeout=12) == cancelled
-                    supplier.gate = None
-                assert cancelled["decision"] is None and cancelled["assessment"] is None
-                assert supplier.posted == [(version, original)] * 2 + [(silent_version, silent)] + [(version, original)] * 5
-                assert not supplier.queried and event_log.read_text().splitlines() == ["POST"] * 8
-                assert sql("SELECT COUNT(*) FROM moderation_remote_leases") == "3"
-                assert PRIVATE_MATCH not in sql("SELECT assessment FROM moderation_checks WHERE assessment IS NOT NULL")
-                assert sql("SELECT COUNT(*) FROM jobs") == sql("SELECT COUNT(*) FROM failed_jobs") == "0"
+                if test_segments:
+                    exercise_segments()
+                else:
+                    exercise_short()
             finally:
                 HTTP["stop"](app)
             log.seek(0)
             messages = log.read()
             assert PRIVATE_MATCH not in messages and VIDEO["SECRET"] not in messages
+        migration = (
+            "2026_11_26_000016_add_moderation_video_segment_plan.rs" if test_segments
+            else "2026_11_26_000014_add_moderation_video_duration.rs"
+        )
         artisan("migrate:rollback", "--force",
-                "--path=vendor/openrust/content-moderation/database/migrations/"
-                "2026_11_26_000014_add_moderation_video_duration.rs", successful=False)
+                "--path=vendor/openrust/content-moderation/database/migrations/" + migration,
+                successful=False)
     finally:
         supplier.shutdown()
         supplier.server_close()
@@ -280,7 +431,11 @@ if __name__ == "__main__":
     parser.add_argument("binary", type=Path)
     args = parser.parse_args()
     driver, url = DATABASE["database_settings"]()
+    test_segments = os.environ.get("MODERATION_TEST_SPEECH_SEGMENTS") == "1"
     with tempfile.TemporaryDirectory(dir=ROOT / "target/tmp", prefix="moderation-speech-") as root, \
             VIDEO["VIDEO"]["OBJECTS"]["TOPOLOGY"]["object_storage"](True) as (env, storage):
-        exercise(args.binary.resolve(), driver, url, Path(root), env, storage)
-    print(f"{driver}: Sightengine 短视频语音、限长、私有版本、即时终态及复合门禁通过 HTTP、Artisan 和 Worker")
+        exercise(args.binary.resolve(), driver, url, Path(root), env, storage, test_segments=test_segments)
+    if test_segments:
+        print(f"{driver}: Sightengine 长视频片段、私有版本、完整时间线和发布门禁通过 HTTP、Artisan 和 Worker")
+    else:
+        print(f"{driver}: Sightengine 短视频语音、限长、私有版本、即时终态及复合门禁通过 HTTP、Artisan 和 Worker")

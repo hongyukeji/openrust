@@ -26,6 +26,7 @@ mod review;
 mod review_decision;
 mod review_group;
 mod revision;
+mod segment_plan;
 #[cfg(feature = "webhooks")]
 mod sightengine_callback;
 mod storage;
@@ -62,6 +63,7 @@ pub use review_decision::{
 };
 pub use review_group::{VideoReviewGroup, VideoReviewGroupRequest};
 pub use revision::ProfileRevision;
+pub use segment_plan::VideoReviewSegment;
 #[cfg(feature = "webhooks")]
 pub use sightengine_callback::SightengineCallbackProcessor;
 pub use storage::ModerationStore;

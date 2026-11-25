@@ -116,6 +116,12 @@ Hive 回呼可以透過 Webhook Client 接收查詢提示。將 `HiveLookupHint`
 
 呼叫 `StoredMedia::with_video_duration_ms`，將應用程式已核實的時長與確切素材版本一併傳入。Sightengine 的短影片介面只接受不足 60 秒的素材。需要持久化時將該設定固定為 `required_modalities = ["speech"]`，依一般流程登記。送審 Worker 一次寫入終態與結果。證據保留類別、嚴重程度標籤和時間範圍，記錄與診斷不保存辨識原文。缺少音軌結果時語音涵蓋為無法使用。同一素材還有其他必查模態時，在審核群組中設定獨立檢查。 [語音審核](https://sightengine.com/docs/audio-moderation-model) · [短影片介面](https://sightengine.com/docs/moderate-stored-video)
 
+### 長影片語音分段 {#sightengine-speech-segments}
+
+應用程式從同一原素材版本產生並核實 2–64 個片段。呼叫 `VideoReviewSegment::new` 傳入各片段在原素材時間軸上的起點。用 `StoredMedia::with_video_duration_ms` 為原素材和每個片段記錄已核實的時長。每個片段不足 60 秒，使用不同素材版本，依序涵蓋整條時間軸。相鄰片段可以重疊以保留語境。
+
+將原素材版本、固定語音設定和片段清單傳給 `VideoReviewGroupRequest::for_speech_segments`，沿用審核群組和 Worker 的登記與執行方式。用 `segment_window_ms(index)` 定位原素材區間，顯示證據時將片段內的時間戳加上片段起點。發布時使用審核群組和原內容修訂，每個片段都須具備完整語音涵蓋。
+
 ### 帳戶層級影片回呼 {#sightengine-callbacks}
 
 同時啟用 `content-moderation` 和 `webhook-client`。在 Sightengine 帳戶中將回呼 URL 指向透過 Webhook Client 註冊的路由。各供應商帳戶使用自己的路由設定，將 `signature_validator` 設為 `moderation-sightengine`。`moderation_callback_credential` 填寫 `{"name":"sightengine-callback","revision":"r2"}` 這樣的物件，將 `signing_secret` 寫入掛載的 `sightengine-callback.r2.json`。選擇應用程式的 Webhook Client 儲存和處理 Job。

@@ -116,6 +116,12 @@ Hive 回调可以通过 Webhook Client 接收查单提示。将 `HiveLookupHint`
 
 调用 `StoredMedia::with_video_duration_ms`，把应用已核实的时长与准确素材版本一起传入。Sightengine 的短视频接口只接受不足 60 秒的素材。需要持久化时将该配置固定为 `required_modalities = ["speech"]`，按常规流程落单。送审 Worker 一次写入终态与结果。证据保留类别、严重程度标签和时间范围，记录与诊断不保存识别原文。缺少音轨结果时语音覆盖为不可用。同一素材还有其他必检模态时，在审核组中配置独立检查。 [语音审核](https://sightengine.com/docs/audio-moderation-model) · [短视频接口](https://sightengine.com/docs/moderate-stored-video)
 
+### 长视频语音分段 {#sightengine-speech-segments}
+
+应用从同一原素材版本生成并核实 2–64 个片段。调用 `VideoReviewSegment::new` 传入各片段在原素材时间线上的起点。用 `StoredMedia::with_video_duration_ms` 为原素材和每个片段记录已核实的时长。每个片段不足 60 秒，使用不同素材版本，按顺序覆盖整条时间线。相邻片段可以重叠以保留语境。
+
+将原素材版本、固定语音配置和片段列表传给 `VideoReviewGroupRequest::for_speech_segments`，沿用审核组和 Worker 的落单与执行方式。用 `segment_window_ms(index)` 定位原素材区间，展示证据时把片段内的时间戳加上片段起点。发布时使用审核组和原内容修订，每个片段都须有完整语音覆盖。
+
 ### 账户级视频回调 {#sightengine-callbacks}
 
 同时启用 `content-moderation` 和 `webhook-client`。在 Sightengine 账户中将回调 URL 指向通过 Webhook Client 注册的路由。各供应商账户使用自己的路由配置，将 `signature_validator` 设为 `moderation-sightengine`。`moderation_callback_credential` 填写 `{"name":"sightengine-callback","revision":"r2"}` 这样的对象，将 `signing_secret` 写入挂载的 `sightengine-callback.r2.json`。选择应用的 Webhook Client 存储与处理 Job。

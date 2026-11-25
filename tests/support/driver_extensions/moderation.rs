@@ -26,7 +26,7 @@ use openrust_content_moderation::{
     ModerationError, ModerationFuture, ModerationManager, ModerationResult, ModerationStore,
     Operation, ProfileRevision, ReviewDecision, ReviewDecisionRequest, StoredMedia, TaskId,
     TaskStatus, TextInput, VideoInput, VideoReview, VideoReviewGroup, VideoReviewGroupRequest,
-    VideoReviewRequest, VideoReviewService, VideoReviewTarget,
+    VideoReviewRequest, VideoReviewSegment, VideoReviewService, VideoReviewTarget,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -950,7 +950,11 @@ pub(super) fn group_route(request: &mut Request) -> HttpFuture<'_, Result<Respon
             let content_revision = request
                 .header("x-fixture-content-revision")?
                 .unwrap_or("content-v1");
-            stage_group("app", tenant, intent, version, content_revision, profiles).await
+            if request.header("x-fixture-segment-plan")? == Some("1") {
+                stage_segments("app", tenant, intent, version, content_revision, profiles).await
+            } else {
+                stage_group("app", tenant, intent, version, content_revision, profiles).await
+            }
         };
         provider_response(result)
     })
@@ -1079,6 +1083,48 @@ async fn stage_group(
     Ok(render_group(store.stage_video_group(&request).await?))
 }
 
+#[derive(Deserialize)]
+struct FixtureSegment {
+    start_ms: u32,
+    duration_ms: u32,
+    version: String,
+}
+
+async fn stage_segments(
+    application: &str,
+    tenant: &str,
+    intent: &str,
+    version: &str,
+    content_revision: &str,
+    profile: &str,
+) -> ModerationResult<Value> {
+    let original = fixture_video_source(version)?;
+    let plan = std::env::var("MODERATION_FIXTURE_SEGMENT_PLAN")
+        .map_err(|_| ModerationError::InvalidInput("fixture segment plan"))?;
+    let plan: Vec<FixtureSegment> = serde_json::from_str(&plan)
+        .map_err(|_| ModerationError::InvalidInput("fixture segment plan"))?;
+    let segments = plan
+        .into_iter()
+        .map(|segment| {
+            let source = StoredMedia::new("s3", "versions/clip.mp4", segment.version)?
+                .with_video_duration_ms(segment.duration_ms)?;
+            Ok(VideoReviewSegment::new(segment.start_ms, source))
+        })
+        .collect::<ModerationResult<Vec<_>>>()?;
+    let profile = Moderation::pin_profile(profile, "original")?;
+    let request = VideoReviewGroupRequest::for_speech_segments(
+        intent,
+        "影片/1",
+        content_revision,
+        original,
+        profile,
+        segments,
+        300,
+    )?;
+    let store = review_store(application, tenant)?;
+    Ok(render_group(store.stage_video_group(&request).await?))
+}
+
 async fn find_group(application: &str, tenant: &str, id: &str) -> ModerationResult<Value> {
     review_store(application, tenant)?
         .find_video_group(id)
@@ -1095,10 +1141,20 @@ async fn cancel_group(application: &str, tenant: &str, id: &str) -> ModerationRe
 }
 
 fn render_group(group: VideoReviewGroup) -> Value {
-    json!({
+    let mut result = json!({
         "id": group.id(), "state": format!("{:?}", group.state()), "decision": group.decision(),
         "checks": group.checks().iter().cloned().map(render_review).collect::<Vec<_>>(),
-    })
+    });
+    if group.segment_window_ms(0).is_some() {
+        result["original_version"] = json!(group.source().version());
+        result["original_duration_ms"] = json!(group.source().video_duration_ms());
+        result["segment_windows_ms"] = json!(
+            (0..group.checks().len())
+                .map(|index| group.segment_window_ms(index))
+                .collect::<Vec<_>>()
+        );
+    }
+    result
 }
 
 async fn stage_review(
@@ -1360,6 +1416,7 @@ pub(super) fn register_command(artisan: &mut Artisan) -> Result<(), ConsoleError
                 "cancel",
                 "queue-query",
                 "stage-group",
+                "stage-segments",
                 "find-group",
                 "cancel-group",
                 "group-decision",
@@ -1506,6 +1563,16 @@ impl Command for ReviewProbe {
                     .await
                     .map_err(ConsoleError::from_source)?,
                 "stage-group" => stage_group(
+                    &reference.application,
+                    &reference.tenant,
+                    &reference.id,
+                    &required("object-version"),
+                    "content-v1",
+                    &required("profiles"),
+                )
+                .await
+                .map_err(ConsoleError::from_source)?,
+                "stage-segments" => stage_segments(
                     &reference.application,
                     &reference.tenant,
                     &reference.id,
