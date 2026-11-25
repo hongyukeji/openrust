@@ -40,6 +40,8 @@ Source locations and stack frames are absent when the runtime provides no reliab
 
 Pass an ordered list of descriptors to `as_multipart().post()` when a request needs repeated names or per-part headers. Each descriptor requires `name` and a non-null string, number or boolean in `contents`. It may also supply `filename` and `headers`. A multipart object can include descriptors alongside ordinary fields. Any parts registered with `attach()` follow the supplied data. For supplied fields, the client writes floating-point values with the upstream default of 14 significant digits and keeps the original numbers in diagnostics. Nonempty fields get a part-level `Content-Length` unless one is already supplied.
 
+When request middleware changes multipart to another media type, successful diagnostics use the original part descriptors and mask configured part headers. An empty descriptor list allows the rewritten JSON or form body to be decoded. Connection failures use the media type and buffered body of the request that was sent.
+
 Import `openrust::database::DatabaseCursorExt` and call `cursor.try_next_with_source().await?` to associate SQL with the line that reads the next item. Standard stream consumers use the cursor creation site when available.
 
 Outbound diagnostics show JSON or form fields, or the query parameters supplied in a GET URL. Forms preserve the original scalar types in diagnostics. When a name repeats, diagnostics show its last value. Builder query options still affect the URL sent over HTTP. Raw bodies are only decoded for supported JSON or form content types.

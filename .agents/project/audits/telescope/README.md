@@ -101,9 +101,9 @@ Telescope.ignoreFrameworkEvents 使用应用共享 Arc<AtomicBool>，默认 true
 
 PHP 浮点字段在发送时按字符串转换精度编码，并在诊断中保留原数字。固定探针观察到默认 `precision=14`，`1.0` 发送为 `1`，`1e20` 为 `1.0E+20`。舍入后指数小于 -4 或达到 14 时进入科学计数法，负零发送为 `-0`。独立 Rust 原型与 PHP 的 4105 个相同二进制浮点输入逐字节一致。真实 HTTP 普通字段与预格式化部件共用固定默认精度编码，录制数据继续携带原始数字值。证据为 `target/tmp/observability-parity/multipart-float-{fields,precision}-upstream.log` 和 `target/tmp/observability-parity/float-comparison/{php,rust}.tsv`。
 
-固定的中间件矩阵核对成功及连接失败各 10 组。发送前回调替换媒体类型时，成功诊断仍使用回调前的 multipart 参数。请求中间件换成 JSON、表单或纯文本时，成功诊断随事件媒体类型返回原始部件描述列表。保留 multipart 类型时，边界变化仍保留原字段诊断。连接失败依据实际上线请求的媒体类型，解码 JSON／表单，multipart 与纯文本为空。Rust 对请求中间件改写媒体类型仍套用 multipart 字段快照，原描述列表分支待对齐。证据为 `target/tmp/observability-parity/multipart-middleware-types-upstream.log`。
+固定的中间件矩阵核对成功及连接失败各 10 组。发送前回调替换媒体类型时，成功诊断仍使用回调前的 multipart 参数。请求中间件换成 JSON、表单或纯文本时，成功诊断随事件媒体类型返回原始部件描述列表。保留 multipart 类型时，边界变化仍保留原字段诊断。连接失败依据实际上线请求的媒体类型，解码 JSON／表单，multipart 与纯文本为空。Rust 已接入对应的事件分支，现有 `Http::recorded` 仍反映实际请求的快照。证据为 `target/tmp/observability-parity/multipart-middleware-types-upstream.log`。
 
-附加探针确认，原描述列表为空时，经过请求中间件改写的 JSON 和表单由实际上线正文解码。原列表非空时，描述项保留附加字段并在清单末尾追加登记附件；流在该非 multipart 诊断中序列化为空对象。证据为 `target/tmp/observability-parity/multipart-middleware-{empty,attachments}-upstream.log`。
+原描述列表为空时，经过请求中间件改写的 JSON 和表单由实际上线正文解码。原列表非空时，保留重复项及附加字段，并在清单末尾追加登记附件。流序列化为空对象，非 UTF-8 字节采用替换字符，诊断不消费流。Rust 在此分支继续对配置的部件头部和参数脱敏。公开诊断来源增加 `MultipartDescriptors` 变体，穷尽匹配需涵盖。固定探针为 `target/tmp/observability-parity/multipart-middleware-{empty,attachments,binary}-upstream.log`。
 
 macOS 的回环 HTTP 同时核对线上字节、重复字段、敏感部件头部、完全脱敏、302 后原始字段、307 重放及重试。未知长度的原生流在发送前未被轮询，传输中消费一次。SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 的专项入库通过。框架 HTTP 客户端 23 项、Telescope Provider 15 项及独立 Redis 8.10.3 的观察和 Redis 缓存用例通过。
 
@@ -114,3 +114,5 @@ Linux 7.0.14 ARM64 同源码通过框架 HTTP 客户端 23 项、Telescope Provi
 数字名称专项通过真实出站请求验证重复覆盖、按字段名脱敏、连续数组、倒序对象、稀疏对象及前导零对象。macOS 和 Linux ARM64 各通过客户端 24 项和 Provider 15 项，Windows 11 ARM64 通过三项 multipart 真实传输和一项 Telescope SQLite 入库。macOS 的 PostgreSQL 18.7、MySQL 8.4.13、Redis 8.10.3 缓存专项及独立 Redis 观察通过。相关目标严格 Clippy、隔离快照格式、三语文档构建和浏览器检查均通过。证据为 `target/tmp/observability-parity/multipart-numeric-{macos,macos-redis,linux,windows,docs}.log`。
 
 浮点专项通过两种真实输入验证 12 个发送样例和对应部件字节长度，覆盖正负零、舍入后的指数切换、极大值和次正规数。框架录制核对原浮点位值，Telescope 入库核对长小数诊断。macOS 和 Linux ARM64 各通过客户端 25 项、Provider 15 项，Windows 11 ARM64 通过四项 multipart 真实传输和一项 Telescope SQLite 入库。macOS 另通过 PostgreSQL 18.7、MySQL 8.4.13 和 Redis 8.10.3 缓存专项。相关目标严格 Clippy、隔离快照格式及三语站点构建和浏览器检查通过。证据为 `target/tmp/observability-parity/multipart-float-{macos,macos-redis,linux,windows,docs}.log`。
+
+中间件回归在实际回环传输和拒绝连接上逐项验证 23 条入库记录，其中 10 条为失败，另有 3 条空列表回退。断言覆盖线上媒体类型和正文、原始描述顺序和重复项、附件、字节替换及嵌套脱敏。macOS 与 Linux ARM64 各通过客户端 25 项和 Provider 16 项，Windows 11 ARM64 通过客户端 multipart 四项及 23 条记录的 SQLite 回归。macOS 另通过 PostgreSQL 18.7、MySQL 8.4.13 及 Redis 8.10.3 缓存专项。相关目标严格 Clippy、隔离快照全仓格式、三语站点构建和浏览器检查通过。证据为 `target/tmp/observability-parity/multipart-media-{macos,macos-redis,linux,windows,docs}.log`。

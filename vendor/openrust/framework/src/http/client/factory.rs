@@ -64,6 +64,8 @@ pub enum RecordedRequestDataSource {
     Payload(Arc<serde_json::Value>),
     /// 按首次出现顺序排列的 multipart 字段名。
     Multipart(Arc<[String]>),
+    /// 请求中间件改写媒体类型前的原始部件描述。
+    MultipartDescriptors(Arc<[serde_json::Value]>),
 }
 
 #[derive(Clone)]
@@ -120,6 +122,9 @@ impl RecordedRequest {
                 .or_else(|| self.decode_body_fields(true, false)),
             Some(RecordedRequestDataSource::Json) => self.decode_body_fields(false, true),
             Some(RecordedRequestDataSource::Payload(payload)) => Some(payload.as_ref().clone()),
+            Some(RecordedRequestDataSource::MultipartDescriptors(parts)) => {
+                Some(serde_json::Value::Array(parts.to_vec()))
+            }
             Some(RecordedRequestDataSource::Multipart(_)) | None => {
                 self.decode_body_fields(is_form, is_json)
             }

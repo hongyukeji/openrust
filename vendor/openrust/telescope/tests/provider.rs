@@ -25,6 +25,10 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
     openrust::support::facades::Route::get("/async", async_handler)?;
     openrust::support::facades::Route::get("/redis", redis_handler)?;
     openrust::support::facades::Route::get("/client", client_handler)?;
+    openrust::support::facades::Route::get(
+        "/client-multipart-middleware",
+        multipart_middleware_handler,
+    )?;
     openrust::support::facades::Route::get("/identity", identity_handler)?;
     openrust::support::facades::Route::get("/guest", identity_handler)?;
     Ok(())
@@ -1734,6 +1738,221 @@ fn client_handler(
         Ok(openrust::http::Response::from("observed"))
     })
 }
+
+const MULTIPART_REPLACEMENTS: [(&str, Option<&str>, &str); 5] = [
+    ("same-boundary", None, "new multipart body"),
+    (
+        "changed-boundary",
+        Some("multipart/form-data; boundary=changed"),
+        "new multipart body",
+    ),
+    ("json", Some("application/json"), r#"{"changed":true}"#),
+    (
+        "form",
+        Some("application/x-www-form-urlencoded"),
+        "changed=true",
+    ),
+    ("plain", Some("text/plain"), "new text body"),
+];
+
+fn multipart_middleware_handler(
+    request: &mut openrust::http::Request,
+) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {
+    Box::pin(async move {
+        use openrust::http::client::{Http, Part};
+
+        let origin = request.headers()["x-origin-url"].to_str().unwrap();
+        let unreachable = request.headers()["x-failed-url"].to_str().unwrap();
+        for (phase, target, fails) in [
+            ("before", origin, false),
+            ("request", origin, false),
+            ("empty", origin, false),
+            ("before", unreachable, true),
+            ("request", unreachable, true),
+        ] {
+            for (mode, media, body) in MULTIPART_REPLACEMENTS {
+                if phase == "empty" && media.is_none_or(|media| media.starts_with("multipart")) {
+                    continue;
+                }
+                let update = move |request: &mut openrust::http::client::Request| {
+                    if let Some(media) = media {
+                        request.headers_mut().insert(
+                            http::header::CONTENT_TYPE,
+                            http::HeaderValue::from_static(media),
+                        );
+                    }
+                    request.headers_mut().remove(http::header::CONTENT_LENGTH);
+                    *request.body_mut() = Some(body.into());
+                    Ok(())
+                };
+                let pending = Http::pending_request().unwrap().as_multipart();
+                let pending = if phase == "before" {
+                    pending.before_sending(update)
+                } else {
+                    pending.with_request_middleware(update)
+                };
+                let (pending, data) = if phase == "empty" {
+                    (pending, json!([]))
+                } else {
+                    (
+                        pending
+                            .attach(
+                                "stream",
+                                Part::stream_with_length("synthetic-stream", 16)
+                                    .file_name("stream.txt"),
+                            )
+                            .attach("text", Part::text("buffered-text").file_name("text.txt"))
+                            .attach("bytes", Part::bytes(vec![0xfe])),
+                        json!([
+                            {"name":"original","contents":false,"headers":{"X-Secret":"private"},"extra":"kept"},
+                            {"name":"original","contents":true},
+                        ]),
+                    )
+                };
+                let result = pending
+                    .post(&format!("{target}/{phase}/{mode}"), &data)
+                    .await;
+                if fails {
+                    assert!(matches!(
+                        result,
+                        Err(openrust::http::client::Error::Connection)
+                    ));
+                } else {
+                    assert!(result.unwrap().ok());
+                }
+            }
+        }
+        Ok(openrust::http::Response::from("observed"))
+    })
+}
+
+#[tokio::test]
+async fn multipart_media_rewrites_preserve_the_correct_telescope_diagnostic() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let unavailable = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let failed = unavailable.local_addr().unwrap();
+    drop(unavailable);
+    let wire = tokio::spawn(async move {
+        for _ in 0..13 {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = Vec::new();
+            loop {
+                let mut buffer = [0; 4096];
+                let read = socket.read(&mut buffer).await.unwrap();
+                assert_ne!(read, 0);
+                request.extend_from_slice(&buffer[..read]);
+                if let Some(end) = request.windows(4).position(|bytes| bytes == b"\r\n\r\n") {
+                    let headers = std::str::from_utf8(&request[..end]).unwrap();
+                    let mode = headers
+                        .split_whitespace()
+                        .nth(1)
+                        .unwrap()
+                        .rsplit('/')
+                        .next()
+                        .unwrap();
+                    let (_, media, body) = MULTIPART_REPLACEMENTS
+                        .iter()
+                        .find(|case| case.0 == mode)
+                        .unwrap();
+                    let headers = headers.to_ascii_lowercase();
+                    assert!(headers.contains(&format!(
+                        "content-type: {}",
+                        media.unwrap_or("multipart/form-data; boundary=")
+                    )));
+                    if request.len() >= end + 4 + body.len() {
+                        assert_eq!(&request[end + 4..], body.as_bytes());
+                        break;
+                    }
+                }
+            }
+            socket
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+                .await
+                .unwrap();
+        }
+    });
+    let mut app = application();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    let telescope = app.app().make::<Telescope>().await.unwrap();
+    telescope.hide_request_headers(&["x-secret"]);
+    telescope.hide_request_parameters(&["0.extra"]);
+    let request = http::Request::builder()
+        .uri("/api/client-multipart-middleware")
+        .header("x-origin-url", format!("http://{address}"))
+        .header("x-failed-url", format!("http://{failed}"))
+        .body(openrust::http::Body::empty())
+        .unwrap();
+    let (response, ()) = tokio::time::timeout(std::time::Duration::from_secs(60), async {
+        tokio::try_join!(app.call(request), async {
+            wire.await
+                .map_err(|error| Box::new(error) as Box<dyn std::error::Error + Send + Sync>)
+        })
+    })
+    .await
+    .unwrap()
+    .unwrap();
+    response.assert_ok();
+    let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
+    let entries = repository
+        .get(Some(EntryType::ClientRequest), EntryQueryOptions::default())
+        .await
+        .unwrap();
+    assert_eq!(entries.len(), 23);
+    let fields = json!({
+        "original":true,
+        "stream":{"name":"stream.txt", "size":"0.016KB", "headers":[]},
+        "text":"buffered-text",
+        "bytes":{"name":null, "size":"0.001KB", "headers":[]},
+    });
+    let descriptors = json!([
+        {"name":"original","contents":false,"headers":{"X-Secret":"********"},"extra":"********"},
+        {"name":"original","contents":true},
+        {"name":"stream","contents":{},"filename":"stream.txt","headers":[]},
+        {"name":"text","contents":"buffered-text","filename":"text.txt","headers":[]},
+        {"name":"bytes","contents":"�","headers":[]},
+    ]);
+    for entry in entries {
+        let uri = entry.content["uri"].as_str().unwrap();
+        let (base, mode) = uri.rsplit_once('/').unwrap();
+        let phase = base.rsplit('/').next().unwrap();
+        let failed = entry.content["response_status"].is_null();
+        let (_, media, _) = MULTIPART_REPLACEMENTS
+            .iter()
+            .find(|case| case.0 == mode)
+            .unwrap();
+        let changed = || match mode {
+            "json" => json!({"changed":true}),
+            "form" => json!({"changed":"true"}),
+            _ => json!([]),
+        };
+        let expected = if failed || phase == "empty" {
+            changed()
+        } else if phase == "before" || media.is_none_or(|media| media.starts_with("multipart")) {
+            fields.clone()
+        } else {
+            descriptors.clone()
+        };
+        assert_eq!(entry.content["payload"], expected, "{uri}, failed={failed}");
+        let media = if !failed && phase == "before" {
+            None
+        } else {
+            *media
+        };
+        assert!(
+            entry.content["headers"]["content-type"]
+                .as_str()
+                .unwrap()
+                .starts_with(media.unwrap_or("multipart/form-data; boundary=")),
+            "{uri}"
+        );
+    }
+}
+
 #[tokio::test]
 async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_native_sql_observation()
 {

@@ -787,7 +787,17 @@ fn client_content(
     use openrust::http::client::{RecordedMultipartField, RecordedRequestDataSource};
 
     let payload = request.multipart.as_ref().map_or_else(
-        || telescope.request_parameters(request.diagnostic_data()),
+        || {
+            let payload = request.diagnostic_data();
+            if matches!(
+                request.diagnostic_source,
+                Some(RecordedRequestDataSource::MultipartDescriptors(_))
+            ) {
+                telescope.multipart_descriptors(payload)
+            } else {
+                telescope.request_parameters(payload)
+            }
+        },
         |fields| {
             if fields.is_empty() {
                 return json!([]);

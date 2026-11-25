@@ -75,7 +75,7 @@ O01 Activitylog、O02 Horizon、O03 Telescope原生范围、O04 Pennant、O05 Pu
 | 所属类型或配置 | 本轮裁决 | 后续核对 |
 |---|---|---|
 | Telescope `ClientRequestWatcher::duration` | 固定上游在有正计时时以毫秒向下取整，缺少计时时输出空值。Rust 从现有传输统计输出整数毫秒或 JSON 空值。测试由真实出站 HTTP 与 fake 消费者覆盖。 | 命令与面板展示随完整输出审计核对。 |
-| Telescope `ClientRequestWatcher::input` | 已捕获普通字段、直接预格式化列表及混合对象、原生 `Part` 字段和附件元数据。提交的数据先于登记附件发送，同名取最后一项并保留首次位置。顺序连续的数字字段以 JSON 数组记录，复用请求字段／头部脱敏。浮点发送使用固定 PHP 默认精度，普通及描述部件使用编码长度填充默认部件头。 | 请求中间件改写媒体类型后的原描述列表边界见[包审计](telescope/README.md#出站-multipart)。 |
+| Telescope `ClientRequestWatcher::input` | 已捕获普通字段、直接预格式化列表及混合对象、原生 `Part` 字段和附件元数据。提交的数据先于登记附件发送，同名取最后一项并保留首次位置。顺序连续的数字字段以 JSON 数组记录。浮点发送使用固定 PHP 默认精度，普通及描述部件使用编码长度填充默认部件头。请求中间件改写媒体类型时接入原部件列表、空列表回退和连接失败路径。 | 诊断形状、脱敏及平台验收见[包审计](telescope/README.md#出站-multipart)。 |
 | Telescope 非 multipart 出站载荷 | 诊断从原始 GET 地址或结构化正文选择载荷，并与线上 URL 分别记录。已核对 JSON／表单 POST、GET 查询覆盖、HEAD、原始正文、自定义媒体类型与表单标量快照。成功重定向保留原始输入，连接失败从实际缓冲正文解码。 | multipart 重定向、重试回调改写与其他中间件组合仍需对账。 |
 | Telescope `FetchesStackTrace`、`QueryWatcher`、`GateWatcher` | 固定上游按路径子串跳过被忽略的帧，再选第一处合格来源。找不到合格帧时 Query 不入库，Gate 仍入库且行号和文件为空。Gate 已覆盖授权入口及同应用嵌套授权来源。Query 已覆盖核心 SQL、分页、模型写入、直接关系读取、关系加载、多对多中间表、关联写入和常规 Schema 入口。 | 普通异步包装器的外层候选、关系变体逐类型验收、驱动特有 Schema 操作和发布构建路径重映射仍待核对。 |
 | Pulse 默认 Recorder 清单 | 固定配置的十个 Recorder 均可映射到本地配置。已核对采样率 1、慢操作阈值 1000、异常和慢查询位置开关、默认存储及采集驱动。SlowQueries 现使用数据库事件的调用位置。Servers 默认主机名随配置加载求值。 | 逐 Recorder 核对触发事件、筛选、采样、聚合、配置覆盖和扩展入口，再核对命令和面板。 |

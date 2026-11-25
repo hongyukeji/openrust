@@ -722,11 +722,19 @@ impl PendingRequest {
             (Payload::Multipart(parts), data) => {
                 let mut form = Form::new();
                 let mut fields = indexmap::IndexMap::new();
+                let capture_descriptors = self.factory.events.is_some()
+                    && !self.redact_payload
+                    && !self.middleware.is_empty();
+                let mut descriptors = Vec::new();
                 if let Some(data) = data {
                     let value = serde_json::to_value(data).map_err(Error::InvalidJson)?;
-                    for (name, part, value) in super::multipart_input::parts(value)? {
-                        fields.insert(name.clone(), RecordedMultipartField::Value(value));
-                        form = form.part(name, part);
+                    for input in super::multipart_input::parts(value, capture_descriptors)? {
+                        fields.insert(
+                            input.name.clone(),
+                            RecordedMultipartField::Value(input.value),
+                        );
+                        form = form.part(input.name, input.part);
+                        descriptors.extend(input.descriptor);
                     }
                 }
                 // Laravel 先发送普通字段，然后按登记顺序追加附件。
@@ -736,6 +744,9 @@ impl PendingRequest {
                     metadata,
                 } in parts
                 {
+                    if capture_descriptors {
+                        descriptors.push(super::multipart_input::attached_descriptor(&name, &part));
+                    }
                     fields.insert(name.clone(), metadata);
                     form = form.part(name, part);
                 }
@@ -745,7 +756,11 @@ impl PendingRequest {
                 ))
                 .map_err(|_| Error::InvalidRequest)?;
                 let explicitly_empty = data.is_some() && fields.is_empty();
-                multipart = Some(MultipartObservation::new(fields, content_type.clone()));
+                multipart = Some(MultipartObservation::new(
+                    fields,
+                    content_type.clone(),
+                    descriptors,
+                ));
                 if explicitly_empty {
                     request
                         .header(header::CONTENT_TYPE, content_type)

@@ -1,18 +1,25 @@
 use http::{HeaderMap, HeaderName, HeaderValue, header};
-use serde_json::Value;
+use serde_json::{Map, Value, json};
 
 use super::{Error, Part, Result};
 
-pub(super) fn parts(data: Value) -> Result<Vec<(String, Part, Value)>> {
+pub(super) struct InputPart {
+    pub name: String,
+    pub part: Part,
+    pub value: Value,
+    pub descriptor: Option<Value>,
+}
+
+pub(super) fn parts(data: Value, capture_descriptors: bool) -> Result<Vec<InputPart>> {
     match data {
         Value::Object(fields) => fields
             .into_iter()
-            .map(|(name, value)| part(name, value))
+            .map(|(name, value)| part(name, value, capture_descriptors))
             .collect(),
         Value::Array(fields) => fields
             .into_iter()
             .map(|value| match value {
-                Value::Object(fields) => descriptor(fields),
+                Value::Object(fields) => descriptor(fields, capture_descriptors),
                 _ => Err(Error::InvalidRequest),
             })
             .collect(),
@@ -20,18 +27,25 @@ pub(super) fn parts(data: Value) -> Result<Vec<(String, Part, Value)>> {
     }
 }
 
-fn part(name: String, value: Value) -> Result<(String, Part, Value)> {
+fn part(name: String, value: Value, capture_descriptors: bool) -> Result<InputPart> {
     let Value::Object(fields) = value else {
         let body = scalar(&value)?;
         let mut headers = HeaderMap::new();
         add_content_length(&body, &mut headers);
         let field = Part::text(body).headers(headers);
-        return Ok((name, field, value));
+        let descriptor = capture_descriptors.then(|| json!({"name": name, "contents": value}));
+        return Ok(InputPart {
+            name,
+            part: field,
+            value,
+            descriptor,
+        });
     };
-    descriptor(fields)
+    descriptor(fields, capture_descriptors)
 }
 
-fn descriptor(mut fields: serde_json::Map<String, Value>) -> Result<(String, Part, Value)> {
+fn descriptor(mut fields: Map<String, Value>, capture_descriptors: bool) -> Result<InputPart> {
+    let descriptor = capture_descriptors.then(|| Value::Object(fields.clone()));
     let Some(Value::String(name)) = fields.remove("name") else {
         return Err(Error::InvalidRequest);
     };
@@ -68,7 +82,45 @@ fn descriptor(mut fields: serde_json::Map<String, Value>) -> Result<(String, Par
     if let Some(disposition) = disposition {
         field = field.with_content_disposition(disposition);
     }
-    Ok((name, field.headers(headers), contents))
+    Ok(InputPart {
+        name,
+        part: field.headers(headers),
+        value: contents,
+        descriptor,
+    })
+}
+
+pub(super) fn attached_descriptor(name: &str, part: &Part) -> Value {
+    let headers = part.custom_headers();
+    let mut configured = Map::new();
+    for name in headers.keys() {
+        let values = headers
+            .get_all(name)
+            .iter()
+            .map(|value| String::from_utf8_lossy(value.as_bytes()))
+            .collect::<Vec<_>>()
+            .join(", ");
+        configured.insert(name.to_string(), Value::String(values));
+    }
+    if let Some(mime) = part.mime_type() {
+        configured
+            .entry(header::CONTENT_TYPE.as_str())
+            .or_insert_with(|| mime.into());
+    }
+    let headers = if configured.is_empty() {
+        json!([])
+    } else {
+        Value::Object(configured)
+    };
+    let contents = part.buffered_field_bytes().map_or_else(
+        || Value::Object(Map::new()),
+        |bytes| Value::String(String::from_utf8_lossy(bytes).into_owned()),
+    );
+    let mut descriptor = json!({"name":name, "contents":contents, "headers":headers});
+    if let Some(filename) = part.filename() {
+        descriptor["filename"] = filename.into();
+    }
+    descriptor
 }
 
 fn add_content_length(body: &str, headers: &mut HeaderMap) {

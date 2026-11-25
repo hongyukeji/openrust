@@ -18,17 +18,20 @@ pub(super) struct MultipartObservation {
     fields: Arc<BTreeMap<String, RecordedMultipartField>>,
     order: Arc<[String]>,
     content_type: HeaderValue,
+    descriptors: Arc<[Value]>,
 }
 
 impl MultipartObservation {
     pub(super) fn new(
         fields: IndexMap<String, RecordedMultipartField>,
         content_type: HeaderValue,
+        descriptors: Vec<Value>,
     ) -> Self {
         Self {
             order: fields.keys().cloned().collect(),
             fields: Arc::new(fields.into_iter().collect()),
             content_type,
+            descriptors: descriptors.into(),
         }
     }
 
@@ -37,6 +40,21 @@ impl MultipartObservation {
         request.diagnostic_source = Some(RecordedRequestDataSource::Multipart(Arc::clone(
             &self.order,
         )));
+    }
+
+    fn record_event(&self, request: &mut RecordedRequest) {
+        let multipart = request
+            .headers
+            .get(header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|value| value.contains("multipart"));
+        if multipart {
+            self.record(request);
+        } else if !self.descriptors.is_empty() {
+            request.diagnostic_source = Some(RecordedRequestDataSource::MultipartDescriptors(
+                Arc::clone(&self.descriptors),
+            ));
+        }
     }
 }
 
@@ -85,7 +103,7 @@ impl Transport<'_> {
                         let mut snapshot = self.snapshot(&request);
                         snapshot.diagnostic_source.clone_from(&event_source);
                         if observe_payload && let Some(multipart) = &self.multipart {
-                            multipart.record(&mut snapshot);
+                            multipart.record_event(&mut snapshot);
                         }
                         snapshot
                     });

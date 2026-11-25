@@ -190,6 +190,32 @@ impl Telescope {
                 .request_parameters,
         )
     }
+
+    pub(crate) fn multipart_descriptors(
+        &self,
+        mut payload: serde_json::Value,
+    ) -> serde_json::Value {
+        if let Some(parts) = payload.as_array_mut() {
+            let hidden = self.hidden.read().unwrap_or_else(|e| e.into_inner());
+            for part in parts {
+                if let Some(headers) = part
+                    .get_mut("headers")
+                    .and_then(serde_json::Value::as_object_mut)
+                {
+                    for (name, value) in headers {
+                        if hidden
+                            .request_headers
+                            .iter()
+                            .any(|hidden| name.eq_ignore_ascii_case(hidden))
+                        {
+                            *value = "********".into();
+                        }
+                    }
+                }
+            }
+        }
+        self.request_parameters(payload)
+    }
     pub(crate) fn response_parameters(&self, value: serde_json::Value) -> serde_json::Value {
         redact(
             value,
