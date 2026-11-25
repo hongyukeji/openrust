@@ -50,4 +50,4 @@
 
 继续WH-00构造／字段／继承逐项裁决与WH-01完整安装装配；注意默认签名不保护Webhook-Id、Timestamp或URL，不能直接把这些未签字段当可信事件身份；无ID摘要策略须覆盖真实业务输入并有窗口，不能误合并GET／query的不同请求。手动Processor、原文接收记录与模型委托storage已在[后续批次](receiver.md)验收，[公开控制器／路由及注册工厂](routes.md)已有实际验收，继续核对WH-02事件／异常契约，附件本地清理已验，远端及跨主机仍待验。随后WH-03补齐领域幂等消费者和双拓扑，再进入WH-04首次安全发送、WH-05持久发送、WH-06运维及WH-07全门禁。全新生成应用／完整安装模板、正式制品许可收集、持久凭据修订也须在各自门禁实测，不因本批功能开关通过而关闭。
 
-WH-V01至WH-V27仍按计划逐项完成；本批只有部分基础证据。真实远程多主机、Linux／Windows、生产TLS／代理／mTLS及供应商／平台未验。同主机双节点验收及其剩余故障矩阵见[拓扑记录](topology.md)，共享主写库和 Redis 已补[断连与恢复](backend-interruption.md)，[共享 S3 附件](shared-object-storage.md)已验 ACL、跨节点读取及补偿，[双节点调度与授权故障](cluster-ownership.md)已补 Scheduler 退出、旧领取回归及端点和凭据失效。不推送／不发布／不操作正式环境，目标保持进行中。
+WH-V01至WH-V27仍按计划逐项完成；本批只有部分基础证据。真实远程多主机、Linux／Windows、生产TLS／代理／mTLS及供应商／平台未验。同主机双节点验收及其剩余故障矩阵见[拓扑记录](topology.md)，共享主写库和 Redis 已补[断连与恢复](backend-interruption.md)，[共享 S3 附件](shared-object-storage.md)已验 ACL、跨节点读取及补偿，[双节点调度与授权故障](cluster-ownership.md)已补 Scheduler 退出、旧领取回归及端点和凭据失效。已补[两个实际版本的滚动升级](rolling-upgrade.md)。不推送／不发布／不操作正式环境，目标保持进行中。

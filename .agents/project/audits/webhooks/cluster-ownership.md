@@ -8,4 +8,4 @@
 
 PostgreSQL 18.7 和 MySQL 8.4.13 分别搭配 database 与 Redis 8.10.3，通过四组故障用例及既有拓扑回归。SQLite 单机基础回归通过。验收应用以 `3ade8173d` 冻结源码及本批夹具构建，应用及两个 Webhook 包的格式检查、严格 Clippy 和 Python 语法检查通过。全工作区格式检查仍有[三处既有差异](backend-interruption.md)。使用 `OPENRUST_TEST_WEBHOOK_TOPOLOGY_OWNERSHIP=1` 启用本批路径。
 
-真实跨主机、时差、滚动升级及正式迁移仍在 WH-V27。
+已补[同主机两版本滚动升级](rolling-upgrade.md)。真实跨主机、时差及生产升级仍在 WH-V27。

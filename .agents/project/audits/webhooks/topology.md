@@ -17,4 +17,4 @@
 
 `tests/webhooks_topology_acceptance.py` 接收实际编译的 `webhooks_app` 路径。SQLite 用 `OPENRUST_TEST_SMS_SQLITE=1`，PostgreSQL 和 MySQL 使用各自隔离验收包装器。额外设 `OPENRUST_TEST_WEBHOOK_TOPOLOGY_REDIS=1` 验证 Redis。验收制品通过 `cargo fmt --all -- --check` 及两包 feature 下的 `cargo clippy --test webhooks_app -- -D warnings`。数据库、Redis 和临时应用目录已清理。
 
-该证据覆盖 WH-V25、WH-V26 和 WH-V27 的上述路径。WH-V25 仍须补齐拓扑级同步派发及受影响缓存组合；WH-V26 已补[同主机双节点共享 S3 附件](shared-object-storage.md)，真实跨主机、托管对象存储、生产入口和目标操作系统仍待验；WH-V27 已补[共享主写库和 Redis 断连与恢复](backend-interruption.md)。已补[Scheduler 退出、旧 Worker 回归、端点撤销与凭据缺失](cluster-ownership.md)。节点时差、真实跨主机与滚动升级仍待验收。完整 Webhook 门禁保持开放。
+该证据覆盖 WH-V25、WH-V26 和 WH-V27 的上述路径。WH-V25 仍须补齐拓扑级同步派发及受影响缓存组合；WH-V26 已补[同主机双节点共享 S3 附件](shared-object-storage.md)，真实跨主机、托管对象存储、生产入口和目标操作系统仍待验；WH-V27 已补[共享主写库和 Redis 断连与恢复](backend-interruption.md)。已补[Scheduler 退出、旧 Worker 回归、端点撤销与凭据缺失](cluster-ownership.md)。[同主机两版本滚动升级](rolling-upgrade.md)已覆盖选定的增量迁移。节点时差、真实跨主机与生产升级仍待验收。完整 Webhook 门禁保持开放。

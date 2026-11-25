@@ -46,7 +46,8 @@ class RoundRobin(http.server.BaseHTTPRequestHandler):
 
     def do_POST(self):
         with self.server.mutex:
-            node = self.server.cursor % len(self.server.ports)
+            active = getattr(self.server, "active", range(len(self.server.ports)))
+            node = active[self.server.cursor % len(active)]
             self.server.cursor += 1
         upstream = http.client.HTTPConnection("127.0.0.1", self.server.ports[node], timeout=10)
         try:
