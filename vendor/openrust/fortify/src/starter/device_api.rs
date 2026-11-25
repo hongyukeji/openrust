@@ -85,7 +85,7 @@ fn revoke<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
             _ => false,
         };
         let proof = if browser {
-            confirmation::claim_session(request, &user, &fortify)?
+            confirmation::claim_session(request, &user, &fortify).await?
         } else {
             confirmation::claim(request, &user, Purpose::Devices, &fortify).await?
         };

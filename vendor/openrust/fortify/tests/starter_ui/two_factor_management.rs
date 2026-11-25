@@ -434,3 +434,168 @@ async fn api_only_factor_management_follows_multilevel_prefix_without_an_account
         405
     );
 }
+
+#[tokio::test]
+async fn cookie_second_factor_rejects_primary_proof_after_password_rotation() {
+    let (server, clock) = server().await;
+    let token = token(&server).await;
+    let proof = confirmation(&server, &token, "factors").await;
+    assert_eq!(
+        account_request(
+            server.address,
+            &token,
+            "POST",
+            "/api/user/two-factor-authentication",
+            json!({"proof":proof})
+        )
+        .await
+        .0,
+        200
+    );
+    let proof = confirmation(&server, &token, "factors").await;
+    assert_eq!(
+        account_request(
+            server.address,
+            &token,
+            "POST",
+            "/api/user/confirmed-two-factor-authentication",
+            json!({"proof":proof,"code":"742275"})
+        )
+        .await
+        .0,
+        200
+    );
+    clock.store(1_234_567_920, Ordering::SeqCst);
+    let mut browser = Client {
+        address: server.address,
+        cookies: Default::default(),
+        csrf: String::new(),
+    };
+    assert_eq!(browser.send("GET", "/login", "", false).await.0, 200);
+    let login = browser
+        .send(
+            "POST",
+            "/login",
+            r#"{"email":"device@example.test","password":"long-password-123"}"#,
+            true,
+        )
+        .await;
+    assert_eq!(login.0, 200, "{}", login.1);
+    assert_eq!(
+        serde_json::from_str::<Value>(&login.1).unwrap()["two_factor"],
+        true
+    );
+    // 在另一客户端变更凭据；旧Cookie的主因素不能被有效TOTP复活。
+    App::set_facade_application(Some(server._kernel.get_application()), async {
+        use openrust::database::eloquent::Model;
+        let mut query = app::models::User::query().unwrap();
+        query.r#where("email", "=", "device@example.test");
+        let mut user = query.first().await.unwrap().unwrap();
+        openrust_fortify::starter::credentials::change_password(
+            &mut user,
+            "another-long-password-123",
+        )
+        .await
+        .unwrap();
+    })
+    .await;
+    let attempt = browser
+        .send(
+            "POST",
+            "/two-factor-challenge",
+            r#"{"code":"835227"}"#,
+            true,
+        )
+        .await;
+    assert_eq!(attempt.0, 401, "{}", attempt.1);
+    assert_eq!(browser.send("GET", "/home", "", true).await.0, 401);
+}
+
+#[tokio::test]
+async fn cookie_second_factor_completes_native_login_without_creating_a_personal_token() {
+    let (server, clock) = server().await;
+    let token = token(&server).await;
+    let proof = confirmation(&server, &token, "factors").await;
+    assert_eq!(
+        account_request(
+            server.address,
+            &token,
+            "POST",
+            "/api/user/two-factor-authentication",
+            json!({"proof":proof})
+        )
+        .await
+        .0,
+        200
+    );
+    let proof = confirmation(&server, &token, "factors").await;
+    assert_eq!(
+        account_request(
+            server.address,
+            &token,
+            "POST",
+            "/api/user/confirmed-two-factor-authentication",
+            json!({"proof":proof,"code":"742275"})
+        )
+        .await
+        .0,
+        200
+    );
+    clock.store(1_234_567_920, Ordering::SeqCst);
+    let mut browser = Client {
+        address: server.address,
+        cookies: Default::default(),
+        csrf: String::new(),
+    };
+    assert_eq!(browser.send("GET", "/login", "", false).await.0, 200);
+    let stage = browser
+        .send(
+            "POST",
+            "/login",
+            r#"{"email":"device@example.test","password":"long-password-123"}"#,
+            true,
+        )
+        .await;
+    assert_eq!(stage.0, 200, "{}", stage.1);
+    assert_eq!(browser.send("GET", "/home", "", true).await.0, 401);
+    let invalid = browser
+        .send(
+            "POST",
+            "/two-factor-challenge",
+            r#"{"code":"000000"}"#,
+            true,
+        )
+        .await;
+    assert_eq!(invalid.0, 422, "{}", invalid.1);
+    let completed = browser
+        .send(
+            "POST",
+            "/two-factor-challenge",
+            r#"{"code":"835227"}"#,
+            true,
+        )
+        .await;
+    assert_eq!(completed.0, 200, "{}", completed.1);
+    assert!(!completed.1.contains("plain_text_token"));
+    assert_eq!(browser.send("GET", "/home", "", false).await.0, 200);
+    let replay = browser
+        .send(
+            "POST",
+            "/two-factor-challenge",
+            r#"{"code":"835227"}"#,
+            true,
+        )
+        .await;
+    // 原生guest中间件将已登录用户重定向，不再进入挑战控制器。
+    assert_eq!(replay.0, 302, "{}", replay.1);
+    let tokens = account_request(
+        server.address,
+        &token,
+        "GET",
+        "/api/user/tokens",
+        Value::Null,
+    )
+    .await;
+    assert_eq!(tokens.0, 200, "{}", tokens.2);
+    assert_eq!(tokens.2["data"].as_array().unwrap().len(), 1);
+}

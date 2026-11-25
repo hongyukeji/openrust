@@ -60,6 +60,18 @@ pub(crate) fn register(app: &Application) -> ProviderResult {
         app,
         &[
             (
+                "resources/views/user/passkeys.blade.html",
+                include_bytes!("../../stubs/starter/views/passkeys.blade.html"),
+            ),
+            (
+                "public/vendor/user-starter/passkeys.NOTICE",
+                include_bytes!("../../stubs/starter/passkeys.NOTICE"),
+            ),
+            (
+                "public/vendor/user-starter/passkeys.js",
+                include_bytes!("../../stubs/starter/passkeys.js"),
+            ),
+            (
                 "resources/views/user/two-factor.blade.html",
                 include_bytes!("../../stubs/starter/views/two-factor.blade.html"),
             ),

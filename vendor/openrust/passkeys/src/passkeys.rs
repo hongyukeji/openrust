@@ -140,6 +140,27 @@ impl Passkeys {
             .purge_in_transaction(transaction, key)
             .await
     }
+    pub async fn for_user(
+        &self,
+        user: &dyn Authenticatable,
+    ) -> Result<Vec<PasskeyRecord>, HttpError> {
+        self.passkey_store()
+            .records("user_id", self.account(user)?.key)
+            .await
+            .map_err(crate::internal)
+    }
+    pub async fn find_owned_in_transaction(
+        &self,
+        user: &dyn Authenticatable,
+        transaction: &mut Transaction,
+        key: Value,
+    ) -> Result<Option<PasskeyRecord>, HttpError> {
+        self.validate_user_transaction(user, transaction)?;
+        self.passkey_store()
+            .owned_in_transaction(transaction, key, self.account(user)?.key)
+            .await
+            .map_err(crate::internal)
+    }
     /// 解析所选凭据模型的注册用户；返回值仍须经原生WebAuthn验证后才能用于登录。
     pub async fn user_for(
         &self,

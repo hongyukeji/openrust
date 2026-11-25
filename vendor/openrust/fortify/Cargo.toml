@@ -30,6 +30,8 @@ tokio = { version = "1.54.1", features = ["time"] }
 qrcode = { version = "=0.14.1", default-features = false }
 
 [dev-dependencies]
+base64 = "=0.22.1"
+serde_cbor_2 = "=0.13.0"
 axum = { version = "0.8.9", default-features = false, features = ["http1", "tokio"] }
 tokio = { version = "1.54.1", features = ["macros", "rt", "sync", "net", "io-util", "time"] }
 

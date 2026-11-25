@@ -1,6 +1,6 @@
 use crate::{
-    AuthenticationOptions, PasskeyRecord, Passkeys, RegistrationOptions, actions::*, contracts,
-    internal, invalid,
+    AuthenticationOptions, PasskeyRecord, Passkeys, RegistrationOptions, contracts, internal,
+    invalid,
 };
 use openrust::contracts::{
     cache::Repository as _, container::Container as _, validation::Validator as _,
@@ -159,6 +159,13 @@ async fn respond<T: contracts::Response + ?Sized + 'static>(
         .await
 }
 
+struct DefaultActions(Arc<Passkeys>);
+impl contracts::PasskeyActions for DefaultActions {
+    fn service(&self) -> Arc<Passkeys> {
+        self.0.clone()
+    }
+}
+
 pub struct PasskeyRegistrationController;
 impl PasskeyRegistrationController {
     pub fn index<'a>(
@@ -168,8 +175,9 @@ impl PasskeyRegistrationController {
         Box::pin(async move {
             let service = Resolver::<Passkeys>::get_facade_root().map_err(internal)?;
             let user = user(request, &service).await?;
-            let state = GenerateRegistrationOptions(service.clone())
-                .call(user.as_ref())
+            let state = Resolver::<dyn contracts::PasskeyActions>::get_facade_root()
+                .map_err(internal)?
+                .registration_options(request, user.as_ref())
                 .await?;
             save(
                 request,
@@ -196,8 +204,9 @@ impl PasskeyRegistrationController {
                 .await?
                 .and_then(|v| v.as_str().map(str::to_owned))
                 .ok_or(HttpError::InvalidRequest)?;
-            let passkey = StorePasskey(service)
-                .call(user.as_ref(), &name, value, &state)
+            let passkey = Resolver::<dyn contracts::PasskeyActions>::get_facade_root()
+                .map_err(internal)?
+                .store(request, user.as_ref(), &name, value, &state)
                 .await?;
             respond::<dyn contracts::PasskeyRegistrationResponse>(request, Some(&passkey)).await
         })
@@ -231,7 +240,10 @@ impl PasskeyRegistrationController {
                     "This action is unauthorized.".into(),
                 ));
             }
-            DeletePasskey.call(user.as_ref(), &passkey).await?;
+            Resolver::<dyn contracts::PasskeyActions>::get_facade_root()
+                .map_err(internal)?
+                .delete(request, user.as_ref(), &passkey)
+                .await?;
             respond::<dyn contracts::PasskeyDeletedResponse>(request, None).await
         })
     }
@@ -244,8 +256,9 @@ impl PasskeyLoginController {
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
             let service = Resolver::<Passkeys>::get_facade_root().map_err(internal)?;
-            let state = GenerateVerificationOptions(service.clone())
-                .call(None)
+            let state = Resolver::<dyn contracts::PasskeyActions>::get_facade_root()
+                .map_err(internal)?
+                .verification_options(request, None)
                 .await?;
             save(
                 request,
@@ -266,8 +279,9 @@ impl PasskeyLoginController {
             let state =
                 consume::<AuthenticationOptions>(request, "passkey.verification_options").await?;
             let service = Resolver::<Passkeys>::get_facade_root().map_err(internal)?;
-            let passkey = VerifyPasskey(service.clone())
-                .call(value, &state, None)
+            let passkey = Resolver::<dyn contracts::PasskeyActions>::get_facade_root()
+                .map_err(internal)?
+                .verify(request, value, &state, None)
                 .await?;
             let owner = service
                 .model()?
@@ -285,6 +299,13 @@ impl PasskeyLoginController {
                 .await?
             {
                 return Err(invalid("Unable to sign in with this account."));
+            }
+            if let Some(response) = Resolver::<dyn contracts::PasskeyActions>::get_facade_root()
+                .map_err(internal)?
+                .before_login(request, owner.as_ref(), &passkey)
+                .await?
+            {
+                return Ok(response);
             }
             let remember = request.boolean("remember").await?;
             Auth::session_guard(request, Some(&service.string("passkeys.guard", "web")))?
@@ -304,8 +325,9 @@ impl PasskeyConfirmationController {
         Box::pin(async move {
             let service = Resolver::<Passkeys>::get_facade_root().map_err(internal)?;
             let user = user(request, &service).await?;
-            let state = GenerateVerificationOptions(service.clone())
-                .call(Some(user.as_ref()))
+            let state = Resolver::<dyn contracts::PasskeyActions>::get_facade_root()
+                .map_err(internal)?
+                .verification_options(request, Some(user.as_ref()))
                 .await?;
             save(
                 request,
@@ -327,10 +349,15 @@ impl PasskeyConfirmationController {
             let user = user(request, &service).await?;
             let state =
                 consume::<AuthenticationOptions>(request, "passkey.verification_options").await?;
-            VerifyPasskey(service)
-                .call(value, &state, Some(user.as_ref()))
+            Resolver::<dyn contracts::PasskeyActions>::get_facade_root()
+                .map_err(internal)?
+                .verify(request, value, &state, Some(user.as_ref()))
                 .await?;
             request.session_mut()?.password_confirmed()?;
+            Resolver::<dyn contracts::PasskeyActions>::get_facade_root()
+                .map_err(internal)?
+                .confirmed(request, user.as_ref())
+                .await?;
             respond::<dyn contracts::PasskeyConfirmationResponse>(request, None).await
         })
     }
@@ -376,6 +403,9 @@ pub(crate) fn register(
     use openrust::contracts::foundation::Application as _;
     let container = app.container();
     container.singleton_if::<Passkeys, _>(|c| Ok(Arc::new(Passkeys::new(c.get("config")?))))?;
+    container.singleton_if::<dyn contracts::PasskeyActions, _>(|container| {
+        Ok(Arc::new(DefaultActions(container.make::<Passkeys>()?)))
+    })?;
     container
         .singleton_if::<PasskeyLoginController, _>(|_| Ok(Arc::new(PasskeyLoginController)))?;
     container.singleton_if::<PasskeyRegistrationController, _>(|_| {

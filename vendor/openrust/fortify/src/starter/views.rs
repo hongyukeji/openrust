@@ -19,7 +19,16 @@ pub async fn register_views(app: &Application) -> ProviderResult {
         "user.auth.mail-login"
     });
     fortify.register_view("user.auth.register");
-    fortify.confirm_password_view("user.auth.confirm-password");
+    fortify.confirm_password_view(SimpleViewResponse::callback(Arc::new(|request| {
+        Box::pin(async move {
+            let has_local_password = local_password(request).await?;
+            let view = openrust::support::facades::View::make(
+                "user.auth.confirm-password",
+                [("has_local_password".into(), has_local_password.into())].into(),
+            )?;
+            Response::view(StatusCode::OK, view, Default::default(), request).await
+        })
+    })));
     fortify.request_password_reset_link_view("user.auth.forgot-password");
     fortify.verify_email_view("user.auth.verify-email");
     fortify.two_factor_challenge_view("user.auth.two-factor-challenge");
@@ -133,6 +142,7 @@ fn account(
     request: &mut openrust::http::Request,
 ) -> openrust::http::HttpFuture<'_, Result<Response, openrust::http::HttpError>> {
     Box::pin(async move {
+        let has_local_password = local_password(request).await?;
         let user = super::UserResource::current_default(request).await?;
         let fortify = crate::resolver::Resolver::<Fortify>::get_facade_root()
             .map_err(crate::resolver::internal)?;
@@ -152,6 +162,7 @@ fn account(
             "user.home",
             [
                 ("user".into(), user.into()),
+                ("has_local_password".into(), has_local_password.into()),
                 ("can_manage_devices".into(), can_manage_devices.into()),
                 (
                     "can_manage_two_factor".into(),
@@ -205,4 +216,19 @@ fn email_receipt(
         )?;
         Response::view(StatusCode::OK, view, Default::default(), request).await
     })
+}
+
+async fn local_password(
+    request: &mut openrust::http::Request,
+) -> Result<bool, openrust::http::HttpError> {
+    use openrust::contracts::auth::Guard as _;
+    let fortify = crate::resolver::Resolver::<Fortify>::get_facade_root()
+        .map_err(crate::resolver::internal)?;
+    let mut guard = openrust::auth::Auth::session_guard(request, fortify.guard().as_deref())?;
+    Ok(guard
+        .user()
+        .await?
+        .ok_or(openrust::http::HttpError::Unauthenticated)?
+        .get_auth_password()
+        .is_some())
 }

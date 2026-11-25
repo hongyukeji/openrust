@@ -86,7 +86,7 @@ pub async fn configure(app: &Application) -> ProviderResult {
             features.push(json!(feature));
         }
     }
-    for name in ["web", "auth.session"] {
+    for name in ["web", "auth.session", "cache.headers:no_store;private"] {
         if !middleware.iter().any(|value| value.as_str() == Some(name)) {
             middleware.push(json!(name));
         }
@@ -113,6 +113,34 @@ pub async fn configure(app: &Application) -> ProviderResult {
                     Ok(None)
                 })
             });
+            #[cfg(feature = "sanctum")]
+            {
+                exceptions.dont_report::<super::passkey_confirmation::ConfirmationRequired>();
+                exceptions.render_async::<super::passkey_confirmation::ConfirmationRequired>(
+                    |_, request| {
+                        Box::pin(async move {
+                            super::web::forget(request)?;
+                            if !request.expects_json()
+                                && !request.is_api_path()
+                                && let Some(response) =
+                                    openrust::auth::middleware::RequirePassword::default()
+                                        .challenge(request)?
+                            {
+                                return Ok(Some(super::client::no_store(response)));
+                            }
+                            Ok(Some(super::client::no_store(
+                                openrust::http::ApiResponse::failure(
+                                    openrust::http::StatusCode::LOCKED,
+                                    "password_confirmation_required",
+                                    "",
+                                )
+                                .with_message_key("user.confirmation_required", Default::default())
+                                .into_response()?,
+                            )))
+                        })
+                    },
+                );
+            }
             exceptions.dont_flash([
                 "password",
                 "password_confirmation",

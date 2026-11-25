@@ -10,19 +10,24 @@ use serde_json::{Value, json};
 pub struct Authenticator {
     key: EcdsaKeyPair,
     id: Vec<u8>,
+    origin: String,
 }
 impl Authenticator {
     pub fn new(id: u8) -> Self {
+        Self::with_origin(id, "http://localhost")
+    }
+    pub fn with_origin(id: u8, origin: &str) -> Self {
         let rng = SystemRandom::new();
         let document = EcdsaKeyPair::generate_pkcs8(&ECDSA_P256_SHA256_ASN1_SIGNING, &rng).unwrap();
         Self {
             key: EcdsaKeyPair::from_pkcs8(&ECDSA_P256_SHA256_ASN1_SIGNING, document.as_ref())
                 .unwrap(),
             id: vec![id; 32],
+            origin: origin.into(),
         }
     }
-    fn client(options: &Value, kind: &str) -> Vec<u8> {
-        serde_json::to_vec(&json!({"type":kind,"challenge":options["challenge"],"origin":"http://localhost","crossOrigin":false})).unwrap()
+    fn client(&self, options: &Value, kind: &str) -> Vec<u8> {
+        serde_json::to_vec(&json!({"type":kind,"challenge":options["challenge"],"origin":self.origin,"crossOrigin":false})).unwrap()
     }
     fn auth_data(flags: u8, counter: u32) -> Vec<u8> {
         let mut bytes = digest::digest(&digest::SHA256, b"localhost")
@@ -57,10 +62,10 @@ impl Authenticator {
             ]
             .into(),
         );
-        json!({"id":URL_SAFE_NO_PAD.encode(&self.id),"rawId":URL_SAFE_NO_PAD.encode(&self.id),"type":"public-key","authenticatorAttachment":"platform","clientExtensionResults":{},"response":{"clientDataJSON":URL_SAFE_NO_PAD.encode(Self::client(options,"webauthn.create")),"attestationObject":URL_SAFE_NO_PAD.encode(serde_cbor_2::to_vec(&attestation).unwrap()),"transports":["internal"]}})
+        json!({"id":URL_SAFE_NO_PAD.encode(&self.id),"rawId":URL_SAFE_NO_PAD.encode(&self.id),"type":"public-key","authenticatorAttachment":"platform","clientExtensionResults":{},"response":{"clientDataJSON":URL_SAFE_NO_PAD.encode(self.client(options,"webauthn.create")),"attestationObject":URL_SAFE_NO_PAD.encode(serde_cbor_2::to_vec(&attestation).unwrap()),"transports":["internal"]}})
     }
     pub fn assertion(&self, options: &Value, handle: &str, counter: u32) -> Value {
-        let client = Self::client(options, "webauthn.get");
+        let client = self.client(options, "webauthn.get");
         let data = Self::auth_data(0x05, counter);
         let mut signed = data.clone();
         signed.extend(digest::digest(&digest::SHA256, &client).as_ref());

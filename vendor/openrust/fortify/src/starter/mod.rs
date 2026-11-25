@@ -17,8 +17,14 @@ mod configuration;
 pub mod confirmation;
 #[cfg(feature = "sanctum")]
 pub mod deletion;
+#[cfg(feature = "sanctum")]
+pub(crate) mod login_challenges;
 mod mail_queue;
 mod messages;
+#[cfg(feature = "sanctum")]
+mod passkey_confirmation;
+#[cfg(feature = "sanctum")]
+mod passkeys;
 #[cfg(feature = "sanctum")]
 pub mod resource_cleanup;
 #[cfg(feature = "sanctum")]

@@ -50,6 +50,21 @@ impl StoredCredential {
     pub fn user_handle(&self) -> &str {
         &self.user_handle
     }
+    /// 绑定近期确认的稳定凭据身份；签名计数器及备份状态更新不会改变该指纹。
+    pub fn identity_fingerprint(&self) -> PasskeyResult<String> {
+        let bytes = serde_json::to_vec(&(
+            &self.credential.cred_id,
+            &self.credential.cred,
+            &self.user_handle,
+        ))?;
+        Ok(
+            aws_lc_rs::digest::digest(&aws_lc_rs::digest::SHA256, &bytes)
+                .as_ref()
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect(),
+        )
+    }
     pub fn counter(&self) -> u32 {
         self.credential.counter
     }

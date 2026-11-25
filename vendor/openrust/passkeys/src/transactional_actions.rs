@@ -21,6 +21,59 @@ fn account(
     service.account(user)
 }
 
+impl crate::actions::GenerateRegistrationOptions {
+    pub async fn call_in_transaction(
+        &self,
+        user: &dyn Authenticatable,
+        transaction: &mut Transaction,
+    ) -> Result<RegistrationOptions, HttpError> {
+        let account = account(&self.0, user, transaction)?;
+        let records = self
+            .0
+            .passkey_store()
+            .records_in_transaction(transaction, "user_id", account.key)
+            .await
+            .map_err(internal)?;
+        let mut excluded = Vec::with_capacity(records.len());
+        for record in records {
+            excluded.push(record.credential().await.map_err(internal)?);
+        }
+        self.0
+            .webauthn()
+            .map_err(internal)?
+            .registration_options(
+                &account.handle,
+                &account.username,
+                &account.display_name,
+                &excluded,
+            )
+            .map_err(internal)
+    }
+}
+impl crate::actions::GenerateVerificationOptions {
+    pub async fn call_in_transaction(
+        &self,
+        user: &dyn Authenticatable,
+        transaction: &mut Transaction,
+    ) -> Result<AuthenticationOptions, HttpError> {
+        let account = account(&self.0, user, transaction)?;
+        let records = self
+            .0
+            .passkey_store()
+            .records_in_transaction(transaction, "user_id", account.key)
+            .await
+            .map_err(internal)?;
+        let mut allowed = Vec::with_capacity(records.len());
+        for record in records {
+            allowed.push(record.credential().await.map_err(internal)?);
+        }
+        self.0
+            .webauthn()
+            .map_err(internal)?
+            .verification_options(&allowed)
+            .map_err(internal)
+    }
+}
 impl StorePasskey {
     /*
      * 调用方持有用户写锁，负责提交或回滚，并在回滚后丢弃或刷新返回模型。

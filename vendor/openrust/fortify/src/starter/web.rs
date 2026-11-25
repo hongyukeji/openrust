@@ -20,12 +20,18 @@ use std::sync::Arc;
 
 type Handler = for<'a> fn(&'a mut Request) -> HttpFuture<'a, Result<Response, HttpError>>;
 type Confirm = for<'a> fn(&'a mut Request) -> HttpFuture<'a, Result<(), HttpError>>;
+type Challenge = for<'a> fn(
+    &'a mut Request,
+    &'a dyn openrust::contracts::auth::Authenticatable,
+) -> HttpFuture<'a, Result<(), HttpError>>;
 struct Handlers {
     profile: Handler,
     password: Handler,
     confirm: Confirm,
+    challenge: Challenge,
+    complete: Handler,
 }
-const CONFIRMATION: &str = "auth.user_confirmation";
+pub(super) const CONFIRMATION: &str = "auth.user_confirmation";
 
 pub(super) fn register<M>(app: &Application) -> ProviderResult
 where
@@ -35,6 +41,8 @@ where
         profile: super::updates::web_profile::<M>,
         password: super::updates::web_password::<M>,
         confirm: record::<M>,
+        challenge: super::login_challenges::record::<M>,
+        complete: super::login_challenges::complete::<M>,
     }))?;
     Ok(())
 }
@@ -59,6 +67,23 @@ pub(crate) async fn profile(request: &mut Request) -> Result<Option<Response>, H
 pub(crate) async fn password(request: &mut Request) -> Result<Option<Response>, HttpError> {
     match handlers().await? {
         Some(callback) => (callback.password)(request).await.map(Some),
+        None => Ok(None),
+    }
+}
+pub(crate) async fn record_login_challenge(
+    request: &mut Request,
+    user: &dyn openrust::contracts::auth::Authenticatable,
+) -> Result<(), HttpError> {
+    if let Some(handlers) = handlers().await? {
+        (handlers.challenge)(request, user).await?;
+    }
+    Ok(())
+}
+pub(crate) async fn complete_login_challenge(
+    request: &mut Request,
+) -> Result<Option<Response>, HttpError> {
+    match handlers().await? {
+        Some(handlers) => (handlers.complete)(request).await.map(Some),
         None => Ok(None),
     }
 }
@@ -105,6 +130,26 @@ pub(super) fn remember<M: TwoFactorAuthenticatable>(
         .session_mut()
         .map_err(internal)?
         .put(CONFIRMATION, serde_json::json!({"at":at,"binding":binding}))
+        .map_err(internal)
+}
+pub(super) fn remember_passkey<M: TwoFactorAuthenticatable>(
+    request: &mut Request,
+    user: &M,
+    fortify: &Fortify,
+    proof: super::passkey_confirmation::CredentialProof,
+) -> Result<(), HttpError> {
+    remember(request, user, fortify)?;
+    let mut value = request
+        .session()
+        .map_err(internal)?
+        .get(CONFIRMATION)
+        .cloned()
+        .ok_or(HttpError::Unauthenticated)?;
+    value["passkey"] = serde_json::to_value(proof).map_err(internal)?;
+    request
+        .session_mut()
+        .map_err(internal)?
+        .put(CONFIRMATION, value)
         .map_err(internal)
 }
 pub(super) fn confirmed<M: TwoFactorAuthenticatable>(

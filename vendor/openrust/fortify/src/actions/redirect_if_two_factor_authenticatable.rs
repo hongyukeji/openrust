@@ -64,7 +64,15 @@ impl RedirectIfTwoFactorAuthenticatable {
                 )
                 .await?
         };
-        let Some(account) = self.fortify.account(user.as_ref()) else {
+        self.challenge(request, user.as_ref()).await
+    }
+    /// 已验证的替代登录凭据仍通过相同的原生双因素挑战入口。
+    pub async fn challenge(
+        &self,
+        request: &mut Request,
+        user: &dyn openrust::contracts::auth::Authenticatable,
+    ) -> Result<Option<Response>, HttpError> {
+        let Some(account) = self.fortify.account(user) else {
             return Ok(None);
         };
         if !truthy(account.attribute("two_factor_secret").map_err(internal)?)
@@ -91,6 +99,8 @@ impl RedirectIfTwoFactorAuthenticatable {
             .map_err(internal)?
             .put("login.remember", remember.into())
             .map_err(internal)?;
+        #[cfg(feature = "sanctum")]
+        crate::starter::web::record_login_challenge(request, user).await?;
         account.emit(AccountEvent::Challenged).await?;
         if request.wants_json() {
             return Ok(Some(Response::json(

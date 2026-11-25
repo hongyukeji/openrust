@@ -170,7 +170,7 @@ fn remove<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
             account::actor(request, &user, Some("account:update"))?
         };
         let proof = if web {
-            confirmation::claim_session(request, &user, &fortify)?
+            confirmation::claim_session(request, &user, &fortify).await?
         } else {
             confirmation::claim(request, &user, Purpose::Delete, &fortify).await?
         };

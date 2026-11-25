@@ -22,6 +22,12 @@ pub(crate) trait PasskeyStore: Send + Sync {
         attributes: Attributes,
         user: Value,
     ) -> DatabaseFuture<'a, DatabaseResult<PasskeyRecord>>;
+    fn owned_in_transaction<'a>(
+        &'a self,
+        transaction: &'a mut Transaction,
+        key: Value,
+        user: Value,
+    ) -> DatabaseFuture<'a, DatabaseResult<Option<PasskeyRecord>>>;
     fn find(&self, key: Value) -> DatabaseFuture<'_, DatabaseResult<Option<PasskeyRecord>>>;
     fn records(
         &self,
@@ -210,6 +216,37 @@ impl<M: PasskeyModel> PasskeyStore for Store<M> {
                 ));
             }
             Ok(PasskeyRecord::new(model))
+        })
+    }
+    fn owned_in_transaction<'a>(
+        &'a self,
+        transaction: &'a mut Transaction,
+        key: Value,
+        user: Value,
+    ) -> DatabaseFuture<'a, DatabaseResult<Option<PasskeyRecord>>> {
+        Box::pin(async move {
+            let connection = M::from_state(Default::default()).get_connection()?;
+            if !transaction.belongs_to(&connection) {
+                return Err(DatabaseError::InvalidQuery(
+                    "通行密钥与用户必须使用同一连接事务",
+                ));
+            }
+            let mut query = M::query_on(&connection).use_write_pdo();
+            query.where_key(key);
+            query.r#where("user_id", "=", user.clone());
+            if matches!(connection.get_driver_name(), "mysql" | "mariadb") {
+                query.where_nested(|conditions| {
+                    conditions.where_raw("BINARY CAST(user_id AS CHAR) = BINARY ?", vec![user])
+                });
+            }
+            Ok(query
+                .lock_for_update()
+                .limit(1)
+                .get_in_transaction(transaction)
+                .await?
+                .into_iter()
+                .next()
+                .map(PasskeyRecord::new))
         })
     }
     fn find(&self, key: Value) -> DatabaseFuture<'_, DatabaseResult<Option<PasskeyRecord>>> {

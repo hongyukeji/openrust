@@ -212,7 +212,7 @@ pub(super) async fn issue_token<M: HasApiTokens + TwoFactorAuthenticatable + Clo
         }
     }
     let proof = if browser {
-        confirmation::claim_session(request, &user, &fortify)?
+        confirmation::claim_session(request, &user, &fortify).await?
     } else {
         confirmation::claim(request, &user, Purpose::Tokens, &fortify).await?
     };
@@ -293,7 +293,7 @@ pub(super) async fn revoke_token_for<M: HasApiTokens + TwoFactorAuthenticatable 
         .ok_or(HttpError::NotFound)?
         .to_owned();
     let proof = if browser {
-        confirmation::claim_session(request, &user, &fortify)?
+        confirmation::claim_session(request, &user, &fortify).await?
     } else {
         confirmation::claim(request, &user, Purpose::Tokens, &fortify).await?
     };

@@ -192,7 +192,7 @@ async fn change<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
     };
     let guard = updates::cookie_guard(request, &user, actor.is_none(), &fortify).await?;
     let proof = if web {
-        confirmation::claim_session(request, &user, &fortify)?
+        confirmation::claim_session(request, &user, &fortify).await?
     } else {
         confirmation::claim(request, &user, Purpose::Factors, &fortify).await?
     };
@@ -309,7 +309,7 @@ async fn read<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
         account::actor(request, &user, Some("account:update"))?
     };
     let proof = if web {
-        confirmation::claim_session(request, &user, &fortify)?
+        confirmation::claim_session(request, &user, &fortify).await?
     } else {
         confirmation::claim(request, &user, Purpose::Factors, &fortify).await?
     };

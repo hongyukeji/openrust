@@ -14,4 +14,27 @@
 </form>
 <nav><a href="{{ route('password.request') }}">{{ __('user.forgot_password') }}</a>
 @if(config('user.registration', true))<a href="{{ route('register') }}">{{ __('user.register') }}</a>@endif</nav>
+@if(config('user.passkeys', false))
+<form id="passkey-auth">@csrf<button type="submit">{{ __('user.passkey_login') }}</button></form>
+<p id="passkey-status" role="status" aria-live="polite"></p>
+<script type="module">
+import { Passkeys } from '{{ route('user.passkeys.script') }}';
+const form = document.querySelector('#passkey-auth');
+form.addEventListener('submit', async event => {
+    event.preventDefault();
+    const button = form.querySelector('button');
+    button.disabled = true;
+    Passkeys.configure({fetch: {headers: {'X-CSRF-TOKEN': form.elements._token.value}}});
+    try {
+        const result = await Passkeys.verify({routes: {options: '{{ route('passkey.login-options') }}', submit: '{{ route('passkey.login') }}'}});
+@if(config('user.two_factor', false))
+        if (result.two_factor) { window.location.assign('{{ route('two-factor.login') }}'); return; }
+@endif
+        window.location.assign(result.redirect || '/');
+    } catch (error) {
+        document.querySelector('#passkey-status').textContent = error.name === 'UserCancelledError' ? '{{ __('user.passkey_cancelled') }}' : '{{ __('user.passkey_failed') }}';
+    } finally { button.disabled = false; }
+});
+</script>
+@endif
 @endsection

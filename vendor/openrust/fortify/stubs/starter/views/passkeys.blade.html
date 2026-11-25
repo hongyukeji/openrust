@@ -1,0 +1,37 @@
+@extends('user.layout')
+@section('title', __('user.passkeys'))
+@section('content')
+<p>{{ __('user.passkey_help') }}</p>
+<form id="passkey-register" data-options="{{ route('passkey.registration-options') }}" data-submit="{{ route('passkey.store') }}">
+@csrf
+<label for="passkey-name">{{ __('user.passkey_name') }}</label>
+<input id="passkey-name" name="name" maxlength="255" autocomplete="off" required>
+<button type="submit">{{ __('user.passkey_register') }}</button>
+</form>
+<p id="passkey-status" role="status" aria-live="polite"></p>
+<ul>
+@foreach($passkeys as $passkey)
+<li><span>{{ $passkey['name'] }}</span>
+<form method="POST" action="{{ route('passkey.destroy', ['passkey' => $passkey['id']]) }}">@csrf @method('DELETE')<button type="submit">{{ __('user.revoke') }}</button></form></li>
+@endforeach
+</ul>
+<p><a href="{{ route('user.profile') }}">{{ __('user.account') }}</a></p>
+<script type="module">
+import { Passkeys } from '{{ route('user.passkeys.script') }}';
+const form = document.querySelector('#passkey-register');
+form.addEventListener('submit', async event => {
+    event.preventDefault();
+    const button = form.querySelector('button');
+    const status = document.querySelector('#passkey-status');
+    button.disabled = true;
+    try {
+        Passkeys.configure({fetch: {headers: {'X-CSRF-TOKEN': form.elements._token.value}}});
+        await Passkeys.register({name: form.elements.name.value, routes: {options: form.dataset.options, submit: form.dataset.submit}});
+        window.location.reload();
+    } catch (error) {
+        if (error.status === 423) window.location.assign('{{ route('password.confirm') }}');
+        status.textContent = error.name === 'UserCancelledError' ? '{{ __('user.passkey_cancelled') }}' : '{{ __('user.passkey_failed') }}';
+    } finally { button.disabled = false; }
+});
+</script>
+@endsection

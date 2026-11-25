@@ -86,5 +86,14 @@
   "factor_regenerate": "重新產生復原碼",
   "factor_disable": "關閉雙因素認證",
   "factor_inactive": "尚未啟用雙因素認證。",
-  "factor_enable": "啟用雙因素認證"
+  "factor_enable": "啟用雙因素認證",
+  "passkeys": "通行金鑰",
+  "passkey_help": "使用通行金鑰登入及確認敏感操作，私鑰保留在你的裝置上。",
+  "passkey_name": "通行金鑰名稱",
+  "passkey_register": "新增通行金鑰",
+  "passkey_login": "使用通行金鑰登入",
+  "passkey_confirm": "使用通行金鑰確認",
+  "passkey_cancelled": "操作已取消，可以重試。",
+  "passkey_failed": "無法使用此通行金鑰，請檢查裝置後重試。",
+  "local_credential_required": "請使用已綁定的通行金鑰確認，或透過已驗證的電子郵件安全設定本機密碼。"
 }

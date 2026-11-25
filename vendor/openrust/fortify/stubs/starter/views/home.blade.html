@@ -36,12 +36,17 @@
 <form method="POST" action="{{ route('user-password.update') }}">
 @csrf
 @method('PUT')
+@if($has_local_password)
 <label for="current_password">{{ __('user.current_password') }}</label><input id="current_password" name="current_password" type="password" autocomplete="current-password" required>
 @error('current_password', 'updatePassword')<p class="error" role="alert">{{ $message }}</p>@enderror
+@endif
 <label for="new_password">{{ __('user.password') }}</label><input id="new_password" name="password" type="password" autocomplete="new-password" required>
 @error('password', 'updatePassword')<p class="error" role="alert">{{ $message }}</p>@enderror
 <label for="password_confirmation">{{ __('user.password_confirmation') }}</label><input id="password_confirmation" name="password_confirmation" type="password" autocomplete="new-password" required>
 <button type="submit">{{ __('user.change_password') }}</button></form></fieldset>
+@endif
+@if(config('user.passkeys', false))
+<p><a href="{{ route('user.passkeys.page') }}">{{ __('user.passkeys') }}</a></p>
 @endif
 @if($can_manage_two_factor)
 <p><a href="{{ route('user.two-factor.page') }}">{{ __('user.two_factor') }}</a></p>

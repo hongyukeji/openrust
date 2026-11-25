@@ -86,5 +86,14 @@
   "factor_regenerate": "Generate new recovery codes",
   "factor_disable": "Disable two-factor authentication",
   "factor_inactive": "Two-factor authentication is not enabled.",
-  "factor_enable": "Enable two-factor authentication"
+  "factor_enable": "Enable two-factor authentication",
+  "passkeys": "Passkeys",
+  "passkey_help": "Use a passkey to sign in and confirm sensitive changes. Your private key stays on your device.",
+  "passkey_name": "Passkey name",
+  "passkey_register": "Add a passkey",
+  "passkey_login": "Sign in with a passkey",
+  "passkey_confirm": "Confirm with a passkey",
+  "passkey_cancelled": "The operation was cancelled. You can try again.",
+  "passkey_failed": "Unable to use this passkey. Check your device and try again.",
+  "local_credential_required": "Confirm with a bound passkey, or safely establish a local password through your verified email."
 }

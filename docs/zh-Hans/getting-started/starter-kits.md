@@ -536,3 +536,11 @@ openrust_fortify::starter::deletion::delete_users_using::<crate::app::models::Us
 提交后退出当前浏览器中属于同一用户的全部 Guard，并轮换会话及 CSRF；独立管理员身份、购物车数据保留。已经进入执行的业务请求不被追溯取消。应用模型钩子的外部副作用应推迟到提交后。
 
 没有外部文件时 API 返回204，HTML 表单跳转登录；存在头像时返回202。JSON 带 `meta.cleanup`，HTML 提供私密状态页及刷新按钮。此时账户已删除，文件尚待清理。妥善保管收据，使用[已有公开收据查询与 Worker](#resource-cleanup)，无需已删除用户的会话。存储失败保留失败及重试状态，不把已提交的注销冒充回滚；不要将收据放进 URL 或日志。
+
+## 用户套件通行密钥页面 {#user-passkey-pages}
+
+完整用户套件与可选通行密钥扩展一起安装：`./artisan init --starter-kit=full --extensions=api,fortify,passkeys`。应用环境保留 `USER_PASSKEYS=true`，设置公开 `APP_URL`，在 `config/passkeys.rs` 配置依赖方和允许的来源，再执行生成的迁移。生产环境需要 HTTPS，本地开发可用 localhost。此功能复用固定版本的原生通行密钥动作及本地打包客户端，不依赖运行时 CDN 或 npm 安装；请随客户端保留发布的 `public/vendor/user-starter/passkeys.NOTICE`。
+
+账户页提供 `/user/passkeys` 入口。确认身份后填写设备名称并注册通行密钥，登录页和身份确认页也提供通行密钥按钮。启用双因素认证时，通行密钥登录仍需完成 TOTP 或恢复码验证。注册和撤销共用用户事务及敏感操作的近期确认策略；撤销本次确认所用的通行密钥后，下次敏感请求要求重新确认。无本地密码账户必须通过已绑定的通行密钥确认，或通过邮件重置流程安全设置本地密码，页面不会跳过确认。
+
+本地客户端使用原生 `/user/passkeys/options`、`/user/passkeys`、`/passkeys/login/options`、`/passkeys/login`、`/passkeys/confirm/options` 和 `/passkeys/confirm` 路由，发送受 CSRF 保护的会话请求。`options` 和 `redirect` 字段保留客户端协议，这些路由不是 Sanctum Bearer Token 接口；应用业务 JSON API 继续使用用户套件响应封装。多节点需保持同一公开来源并共享配置的会话和原子挑战缓存。应用视图可以修改，重复安装默认保留定制文件，只有显式强制安装才覆盖。

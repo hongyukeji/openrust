@@ -186,7 +186,20 @@ async fn start_custom_resource(
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
     std::fs::write(root.0.join("app-url"), format!("http://{address}")).unwrap();
+    let passkeys = mail
+        .as_ref()
+        .and_then(|v| v.get("__user_passkeys"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    if passkeys {
+        std::fs::write(
+            root.0.join("app-url"),
+            format!("http://localhost:{}", address.port()),
+        )
+        .unwrap();
+    }
     let mut settings = json!({"profile":profile,"registration":true,"email_verification":verification,"two_factor":two_factor,"api_prefix":prefix,"devices":{"enabled":false}});
+    settings["passkeys"] = json!(passkeys);
     if let Some(queue) = mail.as_ref().and_then(|mail| mail.get("__user_queue")) {
         settings["mail"] = queue.clone();
         if let Some(name) = queue.get("queue").and_then(Value::as_str) {
@@ -202,6 +215,7 @@ async fn start_custom_resource(
     std::fs::write(root.0.join("user-config.json"), settings.to_string()).unwrap();
     if let Some(mut mail) = mail {
         mail.as_object_mut().unwrap().remove("__user_queue");
+        mail.as_object_mut().unwrap().remove("__user_passkeys");
         mail.as_object_mut().unwrap().remove("__user_devices");
         std::fs::write(root.0.join("mail-config.json"), mail.to_string()).unwrap();
     }
@@ -228,6 +242,7 @@ async fn start_custom_resource(
         "layout.blade.html",
         "home.blade.html",
         "two-factor.blade.html",
+        "passkeys.blade.html",
         "deleted.blade.html",
         "sessions.blade.html",
         "api-tokens.blade.html",
@@ -311,7 +326,10 @@ async fn start_custom_resource(
             table.string("name", None);
             table.string("email", None).unique();
             table.timestamp("email_verified_at", 0).nullable();
-            table.string("password", None);
+            let column = table.string("password", None);
+            if passkeys {
+                column.nullable();
+            }
             table.remember_token();
             table.big_integer("credential_version").default(0);
             table.text("two_factor_secret").nullable();
@@ -323,6 +341,20 @@ async fn start_custom_resource(
         })
         .await
         .unwrap();
+    if passkeys {
+        schema
+            .create("passkeys", |table| {
+                table.id();
+                table.unsigned_big_integer("user_id");
+                table.string("name", None);
+                table.string("credential_id", 255).unique();
+                table.text("credential");
+                table.timestamp("last_used_at", 0).nullable();
+                table.timestamps();
+            })
+            .await
+            .unwrap();
+    }
     #[cfg(feature = "sanctum")]
     schema
         .create("personal_access_tokens", |table| {
@@ -5277,3 +5309,7 @@ mod deletion;
 #[cfg(feature = "sanctum")]
 #[path = "starter_ui/two_factor_management.rs"]
 mod two_factor_management;
+
+#[cfg(feature = "sanctum")]
+#[path = "starter_ui/passkeys.rs"]
+mod passkey_management;

@@ -401,6 +401,7 @@ where
             .resolve(&raw, "login")
             .await?
             .ok_or(HttpError::Unauthenticated)?;
+        super::login_challenges::check(request, &pending, &fortify)?;
         let selected = provider(&fortify)?;
         let found = selected
             .retrieve_by_id(&pending.user)
@@ -533,6 +534,20 @@ where
             }
             return Err(error);
         }
+        if super::login_challenges::is_cookie(request) {
+            crate::actions::emit(
+                crate::events::ValidTwoFactorAuthenticationCodeProvided {
+                    user: user.get_auth_identifier(),
+                },
+                &[&user],
+            )
+            .await?;
+            let response =
+                super::login_challenges::finish(request, &mut user, &fortify, &pending, deadline)
+                    .await?;
+            limiter.clear(&key).await?;
+            return Ok(response);
+        }
         let device = pending
             .payload
             .get("device_name")
@@ -578,6 +593,7 @@ where
     super::two_factor::register::<M>(app)?;
     super::bind_password_tokens::<M>(app)?;
     super::web::register::<M>(app)?;
+    super::passkeys::register::<M>(app)?;
     super::StarterKitServiceProvider.load_routes_from(app, super::device_web::routes::<M>)?;
     super::StarterKitServiceProvider.load_routes_from(app, super::token_web::routes::<M>)?;
     super::StarterKitServiceProvider

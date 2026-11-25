@@ -135,7 +135,7 @@ where
         };
         updater.validate_for_transaction(&user, &input).await?;
         let proof = if web {
-            confirmation::claim_session(request, &user, &fortify)?
+            confirmation::claim_session(request, &user, &fortify).await?
         } else {
             confirmation::claim(request, &user, Purpose::Email, &fortify).await?
         };
@@ -247,7 +247,7 @@ where
         };
         updater.validate_for_transaction(&user, &input).await?;
         let proof = if web {
-            confirmation::claim_session(request, &user, &fortify)?
+            confirmation::claim_session(request, &user, &fortify).await?
         } else {
             confirmation::claim(request, &user, Purpose::Password, &fortify).await?
         };

@@ -625,3 +625,29 @@ A01-04仍未闭合：后续继续Passkeys、第三方登录及无密码近期确
 早期编译和夹具失败保留：SQL表达式需传引用、Listener签名及数据库Value匹配已修正；同步Mutex断言缩短为独立作用域，未用allow屏蔽Clippy。内部HttpError的Display隐藏源错误，空保存测试改为检查正式Internal源，不修改生产错误暴露行为。
 
 本批仅交付原生事务基础与已复现的SQLite修复；用户套件的Passkeys页面、无会话登录／近期确认和因素撤销证明绑定仍继续实施，A01-04没有闭合。已按同一固定API-F02清单下载验证官方客户端0.4.1及SimpleWebAuthn13.3.0，构建了下批17.33kB候选，但尚未接线，未夹入本提交。未推送。
+
+## 用户套件通行密钥网页与绑定确认（2026-11-26）
+
+本批接入固定Passkeys服务器0.3.0与官方客户端0.4.1（c4ee7572993aadb40c630dedc349fe74cca0c89f），复用既有API-F02版本清单及前一批原生事务动作。SimpleWebAuthn/browser为13.3.0。客户端源档与锁文件摘要已按前批固定值核对，npm发行包也核对为同版本、MIT元数据；两份上游客户端归档均未附单独LICENSE，不杜撰版权年份。编译包去掉构建机路径注释后为15,213字节，随包发布NOTICE并逐字保留SimpleWebAuthn原许可。参考资料与构建脚本在本工作流reference目录，未引入运行时CDN或另一套WebAuthn引擎。
+
+- PasskeyActions提供可替换的原生HTTP动作接线，独立Passkeys默认仍委托原生Action。套件仅在启用user.passkeys时绑定当前应用及其选定用户模型，注册、删除与确认通过共同用户写锁及既有事务动作执行。两类Options新增同事务读取，避免SQLite单连接内嵌套查询。
+- 原生近期确认写入实际凭据模型、真实主键及公钥／userHandle指纹；指纹不包含签名计数器，普通后续认证不使其误失效。每次敏感操作重新核对用户安全状态、当前会话、所选模型及仍存在且归属正确的凭据；撤销本次确认所用凭据后，下一次敏感操作必须重新确认。不是只设置一个时间戳。
+- 原生通行密钥登录通过应用授权回调后继续同一个Fortify双因素入口，不绕过已启用因素。发现原Cookie第二因素阶段只有login.id／remember，现以已有ChallengeStore补齐持久化一次性阶段，绑定主因素凭据快照、当前会话和期限；Cookie和Token挑战不能混用。TOTP、恢复码及限流继续复用既有实现。Cookie完成只创建会话，不额外签发PAT。
+- 完整预设发布/user/passkeys账户页、本地JS及NOTICE，登录和确认页提供通行密钥按钮。使用命名路由、原生CSRF和SDK的options／redirect协议；这些原生会话路由不是Bearer Token接口。套件Fortify路由通过现有缓存头中间件设置private／no-store。
+- 无本地密码账户的页面不再要求填写一个不存在的旧密码，也不因此跳过近期确认。已绑定通行密钥可确认并安全设置本地密码。本轮真实HTTP夹具提供nullable密码列；未改动默认Laravel users基础迁移，第三方账户创建所需的正式迁移仍属后续Socialite单元。
+
+### 验收证据与边界
+
+证据统一保存在target/tmp/user-starter/。passkey-management-regression-final.log最终SQLite3.54.1套件94项通过，包含真实ES256注册／登录／确认／撤销、错误来源和挑战重放、凭据撤销后重新确认、无本地密码确认和设置密码、密码轮换后拒绝旧Cookie第二因素，以及合法第二因素完成后没有多发PAT。签名测试仅在内存生成私钥。passkey-management-native-regression.log的原生契约4项及事务生命周期1项通过，保留48组固定PHP向量。
+
+passkey-management-runtime-third.log记录真实Artisan完整预设首次及重复安装、自动重建和独立MySQL8.4.13迁移成功。passkey-management-app-browser.json记录三语／桌面和手机6组实际Chrome流程：本地官方SDK、CDP虚拟驻留凭据、注册、双因素恢复码登录、通行密钥近期确认及撤销后确认失效；没有把虚拟认证器计为实体设备、生物识别或云同步验收。passkey-management-published-assets.json核对真实发布的JS与NOTICE和内置文件逐字节一致。
+
+三语starter-kits正文增加user-passkey-pages章节；passkey-management-docs-first.log文档构建通过，passkey-management-docs-browser-first.log覆盖两种部署基路径、三语和桌面／手机12组正文DOM验收。新增正文只说明已交付的会话路由，不把尚未接通的无会话接口写成可用。
+
+早期浏览器夹具错误保留：退出遵循原生重定向到首页，夹具错误假定已在登录页，现明确导航登录页，未修改产品退出契约。最终原生路由测试选择two_factor_routes，早期命令误写不存在的two_factor目标不计通过。32GB停线中断的原生回归不计通过；归属识别瞬间遇到已退出进程，随后其他守卫按同一规则持锁清理全部项目产物，事件记录释放86,569,783,296字节、清理后可用118,311,071,744字节，不重复归因本工作流。源码、日志、锁、下载、数据库及数据卷保留。
+
+本单元仍不闭合A01-04或整个A01：无会话Passkeys登录／近期确认／管理、Socialite及S10最终模型／驱动矩阵和观测脱敏继续实施。生产HTTPS、实体认证器及真实身份供应商账号验收单列，不以本地模拟冒充完成。未推送。
+
+最终补验：passkey-management-clippy-final.log与passkey-management-native-clippy-final.log分别通过Fortify/Sanctum、Passkeys/Sanctum全部目标严格Clippy；passkey-management-install-final.log通过安装14项和原生2FA路由6项。passkey-management-mysql-first.log和passkey-management-pgsql-first.log的最终覆盖均为新增通行密钥／无密码两项及Cookie第二因素两项，分别在独立MySQL8.4.13、PostgreSQL18.7和database Session中全部通过。passkey-management-final-tests.log退出0，包含范围rustfmt检查；没有把先前中断或错误目标命令计入。
+
+最终清理仅直接删除本批文档dist，逻辑大小78,452,952字节；当次可用空间增加81,645,568字节，清理后可用53,311,385,600字节，系统差额可能包含并行进程，不全部归因本批。正常Cargo增量缓存保留，详见passkey-management-cleanup.json。独立清单passkey-management-files.json，源码摘要passkey-management-source-sha.json；除Cargo.lock仅取本包两项既有测试依赖外，清单源码与实际冻结验收源码逐字节一致。

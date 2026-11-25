@@ -73,23 +73,36 @@ fn binding<M: HasApiTokens>(
         }
         _ => return Err(HttpError::Unauthenticated.into()),
     };
+    Ok((token, digest_client(fortify, &context)?))
+}
+pub(super) fn session_binding(request: &Request, fortify: &Fortify) -> AuthResult<String> {
+    digest_client(
+        fortify,
+        &serde_json::to_vec(&(
+            "session",
+            request
+                .session()
+                .map_err(|_| HttpError::Unauthenticated)?
+                .get_id(),
+        ))?,
+    )
+}
+fn digest_client(fortify: &Fortify, context: &[u8]) -> AuthResult<String> {
     let encrypter = fortify
         .current_encrypter()
         .map_err(|error| openrust::auth::AuthError::Backend(Box::new(error)))?;
     let key = aws_lc_rs::hmac::Key::new(aws_lc_rs::hmac::HMAC_SHA256, encrypter.get_key());
     let mut signature = aws_lc_rs::hmac::Context::with_key(&key);
     signature.update(b"user-auth:client:v1\0");
-    signature.update(&context);
-    Ok((
-        token,
-        signature
-            .sign()
-            .as_ref()
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect(),
-    ))
+    signature.update(context);
+    Ok(signature
+        .sign()
+        .as_ref()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect())
 }
+
 fn lifetime(fortify: &Fortify) -> AuthResult<i64> {
     fortify
         .config
@@ -228,6 +241,7 @@ pub(super) struct Proof {
     session: Option<String>,
     deadline: i64,
     security: String,
+    passkey: Option<super::passkey_confirmation::CredentialProof>,
 }
 impl Proof {
     pub async fn validate_in_transaction<
@@ -239,6 +253,18 @@ impl Proof {
         transaction: &mut openrust::database::Transaction,
     ) -> AuthResult<()> {
         self.validate(user, fortify)?;
+        if let Some(proof) = &self.passkey
+            && !proof.current(user, fortify, Some(transaction)).await?
+        {
+            return Err(if self.session.is_some() {
+                openrust::auth::AuthError::Backend(Box::new(
+                    super::passkey_confirmation::ConfirmationRequired,
+                ))
+            } else {
+                HttpError::Unauthenticated.into()
+            });
+        }
+
         if let Some(session) = &self.session
             && let Some(policy) = super::devices::policy()?
         {
@@ -286,7 +312,7 @@ where
         user.current_access_token(request),
         Some(AccessToken::Transient)
     ) {
-        return claim_session(request, user, fortify);
+        return claim_session(request, user, fortify).await;
     }
     let raw = match request.header("x-auth-confirmation")? {
         Some(value) => value.to_owned(),
@@ -323,10 +349,18 @@ where
         session: None,
         deadline,
         security: pending.factor,
+        passkey: pending
+            .payload
+            .get("passkey")
+            .filter(|value| !value.is_null())
+            .cloned()
+            .map(serde_json::from_value)
+            .transpose()
+            .map_err(internal)?,
     })
 }
 
-pub(super) fn claim_session<M: TwoFactorAuthenticatable>(
+pub(super) async fn claim_session<M: TwoFactorAuthenticatable>(
     request: &mut Request,
     user: &M,
     fortify: &Fortify,
@@ -343,7 +377,21 @@ pub(super) fn claim_session<M: TwoFactorAuthenticatable>(
         .as_second();
     let timeout = lifetime(fortify)?;
     let deadline = confirmed.and_then(|at| at.checked_add(timeout)?.checked_add(1));
-    if confirmed.is_some_and(|at| at > now)
+    let passkey = request
+        .session()
+        .map_err(internal)?
+        .get(super::web::CONFIRMATION)
+        .and_then(|value| value.get("passkey"))
+        .cloned()
+        .map(serde_json::from_value::<super::passkey_confirmation::CredentialProof>)
+        .transpose()
+        .map_err(internal)?;
+    let current = match &passkey {
+        Some(proof) => proof.current(user, fortify, None).await?,
+        None => true,
+    };
+    if !current
+        || confirmed.is_some_and(|at| at > now)
         || deadline.is_none_or(|end| now >= end)
         || !super::web::confirmed(request, user, fortify)?
     {
@@ -364,5 +412,6 @@ pub(super) fn claim_session<M: TwoFactorAuthenticatable>(
         session: Some(request.session().map_err(internal)?.get_id().to_owned()),
         deadline: deadline.expect("已核对期限"),
         security: client::security(user, fortify)?,
+        passkey,
     })
 }

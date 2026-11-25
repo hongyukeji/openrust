@@ -57,3 +57,90 @@ responses!(
     PasskeyConfirmationResponse,
     PasskeyDeletedResponse
 );
+
+/*
+ * HTTP动作的可替换边界；默认复用原生Action，应用可在容器中装配安全策略。
+ * Options完整状态只在服务器流转，不接受客户端传回的状态对象。
+ */
+pub trait PasskeyActions: Send + Sync {
+    fn service(&self) -> std::sync::Arc<crate::Passkeys>;
+    fn before_login<'a>(
+        &'a self,
+        _request: &'a mut openrust::http::Request,
+        _user: &'a dyn Authenticatable,
+        _record: &'a PasskeyRecord,
+    ) -> openrust::http::HttpFuture<
+        'a,
+        Result<Option<openrust::http::Response>, openrust::http::HttpError>,
+    > {
+        Box::pin(async { Ok(None) })
+    }
+    fn confirmed<'a>(
+        &'a self,
+        _request: &'a mut openrust::http::Request,
+        _user: &'a dyn Authenticatable,
+    ) -> openrust::http::HttpFuture<'a, Result<(), openrust::http::HttpError>> {
+        Box::pin(async { Ok(()) })
+    }
+    fn registration_options<'a>(
+        &'a self,
+        _request: &'a mut openrust::http::Request,
+        user: &'a dyn Authenticatable,
+    ) -> openrust::http::HttpFuture<'a, Result<crate::RegistrationOptions, openrust::http::HttpError>>
+    {
+        Box::pin(async move {
+            crate::actions::GenerateRegistrationOptions(self.service())
+                .call(user)
+                .await
+        })
+    }
+    fn verification_options<'a>(
+        &'a self,
+        _request: &'a mut openrust::http::Request,
+        user: Option<&'a dyn Authenticatable>,
+    ) -> openrust::http::HttpFuture<
+        'a,
+        Result<crate::AuthenticationOptions, openrust::http::HttpError>,
+    > {
+        Box::pin(async move {
+            crate::actions::GenerateVerificationOptions(self.service())
+                .call(user)
+                .await
+        })
+    }
+    fn store<'a>(
+        &'a self,
+        _request: &'a mut openrust::http::Request,
+        user: &'a dyn Authenticatable,
+        name: &'a str,
+        value: serde_json::Value,
+        options: &'a crate::RegistrationOptions,
+    ) -> openrust::http::HttpFuture<'a, Result<PasskeyRecord, openrust::http::HttpError>> {
+        Box::pin(async move {
+            crate::actions::StorePasskey(self.service())
+                .call(user, name, value, options)
+                .await
+        })
+    }
+    fn verify<'a>(
+        &'a self,
+        _request: &'a mut openrust::http::Request,
+        value: serde_json::Value,
+        options: &'a crate::AuthenticationOptions,
+        user: Option<&'a dyn Authenticatable>,
+    ) -> openrust::http::HttpFuture<'a, Result<PasskeyRecord, openrust::http::HttpError>> {
+        Box::pin(async move {
+            crate::actions::VerifyPasskey(self.service())
+                .call(value, options, user)
+                .await
+        })
+    }
+    fn delete<'a>(
+        &'a self,
+        _request: &'a mut openrust::http::Request,
+        user: &'a dyn Authenticatable,
+        record: &'a PasskeyRecord,
+    ) -> openrust::http::HttpFuture<'a, Result<(), openrust::http::HttpError>> {
+        Box::pin(async move { crate::actions::DeletePasskey.call(user, record).await })
+    }
+}

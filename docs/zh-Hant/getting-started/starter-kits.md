@@ -536,3 +536,11 @@ openrust_fortify::starter::deletion::delete_users_using::<crate::app::models::Us
 提交後登出目前瀏覽器中屬於同一使用者的全部 Guard，並輪換工作階段與 CSRF；獨立管理員身分、購物車資料保留。已進入執行的業務請求不會追溯取消。應用模型掛鉤的外部副作用應延後至提交後。
 
 沒有外部檔案時 API 回傳204，HTML 表單導向登入；存在頭像時回傳202。JSON 帶有 `meta.cleanup`，HTML 提供私密狀態頁與重新整理按鈕。此時帳戶已刪除，檔案尚待清理。妥善保管收據，使用[既有公開收據查詢與 Worker](#resource-cleanup)，無需已刪除使用者的工作階段。儲存失敗保留失敗與重試狀態，不將已提交的註銷冒充回復；不要把收據放進 URL 或記錄。
+
+## 使用者套件通行金鑰頁面 {#user-passkey-pages}
+
+完整使用者套件與可選通行金鑰擴充一起安裝：`./artisan init --starter-kit=full --extensions=api,fortify,passkeys`。應用程式環境保留 `USER_PASSKEYS=true`，設定公開 `APP_URL`，在 `config/passkeys.rs` 配置依賴方與允許的來源，再執行產生的遷移。正式環境需要 HTTPS，本機開發可用 localhost。此功能重用固定版本的原生通行金鑰動作與本機打包用戶端，不依賴執行期 CDN 或 npm 安裝；請隨用戶端保留發布的 `public/vendor/user-starter/passkeys.NOTICE`。
+
+帳戶頁提供 `/user/passkeys` 入口。確認身分後填寫裝置名稱並註冊通行金鑰，登入頁與身分確認頁也提供通行金鑰按鈕。啟用雙因素驗證時，通行金鑰登入仍需完成 TOTP 或復原碼驗證。註冊與撤銷共用使用者交易及敏感操作的近期確認策略；撤銷本次確認使用的通行金鑰後，下次敏感請求要求重新確認。無本機密碼帳戶必須透過已綁定的通行金鑰確認，或透過郵件重設流程安全設定本機密碼，頁面不會跳過確認。
+
+本機用戶端使用原生 `/user/passkeys/options`、`/user/passkeys`、`/passkeys/login/options`、`/passkeys/login`、`/passkeys/confirm/options` 與 `/passkeys/confirm` 路由，傳送受 CSRF 保護的工作階段請求。`options` 與 `redirect` 欄位保留用戶端協定，這些路由不是 Sanctum Bearer Token 介面；應用程式業務 JSON API 繼續使用套件回應封裝。多節點需保持相同公開來源並共用設定的工作階段與原子挑戰快取。應用程式檢視可以修改，重複安裝預設保留自訂檔案，只有明確強制安裝才覆寫。

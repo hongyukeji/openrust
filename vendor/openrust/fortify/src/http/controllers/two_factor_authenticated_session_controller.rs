@@ -64,6 +64,10 @@ impl TwoFactorAuthenticatedSessionController {
         _: ValidatedFormRequest<TwoFactorLoginRequest>,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
+            #[cfg(feature = "sanctum")]
+            if let Some(response) = crate::starter::web::complete_login_challenge(request).await? {
+                return Ok(response);
+            }
             let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
             let Some(mut user) = challenged(request, &fortify).await? else {
                 return super::respond::<dyn contracts::FailedTwoFactorLoginResponse>(request)

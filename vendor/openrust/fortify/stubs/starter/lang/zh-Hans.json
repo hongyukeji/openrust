@@ -86,5 +86,14 @@
   "factor_regenerate": "重新生成恢复码",
   "factor_disable": "关闭双因素认证",
   "factor_inactive": "尚未启用双因素认证。",
-  "factor_enable": "启用双因素认证"
+  "factor_enable": "启用双因素认证",
+  "passkeys": "通行密钥",
+  "passkey_help": "使用通行密钥登录和确认敏感操作，私钥保留在你的设备上。",
+  "passkey_name": "通行密钥名称",
+  "passkey_register": "添加通行密钥",
+  "passkey_login": "使用通行密钥登录",
+  "passkey_confirm": "使用通行密钥确认",
+  "passkey_cancelled": "操作已取消，可以重试。",
+  "passkey_failed": "无法使用此通行密钥，请检查设备后重试。",
+  "local_credential_required": "请使用已绑定的通行密钥确认，或通过已验证的邮箱安全设置本地密码。"
 }

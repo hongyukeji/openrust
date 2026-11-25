@@ -271,7 +271,7 @@ fn change<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
             Some(upload(request, fortify.config.as_ref()).await?)
         };
         let proof = if web {
-            confirmation::claim_session(request, &user, &fortify)?
+            confirmation::claim_session(request, &user, &fortify).await?
         } else {
             confirmation::claim(request, &user, Purpose::Avatar, &fortify).await?
         };
