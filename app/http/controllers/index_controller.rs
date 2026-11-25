@@ -16,16 +16,16 @@ impl IndexController {
             if target.trim().is_empty() {
                 target = "/index.html".into();
             }
-            if !target.starts_with('/')
-                || target.starts_with("//")
-                || target == "/"
-                || target.contains(['?', '#'])
+            if let Some(query) = request.uri().query().filter(|query| !query.is_empty())
+                && !target.starts_with('#')
             {
-                return Err(HttpError::InvalidRequest);
-            }
-            if let Some(query) = request.uri().query() {
-                target.push('?');
-                target.push_str(query);
+                let end = target.find('#').unwrap_or(target.len());
+                let separator = match target[..end].split_once('?') {
+                    None => "?",
+                    Some((_, existing)) if existing.is_empty() || existing.ends_with('&') => "",
+                    Some(_) => "&",
+                };
+                target.insert_str(end, &format!("{separator}{query}"));
             }
             Ok(Redirect::to(&target, RedirectOptions::default())?.into())
         })

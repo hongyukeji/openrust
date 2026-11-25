@@ -1345,6 +1345,37 @@ async fn renamed_cookie_reuses_https_path_domain_and_same_site_on_save_and_delet
 }
 
 #[tokio::test]
+async fn homepage_redirect_accepts_redirect_targets_and_preserves_query() {
+    let root = Root::new("en");
+    for (target, location) in [
+        (
+            "welcome?tag=0#guide",
+            "http://localhost/welcome?tag=0&tag=1&tag=2&search=a%26b#guide",
+        ),
+        (
+            "/welcome?#guide",
+            "http://localhost/welcome?tag=1&tag=2&search=a%26b#guide",
+        ),
+        (
+            "/welcome?prompt=?#guide",
+            "http://localhost/welcome?prompt=?&tag=1&tag=2&search=a%26b#guide",
+        ),
+        (
+            "https://example.test/help?source=home#start",
+            "https://example.test/help?source=home&tag=1&tag=2&search=a%26b#start",
+        ),
+        ("#guide", "#guide"),
+    ] {
+        fs::write(root.0.join(".env"), format!("APP_HOME_PATH='{target}'\n")).unwrap();
+        let kernel = root.kernel().await;
+        let (status, headers, _) =
+            preference_request(&kernel, "GET", "/?tag=1&tag=2&search=a%26b", "en", "", "").await;
+        assert_eq!(status, StatusCode::FOUND, "{target}");
+        assert_eq!(headers["location"], location, "{target}");
+    }
+}
+
+#[tokio::test]
 async fn locale_post_keeps_csrf_session_and_preferences_over_tcp() {
     use axum::{extract::State, handler::Handler as _};
     use std::{net::SocketAddr, sync::Arc};
