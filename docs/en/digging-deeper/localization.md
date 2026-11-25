@@ -326,7 +326,7 @@ pub async fn load_notice(source: &dyn Loader) -> TranslationResult<()> {
 
 ### Database Translation Source (Extension) {#database-translation-loader}
 
-Add `openrust-translation-database` to the application's Cargo dependencies using `path = "vendor/openrust/translation-database"`. `DatabaseLoader` accepts an explicit framework `Connection`; obtain it from the application's database manager or `Db::connection`. It reads translations from PostgreSQL 18, MySQL 8.4, and SQLite. Other database targets require separate behavior validation.
+Add `openrust-localization-database` to the application's Cargo dependencies using `path = "vendor/openrust/localization-database"`. `DatabaseLoader` accepts an explicit framework `Connection`; obtain it from the application's database manager or `Db::connection`. It reads translations from PostgreSQL 18, MySQL 8.4, and SQLite. Other database targets require separate behavior validation.
 
 Create the table through an application migration before loading translations. This minimal schema is supported:
 
@@ -355,7 +355,7 @@ use openrust::{
     support::facades::Lang,
     translation::{FileLoader, TranslationResource, TranslationResult},
 };
-use openrust_translation_database::DatabaseLoader;
+use openrust_localization_database::DatabaseLoader;
 
 pub async fn load_database_translations(
     connection: Connection,
@@ -513,7 +513,7 @@ The first two mappings apply only to this project's default catalogs and confirm
 
 Clear old configuration and view caches with the old binary (`./main artisan config:clear`, `./main artisan view:clear`) before replacing it, or use the existing source `./artisan` entrypoint. Deploy the new code and resources together, rebuild with `config:cache` and `view:cache` using the new configuration, and restart all long-lived processes. Translation directory caches are process-local and disappear on restart. Drain old queued mail/notification jobs before upgrading, or inspect their serialized `locale` fields with application-specific tooling; encrypted payloads require the old application's encryption keys. A generic text replacement in queue, cache or settings blobs is unsafe.
 
-For database translations, inventory `language_lines.text` JSON keys and any application-owned settings or locale columns first. The templates in `vendor/openrust/translation-database/database/upgrade-bcp47/` include separate read-only inventory queries and PostgreSQL, MySQL and SQLite transactions. They map the two default catalogs plus `en_US`/`en_GB`; customize table names and any other legacy locale mappings after review. Unknown underscore keys or any old/new collision abort the transaction, including equal or null values; no content is overwritten. The final statement is **ROLLBACK** by default. Inspect the result and backup before explicitly changing it to **COMMIT**. On error roll back and close that dedicated database session. Re-running a successful migration is a no-op; rollback after a committed migration requires restoring the backup, since existing new-format keys cannot safely be distinguished from migrated ones.
+For database translations, inventory `language_lines.text` JSON keys and any application-owned settings or locale columns first. The templates in `vendor/openrust/localization-database/database/upgrade-bcp47/` include separate read-only inventory queries and PostgreSQL, MySQL and SQLite transactions. They map the two default catalogs plus `en_US`/`en_GB`; customize table names and any other legacy locale mappings after review. Unknown underscore keys or any old/new collision abort the transaction, including equal or null values; no content is overwritten. The final statement is **ROLLBACK** by default. Inspect the result and backup before explicitly changing it to **COMMIT**. On error roll back and close that dedicated database session. Re-running a successful migration is a no-op; rollback after a committed migration requires restoring the backup, since existing new-format keys cannot safely be distinguished from migrated ones.
 
 Faker keeps native provider keys private; `locale()` and `random_locale()` return BCP 47. Script-only `zh-Hans`/`zh-Hant` use the corresponding existing Chinese providers, while the public label retains its original region and extensions. Third-party protocols such as WeChat's native `lang=zh_CN` are unchanged at that boundary.
 

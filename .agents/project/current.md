@@ -110,7 +110,7 @@ Git 默认流程已于 2026-11-23 更新：已授权任务完成并通过相关�
 | 模型字段生成、配置复用、批量检查与数据库列说明 | [字段验收](audits/model-fields/README.md) |
 | 具体错误转换与传播 | [错误转换验收](audits/error-conversions-2026-11-23.md) |
 | 框架版本查询 | [版本验收](audits/01-01/framework-version-2026-11-22.md) |
-| 设置、数据库翻译、Artisan本地化 | [设置](audits/settings/README.md)、[翻译](audits/translation-database/README.md)、[Artisan](audits/06-08/README.md) |
+| 设置、数据库翻译、Artisan本地化 | [设置](audits/settings/README.md)、[翻译](audits/localization-database/README.md)、[Artisan](audits/06-08/README.md) |
 | 国内支付与订阅计费 | [支付](audits/pay/README.md)、[订阅](audits/pay/cashier.md) |
 | 运维扩展及组合 | [本地收尾](audits/08-04/README.md)、[扩展组合](audits/extension-final.md)、[复用取舍](audits/extension-design-review.md#扩展复用取舍) |
 | L01–L22及清理后全量本地验收 | [历史修复](audits/laravel-code-audit-2026-11-21.md)、[全量本地验收](audits/08-04/clean-full-acceptance-2026-11-22.md) |

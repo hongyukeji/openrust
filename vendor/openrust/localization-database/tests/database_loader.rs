@@ -12,7 +12,7 @@ use openrust::{
     database::{Connection, DatabaseManager, Value, query::Record},
     translation::{FileLoader, Line, Lines, TranslationError, TranslationResource, Translator},
 };
-use openrust_translation_database::DatabaseLoader;
+use openrust_localization_database::DatabaseLoader;
 use serde_json::{Value as Json, json};
 
 fn connection(url: &str, name: &str, driver: &str) -> Connection {

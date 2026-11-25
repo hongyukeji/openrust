@@ -1,5 +1,5 @@
 [package]
-name = "openrust-translation-database"
+name = "openrust-localization-database"
 version.workspace = true
 edition = "2024"
 rust-version = "1.94"

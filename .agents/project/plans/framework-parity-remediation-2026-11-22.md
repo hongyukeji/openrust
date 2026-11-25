@@ -483,7 +483,7 @@ X09—X24的存在不证明均由用户明确要求，不将历史默认差异�
 | pay | X18，签名、回调幂等／乱序和错误恢复 | `vendor/openrust/pay/`；现有tests入口：callback_http、failures、notifications、protocol；APIv3／RSA2签名、本地回调重复乱序／失败恢复／退款，商户真实授权与资金结果边界明确 |
 | oidc | X19，RP／OP／SSO、认证策略与撤销边界 | `vendor/openrust/oidc/`；现有tests入口：flow、sso；RP与OP的发现／授权／令牌／claims／撤销／会话，SSO跨应用隔离；真实IdP与本地协议分列 |
 | settings | X20，组／加密／请求任务缓存与可选装配 | `vendor/openrust/settings/`；现有tests入口：process、provider、runtime、settings；组属性类型／默认／加密／保存／请求任务缓存、可选Provider／应用覆盖／配置缓存；不重开已完成后台底座 |
-| translation-database | X21，文件覆盖／缺表错误／reload／BCP 47数据 | `vendor/openrust/translation-database/`；现有tests入口：database_loader；三库language_lines、文件覆盖／精确locale／缺表／reload、BCP47旧新键冲突／回滚／重跑；真实旧环境操作另授权 |
+| localization-database | X21，文件覆盖／缺表错误／reload／BCP 47数据 | `vendor/openrust/localization-database/`；现有tests入口：database_loader；三库language_lines、文件覆盖／精确locale／缺表／reload、BCP47旧新键冲突／回滚／重跑；真实旧环境操作另授权 |
 | activitylog | X22，事件、主体、脱敏、清理及事务 | `vendor/openrust/activitylog/`；现有tests入口：activitylog、provider、support；actor/subject、事件／事务、脱敏／清理、包启用与禁用；文档公开消费，不默认注册示例业务 |
 
 ## E生态逐项处置
@@ -832,7 +832,7 @@ P1表示优先处理明显能力／协议／资源行为缺口；P2表示迁移�
 | X18 | 微信／支付宝支付 | 原生pay包的直连商户支付，不是Laravel核心能力，亦非完整Yansongda SDK | 项目现有扩展；本次不推定由用户明确要求 | [vendor/openrust/pay/src/lib.rs:1](/Users/Home/Codes/Rust/openrust/vendor/openrust/pay/src/lib.rs:1) | 保留并在扩展边界标明，不计入核心1:1完成度 |
 | X19 | OIDC RP/OP/SSO | 独立oidc包，职责超出Socialite与Passport核心移植范围 | 项目现有扩展；本次不推定由用户明确要求 | [vendor/openrust/oidc/src/lib.rs:1](/Users/Home/Codes/Rust/openrust/vendor/openrust/oidc/src/lib.rs:1) | 保留并在扩展边界标明，不计入核心1:1完成度 |
 | X20 | 动态设置 | Spatie启发的typed group数据库设置；每组256属性/1MiB、请求任务缓存，不是Laravel核心Config | 项目现有扩展；本次不推定由用户明确要求 | [vendor/openrust/settings/src/lib.rs:1](/Users/Home/Codes/Rust/openrust/vendor/openrust/settings/src/lib.rs:1) | 保留并在扩展边界标明，不计入核心1:1完成度 |
-| X21 | 数据库翻译 | Spatie translation-loader启发的language_lines及显式DatabaseLoader；不是核心默认文件Loader | 项目现有扩展；本次不推定由用户明确要求 | [vendor/openrust/translation-database/src/lib.rs:1](/Users/Home/Codes/Rust/openrust/vendor/openrust/translation-database/src/lib.rs:1) | 保留并在扩展边界标明，不计入核心1:1完成度 |
+| X21 | 数据库翻译 | Spatie translation-loader启发的language_lines及显式DatabaseLoader；不是核心默认文件Loader | 项目现有扩展；本次不推定由用户明确要求 | [vendor/openrust/localization-database/src/lib.rs:1](/Users/Home/Codes/Rust/openrust/vendor/openrust/localization-database/src/lib.rs:1) | 保留并在扩展边界标明，不计入核心1:1完成度 |
 | X22 | 操作审计 | Spatie activitylog启发的activitylog包及可选属性脱敏，不是Laravel核心组件 | 项目现有扩展；本次不推定由用户明确要求 | [vendor/openrust/activitylog/src/lib.rs:1](/Users/Home/Codes/Rust/openrust/vendor/openrust/activitylog/src/lib.rs:1) | 保留并在扩展边界标明，不计入核心1:1完成度 |
 | X23 | 额外搜索入口 | 框架原生数据库全文搜索接口，与Scout CollectionEngine及官方外部驱动集合分别存在 | 项目现有扩展；本次不推定由用户明确要求 | [docs/zh_CN/digging-deeper/search.md:1](/Users/Home/Codes/Rust/openrust/docs/zh_CN/digging-deeper/search.md:1) | 保留并在扩展边界标明，不计入核心1:1完成度 |
 | X24 | 本地依赖补丁 | pcre2、sqlx及图像等本地patch仅为Rust依赖兼容／能力补足；与PHP供应链不同 | 项目现有扩展；本次不推定由用户明确要求 | [Cargo.toml:21](/Users/Home/Codes/Rust/openrust/Cargo.toml:21) | 保留并在扩展边界标明，不计入核心1:1完成度 |
@@ -932,7 +932,7 @@ P1表示优先处理明显能力／协议／资源行为缺口；P2表示迁移�
 | settings | X20；Spatie参考范围，非核心Config。 | [vendor/openrust/settings/Cargo.toml:1](/Users/Home/Codes/Rust/openrust/vendor/openrust/settings/Cargo.toml:1) |
 | socialite | X03–X06；请求借用、OAuth1/2显式enum分派、统一异步redirect，签名不同。 | [vendor/openrust/socialite/Cargo.toml:1](/Users/Home/Codes/Rust/openrust/vendor/openrust/socialite/Cargo.toml:1) |
 | telescope | 原生面板；source/callstack可为空、Query/Gate源码过滤缺失、multipart元数据和部分Redis操作不捕获。 | [vendor/openrust/telescope/Cargo.toml:1](/Users/Home/Codes/Rust/openrust/vendor/openrust/telescope/Cargo.toml:1) |
-| translation-database | X21；缺表明确失败和显式reload，非完整翻译后台或模型字段翻译方案。 | [vendor/openrust/translation-database/Cargo.toml:1](/Users/Home/Codes/Rust/openrust/vendor/openrust/translation-database/Cargo.toml:1) |
+| localization-database | X21；缺表明确失败和显式reload，非完整翻译后台或模型字段翻译方案。 | [vendor/openrust/localization-database/Cargo.toml:1](/Users/Home/Codes/Rust/openrust/vendor/openrust/localization-database/Cargo.toml:1) |
 
 ### 不能误报为差异的项目
 

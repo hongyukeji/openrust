@@ -18,7 +18,7 @@
 | `payments.md` | [README](pay/README.md) |
 | `extension-reuse-decisions.md` | [extension-design-review](extension-design-review.md) |
 
-另删除 `audits/core-drafts-archive/` 的README、manifest和tar.gz共3份旧骨架副本，均已核对与上述提交逐字一致，可按原路径恢复。原22份草稿无需再保留第二份存档；当时“数据库翻译仅骨架”的说明已经过时，现行结果见[翻译验收](translation-database/README.md)。
+另删除 `audits/core-drafts-archive/` 的README、manifest和tar.gz共3份旧骨架副本，均已核对与上述提交逐字一致，可按原路径恢复。原22份草稿无需再保留第二份存档；当时“数据库翻译仅骨架”的说明已经过时，现行结果见[翻译验收](localization-database/README.md)。
 
 保留固定基线、官方文档交付对照、全框架对齐的计划和统一数据，以及所有仍有效的主题验收／许可证材料。统一数据中的历史快照路径不改写；其中已删除计划的路径仅代表当时文件，并非活跃链接。实际环境升级、真实供应商、Windows及其他未验条件仍见[待办](../todo.md)，不因清理认定完成。
 

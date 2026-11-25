@@ -23,4 +23,4 @@
 | 安装互斥与缓存替换 | [Rust 1.94 File](https://doc.rust-lang.org/1.94.0/std/fs/struct.File.html#method.try_lock)、[tempfile 3.27.0](https://docs.rs/tempfile/3.27.0/tempfile/struct.NamedTempFile.html#method.persist) | 安装沿用标准库文件锁和既有 SourceInstallation，独立锁文件避免替换 Cargo.toml 后失锁，扩展共享同一次锁持有。路由缓存沿用同目录临时文件与 persist 替换；无需再引入文件锁库、分布式锁或通用安装事务框架。此处原子替换不等同于断电持久性保证。 |
 | API 参考 | [Cargo doc](https://doc.rust-lang.org/cargo/commands/cargo-doc.html) | 复用 Cargo／Rustdoc 生成公开类型、源码与搜索；项目脚本仅负责快照、指纹和站点接入，不维护第二套 API 解析器。 |
 
-本次仅核对并记录设计，没有引入上述项目的新源码或依赖，也没有仅凭项目热度替换已有机制。数据库翻译的 Spatie 结构与 Rust 适配由扩展交付维护，见[数据库翻译记录](audits/translation-database/README.md)。核心复验及依赖剩余项分别见[部署验收](audits/08-04/README.md#核心机制复验与成熟方案核对)和[依赖审计](audits/dependency-security/README.md#核心整合依赖复核)。
+本次仅核对并记录设计，没有引入上述项目的新源码或依赖，也没有仅凭项目热度替换已有机制。数据库翻译的 Spatie 结构与 Rust 适配由扩展交付维护，见[数据库翻译记录](audits/localization-database/README.md)。核心复验及依赖剩余项分别见[部署验收](audits/08-04/README.md#核心机制复验与成熟方案核对)和[依赖审计](audits/dependency-security/README.md#核心整合依赖复核)。

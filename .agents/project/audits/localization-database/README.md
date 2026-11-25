@@ -46,3 +46,8 @@ PHP 依赖不能直接链接 Rust；本包只增加对现有 framework、serde_j
 - 生产翻译 Loader 无需新增抽象、仓储、缓存或驱动特例；复用现有 Connection／Query Builder／Schema 即可完成三库。Spatie 2.8.3 `TranslationLoaders/Db.php` 固定源码再次联网核对，沿用前述契约。
 
 证据在同批 `translation-postgres.log`、`translation-mysql.log`、`translation-sqlite.log`。文档中的支持范围同步更新为 PostgreSQL 18、MySQL 8.4 和 SQLite；其他数据库仍需独立行为验证。
+
+## 2026-11-26 主分支命名统一
+
+- 目录、Cargo package／feature、Rust crate 导入、完整初始化预设、验收脚本及三语文档统一使用 `localization-database` 对应的新名称；`language_lines` 和既有迁移 SQL 原样保留。
+- Rust 1.94 格式及严格 Clippy 通过。SQLite、MySQL 8.4、PostgreSQL 18 各 9 项通过，三语站点构建及两挂载点共 6 项浏览器检查通过。证据见 `target/tmp/localization-rename-master/verify.log` 与 `docs.log`。

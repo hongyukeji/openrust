@@ -5339,7 +5339,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
-## vendor/openrust/translation-database/LICENSE.spatie.md
+## vendor/openrust/localization-database/LICENSE.spatie.md
 
 The MIT License (MIT)
 

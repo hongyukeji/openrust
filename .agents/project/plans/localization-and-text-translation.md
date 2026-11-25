@@ -32,7 +32,7 @@
 | 职责 | 归属 |
 | --- | --- |
 | 应用本地化 | `openrust::localization`。应用入口为 `Lang`、`__`、`trans_choice`。`Localizer` 按 locale 解析消息、执行回退、替换参数和选择复数。具体类型与 trait 分别归 `openrust::localization::Localizer` 和 `openrust::contracts::localization::Localizer`。由 `LocalizationServiceProvider` 装配。 |
-| 词条来源 | `Loader` 归 `openrust::contracts::localization`。核心提供 `FileLoader`、内置语言和消息选择器。数据库加载器由 `openrust-translation-database` 一次迁移到 `openrust-localization-database`，继续读取既有 `language_lines`。 |
+| 词条来源 | `Loader` 归 `openrust::contracts::localization`。核心提供 `FileLoader`、内置语言和消息选择器。数据库加载器使用 `openrust-localization-database`，继续读取既有 `language_lines`。 |
 | 文本机器翻译 | 可选包 `openrust-translate`。`Translate` 是门面，`TranslateManager` 管理驱动，`Translator` 是外部 crate 可实现的异步契约。由包 Provider 按当前应用装配，`translator` 绑定指向同一个 `TranslateManager` 实例，配置归 `translate` 命名空间。 |
 
 `Localizer` 表示读取并解析与 locale 有关的词条。内部词条集合可以继续叫 Catalog。命名参考 [Microsoft IStringLocalizer](https://learn.microsoft.com/en-us/dotnet/api/microsoft.extensions.localization.istringlocalizer)，容器键的改名属于已确认的 Rust 适配。语言代码规范化和共用 BCP 47 工具沿用核心逻辑，文本翻译依赖它们的语言标签校验，词条加载链路与文本翻译配置各自装配。
@@ -45,7 +45,7 @@
 | 本地化具体类型／trait `Translator`，`TranslationServiceProvider` | `Localizer`、`LocalizationServiceProvider` |
 | 容器 `translator`、`translation.loader` | `lang`、`lang.loader`。词条迁移提交中撤销旧键，随后才给机器翻译注册 `translator`。 |
 | 直接依赖文件路径管理的消费者 | 使用同一应用的 `FileLoader`，独立于具名默认异步来源。明确迁移 Validator 的译文访问入口及类型签名。 |
-| `openrust-translation-database` crate | 更新包名、目录、Cargo.lock、导入和发布路径。保持表名、列、JSON 数据、既有迁移标识和 `lang:publish` 行为。 |
+| 数据库词条 crate | 统一使用 `openrust-localization-database` 的包名、目录、Cargo.lock、导入和发布路径。保持表名、列、JSON 数据、既有迁移标识和 `lang:publish` 行为。 |
 
 锁定涉及的 app/config、框架、独立包、安装生成模板、三语示例、测试与许可引用逐项迁移。应用目录 `lang/`、环境变量、locale 与数据格式沿用。直接 Rust 导入及容器键属于公开破坏性改名，随迁移提交提供对照表。回退时配对恢复旧二进制与源码依赖组合。
 

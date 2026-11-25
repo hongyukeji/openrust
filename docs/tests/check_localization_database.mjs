@@ -20,7 +20,7 @@ try {
                 assert.equal(response.status(), 200);
                 await page.locator("#database-translation-loader").waitFor();
                 const body = await page.locator("main").innerText();
-                for (const api of ["openrust-translation-database", "with_table", "with_max_rows", "with_fallback", "load_database_translations", "Lang::load_from", "PostgreSQL 18", "128"]) {
+                for (const api of ["openrust-localization-database", "with_table", "with_max_rows", "with_fallback", "load_database_translations", "Lang::load_from", "PostgreSQL 18", "128"]) {
                     assert(body.includes(api), `${language}: missing ${api}`);
                 }
                 assert.deepEqual(errors, []);
