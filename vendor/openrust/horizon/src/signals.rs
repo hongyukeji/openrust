@@ -1,5 +1,15 @@
 use crate::{Error, Result};
 
+#[cfg(windows)]
+pub(crate) async fn parent_closed(
+    pipe: Option<openrust::process::ParentShutdown>,
+) -> std::io::Result<()> {
+    match pipe {
+        Some(pipe) => pipe.closed().await,
+        None => std::future::pending().await,
+    }
+}
+
 pub(crate) struct ControlSignals {
     #[cfg(unix)]
     pause: tokio::signal::unix::Signal,

@@ -363,17 +363,16 @@ impl MasterSupervisor {
             }
             let arguments = supervisor.options.to_supervisor_command(&self.executable)?;
             lease.forget_supervisor(&supervisor.name).await?;
-            supervisor.process = Some(
-                Factory::new()
-                    .command(arguments)
-                    .path(&self.base)
-                    .env([("APP_BASE_PATH", self.base.as_os_str().to_owned())])
-                    .env(lease.ownership().environment())
-                    .forever()
-                    .quietly()
-                    .start()
-                    .map_err(|_| Error::Process)?,
-            );
+            let child = Factory::new()
+                .command(arguments)
+                .path(&self.base)
+                .env([("APP_BASE_PATH", self.base.as_os_str().to_owned())])
+                .env(lease.ownership().environment())
+                .forever()
+                .quietly();
+            #[cfg(windows)]
+            let child = child.with_shutdown_pipe();
+            supervisor.process = Some(child.start().map_err(|_| Error::Process)?);
             // Failed children cannot spin in a tight restart loop.
             supervisor.restart_again_at = Instant::now() + Duration::from_secs(1);
         }

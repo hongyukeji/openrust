@@ -10,6 +10,12 @@ const MIGRATIONS: &str = "database/migrations";
 const SEEDERS: &str = "database/seeders";
 
 fn main() -> io::Result<()> {
+    // Windows 可执行文件需要为队列任务的原生入口保留足够栈空间。
+    if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows")
+        && env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc")
+    {
+        println!("cargo::rustc-link-arg-bin=main=/STACK:16777216");
+    }
     println!("cargo:rerun-if-changed={FACTORIES}");
     println!("cargo:rerun-if-changed={MIGRATIONS}");
     println!("cargo:rerun-if-changed={SEEDERS}");

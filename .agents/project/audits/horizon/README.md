@@ -16,7 +16,7 @@ Rust 三条 Artisan 命令按心跳中的完整主机名选择 Master。完整�
 
 Linux 7.0.14 ARM64 与 Redis 8.10.3 上，两个有独立主机名和 PID 命名空间的容器分别以 PID 1 运行真正的 Master，共用 Redis 和应用缓存。本机暂停后另一台仍能执行真实队列任务。本机继续与终止只操作本机 Master，另一台的 Master 身份保持，Worker 收到原生重启通知后更换 PID。证据为 `target/tmp/observability-parity/horizon-master-control-linux-pid1.log`。首轮在容器退出时曾回收 Artisan 执行进程，复验以 Master 自身的容器退出码和存活远端为准，并核对远端 Worker 完成重启。
 
-Windows 11 ARM64 与 Redis 8.10.3 使用最终源码运行原生 Artisan。真实 Master 在空部署计划下经过启动、暂停、继续、终止，以 0 退出且清除心跳。Windows 上带 Worker 的排空和快速终止仍待验证。macOS 最终源码通过严格 Clippy 和真实进程组合，覆盖 `horizon:work`、普通 `queue:work` 收到重启通知、外部信号、快速终止与 `--wait`。另经真实 HTTP 验证，本机继续不会清除旧全局暂停，未授权的面板请求返回 403，授权请求可清除该状态并使 Master 恢复。三语文档构建及 12 组桌面／移动浏览器检查通过。证据为 `target/tmp/observability-parity/horizon-master-control-{windows,macos,docs}-final.log` 与 `target/tmp/observability-parity/horizon-master-control-upgrade.log`。
+Windows 11 ARM64 与 Redis 8.10.3 使用最终源码运行原生 Artisan。真实 Master 在空部署计划下经过启动、暂停、继续、终止，以 0 退出且清除心跳。带 Worker 的后续实测见 [Windows 原生进程树](#windows-原生进程树)。macOS 最终源码通过严格 Clippy 和真实进程组合，覆盖 `horizon:work`、普通 `queue:work` 收到重启通知、外部信号、快速终止与 `--wait`。另经真实 HTTP 验证，本机继续不会清除旧全局暂停，未授权的面板请求返回 403，授权请求可清除该状态并使 Master 恢复。三语文档构建及 12 组桌面／移动浏览器检查通过。证据为 `target/tmp/observability-parity/horizon-master-control-{windows,macos,docs}-final.log` 与 `target/tmp/observability-parity/horizon-master-control-upgrade.log`。
 
 ### Master 名称与解析器
 
@@ -28,7 +28,7 @@ Rust 的 `MasterSupervisor::basename`、`process_name` 和 `determine_name_using
 
 Rust 的名称解析、Redis 仓储及子进程接受 Unicode、冒号、空前缀及长名称。子进程使用原生参数和显式父标识，带空格或以连字符开头的完整名称可按一个参数传递。控制字符仍被拒绝，实际启动受操作系统的参数和环境容量约束。Master 聚合按完整父标识选择监督器，旧心跳回退到部署计划里的完整子名称。单独启动的 Supervisor 按最后一个冒号寻找父名称，受管 Supervisor 使用传入的父名称。`horizon:list` 的表格保留固定上游从第一个冒号后显示的规则。状态 JSON、Redis 心跳及面板接口保留完整名称。`horizon:purge` 处理进程表时保留命令中的连续空格。 [固定 ListCommand](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Console/ListCommand.php)
 
-Windows ARM64 用非空部署计划实测。Master 心跳保留 `North:東京 1`，但受管 Supervisor 反复以退出码 1 退出，始终没有 Worker。当前 `Supervisor::tick` 会检查传入的父 PID，Windows 的 `parent_is_running` 分支直接返回 `Unavailable`。仍需实现原生进程树 liveness 与关停，并复验实时工作、排空与快速终止。证据为 `target/tmp/observability-parity/horizon-master-extended-windows-{final,diagnostic}.log`。
+Windows ARM64 首轮用非空部署计划实测。Master 心跳保留 `North:東京 1`，但旧实现的 Windows 父 PID 检查直接返回 `Unavailable`，受管 Supervisor 反复以退出码 1 退出。前态证据为 `target/tmp/observability-parity/horizon-master-extended-windows-{final,diagnostic}.log`。后续修复与执行证据见 [Windows 原生进程树](#windows-原生进程树)。
 
 macOS 通过名称解析公开入口、空前缀与 124／1025 字节名称的真实接管、同机两组相近 Unicode 名称的 Artisan 隔离。macOS 与 Linux ARM64 均使用 Redis 8.10.3 通过扩展名称的接管，以及连续空格名称下真实孤儿进程的查找和终止。macOS 最终源码通过完整进程组合，覆盖 `horizon:list`、`horizon:supervisor-status`、授权面板 `/api/stats` 和 `/api/masters`、Worker 重建及排空。覆盖范围内的严格 Clippy、隔离快照格式和三语文档正文检查通过。证据为 `target/tmp/observability-parity/horizon-master-extended-{before,macos-checked,purge-before,macos-post-cleanup,linux-post-cleanup,same-host}.log`。
 
@@ -48,13 +48,23 @@ macOS 的真实 Redis 8.10.3 回归覆盖同时竞争时仅一方获得名称、
 
 Horizon 通过框架 `WorkCommand::with_reservation_guard` 在实际领取任务前检查所有权，包含受管 `--once`。失去令牌的 Worker 在下一个检查点停止领取，已经运行的任务沿用原生排空。普通 `queue:work` 无需检查 Horizon 的进程信息。
 
-macOS 与 Linux ARM64 使用真实 Redis 8.10.3 与实际 Master、Supervisor 和 Worker。先确认旧 Worker 能处理任务，再暂停两个父进程模拟接管。旧 Worker 保留新任务并退出，旧 Supervisor 的退出清理保留接管方心跳和未处理命令。持新令牌的 `horizon:work --once` 处理同一任务，普通 `queue:work --once` 即使带有旧进程环境也能处理后续任务。macOS 完整进程及 Worker 回归、Horizon 和框架所涉严格 Clippy、同名 Master 与 102 条心跳回归通过。Linux 双 PID 1 Master 组合通过。Windows ARM64 的原生 `--once` 拒绝陈旧令牌，普通 Worker 正常执行，原生 Master 控制通过。Windows 带实际子树的排空矩阵仍待验。证据为 `target/tmp/observability-parity/horizon-child-ownership-{macos,macos-takeover-verified,linux,linux-takeover-native,windows,rust-targets,preflight}.log`。
+macOS 与 Linux ARM64 使用真实 Redis 8.10.3 与实际 Master、Supervisor 和 Worker。先确认旧 Worker 能处理任务，再暂停两个父进程模拟接管。旧 Worker 保留新任务并退出，旧 Supervisor 的退出清理保留接管方心跳和未处理命令。持新令牌的 `horizon:work --once` 处理同一任务，普通 `queue:work --once` 即使带有旧进程环境也能处理后续任务。macOS 完整进程及 Worker 回归、Horizon 和框架所涉严格 Clippy、同名 Master 与 102 条心跳回归通过。Linux 双 PID 1 Master 组合通过。Windows ARM64 的原生 `--once` 拒绝陈旧令牌，普通 Worker 正常执行，原生 Master 控制通过。带实际子树的后续排空实测见 [Windows 原生进程树](#windows-原生进程树)。证据为 `target/tmp/observability-parity/horizon-child-ownership-{macos,macos-takeover-verified,linux,linux-takeover-native,windows,rust-targets,preflight}.log`。
 
 固定 Laravel `RedisQueue` 先用 `BLPOP` 等待通知，再单独发送领取请求。修复前，旧 Worker 在 Redis 已阻塞时失去所有权，仍会处理接管后入队的任务。现在通知返回或等待到期后，受管 Worker 会先重新检查所有权及暂停状态，再次确认可领取才向 Redis 发出请求。队列的 `block_for` 与空闲等待上限沿用原有配置。已经发出的领取请求和 Redis 主从切换仍需单独验收，所有权检查与跨连接或实例的领取命令独立执行。 [固定 Laravel RedisQueue](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/RedisQueue.php#L589-L607)
 
 阻塞接管用例确认 Redis 中的 Worker 处于 `BLPOP` 后，在同一条脚本内写入继任令牌、追加真实派发的任务并唤醒旧 Worker。旧 Worker 消费通知后退出，任务留在待处理列表，尝试次数仍为 0、保留集合为空。持新令牌的 `horizon:work --once` 处理同一任务。macOS 与 Linux ARM64 在 Redis 8.10.3 上通过阻塞与非阻塞回归，macOS 的普通 Redis 队列 HTTP 与阻塞领取回归、Horizon Worker 回归、所涉严格 Clippy 和格式检查通过。证据为 `target/tmp/observability-parity/horizon-blocking-ownership-{before,macos,linux,plain-queue,format}.log`。
 
 Master 的 `commandQueue`、`commandQueueFor`、公开重启与输出回调也有独立契约待核对。
+
+### Windows 原生进程树
+
+框架进程在 Windows 可由 `PendingProcess::with_shutdown_pipe` 保留一条仅用于关停的管道。Master 和 Supervisor 启动受管子进程时各持有对应管道的写端。正常终止、快速分离和父进程丢失都会关闭写端，子进程收到 EOF 后走既有排空路径。Worker 领取前也检查该管道，避免已经获知关停时领取新任务。快速终止可以让 Master 先退出，已开始的任务继续到完成或超时。失去 Redis 所有权仍按独立令牌处理。Unix 继续使用原生信号及父进程检查。
+
+标准 Windows ARM64 MSVC 的首轮调试产物在真实任务前以 `0xC00000FD` 退出。对相同 PE 的隔离副本测得 1 MiB 栈预留，将预留提高到 16 MiB 可继续执行任务。Windows 验收夹具通过实际 SQLite 接口创建 `failed_jobs` 表。根应用可执行文件与 Horizon 验收示例现在由 Cargo 为 Windows MSVC 链接 16 MiB 栈预留。证据为 `target/tmp/observability-parity/horizon-windows-shutdown-{native-schema,stack-trace,stack-schema,linked}.log`。
+
+Windows 11 ARM64 用正常 Cargo 构建及真实 Redis 8.10.3 运行 [进程树验收](../../../../vendor/openrust/horizon/tests/windows_process_acceptance.ps1)。确认实际父子 PID、非空部署、带 Unicode 的 Master 和 Supervisor、暂停期间保留任务、继续后执行。空闲终止、`--wait` 等待 12 秒任务、快速终止先退出 Master、强制结束 Master 后子树仍完成正在执行的任务均通过。父进程丢失后，后续任务留在队列，由普通 `queue:work --once` 成功处理。直接检查 Cargo 生成的根应用与验收程序 PE，均预留 16 MiB。优化构建、Windows x86_64 与正式服务管理器组合仍待验收。证据为 `target/tmp/observability-parity/horizon-windows-shutdown-{linked,retention}.log`。
+
+Windows ARM64 的 Horizon 库与验收示例严格 Clippy 通过。macOS 的框架进程测试 15 项、Horizon 完整进程回归、Horizon 全目标与框架库严格 Clippy 通过。Linux ARM64 复验通过阻塞和非阻塞接管及真实孤儿清理。三语文档正文检查通过。证据为 `target/tmp/observability-parity/horizon-windows-shutdown-{retention,core-regression,macos-final,linux-final}.log`。
 
 ## 当前实现
 

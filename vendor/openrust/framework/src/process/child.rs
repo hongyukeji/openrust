@@ -24,6 +24,8 @@ pub(crate) struct ChildGroup {
     kill_on_drop: bool,
     #[cfg(windows)]
     job: Option<super::windows_job::WindowsJob>,
+    #[cfg(windows)]
+    shutdown: Option<super::windows_shutdown::ShutdownSender>,
     #[cfg(unix)]
     group: Option<Pid>,
     #[cfg(unix)]
@@ -44,6 +46,8 @@ impl ChildGroup {
                 kill_on_drop: true,
                 #[cfg(windows)]
                 job: None,
+                #[cfg(windows)]
+                shutdown: None,
             })
         }
     }
@@ -56,10 +60,19 @@ impl ChildGroup {
                 child,
                 kill_on_drop: true,
                 job: Some(job),
+                shutdown: None,
             })
         }
         #[cfg(not(windows))]
         Self::spawn(command)
+    }
+
+    #[cfg(windows)]
+    pub(crate) fn spawn_with_shutdown(command: &mut Command) -> io::Result<Self> {
+        let shutdown = super::windows_shutdown::ShutdownSender::attach(command)?;
+        let mut group = Self::spawn(command)?;
+        group.shutdown = Some(shutdown);
+        Ok(group)
     }
 
     #[cfg(unix)]
@@ -96,6 +109,10 @@ impl ChildGroup {
                 io::ErrorKind::Unsupported,
                 "detaching a Windows job is unsupported",
             ));
+        }
+        #[cfg(windows)]
+        if let Some(shutdown) = &mut self.shutdown {
+            shutdown.close();
         }
         self.kill_on_drop = false;
         #[cfg(unix)]
@@ -209,6 +226,13 @@ impl ChildGroup {
 
     #[cfg(not(unix))]
     pub(crate) fn signal(&mut self, signal: Signal) -> io::Result<()> {
+        #[cfg(windows)]
+        if matches!(signal, Signal::Terminate | Signal::Interrupt)
+            && let Some(shutdown) = &mut self.shutdown
+        {
+            shutdown.close();
+            return Ok(());
+        }
         #[cfg(windows)]
         if let Some(job) = &self.job {
             match signal {

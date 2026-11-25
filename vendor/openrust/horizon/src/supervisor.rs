@@ -80,7 +80,10 @@ pub struct Supervisor {
     id: String,
     host: String,
     pools: BTreeMap<String, ProcessPool>,
+    #[cfg(unix)]
     parent: u32,
+    #[cfg(windows)]
+    parent_shutdown: Option<openrust::process::ParentShutdown>,
     ownership: Option<MasterOwnership>,
     initially_paused: bool,
     balanced: BTreeMap<String, Instant>,
@@ -145,7 +148,17 @@ impl Supervisor {
             }
             option.validate()?;
         }
+        #[cfg(unix)]
         let parent = options.values().next().map_or(0, |option| option.parent_id);
+        #[cfg(windows)]
+        let parent_shutdown = options
+            .values()
+            .next()
+            .filter(|option| option.parent_id != 0)
+            .map(|_| {
+                openrust::process::ParentShutdown::inherited().ok_or(Error::InvalidConfiguration)
+            })
+            .transpose()?;
         let pools = options
             .values()
             .flat_map(|option| option.pools())
@@ -174,7 +187,10 @@ impl Supervisor {
             id,
             host: hostname()?,
             pools,
+            #[cfg(unix)]
             parent,
+            #[cfg(windows)]
+            parent_shutdown,
             ownership: None,
             initially_paused: false,
             balanced: BTreeMap::new(),
@@ -224,16 +240,23 @@ impl Supervisor {
         let generation = self.repository.generation().await?;
         let mut control = crate::signals::ControlSignals::new()?;
         let mut ticker = tokio::time::interval(Duration::from_secs(1));
+        #[cfg(windows)]
+        let parent_closed = crate::signals::parent_closed(self.parent_shutdown);
+        #[cfg(not(windows))]
+        let parent_closed = std::future::pending::<std::io::Result<()>>();
+        tokio::pin!(parent_closed);
         let result = loop {
             tokio::select! {
+                biased;
+                closed = &mut parent_closed => break closed.map_err(|_| Error::Process),
                 _=shutdown.cancelled()=>break Ok(()),
-                _=ticker.tick()=>{},
                 paused=control.next()=>{
                     if let Err(error) = self.set_paused(paused).await {
                         break Err(error);
                     }
                     continue;
-                }
+                },
+                _=ticker.tick()=>{},
             }
             match self.tick(&generation).await {
                 Ok(true) => {}
@@ -257,7 +280,10 @@ impl Supervisor {
         if &self.repository.generation().await? != generation {
             return Ok(false);
         }
-        if self.parent > 1 && !parent_is_running(self.parent).await? {
+        #[cfg(unix)]
+        if self.parent > 1
+            && rustix::process::getppid().is_none_or(|pid| pid.as_raw_pid() as u32 != self.parent)
+        {
             return Ok(false);
         }
         for command in self
@@ -528,6 +554,8 @@ impl Supervisor {
         if let Some(ownership) = &self.ownership {
             process = process.env(ownership.environment());
         }
+        #[cfg(windows)]
+        let process = process.with_shutdown_pipe();
         Ok(process)
     }
 
@@ -663,17 +691,5 @@ async fn dispatch_worker_event(event: impl Event + 'static) {
             &format!("Horizon Worker 监听器失败: {error}"),
             &Default::default(),
         );
-    }
-}
-
-async fn parent_is_running(parent: u32) -> Result<bool> {
-    #[cfg(unix)]
-    {
-        Ok(rustix::process::getppid().is_some_and(|pid| pid.as_raw_pid() as u32 == parent))
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = parent;
-        Err(Error::Unavailable)
     }
 }

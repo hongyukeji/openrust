@@ -130,6 +130,8 @@ Pause, continue, terminate, monitoring changes and retries require the authoriza
 
 If an earlier version left a shared pause in Redis, use **Continue** in the authorized dashboard to clear it for that metadata prefix.
 
+On Windows MSVC, `horizon:terminate` requests a graceful shutdown of the local process tree. The application builds with 16 MiB of executable stack reserve. Use `/STACK:16777216` when linking your own Windows MSVC application entry point for Horizon.
+
 Master names use a slug of the hostname followed by a four-character process token. To set a fixed basename, call `openrust_horizon::MasterSupervisor::determine_name_using(|| "orders.primary".into())?` in the application provider's `boot` method. Use the same basename for Horizon and its Artisan control commands. A custom basename can be empty or contain Unicode text, spaces and punctuation. Control characters are rejected. If a full supervisor name contains spaces, quote it when passing it to Artisan from a shell.
 
 Horizon job IDs identify individual Redis deliveries and are returned by queue pushes and the dashboard. Use these IDs for `horizon:retry` and `horizon:forget`. A retry gets a new ID and preserves the original failed monitoring record with its retry result. Native `queue:retry` and failed-job storage use the payload UUID, which Horizon resolves internally; batch retries also resolve those UUIDs to the current failed delivery.

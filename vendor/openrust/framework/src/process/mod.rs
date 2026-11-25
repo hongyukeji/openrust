@@ -2,6 +2,10 @@
 
 #[cfg(windows)]
 pub(crate) mod windows_job;
+#[cfg(windows)]
+mod windows_shutdown;
+#[cfg(windows)]
+pub use windows_shutdown::ParentShutdown;
 
 mod child;
 

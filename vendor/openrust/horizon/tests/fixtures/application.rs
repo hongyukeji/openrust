@@ -76,11 +76,23 @@ impl JobHandler for Probe {
             if data.get("fail").and_then(Value::as_bool) == Some(true) {
                 return Err(QueueError::InvalidPayload);
             }
+            use std::io::Write;
+            if data.get("record_start").and_then(Value::as_bool) == Some(true) {
+                writeln!(
+                    std::fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open(self.0.with_file_name("started.log"))
+                        .unwrap(),
+                    "{}",
+                    payload.uuid()
+                )
+                .unwrap();
+            }
             tokio::time::sleep(Duration::from_millis(
                 data.get("sleep_ms").and_then(Value::as_u64).unwrap_or(20),
             ))
             .await;
-            use std::io::Write;
             writeln!(
                 std::fs::OpenOptions::new()
                     .create(true)
@@ -288,6 +300,18 @@ fn create() -> Result<Application, Box<dyn std::error::Error + Send + Sync>> {
 }
 #[tokio::main]
 async fn main() -> std::process::ExitCode {
+    if std::env::var("HORIZON_PROBE_PREPARE_DATABASE").as_deref() == Ok("1") {
+        let mut app = create().unwrap();
+        app.boot().await.unwrap();
+        let manager = app
+            .make::<openrust::database::DatabaseManager>()
+            .await
+            .unwrap();
+        manager.connection(Some("sqlite")).unwrap().unprepared(
+            "CREATE TABLE failed_jobs (id INTEGER PRIMARY KEY, uuid TEXT UNIQUE, connection TEXT, queue TEXT, payload TEXT, exception TEXT, failed_at TEXT)",
+        ).await.unwrap();
+        return std::process::ExitCode::SUCCESS;
+    }
     // Controlled process-inspector fixture. It keeps the real executable and
     // Horizon argv visible after the launcher exits, without worker self-reaping.
     if std::env::var("HORIZON_PROBE_HOLD").as_deref() == Ok("1") {

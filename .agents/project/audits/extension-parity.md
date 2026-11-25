@@ -123,11 +123,11 @@ Rust 利用锁定的 hostname 0.4.2 读取系统主机名，Master 和 Superviso
 
 macOS 初轮独占 Redis 8.10.3 的主机选择、状态类别和无跨主机写入用例、Horizon 严格 Clippy 以及原生进程矩阵均通过。矩阵覆盖监督器恢复、重试及忘记、暂停、继续、正常终止、面板授权与脱敏。三语文档构建及 12 组浏览器检查通过。初轮证据为 `target/tmp/observability-parity/horizon-local-supervisor-{macos,docs}.log`。包含 102 条心跳的 Mac Redis 回归和相同源码的 Horizon 库及运行时目标严格 Clippy 通过，证据为 `target/tmp/observability-parity/horizon-pulse-lifecycle-macos.log`。Linux ARM64 的初轮同样通过主机选择、Redis 原生模型标签与失败重试，以及 6 项标签／通知测试，4 项按条件忽略。精确快照重新编译 Horizon 后，Linux 7.0.14 ARM64 与 Redis 8.10.3 的 102 条心跳回归通过。Linux 证据为 `target/tmp/observability-parity/{horizon-local-supervisor-linux,horizon-master-heartbeats-linux}.log`。其他目标平台和最终部署组合仍待验证。
 
-固定上游 [Master 控制命令](horizon/README.md#master-控制命令的主机范围) 和 [Pulse 慢任务计时](pulse/README.md#slowjobs-任务尝试计时) 已保留真实消费者对照证据。Horizon 的本机控制通过 macOS 原生进程、Linux ARM64 双容器 PID 1 和 Windows ARM64 空部署计划验收。默认命名及自定义前缀已接通同机多组与双容器的 Artisan 控制，剩余名称输入边界见[命名审计](horizon/README.md#master-名称与解析器)。同名启动、接管与 Master 排空续期通过真实 Redis 验收。受管 Supervisor 元数据及 Worker 领取入口已加入所有权校验，并通过接管回归。 [所有权审计](horizon/README.md#supervisor-与-worker-接管) Pulse 已在原生 SQLite Worker 上修复并验收。Windows Worker 排空及两包正式部署组合继续核对。
+固定上游 [Master 控制命令](horizon/README.md#master-控制命令的主机范围) 和 [Pulse 慢任务计时](pulse/README.md#slowjobs-任务尝试计时) 已保留真实消费者对照证据。Horizon 的本机控制通过 macOS 原生进程、Linux ARM64 双容器 PID 1 和 Windows ARM64 空部署计划验收。默认命名及自定义前缀已接通同机多组与双容器的 Artisan 控制，剩余名称输入边界见[命名审计](horizon/README.md#master-名称与解析器)。同名启动、接管与 Master 排空续期通过真实 Redis 验收。受管 Supervisor 元数据及 Worker 领取入口已加入所有权校验，并通过接管回归。 [所有权审计](horizon/README.md#supervisor-与-worker-接管) Pulse 已在原生 SQLite Worker 上修复并验收。两包正式部署组合继续核对。
 
 Redis 中已阻塞的 Horizon Worker 会在被唤醒后、再次请求领取前复核所有权。真实 Worker 接管回归确认任务留在待处理列表，尝试次数保持为零，并由新持有者通过 Artisan 执行。Redis 主从切换和可能已经发出的领取命令仍待验收。 [阻塞接管证据](horizon/README.md#supervisor-与-worker-接管)
 
-Horizon 的 Master 名称验证已接通空前缀、Unicode、冒号及超过原限制的长名称，使用完整父名称聚合子进程心跳。Windows ARM64 的非空部署实测发现，受管 Supervisor 会在父 PID 检查处退出。固定 PHP 包依赖 `ext-pcntl` 和 `ext-posix`，Windows 原生进程树仍是 OpenRust 的目标平台验收项。 [名称和进程树证据](horizon/README.md#master-名称与解析器) [固定 Horizon Composer 依赖](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/composer.json)
+Horizon 的 Master 名称验证已接通空前缀、Unicode、冒号及超过原限制的长名称，使用完整父名称聚合子进程心跳。Windows ARM64 的受管子树现已通过真实 Redis 的启动、暂停续跑、排空、快速终止和父进程丢失回归。Windows x86_64、优化构建及正式服务管理器组合仍待验。固定 PHP 包依赖 `ext-pcntl` 和 `ext-posix`。 [Windows 进程树证据](horizon/README.md#windows-原生进程树) [固定 Horizon Composer 依赖](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/composer.json)
 
 ### Horizon 分组等待时间与 HTTP 排序
 

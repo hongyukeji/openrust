@@ -130,6 +130,8 @@ Master 也会清理过期的任务索引。最近、待处理、已完成、静�
 
 如果旧版本在 Redis 留下共享暂停状态，可在已授权的面板选择「继续」，解除该元数据前缀上的暂停。
 
+在 Windows MSVC 上，`horizon:terminate` 会请求本机进程树正常关停。应用的可执行文件在构建时预留 16 MiB 栈空间。使用自定义 Windows MSVC 应用入口运行 Horizon 时，请在链接时使用 `/STACK:16777216`。
+
 Master 名称由主机名转换出的短名和进程内固定的四字符令牌组成。要自定义短名，可在应用 Provider 的 `boot` 方法调用 `openrust_horizon::MasterSupervisor::determine_name_using(|| "orders.primary".into())?`。启动 Horizon 和运行控制命令时使用同一短名。自定义短名可以为空，也可以包含 Unicode 文本、空格和标点符号。短名不能包含控制字符。在 shell 中向 Artisan 传递含空格的监督器全名时，请使用引号。
 
 Horizon 任务 ID 标识独立的 Redis 投递，由队列推送和面板返回。`horizon:retry` 与 `horizon:forget` 使用此 ID。重试获得新 ID，原失败监控记录保留并记录重试结果。原生 `queue:retry` 和失败任务存储使用载荷 UUID，由 Horizon 内部转换；批次重试也会将这些 UUID 解析为当前失败投递。

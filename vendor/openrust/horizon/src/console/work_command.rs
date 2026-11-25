@@ -98,6 +98,14 @@ impl Command for WorkCommand {
             let scoped_input = input
                 .shutdown()
                 .map(|shutdown| input.with_shutdown(shutdown.child_token()));
+            #[cfg(windows)]
+            let parent = supervisor
+                .as_ref()
+                .and_then(|_| openrust::process::ParentShutdown::inherited());
+            #[cfg(windows)]
+            let scoped_input = scoped_input.or_else(|| {
+                parent.map(|_| input.with_shutdown(tokio_util::sync::CancellationToken::new()))
+            });
             #[cfg(unix)]
             let parent = rustix::process::getppid();
             let watch = async {
@@ -106,25 +114,30 @@ impl Command for WorkCommand {
                     loop {
                         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
                         if supervisor.is_some() && rustix::process::getppid() != parent {
-                            break;
+                            return Ok::<(), std::io::Error>(());
                         }
                     }
                 }
-                #[cfg(not(unix))]
-                std::future::pending::<()>().await;
+                #[cfg(windows)]
+                {
+                    crate::signals::parent_closed(parent).await
+                }
+                #[cfg(not(any(unix, windows)))]
+                std::future::pending::<std::io::Result<()>>().await
             };
             let work = worker.handle(app, scoped_input.as_ref().unwrap_or(input), output);
             tokio::pin!(work);
             tokio::select! {
-                result = &mut work => result,
-                () = watch => {
+                biased;
+                closed = watch => {
                     if let Some(shutdown)=scoped_input.as_ref().and_then(Input::shutdown) { shutdown.cancel(); }
                     else {
                         #[cfg(unix)]
                         rustix::process::kill_process(rustix::process::getpid(),rustix::process::Signal::TERM).map_err(|_|ConsoleError::new("Unable to stop orphaned Horizon worker."))?;
                     }
-                    work.await
-                }
+                    closed.map_err(super::error).and(work.await)
+                },
+                result = &mut work => result,
             }
         })
     }
@@ -135,11 +148,23 @@ fn reservation_guard(
     supervisor: Option<String>,
     ownership: Option<MasterOwnership>,
 ) -> impl Fn() -> QueueFuture<'static, QueueResult<bool>> {
+    #[cfg(windows)]
+    let parent = supervisor
+        .as_ref()
+        .and_then(|_| openrust::process::ParentShutdown::inherited());
     let context = Arc::new((supervisor, ownership));
     move || {
         let repository = repository.clone();
         let context = context.clone();
         Box::pin(async move {
+            #[cfg(windows)]
+            if let Some(pipe) = parent
+                && pipe.is_closed().map_err(|source| QueueError::Execution {
+                    source: Arc::new(source),
+                })?
+            {
+                return Ok(false);
+            }
             match repository
                 .reservations_paused(context.0.as_deref(), context.1.as_ref())
                 .await

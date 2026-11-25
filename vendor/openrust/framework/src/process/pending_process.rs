@@ -84,6 +84,8 @@ pub struct PendingProcess {
     idle_timeout: Option<Duration>,
     quiet: bool,
     tty: bool,
+    #[cfg(windows)]
+    shutdown_pipe: bool,
 }
 
 impl PendingProcess {
@@ -98,6 +100,8 @@ impl PendingProcess {
             idle_timeout: None,
             quiet: false,
             tty: false,
+            #[cfg(windows)]
+            shutdown_pipe: false,
         }
     }
 
@@ -154,6 +158,13 @@ impl PendingProcess {
         self
     }
 
+    /// 将子进程的标准输入保留给关停通知，父进程退出时同样关闭管道。
+    #[cfg(windows)]
+    pub fn with_shutdown_pipe(mut self) -> Self {
+        self.shutdown_pipe = true;
+        self
+    }
+
     pub async fn run(self) -> Result<ProcessResult> {
         self.start()?.wait().await
     }
@@ -180,6 +191,10 @@ impl PendingProcess {
         tokio::runtime::Handle::try_current().map_err(io::Error::other)?;
         if self.quiet && self.idle_timeout.is_some() {
             return Err(Error::InvalidTimeout);
+        }
+        #[cfg(windows)]
+        if self.shutdown_pipe && (!self.input.is_empty() || self.tty) {
+            return Err(Error::InvalidCommand);
         }
         let mut native = self.command.native()?;
         if let Some(result) = self.factory.resolve_fake(|| RecordedProcess {
@@ -237,7 +252,18 @@ impl PendingProcess {
             } else {
                 native.stdout(Stdio::piped()).stderr(Stdio::piped());
             }
-            ChildGroup::spawn(&mut native)?
+            #[cfg(windows)]
+            {
+                if self.shutdown_pipe {
+                    ChildGroup::spawn_with_shutdown(&mut native)?
+                } else {
+                    ChildGroup::spawn(&mut native)?
+                }
+            }
+            #[cfg(not(windows))]
+            {
+                ChildGroup::spawn(&mut native)?
+            }
         };
         Ok(InvokedProcess::spawn(
             self.command,
