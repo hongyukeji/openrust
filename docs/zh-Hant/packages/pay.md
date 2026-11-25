@@ -97,6 +97,12 @@ let response = notification.success();
 
 不使用輔助類別時，呼叫 `notification.validate(&expected)`，並在業務交易中實作同等的持久去重。前端返回頁或僅驗章成功都不能直接標記履約。業務交易提交後再回傳成功確認；驗證或處理失敗應回傳錯誤回應，由廠商依協定重試。
 
+## 自訂驅動 {#custom-drivers}
+
+在應用程式或獨立 crate 實作 `PayDriver`。在服務提供者中從應用程式容器解析 `PayManager`，呼叫 `manager.extend("partner", build_partner)?`。工廠接收 `&serde_json::Value` 商戶設定並回傳 `Result<Arc<dyn PayDriver>>`。將 `pay.drivers.partner_shop.driver` 設為 `partner`，填寫商戶設定，再用 `Pay::driver("partner_shop")` 解析。HTTP 和 Artisan 行程均須註冊該服務提供者，設定快取後也一樣。`wechat` 和 `alipay` 是保留的驅動名稱。
+
+沿用人民幣金額、訂單驗證和支付結果型別。不支援的操作應明確回傳錯誤。驅動負責驗證廠商回應，並在驗證回呼原始簽章、事件和商戶後建構 `DriverNotification`，傳入穩定的已驗證商戶身分和廠商要求的 HTTP 成功回執。閘道建構 `VerifiedNotification`，依驅動、商戶和交易產生去重身分。用可信業務訂單呼叫 `DatabaseNotifications::process`，提交後傳送 `notification.success()`。重新命名設定時保持商戶身分不變。
+
 ## 閘道生命週期 {#gateway-lifecycle}
 
 `PayManager::driver(name)` 懶解析並重用商戶設定和金鑰快照。`get_default_driver` 讀取目前預設名稱，`Pay::default_driver()` 解析它。`forget_drivers` 讓後續解析使用新設定，已持有的 `Gateway` 複本保留原快照。管理器依應用隔離。輪換金鑰時重新整理相關實例，不從未驗證回呼取得驗章公鑰。

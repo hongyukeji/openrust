@@ -33,8 +33,8 @@ L01–L22本批实现和实际验收见[审计修复节](audits/laravel-code-aud
   - **处理范围：** 对照固定Laravel FilesystemManager的自定义工厂和适配层职责，补外部后端可承载的适配接缝及注册／解析入口。保留Storage、Factory、FilesystemAdapter的既有公开返回类型和行为；不能只加extend注册表，最终仍要求调用方修改内部枚举。保持local／S3的路径保护、权限、流式操作、错误策略和临时URL行为。
   - **验收：** 从独立消费crate实现测试后端，在应用Provider注册，经真实Storage具名磁盘入口完成读写、删除及错误传播；覆盖未知驱动、配置错误、同驱动多配置、实例复用、替换后缓存失效、应用隔离及配置缓存前后。云／临时URL等可选能力不支持时明确返回错误，不伪装成功。
 
-- [ ] **DRV-02 Pay自定义支付驱动（待实现，可与DRV-01独立推进）**
-  - **当前证据：** [PayManager／Gateway](../../vendor/openrust/pay/src/manager.rs)固定匹配Wechat／Alipay，没有公开自定义工厂注册；多商户profile目前仅复用这两个实现。此项归独立包openrust-pay，不放进应用安装残留或核心框架的平行支付模块。
+- [x] **DRV-02 Pay 自定义支付驱动（本地交付完成）**
+  - **已完成：** `PayManager::extend`、`PayDriver` 和 `DriverNotification` 接入原 `Pay`／`Gateway` 入口；独立消费者、微信与支付宝协议、三库真实 HTTP／Artisan、事务及缓存通过。见[支付验收](audits/pay/README.md#custom-drivers)。真实商户与资金验收仍在下文发布边界。
   - **处理范围：** 提供可由外部crate实现的支付契约与应用实例内工厂注册，打通Pay::driver到Gateway的实际消费者；核对[公共输入／结果与VerifiedNotification](../../vendor/openrust/pay/src/types.rs)对外部实现的可构造性和信任边界，不通过直接开放全部私有验签字段绕过既有校验。保留内置微信／支付宝、订单／金额／场景、密钥快照、错误及回调语义；不顺带承诺新币种、服务商或新支付产品。
   - **验收：** 外部测试驱动经Provider注册，使用原Pay入口执行支付、查询、关闭、退款及回调，明确不支持操作；内置协议正反例继续通过。保持DatabaseNotifications的去重、行锁、业务回调及完成标记在同一事务边界；涉及共享存储的改动按项目三库规则实测。未知驱动、工厂失败重试、具名隔离、替换／旧句柄、配置缓存、HTTP与独立Artisan均需覆盖。
 

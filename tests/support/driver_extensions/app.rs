@@ -2,6 +2,8 @@
 mod app;
 #[path = "../../../config/mod.rs"]
 mod config;
+#[cfg(feature = "pay")]
+mod pay;
 mod sms;
 mod storage;
 
@@ -101,7 +103,10 @@ impl Command for Probe {
 fn commands(artisan: &mut Artisan) -> Result<(), ConsoleError> {
     artisan.add_command(Box::new(Probe(CommandDefinition::new(clap::Command::new(
         "drivers:probe",
-    )))))
+    )))))?;
+    #[cfg(feature = "pay")]
+    pay::register_command(artisan)?;
+    Ok(())
 }
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> ExitCode {
@@ -110,7 +115,7 @@ async fn main() -> ExitCode {
     }
     run_application(|| {
         let root = Application::infer_base_path(Some(env!("CARGO_MANIFEST_DIR")))?;
-        Application::configure(root)
+        let builder = Application::configure(root)
             .with_config(|path, env| {
                 let mut config = config::load(path, env)?;
                 config.get_mut("filesystems").unwrap()["disks"]["backing"] =
@@ -119,16 +124,32 @@ async fn main() -> ExitCode {
                     json!({"driver":"example","url":"https://cdn.example/assets"});
                 config.get_mut("sms").unwrap()["drivers"]["example_primary"] =
                     json!({"driver":"example","endpoint":env.get_utf8("SMS_EXAMPLE_ENDPOINT")?});
+                #[cfg(feature = "pay")]
+                config.insert("pay".into(), pay::configuration(env)?);
                 Ok(config)
             })
             .with_providers(vec![
                 Box::new(StorageProvider),
                 Box::new(sms::ExampleSmsProvider),
+                #[cfg(feature = "pay")]
+                Box::new(openrust_pay::PayServiceProvider),
+                #[cfg(feature = "pay")]
+                Box::new(pay::ExternalPayProvider),
             ])
             .with_commands(commands)
-            .with_routing(Routing::default().web(|| Route::get("/drivers", http)))
-            .create()
-            .map_err(Into::into)
+            .with_routing(
+                Routing::default()
+                    .web(|| Route::get("/drivers", http))
+                    .api(|| {
+                        #[cfg(feature = "pay")]
+                        Route::post("/drivers/pay", pay::callback)?;
+                        Ok(())
+                    })
+                    .health("/up"),
+            );
+        #[cfg(feature = "pay")]
+        let builder = builder.with_migrations(pay::MIGRATIONS);
+        builder.create().map_err(Into::into)
     })
     .await
 }

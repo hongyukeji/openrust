@@ -97,6 +97,12 @@ let response = notification.success();
 
 不使用辅助类时，调用 `notification.validate(&expected)`，并在业务事务中实现同等的持久去重。前端返回页或仅验签成功都不能直接标记履约。业务事务提交后再返回成功确认；验证或处理失败应返回错误响应，由厂商按协议重试。
 
+## 自定义驱动 {#custom-drivers}
+
+在应用或独立 crate 实现 `PayDriver`。在服务提供者中从应用容器解析 `PayManager`，调用 `manager.extend("partner", build_partner)?`。工厂接收 `&serde_json::Value` 商户配置并返回 `Result<Arc<dyn PayDriver>>`。将 `pay.drivers.partner_shop.driver` 设为 `partner`，填写商户配置，再用 `Pay::driver("partner_shop")` 解析。HTTP 和 Artisan 进程均须注册该服务提供者，配置缓存后也一样。`wechat` 和 `alipay` 是保留的驱动名。
+
+沿用人民币金额、订单校验和支付结果类型。不支持的操作应明确返回错误。驱动负责验证厂商响应，并在验证回调原始签名、事件和商户后构造 `DriverNotification`，传入稳定的已验证商户身份和厂商要求的 HTTP 成功回执。网关构造 `VerifiedNotification`，按驱动、商户和交易生成去重身份。用可信业务订单调用 `DatabaseNotifications::process`，提交后发送 `notification.success()`。重命名配置时保持商户身份不变。
+
 ## 网关生命周期 {#gateway-lifecycle}
 
 `PayManager::driver(name)` 懒解析并复用商户配置和密钥快照。`get_default_driver` 读取当前默认名，`Pay::default_driver()` 解析它。`forget_drivers` 让后续解析使用新配置，已持有的 `Gateway` 克隆保留原快照。管理器按应用隔离。轮换密钥时刷新相关实例，不从未验证回调获取验签公钥。

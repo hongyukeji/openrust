@@ -248,6 +248,7 @@ impl Alipay {
             transaction_id,
             amount: Amount::from_yuan(get("total_amount")?)?,
             provider: "alipay",
+            acknowledgment: None,
         })
     }
 }

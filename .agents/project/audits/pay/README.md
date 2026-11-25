@@ -58,3 +58,15 @@
 国内支付与订阅计费的本地协议／三库验收已完成；Cashier记录见同目录cashier.md。真实商户、资金和实际客户端联调仍未验，不因计划删除改变授权或支持范围。
 
 原计划 `payments.md` 已删除；历史设计、调研及执行前快照可从提交 `f80096ea6` 的 `.agents/project/plans/payments.md` 查阅。本文保留实际验收与未验边界，不因归档补计测试。
+
+## DRV-02 自定义支付驱动 {#custom-drivers}
+
+固定 Yansongda Pay 通过容器定位具名收单服务，Laravel 集成负责 Provider 与 Facade 装配。本批沿用固定 Laravel `FilesystemManager` 和项目现有短信／翻译管理器的实例内工厂与配置快照，添加 `PayManager::extend` 和外部可实现的 `PayDriver`。内置 `wechat`／`alipay` 名称保留，外部实现仍由现有 `Pay::driver`／`Pay::default_driver` 解析。`openrust-v0.x` 的支付模块文件检索未找到可复用驱动契约。未新增依赖。[固定 Yansongda Pay](https://github.com/yansongda/pay/blob/01cf002156d99f61fcba6308be810554dfd879d3/src/Pay.php) · [固定 Laravel Manager](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Filesystem/FilesystemManager.php)
+
+自定义工厂收到具名商户配置，失败后可重试。替换工厂后由 `forget_drivers` 刷新后续解析，旧 Gateway 保持原实例；不同应用的注册隔离。外部 Gateway 执行既有订单与退款输入校验。外部驱动负责验签和匹配商户，成功后提供 `DriverNotification`；仅 Gateway 将其转换成不可由调用方直接构造的 `VerifiedNotification`。自定义身份对驱动、已验证商户及交易结构化编码，保留内置两家原有身份、回执和指纹。`DatabaseNotifications::process` 的去重、行锁、业务回调、完成标记继续使用同一事务。
+
+Rust 1.94.0 在 `177b24933` 快照运行 Pay 包测试，包括既有微信／支付宝协议、收件事务与新外部 HMAC 驱动。新包级用例覆盖具名配置、工厂失败重试、实例复用、应用隔离、替换和旧句柄、支付／查单／关单／退款、不支持操作、输入拒绝、原始签名或商户不符、类型化回执与可信订单校验。
+
+`tests/pay_driver_acceptance.py` 使用独立应用的公开 Provider／Facade 入口，在 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 各通过真实迁移、6 次 HTTP 回调及独立 Artisan。隔离 HTTP 夹具使用固定鉴权标记和原文；HMAC 由前述外部驱动测试单独覆盖。先验证非法通知拒绝、业务写入后的失败使两表回滚，再验证成功与重复均返回预期 HTTP 回执且只写入一份业务记录。生成配置／路由缓存后更换进程环境中的商户值，HTTP 和 Artisan 均继续使用缓存配置并确认重复，不再执行业务写入。本批无需真实商户、外部网络或资金交易；真实供应商验收继续单列。
+
+Pay 包 14 项测试、包所有目标与独立应用目标严格 Clippy、全工作区格式检查和 Python 语法均通过。应用 Clippy 首轮因磁盘停线中断，复跑发现夹具中多余的同类型转换。删除该转换后重新构建夹具，三库 HTTP／Artisan 及格式检查复验通过。结果保留于 `target/tmp/pay-custom-driver`。

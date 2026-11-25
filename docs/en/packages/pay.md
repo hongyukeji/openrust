@@ -97,6 +97,12 @@ The handler must use the supplied `Transaction`, validate the current business s
 
 Without the helper, call `notification.validate(&expected)` and implement equivalent durable deduplication in the business transaction. A front-end return URL or a verified callback alone must not mark an order fulfilled. Return the success acknowledgment only after the business transaction commits. On verification/processing failure return an error response and let the provider retry according to its protocol.
 
+## Custom drivers {#custom-drivers}
+
+Implement `PayDriver` in your application or a separate crate. In a service provider, resolve `PayManager` from the application container and call `manager.extend("partner", build_partner)?`. The factory takes the merchant profile as `&serde_json::Value` and returns `Result<Arc<dyn PayDriver>>`. Set `pay.drivers.partner_shop.driver` to `partner`, add the profile’s merchant settings, then resolve it through `Pay::driver("partner_shop")`. Register the provider in HTTP and Artisan processes, including when configuration is cached. `wechat` and `alipay` are reserved driver names.
+
+Use the existing CNY amounts, order validation and payment result types. Return an explicit error for an unsupported operation. The driver verifies provider responses and verifies the original callback signature, event and merchant before constructing `DriverNotification`. Supply a stable, verified merchant identity and the provider’s successful HTTP acknowledgment. The Gateway constructs `VerifiedNotification` and derives its deduplication identity from the driver, merchant and transaction. Call `DatabaseNotifications::process` against a trusted business order and send `notification.success()` after it commits. Keep the merchant identity stable if you rename a profile.
+
 ## Gateway lifecycle {#gateway-lifecycle}
 
 `PayManager::driver(name)` lazily resolves and reuses a merchant configuration and key snapshot. `get_default_driver` reads the current default; `Pay::default_driver()` resolves it. `forget_drivers` applies new configuration to future resolutions, while held `Gateway` clones retain their original snapshot. Managers are application-local. Refresh the relevant instances when rotating keys; never obtain a verification key from an untrusted callback.

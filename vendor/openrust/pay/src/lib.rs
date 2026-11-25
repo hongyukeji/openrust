@@ -6,6 +6,7 @@ mod configuration;
 #[path = "../database/migrations/2026_11_21_000001_create_payment_notifications_table.rs"]
 mod create_payment_notifications_table;
 mod crypto;
+mod driver;
 mod error;
 pub mod facades;
 mod manager;
@@ -13,6 +14,7 @@ mod notification_store;
 mod notifications;
 mod types;
 mod wechat;
+pub use driver::{DriverNotification, PayDriver};
 pub use error::{Error, Result};
 pub use manager::{Gateway, PayManager};
 pub use notifications::{

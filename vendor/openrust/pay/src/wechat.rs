@@ -324,6 +324,7 @@ impl Wechat {
                     .ok_or(Error::Protocol)?,
             )?,
             provider: "wechat",
+            acknowledgment: None,
         })
     }
 }

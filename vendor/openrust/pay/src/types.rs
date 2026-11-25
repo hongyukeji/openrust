@@ -135,6 +135,7 @@ pub struct VerifiedNotification {
     pub(crate) transaction_id: String,
     pub(crate) amount: Amount,
     pub(crate) provider: &'static str,
+    pub(crate) acknowledgment: Option<http::Response<String>>,
 }
 impl std::fmt::Debug for VerifiedNotification {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -162,6 +163,9 @@ impl VerifiedNotification {
     }
     /// Send only after the business transaction commits (including the duplicate path).
     pub fn success(&self) -> http::Response<String> {
+        if let Some(acknowledgment) = &self.acknowledgment {
+            return acknowledgment.clone();
+        }
         if self.provider == "alipay" {
             http::Response::new("success".to_owned())
         } else {
