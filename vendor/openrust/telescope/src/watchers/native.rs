@@ -2,6 +2,7 @@ use super::{NativeWatcher, json};
 use crate::{EntryType, EntryUpdate, IncomingEntry, Telescope};
 use openrust::{contracts::events::Event, events::EventContext};
 use serde_json::{Map, Value};
+use std::panic::Location;
 use uuid::Uuid;
 
 impl NativeWatcher {
@@ -233,9 +234,38 @@ impl NativeWatcher {
                 });
             let allowed = event.result.as_ref().is_some_and(|result| result.allowed());
             let message = event.result.as_ref().map(|result| result.message());
-            telescope.record_gate(IncomingEntry::make(json!({"ability":event.ability,"result":if allowed {"allowed"} else {"denied"},"message":message,"arguments":arguments,"file":null,"line":null}).as_object().unwrap().clone())?);
+            let caller = event
+                .caller
+                .filter(|caller| self.gate_caller_visible(caller));
+            telescope.record_gate(IncomingEntry::make(json!({"ability":event.ability,"result":if allowed {"allowed"} else {"denied"},"message":message,"arguments":arguments,"file":caller.map(Location::file),"line":caller.map(Location::line)}).as_object().unwrap().clone())?);
         }
         Ok(())
+    }
+
+    fn gate_caller_visible(&self, caller: &Location<'_>) -> bool {
+        let path = caller.file().replace('\\', "/");
+        let rooted = format!("/{}", path.trim_start_matches('/'));
+        let cargo_package = rooted.contains("/.cargo/registry/") || rooted.contains("/.cargo/git/");
+        let framework = rooted
+            .split_once("/vendor/openrust/")
+            .is_some_and(|(_, package)| package.contains("/src/"))
+            || (cargo_package && rooted.split('/').any(|part| part.starts_with("openrust-")));
+        let ignore_packages = self
+            .option("GateWatcher", "ignore_packages")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(true);
+        if framework || (ignore_packages && (cargo_package || rooted.contains("/vendor/"))) {
+            return false;
+        }
+        !self
+            .option("GateWatcher", "ignore_paths")
+            .is_some_and(|paths| {
+                paths.as_array().is_some_and(|paths| {
+                    paths.iter().filter_map(Value::as_str).any(|ignored| {
+                        !ignored.is_empty() && path.contains(&ignored.replace('\\', "/"))
+                    })
+                })
+            })
     }
     fn update_batch(
         &self,

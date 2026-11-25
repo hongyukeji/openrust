@@ -8,7 +8,7 @@ use openrust::{
 use openrust_telescope::{
     EntryType, Telescope, TelescopeServiceProvider,
     storage::{DatabaseEntriesRepository, EntryQueryOptions},
-    watchers::{EventWatcher, QueryWatcher, Watcher},
+    watchers::{EventWatcher, GateWatcher, QueryWatcher, Watcher},
 };
 use serde_json::json;
 
@@ -24,10 +24,38 @@ impl Event for Probe {
 fn routes() -> Result<(), openrust::routing::RoutingError> {
     Route::get("/watchers", handler)?;
     Route::get("/client-error", client_error_handler)?;
+    Route::get("/gate-callers", gate_callers)?;
     for path in ["/json", "/plain", "/boundary", "/large", "/opaque"] {
         Route::get(path, response_handler)?;
     }
     Ok(())
+}
+
+fn gate_callers(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    use openrust::{
+        auth::access::Response as Decision, contracts::auth::access::Gate as GateContract,
+        support::facades::Gate,
+    };
+
+    Box::pin(async move {
+        for ability in ["facade", "direct", "contract", "batch", "hidden"] {
+            Gate::define_guest(ability, |_, _| Box::pin(async { Ok(Decision::from(true)) }))?;
+        }
+        let facade = line!() + 1;
+        assert!(Gate::allows(request, "facade", &[]).await?);
+        let gate = Gate::for_user(None)?;
+        let direct = line!() + 1;
+        assert!(gate.allows("direct", &[]).await?);
+        let contract: &dyn GateContract = &gate;
+        let dynamic = line!() + 1;
+        assert!(contract.allows("contract", &[]).await?);
+        let batch = line!() + 1;
+        assert!(gate.check(&["batch", "hidden"], &[]).await?);
+        Response::json(
+            http::StatusCode::OK,
+            json!({"facade":facade,"direct":direct,"contract":dynamic,"batch":batch}),
+        )
+    })
 }
 fn handler(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
@@ -50,15 +78,70 @@ fn application() -> TestApp {
     let app = TestApp::create(|builder| builder
         .with_config(|base, _| Ok(std::collections::BTreeMap::from([
             ("app".into(), json!({"env":"testing"})),
+            ("auth".into(), json!({"defaults":{"guard":"gate-source"},"guards":{"gate-source":{"driver":"gate-source"}}})),
             ("database".into(), json!({"default":"test","connections":{"test":database_config(base)}})),
             ("cache".into(),json!({"default":"file","stores":{"file":{"driver":"file","path":base.join("cache"),"lock_path":base.join("locks")}}})),
-            ("telescope".into(),json!({"watchers":{"QueryWatcher":false,"EventWatcher":false,"RequestWatcher":{"size_limit":1},"ClientRequestWatcher":true}})),
+            ("telescope".into(),json!({"watchers":{"QueryWatcher":false,"EventWatcher":false,"GateWatcher":false,"RequestWatcher":{"size_limit":1},"ClientRequestWatcher":true}})),
         ])))
         .with_providers(vec![Box::new(TelescopeServiceProvider)])
         .with_routing(Routing::default().api(routes))
     ).unwrap();
     std::fs::write(app.root().join("watchers.sqlite"), []).unwrap();
     app
+}
+
+#[tokio::test]
+async fn gate_watcher_preserves_public_callers_and_clears_filtered_sources() {
+    for (ignore_packages, ignore_paths, visible) in [
+        (false, json!([]), true),
+        (false, json!(["tests\\watchers.rs"]), false),
+        (true, json!([]), false),
+    ] {
+        let mut app = application();
+        app.artisan(["migrate", "--force"])
+            .await
+            .assert_successful();
+        app.app()
+            .make::<openrust::auth::AuthManager>()
+            .await
+            .unwrap()
+            .via_request("gate-source", |_| Box::pin(async { Ok(None) }));
+        GateWatcher::new(
+            json!({
+                "ignore_packages":ignore_packages,
+                "ignore_paths":ignore_paths,
+                "ignore_abilities":["hidden"],
+            })
+            .as_object()
+            .unwrap()
+            .clone(),
+        )
+        .register(app.app())
+        .await
+        .unwrap();
+        let response = app.get("/api/gate-callers").await.unwrap();
+        response.assert_ok();
+        let expected = response.json::<serde_json::Value>().unwrap();
+        let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
+        let entries = repository
+            .get(Some(EntryType::Gate), EntryQueryOptions::default())
+            .await
+            .unwrap();
+        assert_eq!(entries.len(), 4);
+        for entry in entries {
+            let ability = entry.content["ability"].as_str().unwrap();
+            assert!(expected.get(ability).is_some());
+            assert_eq!(entry.content["result"], "allowed");
+            if visible {
+                assert_eq!(entry.content["file"], file!());
+                assert_eq!(entry.content["line"], expected[ability]);
+            } else {
+                assert!(entry.content["file"].is_null());
+                assert!(entry.content["line"].is_null());
+            }
+        }
+        repository.clear().await.unwrap();
+    }
 }
 #[tokio::test]
 async fn independent_watchers_use_own_options_and_framework_event_switch_is_application_local() {

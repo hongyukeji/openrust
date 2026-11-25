@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{panic::Location, sync::Arc};
 
 use crate::{
     auth::{Auth, AuthError, AuthFuture, AuthResult},
@@ -98,48 +98,54 @@ impl Gate {
         Self::for_user(Auth::user(request).await?)
     }
 
-    pub async fn inspect(
+    #[track_caller]
+    pub fn inspect(
         request: &mut Request,
         ability: &str,
         arguments: &[&Argument],
-    ) -> AuthResult<Response> {
-        Self::for_request(request)
-            .await?
-            .inspect(ability, arguments)
-            .await
+    ) -> impl Future<Output = AuthResult<Response>> + Send {
+        let caller = Location::caller();
+        async move {
+            Self::for_request(request)
+                .await?
+                .inspect_at(ability, arguments, caller)
+                .await
+        }
     }
 
-    pub async fn allows(
+    #[track_caller]
+    pub fn allows(
         request: &mut Request,
         ability: &str,
         arguments: &[&Argument],
-    ) -> AuthResult<bool> {
-        Self::for_request(request)
-            .await?
-            .allows(ability, arguments)
-            .await
+    ) -> impl Future<Output = AuthResult<bool>> + Send {
+        let evaluation = Self::inspect(request, ability, arguments);
+        async move { evaluation.await.map(|response| response.allowed()) }
     }
 
-    pub async fn denies(
+    #[track_caller]
+    pub fn denies(
         request: &mut Request,
         ability: &str,
         arguments: &[&Argument],
-    ) -> AuthResult<bool> {
-        Self::for_request(request)
-            .await?
-            .denies(ability, arguments)
-            .await
+    ) -> impl Future<Output = AuthResult<bool>> + Send {
+        let evaluation = Self::inspect(request, ability, arguments);
+        async move { evaluation.await.map(|response| response.denied()) }
     }
 
-    pub async fn authorize(
+    #[track_caller]
+    pub fn authorize(
         request: &mut Request,
         ability: &str,
         arguments: &[&Argument],
-    ) -> Result<Response, AuthorizationError> {
-        Self::for_request(request)
-            .await
-            .map_err(AuthorizationError::Evaluation)?
-            .authorize(ability, arguments)
-            .await
+    ) -> impl Future<Output = Result<Response, AuthorizationError>> + Send {
+        let caller = Location::caller();
+        async move {
+            Self::for_request(request)
+                .await
+                .map_err(AuthorizationError::Evaluation)?
+                .authorize_at(ability, arguments, caller)
+                .await
+        }
     }
 }

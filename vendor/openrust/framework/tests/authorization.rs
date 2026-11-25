@@ -410,6 +410,9 @@ async fn gate_evaluated_delivers_original_arguments_and_raw_result_over_http() {
         ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
             Box::pin(async move {
                 let event = payload.downcast_ref::<GateEvaluated>().unwrap();
+                let caller = event.caller.unwrap();
+                assert_eq!(caller.file(), file!());
+                assert!(caller.line() > 0);
                 let arguments = event.arguments(context).unwrap();
                 assert_eq!(
                     event.argument_types,

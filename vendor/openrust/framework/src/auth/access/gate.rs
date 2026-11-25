@@ -1,6 +1,7 @@
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
+    panic::Location,
     sync::{Arc, RwLock, Weak},
 };
 
@@ -271,7 +272,21 @@ impl Gate {
         self.registry.get_policy_for(target)
     }
 
-    pub async fn inspect(&self, ability: &str, args: &[&Argument]) -> AuthResult<Response> {
+    #[track_caller]
+    pub fn inspect(
+        &self,
+        ability: &str,
+        args: &[&Argument],
+    ) -> impl Future<Output = AuthResult<Response>> + Send {
+        self.inspect_at(ability, args, Location::caller())
+    }
+
+    pub(super) async fn inspect_at(
+        &self,
+        ability: &str,
+        args: &[&Argument],
+        caller: &'static Location<'static>,
+    ) -> AuthResult<Response> {
         let (before, after, defined, default_denial) = {
             let definitions = self
                 .registry
@@ -311,7 +326,7 @@ impl Gate {
                 result = evaluated;
             }
         }
-        self.dispatch_evaluated(ability, args, result.as_ref())
+        self.dispatch_evaluated(ability, args, result.as_ref(), caller)
             .await?;
         Ok(result
             .or(default_denial)
@@ -323,6 +338,7 @@ impl Gate {
         ability: &str,
         args: &[&Argument],
         result: Option<&Response>,
+        caller: &'static Location<'static>,
     ) -> AuthResult<()> {
         let Some(owner) = self
             .registry
@@ -338,53 +354,95 @@ impl Gate {
             ability: ability.to_owned(),
             result: result.cloned(),
             argument_types: args.iter().map(|argument| (*argument).type_id()).collect(),
+            caller: Some(caller),
         });
         let mut context = EventContext::with_arguments(event.as_ref(), args);
         dispatcher.dispatch(event.clone(), &mut context).await?;
         Ok(())
     }
 
-    pub async fn allows(&self, ability: &str, args: &[&Argument]) -> AuthResult<bool> {
-        self.inspect(ability, args)
-            .await
-            .map(|response| response.allowed())
-    }
-
-    pub async fn denies(&self, ability: &str, args: &[&Argument]) -> AuthResult<bool> {
-        self.inspect(ability, args)
-            .await
-            .map(|response| response.denied())
-    }
-
-    pub async fn check(&self, abilities: &[&str], args: &[&Argument]) -> AuthResult<bool> {
-        for ability in abilities {
-            if self.denies(ability, args).await? {
-                return Ok(false);
-            }
-        }
-        Ok(true)
-    }
-
-    pub async fn any(&self, abilities: &[&str], args: &[&Argument]) -> AuthResult<bool> {
-        for ability in abilities {
-            if self.allows(ability, args).await? {
-                return Ok(true);
-            }
-        }
-        Ok(false)
-    }
-
-    pub async fn none(&self, abilities: &[&str], args: &[&Argument]) -> AuthResult<bool> {
-        Ok(!self.any(abilities, args).await?)
-    }
-
-    pub async fn authorize(
+    #[track_caller]
+    pub fn allows(
         &self,
         ability: &str,
         args: &[&Argument],
+    ) -> impl Future<Output = AuthResult<bool>> + Send {
+        let evaluation = self.inspect(ability, args);
+        async move { evaluation.await.map(|response| response.allowed()) }
+    }
+
+    #[track_caller]
+    pub fn denies(
+        &self,
+        ability: &str,
+        args: &[&Argument],
+    ) -> impl Future<Output = AuthResult<bool>> + Send {
+        let evaluation = self.inspect(ability, args);
+        async move { evaluation.await.map(|response| response.denied()) }
+    }
+
+    #[track_caller]
+    pub fn check(
+        &self,
+        abilities: &[&str],
+        args: &[&Argument],
+    ) -> impl Future<Output = AuthResult<bool>> + Send {
+        let caller = Location::caller();
+        async move {
+            for ability in abilities {
+                if self.inspect_at(ability, args, caller).await?.denied() {
+                    return Ok(false);
+                }
+            }
+            Ok(true)
+        }
+    }
+
+    #[track_caller]
+    pub fn any(
+        &self,
+        abilities: &[&str],
+        args: &[&Argument],
+    ) -> impl Future<Output = AuthResult<bool>> + Send {
+        let caller = Location::caller();
+        async move {
+            for ability in abilities {
+                if self.inspect_at(ability, args, caller).await?.allowed() {
+                    return Ok(true);
+                }
+            }
+            Ok(false)
+        }
+    }
+
+    #[track_caller]
+    pub fn none(
+        &self,
+        abilities: &[&str],
+        args: &[&Argument],
+    ) -> impl Future<Output = AuthResult<bool>> + Send {
+        let evaluation = self.any(abilities, args);
+        async move { Ok(!evaluation.await?) }
+    }
+
+    #[track_caller]
+    pub fn authorize(
+        &self,
+        ability: &str,
+        args: &[&Argument],
+    ) -> impl Future<Output = Result<Response, AuthorizationError>> + Send {
+        let caller = Location::caller();
+        self.authorize_at(ability, args, caller)
+    }
+
+    pub(super) async fn authorize_at(
+        &self,
+        ability: &str,
+        args: &[&Argument],
+        caller: &'static Location<'static>,
     ) -> Result<Response, AuthorizationError> {
         decision(
-            self.inspect(ability, args)
+            self.inspect_at(ability, args, caller)
                 .await
                 .map_err(AuthorizationError::Evaluation)?,
         )

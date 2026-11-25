@@ -1,6 +1,6 @@
 //! Events emitted by Gate authorization checks.
 
-use std::{any::TypeId, sync::Arc};
+use std::{any::TypeId, panic::Location, sync::Arc};
 
 use crate::{
     contracts::{auth::Authenticatable, events::Event},
@@ -16,6 +16,8 @@ pub struct GateEvaluated {
     pub result: Option<Response>,
     /// The original argument types in evaluation order.
     pub argument_types: Vec<TypeId>,
+    /// 应用调用授权入口的位置。
+    pub caller: Option<&'static Location<'static>>,
 }
 
 impl GateEvaluated {

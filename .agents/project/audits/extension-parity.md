@@ -58,7 +58,7 @@ Horizon包与其已验快照逐文件一致；当前核心的Worker／事件／A
 
 三库／缓存／Worker、实际服务器Chrome桌面手机、安装、发布保留定制、根配置缓存／骨架及全部扩展组合见包审计与[最终组合](extension-final.md)。先前公开Watcher、ignoreFrameworkEvents、缓冲响应／路由字段缺口已关闭。
 
-与PHP仍有明确差异：原生安全UI替代Vue／avatar；无任意结构或异步调用栈反射，Query／Gate未提供来源调用者过滤；未知Body／流及不透明原生 `Part` 的元数据不可直接读取；CLI普通表格／时间戳替代PHP装饰与相对时间。HTTP 客户端已支持构建器提供的 multipart 元数据，见[包审计](telescope/README.md#出站-multipart)。正式服务／其他OS也不由本地结果覆盖。
+与PHP仍有明确差异：原生安全UI替代Vue／avatar，Query 调用来源过滤及 Gate 外层调用帧选择待实现，不透明 Body／流及原生 `Part` 仍有元数据边界，CLI 使用普通表格与时间戳。HTTP 客户端已支持构建器提供的 multipart 元数据，见[包审计](telescope/README.md#出站-multipart)。正式服务／其他OS需要独立验证。
 
 ## O03–O06 与完成条件
 
@@ -75,9 +75,9 @@ O01 Activitylog、O02 Horizon、O03 Telescope原生范围、O04 Pennant、O05 Pu
 | 所属类型或配置 | 本轮裁决 | 后续核对 |
 |---|---|---|
 | Telescope `ClientRequestWatcher::duration` | 固定上游在有正计时时以毫秒向下取整，缺少计时时输出空值。Rust 从现有传输统计输出整数毫秒或 JSON 空值。测试由真实出站 HTTP 与 fake 消费者覆盖。 | 命令与面板展示随完整输出审计核对。 |
-| Telescope `ClientRequestWatcher::input` | 已捕获构建器提供的 multipart 普通字段及 `attach_body` 附件的文件名、长度、头部。普通字段先于附件发送，同名取最后一项，复用请求字段／头部脱敏。原生 `attach` 保留发送契约。 | 原生 reqwest `Part` 元数据和中间件替换流的边界见[包审计](telescope/README.md#出站-multipart)。Query／Gate 来源过滤仍待实现。 |
+| Telescope `ClientRequestWatcher::input` | 已捕获构建器提供的 multipart 普通字段及 `attach_body` 附件的文件名、长度、头部。普通字段先于附件发送，同名取最后一项，复用请求字段／头部脱敏。原生 `attach` 保留发送契约。 | 原生 reqwest `Part` 元数据和中间件替换流的边界见[包审计](telescope/README.md#出站-multipart)。 |
 | Telescope 非 multipart 出站载荷 | 诊断从原始 GET 地址或结构化正文选择载荷，并与线上 URL 分别记录。已核对 JSON／表单 POST、GET 查询覆盖、HEAD、原始正文、自定义媒体类型与表单标量快照。成功重定向保留原始输入，连接失败从实际缓冲正文解码。 | multipart 重定向、重试回调改写与其他中间件组合仍需对账。 |
-| Telescope `FetchesStackTrace`、`QueryWatcher`、`GateWatcher` | 固定上游按路径子串跳过被忽略的帧，再选第一处合格来源。找不到合格帧时 Query 不入库，Gate 仍入库且行号和文件为空。当前原生 `QueryExecuted`、`GateEvaluated` 均没有来源字段。 | 实现并验证原生调用来源的传播，覆盖公开 Facade、直接连接、查询构建器、模型、Gate 入口及框架内部触发。验证筛掉帧后的候选与未知来源策略。 |
+| Telescope `FetchesStackTrace`、`QueryWatcher`、`GateWatcher` | 固定上游按路径子串跳过被忽略的帧，再选第一处合格来源。找不到合格帧时 Query 不入库，Gate 仍入库且行号和文件为空。原生 `GateEvaluated` 已提供授权入口的调用位置。 | Gate 忽略首个来源时的外层候选、Query 原生调用来源仍待实现。Query 验证范围含 Facade、直接连接、查询构建器、模型和框架内部触发。 |
 | Pulse 默认 Recorder 清单 | 固定配置的十个 Recorder 均可映射到本地配置。核对了采样率 1、慢操作阈值 1000、异常和慢查询位置开关、默认存储及采集驱动；这一轮只读配置。 | 逐 Recorder 核对触发事件、筛选、采样、聚合、配置覆盖和扩展入口，再核对命令和面板。Servers 主机名上游在配置加载时求值，本地在记录时回退，配置缓存边界待裁决。 |
 | Horizon `horizon:listen` 的 `watch` | 上游发布配置提供默认监听列表。Rust 配置补充应用、启动、配置、数据库、路由、视图、公开目录及资源目录中的 Rust 文件和 Cargo 构建入口的对应监听路径。真实 Artisan 使用默认配置监控 `routes/web.rs`，文件更新后重建 Master 和 Worker，SIGTERM 后子树退出。 | 补 Linux／Windows 目标平台验收。 |
 | Horizon 其余配置 | 固定上游含 `name`、`waits`、`silenced`、`silenced_tags` 及 Supervisor `nice`。本地已读静默配置并具备 `nice` 运行时默认；配置形状、面板名称、等待时间入口仍须逐项核对。 | 对照发布配置及实际命令、Redis 和面板消费者，分别核对默认、覆盖及非法值。 |
@@ -250,3 +250,11 @@ Rust 将原始参数传给 `RequestSending` 与 `ResponseReceived`，连接失�
 Rust 复用 `Redirect::follow` 执行上述默认规则，仍要求 HTTP(S) 目的地和可重放正文。清正文时删除旧正文相关头，避免在空请求携带旧 framing。旧版只提供禁用 reqwest 内建跳转的入口。不同源剥离凭据、原生 `max_redirects(0)` 的超限行为和 `without_redirecting` 入口沿用现有契约。Guzzle 严格模式、手工 Host 覆盖和位置错误处理的边界仍待对账。
 
 同一 63 组在 Rust 通过真实回环 HTTP 验证到达目标的请求方法、正文与 Referer，并核对响应事件中的目标地址和方法。Telescope 真实 OPTIONS 302 的入库结果在 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 通过。隔离快照沿用 `8041ae15a` 加前批及本批文件。框架 HTTP 客户端 22 项、Telescope 32 项、独立 Redis 8.10.3 用例、Pulse 慢出站 Recorder 定向回归、快照全仓格式、框架库及 Telescope 全目标严格 Clippy、三语站点构建与 12 组浏览器检查通过。
+
+### Telescope Gate 授权入口的调用来源
+
+固定 [GateWatcher](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Watchers/GateWatcher.php) 与 [FetchesStackTrace](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Watchers/FetchesStackTrace.php) 按调用来源筛选，来源无效时仍写入授权结果。Rust 在公开授权入口的 Future 创建时通过 `Location::caller()` 捕获位置，直接 Gate、Facade、对象安全的 Gate trait 和批量授权共用事件字段。原生事件新增可选 `caller`，手工构造的事件可以传入 `None`。旧版的二次验证 `factor_gate` 不提供原生授权事件来源。
+
+`ignore_paths` 使用路径子串，匹配时统一路径分隔符。`ignore_packages` 识别 vendor 与 Cargo 默认依赖路径，框架包源码始终排除。当前采集一处可确定的调用位置。被过滤或缺失时保留 Gate 结果，文件和行号为空。通过任意异步包装器寻找可用的外层调用帧、非标准依赖路径、Query 的来源传播继续核对。
+
+真实应用路由验证 Facade、直接调用、trait 对象和批量方法写入精确调用行号。三种 Watcher 配置分别验证来源可见、路径过滤、依赖过滤及 `ignore_abilities`。SQLite、PostgreSQL 18.7、MySQL 8.4.13 各通过。框架授权 5 项、Telescope 33 项、快照全仓格式、框架库及 Telescope 全目标严格 Clippy、三语文档构建和 12 组浏览器检查通过。快照沿用 `8041ae15a` 加前批及本批文件。独立 Redis 用例本批未跑。发布构建的路径重映射与目标平台仍需验收。
