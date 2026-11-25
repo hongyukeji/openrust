@@ -27,8 +27,8 @@ use crate::{
 };
 
 use super::{
-    ChainUpdate, JobContext, JobPopCallback, JobPopper, Payload, QueueError, QueueManager,
-    QueueResult, WorkerOptions, WorkerStopReason,
+    ChainUpdate, JobContext, JobPopCallback, JobPopper, Payload, QueueError, QueueFuture,
+    QueueManager, QueueResult, WorkerOptions, WorkerStopReason,
     events::{
         JobAttempted, JobExceptionOccurred, JobFailed, JobInterrupted, JobPopped, JobPopping,
         JobProcessed, JobProcessing, JobReleased, JobReleasedAfterException, JobSnapshot,
@@ -87,12 +87,25 @@ pub(super) struct JobOutcome<'a> {
 pub struct Worker {
     app: Arc<Container>,
     failed: Arc<dyn FailedJobProviderInterface>,
+    reservation_guard: Option<WorkerReservationGuard>,
 }
+
+pub(super) type WorkerReservationGuard =
+    Arc<dyn Fn() -> QueueFuture<'static, QueueResult<bool>> + Send + Sync>;
 
 impl Worker {
     pub fn new(app: Arc<Container>) -> QueueResult<Self> {
         let failed = app.get::<dyn FailedJobProviderInterface>("queue.failer")?;
-        Ok(Self { app, failed })
+        Ok(Self {
+            app,
+            failed,
+            reservation_guard: None,
+        })
+    }
+
+    pub(super) fn with_reservation_guard(mut self, guard: Option<WorkerReservationGuard>) -> Self {
+        self.reservation_guard = guard;
+        self
     }
 
     /// Sets or removes a custom reservation callback in this worker's application.
@@ -283,6 +296,11 @@ impl Worker {
                         queue: Some(queue_names.clone()),
                     })
                     .await?;
+                if let Some(guard) = &self.reservation_guard
+                    && !guard().await?
+                {
+                    return Ok((false, None));
+                }
                 let popper = JobPopper::new(
                     connection,
                     options.stop_when_empty || queues.len() > 1,

@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 #[path = "master_lease.rs"]
 mod master_lease;
-pub(crate) use master_lease::MasterLease;
+pub(crate) use master_lease::{MasterLease, MasterOwnership};
 
 #[derive(Clone)]
 pub struct MasterSupervisorRepository(Repository);
@@ -29,38 +29,71 @@ impl Repository {
         ProcessRepository(self.clone())
     }
     pub async fn heartbeat_supervisor(&self, name: &str, status: &Json) -> Result<()> {
+        self.publish_supervisor(name, status, None).await
+    }
+    pub(crate) async fn publish_supervisor(
+        &self,
+        name: &str,
+        status: &Json,
+        ownership: Option<&MasterOwnership>,
+    ) -> Result<()> {
         if !supervisor_name(name) || !status.is_object() {
             return Err(Error::InvalidRecord);
         }
         let mut status = status.clone();
         status["name"] = name.into();
         let now = self.now().await?;
-        self.eval("redis.call('SET',KEYS[1],ARGV[1],'EX',30);redis.call('ZADD',KEYS[2],ARGV[2],ARGV[3]);return 1", vec![self.key(&format!("supervisor:{}", super::encode(name))),self.key("supervisors")], vec![status.to_string(),now.to_string(),name.into()]).await?;
+        self.supervisor_operation("redis.call('SET',KEYS[1],ARGV[1],'EX',30);redis.call('ZADD',KEYS[2],ARGV[2],ARGV[3]);return 1", vec![self.key(&format!("supervisor:{}", super::encode(name))),self.key("supervisors")], vec![status.to_string(),now.to_string(),name.into()], ownership).await?;
         Ok(())
     }
     pub async fn forget_supervisor(&self, name: &str) -> Result<()> {
         self.forget_supervisor_for_master(name, None).await
     }
-    async fn forget_supervisor_for_master(
+    pub(crate) async fn forget_supervisor_for_master(
         &self,
         name: &str,
-        ownership: Option<(&str, &str)>,
+        ownership: Option<&MasterOwnership>,
     ) -> Result<()> {
         if !supervisor_name(name) {
             return Err(Error::InvalidRecord);
         }
-        let mut keys = self.supervisor_keys(name).to_vec();
-        let mut arguments = vec![name.into()];
-        if let Some((master, owner)) = ownership {
-            keys.push(self.key(&format!("master-owner:{master}")));
-            arguments.push(owner.into());
+        match self.supervisor_operation(
+            "redis.call('DEL',KEYS[1],KEYS[3],KEYS[4]);redis.call('ZREM',KEYS[2],ARGV[1]);return 1",
+            self.supervisor_keys(name).to_vec(), vec![name.into()], ownership,
+        ).await {
+            Ok(_) | Err(Error::MasterOwnershipLost) => Ok(()),
+            Err(error) => Err(error),
         }
-        self.eval(
-            "if KEYS[5] and redis.call('GET',KEYS[5]) ~= ARGV[2] then return 0 end; redis.call('DEL',KEYS[1],KEYS[3],KEYS[4]);redis.call('ZREM',KEYS[2],ARGV[1]);return 1",
-            keys,
-            arguments,
-        )
-        .await?;
+    }
+    async fn supervisor_operation(
+        &self,
+        operation: &str,
+        mut keys: Vec<String>,
+        mut arguments: Vec<String>,
+        ownership: Option<&MasterOwnership>,
+    ) -> Result<Value> {
+        let Some(ownership) = ownership else {
+            return self.eval(operation, keys, arguments).await;
+        };
+        keys.push(self.key(&format!("master-owner:{}", ownership.name)));
+        arguments.push(ownership.token.clone());
+        let script = format!(
+            "if redis.call('GET',KEYS[#KEYS]) ~= ARGV[#ARGV] then return false end; {operation}"
+        );
+        match self.eval(&script, keys, arguments).await? {
+            Value::Nil => Err(Error::MasterOwnershipLost),
+            value => Ok(value),
+        }
+    }
+
+    pub(crate) async fn check_master_ownership(
+        &self,
+        ownership: Option<&MasterOwnership>,
+    ) -> Result<()> {
+        if ownership.is_some() {
+            self.supervisor_operation("return 1", vec![], vec![], ownership)
+                .await?;
+        }
         Ok(())
     }
     fn supervisor_keys(&self, name: &str) -> [String; 4] {
@@ -79,26 +112,29 @@ impl Repository {
         self.supervisor_repository().find(name).await
     }
     pub async fn pause_supervisor(&self, name: &str) -> Result<()> {
-        if !supervisor_name(name) {
-            return Err(Error::InvalidRecord);
-        }
-        self.command(
-            "SET",
-            &[
-                self.key(&format!("supervisor-paused:{}", super::encode(name))),
-                "1".into(),
-            ],
-        )
-        .await?;
-        Ok(())
+        self.set_supervisor_paused(name, true, None).await
     }
     pub async fn continue_supervisor(&self, name: &str) -> Result<()> {
+        self.set_supervisor_paused(name, false, None).await
+    }
+    pub(crate) async fn set_supervisor_paused(
+        &self,
+        name: &str,
+        paused: bool,
+        ownership: Option<&MasterOwnership>,
+    ) -> Result<()> {
         if !supervisor_name(name) {
             return Err(Error::InvalidRecord);
         }
-        self.command(
-            "DEL",
-            &[self.key(&format!("supervisor-paused:{}", super::encode(name)))],
+        self.supervisor_operation(
+            if paused {
+                "return redis.call('SET',KEYS[1],'1')"
+            } else {
+                "return redis.call('DEL',KEYS[1])"
+            },
+            vec![self.key(&format!("supervisor-paused:{}", super::encode(name)))],
+            vec![],
+            ownership,
         )
         .await?;
         Ok(())
@@ -115,18 +151,38 @@ impl Repository {
             .await?
             == Value::Int(1))
     }
-    pub(crate) async fn reservations_paused(&self, supervisor: Option<&str>) -> Result<bool> {
+    pub(crate) async fn reservations_paused(
+        &self,
+        supervisor: Option<&str>,
+        ownership: Option<&MasterOwnership>,
+    ) -> Result<bool> {
         let mut keys = vec![self.key("paused")];
         if let Some(name) = supervisor {
             if !supervisor_name(name) {
                 return Err(Error::InvalidRecord);
             }
             keys.push(self.key(&format!("supervisor-paused:{}", super::encode(name))));
-            if let Some((master, _)) = name.split_once(':').filter(|(master, _)| label(master)) {
+            let master = ownership.map(|owner| owner.name.as_str()).or_else(|| {
+                name.split_once(':')
+                    .map(|(master, _)| master)
+                    .filter(|master| label(master))
+            });
+            if let Some(master) = master {
                 keys.push(self.key(&format!("master-paused:{master}")));
             }
         }
-        match self.command("EXISTS", &keys).await? {
+        let reply = if ownership.is_some() {
+            self.supervisor_operation(
+                "return redis.call('EXISTS',unpack(KEYS,1,#KEYS-1))",
+                keys,
+                vec![],
+                ownership,
+            )
+            .await?
+        } else {
+            self.command("EXISTS", &keys).await?
+        };
+        match reply {
             Value::Int(count) => Ok(count > 0),
             _ => Err(Error::Redis),
         }
@@ -148,14 +204,22 @@ impl Repository {
         Ok(())
     }
     pub async fn pop_commands(&self, name: &str) -> Result<Vec<String>> {
+        self.take_supervisor_commands(name, None).await
+    }
+    pub(crate) async fn take_supervisor_commands(
+        &self,
+        name: &str,
+        ownership: Option<&MasterOwnership>,
+    ) -> Result<Vec<String>> {
         if !supervisor_name(name) {
             return Err(Error::InvalidRecord);
         }
         let value = self
-            .eval(
+            .supervisor_operation(
                 "local v=redis.call('LRANGE',KEYS[1],0,-1);redis.call('DEL',KEYS[1]);return v",
                 vec![self.key(&format!("commands:{}", super::encode(name)))],
                 vec![],
+                ownership,
             )
             .await?;
         string_list(value)

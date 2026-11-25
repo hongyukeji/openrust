@@ -362,11 +362,13 @@ impl MasterSupervisor {
                 continue;
             }
             let arguments = supervisor.options.to_supervisor_command(&self.executable)?;
+            lease.forget_supervisor(&supervisor.name).await?;
             supervisor.process = Some(
                 Factory::new()
                     .command(arguments)
                     .path(&self.base)
                     .env([("APP_BASE_PATH", self.base.as_os_str().to_owned())])
+                    .env(lease.ownership().environment())
                     .forever()
                     .quietly()
                     .start()

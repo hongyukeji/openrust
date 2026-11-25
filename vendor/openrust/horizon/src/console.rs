@@ -15,7 +15,6 @@ mod purge;
 mod supervisor_command;
 mod work_command;
 pub use work_command::WorkCommand;
-pub(crate) use work_command::{is_worker, supervisor_name};
 struct HorizonCommand(CommandDefinition, &'static str);
 pub(crate) fn register() -> std::result::Result<(), ConsoleError> {
     Artisan::add(Box::new(WorkCommand::new()))?;

@@ -163,7 +163,6 @@ impl ServiceProvider for HorizonServiceProvider {
                 JobFailed::NAME,
                 JobReleased::NAME,
                 JobAttempted::NAME,
-                Looping::NAME,
             ] {
                 dispatcher.listen(name, listener.clone(), Delivery::Sync)?;
             }
@@ -179,19 +178,6 @@ impl Listener for JobListener {
         _: &'a mut EventContext<'_>,
     ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
         Box::pin(async move {
-            if event.downcast_ref::<Looping>().is_some() {
-                if !crate::console::is_worker() {
-                    return Ok(None);
-                }
-                let repository = crate::dashboard::Store::get_facade_root()?;
-                let name = crate::console::supervisor_name();
-                let state = repository.reservations_paused(name.as_deref()).await;
-                return match state {
-                    Ok(false) => Ok(None),
-                    // Metadata failure suspends reservations until the supervisor can shut down.
-                    _ => Ok(Some(ListenerResponse::Value(Box::new(false)))),
-                };
-            }
             use openrust::support::facades::Event as EventFacade;
             if let Some(event) = event.downcast_ref::<RedisJobQueueing>() {
                 EventFacade::dispatch(JobPending {

@@ -1,4 +1,6 @@
-use crate::{AutoScaler, Error, Repository, Result, SupervisorOptions};
+use crate::{
+    AutoScaler, Error, Repository, Result, SupervisorOptions, repository::MasterOwnership,
+};
 use openrust::{
     contracts::events::Event,
     process::{Factory, InvokedProcess, PendingProcess},
@@ -79,6 +81,7 @@ pub struct Supervisor {
     host: String,
     pools: BTreeMap<String, ProcessPool>,
     parent: u32,
+    ownership: Option<MasterOwnership>,
     initially_paused: bool,
     balanced: BTreeMap<String, Instant>,
     targets: BTreeMap<String, Vec<usize>>,
@@ -170,6 +173,7 @@ impl Supervisor {
             host: hostname()?,
             pools,
             parent,
+            ownership: None,
             initially_paused: false,
             balanced: BTreeMap::new(),
             targets: BTreeMap::new(),
@@ -180,6 +184,10 @@ impl Supervisor {
     }
     pub fn fast_termination(mut self, enabled: bool) -> Self {
         self.fast_termination = enabled;
+        self
+    }
+    pub(crate) fn with_master_ownership(mut self, ownership: Option<MasterOwnership>) -> Self {
+        self.ownership = ownership;
         self
     }
     pub fn memory_usage(&self) -> f64 {
@@ -193,8 +201,11 @@ impl Supervisor {
         self
     }
     pub async fn run(mut self, shutdown: &CancellationToken) -> Result<()> {
+        self.repository
+            .check_master_ownership(self.ownership.as_ref())
+            .await?;
         if self.initially_paused && !self.repository.paused().await? {
-            self.repository.pause_supervisor(&self.id).await?;
+            self.set_paused(true).await?;
         }
         // Upstream provisions an initial balanced worker count before auto-scaling.
         let option = self
@@ -216,8 +227,9 @@ impl Supervisor {
                 _=shutdown.cancelled()=>break Ok(()),
                 _=ticker.tick()=>{},
                 paused=control.next()=>{
-                    if paused { self.repository.pause_supervisor(&self.id).await?; }
-                    else { self.repository.continue_supervisor(&self.id).await?; }
+                    if let Err(error) = self.set_paused(paused).await {
+                        break Err(error);
+                    }
                     continue;
                 }
             }
@@ -228,8 +240,16 @@ impl Supervisor {
             }
         };
         let cleanup = self.stop().await;
-        let forget = self.repository.forget_supervisor(&self.id).await;
+        let forget = self
+            .repository
+            .forget_supervisor_for_master(&self.id, self.ownership.as_ref())
+            .await;
         result.and(cleanup).and(forget)
+    }
+    async fn set_paused(&self, paused: bool) -> Result<()> {
+        self.repository
+            .set_supervisor_paused(&self.id, paused, self.ownership.as_ref())
+            .await
     }
     async fn tick(&mut self, generation: &Option<String>) -> Result<bool> {
         if &self.repository.generation().await? != generation {
@@ -238,11 +258,15 @@ impl Supervisor {
         if self.parent > 1 && !parent_is_running(self.parent).await? {
             return Ok(false);
         }
-        for command in self.repository.pop_commands(&self.id).await? {
+        for command in self
+            .repository
+            .take_supervisor_commands(&self.id, self.ownership.as_ref())
+            .await?
+        {
             match command.as_str() {
                 "terminate" => return Ok(false),
-                "pause" => self.repository.pause_supervisor(&self.id).await?,
-                "continue" => self.repository.continue_supervisor(&self.id).await?,
+                "pause" => self.set_paused(true).await?,
+                "continue" => self.set_paused(false).await?,
                 "restart" => {
                     let option = self
                         .options
@@ -259,7 +283,10 @@ impl Supervisor {
                 _ => return Err(Error::InvalidRecord),
             }
         }
-        let paused = self.repository.reservations_paused(Some(&self.id)).await?;
+        let paused = self
+            .repository
+            .reservations_paused(Some(&self.id), self.ownership.as_ref())
+            .await?;
         for pool in self.pools.values_mut() {
             let mut index = 0;
             while index < pool.workers.len() {
@@ -381,7 +408,7 @@ impl Supervisor {
                 )
             })
             .collect::<BTreeMap<_, _>>();
-        let master = self.id.split_once(':').map(|(master, _)| master);
+        let master = self.master_name();
         let status = serde_json::json!({
             "name": self.id,
             "master": master,
@@ -396,7 +423,7 @@ impl Supervisor {
             "processes": processes,
         });
         self.repository
-            .heartbeat_supervisor(&self.id, &status)
+            .publish_supervisor(&self.id, &status, self.ownership.as_ref())
             .await?;
         let event = SupervisorLooped::new(self, paused);
         if let Err(error) = openrust::support::facades::Event::dispatch(event.clone()).await {
@@ -486,7 +513,7 @@ impl Supervisor {
         // Worker 继承专用监督器已应用的进程优先级。
         worker_options.nice = 0;
         let args = worker_options.to_worker_command(&self.executable)?;
-        Ok(self
+        let mut process = self
             .factory
             .command(args)
             .path(options.directory.as_deref().unwrap_or(&self.base))
@@ -495,7 +522,11 @@ impl Supervisor {
                 ("APP_ENV", self.environment.clone().into()),
             ])
             .forever()
-            .quietly())
+            .quietly();
+        if let Some(ownership) = &self.ownership {
+            process = process.env(ownership.environment());
+        }
+        Ok(process)
     }
 
     async fn monitor_workers(&mut self, queue: &str, options: &SupervisorOptions) -> Result<()> {
@@ -572,12 +603,14 @@ impl Supervisor {
                 failed |= crate::signals::terminate(process).await.is_err();
             }
         }
-        let master = self
-            .id
-            .split_once(':')
-            .map(|(master, _)| master)
-            .filter(|master| crate::label(master));
+        let master = self.master_name().filter(|master| crate::label(master));
         let wait = !self.fast_termination
+            || matches!(
+                self.repository
+                    .check_master_ownership(self.ownership.as_ref())
+                    .await,
+                Err(Error::MasterOwnershipLost)
+            )
             || self
                 .repository
                 .master_supervisors()
@@ -596,6 +629,13 @@ impl Supervisor {
             failed |= crate::signals::drain(process, deadline).await.is_err();
         }
         if failed { Err(Error::Process) } else { Ok(()) }
+    }
+
+    fn master_name(&self) -> Option<&str> {
+        self.ownership
+            .as_ref()
+            .map(|ownership| ownership.name.as_str())
+            .or_else(|| self.id.split_once(':').map(|(master, _)| master))
     }
 }
 

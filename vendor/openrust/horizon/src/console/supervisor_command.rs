@@ -131,7 +131,16 @@ impl Command for SupervisorCommand {
                 values["directory"] = directory.to_string_lossy().to_string().into();
             }
             let options = SupervisorOptions::from_array(values).map_err(error)?;
+            let ownership = if options.parent_id != 0 {
+                crate::repository::MasterOwnership::inherited(&name).map_err(error)?
+            } else {
+                None
+            };
             let repository = app.make::<Repository>().await.map_err(error)?;
+            repository
+                .check_master_ownership(ownership.as_ref())
+                .await
+                .map_err(error)?;
             if repository.supervisor(&name).await.map_err(error)?.is_some() {
                 output.error("A supervisor with this name is already running.");
                 return Ok(13);
@@ -151,6 +160,7 @@ impl Command for SupervisorCommand {
                     .unwrap_or("production".into()),
             )
             .map_err(error)?
+            .with_master_ownership(ownership)
             .paused(args.get_flag("paused"))
             .fast_termination(
                 config

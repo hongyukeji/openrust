@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use clap::{Arg, ArgAction, Command as Syntax, value_parser};
 use tokio::sync::watch;
@@ -9,8 +9,8 @@ use crate::{
     contracts::{container::Container as _, foundation::Application as _},
     foundation::Application,
     queue::{
-        QueueManager, Worker, WorkerOptions,
-        worker::WorkerCadence,
+        QueueFuture, QueueManager, QueueResult, Worker, WorkerOptions,
+        worker::{WorkerCadence, WorkerReservationGuard},
         worker_options::MEBIBYTE,
         worker_signals::{WorkerSignalState, WorkerSignals},
     },
@@ -19,7 +19,7 @@ use crate::{
 use super::worker_output::WorkerOutput;
 
 /// Dispatches the queue:work command to a worker.
-pub struct WorkCommand(CommandDefinition);
+pub struct WorkCommand(CommandDefinition, Option<WorkerReservationGuard>);
 
 impl WorkCommand {
     pub fn new() -> Self {
@@ -50,7 +50,16 @@ impl WorkCommand {
                 .arg(seconds("max-time"))
                 .arg(Arg::new("memory").long("memory").default_value("128").allow_hyphen_values(true)
                     .help("Resident memory limit in MiB or as a percentage of the configured worker memory budget")),
-        ))
+        ), None)
+    }
+
+    /// 配置队列传输领取任务前执行的异步检查。
+    pub fn with_reservation_guard(
+        mut self,
+        guard: impl Fn() -> QueueFuture<'static, QueueResult<bool>> + Send + Sync + 'static,
+    ) -> Self {
+        self.1 = Some(Arc::new(guard));
+        self
     }
 }
 
@@ -95,7 +104,9 @@ impl Command for WorkCommand {
             let connection = manager
                 .connection(args.get_one::<String>("connection").map(String::as_str))
                 .map_err(error)?;
-            let worker = Worker::new(container.clone()).map_err(error)?;
+            let worker = Worker::new(container.clone())
+                .map_err(error)?
+                .with_reservation_guard(self.1.clone());
             let queues = args
                 .get_one::<String>("queue")
                 .map(|queues| queues.split(',').collect::<Vec<_>>())

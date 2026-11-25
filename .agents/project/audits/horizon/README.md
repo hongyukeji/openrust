@@ -36,7 +36,15 @@ Rust 用单个 Redis 操作检查同名记录、占用名称并写入初始心�
 
 macOS 的真实 Redis 8.10.3 回归覆盖同时竞争时仅一方获得名称、旧记录的 Artisan 警告、公开仓储拒绝覆盖活跃记录及原有无主记录的 Supervisor 清理。模拟租约失效并接管后，旧 Master 退出并保留新 Master 的记录。严格 Clippy 与完整原生进程组合通过。真实 Artisan `horizon:terminate --wait` 等待 12 秒任务完成。隔离 Redis 将退出中的租约缩短为 5 秒后，原令牌续期到约 15 秒，任务完成后正常释放。Linux ARM64 的双 PID 1 进程和 Windows ARM64 的空部署原生 Master 通过启动、控制与退出复验。证据为 `target/tmp/observability-parity/horizon-master-lease-{macos-accepted,macos-process-verified,linux-accepted,windows-accepted,live-drain-verified}.log`。
 
-真实旧 Supervisor 在接管后仍能删除接管方的同名 Supervisor 心跳，Master 自身的心跳已受令牌保护。该复现使用专用 Redis 模拟接管并保留实际退场进程，下一批需让 Supervisor 的心跳和清理沿用 Master 所有权。证据为 `target/tmp/observability-parity/horizon-master-lease-stale-child.log`。Redis 主从切换及其他部署方式继续验收。Master 的 `commandQueue`、`commandQueueFor`、公开重启与输出回调也有独立契约待核对。
+### Supervisor 与 Worker 接管
+
+修复前，隔离 Redis 模拟接管后，真实旧 Supervisor 退出时删除了接管方的同名心跳。当前 Master 显式把名称及所有权交给受管子进程。Supervisor 的心跳、暂停状态、命令领取与清理在 Redis 内先比较所属 Master 的令牌。Master 启动受管 Supervisor 前，在同一所有权约束下清理该名称的旧元数据。未受 Master 管理的单独 Supervisor 保留原有调用方式。前态证据为 `target/tmp/observability-parity/horizon-master-lease-stale-child.log`。
+
+Horizon 通过框架 `WorkCommand::with_reservation_guard` 在实际领取任务前检查所有权，包含受管 `--once`。失去令牌的 Worker 在下一个检查点停止领取，已经运行的任务沿用原生排空。普通 `queue:work` 无需检查 Horizon 的进程信息。检查位于队列传输请求之前，跨 Redis 的检查与已经发出的阻塞请求仍属分别执行的操作。Redis 主从切换、正在传输的保留请求和正式部署组合继续验证。
+
+macOS 与 Linux ARM64 使用真实 Redis 8.10.3 与实际 Master、Supervisor 和 Worker。先确认旧 Worker 能处理任务，再暂停两个父进程模拟接管。旧 Worker 保留新任务并退出，旧 Supervisor 的退出清理保留接管方心跳和未处理命令。持新令牌的 `horizon:work --once` 处理同一任务，普通 `queue:work --once` 即使带有旧进程环境也能处理后续任务。macOS 完整进程及 Worker 回归、Horizon 和框架所涉严格 Clippy、同名 Master 与 102 条心跳回归通过。Linux 双 PID 1 Master 组合通过。Windows ARM64 的原生 `--once` 拒绝陈旧令牌，普通 Worker 正常执行，原生 Master 控制通过。Windows 带实际子树的排空矩阵仍待验。证据为 `target/tmp/observability-parity/horizon-child-ownership-{macos,macos-takeover-verified,linux,linux-takeover-native,windows,rust-targets,preflight}.log`。
+
+Master 的 `commandQueue`、`commandQueueFor`、公开重启与输出回调也有独立契约待核对。
 
 ## 当前实现
 

@@ -10,7 +10,7 @@ mod tags;
 mod workload;
 pub use jobs::{JobDetails, JobRepository};
 pub use metrics::MetricsRepository;
-pub(crate) use processes::MasterLease;
+pub(crate) use processes::{MasterLease, MasterOwnership};
 pub use processes::{MasterSupervisorRepository, ProcessRepository, SupervisorRepository};
 pub use tags::TagRepository;
 pub use workload::WorkloadRepository;

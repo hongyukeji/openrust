@@ -1,25 +1,15 @@
+use crate::{Error, Repository, repository::MasterOwnership};
 use clap::{Arg, ArgAction, Command as Syntax, value_parser};
 use openrust::{
     console::{Command, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output},
     foundation::Application,
+    queue::{QueueError, QueueFuture, QueueResult},
 };
-
-tokio::task_local! {
-    static SUPERVISOR: Option<String>;
-}
-
-pub(crate) fn is_worker() -> bool {
-    SUPERVISOR.try_with(|_| ()).is_ok()
-}
-
-pub(crate) fn supervisor_name() -> Option<String> {
-    SUPERVISOR.try_with(Clone::clone).ok().flatten()
-}
+use std::sync::Arc;
 
 /// Horizon's worker entry point delegates execution to the framework queue worker.
 pub struct WorkCommand {
     definition: CommandDefinition,
-    worker: openrust::queue::console::WorkCommand,
 }
 
 impl Default for WorkCommand {
@@ -73,7 +63,6 @@ impl WorkCommand {
                     .arg(seconds("tries", "0"))
                     .arg(flag("json")),
             ),
-            worker: openrust::queue::console::WorkCommand::new(),
         }
     }
 }
@@ -91,6 +80,21 @@ impl Command for WorkCommand {
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
             let supervisor = input.matches().get_one::<String>("supervisor").cloned();
+            let ownership = supervisor
+                .as_deref()
+                .map(MasterOwnership::inherited)
+                .transpose()
+                .map_err(super::error)?
+                .flatten();
+            let mut worker = openrust::queue::console::WorkCommand::new();
+            if ownership.is_some() || !input.matches().get_flag("once") {
+                let repository = app.make::<Repository>().await.map_err(super::error)?;
+                worker = worker.with_reservation_guard(reservation_guard(
+                    repository,
+                    supervisor.clone(),
+                    ownership,
+                ));
+            }
             let scoped_input = input
                 .shutdown()
                 .map(|shutdown| input.with_shutdown(shutdown.child_token()));
@@ -109,11 +113,7 @@ impl Command for WorkCommand {
                 #[cfg(not(unix))]
                 std::future::pending::<()>().await;
             };
-            let work = SUPERVISOR.scope(
-                supervisor.clone(),
-                self.worker
-                    .handle(app, scoped_input.as_ref().unwrap_or(input), output),
-            );
+            let work = worker.handle(app, scoped_input.as_ref().unwrap_or(input), output);
             tokio::pin!(work);
             tokio::select! {
                 result = &mut work => result,
@@ -125,6 +125,30 @@ impl Command for WorkCommand {
                     }
                     work.await
                 }
+            }
+        })
+    }
+}
+
+fn reservation_guard(
+    repository: Arc<Repository>,
+    supervisor: Option<String>,
+    ownership: Option<MasterOwnership>,
+) -> impl Fn() -> QueueFuture<'static, QueueResult<bool>> {
+    let context = Arc::new((supervisor, ownership));
+    move || {
+        let repository = repository.clone();
+        let context = context.clone();
+        Box::pin(async move {
+            match repository
+                .reservations_paused(context.0.as_deref(), context.1.as_ref())
+                .await
+            {
+                Ok(paused) => Ok(!paused),
+                Err(error @ Error::MasterOwnershipLost) => Err(QueueError::Execution {
+                    source: Arc::new(error),
+                }),
+                Err(_) => Ok(false),
             }
         })
     }

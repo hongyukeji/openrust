@@ -5,8 +5,45 @@ use serde_json::Value as Json;
 
 pub(crate) struct MasterLease {
     repository: MasterSupervisorRepository,
-    name: String,
-    token: String,
+    ownership: MasterOwnership,
+}
+
+const MASTER_NAME_ENV: &str = "OPENRUST_HORIZON_MASTER_NAME";
+const MASTER_OWNER_ENV: &str = "OPENRUST_HORIZON_MASTER_OWNER";
+
+#[derive(Clone)]
+pub(crate) struct MasterOwnership {
+    pub(crate) name: String,
+    pub(crate) token: String,
+}
+
+impl MasterOwnership {
+    pub(crate) fn environment(&self) -> [(&'static str, &str); 2] {
+        [
+            (MASTER_NAME_ENV, &self.name),
+            (MASTER_OWNER_ENV, &self.token),
+        ]
+    }
+
+    pub(crate) fn inherited(supervisor: &str) -> Result<Option<Self>> {
+        let name = std::env::var(MASTER_NAME_ENV);
+        let token = std::env::var(MASTER_OWNER_ENV);
+        match (name, token) {
+            (Err(std::env::VarError::NotPresent), Err(std::env::VarError::NotPresent)) => Ok(None),
+            (Ok(name), Ok(token)) => {
+                if !label(&name)
+                    || uuid::Uuid::parse_str(&token).is_err()
+                    || !supervisor
+                        .strip_prefix(&name)
+                        .is_some_and(|suffix| suffix.starts_with(':'))
+                {
+                    return Err(Error::InvalidConfiguration);
+                }
+                Ok(Some(Self { name, token }))
+            }
+            _ => Err(Error::InvalidConfiguration),
+        }
+    }
 }
 
 impl MasterSupervisorRepository {
@@ -15,8 +52,10 @@ impl MasterSupervisorRepository {
         self.write_master(name, status, "claim", &token).await?;
         Ok(MasterLease {
             repository: self.clone(),
-            name: name.into(),
-            token,
+            ownership: MasterOwnership {
+                name: name.into(),
+                token,
+            },
         })
     }
 
@@ -129,6 +168,9 @@ return 1
 }
 
 impl MasterLease {
+    pub(crate) fn ownership(&self) -> &MasterOwnership {
+        &self.ownership
+    }
     pub(crate) async fn keep_alive(&self) -> Result<()> {
         loop {
             self.renew().await?;
@@ -143,7 +185,12 @@ impl MasterLease {
 
     pub(crate) async fn publish(&self, status: &Json) -> Result<()> {
         self.repository
-            .write_master(&self.name, status, "refresh", &self.token)
+            .write_master(
+                &self.ownership.name,
+                status,
+                "refresh",
+                &self.ownership.token,
+            )
             .await
     }
 
@@ -159,7 +206,7 @@ impl MasterLease {
     pub(crate) async fn forget_supervisor(&self, name: &str) -> Result<()> {
         self.repository
             .0
-            .forget_supervisor_for_master(name, Some((&self.name, &self.token)))
+            .forget_supervisor_for_master(name, Some(&self.ownership))
             .await
     }
 
@@ -180,8 +227,8 @@ impl MasterLease {
             .0
             .eval(
                 &script,
-                self.repository.master_keys(&self.name).to_vec(),
-                vec![self.token.clone(), self.name.clone()],
+                self.repository.master_keys(&self.ownership.name).to_vec(),
+                vec![self.ownership.token.clone(), self.ownership.name.clone()],
             )
             .await?
         {
