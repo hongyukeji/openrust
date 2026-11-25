@@ -95,7 +95,7 @@ def main():
             assert "frame-ancestors 'none'" in response.headers['content-security-policy']
             def stats():
                 with request('/api/stats') as response:
-                    assert response.status == 200
+                    assert response.status == 200, (response.status, response.read())
                     return json.load(response)
             assert stats()['masters'] == []
             artisan('horizon:status', code=2)
@@ -124,7 +124,8 @@ def main():
                 stdout, stderr = master.communicate(timeout=15)
                 assert master.returncode == 0, (stdout, stderr)
                 assert status() == []
-            env['HORIZON_PROBE_MASTER_BASENAME'] = '-probe.cluster_one'
+            basename = os.environ.get('HORIZON_TEST_MASTER_BASENAME', '-probe.cluster_one')
+            env['HORIZON_PROBE_MASTER_BASENAME'] = basename
             assert 'No processes to pause.' in artisan('horizon:pause')
             assert redis('SET', wait_lock, 'contender', 'EX', '30') == 'OK'
             master = subprocess.Popen([binary, 'artisan', 'horizon'], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -147,8 +148,8 @@ def main():
             if os.environ.get('HORIZON_TEST_BROWSER') == '1':
                 subprocess.run(['node', str(Path(__file__).with_name('dashboard_browser.mjs')), endpoint], env=env, check=True, timeout=35)
             initial = until_master(lambda state: state['workers'])
-            assert initial['basename'] == '-probe.cluster_one', initial
-            assert re.fullmatch(r'-probe\.cluster_one-[A-Za-z0-9]{4}', initial['name']), initial
+            assert initial['basename'] == basename, initial
+            assert re.fullmatch(re.escape(basename) + '-[A-Za-z0-9]{4}', initial['name']), initial
             child_pids.update(w['pid'] for w in initial['workers'])
             worker_pid = initial['workers'][0]['pid']
             command = subprocess.check_output(['ps', '-p', str(worker_pid), '-o', 'command='], text=True)
@@ -156,6 +157,17 @@ def main():
                 assert argument in command, (argument, command)
             assert int(subprocess.check_output(['ps', '-p', str(worker_pid), '-o', 'ni='], text=True).strip()) >= 1
             supervisor_name = initial['name'] + ':supervisor-1'
+            prefix = f'{root.name}:horizon-probe:{{horizon}}:'
+            child = json.loads(redis('GET', prefix + 'supervisor:' + supervisor_name.encode().hex()))
+            assert child['master'] == initial['name'] and child['basename'] == basename, child
+            assert initial['targets']['supervisor-1'] == [1], initial
+            assert stats()['masters'][0]['name'] == initial['name']
+            with request('/api/masters') as response:
+                assert response.status == 200 and json.load(response)[0]['name'] == initial['name']
+            # 上游 ListCommand 的表格从第一个冒号后开始显示，Redis 仍保存完整名称。
+            assert f"{initial['name']}\t{master.pid}\t{supervisor_name.split(':', 1)[1]}\t" in artisan('horizon:list')
+            assert 'is running' in artisan('horizon:supervisor-status', supervisor_name)
+            artisan('horizon:purge')
             assert [event for event in deployments() if event['master'] == initial['name']] == [{
                 'name': 'MasterSupervisorDeployed',
                 'master': initial['name'],
@@ -274,9 +286,8 @@ def main():
             artisan('up')
             until(lambda: stats()['queues'][0]['metrics']['completed'] == before + 3)
             # A heartbeat outside this master group can even name a valid local PID.
-            peers = [('remote-master-probe', 'other-' + socket.gethostname(), '-probe.cluster_one'),
-                     ('another-local-group', socket.gethostname(), '-probe.cluster_one_other')]
-            prefix = f'{root.name}:horizon-probe:{{horizon}}:'
+            peers = [('remote-master-probe', 'other-' + socket.gethostname(), basename),
+                     ('another-local-group', socket.gethostname(), basename + '_other')]
             peer = subprocess.Popen(['sleep', '60'])
             try:
                 for name, host, basename in peers:

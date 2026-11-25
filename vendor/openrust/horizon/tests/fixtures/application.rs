@@ -26,7 +26,7 @@ fn config(base: &Path, _: &Environment) -> Result<BTreeMap<String, Value>, Confi
             .ok()
             .and_then(|value| value.parse::<u32>().ok())
             .unwrap_or(5);
-        json!({"supervisor-1":{"timeout":timeout,"sleep":1,"balanceCooldown":1,"memory":1024,"maxProcesses":2,"maxJobs":3,"workersName":"horizon-probe","tries":2,"backoff":[1,2],"rest":1,"force":true,"json":true,"nice":1}})
+        json!({"supervisor-1":{"timeout":timeout,"sleep":1,"balanceCooldown":1,"memory":1024,"maxProcesses":2,"maxJobs":3,"workersName":"horizon-probe","tries":2,"backoff":[1,2],"rest":1,"force":true,"json":true,"nice":i32::from(cfg!(unix))}})
     };
     Ok(BTreeMap::from([
         ("app".into(), json!({"env":"testing","debug":false})),

@@ -381,9 +381,15 @@ impl MasterSupervisor {
         let states: Vec<_> = states
             .into_iter()
             .filter(|state| {
-                state["name"]
-                    .as_str()
-                    .is_some_and(|name| name.starts_with(&format!("{}:", self.id)))
+                let Some(name) = state["name"].as_str() else {
+                    return false;
+                };
+                if let Some(master) = state["master"].as_str() {
+                    master == self.id
+                        && crate::master_names::supervisor_suffix(&self.id, name).is_some()
+                } else {
+                    self.supervisors.iter().any(|child| child.name == name)
+                }
             })
             .collect();
         lease.publish(&self.status(paused, &states)).await?;
@@ -413,7 +419,8 @@ impl MasterSupervisor {
             .iter()
             .filter_map(|state| {
                 Some((
-                    state["name"].as_str()?.rsplit(':').next()?.to_owned(),
+                    crate::master_names::supervisor_suffix(&self.id, state["name"].as_str()?)?
+                        .to_owned(),
                     state["targets"].as_object()?.values().next()?.clone(),
                 ))
             })

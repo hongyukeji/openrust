@@ -49,17 +49,23 @@ pub(super) async fn purge(
             let mut orphans = Vec::new();
             let mut owned = std::collections::BTreeSet::new();
             for line in String::from_utf8_lossy(result.output()).lines() {
-                let mut fields = line.split_whitespace();
-                let pid = fields.next().and_then(|value| value.parse::<u32>().ok());
-                let parent = fields.next().and_then(|value| value.parse::<u32>().ok());
-                let command = fields.collect::<Vec<_>>().join(" ");
+                let Some((pid, rest)) = line.trim_start().split_once(char::is_whitespace) else {
+                    continue;
+                };
+                let Some((parent, command)) = rest.trim_start().split_once(char::is_whitespace)
+                else {
+                    continue;
+                };
+                let Ok(pid) = pid.parse::<u32>() else {
+                    continue;
+                };
+                let command = command.trim_start();
                 if command.starts_with(&format!("{executable} artisan horizon:"))
                     && (command.contains(&format!("--supervisor={master}:"))
                         || command.contains(&format!("horizon:supervisor {master}:")))
-                    && let Some(pid) = pid
                 {
                     owned.insert(pid);
-                    if parent == Some(1) {
+                    if parent == "1" {
                         orphans.push(pid);
                     }
                 }

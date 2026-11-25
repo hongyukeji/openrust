@@ -138,7 +138,9 @@ impl Supervisor {
         environment: String,
     ) -> Result<Self> {
         for (name, option) in &options {
-            if !crate::label(name) {
+            if !crate::master_names::valid_process_name(name)
+                || !crate::master_names::valid_process_name(&option.name)
+            {
                 return Err(Error::InvalidConfiguration);
             }
             option.validate()?;
@@ -603,7 +605,7 @@ impl Supervisor {
                 failed |= crate::signals::terminate(process).await.is_err();
             }
         }
-        let master = self.master_name().filter(|master| crate::label(master));
+        let master = self.master_name();
         let wait = !self.fast_termination
             || matches!(
                 self.repository
@@ -635,7 +637,7 @@ impl Supervisor {
         self.ownership
             .as_ref()
             .map(|ownership| ownership.name.as_str())
-            .or_else(|| self.id.split_once(':').map(|(master, _)| master))
+            .or_else(|| crate::master_names::supervisor_parent(&self.id))
     }
 }
 

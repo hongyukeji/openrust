@@ -1,5 +1,8 @@
-use super::{MasterSupervisorRepository, Result, label, supervisor_name, text};
-use crate::Error;
+use super::{MasterSupervisorRepository, Result, text};
+use crate::{
+    Error,
+    master_names::{supervisor_suffix, valid_process_name},
+};
 use openrust::redis::Value;
 use serde_json::Value as Json;
 
@@ -31,11 +34,9 @@ impl MasterOwnership {
         match (name, token) {
             (Err(std::env::VarError::NotPresent), Err(std::env::VarError::NotPresent)) => Ok(None),
             (Ok(name), Ok(token)) => {
-                if !label(&name)
+                if !valid_process_name(&name)
                     || uuid::Uuid::parse_str(&token).is_err()
-                    || !supervisor
-                        .strip_prefix(&name)
-                        .is_some_and(|suffix| suffix.starts_with(':'))
+                    || supervisor_suffix(&name, supervisor).is_none()
                 {
                     return Err(Error::InvalidConfiguration);
                 }
@@ -64,7 +65,7 @@ impl MasterSupervisorRepository {
     }
 
     async fn write_master(&self, name: &str, status: &Json, mode: &str, token: &str) -> Result<()> {
-        if !label(name) {
+        if !valid_process_name(name) {
             return Err(Error::InvalidRecord);
         }
         let now = self.0.now().await?;
@@ -107,7 +108,7 @@ return 1
     }
 
     pub async fn forget(&self, name: &str) -> Result<()> {
-        if !label(name) {
+        if !valid_process_name(name) {
             return Err(Error::InvalidRecord);
         }
         let mut keys = self.master_keys(name).to_vec();
@@ -122,7 +123,7 @@ return 1
             let status: Json = serde_json::from_str(&record).map_err(|_| Error::Redis)?;
             if let Some(supervisors) = status["supervisors"].as_array() {
                 for child in supervisors.iter().filter_map(Json::as_str) {
-                    if !supervisor_name(child) {
+                    if !valid_process_name(child) {
                         return Err(Error::InvalidRecord);
                     }
                     keys.extend(self.0.supervisor_keys(child));

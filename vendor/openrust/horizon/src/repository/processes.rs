@@ -1,5 +1,8 @@
 use super::{Repository, text};
-use crate::{Error, Result, label};
+use crate::{
+    Error, Result,
+    master_names::{supervisor_parent, valid_process_name},
+};
 use openrust::redis::Value;
 use serde_json::Value as Json;
 use std::collections::BTreeMap;
@@ -15,9 +18,6 @@ pub struct SupervisorRepository(Repository);
 #[derive(Clone)]
 pub struct ProcessRepository(Repository);
 
-fn supervisor_name(name: &str) -> bool {
-    !name.is_empty() && name.len() <= 1024 && !name.chars().any(char::is_control)
-}
 impl Repository {
     pub fn master_supervisors(&self) -> MasterSupervisorRepository {
         MasterSupervisorRepository(self.clone())
@@ -37,7 +37,7 @@ impl Repository {
         status: &Json,
         ownership: Option<&MasterOwnership>,
     ) -> Result<()> {
-        if !supervisor_name(name) || !status.is_object() {
+        if !valid_process_name(name) || !status.is_object() {
             return Err(Error::InvalidRecord);
         }
         let mut status = status.clone();
@@ -54,7 +54,7 @@ impl Repository {
         name: &str,
         ownership: Option<&MasterOwnership>,
     ) -> Result<()> {
-        if !supervisor_name(name) {
+        if !valid_process_name(name) {
             return Err(Error::InvalidRecord);
         }
         match self.supervisor_operation(
@@ -123,7 +123,7 @@ impl Repository {
         paused: bool,
         ownership: Option<&MasterOwnership>,
     ) -> Result<()> {
-        if !supervisor_name(name) {
+        if !valid_process_name(name) {
             return Err(Error::InvalidRecord);
         }
         self.supervisor_operation(
@@ -140,7 +140,7 @@ impl Repository {
         Ok(())
     }
     pub async fn supervisor_paused(&self, name: &str) -> Result<bool> {
-        if !supervisor_name(name) {
+        if !valid_process_name(name) {
             return Err(Error::InvalidRecord);
         }
         Ok(self
@@ -158,15 +158,13 @@ impl Repository {
     ) -> Result<bool> {
         let mut keys = vec![self.key("paused")];
         if let Some(name) = supervisor {
-            if !supervisor_name(name) {
+            if !valid_process_name(name) {
                 return Err(Error::InvalidRecord);
             }
             keys.push(self.key(&format!("supervisor-paused:{}", super::encode(name))));
-            let master = ownership.map(|owner| owner.name.as_str()).or_else(|| {
-                name.split_once(':')
-                    .map(|(master, _)| master)
-                    .filter(|master| label(master))
-            });
+            let master = ownership
+                .map(|owner| owner.name.as_str())
+                .or_else(|| supervisor_parent(name));
             if let Some(master) = master {
                 keys.push(self.key(&format!("master-paused:{master}")));
             }
@@ -188,7 +186,7 @@ impl Repository {
         }
     }
     pub async fn push_command(&self, name: &str, command: &str) -> Result<()> {
-        if !supervisor_name(name)
+        if !valid_process_name(name)
             || command.is_empty()
             || command.len() > 8192
             || command.chars().any(char::is_control)
@@ -211,7 +209,7 @@ impl Repository {
         name: &str,
         ownership: Option<&MasterOwnership>,
     ) -> Result<Vec<String>> {
-        if !supervisor_name(name) {
+        if !valid_process_name(name) {
             return Err(Error::InvalidRecord);
         }
         let value = self
@@ -262,7 +260,7 @@ impl MasterSupervisorRepository {
     pub async fn get(&self, names: &[String]) -> Result<Vec<Json>> {
         let mut result = Vec::new();
         for name in names {
-            if !label(name) {
+            if !valid_process_name(name) {
                 return Err(Error::InvalidRecord);
             }
             let value = self
@@ -277,7 +275,7 @@ impl MasterSupervisorRepository {
     }
     #[cfg(not(unix))]
     pub(crate) async fn set_paused(&self, name: &str, paused: bool) -> Result<()> {
-        if !label(name) {
+        if !valid_process_name(name) {
             return Err(Error::InvalidRecord);
         }
         let key = self.0.key(&format!("master-paused:{name}"));
@@ -291,7 +289,7 @@ impl MasterSupervisorRepository {
         Ok(())
     }
     pub(crate) async fn paused(&self, name: &str) -> Result<bool> {
-        if !label(name) {
+        if !valid_process_name(name) {
             return Err(Error::InvalidRecord);
         }
         match self
@@ -310,7 +308,7 @@ impl MasterSupervisorRepository {
         }
     }
     pub(crate) async fn request_termination(&self, name: &str, wait: bool) -> Result<()> {
-        if !label(name) {
+        if !valid_process_name(name) {
             return Err(Error::InvalidRecord);
         }
         self.0
@@ -327,7 +325,7 @@ impl MasterSupervisorRepository {
         Ok(())
     }
     pub(crate) async fn termination_requested(&self, name: &str) -> Result<Option<bool>> {
-        if !label(name) {
+        if !valid_process_name(name) {
             return Err(Error::InvalidRecord);
         }
         match self
@@ -380,7 +378,7 @@ impl SupervisorRepository {
     pub async fn get(&self, names: &[String]) -> Result<Vec<Json>> {
         let mut result = Vec::new();
         for name in names {
-            if !supervisor_name(name) {
+            if !valid_process_name(name) {
                 return Err(Error::InvalidRecord);
             }
             let value = self
@@ -434,7 +432,7 @@ impl ProcessRepository {
         Self(repository)
     }
     fn key(&self, master: &str) -> Result<String> {
-        if !label(master) {
+        if !valid_process_name(master) {
             return Err(Error::InvalidRecord);
         }
         Ok(self.0.key(&format!("orphans:{}", super::encode(master))))

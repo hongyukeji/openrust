@@ -130,7 +130,7 @@ Master 也會清理過期的工作索引。最近、待處理、已完成、靜�
 
 如果舊版本在 Redis 留下共用暫停狀態，可在已授權的面板選擇「繼續」，解除該元資料前綴上的暫停。
 
-Master 名稱由主機名稱轉換出的短名和程序內固定的四字元權杖組成。若要自訂短名，可在應用程式 Provider 的 `boot` 方法呼叫 `openrust_horizon::MasterSupervisor::determine_name_using(|| "orders.primary".into())?`。啟動 Horizon 和執行控制命令時使用同一短名。短名可含 ASCII 字母、數字、連字號、底線和點，最長 123 位元組。
+Master 名稱由主機名稱轉換出的短名和程序內固定的四字元權杖組成。若要自訂短名，可在應用程式 Provider 的 `boot` 方法呼叫 `openrust_horizon::MasterSupervisor::determine_name_using(|| "orders.primary".into())?`。啟動 Horizon 和執行控制命令時使用同一短名。自訂短名可以為空，也可以包含 Unicode 文字、空格和標點符號。短名不能包含控制字元。在 shell 中將含空格的監督器全名傳給 Artisan 時，請使用引號。
 
 Horizon 工作 ID 識別獨立的 Redis 投遞，由佇列推送和面板回傳。`horizon:retry` 與 `horizon:forget` 使用此 ID。重試取得新 ID，原失敗監控記錄保留並記錄重試結果。原生 `queue:retry` 和失敗工作儲存使用承載資料 UUID，由 Horizon 內部轉換；批次重試也會將這些 UUID 解析為目前失敗投遞。
 

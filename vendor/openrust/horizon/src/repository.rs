@@ -394,7 +394,7 @@ return cjson.encode(total)
         let mut result = Vec::new();
         for id in ids {
             let id = text(&id)?;
-            if !label(&id) {
+            if !crate::master_names::valid_process_name(&id) {
                 return Err(Error::Redis);
             }
             let value = self

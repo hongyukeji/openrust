@@ -24,7 +24,13 @@ Windows 11 ARM64 与 Redis 8.10.3 使用最终源码运行原生 Artisan。真�
 
 Rust 的 `MasterSupervisor::basename`、`process_name` 和 `determine_name_using` 接通应用作用域内的解析器。保留实例读取入口 `name(&self)`。Master 和 Supervisor 心跳均携带名称前缀，以完整主机名及完整前缀定位控制目标。未配置自定义解析器时，同主机的旧 UUID 心跳仍可控制。Rust 与固定上游的原始前缀匹配相比会区分名称只在末尾不同的主机及组，避免相近前缀误发信号。
 
-上游解析器接受空字符串、`North:東京 1`、`North:東京` 和 124 字节前缀。固定 RedisMasterSupervisorRepository 经 RESP 夹具连接独占 Redis 8.10.3，实际写入、查找及获取心跳列表时均保留原名。固定命令构造器、Symfony 子进程及固定 Artisan 签名共同复验，空前缀生成的交付名称被当作选项，带空格的名称被 shell 拆分，两者均无法通过上游解析。`North:東京` 和 124 字节前缀均已通过上游位置参数解析。Rust 当前要求前缀为 1 至 123 字节，只含 ASCII 字母、数字、点、下划线和连字符。Rust 使用原生参数列表并支持连字符开头的子进程名称。Unicode、冒号、长前缀及相应父标识和孤儿检测入口继续核对。证据为 `target/tmp/observability-parity/horizon-master-name-{boundaries,redis,child,cli}-upstream.log`。
+上游解析器接受空字符串、`North:東京 1`、`North:東京` 和 124 字节前缀。固定 RedisMasterSupervisorRepository 经 RESP 夹具连接独占 Redis 8.10.3，实际写入、查找及获取心跳列表时均保留原名。固定命令构造器、Symfony 子进程及固定 Artisan 签名共同复验，空前缀生成的交付名称被当作选项，带空格的名称被 shell 拆分，两者均无法通过上游解析。`North:東京` 和 124 字节前缀均已通过上游位置参数解析。证据为 `target/tmp/observability-parity/horizon-master-name-{boundaries,redis,child,cli}-upstream.log`。
+
+Rust 的名称解析、Redis 仓储及子进程接受 Unicode、冒号、空前缀及长名称。子进程使用原生参数和显式父标识，带空格或以连字符开头的完整名称可按一个参数传递。控制字符仍被拒绝，实际启动受操作系统的参数和环境容量约束。Master 聚合按完整父标识选择监督器，旧心跳回退到部署计划里的完整子名称。单独启动的 Supervisor 按最后一个冒号寻找父名称，受管 Supervisor 使用传入的父名称。`horizon:list` 的表格保留固定上游从第一个冒号后显示的规则。状态 JSON、Redis 心跳及面板接口保留完整名称。`horizon:purge` 处理进程表时保留命令中的连续空格。 [固定 ListCommand](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Console/ListCommand.php)
+
+Windows ARM64 用非空部署计划实测。Master 心跳保留 `North:東京 1`，但受管 Supervisor 反复以退出码 1 退出，始终没有 Worker。当前 `Supervisor::tick` 会检查传入的父 PID，Windows 的 `parent_is_running` 分支直接返回 `Unavailable`。仍需实现原生进程树 liveness 与关停，并复验实时工作、排空与快速终止。证据为 `target/tmp/observability-parity/horizon-master-extended-windows-{final,diagnostic}.log`。
+
+macOS 通过名称解析公开入口、空前缀与 124／1025 字节名称的真实接管、同机两组相近 Unicode 名称的 Artisan 隔离。macOS 与 Linux ARM64 均使用 Redis 8.10.3 通过扩展名称的接管，以及连续空格名称下真实孤儿进程的查找和终止。macOS 最终源码通过完整进程组合，覆盖 `horizon:list`、`horizon:supervisor-status`、授权面板 `/api/stats` 和 `/api/masters`、Worker 重建及排空。覆盖范围内的严格 Clippy、隔离快照格式和三语文档正文检查通过。证据为 `target/tmp/observability-parity/horizon-master-extended-{before,macos-checked,purge-before,macos-post-cleanup,linux-post-cleanup,same-host}.log`。
 
 macOS 配置与公开 API 7 项通过，原按条件忽略的双应用 Redis 隔离专项另行通过。完整原生进程组合通过。真实 Artisan 在同机同一 Redis 前缀上启动名称相近的两组 Master 和 Worker，按全名执行监督器状态、暂停、继续及 Master 控制，另一组保持可用。旧 UUID 心跳在默认解析器下仍接收本机信号。Linux ARM64 两个 PID 1 Master 使用相同的自定义短名，共用 Redis 并通过本机控制和远端 Worker 重启复验。Windows ARM64 的实际空部署 Master 用连字符开头的自定义名通过启动、暂停、继续及终止。Horizon 严格 Clippy 和三语文档 12 组浏览器通过。证据为 `target/tmp/observability-parity/horizon-master-name-{macos-artisan,linux-artisan,windows-artisan,same-host,rolling,redis-configuration,docs}.log`。
 

@@ -14,6 +14,7 @@ def main():
     binary = str(Path(sys.argv[1]).resolve())
     with tempfile.TemporaryDirectory(prefix='openrust-horizon-purge-') as base:
         env = dict(os.environ, APP_BASE_PATH=base, APP_ENV='testing', LOG_CHANNEL='null')
+        env.setdefault('HORIZON_PROBE_MASTER_BASENAME', 'North:東京  1')
         def artisan(*args):
             result = subprocess.run([binary, 'artisan', *args], env=env, capture_output=True, text=True, timeout=15)
             assert result.returncode == 0, (args, result.stdout, result.stderr)

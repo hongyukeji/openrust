@@ -1,4 +1,4 @@
-use crate::{Error, Result, label, supervisor::hostname};
+use crate::{Error, Result, supervisor::hostname};
 use openrust::{
     container::ServiceKey,
     support::{Str, facades::Facade},
@@ -25,7 +25,7 @@ impl MasterNames {
             .clone();
         let legacy = resolver.is_none();
         let basename = resolver.map_or_else(|| Str::slug(host), |resolver| resolver());
-        if !label(&basename) || basename.contains(':') || basename.len() > 123 {
+        if basename.chars().any(char::is_control) {
             return Err(Error::InvalidConfiguration);
         }
         Ok((basename, legacy))
@@ -64,6 +64,22 @@ impl MasterNames {
 pub(crate) fn process_name(basename: &str) -> String {
     static TOKEN: LazyLock<String> = LazyLock::new(|| Str::random(4));
     format!("{basename}-{}", TOKEN.as_str())
+}
+
+pub(crate) fn valid_process_name(name: &str) -> bool {
+    !name.is_empty() && !name.chars().any(char::is_control)
+}
+
+pub(crate) fn supervisor_suffix<'a>(master: &str, supervisor: &'a str) -> Option<&'a str> {
+    supervisor
+        .strip_prefix(master)?
+        .strip_prefix(':')
+        .filter(|suffix| !suffix.is_empty())
+}
+
+pub(crate) fn supervisor_parent(name: &str) -> Option<&str> {
+    let (master, suffix) = name.rsplit_once(':')?;
+    (!suffix.is_empty() && valid_process_name(master)).then_some(master)
 }
 
 pub(crate) fn basename_from_name(name: &str) -> Option<&str> {

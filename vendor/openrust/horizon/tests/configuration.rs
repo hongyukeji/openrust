@@ -19,6 +19,16 @@ async fn master_names_use_a_process_token_and_an_application_local_resolver() {
             assert_eq!(MasterSupervisor::process_name().unwrap(), first);
             MasterSupervisor::determine_name_using(|| "second_cluster".into()).unwrap();
             let second = MasterSupervisor::process_name().unwrap();
+            let (_, token) = second.rsplit_once('-').unwrap();
+            for basename in [String::new(), "North:東京 1".into(), "a".repeat(124)] {
+                let captured = basename.clone();
+                MasterSupervisor::determine_name_using(move || captured.clone()).unwrap();
+                assert_eq!(MasterSupervisor::basename().unwrap(), basename);
+                assert_eq!(
+                    MasterSupervisor::process_name().unwrap(),
+                    format!("{basename}-{token}")
+                );
+            }
             Response::json(http::StatusCode::OK, json!([first, second]))
         })
     }
