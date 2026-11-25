@@ -1,0 +1,62 @@
+{
+  "scope": "Artisan phase26 core console sections and real Table::append_row clear/reflow",
+  "base": "cfa3c473a93f7e3131737a69aabf2bd05798220d",
+  "source_sha256": {
+    "vendor/openrust/framework/src/console/mod.rs": "9a4440649f66ecbd5bf7dd7016cf703b8035621539327554e4fcdbf03e1ac08b",
+    "vendor/openrust/framework/src/console/output_style.rs": "471a71578238f2fe49bd1d14c3f770e49a6606c682d53f8a0a900701d3dc65d4",
+    "vendor/openrust/framework/src/console/table.rs": "a7d9d9b2eb690a3e9c46d040e142ff67ebbbc42440dc6cf8bf8a136cc33cd231",
+    "vendor/openrust/framework/src/console/section_output.rs": "06d5d401d0971b4d7fe6e96a27dd181a71af3abb3a9f7feea2eee7d8f64edc00",
+    "vendor/openrust/framework/tests/console_sections.rs": "5a453258e673cd2b4132baa0d1c0a3cd50773c8bfeec6dd0eb13c11e2b4a6fef",
+    "tests/artisan_tutorial_docs.py": "f25094e9e31efeb4a71127df2d3c27cfe95597086a8b0554911ebf440fc6ece5",
+    "docs/tests/check_artisan_tutorial.mjs": "233edc4520bd378987b2600b0c2ea45c1629c49eee3fdc3040e589843d9cc58a",
+    "docs/en/digging-deeper/artisan.md": "9a0db7f4ff49c026b8d63cf3812e827a2e8551e12424040db0e1ba9798e6d13d",
+    "docs/zh-Hans/digging-deeper/artisan.md": "4ab82db3c59919c455d163060899003c8feea362bf7e9e859c61c5b750991ec8",
+    "docs/zh-Hant/digging-deeper/artisan.md": "dc9f60865a5e28d5a26edc98c9c2ad120431f336b3e19358af1f92124ccfb6c8",
+    ".agents/project/audits/artisan-tutorial/sections-oracle.json": "dc7a23f2d1a23e1f8f65df0b9018dbeb8ff0933fd6d3e98fd13fa7d790adcdf3",
+    ".agents/project/audits/artisan-tutorial/table-append-oracle.json": "4d30f31ec9313eb1d5f5468e5e8f42fdd4e0857ae6baa42a4967a197fa2599fc",
+    ".agents/project/audits/artisan-tutorial/table-contracts.json": "9a0fc11e7a408515f166f128463f15a46ff67fce12353fe5b0bca0e3d1549fb3",
+    ".agents/project/audits/artisan-tutorial/io-contracts.json": "81117799b294a665d7abdb7713dc255a9994f60180f61cbbb8faaa1e4eaa81a6",
+    ".agents/project/audits/artisan-tutorial/section-map.json": "bb17507b6b0dc4d16eb1aea39476ebb5150ed3acd81e429f80dbbd0d962f71f6",
+    ".agents/project/audits/artisan-tutorial/section-contracts.json": "e108e7afbb34402f1ee50811cfcf2dd2728a6aa5045df5629112946943144177"
+  },
+  "passed": {
+    "framework": 122,
+    "root": 122
+  },
+  "unique_parent_tests": 244,
+  "ignored_driven_fixtures_excluded": 20,
+  "formal_trilingual_examples": 81,
+  "section_source_sequences": 104,
+  "section_source_steps": 552,
+  "expected_section_error_steps": 40,
+  "table_append_source_sequences": 192,
+  "source_stderr_bytes": 0,
+  "strict_clippy_time": "2m 07s",
+  "browser_cases": 12,
+  "real_http": true,
+  "real_artisan": true,
+  "gates_before_cleanup": [
+    "framework",
+    "rustdoc",
+    "root",
+    "fmt"
+  ],
+  "resumed_gates": [
+    {
+      "name": "final-clippy",
+      "returncode": 0
+    },
+    {
+      "name": "final-main",
+      "returncode": 0
+    },
+    {
+      "name": "final-docs",
+      "returncode": 0
+    }
+  ],
+  "limitations": [
+    "Section-bound progress/get_output forwarding and interactive submission remain tracked",
+    "No entire chapter, full active worktree or cross-platform release acceptance claimed"
+  ]
+}

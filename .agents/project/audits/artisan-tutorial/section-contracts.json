@@ -1,0 +1,74 @@
+{
+  "reference": "Symfony Console7.4.0 Output/ConsoleSectionOutput.php, Output.php, ConsoleOutputInterface.php and Helper/Table.php",
+  "classes": {
+    "ConsoleSectionOutput": [
+      {
+        "method": "__construct",
+        "native": "Output::section / ConsoleSectionOutput::style",
+        "status": "verified_actual_source_state_and_output_sequences"
+      },
+      {
+        "method": "setMaxHeight",
+        "native": "set_max_height",
+        "status": "verified_actual_source_state_and_output_sequences"
+      },
+      {
+        "method": "clear",
+        "native": "clear",
+        "status": "verified_actual_source_state_and_output_sequences"
+      },
+      {
+        "method": "overwrite",
+        "native": "overwrite",
+        "status": "verified_actual_source_state_and_output_sequences"
+      },
+      {
+        "method": "getContent",
+        "native": "get_content",
+        "status": "verified_actual_source_state_and_output_sequences"
+      },
+      {
+        "method": "getVisibleContent",
+        "native": "get_visible_content",
+        "status": "verified_actual_source_state_and_output_sequences"
+      }
+    ]
+  },
+  "inherited_output_controls": [
+    "write",
+    "writeln",
+    "write_iter",
+    "writeln_iter",
+    "get_formatter",
+    "set_formatter",
+    "is_decorated",
+    "set_decorated",
+    "get_verbosity",
+    "set_verbosity",
+    "is_silent",
+    "is_quiet",
+    "is_verbose",
+    "is_very_verbose",
+    "is_debug"
+  ],
+  "native_adaptations": [
+    "Mutable stream access is an exclusive borrow. ConsoleSectionHandle carries output identity and is rejected by a different output; reborrowing cannot outlive its output. Section metadata remains output-owned after a borrow ends.",
+    "Typed OutputOptions, message slices/iterators and signed optional clear/height values retain existing native conventions. Source VM type notices are not simulated.",
+    "Root output uses no heap allocation for section identity until the first section is created. Formatter state is initially shared; replacing a section formatter and changing its verbosity remain section-local.",
+    "Checked arithmetic reports impossible line counts rather than native debug overflow. Zero terminal width fails at the source-equivalent content accounting stage, with partial content preserved."
+  ],
+  "internal_source_methods": {
+    "addContent": "Private section_add_content, verified by every write/wrap/content step",
+    "addNewLineOfInputSubmit": "Internal interactive consumer hook remains pending"
+  },
+  "remaining": [
+    "Section-bound progress output and interactive-input submission hook",
+    "OutputStyle section(message), blocks/titles/component SDK and inherited counters",
+    "Generic arbitrary StreamOutput constructor and exact ConsoleOutputInterface trait are not claimed; current stream ownership is expressed by existing native Output"
+  ],
+  "evidence": [
+    "console_sections",
+    "sections-oracle.json",
+    "table-append-oracle.json"
+  ]
+}

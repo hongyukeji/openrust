@@ -1,6 +1,6 @@
 {
   "reference": "Symfony Console v7.4.0 and fixed framework 1449bf241017087fbd38c118ecaabef3f6797fdc",
-  "scope": "TableCell and TableSeparator options/getters/spans, cell styles, rows/orientation/layout and shared styles verified. Actual section output/appendRow remains open.",
+  "scope": "Table public methods, cells, styles, separator options, spans and actual appendRow section redraw verified; inherited component integration is tracked separately.",
   "classes": {
     "Table": [
       {
@@ -167,8 +167,13 @@
       {
         "method": "appendRow",
         "source_line": 233,
-        "status": "pending_sdk_entry_and_consumer_review",
-        "native": null
+        "status": "verified_actual_section_clear_reflow_append_and_error_before_mutation",
+        "native": "console::Table::append_row",
+        "evidence": [
+          "console_sections",
+          "table-append-oracle.json",
+          "section-contracts.json"
+        ]
       },
       {
         "method": "setRow",
@@ -566,10 +571,11 @@
     "TableCellOptions is a typed record; unknown fields and wrong style types are compile-time errors verified by two real compile-fail consumers. Span values remain JSON values and use the existing input_scalars integer conversion, including null, bool, arrays, numeric prefixes and overflow distinctions. No dynamic VM notices are emitted.",
     "TableSeparator owns optional cell options and is Clone rather than Copy; borrowing/cloning preserves metadata. Default text cells allocate no options. Optional boxed options prevent inflating every TableRow; strict Clippy required this representation change, with no lint exemption or performance claim.",
     "The existing private PreparedLayout now preprocesses rowspans, colspans and physical lines using preserved array keys. Width formatting, templates and final emission remain shared. Original-index border selection and repeated-render minimum-width mutation follow the source; set_column_widths([]) resets minima, not maxima.",
-    "Checked span arithmetic and fallible allocation reject impossible native layouts instead of panic/overflow/unbounded allocation. The i64::MAX consumer tests native resource safety, not a completed PHP extreme allocation."
+    "Checked span arithmetic and fallible allocation reject impossible native layouts instead of panic/overflow/unbounded allocation. The i64::MAX consumer tests native resource safety, not a completed PHP extreme allocation.",
+    "ConsoleSectionOutput borrows the original Output; a typed output-bound handle permits later safe reborrowing without unsafe, process-global state or a second stream. A style(input) borrow attaches the existing Table pipeline. Output::section is distinct from the still-pending OutputStyle::section(message) heading method.",
+    "Table::append_row rejects ordinary output before mutation, uses the source logical row count to clear a rendered table, appends through add_row and renders while later sections are restored. Empty set_headers now preserves a truly empty header collection, and empty render records completion, fixing actual source counterexamples."
   ],
   "remaining_sdk": [
-    "appendRow with actual ConsoleSectionOutput",
     "OutputStyle inherited table/create_table layout/counters and other component SDK remain separately reviewed in io-contracts"
   ],
   "internal_types": {

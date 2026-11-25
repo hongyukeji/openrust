@@ -37,6 +37,7 @@ pub struct Table<'a, 'o> {
     column_max_widths: BTreeMap<usize, i64>,
     header_title: Option<String>,
     footer_title: Option<String>,
+    rendered: bool,
 }
 impl<'a, 'o> Table<'a, 'o> {
     pub fn new(output: &'a mut OutputStyle<'o>) -> Result<Self, ConsoleError> {
@@ -57,6 +58,7 @@ impl<'a, 'o> Table<'a, 'o> {
             column_max_widths: BTreeMap::new(),
             header_title: None,
             footer_title: None,
+            rendered: false,
         })
     }
     pub fn set_headers<I, T>(&mut self, headers: I) -> &mut Self
@@ -64,7 +66,12 @@ impl<'a, 'o> Table<'a, 'o> {
         I: IntoIterator<Item = T>,
         T: Into<TableCell>,
     {
-        self.headers = vec![headers.into_iter().map(Into::into).collect()];
+        let headers: Vec<_> = headers.into_iter().map(Into::into).collect();
+        self.headers = if headers.is_empty() {
+            Vec::new()
+        } else {
+            vec![headers]
+        };
         self
     }
     pub fn set_rows<I, R>(&mut self, rows: I) -> &mut Self
@@ -105,11 +112,33 @@ impl<'a, 'o> Table<'a, 'o> {
     pub fn get_column_style(&self, column: usize) -> &TableStyle {
         self.column_styles.get(&column).unwrap_or(&self.style)
     }
+    pub fn append_row(&mut self, row: impl Into<TableRow>) -> Result<&mut Self, ConsoleError> {
+        if self.output.section.is_none() {
+            return Err(ConsoleError::new("追加并重绘表格需要控制台分区输出"));
+        }
+        if self.rendered {
+            let orientation = std::mem::replace(&mut self.orientation, Orientation::Default);
+            let result = self.prepare_layout();
+            self.orientation = orientation;
+            let layout = result?;
+            let count = layout.headers.len()
+                + layout.rows.len()
+                + 1
+                + usize::from(!self.headers.is_empty())
+                + usize::from(!self.rows.is_empty());
+            self.output
+                .clear_table_section(i64::try_from(count).map_err(ConsoleError::from_source)?)?;
+        }
+        self.add_row(row)?;
+        self.render()?;
+        Ok(self)
+    }
     pub fn render(&mut self) -> Result<(), ConsoleError> {
         let prepared = self.prepare_layout()?;
         let (headers, rows) = (&prepared.headers, &prepared.rows);
         let count = prepared.number_of_columns;
         if count == 0 && headers.iter().chain(rows).all(Vec::is_empty) {
+            self.rendered = true;
             return Ok(());
         }
         let widths = self.calculate_widths(&prepared, count)?;
@@ -158,6 +187,7 @@ impl<'a, 'o> Table<'a, 'o> {
         if self.style.display_outside_border() {
             self.separator(&widths, 2, false)?;
         }
+        self.rendered = true;
         Ok(())
     }
     fn separator(
@@ -446,9 +476,11 @@ impl<'a, 'o> Table<'a, 'o> {
             })?;
             return template(&style.border_format, &style.borders[2].repeat(target));
         }
-        let visible =
-            super::formatting::unformatted_text(&mut self.output.get_output().formatter, cell)
-                .map_err(ConsoleError::from_source)?;
+        let visible = super::formatting::unformatted_text(
+            &mut super::formatting::Formatter::from_handle(self.output.get_formatter()),
+            cell,
+        )
+        .map_err(ConsoleError::from_source)?;
         let style = column
             .map(|column| self.get_column_style(column))
             .unwrap_or(&self.style)

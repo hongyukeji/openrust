@@ -507,7 +507,8 @@
     "Named Table styles now resolve through application-owned definitions: table default, table_named, table_with_named_columns, Table named setters, shared references and explicit clones are verified by console_table_definitions. Typed convenience variants remain available; complex cells/sections remain separate.",
     "Table convenience methods accept Into<TableRow> for real heterogeneous separator/data rows. Actual Artisan and HTTP consumers plus 420 fixed-source layouts verify separator ordering and orientation; inherited separator cell options and spans are not counted complete.",
     "TableCellStyle all five methods, TableCell with_style/get_style and nested default separators are real public renderer consumers. Preprocessing and column-major width callbacks, per-physical-line format capture and live separators follow fixed source. Spans and section redraw remain open.",
-    "TableCell/Separator full typed options, inherited getters and rowspan/colspan now have source oracles and actual HTTP/Artisan consumers. ConsoleSectionOutput/append_row redraw and other inherited component interfaces remain open."
+    "TableCell/Separator full typed options, inherited getters and rowspan/colspan now have source oracles and actual HTTP/Artisan consumers. ConsoleSectionOutput/append_row redraw and other inherited component interfaces remain open.",
+    "Output::section and actual Table::append_row are verified. ConsoleSectionOutput exposes output options, formatter/verbosity controls, height/clear/overwrite/content; safe handles replace shared mutable stream references. OutputStyle::section(message) remains a separate heading SDK gap. Section-bound progress and interactive input are not claimed by this batch."
   ],
   "inherited_output_style_inventory": {
     "OutputStyle": [
@@ -836,6 +837,7 @@
   "remaining_output_style_behaviors": [
     "ask_question及具体Question／Choice／Confirmation公开类型与交互消费者",
     "嵌套OutputStyle包装的计数委托",
-    "继承的格式器／详细程度设置、组件样式、问答、表格、进度及其他清单入口"
+    "继承的格式器／详细程度设置、组件样式、问答、表格、进度及其他清单入口",
+    "分区绑定后的ProgressBar/get_output转发及交互输入提交行接线；不能用普通流的既有测试代替"
   ]
 }

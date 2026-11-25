@@ -334,7 +334,7 @@
     },
     {
       "anchor": "tables",
-      "status": "verified_full_cell_separator_options_spans_and_table_layout_remaining_section_redraw",
+      "status": "verified_table_public_methods_and_actual_section_append_remaining_inherited_components",
       "evidence": [
         "console_tables_tutorial",
         "table-oracle.json",
@@ -360,11 +360,16 @@
         "table-spans-oracle.json",
         "table-span-getters-oracle.json",
         "table-spans-state-oracle.json",
-        "accepted-table-spans.json"
+        "accepted-table-spans.json",
+        "console_sections",
+        "sections-oracle.json",
+        "table-append-oracle.json",
+        "section-contracts.json",
+        "accepted-sections.json"
       ],
       "native": "console::CommandIo::table",
       "remaining": [
-        "Table::append_row需实际ConsoleSectionOutput清除／重排；其余继承组件SDK仍逐入口核对，不关闭整章。"
+        "分区进度条与交互输入、OutputStyle继承组件及其他Artisan章节入口仍逐项核对，不关闭整章。"
       ]
     },
     {

@@ -1117,4 +1117,42 @@ fn register_spans() -> Result<(), ConsoleError> {
 
 `TableCellOptions` 汇集 `colspan`、`rowspan`、`style`，可传给单元格或分隔符的 `with_options`。跨度字段保存 JSON 值，`style` 为 `Option<TableCellStyle>`；未知字段与冒充样式对象的值由类型检查拒绝。`TableCell::default()` 创建空单元格，`TableCell::new` 包装既有单元格时重新使用默认选项。
 
-`TableSeparator` 保留选项与继承 getter，并支持 `Clone`；同一分隔符放入多个拥有所有权的行时可克隆使用。跨度参与多表头、跨行填充、方向与列宽换行。布局可能更新列最小宽度，`set_column_widths([])` 清空这些最小值并保留最大宽度约束。尚未提供 `append_row` 的控制台分区重绘。
+`TableSeparator` 保留选项与继承 getter，并支持 `Clone`；同一分隔符放入多个拥有所有权的行时可克隆使用。跨度参与多表头、跨行填充、方向与列宽换行。布局可能更新列最小宽度，`set_column_widths([])` 清空这些最小值并保留最大宽度约束。分区重绘见下节。
+
+
+## 控制台分区与表格更新 {#console-sections}
+
+`Output::section()` 在当前输出流创建分区。`write`／`writeln`、`clear`、`overwrite`、`set_max_height`、`get_content` 和 `get_visible_content` 操作该分区。重写前面的分区时，后续分区按顺序清除并恢复；最大高度用于滚动可见内容。不启用装饰时按普通输出写入，清除不执行重绘。
+
+`ConsoleSectionOutput` 暂时借用原输出。保存 `handle()`，写完其他分区后通过 `section_output(&handle)` 再次借用；句柄只属于一个输出，其他输出会拒绝它。`style(input)` 把既有样式／表格管线绑定到分区。显式借用替代共享可变流引用，不创建额外输出流。
+
+```rust
+use openrust::{
+    console::{ConsoleError, Input, Output, OutputOptions, Table},
+    support::facades::Artisan,
+};
+
+fn register_sections() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:sections", |input: &Input, output: &mut Output| {
+        let first = {
+            let mut section = output.section();
+            section.writeln("prefix", OutputOptions::default())?;
+            section.handle()
+        };
+        {
+            let mut section = output.section();
+            section.writeln("other section", OutputOptions::default())?;
+        }
+        let mut section = output.section_output(&first)?;
+        let mut style = section.style(input);
+        let mut table = Table::new(&mut style)?;
+        table.set_headers(["A", "B"]).set_rows([["x", "y"]]);
+        table.append_row(["one", "two"])?;
+        table.append_row(["longer", "last"])?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
+`append_row` 要求分区输出；首次渲染后按计算行数清除表格区域，追加行并再次渲染，保留后续分区。普通输出会在添加行之前返回错误；只构建表格而不重绘请用 `add_row`。分区详细程度独立，初始格式器共享，也可为该分区替换。进度条和交互输入的分区接线另行跟踪。

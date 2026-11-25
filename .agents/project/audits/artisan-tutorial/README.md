@@ -376,3 +376,18 @@ add_row改为Result，与新add_rows一起在数字索引耗尽时返回有来�
 验收中独立基线e4c94972自身暴露Validation异步查询深度失败，移除本批跨度文件亦复现；未使用其他人的WIP，吸收已提交cafd464d核心修复后复验通过。最终fmt通过，workspace all-targets严格Clippy 1m 30s，main(pail)及三语构建通过。中途32GB守卫安全停止并清理编译产物，已完成framework/rustdoc/root/fmt日志保留，中断Clippy不计通过；清理后同源重新完成Clippy/main/docs和实际入口。12项手机／桌面／双挂载浏览器，以及实际main HTTP/up/静态/HTML与JSON404/HEAD、Artisan inspire/list/Pail过滤/-vv/timeout清理/Ctrl+C通过。
 
 证据target/tmp/artisan-tutorial-20261125/table-spans-*及table-span-getters-*，正式accepted-table-spans.json和三份源oracle。仅本簇核定源码、测试、三语与专属账本，全局current.md及其他协作者在途保留。临时PHP容器已结束，运行目录清理；保留源码／日志／可复用缓存及数据库／数据卷。不宣称整章、完整活跃工作区或Windows发布矩阵通过；继续ConsoleSectionOutput/append_row与其余继承SDK。仅本地提交，不推送。
+
+
+## 第二十六簇：控制台分区与实际表格追加重绘（2026-11-25）
+
+第二十五簇已本地提交68e388221cbc2bc1faf181e69e44a41f0e85bfdd，未推送。本簇固定Symfony Console7.4.0 ConsoleSectionOutput、Output、ConsoleOutputInterface及Table；旧v0.x没有对应SDK可提取，复用原输出流／格式器／表格布局及终端尺寸，不建立平行渲染器。Output::section与OutputStyle::section(message)职责不同，后者仍是待核对章节标题入口，不能用无参占位冒充。
+
+新增真实ConsoleSectionOutput：写入、按行清除、覆盖、高度滚动、内容／可见内容、格式器和详细程度控制。前区重写时清除后区并按原顺序恢复，未完成行延续及终端换行按源处理。不装饰时写普通文本、不执行清除重绘；零／负宽度和部分内容错误也逐步核对。显式原生适配是借用原Output，保存绑定输出身份的handle后再借用，跨输出会拒绝；style(input)连接既有Table。身份仅首次创建分区时分配，普通Output默认不增加这一堆分配，不使用unsafe或全局可变流。
+
+Table::append_row先要求分区，按源逻辑行数清除已渲染区域，经add_row追加后render，同时恢复后续分区。普通输出在添加行前失败。真实反例指出空render没有记录完成、set_headers([])被保存成一条空表头，均修复并通过既有跨度／样式回归。clear后的布局计算、所有方向、跨度、分隔与样式仍共用既有机制，不以整表再次打印冒充动态清除。
+
+104组固定PHP分区序列、552步输出／内容／可见内容逐步一致，其中40个零宽度错误步骤按源保留部分状态；192组真实表格追加序列的累计输出及最终分区保留内容逐字一致，每次错误状态对照。两种装饰、0/-1/8/80宽度、多分区、未结束行、Unicode／制表符、正负高度／清除、普通／Raw／Plain、详细程度、共享／替换格式器、批量迭代消息覆盖，Source stderr0。真实handle_command成功与非分区错误退出1、真实TCP HTTP200/500/200及默认JSON回退通过；跨输出句柄拒绝和绑定样式独立详细程度通过。
+
+正式三语正文直接提取81例编译执行，19框架目标122项、根6目标122项，共244不同父消费者通过，20个被父驱动的ignore不叠加。原有表格／问答／进度回归保留。首次严格检查指出测试显式drop非Drop借用对象，去掉多余drop、依靠原生借用结束，不加lint豁免。最终fmt、workspace all-targets严格Clippy 2m 07s、main(pail)、三语构建与12个手机／桌面／双挂载浏览器通过。实际main HTTP/up/静态/HTML与JSON404/HEAD、Artisan inspire/list/Pail过滤/-vv/timeout清理/Ctrl+C通过。第二轮严格检查期间32GB守卫停止并清理产物；已完成回归日志保留，中断Clippy不计通过，同源恢复Clippy/main/docs后实际验收。
+
+证据target/tmp/artisan-tutorial-20261125/sections-*、table-append-*，正式section-contracts.json／accepted-sections.json与两份源oracle。运行目录清理，临时PHP容器结束；保留源码／日志／可复用缓存及数据库／数据卷。分区绑定ProgressBar/get_output转发、交互输入提交行与OutputStyle章节标题等继承SDK仍明确待办；不把本批当作整个ConsoleOutputInterface、任意StreamOutput构造、整章或跨平台发布已闭合。仅核定范围本地提交，不推送，其他在途改动保留。

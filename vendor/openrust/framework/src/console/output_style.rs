@@ -99,6 +99,7 @@ impl OutputMessages<'_> {
 
 /// 命令的样式输出对象；包装本次调用的原输出及输入，不复制输出或建立全局状态。
 pub struct OutputStyle<'a> {
+    pub(super) section: Option<usize>,
     // 问答也使用构造时的输入；与 CommandIo::set_input 的读取对象独立。
     input: &'a Input,
     progress: Option<super::progress_bar::ProgressState>,
@@ -115,6 +116,7 @@ impl<'a> OutputStyle<'a> {
         history_formatter.set_decorated(false);
         Self {
             input,
+            section: None,
             progress: None,
             history: Vec::new(),
             history_formatter,
@@ -125,25 +127,47 @@ impl<'a> OutputStyle<'a> {
         }
     }
     pub fn set_verbosity(&mut self, level: OutputVerbosity) {
-        self.output.set_verbosity(level);
+        if let Some(id) = self.section {
+            self.output.sections[id].verbosity = level;
+        } else {
+            self.output.set_verbosity(level);
+        }
     }
     pub fn get_verbosity(&self) -> OutputVerbosity {
-        self.output.verbosity()
+        self.section.map_or_else(
+            || self.output.verbosity(),
+            |id| self.output.sections[id].verbosity,
+        )
     }
     pub fn get_formatter(&self) -> super::FormatterHandle {
-        self.output.get_formatter()
+        self.section.map_or_else(
+            || self.output.get_formatter(),
+            |id| self.output.sections[id].formatter.handle(),
+        )
     }
     pub fn set_formatter(&mut self, formatter: super::FormatterHandle) {
-        self.output.set_formatter(formatter);
+        if let Some(id) = self.section {
+            self.output.sections[id].formatter =
+                super::formatting::Formatter::from_handle(formatter);
+        } else {
+            self.output.set_formatter(formatter);
+        }
     }
     pub fn set_decorated(&mut self, decorated: bool) {
-        self.output.set_decorated(decorated);
+        if let Some(id) = self.section {
+            self.output.sections[id].formatter.set_decorated(decorated);
+        } else {
+            self.output.set_decorated(decorated);
+        }
     }
     pub fn is_decorated(&self) -> bool {
-        self.output.is_decorated()
+        self.section.map_or_else(
+            || self.output.is_decorated(),
+            |id| self.output.sections[id].formatter.is_decorated(),
+        )
     }
     pub fn is_silent(&self) -> bool {
-        self.output.is_silent()
+        self.get_verbosity() == OutputVerbosity::Silent
     }
 
     pub fn get_output(&mut self) -> &mut Output {
@@ -161,16 +185,16 @@ impl<'a> OutputStyle<'a> {
         self.new_line_written
     }
     pub fn is_quiet(&self) -> bool {
-        self.output.is_quiet()
+        self.get_verbosity() == OutputVerbosity::Quiet
     }
     pub fn is_verbose(&self) -> bool {
-        self.output.is_verbose()
+        self.get_verbosity() >= OutputVerbosity::Verbose
     }
     pub fn is_very_verbose(&self) -> bool {
-        self.output.is_very_verbose()
+        self.get_verbosity() >= OutputVerbosity::VeryVerbose
     }
     pub fn is_debug(&self) -> bool {
-        self.output.is_debug()
+        self.get_verbosity() == OutputVerbosity::Debug
     }
 
     pub fn write<'m>(
@@ -194,7 +218,7 @@ impl<'a> OutputStyle<'a> {
         let messages = messages.into();
         let options = options.into();
         let numeric = options.verbosity.map_or(0, |level| level as u16) | options.format as u16;
-        if self.output.verbosity() as u16 >= numeric {
+        if self.get_verbosity() as u16 >= numeric {
             self.new_lines_written = messages.trailing_new_lines() + 1;
             self.new_line_written = true;
         }
@@ -231,7 +255,7 @@ impl<'a> OutputStyle<'a> {
         let messages: Vec<S> = messages.into_iter().collect();
         let options = options.into();
         let numeric = options.verbosity.map_or(0, |level| level as u16) | options.format as u16;
-        if self.output.verbosity() as u16 >= numeric {
+        if self.get_verbosity() as u16 >= numeric {
             self.new_lines_written = trailing_iter_lines(messages.iter().map(AsRef::as_ref)) + 1;
             self.new_line_written = true;
         }
@@ -283,7 +307,7 @@ impl<'a> OutputStyle<'a> {
         let width = width.saturating_sub(usize::from(cfg!(windows))).max(9);
         let escaped = message.replace('<', "\\<");
         let mut lines = wrapping::wrap(&escaped, width - 9)?;
-        let first = usize::from(self.output.is_decorated());
+        let first = usize::from(self.is_decorated());
         if first == 1 {
             lines.insert(0, String::new());
             lines.push(String::new());
@@ -334,7 +358,7 @@ impl<'a> OutputStyle<'a> {
             Some(OutputVerbosity::Silent) | None => OutputVerbosity::Normal,
             Some(level) => level,
         };
-        if self.output.is_silent() || self.output.verbosity() < level {
+        if self.is_silent() || self.get_verbosity() < level {
             return Ok(());
         }
         for message in messages {
@@ -347,9 +371,19 @@ impl<'a> OutputStyle<'a> {
         self.new_lines_written += count;
         self.new_line_written = self.new_lines_written > 0;
         let message = "\n".repeat(count);
-        self.output
-            .emit_rendered(&message, OutputVerbosity::Normal)?;
-        if self.output.verbosity() >= OutputVerbosity::Normal {
+        if let Some(id) = self.section {
+            self.output.emit_section(
+                id,
+                &message,
+                false,
+                OutputFormat::Raw,
+                OutputVerbosity::Normal,
+            )?;
+        } else {
+            self.output
+                .emit_rendered(&message, OutputVerbosity::Normal)?;
+        }
+        if self.get_verbosity() >= OutputVerbosity::Normal {
             self.record_history(&message);
         }
         Ok(())
@@ -374,8 +408,13 @@ impl<'a> OutputStyle<'a> {
         format: OutputFormat,
         level: OutputVerbosity,
     ) -> Result<(), ConsoleError> {
-        self.output
-            .emit_formatted(message, newline, format, level)?;
+        if let Some(id) = self.section {
+            self.output
+                .emit_section(id, message, newline, format, level)?;
+        } else {
+            self.output
+                .emit_formatted(message, newline, format, level)?;
+        }
         let mut history = match format {
             OutputFormat::Raw => message.to_owned(),
             _ => self
@@ -569,5 +608,24 @@ impl Output {
             .write_all(rendered.as_bytes())
             .and_then(|()| stderr.flush())
             .map_err(ConsoleError::from_source)
+    }
+}
+
+impl OutputStyle<'_> {
+    pub(super) fn clear_table_section(&mut self, lines: i64) -> Result<(), ConsoleError> {
+        let id = self
+            .section
+            .ok_or_else(|| ConsoleError::new("追加并重绘表格需要控制台分区输出"))?;
+        self.output.clear_section(id, Some(lines))
+    }
+}
+
+impl<'a> OutputStyle<'a> {
+    pub(super) fn for_section(input: &'a Input, output: &'a mut Output, id: usize) -> Self {
+        let mut style = Self::new(input, output);
+        style.section = Some(id);
+        style.history_formatter = style.output.sections[id].formatter.clone();
+        style.history_formatter.set_decorated(false);
+        style
     }
 }

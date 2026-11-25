@@ -1117,4 +1117,42 @@ fn register_spans() -> Result<(), ConsoleError> {
 
 `TableCellOptions` groups `colspan`, `rowspan` and `style`; pass it to `with_options` on a cell or separator. Span fields store JSON values, while `style` is `Option<TableCellStyle>`. Unknown fields and values pretending to be a style object fail type checking. `TableCell::default()` creates an empty cell; wrapping an existing cell with `TableCell::new` starts with default options again.
 
-`TableSeparator` retains its options and inherited getters, and supports `Clone`. Use a clone when reusing one separator in multiple owned rows. Spans interact with multi-row headers, row filling, orientation and column wrapping. Layout can update column minima; `set_column_widths([])` clears those minima and retains maximum-width constraints. Console-section redraw through `append_row` is not available yet.
+`TableSeparator` retains its options and inherited getters, and supports `Clone`. Use a clone when reusing one separator in multiple owned rows. Spans interact with multi-row headers, row filling, orientation and column wrapping. Layout can update column minima; `set_column_widths([])` clears those minima and retains maximum-width constraints. Section redraw is described below.
+
+
+## Console sections and table updates {#console-sections}
+
+`Output::section()` creates a section on the current output stream. `write`/`writeln`, `clear`, `overwrite`, `set_max_height`, `get_content` and `get_visible_content` operate on that section. Rewriting an earlier section erases and restores later sections in order; maximum height scrolls visible content. Without decoration, writes remain ordinary output and clearing does not redraw.
+
+`ConsoleSectionOutput` temporarily borrows the original output. Keep its `handle()` and use `section_output(&handle)` to borrow it again after writing another section. Handles are bound to one output and are rejected by another. `style(input)` binds the existing style/table pipeline to the section. This explicit borrowing replaces shared mutable stream references; it creates no additional output stream.
+
+```rust
+use openrust::{
+    console::{ConsoleError, Input, Output, OutputOptions, Table},
+    support::facades::Artisan,
+};
+
+fn register_sections() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:sections", |input: &Input, output: &mut Output| {
+        let first = {
+            let mut section = output.section();
+            section.writeln("prefix", OutputOptions::default())?;
+            section.handle()
+        };
+        {
+            let mut section = output.section();
+            section.writeln("other section", OutputOptions::default())?;
+        }
+        let mut section = output.section_output(&first)?;
+        let mut style = section.style(input);
+        let mut table = Table::new(&mut style)?;
+        table.set_headers(["A", "B"]).set_rows([["x", "y"]]);
+        table.append_row(["one", "two"])?;
+        table.append_row(["longer", "last"])?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
+`append_row` requires a section, clears the calculated table region after the first render, adds the row and renders it again while preserving later sections. On ordinary output it returns an error before adding the row; use `add_row` to build a table without redrawing. Section verbosity is independent; the formatter is shared initially and can be replaced for that section. Progress and interactive-input integration with sections are tracked separately.

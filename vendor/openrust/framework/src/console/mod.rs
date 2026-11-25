@@ -121,6 +121,8 @@ impl Input {
 /// The command's output streams.
 #[derive(Default)]
 pub struct Output {
+    sections: Vec<section_output::SectionState>,
+    section_identity: Option<std::sync::Arc<()>>,
     pub stdout: String,
     pub stderr: String,
     formatter_generation: u64,
@@ -265,6 +267,9 @@ impl Output {
         if self.verbosity() < level || self.silent {
             return Ok(());
         }
+        self.emit_to_sink(message)
+    }
+    pub(super) fn emit_to_sink(&mut self, message: &str) -> Result<(), ConsoleError> {
         if self.terminal {
             if !self.stdout.is_empty() && !self.suppressed {
                 self.capture_generation = self.capture_generation.wrapping_add(1);
@@ -537,3 +542,6 @@ pub(crate) fn monitor_signals(
         shutdown.cancel();
     }))
 }
+
+mod section_output;
+pub use section_output::{ConsoleSectionHandle, ConsoleSectionOutput};

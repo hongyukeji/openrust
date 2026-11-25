@@ -1117,4 +1117,42 @@ fn register_spans() -> Result<(), ConsoleError> {
 
 `TableCellOptions` 彙集 `colspan`、`rowspan`、`style`，可傳給儲存格或分隔符號的 `with_options`。跨度欄位保存 JSON 值，`style` 為 `Option<TableCellStyle>`；未知欄位與冒充樣式物件的值由型別檢查拒絕。`TableCell::default()` 建立空儲存格，`TableCell::new` 包裝既有儲存格時重新使用預設選項。
 
-`TableSeparator` 保留選項與繼承 getter，並支援 `Clone`；同一分隔符號放入多個擁有所有權的列時可複製使用。跨度參與多表頭、跨列填充、方向與欄寬換行。配置可能更新欄最小寬度，`set_column_widths([])` 清空這些最小值並保留最大寬度限制。尚未提供 `append_row` 的主控台分區重繪。
+`TableSeparator` 保留選項與繼承 getter，並支援 `Clone`；同一分隔符號放入多個擁有所有權的列時可複製使用。跨度參與多表頭、跨列填充、方向與欄寬換行。配置可能更新欄最小寬度，`set_column_widths([])` 清空這些最小值並保留最大寬度限制。分區重繪見下節。
+
+
+## 主控台分區與表格更新 {#console-sections}
+
+`Output::section()` 在目前輸出串流建立分區。`write`／`writeln`、`clear`、`overwrite`、`set_max_height`、`get_content` 和 `get_visible_content` 操作該分區。重寫前面的分區時，後續分區依序清除並恢復；最大高度用於捲動可見內容。不啟用裝飾時按普通輸出寫入，清除不執行重繪。
+
+`ConsoleSectionOutput` 暫時借用原輸出。儲存 `handle()`，寫完其他分區後透過 `section_output(&handle)` 再次借用；控制代碼只屬於一個輸出，其他輸出會拒絕它。`style(input)` 把既有樣式／表格管線綁定到分區。顯式借用取代共用可變串流參照，不建立額外輸出串流。
+
+```rust
+use openrust::{
+    console::{ConsoleError, Input, Output, OutputOptions, Table},
+    support::facades::Artisan,
+};
+
+fn register_sections() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:sections", |input: &Input, output: &mut Output| {
+        let first = {
+            let mut section = output.section();
+            section.writeln("prefix", OutputOptions::default())?;
+            section.handle()
+        };
+        {
+            let mut section = output.section();
+            section.writeln("other section", OutputOptions::default())?;
+        }
+        let mut section = output.section_output(&first)?;
+        let mut style = section.style(input);
+        let mut table = Table::new(&mut style)?;
+        table.set_headers(["A", "B"]).set_rows([["x", "y"]]);
+        table.append_row(["one", "two"])?;
+        table.append_row(["longer", "last"])?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
+`append_row` 要求分區輸出；首次繪製後按計算列數清除表格區域，附加列並再次繪製，保留後續分區。普通輸出會在新增列之前傳回錯誤；只建立表格而不重繪請用 `add_row`。分區詳細程度獨立，初始格式器共用，亦可為該分區替換。進度列和互動輸入的分區接線另行追蹤。
