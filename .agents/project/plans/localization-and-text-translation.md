@@ -25,7 +25,7 @@
 | `aliyun` | [阿里云机器翻译 `TranslateGeneral`，2018-10-12](https://help.aliyun.com/zh/machine-translation/developer-reference/api-alimt-2018-10-12-translategeneral) | 通用纯文本场景、区域和 RAM 权限、官方 RPC 鉴权、业务状态码与 `auto` 识别结果。优先核对已有阿里云请求签名能否复用。 |
 | `baidu` | [百度翻译开放平台通用文本翻译 API](https://fanyi-api.baidu.com/product/11) | APP ID 和密钥签名、`auto`、语言码、分段译文按顺序还原及业务错误。实现前核对官方接入文档的请求编码和 HTTPS POST。 |
 
-七个驱动均为本轮计划交付项。分批实现以控制验收范围，每个驱动统一交付单条纯文本翻译并支持具名配置，继续开放外部 crate 自定义驱动。腾讯云接入混元翻译专用接口。文档、HTML、批量、术语表、自动切换供应商、译文缓存、通用 LLM 驱动和队列编排属于独立范围。
+七个驱动均为本轮计划交付项。分批实现以控制验收范围，每个驱动统一交付单条纯文本翻译并支持具名配置，继续开放外部 crate 自定义驱动。腾讯云接入混元翻译专用接口。文档、HTML、批量、术语表、自动切换供应商、译文缓存和队列编排属于独立范围。AI Agent 翻译通过同一驱动契约预留，见下文。
 
 ## 模块与公开命名
 
@@ -74,6 +74,19 @@ let translation = Translate::driver("office")?
 - 外部 crate 经 Provider 调用 Manager 的 `extend`。同应用、同 profile 的并发首次解析只建一个实例，工厂失败可重试，调用工厂时释放管理器全局锁。更换工厂或配置后显式 `forget_drivers`，已取得的句柄按原配置工作。各应用和独立进程分别注册。采用现有具名驱动机制的经验，公共抽象待有其他真实调用方再提取。
 - 校验 BCP 47 和空白输入，保留非空原文的原始空白。各驱动负责供应商语言码转换，缺少映射时明确报错，避免把简体／繁体或地域变体悄悄合并。源语言缺省表示请求自动识别，驱动不支持时返回明确错误。
 - 区分请求校验、认证、语言不支持、配额、限流、超时、服务端错误和无效响应。复用 HTTP Client 的超时和 `redact_payload`。翻译 POST 默认发送一次，超时或响应丢失保留结果未知的语义。目标地址来自受控配置，处理认证时拒绝跨目标转发。错误上下文只记录安全的驱动名、状态码和请求标识，实测 HTTP 事件和默认观测不含凭据、原文、译文或响应体。
+
+## 后续可选能力：AI Agent 翻译
+
+| 参考 | 用于本计划的部分 |
+| --- | --- |
+| [Laravel AI SDK 固定 Agent 契约](https://raw.githubusercontent.com/laravel/ai/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Contracts/Agent.php) · [结构化输出](https://laravel.com/framework/docs/13.x/ai-sdk#structured-output) | 借鉴一个专用 Agent 封装翻译指令与输出结构，模型和供应商由 AI 侧管理。OpenRust 开发者通过应用 Provider 装配既有 `Translator`，与普通具名驱动的用法一致。 |
+| [Rig 固定 Rust 示例](https://raw.githubusercontent.com/0xPlaygrounds/rig/f4d73dacdfabb3d9daa3f1de091efa490a84c601/examples/README.md) | Rust 生态可复用的类型化输出和有界调用参考。后续针对实际模型、结构化输出能力、Rust 1.94.0 和依赖成本核对兼容性，再裁定采用应用已有 SDK 或 Rig。 |
+| [Andrew Ng 的 Translation Agent 固定示例](https://raw.githubusercontent.com/andrewyng/translation-agent/e0fc605acbb5d78cb7a58a98bc8bd8f0056df49c/README.md) | 参考初译、审校、修订的有界流程，以及术语、口吻和地区差异的用例。作者将该项目定位为 Python 演示，译文效果随测试而异。只有质量对照证明有收益时，才为明确选择的场景启用额外调用。 |
+
+- **预留现有入口。** `Translator` 持续接收 `TranslationRequest`，返回统一译文结果。应用可自行注册 `agent` 类型工厂，并用 `translate.drivers.<profile>` 择一绑定已配置的专用 Agent。`Translate::driver("editorial")` 与其他 profile 一样返回驱动句柄。模型、供应商凭据、固定指令、术语和调用预算在应用的 Agent 配置管理。翻译公共请求保持原文及语言字段的供应商无关性。
+- **优先交付一轮调用。** 未来适配器把原文作为数据传给只允许翻译的 Agent，以简单结构返回译文。只有实际可用的识别来源才填源语言。校验非空结果和业务声明的受保护占位符，例如 `:name`。结果截断、模型拒绝、超时或格式不符映射到现有错误类别。原文中的命令、链接或工具调用请求均按文本处理。本轮建议使用无工具、无会话历史的翻译 Agent。
+- **把增强留给具名场景。** 需要润色、专业术语或人工复核时，由业务显式选用其他 profile 或在应用工作流中编排。若后续采用初译、审校、修订，固定步骤上限、总体超时、输入上限及模型调用预算，比较固定语料的遗漏、术语一致性、占位符、延迟和费用。各 profile 的数据去向可审计，文本采用既有脱敏策略。
+- **验收扩展接缝。** 在 TR-01 的外部驱动消费者中，用假 Agent 通过既有工厂走正式 `Translate` 入口，确认七家适配器与 `Lang` 装配均独立。可选 Agent 实现另立批次，实测格式错误、超时、无工具执行、占位符和费用上限。生产交付按实际采用的模型逐项复验。
 
 ## 实施顺序与验收
 
