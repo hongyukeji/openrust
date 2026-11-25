@@ -19,4 +19,4 @@ pub use input::{ImageInput, StoredMedia, TaskId, TextInput, VideoInput};
 pub use manager::ModerationManager;
 pub use moderation::Moderation;
 pub use provider::{ModerationServiceProvider, openrust_providers};
-pub use result::{Assessment, Coverage, Decision, Finding, Modality, TaskStatus};
+pub use result::{Assessment, Confidence, Coverage, Decision, Finding, Modality, TaskStatus};

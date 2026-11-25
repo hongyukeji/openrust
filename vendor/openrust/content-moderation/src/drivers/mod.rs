@@ -1,10 +1,12 @@
 mod aliyun;
+mod media;
 
 use std::{net::IpAddr, sync::Arc, time::Duration};
 
 use http::{HeaderMap, HeaderValue, Method};
 use openrust::{
     config::Environment,
+    filesystem::FilesystemManager,
     http::client::{Error as HttpError, Factory, Response},
 };
 use serde_json::Value;
@@ -13,9 +15,19 @@ use zeroize::Zeroizing;
 
 use crate::{ModerationError, ModerationManager, ModerationResult};
 
-pub(crate) fn register(manager: &ModerationManager, http: Arc<Factory>, env: Arc<Environment>) {
+pub(crate) fn register(
+    manager: &ModerationManager,
+    http: Arc<Factory>,
+    env: Arc<Environment>,
+    storage: Arc<FilesystemManager>,
+) {
     manager.extend("aliyun", move |profile| {
-        Ok(Arc::new(aliyun::Aliyun::new(http.clone(), &env, profile)?))
+        Ok(Arc::new(aliyun::Aliyun::new(
+            http.clone(),
+            &env,
+            storage.clone(),
+            profile,
+        )?))
     });
 }
 

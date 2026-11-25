@@ -2,16 +2,18 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use openrust::{
     config::Environment,
+    filesystem::FilesystemManager,
     http::client::{Factory, aliyun_rpc::AliyunRpcSigner},
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
 use zeroize::Zeroizing;
 
-use super::{Endpoint, field, http_status, secret};
+use super::{Endpoint, field, http_status, media::VersionedMediaLinks, secret};
 use crate::{
-    Assessment, Coverage, Decision, Finding, Modality, ModerationDriver, ModerationError,
-    ModerationFuture, ModerationResult, Operation, TextInput, input::valid_language_hint,
+    Assessment, Confidence, Coverage, Decision, Finding, ImageInput, Modality, ModerationDriver,
+    ModerationError, ModerationFuture, ModerationResult, Operation, TextInput,
+    input::valid_language_hint,
 };
 
 pub(super) struct Aliyun {
@@ -19,14 +21,21 @@ pub(super) struct Aliyun {
     access_key_id: Zeroizing<String>,
     access_key_secret: Zeroizing<String>,
     security_token: Option<Zeroizing<String>>,
-    text_service: String,
+    text_service: Option<String>,
     text_languages: Vec<String>,
+    image: Option<ImageService>,
+}
+
+struct ImageService {
+    name: String,
+    media: VersionedMediaLinks,
 }
 
 impl Aliyun {
     pub(super) fn new(
         http: Arc<Factory>,
         env: &Environment,
+        storage: Arc<FilesystemManager>,
         profile: &Value,
     ) -> ModerationResult<Self> {
         let region = field(profile, "region")?.unwrap_or("cn-shanghai");
@@ -41,9 +50,18 @@ impl Aliyun {
         if endpoint.url.path() != "/" {
             return Err(ModerationError::InvalidConfiguration("base_url"));
         }
-        let text_service = field(profile, "text_service")?
-            .ok_or(ModerationError::InvalidConfiguration("text_service"))?
-            .to_owned();
+        let text_service = field(profile, "text_service")?.map(str::to_owned);
+        let image = field(profile, "image_service")?
+            .map(|name| {
+                Ok::<_, ModerationError>(ImageService {
+                    name: name.to_owned(),
+                    media: VersionedMediaLinks::new(storage, profile)?,
+                })
+            })
+            .transpose()?;
+        if text_service.is_none() && image.is_none() {
+            return Err(ModerationError::InvalidConfiguration("aliyun services"));
+        }
         let mut text_languages = Vec::new();
         if let Some(value) = profile.get("text_languages") {
             let languages = value
@@ -68,6 +86,7 @@ impl Aliyun {
             security_token: secret(env, profile, "security_token_env")?,
             text_service,
             text_languages,
+            image,
         })
     }
 
@@ -138,11 +157,19 @@ struct TextReason {
 
 impl ModerationDriver for Aliyun {
     fn supports(&self, operation: Operation) -> bool {
-        operation == Operation::Text
+        match operation {
+            Operation::Text => self.text_service.is_some(),
+            Operation::Image => self.image.is_some(),
+            _ => false,
+        }
     }
 
     fn text<'a>(&'a self, input: &'a TextInput) -> ModerationFuture<'a, Assessment> {
         Box::pin(async move {
+            let service = self
+                .text_service
+                .as_deref()
+                .ok_or(ModerationError::Unsupported(Operation::Text))?;
             if input.text().chars().count() > 600 {
                 return Err(ModerationError::InvalidInput("aliyun text length"));
             }
@@ -157,11 +184,32 @@ impl ModerationDriver for Aliyun {
             let output = self
                 .request(
                     "TextModeration",
-                    &self.text_service,
+                    service,
                     json!({ "content": input.text() }),
                 )
                 .await?;
             read_text(output)
+        })
+    }
+
+    fn image<'a>(&'a self, input: &'a ImageInput) -> ModerationFuture<'a, Assessment> {
+        Box::pin(async move {
+            let image = self
+                .image
+                .as_ref()
+                .ok_or(ModerationError::Unsupported(Operation::Image))?;
+            let source = input
+                .as_stored()
+                .ok_or(ModerationError::InvalidInput("aliyun stored image"))?;
+            let url = image.media.create(source).await?;
+            let output = self
+                .request(
+                    "ImageModeration",
+                    &image.name,
+                    json!({ "imageUrl": url.as_str() }),
+                )
+                .await?;
+            read_image(output)
         })
     }
 }
@@ -218,6 +266,85 @@ fn category(label: &str) -> &'static str {
         "political_content" => "political",
         "religion" => "religion",
         "C_customized" => "custom",
+        _ => "unknown",
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct ImageData {
+    result: Vec<ImageFinding>,
+    risk_level: String,
+    frame_num: Option<u32>,
+    frame: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct ImageFinding {
+    label: String,
+    confidence: Option<f64>,
+}
+
+fn read_image(output: Output) -> ModerationResult<Assessment> {
+    let data: ImageData = serde_json::from_value(output.data.ok_or(ModerationError::Protocol)?)
+        .map_err(|_| ModerationError::Protocol)?;
+    let mut partial = data.frame_num.is_some_and(|count| count > 0)
+        || data
+            .frame
+            .as_deref()
+            .is_some_and(|value| !value.trim().is_empty());
+    let mut findings = Vec::with_capacity(data.result.len());
+    let mut scores = Vec::new();
+    for result in data.result {
+        if result.label.trim().is_empty() {
+            return Err(ModerationError::Protocol);
+        }
+        if result.label == "nonLabel" && data.risk_level == "none" {
+            // 服务也会在检测项全关闭时返回该标签，无法据此认定完整覆盖。
+            partial = true;
+            continue;
+        }
+        if let Some(score) = result.confidence {
+            let confidence =
+                Confidence::new(score, 100.0).map_err(|_| ModerationError::Protocol)?;
+            scores.push((findings.len(), confidence));
+        }
+        findings.push(Finding {
+            modality: Modality::Visual,
+            category: image_category(&result.label).to_owned(),
+            provider_label: result.label,
+        });
+    }
+    let decision = match data.risk_level.as_str() {
+        "high" => Decision::Block,
+        "none" if findings.is_empty() => Decision::Allow,
+        _ => Decision::Review,
+    };
+    let coverage = if partial {
+        Coverage::Partial
+    } else {
+        Coverage::Complete
+    };
+    let mut assessment = Assessment::new(
+        decision,
+        BTreeMap::from([(Modality::Visual, coverage)]),
+        findings,
+    )
+    .with_request_id(output.request_id.ok_or(ModerationError::Protocol)?)
+    .map_err(|_| ModerationError::Protocol)?;
+    for (index, confidence) in scores {
+        assessment = assessment.with_confidence(index, confidence)?;
+    }
+    Ok(assessment)
+}
+
+fn image_category(label: &str) -> &'static str {
+    match label.split('_').next().unwrap_or_default() {
+        "porn" | "sexual" => "sexual",
+        "violent" | "violence" => "violence",
+        "political" => "political",
+        "ad" => "advertising",
         _ => "unknown",
     }
 }

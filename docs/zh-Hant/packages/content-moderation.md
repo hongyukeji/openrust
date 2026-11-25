@@ -2,7 +2,7 @@
 
 啟用 `content-moderation` 功能，或在依賴 `openrust-content-moderation` 的應用程式中註冊 `ModerationServiceProvider`。執行 `./artisan vendor:publish --tag=moderation-config` 發布設定範本。在應用程式的 Rust 設定中將 `moderation.drivers.comments.driver` 設為 `review-text`，並透過 `MODERATION_DRIVER=comments` 選擇預設設定。
 
-目前套件提供自訂驅動契約和阿里雲文字審核。其他供應商操作及持久化影片編排正在實作。
+目前套件提供自訂驅動契約、阿里雲文字和已儲存圖片審核。其他供應商操作及持久化影片編排正在實作。
 
 ## 阿里雲文字 {#aliyun-text}
 
@@ -11,6 +11,12 @@
 介接器呼叫 `Green/2022-03-02` 的 `TextModeration`，最多接受 600 個 Unicode 字元。高風險回傳 `Block`，低風險和中風險回傳 `Review`。明確的空標籤且無風險時，文字涵蓋可得到 `Allow`。未識別的標籤保留在結果中。 [阿里雲文字審核增強版](https://help.aliyun.com/zh/document_detail/434034.html)
 
 如果傳入語言提示，在 `text_languages` 列出所選服務支援的語言標籤。設定以外的提示會在送出請求前拒絕。未提供提示時，原文直接交由所選服務審核。
+
+## 阿里雲圖片 {#aliyun-image}
+
+審核已儲存圖片時，設定 `image_service`（例如 `baselineCheck`），以 `media_disk` 指定私有 S3 磁碟，並將 `media_origin` 設為該磁碟的 HTTPS 下載來源。向具名驅動傳入 `ImageInput::stored(StoredMedia::new(disk, key, version_id)?)`，其中 `version_id` 是不可變的 S3 物件版本。驅動向阿里雲送出繫結該版本、有效期五分鐘的簽章網址。來源或磁碟不相符、物件未版本化時，會在提交前拒絕。
+
+此操作提供視覺涵蓋。擷取畫格取樣或語義不明確的 `nonLabel` 只計部分涵蓋。若回應含有置信分，透過 `Assessment::confidence` 讀取原值與 0–100 量程。業務還要求 OCR 時應檢查涵蓋欄位。 [阿里雲 ImageModeration](https://help.aliyun.com/zh/document_detail/2528742.html)
 
 ## 自訂驅動 {#custom-drivers}
 

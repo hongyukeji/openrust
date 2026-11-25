@@ -2,7 +2,7 @@
 
 Enable the `content-moderation` feature or register `ModerationServiceProvider` in an application that depends on `openrust-content-moderation`. Run `./artisan vendor:publish --tag=moderation-config` to publish the configuration template. In your application's Rust configuration, set `moderation.drivers.comments.driver` to `review-text` and set `MODERATION_DRIVER=comments` for the default profile.
 
-The package provides custom driver contracts and Alibaba Cloud text moderation. The other provider operations and durable video orchestration are being implemented.
+The package provides custom driver contracts and Alibaba Cloud text and stored-image moderation. The other provider operations and durable video orchestration are being implemented.
 
 ## Alibaba Cloud text {#aliyun-text}
 
@@ -11,6 +11,12 @@ Set `moderation.drivers.aliyun_comments` to a profile with `driver: "aliyun"`, `
 The adapter uses `TextModeration` in `Green/2022-03-02` and accepts up to 600 Unicode characters. High risk maps to `Block`, and named low or medium risk maps to `Review`. An explicit empty label list with no risk yields `Allow` for text coverage. Unrecognized labels are retained in the findings. [Alibaba Cloud Text Moderation 2.0](https://help.aliyun.com/zh/document_detail/434034.html)
 
 To use a language hint, list the tags supported by the chosen service in `text_languages`. A hint outside this profile is rejected before the request. Without a hint, the selected service receives the original text directly.
+
+## Alibaba Cloud images {#aliyun-image}
+
+For stored images, configure `image_service` such as `baselineCheck`, select a private S3 `media_disk`, and set `media_origin` to the HTTPS download origin for that disk. Pass `ImageInput::stored(StoredMedia::new(disk, key, version_id)?)` to the named driver. `version_id` must be an immutable S3 object version. The driver sends Alibaba Cloud a five-minute URL signed for that version. A mismatched origin, disk, or unversioned object is rejected before submission.
+
+This operation supplies visual coverage. Frame samples and ambiguous `nonLabel` responses count as partial coverage. When the response contains confidence scores, `Assessment::confidence` returns the original value on a 0–100 scale. Use the coverage field when your policy also requires OCR. [Alibaba Cloud ImageModeration](https://help.aliyun.com/zh/document_detail/2528742.html)
 
 ## Custom drivers {#custom-drivers}
 

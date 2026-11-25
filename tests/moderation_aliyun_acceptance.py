@@ -35,13 +35,13 @@ class Supplier(http.server.BaseHTTPRequestHandler):
         self.server.unexpected.append(self.path)
         self.send_error(405)
 
-    def do_POST(self):
+    def verification(self, action, service):
         assert self.path == "/"
         body = self.rfile.read(int(self.headers["Content-Length"]))
         assert self.headers["Content-Type"] == "application/x-www-form-urlencoded"
         digest = hashlib.sha256(body).hexdigest()
         assert self.headers["x-acs-content-sha256"] == digest
-        assert self.headers["x-acs-action"] == "TextModeration"
+        assert self.headers["x-acs-action"] == action
         assert self.headers["x-acs-version"] == "2022-03-02"
         assert re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", self.headers["x-acs-date"])
         nonce = self.headers["x-acs-signature-nonce"]
@@ -62,13 +62,18 @@ class Supplier(http.server.BaseHTTPRequestHandler):
         assert hmac.compare_digest(signature, hmac.new(secret.encode(), to_sign.encode(), hashlib.sha256).hexdigest())
 
         form = parse_qs(body.decode(), strict_parsing=True)
-        assert set(form) == {"Service", "ServiceParameters"} and form["Service"] == ["comment_detection"]
+        assert set(form) == {"Service", "ServiceParameters"} and form["Service"] == [service]
         parameters = json.loads(form["ServiceParameters"][0])
-        assert set(parameters) == {"content"}
-        text = parameters["content"]
         with self.server.lock:
             assert nonce not in self.server.nonces
             self.server.nonces.add(nonce)
+        return parameters, access_id
+
+    def do_POST(self):
+        parameters, access_id = self.verification("TextModeration", "comment_detection")
+        assert set(parameters) == {"content"}
+        text = parameters["content"]
+        with self.server.lock:
             self.server.calls.append((text, access_id))
 
         status = {"unauthorized": 403, "rate": 429, "unavailable": 503, "redirect": 302}.get(text, 200)

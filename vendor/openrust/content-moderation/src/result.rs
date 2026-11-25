@@ -24,6 +24,35 @@ pub enum Decision {
     Block,
 }
 
+/// 供应商给出的原始置信分及其量程。不同供应商的分值仍需由应用策略解释。
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Confidence {
+    value: f64,
+    maximum: f64,
+}
+
+impl Confidence {
+    pub fn new(value: f64, maximum: f64) -> ModerationResult<Self> {
+        if !maximum.is_finite()
+            || maximum <= 0.0
+            || !value.is_finite()
+            || value < 0.0
+            || value > maximum
+        {
+            return Err(ModerationError::InvalidInput("confidence"));
+        }
+        Ok(Self { value, maximum })
+    }
+
+    pub fn value(&self) -> f64 {
+        self.value
+    }
+
+    pub fn maximum(&self) -> f64 {
+        self.maximum
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Finding {
     pub modality: Modality,
@@ -38,6 +67,7 @@ pub struct Assessment {
     coverage: BTreeMap<Modality, Coverage>,
     findings: Vec<Finding>,
     request_id: Option<String>,
+    confidences: BTreeMap<usize, Confidence>,
 }
 
 impl Assessment {
@@ -51,6 +81,7 @@ impl Assessment {
             coverage,
             findings,
             request_id: None,
+            confidences: BTreeMap::new(),
         }
     }
 
@@ -65,6 +96,22 @@ impl Assessment {
 
     pub fn request_id(&self) -> Option<&str> {
         self.request_id.as_deref()
+    }
+
+    pub fn with_confidence(
+        mut self,
+        finding: usize,
+        confidence: Confidence,
+    ) -> ModerationResult<Self> {
+        if finding >= self.findings.len() {
+            return Err(ModerationError::InvalidInput("confidence finding index"));
+        }
+        self.confidences.insert(finding, confidence);
+        Ok(self)
+    }
+
+    pub fn confidence(&self, finding: usize) -> Option<Confidence> {
+        self.confidences.get(&finding).copied()
     }
 
     pub fn coverage(&self, modality: Modality) -> Coverage {

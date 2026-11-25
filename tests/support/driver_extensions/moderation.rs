@@ -35,6 +35,14 @@ pub(super) fn configuration(env: &Environment) -> Result<Value, ConfigError> {
             "access_key_id_env":"FIXTURE_ALIYUN_ID", "access_key_secret_env":"FIXTURE_ALIYUN_SECRET",
             "security_token_env":"FIXTURE_ALIYUN_TOKEN", "timeout_ms":350,
         });
+        if let Some(origin) = env.get_utf8("MODERATION_FIXTURE_IMAGE_ORIGIN")? {
+            configuration["drivers"]["aliyun-images"] = json!({
+                "driver":"aliyun", "base_url":endpoint, "image_service":"baselineCheck",
+                "media_disk":"s3", "media_origin":origin,
+                "access_key_id_env":"FIXTURE_ALIYUN_ID", "access_key_secret_env":"FIXTURE_ALIYUN_SECRET",
+                "security_token_env":"FIXTURE_ALIYUN_TOKEN", "timeout_ms":3000,
+            });
+        }
     }
     Ok(configuration)
 }
@@ -161,37 +169,70 @@ async fn aliyun(text: &str, language: Option<&str>) -> ModerationResult<Value> {
         input = input.with_language(language)?;
     }
     let result = Moderation::driver("aliyun-comments")?.text(&input).await?;
+    Ok(render_assessment(result, Modality::Text))
+}
+
+async fn aliyun_image(version: &str, disk: &str) -> ModerationResult<Value> {
+    let image = ImageInput::stored(StoredMedia::new(disk, "versions/image.png", version)?);
+    let result = Moderation::driver("aliyun-images")?.image(&image).await?;
+    Ok(render_assessment(result, Modality::Visual))
+}
+
+fn render_assessment(result: Assessment, modality: Modality) -> Value {
     let labels: Vec<_> = result
         .findings()
         .iter()
-        .map(|finding| json!({"category":finding.category,"provider":finding.provider_label}))
+        .enumerate()
+        .map(|(index, finding)| {
+            let mut value = json!({"category":finding.category,"provider":finding.provider_label});
+            if let Some(score) = result.confidence(index) {
+                value["confidence"] = json!({"value":score.value(),"maximum":score.maximum()});
+            }
+            value
+        })
         .collect();
-    Ok(json!({
-        "decision":result.decision(&[Modality::Text]).map(|value| format!("{value:?}")),
+    json!({
+        "decision":result.decision(&[modality]).map(|value| format!("{value:?}")),
         "request_id":result.request_id(), "labels":labels,
-    }))
+    })
 }
 
 pub(super) fn aliyun_route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         let raw = request.body_bytes().await?;
         let text = std::str::from_utf8(&raw).map_err(|_| HttpError::InvalidRequest)?;
-        match aliyun(text, request.header("x-fixture-language")?).await {
-            Ok(value) => Response::json(StatusCode::OK, value),
-            Err(error) => {
-                let status = match error {
-                    ModerationError::InvalidInput(_) | ModerationError::Rejected => {
-                        StatusCode::BAD_REQUEST
-                    }
-                    ModerationError::Unauthorized => StatusCode::UNAUTHORIZED,
-                    ModerationError::Throttled => StatusCode::TOO_MANY_REQUESTS,
-                    ModerationError::Timeout => StatusCode::GATEWAY_TIMEOUT,
-                    _ => StatusCode::BAD_GATEWAY,
-                };
-                Response::json(status, json!({"error":format!("{error:?}")}))
-            }
-        }
+        aliyun_response(aliyun(text, request.header("x-fixture-language")?).await)
     })
+}
+
+pub(super) fn aliyun_image_route(
+    request: &mut Request,
+) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let version = request
+            .header("x-fixture-version")?
+            .ok_or(HttpError::InvalidRequest)?;
+        let disk = request.header("x-fixture-disk")?.unwrap_or("s3");
+        aliyun_response(aliyun_image(version, disk).await)
+    })
+}
+
+fn aliyun_response(result: ModerationResult<Value>) -> Result<Response, HttpError> {
+    match result {
+        Ok(value) => Response::json(StatusCode::OK, value),
+        Err(error) => {
+            let status = match error {
+                ModerationError::InvalidInput(_) | ModerationError::Rejected => {
+                    StatusCode::BAD_REQUEST
+                }
+                ModerationError::Unauthorized => StatusCode::UNAUTHORIZED,
+                ModerationError::Throttled => StatusCode::TOO_MANY_REQUESTS,
+                ModerationError::Timeout => StatusCode::GATEWAY_TIMEOUT,
+                _ => StatusCode::BAD_GATEWAY,
+            };
+            Response::json(status, json!({"error":format!("{error:?}")}))
+        }
+    }
 }
 
 struct Query;
@@ -275,7 +316,13 @@ pub(super) fn register_command(artisan: &mut Artisan) -> Result<(), ConsoleError
         ),
     ))))?;
     artisan.add_command(Box::new(AliyunProbe(CommandDefinition::new(
-        clap::Command::new("drivers:moderation-aliyun").arg(clap::Arg::new("text").required(true)),
+        clap::Command::new("drivers:moderation-aliyun")
+            .arg(clap::Arg::new("text").required(true))
+            .arg(
+                clap::Arg::new("image")
+                    .long("image")
+                    .action(clap::ArgAction::SetTrue),
+            ),
     ))))
 }
 
@@ -294,9 +341,16 @@ impl Command for AliyunProbe {
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
             let text = input.argument("text").expect("fixture command input");
-            let result = aliyun(text.as_str().expect("fixture text"), None)
-                .await
-                .map_err(ConsoleError::from_source)?;
+            let text = text.as_str().expect("fixture text");
+            let result = if input
+                .option("image")
+                .is_some_and(|value| value.as_bool() == Some(true))
+            {
+                aliyun_image(text, "s3").await
+            } else {
+                aliyun(text, None).await
+            }
+            .map_err(ConsoleError::from_source)?;
             output
                 .write_raw(&format!("{result}\n"))
                 .map_err(ConsoleError::from_source)?;

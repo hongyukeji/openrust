@@ -38,3 +38,13 @@
 基线 `967a83a5`，Rust 1.94.0。`tests/moderation_aliyun_acceptance.py` 的本机 HTTP 替身独立计算 20 个请求的 ACS3 签名、正文哈希、nonce、STS 和 form 字段。验证真实应用 HTTP、独立 Artisan、配置／路由缓存和凭据轮换。轮换后以新的进程凭据签名，缓存中只有环境名。覆盖 600／601 字符、语言配置、未知标签、无明确风险等级、缺字段、非法与超大响应、拒绝重定向、HTTP 与业务限流、超时及服务错误。补语言提示门禁后整批重测通过。外部驱动 SQLite 的 HTTP／Artisan／Worker 和 3 项公开契约一并复跑。全工作区格式、包所有目标与验收应用严格 Clippy、三语内容检查通过。
 
 本机协议替身使用回环 HTTP，正式端点使用 HTTPS。真实阿里云站点、账号权限、实际检测效果及费用仍待授权环境。图片、视频、语音／OCR 和其他三家适配仍按 CM-02／CM-03 推进。
+
+## CM-02A 阿里云私有图片 {#aliyun-image}
+
+按 `Green/2022-03-02` 的 `ImageModeration` 发送 `ServiceParameters.imageUrl`。具名 profile 约束私有 S3 磁盘及单一 HTTPS 下载来源，复用 Storage 的 `temporary_url_with` 生成五分钟的签名 URL，检查签名和唯一版本参数。拒绝磁盘不符、没有不可变版本及来源不匹配。原始临时 URL 留在单次请求中，错误和 HTTP 观测使用脱敏路径。 [固定 SDK](https://github.com/alibabacloud-go/green-20220302/blob/v3.2.4/client/client.go#L647) · [图片协议](https://help.aliyun.com/zh/document_detail/2528742.html)
+
+保留原始标签、0–100 置信分、请求 ID 和高风险处置。采样帧信息只计部分覆盖。`nonLabel` 有检测项全关闭的歧义，计为部分覆盖，从而阻止有效 Allow。当前结果只声明视觉覆盖。 [覆盖歧义依据](https://help.aliyun.com/zh/document_detail/2857796.html)
+
+基线 `c774e1e2`，Rust 1.94.0。`tests/moderation_aliyun_image_acceptance.py` 使用固定 SeaweedFS 4.53 镜像和阿里云 HTTP 协议替身。在同一个私有 S3 对象写入两个不同 PNG 版本，匿名下载返回 403。真实 Artisan 和应用 HTTP 发送签名请求，替身独立复算 ACS3 并把已签名路径转发到实际 SeaweedFS，分别读取和核对原、最新版本的像素原文。另验无效置信分、欠缺结果、采样与 `nonLabel`、不存在的版本、配置／路由缓存、跨磁盘和来源拒绝。复跑阿里云文本及 SQLite 外部驱动 HTTP／Artisan／Worker。首次本机无固定镜像，拉取该摘要后完成验收。
+
+全工作区格式、内容审核包和验收应用的严格 Clippy、三语文档内容检查与 Python 语法通过。协议替身将 HTTPS 下载入口的签名路径转发到隔离回环 S3，生产 HTTPS 和真实阿里云下载、图片效果、OCR 以及托管存储仍待各自验收。

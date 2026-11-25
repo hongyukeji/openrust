@@ -21,7 +21,12 @@ impl ServiceProvider for ModerationServiceProvider {
             let container = app.container();
             container.singleton_named("moderation", |container| {
                 let manager = ModerationManager::new(container.get("config")?);
-                drivers::register(&manager, container.make()?, container.make()?);
+                drivers::register(
+                    &manager,
+                    container.make()?,
+                    container.make()?,
+                    container.make()?,
+                );
                 Ok(Arc::new(manager))
             })?;
             container.alias("moderation", ServiceKey::typed::<ModerationManager>())?;

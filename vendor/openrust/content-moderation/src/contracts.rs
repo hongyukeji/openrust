@@ -40,6 +40,8 @@ pub enum ModerationError {
     Timeout,
     #[error("内容审核供应商响应不符合协议")]
     Protocol,
+    #[error("无法为指定版本的私有素材生成送审地址")]
+    MediaUnavailable,
     #[error("提交结果未知，须核对原任务后再重试")]
     SubmissionUnknown,
 }

@@ -157,6 +157,10 @@ async fn main() -> ExitCode {
                         {
                             Route::get("/drivers/moderation", moderation::route)?;
                             Route::post("/drivers/moderation/aliyun", moderation::aliyun_route)?;
+                            Route::post(
+                                "/drivers/moderation/aliyun-image",
+                                moderation::aliyun_image_route,
+                            )?;
                         }
                         Ok(())
                     })
