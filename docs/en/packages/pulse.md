@@ -42,7 +42,7 @@ The dashboard uses native HTML, JavaScript and JSON. Publish its template with `
 
 Configure `pulse.recorders` using the type names `CacheInteractions`, `Exceptions`, `Queues`, `SlowJobs`, `SlowOutgoingRequests`, `SlowQueries`, `SlowRequests`, `UserJobs`, `UserRequests` and `Servers`. Set a recorder to `false` or `enabled=false` to disable registration at startup. `sample_rate` ranges from 0 to 1. Slow recorder `threshold` values use milliseconds; `ignore` accepts PCRE patterns with PHP-style delimiters.
 
-`Queues`, `UserJobs`, and `SlowJobs` match `ignore` patterns against the job display name. A command dispatched with `Artisan::queue`, for example, matches by command name. `SlowJobs` also uses the display name for threshold rules and aggregation.
+`Queues`, `UserJobs`, and `SlowJobs` match `ignore` patterns against the job display name. A command dispatched with `Artisan::queue`, for example, matches by command name. `SlowJobs` also uses the display name for threshold rules and aggregation. It measures each attempt from `JobProcessing` to the first success, failure, or release after an exception. It skips the `sync` connection.
 
 For named routes ending in `livewire.update`, `SlowRequests` and `UserRequests` use `memo.path` from the decoded `components[0].snapshot` JSON when it is available. Slow-request entries keep the handling route in the `via` field. Pulse uses the request snapshot already available to the kernel and leaves opaque bodies unread.
 

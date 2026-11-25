@@ -1,5 +1,6 @@
 pub mod concerns;
 mod servers;
+mod slow_jobs;
 use crate::{Pulse, Result};
 use openrust::{
     contracts::{
@@ -11,6 +12,7 @@ use openrust::{
 };
 use serde_json::{Value, json};
 pub use servers::{Memory, Servers};
+use slow_jobs::SlowJobStarts;
 use std::{panic::Location, path::Path, sync::Arc};
 
 #[derive(Clone)]
@@ -18,13 +20,20 @@ pub struct Recorders {
     config: Arc<dyn Repository>,
     base_path: Option<std::path::PathBuf>,
     only: Option<&'static str>,
+    slow_jobs: Option<Arc<SlowJobStarts>>,
 }
 impl Recorders {
     pub fn new(config: Arc<dyn Repository>) -> Self {
+        Self::configured(config, None)
+    }
+    fn configured(config: Arc<dyn Repository>, only: Option<&'static str>) -> Self {
         Self {
             config,
             base_path: None,
-            only: None,
+            only,
+            slow_jobs: only
+                .is_none_or(|name| name == "SlowJobs")
+                .then(Arc::default),
         }
     }
     pub fn with_base_path(mut self, path: std::path::PathBuf) -> Self {
@@ -116,7 +125,11 @@ impl Recorders {
             database::events::QueryExecuted,
             queue::events::*,
         };
-        let now = jiff::Timestamp::now().as_second();
+        let timestamp = jiff::Timestamp::now();
+        let now = timestamp.as_second();
+        if let Some(starts) = &self.slow_jobs {
+            starts.observe(event, self, pulse, timestamp).await;
+        }
         if let Some(e) = event.downcast_ref::<QueryExecuted>() {
             let duration = e.time.as_millis() as i64;
             let timestamp = (jiff::Timestamp::now().as_millisecond() - duration) / 1000;
@@ -328,27 +341,6 @@ impl Recorders {
                     })
                     .await;
             }
-        } else if let Some(e) = event.downcast_ref::<JobAttempted>() {
-            if e.connection_name != "sync"
-                && let Some(duration) = e.duration
-            {
-                let recorder = self.clone();
-                let name = e.job.payload.display_name().to_owned();
-                pulse
-                    .lazy(move |pulse| {
-                        Box::pin(async move {
-                            if recorder.accepts("SlowJobs", &name, Some(duration as i64), None)? {
-                                pulse
-                                    .record("slow_job", name, Some(duration as i64), Some(now))
-                                    .await
-                                    .max()
-                                    .count();
-                            }
-                            Ok(())
-                        })
-                    })
-                    .await;
-            }
         } else if let Some(e) = event.downcast_ref::<crate::events::ExceptionReported>() {
             self.queue_exception(pulse, e.class.clone(), e.location.clone(), now)
                 .await;
@@ -550,7 +542,7 @@ macro_rules! recorder {
         pub struct $name(Recorders);
         impl $name {
             pub fn new(config: Arc<dyn Repository>) -> Self {
-                let mut inner = Recorders::new(config); inner.only = Some(stringify!($name)); Self(inner)
+                Self(Recorders::configured(config, Some(stringify!($name))))
             }
             pub fn with_base_path(mut self, path: std::path::PathBuf) -> Self { self.0.base_path = Some(path); self }
         }
@@ -593,7 +585,16 @@ recorder!(
     ]
 );
 recorder!(UserJobs, ["JobQueued"]);
-recorder!(SlowJobs, ["JobAttempted"]);
+recorder!(
+    SlowJobs,
+    [
+        "JobProcessing",
+        "JobProcessed",
+        "JobFailed",
+        "JobReleasedAfterException",
+        "JobAttempted",
+    ]
+);
 recorder!(
     Exceptions,
     [

@@ -42,7 +42,7 @@ gate.define_guest("viewPulse", |user, _| Box::pin(async move {
 
 `pulse.recorders` 按型別名稱設定 `CacheInteractions`、`Exceptions`、`Queues`、`SlowJobs`、`SlowOutgoingRequests`、`SlowQueries`、`SlowRequests`、`UserJobs`、`UserRequests` 和 `Servers`。`false` 或 `enabled=false` 在啟動時關閉該記錄器。`sample_rate` 為 0–1，慢記錄的 `threshold` 單位為毫秒；`ignore` 接受 PHP 分隔符形式的 PCRE 模式。
 
-`Queues`、`UserJobs` 和 `SlowJobs` 按工作顯示名稱比對 `ignore`。例如，透過 `Artisan::queue` 派送的工作會以命令名稱比對。`SlowJobs` 也用工作顯示名稱比對閾值規則及彙總慢工作。
+`Queues`、`UserJobs` 和 `SlowJobs` 按工作顯示名稱比對 `ignore`。例如，透過 `Artisan::queue` 派送的工作會以命令名稱比對。`SlowJobs` 也用工作顯示名稱比對閾值規則及彙總慢工作。每次嘗試從 `JobProcessing` 開始計時，到第一個成功、失敗或例外後釋放事件為止。`sync` 連線不計入。
 
 對於路由名稱以 `livewire.update` 結尾的請求，`SlowRequests` 和 `UserRequests` 使用已解碼的 `components[0].snapshot` JSON 中的 `memo.path`。慢請求記錄的 `via` 欄位保留處理路由。Pulse 使用 HTTP 核心已有的請求快照，保持不透明請求本文的未讀取狀態。
 

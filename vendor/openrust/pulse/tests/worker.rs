@@ -1,20 +1,26 @@
 use openrust::{
+    contracts::events::{Dispatcher as _, Event, Listener},
     contracts::queue::JobHandler,
+    events::{Delivery, Dispatcher, EventContext, EventFuture, EventResult, ListenerResponse},
     foundation::Application,
     http::HttpFuture,
-    queue::{JobContext, Payload, QueueError, QueueFuture, QueueManager, QueueResult},
+    queue::events::JobProcessing,
+    queue::{JobContext, JobOptions, Payload, QueueError, QueueFuture, QueueManager, QueueResult},
     support::{ProviderResult, ServiceProvider},
     testing::TestApp,
 };
 use openrust_pulse::{PulseServiceProvider, facades::Pulse, storage::DatabaseStorage};
 use serde_json::{Value, json};
-use std::sync::{Arc, Mutex};
+use std::{
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 struct Job(Arc<Mutex<Vec<Value>>>);
 impl JobHandler for Job {
     fn handle<'a>(
         &'a self,
-        _: &'a mut JobContext<'_>,
+        context: &'a mut JobContext<'_>,
         payload: &'a Payload,
     ) -> QueueFuture<'a, QueueResult<()>> {
         Box::pin(async move {
@@ -25,8 +31,10 @@ impl JobHandler for Job {
             Pulse::report("WorkerException", Some("jobs/test.rs:1".into()))
                 .await
                 .map_err(execution)?;
-            self.0.lock().unwrap().push(payload.data()["fail"].clone());
-            if payload.data()["fail"] == true {
+            let fails = payload.data()["fail"] == true
+                || (payload.data()["retry"] == true && context.attempts() == 1);
+            self.0.lock().unwrap().push(json!(fails));
+            if fails {
                 return Err(execution(std::io::Error::other("expected failure")));
             }
             Ok(())
@@ -51,6 +59,22 @@ impl ServiceProvider for Register {
         })
     }
 }
+
+struct JobPreflight;
+
+impl Listener for JobPreflight {
+    fn handle<'a>(
+        &'a self,
+        _: &'a dyn Event,
+        _: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async {
+            tokio::time::sleep(Duration::from_millis(40)).await;
+            Ok(None)
+        })
+    }
+}
+
 #[tokio::test]
 async fn native_worker_records_job_attempts_failures_and_flushes_each_scoped_buffer() {
     let values = Arc::new(Mutex::new(Vec::new()));
@@ -63,6 +87,12 @@ async fn native_worker_records_job_attempts_failures_and_flushes_each_scoped_buf
     ].into())).with_providers(vec![Box::new(PulseServiceProvider), Box::new(Register { values: observed })])).unwrap();
     std::fs::write(app.root().join("worker.sqlite"), []).unwrap();
     app.boot().await.unwrap();
+    app.app()
+        .make::<Dispatcher>()
+        .await
+        .unwrap()
+        .listen(JobProcessing::NAME, Arc::new(JobPreflight), Delivery::Sync)
+        .unwrap();
     let connection = app
         .app()
         .make::<openrust::database::DatabaseManager>()
@@ -97,6 +127,16 @@ async fn native_worker_records_job_attempts_failures_and_flushes_each_scoped_buf
             .await
             .unwrap();
     }
+    let retry = Payload::new("pulse-scope", json!({"retry": true}))
+        .unwrap()
+        .with_options(JobOptions {
+            max_tries: Some(2),
+            ..Default::default()
+        });
+    queue
+        .dispatch(retry, Default::default(), None)
+        .await
+        .unwrap();
     app.artisan([
         "queue:work",
         "database",
@@ -108,7 +148,7 @@ async fn native_worker_records_job_attempts_failures_and_flushes_each_scoped_buf
     .assert_successful();
     assert_eq!(
         *values.lock().unwrap(),
-        vec![json!(false), json!(true), json!(false), json!(false)]
+        [false, true, false, false, true, false].map(|fails| json!(fails))
     );
     assert_eq!(connection.table("jobs").count("*").await.unwrap(), 0);
     assert_eq!(
@@ -118,7 +158,7 @@ async fn native_worker_records_job_attempts_failures_and_flushes_each_scoped_buf
             .count("*")
             .await
             .unwrap(),
-        4
+        6
     );
     assert_eq!(
         connection
@@ -127,7 +167,7 @@ async fn native_worker_records_job_attempts_failures_and_flushes_each_scoped_buf
             .count("*")
             .await
             .unwrap(),
-        5
+        8
     );
     assert_eq!(
         connection
@@ -136,18 +176,29 @@ async fn native_worker_records_job_attempts_failures_and_flushes_each_scoped_buf
             .count("*")
             .await
             .unwrap(),
-        4
+        6
+    );
+    assert_eq!(
+        connection
+            .table("pulse_entries")
+            .r#where("type", "=", "slow_job")
+            .r#where("value", ">=", 40)
+            .count("*")
+            .await
+            .unwrap(),
+        6
     );
     let storage = app.app().make::<DatabaseStorage>().await.unwrap();
     let counts = storage
         .aggregate_total(
-            &["processed", "failed", "processing"].map(str::to_owned),
+            &["processed", "failed", "processing", "released"].map(str::to_owned),
             "count",
             3600,
         )
         .await
         .unwrap();
-    assert_eq!(counts["processed"], Some(3.0));
+    assert_eq!(counts["processed"], Some(4.0));
     assert_eq!(counts["failed"], Some(1.0));
-    assert_eq!(counts["processing"], Some(4.0));
+    assert_eq!(counts["processing"], Some(6.0));
+    assert_eq!(counts["released"], Some(1.0));
 }

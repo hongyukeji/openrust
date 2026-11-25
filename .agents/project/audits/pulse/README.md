@@ -79,3 +79,13 @@ macOS 隔离快照通过 PCRE2 库 24 项、三扩展默认 97 项、快照全�
 同源码在 Linux 7.0.14 ARM64 和 Windows 11 ARM64 各通过 Pulse 模式 4 项和 Provider 15 项，覆盖 SQLite 上的真实文件缓存行为。Linux 同批通过 Telescope Provider 15 项，按条件跳过 1 项。证据为 `target/tmp/observability-parity/pulse-pcre-zero-width-{linux,windows}-verified.log`。
 
 分组键仍使用 UTF-8 文本。PHP 字节模式可在 UTF-8 码点中间插入替换内容。仅写 `(*UTF)` 而未用 `u` 修饰符时，PHP 的替换循环也按字节推进。实际固定 Pulse 缓存 Recorder 及 SQLite 存储保留两种模式产生的非 UTF-8 字节键，正常聚合并按原始字节计算哈希。同输入经 Rust 公开分组函数在字节模式返回文本转换错误，在仅写 `(*UTF)` 时返回 PCRE2 起始偏移错误。这两种输入的 Rust 存储表示、MySQL 与 PostgreSQL 的上游结果及面板序列化仍待对账。证据为 `target/tmp/observability-parity/pulse-pcre-zero-width-{oracle,storage-oracle,inline-native}.log`。
+
+## SlowJobs 任务尝试计时
+
+固定代码在 `JobProcessing` 开始计时，遇到 `JobProcessed`、`JobFailed` 或 `JobReleasedAfterException` 后计入首个终止事件。PHP 8.5.12 经真实事件分派和上游 Ingest 消费者核对，跨秒的失败尝试为 75 毫秒，释放为 134 毫秒，成功为 49 毫秒。随后的第二个终止事件、`JobAttempted` 与 `sync` 连接均不增加慢任务记录。证据为 `target/tmp/observability-parity/pulse-slow-job-lifecycle-upstream.log`。 [固定 SlowJobs Recorder](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Recorders/SlowJobs.php)
+
+修复前只读取 `JobAttempted.duration`，遗漏处理前监听器和队列结算耗时。Rust 已改为按连接、队列、保留任务标识和尝试次数记录开始时间，以第一个终止事件当时的时间戳计算毫秒耗时，再进入原有采样、过滤和聚合。`JobAttempted` 仅清理未产生对应终止事件的尝试。
+
+macOS 上真实 Artisan SQLite Worker 经过 40 毫秒的处理前监听器，执行四次成功、一次终态失败和一次因异常释放。原实现入库的六条慢任务均未达到 40 毫秒，修复后的六条全部达到，并核对队列处理及释放计数。相同源码通过 Worker 和 Provider 共 18 项、涉及文件格式及 Pulse 库和两个测试目标的严格 Clippy。三语文档构建、渲染正文和 12 组三语桌面／移动浏览器检查通过。证据为 `target/tmp/observability-parity/pulse-slow-job-lifecycle-{baseline,restored,docs}.log`。
+
+独立 Worker 达到退出型超时后由进程退出释放记录状态，嵌入式应用在同一进程内反复启动和停止 Worker 的超时清理仍需验证。其他目标平台及队列驱动的本批 Worker 计时仍需复验。
