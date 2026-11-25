@@ -677,6 +677,71 @@ async fn native_retries_keep_transport_ids_separate_from_the_failed_payload_uuid
 
 #[tokio::test]
 #[ignore = "requires dedicated Redis 8 acceptance wrapper"]
+async fn redis_workload_rounds_grouped_and_split_queue_waits_independently() {
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(config)
+            .with_providers(vec![Box::new(HorizonServiceProvider)])
+            .with_routing(Routing::default().api(authorized_routes))
+    })
+    .unwrap();
+    app.boot().await.unwrap();
+    let manager = app
+        .app()
+        .make::<openrust::queue::QueueManager>()
+        .await
+        .unwrap();
+    let queue = manager.connection(Some("redis")).unwrap();
+    let repository = app.app().make::<Repository>().await.unwrap();
+    for (name, runtime) in [("high", 1200.), ("low", 1200.), ("standalone", 2400.)] {
+        let payload = openrust::queue::Payload::new("success", json!({})).unwrap();
+        queue.push(&payload, Some(name)).await.unwrap().unwrap();
+        repository
+            .metrics_repository()
+            .increment_queue(&format!("redis:{name}"), runtime)
+            .await
+            .unwrap();
+    }
+    let delayed = openrust::queue::Payload::new("success", json!({})).unwrap();
+    queue
+        .later(
+            openrust::queue::Delay::Until(std::time::SystemTime::now() + Duration::from_secs(120)),
+            &delayed,
+            Some("high"),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    for name in ["master:first", "master:second"] {
+        repository.heartbeat_supervisor(name, &json!({
+            "name":name,"pid":1,"status":"running","processes":{"redis:high,low":1,"redis:standalone":0}
+        })).await.unwrap();
+    }
+    let response = app
+        .call(
+            http::Request::builder()
+                .uri("/api/horizon/api/workload")
+                .header("x-test-operator", "operator")
+                .body(openrust::http::Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    response.assert_ok();
+    let workload: Value = serde_json::from_slice(response.body()).unwrap();
+    assert_eq!(
+        workload,
+        json!([
+            {"name":"high,low","connection":"redis","length":2,"wait":1,"processes":2,"split_queues":[
+                {"name":"high","length":1,"wait":1},{"name":"low","length":1,"wait":2}
+            ]},
+            {"name":"standalone","connection":"redis","length":1,"wait":2,"processes":0,"split_queues":null}
+        ])
+    );
+}
+
+#[tokio::test]
+#[ignore = "requires dedicated Redis 8 acceptance wrapper"]
 async fn redis_jobs_outside_the_deployment_plan_keep_pending_and_lifecycle_metadata() {
     let mut app = TestApp::create(|builder| {
         builder

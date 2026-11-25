@@ -290,7 +290,11 @@ fn api(request: &mut Request) -> HttpFuture<'_, std::result::Result<Response, Ht
             .and_then(|value| value.as_u64().or_else(|| value.as_str()?.parse().ok()))
             .map(|value| value as usize);
         let value = match (request.method().as_str(), path.as_str()) {
-            ("GET", "workload") => json!(repository.workload().get().await?),
+            ("GET", "workload") => {
+                let mut workload = repository.workload().get().await?;
+                workload.sort_by(|left, right| left["name"].as_str().cmp(&right["name"].as_str()));
+                json!(workload)
+            }
             ("GET", "masters") => json!(repository.master_supervisors().all().await?),
             ("GET", "monitoring") => {
                 let mut result = Vec::new();

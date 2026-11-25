@@ -32,7 +32,9 @@ impl WorkloadRepository {
                 .connection(Some(connection))
                 .map_err(|_| Error::Queue)?;
             let mut length = 0;
-            let mut wait = 0.;
+            let mut total_runtime = 0.;
+            let mut split_wait = 0.;
+            let workers_for_estimate = workers.max(1) as f64;
             let mut split = Vec::new();
             for name in queues.split(',') {
                 let metrics = queue.metrics(Some(name)).await.map_err(|_| Error::Queue)?;
@@ -43,10 +45,13 @@ impl WorkloadRepository {
                     .metrics_repository()
                     .runtime_for_queue(&format!("{connection}:{name}"))
                     .await?;
-                wait += ready as f64 * runtime / workers.max(1) as f64 / 1000.;
-                split.push(json!({"name":name,"length":ready,"wait":wait.round()}));
+                let runtime = ready as f64 * runtime;
+                total_runtime += runtime;
+                split_wait += (runtime / workers_for_estimate / 1000.).round();
+                split.push(json!({"name":name,"length":ready,"wait":split_wait}));
             }
-            result.push(json!({"name":queues,"connection":connection,"length":length,"wait":wait.round(),"processes":workers,"split_queues":if split.len()>1{Some(split)}else{None}}));
+            let wait = (total_runtime / workers_for_estimate / 1000.).round();
+            result.push(json!({"name":queues,"connection":connection,"length":length,"wait":wait,"processes":workers,"split_queues":if split.len()>1{Some(split)}else{None}}));
         }
         result.sort_by(|left, right| {
             right["wait"]

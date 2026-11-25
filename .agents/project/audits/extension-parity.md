@@ -103,4 +103,10 @@ O01 Activitylog、O02 Horizon、O03 Telescope原生范围、O04 Pennant、O05 Pu
 
 隔离快照沿用 `8041ae15a` 与前批文件，叠加本批。配置消费者 5 项及隔离 Redis 8.10.3 的双应用配置隔离 1 项通过。真实 Redis 8.10.3 进程／HTTP／Artisan 回归、全仓格式、Horizon 全目标严格 Clippy、三语文档构建及 12 组浏览器检查通过。发布组合与其他目标平台仍待专项复验。
 
-后续缺口已定位到固定上游 [RedisWorkloadRepository::get](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Repositories/RedisWorkloadRepository.php) 与 [WaitTimeCalculator::calculateTimeToClear](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/WaitTimeCalculator.php)。分组队列的各项先分别四舍五入到秒再逐项累加，整组等待时间由未舍入总量独立计算。本地当前使用未舍入累计值再逐项取整，两个分队列各 0.6 秒时第二项会显示 1 秒，上游为 2 秒。后续用真实 Redis 的 Ready 数和运行时指标分别验证整组和逐项结果。
+### Horizon 分组等待时间与 HTTP 排序
+
+固定上游 [RedisWorkloadRepository::get](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Repositories/RedisWorkloadRepository.php) 与 [WaitTimeCalculator::calculateTimeToClear](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/WaitTimeCalculator.php) 分别确定各分队列先取整再累加、整组以原始总量独立取整的行为。[WorkloadController::index](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Http/Controllers/WorkloadController.php) 对 HTTP 结果按名称排序，仓储按等待时间降序供监控消费。Rust 已补齐两处规则。
+
+隔离 Redis 8.10.3 上通过授权 HTTP 写入真实待处理与延迟任务、队列运行时指标以及两个 Supervisor 的进程数。两个分队列各 0.6 秒时，分项得到 1、2 秒，整组为 1 秒。零进程单队列仍按原始工作量得到 2 秒，延迟任务不计入 Ready；HTTP 中该单队列按名称排在分组之后。全量 Horizon `runtime` 9 项、快照全仓格式及 Horizon 全目标严格 Clippy 均通过。快照沿用 `8041ae15a` 加前批与本批文件。
+
+剩余行为差异：固定上游在分组结果中保留以队列名为键的 PHP 集合，重复队列在分项和长度中被合并；本地当前使用有序数组并遍历全部条目。需核对重复队列、数字名称的 JSON 形状和面板消费者，保持已发布 Rust 入口的兼容。等待时间监控的进程内节流与跨进程锁也仍待分别对账。
