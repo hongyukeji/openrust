@@ -233,6 +233,8 @@ Rust 在 Beanstalkd 取得已接收的任务 ID，以及 SQS 取得单条或批�
 
 macOS 同源码通过核心 Cloud 16 项、三包默认 88 项、全仓格式与修改范围的严格 Clippy。链式验收由 HTTP 请求派发首项并在请求结束后落库，两种运输均在 Worker 发送后继后增加一次成功计数。证据为 `target/tmp/observability-parity/pulse-external-queue-{verified,brokers-verified,sqs,regression}.log`。
 
+Linux 7.0.14 ARM64 与 Windows 11 ARM64 用 `f14c6a340` 的变更源码通过 SQS 回环部分确认专项。Linux 首次因项目磁盘停线中止，在确认容器退出且空间恢复后冷构建通过。Windows 既有 Unix 测试夹具辅助方法产生未使用警告。证据为 `target/tmp/observability-parity/pulse-external-queue-linux-cold.log` 与 `target/tmp/observability-windows/pulse-external-queue-arm64.log`。真实 Broker 验收的平台为 macOS。
+
 ### Telescope 出站 multipart 构建器快照
 
 真实回环 HTTP 与 SQLite 应用仓储覆盖上传成功、连接被拒、脱敏、原生 `Part` 兼容及两种重复字段覆盖。服务端检查附件字节、文件名和上传顺序。框架回归验证未知长度流到发送阶段才被读取，正文流只执行一次，快照长度为空。验证使用 `8041ae15a` 加前批和本批文件的隔离快照。Telescope 32 项、框架 HTTP 客户端 20 项、快照全仓格式、框架库及 Telescope 全目标严格 Clippy、三语站点及 12 组浏览器检查通过。Telescope 独立 Redis 用例本批未执行；出站 multipart 未遍历部署数据库或目标平台。保留原生 `Part`、预格式化输入与中间件替换流的差异，见[包审计](telescope/README.md#出站-multipart)。
