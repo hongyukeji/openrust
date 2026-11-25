@@ -40,6 +40,7 @@ pub(crate) struct FormParts<P> {
     pub(crate) percent_encoding: PercentEncoding,
 }
 
+#[derive(Clone)]
 pub(crate) struct PartMetadata {
     mime: Option<Mime>,
     file_name: Option<Cow<'static, str>>,
@@ -146,7 +147,33 @@ impl Form {
             return Body::empty();
         }
 
-        Body::stream(self.into_stream())
+        Body::multipart(self)
+    }
+
+    pub(crate) fn try_clone(&self) -> Option<Self> {
+        let fields = self
+            .inner
+            .fields
+            .iter()
+            .map(|(name, part)| {
+                Some((
+                    name.clone(),
+                    Part {
+                        meta: part.meta.clone(),
+                        value: part.value.try_clone()?,
+                        body_length: part.body_length,
+                    },
+                ))
+            })
+            .collect::<Option<_>>()?;
+        Some(Self {
+            inner: FormParts {
+                fields,
+                boundary: self.inner.boundary.clone(),
+                computed_headers: Vec::new(),
+                percent_encoding: self.inner.percent_encoding,
+            },
+        })
     }
 
     /// Produce a stream of the bytes in this `Form`, consuming it.
@@ -525,6 +552,7 @@ const ATTR_CHAR_ENCODE_SET: &AsciiSet = &NON_ALPHANUMERIC
     .remove(b'|')
     .remove(b'~');
 
+#[derive(Clone, Copy)]
 pub(crate) enum PercentEncoding {
     PathSegment,
     AttrChar,

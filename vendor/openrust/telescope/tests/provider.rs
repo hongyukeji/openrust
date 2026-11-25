@@ -1648,6 +1648,32 @@ fn client_handler(
                 .unwrap()
                 .ok()
         );
+        assert!(multipart().post(&redirect_url, &data).await.unwrap().ok());
+        assert!(
+            multipart()
+                .redact_payload()
+                .post(&redirect_url, &data)
+                .await
+                .unwrap()
+                .ok()
+        );
+        let replay_url = url.replace("/outgoing", "/redirect307");
+        assert!(multipart().post(&replay_url, &data).await.unwrap().ok());
+        let retry_url = url.replace("/outgoing", "/retry");
+        assert!(
+            multipart()
+                .retry(2, std::time::Duration::ZERO)
+                .retry_when_request(|_, request| {
+                    request
+                        .headers_mut()
+                        .insert("x-retry", http::HeaderValue::from_static("yes"));
+                    Ok(true)
+                })
+                .post(&retry_url, &data)
+                .await
+                .unwrap()
+                .ok()
+        );
         Ok(openrust::http::Response::from("observed"))
     })
 }
@@ -1658,7 +1684,7 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
     let origin = tokio::spawn(async move {
-        for index in 0..16 {
+        for index in 0..24 {
             let (mut socket, _) = listener.accept().await.unwrap();
             let mut bytes = Vec::new();
             loop {
@@ -1676,10 +1702,10 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
                         })
                         .unwrap_or(0);
                     if bytes.len() >= end + 4 + size {
-                        if index == 12 {
+                        if matches!(index, 12 | 16 | 18) {
                             assert!(headers.starts_with("post /redirect?"));
                         }
-                        if index == 13 {
+                        if matches!(index, 13 | 17 | 19) {
                             assert!(headers.starts_with("get /final?destination=value "));
                             assert_eq!(size, 0);
                             assert!(!headers.contains("content-type:"));
@@ -1703,7 +1729,17 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
                         if index == 10 {
                             assert!(headers.contains("content-type: text/plain"));
                         }
-                        if (2..4).contains(&index) {
+                        if index == 20 {
+                            assert!(headers.starts_with("post /redirect307?"));
+                        }
+                        if index == 21 {
+                            assert!(headers.starts_with("post /final?destination=value "));
+                        }
+                        if matches!(index, 22 | 23) {
+                            assert!(headers.starts_with("post /retry?"));
+                            assert_eq!(headers.contains("x-retry: yes"), index == 23);
+                        }
+                        if matches!(index, 2 | 3 | 16 | 18 | 20..=23) {
                             let body = &bytes[end + 4..];
                             assert!(headers.contains("multipart/form-data; boundary="));
                             assert!(body.windows(1500).any(|bytes| bytes == [255_u8; 1500]));
@@ -1722,6 +1758,22 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
             }
             if index == 12 || index == 14 {
                 socket.write_all(b"HTTP/1.1 302 Found\r\nLocation: /final?destination=value\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").await.unwrap();
+                continue;
+            }
+            if matches!(index, 16 | 18) {
+                let response = format!(
+                    "HTTP/1.1 302 Found\r\nLocation: http://localhost:{}/final?destination=value\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                    address.port()
+                );
+                socket.write_all(response.as_bytes()).await.unwrap();
+                continue;
+            }
+            if index == 20 {
+                socket.write_all(b"HTTP/1.1 307 Temporary Redirect\r\nLocation: /final?destination=value\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").await.unwrap();
+                continue;
+            }
+            if index == 22 {
+                socket.write_all(b"HTTP/1.1 422 Unprocessable Content\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").await.unwrap();
                 continue;
             }
             let body = r#"{"token":"secret","value":true}"#;
@@ -1767,7 +1819,33 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
         .get(Some(EntryType::ClientRequest), EntryQueryOptions::default())
         .await
         .unwrap();
-    assert_eq!(entries.len(), 17);
+    assert_eq!(entries.len(), 22);
+    let payload = json!({"same":{"name":"replaced.txt","size":"0.008KB","headers":[]},"secret":"********","enabled":true,"optional":null,
+        "file":{"name":"file.bin","size":"1.5KB","headers":{"content-type":"application/octet-stream","x-secret":"********"}}});
+    for (entry, (path, status)) in entries[..3].iter().zip([
+        ("/retry?same=query&query=value", 200),
+        ("/retry?same=query&query=value", 422),
+        ("/final?destination=value", 200),
+    ]) {
+        assert_eq!(entry.content["uri"], format!("http://{address}{path}"));
+        assert_eq!(entry.content["method"], "POST");
+        assert_eq!(entry.content["response_status"], status);
+        assert_eq!(entry.content["payload"], payload);
+    }
+    assert_eq!(entries[0].content["headers"]["x-retry"], "yes");
+    assert!(entries[1].content["headers"].get("x-retry").is_none());
+    let entries = &entries[3..];
+    let final_url = format!("http://localhost:{}/final", address.port());
+    assert_eq!(entries[0].content["uri"], final_url);
+    assert_eq!(entries[0].content["method"], "GET");
+    assert_eq!(entries[0].content["payload"], json!([]));
+    assert_eq!(
+        entries[1].content["uri"],
+        format!("{final_url}?destination=value")
+    );
+    assert_eq!(entries[1].content["method"], "GET");
+    assert_eq!(entries[1].content["payload"], payload);
+    let entries = &entries[2..];
     assert_eq!(entries[0].content["method"], "OPTIONS");
     assert!(
         entries[0].content["uri"]
@@ -1828,8 +1906,6 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
         })
         .collect();
     assert_eq!(multipart.len(), 3);
-    let payload = json!({"same":{"name":"replaced.txt","size":"0.008KB","headers":[]},"secret":"********","enabled":true,"optional":null,
-        "file":{"name":"file.bin","size":"1.5KB","headers":{"content-type":"application/octet-stream","x-secret":"********"}}});
     assert!(multipart[0].content["response_status"].is_null());
     assert_eq!(multipart[0].content["payload"], json!([]));
     assert_eq!(multipart[1].content["payload"], json!([]));

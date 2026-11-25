@@ -1,6 +1,8 @@
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
+#[cfg(feature = "multipart")]
+use std::sync::Arc;
 use std::task::{ready, Context, Poll};
 use std::time::Duration;
 
@@ -21,7 +23,11 @@ pub struct Body {
 
 enum Inner {
     Reusable(Bytes),
-    Streaming(BoxBody<Bytes, Box<dyn std::error::Error + Send + Sync>>),
+    Streaming {
+        body: BoxBody<Bytes, Box<dyn std::error::Error + Send + Sync>>,
+        #[cfg(feature = "multipart")]
+        multipart: Option<Arc<super::multipart::Form>>,
+    },
 }
 
 pin_project! {
@@ -53,7 +59,7 @@ impl Body {
     pub fn as_bytes(&self) -> Option<&[u8]> {
         match &self.inner {
             Inner::Reusable(bytes) => Some(bytes.as_ref()),
-            Inner::Streaming(..) => None,
+            Inner::Streaming { .. } => None,
         }
     }
 
@@ -107,9 +113,26 @@ impl Body {
                 .map_ok(|d| Frame::data(Bytes::from(d)))
                 .map_err(Into::into),
         )));
-        Body {
-            inner: Inner::Streaming(body),
+        Body::streaming(body)
+    }
+
+    #[cfg(feature = "multipart")]
+    pub(crate) fn multipart(form: super::multipart::Form) -> Body {
+        // 只保留可重新构建的部件，重放时沿用初始 boundary，避免合并正文。
+        let template = form.try_clone().map(Arc::new);
+        Self::multipart_stream(form, template)
+    }
+
+    #[cfg(feature = "multipart")]
+    fn multipart_stream(
+        form: super::multipart::Form,
+        template: Option<Arc<super::multipart::Form>>,
+    ) -> Body {
+        let mut body = Self::stream(form.into_stream());
+        if let Inner::Streaming { multipart, .. } = &mut body.inner {
+            *multipart = template;
         }
+        body
     }
 
     pub(crate) fn empty() -> Body {
@@ -145,14 +168,30 @@ impl Body {
 
         let boxed = IntoBytesBody { inner }.map_err(Into::into).boxed();
 
+        Body::streaming(boxed)
+    }
+
+    fn streaming(body: BoxBody<Bytes, Box<dyn std::error::Error + Send + Sync>>) -> Body {
         Body {
-            inner: Inner::Streaming(boxed),
+            inner: Inner::Streaming {
+                body,
+                #[cfg(feature = "multipart")]
+                multipart: None,
+            },
         }
     }
 
     pub(crate) fn try_clone(&self) -> Option<Body> {
         match self.inner {
             Inner::Reusable(ref chunk) => Some(Body::reusable(chunk.clone())),
+            #[cfg(feature = "multipart")]
+            Inner::Streaming {
+                multipart: Some(ref template),
+                ..
+            } => Some(Self::multipart_stream(
+                template.try_clone()?,
+                Some(Arc::clone(template)),
+            )),
             Inner::Streaming { .. } => None,
         }
     }
@@ -161,7 +200,7 @@ impl Body {
     pub(crate) fn content_length(&self) -> Option<u64> {
         match self.inner {
             Inner::Reusable(ref bytes) => Some(bytes.len() as u64),
-            Inner::Streaming(ref body) => body.size_hint().exact(),
+            Inner::Streaming { ref body, .. } => body.size_hint().exact(),
         }
     }
 }
@@ -253,7 +292,7 @@ impl HttpBody for Body {
                     Poll::Ready(Some(Ok(hyper::body::Frame::data(out))))
                 }
             }
-            Inner::Streaming(ref mut body) => Poll::Ready(
+            Inner::Streaming { ref mut body, .. } => Poll::Ready(
                 ready!(Pin::new(body).poll_frame(cx))
                     .map(|opt_chunk| opt_chunk.map_err(crate::error::body)),
             ),
@@ -263,14 +302,14 @@ impl HttpBody for Body {
     fn size_hint(&self) -> http_body::SizeHint {
         match self.inner {
             Inner::Reusable(ref bytes) => http_body::SizeHint::with_exact(bytes.len() as u64),
-            Inner::Streaming(ref body) => body.size_hint(),
+            Inner::Streaming { ref body, .. } => body.size_hint(),
         }
     }
 
     fn is_end_stream(&self) -> bool {
         match self.inner {
             Inner::Reusable(ref bytes) => bytes.is_empty(),
-            Inner::Streaming(ref body) => body.is_end_stream(),
+            Inner::Streaming { ref body, .. } => body.is_end_stream(),
         }
     }
 }

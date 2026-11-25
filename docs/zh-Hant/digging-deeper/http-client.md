@@ -203,3 +203,5 @@ TLS 驗證預設開啟。`without_verifying()` 僅為目前建構的請求關閉
 ## Multipart 欄位值
 
 `as_multipart().post(data)` 接受由純量欄位組成的物件。布林值按 PHP 方式編碼為 `1` 或空字串，null 編碼為空字串。巢狀物件或陣列傳回 `InvalidRequest`；檔案使用 `attach`。該入口不接收 Guzzle 全部 multipart 選項。
+
+所有部件皆已緩衝的 multipart 請求，在 307、308 重新導向和明確設定的重試中沿用原本文與 boundary。設定重試後，含一次性串流部件的請求會傳回 `UnreplayableRequest`。

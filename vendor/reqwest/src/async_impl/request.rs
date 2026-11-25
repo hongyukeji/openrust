@@ -141,7 +141,7 @@ impl Request {
 
     /// Attempt to clone the request.
     ///
-    /// `None` is returned if the request can not be cloned, i.e. if the body is a stream.
+    /// Returns `None` when the body cannot be replayed, such as a one-shot stream.
     pub fn try_clone(&self) -> Option<Request> {
         let body = match self.body.as_ref() {
             Some(body) => Some(body.try_clone()?),
@@ -527,8 +527,7 @@ impl RequestBuilder {
 
     /// Attempt to clone the RequestBuilder.
     ///
-    /// `None` is returned if the RequestBuilder can not be cloned,
-    /// i.e. if the request body is a stream.
+    /// Returns `None` when the request body cannot be replayed, such as a one-shot stream.
     ///
     /// # Examples
     ///

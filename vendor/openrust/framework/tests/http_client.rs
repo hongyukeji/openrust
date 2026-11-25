@@ -1807,3 +1807,125 @@ async fn multipart_redirect_limits_and_invalid_header_state_use_the_real_transpo
     ));
     task.abort();
 }
+
+#[tokio::test]
+async fn multipart_replays_buffered_parts_on_redirect_and_retry() {
+    type Upload = (Method, String, HeaderMap, axum::body::Bytes);
+
+    async fn capture(
+        State(uploads): State<Arc<std::sync::Mutex<Vec<Upload>>>>,
+        request: axum::extract::Request,
+    ) -> impl IntoResponse {
+        let (parts, body) = request.into_parts();
+        let body = axum::body::to_bytes(body, 65536).await.unwrap();
+        let path = parts.uri.path().to_owned();
+        let status = match path.as_str() {
+            "/redirect307" => StatusCode::TEMPORARY_REDIRECT,
+            "/redirect308" => StatusCode::PERMANENT_REDIRECT,
+            "/retry" if !parts.headers.contains_key("x-retry") => StatusCode::UNPROCESSABLE_ENTITY,
+            _ => StatusCode::OK,
+        };
+        uploads
+            .lock()
+            .unwrap()
+            .push((parts.method, path, parts.headers, body));
+        (status, [(header::LOCATION, "/target")])
+    }
+
+    let uploads = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let (base, task) = serve(
+        Router::new()
+            .route("/{path}", any(capture))
+            .with_state(Arc::clone(&uploads)),
+    )
+    .await;
+    let factory = Factory::new().unwrap();
+    let multipart = || {
+        factory
+            .pending_request()
+            .attach_body(
+                "document",
+                "attachment",
+                Some("file.txt"),
+                HeaderMap::new(),
+                None,
+            )
+            .attach("native", Part::text("native-part"))
+    };
+    let data = json!({"title":"original"});
+    for status in [307, 308] {
+        assert!(
+            multipart()
+                .post(&format!("{base}/redirect{status}"), &data)
+                .await
+                .unwrap()
+                .ok()
+        );
+    }
+    assert!(
+        multipart()
+            .retry(2, Duration::ZERO)
+            .retry_when_request(|error, request| {
+                assert!(matches!(error, Error::RequestFailed(response) if response.status() == StatusCode::UNPROCESSABLE_ENTITY));
+                request.headers_mut().insert("x-retry", HeaderValue::from_static("yes"));
+                Ok(true)
+            })
+            .post(&format!("{base}/retry"), &data)
+            .await
+            .unwrap()
+            .ok()
+    );
+    let stream = futures_util::stream::once(async { Ok::<_, std::io::Error>("one shot") });
+    assert!(matches!(
+        factory
+            .pending_request()
+            .attach_body(
+                "stream",
+                reqwest::Body::wrap_stream(stream),
+                None,
+                HeaderMap::new(),
+                None
+            )
+            .retry(2, Duration::ZERO)
+            .post(&format!("{base}/retry"), &data)
+            .await,
+        Err(Error::UnreplayableRequest)
+    ));
+    let uploads = uploads.lock().unwrap();
+    assert_eq!(
+        uploads
+            .iter()
+            .map(|item| item.1.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "/redirect307",
+            "/target",
+            "/redirect308",
+            "/target",
+            "/retry",
+            "/retry"
+        ]
+    );
+    for attempt in uploads.chunks_exact(2) {
+        let first = &attempt[0];
+        let second = &attempt[1];
+        assert_eq!(first.0, Method::POST);
+        assert_eq!(second.0, Method::POST);
+        assert_eq!(
+            first.2[header::CONTENT_TYPE],
+            second.2[header::CONTENT_TYPE]
+        );
+        assert_eq!(
+            first.2[header::CONTENT_LENGTH],
+            second.2[header::CONTENT_LENGTH]
+        );
+        assert_eq!(first.3, second.3);
+        let body = std::str::from_utf8(&first.3).unwrap();
+        assert!(body.contains("name=\"title\"\r\n\r\noriginal"));
+        assert!(body.contains("filename=\"file.txt\"\r\n\r\nattachment"));
+        assert!(body.contains("name=\"native\"\r\n\r\nnative-part"));
+    }
+    assert!(!uploads[4].2.contains_key("x-retry"));
+    assert_eq!(uploads[5].2["x-retry"], "yes");
+    task.abort();
+}

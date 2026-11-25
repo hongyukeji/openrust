@@ -99,6 +99,8 @@ O01 Activitylog、O02 Horizon、O03 Telescope原生范围、O04 Pennant、O05 Pu
 | Horizon | 继续核对 `Tags`、其余管理命令、监督器与 Worker、进程恢复、仓储、指标和面板操作。Redis Cluster 沿用固定上游支持边界。 |
 | 发布验收 | 跟踪 Fortify 三个测试目标编译深度溢出，复验最终交付快照的全仓门禁。锁定提交、依赖、目标平台和实际数据库／Redis／Worker 组合，验收迁移、正常关停、故障恢复、业务端到端及容量。平台与供应商所需真实条件按[发布待办](../todo.md#平台与发布条件)记录。 |
 
+Pulse 命令复核发现独立的调度差异。固定 `CheckCommand::handle` 以本轮采样时刻加一秒为下一次采样时间，`WorkCommand::handle` 则在完成 digest、清理和 Telescope 收集后固定等待一秒。Rust `commands.rs` 两条路径目前都从等待时间扣除本轮处理耗时，慢 digest 可能结束后立即再读。待通过真实 Artisan 命令、可控耗时的 Ingest 和共享缓存重启信号验证各自节奏。 [固定 CheckCommand](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Commands/CheckCommand.php) [固定 WorkCommand](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Commands/WorkCommand.php)
+
 2026-11-26 阶段组合包含 Telescope 关联写入、关系加载和 Gate 回退，Pulse 异常报告入口，以及 Horizon 显式监督器事件。三个扩展的同一隔离源码快照默认 94 项通过、23 项按环境条件跳过，仓库格式通过。证据为 `target/tmp/observability-parity/observability-combined-verified.log`。Release、各扩展剩余公开契约和实际部署组合继续验收。
 
 同日补齐 Pulse [Recorder 模式修饰符与分隔符](pulse/README.md#recorder-模式修饰符与分隔符)，复跑同组源码的默认测试，96 项通过、23 项按环境条件跳过。后续补齐[零宽匹配与替换转义](pulse/README.md#分组的零宽匹配与替换转义)，组合默认测试增至 97 项通过、23 项按环境条件跳过。经固定上游 Recorder 和 SQLite 进一步确认的非 UTF-8 分组键差异保留在专项审计中。
@@ -243,7 +245,13 @@ Linux 7.0.14 ARM64 与 Windows 11 ARM64 用 `f14c6a340` 的变更源码通过 SQ
 
 真实回环 HTTP 与 SQLite 应用仓储覆盖上传成功、连接被拒、脱敏、原生 `Part` 兼容及两种重复字段覆盖。服务端检查附件字节、文件名和上传顺序。框架回归验证未知长度流到发送阶段才被读取，正文流只执行一次，快照长度为空。验证使用 `8041ae15a` 加前批和本批文件的隔离快照。Telescope 32 项、框架 HTTP 客户端 20 项、快照全仓格式、框架库及 Telescope 全目标严格 Clippy、三语站点及 12 组浏览器检查通过。Telescope 独立 Redis 用例本批未执行；出站 multipart 未遍历部署数据库或目标平台。保留原生 `Part`、预格式化输入与中间件替换流的差异，见[包审计](telescope/README.md#出站-multipart)。
 
-PHP 8.5.12 运行固定 Laravel HTTP Client 和 Telescope `ClientRequestWatcher::input`，以 Guzzle MockHandler 检查线上请求。跨源 302 第二跳以空正文 GET 发送，保留原 multipart 媒体类型，响应事件仍从原始参数给出文件名、大小、部件头部和表单字段。可回卷的 PHP 文件流在 307 和 422 重试时重新发送；重试回调更新请求头，当前请求继续使用首次解析的附件列表。发送回调替换正文时诊断仍显示原始参数。证据为 `target/tmp/observability-parity/multipart-combinations-upstream.log`。Rust 原先从末跳线上正文判断是否提供 multipart 快照，导致 302 成功条目缺失原始参数。定向修复与真实回环 HTTP、入库和脱敏用例待验。正文清空后的媒体类型、流重放、独立重试和发送回调的组合继续核对。
+PHP 8.5.12 运行固定 Laravel HTTP Client 和 Telescope `ClientRequestWatcher::input`，以 Guzzle MockHandler 检查线上请求。跨源 302 第二跳以空正文 GET 发送，保留原 multipart 媒体类型，响应事件仍从原始参数给出文件名、大小、部件头部和表单字段。可回卷的 PHP 文件流在 307 和 422 重试时重新发送；重试回调更新请求头，当前请求继续使用首次解析的附件列表。发送回调替换正文时诊断仍显示原始参数。证据为 `target/tmp/observability-parity/multipart-combinations-upstream.log`。Rust 原先从末跳线上正文判断是否提供 multipart 快照，导致 302 成功条目缺失原始参数。发送和成功响应事件沿用原始 multipart 参数，线上发送快照仍按实际请求生成。清空正文后的媒体类型和一次性流边界继续核对。
+
+固定 reqwest 0.13.5 将所有非空 multipart 编码成不可复制的正文流，即使每个部件都已缓冲。Rust 复用现有本地 reqwest 副本及请求复制路径，保存可复制的部件、原 boundary 和编码方式，每次传输独立生成流，缓冲附件共享字节。一次性部件沿用原行为。旧版直接使用 reqwest 表单，未提供这类重放。真实回环用例覆盖 307、308、422 重试与头部改写，并逐字节比较两次正文；仍需验收可重开的文件和自定义流。初次验收在 32 GB 停线终止；第二次编译发现测试引用了框架未直接声明的 bytes crate，改用 Axum 已导出的同一类型后通过。 [固定 reqwest 请求复制契约](https://docs.rs/reqwest/0.13.5/reqwest/struct.Request.html#method.try_clone)
+
+固定 PHP 组合的实际回环服务器确认，302 后目标收到 `GET` 及原 multipart 媒体类型，正文长度为零，未发送原 Content-Length 或 Transfer-Encoding；307、308 后收到 `POST` 和完整附件。正文清空后的媒体类型差异保留为下一项实现缺口。另用不可回卷的 Guzzle 流确认，422 后上游仍尝试发送，但第二次请求的附件内容已丢失。Rust 对一次性流保留明确的不可重放错误；可回卷文件对应的 Rust 入口继续处理。证据为 `target/tmp/observability-parity/multipart-{redirect-wire-upstream,combinations-extended-upstream}.log`。
+
+在基于 `177b24933` 的 macOS 隔离快照上，框架 HTTP 客户端 23 项、Telescope Provider 15 项和所涉严格 Clippy 均通过。一个需要独占 Redis 的 Provider 用例未执行。真实回环与 Telescope 仓储验证跨源 302 原始表单参数与完全脱敏、307 重放、422 后重试头和两次条目，在 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 各通过。核心另验证 308、原生 Part 与一次性流拒绝重试。三语内容检查通过。证据为 `target/tmp/observability-parity/multipart-replay-macos-retry.log`。目标平台复验及生产部署组合仍待补齐。
 
 ### Telescope 非 multipart 出站诊断载荷
 
@@ -345,7 +353,7 @@ macOS 隔离快照通过框架分页／关系／惰性集合回归、Telescope W
 
 逐次消费由 `DatabaseCursorExt::try_next_with_source` 捕获调用位置。它在本次轮询作用域内登记消费位置，并跳过该消费位置内部的流创建帧。已经捕获的独立数据库操作、外层作用域和 Telescope 的路径过滤继续生效。普通 `TryStreamExt` 产物仍使用公开创建位置。
 
-在隔离快照上，macOS 的 SQLite、PostgreSQL 18.7、MySQL 8.4.13，以及 Windows 11 ARM64 的 SQLite 均通过 Telescope 真实 HTTP 路由验证两次读取、末次空查询及中间独立查询的精确源码行。普通消费者的流创建位置也随同复验。macOS 的框架惰性集合、关系和多态聚合回归通过，三个扩展的默认组合 100 项通过、23 项按环境条件跳过。快照全仓格式、所涉框架与扩展目标严格 Clippy、三语站点构建和 12 组浏览器检查通过。证据为 `target/tmp/observability-parity/query-consumer-{macos-verified,windows,docs}.log`。Linux ARM64 同源码组合已启动，完整发布组合继续验收。
+在隔离快照上，macOS 的 SQLite、PostgreSQL 18.7、MySQL 8.4.13，以及 Windows 11 ARM64 的 SQLite 均通过 Telescope 真实 HTTP 路由验证两次读取、末次空查询及中间独立查询的精确源码行。普通消费者的流创建位置也随同复验。macOS 的框架惰性集合、关系和多态聚合回归通过，三个扩展的默认组合 100 项通过、23 项按环境条件跳过。快照全仓格式、所涉框架与扩展目标严格 Clippy、三语站点构建和 12 组浏览器检查通过。证据为 `target/tmp/observability-parity/query-consumer-{macos-verified,windows,docs}.log`。Linux ARM64 同源码组合在框架编译阶段触及 32 GB 停线，容器已退出，继续补验。证据为 `target/tmp/observability-parity/query-consumer-linux.log`。
 
 ### Telescope Query 多对多中间表调用来源
 

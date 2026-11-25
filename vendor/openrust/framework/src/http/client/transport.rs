@@ -37,10 +37,15 @@ pub(super) struct Transport<'a> {
 impl Transport<'_> {
     pub(super) async fn send(&self, mut request: Request) -> Result<Response> {
         let has_events = self.factory.events.is_some();
-        let event_source = if has_events && !self.redact_payload {
-            self.event_source(&request)
+        let (event_source, event_multipart) = if has_events && !self.redact_payload {
+            (
+                self.event_source(&request),
+                self.multipart
+                    .as_ref()
+                    .map(|(fields, _)| Arc::clone(fields)),
+            )
         } else {
-            None
+            (None, None)
         };
         let started_at = Instant::now();
         let mut redirects = 0;
@@ -58,6 +63,7 @@ impl Transport<'_> {
                     sending = has_events.then(|| {
                         let mut snapshot = self.snapshot(&request);
                         snapshot.diagnostic_source.clone_from(&event_source);
+                        snapshot.multipart.clone_from(&event_multipart);
                         snapshot
                     });
                     if let Some(request) = &sending {
