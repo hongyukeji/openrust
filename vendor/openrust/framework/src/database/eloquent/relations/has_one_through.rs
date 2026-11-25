@@ -63,48 +63,58 @@ impl<P: Model, I: Model, R: Model> HasOneThrough<P, I, R> {
         self
     }
 
-    pub async fn paginate(
+    #[track_caller]
+    pub fn paginate(
         &self,
         parent: &P,
         per_page: u64,
-    ) -> DatabaseResult<LengthAwarePaginator<R>> {
-        self.0.paginate(parent, per_page).await
+    ) -> impl Future<Output = DatabaseResult<LengthAwarePaginator<R>>> {
+        self.0.paginate(parent, per_page)
     }
 
-    pub async fn paginate_with(
+    #[track_caller]
+    pub fn paginate_with(
         &self,
         parent: &P,
         options: PageOptions<'_>,
-    ) -> DatabaseResult<LengthAwarePaginator<R>> {
-        self.0.paginate_with(parent, options).await
+    ) -> impl Future<Output = DatabaseResult<LengthAwarePaginator<R>>> {
+        self.0.paginate_with(parent, options)
     }
 
-    pub async fn simple_paginate(&self, parent: &P, per_page: u64) -> DatabaseResult<Paginator<R>> {
-        self.0.simple_paginate(parent, per_page).await
-    }
-
-    pub async fn simple_paginate_with(
-        &self,
-        parent: &P,
-        options: PageOptions<'_>,
-    ) -> DatabaseResult<Paginator<R>> {
-        self.0.simple_paginate_with(parent, options).await
-    }
-
-    pub async fn cursor_paginate(
+    #[track_caller]
+    pub fn simple_paginate(
         &self,
         parent: &P,
         per_page: u64,
-    ) -> DatabaseResult<CursorPaginator<R>> {
-        self.0.cursor_paginate(parent, per_page).await
+    ) -> impl Future<Output = DatabaseResult<Paginator<R>>> {
+        self.0.simple_paginate(parent, per_page)
     }
 
-    pub async fn cursor_paginate_with(
+    #[track_caller]
+    pub fn simple_paginate_with(
+        &self,
+        parent: &P,
+        options: PageOptions<'_>,
+    ) -> impl Future<Output = DatabaseResult<Paginator<R>>> {
+        self.0.simple_paginate_with(parent, options)
+    }
+
+    #[track_caller]
+    pub fn cursor_paginate(
+        &self,
+        parent: &P,
+        per_page: u64,
+    ) -> impl Future<Output = DatabaseResult<CursorPaginator<R>>> {
+        self.0.cursor_paginate(parent, per_page)
+    }
+
+    #[track_caller]
+    pub fn cursor_paginate_with(
         &self,
         parent: &P,
         options: CursorOptions<'_>,
-    ) -> DatabaseResult<CursorPaginator<R>> {
-        self.0.cursor_paginate_with(parent, options).await
+    ) -> impl Future<Output = DatabaseResult<CursorPaginator<R>>> {
+        self.0.cursor_paginate_with(parent, options)
     }
 
     pub async fn is(&self, parent: &P, related: Option<&R>) -> DatabaseResult<bool> {

@@ -19,6 +19,7 @@ use crate::database::{
         named_relations::{DiscoveredMorphs, MissingPaths, PathConstraint},
         touches::TouchedOwners,
     },
+    events::with_query_caller,
     query,
 };
 
@@ -210,11 +211,12 @@ impl<P: Model> MorphTo<P> {
         }
     }
 
-    pub async fn paginate(
+    #[track_caller]
+    pub fn paginate(
         &self,
         parent: &P,
         per_page: u64,
-    ) -> DatabaseResult<LengthAwarePaginator<MorphTarget>> {
+    ) -> impl Future<Output = DatabaseResult<LengthAwarePaginator<MorphTarget>>> {
         self.paginate_with(
             parent,
             PageOptions {
@@ -222,27 +224,30 @@ impl<P: Model> MorphTo<P> {
                 ..Default::default()
             },
         )
-        .await
     }
 
-    pub async fn paginate_with(
+    #[track_caller]
+    pub fn paginate_with(
         &self,
         parent: &P,
         options: PageOptions<'_>,
-    ) -> DatabaseResult<LengthAwarePaginator<MorphTarget>> {
-        let Some((alias, target)) = self.selected_target(parent)? else {
-            return super::pagination::empty_length(options);
-        };
-        target
-            .paginate(parent, alias, self.soft_deletes, options)
-            .await
+    ) -> impl Future<Output = DatabaseResult<LengthAwarePaginator<MorphTarget>>> {
+        with_query_caller(std::panic::Location::caller(), async move {
+            let Some((alias, target)) = self.selected_target(parent)? else {
+                return super::pagination::empty_length(options);
+            };
+            target
+                .paginate(parent, alias, self.soft_deletes, options)
+                .await
+        })
     }
 
-    pub async fn simple_paginate(
+    #[track_caller]
+    pub fn simple_paginate(
         &self,
         parent: &P,
         per_page: u64,
-    ) -> DatabaseResult<Paginator<MorphTarget>> {
+    ) -> impl Future<Output = DatabaseResult<Paginator<MorphTarget>>> {
         self.simple_paginate_with(
             parent,
             PageOptions {
@@ -250,27 +255,30 @@ impl<P: Model> MorphTo<P> {
                 ..Default::default()
             },
         )
-        .await
     }
 
-    pub async fn simple_paginate_with(
+    #[track_caller]
+    pub fn simple_paginate_with(
         &self,
         parent: &P,
         options: PageOptions<'_>,
-    ) -> DatabaseResult<Paginator<MorphTarget>> {
-        let Some((alias, target)) = self.selected_target(parent)? else {
-            return super::pagination::empty_simple(options);
-        };
-        target
-            .simple_paginate(parent, alias, self.soft_deletes, options)
-            .await
+    ) -> impl Future<Output = DatabaseResult<Paginator<MorphTarget>>> {
+        with_query_caller(std::panic::Location::caller(), async move {
+            let Some((alias, target)) = self.selected_target(parent)? else {
+                return super::pagination::empty_simple(options);
+            };
+            target
+                .simple_paginate(parent, alias, self.soft_deletes, options)
+                .await
+        })
     }
 
-    pub async fn cursor_paginate(
+    #[track_caller]
+    pub fn cursor_paginate(
         &self,
         parent: &P,
         per_page: u64,
-    ) -> DatabaseResult<CursorPaginator<MorphTarget>> {
+    ) -> impl Future<Output = DatabaseResult<CursorPaginator<MorphTarget>>> {
         self.cursor_paginate_with(
             parent,
             CursorOptions {
@@ -278,20 +286,22 @@ impl<P: Model> MorphTo<P> {
                 ..Default::default()
             },
         )
-        .await
     }
 
-    pub async fn cursor_paginate_with(
+    #[track_caller]
+    pub fn cursor_paginate_with(
         &self,
         parent: &P,
         options: CursorOptions<'_>,
-    ) -> DatabaseResult<CursorPaginator<MorphTarget>> {
-        let Some((alias, target)) = self.selected_target(parent)? else {
-            return super::pagination::empty_cursor(options);
-        };
-        target
-            .cursor_paginate(parent, alias, self.soft_deletes, options)
-            .await
+    ) -> impl Future<Output = DatabaseResult<CursorPaginator<MorphTarget>>> {
+        with_query_caller(std::panic::Location::caller(), async move {
+            let Some((alias, target)) = self.selected_target(parent)? else {
+                return super::pagination::empty_cursor(options);
+            };
+            target
+                .cursor_paginate(parent, alias, self.soft_deletes, options)
+                .await
+        })
     }
 
     super::key_chunks::lazy_chunks!(MorphTarget);

@@ -1,5 +1,7 @@
 use crate::{
-    database::{Connection, DatabaseResult, Value, query::FullTextOptions},
+    database::{
+        Connection, DatabaseResult, Value, events::with_query_caller, query::FullTextOptions,
+    },
     pagination::{LengthAwarePaginator, PageOptions, Paginator},
 };
 
@@ -148,18 +150,33 @@ impl<M: Searchable> SearchBuilder<M> {
         self.into_query().get().await
     }
 
-    pub async fn paginate(self, per_page: u64) -> DatabaseResult<LengthAwarePaginator<M>> {
-        self.into_query().paginate(per_page).await
+    #[track_caller]
+    pub fn paginate(
+        self,
+        per_page: u64,
+    ) -> impl Future<Output = DatabaseResult<LengthAwarePaginator<M>>> {
+        with_query_caller(std::panic::Location::caller(), async move {
+            self.into_query().paginate(per_page).await
+        })
     }
 
-    pub async fn paginate_with(
+    #[track_caller]
+    pub fn paginate_with(
         self,
         options: PageOptions<'_>,
-    ) -> DatabaseResult<LengthAwarePaginator<M>> {
-        self.into_query().paginate_with(options).await
+    ) -> impl Future<Output = DatabaseResult<LengthAwarePaginator<M>>> {
+        with_query_caller(std::panic::Location::caller(), async move {
+            self.into_query().paginate_with(options).await
+        })
     }
 
-    pub async fn simple_paginate(self, per_page: u64) -> DatabaseResult<Paginator<M>> {
-        self.into_query().simple_paginate(per_page).await
+    #[track_caller]
+    pub fn simple_paginate(
+        self,
+        per_page: u64,
+    ) -> impl Future<Output = DatabaseResult<Paginator<M>>> {
+        with_query_caller(std::panic::Location::caller(), async move {
+            self.into_query().simple_paginate(per_page).await
+        })
     }
 }

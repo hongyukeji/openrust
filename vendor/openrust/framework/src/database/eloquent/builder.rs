@@ -4,7 +4,10 @@ use futures_util::TryStreamExt as _;
 use indexmap::IndexMap;
 
 use crate::{
-    database::{Connection, DatabaseCursor, DatabaseError, DatabaseResult, Row, Value, query},
+    database::{
+        Connection, DatabaseCursor, DatabaseError, DatabaseResult, Row, Value,
+        events::with_query_caller, query,
+    },
     pagination::{CursorOptions, CursorPaginator, LengthAwarePaginator, PageOptions, Paginator},
 };
 
@@ -1907,19 +1910,25 @@ impl<M: Model> Builder<'static, M> {
         Ok(models)
     }
 
-    pub async fn paginate(self, per_page: u64) -> DatabaseResult<LengthAwarePaginator<M>> {
+    #[track_caller]
+    pub fn paginate(
+        self,
+        per_page: u64,
+    ) -> impl Future<Output = DatabaseResult<LengthAwarePaginator<M>>> {
         self.paginate_with(PageOptions {
             per_page: Some(per_page),
             ..PageOptions::default()
         })
-        .await
     }
 
-    pub async fn paginate_with(
+    #[track_caller]
+    pub fn paginate_with(
         self,
         options: PageOptions<'_>,
-    ) -> DatabaseResult<LengthAwarePaginator<M>> {
-        self.paginate_hydrated(options, |_, _| Ok(())).await
+    ) -> impl Future<Output = DatabaseResult<LengthAwarePaginator<M>>> {
+        with_query_caller(std::panic::Location::caller(), async move {
+            self.paginate_hydrated(options, |_, _| Ok(())).await
+        })
     }
 
     pub(super) async fn paginate_hydrated(
@@ -1942,19 +1951,25 @@ impl<M: Model> Builder<'static, M> {
         Ok(page)
     }
 
-    pub async fn simple_paginate(self, per_page: u64) -> DatabaseResult<Paginator<M>> {
+    #[track_caller]
+    pub fn simple_paginate(
+        self,
+        per_page: u64,
+    ) -> impl Future<Output = DatabaseResult<Paginator<M>>> {
         self.simple_paginate_with(PageOptions {
             per_page: Some(per_page),
             ..PageOptions::default()
         })
-        .await
     }
 
-    pub async fn simple_paginate_with(
+    #[track_caller]
+    pub fn simple_paginate_with(
         self,
         options: PageOptions<'_>,
-    ) -> DatabaseResult<Paginator<M>> {
-        self.simple_paginate_hydrated(options, |_, _| Ok(())).await
+    ) -> impl Future<Output = DatabaseResult<Paginator<M>>> {
+        with_query_caller(std::panic::Location::caller(), async move {
+            self.simple_paginate_hydrated(options, |_, _| Ok(())).await
+        })
     }
 
     pub(super) async fn simple_paginate_hydrated(
@@ -2216,19 +2231,25 @@ impl<M: Model> Builder<'static, M> {
         })
     }
 
-    pub async fn cursor_paginate(self, per_page: u64) -> DatabaseResult<CursorPaginator<M>> {
+    #[track_caller]
+    pub fn cursor_paginate(
+        self,
+        per_page: u64,
+    ) -> impl Future<Output = DatabaseResult<CursorPaginator<M>>> {
         self.cursor_paginate_with(CursorOptions {
             per_page: Some(per_page),
             ..CursorOptions::default()
         })
-        .await
     }
 
-    pub async fn cursor_paginate_with(
+    #[track_caller]
+    pub fn cursor_paginate_with(
         self,
         options: CursorOptions<'_>,
-    ) -> DatabaseResult<CursorPaginator<M>> {
-        self.cursor_paginate_hydrated(options, |_, _| Ok(())).await
+    ) -> impl Future<Output = DatabaseResult<CursorPaginator<M>>> {
+        with_query_caller(std::panic::Location::caller(), async move {
+            self.cursor_paginate_hydrated(options, |_, _| Ok(())).await
+        })
     }
 
     pub(super) async fn cursor_paginate_hydrated(

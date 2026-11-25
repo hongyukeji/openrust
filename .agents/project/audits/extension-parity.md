@@ -77,7 +77,7 @@ O01 Activitylog、O02 Horizon、O03 Telescope原生范围、O04 Pennant、O05 Pu
 | Telescope `ClientRequestWatcher::duration` | 固定上游在有正计时时以毫秒向下取整，缺少计时时输出空值。Rust 从现有传输统计输出整数毫秒或 JSON 空值。测试由真实出站 HTTP 与 fake 消费者覆盖。 | 命令与面板展示随完整输出审计核对。 |
 | Telescope `ClientRequestWatcher::input` | 已捕获构建器提供的 multipart 普通字段及 `attach_body` 附件的文件名、长度、头部。普通字段先于附件发送，同名取最后一项，复用请求字段／头部脱敏。原生 `attach` 保留发送契约。 | 原生 reqwest `Part` 元数据和中间件替换流的边界见[包审计](telescope/README.md#出站-multipart)。 |
 | Telescope 非 multipart 出站载荷 | 诊断从原始 GET 地址或结构化正文选择载荷，并与线上 URL 分别记录。已核对 JSON／表单 POST、GET 查询覆盖、HEAD、原始正文、自定义媒体类型与表单标量快照。成功重定向保留原始输入，连接失败从实际缓冲正文解码。 | multipart 重定向、重试回调改写与其他中间件组合仍需对账。 |
-| Telescope `FetchesStackTrace`、`QueryWatcher`、`GateWatcher` | 固定上游按路径子串跳过被忽略的帧，再选第一处合格来源。找不到合格帧时 Query 不入库，Gate 仍入库且行号和文件为空。Gate 已提供授权入口位置，Query 已从核心 SQL 入口收集候选并使用第一处可见位置。 | Gate 外层候选、Query 尚未接入的公开入口，以及发布构建路径重映射仍须逐项核对。 |
+| Telescope `FetchesStackTrace`、`QueryWatcher`、`GateWatcher` | 固定上游按路径子串跳过被忽略的帧，再选第一处合格来源。找不到合格帧时 Query 不入库，Gate 仍入库且行号和文件为空。Gate 已提供授权入口位置，Query 已从核心 SQL 和公开分页入口收集候选并使用第一处可见位置。 | Gate 外层候选、Query 尚未接入的模型写入、关系直接读取、schema、懒加载入口，以及发布构建路径重映射仍须逐项核对。 |
 | Pulse 默认 Recorder 清单 | 固定配置的十个 Recorder 均可映射到本地配置。核对了采样率 1、慢操作阈值 1000、异常和慢查询位置开关、默认存储及采集驱动；这一轮只读配置。 | 逐 Recorder 核对触发事件、筛选、采样、聚合、配置覆盖和扩展入口，再核对命令和面板。Servers 主机名上游在配置加载时求值，本地在记录时回退，配置缓存边界待裁决。 |
 | Horizon `horizon:listen` 的 `watch` | 上游发布配置提供默认监听列表。Rust 配置补充应用、启动、配置、数据库、路由、视图、公开目录及资源目录中的 Rust 文件和 Cargo 构建入口的对应监听路径。真实 Artisan 使用默认配置监控 `routes/web.rs`，文件更新后重建 Master 和 Worker，SIGTERM 后子树退出。 | 补 Linux／Windows 目标平台验收。 |
 | Horizon 其余配置 | 固定上游含 `name`、`waits`、`silenced`、`silenced_tags` 及 Supervisor `nice`。本地已读静默配置并具备 `nice` 运行时默认；配置形状、面板名称、等待时间入口仍须逐项核对。 | 对照发布配置及实际命令、Redis 和面板消费者，分别核对默认、覆盖及非法值。 |
@@ -268,3 +268,11 @@ Telescope 从最近的已捕获候选开始应用 `ignore_packages` 与 `ignore_
 真实回归首轮暴露仓储写入的内部 INSERT 被另一个容器执行作用域的 Telescope 实例采集。固定 `Telescope::store` 在 `withoutRecording` 内持久化。Rust 扩展同一异步任务的抑制范围，覆盖仓储写入、更新和存储回调，并在 Watcher 解析实例前跳过持久化期间的事件。
 
 基于 `c2ee09bec` 加本批文件的隔离快照验收。SQLite、PostgreSQL 18.7 与 MySQL 8.4.13 均通过真实应用路由的并发查询行号、内层过滤后回退到外层来源、依赖过滤、仓储 SQL 抑制和 Eloquent 查询来源回归。Telescope 默认 34 项通过，独立 Redis 8.10.3 的用例另行通过。框架 SQL 观测回归覆盖成功、失败、作用域与取消，三库实际回调验收覆盖一次性消费、结果转换和事务。快照全仓格式、框架库及 Telescope 全目标严格 Clippy、三语文档构建及 12 组浏览器检查通过。发布构建与其他目标平台未在本批验收。证据位于 `target/tmp/observability-parity/query-caller-*.log`。
+
+### Telescope Query 分页调用来源
+
+固定 [Query Builder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Query/Builder.php)、[Eloquent Builder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Builder.php) 与关系分页调用沿 PHP 同步栈保留应用位置。PHP 8.5.12 的 SQLite 参考探针实际注册固定 QueryWatcher，验证 Query Builder 长度分页、Eloquent 游标分页及预加载、HasMany 长度分页、HasOne 简单分页的 7 条 SQL 均归到 4 处应用调用行。
+
+Rust 复用查询来源作用域，接入 Query Builder、Eloquent、SearchBuilder 的分页方法，以及 HasMany、HasOne、BelongsTo、MorphOne、MorphMany、MorphTo、HasManyThrough、HasOneThrough、BelongsToMany 关系入口。MorphToMany 经现有解引用转发到 BelongsToMany。普通页、简单页、游标页及带选项变体均保留异步执行；只转发参数的同类入口直接传递编译器调用位置。旧版对应 SeaORM 分页无此观测入口。
+
+基于 `4f19d7c29` 加本批文件的隔离快照，通过 SQLite、PostgreSQL 18.7、MySQL 8.4.13 的真实应用路由验证与 PHP 探针对应的 7 条 SQL 和精确行号。Telescope 默认 35 项、框架分页 14 项及 SQL 观测回归通过。另显式启用 PostgreSQL 的分页解析器、MySQL 的分页解析器和完整 HTTP 分页用例，确认均连接相应数据库。快照全仓格式、框架库及 Telescope 全目标严格 Clippy、三语文档构建和 12 组浏览器检查通过。Redis 专项本批未重复运行。模型写入、关系直接读取、schema、懒加载和任意异步包装器继续核对。原始输出位于 `target/tmp/observability-parity/query-pagination-*.log`。

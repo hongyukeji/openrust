@@ -29,10 +29,93 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
     Route::get("/client-error", client_error_handler)?;
     Route::get("/gate-callers", gate_callers)?;
     Route::get("/query-callers", query_callers)?;
+    Route::get("/page-callers", page_callers)?;
     for path in ["/json", "/plain", "/boundary", "/large", "/opaque"] {
         Route::get(path, response_handler)?;
     }
     Ok(())
+}
+
+struct PageProbe(openrust::database::eloquent::ModelState);
+
+impl openrust::database::eloquent::Model for PageProbe {
+    fn metadata() -> &'static openrust::database::eloquent::ModelMetadata {
+        use openrust::database::eloquent::ModelMetadata;
+        static META: ModelMetadata = ModelMetadata::new("query_page_probe").timestamps(None, None);
+        &META
+    }
+
+    fn from_state(state: openrust::database::eloquent::ModelState) -> Self {
+        Self(state)
+    }
+
+    fn state(&self) -> &openrust::database::eloquent::ModelState {
+        &self.0
+    }
+
+    fn state_mut(&mut self) -> &mut openrust::database::eloquent::ModelState {
+        &mut self.0
+    }
+}
+
+fn page_callers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    use openrust::{
+        database::eloquent::{
+            Model as _,
+            relations::{HasMany, HasOne},
+        },
+        pagination::{CursorOptions, PageOptions},
+    };
+
+    Box::pin(async {
+        let connection = Db::connection(None).unwrap();
+        let table = format!("{}query_page_probe", connection.get_table_prefix());
+        connection
+            .statement(
+                &format!("CREATE TABLE {table} (id BIGINT PRIMARY KEY, owner_id BIGINT)"),
+                &[],
+            )
+            .await
+            .unwrap();
+        connection
+            .statement(
+                &format!("INSERT INTO {table} VALUES (1, 0), (2, 1), (3, 1)"),
+                &[],
+            )
+            .await
+            .unwrap();
+        let query = connection.table("query_page_probe").order_by("id", "asc");
+        let builder = line!() + 1;
+        let direct_page = query.paginate(2).await.unwrap();
+        assert_eq!(direct_page.total(), 3);
+        let query = PageProbe::query().unwrap().with(
+            "children",
+            HasMany::<PageProbe, PageProbe>::new("id", "owner_id"),
+        );
+        let options = CursorOptions::default();
+        let model = line!() + 1;
+        let model_page = query.cursor_paginate_with(options).await.unwrap();
+        assert_eq!(model_page.items().len(), 3);
+        let parent = &model_page.items()[0];
+        assert!(parent.relation_loaded("children"));
+        let relation = HasMany::<PageProbe, PageProbe>::new("id", "owner_id");
+        let options = PageOptions {
+            per_page: Some(1),
+            ..PageOptions::default()
+        };
+        let related = line!() + 1;
+        let related_page = relation.paginate_with(parent, options).await.unwrap();
+        assert_eq!(related_page.total(), 2);
+        assert_eq!(related_page.items().len(), 1);
+        let relation = HasOne::<PageProbe, PageProbe>::new("id", "owner_id");
+        let single = line!() + 1;
+        let single_page = relation.simple_paginate(parent, 1).await.unwrap();
+        assert_eq!(single_page.items().len(), 1);
+        Response::json(
+            http::StatusCode::OK,
+            json!([[builder, 2], [model, 2], [related, 2], [single, 1]]),
+        )
+    })
 }
 
 fn query_callers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
@@ -71,6 +154,43 @@ fn query_callers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
             }),
         )
     })
+}
+
+#[tokio::test]
+async fn query_watcher_attributes_pagination_queries_to_the_public_entry() {
+    let mut app = application();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    QueryWatcher::new(
+        json!({"ignore_packages":false})
+            .as_object()
+            .unwrap()
+            .clone(),
+    )
+    .register(app.app())
+    .await
+    .unwrap();
+
+    let response = app.get("/api/page-callers").await.unwrap();
+    response.assert_ok();
+    let expected = response.json::<Vec<(u64, usize)>>().unwrap();
+    let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
+    let entries = repository
+        .get(Some(EntryType::Query), EntryQueryOptions::default())
+        .await
+        .unwrap();
+    let mut actual = std::collections::BTreeMap::new();
+    for entry in entries.iter().filter(|entry| {
+        let sql = entry.content["sql"].as_str().unwrap();
+        sql.starts_with("select ") && sql.contains("query_page_probe")
+    }) {
+        assert_eq!(entry.content["file"], file!());
+        *actual
+            .entry(entry.content["line"].as_u64().unwrap())
+            .or_insert(0) += 1;
+    }
+    assert_eq!(actual, expected.into_iter().collect());
 }
 
 fn gate_callers(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {

@@ -15,6 +15,7 @@ use crate::database::{
         },
         touches::TouchedOwners,
     },
+    events::with_query_caller,
     query,
 };
 
@@ -1689,11 +1690,12 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             .ok_or(DatabaseError::InvalidQuery("relationship parent key"))
     }
 
-    pub async fn paginate(
+    #[track_caller]
+    pub fn paginate(
         &self,
         parent: &P,
         per_page: u64,
-    ) -> DatabaseResult<LengthAwarePaginator<R>> {
+    ) -> impl Future<Output = DatabaseResult<LengthAwarePaginator<R>>> {
         self.paginate_with(
             parent,
             PageOptions {
@@ -1701,24 +1703,31 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                 ..Default::default()
             },
         )
-        .await
     }
 
-    pub async fn paginate_with(
+    #[track_caller]
+    pub fn paginate_with(
         &self,
         parent: &P,
         options: PageOptions<'_>,
-    ) -> DatabaseResult<LengthAwarePaginator<R>> {
-        let names = self.pivot_names();
-        let columns = self.page_pivot_columns(&names, false);
-        self.pagination_query(parent, options.columns, &columns)?
-            .paginate_hydrated(options, |models, connection| {
-                self.hydrate_page_pivots(parent, models, &columns, &names, connection)
-            })
-            .await
+    ) -> impl Future<Output = DatabaseResult<LengthAwarePaginator<R>>> {
+        with_query_caller(std::panic::Location::caller(), async move {
+            let names = self.pivot_names();
+            let columns = self.page_pivot_columns(&names, false);
+            self.pagination_query(parent, options.columns, &columns)?
+                .paginate_hydrated(options, |models, connection| {
+                    self.hydrate_page_pivots(parent, models, &columns, &names, connection)
+                })
+                .await
+        })
     }
 
-    pub async fn simple_paginate(&self, parent: &P, per_page: u64) -> DatabaseResult<Paginator<R>> {
+    #[track_caller]
+    pub fn simple_paginate(
+        &self,
+        parent: &P,
+        per_page: u64,
+    ) -> impl Future<Output = DatabaseResult<Paginator<R>>> {
         self.simple_paginate_with(
             parent,
             PageOptions {
@@ -1726,28 +1735,31 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                 ..Default::default()
             },
         )
-        .await
     }
 
-    pub async fn simple_paginate_with(
+    #[track_caller]
+    pub fn simple_paginate_with(
         &self,
         parent: &P,
         options: PageOptions<'_>,
-    ) -> DatabaseResult<Paginator<R>> {
-        let names = self.pivot_names();
-        let columns = self.page_pivot_columns(&names, false);
-        self.pagination_query(parent, options.columns, &columns)?
-            .simple_paginate_hydrated(options, |models, connection| {
-                self.hydrate_page_pivots(parent, models, &columns, &names, connection)
-            })
-            .await
+    ) -> impl Future<Output = DatabaseResult<Paginator<R>>> {
+        with_query_caller(std::panic::Location::caller(), async move {
+            let names = self.pivot_names();
+            let columns = self.page_pivot_columns(&names, false);
+            self.pagination_query(parent, options.columns, &columns)?
+                .simple_paginate_hydrated(options, |models, connection| {
+                    self.hydrate_page_pivots(parent, models, &columns, &names, connection)
+                })
+                .await
+        })
     }
 
-    pub async fn cursor_paginate(
+    #[track_caller]
+    pub fn cursor_paginate(
         &self,
         parent: &P,
         per_page: u64,
-    ) -> DatabaseResult<CursorPaginator<R>> {
+    ) -> impl Future<Output = DatabaseResult<CursorPaginator<R>>> {
         self.cursor_paginate_with(
             parent,
             CursorOptions {
@@ -1755,21 +1767,23 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                 ..Default::default()
             },
         )
-        .await
     }
 
-    pub async fn cursor_paginate_with(
+    #[track_caller]
+    pub fn cursor_paginate_with(
         &self,
         parent: &P,
         options: CursorOptions<'_>,
-    ) -> DatabaseResult<CursorPaginator<R>> {
-        let names = self.pivot_names();
-        let columns = self.page_pivot_columns(&names, true);
-        self.pagination_query(parent, options.columns, &columns)?
-            .cursor_paginate_hydrated(options, |models, connection| {
-                self.hydrate_page_pivots(parent, models, &columns, &names, connection)
-            })
-            .await
+    ) -> impl Future<Output = DatabaseResult<CursorPaginator<R>>> {
+        with_query_caller(std::panic::Location::caller(), async move {
+            let names = self.pivot_names();
+            let columns = self.page_pivot_columns(&names, true);
+            self.pagination_query(parent, options.columns, &columns)?
+                .cursor_paginate_hydrated(options, |models, connection| {
+                    self.hydrate_page_pivots(parent, models, &columns, &names, connection)
+                })
+                .await
+        })
     }
 
     super::key_chunks::lazy_chunks!(R);

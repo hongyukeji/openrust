@@ -9,6 +9,7 @@ use crate::database::{
             has_relationships::load_eager_with_transaction, queries_relationships::cast_existence,
         },
     },
+    events::with_query_caller,
     query,
 };
 
@@ -88,11 +89,12 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
         self
     }
 
-    pub async fn paginate(
+    #[track_caller]
+    pub fn paginate(
         &self,
         parent: &P,
         per_page: u64,
-    ) -> DatabaseResult<LengthAwarePaginator<R>> {
+    ) -> impl Future<Output = DatabaseResult<LengthAwarePaginator<R>>> {
         self.paginate_with(
             parent,
             PageOptions {
@@ -100,20 +102,27 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
                 ..PageOptions::default()
             },
         )
-        .await
     }
 
-    pub async fn paginate_with(
+    #[track_caller]
+    pub fn paginate_with(
         &self,
         parent: &P,
         options: PageOptions<'_>,
-    ) -> DatabaseResult<LengthAwarePaginator<R>> {
-        self.pagination_query(parent, options.columns)?
-            .paginate_with(options)
-            .await
+    ) -> impl Future<Output = DatabaseResult<LengthAwarePaginator<R>>> {
+        with_query_caller(std::panic::Location::caller(), async move {
+            self.pagination_query(parent, options.columns)?
+                .paginate_with(options)
+                .await
+        })
     }
 
-    pub async fn simple_paginate(&self, parent: &P, per_page: u64) -> DatabaseResult<Paginator<R>> {
+    #[track_caller]
+    pub fn simple_paginate(
+        &self,
+        parent: &P,
+        per_page: u64,
+    ) -> impl Future<Output = DatabaseResult<Paginator<R>>> {
         self.simple_paginate_with(
             parent,
             PageOptions {
@@ -121,24 +130,27 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
                 ..PageOptions::default()
             },
         )
-        .await
     }
 
-    pub async fn simple_paginate_with(
+    #[track_caller]
+    pub fn simple_paginate_with(
         &self,
         parent: &P,
         options: PageOptions<'_>,
-    ) -> DatabaseResult<Paginator<R>> {
-        self.pagination_query(parent, options.columns)?
-            .simple_paginate_with(options)
-            .await
+    ) -> impl Future<Output = DatabaseResult<Paginator<R>>> {
+        with_query_caller(std::panic::Location::caller(), async move {
+            self.pagination_query(parent, options.columns)?
+                .simple_paginate_with(options)
+                .await
+        })
     }
 
-    pub async fn cursor_paginate(
+    #[track_caller]
+    pub fn cursor_paginate(
         &self,
         parent: &P,
         per_page: u64,
-    ) -> DatabaseResult<CursorPaginator<R>> {
+    ) -> impl Future<Output = DatabaseResult<CursorPaginator<R>>> {
         self.cursor_paginate_with(
             parent,
             CursorOptions {
@@ -146,17 +158,19 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
                 ..CursorOptions::default()
             },
         )
-        .await
     }
 
-    pub async fn cursor_paginate_with(
+    #[track_caller]
+    pub fn cursor_paginate_with(
         &self,
         parent: &P,
         options: CursorOptions<'_>,
-    ) -> DatabaseResult<CursorPaginator<R>> {
-        self.pagination_query(parent, options.columns)?
-            .cursor_paginate_with(options)
-            .await
+    ) -> impl Future<Output = DatabaseResult<CursorPaginator<R>>> {
+        with_query_caller(std::panic::Location::caller(), async move {
+            self.pagination_query(parent, options.columns)?
+                .cursor_paginate_with(options)
+                .await
+        })
     }
 
     /// Reads this parent's related models in ordered batches.

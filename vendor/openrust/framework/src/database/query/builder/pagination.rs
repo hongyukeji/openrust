@@ -1,7 +1,7 @@
 use std::{collections::HashSet, mem};
 
 use crate::{
-    database::{DatabaseError, DatabaseResult, Row, Value},
+    database::{DatabaseError, DatabaseResult, Row, Value, events::with_query_caller},
     pagination::{
         Cursor, CursorOptions, CursorPaginator, LengthAwarePaginator, Links, PageOptions,
         PaginationError, Paginator, page_offset, page_size,
@@ -11,137 +11,155 @@ use crate::{
 use super::{Builder, Column, Conditions, Order};
 
 impl Builder<'_> {
-    pub async fn paginate(self, per_page: u64) -> DatabaseResult<LengthAwarePaginator<Row>> {
+    #[track_caller]
+    pub fn paginate(
+        self,
+        per_page: u64,
+    ) -> impl Future<Output = DatabaseResult<LengthAwarePaginator<Row>>> {
         self.paginate_with(PageOptions {
             per_page: Some(per_page),
             ..PageOptions::default()
         })
-        .await
     }
 
-    pub async fn paginate_with(
+    #[track_caller]
+    pub fn paginate_with(
         mut self,
         mut options: PageOptions<'_>,
-    ) -> DatabaseResult<LengthAwarePaginator<Row>> {
-        let resolved_page = if options.per_page_using.is_none() {
-            Some(offset_page(&options)?)
-        } else {
-            None
-        };
-        self = self.select_page_columns(options.columns);
-        let supplied_total = options.resolve_total()?;
-        let total = match supplied_total {
-            Some(total) => total,
-            None => self.pagination_count().await?,
-        };
-        let (links, page, size, offset) = match resolved_page {
-            Some(page) => page,
-            None => {
-                options.per_page = options.resolve_per_page(total)?;
-                offset_page(&options)?
-            }
-        };
-        let items = if total == 0 || (supplied_total.is_none() && offset >= total) {
-            Vec::new()
-        } else {
-            self.limit(size).offset(offset).get().await?
-        };
-        Ok(LengthAwarePaginator::from_query(
-            items, total, page, size, links,
-        ))
+    ) -> impl Future<Output = DatabaseResult<LengthAwarePaginator<Row>>> {
+        with_query_caller(std::panic::Location::caller(), async move {
+            let resolved_page = if options.per_page_using.is_none() {
+                Some(offset_page(&options)?)
+            } else {
+                None
+            };
+            self = self.select_page_columns(options.columns);
+            let supplied_total = options.resolve_total()?;
+            let total = match supplied_total {
+                Some(total) => total,
+                None => self.pagination_count().await?,
+            };
+            let (links, page, size, offset) = match resolved_page {
+                Some(page) => page,
+                None => {
+                    options.per_page = options.resolve_per_page(total)?;
+                    offset_page(&options)?
+                }
+            };
+            let items = if total == 0 || (supplied_total.is_none() && offset >= total) {
+                Vec::new()
+            } else {
+                self.limit(size).offset(offset).get().await?
+            };
+            Ok(LengthAwarePaginator::from_query(
+                items, total, page, size, links,
+            ))
+        })
     }
 
-    pub async fn simple_paginate(self, per_page: u64) -> DatabaseResult<Paginator<Row>> {
+    #[track_caller]
+    pub fn simple_paginate(
+        self,
+        per_page: u64,
+    ) -> impl Future<Output = DatabaseResult<Paginator<Row>>> {
         self.simple_paginate_with(PageOptions {
             per_page: Some(per_page),
             ..PageOptions::default()
         })
-        .await
     }
 
-    pub async fn simple_paginate_with(
+    #[track_caller]
+    pub fn simple_paginate_with(
         self,
         options: PageOptions<'_>,
-    ) -> DatabaseResult<Paginator<Row>> {
-        let (links, page, size, offset) = offset_page(&options)?;
-        let items = self
-            .select_page_columns(options.columns)
-            .limit(size + 1)
-            .offset(offset)
-            .get()
-            .await?;
-        Ok(Paginator::from_query(items, page, size, links))
+    ) -> impl Future<Output = DatabaseResult<Paginator<Row>>> {
+        with_query_caller(std::panic::Location::caller(), async move {
+            let (links, page, size, offset) = offset_page(&options)?;
+            let items = self
+                .select_page_columns(options.columns)
+                .limit(size + 1)
+                .offset(offset)
+                .get()
+                .await?;
+            Ok(Paginator::from_query(items, page, size, links))
+        })
     }
 
-    pub async fn cursor_paginate(self, per_page: u64) -> DatabaseResult<CursorPaginator<Row>> {
+    #[track_caller]
+    pub fn cursor_paginate(
+        self,
+        per_page: u64,
+    ) -> impl Future<Output = DatabaseResult<CursorPaginator<Row>>> {
         self.cursor_paginate_with(CursorOptions {
             per_page: Some(per_page),
             ..CursorOptions::default()
         })
-        .await
     }
 
-    pub async fn cursor_paginate_with(
+    #[track_caller]
+    pub fn cursor_paginate_with(
         mut self,
         options: CursorOptions<'_>,
-    ) -> DatabaseResult<CursorPaginator<Row>> {
-        let size = page_size(options.per_page)?;
-        let links = Links::current(options.cursor_name);
-        // the framework starts at the first page when an incoming token cannot be decoded.
-        let cursor = links.current_cursor(options.cursor);
-        if !self.unions.is_empty()
-            || !self.groups.is_empty()
-            || !self.havings.is_empty()
-            || self.group_limit.is_some()
-        {
-            return Err(PaginationError::MissingCursorOrder.into());
-        }
-        self = self.select_page_columns(options.columns);
-        let order = self.cursor_order()?;
-        let names: Vec<_> = order.iter().map(|key| key.output.clone()).collect();
-        let backwards = cursor
-            .as_ref()
-            .is_some_and(Cursor::points_to_previous_items);
-        if let Some(cursor) = &cursor {
-            let keys = cursor.keys(&names)?;
-            let predicates = mem::take(&mut self.predicates);
-            self.predicates = Conditions::default()
-                .where_nested(|_| predicates)
-                .where_nested(|group| seek(group, &order, &keys, backwards));
-        }
-        if backwards {
-            for order in &mut self.orders {
-                if let Order::Column(_, direction) = order {
-                    *direction = if direction.eq_ignore_ascii_case("asc") {
-                        "desc"
-                    } else {
-                        "asc"
+    ) -> impl Future<Output = DatabaseResult<CursorPaginator<Row>>> {
+        with_query_caller(std::panic::Location::caller(), async move {
+            let size = page_size(options.per_page)?;
+            let links = Links::current(options.cursor_name);
+            // the framework starts at the first page when an incoming token cannot be decoded.
+            let cursor = links.current_cursor(options.cursor);
+            if !self.unions.is_empty()
+                || !self.groups.is_empty()
+                || !self.havings.is_empty()
+                || self.group_limit.is_some()
+            {
+                return Err(PaginationError::MissingCursorOrder.into());
+            }
+            self = self.select_page_columns(options.columns);
+            let order = self.cursor_order()?;
+            let names: Vec<_> = order.iter().map(|key| key.output.clone()).collect();
+            let backwards = cursor
+                .as_ref()
+                .is_some_and(Cursor::points_to_previous_items);
+            if let Some(cursor) = &cursor {
+                let keys = cursor.keys(&names)?;
+                let predicates = mem::take(&mut self.predicates);
+                self.predicates = Conditions::default()
+                    .where_nested(|_| predicates)
+                    .where_nested(|group| seek(group, &order, &keys, backwards));
+            }
+            if backwards {
+                for order in &mut self.orders {
+                    if let Order::Column(_, direction) = order {
+                        *direction = if direction.eq_ignore_ascii_case("asc") {
+                            "desc"
+                        } else {
+                            "asc"
+                        }
+                        .into();
                     }
-                    .into();
                 }
             }
-        }
-        let items = self.limit(size + 1).offset(0).get().await?;
+            let items = self.limit(size + 1).offset(0).get().await?;
 
-        // Validate returned cursor columns even when the page has no next link.
-        if items
-            .iter()
-            .take(usize::try_from(size).unwrap_or(usize::MAX))
-            .any(|row| {
-                names
-                    .iter()
-                    .any(|name| !row.get(name).is_some_and(valid_key))
-            })
-        {
-            return Err(PaginationError::InvalidCursor.into());
-        }
-        Ok(CursorPaginator::from_ordered(
-            items,
-            size,
-            links,
-            cursor,
-            |row, next| make_cursor(row, &names, next),
-        )?)
+            // Validate returned cursor columns even when the page has no next link.
+            if items
+                .iter()
+                .take(usize::try_from(size).unwrap_or(usize::MAX))
+                .any(|row| {
+                    names
+                        .iter()
+                        .any(|name| !row.get(name).is_some_and(valid_key))
+                })
+            {
+                return Err(PaginationError::InvalidCursor.into());
+            }
+            Ok(CursorPaginator::from_ordered(
+                items,
+                size,
+                links,
+                cursor,
+                |row, next| make_cursor(row, &names, next),
+            )?)
+        })
     }
 
     pub(in crate::database) fn order_for_pagination(self, column: &str) -> Self {

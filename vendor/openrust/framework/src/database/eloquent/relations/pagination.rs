@@ -49,11 +49,12 @@ fn empty_offset(options: &PageOptions<'_>) -> DatabaseResult<(Links, u64, u64)> 
 
 macro_rules! relation_pages {
     () => {
-        pub async fn paginate(
+        #[track_caller]
+        pub fn paginate(
             &self,
             parent: &P,
             per_page: u64,
-        ) -> DatabaseResult<crate::pagination::LengthAwarePaginator<R>> {
+        ) -> impl Future<Output = DatabaseResult<crate::pagination::LengthAwarePaginator<R>>> {
             self.paginate_with(
                 parent,
                 crate::pagination::PageOptions {
@@ -61,28 +62,32 @@ macro_rules! relation_pages {
                     ..Default::default()
                 },
             )
-            .await
         }
 
-        pub async fn paginate_with(
+        #[track_caller]
+        pub fn paginate_with(
             &self,
             parent: &P,
             options: crate::pagination::PageOptions<'_>,
-        ) -> DatabaseResult<crate::pagination::LengthAwarePaginator<R>> {
-            match self.pagination_target(parent)? {
-                Some(query) => query.paginate_with(options).await,
-                None => super::pagination::empty_length(crate::pagination::PageOptions {
-                    per_page: options.per_page.or(Some(R::metadata().per_page)),
-                    ..options
-                }),
-            }
+        ) -> impl Future<Output = DatabaseResult<crate::pagination::LengthAwarePaginator<R>>> {
+            let caller = std::panic::Location::caller();
+            $crate::database::events::with_query_caller(caller, async move {
+                match self.pagination_target(parent)? {
+                    Some(query) => query.paginate_with(options).await,
+                    None => super::pagination::empty_length(crate::pagination::PageOptions {
+                        per_page: options.per_page.or(Some(R::metadata().per_page)),
+                        ..options
+                    }),
+                }
+            })
         }
 
-        pub async fn simple_paginate(
+        #[track_caller]
+        pub fn simple_paginate(
             &self,
             parent: &P,
             per_page: u64,
-        ) -> DatabaseResult<crate::pagination::Paginator<R>> {
+        ) -> impl Future<Output = DatabaseResult<crate::pagination::Paginator<R>>> {
             self.simple_paginate_with(
                 parent,
                 crate::pagination::PageOptions {
@@ -90,28 +95,32 @@ macro_rules! relation_pages {
                     ..Default::default()
                 },
             )
-            .await
         }
 
-        pub async fn simple_paginate_with(
+        #[track_caller]
+        pub fn simple_paginate_with(
             &self,
             parent: &P,
             options: crate::pagination::PageOptions<'_>,
-        ) -> DatabaseResult<crate::pagination::Paginator<R>> {
-            match self.pagination_target(parent)? {
-                Some(query) => query.simple_paginate_with(options).await,
-                None => super::pagination::empty_simple(crate::pagination::PageOptions {
-                    per_page: options.per_page.or(Some(R::metadata().per_page)),
-                    ..options
-                }),
-            }
+        ) -> impl Future<Output = DatabaseResult<crate::pagination::Paginator<R>>> {
+            let caller = std::panic::Location::caller();
+            $crate::database::events::with_query_caller(caller, async move {
+                match self.pagination_target(parent)? {
+                    Some(query) => query.simple_paginate_with(options).await,
+                    None => super::pagination::empty_simple(crate::pagination::PageOptions {
+                        per_page: options.per_page.or(Some(R::metadata().per_page)),
+                        ..options
+                    }),
+                }
+            })
         }
 
-        pub async fn cursor_paginate(
+        #[track_caller]
+        pub fn cursor_paginate(
             &self,
             parent: &P,
             per_page: u64,
-        ) -> DatabaseResult<crate::pagination::CursorPaginator<R>> {
+        ) -> impl Future<Output = DatabaseResult<crate::pagination::CursorPaginator<R>>> {
             self.cursor_paginate_with(
                 parent,
                 crate::pagination::CursorOptions {
@@ -119,21 +128,24 @@ macro_rules! relation_pages {
                     ..Default::default()
                 },
             )
-            .await
         }
 
-        pub async fn cursor_paginate_with(
+        #[track_caller]
+        pub fn cursor_paginate_with(
             &self,
             parent: &P,
             options: crate::pagination::CursorOptions<'_>,
-        ) -> DatabaseResult<crate::pagination::CursorPaginator<R>> {
-            match self.pagination_target(parent)? {
-                Some(query) => query.cursor_paginate_with(options).await,
-                None => super::pagination::empty_cursor(crate::pagination::CursorOptions {
-                    per_page: options.per_page.or(Some(R::metadata().per_page)),
-                    ..options
-                }),
-            }
+        ) -> impl Future<Output = DatabaseResult<crate::pagination::CursorPaginator<R>>> {
+            let caller = std::panic::Location::caller();
+            $crate::database::events::with_query_caller(caller, async move {
+                match self.pagination_target(parent)? {
+                    Some(query) => query.cursor_paginate_with(options).await,
+                    None => super::pagination::empty_cursor(crate::pagination::CursorOptions {
+                        per_page: options.per_page.or(Some(R::metadata().per_page)),
+                        ..options
+                    }),
+                }
+            })
         }
     };
 }
