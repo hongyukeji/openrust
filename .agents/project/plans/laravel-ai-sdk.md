@@ -1,6 +1,19 @@
 # Laravel AI SDK 对齐计划
 
-E07 的交付目标是在 OpenRust 提供独立可选的 `openrust-ai`，保留 Laravel AI 的公开入口、配置、Provider 选择、执行语义与验收范围。当前完成基线固定、依赖调研、协议类型试编和功能分批，SDK 实现及运行验收待开始。现有数据库查询的 Embeddings 路径只作为复用候选。应用语言词条、机器翻译、AI Agent 翻译后续计划、内容审核及 Boost／MCP 服务各自保留职责。AI SDK 自身的 MCP 工具桥接纳入本计划。
+E07 当前已完成基线固定、生态调研、协议类型试编和功能分批。SDK 实现及运行验收待开始。
+
+## 开发需求
+
+- 将 OpenRust 的 AI 模块对齐固定 Laravel AI SDK。公开入口、目录结构、配置键、默认值、Provider 生命周期、Artisan 命令、测试方式及可观察行为逐项对应 Laravel。Rust 接口使用本项目的命名规范和异步类型，必要适配随契约核对记录依据。
+- 按固定版本交付完整适用能力。覆盖 Agent、结构化输出、流、工具及审批、会话、队列、广播、图像、音频、转录、Embeddings、Reranking、Classification、文件与向量仓库，以及用量、故障转移、事件和 Fake。供应商按下方矩阵逐能力验收。
+- 开发前参考成熟的 GitHub 项目及 Laravel 生态实现。优先复用经过验证的方案和 OpenRust 已有机制，按实际协议差异决定是否增加依赖或适配层。
+- 应用语言词条、机器翻译、内容审核及 Boost／MCP 服务各自保留职责。AI SDK 自身的 MCP 工具桥接纳入 E07。AI Agent 翻译维持后续计划状态，当前阶段暂缓实施。
+
+## 建议实施方案
+
+- 新增独立可选包 `openrust-ai`，复用包发现、容器与 HTTP。通过 `Ai`、`AiManager`、`agent()` 及按能力的 Provider／Gateway 保留 Laravel 的调用习惯。数据库查询侧的 Embeddings 通过适配器接入并保留现有缓存和查询行为。
+- 首批实现包发现、配置、非流式 `Agent::prompt` 及 Fake。OpenAI Responses 与 OpenAI Compatible Chat Completions 分开验收。优先采用已通过 Rust 1.94 试编的 `async-openai` 协议类型，HTTP 请求由 OpenRust 客户端发送。其余供应商和能力按下文批次补齐。
+- 每批从公开 API 编译调用，使用合成输入和本地 HTTP 协议服务实测，涉及 Artisan、Worker 或广播时覆盖相应入口。分别记录协议模拟和供应商实机结果。把已实现的用法与边界同步至简体中文、繁体中文和英文文档，更新 E07 账本并分批本地提交。
 
 ## 固定基线与选型
 
