@@ -14,6 +14,7 @@ use std::sync::Arc;
 pub struct VerifiedWebhook<'a> {
     request: &'a WebhookRequest,
     config: &'a WebhookConfig,
+    event_id: Option<&'a str>,
 }
 impl VerifiedWebhook<'_> {
     pub fn request(&self) -> &WebhookRequest {
@@ -21,6 +22,9 @@ impl VerifiedWebhook<'_> {
     }
     pub fn config(&self) -> &WebhookConfig {
         self.config
+    }
+    pub fn event_id(&self) -> Option<&str> {
+        self.event_id
     }
 }
 
@@ -140,9 +144,26 @@ impl<'a> WebhookProcessor<'a> {
         {
             return self.create_response();
         }
+        let event_id = if self.config.deduplicate_verified_events()? {
+            let id = self
+                .runtime
+                .validator
+                .verified_event_id(self.request, self.config)?
+                .filter(|id| {
+                    !id.is_empty()
+                        && id.len() <= 256
+                        && id.trim() == id.as_ref()
+                        && !id.chars().any(char::is_control)
+                })
+                .ok_or(Error::MissingVerifiedEventId)?;
+            Some(id)
+        } else {
+            None
+        };
         let verified = VerifiedWebhook {
             request: self.request,
             config: self.config,
+            event_id: event_id.as_deref(),
         };
         if self.config.atomic_database_queue()? {
             self.runtime

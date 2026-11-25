@@ -1,3 +1,4 @@
+mod identity;
 mod lease;
 use crate::{Error, Result, VerifiedWebhook, models::WebhookCall};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
@@ -164,10 +165,33 @@ impl WebhookStore for DatabaseWebhookStore {
         dispatcher: &'a dyn crate::WebhookJobDispatcher,
     ) -> HttpFuture<'a, Result<()>> {
         Box::pin(async move {
+            let identity = webhook
+                .event_id()
+                .map(|id| identity::EventIdentity::new(&self.scope, id, webhook));
+            if let Some(identity) = &identity
+                && identity.already_received(&self.connection).await?
+            {
+                return Ok(());
+            }
             let (call, row) = self.prepare(webhook).await?;
             let mut transaction = self.connection.begin_transaction().await?;
+            if let Err(error) = transaction.table("webhook_calls").insert(&[row]).await {
+                transaction.roll_back(None).await?;
+                return Err(error.into());
+            }
+            if let Some(identity) = &identity
+                && let Err(error) = transaction
+                    .table("webhook_event_receipts")
+                    .insert(&[identity.record(call.id())])
+                    .await
+            {
+                transaction.roll_back(None).await?;
+                if identity.already_received(&self.connection).await? {
+                    return Ok(());
+                }
+                return Err(error.into());
+            }
             let queued = async {
-                transaction.table("webhook_calls").insert(&[row]).await?;
                 dispatcher.prepare(&call)?;
                 dispatcher
                     .dispatch_in_transaction(&call, &mut transaction)

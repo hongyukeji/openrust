@@ -2,7 +2,7 @@
 
 ## 支持状态 {#support-status}
 
-可选包 `openrust-webhook-client` 提供具名配置、类型化实现工厂、显式回调路由、`WebhookController`、手动 `WebhookProcessor` 和按范围隔离的数据库接收记录。应用提供任务派发实现。去重、恢复及 Storage 磁盘引用尚未提供。保存记录及派发成功不代表业务完成，包不会自动安装公开回调路由。
+可选包 `openrust-webhook-client` 提供具名配置、类型化实现工厂、显式回调路由、`WebhookController`、手动 `WebhookProcessor` 和按范围隔离的数据库接收记录。应用提供任务派发实现。数据库接收支持按已验签的事件 ID 去重，可显式启用。恢复扫描和 Storage 磁盘引用尚未提供。保存记录及派发成功不代表业务完成，包不会自动安装公开回调路由。
 
 ## 启用与配置 {#configuration}
 
@@ -89,7 +89,7 @@ pub async fn process_named(
 }
 ```
 
-`StandardSignatureValidator` 复用官方 `standardwebhooks 1.3.0`，使用 `webhook-id`、`webhook-timestamp`、`webhook-signature`。密钥为合法 base64 或带 `whsec_` 前缀的形式。支持五分钟时间窗与单个头内的多个签名，拒绝重复协议头。该库要求 UTF-8 正文；验签不替代持久事件去重。
+`StandardSignatureValidator` 复用官方 `standardwebhooks 1.3.0`，使用 `webhook-id`、`webhook-timestamp`、`webhook-signature`。密钥为合法 base64 或带 `whsec_` 前缀的形式。支持五分钟时间窗与单个头内的多个签名，拒绝重复协议头。该库要求 UTF-8 正文；如需抑制同一已验签事件的重复投递，开启数据库事件去重。
 
 ### 注册回调路由与实现 {#routes}
 
@@ -137,13 +137,19 @@ Provider 注册 `webhook_calls` 迁移，使用 `DatabaseWebhookStore` 前运行
 
 ### 同事务保存接收记录与数据库队列任务 {#atomic-database-queue}
 
-在配置中设置 `atomic_database_queue: true`，或在运行时调用 `with_atomic_database_queue(true)`。让 `DatabaseWebhookStore` 和 `QueuedWebhookJob` 使用同一应用数据库连接。接收记录和队列任务一起提交后才返回 HTTP 确认，队列写入失败时一并回滚。其他驱动或分开的连接实例会被拒绝，即使指向同一个数据库。该选项默认关闭，开启后覆盖入队前的进程退出窗口。重试 HTTP 请求仍可能创建独立接收记录。
+在配置中设置 `atomic_database_queue: true`，或在运行时调用 `with_atomic_database_queue(true)`。让 `DatabaseWebhookStore` 和 `QueuedWebhookJob` 使用同一应用数据库连接。接收记录和队列任务一起提交后才返回 HTTP 确认，队列写入失败时一并回滚。其他驱动或分开的连接实例会被拒绝，即使指向同一个数据库。该选项默认关闭，开启后覆盖入队前的进程退出窗口。签名协议提供已认证事件 ID 时，可启用事件去重。
 
 ### 多 Worker 领取接收记录 {#processing-lease}
 
 先运行 `./artisan migrate`，再用 `QueuedWebhookJob::register_with_database_lease(&queue, name, store, handler, lease_seconds)` 注册处理器。存储参数为 `Arc<DatabaseWebhookStore>`。协调重启消费该队列的各个 Worker，使它们使用同一注册。例如任务超时 20 秒、租约 30 秒、数据库队列 `retry_after` 60 秒。租约范围为 3–86,400 秒，任务必须显式设置正数超时且至少比租约短两秒。应为数据库操作留出余量，并让队列保留时间或可见性超时长于租约。竞争中的任务通过原生队列释放，可能消耗一次队列尝试预算。
 
 租约有效时，仅领取者进入业务处理器。已完成记录被重复投递时直接确认，处理器也可以主动释放任务以便再次执行。进程退出后，队列保留和记录租约都过期时可重新领取。业务端应按接收记录 ID 做外部操作幂等，因为进程可能在外部操作生效后、记录完成前退出。
+
+### 按已验签事件去重 {#verified-event-deduplication}
+
+在 profile 中启用 `atomic_database_queue: true` 和 `deduplicate_verified_events: true`，并运行 `./artisan migrate`。运行时配置可同时使用 `with_verified_event_deduplication(true)` 和 `with_atomic_database_queue(true)`。`standard` 验证器提供签名覆盖的 `webhook-id`，该模式要求 ID 不含半角句点。自定义验证器可在确认签名覆盖稳定事件 ID 后，通过 `SignatureValidator::verified_event_id` 提供该 ID。默认 HMAC 仅覆盖正文，无法提供事件 ID。启用去重时，验证器不能提供有效 ID 则拒绝接收。为每个来源账号配置独立的 scope 或 profile。
+
+接收记录、去重键和原生队列任务在同一事务提交。相同 ID 和请求内容的重试返回配置的确认响应，只保存一条接收记录及一条任务。同一 scope 和 profile 内，已使用的 ID 携带不同的 HTTP 方法、原始路径和查询串、正文或 Content-Type 时返回 HTTP 409。签名时间戳、签名和凭据修订允许在重试时变化。去重键随接收记录保留，接收记录的保留期应覆盖供应商的重投递窗口。默认关闭。
 
 ## 使用边界 {#scope}
 

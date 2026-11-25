@@ -2,7 +2,7 @@
 
 ## Support status {#support-status}
 
-The optional `openrust-webhook-client` package supplies named configuration, typed implementation factories, explicit callback routing, `WebhookController`, a manual `WebhookProcessor` and scoped database receipt storage. Applications provide the job dispatcher. Deduplication, recovery and Storage disk references remain pending. A saved receipt and successful dispatch do not prove business completion. No public callback route is installed automatically.
+The optional `openrust-webhook-client` package supplies named configuration, typed implementation factories, explicit callback routing, `WebhookController`, a manual `WebhookProcessor` and scoped database receipt storage. Applications provide the job dispatcher. The database receiver supports opt-in deduplication by verified event ID. Recovery scanning and Storage disk references remain pending. A saved receipt and successful dispatch do not prove business completion. No public callback route is installed automatically.
 
 ## Enable and configure {#configuration}
 
@@ -89,7 +89,7 @@ pub async fn process_named(
 }
 ```
 
-`StandardSignatureValidator` uses the official `standardwebhooks 1.3.0` library with `webhook-id`, `webhook-timestamp` and `webhook-signature`. Supply a valid base64 or `whsec_` secret. Its five-minute timestamp window and multiple signatures in one header are supported; duplicate protocol headers are rejected. The library requires UTF-8 payloads. Validation does not replace persistent event deduplication.
+`StandardSignatureValidator` uses the official `standardwebhooks 1.3.0` library with `webhook-id`, `webhook-timestamp` and `webhook-signature`. Supply a valid base64 or `whsec_` secret. Its five-minute timestamp window and multiple signatures in one header are supported; duplicate protocol headers are rejected. The library requires UTF-8 payloads. To suppress repeated deliveries of the same verified event, enable database event deduplication.
 
 ### Register callback routes and implementations {#routes}
 
@@ -137,13 +137,19 @@ Set connection and queue on the dispatcher. The native `JobOptions` controls att
 
 ### Commit the receipt with its database queue task {#atomic-database-queue}
 
-Set `atomic_database_queue: true` on a profile, or use `with_atomic_database_queue(true)` for a runtime configuration. Use `DatabaseWebhookStore` and `QueuedWebhookJob` with the same application database connection. The receipt and native queue task commit together before the HTTP acknowledgment. Queue insertion failure rolls both back. Other drivers and distinct connection instances are rejected, even when they refer to the same database. The default remains off. This option closes the pre-enqueue process exit window for that deployment. Retried HTTP requests can still create separate receipts.
+Set `atomic_database_queue: true` on a profile, or use `with_atomic_database_queue(true)` for a runtime configuration. Use `DatabaseWebhookStore` and `QueuedWebhookJob` with the same application database connection. The receipt and native queue task commit together before the HTTP acknowledgment. Queue insertion failure rolls both back. Other drivers and distinct connection instances are rejected, even when they refer to the same database. The default remains off. This option closes the pre-enqueue process exit window for that deployment. Use verified event deduplication when the signing protocol supplies an authenticated event ID.
 
 ### Claim a receipt across Workers {#processing-lease}
 
 Run `./artisan migrate` and register the handler with `QueuedWebhookJob::register_with_database_lease(&queue, name, store, handler, lease_seconds)`. The store must be an `Arc<DatabaseWebhookStore>`. Deploy the same registration to every Worker serving that queue during a coordinated restart. For example, use a 20-second job timeout, a 30-second lease and a database queue `retry_after` of 60 seconds. The lease accepts 3–86,400 seconds and requires a positive job timeout at least two seconds shorter than the lease. Allow additional time for database work and configure the queue’s reservation or visibility timeout to exceed the lease. A competing job is released through the native queue and can use an attempt from its configured budget.
 
 An active lease permits one Worker to enter the handler. A completed receipt is acknowledged on redelivery without another handler call. A handler can explicitly release its job for another attempt. After process exit, a reserved task can be reclaimed when both the queue reservation and the receipt lease expire. Make external effects idempotent using the receipt ID because a process can exit after an effect has occurred and before marking the receipt complete.
+
+### Deduplicate a verified event {#verified-event-deduplication}
+
+For a profile with `atomic_database_queue: true`, enable `deduplicate_verified_events: true` and run `./artisan migrate`. At runtime, use `with_verified_event_deduplication(true)` together with `with_atomic_database_queue(true)`. The `standard` validator supplies the signed `webhook-id` and requires it to contain no periods in this mode. A custom validator can supply a stable ID through `SignatureValidator::verified_event_id` after verifying that the signature covers that ID. The default body-only HMAC validator supplies no event ID. The receiver rejects the deduplication mode if its validator cannot supply a valid ID. Configure a distinct scope or profile for each source account.
+
+The database receives the event, stores its deduplication key and enqueues its job in the same transaction. The same ID and request content return the configured acknowledgment without a second receipt or job. Reusing an ID within the same scope and profile with a changed method, raw path/query, body or Content-Type returns HTTP 409. Signing timestamps, signatures and credential revisions may change between retries. A key is retained with its receipt, so retain receipts at least as long as the provider can redeliver. The mode is off by default.
 
 ## Scope {#scope}
 

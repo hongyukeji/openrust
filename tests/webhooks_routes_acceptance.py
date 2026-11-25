@@ -13,6 +13,18 @@ def command(binary,env,*tokens):
  assert result.returncode==0,result.stdout+result.stderr
  return result.stdout
 
+def write_database(driver, sql, statement):
+    if driver == "sqlite":
+        import sqlite3
+        from contextlib import closing
+        with closing(sqlite3.connect(helpers["database_container"]())) as connection:
+            connection.execute("PRAGMA foreign_keys = ON")
+            connection.execute(statement)
+            connection.commit()
+    else:
+        sql(statement)
+
+
 def check_processing_lease(binary, env, root, port, driver, sql):
     current = env | {"DB_QUEUE_RETRY_AFTER": "8"}
     command(binary, current, "route:clear")
@@ -65,14 +77,7 @@ def check_processing_lease(binary, env, root, port, driver, sql):
                 "INSERT INTO jobs (queue,payload,attempts,reserved_at,available_at,created_at) "
                 "SELECT queue,payload,0,NULL,available_at,created_at FROM jobs"
             )
-            if driver == "sqlite":
-                import sqlite3
-                from contextlib import closing
-                with closing(sqlite3.connect(helpers["database_container"]())) as connection:
-                    connection.execute(duplicate)
-                    connection.commit()
-            else:
-                sql(duplicate)
+            write_database(driver, sql, duplicate)
             entered = root / "first-entered"
             first = subprocess.Popen(
                 work, env=worker("first", FIXTURE_LEASE_ENTERED=str(entered)), stdout=log, stderr=log,
@@ -114,6 +119,116 @@ def check_processing_lease(binary, env, root, port, driver, sql):
         finally:
             http_helpers["stop"](server)
     print(f"{driver}: 接收处理租约 3 个真实 HTTP、8 个独立 Worker；主动释放、并发重复投递、终态去重、进程崩溃重领通过")
+
+
+def check_verified_event_identity(binary, env, root, port, driver, sql):
+    from concurrent.futures import ThreadPoolExecutor
+
+    secret = base64.b64decode(STANDARD.removeprefix("whsec_"))
+    scope = "webhook-acceptance"
+    body = b'{"source":"acceptance"}'
+    custom_body = b'{"event":"signed-body-id"}'
+    path = "/api/package/event-dedup"
+    now = int(time.time())
+    original = int(sql("SELECT COUNT(*) FROM webhook_calls"))
+
+    def send(target, event, value=body, timestamp=now, expected=200, listen=port, unsigned=False):
+        signature = hmac.new(secret, f"{event}.{timestamp}.".encode() + value, hashlib.sha256)
+        headers = {
+            "Accept": "application/json", "Content-Type": "application/json",
+            "webhook-id": event, "webhook-timestamp": str(timestamp),
+            "webhook-signature": "v1," + base64.b64encode(signature.digest()).decode(),
+        }
+        if unsigned:
+            headers["Signature"] = hmac.new(SECRET.encode(), value, hashlib.sha256).hexdigest()
+        connection = http.client.HTTPConnection("127.0.0.1", listen, timeout=15)
+        try:
+            connection.request("POST", target, value, headers)
+            response = connection.getresponse()
+            result = response.read()
+            assert response.status == expected, (target, expected, response.status, result)
+            if expected == 200:
+                assert json.loads(result) == {"message": "ok"}
+            assert event.encode() not in result and STANDARD.encode() not in result
+        finally:
+            connection.close()
+
+    def counts(receipts, jobs):
+        assert int(sql("SELECT COUNT(*) FROM webhook_calls")) == original + receipts
+        assert int(sql("SELECT COUNT(*) FROM webhook_event_receipts")) == receipts
+        assert int(sql("SELECT COUNT(*) FROM jobs")) == jobs
+
+    with (root / "identity-refuse-enqueue.log").open("w+") as log:
+        missing = http_helpers["serve"](binary, env | {"DB_QUEUE_TABLE": "identity_missing_jobs"}, log)
+        try:
+            send(path, "stable", expected=500)
+        finally:
+            http_helpers["stop"](missing)
+    counts(0, 0)
+
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        other_port = sock.getsockname()[1]
+    held = root / "identity-held"
+    with (root / "identity-first.log").open("w+") as first_log, (root / "identity-peer.log").open("w+") as peer_log:
+        first = http_helpers["serve"](binary, env | {
+            "FIXTURE_ATOMIC_CRASH": "hold-after-enqueue", "FIXTURE_ATOMIC_HELD": str(held),
+        }, first_log)
+        try:
+            peer = http_helpers["serve"](binary, env | {
+                "APP_PORT": str(other_port), "APP_URL": f"http://127.0.0.1:{other_port}",
+            }, peer_log)
+            try:
+                with ThreadPoolExecutor(max_workers=2) as clients:
+                    a = clients.submit(send, path, "stable")
+                    deadline = time.monotonic() + 5
+                    while not held.exists() and not a.done() and time.monotonic() < deadline:
+                        time.sleep(.025)
+                    assert held.exists() and not a.done()
+                    b = clients.submit(send, path, "stable", timestamp=now + 1, listen=other_port)
+                    a.result()
+                    b.result()
+                counts(1, 1)
+                send(path, "stable", listen=other_port)
+                send(path, "stable", value=b'{"source":"different"}', expected=409, listen=other_port)
+                send(path + "?changed=1", "stable", expected=409, listen=other_port)
+                send(path, "disallowed.id", expected=500, listen=other_port)
+                send("/api/package/event-unsigned", "unsigned", unsigned=True, expected=500, listen=other_port)
+                counts(1, 1)
+
+                send(path, "STABLE", listen=other_port)
+                send("/api/package/event-other", "stable", listen=other_port)
+                custom_path = "/api/package/event-custom"
+                send(custom_path, "first-unsigned-header", value=custom_body, unsigned=True, listen=other_port)
+                send(custom_path, "changed-unsigned-header", value=custom_body, unsigned=True, listen=other_port)
+                counts(4, 4)
+                saved_ids = sql("SELECT call_id FROM webhook_event_receipts").split()
+                for receipt in saved_ids:
+                    record = json.loads(command(binary, env, "webhooks:record", receipt, scope))
+                    assert record["name"] in ("event-dedup", "event-other", "event-custom")
+                    assert bytes(record["body"]) == (custom_body if record["name"] == "event-custom" else body)
+                for index in range(4):
+                    marker = root / f"identity-worker-{index}.json"
+                    command(binary, env | {"WEBHOOK_TEST_RECEIPT_OUTPUT": str(marker)},
+                            "queue:work", "database", "--queue=webhook-receipts", "--once")
+                    assert bytes(json.loads(marker.read_text())["body"]) in (body, custom_body)
+                send(path, "stable", listen=other_port)
+                counts(4, 0)
+                for receipt in saved_ids:
+                    assert re.fullmatch(r"[0-9a-f-]{36}", receipt)
+                    write_database(driver, sql, f"DELETE FROM webhook_calls WHERE id='{receipt}'")
+                counts(0, 0)
+            finally:
+                http_helpers["stop"](peer)
+        except BaseException:
+            first_log.flush()
+            peer_log.flush()
+            print((root / "identity-first.log").read_text())
+            print((root / "identity-peer.log").read_text())
+            raise
+        finally:
+            http_helpers["stop"](first)
+    print("已签名事件去重 13 个真实 HTTP、4 个独立 Worker；两进程并发、原子回滚、冲突、大小写、配置隔离和自定义验证器通过")
 
 
 def main():
@@ -307,8 +422,9 @@ def main():
   assert set(sql("SELECT id FROM webhook_calls").split())==original
   assert sql("SELECT COUNT(*) FROM jobs")=="0"
   check_processing_lease(binary,env,root,port,driver,sql)
+  check_verified_event_identity(binary,env,root,port,driver,sql)
   legacy_id=sql("SELECT id FROM webhook_calls WHERE name='default' ORDER BY id LIMIT 1")
-  assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate:rollback","--step=2","--force")
+  assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate:rollback","--step=3","--force")
   assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate","--force")
   legacy=json.loads(command(binary,env,"webhooks:record",legacy_id,"webhook-acceptance"))
   assert bytes(legacy["body"])==b"default" and legacy["payload"] is None and legacy["attachments"] is None

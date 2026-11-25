@@ -340,8 +340,38 @@ impl openrust_webhook_client::WebhookJobDispatcher for AtomicFixtureDispatcher {
             if self.crash.as_deref() == Some("after-enqueue") {
                 std::process::exit(78);
             }
+            if self.crash.as_deref() == Some("hold-after-enqueue") {
+                let marker = std::env::var_os("FIXTURE_ATOMIC_HELD").expect("入队验收标记");
+                tokio::fs::write(marker, b"held")
+                    .await
+                    .map_err(runtime_error)?;
+                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            }
             Ok(())
         })
+    }
+}
+struct SignedBodyIdentity;
+impl openrust_webhook_client::SignatureValidator for SignedBodyIdentity {
+    fn is_valid(
+        &self,
+        request: &openrust_webhook_client::WebhookRequest,
+        config: &openrust_webhook_client::WebhookConfig,
+    ) -> openrust_webhook_client::Result<bool> {
+        openrust_webhook_client::DefaultSignatureValidator.is_valid(request, config)
+    }
+
+    fn verified_event_id<'a>(
+        &self,
+        request: &'a openrust_webhook_client::WebhookRequest,
+        _: &openrust_webhook_client::WebhookConfig,
+    ) -> openrust_webhook_client::Result<Option<std::borrow::Cow<'a, str>>> {
+        let body: serde_json::Value =
+            serde_json::from_slice(request.body()).map_err(runtime_error)?;
+        Ok(body
+            .get("event")
+            .and_then(serde_json::Value::as_str)
+            .map(|id| std::borrow::Cow::Owned(id.to_owned())))
     }
 }
 struct FixtureProvider;
@@ -426,6 +456,11 @@ impl openrust::support::ServiceProvider for FixtureProvider {
                         request: container.get("request")?,
                     }))
                 },
+            )?;
+            WebhookRuntime::register_signature_validator(
+                openrust::contracts::foundation::Application::container(app),
+                "signed-body",
+                |_, _| Ok(std::sync::Arc::new(SignedBodyIdentity)),
             )?;
             WebhookRuntime::register_webhook_response(
                 openrust::contracts::foundation::Application::container(app),
@@ -553,7 +588,16 @@ fn api_routes() -> Result<(), openrust::routing::RoutingError> {
     use openrust_webhook_client::{WebhookRouteOptions as Options, WebhookRouter, WebhookRoutes};
     Route::post("/webhooks/{profile}", verify)?;
     Route::post("/received/{profile}", receive)?;
-    for route in ["atomic", "atomic-null", "atomic-foreign", "leased"] {
+    for route in [
+        "atomic",
+        "atomic-null",
+        "atomic-foreign",
+        "leased",
+        "event-dedup",
+        "event-other",
+        "event-unsigned",
+        "event-custom",
+    ] {
         Route::webhooks(&format!("/package/{route}"), Options::new().name(route))?;
     }
     Route::webhooks("/package/default", Options::default())?;
@@ -777,6 +821,10 @@ async fn main() -> ExitCode {
                 {"name":"package-ignored","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"webhook_profile":"ignored","webhook_model":"missing","process_webhook_job":"fixture","signature_validator":"default"},
                 {"name":"discarded","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"fixture","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database"},
                 {"name":"unregistered","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"unregistered","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database"},
+                {"name":"event-dedup","signing_secret":{"env":"FIXTURE_STANDARD_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"standard","webhook_profile":"process-everything","webhook_model":"database","atomic_database_queue":true,"deduplicate_verified_events":true},
+                {"name":"event-other","signing_secret":{"env":"FIXTURE_STANDARD_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"standard","webhook_profile":"process-everything","webhook_model":"database","atomic_database_queue":true,"deduplicate_verified_events":true},
+                {"name":"event-custom","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"signed-body","webhook_profile":"process-everything","webhook_model":"database","atomic_database_queue":true,"deduplicate_verified_events":true},
+                {"name":"event-unsigned","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","atomic_database_queue":true,"deduplicate_verified_events":true},
                 {"name":"leased","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"leased","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database"},
                 {"name":"atomic","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","atomic_database_queue":true},
                 {"name":"atomic-null","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","atomic_database_queue":true},

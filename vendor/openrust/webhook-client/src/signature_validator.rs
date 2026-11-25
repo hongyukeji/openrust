@@ -104,4 +104,19 @@ impl SignatureValidator for StandardSignatureValidator {
             i64::try_from(now).map_err(|_| Error::InvalidConfig("timestamp"))?,
         )
     }
+
+    fn verified_event_id<'a>(
+        &self,
+        request: &'a WebhookRequest,
+        _: &WebhookConfig,
+    ) -> Result<Option<std::borrow::Cow<'a, str>>> {
+        // 固定协议用点分割 ID、时间戳及正文，去重时要求 ID 无分隔歧义。
+        let id = request
+            .headers()
+            .get("webhook-id")
+            .and_then(|value| value.to_str().ok())
+            .filter(|id| !id.contains('.'))
+            .ok_or(Error::MissingVerifiedEventId)?;
+        Ok(Some(id.into()))
+    }
 }

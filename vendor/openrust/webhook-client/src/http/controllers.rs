@@ -45,6 +45,11 @@ impl Handler for WebhookController {
             let config = request.with_container(app.make::<WebhookConfig>()).await?;
             match self.invoke(request, config).await {
                 Err(Error::Http(error)) => Err(error),
+                Err(Error::VerifiedEventConflict) => Err(openrust::http::abort(
+                    openrust::http::StatusCode::CONFLICT,
+                    Error::VerifiedEventConflict.to_string(),
+                    Default::default(),
+                )),
                 Err(source) => Err(HttpError::Internal {
                     source: Box::new(source),
                 }),

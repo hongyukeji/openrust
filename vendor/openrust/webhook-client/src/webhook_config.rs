@@ -90,6 +90,22 @@ impl WebhookConfig {
         self
     }
 
+    pub fn deduplicate_verified_events(&self) -> Result<bool> {
+        match self.options.get("deduplicate_verified_events") {
+            None | Some(Value::Null) => Ok(false),
+            Some(Value::Bool(enabled)) if !enabled || self.atomic_database_queue()? => Ok(*enabled),
+            _ => Err(Error::InvalidConfig("deduplicate_verified_events")),
+        }
+    }
+
+    pub fn with_verified_event_deduplication(mut self, enabled: bool) -> Self {
+        if self.options.is_null() {
+            self.options = serde_json::json!({});
+        }
+        self.options["deduplicate_verified_events"] = Value::Bool(enabled);
+        self
+    }
+
     pub fn with_store_attachments(mut self, enabled: bool) -> Self {
         if self.options.is_null() {
             self.options = serde_json::json!({});
@@ -299,6 +315,7 @@ impl WebhookConfig {
         config.options = value.clone();
         config.store_attachments()?;
         config.atomic_database_queue()?;
+        config.deduplicate_verified_events()?;
         if let Some(names) = value.get("store_headers").filter(|names| !names.is_null()) {
             if names.as_str() == Some("*") {
                 config = config.with_store_headers(&["*"])?;

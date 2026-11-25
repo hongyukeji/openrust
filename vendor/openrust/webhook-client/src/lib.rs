@@ -6,6 +6,8 @@ mod contracts;
 mod error;
 mod factories;
 pub mod http;
+#[path = "../database/migrations/2026_11_25_000004_create_webhook_event_receipts_table.rs"]
+mod identity_migration;
 pub mod jobs;
 mod routes;
 pub use routes::{WebhookRouteOptions, WebhookRouter, WebhookRoutes};
@@ -125,6 +127,10 @@ impl WebhookClientServiceProvider {
             openrust::database::migrations::MigrationEntry::new(
                 "vendor/openrust/webhook-client/database/migrations/2026_11_25_000003_add_processing_lease_to_webhook_calls_table.rs",
                 &lease_migration::MIGRATION,
+            ),
+            openrust::database::migrations::MigrationEntry::new(
+                "vendor/openrust/webhook-client/database/migrations/2026_11_25_000004_create_webhook_event_receipts_table.rs",
+                &identity_migration::MIGRATION,
             ),
         ];
         ENTRIES

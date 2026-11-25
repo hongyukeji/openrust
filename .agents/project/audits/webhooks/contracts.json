@@ -174,13 +174,14 @@
       "status": "foundation_verified",
       "parent_classes": [],
       "declared_public_properties": [],
-      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。 已验证的是本文记录的基础契约，不包含后续Processor／Builder／持久化／集群入口。",
+      "notes": "布尔验签入口保留；可选 verified_event_id 仅在验签与筛选通过后调用，适配 Standard 及自定义已签正文事件身份。未签来源提示与完整信任分类仍开放。",
       "rust_source": "vendor/openrust/webhook-client/src/contracts.rs",
       "evidence": [
         "vendor/openrust/webhook-client/tests/contracts.rs",
         "vendor/openrust/webhook-client/tests/provider.rs",
         "tests/webhooks_acceptance.py",
-        "tests/webhooks_worker_acceptance.py"
+        "tests/webhooks_worker_acceptance.py",
+        "tests/webhooks_routes_acceptance.py"
       ]
     },
     {
@@ -273,7 +274,7 @@
       "status": "partial_processor_runtime_verified",
       "parent_classes": [],
       "declared_public_properties": [],
-      "notes": "new／process 手动入口与公开 Controller 共用验签→Profile→模型委托保存→prepare→clear_exception→dispatch→响应；构造失败与异常顺序已验。类型化 Runtime 在所属 App 上下文构造及执行并恢复调用者；HTTP 同次请求借用支持请求依赖。解析载荷／附件、正式处理 Job、可靠领取／恢复仍未完成，不据此关闭 WH-02。",
+      "notes": "new／process 手动入口与公开 Controller 共用验签→Profile→模型委托保存→prepare→clear_exception→dispatch→响应；构造失败与异常顺序已验。类型化 Runtime 在所属 App 上下文构造及执行并恢复调用者；HTTP 同次请求借用支持请求依赖。载荷和数据库附件读取、原生 Job、同库原子入队、可选已验签事件 ID 去重与 Worker 领取已各自验收。无稳定 ID 的摘要去重、可靠恢复和完整生命周期仍待补，不据本入口关闭 WH-02 或 WH-03。",
       "evidence": [
         "vendor/openrust/webhook-client/tests/processor.rs",
         "tests/webhooks_receiver_acceptance.py",

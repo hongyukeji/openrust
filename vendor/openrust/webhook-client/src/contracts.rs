@@ -50,6 +50,15 @@ impl WebhookRequest {
 /// 接收签名验证。错误与验证失败分开，不能将错误降级为未签名提示。
 pub trait SignatureValidator: Send + Sync {
     fn is_valid(&self, request: &WebhookRequest, config: &WebhookConfig) -> Result<bool>;
+
+    /// 仅在同一请求验签通过后调用，返回签名已覆盖的稳定业务事件 ID。
+    fn verified_event_id<'a>(
+        &self,
+        _request: &'a WebhookRequest,
+        _config: &WebhookConfig,
+    ) -> Result<Option<std::borrow::Cow<'a, str>>> {
+        Ok(None)
+    }
 }
 pub trait WebhookProfile: Send + Sync {
     fn should_process(&self, request: &WebhookRequest, config: &WebhookConfig) -> Result<bool>;

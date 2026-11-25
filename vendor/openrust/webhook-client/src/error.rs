@@ -10,6 +10,10 @@ pub enum Error {
     HeadersTooLarge,
     #[error("Webhook 签名无效")]
     InvalidSignature,
+    #[error("Webhook 验证器未提供有效的已签名事件 ID")]
+    MissingVerifiedEventId,
+    #[error("Webhook 事件 ID 已用于不同的请求内容")]
+    VerifiedEventConflict,
     #[error("未找到 Webhook 配置：{name:?}")]
     ConfigNotFound { name: String },
     #[error("Webhook 方法不允许：{method:?}")]
