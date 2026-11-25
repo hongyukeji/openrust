@@ -21,12 +21,24 @@ impl PinnedSocksProxy {
     }
 }
 
-/// 通过应用指定的 HTTP 代理对已校验数字地址建立 CONNECT 隧道。
+/// 通过应用指定的 HTTP 或 HTTPS 代理对已校验数字地址建立 CONNECT 隧道。
 pub struct PinnedHttpProxy(reqwest::Proxy);
 
 impl PinnedHttpProxy {
     pub fn new(address: SocketAddr) -> Result<Self> {
         proxy_at(address, "http").map(Self)
+    }
+
+    /// 用独立的服务名与信任根校验代理；TCP 连接始终使用指定地址。
+    pub fn https(
+        address: SocketAddr,
+        server_name: &str,
+        certificates: Vec<super::TlsCertificate>,
+    ) -> Result<Self> {
+        proxy_at(address, "https")?
+            .with_connect_proxy_tls(server_name, certificates)
+            .map(Self)
+            .map_err(|_| Error::Configuration)
     }
 
     pub fn with_credentials(self, username: &str, password: &str) -> Result<Self> {

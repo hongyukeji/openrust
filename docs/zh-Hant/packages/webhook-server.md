@@ -170,6 +170,20 @@ pub fn grant_invoice_connect_proxy(
     permission.with_proxy("corp-egress", proxy)
 }
 
+pub fn grant_invoice_https_proxy(
+    permission: openrust_webhook_server::DeliveryPermission,
+    address: std::net::SocketAddr,
+    server_name: &str,
+    ca_pem: &[u8],
+) -> Result<openrust_webhook_server::DeliveryPermission> {
+    use openrust::http::client::{PinnedHttpProxy, TlsCertificate};
+    let roots = TlsCertificate::from_pem_bundle(ca_pem)
+        .map_err(|_| openrust_webhook_server::Error::InvalidConfig("proxy"))?;
+    let proxy = PinnedHttpProxy::https(address, server_name, roots)
+        .map_err(|_| openrust_webhook_server::Error::InvalidConfig("proxy"))?;
+    permission.with_proxy("corp-egress", proxy)
+}
+
 pub async fn inspect_invoice_attempts(
     store: &openrust_webhook_server::DeliveryStore,
     id: &str,
@@ -239,7 +253,7 @@ POST 等正文方法使用已準備的位元組。GET 將載荷編碼為 RFC 398
 
 在 `webhook-server.proxy` 中設定已核准的名稱，例如 `corp-egress`，也可為單次投遞呼叫 `use_proxy(Some("corp-egress".into()))`。呼叫 `use_proxy(None)` 可選擇直連。應用程式策略授權投遞範圍及目的地後，以 `DeliveryPermission::with_proxy` 核准相同名稱。可覆寫 `DeliveryPolicy::authorize_transport` 讀取所請求的名稱。投遞記錄只儲存名稱。使用可信設定中的數字 Socket 位址建立代理，並在執行時提供選用憑證。
 
-可用 `PinnedSocksProxy` 進行本機解析的 SOCKS5 轉送，也可用 `PinnedHttpProxy` 建立 HTTP CONNECT 隧道。代理收到已驗證的目標 IP 與連接埠，HTTPS 與 TLS 握手仍使用原主機。Worker 到代理這段連線的認證未加密，應部署在可信網路。缺少許可或無法經代理連線時，投遞不會轉為直連。代理本身使用 TLS，以及 SOCKS5 遠端 DNS 尚未支援。
+可用 `PinnedSocksProxy` 進行本機解析的 SOCKS5 轉送。使用 CONNECT 時，可用 `PinnedHttpProxy::https` 指定代理的數字位址、憑證名稱和可信 CA 憑證。Worker 分別驗證代理和收件端，收件端的 mTLS 身分只用於收件端。代理收到已驗證的目標 IP 和連接埠，收件端 TLS 和 HTTP 使用原主機。使用 `PinnedHttpProxy::new` 建立明文 HTTP CONNECT 時，鏈路上的代理認證資料未加密，應部署在可信網路。缺少許可或代理連線錯誤時，投遞不回退為直連。目前不支援 SOCKS5 遠端 DNS 或向代理提供 TLS 用戶端憑證。
 
 ### 登記與投遞 {#delivery}
 

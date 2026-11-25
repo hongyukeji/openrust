@@ -784,16 +784,28 @@ impl ConnectorService {
         log::debug!("proxy({proxy:?}) intercepts '{:?}'", dst.host());
 
         let proxy_dst = proxy.uri().clone();
+        #[cfg(feature = "__rustls")]
+        let proxy_tls = proxy.connect_tls();
+        #[cfg(feature = "__rustls")]
+        if proxy_tls.is_some()
+            && (proxy_dst.scheme() != Some(&Scheme::HTTPS)
+                || dst.scheme() != Some(&Scheme::HTTPS)
+                || proxy.connect_target().is_none()
+                || !matches!(&self.inner, Inner::RustlsTls { .. }))
+        {
+            return Err("independent proxy TLS requires Rustls and pinned HTTPS CONNECT".into());
+        }
+        #[cfg(feature = "__tls")]
+        let numeric_connect = proxy_dst.scheme_str() == Some("http");
+        #[cfg(feature = "__rustls")]
+        let numeric_connect = numeric_connect || proxy_tls.is_some();
         #[cfg(feature = "__tls")]
         let connect_dst = match proxy.connect_target() {
-            Some(address)
-                if proxy_dst.scheme_str() == Some("http")
-                    && dst.scheme() == Some(&Scheme::HTTPS) =>
-            {
+            Some(address) if numeric_connect && dst.scheme() == Some(&Scheme::HTTPS) => {
                 format!("https://{address}/").parse::<Uri>()?
             }
             Some(_) => {
-                return Err("numeric CONNECT requires an HTTP proxy and an HTTPS target".into())
+                return Err("numeric CONNECT requires a supported proxy and HTTPS target".into())
             }
             None => dst.clone(),
         };
@@ -864,7 +876,24 @@ impl ConnectorService {
 
                     log::trace!("tunneling HTTPS over proxy");
                     let http = http.clone();
-                    let inner = hyper_rustls::HttpsConnector::from((http, tls_proxy.clone()));
+                    let inner = if let Some(proxy_tls) = proxy_tls {
+                        let config = rustls::ClientConfig::builder_with_provider(
+                            tls.crypto_provider().clone(),
+                        )
+                        .with_safe_default_protocol_versions()?
+                        .with_root_certificates(proxy_tls.roots.clone())
+                        .with_no_client_auth();
+                        hyper_rustls::HttpsConnector::new(
+                            http,
+                            config,
+                            true,
+                            Arc::new(hyper_rustls::FixedServerNameResolver::new(
+                                proxy_tls.name.clone(),
+                            )),
+                        )
+                    } else {
+                        hyper_rustls::HttpsConnector::from((http, tls_proxy.clone()))
+                    };
                     // TODO: we could cache constructing this
                     let mut tunnel =
                         hyper_util::client::legacy::connect::proxy::Tunnel::new(proxy_dst, inner);

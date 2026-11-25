@@ -170,6 +170,20 @@ pub fn grant_invoice_connect_proxy(
     permission.with_proxy("corp-egress", proxy)
 }
 
+pub fn grant_invoice_https_proxy(
+    permission: openrust_webhook_server::DeliveryPermission,
+    address: std::net::SocketAddr,
+    server_name: &str,
+    ca_pem: &[u8],
+) -> Result<openrust_webhook_server::DeliveryPermission> {
+    use openrust::http::client::{PinnedHttpProxy, TlsCertificate};
+    let roots = TlsCertificate::from_pem_bundle(ca_pem)
+        .map_err(|_| openrust_webhook_server::Error::InvalidConfig("proxy"))?;
+    let proxy = PinnedHttpProxy::https(address, server_name, roots)
+        .map_err(|_| openrust_webhook_server::Error::InvalidConfig("proxy"))?;
+    permission.with_proxy("corp-egress", proxy)
+}
+
 pub async fn inspect_invoice_attempts(
     store: &openrust_webhook_server::DeliveryStore,
     id: &str,
@@ -239,7 +253,7 @@ For an isolated test, `do_not_verify_ssl()` disables server certificate and host
 
 Set `webhook-server.proxy` to an approved name such as `corp-egress`, or select it per delivery with `use_proxy(Some("corp-egress".into()))`. Use `use_proxy(None)` to send directly. The application policy grants the matching name with `DeliveryPermission::with_proxy` after authorizing the delivery scope and destination. Override `DeliveryPolicy::authorize_transport` to inspect the requested name. Only the name is stored with the delivery. Build the proxy from a trusted numeric socket address and supply optional credentials at runtime.
 
-Use `PinnedSocksProxy` for SOCKS5 with local address resolution, or `PinnedHttpProxy` for HTTP CONNECT. The proxy receives a validated destination IP and port while the HTTPS request and TLS handshake use the original host. Use a trusted network between the Worker and its proxy because authentication on that link is unencrypted. Missing authorization and connection failures prevent delivery from falling back to a direct connection. TLS to the proxy itself and SOCKS5 remote DNS are outside this path.
+Use `PinnedSocksProxy` for SOCKS5 with local address resolution. For CONNECT, use `PinnedHttpProxy::https` with the proxy’s numeric address, certificate name, and trusted CA certificates. The Worker verifies the proxy and the destination independently. Destination mTLS credentials go only to the destination. The proxy receives the verified destination IP and port, while destination TLS and HTTP use the original host. Use `PinnedHttpProxy::new` for plain HTTP CONNECT on a trusted network because proxy authentication is unencrypted on that link. Missing authorization or proxy errors prevent delivery from falling back to a direct connection. SOCKS5 remote DNS and client certificates for the proxy connection are currently unsupported.
 
 ### Submit and send a delivery {#delivery}
 

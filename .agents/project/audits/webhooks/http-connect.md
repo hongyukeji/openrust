@@ -4,7 +4,7 @@
 
 固定 reqwest 0.13.5 的 CONNECT 默认使用原 URI authority，而其 SOCKS5 路径可执行本地解析。CONNECT 补丁仅在 opt-in 时替换隧道 URI，仍复用 Hyper 的 CONNECT 实现和原 Reqwest 请求、中间件、事件、TLS 及响应链路。上游 crate 下载 SHA-256 与原锁文件一致，原始源提交为 `de55373434f07f42926599dbb5a88550d8e55112`。两个传输源文件接入补丁，原 MIT 与 Apache-2.0 文件逐字节保留。根 Cargo 固定同版本的本地副本。独立组装下游 Cargo workspace 时须带上相同补丁。 [Reqwest 0.13.5 连接源码](https://docs.rs/reqwest/0.13.5/src/reqwest/connect.rs.html) · [RFC 9110 CONNECT](https://www.rfc-editor.org/rfc/rfc9110.html#name-connect)
 
-当前验证 Rustls 后端和 HTTP 到代理的路径。代理自身的 TLS、独立信任和认证，还需单独实现与验证；Reqwest 现有 TLS 代理配置从目标 TLS 克隆，尤其要隔离目标 mTLS 私钥。代理映射及排除列表、IPv6 代理拓扑、外部正式代理和跨主机部署仍待验收。
+当前验证 Rustls 后端和 HTTP 到代理的路径。代理自身的 TLS 和独立信任已在[HTTPS CONNECT 后续批次](https-connect.md)接入。代理映射及排除列表、IPv6 代理拓扑、外部正式代理和跨主机部署仍待验收。
 
 ## 验收
 

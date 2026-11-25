@@ -12,4 +12,4 @@ SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 共完成 41 次真实 HTTP 登记与�
 
 Rust 1.94.0 隔离工作区格式检查、HTTP Client 三项选项回归、Webhook Server 八项合约测试及六组三语示例编译均通过。框架相关入口、发送包及启用收发特性的应用夹具均通过严格 Clippy。SQLite 原有发送、订阅扇出和接收套件通过，接收套件包含 136 个真实 HTTP 请求及 83 个独立 Worker。
 
-[具名 SOCKS5 代理及凭据](outbound-proxy.md)已在后续批次接入。[固定地址 HTTP CONNECT](http-connect.md)已在后续批次接入。WS-08 仍包含 TLS 到代理和部署边界。默认不读取系统代理。本轮使用隔离 HTTPS 对端，未覆盖生产证书链、外部代理、第三方账户或多主机 Worker。WH-04／WH-05 保持开放。
+[具名 SOCKS5 代理及凭据](outbound-proxy.md)已在后续批次接入。[固定地址 HTTP CONNECT](http-connect.md)已在后续批次接入。[HTTPS CONNECT 独立信任](https-connect.md)已在后续批次接入。WS-08 仍有外部代理和部署边界。默认不读取系统代理。本轮使用隔离 HTTPS 对端，未覆盖生产证书链、外部代理、第三方账户或多主机 Worker。WH-04／WH-05 保持开放。

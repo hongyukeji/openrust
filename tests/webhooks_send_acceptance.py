@@ -184,6 +184,13 @@ def exercise(binary, env, log, receiver, driver, sql):
             "wrong-host": [("tls-ca", "normal", "unknown")],
             "expired": [("tls-ca", "normal", "unknown")],
         }[profile]
+        proxy_tls = env.get("FIXTURE_SEND_PROXY_PROTOCOL") == "connect-tls"
+        if proxy_tls and profile == "proxy":
+            cases += [
+                ("proxy-tls-wrong-ca", "proxy", "unknown"),
+                ("proxy-tls-wrong-host", "proxy", "unknown"),
+                ("tls-wrong-ca", "proxy", "unknown"),
+            ]
         for key, mode, outcome in cases:
             identifier = submit(key, mode)
             enqueue(identifier)
@@ -220,8 +227,17 @@ def exercise(binary, env, log, receiver, driver, sql):
         if profile.startswith("proxy"):
             destination = ("127.0.0.1", receiver.server_port)
             proxy = receiver.proxy
-            assert proxy.targets == [destination] * (2 if profile in ("proxy", "proxy-mutual") else 1), proxy.targets
+            target_count = 2 if profile in ("proxy", "proxy-mutual") else 1
+            if proxy_tls and profile == "proxy":
+                target_count += 1  # Target TLS rejects after CONNECT succeeds.
+            assert proxy.targets == [destination] * target_count, proxy.targets
             assert proxy.rejected == (1 if profile == "proxy" else 0)
+            if proxy_tls:
+                names = ["proxy-fixture.invalid"] * (target_count + proxy.rejected)
+                if profile == "proxy":
+                    names.extend(["proxy-fixture.invalid", "wrong-proxy.invalid"])
+                assert sorted(proxy.tls_names) == sorted(names), proxy.tls_names
+                assert proxy.client_certificates == [None] * (target_count + proxy.rejected)
         protocol = env.get("FIXTURE_SEND_PROXY_PROTOCOL", "socks5") if profile.startswith("proxy") else "direct"
         print(f"{driver}: TLS {profile} {protocol} HTTP、Artisan、Worker 及固定连接通过")
         return
@@ -1823,7 +1839,19 @@ class SocksProxy(socketserver.BaseRequestHandler):
 class HttpConnectProxy(socketserver.BaseRequestHandler):
     def handle(self):
         self.request.settimeout(6)
-        with self.request.makefile("rb", buffering=0) as reader:
+        if self.server.tls_context is None:
+            self.connect(self.request)
+            return
+        try:
+            connection = self.server.tls_context.wrap_socket(self.request, server_side=True)
+        except ssl.SSLError:
+            return  # A client may reject the proxy certificate before sending CONNECT.
+        with connection:
+            self.server.client_certificates.append(connection.getpeercert(binary_form=True))
+            self.connect(connection)
+
+    def connect(self, connection):
+        with connection.makefile("rb", buffering=0) as reader:
             line = reader.readline(1024)
             target = f"{self.server.expected[0]}:{self.server.expected[1]}".encode()
             assert line == b"CONNECT " + target + b" HTTP/1.1\r\n", line
@@ -1839,18 +1867,19 @@ class HttpConnectProxy(socketserver.BaseRequestHandler):
         expected = b"Basic " + base64.b64encode(b"fixture-user:local p@ss/%")
         if headers.get(b"proxy-authorization") != expected:
             self.server.rejected += 1
-            self.request.sendall(b"HTTP/1.1 407 Proxy Authentication Required\r\nContent-Length: 0\r\n\r\n")
+            connection.sendall(b"HTTP/1.1 407 Proxy Authentication Required\r\nContent-Length: 0\r\n\r\n")
             return
         assert headers.get(b"host") == target
         self.server.targets.append(self.server.expected)
         with socket.create_connection(self.server.expected, timeout=6) as peer:
-            self.request.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
-            relay_proxy(self.request, peer)
+            connection.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+            relay_proxy(connection, peer)
 
 
 def relay_proxy(request, peer):
     swap = {request: peer, peer: request}
-    while ready := select.select(list(swap), [], [], 6)[0]:
+    while ready := ([request] if isinstance(request, ssl.SSLSocket) and request.pending()
+                    else select.select(list(swap), [], [], 6)[0]):
         for source in ready:
             data = source.recv(8192)
             if not data:
@@ -1858,7 +1887,7 @@ def relay_proxy(request, peer):
             swap[source].sendall(data)
 
 
-def configure_tls(receiver, folder, profile):
+def configure_tls(receiver, folder, profile, proxy):
     def openssl(*tokens):
         subprocess.run(["openssl", *tokens], cwd=folder, check=True, capture_output=True, timeout=10)
 
@@ -1902,6 +1931,17 @@ def configure_tls(receiver, folder, profile):
         context.verify_mode = ssl.CERT_REQUIRED
         context.load_verify_locations(folder / "ca.pem")
     receiver.socket = context.wrap_socket(receiver.socket, server_side=True)
+    if proxy is None:
+        return
+    ca("proxy-ca")
+    certificate("proxy", "proxy-ca", 1,
+                "subjectAltName=DNS:proxy-fixture.invalid\nextendedKeyUsage=serverAuth\n")
+    proxy.tls_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    proxy.tls_context.load_cert_chain(folder / "proxy.pem", folder / "proxy.key")
+    proxy.tls_context.verify_mode = ssl.CERT_OPTIONAL
+    # Ask for and accept the target client certificate if the Worker wrongly offers it.
+    proxy.tls_context.load_verify_locations(folder / "ca.pem")
+    proxy.tls_context.set_servername_callback(lambda _, name, __: proxy.tls_names.append(name))
 
 
 def main():
@@ -1919,18 +1959,22 @@ def main():
     try:
         with tempfile.TemporaryDirectory(dir=ROOT / "target/tmp", prefix="webhook-send-") as root:
             profile = os.environ.get("FIXTURE_SEND_TLS")
-            if profile:
-                tls = Path(root) / "tls"
-                tls.mkdir(mode=0o700)
-                configure_tls(receiver, tls, profile)
+            protocol = os.environ.get("FIXTURE_SEND_PROXY_PROTOCOL")
             if profile and profile.startswith("proxy"):
-                handler = (HttpConnectProxy if os.environ.get("FIXTURE_SEND_PROXY_PROTOCOL") == "connect"
-                           else SocksProxy)
+                handler = HttpConnectProxy if protocol in ("connect", "connect-tls") else SocksProxy
                 proxy = socketserver.ThreadingTCPServer(("127.0.0.1", 0), handler)
                 proxy.expected = ("127.0.0.1", receiver.server_port)
                 proxy.targets = []
                 proxy.rejected = 0
+                proxy.tls_context = None
+                proxy.tls_names = []
+                proxy.client_certificates = []
                 receiver.proxy = proxy
+            if profile:
+                tls = Path(root) / "tls"
+                tls.mkdir(mode=0o700)
+                configure_tls(receiver, tls, profile, proxy if protocol == "connect-tls" else None)
+            if proxy:
                 proxy_thread = threading.Thread(target=proxy.serve_forever, daemon=True)
                 proxy_thread.start()
             peer.start()
@@ -2028,6 +2072,7 @@ def main():
         if proxy_thread is not None:
             proxy.shutdown()
             proxy_thread.join(timeout=5)
+        if proxy is not None:
             proxy.server_close()
         if peer.ident is not None:
             receiver.shutdown()

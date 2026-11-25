@@ -71,6 +71,14 @@ struct Extra {
     misc: Option<HeaderMap>,
     #[cfg(feature = "__tls")]
     connect_target: Option<std::net::SocketAddr>,
+    #[cfg(feature = "__rustls")]
+    connect_tls: Option<Arc<ConnectTls>>,
+}
+
+#[cfg(feature = "__rustls")]
+pub(crate) struct ConnectTls {
+    pub(crate) name: rustls_pki_types::ServerName<'static>,
+    pub(crate) roots: Arc<rustls::RootCertStore>,
 }
 
 // ===== Internal =====
@@ -271,6 +279,8 @@ impl Proxy {
                 misc: None,
                 #[cfg(feature = "__tls")]
                 connect_target: None,
+                #[cfg(feature = "__rustls")]
+                connect_tls: None,
             },
             intercept,
             no_proxy: None,
@@ -285,6 +295,32 @@ impl Proxy {
     pub fn with_connect_target(mut self, address: std::net::SocketAddr) -> Self {
         self.extra.connect_target = Some(address);
         self
+    }
+
+    /// Configures independent certificate verification for an HTTPS CONNECT proxy.
+    ///
+    /// Requires a numeric CONNECT target and the Rustls transport. The proxy
+    /// server name is independent of its TCP address. Origin credentials and
+    /// certificates are never used for the proxy handshake.
+    #[cfg(feature = "__rustls")]
+    pub fn with_connect_proxy_tls(
+        mut self,
+        server_name: &str,
+        certificates: Vec<crate::Certificate>,
+    ) -> crate::Result<Self> {
+        let name = rustls_pki_types::ServerName::try_from(server_name.to_owned())
+            .map_err(crate::error::builder)?;
+        let roots = crate::tls::rustls_store(certificates)?;
+        if roots.is_empty() {
+            return Err(crate::error::builder(
+                "HTTPS proxy trust requires a certificate",
+            ));
+        }
+        self.extra.connect_tls = Some(Arc::new(ConnectTls {
+            name,
+            roots: Arc::new(roots),
+        }));
+        Ok(self)
     }
 
     /// Set the `Proxy-Authorization` header using Basic auth.
@@ -534,6 +570,8 @@ impl Matcher {
                 misc: None,
                 #[cfg(feature = "__tls")]
                 connect_target: None,
+                #[cfg(feature = "__rustls")]
+                connect_tls: None,
             },
             // maybe env vars have auth!
             maybe_has_http_auth: true,
@@ -584,6 +622,11 @@ impl Intercepted {
     #[cfg(feature = "__tls")]
     pub(crate) fn connect_target(&self) -> Option<std::net::SocketAddr> {
         self.extra.connect_target
+    }
+
+    #[cfg(feature = "__rustls")]
+    pub(crate) fn connect_tls(&self) -> Option<&ConnectTls> {
+        self.extra.connect_tls.as_deref()
     }
 
     pub(crate) fn http_non_tunnel_basic_auth(&self) -> Option<HeaderValue> {

@@ -123,18 +123,39 @@ impl DeliveryPolicy for FixturePolicy {
                 } else {
                     "local p@ss/%"
                 };
-                use openrust::http::client::{PinnedHttpProxy, PinnedProxy, PinnedSocksProxy};
-                let proxy =
-                    if std::env::var("FIXTURE_SEND_PROXY_PROTOCOL").as_deref() == Ok("connect") {
-                        PinnedHttpProxy::new(address)
-                            .and_then(|proxy| proxy.with_credentials("fixture-user", password))
-                            .map(PinnedProxy::from)
-                    } else {
-                        PinnedSocksProxy::new(address)
+                use openrust::http::client::{
+                    PinnedHttpProxy, PinnedProxy, PinnedSocksProxy, TlsCertificate,
+                };
+                let proxy = match std::env::var("FIXTURE_SEND_PROXY_PROTOCOL").as_deref() {
+                    Ok("connect-tls") => {
+                        let directory =
+                            std::env::var_os("FIXTURE_SEND_TLS_DIR").ok_or(Error::InvalidRecord)?;
+                        let ca = if context.message_id == "proxy-tls-wrong-ca" {
+                            "ca.pem"
+                        } else {
+                            "proxy-ca.pem"
+                        };
+                        let authority = if context.message_id == "proxy-tls-wrong-host" {
+                            "wrong-proxy.invalid"
+                        } else {
+                            "proxy-fixture.invalid"
+                        };
+                        let ca = std::fs::read(std::path::Path::new(&directory).join(ca))
+                            .map_err(|_| Error::InvalidRecord)?;
+                        let certificate =
+                            TlsCertificate::from_pem(&ca).map_err(|_| Error::InvalidRecord)?;
+                        PinnedHttpProxy::https(address, authority, vec![certificate])
                             .and_then(|proxy| proxy.with_credentials("fixture-user", password))
                             .map(PinnedProxy::from)
                     }
-                    .map_err(|_| Error::InvalidRecord)?;
+                    Ok("connect") => PinnedHttpProxy::new(address)
+                        .and_then(|proxy| proxy.with_credentials("fixture-user", password))
+                        .map(PinnedProxy::from),
+                    _ => PinnedSocksProxy::new(address)
+                        .and_then(|proxy| proxy.with_credentials("fixture-user", password))
+                        .map(PinnedProxy::from),
+                }
+                .map_err(|_| Error::InvalidRecord)?;
                 let name = if context.message_id == "proxy-wrong-name" {
                     "other-egress"
                 } else {
