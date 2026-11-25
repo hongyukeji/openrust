@@ -62,6 +62,13 @@ def check_processing_lease(binary, env, root, port, driver, sql):
             f"FROM webhook_calls WHERE id='{receipt}'"
         )
 
+    def attempts(receipt):
+        assert re.fullmatch(r"[0-9a-f-]{36}", receipt)
+        return sql(
+            "SELECT generation,outcome,CASE WHEN finished_at IS NULL THEN 0 ELSE 1 END "
+            f"FROM webhook_processing_attempts WHERE call_id='{receipt}' ORDER BY generation"
+        )
+
     log_path = root / "processing-lease.log"
     with log_path.open("w+") as log:
         server = http_helpers["serve"](binary, current, log)
@@ -71,6 +78,7 @@ def check_processing_lease(binary, env, root, port, driver, sql):
             assert state(released) == "1\t0\t0" and not (root / "release").exists()
             run("release")
             assert state(released) == "2\t0\t1" and (root / "release").exists()
+            assert attempts(released) == "1\treleased\t1\n2\tcompleted\t1"
 
             concurrent = dispatch(b"leased-concurrent")
             duplicate = (
@@ -106,11 +114,45 @@ def check_processing_lease(binary, env, root, port, driver, sql):
             crashed = dispatch(b"leased-crash")
             run("crash", FIXTURE_LEASE_CRASH="1")
             assert state(crashed) == "1\t1\t0" and not (root / "crash").exists()
+            assert attempts(crashed) == "1\trunning\t0"
             run("recovered")
             assert state(crashed) == "1\t1\t0" and not (root / "recovered").exists()
             time.sleep(8.2)
             run("recovered")
             assert state(crashed) == "2\t0\t1" and (root / "recovered").exists()
+            assert attempts(crashed) == "1\texpired\t1\n2\tcompleted\t1"
+            assert sql("SELECT COUNT(*) FROM jobs") == "0"
+
+            stale = dispatch(b"leased-stale")
+            write_database(driver, sql, duplicate)
+            gate = root / "stale-gate"
+            ready = root / "stale-ready"
+            old = subprocess.Popen(
+                work, env=worker("old", FIXTURE_OLD_ENTERED=str(ready), FIXTURE_OLD_GATE=str(gate)),
+                stdout=log, stderr=log,
+            )
+            try:
+                deadline = time.monotonic() + 7
+                while not ready.exists() and old.poll() is None and time.monotonic() < deadline:
+                    time.sleep(.025)
+                assert ready.exists() and attempts(stale) == "1\trunning\t0"
+                write_database(driver, sql, f"UPDATE webhook_calls SET processing_until=0 WHERE id='{stale}'")
+                run("replacement")
+                assert (root / "replacement").exists()
+                assert state(stale) == "2\t0\t1"
+                assert attempts(stale) == "1\texpired\t1\n2\tcompleted\t1"
+                assert old.poll() is None
+                gate.write_text("ready")
+                assert old.wait(timeout=10) == 0
+            finally:
+                if old.poll() is None:
+                    old.kill()
+                    old.wait(timeout=10)
+            assert state(stale) == "2\t0\t1"
+            assert attempts(stale) == "1\texpired\t1\n2\tcompleted\t1"
+            record = json.loads(command(binary, current, "webhooks:record", stale, "webhook-acceptance"))
+            assert record["exception"] is None and not (root / "old").exists()
+            run("stale-ack")
             assert sql("SELECT COUNT(*) FROM jobs") == "0"
         except BaseException:
             log.flush()
@@ -118,7 +160,7 @@ def check_processing_lease(binary, env, root, port, driver, sql):
             raise
         finally:
             http_helpers["stop"](server)
-    print(f"{driver}: 接收处理租约 3 个真实 HTTP、8 个独立 Worker；主动释放、并发重复投递、终态去重、进程崩溃重领通过")
+    print(f"{driver}: 接收处理租约 4 个真实 HTTP、11 个独立 Worker；主动释放、并发重复投递、终态去重、崩溃重领及旧 Worker 写回隔离通过")
 
 
 def check_verified_event_identity(binary, env, root, port, driver, sql):
@@ -312,6 +354,12 @@ def check_deferred_processing(binary, env, root, port, driver, sql):
             work("expired")
             assert state(expired) == "1\t1\t0\t0\t1" and not (root / "expired").exists()
             assert sql("SELECT COUNT(*) FROM jobs") == "0"
+            for receipt, expected in (
+                (waiting, "deferred\ncompleted"), (exhausted, "deferred\nstopped"),
+                (permanent, "stopped"), (retryable, "failed"), (expired, "deferred"),
+            ):
+                assert sql("SELECT outcome FROM webhook_processing_attempts "
+                           f"WHERE call_id='{receipt}' ORDER BY generation") == expected
         except BaseException:
             log.flush()
             print(log_path.read_text())
@@ -515,7 +563,7 @@ def main():
   check_verified_event_identity(binary,env,root,port,driver,sql)
   check_deferred_processing(binary,env,root,port,driver,sql)
   legacy_id=sql("SELECT id FROM webhook_calls WHERE name='default' ORDER BY id LIMIT 1")
-  assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate:rollback","--step=4","--force")
+  assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate:rollback","--step=5","--force")
   assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate","--force")
   legacy=json.loads(command(binary,env,"webhooks:record",legacy_id,"webhook-acceptance"))
   assert bytes(legacy["body"])==b"default" and legacy["payload"] is None and legacy["attachments"] is None

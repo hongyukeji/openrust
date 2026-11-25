@@ -145,6 +145,8 @@ Provider 注册 `webhook_calls` 迁移，使用 `DatabaseWebhookStore` 前运行
 
 租约有效时，仅领取者进入业务处理器。已完成记录被重复投递时直接确认，处理器也可以主动释放任务以便再次执行。进程退出后，队列保留和记录租约都过期时可重新领取。业务端应按接收记录 ID 做外部操作幂等，因为进程可能在外部操作生效后、记录完成前退出。
 
+数据库按接收记录和代次保存每次领取。完成、释放、延期、失败或停止会与相应的接收状态变更一起记录。崩溃后由另一 Worker 重新领取时，前一次领取标记为过期。尝试记录保存时间和状态，随接收记录保留。
+
 ### 按已验签事件去重 {#verified-event-deduplication}
 
 在 profile 中启用 `atomic_database_queue: true` 和 `deduplicate_verified_events: true`，并运行 `./artisan migrate`。运行时配置可同时使用 `with_verified_event_deduplication(true)` 和 `with_atomic_database_queue(true)`。`standard` 验证器提供签名覆盖的 `webhook-id`，该模式要求 ID 不含半角句点。自定义验证器可在确认签名覆盖稳定事件 ID 后，通过 `SignatureValidator::verified_event_id` 提供该 ID。默认 HMAC 仅覆盖正文，无法提供事件 ID。启用去重时，验证器不能提供有效 ID 则拒绝接收。为每个来源账号配置独立的 scope 或 profile。

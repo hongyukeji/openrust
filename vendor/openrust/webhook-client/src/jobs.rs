@@ -295,7 +295,7 @@ impl RegisteredJob {
             .map_err(queue_error)?
         {
             ProcessingClaim::Owned(token) => token,
-            ProcessingClaim::Complete | ProcessingClaim::Scheduled => return Ok(()),
+            ProcessingClaim::Settled | ProcessingClaim::Scheduled => return Ok(()),
             ProcessingClaim::Busy => {
                 context.release(Duration::from_secs(u64::from(seconds)));
                 return Ok(());

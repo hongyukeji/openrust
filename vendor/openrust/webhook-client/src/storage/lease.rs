@@ -1,4 +1,4 @@
-use super::{DatabaseWebhookStore, scope_key};
+use super::{DatabaseWebhookStore, attempts, scope_key};
 use crate::{Error, Result, jobs::DeferredProcessingPolicy, models::WebhookCall};
 use openrust::{
     database::{
@@ -8,11 +8,12 @@ use openrust::{
     http::HttpFuture,
     support::Str,
 };
+use std::collections::BTreeMap;
 
 pub(crate) enum ProcessingClaim {
     Owned(String),
     Busy,
-    Complete,
+    Settled,
     Scheduled,
 }
 
@@ -63,57 +64,67 @@ impl DatabaseWebhookStore {
     ) -> Result<ProcessingClaim> {
         let token = Str::uuid().map_err(|_| Error::InvalidRecord)?.to_string();
         let clock = self.clock();
-        let changed = self
-            .processing_row(self.connection.table("webhook_calls"), call)?
-            .where_nested(|query| {
-                query
-                    .where_null("processing_until")
-                    .or_where_raw(&format!("processing_until <= {clock}"), vec![])
-            })
-            .where_nested(|query| {
-                query
-                    .where_null("processing_next_at")
-                    .or_where_raw(&format!("processing_next_at <= {clock}"), vec![])
-            })
-            .where_nested(|query| {
-                query
-                    .where_null("processing_deadline")
-                    .or_where_raw(&format!("processing_deadline > {clock}"), vec![])
-            })
-            .update_with(
-                [
-                    assignment("processing_next_at", Value::Null),
-                    assignment("processing_token", Value::from(token.clone())),
-                    assignment(
-                        "processing_until",
-                        Expression::new(format!("{clock} + ?"))
-                            .with_bindings(vec![i64::from(seconds).into()]),
-                    ),
-                    assignment(
-                        "processing_generation",
-                        Expression::new("processing_generation + 1"),
-                    ),
-                    assignment("exception", Value::Null),
-                ]
-                .into_iter()
-                .collect(),
-            )
-            .await?;
-        if changed == 1 {
-            return Ok(ProcessingClaim::Owned(token));
+        let mut transaction = self.connection.begin_transaction().await?;
+        let result = async {
+            let changed = self
+                .processing_row(transaction.table("webhook_calls"), call)?
+                .where_nested(|query| {
+                    query
+                        .where_null("processing_until")
+                        .or_where_raw(&format!("processing_until <= {clock}"), vec![])
+                })
+                .where_nested(|query| {
+                    query
+                        .where_null("processing_next_at")
+                        .or_where_raw(&format!("processing_next_at <= {clock}"), vec![])
+                })
+                .where_nested(|query| {
+                    query
+                        .where_null("processing_deadline")
+                        .or_where_raw(&format!("processing_deadline > {clock}"), vec![])
+                })
+                .update_with(
+                    [
+                        assignment("processing_next_at", Value::Null),
+                        assignment("processing_token", Value::from(token.clone())),
+                        assignment(
+                            "processing_until",
+                            Expression::new(format!("{clock} + ?"))
+                                .with_bindings(vec![i64::from(seconds).into()]),
+                        ),
+                        assignment(
+                            "processing_generation",
+                            Expression::new("processing_generation + 1"),
+                        ),
+                        assignment("exception", Value::Null),
+                    ]
+                    .into_iter()
+                    .collect(),
+                )
+                .await?;
+            if changed == 1 {
+                attempts::begin(&mut transaction, call.id(), &token, clock).await?;
+                return Ok(Some(ProcessingClaim::Owned(token)));
+            }
+            let expired = self
+                .processing_row(transaction.table("webhook_calls"), call)?
+                .where_raw(&format!("processing_deadline <= {clock}"), vec![])
+                .where_nested(|query| {
+                    query
+                        .where_null("processing_until")
+                        .or_where_raw(&format!("processing_until <= {clock}"), vec![])
+                })
+                .update_with(stopped_assignments(clock))
+                .await?;
+            if expired == 1 {
+                attempts::expire(&mut transaction, call.id(), clock).await?;
+                return Ok(Some(ProcessingClaim::Settled));
+            }
+            Ok(None)
         }
-        let expired = self
-            .processing_row(self.connection.table("webhook_calls"), call)?
-            .where_raw(&format!("processing_deadline <= {clock}"), vec![])
-            .where_nested(|query| {
-                query
-                    .where_null("processing_until")
-                    .or_where_raw(&format!("processing_until <= {clock}"), vec![])
-            })
-            .update_with(stopped_assignments(clock))
-            .await?;
-        if expired == 1 {
-            return Ok(ProcessingClaim::Complete);
+        .await;
+        if let Some(claim) = settle_transaction(transaction, result).await? {
+            return Ok(claim);
         }
         let row = self
             .connection
@@ -129,14 +140,14 @@ impl DatabaseWebhookStore {
             .first()
             .await?
             .ok_or(Error::RecordNotFound)?;
-        if row.get("scope") != Some(&Value::Text(self.scope.clone())) {
+        if !matches!(row.get("scope"), Some(Value::Text(scope)) if scope == &self.scope) {
             return Err(Error::RecordNotFound);
         }
         for field in ["processed_at", "processing_stopped_at"] {
             match row.get(field) {
                 Some(Value::Null) => {}
                 Some(Value::Integer(_) | Value::Unsigned(_)) => {
-                    return Ok(ProcessingClaim::Complete);
+                    return Ok(ProcessingClaim::Settled);
                 }
                 _ => return Err(Error::InvalidRecord),
             }
@@ -165,23 +176,25 @@ impl DatabaseWebhookStore {
             }
             _ => Value::Null,
         };
-        let changed = self
-            .owned_processing_row(self.connection.table("webhook_calls"), call, token)?
-            .update_with(
-                [
-                    assignment("processing_token", Value::Null),
-                    assignment("processing_until", Value::Null),
-                    assignment("processed_at", processed_at),
-                    assignment("exception", exception),
-                ]
-                .into_iter()
-                .collect(),
-            )
-            .await?;
-        if changed != 1 {
-            return Err(Error::ProcessingLeaseLost);
-        }
-        Ok(())
+        let attempt_outcome = match outcome {
+            ProcessingOutcome::Complete => "completed",
+            ProcessingOutcome::Release => "released",
+            ProcessingOutcome::Failed => "failed",
+        };
+        self.finish_owned(
+            call,
+            token,
+            [
+                assignment("processing_token", Value::Null),
+                assignment("processing_until", Value::Null),
+                assignment("processed_at", processed_at),
+                assignment("exception", exception),
+            ]
+            .into_iter()
+            .collect(),
+            attempt_outcome,
+        )
+        .await
     }
 
     pub(crate) async fn defer_processing(
@@ -233,6 +246,7 @@ impl DatabaseWebhookStore {
                     .await?;
             }
             if changed == 1 {
+                attempts::finish(&mut transaction, call.id(), token, "deferred", clock).await?;
                 enqueue(&mut transaction).await?;
                 return Ok(true);
             }
@@ -243,36 +257,55 @@ impl DatabaseWebhookStore {
             if stopped != 1 {
                 return Err(Error::ProcessingLeaseLost);
             }
+            attempts::finish(&mut transaction, call.id(), token, "stopped", clock).await?;
             Ok(false)
         }
         .await;
-        match result {
-            Ok(scheduled) => {
-                transaction.commit().await?;
-                Ok(scheduled)
-            }
-            Err(error) => {
-                transaction.roll_back(None).await?;
-                Err(error)
-            }
-        }
+        settle_transaction(transaction, result).await
     }
 
     pub(crate) async fn stop_processing(&self, call: &WebhookCall, token: &str) -> Result<()> {
-        let changed = self
-            .owned_processing_row(self.connection.table("webhook_calls"), call, token)?
-            .update_with(stopped_assignments(self.clock()))
-            .await?;
-        if changed != 1 {
-            return Err(Error::ProcessingLeaseLost);
+        self.finish_owned(call, token, stopped_assignments(self.clock()), "stopped")
+            .await
+    }
+
+    async fn finish_owned(
+        &self,
+        call: &WebhookCall,
+        token: &str,
+        changes: BTreeMap<String, UpdateValue<'static, 'static>>,
+        outcome: &'static str,
+    ) -> Result<()> {
+        let mut transaction = self.connection.begin_transaction().await?;
+        let result = async {
+            let changed = self
+                .owned_processing_row(transaction.table("webhook_calls"), call, token)?
+                .update_with(changes)
+                .await?;
+            if changed != 1 {
+                return Err(Error::ProcessingLeaseLost);
+            }
+            attempts::finish(&mut transaction, call.id(), token, outcome, self.clock()).await
         }
-        Ok(())
+        .await;
+        settle_transaction(transaction, result).await
     }
 }
 
-fn stopped_assignments(
-    clock: &str,
-) -> std::collections::BTreeMap<String, UpdateValue<'static, 'static>> {
+async fn settle_transaction<T>(mut transaction: Transaction, result: Result<T>) -> Result<T> {
+    match result {
+        Ok(value) => {
+            transaction.commit().await?;
+            Ok(value)
+        }
+        Err(error) => {
+            transaction.roll_back(None).await?;
+            Err(error)
+        }
+    }
+}
+
+fn stopped_assignments(clock: &str) -> BTreeMap<String, UpdateValue<'static, 'static>> {
     [
         assignment("processing_token", Value::Null),
         assignment("processing_until", Value::Null),

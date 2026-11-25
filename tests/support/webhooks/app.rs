@@ -301,6 +301,22 @@ impl openrust_webhook_client::jobs::ProcessWebhookJob for FixtureJob {
                 context.release(std::time::Duration::ZERO);
                 return Ok(());
             }
+            if call.raw_body() == b"leased-stale"
+                && let Some(marker) = std::env::var_os("FIXTURE_OLD_ENTERED")
+            {
+                let gate = std::path::PathBuf::from(
+                    std::env::var_os("FIXTURE_OLD_GATE").expect("旧 Worker 放行标记"),
+                );
+                tokio::fs::write(marker, b"entered")
+                    .await
+                    .map_err(runtime_error)?;
+                while !gate.exists() {
+                    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+                }
+                return Err(runtime_error(std::io::Error::other(
+                    "old-worker-private-error",
+                )));
+            }
             if call.raw_body() == b"leased-concurrent" {
                 let marker = std::env::var_os("FIXTURE_LEASE_ENTERED").expect("领取验收标记");
                 tokio::fs::write(marker, b"entered")

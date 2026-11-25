@@ -145,6 +145,8 @@ Run `./artisan migrate` and register the handler with `QueuedWebhookJob::registe
 
 An active lease permits one Worker to enter the handler. A completed receipt is acknowledged on redelivery without another handler call. A handler can explicitly release its job for another attempt. After process exit, a reserved task can be reclaimed when both the queue reservation and the receipt lease expire. Make external effects idempotent using the receipt ID because a process can exit after an effect has occurred and before marking the receipt complete.
 
+The database records each lease attempt by receipt and generation. A completed, released, deferred, failed or stopped attempt records its outcome with the corresponding receipt change. If another Worker reclaims an expired lease after a crash, the previous attempt is marked expired. Attempt records contain timestamps and status and are retained with the receipt.
+
 ### Deduplicate a verified event {#verified-event-deduplication}
 
 For a profile with `atomic_database_queue: true`, enable `deduplicate_verified_events: true` and run `./artisan migrate`. At runtime, use `with_verified_event_deduplication(true)` together with `with_atomic_database_queue(true)`. The `standard` validator supplies the signed `webhook-id` and requires it to contain no periods in this mode. A custom validator can supply a stable ID through `SignatureValidator::verified_event_id` after verifying that the signature covers that ID. The default body-only HMAC validator supplies no event ID. The receiver rejects the deduplication mode if its validator cannot supply a valid ID. Configure a distinct scope or profile for each source account.

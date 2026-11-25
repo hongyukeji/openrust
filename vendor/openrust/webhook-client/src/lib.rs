@@ -1,5 +1,7 @@
 #![doc = include_str!("../README.md")]
 #![forbid(unsafe_code)]
+#[path = "../database/migrations/2026_11_25_000006_create_webhook_processing_attempts_table.rs"]
+mod attempt_migration;
 #[path = "../config/webhook_client.rs"]
 mod configuration;
 mod contracts;
@@ -137,6 +139,10 @@ impl WebhookClientServiceProvider {
             openrust::database::migrations::MigrationEntry::new(
                 "vendor/openrust/webhook-client/database/migrations/2026_11_25_000005_add_deferred_processing_to_webhook_calls_table.rs",
                 &deferred_migration::MIGRATION,
+            ),
+            openrust::database::migrations::MigrationEntry::new(
+                "vendor/openrust/webhook-client/database/migrations/2026_11_25_000006_create_webhook_processing_attempts_table.rs",
+                &attempt_migration::MIGRATION,
             ),
         ];
         ENTRIES
