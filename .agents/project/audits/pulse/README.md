@@ -55,3 +55,9 @@ O05单包验收关闭，接续O06。语言适配明确保留：原生HTML／JS�
 ## 扩展审计修复（2026-11-21）
 
 参考生成器固定 Entry／DatabaseStorage 原文件与来源，原聚合 fixture 复现并逐个拒绝篡改；Livewire／原生视图取舍补候选比较，未改生产功能。 统一命令、环境、结果和边界见[全量扩展修复记录](../extension-design-review.md#修复验收与交付边界)。
+
+## CacheInteractions 缓存事件对照
+
+PHP 8.5.12 使用固定 Laravel 的缓存 Repository、ArrayStore、固定 Pulse Recorder 和 Ingest 消费者验证命中与未命中。两种事件分别入库，值为空，时间戳取自事件发生时。多个分组规则命中时使用首个规则，忽略规则过滤原始键。事件进入延迟队列后将采样率设为零，实际消费时丢弃该条。证据为 `target/tmp/observability-parity/pulse-cache-interactions-upstream.log`。 [固定 CacheInteractions](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Recorders/CacheInteractions.php)
+
+Rust 的既有真实 HTTP 用例已运行命中／未命中、动态采样率与分组。首条规则优先、忽略键、存储字段以及缓存驱动组合仍须逐项核对。Rust 通用 Recorder 模式解析当前拒绝 PHP 8.5.12 实测接受的 `A`、`D`、`J`、`n`、`S`、`X`、`r` 修饰符，后续需核对 PCRE2 选项映射、适用版本与实际过滤、分组和阈值消费者。参考输出为 `target/tmp/observability-parity/pulse-pcre-options-upstream.log`。
