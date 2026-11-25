@@ -31,6 +31,7 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
     Route::get("/query-callers", query_callers)?;
     Route::get("/page-callers", page_callers)?;
     Route::get("/model-write-callers", model_write_callers)?;
+    Route::get("/relationship-callers", relationship_callers)?;
     for path in ["/json", "/plain", "/boundary", "/large", "/opaque"] {
         Route::get(path, response_handler)?;
     }
@@ -71,22 +72,7 @@ fn page_callers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
     };
 
     Box::pin(async {
-        let connection = Db::connection(None).unwrap();
-        let table = format!("{}query_page_probe", connection.get_table_prefix());
-        connection
-            .statement(
-                &format!("CREATE TABLE {table} (id BIGINT PRIMARY KEY, owner_id BIGINT)"),
-                &[],
-            )
-            .await
-            .unwrap();
-        connection
-            .statement(
-                &format!("INSERT INTO {table} VALUES (1, 0), (2, 1), (3, 1)"),
-                &[],
-            )
-            .await
-            .unwrap();
+        let connection = seed_relationship_source().await;
         let query = connection.table("query_page_probe").order_by("id", "asc");
         let builder = line!() + 1;
         let direct_page = query.paginate(2).await.unwrap();
@@ -117,6 +103,77 @@ fn page_callers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
         Response::json(
             http::StatusCode::OK,
             json!([[builder, 2], [model, 2], [related, 2], [single, 1]]),
+        )
+    })
+}
+
+async fn seed_relationship_source() -> openrust::database::Connection {
+    let connection = Db::connection(None).unwrap();
+    let table = format!("{}query_page_probe", connection.get_table_prefix());
+    connection
+        .statement(
+            &format!("CREATE TABLE {table} (id BIGINT PRIMARY KEY, owner_id BIGINT)"),
+            &[],
+        )
+        .await
+        .unwrap();
+    connection
+        .statement(
+            &format!("INSERT INTO {table} VALUES (1, 0), (2, 1), (3, 1)"),
+            &[],
+        )
+        .await
+        .unwrap();
+    connection
+}
+
+fn relationship_callers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    use futures_util::TryStreamExt as _;
+    use openrust::database::eloquent::{
+        Model as _,
+        relations::{BelongsTo, HasMany, Relation},
+    };
+
+    Box::pin(async {
+        let connection = seed_relationship_source().await;
+        let query = PageProbe::query_on(&connection);
+        let parent_read = line!() + 1;
+        let parent = query.find_or_fail(1).await.unwrap();
+        let children = HasMany::<PageProbe, PageProbe>::new("id", "owner_id");
+        let look_up = line!() + 1;
+        let child = children.find_or_fail(&parent, 2).await.unwrap();
+        let get_many = line!() + 1;
+        let related = children.get_results(&parent).await.unwrap();
+        assert_eq!(related.len(), 2);
+
+        let inverse = BelongsTo::<PageProbe, PageProbe>::new("owner_id", "id");
+        let get_owner = line!() + 1;
+        let owner = inverse.get_results(&child).await.unwrap().unwrap();
+        assert_eq!(owner.get_key(), parent.get_key());
+
+        let mut tx = Db::begin_transaction().await.unwrap();
+        let parents = [&parent];
+        let batch = line!() + 2;
+        let groups = children
+            .match_results_in_transaction(&parents, &mut tx)
+            .await
+            .unwrap();
+        assert_eq!(groups[0].len(), 2);
+        tx.commit().await.unwrap();
+        let cursor = line!() + 1;
+        let results = children.cursor(&parent);
+        assert_eq!(results.try_collect::<Vec<_>>().await.unwrap().len(), 2);
+
+        Response::json(
+            http::StatusCode::OK,
+            json!([
+                [parent_read, 1],
+                [look_up, 1],
+                [get_many, 1],
+                [get_owner, 1],
+                [batch, 1],
+                [cursor, 1]
+            ]),
         )
     })
 }
@@ -216,6 +273,11 @@ async fn query_watcher_attributes_model_writes_to_the_public_entry() {
         &["insert ", "update ", "delete "],
     )
     .await;
+}
+
+#[tokio::test]
+async fn query_watcher_attributes_relationship_reads_to_the_public_entry() {
+    assert_query_source_lines("/api/relationship-callers", &["select "]).await;
 }
 
 async fn assert_query_source_lines(path: &str, statements: &[&str]) {

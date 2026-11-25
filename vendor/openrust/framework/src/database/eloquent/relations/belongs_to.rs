@@ -144,15 +144,19 @@ impl<P: Model, R: Model> BelongsTo<P, R> {
     }
 
     /// Streams the persisted owner when a foreign key is present.
+    #[track_caller]
     pub fn cursor<'a>(&'a self, child: &'a P) -> DatabaseCursor<'a, R> {
-        Box::pin(async_stream::try_stream! {
-            if let Some(query) = self.0.owner_query(child)? {
-                let mut models = query.cursor();
-                while let Some(model) = models.try_next().await? {
-                    yield model;
+        Box::pin(crate::database::events::stream_with_query_caller(
+            std::panic::Location::caller(),
+            async_stream::try_stream! {
+                if let Some(query) = self.0.owner_query(child)? {
+                    let mut models = query.cursor();
+                    while let Some(model) = models.try_next().await? {
+                        yield model;
+                    }
                 }
-            }
-        })
+            },
+        ))
     }
 
     /// Names the relationship cache entry updated by association.
@@ -289,24 +293,30 @@ impl<P: Model, R: Model> Relation for BelongsTo<P, R> {
         &'a self,
         parent: &'a P,
     ) -> DatabaseFuture<'a, DatabaseResult<Self::Output>> {
-        Box::pin(async move {
-            if let Some(query) = self.0.owner_query(parent)?
-                && let Some(owner) = query.first().await?
-            {
-                return Ok(Some(Arc::new(owner)));
-            }
-            self.1
-                .as_deref()
-                .map(|configure| new_default(parent, configure, &self.0, Attributes::new()))
-                .transpose()
-        })
+        Box::pin(crate::database::events::with_query_caller(
+            std::panic::Location::caller(),
+            async move {
+                if let Some(query) = self.0.owner_query(parent)?
+                    && let Some(owner) = query.first().await?
+                {
+                    return Ok(Some(Arc::new(owner)));
+                }
+                self.1
+                    .as_deref()
+                    .map(|configure| new_default(parent, configure, &self.0, Attributes::new()))
+                    .transpose()
+            },
+        ))
     }
 
     fn match_results<'a>(
         &'a self,
         parents: &'a [&'a P],
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<Self::Output>>> {
-        self.match_results(parents, None)
+        Box::pin(crate::database::events::with_query_caller(
+            std::panic::Location::caller(),
+            self.match_results(parents, None),
+        ))
     }
 
     fn match_results_in_transaction<'a>(
@@ -314,7 +324,10 @@ impl<P: Model, R: Model> Relation for BelongsTo<P, R> {
         parents: &'a [&'a P],
         transaction: &'a mut Transaction,
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<Self::Output>>> {
-        self.match_results(parents, Some(transaction))
+        Box::pin(crate::database::events::with_query_caller(
+            std::panic::Location::caller(),
+            self.match_results(parents, Some(transaction)),
+        ))
     }
 }
 

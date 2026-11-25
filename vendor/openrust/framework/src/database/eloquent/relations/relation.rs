@@ -58,12 +58,14 @@ pub trait Relation: Send + Sync + 'static {
     }
 
     /// Returns one result per parent, in the original order.
+    #[track_caller]
     fn match_results<'a>(
         &'a self,
         parents: &'a [&'a Self::Parent],
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<Self::Output>>>;
 
     /// Matches related rows while borrowing an explicit transaction.
+    #[track_caller]
     fn match_results_in_transaction<'a>(
         &'a self,
         _parents: &'a [&'a Self::Parent],
@@ -76,17 +78,21 @@ pub trait Relation: Send + Sync + 'static {
         })
     }
 
+    #[track_caller]
     fn get_results<'a>(
         &'a self,
         parent: &'a Self::Parent,
     ) -> DatabaseFuture<'a, DatabaseResult<Self::Output>> {
-        Box::pin(async move {
-            let mut results = self.match_results(&[parent]).await?;
-            if results.len() != 1 {
-                return Err(DatabaseError::InvalidQuery("relation result cardinality"));
-            }
-            Ok(results.pop().expect("checked result cardinality"))
-        })
+        Box::pin(crate::database::events::with_query_caller(
+            std::panic::Location::caller(),
+            async move {
+                let mut results = self.match_results(&[parent]).await?;
+                if results.len() != 1 {
+                    return Err(DatabaseError::InvalidQuery("relation result cardinality"));
+                }
+                Ok(results.pop().expect("checked result cardinality"))
+            },
+        ))
     }
 }
 

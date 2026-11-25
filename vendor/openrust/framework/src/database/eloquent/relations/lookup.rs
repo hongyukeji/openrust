@@ -48,96 +48,129 @@ pub(in crate::database::eloquent) fn sole_match<M: Model>(mut models: Vec<M>) ->
 macro_rules! relation_lookup {
     ($($delegate:tt)*) => {
         /// Finds one related model by its primary key.
-        pub async fn find(&self, parent: &P, key: impl Into<crate::database::Value> + Send) -> crate::database::DatabaseResult<Option<R>> {
-            let keys = super::lookup::primary_key::<R>(key.into());
-            Ok(self$($delegate)*.lookup_models(parent, &keys, 1).await?.into_iter().next())
+        #[track_caller]
+        pub fn find(&self, parent: &P, key: impl Into<crate::database::Value> + Send) -> impl std::future::Future<Output = crate::database::DatabaseResult<Option<R>>> {
+            let caller = std::panic::Location::caller();
+            $crate::database::events::with_query_caller(caller, async move {
+                let keys = super::lookup::primary_key::<R>(key.into());
+                Ok(self$($delegate)*.lookup_models(parent, &keys, 1).await?.into_iter().next())
+            })
         }
 
         /// Finds the matching related primary keys in relationship query order.
-        pub async fn find_many(
+        #[track_caller]
+        pub fn find_many(
             &self, parent: &P, keys: &[crate::database::Value],
-        ) -> crate::database::DatabaseResult<crate::database::eloquent::Collection<R>> {
-            if keys.is_empty() {
-                return Ok(R::new_collection(Vec::new()));
-            }
-            self$($delegate)*.lookup_many(parent, keys).await
+        ) -> impl std::future::Future<Output = crate::database::DatabaseResult<crate::database::eloquent::Collection<R>>> {
+            let caller = std::panic::Location::caller();
+            $crate::database::events::with_query_caller(caller, async move {
+                if keys.is_empty() {
+                    return Ok(R::new_collection(Vec::new()));
+                }
+                self$($delegate)*.lookup_many(parent, keys).await
+            })
         }
 
         /// Requires every requested primary key to match the relationship.
-        pub async fn find_many_or_fail(
+        #[track_caller]
+        pub fn find_many_or_fail(
             &self,
             parent: &P,
             keys: &[crate::database::Value],
-        ) -> crate::database::DatabaseResult<crate::database::eloquent::Collection<R>> {
-            let models = self.find_many(parent, keys).await?;
-            models.find_many_or_fail(keys)?;
-            Ok(models)
+        ) -> impl std::future::Future<Output = crate::database::DatabaseResult<crate::database::eloquent::Collection<R>>> {
+            let caller = std::panic::Location::caller();
+            $crate::database::events::with_query_caller(caller, async move {
+                let models = self.find_many(parent, keys).await?;
+                models.find_many_or_fail(keys)?;
+                Ok(models)
+            })
         }
 
         /// Runs the fallback if any requested primary key is missing.
-        pub async fn find_many_or<Fut>(
+        #[track_caller]
+        pub fn find_many_or<Fut>(
             &self,
             parent: &P,
             keys: &[crate::database::Value],
             missing: impl FnOnce() -> Fut + Send,
-        ) -> crate::database::DatabaseResult<crate::database::eloquent::Collection<R>>
+        ) -> impl std::future::Future<Output = crate::database::DatabaseResult<crate::database::eloquent::Collection<R>>>
         where
-            Fut: std::future::Future<Output = crate::database::DatabaseResult<crate::database::eloquent::Collection<R>>> + Send,
-        {
-            let models = self.find_many(parent, keys).await?;
-            match models.find_many_or_fail(keys) {
-                Ok(_) => Ok(models),
-                Err(crate::database::DatabaseError::ModelNotFound(_)) => missing().await,
-                Err(error) => Err(error),
-            }
+            Fut: std::future::Future<Output = crate::database::DatabaseResult<crate::database::eloquent::Collection<R>>> + Send, {
+            let caller = std::panic::Location::caller();
+            $crate::database::events::with_query_caller(caller, async move {
+                let models = self.find_many(parent, keys).await?;
+                match models.find_many_or_fail(keys) {
+                    Ok(_) => Ok(models),
+                    Err(crate::database::DatabaseError::ModelNotFound(_)) => missing().await,
+                    Err(error) => Err(error),
+                }
+            })
         }
 
         /// Requires a related model by its primary key.
-        pub async fn find_or_fail(&self, parent: &P, key: impl Into<crate::database::Value> + Send) -> crate::database::DatabaseResult<R> {
-            self.find(parent, key).await?.ok_or(crate::database::DatabaseError::ModelNotFound(R::metadata().table))
+        #[track_caller]
+        pub fn find_or_fail(&self, parent: &P, key: impl Into<crate::database::Value> + Send) -> impl std::future::Future<Output = crate::database::DatabaseResult<R>> {
+            let caller = std::panic::Location::caller();
+            $crate::database::events::with_query_caller(caller, async move {
+                self.find(parent, key).await?.ok_or(crate::database::DatabaseError::ModelNotFound(R::metadata().table))
+            })
         }
 
         /// Requires exactly one related match for the primary key.
-        pub async fn find_sole(&self, parent: &P, key: impl Into<crate::database::Value> + Send) -> crate::database::DatabaseResult<R> {
-            let keys = super::lookup::primary_key::<R>(key.into());
-            super::lookup::sole_match(self$($delegate)*.lookup_models(parent, &keys, 2).await?)
+        #[track_caller]
+        pub fn find_sole(&self, parent: &P, key: impl Into<crate::database::Value> + Send) -> impl std::future::Future<Output = crate::database::DatabaseResult<R>> {
+            let caller = std::panic::Location::caller();
+            $crate::database::events::with_query_caller(caller, async move {
+                let keys = super::lookup::primary_key::<R>(key.into());
+                super::lookup::sole_match(self$($delegate)*.lookup_models(parent, &keys, 2).await?)
+            })
         }
 
         /// Requires exactly one related match.
-        pub async fn sole(&self, parent: &P) -> crate::database::DatabaseResult<R> {
-            super::lookup::sole_match(self$($delegate)*.lookup_models(parent, &crate::database::eloquent::Attributes::new(), 2).await?)
+        #[track_caller]
+        pub fn sole(&self, parent: &P) -> impl std::future::Future<Output = crate::database::DatabaseResult<R>> {
+            let caller = std::panic::Location::caller();
+            $crate::database::events::with_query_caller(caller, async move {
+                super::lookup::sole_match(self$($delegate)*.lookup_models(parent, &crate::database::eloquent::Attributes::new(), 2).await?)
+            })
         }
 
         /// Runs the fallback only when no row matches the related primary key.
-        pub async fn find_or<Fut>(
+        #[track_caller]
+        pub fn find_or<Fut>(
             &self,
             parent: &P,
             key: impl Into<crate::database::Value> + Send,
             missing: impl FnOnce() -> Fut + Send,
-        ) -> crate::database::DatabaseResult<R>
+        ) -> impl std::future::Future<Output = crate::database::DatabaseResult<R>>
         where
-            Fut: std::future::Future<Output = crate::database::DatabaseResult<R>> + Send,
-        {
-            match self.find(parent, key).await? {
-                Some(model) => Ok(model),
-                None => missing().await,
-            }
+            Fut: std::future::Future<Output = crate::database::DatabaseResult<R>> + Send, {
+            let caller = std::panic::Location::caller();
+            $crate::database::events::with_query_caller(caller, async move {
+                match self.find(parent, key).await? {
+                    Some(model) => Ok(model),
+                    None => missing().await,
+                }
+            })
         }
 
         /// Runs the fallback only when the relationship has no matching rows.
-        pub async fn first_or<Fut>(
+        #[track_caller]
+        pub fn first_or<Fut>(
             &self,
             parent: &P,
             missing: impl FnOnce() -> Fut + Send,
-        ) -> crate::database::DatabaseResult<R>
+        ) -> impl std::future::Future<Output = crate::database::DatabaseResult<R>>
         where
-            Fut: std::future::Future<Output = crate::database::DatabaseResult<R>> + Send,
-        {
-            let models = self$($delegate)*.lookup_models(parent, &crate::database::eloquent::Attributes::new(), 1).await?;
-            match models.into_iter().next() {
-                Some(model) => Ok(model),
-                None => missing().await,
-            }
+            Fut: std::future::Future<Output = crate::database::DatabaseResult<R>> + Send, {
+            let caller = std::panic::Location::caller();
+            $crate::database::events::with_query_caller(caller, async move {
+                let models = self$($delegate)*.lookup_models(parent, &crate::database::eloquent::Attributes::new(), 1).await?;
+                match models.into_iter().next() {
+                    Some(model) => Ok(model),
+                    None => missing().await,
+                }
+            })
         }
     };
 }

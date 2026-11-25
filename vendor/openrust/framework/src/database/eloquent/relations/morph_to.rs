@@ -424,15 +424,19 @@ impl<P: Model> MorphTo<P> {
     }
 
     /// Streams rows from the registered target selected by the parent's morph type.
+    #[track_caller]
     pub fn cursor<'a>(&'a self, parent: &'a P) -> DatabaseCursor<'a, MorphTarget> {
-        Box::pin(async_stream::try_stream! {
-            if let Some((alias, target)) = self.selected_target(parent)? {
-                let mut targets = target.cursor(parent, self.soft_deletes);
-                while let Some(model) = targets.try_next().await? {
-                    yield MorphTarget { alias, model };
+        Box::pin(crate::database::events::stream_with_query_caller(
+            std::panic::Location::caller(),
+            async_stream::try_stream! {
+                if let Some((alias, target)) = self.selected_target(parent)? {
+                    let mut targets = target.cursor(parent, self.soft_deletes);
+                    while let Some(model) = targets.try_next().await? {
+                        yield MorphTarget { alias, model };
+                    }
                 }
-            }
-        })
+            },
+        ))
     }
 
     fn selected_target(
@@ -1470,21 +1474,27 @@ impl<P: Model> Relation for MorphTo<P> {
         &'a self,
         parent: &'a P,
     ) -> DatabaseFuture<'a, DatabaseResult<Self::Output>> {
-        Box::pin(async move {
-            if let Some((alias, target)) = self.selected_target(parent)?
-                && let Some(model) = target.load_first(parent, self.soft_deletes).await?
-            {
-                return Ok(Some(MorphTarget { alias, model }));
-            }
-            self.default_target(parent)
-        })
+        Box::pin(crate::database::events::with_query_caller(
+            std::panic::Location::caller(),
+            async move {
+                if let Some((alias, target)) = self.selected_target(parent)?
+                    && let Some(model) = target.load_first(parent, self.soft_deletes).await?
+                {
+                    return Ok(Some(MorphTarget { alias, model }));
+                }
+                self.default_target(parent)
+            },
+        ))
     }
 
     fn match_results<'a>(
         &'a self,
         parents: &'a [&'a P],
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<Self::Output>>> {
-        self.match_results(parents, None)
+        Box::pin(crate::database::events::with_query_caller(
+            std::panic::Location::caller(),
+            self.match_results(parents, None),
+        ))
     }
 
     fn match_results_in_transaction<'a>(
@@ -1492,7 +1502,10 @@ impl<P: Model> Relation for MorphTo<P> {
         parents: &'a [&'a P],
         transaction: &'a mut Transaction,
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<Self::Output>>> {
-        self.match_results(parents, Some(transaction))
+        Box::pin(crate::database::events::with_query_caller(
+            std::panic::Location::caller(),
+            self.match_results(parents, Some(transaction)),
+        ))
     }
 }
 

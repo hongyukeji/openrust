@@ -270,14 +270,18 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
     }
 
     /// Streams related models across the constrained intermediate join.
+    #[track_caller]
     pub fn cursor<'a>(&'a self, parent: &'a P) -> DatabaseCursor<'a, R> {
-        Box::pin(async_stream::try_stream! {
-            let query = self.pagination_query(parent, &["*"])?;
-            let mut models = query.cursor();
-            while let Some(model) = models.try_next().await? {
-                yield model;
-            }
-        })
+        Box::pin(crate::database::events::stream_with_query_caller(
+            std::panic::Location::caller(),
+            async_stream::try_stream! {
+                let query = self.pagination_query(parent, &["*"])?;
+                let mut models = query.cursor();
+                while let Some(model) = models.try_next().await? {
+                    yield model;
+                }
+            },
+        ))
     }
 
     fn pagination_query(
@@ -782,7 +786,10 @@ impl<P: Model, I: Model, R: Model> Relation for HasManyThrough<P, I, R> {
         &'a self,
         parents: &'a [&'a P],
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<Self::Output>>> {
-        self.match_results(parents, None)
+        Box::pin(crate::database::events::with_query_caller(
+            std::panic::Location::caller(),
+            self.match_results(parents, None),
+        ))
     }
 
     fn match_results_in_transaction<'a>(
@@ -790,7 +797,10 @@ impl<P: Model, I: Model, R: Model> Relation for HasManyThrough<P, I, R> {
         parents: &'a [&'a P],
         transaction: &'a mut Transaction,
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<Self::Output>>> {
-        self.match_results(parents, Some(transaction))
+        Box::pin(crate::database::events::with_query_caller(
+            std::panic::Location::caller(),
+            self.match_results(parents, Some(transaction)),
+        ))
     }
 }
 

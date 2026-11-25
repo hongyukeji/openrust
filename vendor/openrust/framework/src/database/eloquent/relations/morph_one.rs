@@ -177,6 +177,7 @@ impl<P: Model, R: Model> MorphOne<P, R> {
 
     super::key_chunks::lazy_chunks!(forward 0);
 
+    #[track_caller]
     pub fn cursor<'a>(&'a self, parent: &'a P) -> DatabaseCursor<'a, R> {
         self.0.cursor(parent)
     }
@@ -353,7 +354,10 @@ impl<P: Model, R: Model> Relation for MorphOne<P, R> {
         &'a self,
         parents: &'a [&'a P],
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<Self::Output>>> {
-        self.match_results(parents, None)
+        Box::pin(crate::database::events::with_query_caller(
+            std::panic::Location::caller(),
+            self.match_results(parents, None),
+        ))
     }
 
     fn match_results_in_transaction<'a>(
@@ -361,7 +365,10 @@ impl<P: Model, R: Model> Relation for MorphOne<P, R> {
         parents: &'a [&'a P],
         transaction: &'a mut Transaction,
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<Self::Output>>> {
-        self.match_results(parents, Some(transaction))
+        Box::pin(crate::database::events::with_query_caller(
+            std::panic::Location::caller(),
+            self.match_results(parents, Some(transaction)),
+        ))
     }
 }
 
