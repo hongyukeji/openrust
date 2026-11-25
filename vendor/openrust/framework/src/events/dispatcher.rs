@@ -587,7 +587,8 @@ impl Dispatcher {
                     let payload =
                         crate::queue::Payload::new(&queued.name, (queued.encode)(event.as_ref())?)
                             .map_err(EventError::Queue)?
-                            .with_job_subject(crate::queue::JobType::Event, queued.subject_type);
+                            .with_job_subject(crate::queue::JobType::Event, queued.subject_type)
+                            .with_event_type(event.type_name());
                     let options = crate::queue::DispatchOptions {
                         connection: queued.options.connection.clone(),
                         queue: queued.options.queue.clone(),

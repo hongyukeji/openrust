@@ -136,9 +136,11 @@ By default it watches the application, bootstrap, configuration, database, route
 
 ## Job tags {#tags}
 
-Register `Horizon::tag(fn(&Payload) -> Vec<String>)` in the application provider after Horizon is registered. Callbacks run for each observed payload; empty tags are omitted and duplicate tags retain their first occurrence. Rust jobs explicitly supply their tags through these callbacks. Payloads are not reflected to discover model fields automatically.
+After Horizon is registered, use `Horizon::tag_for::<T>(callback)` in the application provider to tag a job, mailable, notification, event, or listener type. Register a fallback with `Horizon::tag_models_for::<T>(callback)`. Its callback runs when the type supplies no explicit tags. Queued listeners and their events each follow this rule. Horizon keeps the first occurrence of each tag, with listener tags preceding event tags. Both callbacks can read the serialized event in the payload.
 
-`Tags::for_model(&model)` builds a tag from the Rust model type and its integer, unsigned integer or string primary key; a missing or unsupported key returns an error. Add this returned string to the callback's tags when the job carries that model identity. Tags registered by one application do not affect other applications. The dashboard's monitoring controls select which tags retain monitored jobs.
+`Tags::for_model(&model)` builds a tag from the Rust model type and its integer, unsigned integer, or string primary key. A missing or unsupported key returns an error. `Tags::for_models` handles multiple models and keeps the first occurrence of each tag. Rust applications declare the payload's model fields through these callbacks.
+
+Use `Horizon::tag(callback)` to add tags to every observed payload in the application. This callback omits empty tags. Callbacks are isolated by application. The dashboard's monitoring controls select which tags retain monitored jobs.
 
 ## Metrics and limits {#metrics}
 

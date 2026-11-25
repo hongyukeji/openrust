@@ -1479,6 +1479,7 @@ async fn redis_job_types_and_silencing_follow_native_producers_and_raw_retry() {
             broadcasting::ShouldBroadcast,
             events::{Event, Listener},
         },
+        database::eloquent::{Collection, Model, ModelMetadata, ModelState},
         events::{
             Dispatcher, EventContext, EventError, EventFuture, EventResult, ListenerRegistry,
             ListenerResponse, QueuedListenerOptions,
@@ -1493,12 +1494,14 @@ async fn redis_job_types_and_silencing_follow_native_producers_and_raw_retry() {
             NotificationResult, NotificationRoute, SendQueuedNotifications, messages::MailDelivery,
         },
         queue::{DispatchOptions, JobType, Payload, QueueManager},
-        support::facades::{Event as EventFacade, Mail, Notification, Queue, Route},
+        support::facades::{Crypt, Event as EventFacade, Mail, Notification, Queue, Route},
     };
-    use openrust_horizon::{JobPayload, Silenced};
+    use openrust_horizon::{JobPayload, Silenced, Tags};
 
     #[derive(serde::Serialize, serde::Deserialize)]
-    struct Published;
+    struct Published {
+        item: i64,
+    }
     impl Silenced for Published {}
     impl Event for Published {
         fn name(&self) -> &str {
@@ -1606,9 +1609,95 @@ async fn redis_job_types_and_silencing_follow_native_producers_and_raw_retry() {
         }
     }
 
+    struct TaggedItem(ModelState);
+    impl Model for TaggedItem {
+        fn metadata() -> &'static ModelMetadata {
+            static METADATA: ModelMetadata = ModelMetadata::new("tagged_items");
+            &METADATA
+        }
+        fn from_state(state: ModelState) -> Self {
+            Self(state)
+        }
+        fn state(&self) -> &ModelState {
+            &self.0
+        }
+        fn state_mut(&mut self) -> &mut ModelState {
+            &mut self.0
+        }
+    }
+
+    fn item_tags(payload: &Payload) -> openrust_horizon::Result<Vec<String>> {
+        let items = payload.data()["items"].as_array().unwrap();
+        let models = Collection::new(
+            items
+                .iter()
+                .map(|item| {
+                    let mut model = TaggedItem(ModelState::default());
+                    model.set_attribute("id", item.as_i64().unwrap());
+                    model
+                })
+                .collect(),
+        );
+        Tags::for_models(models.iter())
+    }
+
+    fn register_tags() {
+        Horizon::tag_for::<AuditListener>(|payload| {
+            assert_eq!(payload.data()["item"], 4);
+            vec!["listener".into(), "common".into(), "listener".into()]
+        })
+        .unwrap();
+        Horizon::tag_for::<Published>(|payload| {
+            if payload.event_type().is_some() {
+                assert_eq!(payload.data()["item"], 4);
+            }
+            vec!["event".into(), "common".into()]
+        })
+        .unwrap();
+        Horizon::tag_for::<Receipt>(|payload| {
+            assert_eq!(payload.data()["envelope"]["subject"], "Receipt");
+            vec!["mail".into(), "mail".into()]
+        })
+        .unwrap();
+        Horizon::tag_models_for::<Receipt>(|_| panic!("explicit tags should take precedence"))
+            .unwrap();
+        Horizon::tag_for::<Notice>(|payload| {
+            let clear: Value;
+            let delivery = if let Some(ciphertext) = payload.data()["encrypted_delivery"].as_str() {
+                clear =
+                    serde_json::from_slice(&Crypt::decrypt_string(ciphertext).unwrap()).unwrap();
+                &clear
+            } else {
+                payload.data()
+            };
+            assert_eq!(delivery["delivery"]["channel"], "mail");
+            vec!["notification".into()]
+        })
+        .unwrap();
+        Horizon::tag_for::<QuietJob>(|_| Vec::new()).unwrap();
+        Horizon::tag_models_for::<QuietJob>(item_tags).unwrap();
+        Horizon::tag(|payload| {
+            if payload.event_type().is_some() {
+                assert_eq!(
+                    Tags::extract_explicit_tags(payload).unwrap(),
+                    ["listener", "common", "event"]
+                );
+            }
+            vec!["global".into()]
+        })
+        .unwrap();
+    }
+
     fn dispatch(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         Box::pin(async {
-            EventFacade::dispatch(Published).await.unwrap();
+            let quiet =
+                Payload::new(std::any::type_name::<QuietJob>(), json!({"items":[4,4,9]})).unwrap();
+            assert!(Tags::extract_explicit_tags(&quiet).unwrap().is_empty());
+            assert_eq!(
+                Tags::model_tags_for(&quiet).unwrap(),
+                item_tags(&quiet).unwrap()
+            );
+            EventFacade::dispatch(Published { item: 4 }).await.unwrap();
             Mail::mailer(None)
                 .unwrap()
                 .queue(
@@ -1642,7 +1731,7 @@ async fn redis_job_types_and_silencing_follow_native_producers_and_raw_retry() {
             .await
             .unwrap();
             Queue::dispatch(
-                Payload::new("quiet.job", json!({})).unwrap(),
+                Payload::new("quiet.job", json!({"items":[4,4,9]})).unwrap(),
                 DispatchOptions {
                     queue: Some("quiet".into()),
                     ..Default::default()
@@ -1682,6 +1771,7 @@ async fn redis_job_types_and_silencing_follow_native_producers_and_raw_retry() {
                 Horizon::silence::<Published>().unwrap();
                 Horizon::silence::<AuditListener>().unwrap();
                 Horizon::silence::<QuietJob>().unwrap();
+                register_tags();
                 Route::get("/classify", dispatch)
             }))
     })
@@ -1737,6 +1827,20 @@ async fn redis_job_types_and_silencing_follow_native_producers_and_raw_retry() {
         let details = jobs.find(job.get_job_id()).await.unwrap().unwrap();
         assert_eq!(details.silenced, silenced);
         assert_eq!(details.payload["redis_metadata"]["horizon"]["type"], label);
+        let model_tags = [4, 9].map(|id| format!("{}:{id}", std::any::type_name::<TaggedItem>()));
+        let expected: &[&str] = match queue {
+            "broadcasts" => &["event", "common", "global"],
+            "mail" => &["mail", "global"],
+            "notices" | "encrypted-notices" => &["notification", "global"],
+            "quiet" => &[&model_tags[0], &model_tags[1], "global"],
+            _ => &["global"],
+        };
+        assert_eq!(snapshot.tags(), expected);
+        assert_eq!(details.tags, expected);
+        assert_eq!(
+            Tags::target_for(job.payload()),
+            Some(job.payload().subject_type().unwrap_or(job.payload().name()))
+        );
         if kind == JobType::Notification {
             assert_eq!(
                 job.payload().subject_type(),
@@ -1782,6 +1886,12 @@ async fn redis_job_types_and_silencing_follow_native_producers_and_raw_retry() {
     let failed = jobs.get_failed(None).await.unwrap();
     assert_eq!(failed.len(), 1);
     assert!(failed[0].silenced);
+    assert_eq!(failed[0].tags, ["listener", "common", "event", "global"]);
+    let failed_payload: Payload = serde_json::from_value(failed[0].payload.clone()).unwrap();
+    assert_eq!(
+        Tags::target_for(&failed_payload),
+        Some(std::any::type_name::<Published>())
+    );
     assert_eq!(
         failed[0].payload["redis_metadata"]["horizon"]["type"],
         "event"
@@ -1798,6 +1908,7 @@ async fn redis_job_types_and_silencing_follow_native_producers_and_raw_retry() {
     assert_eq!(metadata.job_type(), JobType::Job);
     assert!(!metadata.is_silenced());
     assert_eq!(metadata.retry_of(), Some(original.as_str()));
+    assert_eq!(metadata.tags(), failed[0].tags);
 
     let mut isolated = TestApp::create(|builder| {
         builder
@@ -1815,7 +1926,9 @@ async fn redis_job_types_and_silencing_follow_native_producers_and_raw_retry() {
         .unwrap()
         .unwrap();
     let repository = isolated.app().make::<Repository>().await.unwrap();
-    assert!(!repository.jobs().find(&id).await.unwrap().unwrap().silenced);
+    let isolated_job = repository.jobs().find(&id).await.unwrap().unwrap();
+    assert!(!isolated_job.silenced);
+    assert!(isolated_job.tags.is_empty());
 }
 
 #[tokio::test]

@@ -221,6 +221,8 @@ pub struct Payload {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     subject_type: Option<Box<str>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    event_type: Option<Box<str>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     display_name: Option<String>,
     data: serde_json::Value,
     options: JobOptions,
@@ -284,6 +286,7 @@ impl Payload {
             name,
             job_type: JobType::Job,
             subject_type: None,
+            event_type: None,
             display_name: None,
             data: serde_json::to_value(data).map_err(|_| QueueError::InvalidPayload)?,
             options: JobOptions::default(),
@@ -349,6 +352,16 @@ impl Payload {
     /// 返回投递的底层应用类型，例如排队邮件的 Mailable 类型。
     pub fn subject_type(&self) -> Option<&str> {
         self.subject_type.as_deref()
+    }
+
+    /// 返回排队监听器接收的事件类型。
+    pub fn event_type(&self) -> Option<&str> {
+        self.event_type.as_deref()
+    }
+
+    pub(crate) fn with_event_type(mut self, event_type: &str) -> Self {
+        self.event_type = Some(event_type.into());
+        self
     }
 
     pub(crate) fn with_job_subject(mut self, job_type: JobType, subject_type: &str) -> Self {

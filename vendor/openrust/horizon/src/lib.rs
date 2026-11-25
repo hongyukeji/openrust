@@ -21,7 +21,7 @@ pub use notifications::{
     LongWaitDetected, LongWaitDetectedNotification, LongWaitNotificationFactory, MonitorWaitTimes,
     SendNotification,
 };
-pub use tags::{TagCallback, Tags};
+pub use tags::{ModelTagCallback, TagCallback, Tags};
 mod master_supervisor;
 
 pub use dashboard::{Dashboard, Horizon};

@@ -385,7 +385,13 @@ Linux 7.0.14 ARM64 用 `09ef75a91` 的变更源码和 Rust 1.94.0 通过两个�
 
 macOS 已通过公开载荷 3 项、真实 Horizon Redis 21 项、三包默认 87 项、全仓格式、Horizon 全目标严格 Clippy 和三语页面 12 组浏览器检查。Linux ARM64 与 Windows 11 ARM64 用相同变更源码分别通过公开载荷 3 项，以及独占 Redis 8.10.3／SQLite 的真实 Artisan 重试回归 1 项。证据为 `target/tmp/observability-parity/horizon-job-payload-array-shapes-{verified,docs,linux}.log` 与 `target/tmp/observability-windows/horizon-job-payload-array-shapes-arm64.log`。
 
-紧接着核对固定 `Tags`。PHP 8.5.12 实跑确认 `extractExplicitTags` 有标签时优先于 `modelsFor`，空结果回退到模型属性和 Eloquent 集合并去重。`targetsFor` 读取四种包装的底层对象。排队监听器先求监听器标签再求事件标签并去重，两者均收到实际事件，后续普通任务读不到该事件。Rust 当前公开 `Tags::for_payload` 调用应用级回调，`Tags::for_model` 生成单模型标签。显式优先及模型回退、各包装的标签目标、监听器和事件的组合仍须逐项补齐或记录语言适配并验证。证据为 `target/tmp/observability-parity/horizon-tags-contract-upstream.log`。 [固定 Tags](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Tags.php)
+紧接着核对固定 `Tags`。PHP 8.5.12 实跑确认 `extractExplicitTags` 有标签时优先于 `modelsFor`，空结果回退到模型属性和 Eloquent 集合并去重。`targetsFor` 读取四种包装的底层对象。排队监听器先求监听器标签再求事件标签并去重，两者均收到实际事件，后续普通任务读不到该事件。证据为 `target/tmp/observability-parity/horizon-tags-contract-upstream.log`。 [固定 Tags](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Tags.php)
+
+Rust 复用原生载荷的底层类型和应用作用域。排队监听器额外记录事件类型，`Tags::target_for` 公开底层标签目标，`extract_explicit_tags` 对监听器合并两组标签，普通目标仅返回其显式标签。`Tags::for_payload` 在目标显式标签为空时回退到该目标注册的模型标签，监听器与事件各自回退。`Horizon::tag_for` 和 `tag_models_for` 负责应用内类型注册，既有 `Horizon::tag` 仍提供全局附加标签。`Tags::model_tags_for` 读取目标注册的模型标签，`for_model` 与 `for_models` 从实际原生模型或集合生成有序标签。应用回调在解锁后执行。
+
+Rust 的类型检查可确认具体类型，模型字段仍由应用回调显式声明。回调接收原生队列载荷，监听器与事件能读取同一份序列化事件。邮件原对象中未进入发送载荷的字段、旧监听器载荷缺少的事件类型，以及加密通知应用回调的解密方式仍作为载荷边界。验收夹具用现有 Crypt 读取已加密通知的发送内容并仅保存返回的标签。 [Rust Any](https://doc.rust-lang.org/std/any/trait.Any.html) [Laravel Horizon 标签](https://laravel.com/framework/docs/13.x/horizon#tags)
+
+真实 HTTP 生产、Redis 8.10.3、SQLite 与 Artisan 验证普通任务、四个包装入口、应用间隔离和原始重试保留标签。macOS 通过 Horizon Redis 21 项、全仓格式、Horizon 全目标严格 Clippy 和三语页面 12 组浏览器检查。三包组合遇 32 GB 停线后由构建守卫持锁清理，同源码冷构建通过三包默认 87 项。Windows 11 ARM64 通过同源码真实 Redis 专项。证据为 `target/tmp/observability-parity/horizon-tags-target-{focused,verified,packages,docs}.log` 和 `target/tmp/observability-windows/horizon-tags-target-arm64.log`。
 
 macOS 冷构建在真实 Redis 8.10.3 验证广播、带自定义名称的监听器、邮件、加密通知及普通任务。覆盖配置底层类、配置只有包装名称、应用间显式注册隔离以及真实 `horizon:retry` 重置静默结果。Horizon Redis 20 项、三包默认 84 项、严格 Clippy、全仓格式、三语文档和 12 组浏览器检查通过。Windows 11 ARM64 用同一源码、专用 NTFS 构建卷和独占 Redis 8.10.3，通过 15 项 Redis Runtime。证据为 `target/tmp/observability-parity/horizon-silenced-{accepted,docs}.log` 及 `target/tmp/observability-windows/horizon-silenced-arm64.log`。完整发布组合待验。
 
