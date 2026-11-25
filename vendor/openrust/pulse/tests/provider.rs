@@ -68,6 +68,106 @@ fn decoded_request(request: &mut Request) -> HttpFuture<'_, Result<Response, Htt
     })
 }
 
+struct SlowTermination;
+
+impl openrust::contracts::http::Middleware for SlowTermination {
+    fn handle<'a>(
+        &'a self,
+        request: &'a mut Request,
+        next: openrust::http::Next<'a>,
+    ) -> HttpFuture<'a, Result<Response, HttpError>> {
+        Box::pin(async move { Ok(next.run(request).await) })
+    }
+}
+
+impl openrust::contracts::http::TerminableMiddleware for SlowTermination {
+    fn terminate<'a>(
+        &'a self,
+        _: &'a openrust::http::RequestParts,
+        _: &'a openrust::http::ResponseParts,
+    ) -> HttpFuture<'a, ()> {
+        Box::pin(tokio::time::sleep(std::time::Duration::from_millis(25)))
+    }
+}
+
+fn failed_after_defer(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        openrust::support::facades::Auth::user(request).await?;
+        let _ = openrust::support::defer(
+            async {
+                tokio::time::sleep(std::time::Duration::from_millis(45)).await;
+                let _ = openrust::support::defer(
+                    async {
+                        tokio::time::sleep(std::time::Duration::from_millis(45)).await;
+                        Ok::<_, std::io::Error>(())
+                    },
+                    None,
+                    true,
+                )
+                .unwrap();
+                Ok::<_, std::io::Error>(())
+            },
+            None,
+            true,
+        )
+        .unwrap();
+        Response::json(openrust::http::StatusCode::UNPROCESSABLE_ENTITY, json!({}))
+    })
+}
+
+#[tokio::test]
+async fn request_recorders_include_termination_and_nested_deferred_work() {
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(|root, env| {
+                let mut values = config(root, env)?;
+                values.get_mut("pulse").unwrap()["recorders"] = json!({
+                    "SlowRequests":{"threshold":100},
+                    "UserRequests":{}
+                });
+                Ok(values)
+            })
+            .with_providers(vec![Box::new(PulseServiceProvider), Box::new(AuthProvider)])
+            .with_middleware(|middleware| {
+                middleware.append_terminable(Arc::new(SlowTermination));
+            })
+            .with_routing(Routing::default().api(|| Route::get("/terminal", failed_after_defer)))
+    })
+    .unwrap();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    app.get("/api/terminal?user=1")
+        .await
+        .unwrap()
+        .assert_status(openrust::http::StatusCode::UNPROCESSABLE_ENTITY);
+    let store = app.app().make::<DatabaseStorage>().await.unwrap();
+    let connection = store.connection();
+    let rows = connection
+        .table("pulse_entries")
+        .r#where("type", "=", "slow_request")
+        .get()
+        .await
+        .unwrap();
+    assert_eq!(rows.len(), 1);
+    let Some(openrust::database::Value::Integer(duration)) = rows[0].get("value") else {
+        panic!("missing slow request duration")
+    };
+    assert!(*duration >= 115);
+    for kind in ["user_request", "slow_user_request"] {
+        assert_eq!(
+            connection
+                .table("pulse_entries")
+                .r#where("type", "=", kind)
+                .r#where("key", "=", "42")
+                .count("*")
+                .await
+                .unwrap(),
+            1
+        );
+    }
+}
+
 #[tokio::test]
 async fn request_recorders_attribute_named_livewire_updates_to_the_decoded_page() {
     let mut app = TestApp::create(|builder| {

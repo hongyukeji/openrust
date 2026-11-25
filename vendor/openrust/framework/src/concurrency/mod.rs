@@ -8,7 +8,7 @@ mod protocol;
 mod registry;
 
 pub use deferred::DeferredCallback;
-pub(crate) use deferred::DeferredCallbacks;
+pub(crate) use deferred::{DeferredCallbacks, enqueue_after_http};
 pub(crate) use deferred::{TransferredRun, enqueue_with_skip, restore as restore_deferred};
 pub(crate) use deferred::{enqueue as enqueue_deferred, enqueue_named};
 pub(crate) use facade::ConcurrencyServiceProvider;

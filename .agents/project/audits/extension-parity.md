@@ -194,3 +194,9 @@ Provider 按固定 [ExpireSupervisors](https://github.com/laravel/horizon/blob/b
 隔离快照从真实应用 HTTP、认证和 SQLite 原生存储验证命名更新、路径规范化、忽略路径、坏快照、缺少路径、未提供已解码快照、普通路由及用户键 `0`。首次用普通 JSON 请求模拟未解码输入时，框架已提前解码；改用不透明媒体类型后验证了正确的回退。Provider 10 项、快照全仓格式、Pulse 全目标严格 Clippy、三语文档构建及 12 组浏览器检查通过。
 
 当前使用原生 `RequestHandled` 已有快照，观察阶段不主动解码不透明的请求体。未运行 Laravel Livewire 客户端，PHP 请求终止回调与 Rust HTTP 事件的计时边界、异常请求与其他 Recorder 仍需独立对账。
+
+### Pulse 请求终止后的完整生命周期计时
+
+固定 [Laravel HTTP Kernel::terminate](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Http/Kernel.php) 在终止中间件和应用终止回调结束后，才使用同一次结束时间调用请求生命周期处理器。Pulse 的两个请求 Recorder 都使用该入口。Rust HTTP 内核新增 `after_termination`，以同一个单调时钟耗时通知已注册回调，覆盖所有响应状态，防止同一请求的重复终止提前触发观察。原有 `RequestHandled` 的派发点保留；Pulse 在该事件中捕获认证身份和已解码的路由数据，实际记录与归档移到终止之后。手工调用记录器且无活跃 HTTP 生命周期时，仍使用事件本身的耗时。
+
+通过真实应用内核回归：422 响应前认证用户，响应后由终止中间件等待 25ms、始终执行的延后任务及其嵌套任务各等待 45ms，慢请求达到至少 115ms 并持久化普通及慢用户计数。Pulse Provider 11 项、框架 HTTP 中间件生命周期 5 项（含响应流与关停）、快照全仓格式、Pulse 全目标与框架库严格 Clippy、三语构建及 12 组浏览器检查通过。请求级回归使用 SQLite；最终生产组合、被中断的传输与外部 Livewire 客户端仍需验收。

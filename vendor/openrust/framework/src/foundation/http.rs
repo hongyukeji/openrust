@@ -15,6 +15,18 @@ use tokio_util::task::TaskTracker;
 pub use form_request::{FormRequest, FormRequestDefaults, FormRequestError, ValidatedFormRequest};
 pub use health_check::HealthCheck;
 
+/// Runs an owned callback after response termination middleware and deferred work.
+/// All callbacks receive the same request duration, regardless of response status.
+pub fn after_termination<F, E>(
+    callback: impl FnOnce(std::time::Duration) -> F + Send + 'static,
+) -> crate::concurrency::Result<()>
+where
+    F: Future<Output = Result<(), E>> + Send + 'static,
+    E: std::error::Error + Send + Sync + 'static,
+{
+    crate::concurrency::enqueue_after_http(callback)
+}
+
 use std::sync::Arc;
 
 use axum::body::HttpBody as _;
@@ -413,7 +425,7 @@ impl http::Kernel for Kernel {
                 request.route_terminators.clear();
                 request.matched_route = false;
                 let attributes = request.attributes().clone();
-                let deferred = DeferredCallbacks::default();
+                let deferred = DeferredCallbacks::for_http(started_at);
                 let log_origin = crate::log::context::Origin::enabled(self.application.container())
                     .then(|| {
                         let default_guard = self
@@ -507,6 +519,9 @@ impl http::Kernel for Kernel {
             if termination.is_none() && deferred.is_none() {
                 return;
             }
+            if deferred.is_some_and(|deferred| !deferred.begin_http_termination()) {
+                return;
+            }
             crate::support::facades::scope(self.application.container_handle(), async move {
                 if let Some(termination) = termination {
                     for middleware in termination.take() {
@@ -519,6 +534,7 @@ impl http::Kernel for Kernel {
                     deferred
                         .invoke(&self.application, response.status.as_u16() < 400)
                         .await;
+                    deferred.invoke_after_http(&self.application).await;
                 }
             })
             .await;

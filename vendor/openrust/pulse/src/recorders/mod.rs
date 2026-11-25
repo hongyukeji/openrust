@@ -206,46 +206,30 @@ impl Recorders {
                     path = format!("/{}", component_path.trim_start_matches('/'));
                 }
             }
-            let duration = e.duration.as_millis() as i64;
-            if let Some(options) = slow_options
-                && Self::matches_options(&options, &path, Some(duration))?
+            let observation = Arc::new(RequestObservation {
+                method: e.request.method.as_str().to_owned(),
+                path,
+                via,
+                timestamp: e.request_started_at / 1000,
+                user,
+                slow_options,
+                user_options,
+            });
+            if let Ok(owner) = crate::facades::Pulse::get_facade_root()
+                && std::ptr::eq(owner.as_ref(), pulse)
             {
-                pulse
-                    .record(
-                        "slow_request",
-                        json!([e.request.method.as_str(), path, via]).to_string(),
-                        Some(duration),
-                        Some(e.request_started_at / 1000),
-                    )
-                    .await
-                    .max()
-                    .count();
-                if let Some(user) = user.as_deref().filter(|user| !matches!(*user, "" | "0")) {
-                    pulse
-                        .record(
-                            "slow_user_request",
-                            user,
-                            None,
-                            Some(e.request_started_at / 1000),
-                        )
-                        .await
-                        .count();
+                let pending = observation.clone();
+                if openrust::foundation::http::after_termination(move |duration| async move {
+                    owner.rescue(pending.record(&owner, duration)).await;
+                    owner.ingest().await;
+                    Ok::<_, crate::Error>(())
+                })
+                .is_ok()
+                {
+                    return Ok(());
                 }
             }
-            if let Some(user) = user
-                && let Some(options) = user_options
-                && Self::matches_options(&options, &path, None)?
-            {
-                pulse
-                    .record(
-                        "user_request",
-                        user,
-                        None,
-                        Some(e.request_started_at / 1000),
-                    )
-                    .await
-                    .count();
-            }
+            observation.record(pulse, e.duration).await?;
         } else if let Some((kind, key)) = event
             .downcast_ref::<CacheHit>()
             .map(|e| ("cache_hit", e.key.as_str()))
@@ -488,6 +472,56 @@ impl Recorders {
         Ok(())
     }
 }
+struct RequestObservation {
+    method: String,
+    path: String,
+    via: String,
+    timestamp: i64,
+    user: Option<String>,
+    slow_options: Option<Value>,
+    user_options: Option<Value>,
+}
+
+impl RequestObservation {
+    async fn record(&self, pulse: &Pulse, duration: std::time::Duration) -> Result<()> {
+        let duration = duration.as_millis() as i64;
+        if let Some(options) = self.slow_options.as_ref()
+            && Recorders::matches_options(options, &self.path, Some(duration))?
+        {
+            pulse
+                .record(
+                    "slow_request",
+                    json!([self.method, self.path, self.via]).to_string(),
+                    Some(duration),
+                    Some(self.timestamp),
+                )
+                .await
+                .max()
+                .count();
+            if let Some(user) = self
+                .user
+                .as_deref()
+                .filter(|user| !matches!(*user, "" | "0"))
+            {
+                pulse
+                    .record("slow_user_request", user, None, Some(self.timestamp))
+                    .await
+                    .count();
+            }
+        }
+        if let Some(user) = self.user.as_deref()
+            && let Some(options) = self.user_options.as_ref()
+            && Recorders::matches_options(options, &self.path, None)?
+        {
+            pulse
+                .record("user_request", user, None, Some(self.timestamp))
+                .await
+                .count();
+        }
+        Ok(())
+    }
+}
+
 /// A compiled recorder replaces PHP's runtime class and event reflection.
 pub trait Recorder: Send + Sync {
     fn name(&self) -> &'static str;
