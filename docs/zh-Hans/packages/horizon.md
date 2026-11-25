@@ -57,6 +57,8 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
 
 使用 `Horizon::route_slack_webhook_notifications_to(url, channel)` 可在传入 Webhook 的载荷中指定频道。Slack 应用的传入 Webhook 固定投递到安装时选定的频道。需要按请求指定目标频道时，使用 Bot API 频道 ID。
 
+如需自定义长等待告警，在应用服务提供者中绑定 `dyn LongWaitNotificationFactory`。工厂接收 `LongWaitDetected` 事件并返回 `LongWaitDetectedNotification`。返回值的 `signature()` 决定五分钟去重窗口的归属。
+
 暂停、继续、终止、监控变更和重试均须逐次通过授权回调。浏览器对写操作发送 `X-Horizon-Request: 1`，直接调用接口也须携带该请求头；拒绝跨站浏览器写操作。为整个路由组应用已有的认证与中间件。面板授权包含查看任务数据和执行运维控制的权限。
 
 ## 命令 {#commands}

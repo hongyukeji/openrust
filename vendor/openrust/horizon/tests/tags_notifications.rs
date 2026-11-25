@@ -1,4 +1,5 @@
 use openrust::{
+    contracts::{container::Container as _, foundation::Application as _},
     database::{
         Value,
         eloquent::{Model, ModelMetadata, ModelState},
@@ -10,11 +11,15 @@ use openrust::{
         slack::SlackRoute,
     },
     queue::Payload,
-    support::facades::{App, Http, Notification as Notifications, Route},
+    support::{
+        ProviderResult, ServiceProvider,
+        facades::{App, Event, Http, Notification as Notifications, Route},
+    },
     testing::TestApp,
 };
 use openrust_horizon::{
-    Horizon, HorizonServiceProvider, LongWaitDetected, MasterSupervisor, Repository, Tags,
+    Horizon, HorizonServiceProvider, LongWaitDetected, LongWaitDetectedNotification,
+    LongWaitNotificationFactory, MasterSupervisor, Repository, Tags,
 };
 use serde_json::json;
 use std::{collections::BTreeMap, sync::Arc};
@@ -338,26 +343,124 @@ fn master_webhook_response(_: &mut Request) -> HttpFuture<'_, Result<Response, H
     })
 }
 
+fn wait_config(
+    base: &std::path::Path,
+    _: &openrust::config::Environment,
+) -> Result<BTreeMap<String, serde_json::Value>, openrust::config::ConfigError> {
+    assert_eq!(std::env::var("HORIZON_REQUIRE_REDIS").as_deref(), Ok("1"));
+    Ok(BTreeMap::from([
+        (
+            "database".into(),
+            json!({"redis":{
+                "options":{"prefix":format!("{}:",base.file_name().unwrap().to_string_lossy())},
+                "default":{"url":std::env::var("HORIZON_TEST_REDIS_URL").unwrap()}
+            }}),
+        ),
+        (
+            "queue".into(),
+            json!({"connections":{"redis":{"driver":"redis","connection":"default","queue":"alerts"}}}),
+        ),
+        (
+            "horizon".into(),
+            json!({"memory_limit":1024,"waits":{"redis:alerts":1}}),
+        ),
+    ]))
+}
+
 #[tokio::test]
 #[ignore = "requires dedicated Redis 8 acceptance wrapper"]
 async fn redis_master_delivers_the_registered_slack_webhook_channel_override() {
     let mut app = TestApp::create(|builder| {
         builder
-            .with_config(|base, _| {
-                assert_eq!(std::env::var("HORIZON_REQUIRE_REDIS").as_deref(), Ok("1"));
-                Ok(BTreeMap::from([
-                    ("database".into(), json!({"redis":{
-                        "options":{"prefix":format!("{}:",base.file_name().unwrap().to_string_lossy())},
-                        "default":{"url":std::env::var("HORIZON_TEST_REDIS_URL").unwrap()}
-                    }})),
-                    ("queue".into(), json!({"connections":{"redis":{"driver":"redis","connection":"default","queue":"alerts"}}})),
-                    ("horizon".into(), json!({"memory_limit":1024,"waits":{"redis:alerts":1}})),
-                ]))
-            })
+            .with_config(wait_config)
             .with_providers(vec![Box::new(HorizonServiceProvider)])
             .with_routing(Routing::default().api(|| Route::get("/alert", master_webhook_response)))
-    }).unwrap();
+    })
+    .unwrap();
     app.get("/api/alert").await.unwrap().assert_ok();
+}
+
+struct CustomWaitNotification(u64);
+
+impl Notification for CustomWaitNotification {
+    fn via(
+        &self,
+        _: &dyn openrust::notifications::Notifiable,
+    ) -> openrust::notifications::NotificationResult<Vec<String>> {
+        Ok(vec!["mail".into()])
+    }
+
+    fn fake_data(&self) -> serde_json::Value {
+        json!({"custom_wait":self.0})
+    }
+}
+
+impl LongWaitDetectedNotification for CustomWaitNotification {
+    fn signature(&self) -> String {
+        "custom:shared".into()
+    }
+}
+
+struct CustomWaitFactory;
+impl LongWaitNotificationFactory for CustomWaitFactory {
+    fn make(&self, event: &LongWaitDetected) -> Box<dyn LongWaitDetectedNotification> {
+        Box::new(CustomWaitNotification(event.seconds))
+    }
+}
+
+struct CustomWaitProvider;
+impl ServiceProvider for CustomWaitProvider {
+    fn register<'a>(
+        &'a mut self,
+        app: &'a openrust::foundation::Application,
+    ) -> HttpFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            app.container()
+                .instance::<dyn LongWaitNotificationFactory>(Arc::new(CustomWaitFactory))?;
+            Ok(())
+        })
+    }
+}
+
+fn custom_wait_response(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        Horizon::route_mail_notifications_to("operator@example.test").unwrap();
+        let fake = Notifications::fake().unwrap();
+        let first = notification();
+        let custom = first.to_notification().await.unwrap();
+        assert_eq!(custom.signature(), "custom:shared");
+        Event::dispatch(first).await.unwrap();
+        Event::dispatch(LongWaitDetected {
+            queue: "another-queue".into(),
+            ..notification()
+        })
+        .await
+        .unwrap();
+        fake.assert_sent_on_demand_once(custom.kind())
+            .assert_sent_on_demand_matching(custom.kind(), |entry| {
+                entry.channels == ["mail"] && entry.data == json!({"custom_wait":120})
+            })
+            .assert_count(1);
+        Response::json(StatusCode::OK, json!({"recorded":true}))
+    })
+}
+
+#[tokio::test]
+#[ignore = "requires dedicated Redis 8 acceptance wrapper"]
+async fn redis_wait_event_listener_uses_the_container_factory_and_custom_signature() {
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(wait_config)
+            .with_providers(vec![
+                Box::new(CustomWaitProvider),
+                Box::new(HorizonServiceProvider),
+            ])
+            .with_routing(
+                Routing::default().api(|| Route::get("/custom-alert", custom_wait_response)),
+            )
+    })
+    .unwrap();
+    app.get("/api/custom-alert").await.unwrap().assert_ok();
 }
 fn notification_response(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {

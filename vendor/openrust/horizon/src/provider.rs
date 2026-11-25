@@ -33,6 +33,12 @@ impl ServiceProvider for HorizonServiceProvider {
                     Ok(Arc::new(crate::notifications::NotificationRoutes::default()))
                 })?;
             app.container()
+                .singleton_if::<dyn crate::LongWaitNotificationFactory, _>(|_| {
+                    Ok(Arc::new(
+                        crate::notifications::DefaultLongWaitNotificationFactory,
+                    ))
+                })?;
+            app.container()
                 .singleton::<crate::tags::TagManager, _>(|_| {
                     Ok(Arc::new(crate::tags::TagManager::default()))
                 })?;
@@ -92,6 +98,11 @@ impl ServiceProvider for HorizonServiceProvider {
             self.commands(app, crate::console::register);
             self.load_routes_from(app, crate::dashboard::configured_routes)?;
             let dispatcher = app.make::<openrust::events::Dispatcher>().await?;
+            dispatcher.listen(
+                crate::LongWaitDetected::NAME,
+                Arc::new(crate::SendNotification),
+                Delivery::Sync,
+            )?;
             let listener = Arc::new(JobListener);
             for name in [
                 JobQueued::NAME,

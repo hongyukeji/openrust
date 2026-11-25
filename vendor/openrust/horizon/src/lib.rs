@@ -12,7 +12,9 @@ mod repository;
 mod signals;
 mod supervisor;
 mod tags;
-pub use notifications::LongWaitDetected;
+pub use notifications::{
+    LongWaitDetected, LongWaitDetectedNotification, LongWaitNotificationFactory, SendNotification,
+};
 pub use tags::{TagCallback, Tags};
 mod master_supervisor;
 

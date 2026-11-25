@@ -57,6 +57,8 @@ Long-wait alerts include the deployment name in the email subject, SMS body and 
 
 Use `Horizon::route_slack_webhook_notifications_to(url, channel)` to include a channel override in the incoming Webhook payload. Slack app incoming Webhooks always post to the channel selected during installation. Use a Bot API channel ID to choose the destination on each request.
 
+To customize these alerts, bind `dyn LongWaitNotificationFactory` in an application service provider. The factory receives each `LongWaitDetected` event and returns a `LongWaitDetectedNotification`. Its `signature()` controls the five-minute deduplication window.
+
 Pause, continue, terminate, monitoring changes and retries require the authorization callback on every request. The browser sends `X-Horizon-Request: 1` for mutations; direct API clients must supply the same header. Cross-site browser mutations are rejected. Apply your application's authentication and middleware to the entire route group. Access to this dashboard permits inspection of job data and operational controls.
 
 ## Commands {#commands}

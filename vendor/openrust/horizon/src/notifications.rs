@@ -1,14 +1,18 @@
 use crate::{Error, Repository, Result};
 use openrust::{
     container::ServiceKey,
-    contracts::{container::BindingResolutionError, events::Event},
+    contracts::{
+        container::BindingResolutionError,
+        events::{Event, Listener},
+    },
+    events::{EventContext, EventError, EventFuture, EventResult, ListenerResponse},
     notifications::{
         AnonymousNotifiable, Notifiable, Notification, NotificationResult, NotificationRoute,
         messages::{MailDelivery, MailMessage, SlackMessage},
         slack::{SlackMessage as BlockKitMessage, SlackRoute},
         sms::SmsMessage,
     },
-    support::facades::{Config, Facade, Notification as Notifications},
+    support::facades::{App, Config, Facade, Notification as Notifications},
 };
 use std::{collections::BTreeMap, sync::RwLock, time::Duration};
 use tokio::time::Instant;
@@ -31,12 +35,43 @@ pub struct LongWaitDetected {
     pub queue: String,
     pub seconds: u64,
 }
+pub trait LongWaitDetectedNotification: Notification {
+    fn signature(&self) -> String;
+}
+
+pub trait LongWaitNotificationFactory: Send + Sync {
+    fn make(&self, event: &LongWaitDetected) -> Box<dyn LongWaitDetectedNotification>;
+}
+
+pub(crate) struct DefaultLongWaitNotificationFactory;
+impl LongWaitNotificationFactory for DefaultLongWaitNotificationFactory {
+    fn make(&self, event: &LongWaitDetected) -> Box<dyn LongWaitDetectedNotification> {
+        Box::new(event.clone())
+    }
+}
+
+impl LongWaitDetectedNotification for LongWaitDetected {
+    fn signature(&self) -> String {
+        format!("{}:{}", self.connection, self.queue)
+    }
+}
+
 impl Event for LongWaitDetected {
     fn name(&self) -> &str {
-        "LongWaitDetected"
+        Self::NAME
     }
 }
 impl LongWaitDetected {
+    pub const NAME: &str = "LongWaitDetected";
+
+    pub async fn to_notification(
+        &self,
+    ) -> std::result::Result<Box<dyn LongWaitDetectedNotification>, BindingResolutionError> {
+        Ok(App::make::<dyn LongWaitNotificationFactory>()
+            .await?
+            .make(self))
+    }
+
     fn deployment_name() -> String {
         Config::get("horizon.name")
             .ok()
@@ -188,30 +223,56 @@ pub(crate) async fn monitor(
             queue: queue.into(),
             seconds,
         };
-        openrust::support::facades::Event::dispatch(event.clone())
-            .await
-            .map_err(|_| Error::Unavailable)?;
-        if !repository.notification_lock(&name).await? {
-            continue;
-        }
-        let routes = Routes::get_facade_root()
-            .map_err(|_| Error::Unavailable)?
-            .0
-            .read()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .clone();
-        if routes.is_empty() {
-            continue;
-        }
-        let mut recipient = AnonymousNotifiable::default();
-        for (channel, route) in routes {
-            recipient = recipient
-                .route(channel, route)
-                .map_err(|_| Error::Unavailable)?;
-        }
-        Notifications::send(&[&recipient], &event)
+        openrust::support::facades::Event::dispatch(event)
             .await
             .map_err(|_| Error::Unavailable)?;
     }
     Ok(())
+}
+
+pub struct SendNotification;
+
+impl Listener for SendNotification {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn Event,
+        _: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            let Some(event) = event.downcast_ref::<LongWaitDetected>() else {
+                return Ok(None);
+            };
+            let notification = event.to_notification().await?;
+            let repository = crate::dashboard::Store::get_facade_root()?;
+            if !repository
+                .notification_lock(&notification.signature())
+                .await
+                .map_err(listener_error)?
+            {
+                return Ok(None);
+            }
+            let routes = Routes::get_facade_root()?
+                .0
+                .read()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone();
+            if routes.is_empty() {
+                return Ok(None);
+            }
+            let mut recipient = AnonymousNotifiable::default();
+            for (channel, route) in routes {
+                recipient = recipient.route(channel, route).map_err(listener_error)?;
+            }
+            Notifications::send(&[&recipient], notification.as_ref())
+                .await
+                .map_err(listener_error)?;
+            Ok(None)
+        })
+    }
+}
+
+fn listener_error(source: impl std::error::Error + Send + Sync + 'static) -> EventError {
+    EventError::Listener {
+        source: Box::new(source),
+    }
 }
