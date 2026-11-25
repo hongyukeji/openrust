@@ -71,6 +71,8 @@ Use `JobPayload::from_payload` to read the Horizon metadata on a Redis job. Hori
 
 Call `JobPayload::with_tags(payload, tags)` before dispatch to preset tags. Horizon appends the tags returned by application callbacks, preserving their order and duplicates across the two sources. Use `JobPayload::new` to read or edit raw job JSON. The `offset_set` and `offset_unset` methods update `decoded()`. The `set` method merges fields and rewrites the full `value()`. The `JobPayload::from_payload` method returns the typed `JobPayloadMetadata` snapshot from native Redis deliveries.
 
+Use `value_mut()` and `decoded_mut()` to edit the raw text and decoded data independently. `JobPayload::new` accepts JSON objects and arrays. `set` renumbers integer keys in merge order and encodes consecutive integer keys in order as a JSON array.
+
 List the underlying application types in `horizon.silenced` to silence a broadcast event, listener, mailable, or notification. Use their fully qualified Rust type names. Ordinary jobs also accept their registered queue names. To opt in from application code, implement `openrust_horizon::Silenced` for the type and call `Horizon::silence::<YourType>()` during application boot. The registration is scoped to the application.
 
 Supervisor queue names follow the native Redis transport's 255-byte limit. Spaces, Unicode, and colons are retained. Supervisor queue lists use commas as separators. Names ending in `:delayed`, `:reserved`, or `:notify` are reserved by the transport.

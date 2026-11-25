@@ -19,10 +19,18 @@ pub struct JobPayload {
 }
 
 impl JobPayload {
-    /// 解析任务对象，保留原始 JSON 文本。
+    /// 解析任务对象或数组，保留原始 JSON 文本。
     pub fn new(value: impl Into<String>) -> Result<Self> {
         let value = value.into();
-        let decoded = serde_json::from_str(&value).map_err(|_| Error::InvalidRecord)?;
+        let decoded = match serde_json::from_str(&value).map_err(|_| Error::InvalidRecord)? {
+            Value::Object(fields) => fields,
+            Value::Array(items) => items
+                .into_iter()
+                .enumerate()
+                .map(|(index, item)| (index.to_string(), item))
+                .collect(),
+            _ => return Err(Error::InvalidRecord),
+        };
         Ok(Self { value, decoded })
     }
 
@@ -30,8 +38,18 @@ impl JobPayload {
         &self.value
     }
 
+    /// 直接修改原始文本，保留当前解码字段。
+    pub fn value_mut(&mut self) -> &mut String {
+        &mut self.value
+    }
+
     pub fn decoded(&self) -> &Map<String, Value> {
         &self.decoded
+    }
+
+    /// 直接修改解码字段，调用 `set` 时更新原始文本。
+    pub fn decoded_mut(&mut self) -> &mut Map<String, Value> {
+        &mut self.decoded
     }
 
     pub fn id(&self) -> Option<&str> {
@@ -107,10 +125,23 @@ impl JobPayload {
         self.decoded.shift_remove(key);
     }
 
-    /// 合并字段，并将全部解码字段重新编码为原始 JSON。
+    /// 合并字段，重新编号数字键，并将结果编码为原始 JSON。
     pub fn set(&mut self, values: Map<String, Value>) -> &mut Self {
-        self.decoded.extend(values);
-        self.value = serde_json::to_string(&self.decoded).expect("JSON 对象可重新编码");
+        let mut numeric = 0usize;
+        for (key, value) in std::mem::take(&mut self.decoded).into_iter().chain(values) {
+            let key = if key
+                .parse::<i64>()
+                .is_ok_and(|number| number.to_string() == key)
+            {
+                let index = numeric;
+                numeric += 1;
+                index.to_string()
+            } else {
+                key
+            };
+            self.decoded.insert(key, value);
+        }
+        self.value = associative_json(Value::Object(self.decoded.clone())).to_string();
         self
     }
 
@@ -143,6 +174,30 @@ impl JobPayload {
     /// 读取原生 Redis 投递保存的观测元数据。旧任务可能没有该记录。
     pub fn from_payload(payload: &Payload) -> Result<Option<JobPayloadMetadata>> {
         JobPayloadMetadata::from_payload(payload)
+    }
+}
+
+// PHP 将 JSON 对象解码为关联数组。连续且按顺序排列的数字键编码为列表。
+fn associative_json(value: Value) -> Value {
+    match value {
+        Value::Object(fields) => {
+            let list = fields
+                .keys()
+                .enumerate()
+                .all(|(index, key)| *key == index.to_string());
+            if list {
+                Value::Array(fields.into_values().map(associative_json).collect())
+            } else {
+                Value::Object(
+                    fields
+                        .into_iter()
+                        .map(|(key, value)| (key, associative_json(value)))
+                        .collect(),
+                )
+            }
+        }
+        Value::Array(items) => Value::Array(items.into_iter().map(associative_json).collect()),
+        value => value,
     }
 }
 

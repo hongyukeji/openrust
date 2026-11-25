@@ -381,7 +381,9 @@ macOS 快照通过两个公开 `JobPayload` 测试，实际应用作用域验证
 
 Linux 7.0.14 ARM64 用 `09ef75a91` 的变更源码和 Rust 1.94.0 通过两个公开测试及独占 Redis 8.10.3／SQLite 重试专项。Linux 夹具首次缺少 Redis 容器身份变量，补传后以同一源码复验通过。证据为 `target/tmp/observability-parity/horizon-job-payload-public-linux-verified.log`。
 
-兼容边界继续追踪。固定 PHP 的 `value` 与 `decoded` 支持独立直接写入，`set` 会重新编号数字键，空 JSON 数组可经 `set` 补入命名字段。当前 Rust 公开命名 JSON 对象的逐键修改。批量直接替换及 PHP 数字键和数组形状的对应裁决仍待完成。证据为 `target/tmp/observability-parity/horizon-job-payload-public-fields-upstream.log`。
+固定 PHP 的 `value` 与 `decoded` 支持独立直接写入，`set` 会重新编号十进制规范形式的 64 位整数键，保留前导零及越界的字符串键。连续且按顺序排列的整数键编码为列表，包含嵌套对象及空数组。Rust 补齐 `value_mut`、`decoded_mut`，接受对象和数组原文并按对应规则合并。现有无效 JSON 和标量输入仍返回类型化错误。验收按 JSON 内容、形状与字段顺序核对，Rust 使用 serde_json 的字符转义。证据为 `target/tmp/observability-parity/horizon-job-payload-array-shapes-upstream.log`。
+
+macOS 已通过公开载荷 3 项、真实 Horizon Redis 21 项、三包默认 87 项、全仓格式、Horizon 全目标严格 Clippy 和三语页面 12 组浏览器检查。Linux ARM64 与 Windows 11 ARM64 用相同变更源码分别通过公开载荷 3 项，以及独占 Redis 8.10.3／SQLite 的真实 Artisan 重试回归 1 项。证据为 `target/tmp/observability-parity/horizon-job-payload-array-shapes-{verified,docs,linux}.log` 与 `target/tmp/observability-windows/horizon-job-payload-array-shapes-arm64.log`。
 
 紧接着核对固定 `Tags`。PHP 8.5.12 实跑确认 `extractExplicitTags` 有标签时优先于 `modelsFor`，空结果回退到模型属性和 Eloquent 集合并去重。`targetsFor` 读取四种包装的底层对象。排队监听器先求监听器标签再求事件标签并去重，两者均收到实际事件，后续普通任务读不到该事件。Rust 当前公开 `Tags::for_payload` 调用应用级回调，`Tags::for_model` 生成单模型标签。显式优先及模型回退、各包装的标签目标、监听器和事件的组合仍须逐项补齐或记录语言适配并验证。证据为 `target/tmp/observability-parity/horizon-tags-contract-upstream.log`。 [固定 Tags](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Tags.php)
 

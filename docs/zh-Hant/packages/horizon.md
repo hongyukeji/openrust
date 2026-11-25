@@ -71,6 +71,8 @@ Redis 將保留工作放回延遲佇列後派發 `JobReleased::NAME`。`delay` �
 
 加入佇列前可用 `JobPayload::with_tags(payload, tags)` 設定預設標籤。Horizon 將應用程式回呼產生的標籤附加到預設標籤之後，保留預設標籤內部和兩組標籤之間的重複項目。讀取或編輯原始工作 JSON 時使用 `JobPayload::new`。`offset_set` 和 `offset_unset` 只修改 `decoded()`，`set` 合併欄位並更新 `value()` 中的完整 JSON。`JobPayload::from_payload` 傳回原生 Redis 的型別化快照 `JobPayloadMetadata`。
 
+`value_mut()` 和 `decoded_mut()` 可分別修改原始文字和解碼資料。`JobPayload::new` 接受 JSON 物件或陣列。`set` 依合併順序重新編號整數鍵，將連續且依序排列的整數鍵編碼為 JSON 陣列。
+
 在 `horizon.silenced` 中設定廣播事件、監聽器、郵件或通知的底層 Rust 完整類型名稱。一般工作也可使用已註冊的佇列工作名稱。透過程式碼設定靜默時，為類型實作 `openrust_horizon::Silenced`，並在應用程式啟動時呼叫 `Horizon::silence::<YourType>()`。註冊只在目前的應用程式生效。
 
 監督器佇列名稱遵循原生 Redis 傳輸的 255 位元組上限，保留空格、Unicode 字元和冒號。監督器佇列清單以逗號分隔。以 `:delayed`、`:reserved` 或 `:notify` 結尾的名稱由傳輸保留。
