@@ -429,9 +429,13 @@ impl QueueManager {
 
     pub(super) async fn observe_confirmed_event(&self, event: impl Event) {
         // Redis 已完成变更，监听器错误不能掩盖传输结果。
-        if let Err(error) = self.emit_control_event(event).await
-            && let Some(owner) = self.owner.upgrade()
-        {
+        if let Err(error) = self.emit_control_event(event).await {
+            self.report_confirmed_event_error(&error).await;
+        }
+    }
+
+    pub(super) async fn report_confirmed_event_error(&self, error: &QueueError) {
+        if let Some(owner) = self.owner.upgrade() {
             application_scope(owner, async {
                 let _ =
                     crate::support::facades::Log::warning(&error.to_string(), &Default::default());

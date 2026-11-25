@@ -11,8 +11,8 @@ use crate::{
 };
 
 use super::{
-    Delay, JobContext, Payload, Queue, QueueError, QueueFuture, QueueResult, backend,
-    events::{JobQueued, JobSnapshot, RedisJobQueueing, RedisJobReserved},
+    Delay, JobContext, Payload, Queue, QueueError, QueueFuture, QueueManager, QueueResult, backend,
+    events::{JobQueued, JobSnapshot, RedisJobQueueing, RedisJobReserved, RedisJobsMigrated},
     jobs::{Reservation, ReservedJob},
     new_id, queue_name,
 };
@@ -30,25 +30,26 @@ end
 return 1
 ";
 
-const RESERVE: &str = r"
-local function move_due(source)
+const MIGRATE: &str = r"
+local function move_due(source, ready, notify)
     local jobs = redis.call('ZRANGEBYSCORE', source, '-inf', now, 'LIMIT', 0, 1000)
     for _, job in ipairs(jobs) do
-        redis.call('RPUSH', KEYS[1], job)
-        redis.call('RPUSH', KEYS[4], 1)
+        redis.call('RPUSH', ready, job)
+        redis.call('RPUSH', notify, 1)
         redis.call('ZREM', source, job)
     end
+    return jobs
 end
-move_due(KEYS[2])
-move_due(KEYS[3])
+";
+const RESERVE: &str = r"
 local raw = redis.call('LINDEX', KEYS[1], 0)
 if not raw then return false end
 local job = cjson.decode(raw)
 job.attempts = job.attempts + 1
 local reserved = cjson.encode(job)
-redis.call('ZADD', KEYS[3], now + tonumber(ARGV[1]), reserved)
+redis.call('ZADD', KEYS[2], now + tonumber(ARGV[1]), reserved)
 redis.call('LPOP', KEYS[1])
-redis.call('LPOP', KEYS[4])
+redis.call('LPOP', KEYS[3])
 return reserved
 ";
 
@@ -212,16 +213,33 @@ impl RedisQueue {
     }
 
     async fn reserve(&self, queue: &str) -> QueueResult<Option<Box<dyn Job>>> {
+        let lease = self
+            .retry_after
+            .checked_mul(1000)
+            .ok_or(QueueError::InvalidConfiguration)?;
         let [ready, delayed, reserved] = self.keys(queue);
-        let mut command = script(
-            RESERVE,
-            &[&ready, &delayed, &reserved, &format!("{ready}:notify")],
-        );
-        command.arg(
-            self.retry_after
-                .checked_mul(1000)
-                .ok_or(QueueError::InvalidConfiguration)?,
-        );
+        let notify = format!("{ready}:notify");
+        let manager = self.registry.manager().ok();
+        let mut command = if let Some(manager) = manager.as_ref().filter(|manager| {
+            matches!(
+                manager.observes_worker_event(RedisJobsMigrated::NAME),
+                Ok(true)
+            )
+        }) {
+            for source in [&delayed, &reserved] {
+                self.migrate(manager, queue, source, &ready, &notify)
+                    .await?;
+            }
+            script(RESERVE, &[&ready, &reserved, &notify])
+        } else {
+            script(
+                &format!(
+                    "{MIGRATE}move_due(KEYS[4], KEYS[1], KEYS[3])\nmove_due(KEYS[2], KEYS[1], KEYS[3])\n{RESERVE}"
+                ),
+                &[&ready, &reserved, &notify, &delayed],
+            )
+        };
+        command.arg(lease);
         let Some(raw) = self
             .connection
             .query::<Option<String>>(&command)
@@ -256,7 +274,7 @@ impl RedisQueue {
             released: false,
             failed: false,
         };
-        if let Ok(manager) = self.registry.manager()
+        if let Some(manager) = manager
             && matches!(
                 manager.observes_worker_event(RedisJobReserved::NAME),
                 Ok(true)
@@ -270,6 +288,46 @@ impl RedisQueue {
                 .await;
         }
         Ok(Some(Box::new(reservation)))
+    }
+
+    async fn migrate(
+        &self,
+        manager: &QueueManager,
+        queue: &str,
+        source: &str,
+        ready: &str,
+        notify: &str,
+    ) -> QueueResult<()> {
+        let command = script(
+            &format!("{MIGRATE}return move_due(KEYS[1], KEYS[2], KEYS[3])"),
+            &[source, ready, notify],
+        );
+        let raw: Vec<String> = self.connection.query(&command).await.map_err(backend)?;
+        let mut jobs = Vec::with_capacity(raw.len());
+        for raw in raw {
+            let job = serde_json::from_str::<RedisJob>(&raw)
+                .map_err(|_| QueueError::InvalidPayload)
+                .and_then(|job| {
+                    Ok(JobSnapshot {
+                        id: job.id,
+                        queue: queue.into(),
+                        attempts: job.attempts,
+                        payload: Payload::decode(&job.payload)?,
+                    })
+                });
+            match job {
+                Ok(job) => jobs.push(job),
+                Err(error) => manager.report_confirmed_event_error(&error).await,
+            }
+        }
+        manager
+            .observe_confirmed_event(RedisJobsMigrated {
+                connection_name: self.name.clone(),
+                queue: queue.into(),
+                jobs,
+            })
+            .await;
+        Ok(())
     }
     async fn pop_waiting(
         &self,

@@ -1,6 +1,9 @@
-use super::{JobRecord, Repository, encode, processes::string_list, text};
+use super::{JobRecord, Repository, encode, job_member, processes::string_list, text};
 use crate::{Error, Result};
-use openrust::{queue::Payload, redis::Value};
+use openrust::{
+    queue::{Payload, events::JobSnapshot},
+    redis::Value,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value as Json, json};
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -413,10 +416,127 @@ impl JobRepository {
         payloads: &[(String, Payload)],
     ) -> Result<()> {
         for (id, payload) in payloads {
-            self.pending(id, connection, queue, payload, &[], "pending")
+            self.migrate_job(connection, queue, id, payload, None)
                 .await?;
         }
         Ok(())
+    }
+    pub(crate) async fn migrate_snapshots(
+        &self,
+        connection: &str,
+        queue: &str,
+        jobs: &[JobSnapshot],
+    ) -> Result<()> {
+        for job in jobs {
+            self.migrate_job(connection, queue, &job.id, &job.payload, Some(job.attempts))
+                .await?;
+        }
+        Ok(())
+    }
+    async fn migrate_job(
+        &self,
+        connection: &str,
+        queue: &str,
+        id: &str,
+        payload: &Payload,
+        attempts: Option<u32>,
+    ) -> Result<()> {
+        if connection.is_empty() || openrust::queue::RedisQueue::validate_queue_name(queue).is_err()
+        {
+            return Err(Error::InvalidRecord);
+        }
+        let key = self.key(id)?;
+        let now = self.0.now().await?;
+        loop {
+            let stored = self.0.command("GET", std::slice::from_ref(&key)).await?;
+            let stored = if stored == Value::Nil {
+                String::new()
+            } else {
+                text(&stored)?
+            };
+            let mut details = if stored.is_empty() {
+                JobDetails {
+                    record: JobRecord {
+                        id: id.into(),
+                        name: payload.name().into(),
+                        connection: connection.into(),
+                        queue: queue.into(),
+                        attempts: attempts.unwrap_or_default(),
+                        status: "pending".into(),
+                        duration: 0.,
+                        updated_at: now,
+                    },
+                    payload: Json::Null,
+                    tags: Vec::new(),
+                    exception: None,
+                    silenced: false,
+                    created_at: now,
+                    reserved_at: None,
+                    release_delay_ms: None,
+                    completed_at: None,
+                    failed_at: None,
+                    retried_by: Vec::new(),
+                    index: None,
+                }
+            } else {
+                serde_json::from_str::<JobDetails>(&stored).map_err(|_| Error::Redis)?
+            };
+            if matches!(details.record.status.as_str(), "completed" | "failed")
+                || attempts.is_some_and(|attempts| details.record.attempts > attempts)
+            {
+                return Ok(());
+            }
+            details.record.status = "pending".into();
+            details.record.updated_at = details.record.updated_at.max(now);
+            details.record.attempts = attempts.unwrap_or(details.record.attempts);
+            details.payload = serde_json::to_value(payload).map_err(|_| Error::InvalidRecord)?;
+            details.release_delay_ms = Some(0);
+            let updated = self
+                .0
+                .eval(
+                    r#"
+local old = redis.call('GET', KEYS[1])
+if (old or '') ~= ARGV[1] then return 0 end
+local attempt = redis.call('HGET', KEYS[4], 'attempts')
+local status = redis.call('HGET', KEYS[4], 'status')
+if attempt and (tonumber(attempt) > tonumber(ARGV[6]) or
+    (attempt == ARGV[6] and (status == 'failed' or status == 'completed'))) then
+    return 2
+end
+if old then
+    redis.call('SET', KEYS[1], ARGV[2], 'KEEPTTL')
+else
+    redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[3])
+end
+redis.call('ZADD', KEYS[2], 'NX', ARGV[4], ARGV[5])
+redis.call('ZADD', KEYS[3], 'NX', ARGV[4], ARGV[5])
+if attempt == ARGV[6] then
+    redis.call('HSET', KEYS[4], 'data', ARGV[7])
+end
+return 1
+"#
+                    .trim(),
+                    vec![
+                        key.clone(),
+                        self.index("recent"),
+                        self.index("pending"),
+                        self.0.key(&format!("job:{}", job_member(&details.record)?)),
+                    ],
+                    vec![
+                        stored,
+                        serde_json::to_string(&details).map_err(|_| Error::InvalidRecord)?,
+                        self.0.retention_for("pending").to_string(),
+                        now.to_string(),
+                        id.into(),
+                        details.record.attempts.to_string(),
+                        serde_json::to_string(&details.record).map_err(|_| Error::InvalidRecord)?,
+                    ],
+                )
+                .await?;
+            if updated != Value::Int(0) {
+                return Ok(());
+            }
+        }
     }
     pub async fn remember(
         &self,

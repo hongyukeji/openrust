@@ -837,6 +837,219 @@ async fn redis_queue_names_and_reservation_observer_errors_preserve_delivery() {
 
 #[tokio::test]
 #[ignore = "requires dedicated Redis 8 acceptance wrapper"]
+async fn redis_migration_events_precede_reservation_and_preserve_newer_attempts() {
+    use openrust::{
+        container::Callback,
+        contracts::events::{Dispatcher as _, Event, Listener},
+        events::{Delivery, Dispatcher, EventContext, EventFuture, EventResult, ListenerResponse},
+        queue::{Delay, Payload, QueueManager},
+    };
+    use openrust_horizon::JobsMigrated;
+
+    struct MigrationProbe {
+        queue: Arc<dyn openrust::contracts::queue::Queue>,
+        repository: Arc<Repository>,
+        observations: std::sync::Mutex<Vec<(JobsMigrated, u64, u64, u64)>>,
+    }
+    impl Listener for MigrationProbe {
+        fn handle<'a>(
+            &'a self,
+            event: &'a dyn Event,
+            _: &'a mut EventContext<'_>,
+        ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+            Box::pin(async move {
+                let Some(batch) = event.downcast_ref::<JobsMigrated>() else {
+                    return Ok(None);
+                };
+                assert_eq!(batch.connection_name, "redis");
+                assert_eq!(batch.queue, "migration");
+                // 回放事件时只记录状态读数，由调用方验证不能回退已有终态。
+                for job in &batch.payloads {
+                    let details = self.repository.jobs().find(&job.id).await.unwrap().unwrap();
+                    if details.record.status == "pending" {
+                        assert_eq!(details.release_delay_ms, Some(0));
+                        assert_eq!(details.record.attempts, job.attempts);
+                        assert_eq!(details.payload["data"], *job.payload.data());
+                    }
+                }
+                let counts = self.queue.metrics(Some(&batch.queue)).await.unwrap();
+                self.observations.lock().unwrap().push((
+                    batch.clone(),
+                    counts.pending.unwrap(),
+                    counts.delayed.unwrap(),
+                    counts.reserved.unwrap(),
+                ));
+                // 迁移已经发生，监听器错误不能妨碍后续保留。
+                if batch.payloads.is_empty() {
+                    Ok(None)
+                } else {
+                    Err(openrust::events::EventError::InvalidPayload)
+                }
+            })
+        }
+    }
+
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(config)
+            .with_providers(vec![Box::new(HorizonServiceProvider)])
+            .with_routing(Routing::default().api(authorized_routes))
+    })
+    .unwrap();
+    app.boot().await.unwrap();
+    let manager = app.app().make::<QueueManager>().await.unwrap();
+    let queue = manager.connection(Some("redis")).unwrap();
+    let repository = app.app().make::<Repository>().await.unwrap();
+    let redis = app
+        .app()
+        .make::<openrust::redis::RedisManager>()
+        .await
+        .unwrap()
+        .connection(None)
+        .unwrap();
+    let payload = Payload::new("migration", json!({"precise": 9_007_199_254_740_993u64})).unwrap();
+    let name = Some("migration");
+    let delayed = queue.push(&payload, name).await.unwrap().unwrap();
+    let mut released = queue.pop_now(name).await.unwrap().unwrap();
+    released.release(Duration::from_secs(120)).await.unwrap();
+    let expired = queue.push(&payload, name).await.unwrap().unwrap();
+    let mut stale = queue.pop_now(name).await.unwrap().unwrap();
+    let future = queue
+        .later(Delay::For(Duration::from_secs(120)), &payload, name)
+        .await
+        .unwrap()
+        .unwrap();
+    for (source, id) in [("delayed", &delayed), ("reserved", &expired)] {
+        let key = redis.key(&format!("queues:migration:{source}"));
+        let marked = redis.command("EVAL", &[
+            b"for _, raw in ipairs(redis.call('ZRANGE', KEYS[1], 0, -1)) do if cjson.decode(raw).id == ARGV[1] then return redis.call('ZADD', KEYS[1], 'CH', -1, raw) end end; return 0",
+            b"1", key.as_bytes(), id.as_bytes()
+        ]).await.unwrap();
+        assert_eq!(marked, openrust::redis::Value::Int(1));
+    }
+    let probe = Arc::new(MigrationProbe {
+        queue: queue.clone(),
+        repository: repository.clone(),
+        observations: Default::default(),
+    });
+    let dispatcher = app.app().make::<Dispatcher>().await.unwrap();
+    dispatcher
+        .listen(JobsMigrated::NAME, probe.clone(), Delivery::Sync)
+        .unwrap();
+    let mut current = queue.pop_now(name).await.unwrap().unwrap();
+    assert_eq!(current.get_job_id(), delayed);
+    assert_eq!(current.attempts(), 2);
+    let (stale_delayed, stale_expired) = {
+        let observations = probe.observations.lock().unwrap();
+        assert_eq!(observations.len(), 2);
+        let (delayed_batch, ready, delayed_count, reserved) = &observations[0];
+        assert_eq!((*ready, *delayed_count, *reserved), (1, 1, 1));
+        assert_eq!(delayed_batch.payloads.len(), 1);
+        assert_eq!(delayed_batch.payloads[0].id, delayed);
+        assert_eq!(delayed_batch.payloads[0].attempts, 1);
+        let (expired_batch, ready, delayed_count, reserved) = &observations[1];
+        assert_eq!((*ready, *delayed_count, *reserved), (2, 1, 0));
+        assert_eq!(expired_batch.payloads.len(), 1);
+        assert_eq!(expired_batch.payloads[0].id, expired);
+        assert_eq!(expired_batch.payloads[0].attempts, 1);
+        (delayed_batch.clone(), expired_batch.clone())
+    };
+    let response = app
+        .call(
+            http::Request::builder()
+                .uri(format!("/api/horizon/api/jobs/{expired}"))
+                .header("x-test-operator", "operator")
+                .body(openrust::http::Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    response.assert_ok();
+    let details: Value = serde_json::from_slice(response.body()).unwrap();
+    assert_eq!(details["status"], "pending");
+    assert_eq!(details["release_delay_ms"], 0);
+    assert_eq!(
+        details["payload"]["data"]["precise"],
+        9_007_199_254_740_993u64
+    );
+    let recent = repository.recent(100).await.unwrap();
+    let legacy = recent.iter().find(|job| job.id == expired).unwrap();
+    assert_eq!(legacy.status, "pending");
+    assert!(stale.delete().await.is_err());
+    assert_eq!(
+        repository
+            .jobs()
+            .find(&future)
+            .await
+            .unwrap()
+            .unwrap()
+            .release_delay_ms,
+        None
+    );
+
+    let mut next = queue.pop_now(name).await.unwrap().unwrap();
+    assert_eq!(next.get_job_id(), expired);
+    assert_eq!(next.attempts(), 2);
+    next.delete().await.unwrap();
+    assert!(queue.pop_now(name).await.unwrap().is_none());
+    {
+        let observations = probe.observations.lock().unwrap();
+        assert_eq!(observations.len(), 6);
+        assert!(
+            observations[2..]
+                .iter()
+                .all(|(batch, ..)| batch.payloads.is_empty())
+        );
+    }
+    app.app()
+        .call(
+            Callback::new(&[], |_| async move {
+                for event in [stale_delayed, stale_expired] {
+                    let result = dispatcher
+                        .dispatch(Arc::new(event), &mut EventContext::new())
+                        .await;
+                    assert!(matches!(
+                        result,
+                        Err(openrust::events::EventError::InvalidPayload)
+                    ));
+                }
+                Ok(())
+            }),
+            Default::default(),
+        )
+        .await
+        .unwrap();
+    let reserved = repository.jobs().find(&delayed).await.unwrap().unwrap();
+    let completed = repository.jobs().find(&expired).await.unwrap().unwrap();
+    assert_eq!(
+        (reserved.record.status.as_str(), reserved.record.attempts),
+        ("reserved", 2)
+    );
+    assert_eq!(
+        (completed.record.status.as_str(), completed.record.attempts),
+        ("completed", 2)
+    );
+    assert_eq!(
+        repository
+            .metrics("redis", "migration")
+            .await
+            .unwrap()
+            .completed,
+        1
+    );
+    current.delete().await.unwrap();
+    assert_eq!(
+        repository
+            .metrics("redis", "migration")
+            .await
+            .unwrap()
+            .completed,
+        2
+    );
+}
+
+#[tokio::test]
+#[ignore = "requires dedicated Redis 8 acceptance wrapper"]
 async fn native_worker_hooks_count_success_release_failure_and_hide_payloads() {
     let mut app = TestApp::create(|builder| {
         builder

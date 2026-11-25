@@ -181,6 +181,11 @@ queue_event!(
 );
 
 queue_event!(
+    /// Redis 已将一批到期任务迁入就绪队列。
+    RedisJobsMigrated { connection_name: String, queue: String, jobs: Vec<JobSnapshot> }
+);
+
+queue_event!(
     /// Redis 已将保留任务重新放入延迟队列。
     RedisJobReleased { connection_name: String, job: JobSnapshot, delay: Duration }
 );

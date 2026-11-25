@@ -1,6 +1,6 @@
 use crate::{
     Dashboard, Error, JobDeleted, JobPending, JobPushed, JobRecord, JobReleased, JobReserved,
-    Repository,
+    JobsMigrated, Repository,
 };
 use openrust::support::facades::Facade;
 use openrust::{
@@ -142,11 +142,13 @@ impl ServiceProvider for HorizonServiceProvider {
                 RedisJobQueueing::NAME,
                 JobQueued::NAME,
                 RedisJobReserved::NAME,
+                RedisJobsMigrated::NAME,
                 RedisJobReleased::NAME,
                 RedisJobDeleted::NAME,
                 JobPending::NAME,
                 JobPushed::NAME,
                 JobReserved::NAME,
+                JobsMigrated::NAME,
                 JobDeleted::NAME,
                 JobFailed::NAME,
                 JobReleased::NAME,
@@ -217,6 +219,15 @@ impl Listener for JobListener {
                 .await?;
                 return Ok(None);
             }
+            if let Some(event) = event.downcast_ref::<RedisJobsMigrated>() {
+                EventFacade::dispatch(JobsMigrated {
+                    connection_name: event.connection_name.clone(),
+                    queue: event.queue.clone(),
+                    payloads: event.jobs.clone(),
+                })
+                .await?;
+                return Ok(None);
+            }
             if let Some(event) = event.downcast_ref::<RedisJobReleased>() {
                 EventFacade::dispatch(JobReleased {
                     connection_name: event.connection_name.clone(),
@@ -272,6 +283,18 @@ impl Listener for JobListener {
                     .map_err(|source| EventError::Listener {
                         source: Box::new(source),
                     })?;
+                return Ok(None);
+            }
+            if let Some(event) = event.downcast_ref::<JobsMigrated>() {
+                if !event.payloads.is_empty() {
+                    crate::dashboard::Store::get_facade_root()?
+                        .jobs()
+                        .migrate_snapshots(&event.connection_name, &event.queue, &event.payloads)
+                        .await
+                        .map_err(|source| EventError::Listener {
+                            source: Box::new(source),
+                        })?;
+                }
                 return Ok(None);
             }
             let release = event.downcast_ref::<JobReleased>();

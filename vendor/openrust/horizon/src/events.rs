@@ -54,6 +54,24 @@ impl Event for JobReserved {
     }
 }
 
+/// 一批从延迟或过期保留集合迁回 Redis 就绪队列的任务。
+#[derive(Clone, Debug)]
+pub struct JobsMigrated {
+    pub connection_name: String,
+    pub queue: String,
+    pub payloads: Vec<JobSnapshot>,
+}
+
+impl JobsMigrated {
+    pub const NAME: &str = "JobsMigrated";
+}
+
+impl Event for JobsMigrated {
+    fn name(&self) -> &str {
+        Self::NAME
+    }
+}
+
 /// 已确认重新入队的 Redis 保留任务及其延迟。
 #[derive(Clone, Debug)]
 pub struct JobReleased {

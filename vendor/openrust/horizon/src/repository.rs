@@ -217,10 +217,7 @@ impl Repository {
         let now = self.now().await?;
         record.updated_at = now;
         record.status = phase.into();
-        let id = encode(
-            &serde_json::to_string(&(&record.connection, &record.queue, &record.id))
-                .map_err(|_| Error::InvalidRecord)?,
-        );
+        let id = job_member(&record)?;
         let keys = vec![
             self.key(&format!("job:{id}")),
             self.key("recent"),
@@ -433,6 +430,13 @@ pub(crate) fn text(value: &Value) -> Result<String> {
         _ => Err(Error::Redis),
     }
 }
+fn job_member(record: &JobRecord) -> Result<String> {
+    let route = (&record.connection, &record.queue, &record.id);
+    Ok(encode(
+        &serde_json::to_string(&route).map_err(|_| Error::InvalidRecord)?,
+    ))
+}
+
 fn encode(value: &str) -> String {
     use std::fmt::Write;
     value.as_bytes().iter().fold(String::new(), |mut s, b| {
