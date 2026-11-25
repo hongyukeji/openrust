@@ -1,0 +1,35 @@
+{
+  "source_base": "6183b018dafa9b01f97458fb40e50f6c97102dbb",
+  "contract": "component-core-contracts.json",
+  "gates": [
+    "target/tmp/artisan-tutorial-20261125/component-core-gates-reference-fixed.log",
+    "target/tmp/artisan-tutorial-20261125/component-core-gates-final.log",
+    "target/tmp/artisan-tutorial-20261125/component-core-site-final.log",
+    "target/tmp/artisan-tutorial-20261125/component-core-tty-results.json"
+  ],
+  "test_summaries": [
+    "test result: ok. 8 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.13s",
+    "test result: ok. 5 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.04s",
+    "test result: ok. 11 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.22s",
+    "test result: ok. 7 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.20s",
+    "test result: ok. 150 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.64s"
+  ],
+  "runtime": {
+    "real_artisan_processes": 2,
+    "real_http_requests": 13,
+    "pty_scenarios": 3,
+    "docs_consumers": 150,
+    "browser_checks": 12
+  },
+  "failed_or_interrupted_gates_not_counted": [
+    "component-core-tests-second.log: relative array behavior, fixed",
+    "component-core-gates-first.log: raw IO fixture and disk stop75",
+    "component-core-gates-resumed.log / component-core-gates-lending.log: Send lifetime failure, fixed",
+    "component-core-gates-reference.log: generator duplicate delimiter, fixed"
+  ],
+  "remaining": [
+    "Component::compile/renderView及可覆盖模板/渲染策略尚未实现；不能以具体组件或mutate/usingQuestionHelper存在宣称抽象基类完整。",
+    "Command容器Factory构造/覆盖和生命周期、Helper/HelperSet/Time其余继承SDK及Artisan其他锚点继续。"
+  ],
+  "pushed": false
+}

@@ -1913,3 +1913,46 @@ Names may contain namespace separators, for example `Widgets\Badge`. Registratio
 `Factory::new` records the current application container for custom-component lookup. Entering another application's scope does not change that registration owner. Standalone consumers can use `Factory::with_registry(&mut output, registry)` with an explicit `Arc<ComponentRegistry>`. Data and callbacks still use `ComponentArgument`.
 
 `ComponentContext` implements `AsOutput`. `question_style()` returns the original question style or a runtime error before a prompt is printed. Custom output adapters implement `ComponentOutput::component_context`: return `ComponentContext::Style` to retain question input, or `ComponentContext::Output` for an ordinary stream. The default `ComponentOutput::question_style` follows this context; existing explicit question-style overrides remain valid for built-in questions.
+
+
+### Component data and question scopes {#component-data-scopes}
+
+`Component` is a reusable composition base. Construct it with a borrowed `ComponentOutput`, or use `from_context` inside a registered component constructor. `get_output` and `AsOutput` borrow the original output; `question_style` exposes its existing question capability without replacing input.
+
+```rust
+use openrust::{
+    console::{AsyncCommandCallback, ConsoleError, OutputFormat, OutputStyle, Question,
+        view::components::{Component, DefaultMutatorConstructor, mutators::EnsureNoPunctuation}},
+    support::facades::Artisan,
+};
+use serde_json::json;
+fn register_component_data() -> Result<(), ConsoleError> {
+    Artisan::command_with("components:data", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut style = OutputStyle::new(input, output);
+            let mut component = Component::new(&mut style);
+            let mutator = DefaultMutatorConstructor::<EnsureNoPunctuation>::new();
+            let data = component.mutate(json!({"message": "Created [report].", "active": true}), &[&mutator])?;
+            let mut calls = 0;
+            let name = component.using_question_helper(async |mut style| {
+                calls += 1;
+                let question = Question::new("Name", Some(json!("Guest")))?;
+                style.ask_question(&question).await
+            }).await?;
+            component.get_output().writeln(
+                format!("Data:{data}; Name:{name}; Calls:{calls}").as_str(), OutputFormat::Raw,
+            )?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+`mutate` runs constructors in order, creating each mutator once per pass and applying it to each top-level value. Arrays retain their positions and objects retain their keys. An empty constructor list returns the original data. `DefaultMutatorConstructor<M>` uses `M::default`; a custom `MutatorConstructor` can create a stateful mutator or return a construction error. An error stops the remaining pipeline.
+
+`Mutator::apply` remains the string interface. `apply_value` handles JSON values and can be overridden by custom mutators. Removing punctuation retains the original value when no change is needed; numbers, booleans and arrays are not silently converted to strings. Highlighting casts values to text. Relative-path replacement retains values when no application base path is bound; with a base path, an array subject keeps its keys and converts each immediate value, matching string replacement behavior.
+
+`using_question_helper` accepts a lending async closure. It temporarily installs the component helper, then restores the exact previous helper on success, error, panic unwinding or cancellation. An uninitialized helper is restored to the ordinary default helper. Borrowed local state can be updated inside the closure. Plain outputs fail before the closure is called. Prefer `Result` for recoverable failures.
+
+The callback receives a `QuestionStyleReference`, a short-lived view of the original style implementing `QuestionStyle` and `AsOutput`. Bind it as `async |mut style|`. This named reference makes the borrow lifetime explicit for `Send` command handlers; it does not allocate another style or copy input.

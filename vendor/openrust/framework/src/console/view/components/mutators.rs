@@ -5,11 +5,15 @@ use crate::{
     support::facades::{App, Facade as _, current_container},
 };
 use regex::Regex;
-use std::sync::LazyLock;
+use serde_json::Value;
+use std::{borrow::Cow, sync::LazyLock};
 
 /// 组件文本变换；显式方法对应可调用对象，不要求不稳定的 Fn 实现。
 pub trait Mutator: Send + Sync {
     fn apply(&self, value: &str) -> Result<String, ConsoleError>;
+    fn apply_value(&self, value: Value) -> Result<Value, ConsoleError> {
+        self.apply(&value_text(&value)).map(Value::String)
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -37,6 +41,14 @@ impl Mutator for EnsurePunctuation {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct EnsureNoPunctuation;
 impl Mutator for EnsureNoPunctuation {
+    fn apply_value(&self, value: Value) -> Result<Value, ConsoleError> {
+        if punctuated(&value_text(&value)) {
+            self.apply(&value_text(&value)).map(Value::String)
+        } else {
+            Ok(value)
+        }
+    }
+
     fn apply(&self, value: &str) -> Result<String, ConsoleError> {
         Ok(if punctuated(value) {
             &value[..value.len() - 1]
@@ -49,6 +61,25 @@ impl Mutator for EnsureNoPunctuation {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct EnsureRelativePaths;
 impl Mutator for EnsureRelativePaths {
+    fn apply_value(&self, value: Value) -> Result<Value, ConsoleError> {
+        if current_container().is_none_or(|container| !container.has("path.base")) {
+            return Ok(value);
+        }
+        let replace = |value: Value| self.apply(&value_text(&value)).map(Value::String);
+        match value {
+            Value::Array(values) => values
+                .into_iter()
+                .map(replace)
+                .collect::<Result<Vec<_>, _>>()
+                .map(Value::Array),
+            Value::Object(values) => values
+                .into_iter()
+                .map(|(key, value)| replace(value).map(|value| (key, value)))
+                .collect::<Result<_, _>>()
+                .map(Value::Object),
+            value => replace(value),
+        }
+    }
     fn apply(&self, value: &str) -> Result<String, ConsoleError> {
         let Some(container) = current_container() else {
             return Ok(value.to_owned());
@@ -63,4 +94,14 @@ impl Mutator for EnsureRelativePaths {
 }
 fn punctuated(value: &str) -> bool {
     matches!(value.as_bytes().last(), Some(b'.' | b'?' | b'!' | b':'))
+}
+
+fn value_text(value: &Value) -> Cow<'_, str> {
+    match value {
+        Value::String(text) => Cow::Borrowed(text),
+        Value::Array(_) | Value::Object(_) => Cow::Borrowed("Array"),
+        Value::Null | Value::Bool(false) => Cow::Borrowed(""),
+        Value::Bool(true) => Cow::Borrowed("1"),
+        Value::Number(_) => Cow::Owned(crate::support::input_scalars::string(value.clone())),
+    }
 }

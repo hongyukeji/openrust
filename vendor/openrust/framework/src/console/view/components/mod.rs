@@ -15,3 +15,7 @@ mod registry;
 pub use registry::{
     ComponentConstructor, ComponentContext, ComponentRegistry, RenderableComponent,
 };
+mod component;
+pub use component::{
+    Component, DefaultMutatorConstructor, MutatorConstructor, QuestionStyleReference,
+};

@@ -291,6 +291,11 @@ async fn formal_progress_example(){
     parts.append('mod '+locale.replace('-','_').lower()+'_custom_components{\n'+registry_code+registry_checks+'}\n')
 
 
+    core_code=re.search(r'```rust\n(.*?)```',text.split('{#component-data-scopes}',1)[1],re.S).group(1)
+    core_checks='use openrust::console::Output;\n'+progress_checks.replace('formal_progress_example','formal_component_data_example').replace('register_progress)', 'register_component_data)').replace('"reports:progress"','"components:data"').replace('assert!(output.stdout.contains("CSV,JSON,HTML:11"));assert_eq!(output.stdout.matches("100%").count(),2);assert!(output.stdout.contains("build"));','assert!(output.stdout.contains(r#""active":true"#));assert!(output.stdout.contains("Guest"));assert!(output.stdout.contains("Calls:1"));')
+    parts.append('mod '+locale.replace('-','_').lower()+'_component_data{\n'+core_code+core_checks+'}\n')
+
+
 
 
 

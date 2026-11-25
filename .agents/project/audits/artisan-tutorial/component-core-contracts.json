@@ -1,0 +1,34 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "status": "verified_component_owned_construction_mutate_and_question_scope",
+  "native": [
+    "Component::new/from_context/get_output/question_style/AsOutput",
+    "Component::mutate/using_question_helper",
+    "MutatorConstructor::make",
+    "DefaultMutatorConstructor::new/default",
+    "Mutator::apply_value",
+    "QuestionStyleReference::ask_question/get_question_helper/set_question_helper/QuestionStyle/AsOutput"
+  ],
+  "source_oracles": {
+    "component-core-oracle.json": 288,
+    "component-scope-oracle.json": 12
+  },
+  "runtime": {
+    "real_artisan_processes": 2,
+    "real_http_requests": 13,
+    "pty_scenarios": 3,
+    "docs_consumers": 150,
+    "browser_checks": 12
+  },
+  "adaptations": [
+    "Rust以拥有借用Context的Component组合替代抽象继承；每次管线为每个构造器make独立Mutator对象，再处理顶层各值，不复用跨调用可变对象。",
+    "数据沿既有JSON边界，保留列表位置/关联键；空管线原值透传。NoPunctuation无变化保留类型，RelativePaths按是否存在根路径保留原值或对数组直接成员执行字符串替换，非递归扁平化。字符串apply旧行为不变。",
+    "using_question_helper使用AsyncFnOnce及具名短期QuestionStyleReference，支持借用局部状态并通过Send实际命令消费；只有借用包装，不分配新样式/复制输入。原RAII Guard在闭包外持有，成功/错误/panic展开/取消均恢复原Helper Arc，未初始化时恢复默认。",
+    "原型仅用dyn QuestionStyle会在真实Box<ConsoleFuture>出现AsyncFnOnce不够通用错误，显式for绑定仍失败；具名借用类型后真实Send命令/HTTP及三语消费者通过，没有把编译器问题包装为缺失功能限制。",
+    "JSON不包含任意PHP对象/可执行类名文本；变换器为正式编译构造器与命名类型，可重写apply_value支持值级行为。"
+  ],
+  "remaining": [
+    "Component::compile/renderView及可覆盖模板/渲染策略尚未实现；不能以具体组件或mutate/usingQuestionHelper存在宣称抽象基类完整。",
+    "Command容器Factory构造/覆盖和生命周期、Helper/HelperSet/Time其余继承SDK及Artisan其他锚点继续。"
+  ]
+}

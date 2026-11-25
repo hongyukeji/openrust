@@ -698,3 +698,16 @@ Root Application初始绑定独立Registry，Provider在普通register期间注�
 真实Artisan3进程分别验证退出0/1/0和恢复输出；两个实际HTTP Kernel服务26请求，含各自500及各12并发恢复，全部owner与index正确。内置静态/动态Factory和CommandIo外围回归一并通过。HTTP夹具首次闭包未形成for<'a>函数约束，经现有Handler blanket impl源码核对后增加显式高阶fn类型，无路由行为修改；不是缺失公开路由能力。正式三语教程直接提取147消费者曾暴露OutputMessages只接受&str而不能直接接&String，补零复制From<&String>后保留原示例并全部实跑通过，不以改.as_str掩盖易用性缺口。40框架父消费者及147文档消费者、workspace/all-targets严格Clippy、格式、三语构建和12浏览器通过，见accepted-factory-registry.json。日志/源码/共享增量缓存保留，无本批数据库/容器/长期服务或独立PTY二进制；共享守卫期间安全清理profile的65,326,354,432字节记录仅为观察到的公共事件，不冒认本批触发。
 
 应用注册不等于容器覆盖Factory本身：Command.run的容器构造/生命周期仍保持待实现。抽象Component的compile/renderView/mutate/usingQuestionHelper、Helper/HelperSet/Time剩余SDK继续，不将构造和自定义render当作抽象基类已实现。仅核定本地提交，不推送。
+
+
+## 49. Component所属构造、数据变换与问答作用域（2026-11-26）
+
+正式Component::new/from_context/get_output/question_style/AsOutput接通，借用Context组合复用原输出，不伪造抽象继承。所属mutate和using_question_helper有实际类型与消费者，不能再由39/44簇底层变换器和Guard存在代替。MutatorConstructor/DefaultMutatorConstructor每轮为每个描述符构造一次对象，对顶层数据各值依序处理；Source自定义Spy类与原生有状态对象证明每轮状态重置、一个轮次按值递增、空数组仍构造、错误后不再构造后续项。复用原4变换器及QuestionHelperScope，不增加依赖或平行读取机制；旧版无该组件基类实现可复用。
+
+固定Component::mutate实际288场景覆盖字符串/标量/列表/关联/嵌套数据、9种管线（含空管线）和根路径有无，发现原型统一字符串化不保留NoPunctuation原值，且str_replace数组行为不能扁平化。补Mutator::apply_value默认和两类精确覆盖：无须去标点保留布尔/数字/数组，未绑定根路径原值透传，存在根路径时数组保留键并替换直接成员。原apply字符串方法及已验具体组件行为不改；沿既有JSON边界，不声明PHP任意对象图。已用全部288场景逐值/键/构造次数实测通过。
+
+Source所属usingQuestionHelper另用实际子类暴露方法的12场景核对未初始化/原帮助器、前后异常、ANSI、内外问题/输入顺序/提示/换行和finally身份。原生同一原Arc恢复，错误/取消/同步捕获async panic均通过；取消后原输入继续下一问，普通流在回调前失败。初版AsyncFnOnce直接借dyn QuestionStyle仅库可编译，实际Send RenderableComponent失败；显式高阶生命周期绑定仍失败。用QuestionStyleReference将对象及借用生命周期封装为同一短期引用后，保留闭包借用本地计数能力，实际Send命令/HTTP通过；无新样式、输入/帮助器复制或Box回调，不以语言限制推掉入口。初次包装生成时多余括号已修复，失败日志保留，没有抑制检查。
+
+原生API通过注册的CoreConstructor/CoreRenderer组合Component::from_context调用，而非只直调底层方法。真实Artisan2进程核对成功0/错误1且传播前RESTORED；HTTP13请求含500及12并发恢复；真实PTY3例Unicode/默认/Ctrl+C130，全部帮助器、termios/fd恢复。Src Scalar原型和实际源码不同之处均修复，混用legacy ask的Option/String和原始IO错误转换的夹具也已修正；不降低真实公开消费者。150份正式三语直接提取运行、31框架父消费者(驱动按父进程运行)、workspace/all-targets严格Clippy、格式、三语构建和12浏览器通过；日志见accepted-component-core.json。32GB中断保留原失败/中断记录，守卫协作持锁清理后继续；本批单份PTY二进制验后核SHA回收，保留日志/源码/共享缓存，无数据库/长期服务。
+
+本节未实现compile/renderView或其扩展，不用Data/Question SDK冒称完整Component基类。继续这些方法及Factory容器构造/覆盖，Helper/HelperSet/Time其余继承与Artisan剩余锚点开放。仅核定本地提交，不推送。

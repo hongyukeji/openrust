@@ -70,7 +70,16 @@
         "mutate",
         "usingQuestionHelper"
       ],
-      "status": "pending_native_type_and_actual_consumer"
+      "status": "partial_owned_constructor_mutate_question_scope_verified_compile_render_view_pending",
+      "native": "console::view::components::Component",
+      "evidence": "component-core-contracts.json",
+      "owned_bindings": {
+        "__construct": "verified_new/from_context",
+        "mutate": "verified_named_constructors_and_value_pipeline",
+        "usingQuestionHelper": "verified_lending_scope_original_identity_and_finally",
+        "compile": "pending",
+        "renderView": "pending"
+      }
     },
     {
       "source_type": "Confirm",
@@ -182,7 +191,7 @@
       "evidence": "line-components-contracts.json"
     }
   ],
-  "inheritance": "All fourteen concrete component constructors/render entries verified within recorded native adaptations; abstract Component owned extension/compile/renderView/mutate/usingQuestionHelper, Factory/CommandIo and general inherited SDK remain open.",
+  "inheritance": "All fourteen concrete components, typed/dynamic/custom construction and Component owned mutation/question scope verified in recorded native scope; abstract compile/renderView extensions, container Factory override and general inherited SDK remain open.",
   "mutators": "component-mutators-contracts.json",
   "task_result": {
     "status": "verified_task_result_type_and_consumers",
@@ -209,5 +218,13 @@
   "custom_factory": {
     "status": "verified_compiled_custom_component_construction_registry_and_application_ownership",
     "evidence": "factory-registry-contracts.json"
+  },
+  "component_core": {
+    "status": "verified_component_owned_construction_mutate_and_question_scope",
+    "evidence": "component-core-contracts.json"
+  },
+  "mutator_value_api": {
+    "status": "verified_source_json_value_type_and_key_preservation",
+    "evidence": "component-core-contracts.json"
   }
 }

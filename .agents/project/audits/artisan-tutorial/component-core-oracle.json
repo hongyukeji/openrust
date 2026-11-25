@@ -1,0 +1,3860 @@
+[
+  {
+    "has_base": false,
+    "data": "Hello",
+    "chain": [],
+    "answer": "Hello",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "Hello",
+    "chain": [
+      "EnsurePunctuation"
+    ],
+    "answer": "Hello.",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "Hello",
+    "chain": [
+      "EnsureNoPunctuation"
+    ],
+    "answer": "Hello",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "Hello",
+    "chain": [
+      "EnsureDynamicContentIsHighlighted"
+    ],
+    "answer": "Hello",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "Hello",
+    "chain": [
+      "EnsureRelativePaths"
+    ],
+    "answer": "Hello",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "Hello",
+    "chain": [
+      "EnsureDynamicContentIsHighlighted",
+      "EnsureNoPunctuation",
+      "EnsureRelativePaths"
+    ],
+    "answer": "Hello",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "Hello",
+    "chain": [
+      "EnsureNoPunctuation",
+      "EnsurePunctuation"
+    ],
+    "answer": "Hello.",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "Hello",
+    "chain": [
+      "Spy",
+      "Spy"
+    ],
+    "answer": "1:1:Hello",
+    "error": null,
+    "constructed": 2,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "Hello",
+    "chain": [
+      "Spy",
+      "Fail",
+      "Spy"
+    ],
+    "answer": null,
+    "error": "RuntimeException",
+    "constructed": 1,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "Created [item].",
+    "chain": [],
+    "answer": "Created [item].",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "Created [item].",
+    "chain": [
+      "EnsurePunctuation"
+    ],
+    "answer": "Created [item].",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "Created [item].",
+    "chain": [
+      "EnsureNoPunctuation"
+    ],
+    "answer": "Created [item]",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "Created [item].",
+    "chain": [
+      "EnsureDynamicContentIsHighlighted"
+    ],
+    "answer": "Created <options=bold>[item]</>.",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "Created [item].",
+    "chain": [
+      "EnsureRelativePaths"
+    ],
+    "answer": "Created [item].",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "Created [item].",
+    "chain": [
+      "EnsureDynamicContentIsHighlighted",
+      "EnsureNoPunctuation",
+      "EnsureRelativePaths"
+    ],
+    "answer": "Created <options=bold>[item]</>",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "Created [item].",
+    "chain": [
+      "EnsureNoPunctuation",
+      "EnsurePunctuation"
+    ],
+    "answer": "Created [item].",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "Created [item].",
+    "chain": [
+      "Spy",
+      "Spy"
+    ],
+    "answer": "1:1:Created [item].",
+    "error": null,
+    "constructed": 2,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "Created [item].",
+    "chain": [
+      "Spy",
+      "Fail",
+      "Spy"
+    ],
+    "answer": null,
+    "error": "RuntimeException",
+    "constructed": 1,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "__BASE__/file",
+    "chain": [],
+    "answer": "__BASE__/file",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "__BASE__/file",
+    "chain": [
+      "EnsurePunctuation"
+    ],
+    "answer": "__BASE__/file.",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "__BASE__/file",
+    "chain": [
+      "EnsureNoPunctuation"
+    ],
+    "answer": "__BASE__/file",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "__BASE__/file",
+    "chain": [
+      "EnsureDynamicContentIsHighlighted"
+    ],
+    "answer": "__BASE__/file",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "__BASE__/file",
+    "chain": [
+      "EnsureRelativePaths"
+    ],
+    "answer": "__BASE__/file",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "__BASE__/file",
+    "chain": [
+      "EnsureDynamicContentIsHighlighted",
+      "EnsureNoPunctuation",
+      "EnsureRelativePaths"
+    ],
+    "answer": "__BASE__/file",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "__BASE__/file",
+    "chain": [
+      "EnsureNoPunctuation",
+      "EnsurePunctuation"
+    ],
+    "answer": "__BASE__/file.",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "__BASE__/file",
+    "chain": [
+      "Spy",
+      "Spy"
+    ],
+    "answer": "1:1:__BASE__/file",
+    "error": null,
+    "constructed": 2,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "__BASE__/file",
+    "chain": [
+      "Spy",
+      "Fail",
+      "Spy"
+    ],
+    "answer": null,
+    "error": "RuntimeException",
+    "constructed": 1,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "__BASE__/x __BASE__/y",
+    "chain": [],
+    "answer": "__BASE__/x __BASE__/y",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "__BASE__/x __BASE__/y",
+    "chain": [
+      "EnsurePunctuation"
+    ],
+    "answer": "__BASE__/x __BASE__/y.",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "__BASE__/x __BASE__/y",
+    "chain": [
+      "EnsureNoPunctuation"
+    ],
+    "answer": "__BASE__/x __BASE__/y",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "__BASE__/x __BASE__/y",
+    "chain": [
+      "EnsureDynamicContentIsHighlighted"
+    ],
+    "answer": "__BASE__/x __BASE__/y",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "__BASE__/x __BASE__/y",
+    "chain": [
+      "EnsureRelativePaths"
+    ],
+    "answer": "__BASE__/x __BASE__/y",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "__BASE__/x __BASE__/y",
+    "chain": [
+      "EnsureDynamicContentIsHighlighted",
+      "EnsureNoPunctuation",
+      "EnsureRelativePaths"
+    ],
+    "answer": "__BASE__/x __BASE__/y",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "__BASE__/x __BASE__/y",
+    "chain": [
+      "EnsureNoPunctuation",
+      "EnsurePunctuation"
+    ],
+    "answer": "__BASE__/x __BASE__/y.",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "__BASE__/x __BASE__/y",
+    "chain": [
+      "Spy",
+      "Spy"
+    ],
+    "answer": "1:1:__BASE__/x __BASE__/y",
+    "error": null,
+    "constructed": 2,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "__BASE__/x __BASE__/y",
+    "chain": [
+      "Spy",
+      "Fail",
+      "Spy"
+    ],
+    "answer": null,
+    "error": "RuntimeException",
+    "constructed": 1,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "",
+    "chain": [],
+    "answer": "",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "",
+    "chain": [
+      "EnsurePunctuation"
+    ],
+    "answer": ".",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "",
+    "chain": [
+      "EnsureNoPunctuation"
+    ],
+    "answer": "",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "",
+    "chain": [
+      "EnsureDynamicContentIsHighlighted"
+    ],
+    "answer": "",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "",
+    "chain": [
+      "EnsureRelativePaths"
+    ],
+    "answer": "",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "",
+    "chain": [
+      "EnsureDynamicContentIsHighlighted",
+      "EnsureNoPunctuation",
+      "EnsureRelativePaths"
+    ],
+    "answer": "",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "",
+    "chain": [
+      "EnsureNoPunctuation",
+      "EnsurePunctuation"
+    ],
+    "answer": ".",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "",
+    "chain": [
+      "Spy",
+      "Spy"
+    ],
+    "answer": "1:1:",
+    "error": null,
+    "constructed": 2,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": "",
+    "chain": [
+      "Spy",
+      "Fail",
+      "Spy"
+    ],
+    "answer": null,
+    "error": "RuntimeException",
+    "constructed": 1,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": null,
+    "chain": [],
+    "answer": null,
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": null,
+    "chain": [
+      "EnsurePunctuation"
+    ],
+    "answer": ".",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": null,
+    "chain": [
+      "EnsureNoPunctuation"
+    ],
+    "answer": null,
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": null,
+    "chain": [
+      "EnsureDynamicContentIsHighlighted"
+    ],
+    "answer": "",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": null,
+    "chain": [
+      "EnsureRelativePaths"
+    ],
+    "answer": null,
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": null,
+    "chain": [
+      "EnsureDynamicContentIsHighlighted",
+      "EnsureNoPunctuation",
+      "EnsureRelativePaths"
+    ],
+    "answer": "",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": null,
+    "chain": [
+      "EnsureNoPunctuation",
+      "EnsurePunctuation"
+    ],
+    "answer": ".",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": null,
+    "chain": [
+      "Spy",
+      "Spy"
+    ],
+    "answer": "1:1:",
+    "error": null,
+    "constructed": 2,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": null,
+    "chain": [
+      "Spy",
+      "Fail",
+      "Spy"
+    ],
+    "answer": null,
+    "error": "RuntimeException",
+    "constructed": 1,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": false,
+    "chain": [],
+    "answer": false,
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": false,
+    "chain": [
+      "EnsurePunctuation"
+    ],
+    "answer": ".",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": false,
+    "chain": [
+      "EnsureNoPunctuation"
+    ],
+    "answer": false,
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": false,
+    "chain": [
+      "EnsureDynamicContentIsHighlighted"
+    ],
+    "answer": "",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": false,
+    "chain": [
+      "EnsureRelativePaths"
+    ],
+    "answer": false,
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": false,
+    "chain": [
+      "EnsureDynamicContentIsHighlighted",
+      "EnsureNoPunctuation",
+      "EnsureRelativePaths"
+    ],
+    "answer": "",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": false,
+    "chain": [
+      "EnsureNoPunctuation",
+      "EnsurePunctuation"
+    ],
+    "answer": ".",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": false,
+    "chain": [
+      "Spy",
+      "Spy"
+    ],
+    "answer": "1:1:",
+    "error": null,
+    "constructed": 2,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": false,
+    "chain": [
+      "Spy",
+      "Fail",
+      "Spy"
+    ],
+    "answer": null,
+    "error": "RuntimeException",
+    "constructed": 1,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": true,
+    "chain": [],
+    "answer": true,
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": true,
+    "chain": [
+      "EnsurePunctuation"
+    ],
+    "answer": "1.",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": true,
+    "chain": [
+      "EnsureNoPunctuation"
+    ],
+    "answer": true,
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": true,
+    "chain": [
+      "EnsureDynamicContentIsHighlighted"
+    ],
+    "answer": "1",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": true,
+    "chain": [
+      "EnsureRelativePaths"
+    ],
+    "answer": true,
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": true,
+    "chain": [
+      "EnsureDynamicContentIsHighlighted",
+      "EnsureNoPunctuation",
+      "EnsureRelativePaths"
+    ],
+    "answer": "1",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": true,
+    "chain": [
+      "EnsureNoPunctuation",
+      "EnsurePunctuation"
+    ],
+    "answer": "1.",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": true,
+    "chain": [
+      "Spy",
+      "Spy"
+    ],
+    "answer": "1:1:1",
+    "error": null,
+    "constructed": 2,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": true,
+    "chain": [
+      "Spy",
+      "Fail",
+      "Spy"
+    ],
+    "answer": null,
+    "error": "RuntimeException",
+    "constructed": 1,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": 0,
+    "chain": [],
+    "answer": 0,
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": 0,
+    "chain": [
+      "EnsurePunctuation"
+    ],
+    "answer": "0.",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": 0,
+    "chain": [
+      "EnsureNoPunctuation"
+    ],
+    "answer": 0,
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": 0,
+    "chain": [
+      "EnsureDynamicContentIsHighlighted"
+    ],
+    "answer": "0",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": 0,
+    "chain": [
+      "EnsureRelativePaths"
+    ],
+    "answer": 0,
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": 0,
+    "chain": [
+      "EnsureDynamicContentIsHighlighted",
+      "EnsureNoPunctuation",
+      "EnsureRelativePaths"
+    ],
+    "answer": "0",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": 0,
+    "chain": [
+      "EnsureNoPunctuation",
+      "EnsurePunctuation"
+    ],
+    "answer": "0.",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": 0,
+    "chain": [
+      "Spy",
+      "Spy"
+    ],
+    "answer": "1:1:0",
+    "error": null,
+    "constructed": 2,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": 0,
+    "chain": [
+      "Spy",
+      "Fail",
+      "Spy"
+    ],
+    "answer": null,
+    "error": "RuntimeException",
+    "constructed": 1,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": 123,
+    "chain": [],
+    "answer": 123,
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": 123,
+    "chain": [
+      "EnsurePunctuation"
+    ],
+    "answer": "123.",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": 123,
+    "chain": [
+      "EnsureNoPunctuation"
+    ],
+    "answer": 123,
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": 123,
+    "chain": [
+      "EnsureDynamicContentIsHighlighted"
+    ],
+    "answer": "123",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": 123,
+    "chain": [
+      "EnsureRelativePaths"
+    ],
+    "answer": 123,
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": 123,
+    "chain": [
+      "EnsureDynamicContentIsHighlighted",
+      "EnsureNoPunctuation",
+      "EnsureRelativePaths"
+    ],
+    "answer": "123",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": 123,
+    "chain": [
+      "EnsureNoPunctuation",
+      "EnsurePunctuation"
+    ],
+    "answer": "123.",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": 123,
+    "chain": [
+      "Spy",
+      "Spy"
+    ],
+    "answer": "1:1:123",
+    "error": null,
+    "constructed": 2,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": 123,
+    "chain": [
+      "Spy",
+      "Fail",
+      "Spy"
+    ],
+    "answer": null,
+    "error": "RuntimeException",
+    "constructed": 1,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": 1.25,
+    "chain": [],
+    "answer": 1.25,
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": 1.25,
+    "chain": [
+      "EnsurePunctuation"
+    ],
+    "answer": "1.25.",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": 1.25,
+    "chain": [
+      "EnsureNoPunctuation"
+    ],
+    "answer": 1.25,
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": 1.25,
+    "chain": [
+      "EnsureDynamicContentIsHighlighted"
+    ],
+    "answer": "1.25",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": 1.25,
+    "chain": [
+      "EnsureRelativePaths"
+    ],
+    "answer": 1.25,
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": 1.25,
+    "chain": [
+      "EnsureDynamicContentIsHighlighted",
+      "EnsureNoPunctuation",
+      "EnsureRelativePaths"
+    ],
+    "answer": "1.25",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": 1.25,
+    "chain": [
+      "EnsureNoPunctuation",
+      "EnsurePunctuation"
+    ],
+    "answer": "1.25.",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": 1.25,
+    "chain": [
+      "Spy",
+      "Spy"
+    ],
+    "answer": "1:1:1.25",
+    "error": null,
+    "constructed": 2,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": 1.25,
+    "chain": [
+      "Spy",
+      "Fail",
+      "Spy"
+    ],
+    "answer": null,
+    "error": "RuntimeException",
+    "constructed": 1,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": [],
+    "chain": [],
+    "answer": [],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": [],
+    "chain": [
+      "EnsurePunctuation"
+    ],
+    "answer": [],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": [],
+    "chain": [
+      "EnsureNoPunctuation"
+    ],
+    "answer": [],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": [],
+    "chain": [
+      "EnsureDynamicContentIsHighlighted"
+    ],
+    "answer": [],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": [],
+    "chain": [
+      "EnsureRelativePaths"
+    ],
+    "answer": [],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": [],
+    "chain": [
+      "EnsureDynamicContentIsHighlighted",
+      "EnsureNoPunctuation",
+      "EnsureRelativePaths"
+    ],
+    "answer": [],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": [],
+    "chain": [
+      "EnsureNoPunctuation",
+      "EnsurePunctuation"
+    ],
+    "answer": [],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": [],
+    "chain": [
+      "Spy",
+      "Spy"
+    ],
+    "answer": [],
+    "error": null,
+    "constructed": 2,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": [],
+    "chain": [
+      "Spy",
+      "Fail",
+      "Spy"
+    ],
+    "answer": null,
+    "error": "RuntimeException",
+    "constructed": 1,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": [
+      "One.",
+      "Two!"
+    ],
+    "chain": [],
+    "answer": [
+      "One.",
+      "Two!"
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": [
+      "One.",
+      "Two!"
+    ],
+    "chain": [
+      "EnsurePunctuation"
+    ],
+    "answer": [
+      "One.",
+      "Two!"
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": [
+      "One.",
+      "Two!"
+    ],
+    "chain": [
+      "EnsureNoPunctuation"
+    ],
+    "answer": [
+      "One",
+      "Two"
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": [
+      "One.",
+      "Two!"
+    ],
+    "chain": [
+      "EnsureDynamicContentIsHighlighted"
+    ],
+    "answer": [
+      "One.",
+      "Two!"
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": [
+      "One.",
+      "Two!"
+    ],
+    "chain": [
+      "EnsureRelativePaths"
+    ],
+    "answer": [
+      "One.",
+      "Two!"
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": [
+      "One.",
+      "Two!"
+    ],
+    "chain": [
+      "EnsureDynamicContentIsHighlighted",
+      "EnsureNoPunctuation",
+      "EnsureRelativePaths"
+    ],
+    "answer": [
+      "One",
+      "Two"
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": [
+      "One.",
+      "Two!"
+    ],
+    "chain": [
+      "EnsureNoPunctuation",
+      "EnsurePunctuation"
+    ],
+    "answer": [
+      "One.",
+      "Two."
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": [
+      "One.",
+      "Two!"
+    ],
+    "chain": [
+      "Spy",
+      "Spy"
+    ],
+    "answer": [
+      "1:1:One.",
+      "2:2:Two!"
+    ],
+    "error": null,
+    "constructed": 2,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": [
+      "One.",
+      "Two!"
+    ],
+    "chain": [
+      "Spy",
+      "Fail",
+      "Spy"
+    ],
+    "answer": null,
+    "error": "RuntimeException",
+    "constructed": 1,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": {
+      "first": "One",
+      "second": "Two."
+    },
+    "chain": [],
+    "answer": {
+      "first": "One",
+      "second": "Two."
+    },
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": {
+      "first": "One",
+      "second": "Two."
+    },
+    "chain": [
+      "EnsurePunctuation"
+    ],
+    "answer": {
+      "first": "One.",
+      "second": "Two."
+    },
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": {
+      "first": "One",
+      "second": "Two."
+    },
+    "chain": [
+      "EnsureNoPunctuation"
+    ],
+    "answer": {
+      "first": "One",
+      "second": "Two"
+    },
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": {
+      "first": "One",
+      "second": "Two."
+    },
+    "chain": [
+      "EnsureDynamicContentIsHighlighted"
+    ],
+    "answer": {
+      "first": "One",
+      "second": "Two."
+    },
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": {
+      "first": "One",
+      "second": "Two."
+    },
+    "chain": [
+      "EnsureRelativePaths"
+    ],
+    "answer": {
+      "first": "One",
+      "second": "Two."
+    },
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": {
+      "first": "One",
+      "second": "Two."
+    },
+    "chain": [
+      "EnsureDynamicContentIsHighlighted",
+      "EnsureNoPunctuation",
+      "EnsureRelativePaths"
+    ],
+    "answer": {
+      "first": "One",
+      "second": "Two"
+    },
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": {
+      "first": "One",
+      "second": "Two."
+    },
+    "chain": [
+      "EnsureNoPunctuation",
+      "EnsurePunctuation"
+    ],
+    "answer": {
+      "first": "One.",
+      "second": "Two."
+    },
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": {
+      "first": "One",
+      "second": "Two."
+    },
+    "chain": [
+      "Spy",
+      "Spy"
+    ],
+    "answer": {
+      "first": "1:1:One",
+      "second": "2:2:Two."
+    },
+    "error": null,
+    "constructed": 2,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": {
+      "first": "One",
+      "second": "Two."
+    },
+    "chain": [
+      "Spy",
+      "Fail",
+      "Spy"
+    ],
+    "answer": null,
+    "error": "RuntimeException",
+    "constructed": 1,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": [
+      1,
+      null,
+      false
+    ],
+    "chain": [],
+    "answer": [
+      1,
+      null,
+      false
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": [
+      1,
+      null,
+      false
+    ],
+    "chain": [
+      "EnsurePunctuation"
+    ],
+    "answer": [
+      "1.",
+      ".",
+      "."
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": [
+      1,
+      null,
+      false
+    ],
+    "chain": [
+      "EnsureNoPunctuation"
+    ],
+    "answer": [
+      1,
+      null,
+      false
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": [
+      1,
+      null,
+      false
+    ],
+    "chain": [
+      "EnsureDynamicContentIsHighlighted"
+    ],
+    "answer": [
+      "1",
+      "",
+      ""
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": [
+      1,
+      null,
+      false
+    ],
+    "chain": [
+      "EnsureRelativePaths"
+    ],
+    "answer": [
+      1,
+      null,
+      false
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": [
+      1,
+      null,
+      false
+    ],
+    "chain": [
+      "EnsureDynamicContentIsHighlighted",
+      "EnsureNoPunctuation",
+      "EnsureRelativePaths"
+    ],
+    "answer": [
+      "1",
+      "",
+      ""
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": [
+      1,
+      null,
+      false
+    ],
+    "chain": [
+      "EnsureNoPunctuation",
+      "EnsurePunctuation"
+    ],
+    "answer": [
+      "1.",
+      ".",
+      "."
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": [
+      1,
+      null,
+      false
+    ],
+    "chain": [
+      "Spy",
+      "Spy"
+    ],
+    "answer": [
+      "1:1:1",
+      "2:2:",
+      "3:3:"
+    ],
+    "error": null,
+    "constructed": 2,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": [
+      1,
+      null,
+      false
+    ],
+    "chain": [
+      "Spy",
+      "Fail",
+      "Spy"
+    ],
+    "answer": null,
+    "error": "RuntimeException",
+    "constructed": 1,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": [
+      [
+        1,
+        2
+      ],
+      {
+        "x": "value"
+      }
+    ],
+    "chain": [],
+    "answer": [
+      [
+        1,
+        2
+      ],
+      {
+        "x": "value"
+      }
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": [
+      [
+        1,
+        2
+      ],
+      {
+        "x": "value"
+      }
+    ],
+    "chain": [
+      "EnsurePunctuation"
+    ],
+    "answer": [
+      "Array.",
+      "Array."
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": [
+      [
+        1,
+        2
+      ],
+      {
+        "x": "value"
+      }
+    ],
+    "chain": [
+      "EnsureNoPunctuation"
+    ],
+    "answer": [
+      [
+        1,
+        2
+      ],
+      {
+        "x": "value"
+      }
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": [
+      [
+        1,
+        2
+      ],
+      {
+        "x": "value"
+      }
+    ],
+    "chain": [
+      "EnsureDynamicContentIsHighlighted"
+    ],
+    "answer": [
+      "Array",
+      "Array"
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": [
+      [
+        1,
+        2
+      ],
+      {
+        "x": "value"
+      }
+    ],
+    "chain": [
+      "EnsureRelativePaths"
+    ],
+    "answer": [
+      [
+        1,
+        2
+      ],
+      {
+        "x": "value"
+      }
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": [
+      [
+        1,
+        2
+      ],
+      {
+        "x": "value"
+      }
+    ],
+    "chain": [
+      "EnsureDynamicContentIsHighlighted",
+      "EnsureNoPunctuation",
+      "EnsureRelativePaths"
+    ],
+    "answer": [
+      "Array",
+      "Array"
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": [
+      [
+        1,
+        2
+      ],
+      {
+        "x": "value"
+      }
+    ],
+    "chain": [
+      "EnsureNoPunctuation",
+      "EnsurePunctuation"
+    ],
+    "answer": [
+      "Array.",
+      "Array."
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": [
+      [
+        1,
+        2
+      ],
+      {
+        "x": "value"
+      }
+    ],
+    "chain": [
+      "Spy",
+      "Spy"
+    ],
+    "answer": [
+      "1:1:Array",
+      "2:2:Array"
+    ],
+    "error": null,
+    "constructed": 2,
+    "output": ""
+  },
+  {
+    "has_base": false,
+    "data": [
+      [
+        1,
+        2
+      ],
+      {
+        "x": "value"
+      }
+    ],
+    "chain": [
+      "Spy",
+      "Fail",
+      "Spy"
+    ],
+    "answer": null,
+    "error": "RuntimeException",
+    "constructed": 1,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "Hello",
+    "chain": [],
+    "answer": "Hello",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "Hello",
+    "chain": [
+      "EnsurePunctuation"
+    ],
+    "answer": "Hello.",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "Hello",
+    "chain": [
+      "EnsureNoPunctuation"
+    ],
+    "answer": "Hello",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "Hello",
+    "chain": [
+      "EnsureDynamicContentIsHighlighted"
+    ],
+    "answer": "Hello",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "Hello",
+    "chain": [
+      "EnsureRelativePaths"
+    ],
+    "answer": "Hello",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "Hello",
+    "chain": [
+      "EnsureDynamicContentIsHighlighted",
+      "EnsureNoPunctuation",
+      "EnsureRelativePaths"
+    ],
+    "answer": "Hello",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "Hello",
+    "chain": [
+      "EnsureNoPunctuation",
+      "EnsurePunctuation"
+    ],
+    "answer": "Hello.",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "Hello",
+    "chain": [
+      "Spy",
+      "Spy"
+    ],
+    "answer": "1:1:Hello",
+    "error": null,
+    "constructed": 2,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "Hello",
+    "chain": [
+      "Spy",
+      "Fail",
+      "Spy"
+    ],
+    "answer": null,
+    "error": "RuntimeException",
+    "constructed": 1,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "Created [item].",
+    "chain": [],
+    "answer": "Created [item].",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "Created [item].",
+    "chain": [
+      "EnsurePunctuation"
+    ],
+    "answer": "Created [item].",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "Created [item].",
+    "chain": [
+      "EnsureNoPunctuation"
+    ],
+    "answer": "Created [item]",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "Created [item].",
+    "chain": [
+      "EnsureDynamicContentIsHighlighted"
+    ],
+    "answer": "Created <options=bold>[item]</>.",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "Created [item].",
+    "chain": [
+      "EnsureRelativePaths"
+    ],
+    "answer": "Created [item].",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "Created [item].",
+    "chain": [
+      "EnsureDynamicContentIsHighlighted",
+      "EnsureNoPunctuation",
+      "EnsureRelativePaths"
+    ],
+    "answer": "Created <options=bold>[item]</>",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "Created [item].",
+    "chain": [
+      "EnsureNoPunctuation",
+      "EnsurePunctuation"
+    ],
+    "answer": "Created [item].",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "Created [item].",
+    "chain": [
+      "Spy",
+      "Spy"
+    ],
+    "answer": "1:1:Created [item].",
+    "error": null,
+    "constructed": 2,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "Created [item].",
+    "chain": [
+      "Spy",
+      "Fail",
+      "Spy"
+    ],
+    "answer": null,
+    "error": "RuntimeException",
+    "constructed": 1,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "__BASE__/file",
+    "chain": [],
+    "answer": "__BASE__/file",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "__BASE__/file",
+    "chain": [
+      "EnsurePunctuation"
+    ],
+    "answer": "__BASE__/file.",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "__BASE__/file",
+    "chain": [
+      "EnsureNoPunctuation"
+    ],
+    "answer": "__BASE__/file",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "__BASE__/file",
+    "chain": [
+      "EnsureDynamicContentIsHighlighted"
+    ],
+    "answer": "__BASE__/file",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "__BASE__/file",
+    "chain": [
+      "EnsureRelativePaths"
+    ],
+    "answer": "file",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "__BASE__/file",
+    "chain": [
+      "EnsureDynamicContentIsHighlighted",
+      "EnsureNoPunctuation",
+      "EnsureRelativePaths"
+    ],
+    "answer": "file",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "__BASE__/file",
+    "chain": [
+      "EnsureNoPunctuation",
+      "EnsurePunctuation"
+    ],
+    "answer": "__BASE__/file.",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "__BASE__/file",
+    "chain": [
+      "Spy",
+      "Spy"
+    ],
+    "answer": "1:1:__BASE__/file",
+    "error": null,
+    "constructed": 2,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "__BASE__/file",
+    "chain": [
+      "Spy",
+      "Fail",
+      "Spy"
+    ],
+    "answer": null,
+    "error": "RuntimeException",
+    "constructed": 1,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "__BASE__/x __BASE__/y",
+    "chain": [],
+    "answer": "__BASE__/x __BASE__/y",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "__BASE__/x __BASE__/y",
+    "chain": [
+      "EnsurePunctuation"
+    ],
+    "answer": "__BASE__/x __BASE__/y.",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "__BASE__/x __BASE__/y",
+    "chain": [
+      "EnsureNoPunctuation"
+    ],
+    "answer": "__BASE__/x __BASE__/y",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "__BASE__/x __BASE__/y",
+    "chain": [
+      "EnsureDynamicContentIsHighlighted"
+    ],
+    "answer": "__BASE__/x __BASE__/y",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "__BASE__/x __BASE__/y",
+    "chain": [
+      "EnsureRelativePaths"
+    ],
+    "answer": "x y",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "__BASE__/x __BASE__/y",
+    "chain": [
+      "EnsureDynamicContentIsHighlighted",
+      "EnsureNoPunctuation",
+      "EnsureRelativePaths"
+    ],
+    "answer": "x y",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "__BASE__/x __BASE__/y",
+    "chain": [
+      "EnsureNoPunctuation",
+      "EnsurePunctuation"
+    ],
+    "answer": "__BASE__/x __BASE__/y.",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "__BASE__/x __BASE__/y",
+    "chain": [
+      "Spy",
+      "Spy"
+    ],
+    "answer": "1:1:__BASE__/x __BASE__/y",
+    "error": null,
+    "constructed": 2,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "__BASE__/x __BASE__/y",
+    "chain": [
+      "Spy",
+      "Fail",
+      "Spy"
+    ],
+    "answer": null,
+    "error": "RuntimeException",
+    "constructed": 1,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "",
+    "chain": [],
+    "answer": "",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "",
+    "chain": [
+      "EnsurePunctuation"
+    ],
+    "answer": ".",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "",
+    "chain": [
+      "EnsureNoPunctuation"
+    ],
+    "answer": "",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "",
+    "chain": [
+      "EnsureDynamicContentIsHighlighted"
+    ],
+    "answer": "",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "",
+    "chain": [
+      "EnsureRelativePaths"
+    ],
+    "answer": "",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "",
+    "chain": [
+      "EnsureDynamicContentIsHighlighted",
+      "EnsureNoPunctuation",
+      "EnsureRelativePaths"
+    ],
+    "answer": "",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "",
+    "chain": [
+      "EnsureNoPunctuation",
+      "EnsurePunctuation"
+    ],
+    "answer": ".",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "",
+    "chain": [
+      "Spy",
+      "Spy"
+    ],
+    "answer": "1:1:",
+    "error": null,
+    "constructed": 2,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": "",
+    "chain": [
+      "Spy",
+      "Fail",
+      "Spy"
+    ],
+    "answer": null,
+    "error": "RuntimeException",
+    "constructed": 1,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": null,
+    "chain": [],
+    "answer": null,
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": null,
+    "chain": [
+      "EnsurePunctuation"
+    ],
+    "answer": ".",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": null,
+    "chain": [
+      "EnsureNoPunctuation"
+    ],
+    "answer": null,
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": null,
+    "chain": [
+      "EnsureDynamicContentIsHighlighted"
+    ],
+    "answer": "",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": null,
+    "chain": [
+      "EnsureRelativePaths"
+    ],
+    "answer": "",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": null,
+    "chain": [
+      "EnsureDynamicContentIsHighlighted",
+      "EnsureNoPunctuation",
+      "EnsureRelativePaths"
+    ],
+    "answer": "",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": null,
+    "chain": [
+      "EnsureNoPunctuation",
+      "EnsurePunctuation"
+    ],
+    "answer": ".",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": null,
+    "chain": [
+      "Spy",
+      "Spy"
+    ],
+    "answer": "1:1:",
+    "error": null,
+    "constructed": 2,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": null,
+    "chain": [
+      "Spy",
+      "Fail",
+      "Spy"
+    ],
+    "answer": null,
+    "error": "RuntimeException",
+    "constructed": 1,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": false,
+    "chain": [],
+    "answer": false,
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": false,
+    "chain": [
+      "EnsurePunctuation"
+    ],
+    "answer": ".",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": false,
+    "chain": [
+      "EnsureNoPunctuation"
+    ],
+    "answer": false,
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": false,
+    "chain": [
+      "EnsureDynamicContentIsHighlighted"
+    ],
+    "answer": "",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": false,
+    "chain": [
+      "EnsureRelativePaths"
+    ],
+    "answer": "",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": false,
+    "chain": [
+      "EnsureDynamicContentIsHighlighted",
+      "EnsureNoPunctuation",
+      "EnsureRelativePaths"
+    ],
+    "answer": "",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": false,
+    "chain": [
+      "EnsureNoPunctuation",
+      "EnsurePunctuation"
+    ],
+    "answer": ".",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": false,
+    "chain": [
+      "Spy",
+      "Spy"
+    ],
+    "answer": "1:1:",
+    "error": null,
+    "constructed": 2,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": false,
+    "chain": [
+      "Spy",
+      "Fail",
+      "Spy"
+    ],
+    "answer": null,
+    "error": "RuntimeException",
+    "constructed": 1,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": true,
+    "chain": [],
+    "answer": true,
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": true,
+    "chain": [
+      "EnsurePunctuation"
+    ],
+    "answer": "1.",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": true,
+    "chain": [
+      "EnsureNoPunctuation"
+    ],
+    "answer": true,
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": true,
+    "chain": [
+      "EnsureDynamicContentIsHighlighted"
+    ],
+    "answer": "1",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": true,
+    "chain": [
+      "EnsureRelativePaths"
+    ],
+    "answer": "1",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": true,
+    "chain": [
+      "EnsureDynamicContentIsHighlighted",
+      "EnsureNoPunctuation",
+      "EnsureRelativePaths"
+    ],
+    "answer": "1",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": true,
+    "chain": [
+      "EnsureNoPunctuation",
+      "EnsurePunctuation"
+    ],
+    "answer": "1.",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": true,
+    "chain": [
+      "Spy",
+      "Spy"
+    ],
+    "answer": "1:1:1",
+    "error": null,
+    "constructed": 2,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": true,
+    "chain": [
+      "Spy",
+      "Fail",
+      "Spy"
+    ],
+    "answer": null,
+    "error": "RuntimeException",
+    "constructed": 1,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": 0,
+    "chain": [],
+    "answer": 0,
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": 0,
+    "chain": [
+      "EnsurePunctuation"
+    ],
+    "answer": "0.",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": 0,
+    "chain": [
+      "EnsureNoPunctuation"
+    ],
+    "answer": 0,
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": 0,
+    "chain": [
+      "EnsureDynamicContentIsHighlighted"
+    ],
+    "answer": "0",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": 0,
+    "chain": [
+      "EnsureRelativePaths"
+    ],
+    "answer": "0",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": 0,
+    "chain": [
+      "EnsureDynamicContentIsHighlighted",
+      "EnsureNoPunctuation",
+      "EnsureRelativePaths"
+    ],
+    "answer": "0",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": 0,
+    "chain": [
+      "EnsureNoPunctuation",
+      "EnsurePunctuation"
+    ],
+    "answer": "0.",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": 0,
+    "chain": [
+      "Spy",
+      "Spy"
+    ],
+    "answer": "1:1:0",
+    "error": null,
+    "constructed": 2,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": 0,
+    "chain": [
+      "Spy",
+      "Fail",
+      "Spy"
+    ],
+    "answer": null,
+    "error": "RuntimeException",
+    "constructed": 1,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": 123,
+    "chain": [],
+    "answer": 123,
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": 123,
+    "chain": [
+      "EnsurePunctuation"
+    ],
+    "answer": "123.",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": 123,
+    "chain": [
+      "EnsureNoPunctuation"
+    ],
+    "answer": 123,
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": 123,
+    "chain": [
+      "EnsureDynamicContentIsHighlighted"
+    ],
+    "answer": "123",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": 123,
+    "chain": [
+      "EnsureRelativePaths"
+    ],
+    "answer": "123",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": 123,
+    "chain": [
+      "EnsureDynamicContentIsHighlighted",
+      "EnsureNoPunctuation",
+      "EnsureRelativePaths"
+    ],
+    "answer": "123",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": 123,
+    "chain": [
+      "EnsureNoPunctuation",
+      "EnsurePunctuation"
+    ],
+    "answer": "123.",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": 123,
+    "chain": [
+      "Spy",
+      "Spy"
+    ],
+    "answer": "1:1:123",
+    "error": null,
+    "constructed": 2,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": 123,
+    "chain": [
+      "Spy",
+      "Fail",
+      "Spy"
+    ],
+    "answer": null,
+    "error": "RuntimeException",
+    "constructed": 1,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": 1.25,
+    "chain": [],
+    "answer": 1.25,
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": 1.25,
+    "chain": [
+      "EnsurePunctuation"
+    ],
+    "answer": "1.25.",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": 1.25,
+    "chain": [
+      "EnsureNoPunctuation"
+    ],
+    "answer": 1.25,
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": 1.25,
+    "chain": [
+      "EnsureDynamicContentIsHighlighted"
+    ],
+    "answer": "1.25",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": 1.25,
+    "chain": [
+      "EnsureRelativePaths"
+    ],
+    "answer": "1.25",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": 1.25,
+    "chain": [
+      "EnsureDynamicContentIsHighlighted",
+      "EnsureNoPunctuation",
+      "EnsureRelativePaths"
+    ],
+    "answer": "1.25",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": 1.25,
+    "chain": [
+      "EnsureNoPunctuation",
+      "EnsurePunctuation"
+    ],
+    "answer": "1.25.",
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": 1.25,
+    "chain": [
+      "Spy",
+      "Spy"
+    ],
+    "answer": "1:1:1.25",
+    "error": null,
+    "constructed": 2,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": 1.25,
+    "chain": [
+      "Spy",
+      "Fail",
+      "Spy"
+    ],
+    "answer": null,
+    "error": "RuntimeException",
+    "constructed": 1,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": [],
+    "chain": [],
+    "answer": [],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": [],
+    "chain": [
+      "EnsurePunctuation"
+    ],
+    "answer": [],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": [],
+    "chain": [
+      "EnsureNoPunctuation"
+    ],
+    "answer": [],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": [],
+    "chain": [
+      "EnsureDynamicContentIsHighlighted"
+    ],
+    "answer": [],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": [],
+    "chain": [
+      "EnsureRelativePaths"
+    ],
+    "answer": [],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": [],
+    "chain": [
+      "EnsureDynamicContentIsHighlighted",
+      "EnsureNoPunctuation",
+      "EnsureRelativePaths"
+    ],
+    "answer": [],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": [],
+    "chain": [
+      "EnsureNoPunctuation",
+      "EnsurePunctuation"
+    ],
+    "answer": [],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": [],
+    "chain": [
+      "Spy",
+      "Spy"
+    ],
+    "answer": [],
+    "error": null,
+    "constructed": 2,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": [],
+    "chain": [
+      "Spy",
+      "Fail",
+      "Spy"
+    ],
+    "answer": null,
+    "error": "RuntimeException",
+    "constructed": 1,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": [
+      "One.",
+      "Two!"
+    ],
+    "chain": [],
+    "answer": [
+      "One.",
+      "Two!"
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": [
+      "One.",
+      "Two!"
+    ],
+    "chain": [
+      "EnsurePunctuation"
+    ],
+    "answer": [
+      "One.",
+      "Two!"
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": [
+      "One.",
+      "Two!"
+    ],
+    "chain": [
+      "EnsureNoPunctuation"
+    ],
+    "answer": [
+      "One",
+      "Two"
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": [
+      "One.",
+      "Two!"
+    ],
+    "chain": [
+      "EnsureDynamicContentIsHighlighted"
+    ],
+    "answer": [
+      "One.",
+      "Two!"
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": [
+      "One.",
+      "Two!"
+    ],
+    "chain": [
+      "EnsureRelativePaths"
+    ],
+    "answer": [
+      "One.",
+      "Two!"
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": [
+      "One.",
+      "Two!"
+    ],
+    "chain": [
+      "EnsureDynamicContentIsHighlighted",
+      "EnsureNoPunctuation",
+      "EnsureRelativePaths"
+    ],
+    "answer": [
+      "One",
+      "Two"
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": [
+      "One.",
+      "Two!"
+    ],
+    "chain": [
+      "EnsureNoPunctuation",
+      "EnsurePunctuation"
+    ],
+    "answer": [
+      "One.",
+      "Two."
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": [
+      "One.",
+      "Two!"
+    ],
+    "chain": [
+      "Spy",
+      "Spy"
+    ],
+    "answer": [
+      "1:1:One.",
+      "2:2:Two!"
+    ],
+    "error": null,
+    "constructed": 2,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": [
+      "One.",
+      "Two!"
+    ],
+    "chain": [
+      "Spy",
+      "Fail",
+      "Spy"
+    ],
+    "answer": null,
+    "error": "RuntimeException",
+    "constructed": 1,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": {
+      "first": "One",
+      "second": "Two."
+    },
+    "chain": [],
+    "answer": {
+      "first": "One",
+      "second": "Two."
+    },
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": {
+      "first": "One",
+      "second": "Two."
+    },
+    "chain": [
+      "EnsurePunctuation"
+    ],
+    "answer": {
+      "first": "One.",
+      "second": "Two."
+    },
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": {
+      "first": "One",
+      "second": "Two."
+    },
+    "chain": [
+      "EnsureNoPunctuation"
+    ],
+    "answer": {
+      "first": "One",
+      "second": "Two"
+    },
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": {
+      "first": "One",
+      "second": "Two."
+    },
+    "chain": [
+      "EnsureDynamicContentIsHighlighted"
+    ],
+    "answer": {
+      "first": "One",
+      "second": "Two."
+    },
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": {
+      "first": "One",
+      "second": "Two."
+    },
+    "chain": [
+      "EnsureRelativePaths"
+    ],
+    "answer": {
+      "first": "One",
+      "second": "Two."
+    },
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": {
+      "first": "One",
+      "second": "Two."
+    },
+    "chain": [
+      "EnsureDynamicContentIsHighlighted",
+      "EnsureNoPunctuation",
+      "EnsureRelativePaths"
+    ],
+    "answer": {
+      "first": "One",
+      "second": "Two"
+    },
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": {
+      "first": "One",
+      "second": "Two."
+    },
+    "chain": [
+      "EnsureNoPunctuation",
+      "EnsurePunctuation"
+    ],
+    "answer": {
+      "first": "One.",
+      "second": "Two."
+    },
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": {
+      "first": "One",
+      "second": "Two."
+    },
+    "chain": [
+      "Spy",
+      "Spy"
+    ],
+    "answer": {
+      "first": "1:1:One",
+      "second": "2:2:Two."
+    },
+    "error": null,
+    "constructed": 2,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": {
+      "first": "One",
+      "second": "Two."
+    },
+    "chain": [
+      "Spy",
+      "Fail",
+      "Spy"
+    ],
+    "answer": null,
+    "error": "RuntimeException",
+    "constructed": 1,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": [
+      1,
+      null,
+      false
+    ],
+    "chain": [],
+    "answer": [
+      1,
+      null,
+      false
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": [
+      1,
+      null,
+      false
+    ],
+    "chain": [
+      "EnsurePunctuation"
+    ],
+    "answer": [
+      "1.",
+      ".",
+      "."
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": [
+      1,
+      null,
+      false
+    ],
+    "chain": [
+      "EnsureNoPunctuation"
+    ],
+    "answer": [
+      1,
+      null,
+      false
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": [
+      1,
+      null,
+      false
+    ],
+    "chain": [
+      "EnsureDynamicContentIsHighlighted"
+    ],
+    "answer": [
+      "1",
+      "",
+      ""
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": [
+      1,
+      null,
+      false
+    ],
+    "chain": [
+      "EnsureRelativePaths"
+    ],
+    "answer": [
+      "1",
+      "",
+      ""
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": [
+      1,
+      null,
+      false
+    ],
+    "chain": [
+      "EnsureDynamicContentIsHighlighted",
+      "EnsureNoPunctuation",
+      "EnsureRelativePaths"
+    ],
+    "answer": [
+      "1",
+      "",
+      ""
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": [
+      1,
+      null,
+      false
+    ],
+    "chain": [
+      "EnsureNoPunctuation",
+      "EnsurePunctuation"
+    ],
+    "answer": [
+      "1.",
+      ".",
+      "."
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": [
+      1,
+      null,
+      false
+    ],
+    "chain": [
+      "Spy",
+      "Spy"
+    ],
+    "answer": [
+      "1:1:1",
+      "2:2:",
+      "3:3:"
+    ],
+    "error": null,
+    "constructed": 2,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": [
+      1,
+      null,
+      false
+    ],
+    "chain": [
+      "Spy",
+      "Fail",
+      "Spy"
+    ],
+    "answer": null,
+    "error": "RuntimeException",
+    "constructed": 1,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": [
+      [
+        1,
+        2
+      ],
+      {
+        "x": "value"
+      }
+    ],
+    "chain": [],
+    "answer": [
+      [
+        1,
+        2
+      ],
+      {
+        "x": "value"
+      }
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": [
+      [
+        1,
+        2
+      ],
+      {
+        "x": "value"
+      }
+    ],
+    "chain": [
+      "EnsurePunctuation"
+    ],
+    "answer": [
+      "Array.",
+      "Array."
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": [
+      [
+        1,
+        2
+      ],
+      {
+        "x": "value"
+      }
+    ],
+    "chain": [
+      "EnsureNoPunctuation"
+    ],
+    "answer": [
+      [
+        1,
+        2
+      ],
+      {
+        "x": "value"
+      }
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": [
+      [
+        1,
+        2
+      ],
+      {
+        "x": "value"
+      }
+    ],
+    "chain": [
+      "EnsureDynamicContentIsHighlighted"
+    ],
+    "answer": [
+      "Array",
+      "Array"
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": [
+      [
+        1,
+        2
+      ],
+      {
+        "x": "value"
+      }
+    ],
+    "chain": [
+      "EnsureRelativePaths"
+    ],
+    "answer": [
+      [
+        "1",
+        "2"
+      ],
+      {
+        "x": "value"
+      }
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": [
+      [
+        1,
+        2
+      ],
+      {
+        "x": "value"
+      }
+    ],
+    "chain": [
+      "EnsureDynamicContentIsHighlighted",
+      "EnsureNoPunctuation",
+      "EnsureRelativePaths"
+    ],
+    "answer": [
+      "Array",
+      "Array"
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": [
+      [
+        1,
+        2
+      ],
+      {
+        "x": "value"
+      }
+    ],
+    "chain": [
+      "EnsureNoPunctuation",
+      "EnsurePunctuation"
+    ],
+    "answer": [
+      "Array.",
+      "Array."
+    ],
+    "error": null,
+    "constructed": 0,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": [
+      [
+        1,
+        2
+      ],
+      {
+        "x": "value"
+      }
+    ],
+    "chain": [
+      "Spy",
+      "Spy"
+    ],
+    "answer": [
+      "1:1:Array",
+      "2:2:Array"
+    ],
+    "error": null,
+    "constructed": 2,
+    "output": ""
+  },
+  {
+    "has_base": true,
+    "data": [
+      [
+        1,
+        2
+      ],
+      {
+        "x": "value"
+      }
+    ],
+    "chain": [
+      "Spy",
+      "Fail",
+      "Spy"
+    ],
+    "answer": null,
+    "error": "RuntimeException",
+    "constructed": 1,
+    "output": ""
+  }
+]

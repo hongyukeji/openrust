@@ -1913,3 +1913,46 @@ fn register_custom_components() -> Result<(), ConsoleError> {
 `Factory::new` 记录当前应用容器，用于查找自定义组件；进入另一个应用作用域不会更换这项注册归属。独立消费者可用 `Factory::with_registry(&mut output, registry)` 显式传入 `Arc<ComponentRegistry>`。数据与回调继续通过 `ComponentArgument` 传递。
 
 `ComponentContext` 实现 `AsOutput`。`question_style()` 返回原问答样式，或在打印提示前返回运行时错误。自定义输出适配器实现 `ComponentOutput::component_context`：返回 `ComponentContext::Style` 保留问答输入，普通流返回 `ComponentContext::Output`。默认 `ComponentOutput::question_style` 跟随该上下文；已有显式问答样式覆盖仍适用于内置问答组件。
+
+
+### 组件数据与问答作用域 {#component-data-scopes}
+
+`Component` 通过组合复用组件能力。可借用 `ComponentOutput` 构造，也可在已注册组件的构造器中使用 `from_context`。`get_output` 和 `AsOutput` 借用原输出；`question_style` 提供已有问答能力，不替换输入。
+
+```rust
+use openrust::{
+    console::{AsyncCommandCallback, ConsoleError, OutputFormat, OutputStyle, Question,
+        view::components::{Component, DefaultMutatorConstructor, mutators::EnsureNoPunctuation}},
+    support::facades::Artisan,
+};
+use serde_json::json;
+fn register_component_data() -> Result<(), ConsoleError> {
+    Artisan::command_with("components:data", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut style = OutputStyle::new(input, output);
+            let mut component = Component::new(&mut style);
+            let mutator = DefaultMutatorConstructor::<EnsureNoPunctuation>::new();
+            let data = component.mutate(json!({"message": "Created [report].", "active": true}), &[&mutator])?;
+            let mut calls = 0;
+            let name = component.using_question_helper(async |mut style| {
+                calls += 1;
+                let question = Question::new("Name", Some(json!("Guest")))?;
+                style.ask_question(&question).await
+            }).await?;
+            component.get_output().writeln(
+                format!("Data:{data}; Name:{name}; Calls:{calls}").as_str(), OutputFormat::Raw,
+            )?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+`mutate` 按顺序执行构造器，每轮为每项变换器创建一次对象，再应用于各个顶层值。数组保留位置，对象保留键。构造器清单为空时返回原数据。`DefaultMutatorConstructor<M>` 使用 `M::default`；自定义 `MutatorConstructor` 可创建有状态对象或返回构造错误。发生错误后不再执行后续管线。
+
+`Mutator::apply` 继续作为字符串接口；`apply_value` 处理 JSON 值，自定义变换器可覆盖。去标点时，无须变化的值保留原类型，不会把数字、布尔值和数组默默转为字符串。高亮变换会将值转为文本。未绑定应用根路径时，相对路径变换保留原值；绑定后，数组目标保留键并转换其直接成员，遵循字符串替换行为。
+
+`using_question_helper` 接受可借用局部状态的异步闭包，临时安装组件帮助器，在成功、错误、panic 展开及取消后恢复同一个原帮助器。原帮助器尚未初始化时恢复普通默认帮助器。闭包内可以更新借用的局部状态；普通输出会在调用闭包前失败。可恢复的失败优先使用 `Result`。
+
+闭包接收 `QuestionStyleReference`，即原样式的短期借用，支持 `QuestionStyle` 和 `AsOutput`。使用 `async |mut style|` 绑定。具名引用让要求 `Send` 的命令处理器能明确识别借用生命周期，不另分配样式对象，也不复制输入。

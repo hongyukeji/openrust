@@ -348,11 +348,12 @@
         "tree-helper-contracts.json",
         "factory-typed-contracts.json",
         "factory-dispatch-contracts.json",
-        "factory-registry-contracts.json"
+        "factory-registry-contracts.json",
+        "component-core-contracts.json"
       ],
       "native": "console::CommandIo",
       "remaining": [
-        "内置/自定义组件的构造、动态Factory及原样式绑定已验；Factory容器覆盖、抽象Component及其余SDK继续。"
+        "Component所属变换/问答作用域及具体组件/Factory子范围已验；compile/renderView、Factory容器覆盖和其余SDK继续。"
       ]
     },
     {
@@ -554,6 +555,14 @@
     "remaining": [
       "Command容器解析/覆盖Factory本身及其构造时机仍需专用服务类型和实际消费者，不能由ComponentRegistry注册代替。",
       "抽象Component的compile/renderView/mutate/usingQuestionHelper及继承SDK仍开放；不宣称Factory类或Artisan整章已闭合。"
+    ]
+  },
+  "component_core": {
+    "status": "verified_component_owned_construction_mutate_and_question_scope",
+    "contract": "component-core-contracts.json",
+    "remaining": [
+      "Component::compile/renderView及可覆盖模板/渲染策略尚未实现；不能以具体组件或mutate/usingQuestionHelper存在宣称抽象基类完整。",
+      "Command容器Factory构造/覆盖和生命周期、Helper/HelperSet/Time其余继承SDK及Artisan其他锚点继续。"
     ]
   }
 }
