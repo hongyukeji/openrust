@@ -220,6 +220,7 @@ impl<'a, M: Model> RelatedBatch<'a, M> {
             .or_else(|| self.models.get(index)?.get_attribute(name))
     }
 
+    query_callers! {
     /// Loads a relation count for every model in this batch.
     pub async fn load_count(
         &mut self,
@@ -252,6 +253,7 @@ impl<'a, M: Model> RelatedBatch<'a, M> {
             self.load_missing(name, relation).await?;
         }
         self.result::<R>(index, name)
+    }
     }
 
     /// Continues the chain across every model in this batch.

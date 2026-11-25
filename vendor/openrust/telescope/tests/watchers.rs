@@ -36,6 +36,7 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
     Route::get("/model-write-callers", model_write_callers)?;
     Route::get("/relationship-callers", relationship_callers)?;
     Route::get("/relationship-write-callers", relationship_write_callers)?;
+    Route::get("/relationship-load-callers", relationship_load_callers)?;
     Route::get("/pivot-callers", pivot_callers)?;
     Route::get("/schema-callers", schema_callers)?;
     for path in ["/json", "/plain", "/boundary", "/large", "/opaque"] {
@@ -71,6 +72,16 @@ impl openrust::database::eloquent::Model for RelatedWriteProbe {
 struct PageProbe(openrust::database::eloquent::ModelState);
 
 impl openrust::database::eloquent::Model for PageProbe {
+    fn named_relations() -> openrust::database::eloquent::NamedRelations<Self> {
+        use openrust::database::eloquent::{
+            NamedRelations,
+            relations::{BelongsTo, HasMany},
+        };
+        NamedRelations::default()
+            .nested("children", || HasMany::<Self, Self>::new("id", "owner_id"))
+            .nested("owner", || BelongsTo::<Self, Self>::new("owner_id", "id"))
+    }
+
     fn metadata() -> &'static openrust::database::eloquent::ModelMetadata {
         use openrust::database::eloquent::ModelMetadata;
         static META: ModelMetadata = ModelMetadata::new("query_page_probe")
@@ -249,6 +260,80 @@ fn model_write_callers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpE
                 [builder, 1],
                 [deleted, 1]
             ]),
+        )
+    })
+}
+
+fn relationship_load_callers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    use openrust::database::{
+        Value,
+        eloquent::{Model as _, relations::HasMany},
+    };
+
+    Box::pin(async {
+        let connection = seed_relationship_source().await;
+        let one = line!() + 1;
+        let parent = PageProbe::query_on(&connection).find_or_fail(1);
+        let mut parent = parent.await.unwrap();
+        let two = line!() + 1;
+        let missing = PageProbe::query_on(&connection).find_or_fail(1);
+        let mut missing = missing.await.unwrap();
+        let mut list = PageProbe::query_on(&connection).order_by("id", "asc");
+        list.where_in("id", vec![Value::Integer(1), Value::Integer(2)]);
+        let three = line!() + 1;
+        let mut list = list.get().await.unwrap().with_relationship_autoloading();
+
+        let children = HasMany::<PageProbe, PageProbe>::new("id", "owner_id");
+        let lazy = line!() + 1;
+        let output = parent.get_relation_or_load("children", &children);
+        assert_eq!(output.await.unwrap().len(), 2);
+        let cached = parent.get_relation_or_load("children", &children);
+        assert_eq!(cached.await.unwrap().len(), 2);
+        let load = line!() + 1;
+        parent.load("children", &children).await.unwrap();
+        let load_missing = line!() + 1;
+        missing.load_missing_paths(&["children"]).await.unwrap();
+        missing.load_missing_paths(&["children"]).await.unwrap();
+        assert!(missing.relation_loaded("children"));
+
+        let collection_missing = line!() + 1;
+        list.load_missing("children", &children).await.unwrap();
+        list.load_missing("children", &children).await.unwrap();
+        let collection_load = line!() + 1;
+        list.load_paths(&["owner"]).await.unwrap();
+        let owner = list[1]
+            .get_relation::<Option<std::sync::Arc<PageProbe>>>("owner")
+            .unwrap()
+            .as_ref()
+            .unwrap();
+        assert_eq!(owner.get_key(), parent.get_key());
+
+        let mut first = list.model_at(0).unwrap();
+        let autoload = line!() + 1;
+        let output = first.get_relation_or_load("autoloaded", &children);
+        assert_eq!(output.await.unwrap().len(), 2);
+        assert!(list.iter().all(|model| model.relation_loaded("autoloaded")));
+        let count = line!() + 1;
+        let counted = parent.load_count("children", &children);
+        counted.await.unwrap();
+        assert!(matches!(
+            parent.get_attribute("children_count"),
+            Some(Value::Integer(2) | Value::Unsigned(2))
+        ));
+        Response::json(
+            http::StatusCode::OK,
+            [
+                (one, 1),
+                (two, 1),
+                (three, 1),
+                (lazy, 1),
+                (load, 1),
+                (load_missing, 1),
+                (collection_missing, 1),
+                (collection_load, 1),
+                (autoload, 1),
+                (count, 1),
+            ],
         )
     })
 }
@@ -498,6 +583,16 @@ async fn query_watcher_attributes_model_writes_to_the_public_entry() {
 async fn query_watcher_attributes_relationship_reads_to_the_public_entry() {
     assert_query_source_lines(
         "/api/relationship-callers",
+        "query_page_probe",
+        &["select "],
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn query_watcher_attributes_relationship_loading_to_the_public_entry() {
+    assert_query_source_lines(
+        "/api/relationship-load-callers",
         "query_page_probe",
         &["select "],
     )

@@ -85,6 +85,7 @@ impl<M: Model> Deref for CollectionModel<'_, M> {
 }
 
 impl<M: Model> CollectionModel<'_, M> {
+    query_callers! {
     /// Reads a relationship using the owning collection's autoload policy.
     pub async fn get_relation_or_load<R: Relation<Parent = M>>(
         &mut self,
@@ -92,6 +93,7 @@ impl<M: Model> CollectionModel<'_, M> {
         relation: &R,
     ) -> DatabaseResult<&R::Output> {
         load_from_source(self, name, relation).await
+    }
     }
 
     /// Opens a single related model while retaining access to the root collection.
@@ -150,6 +152,7 @@ impl<T: Model, P> Deref for BorrowedRelatedModel<'_, T, P> {
 }
 
 impl<T: Model, P> BorrowedRelatedModel<'_, T, P> {
+    query_callers! {
     /// Accesses a descendant and writes its loaded relationship back to the root collection.
     pub async fn get_relation_or_load<R: Relation<Parent = T>>(
         &mut self,
@@ -157,6 +160,7 @@ impl<T: Model, P> BorrowedRelatedModel<'_, T, P> {
         relation: &R,
     ) -> DatabaseResult<&R::Output> {
         load_from_source(self.source.as_mut(), name, relation).await
+    }
     }
 
     /// Continues through another ordinary relationship.
@@ -558,6 +562,7 @@ impl<M: Model> Collection<M> {
         })
     }
 
+    query_callers! {
     /// Reads one model's relationship, loading the missing values on first access.
     pub async fn get_relation_or_load<R: Relation<Parent = M>>(
         &mut self,
@@ -579,6 +584,7 @@ impl<M: Model> Collection<M> {
         self.models[index]
             .get_relation(name)
             .ok_or(DatabaseError::InvalidQuery("relationship output type"))
+    }
     }
 
     pub(super) fn models_mut(&mut self) -> &mut [M] {
@@ -899,6 +905,7 @@ impl<M: Model> Collection<M> {
         RelatedBatch::from_morph_targets(results.into_iter().filter_map(Option::as_ref), alias)
     }
 
+    query_callers! {
     /// Loads a relationship on one polymorphic target group.
     pub async fn load_morph<T: Model>(
         &mut self,
@@ -962,6 +969,7 @@ impl<M: Model> Collection<M> {
         aggregates: &[RelationAggregateQuery<'_, T>],
     ) -> DatabaseResult<()> {
         load_morph_aggregates(&mut self.models, name, morph, alias, aggregates).await
+    }
     }
 
     pub fn model_keys(&self) -> Vec<Value> {
@@ -1356,6 +1364,7 @@ impl<M: Model> Collection<M> {
         Ok(refreshed)
     }
 
+    query_callers! {
     /// Fetches a relationship aggregate and installs it as an original attribute.
     pub async fn load_aggregate(
         &mut self,
@@ -1482,6 +1491,7 @@ impl<M: Model> Collection<M> {
         relation: &R,
     ) -> DatabaseResult<()> {
         has_relationships::load(&mut self.models, name, relation, true).await
+    }
     }
 }
 

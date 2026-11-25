@@ -1205,16 +1205,17 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Loads a named dynamic relationship on first access.
+    #[track_caller]
     fn get_dynamic_relation_or_load<R: Relation<Parent = Self>>(
         &mut self,
         name: &str,
     ) -> impl Future<Output = DatabaseResult<&R::Output>> + Send {
-        async move {
+        with_query_caller(std::panic::Location::caller(), async move {
             let relation = super::DynamicRelation::<R>::new(name);
             super::detached_autoload::load_on_model_access(self, name, &relation).await?;
             self.get_relation(name)
                 .ok_or(DatabaseError::InvalidQuery("relationship output type"))
-        }
+        })
     }
 
     fn relation_loaded(&self, name: &str) -> bool {
@@ -1239,16 +1240,17 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Reads a relationship, querying once if it has not been loaded.
+    #[track_caller]
     fn get_relation_or_load<'a, R: Relation<Parent = Self>>(
         &'a mut self,
         name: &'a str,
         relation: &'a R,
     ) -> impl Future<Output = DatabaseResult<&'a R::Output>> + Send + 'a {
-        async move {
+        with_query_caller(std::panic::Location::caller(), async move {
             super::detached_autoload::load_on_model_access(self, name, relation).await?;
             self.get_relation(name)
                 .ok_or(DatabaseError::InvalidQuery("relationship output type"))
-        }
+        })
     }
 
     fn unset_relation(&mut self, name: &str) {
@@ -1260,20 +1262,22 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Eager loads registered paths onto this model.
+    #[track_caller]
     fn load_paths(&mut self, paths: &[&str]) -> impl Future<Output = DatabaseResult<()>> + Send {
-        async move {
+        with_query_caller(std::panic::Location::caller(), async move {
             let loads = super::NamedRelations::<Self>::prepare(paths)?;
             concerns::has_relationships::load_eager(loads, std::slice::from_mut(self)).await
-        }
+        })
     }
 
     /// Loads registered relationship paths using the caller's explicit transaction.
+    #[track_caller]
     fn load_paths_in_transaction<'a>(
         &'a mut self,
         paths: &'a [&'a str],
         transaction: &'a mut crate::database::Transaction,
     ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
-        async move {
+        with_query_caller(std::panic::Location::caller(), async move {
             let loads = super::NamedRelations::<Self>::prepare(paths)?;
             concerns::has_relationships::load_eager_with_transaction(
                 loads,
@@ -1281,18 +1285,23 @@ pub trait Model: Sized + Send + Sync + 'static {
                 Some(transaction),
             )
             .await
-        }
+        })
     }
 
     /// Loads missing relationships along the supplied registered paths.
+    #[track_caller]
     fn load_missing_paths<'a>(
         &'a mut self,
         paths: &'a [&'a str],
     ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
-        super::NamedRelations::<Self>::load_missing(std::slice::from_mut(self), paths)
+        with_query_caller(
+            std::panic::Location::caller(),
+            super::NamedRelations::<Self>::load_missing(std::slice::from_mut(self), paths),
+        )
     }
 
     /// Applies a grouped predicate when loading a missing terminal relationship.
+    #[track_caller]
     fn load_missing_path_with(
         &mut self,
         path: &str,
@@ -1308,22 +1317,31 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Loads several registered paths, each with its optional terminal predicate.
+    #[track_caller]
     fn load_missing_paths_with<'a>(
         &mut self,
         paths: impl IntoIterator<Item = super::MissingRelation<'a>> + Send,
     ) -> impl Future<Output = DatabaseResult<()>> + Send {
-        super::NamedRelations::<Self>::load_missing_with(std::slice::from_mut(self), paths)
+        with_query_caller(
+            std::panic::Location::caller(),
+            super::NamedRelations::<Self>::load_missing_with(std::slice::from_mut(self), paths),
+        )
     }
 
+    #[track_caller]
     fn load<'a, R: Relation<Parent = Self>>(
         &'a mut self,
         name: &'a str,
         relation: &'a R,
     ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
-        concerns::has_relationships::load(std::slice::from_mut(self), name, relation, false)
+        with_query_caller(
+            std::panic::Location::caller(),
+            concerns::has_relationships::load(std::slice::from_mut(self), name, relation, false),
+        )
     }
 
     /// Reloads a relationship on this model's cached polymorphic target.
+    #[track_caller]
     fn load_morph<'a, T: Model>(
         &'a mut self,
         name: &'a str,
@@ -1332,17 +1350,21 @@ pub trait Model: Sized + Send + Sync + 'static {
         related_name: &'a str,
         relation: &'a impl Relation<Parent = T>,
     ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
-        super::collection::load_morph_relation(
-            std::slice::from_mut(self),
-            name,
-            morph,
-            alias,
-            related_name,
-            relation,
+        with_query_caller(
+            std::panic::Location::caller(),
+            super::collection::load_morph_relation(
+                std::slice::from_mut(self),
+                name,
+                morph,
+                alias,
+                related_name,
+                relation,
+            ),
         )
     }
 
     /// Reloads registered relationship paths on this model's cached polymorphic target.
+    #[track_caller]
     fn load_morph_paths<'a, T: Model>(
         &'a mut self,
         name: &'a str,
@@ -1350,35 +1372,44 @@ pub trait Model: Sized + Send + Sync + 'static {
         alias: &'a str,
         paths: &'a [&'a str],
     ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
-        super::collection::load_morph_paths::<Self, T>(
-            std::slice::from_mut(self),
-            name,
-            morph,
-            alias,
-            paths,
+        with_query_caller(
+            std::panic::Location::caller(),
+            super::collection::load_morph_paths::<Self, T>(
+                std::slice::from_mut(self),
+                name,
+                morph,
+                alias,
+                paths,
+            ),
         )
     }
 
     /// Loads relation aggregates without replacing other model attributes.
+    #[track_caller]
     fn load_aggregates<'a>(
         &'a mut self,
         aggregates: &'a [RelationAggregateQuery<'a, Self>],
     ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
-        super::collection::load_aggregates(std::slice::from_mut(self), aggregates)
+        with_query_caller(
+            std::panic::Location::caller(),
+            super::collection::load_aggregates(std::slice::from_mut(self), aggregates),
+        )
     }
 
+    #[track_caller]
     fn load_aggregate<'a>(
         &'a mut self,
         name: &'a str,
         relation: &'a impl ExistenceRelation<Parent = Self>,
         aggregate: RelationAggregate<'a>,
     ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
-        async move {
+        with_query_caller(std::panic::Location::caller(), async move {
             self.load_aggregates(&[RelationAggregateQuery::new(name, relation, aggregate)])
                 .await
-        }
+        })
     }
 
+    #[track_caller]
     fn load_count<'a>(
         &'a mut self,
         name: &'a str,
@@ -1387,6 +1418,7 @@ pub trait Model: Sized + Send + Sync + 'static {
         self.load_aggregate(name, relation, RelationAggregate::Count)
     }
 
+    #[track_caller]
     fn load_exists<'a>(
         &'a mut self,
         name: &'a str,
@@ -1395,6 +1427,7 @@ pub trait Model: Sized + Send + Sync + 'static {
         self.load_aggregate(name, relation, RelationAggregate::Exists)
     }
 
+    #[track_caller]
     fn load_sum<'a>(
         &'a mut self,
         name: &'a str,
@@ -1404,6 +1437,7 @@ pub trait Model: Sized + Send + Sync + 'static {
         self.load_aggregate(name, relation, RelationAggregate::Sum(column))
     }
 
+    #[track_caller]
     fn load_avg<'a>(
         &'a mut self,
         name: &'a str,
@@ -1413,6 +1447,7 @@ pub trait Model: Sized + Send + Sync + 'static {
         self.load_aggregate(name, relation, RelationAggregate::Avg(column))
     }
 
+    #[track_caller]
     fn load_min<'a>(
         &'a mut self,
         name: &'a str,
@@ -1422,6 +1457,7 @@ pub trait Model: Sized + Send + Sync + 'static {
         self.load_aggregate(name, relation, RelationAggregate::Min(column))
     }
 
+    #[track_caller]
     fn load_max<'a>(
         &'a mut self,
         name: &'a str,
@@ -1432,6 +1468,7 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Loads a count onto the cached polymorphic target of the selected type.
+    #[track_caller]
     fn load_morph_count<'a, T: Model>(
         &'a mut self,
         name: &'a str,
@@ -1449,6 +1486,7 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// 为指定多态目标加载关系最大值，复用既有聚合查询与缓存回写。
+    #[track_caller]
     fn load_morph_max<'a, T: Model>(
         &'a mut self,
         name: &'a str,
@@ -1467,6 +1505,7 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// 为指定多态目标加载关系最小值，复用既有聚合查询与缓存回写。
+    #[track_caller]
     fn load_morph_min<'a, T: Model>(
         &'a mut self,
         name: &'a str,
@@ -1485,6 +1524,7 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// 为指定多态目标加载关系合计，复用既有聚合查询与缓存回写。
+    #[track_caller]
     fn load_morph_sum<'a, T: Model>(
         &'a mut self,
         name: &'a str,
@@ -1503,6 +1543,7 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// 为指定多态目标加载关系平均值，复用既有聚合查询与缓存回写。
+    #[track_caller]
     fn load_morph_avg<'a, T: Model>(
         &'a mut self,
         name: &'a str,
@@ -1521,6 +1562,7 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Loads an aggregate onto this model's cached polymorphic target.
+    #[track_caller]
     fn load_morph_aggregate<'a, T: Model>(
         &'a mut self,
         name: &'a str,
@@ -1528,13 +1570,14 @@ pub trait Model: Sized + Send + Sync + 'static {
         alias: &'a str,
         aggregate: super::RelationAggregateQuery<'a, T>,
     ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
-        async move {
+        with_query_caller(std::panic::Location::caller(), async move {
             self.load_morph_aggregates(name, morph, alias, &[aggregate])
                 .await
-        }
+        })
     }
 
     /// Loads aggregates onto this model's cached polymorphic target of the selected type.
+    #[track_caller]
     fn load_morph_aggregates<'a, T: Model>(
         &'a mut self,
         name: &'a str,
@@ -1542,12 +1585,15 @@ pub trait Model: Sized + Send + Sync + 'static {
         alias: &'a str,
         aggregates: &'a [super::RelationAggregateQuery<'a, T>],
     ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
-        super::collection::load_morph_aggregates(
-            std::slice::from_mut(self),
-            name,
-            morph,
-            alias,
-            aggregates,
+        with_query_caller(
+            std::panic::Location::caller(),
+            super::collection::load_morph_aggregates(
+                std::slice::from_mut(self),
+                name,
+                morph,
+                alias,
+                aggregates,
+            ),
         )
     }
 
