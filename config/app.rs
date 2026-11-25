@@ -68,7 +68,7 @@ pub(super) fn load(env: &Environment) -> Result<Loaded<'_>, ConfigError> {
         "url": url,
         "url_explicit": url_explicit,
         // 根路由的首页跳转目标。
-        "home_path": get(env, "APP_HOME_PATH", "/index.html")?,
+        "home_url": get(env, "APP_HOME_URL", "/index.html")?,
         "frontend_url": get(env, "FRONTEND_URL", "http://localhost:3000")?,
         "asset_url": get(env, "ASSET_URL", Value::Null)?,
 

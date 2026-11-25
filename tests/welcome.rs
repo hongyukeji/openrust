@@ -1366,7 +1366,7 @@ async fn homepage_redirect_accepts_redirect_targets_and_preserves_query() {
         ),
         ("#guide", "#guide"),
     ] {
-        fs::write(root.0.join(".env"), format!("APP_HOME_PATH='{target}'\n")).unwrap();
+        fs::write(root.0.join(".env"), format!("APP_HOME_URL='{target}'\n")).unwrap();
         let kernel = root.kernel().await;
         let (status, headers, _) =
             preference_request(&kernel, "GET", "/?tag=1&tag=2&search=a%26b", "en", "", "").await;

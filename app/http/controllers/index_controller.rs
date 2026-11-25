@@ -12,7 +12,7 @@ impl Controller for IndexController {}
 impl IndexController {
     pub(crate) fn index(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         Box::pin(async move {
-            let mut target = Config::string_or("app.home_path", "");
+            let mut target = Config::string_or("app.home_url", "");
             if target.trim().is_empty() {
                 target = "/index.html".into();
             }

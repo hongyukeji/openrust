@@ -1832,7 +1832,7 @@ async fn welcome_route_reads_the_named_view_from_the_application_root() {
         .with_config(|base, env| {
             let mut config = web_config(base, env)?;
             config.get_mut("app").unwrap()["name"] = json!("Startup Test");
-            config.get_mut("app").unwrap()["home_path"] = json!("/api");
+            config.get_mut("app").unwrap()["home_url"] = json!("/api");
             config.get_mut("view").unwrap()["paths"] = json!(["custom-views", "resources/views"]);
             Ok(config)
         })
