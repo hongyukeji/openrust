@@ -51,6 +51,8 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
 
 `HORIZON_PATH` 控制 `horizon.path`（預設 `horizon`），`HORIZON_DOMAIN` 控制可選的 `horizon.domain`；`horizon.middleware` 預設 `["web"]`。設定 `horizon.routes=false` 停用自動註冊。`Horizon::routes()` 使用這些設定；明確呼叫 `routes_at("/operations/horizon")` 優先於自動註冊，每個應用只註冊一次。現有路由群組繼續應用自身前綴與中間件。面板每五秒刷新，設定嚴格的內容安全策略並停用回應快取，支援佇列負載、Master 與監督器、待處理／完成／靜默／失敗工作、工作承載資料與異常、監控標籤、指標快照和批次。失敗工作及批次失敗工作透過已設定的原生失敗工作提供器重試。
 
+設定 `HORIZON_NAME` 可在面板的頁面標題和主標題顯示部署名稱。
+
 暫停、繼續、終止、監控變更和重試均須逐次通過授權回調。瀏覽器對寫入操作傳送 `X-Horizon-Request: 1`，直接呼叫介面也須攜帶該標頭；拒絕跨站瀏覽器寫入操作。為整個路由群組套用既有的認證與中間件。面板授權包含檢視工作資料和執行維運控制的權限。
 
 ## 命令 {#commands}

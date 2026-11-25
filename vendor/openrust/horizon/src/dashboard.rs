@@ -7,7 +7,7 @@ use openrust::{
     container::ServiceKey,
     contracts::container::BindingResolutionError,
     http::{Body, HttpError, HttpFuture, Request, Response},
-    support::facades::{Facade, Route},
+    support::facades::{Config, Facade, Route},
 };
 use std::{
     collections::BTreeSet,
@@ -224,7 +224,24 @@ fn page(request: &mut Request) -> HttpFuture<'_, std::result::Result<Response, H
             return Ok(Response::empty(StatusCode::FORBIDDEN));
         }
         let nonce = uuid::Uuid::now_v7().simple().to_string();
-        let html = include_str!("dashboard.html").replace("__NONCE__", &nonce);
+        let config = Config::get_facade_root().map_err(|_| Error::Unavailable)?;
+        let name = config.get("horizon.name");
+        let suffix = name
+            .as_ref()
+            .and_then(serde_json::Value::as_str)
+            .filter(|name| !matches!(*name, "" | "0"))
+            .map(|name| {
+                format!(
+                    " - {}",
+                    name.replace('&', "&amp;")
+                        .replace('<', "&lt;")
+                        .replace('>', "&gt;")
+                )
+            })
+            .unwrap_or_default();
+        let html = include_str!("dashboard.html")
+            .replace("__NONCE__", &nonce)
+            .replace("__HORIZON_NAME__", &suffix);
         Ok(Response::new(StatusCode::OK,Body::from(html))
             .header(CONTENT_TYPE,HeaderValue::from_static("text/html; charset=utf-8"))
             .header(CACHE_CONTROL,HeaderValue::from_static("no-store"))

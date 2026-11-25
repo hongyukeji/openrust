@@ -40,6 +40,11 @@ async fn environment_defaults_and_provider_routes_follow_configuration_without_r
     let defaults = configuration::load(&env).unwrap();
     assert_eq!(defaults["prefix"], "laravel_horizon:");
     assert_eq!(defaults["middleware"], json!(["web"]));
+    assert_eq!(defaults.get("name"), Some(&serde_json::Value::Null));
+    assert_eq!(defaults["waits"], json!({"redis:default":60}));
+    assert_eq!(defaults["silenced"], json!([]));
+    assert_eq!(defaults["silenced_tags"], json!([]));
+    assert_eq!(defaults["defaults"]["supervisor-1"]["nice"], 0);
     assert_eq!(config.get("horizon.watch"), Some(defaults["watch"].clone()));
     assert_eq!(
         defaults["watch"],
@@ -59,6 +64,40 @@ async fn environment_defaults_and_provider_routes_follow_configuration_without_r
             ".env"
         ])
     );
+}
+
+#[tokio::test]
+async fn dashboard_uses_each_applications_configured_name_as_escaped_text() {
+    fn routes() -> Result<(), openrust::routing::RoutingError> {
+        Horizon::auth(|_| Box::pin(async { Ok(true) })).unwrap();
+        Horizon::routes()
+    }
+
+    for (name, suffix) in [
+        (None, ""),
+        (Some("0"), ""),
+        (
+            Some("运维 & </title><script>alert(1)</script>"),
+            " - 运维 &amp; &lt;/title&gt;&lt;script&gt;alert(1)&lt;/script&gt;",
+        ),
+    ] {
+        let mut app = TestApp::create(|builder| {
+            builder
+                .with_providers(vec![Box::new(HorizonServiceProvider)])
+                .with_routing(Routing::default().api(routes))
+        })
+        .unwrap();
+        if let Some(name) = name {
+            std::fs::write(app.root().join(".env"), format!("HORIZON_NAME='{name}'\n")).unwrap();
+        }
+        app.get("/api/horizon")
+            .await
+            .unwrap()
+            .assert_ok()
+            .assert_see(format!("<title>Horizon{suffix}</title>"), false)
+            .assert_see(format!("<h1>Horizon{suffix}</h1>"), false)
+            .assert_dont_see("<script>alert(1)</script>", false);
+    }
 }
 
 #[tokio::test]

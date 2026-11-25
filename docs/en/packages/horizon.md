@@ -51,6 +51,8 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
 
 `HORIZON_PATH` controls `horizon.path` (default `horizon`); `HORIZON_DOMAIN` controls the optional `horizon.domain`. `horizon.middleware` defaults to `["web"]`. Set `horizon.routes` to `false` to disable automatic registration. `Horizon::routes()` uses these settings; an explicit `routes_at("/operations/horizon")` takes precedence over automatic registration. Routes register once per application. Existing route groups apply their own prefix and middleware. The dashboard refreshes every five seconds, uses a restrictive content security policy and disables response caching. It provides queue workload, masters and supervisors, pending/completed/silenced/failed jobs, job payloads and exceptions, monitored tags, metric snapshots and batches. Failed jobs and batch failures can be retried through the configured native failed-job provider.
 
+Set `HORIZON_NAME` to show a deployment name in the dashboard title and heading.
+
 Pause, continue, terminate, monitoring changes and retries require the authorization callback on every request. The browser sends `X-Horizon-Request: 1` for mutations; direct API clients must supply the same header. Cross-site browser mutations are rejected. Apply your application's authentication and middleware to the entire route group. Access to this dashboard permits inspection of job data and operational controls.
 
 ## Commands {#commands}

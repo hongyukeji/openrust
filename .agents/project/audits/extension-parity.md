@@ -85,3 +85,22 @@ O01 Activitylog、O02 Horizon、O03 Telescope原生范围、O04 Pennant、O05 Pu
 全仓严格 Clippy 卡在隔离快照中 Fortify 的 `two_factor_model`、`installed_actions`、`starter_ui` 测试编译深度溢出。
 
 验证使用提交 `8041ae15a` 加本批文件的隔离快照，保留共享工作区的在途锁文件和核心改动。Telescope Provider／Watcher 共 19 项通过，独立 Redis 用例未执行。Provider 的数据库 Worker 用例在默认测试线程栈上溢出，设置 `RUST_MIN_STACK=33554432` 后重跑通过。Horizon 配置 4 项通过，独立 Redis 配置用例未执行；真实进程、HTTP 和 Artisan 验收使用隔离 Redis 8.10.3。三语站点构建和 12 组浏览器检查通过，构建有现有包大小提示。快照全仓格式、Telescope／Horizon 全目标严格 Clippy 及差异空白检查通过。
+
+## 持续对齐与生产验收
+
+2026-11-25 用户授权持续实现、逐项验收，直至三个扩展完成对齐。沿用本账本固定提交，每批核对所属类型、公开入口、配置和真实消费者，记录可观察差异、未实现和未验证项。验收后按范围本地提交，保留并行改动。
+
+| 范围 | 接续工作与关闭条件 |
+|---|---|
+| Telescope | 优先补齐出站 multipart 元数据、Query／Gate 来源过滤。逐类型核对 Watcher、Entry／过滤与脱敏、关联和仓储、生命周期、配置发布、命令输出及授权面板。原生界面和来源传递须验证同等使用结果。 |
+| Pulse | 按固定配置的十个 Recorder 逐一核对订阅事件、默认参数、过滤、采样和聚合。继续核对自定义 Recorder、存储和 ingest 契约、Worker 与命令、面板授权及卡片数据。 |
+| Horizon | 先核对面板名称与配置默认值、等待时间与通知，再核对管理命令、监督器与 Worker、进程恢复、标签、仓储、指标和面板操作。Redis Cluster 沿用固定上游支持边界。 |
+| 发布验收 | 跟踪 Fortify 三个测试目标编译深度溢出，复验最终交付快照的全仓门禁。锁定提交、依赖、目标平台和实际数据库／Redis／Worker 组合，验收迁移、正常关停、故障恢复、业务端到端及容量。平台与供应商所需真实条件按[发布待办](../todo.md#平台与发布条件)记录。 |
+
+### Horizon 面板名称与配置默认值
+
+固定上游[配置](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/config/horizon.php)与[面板模板](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/resources/views/layout.blade.php)均已核对。补齐 `HORIZON_NAME`，将可选名称作为文本显示于页面标题与主标题，同时发布 `waits.redis:default=60`、空静默清单以及 Supervisor 的 `nice=0`。现有等待时间监控、静默行为及进程参数的完整行为对账继续保留。
+
+隔离快照沿用 `8041ae15a` 与前批文件，叠加本批。配置消费者 5 项及隔离 Redis 8.10.3 的双应用配置隔离 1 项通过。真实 Redis 8.10.3 进程／HTTP／Artisan 回归、全仓格式、Horizon 全目标严格 Clippy、三语文档构建及 12 组浏览器检查通过。发布组合与其他目标平台仍待专项复验。
+
+后续缺口已定位到固定上游 [RedisWorkloadRepository::get](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Repositories/RedisWorkloadRepository.php) 与 [WaitTimeCalculator::calculateTimeToClear](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/WaitTimeCalculator.php)。分组队列的各项先分别四舍五入到秒再逐项累加，整组等待时间由未舍入总量独立计算。本地当前使用未舍入累计值再逐项取整，两个分队列各 0.6 秒时第二项会显示 1 秒，上游为 2 秒。后续用真实 Redis 的 Ready 数和运行时指标分别验证整组和逐项结果。

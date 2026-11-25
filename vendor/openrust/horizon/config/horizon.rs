@@ -17,18 +17,21 @@ pub fn load(environment: &Environment) -> Result<Value, ConfigError> {
         openrust::support::Str::slug_with(name, "_", Some("en"), &[("@", "at")])
     );
     Ok(serde_json::json!({
+        "name":environment.get_utf8("HORIZON_NAME")?,
         "domain":environment.get_utf8("HORIZON_DOMAIN")?,
         "path":environment.get_utf8("HORIZON_PATH")?.unwrap_or("horizon"),
         "middleware":["web"], "routes":true,
         "use":"default", "prefix":environment.get_utf8("HORIZON_PREFIX")?.unwrap_or(&prefix), "retention":3600,"fast_termination":false,"memory_limit":64,
+        "waits":{"redis:default":60},
         "trim":{"recent":60,"pending":60,"completed":60,"recent_failed":10080,"failed":10080,"monitored":10080},
+        "silenced":[], "silenced_tags":[],
         "metrics":{"snapshot_lock":300,"trim_snapshots":{"job":24,"queue":24}},
         "watch":["app","bootstrap","config","database","public/*.rs","resources/*.rs","resources/views","routes","main.rs","build.rs","Cargo.lock","Cargo.toml",".env"],
         "defaults":{"supervisor-1":{
             "connection":"redis", "queue":["default"], "balance":"auto",
             "autoScalingStrategy":"time", "minProcesses":1, "maxProcesses":1,
             "balanceMaxShift":1, "balanceCooldown":3, "tries":1,
-            "timeout":60, "sleep":3, "memory":128, "maxJobs":0, "maxTime":0
+            "timeout":60, "sleep":3, "memory":128, "maxJobs":0, "maxTime":0, "nice":0
         }}, "environments":{
             "production":{"supervisor-1":{"maxProcesses":10,"balanceMaxShift":1,"balanceCooldown":3}},
             "local":{"supervisor-1":{"maxProcesses":3}}

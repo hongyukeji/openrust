@@ -51,6 +51,8 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
 
 `HORIZON_PATH` 控制 `horizon.path`（默认 `horizon`），`HORIZON_DOMAIN` 控制可选的 `horizon.domain`；`horizon.middleware` 默认 `["web"]`。设置 `horizon.routes=false` 关闭自动注册。`Horizon::routes()` 使用这些配置；显式 `routes_at("/operations/horizon")` 优先于自动注册，每个应用只注册一次。现有路由组继续应用自身前缀与中间件。面板每五秒刷新，设置严格的内容安全策略并禁用响应缓存，支持队列负载、Master 与监督器、待处理／完成／静默／失败任务、任务载荷与异常、监控标签、指标快照和批次。失败任务及批次失败任务通过已配置的原生失败任务提供器重试。
 
+设置 `HORIZON_NAME` 可在面板的页面标题和主标题显示部署名称。
+
 暂停、继续、终止、监控变更和重试均须逐次通过授权回调。浏览器对写操作发送 `X-Horizon-Request: 1`，直接调用接口也须携带该请求头；拒绝跨站浏览器写操作。为整个路由组应用已有的认证与中间件。面板授权包含查看任务数据和执行运维控制的权限。
 
 ## 命令 {#commands}
