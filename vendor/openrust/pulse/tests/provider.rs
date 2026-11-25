@@ -356,10 +356,45 @@ fn recorder_database_config(
 #[tokio::test]
 async fn queued_artisan_recorders_filter_by_display_name() {
     use openrust::{
+        contracts::queue::JobHandler,
         database::Value as DbValue,
-        queue::Payload,
-        support::facades::{Artisan, Auth},
+        queue::{JobContext, Payload, QueueFuture, QueueResult},
+        support::facades::{Artisan, Auth, Bus},
     };
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct ChainStep(AtomicUsize);
+    impl JobHandler for ChainStep {
+        fn handle<'a>(
+            &'a self,
+            _: &'a mut JobContext<'_>,
+            _: &'a Payload,
+        ) -> QueueFuture<'a, QueueResult<()>> {
+            Box::pin(async move {
+                self.0.fetch_add(1, Ordering::Relaxed);
+                Ok(())
+            })
+        }
+    }
+
+    fn transport() -> (&'static str, serde_json::Value) {
+        if let Ok(url) = std::env::var("PULSE_TEST_SQS_URL") {
+            return (
+                "sqs",
+                json!({"driver":"sqs","queue":url,"endpoint":std::env::var("PULSE_TEST_SQS_ENDPOINT").unwrap(),"region":"us-east-1","key":"test","secret":"test","block_for":0}),
+            );
+        }
+        if let Ok(port) = std::env::var("PULSE_TEST_BEANSTALKD_PORT") {
+            return (
+                "beanstalkd",
+                json!({"driver":"beanstalkd","host":"127.0.0.1","port":port.parse::<u16>().unwrap(),"block_for":0}),
+            );
+        }
+        (
+            "database",
+            json!({"driver":"database","table":"jobs","retry_after":90}),
+        )
+    }
 
     fn enqueue(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         Box::pin(async move {
@@ -371,15 +406,30 @@ async fn queued_artisan_recorders_filter_by_display_name() {
         })
     }
 
+    fn enqueue_chain(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async {
+            Bus::chain([0, 1].map(|index| Payload::new("pulse-chain-step", index).unwrap()))
+                .on_connection(transport().0)
+                .dispatch()
+                .await
+                .unwrap();
+            Ok(Response::from("queued"))
+        })
+    }
+
     let mut app = TestApp::create(|builder| {
         builder
             .with_config(|root, env| {
                 let mut values = recorder_database_config(root, env)?;
-                values.insert("queue".into(), json!({
-                    "default":"database",
-                    "connections":{"database":{"driver":"database","table":"jobs","retry_after":90}},
-                    "failed":{"driver":"null"}
-                }));
+                let (driver, settings) = transport();
+                values.insert(
+                    "queue".into(),
+                    json!({
+                        "default":driver,
+                        "connections":{(driver):settings},
+                        "failed":{"driver":"null"}
+                    }),
+                );
                 let ignore = json!(["/^pulse-probe:ignored$/"]);
                 values.get_mut("pulse").unwrap()["recorders"] = json!({
                     "Queues":{"ignore":ignore},
@@ -389,66 +439,84 @@ async fn queued_artisan_recorders_filter_by_display_name() {
                 Ok(values)
             })
             .with_providers(vec![Box::new(PulseServiceProvider), Box::new(AuthProvider)])
-            .with_routing(Routing::default().api(|| {
-                Route::get("/queue-commands", enqueue)
-            }).commands(|| {
-                Artisan::command("pulse-probe:ignored", |_| {})?;
-                Artisan::command("pulse-probe:kept", |_| {})?;
-                Ok(())
-            }))
-    }).unwrap();
+            .with_routing(
+                Routing::default()
+                    .api(|| {
+                        Route::get("/queue-commands", enqueue)?;
+                        Route::get("/queue-chain", enqueue_chain)
+                    })
+                    .commands(|| {
+                        Artisan::command("pulse-probe:ignored", |_| {})?;
+                        Artisan::command("pulse-probe:kept", |_| {})?;
+                        Ok(())
+                    }),
+            )
+    })
+    .unwrap();
     app.artisan(["migrate", "--force"])
         .await
         .assert_successful();
     let storage = app.app().make::<DatabaseStorage>().await.unwrap();
     let connection = storage.connection();
-    connection
-        .get_schema_builder()
-        .create("jobs", |table| {
-            table.id();
-            table.string("queue", 255).index();
-            table.long_text("payload");
-            table.unsigned_integer("attempts");
-            table.unsigned_big_integer("reserved_at").nullable();
-            table.unsigned_big_integer("available_at");
-            table.unsigned_big_integer("created_at");
-        })
-        .await
-        .unwrap();
+    let (driver, _) = transport();
+    if driver == "database" {
+        connection
+            .get_schema_builder()
+            .create("jobs", |table| {
+                table.id();
+                table.string("queue", 255).index();
+                table.long_text("payload");
+                table.unsigned_integer("attempts");
+                table.unsigned_big_integer("reserved_at").nullable();
+                table.unsigned_big_integer("available_at");
+                table.unsigned_big_integer("created_at");
+            })
+            .await
+            .unwrap();
+    }
 
     app.get("/api/queue-commands?user=1")
         .await
         .unwrap()
         .assert_ok();
-    let queued = connection
-        .table("jobs")
-        .order_by("id", "asc")
-        .get()
+    let manager = app
+        .app()
+        .make::<openrust::queue::QueueManager>()
         .await
         .unwrap();
-    assert_eq!(queued.len(), 2);
-    for (row, name) in queued
-        .iter()
-        .zip(["pulse-probe:ignored", "pulse-probe:kept"])
-    {
-        let Some(DbValue::Text(raw)) = row.get("payload") else {
-            panic!("missing payload")
-        };
-        let payload: Payload = serde_json::from_str(raw).unwrap();
-        assert_eq!(payload.name(), "artisan.queued_command");
-        assert_eq!(payload.display_name(), name);
+    let queue = manager.connection(Some(driver)).unwrap();
+    assert_eq!(queue.size(None).await.unwrap(), 2);
+    if driver == "database" {
+        let queued = connection
+            .table("jobs")
+            .order_by("id", "asc")
+            .get()
+            .await
+            .unwrap();
+        assert_eq!(queued.len(), 2);
+        for (row, name) in queued
+            .iter()
+            .zip(["pulse-probe:ignored", "pulse-probe:kept"])
+        {
+            let Some(DbValue::Text(raw)) = row.get("payload") else {
+                panic!("missing payload")
+            };
+            let payload: Payload = serde_json::from_str(raw).unwrap();
+            assert_eq!(payload.name(), "artisan.queued_command");
+            assert_eq!(payload.display_name(), name);
+        }
     }
 
     app.artisan([
         "queue:work",
-        "database",
+        driver,
         "--stop-when-empty",
         "--sleep=0",
         "--memory=0",
     ])
     .await
     .assert_successful();
-    assert_eq!(connection.table("jobs").count("*").await.unwrap(), 0);
+    assert_eq!(queue.size(None).await.unwrap(), 0);
     let counts = storage
         .aggregate_total(
             &["queued", "processing", "processed", "failed"].map(str::to_owned),
@@ -470,6 +538,36 @@ async fn queued_artisan_recorders_filter_by_display_name() {
             .unwrap();
         assert_eq!(rows.len(), 1, "{kind}");
         assert_eq!(rows[0].get("key"), Some(&DbValue::Text(key.into())));
+    }
+
+    if driver != "database" {
+        let handler = Arc::new(ChainStep(AtomicUsize::new(0)));
+        manager
+            .register("pulse-chain-step", handler.clone())
+            .unwrap();
+        app.get("/api/queue-chain").await.unwrap().assert_ok();
+        let before = storage
+            .aggregate_total(&["queued".into()], "count", 3600)
+            .await
+            .unwrap();
+        assert_eq!(before["queued"], Some(2.0));
+        app.artisan([
+            "queue:work",
+            driver,
+            "--stop-when-empty",
+            "--sleep=0",
+            "--memory=0",
+        ])
+        .await
+        .assert_successful();
+        assert_eq!(handler.0.load(Ordering::Relaxed), 2);
+        assert_eq!(queue.size(None).await.unwrap(), 0);
+        let counts = storage
+            .aggregate_total(&["queued".into(), "processed".into()], "count", 3600)
+            .await
+            .unwrap();
+        assert_eq!(counts["queued"], Some(3.0));
+        assert_eq!(counts["processed"], Some(3.0));
     }
 }
 

@@ -762,6 +762,141 @@ async fn real_sqs_protocol_forwards_metrics_publish_reservation_and_settlement()
 }
 
 #[tokio::test]
+async fn sqs_partial_batch_emits_only_confirmed_entries_before_reporting_rejection() {
+    use axum::body::Bytes;
+    use openrust::{
+        contracts::events::{Dispatcher as _, Event, Listener},
+        events::{
+            Delivery, Dispatcher, EventContext, EventError, EventFuture, EventResult,
+            ListenerResponse,
+        },
+        queue::events::JobQueued,
+        support::facades::Bus,
+    };
+    use std::sync::Mutex;
+
+    #[derive(Default)]
+    struct Queued(Mutex<Vec<JobQueued>>);
+    impl Listener for Queued {
+        fn handle<'a>(
+            &'a self,
+            event: &'a dyn Event,
+            _: &'a mut EventContext<'_>,
+        ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+            Box::pin(async move {
+                let event = event.downcast_ref::<JobQueued>().unwrap();
+                self.0.lock().unwrap().push(event.clone());
+                if event.id == "accepted-0" {
+                    return Err(EventError::InvalidPayload);
+                }
+                Ok(None)
+            })
+        }
+    }
+
+    async fn endpoint(headers: http::HeaderMap, body: Bytes) -> impl axum::response::IntoResponse {
+        assert_eq!(headers["x-amz-target"], "AmazonSQS.SendMessageBatch");
+        let body: Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(body["Entries"].as_array().unwrap().len(), 3);
+        (
+            [("content-type", "application/x-amz-json-1.0")],
+            json!({
+                "Successful":[
+                    {"Id":"0","MessageId":"accepted-0","MD5OfMessageBody":"hash"},
+                    {"Id":"2","MessageId":"accepted-2","MD5OfMessageBody":"hash"}
+                ],
+                "Failed":[{"Id":"1","SenderFault":true,"Code":"Rejected"}]
+            })
+            .to_string(),
+        )
+    }
+
+    let server = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = server.local_addr().unwrap();
+    let task = tokio::spawn(async move {
+        axum::serve(
+            server,
+            axum::Router::new().route("/", axum::routing::post(endpoint)),
+        )
+        .await
+        .unwrap();
+    });
+    let mut app = TestApp::create(|builder| builder.with_config(|root, _| Ok([
+        ("database".into(), json!({"default":"test","connections":{"test":{"driver":"sqlite","database":":memory:","max_connections":1}}})),
+        ("queue".into(), json!({
+            "default":"sqs", "connections":{"sqs":{"driver":"sqs","queue":"https://sqs.test/account/jobs",
+                "endpoint":fs::read_to_string(root.join("sqs-endpoint")).unwrap(),"region":"us-east-1","key":"test","secret":"test"}}
+        })),
+    ].into()))).unwrap();
+    fs::write(app.root().join("sqs-endpoint"), format!("http://{address}")).unwrap();
+    app.boot().await.unwrap();
+    let database = app
+        .app()
+        .make::<openrust::database::DatabaseManager>()
+        .await
+        .unwrap();
+    let database = database.connection(None).unwrap();
+    database
+        .get_schema_builder()
+        .create("job_batches", |table| {
+            table.string("id", 255).primary();
+            table.string("name", 255);
+            table.integer("total_jobs");
+            table.integer("pending_jobs");
+            table.integer("failed_jobs");
+            table.long_text("failed_job_ids");
+            table.medium_text("options").nullable();
+            table.integer("cancelled_at").nullable();
+            table.integer("created_at");
+            table.integer("finished_at").nullable();
+        })
+        .await
+        .unwrap();
+    let seen = Arc::new(Queued::default());
+    let dispatcher = app.app().make::<Dispatcher>().await.unwrap();
+    dispatcher
+        .listen(JobQueued::NAME, seen.clone(), Delivery::Sync)
+        .unwrap();
+    let jobs = [0, 1, 2].map(|index| Payload::new("probe", index).unwrap());
+    let expected = [jobs[0].uuid().to_owned(), jobs[2].uuid().to_owned()];
+    let error = App::set_facade_application(Some(app.app()), async {
+        Bus::batch(jobs)
+            .on_connection("sqs")
+            .dispatch()
+            .await
+            .unwrap_err()
+    })
+    .await;
+    assert!(
+        std::error::Error::source(&error)
+            .unwrap()
+            .to_string()
+            .contains("Rejected")
+    );
+    assert_eq!(database.table("job_batches").count("*").await.unwrap(), 0);
+    let observed = seen.0.lock().unwrap();
+    assert_eq!(
+        observed
+            .iter()
+            .map(|event| event.id.as_str())
+            .collect::<Vec<_>>(),
+        ["accepted-0", "accepted-2"]
+    );
+    assert_eq!(
+        observed
+            .iter()
+            .map(|event| event.job.uuid())
+            .collect::<Vec<_>>(),
+        expected
+    );
+    assert!(
+        observed.iter().all(|event| event.connection_name == "sqs"
+            && event.queue == "https://sqs.test/account/jobs")
+    );
+    task.abort();
+}
+
+#[tokio::test]
 async fn hosted_json_configuration_applies_nullable_after_commit_and_existing_overflow_defaults() {
     let mut cloud = config()["connections"]["cloud"].clone();
     cloud["connection"]["after_commit"] = Value::Null;

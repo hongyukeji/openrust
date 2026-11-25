@@ -10,7 +10,7 @@ use crate::{
     support::facades::application_scope,
 };
 
-use super::{JobContext, Payload, QueueError, QueueManager, QueueResult};
+use super::{JobContext, Payload, QueueError, QueueManager, QueueResult, events::JobQueued};
 
 /// The application-scoped registry shared by queue drivers.
 pub struct Queue {
@@ -19,6 +19,30 @@ pub struct Queue {
 }
 
 impl Queue {
+    pub(super) async fn observe_queued(
+        &self,
+        connection: &str,
+        queue: &str,
+        id: &str,
+        payload: &Payload,
+    ) {
+        let Ok(manager) = self.manager() else { return };
+        match manager.observes_worker_event(JobQueued::NAME) {
+            Ok(true) => {
+                manager
+                    .observe_confirmed_event(JobQueued {
+                        connection_name: connection.into(),
+                        queue: queue.into(),
+                        id: id.into(),
+                        job: payload.clone(),
+                    })
+                    .await
+            }
+            Ok(false) => {}
+            Err(error) => manager.report_confirmed_event_error(&error).await,
+        }
+    }
+
     pub(super) fn new(owner: Weak<Container>) -> Self {
         Self {
             owner,

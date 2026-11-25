@@ -211,7 +211,7 @@ impl SqsQueue {
         delay: Option<Delay>,
     ) -> QueueResult<Option<String>> {
         let url = self.url(queue)?;
-        send(
+        let id = send(
             self.client().await,
             &url,
             payload,
@@ -219,27 +219,24 @@ impl SqsQueue {
             false,
             self.overflow.as_ref(),
         )
-        .await
+        .await?;
+        self.registry
+            .observe_queued(&self.name, &url, &id, payload)
+            .await;
+        Ok(Some(id))
     }
 
     pub(super) async fn send_batch(&self, queue: &str, payloads: &[Payload]) -> QueueResult<()> {
         let url = self.url(Some(queue))?;
-        let client = self.client().await;
         let mut entries = Vec::with_capacity(10);
         let mut bytes = 0;
         let mut start = 0;
-        let mut confirmed = vec![false; payloads.len()];
         for (index, payload) in payloads.iter().enumerate() {
             let entry = prepare_message(&url, payload, None, true, self.overflow.as_ref()).await?;
             let size = entry.message_body().len();
             if entries.len() == 10 || bytes + size > PAYLOAD_LIMIT {
-                send_batch_chunk(
-                    client,
-                    &url,
-                    std::mem::take(&mut entries),
-                    &mut confirmed[start..index],
-                )
-                .await?;
+                self.send_batch_chunk(&url, std::mem::take(&mut entries), &payloads[start..index])
+                    .await?;
                 start = index;
                 bytes = 0;
             }
@@ -247,7 +244,53 @@ impl SqsQueue {
             entries.push(entry);
         }
         if !entries.is_empty() {
-            send_batch_chunk(client, &url, entries, &mut confirmed[start..]).await?;
+            self.send_batch_chunk(&url, entries, &payloads[start..])
+                .await?;
+        }
+        Ok(())
+    }
+
+    async fn send_batch_chunk(
+        &self,
+        url: &str,
+        mut entries: Vec<SendMessageBatchRequestEntry>,
+        payloads: &[Payload],
+    ) -> QueueResult<()> {
+        for (index, entry) in entries.iter_mut().enumerate() {
+            entry.id = index.to_string();
+        }
+        let result = self
+            .client()
+            .await
+            .send_message_batch()
+            .queue_url(url)
+            .set_entries(Some(entries))
+            .send()
+            .await
+            .map_err(backend)?;
+        let mut confirmed = vec![false; payloads.len()];
+        for success in result.successful() {
+            let index = success
+                .id()
+                .parse::<usize>()
+                .map_err(|_| QueueError::InvalidPayload)?;
+            let Some(slot) = confirmed.get_mut(index).filter(|sent| !**sent) else {
+                return Err(QueueError::InvalidPayload);
+            };
+            *slot = true;
+            self.registry
+                .observe_queued(&self.name, url, success.message_id(), &payloads[index])
+                .await;
+        }
+        if let Some(failure) = result.failed().first() {
+            return Err(backend(std::io::Error::other(format!(
+                "SQS rejected {} batch entries (first code: {})",
+                result.failed().len(),
+                failure.code(),
+            ))));
+        }
+        if confirmed.iter().any(|sent| !sent) {
+            return Err(QueueError::InvalidPayload);
         }
         Ok(())
     }
@@ -287,6 +330,8 @@ impl SqsQueue {
             storage: Box::new(SqsReservation {
                 client: client.clone(),
                 options: self.options.clone(),
+                registry: self.registry.clone(),
+                connection: self.name.clone(),
                 url: url.clone(),
                 receipt: receipt.into(),
                 overflow: self.overflow.clone(),
@@ -485,6 +530,8 @@ impl ClearableQueue for SqsQueue {
 struct SqsReservation {
     client: Client,
     options: Arc<Options>,
+    registry: Arc<Queue>,
+    connection: String,
     url: String,
     receipt: String,
     overflow: Option<OverflowStore>,
@@ -502,15 +549,11 @@ impl Reservation for SqsReservation {
             let url = queue
                 .map(|name| queue_url(name, &self.options))
                 .transpose()?;
-            send(
-                &self.client,
-                url.as_deref().unwrap_or(&self.url),
-                next,
-                delay,
-                true,
-                self.overflow.as_ref(),
-            )
-            .await?;
+            let url = url.as_deref().unwrap_or(&self.url);
+            let id = send(&self.client, url, next, delay, true, self.overflow.as_ref()).await?;
+            self.registry
+                .observe_queued(&self.connection, url, &id, next)
+                .await;
             self.delete().await
         })
     }
@@ -554,7 +597,7 @@ async fn send(
     delay: Option<Delay>,
     stable_deduplication: bool,
     overflow: Option<&OverflowStore>,
-) -> QueueResult<Option<String>> {
+) -> QueueResult<String> {
     let entry = prepare_message(url, payload, delay, stable_deduplication, overflow).await?;
     // A send error can mean the service accepted the message without returning a response.
     let result = client
@@ -567,52 +610,10 @@ async fn send(
         .send()
         .await
         .map_err(backend)?;
-    Ok(Some(
-        result
-            .message_id()
-            .ok_or(QueueError::InvalidPayload)?
-            .into(),
-    ))
-}
-
-async fn send_batch_chunk(
-    client: &Client,
-    url: &str,
-    mut entries: Vec<SendMessageBatchRequestEntry>,
-    confirmed: &mut [bool],
-) -> QueueResult<()> {
-    for (index, entry) in entries.iter_mut().enumerate() {
-        entry.id = index.to_string();
-    }
-    let result = client
-        .send_message_batch()
-        .queue_url(url)
-        .set_entries(Some(entries))
-        .send()
-        .await
-        .map_err(backend)?;
-    for success in result.successful() {
-        let Some(slot) = success
-            .id()
-            .parse::<usize>()
-            .ok()
-            .and_then(|index| confirmed.get_mut(index))
-        else {
-            return Err(QueueError::InvalidPayload);
-        };
-        *slot = true;
-    }
-    if let Some(failure) = result.failed().first() {
-        return Err(backend(std::io::Error::other(format!(
-            "SQS rejected {} batch entries (first code: {})",
-            result.failed().len(),
-            failure.code(),
-        ))));
-    }
-    if confirmed.iter().any(|sent| !sent) {
-        return Err(QueueError::InvalidPayload);
-    }
-    Ok(())
+    Ok(result
+        .message_id()
+        .ok_or(QueueError::InvalidPayload)?
+        .into())
 }
 
 async fn prepare_message(
@@ -726,7 +727,7 @@ impl Reservation for AgentReservation {
                 .map(|q| self.queue.url(Some(q)))
                 .transpose()?
                 .unwrap_or_else(|| self.url.clone());
-            send(
+            let id = send(
                 self.queue.client().await,
                 &url,
                 next,
@@ -735,6 +736,10 @@ impl Reservation for AgentReservation {
                 self.queue.overflow.as_ref(),
             )
             .await?;
+            self.queue
+                .registry
+                .observe_queued(&self.queue.name, &url, &id, next)
+                .await;
             Ok(())
         })
     }

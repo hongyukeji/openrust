@@ -85,6 +85,9 @@ impl BeanstalkdQueue {
             .or_else(|| reply.strip_prefix("BURIED "))
             .ok_or_else(|| protocol(&reply))?;
         number(id)?;
+        self.registry
+            .observe_queued(&self.name, tube, id, payload)
+            .await;
         Ok(Some(id.to_owned()))
     }
 

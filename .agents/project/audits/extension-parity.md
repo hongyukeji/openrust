@@ -219,11 +219,19 @@ Provider 按固定 [ExpireSupervisors](https://github.com/laravel/horizon/blob/b
 
 Rust 公开复用 `Payload::display_name()`，未设置显示名的载荷使用处理器注册名。`Queues`、`UserJobs` 与 `SlowJobs` 按显示名匹配忽略规则，慢任务阈值和聚合键也沿用显示名。真实 HTTP 夹具发现数据库队列虽然成功落库却未派发 `JobQueued`，造成入队及用户计数缺失。补齐每次成功写入后的事件，携带连接、队列、运输 ID 和载荷，立即或延迟投递复用同一入口。 [固定 Queue::enqueueUsing](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/Queue.php)
 
-带认证的 HTTP 入口通过 `Artisan::queue` 写入两个共享处理器的不同命令名。真实数据库 Worker 消费两个任务，Pulse 只保留一个入队、处理中、完成和用户计数，慢任务按保留命令名分组。macOS 的 SQLite、PostgreSQL 和 MySQL 专项均通过。SQS 与 Beanstalkd 的成功入队事件仍缺，参与队列 Recorder 对齐时需单独实现及验收。SQL Server 发布组合待验。
+带认证的 HTTP 入口通过 `Artisan::queue` 写入两个共享处理器的不同命令名。真实数据库 Worker 消费两个任务，Pulse 只保留一个入队、处理中、完成和用户计数，慢任务按保留命令名分组。macOS 的 SQLite、PostgreSQL 和 MySQL 专项均通过。SQL Server 发布组合待验。外部队列见下节。
 
 macOS 同源码通过三包默认 88 项、Pulse 全目标严格 Clippy、全仓格式及三语页面 12 组浏览器检查。框架原生 HTTP 数据库队列回归分别在 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 通过，覆盖延迟、事务内派发和标准 Worker 入口。证据为 `target/tmp/observability-parity/pulse-job-display-name-{baseline,focused,verified,docs,core}.log`。
 
 Linux 7.0.14 ARM64 与 Windows 11 ARM64 用 `ee28c3a27` 的变更源码和 Rust 1.94.0，通过已认证 HTTP、SQLite 真库、原生 Artisan 入队及数据库 Worker 的显示名专项。证据为 `target/tmp/observability-parity/pulse-job-display-name-linux.log` 与 `target/tmp/observability-windows/pulse-job-display-name-arm64.log`。
+
+### Pulse 外部队列成功入队事件
+
+固定 Laravel `BeanstalkdQueue` 与 `SqsQueue` 在成功发送后派发 `JobQueued`。SQS 批次逐项关联请求 ID 与响应消息 ID，先派发本块已成功的消息，再返回拒绝错误并停止后续分块。当前 Rust 基线的批次写入使用 SQL 事务，部分发送失败时回滚批次行，已被队列接收的消息仍留在运输端。此前的发布账本和自动恢复记录属于不同基线，本批沿用当前事务与队列行为。 [固定 SqsQueue](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/SqsQueue.php) [固定 BeanstalkdQueue](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/BeanstalkdQueue.php)
+
+Rust 在 Beanstalkd 取得已接收的任务 ID，以及 SQS 取得单条或批次的消息 ID 后，公开连接、队列、运输 ID 和原始载荷。链式后继复用相同确认路径，SQS 保留发送时配置的 FIFO 去重。Rust 沿用现有确认后观察机制，把监听器失败记入日志并保留运输端结果。SQS HTTP 200 部分拒绝的回环协议测试验证了首项监听器报错时，第三项仍被观测，实际返回第二项的拒绝错误。Beanstalkd 1.13 和 ElasticMQ 1.6.15 专用回环实例分别通过真实入队、Pulse 显示名筛选、认证用户计数、Artisan 消费及链式后继计数。托管 AWS 不在本轮实测范围。
+
+macOS 同源码通过核心 Cloud 16 项、三包默认 88 项、全仓格式与修改范围的严格 Clippy。链式验收由 HTTP 请求派发首项并在请求结束后落库，两种运输均在 Worker 发送后继后增加一次成功计数。证据为 `target/tmp/observability-parity/pulse-external-queue-{verified,brokers-verified,sqs,regression}.log`。
 
 ### Telescope 出站 multipart 构建器快照
 
