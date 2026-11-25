@@ -21,7 +21,9 @@ pub use array_session_handler::ArraySessionHandler;
 pub(crate) use blocking::{RouteBlock, SessionLock};
 pub use cache_based_session_handler::CacheBasedSessionHandler;
 pub use cookie_session_handler::CookieSessionHandler;
-pub use database_session_handler::{DatabaseSessionHandler, DatabaseSessionMetadata};
+pub use database_session_handler::{
+    DatabaseSessionHandler, DatabaseSessionMetadata, DatabaseSessionRecord,
+};
 pub use encrypted_store::EncryptedStore;
 pub use facade::Session;
 pub use file_session_handler::FileSessionHandler;

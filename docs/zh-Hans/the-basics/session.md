@@ -144,3 +144,13 @@ Route::get("/visits", || async {
 ```
 
 `get` 返回 `Option<Value>`；`get_or` 只对缺失键使用默认值，显式 `null` 仍返回 `null`。`all`、`only`、`except` 返回副本，避免将引用带出请求借用。`regenerate`、`migrate`、`invalidate`、`start` 和 `save` 是异步方法。持有 `&mut Request` 时，直接使用请求实例，或通过 `request.with_container(async { ... }).await` 安全借出后调用门面。
+
+## 只读数据库会话元数据 {#database-session-metadata}
+
+已获授权的账户管理代码可用 `SessionManager::database_handler()`，按配置的连接、表和有效期创建原生数据库处理器。其他会话驱动、以 `database` 同名注册的自定义替代驱动会返回错误。
+
+`DatabaseSessionHandler::sessions_for(user_id)` 通过 `user_id` 索引读取未过期候选，返回 ID、IP、User-Agent 和 Unix 秒活动时间，按最近活动排序。同一个 `user_id` 仍不足以证明真实 Guard 及认证用户归属。
+
+逐条调用 `SessionManager::read_database_session(&id).await?`，复用原生解密及 Store 解码，保持只读，不保存、不刷新活动时间、不回收会话，也不替换当前请求的会话。非法 ID 返回错误；缺失、过期或 JSON 无法解码时没有认证登录属性。使用 `SessionGuard::session_belongs_to_user(config, guard, user, &attributes)?` 核对：必须具有匹配的 Guard 登录身份及当前凭据指纹，缺失、伪造或过期指纹不能通过。
+
+这些底层入口把敏感内部 ID 和属性交给受信任的服务端代码。公开设备响应须另做授权并使用不透明标识，禁止序列化整份会话或泄露原始 ID、CSRF 令牌及登录指纹。设备撤销和账户管理路由属于另外的生命周期操作。

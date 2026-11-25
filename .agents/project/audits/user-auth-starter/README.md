@@ -390,3 +390,16 @@ verification-policy-first／resumed／second／third保留初次路径、trait�
 随后吸收已提交公共依赖到be4cf61a0，保留其他代理未提交改动与下一批设备源码在工作区，实际组合见verification-policy-combination-head.txt。verification-policy-combination.log独立MySQL8.4.13和PostgreSQL18.7各执行认证队列2项及隔离1项，完整Sanctum套件50项，workspace严格Clippy1分08秒、feature37.32秒及fmt通过。无环境提前返回不计外部数据库实测。前批Redis队列2项未受存储实现变化，复用既有证据，不声称本批重跑Redis。
 
 verification-policy-docs.log三语正文构建及两挂载／桌面手机12组通过，说明send_when公开调用及非全局阻断。交付清单／源码SHA见verification-policy-files.json／verification-policy-final-source-sha.json。清理仅本批文档dist与缓存，真实剩余空间见verification-policy-delivery-space.json；可复用Cargo缓存、源码、日志、数据库与数据卷保留。此项只闭合邮件策略范围，继续数据库设备管理、头像与注销、可选因素及安装矩阵，不闭合A01整体。未推送。
+
+
+## A01-03前置：数据库会话的只读元数据与归属核验（底层子单元验收通过）
+
+参考[Jetstream5.x会话表读取](https://github.com/laravel/jetstream/blob/5.x/src/Http/Livewire/LogoutOtherBrowserSessionsForm.php)的已有user_id／IP／UA／last_activity结构，并核对固定[Framework13.40.0 SessionGuard](https://github.com/laravel/framework/blob/v13.40.0/src/Illuminate/Auth/SessionGuard.php)。Jetstream仅作设计参考，行为基线仍为项目固定框架。沿用原生DatabaseSessionHandler、SessionManager、EncryptedStore、Store和SessionFingerprint，不另建解密或JSON会话解析器。
+
+新增DatabaseSessionRecord（不实现自动序列化）及DatabaseSessionHandler::sessions_for：按user_id读取未过期候选元数据，原生写连接、秒单位、最近活动排序；user_id不是完整归属证明。SessionManager::database_handler只对原生database驱动提供能力，同名自定义驱动明确拒绝。read_database_session使用独立原生Store解密／加载，不保存、不改当前请求、不刷新活动或GC；非法ID报错，缺失／过期会话没有登录属性。SessionGuard::session_belongs_to_user要求实际Guard登录身份和当前安全指纹，拒绝无指纹、伪造、旧版本、其他Guard；不修改原生登录或记住登录流程。
+
+device-primitives-first／second／third保存初次测试夹具缺用户表、insert调用及语法失败，均未计通过。改用独立原生database UserProvider和具名用户表，让真实Guard登录时重新读取用户行，而非绕过登录指纹复核；device-primitives-fourth.log SQLite明文／加密2项通过。首轮MySQL一项并发建表失败，夹具从时间戳命名改成进程号+单调计数，保持正常并发；device-primitives-matrix-second.log独立MySQL8.4.13、PostgreSQL18.7各2项通过，不使用开发数据库。覆盖实际metadata、正确／错误归属、其他Guard、无／伪造／旧版本指纹、非法／缺失／过期ID、读取前后完整行不变、同名自定义驱动拒绝。schema沿用正式字段类型，表按用例独立并清理，未以扩大列类型掩盖方言问题。
+
+device-primitives-final-gates.log SQLite2通过，严格Clippy发现测试显式函数指针类型复杂，改为现有Builder的分支配置形式，不加allow。device-primitives-gates-resumed.log SQLite2再次通过，workspace严格Clippy10.90秒、Fortify+Sanctum49.99秒及fmt退出0；冻结组合头见device-primitives-combination-head.txt，未含其他任务WIP。device-primitives-docs.log三语Session正文构建及两挂载／桌面手机12组通过，说明可信服务端使用、候选归属与敏感原始ID边界。
+
+本项不是设备列表／撤销功能交付。公开设备响应仍需不透明ID、授权、近期证明与持久化撤销；删除sessions行不能防止在途保存复活。多Guard共用浏览器时单列user_id可能遗漏另一Guard会话，正式设备能力需处理该边界，不能仅用这批候选读取宣称完整枚举。后续方案／待验证条件保存在target/tmp/user-starter/device-design.md，未计完成。清单／SHA及真实清理空间分别为device-primitives-files.json、device-primitives-final-source-sha.json、device-primitives-delivery-space.json；本批只删除文档dist／缓存，保留正常Cargo增量、源码、日志、数据库／数据卷。继续设备生命周期及其余A01，不推送。

@@ -144,3 +144,13 @@ Route::get("/visits", || async {
 ```
 
 `get` 回傳 `Option<Value>`；`get_or` 只對缺少的鍵使用預設值，明確的 `null` 仍回傳 `null`。`all`、`only`、`except` 回傳副本，避免將參考帶出請求借用。`regenerate`、`migrate`、`invalidate`、`start` 和 `save` 是非同步方法。持有 `&mut Request` 時，直接使用請求實例，或透過 `request.with_container(async { ... }).await` 安全借出後呼叫門面。
+
+## 唯讀資料庫工作階段中繼資料 {#database-session-metadata}
+
+已獲授權的帳戶管理程式可用 `SessionManager::database_handler()`，依設定的連線、資料表及有效期建立原生資料庫處理器。其他工作階段驅動、以 `database` 同名註冊的自訂替代驅動會回傳錯誤。
+
+`DatabaseSessionHandler::sessions_for(user_id)` 透過 `user_id` 索引讀取未過期候選，回傳 ID、IP、User-Agent 與 Unix 秒活動時間，按最近活動排序。同一個 `user_id` 仍不足以證明真實 Guard 及認證使用者歸屬。
+
+逐筆呼叫 `SessionManager::read_database_session(&id).await?`，沿用原生解密及 Store 解碼，保持唯讀，不儲存、不更新活動時間、不回收工作階段，也不替換目前請求的工作階段。非法 ID 回傳錯誤；缺失、過期或 JSON 無法解碼時沒有認證登入屬性。使用 `SessionGuard::session_belongs_to_user(config, guard, user, &attributes)?` 核對：必須具有相符的 Guard 登入身分與目前憑證指紋，缺失、偽造或過期指紋不能通過。
+
+這些底層入口將敏感內部 ID 與屬性交給受信任的伺服器程式。公開裝置回應須另做授權並使用不透明識別碼，禁止序列化整份工作階段或洩漏原始 ID、CSRF 權杖與登入指紋。裝置撤銷與帳戶管理路由屬於另外的生命週期操作。

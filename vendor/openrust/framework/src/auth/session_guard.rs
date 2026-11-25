@@ -266,6 +266,25 @@ impl<'a> SessionGuard<'a> {
         self.provider.clone()
     }
 
+    /// 核对只读会话快照的真实Guard身份及登录指纹；未带指纹的旧会话不视为可信设备。
+    pub fn session_belongs_to_user(
+        config: &dyn Repository,
+        guard: &str,
+        user: &dyn Authenticatable,
+        attributes: &std::collections::BTreeMap<String, serde_json::Value>,
+    ) -> AuthResult<bool> {
+        let identity = serde_json::to_value(user.get_auth_identifier())?;
+        if attributes.get(&format!("login_{guard}")) != Some(&identity) {
+            return Ok(false);
+        }
+        let expected = SessionFingerprint::for_guard(config, guard)?.sign_for_guard(user, guard)?;
+        Ok(attributes
+            .get(&SessionFingerprint::session_key(guard))
+            .cloned()
+            .and_then(|value| serde_json::from_value::<Vec<u8>>(value).ok())
+            .is_some_and(|stored| bool::from(stored.ct_eq(&expected))))
+    }
+
     pub fn get_name(&self) -> &str {
         &self.session_key
     }

@@ -132,6 +132,50 @@ impl SessionManager {
         })
     }
 
+    /// 原生数据库驱动可枚举已有索引元数据；自定义同名驱动不冒充受支持能力。
+    pub fn database_handler(&self) -> SessionResult<DatabaseSessionHandler> {
+        if self.settings.driver.as_deref() != Some("database")
+            || self
+                .factories
+                .read()
+                .map_err(|_| SessionError::Storage)?
+                .contains_key("database")
+        {
+            return Err(SessionError::Configuration);
+        }
+        DatabaseSessionHandler::new(
+            self.database
+                .connection(self.settings.connection.as_deref())
+                .map_err(|_| SessionError::Storage)?,
+            &self.settings.table,
+            self.settings.lifetime,
+        )
+    }
+
+    /// 使用原生解密及Store反序列化只读加载，不更改当前请求、保存会话或触发垃圾回收。
+    pub async fn read_database_session(
+        &self,
+        id: &str,
+    ) -> SessionResult<std::collections::BTreeMap<String, Value>> {
+        if !super::store::valid_id(id) {
+            return Err(SessionError::InvalidValue);
+        }
+        let handler: Box<dyn SessionHandler> = Box::new(self.database_handler()?);
+        let handler = if self.settings.encrypt {
+            let encrypter = facades::current_container()
+                .ok_or(SessionError::Configuration)?
+                .get::<dyn Encrypter>(crate::container::ServiceKey::typed::<dyn Encrypter>())
+                .map_err(|_| SessionError::Configuration)?;
+            Box::new(EncryptedStore::new(handler, encrypter)) as Box<dyn SessionHandler>
+        } else {
+            handler
+        };
+        let mut store = Store::new(&self.settings.cookie, handler)?;
+        store.set_id(Some(id))?;
+        store.start().await?;
+        Ok(store.all().clone())
+    }
+
     pub fn should_block(&self) -> bool {
         self.settings.block
     }

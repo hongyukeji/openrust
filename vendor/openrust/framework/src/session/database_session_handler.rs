@@ -26,6 +26,16 @@ pub struct DatabaseSessionMetadata {
     pub user_agent: Option<String>,
 }
 
+/// 数据库会话候选的已有元数据；归属仍须核对Guard登录值及安全指纹。
+/// 不自动序列化，避免把原始会话ID当作公开设备标识返回客户端。
+#[derive(Clone, Debug)]
+pub struct DatabaseSessionRecord {
+    pub id: String,
+    pub ip_address: Option<String>,
+    pub user_agent: Option<String>,
+    pub last_activity: i64,
+}
+
 /// Stores sessions in the configured database table on the write connection.
 pub struct DatabaseSessionHandler {
     connection: Connection,
@@ -76,6 +86,44 @@ impl DatabaseSessionHandler {
             .await
             .map(|row| row.is_some())
             .map_err(|_| SessionError::Storage)
+    }
+
+    /// 只按索引读取未过期候选，不将user_id列当作完整认证归属证明。
+    pub async fn sessions_for(&self, user_id: Value) -> SessionResult<Vec<DatabaseSessionRecord>> {
+        let rows = self
+            .query()
+            .select(["id", "ip_address", "user_agent", "last_activity"])
+            .r#where("user_id", "=", user_id)
+            .r#where("last_activity", ">=", cutoff(self.lifetime)?)
+            .order_by_desc("last_activity")
+            .order_by("id", "asc")
+            .get()
+            .await
+            .map_err(|_| SessionError::Storage)?;
+        rows.into_iter()
+            .map(|row| {
+                let text = |key: &str| -> SessionResult<Option<String>> {
+                    match row.get(key) {
+                        Some(Value::Text(value)) => Ok(Some(value.clone())),
+                        Some(Value::Null) | None => Ok(None),
+                        _ => Err(SessionError::Encoding),
+                    }
+                };
+                let last_activity = match row.get("last_activity") {
+                    Some(Value::Integer(value)) => *value,
+                    Some(Value::Unsigned(value)) => {
+                        i64::try_from(*value).map_err(|_| SessionError::Encoding)?
+                    }
+                    _ => return Err(SessionError::Encoding),
+                };
+                Ok(DatabaseSessionRecord {
+                    id: text("id")?.ok_or(SessionError::Encoding)?,
+                    ip_address: text("ip_address")?,
+                    user_agent: text("user_agent")?,
+                    last_activity,
+                })
+            })
+            .collect()
     }
 
     fn query(&self) -> Builder<'static> {

@@ -144,3 +144,13 @@ Route::get("/visits", || async {
 ```
 
 `get` returns `Option<Value>`. `get_or` applies its default only to a missing key; an explicit `null` remains `null`. `all`, `only`, and `except` return owned copies rather than references escaping the request borrow. `regenerate`, `migrate`, `invalidate`, `start`, and `save` are asynchronous. Handlers borrowing `&mut Request` should use that instance or lend it safely through `request.with_container(async { ... }).await` before calling the facade.
+
+## Read-only database session metadata {#database-session-metadata}
+
+For authorized account-management code, `SessionManager::database_handler()` creates a fresh native database handler using the configured connection, table and lifetime. It returns an error for other session drivers or a custom replacement registered under `database`.
+
+`DatabaseSessionHandler::sessions_for(user_id)` reads unexpired candidates through the `user_id` index and returns their ID, IP address, User-Agent and Unix-second activity time, newest first. Treat them as candidates: a shared `user_id` does not establish the authenticated Guard or user identity.
+
+Load each candidate with `SessionManager::read_database_session(&id).await?`. This uses native decryption and Store decoding without saving, refreshing activity, collecting garbage or replacing the current request's session. Invalid IDs are rejected; missing, expired or undecodable JSON sessions have no authenticated login attributes. Check `SessionGuard::session_belongs_to_user(config, guard, user, &attributes)?` before selecting a candidate. It requires the matching Guard login identity and current credential fingerprint; missing, forged or stale fingerprints fail.
+
+These lower-level APIs return sensitive internal IDs and attributes to trusted server code. A public device response needs its own authorization and opaque identifiers; never serialize a complete session or expose its raw ID, CSRF token or login fingerprint. Device revocation and account-management routes are separate lifecycle operations.
