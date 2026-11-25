@@ -36,6 +36,8 @@ pub enum ModerationError {
     Throttled,
     #[error("内容审核供应商暂不可用")]
     ServiceUnavailable,
+    #[error("内容审核请求超时")]
+    Timeout,
     #[error("内容审核供应商响应不符合协议")]
     Protocol,
     #[error("提交结果未知，须核对原任务后再重试")]

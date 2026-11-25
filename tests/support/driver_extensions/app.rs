@@ -154,7 +154,10 @@ async fn main() -> ExitCode {
                         #[cfg(feature = "pay")]
                         Route::post("/drivers/pay", pay::callback)?;
                         #[cfg(feature = "content-moderation")]
-                        Route::get("/drivers/moderation", moderation::route)?;
+                        {
+                            Route::get("/drivers/moderation", moderation::route)?;
+                            Route::post("/drivers/moderation/aliyun", moderation::aliyun_route)?;
+                        }
                         Ok(())
                     })
                     .health("/up"),

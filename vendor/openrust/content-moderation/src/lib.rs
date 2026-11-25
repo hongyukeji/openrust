@@ -5,6 +5,7 @@
 #[path = "../config/moderation.rs"]
 mod configuration;
 mod contracts;
+mod drivers;
 mod input;
 mod manager;
 mod moderation;

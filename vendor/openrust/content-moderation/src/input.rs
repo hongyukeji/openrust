@@ -25,11 +25,7 @@ impl TextInput {
 
     pub fn with_language(mut self, language: impl Into<String>) -> ModerationResult<Self> {
         let language = language.into();
-        if language.len() > 35
-            || !language.split('-').all(|part| {
-                !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_alphanumeric())
-            })
-        {
+        if !valid_language_hint(&language) {
             return Err(ModerationError::InvalidInput("language"));
         }
         self.language = Some(language);
@@ -43,6 +39,13 @@ impl TextInput {
     pub fn language(&self) -> Option<&str> {
         self.language.as_deref()
     }
+}
+
+pub(crate) fn valid_language_hint(language: &str) -> bool {
+    language.len() <= 35
+        && language
+            .split('-')
+            .all(|part| !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_alphanumeric()))
 }
 
 /// 私有素材的逻辑引用。驱动须通过配置的存储读取并核对版本，不直接以路径访问文件系统。

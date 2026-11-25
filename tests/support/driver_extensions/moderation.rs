@@ -25,10 +25,18 @@ use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 const JOB: &str = "moderation.fixture.query";
 
 pub(super) fn configuration(env: &Environment) -> Result<Value, ConfigError> {
-    Ok(json!({"default":"comments","drivers":{
+    let mut configuration = json!({"default":"comments","drivers":{
         "comments":{"driver":"fixture-text"},
         "video":{"driver":"fixture-media","region":env.get_utf8("MODERATION_FIXTURE_REGION")?.unwrap_or("original")},
-    }}))
+    }});
+    if let Some(endpoint) = env.get_utf8("MODERATION_FIXTURE_ALIYUN")? {
+        configuration["drivers"]["aliyun-comments"] = json!({
+            "driver":"aliyun", "base_url":endpoint, "text_service":"comment_detection", "text_languages":["zh-Hans"],
+            "access_key_id_env":"FIXTURE_ALIYUN_ID", "access_key_secret_env":"FIXTURE_ALIYUN_SECRET",
+            "security_token_env":"FIXTURE_ALIYUN_TOKEN", "timeout_ms":350,
+        });
+    }
+    Ok(configuration)
 }
 
 pub(super) struct ExternalProvider;
@@ -147,6 +155,45 @@ pub(super) fn route(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
     })
 }
 
+async fn aliyun(text: &str, language: Option<&str>) -> ModerationResult<Value> {
+    let mut input = TextInput::new(text)?;
+    if let Some(language) = language {
+        input = input.with_language(language)?;
+    }
+    let result = Moderation::driver("aliyun-comments")?.text(&input).await?;
+    let labels: Vec<_> = result
+        .findings()
+        .iter()
+        .map(|finding| json!({"category":finding.category,"provider":finding.provider_label}))
+        .collect();
+    Ok(json!({
+        "decision":result.decision(&[Modality::Text]).map(|value| format!("{value:?}")),
+        "request_id":result.request_id(), "labels":labels,
+    }))
+}
+
+pub(super) fn aliyun_route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let raw = request.body_bytes().await?;
+        let text = std::str::from_utf8(&raw).map_err(|_| HttpError::InvalidRequest)?;
+        match aliyun(text, request.header("x-fixture-language")?).await {
+            Ok(value) => Response::json(StatusCode::OK, value),
+            Err(error) => {
+                let status = match error {
+                    ModerationError::InvalidInput(_) | ModerationError::Rejected => {
+                        StatusCode::BAD_REQUEST
+                    }
+                    ModerationError::Unauthorized => StatusCode::UNAUTHORIZED,
+                    ModerationError::Throttled => StatusCode::TOO_MANY_REQUESTS,
+                    ModerationError::Timeout => StatusCode::GATEWAY_TIMEOUT,
+                    _ => StatusCode::BAD_GATEWAY,
+                };
+                Response::json(status, json!({"error":format!("{error:?}")}))
+            }
+        }
+    })
+}
+
 struct Query;
 impl JobHandler for Query {
     fn handle<'a>(
@@ -226,5 +273,34 @@ pub(super) fn register_command(artisan: &mut Artisan) -> Result<(), ConsoleError
                 .long("queue")
                 .action(clap::ArgAction::SetTrue),
         ),
+    ))))?;
+    artisan.add_command(Box::new(AliyunProbe(CommandDefinition::new(
+        clap::Command::new("drivers:moderation-aliyun").arg(clap::Arg::new("text").required(true)),
     ))))
+}
+
+struct AliyunProbe(CommandDefinition);
+
+impl Command for AliyunProbe {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+
+    fn handle<'a>(
+        &'a self,
+        _: &'a Application,
+        input: &'a Input,
+        output: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            let text = input.argument("text").expect("fixture command input");
+            let result = aliyun(text.as_str().expect("fixture text"), None)
+                .await
+                .map_err(ConsoleError::from_source)?;
+            output
+                .write_raw(&format!("{result}\n"))
+                .map_err(ConsoleError::from_source)?;
+            Ok(0)
+        })
+    }
 }

@@ -2,7 +2,15 @@
 
 啟用 `content-moderation` 功能，或在依賴 `openrust-content-moderation` 的應用程式中註冊 `ModerationServiceProvider`。執行 `./artisan vendor:publish --tag=moderation-config` 發布設定範本。在應用程式的 Rust 設定中將 `moderation.drivers.comments.driver` 設為 `review-text`，並透過 `MODERATION_DRIVER=comments` 選擇預設設定。
 
-目前套件提供驅動契約和應用程式裝配。內建雲端服務介接器及持久化影片編排正在實作。
+目前套件提供自訂驅動契約和阿里雲文字審核。其他供應商操作及持久化影片編排正在實作。
+
+## 阿里雲文字 {#aliyun-text}
+
+在 `moderation.drivers.aliyun_comments` 設定 `driver: "aliyun"`、`region: "cn-shanghai"`、`text_service: "comment_detection"`、`access_key_id_env` 和 `access_key_secret_env`。最後兩個欄位填寫環境變數名稱。使用 STS 時還須設定 `security_token_env`。用 `Moderation::driver("aliyun_comments")` 選擇設定後呼叫 `text`，也可透過 `MODERATION_DRIVER=aliyun_comments` 設為預設。
+
+介接器呼叫 `Green/2022-03-02` 的 `TextModeration`，最多接受 600 個 Unicode 字元。高風險回傳 `Block`，低風險和中風險回傳 `Review`。明確的空標籤且無風險時，文字涵蓋可得到 `Allow`。未識別的標籤保留在結果中。 [阿里雲文字審核增強版](https://help.aliyun.com/zh/document_detail/434034.html)
+
+如果傳入語言提示，在 `text_languages` 列出所選服務支援的語言標籤。設定以外的提示會在送出請求前拒絕。未提供提示時，原文直接交由所選服務審核。
 
 ## 自訂驅動 {#custom-drivers}
 

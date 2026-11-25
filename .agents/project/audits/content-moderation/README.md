@@ -28,3 +28,13 @@
 编译后的正式 `main` 另通过自动发现、`config:show moderation`、`vendor:publish`、`config:cache` 和实际 `/up`。首轮夹具引用了不存在的迁移常量，改为实际迁移类型。随后删除过时的根应用语言文件复制步骤，使用框架已内置的迁移语言资源。
 
 冻结提交 `b9a751e80` 上叠加本批文件，Rust 1.94.0。3 项包测试、全工作区 `fmt`、包所有目标及应用验收目标的严格 Clippy 通过。三语用法的 Provider 与调用片段拼接为独立消费者编译，三语文档站内容检查和构建通过。日志位于 `target/tmp/content-moderation`。本批验毕外部驱动底座，四家协议、持久视频恢复、内容安全效果和服务开通仍按后续门禁验收。
+
+## CM-02A 阿里云通用文本 {#aliyun-text}
+
+固定 Alibaba Cloud Go SDK `v3.2.4` 的 `TextModerationWithOptions` 使用 HTTPS POST、RPC formData 和 `Green/2022-03-02`。Rust 复用现有 `AliyunRpcSigner` 和 HTTP Client。环境引用随配置缓存保存，真实密钥和可选 STS token 由各进程读取。出站请求不跟随重定向，限制连接和响应，并对 HTTP 观测启用原文／响应脱敏。业务码与 HTTP 状态分别映射。 [固定 Go SDK](https://github.com/alibabacloud-go/green-20220302/blob/v3.2.4/client/client.go#L1233) · [通用文本协议](https://help.aliyun.com/zh/document_detail/434034.html)
+
+请求逐字保留 UTF-8 文本，最多 600 Unicode 字符。各业务场景的语言能力由 profile 的 `text_languages` 显式声明；不匹配的提示在请求前拒绝。高风险映射为 Block，低／中风险及缺少明确等级的非空证据交 Review；只有明确空标签且没有风险提示的组合可给出文本 Allow。保留供应商标签与请求 ID，原始风险词不进入公开结果。 [供应商场景与语言](https://help.aliyun.com/zh/document_detail/464388.html)
+
+基线 `967a83a5`，Rust 1.94.0。`tests/moderation_aliyun_acceptance.py` 的本机 HTTP 替身独立计算 20 个请求的 ACS3 签名、正文哈希、nonce、STS 和 form 字段。验证真实应用 HTTP、独立 Artisan、配置／路由缓存和凭据轮换。轮换后以新的进程凭据签名，缓存中只有环境名。覆盖 600／601 字符、语言配置、未知标签、无明确风险等级、缺字段、非法与超大响应、拒绝重定向、HTTP 与业务限流、超时及服务错误。补语言提示门禁后整批重测通过。外部驱动 SQLite 的 HTTP／Artisan／Worker 和 3 项公开契约一并复跑。全工作区格式、包所有目标与验收应用严格 Clippy、三语内容检查通过。
+
+本机协议替身使用回环 HTTP，正式端点使用 HTTPS。真实阿里云站点、账号权限、实际检测效果及费用仍待授权环境。图片、视频、语音／OCR 和其他三家适配仍按 CM-02／CM-03 推进。

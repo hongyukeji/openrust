@@ -4331,11 +4331,14 @@ dependencies = [
 name = "openrust-content-moderation"
 version = "0.0.0"
 dependencies = [
+ "http 1.5.0",
  "openrust-framework",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
  "tokio",
+ "url",
+ "zeroize",
 ]
 
 [[package]]

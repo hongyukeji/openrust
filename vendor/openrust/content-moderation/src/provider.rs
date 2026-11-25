@@ -7,7 +7,7 @@ use openrust::{
 };
 use std::sync::Arc;
 
-use crate::{ModerationManager, configuration};
+use crate::{ModerationManager, configuration, drivers};
 
 pub struct ModerationServiceProvider;
 
@@ -20,7 +20,9 @@ impl ServiceProvider for ModerationServiceProvider {
             }
             let container = app.container();
             container.singleton_named("moderation", |container| {
-                Ok(Arc::new(ModerationManager::new(container.get("config")?)))
+                let manager = ModerationManager::new(container.get("config")?);
+                drivers::register(&manager, container.make()?, container.make()?);
+                Ok(Arc::new(manager))
             })?;
             container.alias("moderation", ServiceKey::typed::<ModerationManager>())?;
             Ok(())

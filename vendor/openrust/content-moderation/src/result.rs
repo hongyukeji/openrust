@@ -1,5 +1,7 @@
 use std::collections::BTreeMap;
 
+use crate::{ModerationError, ModerationResult};
+
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum Modality {
     Text,
@@ -35,6 +37,7 @@ pub struct Assessment {
     decision: Decision,
     coverage: BTreeMap<Modality, Coverage>,
     findings: Vec<Finding>,
+    request_id: Option<String>,
 }
 
 impl Assessment {
@@ -47,7 +50,21 @@ impl Assessment {
             decision,
             coverage,
             findings,
+            request_id: None,
         }
+    }
+
+    pub fn with_request_id(mut self, request_id: impl Into<String>) -> ModerationResult<Self> {
+        let value = request_id.into();
+        if value.trim().is_empty() || value.len() > 256 || value.chars().any(char::is_control) {
+            return Err(ModerationError::InvalidInput("request ID"));
+        }
+        self.request_id = Some(value);
+        Ok(self)
+    }
+
+    pub fn request_id(&self) -> Option<&str> {
+        self.request_id.as_deref()
     }
 
     pub fn coverage(&self, modality: Modality) -> Coverage {

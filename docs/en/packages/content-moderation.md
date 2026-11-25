@@ -2,7 +2,15 @@
 
 Enable the `content-moderation` feature or register `ModerationServiceProvider` in an application that depends on `openrust-content-moderation`. Run `./artisan vendor:publish --tag=moderation-config` to publish the configuration template. In your application's Rust configuration, set `moderation.drivers.comments.driver` to `review-text` and set `MODERATION_DRIVER=comments` for the default profile.
 
-The package currently provides the driver contracts and application integration. The built-in cloud adapters and durable video orchestration are being implemented.
+The package provides custom driver contracts and Alibaba Cloud text moderation. The other provider operations and durable video orchestration are being implemented.
+
+## Alibaba Cloud text {#aliyun-text}
+
+Set `moderation.drivers.aliyun_comments` to a profile with `driver: "aliyun"`, `region: "cn-shanghai"`, `text_service: "comment_detection"`, `access_key_id_env`, and `access_key_secret_env`. The last two fields contain environment variable names. If using STS, set `security_token_env` as well. Select the profile through `Moderation::driver("aliyun_comments")` and call `text`, or make it the default with `MODERATION_DRIVER=aliyun_comments`.
+
+The adapter uses `TextModeration` in `Green/2022-03-02` and accepts up to 600 Unicode characters. High risk maps to `Block`, and named low or medium risk maps to `Review`. An explicit empty label list with no risk yields `Allow` for text coverage. Unrecognized labels are retained in the findings. [Alibaba Cloud Text Moderation 2.0](https://help.aliyun.com/zh/document_detail/434034.html)
+
+To use a language hint, list the tags supported by the chosen service in `text_languages`. A hint outside this profile is rejected before the request. Without a hint, the selected service receives the original text directly.
 
 ## Custom drivers {#custom-drivers}
 
