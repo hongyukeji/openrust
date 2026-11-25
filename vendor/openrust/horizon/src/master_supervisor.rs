@@ -311,6 +311,16 @@ impl MasterSupervisor {
     /// 向本 Master 的监控循环提交重启请求。
     pub async fn restart(&self) -> Result<()> {
         let target = Self::command_queue_for(Some(&self.id))?;
+        if let Some(queue) = crate::repository::command_queue::configured()? {
+            let target = self.repository.command_target(&target).await?;
+            return queue
+                .push(
+                    &target,
+                    crate::supervisor_commands::RESTART,
+                    serde_json::json!([]),
+                )
+                .await;
+        }
         self.repository
             .command_queue()
             .push(
@@ -484,6 +494,7 @@ impl MasterSupervisor {
             }
             let arguments = supervisor.options.to_supervisor_command(&self.executable)?;
             lease.forget_supervisor(&supervisor.name).await?;
+            lease.prepare_commands(&supervisor.name).await?;
             let directory = if supervisor.from_command {
                 supervisor
                     .options

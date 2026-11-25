@@ -142,6 +142,8 @@ Master 名稱由主機名稱轉換出的短名和程序內固定的四字元權�
 
 在應用程式 Provider 中，可用 `instance_named` 依佇列中的命令名稱繫結 `dyn MasterSupervisorCommandHandler` 或 `dyn SupervisorCommandHandler`。繫結可處理自訂命令，也可覆寫同名的內建命令。處理器接收目前程序的監控執行個體和佇列傳入的 JSON 選項。Supervisor 的處理器回傳 `Some(status)` 時，目前的監督器會排空並以該狀態碼結束。
 
+若要替換結構化命令佇列，請在應用程式容器繫結 `dyn HorizonCommandQueue`，並讓所有 Horizon 程序載入相同設定。發送命令時，透過 Horizon `Repository::command_target(name).await` 解析目標，再呼叫佇列的 `push`。後端須同時使用 `target.name()` 和 `target.scope()` 區分佇列，並按入列順序一次領取一批。命令目標對應目前程序的所有權，每次發送前應重新解析。獨立執行的 Supervisor 不帶所有權代次。
+
 若要更換執行中 Master 的所有監督器及其 Worker，將空選項的 `RESTART` 送往 `MasterSupervisor::command_queue_for(Some(master_name))`。`MasterSupervisor::restart().await` 依執行個體的名稱提交同一請求。Master 從暫停恢復。依預設，各監督器會等候執行中的工作完成後再更換。
 
 `horizon` 會即時將受管程序的輸出寫到 Artisan。從應用程式程式碼執行 `MasterSupervisor` 或 `Supervisor` 時，可用 `handle_output_using` 接收直接子程序的輸出。回呼接收 `openrust::process::OutputStream` 與位元組片段，可區分該子程序的 stdout 與 stderr。`horizon:supervisor` 會將 Worker 的兩個資料流都寫入自己的 stdout，因此 Master 收到合併後的輸出。

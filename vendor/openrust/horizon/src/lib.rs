@@ -51,9 +51,9 @@ pub use process_memory::{
 pub use provider::HorizonServiceProvider;
 pub use provisioning_plan::ProvisioningPlan;
 pub use repository::{
-    JobDetails, JobRecord, JobRepository, MasterSupervisorRepository, Metrics, MetricsRepository,
-    ProcessRepository, QueuedCommand, RedisHorizonCommandQueue, Repository, SupervisorRepository,
-    TagRepository, WorkloadRepository,
+    CommandQueueTarget, HorizonCommandQueue, JobDetails, JobRecord, JobRepository,
+    MasterSupervisorRepository, Metrics, MetricsRepository, ProcessRepository, QueuedCommand,
+    RedisHorizonCommandQueue, Repository, SupervisorRepository, TagRepository, WorkloadRepository,
 };
 pub use silenced::Silenced;
 pub use supervisor::{

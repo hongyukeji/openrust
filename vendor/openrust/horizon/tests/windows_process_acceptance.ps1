@@ -61,6 +61,7 @@ function Recorded($File, $Job) {
 function Supervisor-Command($Name, $Command, $Options, [switch]$MasterQueue) {
     $env:HORIZON_PROBE_COMMAND_QUEUE = @{
         action = 'push'; name = $Name; master = $MasterQueue.IsPresent
+        bound = $env:HORIZON_PROBE_CUSTOM_COMMAND_QUEUE -in @('1', 'file')
         command = 'Laravel\Horizon\SupervisorCommands\' + $Command
         options = $Options
     } | ConvertTo-Json -Depth 4 -Compress
@@ -72,14 +73,21 @@ function Supervisor-Command($Name, $Command, $Options, [switch]$MasterQueue) {
     }
 }
 
-foreach ($mode in @('idle', 'wait', 'fast', 'parent-exit', 'handlers')) {
+foreach ($mode in @('idle', 'wait', 'fast', 'parent-exit', 'handlers', 'queue', 'file-queue')) {
+    $customQueue = $mode -in @('queue', 'file-queue')
+    $emptyPlan = $customQueue -or $mode -in @('idle', 'handlers')
     $fixture = Join-Path $TempRoot "horizon-$mode-$([guid]::NewGuid().ToString('N'))"
     New-Item -ItemType Directory $fixture | Out-Null
     New-Item -ItemType File (Join-Path $fixture 'database.sqlite') | Out-Null
     $env:APP_BASE_PATH = $fixture
     $env:HORIZON_PROBE_FAST_TERMINATION = if ($mode -in @('wait', 'fast')) { '1' } else { '0' }
-    $env:HORIZON_PROBE_EMPTY_DEFAULTS = if ($mode -in @('idle', 'handlers')) { '1' } else { '0' }
+    $env:HORIZON_PROBE_EMPTY_DEFAULTS = if ($emptyPlan) { '1' } else { '0' }
     $env:HORIZON_PROBE_COMMAND_HANDLERS = if ($mode -eq 'handlers') { '1' } else { $null }
+    $env:HORIZON_PROBE_CUSTOM_COMMAND_QUEUE = switch ($mode) {
+        'queue' { '1' }
+        'file-queue' { 'file' }
+        default { $null }
+    }
     $env:HORIZON_PROBE_PRELOAD_MASTER_COMMAND = if ($mode -eq 'idle') { '1' } else { $null }
     $env:HORIZON_PROBE_PREPARE_DATABASE = '1'
     try {
@@ -96,7 +104,7 @@ foreach ($mode in @('idle', 'wait', 'fast', 'parent-exit', 'handlers')) {
             -RedirectStandardOutput (Join-Path $fixture 'master.stdout') `
             -RedirectStandardError (Join-Path $fixture 'master.stderr')
         $null = $master.Handle
-        if ($mode -in @('idle', 'handlers')) {
+        if ($emptyPlan) {
             $empty = Wait-For 'empty Master' {
                 $row = Status
                 if ($row.pid -eq $master.Id) { $row }
@@ -104,6 +112,7 @@ foreach ($mode in @('idle', 'wait', 'fast', 'parent-exit', 'handlers')) {
             if ($empty.supervisors.Count -ne 0) { throw 'A command survived the startup flush.' }
             $queuedDeployment = @{
                 action = 'push'; name = $empty.name; master = $true
+                bound = $customQueue
                 options = @{
                     name = $empty.name + ':supervisor-1'; queue = @('default')
                     maxProcesses = 1; balanceCooldown = 120
@@ -135,7 +144,7 @@ foreach ($mode in @('idle', 'wait', 'fast', 'parent-exit', 'handlers')) {
         }
         $null = Artisan horizon:supervisor-status $name
 
-        if ($mode -eq 'idle') {
+        if ($customQueue -or $mode -eq 'idle') {
             $dynamic = Dispatch 20 'windows-native'
             Wait-For 'job on the dynamically added Worker' { Recorded 'completed.log' $dynamic } | Out-Null
             Wait-For 'both Worker streams on Master stdout' {
@@ -220,7 +229,7 @@ foreach ($mode in @('idle', 'wait', 'fast', 'parent-exit', 'handlers')) {
             'PASS: Windows native named Master handler and Supervisor Pause override'
         }
 
-        if ($mode -notin @('idle', 'handlers')) {
+        if (!$emptyPlan) {
             $job = Dispatch 12000
             Wait-For 'job in progress' { Recorded 'started.log' $job } | Out-Null
         }
@@ -228,13 +237,15 @@ foreach ($mode in @('idle', 'wait', 'fast', 'parent-exit', 'handlers')) {
         switch ($mode) {
             'idle' { $null = Artisan horizon:terminate }
             'handlers' { $null = Artisan horizon:terminate }
+            'queue' { $null = Artisan horizon:terminate }
+            'file-queue' { $null = Artisan horizon:terminate }
             'wait' { $null = Artisan horizon:terminate --wait }
             'fast' { $null = Artisan horizon:terminate }
             'parent-exit' { $master.Kill() }
         }
         if (!$master.WaitForExit(25000)) { throw 'Master did not exit.' }
         if ($mode -ne 'parent-exit' -and $master.ExitCode -ne 0) { throw 'Master exited with an error.' }
-        if ($mode -notin @('idle', 'handlers')) {
+        if (!$emptyPlan) {
             $finished = Recorded 'completed.log' $job
             if ($mode -eq 'wait' -and !$finished) { throw '--wait left a running job.' }
             if ($mode -ne 'wait' -and $finished) { throw 'Master exited after its running job.' }

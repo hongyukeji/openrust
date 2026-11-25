@@ -18,6 +18,7 @@ const DEPLOY: &str = r"Probe\Deploy";
 const STOP: &str = r"Probe\Stop";
 
 struct Deploy(PathBuf);
+struct Restart;
 
 impl MasterSupervisorCommandHandler for Deploy {
     fn process<'a>(
@@ -29,6 +30,12 @@ impl MasterSupervisorCommandHandler for Deploy {
             record(&self.0, DEPLOY, master.name(), &options)?;
             AddSupervisor.process(master, options)
         })
+    }
+}
+
+impl MasterSupervisorCommandHandler for Restart {
+    fn process<'a>(&'a self, master: &'a mut MasterSupervisor, _: Value) -> CommandFuture<'a, ()> {
+        Box::pin(master.restart())
     }
 }
 
@@ -71,6 +78,10 @@ pub fn register(app: &Application) -> ProviderResult {
     container.instance_named::<dyn MasterSupervisorCommandHandler>(
         DEPLOY,
         Arc::new(Deploy(path.clone())),
+    )?;
+    container.instance_named::<dyn MasterSupervisorCommandHandler>(
+        r"Probe\Restart",
+        Arc::new(Restart),
     )?;
     container.instance_named::<dyn SupervisorCommandHandler>(
         supervisor_commands::PAUSE,

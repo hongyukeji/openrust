@@ -87,8 +87,17 @@ impl ServiceProvider for HorizonServiceProvider {
                 Ok(Arc::new(repository))
             })?;
             app.container()
-                .singleton::<crate::RedisHorizonCommandQueue, _>(|container| {
-                    Ok(Arc::new(container.make::<Repository>()?.command_queue()))
+                .singleton_if::<crate::RedisHorizonCommandQueue, _>(|container| {
+                    Ok(Arc::new(
+                        container
+                            .make::<Repository>()?
+                            .command_queue()
+                            .using_master_lease(),
+                    ))
+                })?;
+            app.container()
+                .bind_if::<dyn crate::HorizonCommandQueue, _>(|container| {
+                    Ok(container.make::<crate::RedisHorizonCommandQueue>()?)
                 })?;
             Ok(())
         })

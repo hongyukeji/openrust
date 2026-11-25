@@ -247,10 +247,15 @@ impl Supervisor {
     }
 
     pub async fn run_with_status(mut self, shutdown: &CancellationToken) -> Result<i32> {
+        let queue = crate::repository::command_queue::configured()?;
         if self.ownership.is_some() {
             // Master 已在启动子进程前清空队列，保留启动期间收到的新命令。
             self.repository
                 .check_master_ownership(self.ownership.as_ref())
+                .await?;
+        } else if let Some(queue) = &queue {
+            self.repository
+                .prepare_custom_commands(queue.as_ref(), &self.id, None)
                 .await?;
         } else {
             self.repository
@@ -293,25 +298,39 @@ impl Supervisor {
                 },
                 _=ticker.tick()=>{},
             }
-            match self.tick(&generation).await {
+            match self.tick(&generation, queue.as_deref()).await {
                 Ok(None) => {}
                 Ok(Some(status)) => break Ok(status),
                 Err(error) => break Err(error),
             }
         };
         let cleanup = self.stop().await;
+        let flushed = if let Some(queue) = queue {
+            queue
+                .flush(&crate::CommandQueueTarget::for_owner(
+                    &self.id,
+                    self.ownership.as_ref(),
+                ))
+                .await
+        } else {
+            Ok(())
+        };
         let forget = self
             .repository
             .forget_supervisor_for_master(&self.id, self.ownership.as_ref())
             .await;
-        result.and_then(|status| cleanup.and(forget).map(|()| status))
+        result.and_then(|status| cleanup.and(flushed).and(forget).map(|()| status))
     }
     async fn set_paused(&self, paused: bool) -> Result<()> {
         self.repository
             .set_supervisor_paused(&self.id, paused, self.ownership.as_ref())
             .await
     }
-    async fn tick(&mut self, generation: &Option<String>) -> Result<Option<i32>> {
+    async fn tick(
+        &mut self,
+        generation: &Option<String>,
+        queue: Option<&dyn crate::HorizonCommandQueue>,
+    ) -> Result<Option<i32>> {
         if &self.repository.generation().await? != generation {
             return Ok(Some(0));
         }
@@ -330,11 +349,16 @@ impl Supervisor {
                 return Ok(Some(status));
             }
         }
-        for command in self
-            .repository
-            .take_structured_supervisor_commands(&self.id, self.ownership.as_ref())
-            .await?
-        {
+        let incoming = if let Some(queue) = queue {
+            self.repository
+                .take_custom_commands(queue, &self.id, self.ownership.as_ref())
+                .await?
+        } else {
+            self.repository
+                .take_structured_supervisor_commands(&self.id, self.ownership.as_ref())
+                .await?
+        };
+        for command in incoming {
             match self.process_queued_command(command).await {
                 Ok(Some(status)) => return Ok(Some(status)),
                 Ok(None) => {}

@@ -1,8 +1,10 @@
 //! Dedicated process acceptance application; never registered in the default app.
 mod command_handlers;
+mod file_command_queue;
 
 use openrust::{
     config::{ConfigError, Environment, Value},
+    contracts::container::Container as _,
     contracts::events::{Dispatcher as _, Event, Listener},
     contracts::foundation::Application as _,
     contracts::queue::JobHandler,
@@ -13,9 +15,9 @@ use openrust::{
     support::{ProviderResult, ServiceProvider},
 };
 use openrust_horizon::{
-    AddSupervisor, Horizon, HorizonServiceProvider, MasterSupervisor, MasterSupervisorDeployed,
-    MasterSupervisorLooped, MasterSupervisorOutOfMemory, ProvisioningPlan,
-    RedisHorizonCommandQueue, Supervisor, SupervisorLooped, SupervisorOptions,
+    AddSupervisor, Horizon, HorizonCommandQueue, HorizonServiceProvider, MasterSupervisor,
+    MasterSupervisorDeployed, MasterSupervisorLooped, MasterSupervisorOutOfMemory,
+    ProvisioningPlan, RedisHorizonCommandQueue, Supervisor, SupervisorLooped, SupervisorOptions,
     SupervisorOutOfMemory, UnableToLaunchProcess, WorkerProcessRestarting,
 };
 use serde_json::json;
@@ -84,17 +86,20 @@ impl JobHandler for Probe {
             use std::io::Write;
             if let Some(marker) = data.get("probe_output").and_then(Value::as_str) {
                 let mut stdout = std::io::stdout().lock();
-                let _ = writeln!(stdout, "worker-out-東京-{marker}").and_then(|()| stdout.flush());
+                let _ = stdout
+                    .write_all(format!("worker-out-東京-{marker}\n").as_bytes())
+                    .and_then(|()| stdout.flush());
                 let mut stderr = std::io::stderr().lock();
-                let _ = write!(stderr, "worker-err-{marker}").and_then(|()| stderr.flush());
+                let _ = stderr
+                    .write_all(format!("worker-err-{marker}").as_bytes())
+                    .and_then(|()| stderr.flush());
             }
             if let Some(marker) = data.get("probe_format").and_then(Value::as_str) {
                 let mut stdout = std::io::stdout().lock();
-                let _ = writeln!(
-                    stdout,
-                    "<info>styled-{marker}</info> <unknown>{marker}</unknown>"
-                )
-                .and_then(|()| stdout.flush());
+                let output = format!("<info>styled-{marker}</info> <unknown>{marker}</unknown>\n");
+                let _ = stdout
+                    .write_all(output.as_bytes())
+                    .and_then(|()| stdout.flush());
             }
             if data.get("probe_split_format").and_then(Value::as_bool) == Some(true) {
                 {
@@ -281,17 +286,40 @@ impl ServiceProvider for ProbeProvider {
             if std::env::var("HORIZON_PROBE_COMMAND_HANDLERS").as_deref() == Ok("1") {
                 command_handlers::register(app)?;
             }
+            if std::env::var("HORIZON_PROBE_CUSTOM_COMMAND_QUEUE").as_deref() == Ok("1") {
+                let connection = app
+                    .make::<openrust::redis::RedisManager>()
+                    .await?
+                    .connection(None)?;
+                let storage = openrust_horizon::Repository::new(
+                    connection,
+                    "probe-command-transport:".into(),
+                    3600,
+                )?;
+                app.container()
+                    .instance::<dyn HorizonCommandQueue>(Arc::new(storage.command_queue()))?;
+            }
+            if std::env::var("HORIZON_PROBE_CUSTOM_COMMAND_QUEUE").as_deref() == Ok("file") {
+                app.container()
+                    .instance::<dyn HorizonCommandQueue>(Arc::new(
+                        file_command_queue::FileCommandQueue(app.base_path().to_owned()),
+                    ))?;
+            }
             if let Ok(basename) = std::env::var("HORIZON_PROBE_MASTER_BASENAME") {
                 MasterSupervisor::determine_name_using(move || basename.clone())?;
             }
             if std::env::var_os("HORIZON_PROBE_PRELOAD_MASTER_COMMAND").is_some()
                 && std::env::args().nth(2).as_deref() == Some("horizon")
             {
-                let queue = app.make::<RedisHorizonCommandQueue>().await?;
                 let name = MasterSupervisor::process_name()?;
+                let repository = app.make::<openrust_horizon::Repository>().await?;
+                let target = repository
+                    .command_target(&MasterSupervisor::command_queue()?)
+                    .await?;
+                let queue = app.make::<dyn HorizonCommandQueue>().await?;
                 queue
                     .push(
-                        &MasterSupervisor::command_queue()?,
+                        &target,
                         AddSupervisor::NAME,
                         json!({"name": format!("{name}:stale")}),
                     )
@@ -504,6 +532,25 @@ async fn main() -> std::process::ExitCode {
         } else {
             name.to_owned()
         };
+        if args["bound"].as_bool() == Some(true) {
+            let repository = app.make::<openrust_horizon::Repository>().await.unwrap();
+            let queue = app.make::<dyn HorizonCommandQueue>().await.unwrap();
+            let target = repository.command_target(&name).await.unwrap();
+            match args["action"].as_str().unwrap() {
+                "push" => {
+                    let command = args["command"].as_str().unwrap_or(AddSupervisor::NAME);
+                    queue
+                        .push(&target, command, args["options"].clone())
+                        .await
+                        .unwrap();
+                }
+                "pending" => println!("{}", json!(queue.pending(&target).await.unwrap())),
+                "flush" => queue.flush(&target).await.unwrap(),
+                "target" => println!("{}", json!({"name":target.name(),"scope":target.scope()})),
+                _ => panic!("unknown action"),
+            }
+            return std::process::ExitCode::SUCCESS;
+        }
         match args["action"].as_str().unwrap() {
             "push" => {
                 let command = args["command"].as_str().unwrap_or(AddSupervisor::NAME);

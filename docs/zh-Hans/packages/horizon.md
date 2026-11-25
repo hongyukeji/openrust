@@ -142,6 +142,8 @@ Master 名称由主机名转换出的短名和进程内固定的四字符令牌�
 
 在应用 Provider 中，可用 `instance_named` 按队列中的命令名绑定 `dyn MasterSupervisorCommandHandler` 或 `dyn SupervisorCommandHandler`。绑定可处理自定义命令，也可覆盖同名内置命令。处理器接收当前进程的监控实例和队列传入的 JSON 选项。Supervisor 的处理器返回 `Some(status)` 时，当前监督器会排空并以该状态码退出。
 
+要替换结构化命令队列，在应用容器绑定 `dyn HorizonCommandQueue`，并在所有 Horizon 进程加载同一应用配置。发送命令时，通过 Horizon `Repository::command_target(name).await` 解析目标，再调用队列的 `push`。后端须同时使用 `target.name()` 和 `target.scope()` 区分队列，并按入队顺序一次领取一批。命令目标对应当前进程的所有权，请在每次发布前重新解析。独立运行的 Supervisor 不带所有权代次。
+
 要更换运行中 Master 的所有监督器及其 Worker，把空选项的 `RESTART` 发送到 `MasterSupervisor::command_queue_for(Some(master_name))`。`MasterSupervisor::restart().await` 按实例名称提交同一请求。Master 从暂停中恢复。默认情况下，各监督器会等待正在执行的任务完成后再更换。
 
 `horizon` 实时将受管进程的输出写到 Artisan。从应用代码运行 `MasterSupervisor` 或 `Supervisor` 时，可用 `handle_output_using` 接收直接子进程的输出。回调接收 `openrust::process::OutputStream` 和字节片段，可区分该子进程的 stdout 与 stderr。`horizon:supervisor` 会把 Worker 的两个流都写入自己的 stdout，因此 Master 收到合并后的输出。

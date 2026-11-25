@@ -1,6 +1,6 @@
 use crate::{
-    AddSupervisor, Error, MasterSupervisor, MasterSupervisorDeployed, QueuedCommand,
-    RedisHorizonCommandQueue, Result, SupervisorOptions, label,
+    AddSupervisor, Error, HorizonCommandQueue, MasterSupervisor, MasterSupervisorDeployed,
+    QueuedCommand, Repository, Result, SupervisorOptions, label,
 };
 use openrust::{
     contracts::{
@@ -93,10 +93,15 @@ impl ProvisioningPlan {
         let config = app.config().map_err(|_| Error::Unavailable)?;
         if let Some(deployment) = self.deployment(environment, config.as_ref())? {
             let queue = app
-                .make::<RedisHorizonCommandQueue>()
+                .make::<dyn HorizonCommandQueue>()
                 .await
                 .map_err(|_| Error::Unavailable)?;
             let target = MasterSupervisor::command_queue_for(Some(&self.master))?;
+            let repository = app
+                .make::<Repository>()
+                .await
+                .map_err(|_| Error::Unavailable)?;
+            let target = repository.command_target(&target).await?;
             queue.push_batch(&target, &deployment.commands).await?;
             app.container()
                 .scope(async {

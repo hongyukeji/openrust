@@ -3,13 +3,15 @@ use openrust::redis::{Value, connections::Connection};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-mod command_queue;
+pub(crate) mod command_queue;
 mod jobs;
 mod metrics;
 mod processes;
 mod tags;
 mod workload;
-pub use command_queue::{QueuedCommand, RedisHorizonCommandQueue};
+pub use command_queue::{
+    CommandQueueTarget, HorizonCommandQueue, QueuedCommand, RedisHorizonCommandQueue,
+};
 pub use jobs::{JobDetails, JobRepository};
 pub use metrics::MetricsRepository;
 pub(crate) use processes::{MasterLease, MasterOwnership};

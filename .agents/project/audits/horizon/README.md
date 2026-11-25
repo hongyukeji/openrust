@@ -74,9 +74,17 @@ macOS 的真实 Artisan 完整进程回归在部署监听器中检查 Redis 待�
 
 固定 PHP 探针用应用容器替换 `HorizonCommandQueue`，Master 和 Supervisor 构造时都调用替代实现的 `flush`，之后用其 `pending` 领取。容器可解析应用自己的命令类，也可替换内置 `Pause`。两个监控循环把目标实例和原样选项传给命令的 `process`，按领取顺序执行。证据为 `target/tmp/observability-parity/horizon-command-contract-upstream.log`。 [固定命令队列接口](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Contracts/HorizonCommandQueue.php)
 
-Rust 以 `MasterSupervisorCommandHandler` 和 `SupervisorCommandHandler` 表达两个可借用的进程类型。结构化消息领取后，监控进程按命令名优先解析当前应用的绑定，向其传入运行中的实例和原始 JSON 选项。未绑定时运行内置命令。同名异类型绑定按无效配置处理，后续消息仍能执行。Supervisor 处理器可申请以给定状态码排空退出。默认 Redis 队列的原子领取和名称所有权继续用于两类处理器。可替换队列接口仍待接入。
+Rust 以 `MasterSupervisorCommandHandler` 和 `SupervisorCommandHandler` 表达两个可借用的进程类型。结构化消息领取后，监控进程按命令名优先解析当前应用的绑定，向其传入运行中的实例和原始 JSON 选项。未绑定时运行内置命令。同名异类型绑定按无效配置处理，后续消息仍能执行。Supervisor 处理器可申请以给定状态码排空退出。
 
 macOS 和 Linux ARM64 的真实 Artisan 与 Redis 测试覆盖自定义 Master 部署、同名 `Pause` 覆盖、嵌套选项、处理器退出状态 23，以及另一份应用配置仍执行内置命令。Windows ARM64 的原生进程验证自定义部署和覆盖后真实任务继续运行。原有命令组、Master 重启、窗口内接管及输出按所涉环境复验。Horizon 严格 Clippy、格式和三语文档正文检查通过。证据为 `target/tmp/observability-parity/horizon-command-handlers-{macos,linux,windows,docs}.log`。
+
+### 可替换的命令队列
+
+容器默认解析到 `RedisHorizonCommandQueue`。默认 Master 部署、接管和重启沿用 Redis 原子脚本。应用可绑定 `dyn HorizonCommandQueue`，Master、Supervisor、公开部署与公开重启均采用当前应用的绑定。独立 Supervisor 启动时清空自己的逻辑队列。受管进程以逻辑名称和当前所有权代次区分队列，发布者通过 `Repository::command_target` 解析目标。Master 取得所有权后先清空并发布路由，再发布进程心跳。命令领取后复核所有权，结束时按原代次清理。旧实例的延迟领取或清理只接触自己的队列。
+
+自定义传输须按 `CommandQueueTarget` 的名称和代次区分存储，并保证各目标的 FIFO 领取。Redis 仍负责进程心跳及所有权。进程被强制终止后，可由后端按代次回收旧队列。内置 Redis 适配器的有代次列表设置一天有效期。自定义命令传输和 Redis 元数据之间不存在统一事务，跨队列操作在部分失败时沿用进程排空和重启流程。
+
+固定 PHP 的替换接口与启动清理证据见上节。macOS 与 Linux ARM64 使用替代 Redis 键空间和加锁文件后端，经过公开发布、部署和重启入口启动真实 Worker、发送和领取命令、重启受管进程并保持独立 Supervisor 的退出码。文件后端在旧 Master 领取过程中切换所有权。旧命令的应用处理器没有执行，继任者的命令可用，继任令牌未被旧实例清除。Windows ARM64 两种后端均通过真实进程的动态部署、任务执行、重启排空和结构化命令回归。Horizon 全目标严格 Clippy、格式和三语正文检查通过。证据为 `target/tmp/observability-parity/horizon-custom-command-queue-{macos-final,linux,windows-transport,docs}.log`。
 
 ### Supervisor 结构化命令
 
