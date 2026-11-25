@@ -5,6 +5,103 @@ use openrust_horizon::{Horizon, HorizonServiceProvider};
 use serde_json::json;
 
 #[tokio::test]
+async fn public_supervisor_events_deliver_explicit_payloads() {
+    use openrust::{
+        contracts::events::{Dispatcher as _, Event, Listener},
+        events::{Delivery, Dispatcher, EventContext, EventFuture, EventResult, ListenerResponse},
+        process::Factory,
+    };
+    use openrust_horizon::{
+        MasterSupervisorReviving, SupervisorOptions, SupervisorProcess, SupervisorProcessRestarting,
+    };
+    use std::sync::{Arc, Mutex};
+
+    struct Observer {
+        process: Arc<SupervisorProcess>,
+        records: Mutex<Vec<serde_json::Value>>,
+    }
+
+    impl Listener for Observer {
+        fn handle<'a>(
+            &'a self,
+            event: &'a dyn Event,
+            _: &'a mut EventContext<'_>,
+        ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+            Box::pin(async move {
+                let record = if let Some(event) = event.downcast_ref::<MasterSupervisorReviving>() {
+                    json!({"master": event.master})
+                } else {
+                    let event = event.downcast_ref::<SupervisorProcessRestarting>().unwrap();
+                    assert!(Arc::ptr_eq(&event.process, &self.process));
+                    assert!(event.process.process().unwrap().id().is_some());
+                    json!({
+                        "supervisor": event.process.name(),
+                        "queue": event.process.options().queue,
+                        "dead": event.process.is_dead()
+                    })
+                };
+                self.records.lock().unwrap().push(record);
+                Ok(None)
+            })
+        }
+    }
+
+    let mut app =
+        TestApp::create(|builder| builder.with_providers(vec![Box::new(HorizonServiceProvider)]))
+            .unwrap();
+    app.boot().await.unwrap();
+    let dispatcher = app.app().make::<Dispatcher>().await.unwrap();
+    let command = [
+        std::env::current_exe().unwrap().into_os_string(),
+        "--list".into(),
+    ];
+    let child = Factory::new().command(command).quietly().start().unwrap();
+    let process = Arc::new(SupervisorProcess::new(
+        SupervisorOptions {
+            name: "master:supervisor".into(),
+            queue: vec!["primary".into()],
+            ..Default::default()
+        },
+        Some(child),
+    ));
+    let observer = Arc::new(Observer {
+        process: process.clone(),
+        records: Mutex::default(),
+    });
+    for name in [
+        MasterSupervisorReviving::NAME,
+        SupervisorProcessRestarting::NAME,
+    ] {
+        assert!(!dispatcher.has_listeners(name));
+        dispatcher
+            .listen(name, observer.clone(), Delivery::Sync)
+            .unwrap();
+    }
+    let mut context = EventContext::new();
+    dispatcher
+        .dispatch(
+            Arc::new(MasterSupervisorReviving::new("master")),
+            &mut context,
+        )
+        .await
+        .unwrap();
+    dispatcher
+        .dispatch(
+            Arc::new(SupervisorProcessRestarting::new(process)),
+            &mut context,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        observer.records.lock().unwrap().as_slice(),
+        [
+            json!({"master": "master"}),
+            json!({"supervisor": "master:supervisor", "queue": ["primary"], "dead": false}),
+        ],
+    );
+}
+
+#[tokio::test]
 async fn environment_defaults_and_provider_routes_follow_configuration_without_redis() {
     let mut app =
         TestApp::create(|builder| builder.with_providers(vec![Box::new(HorizonServiceProvider)]))

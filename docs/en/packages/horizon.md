@@ -91,6 +91,8 @@ Each worker slot starts with a one-second cooldown for nonzero exits and process
 
 Horizon emits `MasterSupervisorDeployed` after preparing a matching environment's supervision plan. The event reports the master name, environment, and the supervisors scheduled to start.
 
+Applications can dispatch `MasterSupervisorReviving` with a master name or `SupervisorProcessRestarting` with a shared `SupervisorProcess`.
+
 `MasterSupervisorLooped::NAME` likewise fires after the Master heartbeat is persisted. `MasterSupervisorLooped` exposes the Master name and paused state. Horizon registers `ExpireSupervisors` to prune expired entries from both process indexes.
 
 A process that exceeds its memory limit dispatches `MasterSupervisorOutOfMemory` or `SupervisorOutOfMemory` before shutting down with exit code `12`. The event includes the process name, measured resident memory and limit in MiB.

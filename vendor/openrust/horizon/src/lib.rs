@@ -32,7 +32,7 @@ pub use job_payload::{JobPayload, JobPayloadMetadata};
 pub use job_trim::{TrimFailedJobs, TrimMonitoredJobs, TrimRecentJobs};
 pub use master_supervisor::{
     ExpireSupervisors, MasterSupervisor, MasterSupervisorDeployed, MasterSupervisorLooped,
-    SupervisorProcess,
+    MasterSupervisorReviving, SupervisorProcess, SupervisorProcessRestarting,
 };
 pub use options::{AutoScaler, SupervisorOptions};
 pub use process_memory::{

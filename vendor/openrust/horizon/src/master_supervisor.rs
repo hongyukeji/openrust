@@ -18,6 +18,76 @@ pub struct SupervisorProcess {
     dead: bool,
 }
 
+impl SupervisorProcess {
+    pub fn new(options: SupervisorOptions, process: Option<InvokedProcess>) -> Self {
+        Self {
+            name: options.name.clone(),
+            options,
+            process,
+            restart_again_at: Instant::now(),
+            dead: false,
+        }
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn options(&self) -> &SupervisorOptions {
+        &self.options
+    }
+
+    pub fn process(&self) -> Option<&InvokedProcess> {
+        self.process.as_ref()
+    }
+
+    pub fn is_dead(&self) -> bool {
+        self.dead
+    }
+}
+
+/// 公开事件，供调用方显式派发 Master 恢复通知。
+#[derive(Clone, Debug)]
+pub struct MasterSupervisorReviving {
+    pub master: String,
+}
+
+impl MasterSupervisorReviving {
+    pub const NAME: &str = "MasterSupervisorReviving";
+
+    pub fn new(master: impl Into<String>) -> Self {
+        Self {
+            master: master.into(),
+        }
+    }
+}
+
+impl Event for MasterSupervisorReviving {
+    fn name(&self) -> &str {
+        Self::NAME
+    }
+}
+
+/// 公开事件，供调用方显式派发并共享所观察的 Supervisor 进程。
+#[derive(Clone)]
+pub struct SupervisorProcessRestarting {
+    pub process: Arc<SupervisorProcess>,
+}
+
+impl SupervisorProcessRestarting {
+    pub const NAME: &str = "SupervisorProcessRestarting";
+
+    pub fn new(process: Arc<SupervisorProcess>) -> Self {
+        Self { process }
+    }
+}
+
+impl Event for SupervisorProcessRestarting {
+    fn name(&self) -> &str {
+        Self::NAME
+    }
+}
+
 /// Master -> supervisor -> process pool -> native queue worker.
 pub struct MasterSupervisor {
     repository: Arc<Repository>,
@@ -162,13 +232,7 @@ impl MasterSupervisor {
         for (name, mut options) in self.options.clone() {
             options.name = format!("{}:{name}", self.id);
             options.parent_id = std::process::id();
-            self.supervisors.push(SupervisorProcess {
-                name: options.name.clone(),
-                options,
-                process: None,
-                restart_again_at: Instant::now(),
-                dead: false,
-            });
+            self.supervisors.push(SupervisorProcess::new(options, None));
         }
         let mut control = crate::signals::ControlSignals::new()?;
         if self.has_deployment_plan {

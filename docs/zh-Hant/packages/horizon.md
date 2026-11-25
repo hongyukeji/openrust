@@ -91,6 +91,8 @@ Horizon 在替補 Worker 啟動前派發 `WorkerProcessRestarting`，提供監�
 
 符合的環境部署計畫準備完成後，Horizon 派發 `MasterSupervisorDeployed`，提供 Master 名稱、環境與待啟動的監督器。
 
+應用程式可明確派發攜帶 Master 名稱的 `MasterSupervisorReviving`，或攜帶共享 `SupervisorProcess` 的 `SupervisorProcessRestarting`。
+
 Master 持久化心跳後也會派發 `MasterSupervisorLooped::NAME`，事件提供 Master 名稱和暫停狀態。Horizon 註冊 `ExpireSupervisors`，清理兩個程序索引中的過期項目。
 
 程序超過記憶體上限時，會在以結束碼 `12` 關閉前派發 `MasterSupervisorOutOfMemory` 或 `SupervisorOutOfMemory`。事件提供程序名稱、實測常駐記憶體及上限，記憶體單位為 MiB。

@@ -66,3 +66,9 @@ PHP Horizon 的 JobPayload::id 优先 UUID，重试时 preparePayload 改写 UUI
 ## 扩展审计修复（2026-11-21）
 
 Horizon 环境前缀／APP_NAME 默认、配置驱动路由、显式优先与去重、域名／路径／中间件／关闭入口已修正。默认拒绝访问；配置缓存、同 Redis 总前缀的独立隔离、真实进程与自定义路径桌面／手机通过。 统一命令、环境、结果和边界见[全量扩展修复记录](../extension-design-review.md#修复验收与交付边界)。
+
+## 显式派发的监督器事件
+
+PHP 8.5.12 在固定 Horizon、固定 Laravel 和 Symfony Process 8.0.5 上启动真实子进程，核对 `MasterSupervisorReviving` 与 `SupervisorProcessRestarting` 的公开构造与 Dispatcher 消费。应用显式派发时，监听器分别收到 Master 名称和原监督器进程对象。正常启动、退出及标记 dead 的过程中没有这两种事件。固定 EventMap 对后者登记空监听器列表。证据为 `target/tmp/observability-parity/horizon-public-supervisor-events-upstream.log`。 [固定事件定义](https://github.com/laravel/horizon/tree/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Events)
+
+Rust 提供两个公开事件，监听器通过共享的 `SupervisorProcess` 查看同一原生进程、监督器属性和队列选项。真实进程及同步 Dispatcher 消费在 macOS、Linux 7.0.14 ARM64 和 Windows 11 ARM64 通过。macOS 配置 7 项、选项 10 项、三包默认 93 项、隔离 Redis 8.10.3 的完整 Artisan／HTTP 进程回归、全仓格式、严格 Clippy、三语站点构建与 12 组浏览器检查通过。Linux 测试已输出通过，构建守卫在收尾因宿主磁盘停线和 Cargo 锁暂占用返回失败。证据为 `target/tmp/observability-parity/horizon-public-supervisor-events-{final,linux,docs}.log` 与 `target/tmp/observability-windows/horizon-public-supervisor-events-arm64.log`。Release 和生产进程组合继续按部署环境验收。
