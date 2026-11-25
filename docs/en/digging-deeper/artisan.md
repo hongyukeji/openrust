@@ -620,3 +620,60 @@ fn register_tables() -> Result<(), ConsoleError> {
 `table_with` selects a `TableStyle`; `table_with_columns` additionally accepts `(column_index, style)` pairs. `TableStyle::from_name` provides `default`, `markdown`, `borderless`, `compact`, `symfony-style-guide`, `box`, and `box-double`. Customize a style with its border, padding and format setters. `TablePadding::{Left, Right, Both}` names the side that receives padding; `Right` is the default.
 
 For direct rendering, build `Table::new(io.get_output())`, set headers, rows and column styles, then call `render()`. `TableCell::display(value)` explicitly adapts a business type implementing `Display`; JSON values and ordinary scalars convert directly. Multi-line cells, visible Unicode width, formatter tags, ANSI output and quiet/silent filtering share the original output pipeline. This rectangular-table interface does not claim support for cell spans, row separators, titles or the entire inherited helper SDK.
+
+## Progress Bars {#progress-bars}
+
+Use `with_progress_bar_iter` for a countable collection. The callback receives the item, the current bar, and its original integer or string key; the helper advances only after the callback succeeds and returns the original collection. `Vec`, arrays, ordered maps, base collections, model collections, and borrowed collections implement `ProgressIterable`. No model cloning is required.
+
+```rust
+use openrust::{
+    console::{ConsoleError, Input, Output, ProgressBar, ProgressFormatter},
+    support::facades::Artisan,
+};
+use std::sync::Arc;
+
+fn register_progress() -> Result<(), ConsoleError> {
+    ProgressBar::set_format_definition(
+        "reports",
+        "%task% %current%/%max% [%bar%] %percent:3s%%",
+    )?;
+    Artisan::command_with("reports:progress", |input: &Input, output: &mut Output| {
+        let mut io = input.io(output);
+        let mut processed = Vec::new();
+        let items = io.with_progress_bar_iter(vec!["csv", "json", "html"], |item, _, _key| {
+            processed.push(item.to_uppercase());
+            Ok(())
+        })?;
+        io.new_line(1)?;
+
+        let count = i64::try_from(items.len()).map_err(ConsoleError::from_source)?;
+        let mut bar = io.get_output().create_progress_bar(count)?;
+        let label: ProgressFormatter = Arc::new(|bar| {
+            Ok(bar.get_message().unwrap_or("work").to_owned())
+        });
+        bar.set_format("reports")
+            .set_message("build")
+            .set_placeholder_formatter("task", label);
+        bar.start()?;
+        let mut total = 0;
+        for item in &items {
+            total += item.len();
+            bar.advance()?;
+        }
+        bar.finish()?;
+        drop(bar);
+        io.new_line(1)?;
+        io.info(&format!("{}:{total}", processed.join(",")))?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
+For a numeric total, use `with_progress_bar(steps, callback)` and call `advance` or `advance_by` from the callback. For manual control, obtain a bar with `create_progress_bar(total)`, then call `start`, `advance`, and `finish`. These callbacks execute synchronously. Callback errors propagate without silently finishing the bar.
+
+The factory uses the existing output: captured command calls retain progress in their buffer; an actual console streams progress to stderr and keeps ordinary stdout separate. Quiet and silent flags suppress rendering. The default redraw interval is 40 ms, with completion always considered for display. Empty collections, unknown totals, and repeated `finish` calls retain their own lifecycle behavior. `progress_start`, `progress_advance`, and `progress_finish` provide stored style-level progress; `progress_finish` additionally writes two newlines and releases that stored state.
+
+Customize a bar with its format, message, bar characters, width, redraw-frequency and placeholder methods. Shared named formats and placeholder definitions belong to the current application; set them during command registration or execution. A bar retains its owning application definitions. A standalone bar can use literal formats and instance placeholders. A placeholder callback borrows the actual bar and returns `Result<String, ConsoleError>`. The memory placeholder reports native process resident memory; it does not report a language VM heap.
+
+The numeric and collection helpers have separate Rust methods so their callback and return types remain explicit. Passing `&items` preserves caller ownership on failure. This section verifies synchronous collection and manual progress; lazy iterator adapters, asynchronous/mutable task callbacks and the remaining inherited output contracts are tracked separately.

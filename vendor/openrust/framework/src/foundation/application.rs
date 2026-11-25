@@ -517,6 +517,9 @@ impl Application {
         exceptions: Option<Exceptions>,
     ) -> Self {
         let container = Arc::new(Container::default());
+        container
+            .instance(Arc::new(crate::console::ProgressDefinitions::default()))
+            .expect("进度条定义初始未绑定");
         let paths = Arc::new(super::Paths::new(base_path.clone()));
         container
             .instance(paths.clone())

@@ -405,8 +405,10 @@ impl Application {
 
         if matches.get_flag("ansi") {
             output.decorated = true;
+            output.error_decorated = true;
         } else if matches.get_flag("no-ansi") {
             output.decorated = false;
+            output.error_decorated = false;
         }
 
         let parsed_quiet = matches.get_flag("quiet");
@@ -558,13 +560,17 @@ impl Application {
             }
             Err(error) => return Err(ConsoleError::new(localization::argument_error(&error))),
         };
-        let (stdout, stderr, decorated) =
-            (output.stdout.len(), output.stderr.len(), output.decorated);
+        let (stdout, stderr) = (output.stdout.len(), output.stderr.len());
+        let decorated = (output.decorated, output.error_decorated);
+        let decoration = ScopedDecoration { output, decorated };
+        let output = &mut *decoration.output;
         let (_, matches) = parsed.remove_subcommand().expect("resolved command");
         if matches.get_flag("ansi") {
             output.decorated = true;
+            output.error_decorated = true;
         } else if matches.get_flag("no-ansi") {
             output.decorated = false;
+            output.error_decorated = false;
         }
         let result = self
             .dispatch(
@@ -582,7 +588,6 @@ impl Application {
         if matches.get_flag("silent") {
             output.stderr.truncate(stderr);
         }
-        output.decorated = decorated;
         result
     }
 
@@ -862,4 +867,16 @@ fn command_position(arguments: &[OsString]) -> Option<usize> {
         }
     }
     None
+}
+
+/// 嵌套调用完成或取消时一并恢复两条流的装饰设置。
+struct ScopedDecoration<'a> {
+    output: &'a mut Output,
+    decorated: (bool, bool),
+}
+impl Drop for ScopedDecoration<'_> {
+    fn drop(&mut self) {
+        self.output.decorated = self.decorated.0;
+        self.output.error_decorated = self.decorated.1;
+    }
 }

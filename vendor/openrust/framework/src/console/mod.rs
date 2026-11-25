@@ -15,6 +15,7 @@ mod list_command;
 pub(crate) mod localization;
 mod output_style;
 mod planned;
+mod progress_bar;
 mod prompting;
 pub mod question;
 pub mod scheduling;
@@ -42,11 +43,13 @@ pub use command::{
 };
 pub use command_input::CommandInput;
 pub use command_io::CommandIo;
-pub use formatting::ConsoleFormatError;
+pub use formatting::{ConsoleFormatError, ConsoleTemplateError};
 pub use generator_command::GeneratorCommand;
 pub(crate) use isolation::IsolatedCommand;
 pub(crate) use localization::text as localized_text;
 pub use output_style::{OutputFormat, OutputMessages, OutputOptions, OutputStyle, OutputVerbosity};
+pub(crate) use progress_bar::ProgressDefinitions;
+pub use progress_bar::{ConsoleProgressError, ProgressBar, ProgressFormatter, ProgressIterable};
 pub use prompting::{CommandRegistration, MissingInputPrompt};
 pub use question::{
     ChoiceKey, ChoiceLabel, ChoiceQuestion, CompletionCallback, ConfirmationQuestion,
@@ -99,6 +102,7 @@ pub struct Output {
     pub stdout: String,
     pub stderr: String,
     decorated: bool,
+    error_decorated: bool,
     verbosity: u8,
     suppressed: bool,
     silent: bool,
@@ -106,6 +110,7 @@ pub struct Output {
     terminal: bool,
     capture_generation: u64,
     formatter: formatting::Formatter,
+    error_formatter: formatting::Formatter,
 }
 
 impl Output {
@@ -116,6 +121,10 @@ impl Output {
             io::stdout().is_terminal() && env::var_os("TERM").as_deref() != Some("dumb".as_ref());
         Self {
             decorated: !disabled && (forced || terminal),
+            error_decorated: !disabled
+                && (forced
+                    || (io::stderr().is_terminal()
+                        && env::var_os("TERM").as_deref() != Some("dumb".as_ref()))),
             terminal: true,
             ..Self::default()
         }

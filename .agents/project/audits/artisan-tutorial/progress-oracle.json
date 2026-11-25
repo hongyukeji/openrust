@@ -1,0 +1,656 @@
+[
+    {
+        "decorated": false,
+        "level": 32,
+        "mode": "count",
+        "fixture_min_seconds": 1000,
+        "trace": [
+            [
+                0,
+                3
+            ]
+        ],
+        "result": null,
+        "error": null,
+        "output": " 0\/3 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0%\n 3\/3 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓] 100%",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 32,
+        "mode": "list",
+        "fixture_min_seconds": 1000,
+        "trace": [
+            [
+                "A",
+                0,
+                0,
+                3
+            ],
+            [
+                "B",
+                1,
+                1,
+                3
+            ],
+            [
+                "C",
+                2,
+                2,
+                3
+            ]
+        ],
+        "result": [
+            "A",
+            "B",
+            "C"
+        ],
+        "error": null,
+        "output": " 0\/3 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0%\n 3\/3 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓] 100%",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 32,
+        "mode": "map",
+        "fixture_min_seconds": 1000,
+        "trace": [
+            [
+                "A",
+                "a",
+                0,
+                2
+            ],
+            [
+                "B",
+                "b",
+                1,
+                2
+            ]
+        ],
+        "result": {
+            "a": "A",
+            "b": "B"
+        },
+        "error": null,
+        "output": " 0\/2 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0%\n 2\/2 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓] 100%",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 32,
+        "mode": "empty",
+        "fixture_min_seconds": 1000,
+        "trace": [],
+        "result": [],
+        "error": null,
+        "output": "    0 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 32,
+        "mode": "failure",
+        "fixture_min_seconds": 1000,
+        "trace": [
+            [
+                0,
+                3
+            ]
+        ],
+        "result": null,
+        "error": "failure",
+        "output": " 0\/3 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0%",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 16,
+        "mode": "count",
+        "fixture_min_seconds": 1000,
+        "trace": [
+            [
+                0,
+                3
+            ]
+        ],
+        "result": null,
+        "error": null,
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 16,
+        "mode": "list",
+        "fixture_min_seconds": 1000,
+        "trace": [
+            [
+                "A",
+                0,
+                0,
+                3
+            ],
+            [
+                "B",
+                1,
+                1,
+                3
+            ],
+            [
+                "C",
+                2,
+                2,
+                3
+            ]
+        ],
+        "result": [
+            "A",
+            "B",
+            "C"
+        ],
+        "error": null,
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 16,
+        "mode": "map",
+        "fixture_min_seconds": 1000,
+        "trace": [
+            [
+                "A",
+                "a",
+                0,
+                2
+            ],
+            [
+                "B",
+                "b",
+                1,
+                2
+            ]
+        ],
+        "result": {
+            "a": "A",
+            "b": "B"
+        },
+        "error": null,
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 16,
+        "mode": "empty",
+        "fixture_min_seconds": 1000,
+        "trace": [],
+        "result": [],
+        "error": null,
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 16,
+        "mode": "failure",
+        "fixture_min_seconds": 1000,
+        "trace": [
+            [
+                0,
+                3
+            ]
+        ],
+        "result": null,
+        "error": "failure",
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 8,
+        "mode": "count",
+        "fixture_min_seconds": 1000,
+        "trace": [
+            [
+                0,
+                3
+            ]
+        ],
+        "result": null,
+        "error": null,
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 8,
+        "mode": "list",
+        "fixture_min_seconds": 1000,
+        "trace": [
+            [
+                "A",
+                0,
+                0,
+                3
+            ],
+            [
+                "B",
+                1,
+                1,
+                3
+            ],
+            [
+                "C",
+                2,
+                2,
+                3
+            ]
+        ],
+        "result": [
+            "A",
+            "B",
+            "C"
+        ],
+        "error": null,
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 8,
+        "mode": "map",
+        "fixture_min_seconds": 1000,
+        "trace": [
+            [
+                "A",
+                "a",
+                0,
+                2
+            ],
+            [
+                "B",
+                "b",
+                1,
+                2
+            ]
+        ],
+        "result": {
+            "a": "A",
+            "b": "B"
+        },
+        "error": null,
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 8,
+        "mode": "empty",
+        "fixture_min_seconds": 1000,
+        "trace": [],
+        "result": [],
+        "error": null,
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": false,
+        "level": 8,
+        "mode": "failure",
+        "fixture_min_seconds": 1000,
+        "trace": [
+            [
+                0,
+                3
+            ]
+        ],
+        "result": null,
+        "error": "failure",
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 32,
+        "mode": "count",
+        "fixture_min_seconds": 1000,
+        "trace": [
+            [
+                0,
+                3
+            ]
+        ],
+        "result": null,
+        "error": null,
+        "output": " 0\/3 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0%\u001b[1G\u001b[2K 3\/3 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓] 100%",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 32,
+        "mode": "list",
+        "fixture_min_seconds": 1000,
+        "trace": [
+            [
+                "A",
+                0,
+                0,
+                3
+            ],
+            [
+                "B",
+                1,
+                1,
+                3
+            ],
+            [
+                "C",
+                2,
+                2,
+                3
+            ]
+        ],
+        "result": [
+            "A",
+            "B",
+            "C"
+        ],
+        "error": null,
+        "output": " 0\/3 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0%\u001b[1G\u001b[2K 3\/3 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓] 100%",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 32,
+        "mode": "map",
+        "fixture_min_seconds": 1000,
+        "trace": [
+            [
+                "A",
+                "a",
+                0,
+                2
+            ],
+            [
+                "B",
+                "b",
+                1,
+                2
+            ]
+        ],
+        "result": {
+            "a": "A",
+            "b": "B"
+        },
+        "error": null,
+        "output": " 0\/2 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0%\u001b[1G\u001b[2K 2\/2 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓] 100%",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 32,
+        "mode": "empty",
+        "fixture_min_seconds": 1000,
+        "trace": [],
+        "result": [],
+        "error": null,
+        "output": "    0 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]\u001b[1G\u001b[2K    0 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓]",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 32,
+        "mode": "failure",
+        "fixture_min_seconds": 1000,
+        "trace": [
+            [
+                0,
+                3
+            ]
+        ],
+        "result": null,
+        "error": "failure",
+        "output": " 0\/3 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0%",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 16,
+        "mode": "count",
+        "fixture_min_seconds": 1000,
+        "trace": [
+            [
+                0,
+                3
+            ]
+        ],
+        "result": null,
+        "error": null,
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 16,
+        "mode": "list",
+        "fixture_min_seconds": 1000,
+        "trace": [
+            [
+                "A",
+                0,
+                0,
+                3
+            ],
+            [
+                "B",
+                1,
+                1,
+                3
+            ],
+            [
+                "C",
+                2,
+                2,
+                3
+            ]
+        ],
+        "result": [
+            "A",
+            "B",
+            "C"
+        ],
+        "error": null,
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 16,
+        "mode": "map",
+        "fixture_min_seconds": 1000,
+        "trace": [
+            [
+                "A",
+                "a",
+                0,
+                2
+            ],
+            [
+                "B",
+                "b",
+                1,
+                2
+            ]
+        ],
+        "result": {
+            "a": "A",
+            "b": "B"
+        },
+        "error": null,
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 16,
+        "mode": "empty",
+        "fixture_min_seconds": 1000,
+        "trace": [],
+        "result": [],
+        "error": null,
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 16,
+        "mode": "failure",
+        "fixture_min_seconds": 1000,
+        "trace": [
+            [
+                0,
+                3
+            ]
+        ],
+        "result": null,
+        "error": "failure",
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 8,
+        "mode": "count",
+        "fixture_min_seconds": 1000,
+        "trace": [
+            [
+                0,
+                3
+            ]
+        ],
+        "result": null,
+        "error": null,
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 8,
+        "mode": "list",
+        "fixture_min_seconds": 1000,
+        "trace": [
+            [
+                "A",
+                0,
+                0,
+                3
+            ],
+            [
+                "B",
+                1,
+                1,
+                3
+            ],
+            [
+                "C",
+                2,
+                2,
+                3
+            ]
+        ],
+        "result": [
+            "A",
+            "B",
+            "C"
+        ],
+        "error": null,
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 8,
+        "mode": "map",
+        "fixture_min_seconds": 1000,
+        "trace": [
+            [
+                "A",
+                "a",
+                0,
+                2
+            ],
+            [
+                "B",
+                "b",
+                1,
+                2
+            ]
+        ],
+        "result": {
+            "a": "A",
+            "b": "B"
+        },
+        "error": null,
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 8,
+        "mode": "empty",
+        "fixture_min_seconds": 1000,
+        "trace": [],
+        "result": [],
+        "error": null,
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "decorated": true,
+        "level": 8,
+        "mode": "failure",
+        "fixture_min_seconds": 1000,
+        "trace": [
+            [
+                0,
+                3
+            ]
+        ],
+        "result": null,
+        "error": "failure",
+        "output": "",
+        "new_lines": 1,
+        "new_line": false
+    }
+]

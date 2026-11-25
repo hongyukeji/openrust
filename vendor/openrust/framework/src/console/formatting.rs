@@ -1,6 +1,8 @@
 use regex::Regex;
+mod template;
 mod unicode;
 use std::{fmt, sync::LazyLock};
+pub use template::ConsoleTemplateError;
 
 #[derive(Clone, Debug)]
 pub enum ConsoleFormatError {
@@ -340,4 +342,52 @@ fn color(value: &str, background: bool) -> Result<String, ConsoleFormatError> {
         return Ok(((if background { 100 } else { 90 }) + index).to_string());
     }
     Err(ConsoleFormatError::InvalidColor(value.into()))
+}
+
+/// 可见字符的字素计数复用已有Unicode解析。
+pub(super) fn grapheme_length(text: &str) -> Result<usize, ConsoleFormatError> {
+    unicode::length(text)
+}
+
+pub(super) fn display_width(value: &str) -> usize {
+    value
+        .chars()
+        .map(|ch| {
+            if ch.is_control() {
+                1
+            } else {
+                let mut bytes = [0; 4];
+                ::console::measure_text_width(ch.encode_utf8(&mut bytes))
+            }
+        })
+        .sum()
+}
+
+pub(super) fn format_template(
+    template: &str,
+    value: &serde_json::Value,
+) -> Result<String, ConsoleTemplateError> {
+    self::template::format(template, value)
+}
+
+/// 移除格式标签、SGR及终端超链接，保留其他控制序列的宽度语义。
+pub(super) fn unformatted_text(
+    formatter: &mut Formatter,
+    text: &str,
+) -> Result<String, ConsoleFormatError> {
+    let mut plain = formatter.format(text, false)?;
+    if !plain.contains('\x1b') {
+        return Ok(plain);
+    }
+    static SGR: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"\x1b\[[^m]*m").expect("合法SGR表达式"));
+    static LINK: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"\x1b]8;[^;]*;[^\x1b]*\x1b\\").expect("合法终端超链接表达式"));
+    if SGR.is_match(&plain) {
+        plain = SGR.replace_all(&plain, "").into_owned();
+    }
+    if LINK.is_match(&plain) {
+        plain = LINK.replace_all(&plain, "").into_owned();
+    }
+    Ok(plain)
 }

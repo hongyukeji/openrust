@@ -178,3 +178,18 @@ workspace all-targets严格Clippy、fmt、实际main重建、三语站点构建�
 期间32GB磁盘守卫安全中断一次本批组合检查（75），清理后从保留快照继续；中断不计通过，table-gates-interrupted.log与全项目build-guard-events.jsonl保留。源码／日志／依赖／数据及锁保留。结束回收本批实际运行夹具，保留共享热缓存与原始证据，没有本批遗留服务或容器。
 
 本批只闭合矩形表格教程及已验样式范围，不宣称整个Table／TableStyle／TableCell或Artisan章完成。全部声明及剩余宽度／标题／方向／样式注册、跨行跨列、分隔符和单元格样式见table-contracts.json；OutputStyle表格布局、嵌套委托、进度条、完整组件、生成／注册、事件／信号和Tinker继续原清单。按依赖继续推进，不推送。
+
+
+## 第十二簇：同步进度条及应用定义作用域（2026-11-25）
+
+第十一簇本地提交204f19c41。按固定InteractsWithIO::withProgressBar、OutputStyle及Console7.4 ProgressBar逐入口核对；旧版无可复用的完整进度实现，本批复用原Output／格式器／标量转换／模型集合，不新增运行依赖。接通数字与有键可计数集合帮助方法、手动ProgressBar、样式保存的start／advance／finish、格式／消息／占位符／刷新／清除／时间估计。37个固定ProgressBar声明逐项映射见progress-contracts.json；iterate、异步／可变任务回调、占位符第二输出参数及完整继承SDK明确未闭合，不把本簇当整章完成。
+
+固定源码真实执行30份帮助方法、78份操作与24份样式生命周期数据，分别存progress-oracle、progress-operations-oracle、progress-style-oracle.json。早期默认40ms夹具可能受调度影响，改用公开minSecondsBetweenRedraws=1000设置隔离非时间向量，输出与原真实参考逐字相同；真实默认刷新另用35ms／80ms窗口实际检验，不伪造时钟或删除中间帧。共享宽度处理按源规则移除SGR与OSC8，不扩大为任意终端控制序列；真正InteractsWithIO::table对照新增6份原始ANSI数据，总155份，原149份完整保留，7项表格消费者再通过。原540份选择题模板仍通过，共用模板器移至console/formatting，保留原Question／Table外层错误类型及具体来源。
+
+真实反例：i64::MIN恢复起点使时间估计整数差在Debug溢出；NaN构造间隔错误抑制中间帧。两项实际失败日志progress-extreme-before-fix.log与progress-nan-before-fix.log保留，修正为整数安全差值／必要时浮点回退及与源一致的正值判定。极大动画周期、ANSI进度字符和极端COLUMNS亦经源码78份数据核对，越界尺寸返回具体类型错误。源PHP8.5浮点整数转换VM警告保留progress-operations-source2.stderr，不在Rust模拟，不声称源零警告。原参数调用错误与补丁脚本语法错误不当作功能反例。
+
+真实CLI以stderr输出进度，stdout保持普通内容，显式ANSI与quiet／silent沿当前真实管线；嵌套取消恢复两路装饰状态，进度直接使用底层输出，不污染外层OutputStyle换行计数。共享命名格式／占位符属于创建时应用，回调在锁外调用，允许重新配置；48个跨两应用真实并发HTTP、失败500及后续恢复通过。数字和集合因静态回调／返回类型拆分命名，借用集合保留原键、非Clone模型及原集合身份；原生内存读现有进程RSS，不冒充PHP VM堆。单独进度条可用字面格式和局部占位符，应用共享定义需要真实作用域。
+
+最终5个框架目标50项＋根6目标80项，共130个不同父消费者，其中39个示例直接从三语正式Markdown提取编译运行；5个ignore子进程夹具不计通过，均有实际驱动。格式、workspace all-targets严格Clippy（55.93s）、main(pail)重建、三语站点及12组浏览器通过。实际最终main验收/up、静态文件、HTML／JSON404、HEAD、inspire／list、Pail帮助与错误过滤／超时清理、Ctrl+C退出0。进度CLI另由真实handle_command子进程逐帧核对stderr及终端宽度。命令及源SHA见accepted-progress-core.json，日志progress-core-final-*、progress-core-browser.log、progress-core-runtime.log；边界修复后整组均重跑，不叠加重复次数。
+
+组合基于b17ad6525已提交内容，未取其他在途认证实现；随后c119e6e1a仅改认证身份相关文件，不属于本簇核定源，不宣称已经复验其专项。一次早期组合被错误覆盖的私有进度定义装配及时发现并终止，不计通过；恢复该精确hunk后完成本次门禁。共享32GB守卫曾清理全项目编译profile，before=32025718784、after=113389518848、released=81363800064字节；源码／日志／依赖／数据／锁保留，恢复后继续完成，不把其他清理触发者算成本批失败。结束删除本批运行夹具，保留热缓存与证据，无本批遗留进程／容器。继续惰性迭代与异步真实任务及其余公开入口，本地提交，不推送。

@@ -1,0 +1,1046 @@
+[
+    {
+        "decorated": false,
+        "level": 32,
+        "fixture_min_seconds": 1000,
+        "ops": [
+            [
+                "progressAdvance"
+            ],
+            [
+                "progressFinish"
+            ]
+        ],
+        "trace": [
+            {
+                "error": true,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": true,
+                "new_lines": 1,
+                "new_line": false
+            }
+        ],
+        "errors": [
+            {
+                "class": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+                "message": "The ProgressBar is not started."
+            },
+            {
+                "class": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+                "message": "The ProgressBar is not started."
+            }
+        ],
+        "output": ""
+    },
+    {
+        "decorated": false,
+        "level": 32,
+        "fixture_min_seconds": 1000,
+        "ops": [
+            [
+                "progressStart",
+                3
+            ],
+            [
+                "progressAdvance"
+            ],
+            [
+                "progressFinish"
+            ],
+            [
+                "progressFinish"
+            ]
+        ],
+        "trace": [
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 3,
+                "new_line": true
+            },
+            {
+                "error": true,
+                "new_lines": 3,
+                "new_line": true
+            }
+        ],
+        "errors": [
+            {
+                "class": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+                "message": "The ProgressBar is not started."
+            }
+        ],
+        "output": " 0\/3 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0%\n 3\/3 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓] 100%\n\n"
+    },
+    {
+        "decorated": false,
+        "level": 32,
+        "fixture_min_seconds": 1000,
+        "ops": [
+            [
+                "progressStart",
+                2
+            ],
+            [
+                "progressAdvance"
+            ],
+            [
+                "progressStart",
+                3
+            ],
+            [
+                "progressAdvance",
+                2
+            ],
+            [
+                "progressFinish"
+            ]
+        ],
+        "trace": [
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 3,
+                "new_line": true
+            }
+        ],
+        "errors": [],
+        "output": " 0\/2 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0% 0\/3 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0%\n 3\/3 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓] 100%\n\n"
+    },
+    {
+        "decorated": false,
+        "level": 32,
+        "fixture_min_seconds": 1000,
+        "ops": [
+            [
+                "progressStart"
+            ],
+            [
+                "progressAdvance"
+            ],
+            [
+                "progressFinish"
+            ]
+        ],
+        "trace": [
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 3,
+                "new_line": true
+            }
+        ],
+        "errors": [],
+        "output": "    0 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]\n\n"
+    },
+    {
+        "decorated": false,
+        "level": 16,
+        "fixture_min_seconds": 1000,
+        "ops": [
+            [
+                "progressAdvance"
+            ],
+            [
+                "progressFinish"
+            ]
+        ],
+        "trace": [
+            {
+                "error": true,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": true,
+                "new_lines": 1,
+                "new_line": false
+            }
+        ],
+        "errors": [
+            {
+                "class": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+                "message": "The ProgressBar is not started."
+            },
+            {
+                "class": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+                "message": "The ProgressBar is not started."
+            }
+        ],
+        "output": ""
+    },
+    {
+        "decorated": false,
+        "level": 16,
+        "fixture_min_seconds": 1000,
+        "ops": [
+            [
+                "progressStart",
+                3
+            ],
+            [
+                "progressAdvance"
+            ],
+            [
+                "progressFinish"
+            ],
+            [
+                "progressFinish"
+            ]
+        ],
+        "trace": [
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 3,
+                "new_line": true
+            },
+            {
+                "error": true,
+                "new_lines": 3,
+                "new_line": true
+            }
+        ],
+        "errors": [
+            {
+                "class": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+                "message": "The ProgressBar is not started."
+            }
+        ],
+        "output": ""
+    },
+    {
+        "decorated": false,
+        "level": 16,
+        "fixture_min_seconds": 1000,
+        "ops": [
+            [
+                "progressStart",
+                2
+            ],
+            [
+                "progressAdvance"
+            ],
+            [
+                "progressStart",
+                3
+            ],
+            [
+                "progressAdvance",
+                2
+            ],
+            [
+                "progressFinish"
+            ]
+        ],
+        "trace": [
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 3,
+                "new_line": true
+            }
+        ],
+        "errors": [],
+        "output": ""
+    },
+    {
+        "decorated": false,
+        "level": 16,
+        "fixture_min_seconds": 1000,
+        "ops": [
+            [
+                "progressStart"
+            ],
+            [
+                "progressAdvance"
+            ],
+            [
+                "progressFinish"
+            ]
+        ],
+        "trace": [
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 3,
+                "new_line": true
+            }
+        ],
+        "errors": [],
+        "output": ""
+    },
+    {
+        "decorated": false,
+        "level": 8,
+        "fixture_min_seconds": 1000,
+        "ops": [
+            [
+                "progressAdvance"
+            ],
+            [
+                "progressFinish"
+            ]
+        ],
+        "trace": [
+            {
+                "error": true,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": true,
+                "new_lines": 1,
+                "new_line": false
+            }
+        ],
+        "errors": [
+            {
+                "class": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+                "message": "The ProgressBar is not started."
+            },
+            {
+                "class": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+                "message": "The ProgressBar is not started."
+            }
+        ],
+        "output": ""
+    },
+    {
+        "decorated": false,
+        "level": 8,
+        "fixture_min_seconds": 1000,
+        "ops": [
+            [
+                "progressStart",
+                3
+            ],
+            [
+                "progressAdvance"
+            ],
+            [
+                "progressFinish"
+            ],
+            [
+                "progressFinish"
+            ]
+        ],
+        "trace": [
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 3,
+                "new_line": true
+            },
+            {
+                "error": true,
+                "new_lines": 3,
+                "new_line": true
+            }
+        ],
+        "errors": [
+            {
+                "class": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+                "message": "The ProgressBar is not started."
+            }
+        ],
+        "output": ""
+    },
+    {
+        "decorated": false,
+        "level": 8,
+        "fixture_min_seconds": 1000,
+        "ops": [
+            [
+                "progressStart",
+                2
+            ],
+            [
+                "progressAdvance"
+            ],
+            [
+                "progressStart",
+                3
+            ],
+            [
+                "progressAdvance",
+                2
+            ],
+            [
+                "progressFinish"
+            ]
+        ],
+        "trace": [
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 3,
+                "new_line": true
+            }
+        ],
+        "errors": [],
+        "output": ""
+    },
+    {
+        "decorated": false,
+        "level": 8,
+        "fixture_min_seconds": 1000,
+        "ops": [
+            [
+                "progressStart"
+            ],
+            [
+                "progressAdvance"
+            ],
+            [
+                "progressFinish"
+            ]
+        ],
+        "trace": [
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 3,
+                "new_line": true
+            }
+        ],
+        "errors": [],
+        "output": ""
+    },
+    {
+        "decorated": true,
+        "level": 32,
+        "fixture_min_seconds": 1000,
+        "ops": [
+            [
+                "progressAdvance"
+            ],
+            [
+                "progressFinish"
+            ]
+        ],
+        "trace": [
+            {
+                "error": true,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": true,
+                "new_lines": 1,
+                "new_line": false
+            }
+        ],
+        "errors": [
+            {
+                "class": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+                "message": "The ProgressBar is not started."
+            },
+            {
+                "class": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+                "message": "The ProgressBar is not started."
+            }
+        ],
+        "output": ""
+    },
+    {
+        "decorated": true,
+        "level": 32,
+        "fixture_min_seconds": 1000,
+        "ops": [
+            [
+                "progressStart",
+                3
+            ],
+            [
+                "progressAdvance"
+            ],
+            [
+                "progressFinish"
+            ],
+            [
+                "progressFinish"
+            ]
+        ],
+        "trace": [
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 3,
+                "new_line": true
+            },
+            {
+                "error": true,
+                "new_lines": 3,
+                "new_line": true
+            }
+        ],
+        "errors": [
+            {
+                "class": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+                "message": "The ProgressBar is not started."
+            }
+        ],
+        "output": " 0\/3 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0%\u001b[1G\u001b[2K 3\/3 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓] 100%\n\n"
+    },
+    {
+        "decorated": true,
+        "level": 32,
+        "fixture_min_seconds": 1000,
+        "ops": [
+            [
+                "progressStart",
+                2
+            ],
+            [
+                "progressAdvance"
+            ],
+            [
+                "progressStart",
+                3
+            ],
+            [
+                "progressAdvance",
+                2
+            ],
+            [
+                "progressFinish"
+            ]
+        ],
+        "trace": [
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 3,
+                "new_line": true
+            }
+        ],
+        "errors": [],
+        "output": " 0\/2 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0% 0\/3 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0%\u001b[1G\u001b[2K 3\/3 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓] 100%\n\n"
+    },
+    {
+        "decorated": true,
+        "level": 32,
+        "fixture_min_seconds": 1000,
+        "ops": [
+            [
+                "progressStart"
+            ],
+            [
+                "progressAdvance"
+            ],
+            [
+                "progressFinish"
+            ]
+        ],
+        "trace": [
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 3,
+                "new_line": true
+            }
+        ],
+        "errors": [],
+        "output": "    0 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]\u001b[1G\u001b[2K    1 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓]\n\n"
+    },
+    {
+        "decorated": true,
+        "level": 16,
+        "fixture_min_seconds": 1000,
+        "ops": [
+            [
+                "progressAdvance"
+            ],
+            [
+                "progressFinish"
+            ]
+        ],
+        "trace": [
+            {
+                "error": true,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": true,
+                "new_lines": 1,
+                "new_line": false
+            }
+        ],
+        "errors": [
+            {
+                "class": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+                "message": "The ProgressBar is not started."
+            },
+            {
+                "class": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+                "message": "The ProgressBar is not started."
+            }
+        ],
+        "output": ""
+    },
+    {
+        "decorated": true,
+        "level": 16,
+        "fixture_min_seconds": 1000,
+        "ops": [
+            [
+                "progressStart",
+                3
+            ],
+            [
+                "progressAdvance"
+            ],
+            [
+                "progressFinish"
+            ],
+            [
+                "progressFinish"
+            ]
+        ],
+        "trace": [
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 3,
+                "new_line": true
+            },
+            {
+                "error": true,
+                "new_lines": 3,
+                "new_line": true
+            }
+        ],
+        "errors": [
+            {
+                "class": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+                "message": "The ProgressBar is not started."
+            }
+        ],
+        "output": ""
+    },
+    {
+        "decorated": true,
+        "level": 16,
+        "fixture_min_seconds": 1000,
+        "ops": [
+            [
+                "progressStart",
+                2
+            ],
+            [
+                "progressAdvance"
+            ],
+            [
+                "progressStart",
+                3
+            ],
+            [
+                "progressAdvance",
+                2
+            ],
+            [
+                "progressFinish"
+            ]
+        ],
+        "trace": [
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 3,
+                "new_line": true
+            }
+        ],
+        "errors": [],
+        "output": ""
+    },
+    {
+        "decorated": true,
+        "level": 16,
+        "fixture_min_seconds": 1000,
+        "ops": [
+            [
+                "progressStart"
+            ],
+            [
+                "progressAdvance"
+            ],
+            [
+                "progressFinish"
+            ]
+        ],
+        "trace": [
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 3,
+                "new_line": true
+            }
+        ],
+        "errors": [],
+        "output": ""
+    },
+    {
+        "decorated": true,
+        "level": 8,
+        "fixture_min_seconds": 1000,
+        "ops": [
+            [
+                "progressAdvance"
+            ],
+            [
+                "progressFinish"
+            ]
+        ],
+        "trace": [
+            {
+                "error": true,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": true,
+                "new_lines": 1,
+                "new_line": false
+            }
+        ],
+        "errors": [
+            {
+                "class": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+                "message": "The ProgressBar is not started."
+            },
+            {
+                "class": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+                "message": "The ProgressBar is not started."
+            }
+        ],
+        "output": ""
+    },
+    {
+        "decorated": true,
+        "level": 8,
+        "fixture_min_seconds": 1000,
+        "ops": [
+            [
+                "progressStart",
+                3
+            ],
+            [
+                "progressAdvance"
+            ],
+            [
+                "progressFinish"
+            ],
+            [
+                "progressFinish"
+            ]
+        ],
+        "trace": [
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 3,
+                "new_line": true
+            },
+            {
+                "error": true,
+                "new_lines": 3,
+                "new_line": true
+            }
+        ],
+        "errors": [
+            {
+                "class": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+                "message": "The ProgressBar is not started."
+            }
+        ],
+        "output": ""
+    },
+    {
+        "decorated": true,
+        "level": 8,
+        "fixture_min_seconds": 1000,
+        "ops": [
+            [
+                "progressStart",
+                2
+            ],
+            [
+                "progressAdvance"
+            ],
+            [
+                "progressStart",
+                3
+            ],
+            [
+                "progressAdvance",
+                2
+            ],
+            [
+                "progressFinish"
+            ]
+        ],
+        "trace": [
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 3,
+                "new_line": true
+            }
+        ],
+        "errors": [],
+        "output": ""
+    },
+    {
+        "decorated": true,
+        "level": 8,
+        "fixture_min_seconds": 1000,
+        "ops": [
+            [
+                "progressStart"
+            ],
+            [
+                "progressAdvance"
+            ],
+            [
+                "progressFinish"
+            ]
+        ],
+        "trace": [
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 1,
+                "new_line": false
+            },
+            {
+                "error": false,
+                "new_lines": 3,
+                "new_line": true
+            }
+        ],
+        "errors": [],
+        "output": ""
+    }
+]

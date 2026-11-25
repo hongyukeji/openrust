@@ -1,3 +1,4 @@
+use super::formatting::display_width as width;
 use super::{ConsoleError, OutputStyle, OutputVerbosity};
 mod error;
 pub use error::ConsoleTableError;
@@ -96,12 +97,11 @@ impl<'a, 'o> Table<'a, 'o> {
         for row in self.headers.iter().chain(&self.rows) {
             for (column, cell) in row.iter().enumerate() {
                 for line in lines(cell) {
-                    let visible = self
-                        .output
-                        .get_output()
-                        .formatter
-                        .format(line, false)
-                        .map_err(ConsoleError::from_source)?;
+                    let visible = super::formatting::unformatted_text(
+                        &mut self.output.get_output().formatter,
+                        line,
+                    )
+                    .map_err(ConsoleError::from_source)?;
                     widths[column] = widths[column].max(width(&visible));
                 }
             }
@@ -185,12 +185,11 @@ impl<'a, 'o> Table<'a, 'o> {
                     .and_then(|part| part.get(index))
                     .map(String::as_str)
                     .unwrap_or("");
-                let visible = self
-                    .output
-                    .get_output()
-                    .formatter
-                    .format(cell, false)
-                    .map_err(ConsoleError::from_source)?;
+                let visible = super::formatting::unformatted_text(
+                    &mut self.output.get_output().formatter,
+                    cell,
+                )
+                .map_err(ConsoleError::from_source)?;
                 let style = self.get_column_style(column);
                 let content = template(&style.cell_row_content_format, cell)?;
                 let target = target + cell.len()
@@ -231,19 +230,6 @@ impl<'a, 'o> Table<'a, 'o> {
 fn lines(value: &str) -> impl Iterator<Item = &str> {
     let separator = if value.contains("\r\n") { "\r\n" } else { "\n" };
     value.split(separator)
-}
-fn width(value: &str) -> usize {
-    ::console::strip_ansi_codes(value)
-        .chars()
-        .map(|ch| {
-            if ch.is_control() {
-                1
-            } else {
-                let mut bytes = [0; 4];
-                ::console::measure_text_width(ch.encode_utf8(&mut bytes))
-            }
-        })
-        .sum()
 }
 
 impl super::CommandIo<'_> {
@@ -297,8 +283,12 @@ impl super::CommandIo<'_> {
 }
 
 fn template(format: &str, value: &str) -> Result<String, ConsoleError> {
-    super::question::format_template(format, &serde_json::Value::String(value.to_owned()))
-        .map_err(|error| ConsoleError::from_source(ConsoleTableError::InvalidFormat(error)))
+    super::formatting::format_template(format, &serde_json::Value::String(value.to_owned()))
+        .map_err(|error| {
+            ConsoleError::from_source(ConsoleTableError::InvalidFormat(ConsoleError::from_source(
+                error,
+            )))
+        })
 }
 fn padding(value: &str, count: usize) -> Result<String, ConsoleError> {
     let mut result = Vec::with_capacity(count);

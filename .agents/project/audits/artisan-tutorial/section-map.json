@@ -343,8 +343,17 @@
     },
     {
       "anchor": "progress-bars",
-      "status": "pending_public_contract_review",
-      "evidence": []
+      "status": "verified_sync_core_remaining_iterator_async_sdk",
+      "evidence": [
+        "console_progress_tutorial",
+        "progress-contracts.json",
+        "accepted-progress-core.json",
+        "formal_progress_example"
+      ],
+      "native": "console::{CommandIo, OutputStyle, ProgressBar, ProgressIterable}",
+      "remaining": [
+        "惰性迭代器生命周期、异步／可变任务回调及安全占位符输出适配继续；完整继承SDK单独核对，不关闭整章。"
+      ]
     },
     {
       "anchor": "registering-commands",

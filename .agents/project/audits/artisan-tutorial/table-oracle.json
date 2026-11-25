@@ -2546,5 +2546,95 @@
         "decorated": true,
         "output": "+-------+\n|\u001b[32m Text  \u001b[39m|\n+-------+\n\u001b[32m| \u001b[39m\u001b[32mone\u001b[39m\u001b[32m   |\u001b[39m\n\u001b[32m| two\u001b[39m\u001b[32m   |\u001b[39m\n\u001b[32m| three\u001b[39m |\n+-------+\n",
         "error": null
+    },
+    {
+        "style": "default",
+        "headers": [
+            "Text"
+        ],
+        "rows": [
+            [
+                "\u001b[1Gx"
+            ]
+        ],
+        "decorated": false,
+        "boundary_fixture": "raw_cursor",
+        "output": "+-------+\n| Text  |\n+-------+\n| \u001b[1Gx |\n+-------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "headers": [
+            "Text"
+        ],
+        "rows": [
+            [
+                "\u001b[1Gmove"
+            ]
+        ],
+        "decorated": false,
+        "boundary_fixture": "raw_cursor",
+        "output": "+------+\n| Text |\n+------+\n| \u001b[1Gmove  |\n+------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "headers": [
+            "Text"
+        ],
+        "rows": [
+            [
+                "\u001b[31mred\u001b[0m"
+            ]
+        ],
+        "decorated": false,
+        "boundary_fixture": "raw_cursor",
+        "output": "+------+\n| Text |\n+------+\n| \u001b[31mred\u001b[0m  |\n+------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "headers": [
+            "Text"
+        ],
+        "rows": [
+            [
+                "\u001b[1Gx"
+            ]
+        ],
+        "decorated": true,
+        "boundary_fixture": "raw_cursor",
+        "output": "+-------+\n|\u001b[32m Text  \u001b[39m|\n+-------+\n| \u001b[1Gx |\n+-------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "headers": [
+            "Text"
+        ],
+        "rows": [
+            [
+                "\u001b[1Gmove"
+            ]
+        ],
+        "decorated": true,
+        "boundary_fixture": "raw_cursor",
+        "output": "+------+\n|\u001b[32m Text \u001b[39m|\n+------+\n| \u001b[1Gmove  |\n+------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "headers": [
+            "Text"
+        ],
+        "rows": [
+            [
+                "\u001b[31mred\u001b[0m"
+            ]
+        ],
+        "decorated": true,
+        "boundary_fixture": "raw_cursor",
+        "output": "+------+\n|\u001b[32m Text \u001b[39m|\n+------+\n| \u001b[31mred\u001b[0m  |\n+------+\n",
+        "error": null
     }
 ]

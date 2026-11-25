@@ -154,5 +154,26 @@ async fn formal_tables_example(){
 }
 """
     parts.append('mod '+locale.replace('-','_').lower()+'_tables{\n'+table_code+table_checks+'}\n')
+    progress_code=re.search(r'```rust\n(.*?)```',text.split('{#progress-bars}',1)[1],re.S).group(1)
+    progress_checks=r"""
+use openrust::support::facades::{App,Facade as _};
+#[tokio::test]
+async fn formal_progress_example(){
+    let root=std::env::temp_dir().join(format!("artisan-progress-doc-{}-{}",std::process::id(),module_path!()));
+    std::fs::create_dir_all(&root).unwrap();
+    let mut app=openrust::foundation::Application::configure(root.clone()).with_routing(openrust::foundation::configuration::Routing::default().commands(register_progress)).create().unwrap();
+    app.boot().await.unwrap();
+    App::set_facade_application(Some(&app),async {
+        for flag in ["--no-ansi","--ansi","--quiet","--silent"] {
+            let mut output=Output::default();
+            assert_eq!(Artisan::call("reports:progress",&[flag.into()],&mut output).await.unwrap(),0);
+            if flag=="--quiet" || flag=="--silent" {assert!(output.stdout.is_empty());}
+            else {assert!(output.stdout.contains("CSV,JSON,HTML:11"));assert_eq!(output.stdout.matches("100%").count(),2);assert!(output.stdout.contains("build"));}
+        }
+    }).await;
+    std::fs::remove_dir_all(root).unwrap();
+}
+"""
+    parts.append('mod '+locale.replace('-','_').lower()+'_progress{\n'+progress_code+progress_checks+'}\n')
 target=source/'tests/artisan_docs_generated.rs';target.write_text('\n'.join(parts));subprocess.run(['rustfmt','+1.94.0','--edition','2024',str(target)],check=True)
 print('generated',len(parts),'direct formal consumers')

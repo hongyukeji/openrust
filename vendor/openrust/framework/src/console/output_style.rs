@@ -101,6 +101,7 @@ impl OutputMessages<'_> {
 pub struct OutputStyle<'a> {
     // 问答也使用构造时的输入；与 CommandIo::set_input 的读取对象独立。
     input: &'a Input,
+    progress: Option<super::progress_bar::ProgressState>,
     history: Vec<u8>,
     history_formatter: super::formatting::Formatter,
     question_finally: Option<Arc<AtomicBool>>,
@@ -113,6 +114,7 @@ impl<'a> OutputStyle<'a> {
         let history_formatter = output.formatter.clone();
         Self {
             input,
+            progress: None,
             history: Vec::new(),
             history_formatter,
             question_finally: None,
@@ -349,21 +351,8 @@ impl<'a> OutputStyle<'a> {
         format: OutputFormat,
         level: OutputVerbosity,
     ) -> Result<(), ConsoleError> {
-        let mut rendered = match format {
-            OutputFormat::Raw => message.to_owned(),
-            OutputFormat::Normal | OutputFormat::Plain => self
-                .output
-                .formatter
-                .format(message, self.output.is_decorated())
-                .map_err(ConsoleError::from_source)?,
-        };
-        if format == OutputFormat::Plain {
-            rendered = Str::of(rendered).strip_tags(&[]).to_string().to_owned();
-        }
-        if newline {
-            rendered.push('\n');
-        }
-        self.output.emit_rendered(&rendered, level)?;
+        self.output
+            .emit_formatted(message, newline, format, level)?;
         let mut history = match format {
             OutputFormat::Raw => message.to_owned(),
             _ => self
@@ -403,5 +392,139 @@ struct QuestionFinally(Arc<AtomicBool>);
 impl Drop for QuestionFinally {
     fn drop(&mut self) {
         self.0.store(true, Ordering::Relaxed);
+    }
+}
+
+impl Output {
+    /// 底层格式化写入不更新外层样式历史，供直接输出的消费者复用。
+    pub(super) fn emit_formatted(
+        &mut self,
+        message: &str,
+        newline: bool,
+        format: OutputFormat,
+        level: OutputVerbosity,
+    ) -> Result<(), ConsoleError> {
+        if self.is_silent() || self.verbosity() < level {
+            return Ok(());
+        }
+        let rendered = self.render_message(message, newline, format, false)?;
+        self.emit_rendered(&rendered, level)?;
+        Ok(())
+    }
+}
+
+impl OutputStyle<'_> {
+    pub fn progress_start(&mut self, max: i64) -> Result<(), ConsoleError> {
+        let mut bar = self.create_progress_bar(max)?;
+        let result = bar.start();
+        let state = bar.into_state();
+        self.progress = Some(state);
+        result
+    }
+    pub fn progress_advance(&mut self) -> Result<(), ConsoleError> {
+        self.progress_advance_by(1)
+    }
+    pub fn progress_advance_by(&mut self, steps: i64) -> Result<(), ConsoleError> {
+        let state = self.progress.take().ok_or_else(|| {
+            ConsoleError::from_source(super::ConsoleProgressError::MissingProgressBar)
+        })?;
+        let mut bar = super::ProgressBar::from_state(self.get_output(), state);
+        let result = bar.advance_by(steps);
+        let state = bar.into_state();
+        self.progress = Some(state);
+        result
+    }
+    pub fn progress_finish(&mut self) -> Result<(), ConsoleError> {
+        let state = self.progress.take().ok_or_else(|| {
+            ConsoleError::from_source(super::ConsoleProgressError::MissingProgressBar)
+        })?;
+        let mut bar = super::ProgressBar::from_state(self.get_output(), state);
+        let result = bar.finish();
+        let state = bar.into_state();
+        if let Err(error) = result {
+            self.progress = Some(state);
+            return Err(error);
+        }
+        if let Err(error) = self.new_line(2) {
+            self.progress = Some(state);
+            return Err(error);
+        }
+        Ok(())
+    }
+}
+
+impl Output {
+    fn render_message(
+        &mut self,
+        message: &str,
+        newline: bool,
+        format: OutputFormat,
+        error_stream: bool,
+    ) -> Result<String, ConsoleError> {
+        let decorated = if error_stream && self.terminal {
+            self.error_decorated
+        } else {
+            self.decorated
+        };
+        let formatter = if error_stream && self.terminal {
+            &mut self.error_formatter
+        } else {
+            &mut self.formatter
+        };
+        let mut rendered = match format {
+            OutputFormat::Raw => message.to_owned(),
+            OutputFormat::Normal | OutputFormat::Plain => formatter
+                .format(message, decorated)
+                .map_err(ConsoleError::from_source)?,
+        };
+        if format == OutputFormat::Plain {
+            rendered = Str::of(rendered).strip_tags(&[]).to_string().to_owned();
+        }
+        if newline {
+            rendered.push('\n');
+        }
+        Ok(rendered)
+    }
+    pub(super) fn progress_is_decorated(&self) -> bool {
+        if self.terminal {
+            self.error_decorated
+        } else {
+            self.decorated
+        }
+    }
+    pub(super) fn progress_formatter(&mut self) -> &mut super::formatting::Formatter {
+        if self.terminal {
+            &mut self.error_formatter
+        } else {
+            &mut self.formatter
+        }
+    }
+    /// 实际控制台的进度写入stderr；缓冲调用仍沿用单一输出，不建立第二份捕获结果。
+    pub(super) fn emit_progress(&mut self, message: &str) -> Result<(), ConsoleError> {
+        if self.is_silent() || self.verbosity() < OutputVerbosity::Normal {
+            return Ok(());
+        }
+        if !self.terminal {
+            return self.emit_formatted(
+                message,
+                false,
+                OutputFormat::Normal,
+                OutputVerbosity::Normal,
+            );
+        }
+        self.emit_rendered("", OutputVerbosity::Normal)?;
+        let rendered = self.render_message(message, false, OutputFormat::Normal, true)?;
+        use std::io::Write as _;
+        let mut stderr = std::io::stderr().lock();
+        if !self.stderr.is_empty() {
+            stderr
+                .write_all(self.stderr.as_bytes())
+                .map_err(ConsoleError::from_source)?;
+            self.stderr.clear();
+        }
+        stderr
+            .write_all(rendered.as_bytes())
+            .and_then(|()| stderr.flush())
+            .map_err(ConsoleError::from_source)
     }
 }

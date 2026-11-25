@@ -6,6 +6,8 @@ Git 默认流程已于 2026-11-23 更新：已授权任务完成并通过相关�
 
 ## 正在推进与等待条件
 
+- 2026-11-25 Artisan第十二簇同步进度条通过：数字／有键非Clone模型集合、真实stderr／刷新／时间与应用隔离；修复极大恢复步数溢出和NaN间隔，130个父消费者含三语39例、实际HTTP／Artisan／主程序／浏览器与严格门禁通过。见[第十二簇](audits/artisan-tutorial/README.md)与[入口清单](audits/artisan-tutorial/progress-contracts.json)。惰性／异步／可变回调及其余SDK继续，整章未闭合，不推送。
+
 - 2026-11-25 固定Logging核心29节按用户核定范围闭合：通用Formattable类型与延迟自带格式器、实际HTTP／Artisan／浏览器和三语直接示例补齐；11目标61项、45个文档消费者及严格门禁通过。详见[最终核对](audits/logging-tutorial/README.md)和[逐节清单](audits/logging-tutorial/section-map.json)。用户将New Relic明确单列为[LOG-S01待选型供应商集成](plans/log-supplier-integrations.md)，专用APM未实现，不能算发布待账号。随后进入Artisan Console；URL／Validation、Error Handling及Settings既有闭合不重开。不推送，保护其他对话在途。
 
 - 2026-11-25 Artisan按[48节清单](audits/artisan-tutorial/section-map.json)继续。首簇签名／声明式服务已提交dc8137855，CommandInput已提交35ee055c6；第三簇Isolatable三入口、ID／期限／取消及关联数据库锁整秒修复，六存储矩阵、70项不同父消费者、正式三语12例、HTTP／独立Artisan／浏览器和严格门禁通过，见[第三簇](audits/artisan-tutorial/README.md)。继续缺失输入提示／I/O／生成注册／信号及其他未验项；Tinker仍Planned，整章未闭合。不推送。

@@ -176,9 +176,14 @@
         "method": "withProgressBar",
         "source_line": 274,
         "signature": "public function withProgressBar($totalSteps, Closure $callback)",
-        "status": "pending_entry_and_behavior_review",
-        "native": null,
-        "evidence": []
+        "status": "verified_sync_core_async_mutable_consumers_pending",
+        "native": "console::CommandIo::{with_progress_bar, with_progress_bar_iter}",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-contracts.json",
+          "accepted-progress-core.json",
+          "formal_progress_example"
+        ]
       },
       {
         "method": "info",

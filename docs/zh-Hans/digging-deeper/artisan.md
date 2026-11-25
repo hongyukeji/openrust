@@ -620,3 +620,60 @@ fn register_tables() -> Result<(), ConsoleError> {
 `table_with` 选择 `TableStyle`；`table_with_columns` 另外接受 `(列索引, 样式)`。`TableStyle::from_name` 提供 `default`、`markdown`、`borderless`、`compact`、`symfony-style-guide`、`box` 和 `box-double`。可通过边框、填充和格式设置方法定制样式。`TablePadding::{Left, Right, Both}` 表示填充所在侧，默认 `Right`。
 
 直接渲染时使用 `Table::new(io.get_output())`，设置表头、数据行和列样式后调用 `render()`。`TableCell::display(value)` 显式适配实现 `Display` 的业务类型；JSON 值和常用标量直接转换。多行单元格、Unicode 可见宽度、格式标签、ANSI 输出及 quiet／silent 过滤沿用原输出管线。此矩形表格接口不代表已支持跨行／跨列、行分隔符、标题或整个继承辅助库。
+
+## 进度条 {#progress-bars}
+
+可计数的集合使用 `with_progress_bar_iter`。回调接收元素、当前进度条及原整数／字符串键；回调成功后才前进一步，最后返回原集合。`Vec`、数组、有序映射、基础集合、模型集合及其借用均实现 `ProgressIterable`，无需克隆模型。
+
+```rust
+use openrust::{
+    console::{ConsoleError, Input, Output, ProgressBar, ProgressFormatter},
+    support::facades::Artisan,
+};
+use std::sync::Arc;
+
+fn register_progress() -> Result<(), ConsoleError> {
+    ProgressBar::set_format_definition(
+        "reports",
+        "%task% %current%/%max% [%bar%] %percent:3s%%",
+    )?;
+    Artisan::command_with("reports:progress", |input: &Input, output: &mut Output| {
+        let mut io = input.io(output);
+        let mut processed = Vec::new();
+        let items = io.with_progress_bar_iter(vec!["csv", "json", "html"], |item, _, _key| {
+            processed.push(item.to_uppercase());
+            Ok(())
+        })?;
+        io.new_line(1)?;
+
+        let count = i64::try_from(items.len()).map_err(ConsoleError::from_source)?;
+        let mut bar = io.get_output().create_progress_bar(count)?;
+        let label: ProgressFormatter = Arc::new(|bar| {
+            Ok(bar.get_message().unwrap_or("work").to_owned())
+        });
+        bar.set_format("reports")
+            .set_message("build")
+            .set_placeholder_formatter("task", label);
+        bar.start()?;
+        let mut total = 0;
+        for item in &items {
+            total += item.len();
+            bar.advance()?;
+        }
+        bar.finish()?;
+        drop(bar);
+        io.new_line(1)?;
+        io.info(&format!("{}:{total}", processed.join(",")))?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
+数字总步数使用 `with_progress_bar(steps, callback)`，由回调调用 `advance` 或 `advance_by`。手动控制时通过 `create_progress_bar(total)` 创建，再调用 `start`、`advance` 和 `finish`。这些回调同步执行；错误向上传播，不会悄悄补上完成状态。
+
+工厂沿用当前输出：捕获调用把进度保留在缓冲中；真实控制台将进度流式写入 stderr，普通 stdout 保持独立。quiet／silent 关闭显示。默认刷新间隔为40毫秒，完成步仍会检查显示。空集合、未知总数及重复 `finish` 保留各自生命周期。`progress_start`、`progress_advance` 和 `progress_finish` 提供样式内保存的进度状态；`progress_finish` 另外写入两个换行并释放该状态。
+
+可设置格式、消息、进度字符、宽度、刷新频率及占位符。共享命名格式和占位符定义属于当前应用，在命令注册或执行作用域内设置；进度条保留创建时所属应用的定义。独立进度条可直接使用字面格式及实例占位符。占位符回调借用实际进度条，返回 `Result<String, ConsoleError>`。内存占位符显示原生进程驻留内存，不是语言虚拟机堆大小。
+
+数字与集合帮助方法拆开命名，使回调及返回类型明确。传入 `&items` 可在失败时保留调用方所有权。本节验收同步集合及手动进度；惰性迭代器适配、异步／可变任务回调和其余继承输出契约继续单独核对。

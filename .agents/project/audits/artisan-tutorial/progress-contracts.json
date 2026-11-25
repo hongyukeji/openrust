@@ -1,0 +1,426 @@
+{
+  "reference": {
+    "framework": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+    "console": "v7.4.0"
+  },
+  "scope": "Synchronous numeric/borrowed keyed iterable helpers and manual progress; iterator, async/mutable consumers, and inherited SDK are not closed by this batch.",
+  "classes": {
+    "ProgressBar": [
+      {
+        "method": "__construct",
+        "source_line": 70,
+        "native": "console::ProgressBar::new / new_with_redraw_interval",
+        "status": "verified_sync_core",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-core-final-framework.log"
+        ]
+      },
+      {
+        "method": "setPlaceholderFormatterDefinition",
+        "source_line": 105,
+        "native": "console::ProgressBar::set_placeholder_formatter_definition",
+        "status": "verified_native_callback_with_output_argument_adapter_pending",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-core-final-framework.log"
+        ],
+        "adaptation": "Native callback borrows bar and returns Result<String,ConsoleError>; explicit output-view adaptation is separately open."
+      },
+      {
+        "method": "getPlaceholderFormatterDefinition",
+        "source_line": 117,
+        "native": "console::ProgressBar::get_placeholder_formatter_definition",
+        "status": "verified_native_callback_with_output_argument_adapter_pending",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-core-final-framework.log"
+        ],
+        "adaptation": "Native callback borrows bar and returns Result<String,ConsoleError>; explicit output-view adaptation is separately open."
+      },
+      {
+        "method": "setPlaceholderFormatter",
+        "source_line": 129,
+        "native": "console::ProgressBar::set_placeholder_formatter",
+        "status": "verified_native_callback_with_output_argument_adapter_pending",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-core-final-framework.log"
+        ],
+        "adaptation": "Native callback borrows bar and returns Result<String,ConsoleError>; explicit output-view adaptation is separately open."
+      },
+      {
+        "method": "getPlaceholderFormatter",
+        "source_line": 139,
+        "native": "console::ProgressBar::get_placeholder_formatter",
+        "status": "verified_native_callback_with_output_argument_adapter_pending",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-core-final-framework.log"
+        ],
+        "adaptation": "Native callback borrows bar and returns Result<String,ConsoleError>; explicit output-view adaptation is separately open."
+      },
+      {
+        "method": "setFormatDefinition",
+        "source_line": 152,
+        "native": "console::ProgressBar::set_format_definition",
+        "status": "verified_sync_core",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-core-final-framework.log"
+        ]
+      },
+      {
+        "method": "getFormatDefinition",
+        "source_line": 164,
+        "native": "console::ProgressBar::get_format_definition",
+        "status": "verified_sync_core",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-core-final-framework.log"
+        ]
+      },
+      {
+        "method": "setMessage",
+        "source_line": 181,
+        "native": "console::ProgressBar::set_message",
+        "status": "verified_sync_core",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-core-final-framework.log"
+        ]
+      },
+      {
+        "method": "getMessage",
+        "source_line": 186,
+        "native": "console::ProgressBar::get_message",
+        "status": "verified_sync_core",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-core-final-framework.log"
+        ]
+      },
+      {
+        "method": "getStartTime",
+        "source_line": 191,
+        "native": "console::ProgressBar::get_start_time",
+        "status": "verified_sync_core",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-core-final-framework.log"
+        ]
+      },
+      {
+        "method": "getMaxSteps",
+        "source_line": 196,
+        "native": "console::ProgressBar::get_max_steps",
+        "status": "verified_sync_core",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-core-final-framework.log"
+        ]
+      },
+      {
+        "method": "getProgress",
+        "source_line": 201,
+        "native": "console::ProgressBar::get_progress",
+        "status": "verified_sync_core",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-core-final-framework.log"
+        ]
+      },
+      {
+        "method": "getProgressPercent",
+        "source_line": 211,
+        "native": "console::ProgressBar::get_progress_percent",
+        "status": "verified_sync_core",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-core-final-framework.log"
+        ]
+      },
+      {
+        "method": "getBarOffset",
+        "source_line": 216,
+        "native": "console::ProgressBar::get_bar_offset",
+        "status": "verified_sync_core",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-core-final-framework.log"
+        ]
+      },
+      {
+        "method": "getEstimated",
+        "source_line": 221,
+        "native": "console::ProgressBar::get_estimated",
+        "status": "verified_sync_core",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-core-final-framework.log"
+        ]
+      },
+      {
+        "method": "getRemaining",
+        "source_line": 230,
+        "native": "console::ProgressBar::get_remaining",
+        "status": "verified_sync_core",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-core-final-framework.log"
+        ]
+      },
+      {
+        "method": "setBarWidth",
+        "source_line": 239,
+        "native": "console::ProgressBar::set_bar_width",
+        "status": "verified_sync_core",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-core-final-framework.log"
+        ]
+      },
+      {
+        "method": "getBarWidth",
+        "source_line": 244,
+        "native": "console::ProgressBar::get_bar_width",
+        "status": "verified_sync_core",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-core-final-framework.log"
+        ]
+      },
+      {
+        "method": "setBarCharacter",
+        "source_line": 249,
+        "native": "console::ProgressBar::set_bar_character",
+        "status": "verified_sync_core",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-core-final-framework.log"
+        ]
+      },
+      {
+        "method": "getBarCharacter",
+        "source_line": 254,
+        "native": "console::ProgressBar::get_bar_character",
+        "status": "verified_sync_core",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-core-final-framework.log"
+        ]
+      },
+      {
+        "method": "setEmptyBarCharacter",
+        "source_line": 259,
+        "native": "console::ProgressBar::set_empty_bar_character",
+        "status": "verified_sync_core",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-core-final-framework.log"
+        ]
+      },
+      {
+        "method": "getEmptyBarCharacter",
+        "source_line": 264,
+        "native": "console::ProgressBar::get_empty_bar_character",
+        "status": "verified_sync_core",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-core-final-framework.log"
+        ]
+      },
+      {
+        "method": "setProgressCharacter",
+        "source_line": 269,
+        "native": "console::ProgressBar::set_progress_character",
+        "status": "verified_sync_core",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-core-final-framework.log"
+        ]
+      },
+      {
+        "method": "getProgressCharacter",
+        "source_line": 274,
+        "native": "console::ProgressBar::get_progress_character",
+        "status": "verified_sync_core",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-core-final-framework.log"
+        ]
+      },
+      {
+        "method": "setFormat",
+        "source_line": 279,
+        "native": "console::ProgressBar::set_format",
+        "status": "verified_sync_core",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-core-final-framework.log"
+        ]
+      },
+      {
+        "method": "setRedrawFrequency",
+        "source_line": 290,
+        "native": "console::ProgressBar::set_redraw_frequency",
+        "status": "verified_sync_core",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-core-final-framework.log"
+        ]
+      },
+      {
+        "method": "minSecondsBetweenRedraws",
+        "source_line": 295,
+        "native": "console::ProgressBar::min_seconds_between_redraws",
+        "status": "verified_sync_core",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-core-final-framework.log"
+        ]
+      },
+      {
+        "method": "maxSecondsBetweenRedraws",
+        "source_line": 300,
+        "native": "console::ProgressBar::max_seconds_between_redraws",
+        "status": "verified_sync_core",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-core-final-framework.log"
+        ]
+      },
+      {
+        "method": "iterate",
+        "source_line": 316,
+        "native": null,
+        "status": "pending_lazy_lifecycle_consumer",
+        "evidence": []
+      },
+      {
+        "method": "start",
+        "source_line": 349,
+        "native": "console::ProgressBar::start",
+        "status": "verified_sync_core",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-core-final-framework.log"
+        ]
+      },
+      {
+        "method": "advance",
+        "source_line": 369,
+        "native": "console::ProgressBar::advance",
+        "status": "verified_sync_core",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-core-final-framework.log"
+        ]
+      },
+      {
+        "method": "setOverwrite",
+        "source_line": 377,
+        "native": "console::ProgressBar::set_overwrite",
+        "status": "verified_sync_core",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-core-final-framework.log"
+        ]
+      },
+      {
+        "method": "setProgress",
+        "source_line": 382,
+        "native": "console::ProgressBar::set_progress",
+        "status": "verified_sync_core",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-core-final-framework.log"
+        ]
+      },
+      {
+        "method": "setMaxSteps",
+        "source_line": 419,
+        "native": "console::ProgressBar::set_max_steps",
+        "status": "verified_sync_core",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-core-final-framework.log"
+        ]
+      },
+      {
+        "method": "finish",
+        "source_line": 438,
+        "native": "console::ProgressBar::finish",
+        "status": "verified_sync_core",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-core-final-framework.log"
+        ]
+      },
+      {
+        "method": "display",
+        "source_line": 455,
+        "native": "console::ProgressBar::display",
+        "status": "verified_sync_core",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-core-final-framework.log"
+        ]
+      },
+      {
+        "method": "clear",
+        "source_line": 475,
+        "native": "console::ProgressBar::clear",
+        "status": "verified_sync_core",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-core-final-framework.log"
+        ]
+      }
+    ]
+  },
+  "native_adaptations": [
+    {
+      "contract": "per-application named format/placeholder definitions",
+      "reason": "Concurrent applications must not share mutable process-global definitions; capture owner on construction.",
+      "evidence": "definitions_follow_the_owning_application_and_callbacks_can_reenter_the_registry"
+    },
+    {
+      "contract": "memory placeholder",
+      "reason": "Native process RSS from existing memory_stats; PHP VM heap statistics do not exist in Rust.",
+      "evidence": "elapsed_estimates_memory_and_default_throttling_use_real_native_sources"
+    },
+    {
+      "contract": "integer and UTF-8 error boundaries",
+      "reason": "Result preserves concrete sources; invalid UTF-8 and unrepresentable native counts fail explicitly. PHP VM warnings are retained in source evidence, not emitted by Rust.",
+      "evidence": "progress-operations-source2.json; progress-extreme-before-fix.log; progress-boundary-tests1.log"
+    }
+  ],
+  "remaining": [
+    {
+      "contract": "ProgressBar::iterate / OutputStyle::progressIterate",
+      "status": "pending_implementation_and_real_consumers",
+      "requirements": "Lazy start/yield/advance/finish, early drop, empty/countable/unknown max, original keys."
+    },
+    {
+      "contract": "Native asynchronous and mutable task callbacks",
+      "status": "pending_implementation_and_real_consumers",
+      "requirements": "Actual awaited model persistence without cloning, failures and cancellation preserve progress state."
+    },
+    {
+      "contract": "Placeholder callback output argument",
+      "status": "pending_safe_native_output_view",
+      "requirements": "Expose selected output stream safely; do not give overlapping mutable aliases or raw stdout for stderr progress."
+    },
+    {
+      "contract": "Inherited OutputInterface / complete components / Table SDK",
+      "status": "pending_separate_entry_review",
+      "requirements": "Retain full per-type inventory; no claim of whole Artisan closure."
+    },
+    {
+      "contract": "Windows progress terminal",
+      "status": "release_matrix_pending",
+      "requirements": "Real Windows terminal acceptance remains separate from already-closed Worker/Runner validation."
+    }
+  ]
+}

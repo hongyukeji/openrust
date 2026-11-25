@@ -508,6 +508,14 @@ impl<M: Model> Collection<M> {
         }
     }
 
+    /// 按原集合顺序借用键与模型，不复制模型或丢弃自定义集合键。
+    pub fn entries(&self) -> impl ExactSizeIterator<Item = (ArrayKey, &M)> {
+        self.models
+            .iter()
+            .enumerate()
+            .map(|(index, model)| (self.key_at(index), model))
+    }
+
     fn key_at(&self, index: usize) -> ArrayKey {
         self.keys.as_ref().map_or_else(
             || ArrayKey::Integer(i64::try_from(index).expect("collection index fits i64")),
