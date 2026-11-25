@@ -210,6 +210,10 @@ async fn main() -> ExitCode {
                                 "/drivers/moderation/hive-ocr",
                                 moderation::hive_ocr_route,
                             )?;
+                            Route::post(
+                                "/drivers/moderation/hive-video",
+                                moderation::hive_video_route,
+                            )?;
                         }
                         Ok(())
                     })

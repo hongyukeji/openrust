@@ -66,6 +66,12 @@ Set `ocr_project`, `ocr_token_env`, `ocr_classes`, and `ocr_review_severity` in 
 
 Hive can establish complete coverage for a confirmed still image with one frame at timestamp zero and results for every required class in each detected block. Animation or incomplete evidence remains partial. The adapter preserves category-level findings and their original severity, without returning recognized text, matched values, or coordinates. [Hive OCR moderation](https://docs.thehive.ai/reference/ocr-moderation)
 
+## Hive video submissions {#hive-video}
+
+Use a named `hive` profile with the numeric `video_project` ID of your Hive V2 Enterprise video project. Set `video_callback_url` to your application's HTTPS callback route and configure `media_disk` and `media_origin` for the private object. Use `video_token_env` for explicit environment injection or set the `video_token` field in the referenced credential file.
+
+`submit_video()` sends the selected object version to the V2 asynchronous endpoint. It returns the provider task ID after checking the project and any callback URL echoed by Hive. If the acknowledgement is ambiguous, reconcile the original task before deciding whether to submit again. Treat the returned ID as a receipt and confirm the moderation result through your project's integration before using it for publication. [Hive task creation](https://docs.thehive.ai/reference/submitting-via-task-api)
+
 ## Alibaba Cloud video {#aliyun-video}
 
 Set `video_service` in a named `aliyun` profile. `videoDetection` supports Shanghai, Beijing and Hangzhou, and `videoDetectionByVL` supports Shanghai and Beijing. Set `media_disk` and `media_origin` for a versioned private S3 object. The driver signs a five-minute HTTPS download URL for the requested version.

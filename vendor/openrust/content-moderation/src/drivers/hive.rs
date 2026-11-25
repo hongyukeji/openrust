@@ -14,18 +14,19 @@ use serde_json::{Value, json};
 use zeroize::Zeroizing;
 
 use super::{
-    Endpoint, field, hive_image::ImageService, hive_ocr::OcrService, http_status,
-    media::VersionedMediaLinks,
+    Endpoint, field, hive_image::ImageService, hive_ocr::OcrService, hive_video::VideoService,
+    http_status, media::VersionedMediaLinks,
 };
 use crate::{
     Assessment, Confidence, Coverage, Decision, Finding, ImageInput, Modality, ModerationDriver,
-    ModerationError, ModerationFuture, ModerationResult, Operation, TextInput,
+    ModerationError, ModerationFuture, ModerationResult, Operation, TaskId, TextInput, VideoInput,
 };
 
 pub(super) struct Hive {
     text: Option<TextService>,
     image: Option<ImageService>,
     ocr: Option<OcrService>,
+    video: Option<VideoService>,
 }
 
 impl Hive {
@@ -37,21 +38,27 @@ impl Hive {
     ) -> ModerationResult<Self> {
         let text = TextService::configured(http.clone(), credentials, profile)?;
         let image = ImageService::configured(http.clone(), credentials, storage.clone(), profile)?;
-        let ocr = OcrService::configured(http, credentials, storage, profile)?;
+        let ocr = OcrService::configured(http.clone(), credentials, storage.clone(), profile)?;
+        let video = VideoService::configured(http, credentials, storage, profile)?;
         if image.is_some() && ocr.is_some() {
             return Err(ModerationError::InvalidConfiguration("hive media project"));
         }
-        if text.is_none() && image.is_none() && ocr.is_none() {
+        if text.is_none() && image.is_none() && ocr.is_none() && video.is_none() {
             return Err(ModerationError::InvalidConfiguration("hive services"));
         }
-        Ok(Self { text, image, ocr })
+        Ok(Self {
+            text,
+            image,
+            ocr,
+            video,
+        })
     }
 }
 
 pub(super) struct Model {
-    endpoint: Endpoint,
+    pub(super) endpoint: Endpoint,
     authorization: HeaderValue,
-    project: u64,
+    pub(super) project: u64,
     model_type: String,
 }
 
@@ -89,7 +96,7 @@ impl Model {
         })
     }
 
-    fn headers(&self) -> HeaderMap {
+    pub(super) fn headers(&self) -> HeaderMap {
         HeaderMap::from_iter([(AUTHORIZATION, self.authorization.clone())])
     }
 
@@ -307,6 +314,7 @@ impl ModerationDriver for Hive {
         match operation {
             Operation::Text => self.text.is_some(),
             Operation::Image => self.image.is_some() || self.ocr.is_some(),
+            Operation::SubmitVideo => self.video.is_some(),
             _ => false,
         }
     }
@@ -332,6 +340,16 @@ impl ModerationDriver for Hive {
                     .ok_or(ModerationError::Unsupported(Operation::Image))?;
                 image.assess(input).await
             }
+        })
+    }
+
+    fn submit_video<'a>(&'a self, input: &'a VideoInput) -> ModerationFuture<'a, TaskId> {
+        Box::pin(async move {
+            self.video
+                .as_ref()
+                .ok_or(ModerationError::Unsupported(Operation::SubmitVideo))?
+                .submit(input)
+                .await
         })
     }
 }

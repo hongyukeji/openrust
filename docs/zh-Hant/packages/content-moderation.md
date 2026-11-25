@@ -66,6 +66,12 @@
 
 回應確認靜態圖僅一個影格、審核時間戳為零，且每個辨識區塊都具備必查類別的結果時，可算完整涵蓋。動態圖與證據不完整時仍為部分涵蓋。介接器保留類別層級的證據和原始嚴重度，省略 OCR 原文、命中值與座標。 [Hive OCR 審核](https://docs.thehive.ai/reference/ocr-moderation)
 
+## Hive 隨選影片提交 {#hive-video}
+
+在具名 `hive` 設定中，將 `video_project` 設為 Hive V2 Enterprise 影片專案的數字 ID。將 `video_callback_url` 設為應用程式的 HTTPS 回呼路由，並用 `media_disk` 和 `media_origin` 指定私有物件來源。明確使用環境變數時設定 `video_token_env`，使用憑證檔案時填寫 `video_token`。
+
+`submit_video()` 將指定版本的物件交給 V2 非同步介面。Hive 回應通過專案和實際回傳的回呼位址核對後，回傳供應商任務 ID。回執不明確時先核對原始任務，再決定是否重新提交。將回傳 ID 用於追蹤任務，發布前應透過專案接入的管道確認審核結果。 [Hive 建立任務](https://docs.thehive.ai/reference/submitting-via-task-api)
+
 ## 阿里雲隨選影片 {#aliyun-video}
 
 在具名 `aliyun` 設定指定 `video_service`。上海、北京、杭州支援 `videoDetection`，上海和北京支援 `videoDetectionByVL`。私人版本化 S3 物件使用 `media_disk`、`media_origin`，驅動會為指定版本產生五分鐘有效的 HTTPS 簽名下載連結。

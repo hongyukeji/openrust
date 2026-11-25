@@ -35,6 +35,7 @@ const JOB: &str = "moderation.fixture.query";
 const ALIYUN_JOB: &str = "moderation.fixture.aliyun-query";
 const TENCENT_JOB: &str = "moderation.fixture.tencent-query";
 const SIGHTENGINE_JOB: &str = "moderation.fixture.sightengine-query";
+const HIVE_VIDEO_JOB: &str = "moderation.fixture.hive-video-query";
 const REVIEW_JOB: &str = "moderation.fixture.read-review";
 const SUBMIT_REVIEW_JOB: &str = "moderation.fixture.submit-review";
 const QUERY_REVIEW_JOB: &str = "moderation.fixture.query-review";
@@ -251,6 +252,21 @@ pub(super) fn configuration(env: &Environment) -> Result<Value, ConfigError> {
         }
         configuration["drivers"]["hive-ocr"] = profile;
     }
+    if let Some(endpoint) = env.get_utf8("MODERATION_FIXTURE_HIVE_VIDEO")? {
+        let mut video = json!({
+            "driver":"hive", "base_url":endpoint, "video_project":48175,
+            "video_callback_url":env.get_utf8("MODERATION_FIXTURE_HIVE_CALLBACK")?,
+            "media_disk":"s3", "media_origin":env.get_utf8("MODERATION_FIXTURE_IMAGE_ORIGIN")?,
+            "credential_ref":"hive-video", "credential_revision":"r1", "timeout_ms":1000,
+        });
+        configuration["credential_directory"] =
+            json!(env.get_utf8("MODERATION_CREDENTIAL_DIRECTORY")?);
+        configuration["drivers"]["hive-videos"] = video.clone();
+        video["account"] = json!("hive-video-account");
+        video["policy_revision"] = json!("hive-policy-1");
+        video["required_modalities"] = json!(["visual", "speech", "ocr"]);
+        configuration["profile_revisions"]["hive-videos"]["original"] = video;
+    }
     Ok(configuration)
 }
 
@@ -279,6 +295,7 @@ impl ServiceProvider for ExternalProvider {
                 SIGHTENGINE_JOB,
                 Arc::new(ProviderVideoQuery("sightengine-videos")),
             )?;
+            Queue::register(HIVE_VIDEO_JOB, Arc::new(ProviderVideoQuery("hive-videos")))?;
             if let Some(path) = std::env::var_os("MODERATION_EVENT_OBSERVATIONS") {
                 app.container().make::<Dispatcher>()?.register(|registry| {
                     registry.listen(
@@ -503,6 +520,12 @@ pub(super) fn sightengine_video_route(
     request: &mut Request,
 ) -> HttpFuture<'_, Result<Response, HttpError>> {
     video_route(request, "sightengine-videos")
+}
+
+pub(super) fn hive_video_route(
+    request: &mut Request,
+) -> HttpFuture<'_, Result<Response, HttpError>> {
+    video_route(request, "hive-videos")
 }
 
 fn video_route<'a>(
@@ -737,7 +760,9 @@ async fn stage_review(
     version: &str,
 ) -> ModerationResult<Value> {
     let source = StoredMedia::new("s3", "versions/clip.mp4", version)?;
-    let profile = Moderation::pin_profile("sightengine-videos", "original")?;
+    let name = std::env::var("MODERATION_FIXTURE_DURABLE_VIDEO_PROFILE")
+        .unwrap_or_else(|_| "sightengine-videos".to_owned());
+    let profile = Moderation::pin_profile(&name, "original")?;
     let request = VideoReviewRequest::new(intent, "影片/1", "content-v1", source, profile, 300)?;
     let store = review_store(application, tenant)?;
     Ok(render_review(store.stage_video(&request).await?))
@@ -989,6 +1014,11 @@ pub(super) fn register_command(artisan: &mut Artisan) -> Result<(), ConsoleError
             "drivers:moderation-sightengine-video",
             "sightengine-videos",
             SIGHTENGINE_JOB,
+        ),
+        (
+            "drivers:moderation-hive-video",
+            "hive-videos",
+            HIVE_VIDEO_JOB,
         ),
     ] {
         artisan.add_command(Box::new(NamedVideoProbe(

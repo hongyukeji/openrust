@@ -3,6 +3,7 @@ mod aliyun_video;
 mod hive;
 mod hive_image;
 mod hive_ocr;
+mod hive_video;
 mod media;
 mod sightengine;
 mod sightengine_image;

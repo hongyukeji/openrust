@@ -192,3 +192,11 @@
 基线 `316f9cbf7`，Rust 1.94.0。SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 中以固定私有 S3 版本进行真实送审，将供应商应答暂停。实际 HTTP 先收到已签名终态，独立 Worker 将记录延期，重复原文去重。恢复原应答后用 Artisan 主动唤醒接收记录，独立 Worker 关联原审核一次，旧延时消息再次消费不改变进度。原生 Scheduler 派发并由另一 Worker 进行唯一一次签名凭据确认，部分覆盖保留失败，不产生 Allow。核对迟到通知、其它账户路由以及重复供应商 ID，不修改原审核状态也不再查单。每库两次实际送审、一次确认，两个故障处理记录来自明确的作用域和歧义反例。SQLite 回调验签、调度和存储回归，3 个契约、修改范围格式与两个严格 Clippy 入口通过。三语文档构建和 Chrome 双挂载点验收通过。
 
 本批测试从已知回执 ID 唤醒。仅知道远端任务号时，提前通知仍按通用延期扫描恢复。对自动 wake 的定位、生产原文保留、无签名提示、其它三家协议和真实供应商继续跟踪。
+
+## CM-03L Hive V2 点播提交 {#hive-video-submission}
+
+标准 Hive Enterprise 视频项目使用 `api.thehive.ai/api/v2/task/async`、独立项目 Token、`url` 和配置中固定的 HTTPS `callback_url`。取回执核对项目，校验供应商任务 UUID，若服务回显回调地址则核对实际地址。保留只读挂载的 `video_token` 和显式变量引用。对象必须来自已配置私有盘的原版本，正文、临时签名和 Token 沿用 HTTP Client 的出站脱敏。超时、含糊回执、项目错配或服务端故障归为 Unknown，明确拒绝与限流保留独立分类。 [Hive V2 建立任务](https://docs.thehive.ai/reference/submitting-via-task-api) · [视频输入](https://docs.thehive.ai/reference/video)
+
+基线 `18c566c8e`，Rust 1.94.0。SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 各由真实 HTTP、Artisan 和独立数据库 Worker 触发 12 次 V2 协议请求。替身验证精确方法／路径、Token、回调地址和版本签名，并从真实 SeaweedFS 读取同一键的两个不同 MP4。测试覆盖配置缓存后原地址、作用域匹配、空回执、无效 UUID、回调地址错配、拒绝、限流、超时、故障、原对象版本和外部凭据哨兵。按固定配置提交的独立 Worker 保存原任务 ID，审核保持 Running。文本、图片、OCR 和定时恢复回归、3 个包契约、修改范围格式、包及应用严格 Clippy 通过。三语文档构建和 Chrome 双挂载点验收通过。
+
+Hive V2 建立任务页面的异步例子指向 V1 路径，公开带认证查单页也声明 `GET /api/v1/task`。本批未验证 V2 项目凭据和任务 ID 是否获准使用该查询契约，也未验证正式回调、音轨／OCR 项目、配额和真实覆盖。继续按 CM-03／CM-04 独立验收。 [官方例子](https://docs.thehive.ai/reference/submit-a-task-asynchronously) · [公开查单](https://docs.thehive.ai/reference/get-task-summary)

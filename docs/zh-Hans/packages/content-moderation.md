@@ -66,6 +66,12 @@
 
 响应确认静态图仅一帧、审核时间戳为零，且每个识别块都有所有必检类别结果时，可计为完整覆盖。动图和证据不全时保持部分覆盖。适配器保留类别级证据和原始严重度，省略 OCR 原文、命中值和坐标。 [Hive OCR 审核](https://docs.thehive.ai/reference/ocr-moderation)
 
+## Hive 点播提交 {#hive-video}
+
+在具名 `hive` 配置中，将 `video_project` 设为 Hive V2 Enterprise 视频项目的数字 ID。将 `video_callback_url` 设为应用的 HTTPS 回调路由，并用 `media_disk` 和 `media_origin` 指定私有对象来源。显式使用环境变量时配置 `video_token_env`，使用凭据文件时填写 `video_token`。
+
+`submit_video()` 将指定版本的对象交给 V2 异步接口。Hive 应答通过项目和实际回显的回调地址核对后，返回供应商任务 ID。回执不明确时先核对原任务，再决定是否重提。将返回 ID 用于跟踪任务，发布前应通过项目接入的通道确认审核结果。 [Hive 创建任务](https://docs.thehive.ai/reference/submitting-via-task-api)
+
 ## 阿里云点播视频 {#aliyun-video}
 
 在具名 `aliyun` 配置设置 `video_service`。上海、北京和杭州支持 `videoDetection`，上海和北京支持 `videoDetectionByVL`。私有版本化 S3 对象使用 `media_disk`、`media_origin`，驱动为指定版本生成五分钟有效的 HTTPS 签名下载链接。
