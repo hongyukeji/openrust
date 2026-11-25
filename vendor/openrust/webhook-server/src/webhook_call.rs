@@ -462,6 +462,7 @@ impl PreparedWebhook {
             queue: self.config.queue.clone(),
             connection: self.config.connection.clone(),
             job: self.config.webhook_job.clone(),
+            custom_job: extensions::has_call_webhook_job(&self.config.webhook_job),
             tags: self.config.tags.clone(),
             meta: self.meta.clone(),
             lifetime,

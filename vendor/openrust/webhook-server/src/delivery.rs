@@ -10,13 +10,17 @@ use http::{
 use openrust::{
     container::Container,
     contracts::container::Container as _,
-    http::{HttpFuture, client::Factory},
+    http::{
+        HttpFuture,
+        client::{Factory, Response},
+    },
+    log::Log,
 };
 use tokio::time::Instant;
 use zeroize::Zeroizing;
 
 use crate::{
-    DeliveryProgress, DeliveryStore, Error, Result, TargetPolicy,
+    DeliveryProgress, DeliveryStore, Error, Result, TargetPolicy, WebhookJobAttempt,
     delivery_store::{AttemptResult, Claim, RetryAfter},
     events::{self, WebhookAttempt, WebhookCallEvent},
     extensions,
@@ -83,29 +87,60 @@ impl DeliveryService {
 
     /// 同步尝试一次。后续尝试由持久投递记录管理。
     pub async fn dispatch_sync(&self, id: &str) -> Result<DeliveryProgress> {
-        self.run(id).await.map(|(progress, _)| progress)
+        self.run(id, None).await.map(|(progress, _)| progress)
     }
 
-    pub(super) async fn run(&self, id: &str) -> Result<(DeliveryProgress, bool)> {
+    pub(super) async fn run(
+        &self,
+        id: &str,
+        expected_job: Option<&str>,
+    ) -> Result<(DeliveryProgress, bool)> {
         let started = Instant::now();
-        let Some(claim) = self.store.claim(id).await? else {
+        let claimed = self
+            .store
+            .claim(id, |snapshot| {
+                if expected_job.is_some_and(|name| name != snapshot.job) {
+                    return Err(Error::InvalidConfig("delivery.job"));
+                }
+                snapshot
+                    .custom_job
+                    .then(|| extensions::call_webhook_job(&snapshot.job))
+                    .transpose()
+            })
+            .await?;
+        let Some((claim, handler)) = claimed else {
             return Ok((DeliveryProgress::Unavailable, false));
         };
         let remaining = u64::try_from(claim.deadline - claim.timestamp).unwrap_or(0);
         let duration = Duration::from_secs(remaining.min(u64::from(claim.snapshot.timeout)));
         let deadline = started + duration;
-        let attempt =
-            match tokio::time::timeout_at(deadline, self.attempt(id, &claim, deadline)).await {
-                Ok(outcome) => outcome,
-                Err(_) => AttemptResult::transient("unknown"),
-            };
-        let backoff = if attempt.retry_after.is_some() && claim.number < claim.snapshot.tries {
+        let TransportAttempt {
+            result: attempt,
+            response,
+        } = match tokio::time::timeout_at(deadline, self.attempt(id, &claim, deadline)).await {
+            Ok(outcome) => outcome,
+            Err(_) => AttemptResult::transient("unknown").into(),
+        };
+        let status = attempt.status;
+        let outcome = attempt.outcome;
+        let observed = WebhookJobAttempt {
+            scope: self.store.scope(),
+            delivery_id: id,
+            number: claim.number,
+            outcome,
+            snapshot: &claim.snapshot,
+            response: response.as_ref(),
+        };
+        let backoff = if attempt.retry_after.is_some()
+            && claim.number < claim.snapshot.tries
+            && !handler
+                .as_ref()
+                .is_some_and(|job| job.should_be_removed_from_queue(&observed))
+        {
             retry_delay(&claim)
         } else {
             None
         };
-        let status = attempt.status;
-        let outcome = attempt.outcome;
         let elapsed = started.elapsed();
         let progress = self.store.finish(id, &claim, attempt, backoff).await?;
         let throw = claim.snapshot.throws_on_failure;
@@ -121,11 +156,26 @@ impl DeliveryService {
                 elapsed,
             }),
         );
-        events::attempted(event, progress).await;
+        events::attempted(event.clone(), progress).await;
+        if let Some(job) = handler
+            && progress.is_final_failure()
+            && job
+                .failed(&WebhookJobAttempt {
+                    scope: self.store.scope(),
+                    delivery_id: id,
+                    number: claim.number,
+                    outcome,
+                    snapshot: &event.snapshot,
+                    response: response.as_ref(),
+                })
+                .is_err()
+        {
+            let _ = Log::warning("Webhook 发送 Job 的失败钩子执行失败", &Default::default());
+        }
         Ok((progress, throw))
     }
 
-    async fn attempt(&self, id: &str, claim: &Claim, deadline: Instant) -> AttemptResult {
+    async fn attempt(&self, id: &str, claim: &Claim, deadline: Instant) -> TransportAttempt {
         let snapshot = &claim.snapshot;
         let permission = self
             .policy
@@ -138,30 +188,32 @@ impl DeliveryService {
             })
             .await;
         let Ok(Some(permission)) = permission else {
-            return AttemptResult::failure("rejected");
+            return AttemptResult::failure("rejected").into();
         };
         let target = match permission.target.resolve(&snapshot.url).await {
             Ok(target) => target,
-            Err(Error::TargetResolutionFailed) => return AttemptResult::transient("unresolved"),
-            Err(_) => return AttemptResult::failure("rejected"),
+            Err(Error::TargetResolutionFailed) => {
+                return AttemptResult::transient("unresolved").into();
+            }
+            Err(_) => return AttemptResult::failure("rejected").into(),
         };
         let secret = permission.secret.as_ref().map(|value| value.as_str());
         let Ok((method, headers, body)) = snapshot.request_parts(claim.timestamp, secret) else {
-            return AttemptResult::failure("rejected");
+            return AttemptResult::failure("rejected").into();
         };
         let Ok(factory) = Factory::new() else {
-            return AttemptResult::failure("rejected");
+            return AttemptResult::failure("rejected").into();
         };
         let url = target.url().as_str();
         let Ok(request) = factory
             .pending_request()
             .pin_destination(url, target.addresses().to_vec())
         else {
-            return AttemptResult::failure("rejected");
+            return AttemptResult::failure("rejected").into();
         };
         let duration = deadline.saturating_duration_since(Instant::now());
         if duration.is_zero() {
-            return AttemptResult::transient("stopped");
+            return AttemptResult::transient("stopped").into();
         }
         let content_type = headers.get(CONTENT_TYPE).cloned();
         let request = request
@@ -187,7 +239,7 @@ impl DeliveryService {
                         .flatten()
                         .unwrap_or(RetryAfter::Seconds(0))
                 });
-                AttemptResult {
+                let result = AttemptResult {
                     outcome: if status.is_success() {
                         "succeeded"
                     } else {
@@ -195,9 +247,27 @@ impl DeliveryService {
                     },
                     status: Some(status.as_u16()),
                     retry_after,
+                };
+                TransportAttempt {
+                    result,
+                    response: Some(response),
                 }
             }
-            Err(_) => AttemptResult::transient("unknown"),
+            Err(_) => AttemptResult::transient("unknown").into(),
+        }
+    }
+}
+
+struct TransportAttempt {
+    result: AttemptResult,
+    response: Option<Response>,
+}
+
+impl From<AttemptResult> for TransportAttempt {
+    fn from(result: AttemptResult) -> Self {
+        Self {
+            result,
+            response: None,
         }
     }
 }

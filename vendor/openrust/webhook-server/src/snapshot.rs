@@ -35,6 +35,8 @@ pub(crate) struct Snapshot {
     pub queue: Option<String>,
     pub connection: Option<String>,
     pub job: String,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub custom_job: bool,
     pub tags: Vec<String>,
     pub meta: serde_json::Value,
     pub lifetime: u32,

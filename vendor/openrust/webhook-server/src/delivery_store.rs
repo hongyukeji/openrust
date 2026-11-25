@@ -262,7 +262,11 @@ impl DeliveryStore {
         Ok(changed == 1)
     }
 
-    pub(crate) async fn claim(&self, id: &str) -> Result<Option<Claim>> {
+    pub(crate) async fn claim<T>(
+        &self,
+        id: &str,
+        resolve: impl FnOnce(&Snapshot) -> Result<T> + Send,
+    ) -> Result<Option<(Claim, T)>> {
         check_id(id)?;
         let token = Str::uuid().map_err(|_| Error::InvalidRecord)?.to_string();
         let clock = self.clock();
@@ -298,6 +302,8 @@ impl DeliveryStore {
                 .first()
                 .await?
                 .ok_or(Error::InvalidRecord)?;
+            let snapshot = decode(&row)?;
+            let handler = resolve(&snapshot)?;
             let attempt_number = number(&row, "attempts")?;
             let timestamp = self.time_in(&mut tx).await?;
             tx.table(ATTEMPTS)
@@ -311,13 +317,16 @@ impl DeliveryStore {
                 .into_iter()
                 .collect()])
                 .await?;
-            Ok(Some(Claim {
-                token,
-                number: u32::try_from(attempt_number).map_err(|_| Error::InvalidRecord)?,
-                timestamp,
-                deadline: number(&row, "deadline")?,
-                snapshot: decode(&row)?,
-            }))
+            Ok(Some((
+                Claim {
+                    token,
+                    number: u32::try_from(attempt_number).map_err(|_| Error::InvalidRecord)?,
+                    timestamp,
+                    deadline: number(&row, "deadline")?,
+                    snapshot,
+                },
+                handler,
+            )))
         }
         .await;
         settle(tx, result).await

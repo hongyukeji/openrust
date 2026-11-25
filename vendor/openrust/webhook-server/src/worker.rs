@@ -16,7 +16,10 @@ impl DeliveryService {
     pub fn register_worker(&self, queue: &QueueManager, name: &str) -> Result<()> {
         queue.register(
             &self.worker_name(name)?,
-            Arc::new(DeliveryJob(self.clone())),
+            Arc::new(DeliveryJob {
+                service: self.clone(),
+                name: name.into(),
+            }),
         )?;
         Ok(())
     }
@@ -33,6 +36,9 @@ impl DeliveryService {
         explicit: bool,
     ) -> Result<DispatchResult> {
         let snapshot = self.store.snapshot(id).await?.ok_or(Error::InvalidRecord)?;
+        if snapshot.custom_job {
+            extensions::call_webhook_job(&snapshot.job)?;
+        }
         let (name, connection) =
             self.queue_route(queue, &snapshot.job, snapshot.connection.as_deref())?;
         let selected_queue = snapshot.queue.clone();
@@ -95,7 +101,10 @@ impl DeliveryService {
     }
 }
 
-struct DeliveryJob(DeliveryService);
+struct DeliveryJob {
+    service: DeliveryService,
+    name: String,
+}
 
 impl JobHandler for DeliveryJob {
     fn handle<'a>(
@@ -105,7 +114,11 @@ impl JobHandler for DeliveryJob {
     ) -> QueueFuture<'a, QueueResult<()>> {
         Box::pin(async move {
             let id = payload.data().as_str().ok_or(QueueError::InvalidPayload)?;
-            let (progress, throw) = self.0.run(id).await.map_err(queue_error)?;
+            let (progress, throw) = self
+                .service
+                .run(id, Some(&self.name))
+                .await
+                .map_err(queue_error)?;
             if throw && progress.is_final_failure() {
                 return Err(queue_error(Error::DeliveryFailed));
             }

@@ -17,13 +17,13 @@ use openrust::{
     },
 };
 use openrust_webhook_server::{
-    BackoffStrategy, DeliveryContext, DeliveryPermission, DeliveryPolicy, DeliveryService,
-    DeliveryStore, Error, Result, TargetPolicy, WebhookCall,
+    BackoffStrategy, CallWebhookJob, DeliveryContext, DeliveryPermission, DeliveryPolicy,
+    DeliveryService, DeliveryStore, Error, Result, TargetPolicy, WebhookCall, WebhookJobAttempt,
     events::{
         DispatchingWebhookCallEvent, FinalWebhookCallFailedEvent, WebhookCallEvent,
         WebhookCallFailedEvent, WebhookCallSucceededEvent,
     },
-    register_backoff_strategy, register_delivery_policy,
+    register_backoff_strategy, register_call_webhook_job, register_delivery_policy,
 };
 use serde_json::json;
 
@@ -154,6 +154,44 @@ fn event_payload(event: &dyn Event) -> Option<&WebhookCallEvent> {
     }
 }
 
+struct FixtureCustomJob;
+
+impl CallWebhookJob for FixtureCustomJob {
+    fn should_be_removed_from_queue(&self, attempt: &WebhookJobAttempt<'_>) -> bool {
+        record_hook("should_remove", attempt).expect("记录测试 Job 重试判定");
+        attempt.message_id().starts_with("custom-stop")
+    }
+
+    fn failed(&self, attempt: &WebhookJobAttempt<'_>) -> Result<()> {
+        record_hook("failed", attempt).map_err(|_| Error::InvalidConfig("fixture job event"))?;
+        if attempt.message_id() == "custom-stop-sync" {
+            return Err(Error::InvalidConfig("fixture-custom-hook-sensitive"));
+        }
+        Ok(())
+    }
+}
+
+fn record_hook(kind: &str, attempt: &WebhookJobAttempt<'_>) -> std::io::Result<()> {
+    use std::io::Write as _;
+    let path = std::env::var_os("FIXTURE_JOB_HOOK_LOG").expect("测试 Job 日志");
+    let body_matches = attempt.get_body().expect("测试 Job 正文") == b"\x00sealed\x80\xff";
+    let matches_peer = attempt.get_response().is_some_and(|response| {
+        response
+            .body()
+            .is_ok_and(|body| body.as_ref() == b"fixture-remote-response")
+    });
+    let entry = json!({"kind": kind, "id": attempt.delivery_id, "number": attempt.number,
+        "scope": attempt.scope, "outcome": attempt.outcome, "message": attempt.message_id(),
+        "url": attempt.get_webhook_url(), "meta": attempt.meta(), "tags": attempt.tags(),
+        "status": attempt.get_response().map(|value| value.status().as_u16()),
+        "request_matches": body_matches, "response_matches": matches_peer });
+    let mut log = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)?;
+    writeln!(log, "{entry}")
+}
+
 pub(super) async fn register(app: &Application) -> ProviderResult {
     if std::env::var_os("FIXTURE_SEND_TARGET").is_some() {
         let policy = Arc::new(FixturePolicy);
@@ -162,7 +200,16 @@ pub(super) async fn register(app: &Application) -> ProviderResult {
         let manager = app.make::<DatabaseManager>().await?;
         let queue = app.make::<QueueManager>().await?;
         let store = DeliveryStore::new(manager.connection(None)?, SCOPE)?;
-        DeliveryService::new(store, policy).register_worker(&queue, "default")?;
+        let service = DeliveryService::new(store, policy);
+        service.register_worker(&queue, "default")?;
+        service.register_worker(&queue, "fixture-custom")?;
+        if std::env::var_os("FIXTURE_HIDE_JOB_HOOK").is_none() {
+            register_call_webhook_job(
+                app.container(),
+                "fixture-custom",
+                Arc::new(FixtureCustomJob),
+            )?;
+        }
         if let Some(path) = std::env::var_os("FIXTURE_SEND_EVENTS") {
             Events::listen(
                 "openrust_webhook_server::events::*",
@@ -292,6 +339,17 @@ async fn dispatch_builder(
             .maximum_tries(1)
             .throw_exception_on_failure(true)
             .dispatch(&service, &queue, target, key, lifetime)
+            .await
+            .map(|receipt| Some(receipt.delivery_id)),
+        "custom-async" => call
+            .use_job("fixture-custom")
+            .dispatch(&service, &queue, target, key, lifetime)
+            .await
+            .map(|receipt| Some(receipt.delivery_id)),
+        "custom-sync" => call
+            .use_job("fixture-custom")
+            .throw_exception_on_failure(true)
+            .dispatch_sync(&service, target, key, lifetime)
             .await
             .map(|receipt| Some(receipt.delivery_id)),
         "async-missing" => call

@@ -7,12 +7,13 @@ use openrust::{
 };
 
 use crate::{
-    BackoffStrategy, DefaultSigner, Error, ExponentialBackoffStrategy, Result, Signer,
-    StandardWebhookSigner,
+    BackoffStrategy, CallWebhookJob, DefaultSigner, Error, ExponentialBackoffStrategy, Result,
+    Signer, StandardWebhookSigner,
 };
 
 struct NamedSigner(Arc<dyn Signer>);
 struct NamedBackoff(Arc<dyn BackoffStrategy>);
+struct NamedJob(Arc<dyn CallWebhookJob>);
 
 pub fn register_signer(container: &Container, name: &str, signer: Arc<dyn Signer>) -> Result<()> {
     let key = key("signer", name)?;
@@ -38,6 +39,38 @@ pub fn register_backoff_strategy(
         .instance_named(&key, Arc::new(NamedBackoff(backoff)))
         .map(|_| ())
         .map_err(|_| Error::InvalidConfig("backoff_strategy"))
+}
+
+pub fn register_call_webhook_job(
+    container: &Container,
+    name: &str,
+    job: Arc<dyn CallWebhookJob>,
+) -> Result<()> {
+    let binding = key("job", name)?;
+    if name == "default" {
+        return Err(Error::InvalidConfig("delivery.job"));
+    }
+    container
+        .instance_named(&binding, Arc::new(NamedJob(job)))
+        .map(|_| ())
+        .map_err(|_| Error::InvalidConfig("delivery.job"))
+}
+
+pub(super) fn has_call_webhook_job(name: &str) -> bool {
+    if name == "default" {
+        return false;
+    }
+    let Ok(binding) = key("job", name) else {
+        return false;
+    };
+    App::get_facade_root().is_ok_and(|app| app.container().has(binding))
+}
+
+pub(super) fn call_webhook_job(name: &str) -> Result<Arc<dyn CallWebhookJob>> {
+    Ok(application_binding::<NamedJob>("job", name)
+        .map_err(|_| Error::InvalidConfig("delivery.job"))?
+        .0
+        .clone())
 }
 
 pub(super) fn signer(name: &str, header: &str) -> Result<Arc<dyn Signer>> {

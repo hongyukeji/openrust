@@ -76,6 +76,28 @@ pub fn schedule_webhook_recovery(schedule: &mut openrust::console::scheduling::S
         .command("webhook-server:recover", ["--scope=billing".into()])
         .every_minute();
 }
+
+struct StopOnGone;
+
+impl openrust_webhook_server::CallWebhookJob for StopOnGone {
+    fn should_be_removed_from_queue(
+        &self,
+        attempt: &openrust_webhook_server::WebhookJobAttempt<'_>,
+    ) -> bool {
+        attempt.get_response().is_some_and(|response| response.status().as_u16() == 410)
+    }
+}
+
+pub fn register_delivery_job(
+    container: &openrust::container::Container,
+    service: &openrust_webhook_server::DeliveryService,
+    queue: &openrust::queue::QueueManager,
+) -> Result<()> {
+    openrust_webhook_server::register_call_webhook_job(
+        container, "stop-on-gone", std::sync::Arc::new(StopOnGone),
+    )?;
+    service.register_worker(queue, "stop-on-gone")
+}
 ```
 
 
@@ -115,6 +137,12 @@ Recovery reserves a 60-second wake-up window before pushing to the queue. A late
 ./artisan webhook-server:recover --scope=billing --limit=100
 ./artisan webhook-server:recover --scope=billing --pretend
 ```
+
+### Customize a delivery job {#custom-job}
+
+Implement `CallWebhookJob` and register the same name with `register_call_webhook_job` and `DeliveryService::register_worker` on the producer, Scheduler and Workers. Select it with `.use_job("stop-on-gone")`. The hook `should_be_removed_from_queue` can stop a retry eligible under the original delivery budget. `failed` observes committed terminal failures from an attempt after the result events. Keep both hooks short and synchronous.
+
+The hook can inspect the original body, URL, tags, metadata and the bounded native response. Transport, credential resolution, attempts and persistence remain managed by the package. Saved custom selections require the named hook at runtime. A missing hook aborts the claim without consuming an attempt. Enable the registration on all consumers before submitting jobs that use it.
 
 ## Custom signers and retry timing {#customization}
 

@@ -2,6 +2,7 @@
 #![forbid(unsafe_code)]
 mod backoff_strategy;
 mod body;
+mod call_webhook_job;
 #[path = "../config/webhook_server.rs"]
 mod configuration;
 mod console;
@@ -23,6 +24,7 @@ mod webhook_call;
 mod worker;
 
 pub use backoff_strategy::{BackoffStrategy, ExponentialBackoffStrategy};
+pub use call_webhook_job::{CallWebhookJob, WebhookJobAttempt};
 pub use delivery::{
     DeliveryContext, DeliveryPermission, DeliveryPolicy, DeliveryService, register_delivery_policy,
 };
@@ -30,7 +32,7 @@ pub use delivery_store::{DeliveryProgress, DeliveryStore};
 pub use destination::{BoundTarget, TargetPolicy};
 pub use dispatch::{QueuedDelivery, SynchronousDelivery};
 pub use error::{Error, Result};
-pub use extensions::{register_backoff_strategy, register_signer};
+pub use extensions::{register_backoff_strategy, register_call_webhook_job, register_signer};
 pub use recovery::RecoveryReport;
 pub use signer::{DefaultSigner, Signer, SigningContext, StandardWebhookSigner};
 pub use webhook_call::{PreparedWebhook, WebhookCall};

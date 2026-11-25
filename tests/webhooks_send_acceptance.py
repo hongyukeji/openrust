@@ -44,6 +44,8 @@ class Receiver(http.server.BaseHTTPRequestHandler):
         status = 204
         if (key in ("retry", "retry-date") and attempt == 1) or key in ("exhausted", "excluded", "sync-throws", "worker-throws"):
             status = 503
+        if key.startswith("custom-stop") or key == "custom-continue" and attempt == 1:
+            status = 503
         if key == "redirect":
             status = 302
         self.send_response(status)
@@ -53,9 +55,12 @@ class Receiver(http.server.BaseHTTPRequestHandler):
             self.send_header("Retry-After", email.utils.formatdate(owner.retry_at, usegmt=True))
         if key == "redirect":
             self.send_header("Location", "/unapproved")
-        self.send_header("Content-Length", "0")
+        response_body = b"fixture-remote-response" if key.startswith("custom-") and status == 503 else b""
+        self.send_header("Content-Length", str(len(response_body)))
         try:
             self.end_headers()
+            if response_body:
+                self.wfile.write(response_body)
         except (BrokenPipeError, ConnectionResetError):
             pass
 
@@ -457,6 +462,62 @@ def exercise(binary, env, log, receiver, driver, sql):
     assert '"unavailable"' in send(listener_attempt)
     captured("attempt-listener-error")
 
+    custom_sync = submit("custom-stop-sync", "builder-custom-sync", expected=502)
+    assert read(custom_sync) == "failed\t1"
+    captured("custom-stop-sync")
+
+    custom_worker = submit("custom-stop-worker", "builder-custom-async")
+    assert '"custom_job":true' in sql(f"SELECT snapshot FROM webhook_deliveries WHERE id='{custom_worker}'")
+    command(*worker)
+    assert read(custom_worker) == "failed\t1"
+    assert '"unavailable"' in send(custom_worker)
+    captured("custom-stop-worker")
+
+    continued = submit("custom-continue", "builder-custom-async")
+    command(*worker)
+    assert read(continued) == "pending\t1"
+    assert '"succeeded"' in send(continued)
+    captured("custom-continue", 2)
+
+    missing = submit("custom-missing", "builder-custom-async")
+    command(*worker, current=env | {"FIXTURE_HIDE_JOB_HOOK": "1"})
+    assert read(missing) == "pending\t0" and attempts(missing) == ""
+    send(missing, current=env | {"FIXTURE_HIDE_JOB_HOOK": "1"}, success=False)
+    assert read(missing) == "pending\t0" and attempts(missing) == ""
+    captured("custom-missing", 0)
+    assert '"succeeded"' in send(missing)
+    captured("custom-missing")
+
+    revoked_custom = submit("custom-revoked", "builder-custom-async")
+    command(*worker, current=env | {"FIXTURE_SEND_REVOKED": "1"})
+    assert attempts(revoked_custom) == "1\trejected\t0"
+    captured("custom-revoked", 0)
+
+    wrong_worker = submit("custom-wrong-worker", "builder-custom-async")
+    routes["write_database"](driver, sql,
+        "UPDATE jobs SET payload=replace(payload, '.fixture-custom', '.default') "
+        f"WHERE queue='webhook-outgoing' AND payload LIKE '%{wrong_worker}%'")
+    command(*worker)
+    assert read(wrong_worker) == "pending\t0" and attempts(wrong_worker) == ""
+    captured("custom-wrong-worker", 0)
+    assert '"succeeded"' in send(wrong_worker)
+    captured("custom-wrong-worker")
+
+    hooks = [json.loads(line) for line in Path(env["FIXTURE_JOB_HOOK_LOG"]).read_text().splitlines()]
+    assert [(item["message"], item["kind"]) for item in hooks] == [
+        ("custom-stop-sync", "should_remove"), ("custom-stop-sync", "failed"),
+        ("custom-stop-worker", "should_remove"), ("custom-stop-worker", "failed"),
+        ("custom-continue", "should_remove"), ("custom-revoked", "failed"),
+    ], hooks
+    for hook in hooks:
+        assert hook["scope"] == SCOPE and hook["number"] == 1 and hook["id"]
+        assert hook["meta"] == {"trace": "fixture"} and hook["tags"] == ["audit"]
+        assert hook["url"] == env["FIXTURE_SEND_TARGET"] and hook["request_matches"]
+        if hook["message"] == "custom-revoked":
+            assert hook["outcome"] == "rejected" and hook["status"] is None and not hook["response_matches"]
+        else:
+            assert hook["outcome"] == "http_failure" and hook["status"] == 503 and hook["response_matches"]
+
     recorded = Path(env["FIXTURE_SEND_EVENTS"]).read_text()
     assert SECRET.decode() not in recorded and "fixture-sensitive-listener-sentinel" not in recorded
     events = [json.loads(line) for line in recorded.splitlines()]
@@ -489,6 +550,7 @@ def exercise(binary, env, log, receiver, driver, sql):
     for path in logs:
         output = path.read_bytes()
         assert SECRET not in output and b"fixture-sensitive-listener-sentinel" not in output
+        assert b"fixture-custom-hook-sensitive" not in output
 
 
 def main():
@@ -523,6 +585,7 @@ def main():
                 "FIXTURE_SEND_TARGET": f"http://outgoing-fixture.invalid:{receiver.server_port}/receiver",
                 "FIXTURE_SEND_ADDRESS": f"127.0.0.1:{receiver.server_port}",
                 "FIXTURE_SEND_EVENTS": str(Path(root) / "delivery-events.jsonl"),
+                "FIXTURE_JOB_HOOK_LOG": str(Path(root) / "job-hooks.jsonl"),
                 "HTTP_PROXY": "http://127.0.0.1:1", "NO_PROXY": "",
             }
             if url:
@@ -554,7 +617,7 @@ def main():
                 finally:
                     http_helpers["stop"](app)
         if not os.environ.get("FIXTURE_SEND_SCHEDULE"):
-            print(f"{driver}: HTTP 签名和字节、事务回滚、重复领取、重试预算、撤销、超时、崩溃恢复、Builder 分支与投递事件通过")
+            print(f"{driver}: HTTP 签名和字节、事务回滚、重复领取、重试预算、撤销、超时、崩溃恢复、Builder 分支、投递事件与自定义 Job 通过")
     finally:
         receiver.shutdown()
         receiver.server_close()

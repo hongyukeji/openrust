@@ -71,7 +71,7 @@ impl WebhookCall {
     ) -> Result<SynchronousDelivery> {
         let prepared = self.prepare(target)?;
         let delivery_id = service.store.submit(key, &prepared, lifetime).await?;
-        let (progress, throw) = service.run(&delivery_id).await?;
+        let (progress, throw) = service.run(&delivery_id, None).await?;
         if throw && progress.is_final_failure() {
             return Err(Error::SynchronousDeliveryFailed { delivery_id });
         }

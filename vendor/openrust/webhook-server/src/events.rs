@@ -15,7 +15,7 @@ pub struct WebhookCallEvent {
     pub scope: String,
     pub delivery_id: String,
     pub attempt: Option<WebhookAttempt>,
-    snapshot: Snapshot,
+    pub(crate) snapshot: Snapshot,
 }
 
 pub struct WebhookAttempt {
