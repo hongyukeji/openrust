@@ -21,7 +21,7 @@ AI 代理在新对话、任务交接或上下文压缩后接续开发时，先�
 | API 基础默认预设：`routes/api.rs`、`config/api.rs`、模块与 `bootstrap/app.rs` 接线，前缀通过 `API_PREFIX` 配置。Sanctum 及受保护 `/user` 仍由 `install:api` 按需安装。 | 将普通 API 与认证扩展分开；默认骨架不预置 Sanctum 配置、令牌迁移或应用条件编译接线。安装器识别未改动的空骨架，自定义业务路由默认保留。 | 用户于2026-11-24确认默认 API 基础，并要求清除本次安装留下的 Sanctum 内容，替代此前 API 文件也按需生成的决定。[API 基础验收](audits/api-basics/README.md) · [Sanctum 与 API 安装](plan.md#sanctum-与-api-安装) |
 | Fortify 的后续设计以 Laravel 官方认证机制为默认。API＋Bearer JWT 显式启用，TOTP 由用户自愿绑定。Passport／OIDC 作为独立扩展，目标是自建授权服务器和跨应用 SSO。 | 保留 Laravel 的默认体验，按需支持前后端分离和跨应用认证。 | 用户先后确认「Laravel 官方机制默认、API＋Bearer JWT 显式可选」、TOTP 可选和 OIDC SSO。当前主线的交付范围见[扩展对账](audits/core-closure-ledger.md#扩展与发布)，旧版实现见[复用参考](plan.md#旧版复用参考)。 |
 | 日常数据库覆盖 PostgreSQL 18、MySQL 8、SQLite，缓存覆盖 Redis、database、file；按受影响的共享行为分别验收。数据库其他版本、SQL Server 原生 Linux x86_64 和商业嵌入端点归发布验收。 | 2026-11-21 用户要求加强三库与三种缓存驱动的日常兼容性，覆盖此前仅 PostgreSQL 或仅 MySQL 的验收约定；历史证据保留，单库通过不代表三库通过。 | 用户本次明确调整。[验收清单](conventions.md#验收清单) · [日常验收](conventions.md#日常数据库与缓存验收) · [发布验收](audits/database-dialects.md#发布验收) |
-| `artisan init` 是唯一的完整初始化入口，取消 `install:full` 命令及别名，保留单项安装器；默认交互式选择配置，支持 `--force`、只读计划及无交互模式。 | 用一套引导完成配置、完整安装、构建与迁移，最终可启动；默认保留配置、凭据、密钥及迁移历史。 | 用户于 2026-11-19 在侧对话明确采用新入口并取消旧命令，覆盖此前同时保留两个入口的建议；详见[初始化计划](plan.md#artisan-init)。 |
+| `artisan init` 保留交互选配，新增 `artisan init:full` 提供非交互式完整预设。沿用分项安装器，旧 `install:full` 保持取消。 | 两入口复用配置、安装、构建与迁移。完整预设使用开发者提供的 MySQL 和 Redis，同一应用适用于单机和多副本。 | 2026-11-26 用户确认方案，等待另行安排实施。见[完整初始化开发计划](plans/init-full.md)及[现有交互入口](plan.md#artisan-init)。 |
 
 ## 当前语言标准：BCP 47（2026-11-22）
 
