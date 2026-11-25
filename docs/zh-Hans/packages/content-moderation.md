@@ -212,6 +212,8 @@ let recommendation = result.decision(&[Modality::Text]);
 
 已有确认的任务 ID 且厂商支持停止时，服务用原配置尝试远端取消。分别通过 `provider_cancellation()` 查看供应商确认、拒绝、不支持或结果未确认等状态。重复请求返回已保存的状态。任务号未知或停止结果未确认时，应先与供应商核对再继续处理。
 
+调用 `VideoReviewService::cancel_group(id)`，在同一事务冻结待处理或进行中组内的全部未结束检查。已结束检查保留原有证据。本地事务提交后，服务再尝试停止已确认的远端任务，并在对应检查记录供应商结果。
+
 ## 定时恢复视频审核 {#review-recovery}
 
 对每个需要托管的应用和租户，将 `moderation:recover` 加入每分钟调度。调度进程和 Worker 共用数据库与队列。命令领取不超过 `--limit` 条到期审核，默认 100，范围 1–500，只将本地审核 ID 和版本等定位信息入列。

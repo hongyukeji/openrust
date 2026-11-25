@@ -57,10 +57,13 @@ def exercise(binary, driver, database_url, root):
                 return "\n".join("\t".join(map(str, row)) for row in connection.execute(query))
         return DATABASE["database_rows"](DATABASE["database_container"](), query).strip()
 
-    def post(intent, profiles=(VISUAL, SPEECH), expected=200, tenant="tenant", version="revision-2", group=None):
+    def post(intent, profiles=(VISUAL, SPEECH), expected=200, tenant="tenant",
+             version="revision-2", group=None, cancel=False):
         headers = {"Accept": "application/json", "X-Fixture-Tenant": tenant}
         if group:
             headers["X-Fixture-Group-Id"] = group
+            if cancel:
+                headers["X-Fixture-Operation"] = "cancel"
         else:
             headers |= {"X-Fixture-Review-Intent": intent, "X-Fixture-Profiles": ",".join(profiles),
                         "X-Fixture-Version": version}
@@ -140,13 +143,49 @@ def exercise(binary, driver, database_url, root):
                 assert (final["state"], final["decision"]) == (final_state, expected), final
                 assert json.loads(artisan(COMMAND, "find-group", "app", "tenant", group["id"])) == final
                 assert post(None, group=group["id"]) == final
-            assert sql("SELECT COUNT(*) FROM moderation_review_groups") == "4"
-            assert sql("SELECT COUNT(*) FROM moderation_checks") == "8"
+                assert post(None, group=group["id"], cancel=True) == final
+
+            stopping = post("stopping", (VISUAL, SPEECH, "group-manual"))
+            first_check, running, pending = stopping["checks"]
+            work("submit", first_check)
+            assert work("query", first_check)["state"] == "Succeeded"
+            work("submit", running)
+            latest = post(None, group=stopping["id"])
+            assert [check["state"] for check in latest["checks"]] == ["Succeeded", "Running", "Pending"]
+            if driver == "sqlite":
+                sql("CREATE TRIGGER reject_group_freeze BEFORE UPDATE ON moderation_reviews "
+                    f"WHEN NEW.id = '{pending['id']}' AND NEW.state = 'Cancelled' "
+                    "BEGIN SELECT RAISE(ABORT, 'group cancellation rollback'); END")
+                remove = "DROP TRIGGER reject_group_freeze"
+            else:
+                sql("ALTER TABLE moderation_reviews ADD CONSTRAINT reject_group_freeze "
+                    f"CHECK (id <> '{pending['id']}' OR state <> 'Cancelled')")
+                remove = "ALTER TABLE moderation_reviews DROP " + (
+                    "CONSTRAINT " if driver == "pgsql" else "CHECK ") + "reject_group_freeze"
+            assert post(None, group=stopping["id"], cancel=True, expected=502)["error"] == "ReviewStorage"
+            assert post(None, group=stopping["id"]) == latest
+            sql(remove)
+            for action, check in (("queue-query", running), ("queue-submit", pending)):
+                artisan(COMMAND, action, "app", "tenant", check["id"])
+            with ThreadPoolExecutor(max_workers=8) as executor:
+                requests = [executor.submit(post, None, group=stopping["id"], cancel=True) for _ in range(8)]
+                assert all(request.result()["state"] == "Cancelled" for request in requests)
+            frozen = post(None, group=stopping["id"])
+            assert [check["state"] for check in frozen["checks"]] == ["Succeeded", "Cancelled", "Cancelled"]
+            assert [check["provider_cancellation"] for check in frozen["checks"]] == [None, "unsupported", "no_task"]
+            assert frozen["checks"][0] == latest["checks"][0] and frozen["decision"] is None
+            for _ in range(2):
+                artisan("queue:work", "database", "--once")
+            assert json.loads(artisan(COMMAND, "cancel-group", "app", "tenant", stopping["id"])) == frozen
+            assert post(None, group=stopping["id"]) == frozen
+
+            assert sql("SELECT COUNT(*) FROM moderation_review_groups") == "5"
+            assert sql("SELECT COUNT(*) FROM moderation_checks") == "11"
             assert sql("SELECT COUNT(*) FROM jobs") == sql("SELECT COUNT(*) FROM failed_jobs") == "0"
         finally:
             HTTP["stop"](app)
     artisan("migrate:rollback", "--step=2", "--force", successful=False)
-    assert sql("SELECT COUNT(*) FROM moderation_review_groups") == "4"
+    assert sql("SELECT COUNT(*) FROM moderation_review_groups") == "5"
 
 
 if __name__ == "__main__":
@@ -156,4 +195,4 @@ if __name__ == "__main__":
     driver, url = DATABASE["database_settings"]()
     with tempfile.TemporaryDirectory(dir=ROOT / "target/tmp", prefix="moderation-groups-") as root:
         exercise(args.binary.resolve(), driver, url, Path(root))
-    print(f"{driver}: 复合审核 8 并发请求、事务回滚、16 个独立 Worker 和完整覆盖门禁通过")
+    print(f"{driver}: 复合审核并发落单和取消、事务回滚、21 个独立 Worker 和完整覆盖门禁通过")

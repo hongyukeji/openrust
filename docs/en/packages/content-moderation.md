@@ -212,6 +212,8 @@ Call `VideoReviewService::cancel(id)` to freeze a pending or running check. Canc
 
 For a confirmed task ID, the service attempts to stop the remote task with the original profile when the provider supports cancellation. Read `provider_cancellation()` separately for acknowledgment, rejection, lack of support, or an unconfirmed outcome. A repeated request returns the stored state. Investigate unknown task IDs and unconfirmed stops with the provider before taking another action.
 
+Call `VideoReviewService::cancel_group(id)` to freeze every unfinished check in a pending or running group in one database transaction. Completed checks retain their evidence. The service attempts remote cancellation for confirmed tasks after committing the local update, and records the provider result on each check.
+
 ## Recovering scheduled reviews {#review-recovery}
 
 Schedule `moderation:recover` to run every minute for each application and tenant you manage. Use a shared database and queue so schedulers and workers see the same review state. The command claims up to `--limit` due reviews (100 by default, 1–500), and queues their local IDs and versions.

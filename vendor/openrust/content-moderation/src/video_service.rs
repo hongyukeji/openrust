@@ -3,8 +3,8 @@ use std::sync::Arc;
 use crate::{
     Coverage, ModerationDriver, ModerationError, ModerationManager, ModerationResult,
     ModerationStore, Operation, ProviderCancellation, QueryFailure, ReviewState, SubmissionFailure,
-    TaskId, TaskStatus, VideoInput, VideoReview, VideoSubmission, review::QueryOutcome,
-    storage::Cancellation,
+    TaskId, TaskStatus, VideoInput, VideoReview, VideoReviewGroup, VideoSubmission,
+    review::QueryOutcome, storage::Cancellation,
 };
 
 /// 点播送审流程，使用已落库的对象版本、配置修订和租约。
@@ -58,19 +58,50 @@ impl VideoReviewService {
             if !matches!(review.state(), ReviewState::Pending | ReviewState::Running) {
                 return Ok(review);
             }
-            match self.store.cancel_active(&review).await? {
-                Some(Cancellation::Frozen) => return self.find(id).await,
-                Some(Cancellation::Provider { version, task }) => {
-                    let result = self.cancel_provider(&review, &task).await;
-                    self.store
-                        .finish_cancellation(&review, version, result)
-                        .await?;
-                    return self.find(id).await;
-                }
-                None => {}
+            if let Some(cancellation) = self.store.cancel_active(&review).await? {
+                self.finish_cancelled(&review, cancellation).await?;
+                return self.find(id).await;
             }
         }
         Err(ModerationError::ReviewConflict)
+    }
+
+    /// 同一事务冻结组内未结束的检查。已结束的检查仍保留证据。
+    pub async fn cancel_group(&self, id: &str) -> ModerationResult<VideoReviewGroup> {
+        for _ in 0..4 {
+            let group = self.find_group(id).await?;
+            if !matches!(group.state(), ReviewState::Pending | ReviewState::Running) {
+                return Ok(group);
+            }
+            if let Some(frozen) = self.store.cancel_group_active(&group).await? {
+                for (review, cancellation) in frozen {
+                    self.finish_cancelled(&review, cancellation).await?;
+                }
+                return self.find_group(id).await;
+            }
+        }
+        Err(ModerationError::ReviewConflict)
+    }
+
+    async fn find_group(&self, id: &str) -> ModerationResult<VideoReviewGroup> {
+        self.store
+            .find_video_group(id)
+            .await?
+            .ok_or(ModerationError::ReviewNotFound)
+    }
+
+    async fn finish_cancelled(
+        &self,
+        review: &VideoReview,
+        cancellation: Cancellation,
+    ) -> ModerationResult<()> {
+        if let Cancellation::Provider { version, task } = cancellation {
+            let result = self.cancel_provider(review, &task).await;
+            self.store
+                .finish_cancellation(review, version, result)
+                .await?;
+        }
+        Ok(())
     }
 
     async fn cancel_provider(&self, review: &VideoReview, task: &TaskId) -> ProviderCancellation {

@@ -874,7 +874,11 @@ pub(super) fn group_route(request: &mut Request) -> HttpFuture<'_, Result<Respon
     Box::pin(async move {
         let tenant = request.header("x-fixture-tenant")?.unwrap_or("tenant");
         let result = if let Some(id) = request.header("x-fixture-group-id")? {
-            find_group("app", tenant, id).await
+            if request.header("x-fixture-operation")? == Some("cancel") {
+                cancel_group("app", tenant, id).await
+            } else {
+                find_group("app", tenant, id).await
+            }
         } else {
             let (intent, version, profiles) = {
                 let required = |name| request.header(name)?.ok_or(HttpError::InvalidRequest);
@@ -914,6 +918,13 @@ async fn find_group(application: &str, tenant: &str, id: &str) -> ModerationResu
         .await?
         .map(render_group)
         .ok_or(ModerationError::ReviewNotFound)
+}
+
+async fn cancel_group(application: &str, tenant: &str, id: &str) -> ModerationResult<Value> {
+    let store = review_store(application, tenant)?;
+    let service =
+        openrust_content_moderation::VideoReviewService::new(store, Moderation::manager()?);
+    Ok(render_group(service.cancel_group(id).await?))
 }
 
 fn render_group(group: VideoReviewGroup) -> Value {
@@ -1168,6 +1179,7 @@ pub(super) fn register_command(artisan: &mut Artisan) -> Result<(), ConsoleError
                 "queue-query",
                 "stage-group",
                 "find-group",
+                "cancel-group",
             ]))
             .arg(clap::Arg::new("application").required(true))
             .arg(clap::Arg::new("tenant").required(true))
@@ -1315,6 +1327,11 @@ impl Command for ReviewProbe {
                 .map_err(ConsoleError::from_source)?,
                 "find-group" => {
                     find_group(&reference.application, &reference.tenant, &reference.id)
+                        .await
+                        .map_err(ConsoleError::from_source)?
+                }
+                "cancel-group" => {
+                    cancel_group(&reference.application, &reference.tenant, &reference.id)
                         .await
                         .map_err(ConsoleError::from_source)?
                 }
