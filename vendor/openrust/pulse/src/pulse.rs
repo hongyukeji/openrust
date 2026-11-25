@@ -374,19 +374,32 @@ impl Pulse {
             })
     }
     pub async fn report(&self, class: impl Into<String>, location: Option<String>) -> &Self {
+        self.dispatch_exception(crate::events::ExceptionReported {
+            class: class.into(),
+            location,
+        })
+        .await
+    }
+
+    /// 将原生错误报告给 Pulse 的监听器和记录器。
+    pub async fn report_exception(
+        &self,
+        exception: impl std::error::Error + Send + Sync + 'static,
+    ) -> &Self {
+        self.dispatch_exception(crate::events::NativeExceptionReported {
+            exception: openrust::contracts::debug::SharedException::new(exception),
+        })
+        .await
+    }
+
+    async fn dispatch_exception(&self, event: impl openrust::contracts::events::Event) -> &Self {
         self.rescue(async {
             use openrust::{
                 contracts::events::Dispatcher as _,
                 support::facades::{Event, Facade},
             };
             Event::get_facade_root()?
-                .dispatch(
-                    Arc::new(crate::events::ExceptionReported {
-                        class: class.into(),
-                        location,
-                    }),
-                    &mut openrust::events::EventContext::new(),
-                )
+                .dispatch(Arc::new(event), &mut openrust::events::EventContext::new())
                 .await?;
             Ok(())
         })

@@ -72,6 +72,13 @@ impl Pulse {
         Self::manager()?.report(class, location).await;
         Ok(())
     }
+    /// 将原生错误报告给 Pulse，保留具体类型和错误来源。
+    pub async fn report_exception(
+        exception: impl std::error::Error + Send + Sync + 'static,
+    ) -> crate::Result<()> {
+        Self::manager()?.report_exception(exception).await;
+        Ok(())
+    }
     pub fn start_recording() -> crate::Result<()> {
         Self::manager()?.start_recording();
         Ok(())

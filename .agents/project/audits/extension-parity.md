@@ -407,7 +407,17 @@ macOS 隔离快照经真实 HTTP 覆盖公开报告、HTTP 直接返回、经 HT
 
 Windows 11 ARM64 使用同源码通过 4 项模式测试和 17 项 Pulse Provider 测试，含 SQLite 上的普通异常与 Blade 异常 HTTP 专项。Linux ARM64 同源码复验已经启动。Windows 证据为 `target/tmp/observability-parity/pulse-exception-origin-windows-accepted.log`。
 
-包级 `Pulse::report` 的原有接口仍显式接收类型和位置字符串，接受原生错误对象的入口待核对。无调用帧的部署行为继续按来源核对。
+无调用帧的部署行为继续按来源核对。
+
+### Pulse 包级原生异常报告
+
+PHP 8.5.12 以固定 Pulse 运行真实监听器，确认 `Pulse::report(Throwable)` 返回原实例、事件携带同一个异常对象，停止记录时仍派发事件且不增加 Ingest 条目。证据为 `target/tmp/observability-parity/pulse-native-report-oracle.log`。 [固定 Pulse 报告入口](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Pulse.php#L200)
+
+Rust Manager 与 Facade 提供 `report_exception(error)`。事件 `NativeExceptionReported` 持有原始共享错误，Recorder 与框架报告共用类型和位置解析并延迟写入。现有双参数 `report(class, location)` 和 `ExceptionReported` 事件仍可由既有调用者使用。用不同的 Rust 方法和事件保留原有显式类型／位置契约。
+
+macOS 真实 HTTP 通过 Manager 与 Facade 报告，验证事件可读取同一错误、停止记录时继续派发且数据库不增加条目、仅通过框架报告的自定义处理器与 Pulse 显式入口各按自己的行为执行。SQLite、PostgreSQL 18.7、MySQL 8.4.13 均通过。实际存储核对类型、捕获位置和关闭位置。严格 Clippy、快照全仓格式及三扩展默认组合通过，组合 99 项通过、23 项按环境条件跳过。证据为 `target/tmp/observability-parity/pulse-native-report-macos-verified.log`。
+
+三语指南与浏览器验收检查原生报告方法、对应事件及位置捕获入口。站点构建和根路径、子目录下的桌面／手机共 12 组验证通过。证据为 `target/tmp/observability-parity/pulse-native-report-docs.log`。本批最终源码的 Linux ARM64 与 Windows 11 ARM64 仍需复验。
 
 ### Horizon Linux ARM64 Release 进程矩阵
 

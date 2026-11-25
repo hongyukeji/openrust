@@ -937,9 +937,36 @@ fn recorder_config(
 async fn explicit_exception_reports_work_with_a_custom_handler_without_runtime_configuration() {
     use openrust::contracts::{
         container::Container as _,
-        debug::{Exception, ExceptionHandler},
+        debug::{Exception, ExceptionHandler, SharedException},
+        events::{Event as EventContract, Listener},
         foundation::Application as _,
     };
+    use openrust::{
+        events::{Delivery, EventContext, EventFuture, EventResult, ListenerResponse},
+        support::facades::Event,
+    };
+    use openrust_pulse::events::NativeExceptionReported;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct ObserveNativeReport(Arc<std::io::Error>, Arc<AtomicUsize>);
+    impl Listener for ObserveNativeReport {
+        fn handle<'a>(
+            &'a self,
+            event: &'a dyn EventContract,
+            _: &'a mut EventContext<'_>,
+        ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+            Box::pin(async move {
+                let event = event.downcast_ref::<NativeExceptionReported>().unwrap();
+                let exception = Exception::Error(&event.exception);
+                assert!(std::ptr::eq(
+                    exception.downcast_ref::<std::io::Error>().unwrap(),
+                    self.0.as_ref()
+                ));
+                self.1.fetch_add(1, Ordering::SeqCst);
+                Ok(None)
+            })
+        }
+    }
 
     struct CustomHandler;
     impl ExceptionHandler for CustomHandler {
@@ -964,6 +991,26 @@ async fn explicit_exception_reports_work_with_a_custom_handler_without_runtime_c
             openrust_pulse::facades::Pulse::report("ExplicitPulseReport", Some("probe:1".into()))
                 .await
                 .unwrap();
+            let original = Arc::new(std::io::Error::other("native pulse report"));
+            let seen = Arc::new(AtomicUsize::new(0));
+            Event::listen(
+                NativeExceptionReported::NAME,
+                Arc::new(ObserveNativeReport(original.clone(), seen.clone())),
+                Delivery::Sync,
+            )
+            .unwrap();
+            let error = SharedException::from_typed_arc(original);
+            let manager = openrust_pulse::facades::Pulse::manager().unwrap();
+            let returned = manager.report_exception(error.clone()).await;
+            assert!(std::ptr::eq(returned, manager.as_ref()));
+            openrust_pulse::facades::Pulse::report_exception(error.clone())
+                .await
+                .unwrap();
+            assert_eq!(seen.load(Ordering::SeqCst), 2);
+            manager.stop_recording();
+            manager.report_exception(error).await;
+            manager.start_recording();
+            assert_eq!(seen.load(Ordering::SeqCst), 3);
             Ok(Response::from("ok"))
         })
     }
@@ -991,13 +1038,16 @@ async fn explicit_exception_reports_work_with_a_custom_handler_without_runtime_c
         .get()
         .await
         .unwrap();
-    assert_eq!(entries.len(), 1);
-    assert_eq!(
-        entries[0].get("key"),
-        Some(&openrust::database::Value::Text(
-            json!(["ExplicitPulseReport", null]).to_string(),
-        )),
-    );
+    let count = |class: &str| {
+        let key = openrust::database::Value::Text(json!([class, null]).to_string());
+        entries
+            .iter()
+            .filter(|row| row.get("key") == Some(&key))
+            .count()
+    };
+    assert_eq!(entries.len(), 3);
+    assert_eq!(count("ExplicitPulseReport"), 1);
+    assert_eq!(count(std::any::type_name::<std::io::Error>()), 2);
 }
 
 #[tokio::test]
@@ -1146,6 +1196,12 @@ async fn exceptions_keep_concrete_types_and_the_captured_origin_through_reportin
                 openrust::support::report(HttpError::from(propagated)).await?;
                 return Ok(Response::from("reported"));
             }
+            if request.uri().path().ends_with("/pulse-report") {
+                openrust_pulse::facades::Pulse::report_exception(propagated)
+                    .await
+                    .unwrap();
+                return Ok(Response::from("reported"));
+            }
             openrust::support::report(propagated).await?;
             openrust::support::report(LocatedFailure).await?;
             Response::json(
@@ -1167,7 +1223,8 @@ async fn exceptions_keep_concrete_types_and_the_captured_origin_through_reportin
             .with_routing(Routing::default().api(|| {
                 Route::get("/reported", report)?;
                 Route::get("/propagated", report)?;
-                Route::get("/transported-report", report)
+                Route::get("/transported-report", report)?;
+                Route::get("/pulse-report", report)
             }))
     })
     .unwrap();
@@ -1186,6 +1243,7 @@ async fn exceptions_keep_concrete_types_and_the_captured_origin_through_reportin
         .await
         .unwrap()
         .assert_ok();
+    app.get("/api/pulse-report").await.unwrap().assert_ok();
     app.app()
         .config()
         .unwrap()
@@ -1211,8 +1269,8 @@ async fn exceptions_keep_concrete_types_and_the_captured_origin_through_reportin
             .filter(|row| row.get("key") == Some(&key))
             .count()
     };
-    assert_eq!(rows.len(), 5, "{rows:?}");
-    assert_eq!(count(Some(&location)), 3, "{rows:?}");
+    assert_eq!(rows.len(), 6, "{rows:?}");
+    assert_eq!(count(Some(&location)), 4, "{rows:?}");
     assert_eq!(count(None), 2, "{rows:?}");
 }
 

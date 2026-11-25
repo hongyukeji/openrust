@@ -52,7 +52,7 @@ gate.define_guest("viewPulse", |user, _| Box::pin(async move {
 
 `groups` 和按模式设置的 `threshold` 用有序的 `[[pattern, value], ...]` 表达首次匹配规则。例如 `[["/^orders:\\d+$/", "orders:*"]]`；对象形式按 JSON 对象的键顺序匹配。任务采样以任务 UUID 保持生命周期一致。请求指标使用匹配路由，避免为每个动态 ID 创建指标键；外部 HTTP 去掉 URL 用户名和密码。`u` 启用 Unicode 字符类。`r` 修饰符需要 PCRE2 10.43 或更新版本。
 
-慢查询 `location` 使用数据库事件捕获的调用位置，Release 构建也可记录。没有可用位置时写入空字符串，关闭 `location` 时写入空值。`Exceptions` 采集框架异常处理器报告的异常（含报告的任务失败）及 `Pulse::report`。仅将错误附加到应用日志不会向 Pulse 报告。错误缺少源码位置时，可在 `Pulse::report` 显式传入。自行管理报告流程的自定义处理器可直接调用 `Pulse::report`。
+慢查询 `location` 使用数据库事件捕获的调用位置，Release 构建也可记录。没有可用位置时写入空字符串，关闭 `location` 时写入空值。`Exceptions` 采集框架异常处理器报告的异常（含报告的任务失败），也采集直接向 Pulse 报告的异常。调用 `Pulse::report_exception(error).await?` 可向 Pulse 提交 Rust 错误。在错误发生处使用 `SharedException::located(error)` 可捕获源码文件和行号。监听器可订阅 `NativeExceptionReported::NAME` 读取原始错误。已有类型名和位置时，可调用 `Pulse::report(class, location)`。仅将错误附加到应用日志不会向 Pulse 报告。
 
 `Servers` 默认每实例 15 秒采样一次，保存 CPU、内存和磁盘快照；配置加载时默认读取操作系统主机名，构建配置缓存时会保存该值。`PULSE_SERVER_NAME` 可覆盖主机名，`PULSE_SERVER_DIRECTORIES` 设置以冒号分隔的目录。`Servers::detect_cpu_using`、`detect_memory_using` 可替换检测器。
 

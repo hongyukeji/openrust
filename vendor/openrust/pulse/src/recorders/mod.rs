@@ -350,20 +350,40 @@ impl Recorders {
                     .await;
             }
         } else if let Some(e) = event.downcast_ref::<crate::events::ExceptionReported>() {
-            let recorder = self.clone();
-            let class = e.class.clone();
-            let location = e.location.clone();
-            pulse
-                .lazy(move |pulse| {
-                    Box::pin(async move {
-                        recorder
-                            .exception(pulse, &class, location.as_deref(), now)
-                            .await
-                    })
-                })
+            self.queue_exception(pulse, e.class.clone(), e.location.clone(), now)
                 .await;
+        } else if let Some(e) = event.downcast_ref::<crate::events::NativeExceptionReported>() {
+            use openrust::{
+                contracts::debug::Exception,
+                support::facades::{App, Exceptions, Facade},
+            };
+            let handler = Exceptions::get_facade_root()?;
+            let (class, location) = exception_group(
+                &*handler,
+                &Exception::Error(&e.exception),
+                &App::base_path("")?,
+            );
+            self.queue_exception(pulse, class, location, now).await;
         }
         Ok(())
+    }
+    async fn queue_exception(
+        &self,
+        pulse: &Pulse,
+        class: String,
+        location: Option<String>,
+        timestamp: i64,
+    ) {
+        let recorder = self.clone();
+        pulse
+            .lazy(move |pulse| {
+                Box::pin(async move {
+                    recorder
+                        .exception(pulse, &class, location.as_deref(), timestamp)
+                        .await
+                })
+            })
+            .await;
     }
     pub async fn exception(
         &self,
@@ -574,7 +594,13 @@ recorder!(
 );
 recorder!(UserJobs, ["JobQueued"]);
 recorder!(SlowJobs, ["JobAttempted"]);
-recorder!(Exceptions, ["OpenRust\\Pulse\\Events\\ExceptionReported"]);
+recorder!(
+    Exceptions,
+    [
+        crate::events::ExceptionReported::NAME,
+        crate::events::NativeExceptionReported::NAME
+    ]
+);
 recorder!(SlowOutgoingRequests, []);
 impl SlowOutgoingRequests {
     /// Removes HTTP URL user information before sampling, grouping and storage.
