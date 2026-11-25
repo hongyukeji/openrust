@@ -223,6 +223,8 @@ Rust 公开复用 `Payload::display_name()`，未设置显示名的载荷使用�
 
 macOS 同源码通过三包默认 88 项、Pulse 全目标严格 Clippy、全仓格式及三语页面 12 组浏览器检查。框架原生 HTTP 数据库队列回归分别在 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 通过，覆盖延迟、事务内派发和标准 Worker 入口。证据为 `target/tmp/observability-parity/pulse-job-display-name-{baseline,focused,verified,docs,core}.log`。
 
+Linux 7.0.14 ARM64 与 Windows 11 ARM64 用 `ee28c3a27` 的变更源码和 Rust 1.94.0，通过已认证 HTTP、SQLite 真库、原生 Artisan 入队及数据库 Worker 的显示名专项。证据为 `target/tmp/observability-parity/pulse-job-display-name-linux.log` 与 `target/tmp/observability-windows/pulse-job-display-name-arm64.log`。
+
 ### Telescope 出站 multipart 构建器快照
 
 真实回环 HTTP 与 SQLite 应用仓储覆盖上传成功、连接被拒、脱敏、原生 `Part` 兼容及两种重复字段覆盖。服务端检查附件字节、文件名和上传顺序。框架回归验证未知长度流到发送阶段才被读取，正文流只执行一次，快照长度为空。验证使用 `8041ae15a` 加前批和本批文件的隔离快照。Telescope 32 项、框架 HTTP 客户端 20 项、快照全仓格式、框架库及 Telescope 全目标严格 Clippy、三语站点及 12 组浏览器检查通过。Telescope 独立 Redis 用例本批未执行；出站 multipart 未遍历部署数据库或目标平台。保留原生 `Part`、预格式化输入与中间件替换流的差异，见[包审计](telescope/README.md#出站-multipart)。
