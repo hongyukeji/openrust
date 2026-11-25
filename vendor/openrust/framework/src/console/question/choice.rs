@@ -83,7 +83,7 @@ impl ChoiceState {
             .iter()
             .any(|(key, _)| matches!(key, ChoiceKey::String(_)))
     }
-    fn lookup(&self, value: &Value) -> Option<&Value> {
+    pub(super) fn lookup(&self, value: &Value) -> Option<&Value> {
         let key = ChoiceKey::from_value(value);
         self.entries
             .iter()

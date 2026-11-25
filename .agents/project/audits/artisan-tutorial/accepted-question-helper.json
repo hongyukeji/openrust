@@ -1,0 +1,128 @@
+{
+  "source_base": "fd533ec1ac29a6adfaaa1707d2d903b457ace140",
+  "source_hashes": {
+    "vendor/openrust/framework/src/console/question/helper.rs": "8618210e177a8d364bd5e8821b4ffe2cc554ebeb192d977dc2169bd611d5c2d6",
+    "vendor/openrust/framework/src/console/question/mod.rs": "df051d405424c181b93b84291a61fe0bc4b562b0ff7b3ee11625009da01465ec",
+    "vendor/openrust/framework/src/console/question/choice.rs": "abe02b2de11cf28b7fd6ed157ac07df5b83d00e8d348ca41520a0e6069f594c4",
+    "vendor/openrust/framework/src/console/output_style.rs": "7b22047a4d60e5fb99b2ce2fb1fce14402ecd271750e3714eeea0e03696c98cd",
+    "vendor/openrust/framework/src/console/mod.rs": "005d25834c412bc90d2697536b09665baf3a178f686b21bcc5cdbba0c9a817a2",
+    "vendor/openrust/framework/tests/console_question_helpers.rs": "1faa3bde76bd33b51184e986c6b28c677f610724b6d8673beb21116de6c11e7a",
+    ".agents/project/audits/artisan-tutorial/question-helper-oracle.json": "dc45ec09e8d70f64f2cf01ebf3d6a59985dacb95085a932f77e8cea60b4678ed",
+    "vendor/openrust/framework/src/console/output_style/base.rs": "3c7b193a025961bdad01175b99eadb46b13311b8c89196c3060cc5593fd9880f",
+    ".agents/project/audits/artisan-tutorial/question-helper-console-oracle.json": "7c6ed06c6f24259648b3da788116e7cc29e922364012530cd3e59e9a0d5d5644",
+    "docs/en/digging-deeper/artisan.md": "739859e225a1ee523a3ff570a72d52247d3022824373d3bf7422f8f5b9997bc4",
+    "docs/zh-Hans/digging-deeper/artisan.md": "532a9d64988eaba338eab95472f931893a8bc45e52f7dd27e577f819c798ba19",
+    "docs/zh-Hant/digging-deeper/artisan.md": "f8125fa7bfeffb082d2663633e7f8f5d465f1c031fcaeb69c82fd6a90eadc020",
+    "tests/artisan_tutorial_docs.py": "0c8769d6b5ce0b4dfde596205c766ad88ff4db35e8793cf755fc3a6d97d276ca",
+    "docs/tests/check_artisan_tutorial.mjs": "1f64b20ce2fcb5d9ce9fdbe954907b3278b4bb80c2d6a754f54e2792bc47d988",
+    ".agents/project/audits/artisan-tutorial/question-helper-contracts.json": "5cb8aff9278acc57f1627b72bc9b03fb987fab8cb6bd94e1ebd2e932319806e2",
+    ".agents/project/audits/artisan-tutorial/component-factory-contracts.json": "9d769f8ae44e9cbbe69eaa9a75c1225774c320a3ada794f4de9e9f43a0d491e3",
+    ".agents/project/audits/artisan-tutorial/io-contracts.json": "1a477386714c50c96d1182532c1aba385d795842b4e6d11967ae0da4fdc87cab",
+    ".agents/project/audits/artisan-tutorial/section-map.json": "abbe2973ddac33d5ba1a629bd0c20acb3ecbff89bed342c8f25c5e6a38ed7857",
+    ".agents/project/audits/artisan-tutorial/README.md": "2435ed5feeb42dd5b17a3d8c1e40c38da81d49bf973e0e06316843bc2db4ba83",
+    ".agents/project/current.md": "994006e78c29b297654b0379dfa9bda8033e556d30ae5d7c2fa4259b64aa0174"
+  },
+  "gates": [
+    {
+      "name": "fmt",
+      "returncode": 0
+    },
+    {
+      "name": "consumers",
+      "returncode": 0
+    },
+    {
+      "name": "docs-consumers",
+      "returncode": 0
+    },
+    {
+      "name": "rustdoc",
+      "returncode": 0
+    },
+    {
+      "name": "clippy",
+      "returncode": 0
+    },
+    {
+      "name": "docs",
+      "returncode": 0
+    }
+  ],
+  "counts": {
+    "consumers": {
+      "targets": 14,
+      "passed": 85,
+      "ignored_driver_slots": 23
+    },
+    "docs-consumers": {
+      "targets": 3,
+      "passed": 144,
+      "ignored_driver_slots": 0
+    },
+    "rustdoc": {
+      "targets": 2,
+      "passed": 1,
+      "ignored_driver_slots": 0
+    }
+  },
+  "scope": "verified_core_question_helpers_and_temporary_scopes_builtin_outputs",
+  "source_scenes": {
+    "question-helper-oracle.json": 68,
+    "question-helper-console-oracle.json": 8
+  },
+  "runtime": {
+    "physical_source_console_cases": 8,
+    "native_console_cases": 8,
+    "additional_failure_exit": 1,
+    "http_requests": 15,
+    "http_failure": 500,
+    "parallel_requests": 12,
+    "success_error_recovery": true,
+    "tty": [
+      {
+        "case": "component-style-unicode",
+        "exit": 0,
+        "terminal_restored": true,
+        "no_external_stty": true
+      },
+      {
+        "case": "default-style-lf",
+        "exit": 0,
+        "terminal_restored": true,
+        "no_external_stty": true
+      },
+      {
+        "case": "component-raw",
+        "exit": 0,
+        "terminal_restored": true,
+        "no_external_stty": true
+      },
+      {
+        "case": "default-raw",
+        "exit": 0,
+        "terminal_restored": true,
+        "no_external_stty": true
+      },
+      {
+        "case": "component-default",
+        "exit": 0,
+        "terminal_restored": true,
+        "no_external_stty": true
+      },
+      {
+        "case": "component-interrupt",
+        "exit": 130,
+        "terminal_restored": true,
+        "no_external_stty": true
+      }
+    ]
+  },
+  "remaining": [
+    "Five component-owned Ask/AskWithCompletion/Choice/Confirm/Secret render entries remain pending; source probes exist but are not native implementation proof.",
+    "Choice component uses non-list associative policy for sparse integer keys; ordinary ChoiceQuestion behavior must remain unchanged.",
+    "Base Helper common setHelperSet/getHelperSet and width/length/substr/formatTime/formatMemory/removeDecoration plus general HelperSet SDK remain pending across helpers.",
+    "Abstract Component compile/renderView/mutate/usingQuestionHelper owned entries, Factory/CommandIo, remaining Time delay methods and general outputs remain pending.",
+    "Full Artisan chapter and Windows/release platform matrix remain open."
+  ],
+  "pushed": false
+}

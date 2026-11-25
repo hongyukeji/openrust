@@ -165,5 +165,11 @@
     "native": "console::view::TaskResult",
     "evidence": "task-result-contracts.json",
     "task_rendering": "pending"
+  },
+  "question_helper": {
+    "status": "verified_core_question_helpers_and_temporary_scopes_builtin_outputs",
+    "evidence": "question-helper-contracts.json",
+    "component_owned_entries": "pending",
+    "base_helper_sdk": "pending"
   }
 }

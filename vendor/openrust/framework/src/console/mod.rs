@@ -82,7 +82,9 @@ pub use progress_bar::{
 pub use prompting::{CommandRegistration, MissingInputPrompt};
 pub use question::{
     ChoiceKey, ChoiceLabel, ChoiceQuestion, CompletionCallback, ConfirmationQuestion,
-    ConsoleInputStream, ConsoleQuestionError, ConsoleReader, Question, QuestionCallback,
+    ConsoleInputStream, ConsoleQuestionError, ConsoleReader, DefaultQuestionHelper, Question,
+    QuestionCallback, QuestionHelper, QuestionHelperBehavior, QuestionHelperScope, QuestionKind,
+    QuestionStyle,
 };
 pub(crate) use table::TableDefinitions;
 pub use table::{

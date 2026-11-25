@@ -269,6 +269,10 @@ async fn formal_progress_example(){
     tasks_code=re.search(r'```rust\n(.*?)```',text.split('{#task-components}',1)[1],re.S).group(1)
     tasks_checks='use openrust::console::Output;\n'+progress_checks.replace('formal_progress_example','formal_task_components_example').replace('register_progress)', 'register_task_components)').replace('"reports:progress"','"reports:tasks"').replace('assert!(output.stdout.contains("CSV,JSON,HTML:11"));assert_eq!(output.stdout.matches("100%").count(),2);assert!(output.stdout.contains("build"));','assert_eq!(output.stdout.matches("DONE").count(),3);assert_eq!(output.stdout.matches("SKIPPED").count(),1);assert_eq!(output.stdout.matches("FAIL").count(),1);assert!(output.stdout.contains("CSV "));')
     parts.append('mod '+locale.replace('-','_').lower()+'_task_components{\n'+tasks_code+tasks_checks+'}\n')
+    helpers_code=re.search(r'```rust\n(.*?)```',text.split('{#question-helpers}',1)[1],re.S).group(1)
+    helpers_checks='use openrust::console::Output;\n'+progress_checks.replace('formal_progress_example','formal_question_helpers_example').replace('register_progress)', 'register_question_helpers)').replace('"reports:progress"','"reports:question-helpers"').replace('assert!(output.stdout.contains("CSV,JSON,HTML:11"));assert_eq!(output.stdout.matches("100%").count(),2);assert!(output.stdout.contains("build"));','assert!(output.stdout.contains("Users:Guest/Guest"));')
+    parts.append('mod '+locale.replace('-','_').lower()+'_question_helpers{\n'+helpers_code+helpers_checks+'}\n')
+
 
 
 target=source/'tests/artisan_docs_generated.rs';target.write_text('\n'.join(parts));subprocess.run(['rustfmt','+1.94.0','--edition','2024',str(target)],check=True)

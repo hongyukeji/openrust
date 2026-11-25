@@ -7,8 +7,13 @@ mod error_format;
 mod input;
 pub use choice::{ChoiceKey, ChoiceLabel, ChoiceQuestion};
 mod autocomplete;
+mod helper;
 mod io;
 mod reader;
+pub use helper::{
+    DefaultQuestionHelper, QuestionHelper, QuestionHelperBehavior, QuestionHelperScope,
+    QuestionStyle,
+};
 pub(super) use input::Interaction;
 pub use input::{ConsoleInputStream, ConsoleReader};
 
@@ -191,6 +196,33 @@ impl Clone for Question {
             question.install_choice_validator();
         }
         question
+    }
+}
+/// 原生问题种类视图，替代基类引用上的子类类型检查；借用原选择定义。
+#[derive(Clone, Copy, Debug)]
+#[non_exhaustive]
+pub enum QuestionKind<'a> {
+    Text,
+    Confirmation,
+    Choice {
+        choices: &'a [(ChoiceKey, Value)],
+        multiselect: bool,
+        prompt: &'a str,
+    },
+}
+impl Question {
+    pub fn get_kind(&self) -> QuestionKind<'_> {
+        if let Some(choice) = &self.choice {
+            QuestionKind::Choice {
+                choices: &choice.entries,
+                multiselect: choice.multiple,
+                prompt: &choice.prompt,
+            }
+        } else if self.confirmation {
+            QuestionKind::Confirmation
+        } else {
+            QuestionKind::Text
+        }
     }
 }
 impl Question {
@@ -391,83 +423,21 @@ impl From<ConfirmationQuestion> for Question {
 pub(super) async fn ask(
     style: &mut super::OutputStyle<'_>,
     question: &Question,
+    helper: &dyn QuestionHelperBehavior,
+    lifecycle: bool,
+    styled_output: bool,
 ) -> Result<Value, ConsoleError> {
     if !style.question_input().is_interactive() {
         return question.default_answer().await;
     }
     let mut attempt = 0;
-    style.prepare_question()?;
+    if lifecycle {
+        style.prepare_question()?;
+    }
     loop {
         tokio::task::yield_now().await;
         let mut session = reader::prepare(style, question).await?;
-        let label = super::formatting::Formatter::escape_trailing_backslash(&question.label);
-        let label = if question.multiline {
-            let keys = if cfg!(windows) {
-                "<comment>Ctrl+Z</comment> → <comment>Enter</comment>"
-            } else {
-                "<comment>Ctrl+D</comment>"
-            };
-            let hint = super::localization::text("question.multiline", "按 :keys 继续")
-                .replace(":keys", keys);
-            format!("{label} ({hint})")
-        } else {
-            label
-        };
-        let label = if question.confirmation {
-            format!(
-                " <info>{label} (yes/no)</info> [<comment>{}</comment>]:",
-                if question
-                    .default
-                    .as_ref()
-                    .and_then(Value::as_bool)
-                    .unwrap_or(false)
-                {
-                    "yes"
-                } else {
-                    "no"
-                }
-            )
-        } else if let Some(value) = question.default.as_ref().filter(|value| !value.is_null()) {
-            let value = question_default_label(question, value);
-            format!(
-                " <info>{label}</info> [<comment>{}</comment>]:",
-                super::formatting::Formatter::escape(&value)
-            )
-        } else {
-            format!(" <info>{label}</info>:")
-        };
-        style.writeln(label.as_str(), super::OutputOptions::default())?;
-        if let Some(choice) = &question.choice {
-            let width = choice
-                .entries
-                .iter()
-                .map(|(key, _)| choice_key_width(&key.to_string()))
-                .max()
-                .unwrap_or(0);
-            for (key, value) in choice.entries.iter() {
-                let key = key.to_string();
-                let padding = " ".repeat(width.saturating_sub(choice_key_width(&key)));
-                style.writeln(
-                    format!(
-                        "  [<comment>{key}{padding}</comment>] {}",
-                        crate::support::input_scalars::string(value.clone())
-                    )
-                    .as_str(),
-                    super::OutputOptions::default(),
-                )?;
-            }
-        }
-        let prompt = question
-            .choice
-            .as_ref()
-            .map_or(" > ", |choice| choice.prompt.as_str());
-        let output = style.get_output();
-        let rendered_prompt = output
-            .formatter()
-            .clone()
-            .format(prompt, output.is_decorated())
-            .map_err(ConsoleError::from_source)?;
-        style.write(prompt, false, super::OutputOptions::default())?;
+        let rendered_prompt = helper.write_prompt(style, question)?;
         let shutdown = style.question_input().shutdown().cloned();
         let timeout = question
             .timeout
@@ -536,7 +506,7 @@ pub(super) async fn ask(
         };
         match answer {
             Ok(answer) => {
-                if style.question_input().is_interactive() {
+                if lifecycle && style.question_input().is_interactive() {
                     style.finish_question()?;
                 }
                 return Ok(answer);
@@ -573,7 +543,7 @@ pub(super) async fn ask(
                 {
                     return Err(error);
                 }
-                style.question_validation_error(&error.to_string())?;
+                helper.write_error(style, &error, styled_output)?;
             }
         }
     }

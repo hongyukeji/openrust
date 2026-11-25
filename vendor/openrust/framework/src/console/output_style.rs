@@ -123,6 +123,7 @@ pub struct OutputStyle<'a> {
     pub(super) section: Option<usize>,
     // 问答也使用构造时的输入；与 CommandIo::set_input 的读取对象独立。
     input: &'a Input,
+    pub(super) question_helper: Option<Arc<dyn super::QuestionHelperBehavior>>,
     progress: Option<super::progress_bar::ProgressState>,
     line_length: i64,
     pub(super) state: StyleState,
@@ -238,7 +239,7 @@ impl<'a> OutputStyle<'a> {
     pub fn new(input: &'a Input, output: &'a mut (impl super::AsOutput + ?Sized)) -> Self {
         Self::from_reference(input, output.as_output())
     }
-    fn from_reference(input: &'a Input, mut output: super::OutputReference<'a>) -> Self {
+    pub(super) fn from_reference(input: &'a Input, mut output: super::OutputReference<'a>) -> Self {
         let history_formatter = output.formatter().clone();
         let section = output.direct_section();
         let history_verbosity = output.get_verbosity();
@@ -249,6 +250,7 @@ impl<'a> OutputStyle<'a> {
         history_formatter.set_decorated(false);
         Self {
             input,
+            question_helper: None,
             section,
             progress: None,
             line_length,
@@ -402,15 +404,32 @@ impl<'a> OutputStyle<'a> {
         &mut self,
         question: &super::Question,
     ) -> Result<serde_json::Value, ConsoleError> {
+        let helper = self
+            .question_helper
+            .get_or_insert_with(|| Arc::new(super::DefaultQuestionHelper))
+            .clone();
+        self.ask_question_using(question, helper, true, true).await
+    }
+    pub(super) async fn ask_question_using(
+        &mut self,
+        question: &super::Question,
+        helper: Arc<dyn super::QuestionHelperBehavior>,
+        lifecycle: bool,
+        styled_output: bool,
+    ) -> Result<serde_json::Value, ConsoleError> {
         self.settle_question();
-        let done = Arc::new(AtomicBool::new(false));
-        self.state.question_finally = Some(done.clone());
-        let finally = QuestionFinally(done);
+        let finally = if lifecycle {
+            let done = Arc::new(AtomicBool::new(false));
+            self.state.question_finally = Some(done.clone());
+            Some(QuestionFinally(done))
+        } else {
+            None
+        };
         let shutdown = self.input.shutdown().cloned();
         let result = tokio::select! {
             biased;
-            ()=async { match shutdown { Some(shutdown)=>shutdown.cancelled().await, None=>std::future::pending().await } }=>Err(ConsoleError::from_source(super::ConsoleQuestionError::Interrupted)),
-            result=super::question::ask(self,question)=>result,
+            ()=async {match shutdown {Some(shutdown)=>shutdown.cancelled().await,None=>std::future::pending().await}}=>Err(ConsoleError::from_source(super::ConsoleQuestionError::Interrupted)),
+            result=super::question::ask(self,question,helper.as_ref(),lifecycle,styled_output)=>result,
         };
         drop(finally);
         self.settle_question();

@@ -631,3 +631,17 @@ Task以new/render/render_with/render_task/render_task_with接通。已核旧版�
 真实Artisan10进程验证stdout/stderr、DONE/FAIL/SKIPPED及回调错误OS1；HTTP18请求覆盖错误500后恢复及12并发。两个ignored测试是由父消费者实际启动的宽度/Artisan驱动，不计为额外父测试功能。三语正式示例直接提取132例，quiet/silent仍验证返回状态，正式CLI例中Failure只显示FAIL而正常退出0。全workspace/all-targets严格Clippy、格式、既有借用负编译、三语构建与12浏览器检查通过。原始命令和日志target/tmp/artisan-tutorial-20261125/task-*；首次测试夹具类型/所有权、应用绑定与正文生成器误用根包未声明regex的问题均保留失败日志，分别改用既有借用/函数处理器、真实应用作用域及直接状态断言后复验；没有为通过新增依赖或绕行产品契约。
 
 构造后格式器三例用源实际setStyle产生预期；返回浮点2.0的对照数据显式保留JSON浮点类型，未把数据集编码成整数而改变严格比较。单元核定SHA与最终隔离源码相符；其他协作WIP/索引保留。仅本地提交，不推送。下一簇按依赖接QuestionHelper及五种问答组件，随后Component/Factory/CommandIo/一般输出；整章仍未闭合。
+
+## 第四十四簇：QuestionHelper 核心与临时作用域（2026-11-26）
+
+固定QuestionHelper/默认SymfonyQuestionHelper核心ask/getName/提示与错误渲染，以console::QuestionHelper和DefaultQuestionHelper接通；默认角色沿既有ConsoleStyle的职责名称映射，不重命名旧公开契约。已核旧v0.x固定6d1a819提交，无对应帮助器可直接复用。直接复用当前Question/ChoiceQuestion、异步读取、校验/重试、关闭、取消与原生终端管线，只把原默认提示提取成默认帮助器，未建立另一套读入机制。实例通过new构造并采用non_exhaustive，后续内部扩展不要求用户依赖单元结构字面量。无新增依赖或lint豁免。
+
+68份实际固定源覆盖普通/确认/选择、默认/EOF/非交互、两帮助器、raw/base/derived/nested输出、ANSI及重试错误；8个真实PHP ConsoleOutput进程的stdout/stderr由8个真实Artisan进程逐字核对。原生额外失败子进程OS1，HTTP15请求含500后恢复与12并发通过。直接Helper::ask没有擅自运行外层样式的prepare/finish/finally，已有OutputStyle::ask_question仍保持原先完整生命周期；裸真实控制台去stderr、buffer和样式保留原所选流。普通默认提示与原生长行/选择回归全部通过，构造和原输入/输出分别有实际消费者。
+
+源反射替换属性用QuestionStyle三方法及QuestionHelperScope独占借用/Drop表达；OutputStyle/ConsoleStyle固有入口、动态trait和真实调用分别验收。原帮助器Arc身份在成功、错误、panic、Future取消及作用域内再次修改后恢复；原先未初始化时恢复初始化后的默认帮助器，下一问实际回到普通提示而非仅比较名称。QuestionKind借用原键值与配置表达源instanceof检查，不做unsafe子类转换。默认组件提示的两个空格、整段粗体、标点、灰色双列选项和❯光标保持源语义；保护方法覆盖以QuestionHelperBehavior组合，提示钩子返回已格式化末尾文本供原生重绘，错误钩子显式接收原输出是否样式的分类。
+
+6真实PTY场景验证组件/默认、style/raw、Unicode/LF/默认、Ctrl+C130；逐项完整termios与可变fd标志恢复，Darwin仅保留前已确认FWASWRITTEN历史位例外。PATH内stty探针全部未调用。已确认第九簇的crossterm原生输入/补全与完整UTF-8长行适配继续保留；本次没有把4096 PHP缓冲截断重新加回，也不因缺外部shell能力禁用原生隐藏/补全。disable_stty是无外部stty的约束入口，原生管线本就满足；其与shell后端控制的差异在三语正文告知，不伪装为调用外部命令或静默跳过未验Windows。
+
+三语正文直接提取135例，全部实际执行；完整workspace/all-targets严格Clippy、格式、既有借用负编译、三语构建和12浏览器检查通过。最终SHA/实际父消费者计数及剩余项见accepted-question-helper.json，日志target/tmp/artisan-tutorial-20261125/question-helper-*。首轮测试目标拼写误用单数已纠正；中间共享守卫清理掉profile后，保留源码/日志/下载并从同一快照恢复重编译，未把别的工作流清理冒称本簇触发或把中断算通过。单份TTY交付程序验收后回收，热缓存及证据保留；无测试服务/容器遗留，其他WIP和索引保护，逐簇本地提交，不推送。
+
+必须区分：这里只闭合帮助器核心与作用域原语，不用它代替五组件所属render入口或抽象Component::usingQuestionHelper所属入口。五种问答组件、Choice稀疏整数键的非list策略继续下一簇；普通ChoiceQuestion行为不变。Helper父类的setHelperSet/getHelperSet及六种通用静态工具、完整HelperSet/注册格式器SDK仍逐项待办，不能因默认无集合分支通过而宣称完整Helper SDK。完整Component编译/变换/视图生命周期、Factory/CommandIo、Time剩余延迟方法与一般输出仍开放；Artisan整章未闭合。

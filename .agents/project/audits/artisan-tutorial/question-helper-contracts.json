@@ -1,0 +1,177 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "console_reference": "Symfony Console 7.4.0",
+  "status": "verified_core_question_helpers_and_temporary_scopes_builtin_outputs",
+  "types": [
+    {
+      "source": "Illuminate/Console/QuestionHelper",
+      "native": "console::QuestionHelper",
+      "entries": [
+        {
+          "source": "constructor",
+          "native": "new",
+          "status": "verified"
+        },
+        {
+          "source": "ask (inherited)",
+          "native": "ask",
+          "status": "verified_direct_input_and_selected_output"
+        },
+        {
+          "source": "getName (inherited)",
+          "native": "get_name",
+          "status": "verified_question_binding_name"
+        },
+        {
+          "source": "writePrompt",
+          "native": "QuestionHelperBehavior::write_prompt",
+          "status": "verified_prompt_and_selected_output"
+        },
+        {
+          "source": "ensureEndsWithPunctuation",
+          "native": [
+            "ensure_ends_with_punctuation",
+            "QuestionHelperBehavior::ensure_ends_with_punctuation"
+          ],
+          "status": "verified_native_composition"
+        },
+        {
+          "source": "writeError (inherited)",
+          "native": "QuestionHelperBehavior::write_error",
+          "status": "verified_builtin_without_helper_set"
+        },
+        {
+          "source": "disableStty (inherited)",
+          "native": "disable_stty",
+          "status": "native_no_external_stty_contract_existing_terminal_adaptation"
+        }
+      ]
+    },
+    {
+      "source": "Symfony/Component/Console/Helper/SymfonyQuestionHelper",
+      "native": "console::DefaultQuestionHelper",
+      "entries": [
+        {
+          "source": "constructor/ask/getName",
+          "native": [
+            "new",
+            "ask",
+            "get_name"
+          ],
+          "status": "verified_native_default_helper"
+        },
+        {
+          "source": "writePrompt/writeError",
+          "native": "QuestionHelperBehavior implementation",
+          "status": "verified_original_default_prompt_and_retry_formats"
+        }
+      ]
+    }
+  ],
+  "additional_entries": {
+    "QuestionStyle": [
+      "ask_question",
+      "get_question_helper",
+      "set_question_helper"
+    ],
+    "OutputStyle": [
+      "get_question_helper",
+      "set_question_helper",
+      "using_question_helper"
+    ],
+    "ConsoleStyle": [
+      "get_question_helper",
+      "set_question_helper",
+      "using_question_helper"
+    ],
+    "QuestionHelperScope": [
+      "new",
+      "Deref",
+      "DerefMut",
+      "Drop"
+    ],
+    "Question": [
+      "get_kind"
+    ],
+    "QuestionKind": [
+      "Text",
+      "Confirmation",
+      "Choice original keys/values/multiselect/prompt"
+    ]
+  },
+  "scope_source": "Component::usingQuestionHelper protected primitive; abstract Component owned entry is still pending, not closed by a method on another type.",
+  "source_scenes": {
+    "question-helper-oracle.json": 68,
+    "question-helper-console-oracle.json": 8
+  },
+  "invariants": [
+    "Direct helper calls use supplied Input even when selected output is an existing style; no outer style lifecycle/newline finally is invented.",
+    "Regular OutputStyle ask_question retains original prepare/finish/finally and standard prompt defaults.",
+    "Component helper bold label, punctuation, two leading spaces and styled cursor preserve fixed source; choices use verified TwoColumnDetail.",
+    "Direct console output redirects to stderr like ConsoleOutputInterface; buffered output and selected styles keep selection.",
+    "Scope restores original Arc identity after success/error/panic/cancel, including body replacement; absent helper restores initialized default helper.",
+    "OutputStyle, ConsoleStyle and dynamic QuestionStyle are actual consumers; metadata view borrows original choices and avoids unsafe subclass casts."
+  ],
+  "adaptations": [
+    "Source reflection/property replacement is native exclusive-borrow scope with Drop; no unsafe/global helper or duplicate input engine.",
+    "Protected customization uses QuestionHelperBehavior. write_prompt writes and returns formatted final cursor text for native redraw; write_error receives source output style classification explicitly.",
+    "Existing accepted native crossterm input and full UTF-8 lines remain. disable_stty guarantees no external stty; native completion/hidden input are not disabled merely because shell support is absent. This is not a placeholder shell fallback.",
+    "Default helper role name maps fixed SymfonyQuestionHelper; source/framework helper remains QuestionHelper. Existing public names not renamed.",
+    "Helpers have non_exhaustive public construction through new; no arbitrary PHP object identity/serialization or full helper-set registry claim."
+  ],
+  "runtime": {
+    "physical_source_console_cases": 8,
+    "native_console_cases": 8,
+    "additional_failure_exit": 1,
+    "http_requests": 15,
+    "http_failure": 500,
+    "parallel_requests": 12,
+    "success_error_recovery": true,
+    "tty": [
+      {
+        "case": "component-style-unicode",
+        "exit": 0,
+        "terminal_restored": true,
+        "no_external_stty": true
+      },
+      {
+        "case": "default-style-lf",
+        "exit": 0,
+        "terminal_restored": true,
+        "no_external_stty": true
+      },
+      {
+        "case": "component-raw",
+        "exit": 0,
+        "terminal_restored": true,
+        "no_external_stty": true
+      },
+      {
+        "case": "default-raw",
+        "exit": 0,
+        "terminal_restored": true,
+        "no_external_stty": true
+      },
+      {
+        "case": "component-default",
+        "exit": 0,
+        "terminal_restored": true,
+        "no_external_stty": true
+      },
+      {
+        "case": "component-interrupt",
+        "exit": 130,
+        "terminal_restored": true,
+        "no_external_stty": true
+      }
+    ]
+  },
+  "remaining": [
+    "Five component-owned Ask/AskWithCompletion/Choice/Confirm/Secret render entries remain pending; source probes exist but are not native implementation proof.",
+    "Choice component uses non-list associative policy for sparse integer keys; ordinary ChoiceQuestion behavior must remain unchanged.",
+    "Base Helper common setHelperSet/getHelperSet and width/length/substr/formatTime/formatMemory/removeDecoration plus general HelperSet SDK remain pending across helpers.",
+    "Abstract Component compile/renderView/mutate/usingQuestionHelper owned entries, Factory/CommandIo, remaining Time delay methods and general outputs remain pending.",
+    "Full Artisan chapter and Windows/release platform matrix remain open."
+  ],
+  "pushed": false
+}

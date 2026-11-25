@@ -1723,3 +1723,36 @@ fn register_task_components() -> Result<(), ConsoleError> {
 `TaskResult` converts to its integer backing for task callbacks. Only integer `2` displays FAIL and integer `3` displays SKIPPED; `false`, null (`()`), floats and strings display DONE. Callback return values use explicit `Into<serde_json::Value>` conversion, without implicit serialization of arbitrary objects. A displayed FAIL alone does not change the command exit status. Returning `Err(ConsoleError)` writes FAIL before propagating the error; Rust unwinding also finishes the display before resuming the panic.
 
 Duration uses wall time. Up to and including one second it uses grouped milliseconds with two decimals and half-up rounding; longer durations use the reference default short units (`yr`, `mo`, `w`, `d`, `h`, `m`, `s`) and discard fractional seconds. A month is four weeks and a year twelve such months for this display. `run_time_for_humans(start, Some(end))` accepts explicit epoch seconds for formatting. `set_run_time_formatter(Some(Box::new(...)))` replaces the duration method through composition; `None` restores the default. The callback accepts the start and optional end and returns `Result<String, ConsoleError>`, allowing application-specific duration wording. This display API does not provide a general date interval or locale factory.
+
+## Question helpers and temporary scopes {#question-helpers}
+
+`QuestionHelper` renders component prompts: two leading spaces, bold text, final punctuation and the `❯` cursor. `DefaultQuestionHelper` renders the regular style prompt. Both expose `ask(input, output, question)` and `get_name()`. Direct helper calls use exactly the supplied input and selected output; raw console output selects stderr, while an existing style keeps its stream.
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, OutputOptions, OutputStyle,
+    QuestionHelper};
+use openrust::support::facades::Artisan;
+use std::sync::Arc;
+
+fn register_question_helpers() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:question-helpers", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut style = OutputStyle::new(input, output);
+            let first = {
+                let mut scoped = style.using_question_helper(Arc::new(QuestionHelper::new()));
+                scoped.ask_with("Name", Some("Guest")).await?
+            };
+            let second = style.ask_with("Next", Some("Guest")).await?;
+            style.writeln(format!("Users:{}/{}", first.unwrap_or_default(), second.unwrap_or_default()).as_str(), OutputOptions::default())?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+`using_question_helper` borrows the same style and restores the original helper instance when its scope ends, including errors, unwinding and cancellation. If no helper was initialized, the regular default helper is restored. `OutputStyle` and `ConsoleStyle` both support these scopes. `QuestionStyle` provides the same operations through a trait, and `QuestionHelperScope::new` accepts a dynamic style.
+
+Implement `QuestionHelperBehavior` to customize punctuation, prompts or retry errors, then install it with `set_question_helper(Some(Arc::new(...)))` or a temporary scope. `write_prompt` writes the prompt and returns its formatted final cursor text for native line editing. `write_error` receives whether the original output is a style. `Question::get_kind()` provides a borrowed `QuestionKind` view for text, confirmation and choice questions, including original choice keys and values. A helper-set registry is not exposed by these helpers.
+
+The existing native input engine preserves complete UTF-8 lines and uses native terminal APIs instead of shell commands. `disable_stty()` retains the no-external-stty guarantee; it does not disable native completion or hidden input. This differs from a shell-backed terminal implementation. Prompt hints continue to use the application translator.

@@ -1,0 +1,66 @@
+[
+  {
+    "helper": "component",
+    "surface": "raw",
+    "decorated": false,
+    "stdout": "HELPER_VALUE:\"answer\"\n",
+    "stderr": "  Name: [Guest]\n❯ ",
+    "exit": 0
+  },
+  {
+    "helper": "component",
+    "surface": "raw",
+    "decorated": true,
+    "stdout": "HELPER_VALUE:\"answer\"\n",
+    "stderr": "\u001b[32m  \u001b[39m\u001b[39;1mName:\u001b[39;22m [\u001b[33mGuest\u001b[39m]\n\u001b[1m❯ \u001b[22m",
+    "exit": 0
+  },
+  {
+    "helper": "component",
+    "surface": "style",
+    "decorated": false,
+    "stdout": "  Name: [Guest]\n❯ HELPER_VALUE:\"answer\"\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "helper": "component",
+    "surface": "style",
+    "decorated": true,
+    "stdout": "\u001b[32m  \u001b[39m\u001b[39;1mName:\u001b[39;22m [\u001b[33mGuest\u001b[39m]\n\u001b[1m❯ \u001b[22mHELPER_VALUE:\"answer\"\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "helper": "default",
+    "surface": "raw",
+    "decorated": false,
+    "stdout": "HELPER_VALUE:\"answer\"\n",
+    "stderr": " Name [Guest]:\n > ",
+    "exit": 0
+  },
+  {
+    "helper": "default",
+    "surface": "raw",
+    "decorated": true,
+    "stdout": "HELPER_VALUE:\"answer\"\n",
+    "stderr": " \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > ",
+    "exit": 0
+  },
+  {
+    "helper": "default",
+    "surface": "style",
+    "decorated": false,
+    "stdout": " Name [Guest]:\n > HELPER_VALUE:\"answer\"\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "helper": "default",
+    "surface": "style",
+    "decorated": true,
+    "stdout": " \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > HELPER_VALUE:\"answer\"\n",
+    "stderr": "",
+    "exit": 0
+  }
+]

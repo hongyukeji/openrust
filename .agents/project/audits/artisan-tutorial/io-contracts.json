@@ -1955,6 +1955,79 @@
         "native": "set_run_time_formatter",
         "status": "verified_explicit_composition_restore_and_failure"
       }
+    ],
+    "QuestionHelper": [
+      {
+        "source": "constructor",
+        "native": "new",
+        "status": "verified"
+      },
+      {
+        "source": "ask (inherited)",
+        "native": "ask",
+        "status": "verified_direct_input_and_selected_output"
+      },
+      {
+        "source": "getName (inherited)",
+        "native": "get_name",
+        "status": "verified_question_binding_name"
+      },
+      {
+        "source": "writePrompt",
+        "native": "QuestionHelperBehavior::write_prompt",
+        "status": "verified_prompt_and_selected_output"
+      },
+      {
+        "source": "ensureEndsWithPunctuation",
+        "native": [
+          "ensure_ends_with_punctuation",
+          "QuestionHelperBehavior::ensure_ends_with_punctuation"
+        ],
+        "status": "verified_native_composition"
+      },
+      {
+        "source": "writeError (inherited)",
+        "native": "QuestionHelperBehavior::write_error",
+        "status": "verified_builtin_without_helper_set"
+      },
+      {
+        "source": "disableStty (inherited)",
+        "native": "disable_stty",
+        "status": "native_no_external_stty_contract_existing_terminal_adaptation"
+      }
+    ],
+    "DefaultQuestionHelper": [
+      {
+        "source": "constructor/ask/getName",
+        "native": [
+          "new",
+          "ask",
+          "get_name"
+        ],
+        "status": "verified_native_default_helper"
+      },
+      {
+        "source": "writePrompt/writeError",
+        "native": "QuestionHelperBehavior implementation",
+        "status": "verified_original_default_prompt_and_retry_formats"
+      }
+    ],
+    "QuestionStyle": [
+      {
+        "method": "ask_question",
+        "status": "verified_both_builtin_and_dynamic_styles",
+        "evidence": "question-helper-contracts.json"
+      },
+      {
+        "method": "get_question_helper",
+        "status": "verified_both_builtin_and_dynamic_styles",
+        "evidence": "question-helper-contracts.json"
+      },
+      {
+        "method": "set_question_helper",
+        "status": "verified_both_builtin_and_dynamic_styles",
+        "evidence": "question-helper-contracts.json"
+      }
     ]
   },
   "notes": [
@@ -2525,7 +2598,7 @@
     ]
   },
   "remaining_output_style_behaviors": [
-    "4种文本变换器、8种显示组件、Task/TaskResult及默认耗时已验；5种问答组件/QuestionHelper、完整Component/Factory/CommandIo和Time继承延迟方法仍开放。",
+    "4种变换器、8种显示组件、Task/TaskResult、默认耗时及QuestionHelper核心/作用域已验；5种问答组件所属render、完整Component/Factory/CommandIo、Helper/HelperSet SDK和Time继承延迟方法仍开放。",
     "通用OutputInterface、ConsoleOutputInterface及任意自定义输出／Artisan.call第三参数仍待完整类型与消费者；当前所选内置stderr借用不冒充完整接口。"
   ],
   "output_format_explicit_normal": {

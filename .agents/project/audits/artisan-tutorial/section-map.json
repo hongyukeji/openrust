@@ -515,5 +515,11 @@
     "status": "verified_concrete_task_builtin_outputs_and_default_duration",
     "contracts": "task-contracts.json",
     "full_factory": "pending"
+  },
+  "question_helper": {
+    "status": "verified_core_question_helpers_and_temporary_scopes_builtin_outputs",
+    "contracts": "question-helper-contracts.json",
+    "question_components": "pending",
+    "common_helper_sdk": "pending"
   }
 }

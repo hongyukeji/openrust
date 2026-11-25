@@ -34,6 +34,24 @@ pub struct ConsoleStyle<'output> {
     inner: OutputStyle<'output>,
 }
 impl<'output> ConsoleStyle<'output> {
+    pub fn get_question_helper(
+        &self,
+    ) -> Option<std::sync::Arc<dyn crate::console::QuestionHelperBehavior>> {
+        self.inner.get_question_helper()
+    }
+    pub fn set_question_helper(
+        &mut self,
+        helper: Option<std::sync::Arc<dyn crate::console::QuestionHelperBehavior>>,
+    ) {
+        self.inner.set_question_helper(helper)
+    }
+    pub fn using_question_helper(
+        &mut self,
+        helper: std::sync::Arc<dyn crate::console::QuestionHelperBehavior>,
+    ) -> crate::console::QuestionHelperScope<'_, Self> {
+        crate::console::QuestionHelperScope::new(self, helper)
+    }
+
     pub fn new(input: &'output Input, output: &'output mut (impl AsOutput + ?Sized)) -> Self {
         Self::from_reference(input, output.as_output())
     }
@@ -456,5 +474,25 @@ impl StyleInterface for ConsoleStyle<'_> {
     }
     fn progress_finish(&mut self) -> Result<(), ConsoleError> {
         OutputStyle::progress_finish(&mut self.inner)
+    }
+}
+
+impl crate::console::QuestionStyle for ConsoleStyle<'_> {
+    fn ask_question<'a>(
+        &'a mut self,
+        question: &'a crate::console::Question,
+    ) -> ConsoleFuture<'a, Result<Value, ConsoleError>> {
+        Box::pin(ConsoleStyle::ask_question(self, question))
+    }
+    fn get_question_helper(
+        &self,
+    ) -> Option<std::sync::Arc<dyn crate::console::QuestionHelperBehavior>> {
+        ConsoleStyle::get_question_helper(self)
+    }
+    fn set_question_helper(
+        &mut self,
+        helper: Option<std::sync::Arc<dyn crate::console::QuestionHelperBehavior>>,
+    ) {
+        ConsoleStyle::set_question_helper(self, helper)
     }
 }

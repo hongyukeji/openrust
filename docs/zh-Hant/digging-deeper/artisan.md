@@ -1723,3 +1723,36 @@ fn register_task_components() -> Result<(), ConsoleError> {
 任務回呼中的 `TaskResult` 轉換為整數背值。只有整數 `2` 顯示 FAIL、整數 `3` 顯示 SKIPPED；`false`、null（`()`）、浮點數及字串皆顯示 DONE。回傳值明確轉換為 `serde_json::Value`，不會隱含序列化任意物件。顯示 FAIL 本身不會改變命令結束代碼。回呼回傳 `Err(ConsoleError)` 時先顯示 FAIL，再傳播錯誤；Rust 展開堆疊時同樣先收尾顯示，再繼續 panic。
 
 耗時使用牆上時鐘。不超過一秒時顯示含千位分組、兩位小數及 half-up 捨入的毫秒；超過一秒後使用參考預設短單位（`yr`、`mo`、`w`、`d`、`h`、`m`、`s`），捨棄不足一秒的部分。此顯示中一個月按四週、一年按十二個這樣的月進位。`run_time_for_humans(start, Some(end))` 接受明確的 Unix 秒數用於格式化。`set_run_time_formatter(Some(Box::new(...)))` 透過組合替代耗時方法覆寫，傳入 `None` 恢復預設。格式器接受開始時間及可選結束時間，回傳 `Result<String, ConsoleError>`，可依應用需求自訂耗時措辭。此顯示入口不提供通用日期區間或語言工廠。
+
+## 問答輔助器與臨時作用域 {#question-helpers}
+
+`QuestionHelper` 使用元件提示：兩個前導空格、粗體文字、結尾標點及 `❯` 游標。`DefaultQuestionHelper` 使用一般樣式提示。兩者皆提供 `ask(input, output, question)` 和 `get_name()`。直接呼叫輔助器時沿用傳入的輸入及所選輸出；原始主控台輸出選取 stderr，既有樣式則保留自己的串流。
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, OutputOptions, OutputStyle,
+    QuestionHelper};
+use openrust::support::facades::Artisan;
+use std::sync::Arc;
+
+fn register_question_helpers() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:question-helpers", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut style = OutputStyle::new(input, output);
+            let first = {
+                let mut scoped = style.using_question_helper(Arc::new(QuestionHelper::new()));
+                scoped.ask_with("Name", Some("Guest")).await?
+            };
+            let second = style.ask_with("Next", Some("Guest")).await?;
+            style.writeln(format!("Users:{}/{}", first.unwrap_or_default(), second.unwrap_or_default()).as_str(), OutputOptions::default())?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+`using_question_helper` 借用同一樣式，作用域結束時還原原輔助器實例，包括錯誤、展開堆疊及取消。先前未初始化輔助器時，還原一般預設輔助器。`OutputStyle` 和 `ConsoleStyle` 皆支援此作用域。`QuestionStyle` 透過 trait 提供相同操作，`QuestionHelperScope::new` 可接收動態樣式。
+
+實作 `QuestionHelperBehavior` 可自訂標點、提示或重試錯誤，再用 `set_question_helper(Some(Arc::new(...)))` 安裝或使用臨時作用域。`write_prompt` 寫入提示，並回傳已格式化的結尾游標文字供原生行編輯重繪。`write_error` 接收原輸出是否為樣式的標記。`Question::get_kind()` 提供借用的 `QuestionKind` 檢視，可區分文字、確認及選擇題，並讀取原選擇鍵值。這些輔助器尚未公開通用輔助器集合登錄表。
+
+既有原生輸入引擎保留完整 UTF-8 長行，使用原生終端 API，不執行 shell 命令。`disable_stty()` 維持不呼叫外部 stty 的保證，不關閉原生補全或隱藏輸入；這與依賴 shell 的終端實作不同。多行提示繼續使用應用譯器。
