@@ -1,4 +1,4 @@
-use openrust::{support::Number, translation::canonical_locale};
+use openrust::{localization::canonical_locale, support::Number};
 
 #[test]
 fn public_tags_preserve_script_region_and_extensions() {
@@ -77,7 +77,7 @@ fn faker_public_labels_and_private_providers_are_separate() {
 
 #[test]
 fn file_catalogs_keep_exact_regions_scripts_and_full_tags() {
-    use openrust::translation::{FileLoader, Translator};
+    use openrust::localization::{FileLoader, Localizer};
     use std::{collections::BTreeMap, fs};
     let root = tempfile::tempdir().unwrap();
     for locale in [
@@ -107,7 +107,7 @@ fn file_catalogs_keep_exact_regions_scripts_and_full_tags() {
         r#"{"identity":"遗留简体"}"#,
     )
     .unwrap();
-    let translator = Translator::new(
+    let localizer = Localizer::new(
         FileLoader::new(root.path().to_owned()),
         "zh-Hans".into(),
         "en".into(),
@@ -117,30 +117,30 @@ fn file_catalogs_keep_exact_regions_scripts_and_full_tags() {
     for locale in ["zh-Hans", "zh-CN", "zh-HK", "zh-Hant-HK", "en-US-u-nu-latn"] {
         for _ in 0..2 {
             assert_eq!(
-                translator
+                localizer
                     .string("messages.identity", &args, Some(locale))
                     .unwrap(),
                 locale
             );
             assert_eq!(
-                translator.string("Identity", &args, Some(locale)).unwrap(),
+                localizer.string("Identity", &args, Some(locale)).unwrap(),
                 locale
             );
         }
     }
     assert_eq!(
-        translator
+        localizer
             .string("messages.identity", &args, Some("zh-TW"))
             .unwrap(),
         "en"
     );
     assert_eq!(
-        translator.string("Identity", &args, Some("zh-TW")).unwrap(),
+        localizer.string("Identity", &args, Some("zh-TW")).unwrap(),
         "Identity"
     );
-    assert_eq!(translator.get_locale(), "zh-Hans");
+    assert_eq!(localizer.get_locale(), "zh-Hans");
     assert!(
-        translator
+        localizer
             .string("messages.identity", &args, Some("zh_CN"))
             .is_err()
     );
@@ -168,29 +168,29 @@ fn duplicate_extension_keys_are_rejected_without_discarding_information() {
 #[tokio::test]
 async fn nested_locale_scopes_restore_after_errors_cancellation_and_unwind() {
     use futures_util::FutureExt as _;
-    use openrust::translation::{FileLoader, Translator};
+    use openrust::localization::{FileLoader, Localizer};
     use std::{panic::AssertUnwindSafe, time::Duration};
     let root = tempfile::tempdir().unwrap();
-    let translator = Translator::new(
+    let localizer = Localizer::new(
         FileLoader::new(root.path().to_owned()),
         "en".into(),
         "en".into(),
     )
     .unwrap();
-    translator
+    localizer
         .with_locale("ZH-hans", async {
-            assert_eq!(translator.get_locale(), "zh-Hans");
-            let result: Result<(), &str> = translator
+            assert_eq!(localizer.get_locale(), "zh-Hans");
+            let result: Result<(), &str> = localizer
                 .with_locale("zh-Hant", async {
-                    assert_eq!(translator.get_locale(), "zh-Hant");
+                    assert_eq!(localizer.get_locale(), "zh-Hant");
                     Err("模拟任务失败")
                 })
                 .await
                 .unwrap();
             assert!(result.is_err());
-            assert_eq!(translator.get_locale(), "zh-Hans");
-            let pending = translator.with_locale("zh-Hant-HK", async {
-                assert_eq!(translator.get_locale(), "zh-Hant-HK");
+            assert_eq!(localizer.get_locale(), "zh-Hans");
+            let pending = localizer.with_locale("zh-Hant-HK", async {
+                assert_eq!(localizer.get_locale(), "zh-Hant-HK");
                 std::future::pending::<()>().await;
             });
             assert!(
@@ -198,18 +198,18 @@ async fn nested_locale_scopes_restore_after_errors_cancellation_and_unwind() {
                     .await
                     .is_err()
             );
-            assert_eq!(translator.get_locale(), "zh-Hans");
-            let unwound = AssertUnwindSafe(translator.with_locale("zh-CN", async {
-                assert_eq!(translator.get_locale(), "zh-CN");
+            assert_eq!(localizer.get_locale(), "zh-Hans");
+            let unwound = AssertUnwindSafe(localizer.with_locale("zh-CN", async {
+                assert_eq!(localizer.get_locale(), "zh-CN");
                 panic!("模拟任务展开");
             }))
             .catch_unwind()
             .await;
             assert!(unwound.is_err());
-            assert_eq!(translator.get_locale(), "zh-Hans");
+            assert_eq!(localizer.get_locale(), "zh-Hans");
         })
         .await
         .unwrap();
-    assert_eq!(translator.get_locale(), "en");
-    assert_eq!(translator.get_fallback(), "en");
+    assert_eq!(localizer.get_locale(), "en");
+    assert_eq!(localizer.get_fallback(), "en");
 }

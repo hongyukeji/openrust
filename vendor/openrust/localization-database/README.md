@@ -1,6 +1,6 @@
-# Database translations
+# Database localization
 
-`DatabaseLoader` reads the `language_lines` table with Spatie's `group`, `key`, and multilingual `text` JSON structure. It implements the existing OpenRust `Loader`, overlays file translations, and publishes through the existing translator. Applications manage writes and explicitly choose when to reload. Package namespaces remain file based.
+`DatabaseLoader` reads the `language_lines` table with Spatie's `group`, `key`, and multilingual `text` JSON structure. It implements the existing OpenRust `Loader`, overlays file translations, and publishes through the current localizer. Applications manage writes and explicitly choose when to reload. Package namespaces remain file based.
 
 See the [localization guide](../../../docs/en/digging-deeper/localization.md#database-translation-loader) for loading, limits, locale fallback, and error behavior. Database translation loading supports PostgreSQL 18, MySQL 8.4, and SQLite; other databases require separate behavior validation.
 
@@ -41,7 +41,7 @@ use std::{path::PathBuf, sync::Arc};
 use openrust::{
     database::Connection,
     support::facades::Lang,
-    translation::{FileLoader, TranslationResource, TranslationResult},
+    localization::{FileLoader, TranslationResource, TranslationResult},
 };
 use openrust_localization_database::DatabaseLoader;
 
@@ -63,6 +63,6 @@ pub async fn load_database_translations(
 }
 ```
 
-The package does not register a provider or run migrations. Reads are explicit and asynchronous; translation lookups use the published catalog without SQL.
+The package provider exposes the `localization-database-migrations` publication tag. Run the published migration before enabling the database source. Existing applications keep their original migration and table. Register your `DatabaseLoader` as `lang.loader` in the application provider and declare its exact groups in `lang.resources`. The application reads these groups at startup and on `Lang::refresh_default_source().await`. Synchronous lookups use the published catalog without SQL.
 
-The schema and loading behavior follow `spatie/laravel-translation-loader` 2.8.3 (MIT). Upstream copyright and license are preserved in `LICENSE.spatie.md`. Locale fallback stays in OpenRust's translator; missing tables fail an explicit reload.
+The schema and loading behavior follow `spatie/laravel-translation-loader` 2.8.3 (MIT). Upstream copyright and license are preserved in `LICENSE.spatie.md`. Locale fallback stays in OpenRust's localizer; missing tables fail an explicit reload.

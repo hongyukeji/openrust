@@ -1,7 +1,7 @@
 //! Translation lookup contracts.
 
 mod loader;
-mod translator;
+mod localizer;
 
 pub use loader::Loader;
-pub use translator::Translator;
+pub use localizer::Localizer;

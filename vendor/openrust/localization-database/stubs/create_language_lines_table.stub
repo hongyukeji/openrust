@@ -1,0 +1,24 @@
+use openrust::database::{
+    DatabaseFuture, DatabaseResult,
+    migrations::{Migration, MigrationContext},
+};
+
+pub struct Definition;
+
+impl Migration for Definition {
+    fn up<'a>(&'a self, connection: &'a mut MigrationContext) -> DatabaseFuture<'a, DatabaseResult<()>> {
+        Box::pin(async move {
+            connection.get_schema_builder().create("language_lines", |table| {
+                table.id();
+                table.string("group", None).index();
+                table.string("key", None);
+                table.json("text");
+                table.timestamps();
+            }).await
+        })
+    }
+
+    fn down<'a>(&'a self, connection: &'a mut MigrationContext) -> DatabaseFuture<'a, DatabaseResult<()>> {
+        Box::pin(async move { connection.get_schema_builder().drop_if_exists("language_lines").await })
+    }
+}

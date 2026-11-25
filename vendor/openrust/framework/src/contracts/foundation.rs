@@ -19,7 +19,7 @@ pub trait Application: Send + Sync {
     }
 
     fn lang_path(&self, path: &str) -> std::path::PathBuf {
-        crate::foundation::paths::join(&crate::translation::language_path(self.base_path()), path)
+        crate::foundation::paths::join(&crate::localization::language_path(self.base_path()), path)
     }
 
     /// Checks whether the currently bound environment is exactly `testing`.

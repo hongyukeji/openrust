@@ -244,7 +244,7 @@ async fn generate_for(
     }
     let locale = app
         .container()
-        .get::<crate::translation::Translator>("translator")
+        .get::<crate::localization::Localizer>("lang")
         .map_err(error)?
         .get_locale();
     let section = generated_section(name);

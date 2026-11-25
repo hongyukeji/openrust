@@ -2,7 +2,7 @@ use std::net::IpAddr;
 
 use openrust::{
     config::{ConfigError, Environment, Value},
-    translation::canonical_locale,
+    localization::canonical_locale,
 };
 use serde_json::json;
 

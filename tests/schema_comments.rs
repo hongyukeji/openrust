@@ -9,7 +9,7 @@ use openrust::{
     container::Callback,
     contracts::{container::Container as _, foundation::Application as _},
     foundation::Application,
-    translation::{__, FileLoader, Translator},
+    localization::{__, FileLoader, Localizer},
 };
 use serde_json::json;
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
@@ -34,7 +34,7 @@ impl Languages {
             std::fs::create_dir_all(path.join(format!("lang/{locale}"))).unwrap();
             std::fs::copy(
                 PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!(
-                    "vendor/openrust/framework/src/translation/lang/{locale}/schema.json"
+                    "vendor/openrust/framework/src/localization/lang/{locale}/schema.json"
                 )),
                 path.join(format!("lang/{locale}/schema.json")),
             )
@@ -55,9 +55,9 @@ impl Languages {
         let app = Application::configure(self.0.clone()).create().unwrap();
         app.container()
             .instance_named(
-                "translator",
+                "lang",
                 Arc::new(
-                    Translator::new(
+                    Localizer::new(
                         FileLoader::new(self.0.join("lang")),
                         locale.into(),
                         fallback.into(),
@@ -231,8 +231,8 @@ async fn all_builtin_migrations_write_localized_comments_on_postgres() {
         assert_eq!(migrator.reset(None,&[],false).await.unwrap().len(),12);
         assert!(!schema.has_table("users").await.unwrap());
         // Failed callbacks must not execute partial DDL.
-        let result = openrust::translation::Lang::with_locale("de", schema.create("invalid_catalog", |table| -> openrust::database::DatabaseResult<()> {
-            assert_eq!(openrust::translation::Lang::get_locale().unwrap(), "de");
+        let result = openrust::localization::Lang::with_locale("de", schema.create("invalid_catalog", |table| -> openrust::database::DatabaseResult<()> {
+            assert_eq!(openrust::localization::Lang::get_locale().unwrap(), "de");
             table.id();
             table.comment(__("schema.tables.users", &Default::default())?);
             Ok(())
@@ -336,7 +336,7 @@ async fn builtin_migrations_run_on_mysql_and_sqlite() {
                 }
                 db.table("users").insert(&[BTreeMap::from([("name".into(), "reader".into()), ("email".into(), "reader@example.test".into()), ("password".into(), "hash".into())])]).await.unwrap();
                 assert_eq!(db.table("users").count("*").await.unwrap(), 1);
-                let result = openrust::translation::Lang::with_locale("de", schema.create("invalid_catalog", |table| -> openrust::database::DatabaseResult<()> {
+                let result = openrust::localization::Lang::with_locale("de", schema.create("invalid_catalog", |table| -> openrust::database::DatabaseResult<()> {
                     table.id();
                     table.comment(__("schema.tables.users", &Default::default())?);
                     Ok(())

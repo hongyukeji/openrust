@@ -1,4 +1,4 @@
-use crate::translation::{Lines, TranslationFuture, TranslationResult};
+use crate::localization::{Lines, TranslationFuture, TranslationResult};
 
 /// Loads a translation group for a locale and optional package namespace.
 pub trait Loader: Send + Sync {

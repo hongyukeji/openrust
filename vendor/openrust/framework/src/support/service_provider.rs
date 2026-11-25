@@ -13,8 +13,8 @@ use crate::{
     database::migrations::{MigrationEntry, Migrator},
     foundation::{Application, Runner},
     http::HttpFuture,
+    localization::Localizer,
     routing::RoutingError,
-    translation::Translator,
     view::{Component, Factory, ViewData, ViewResult},
 };
 
@@ -158,7 +158,7 @@ pub trait ServiceProvider: Any + Send + Sync {
         namespace: &'a str,
     ) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            app.make::<Translator>()
+            app.make::<Localizer>()
                 .await?
                 .add_package_namespace(namespace, path.to_owned())?;
             Ok(())
@@ -172,7 +172,7 @@ pub trait ServiceProvider: Any + Send + Sync {
         path: &'a Path,
     ) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            app.make::<Translator>()
+            app.make::<Localizer>()
                 .await?
                 .add_package_json_path(path.to_owned());
             Ok(())

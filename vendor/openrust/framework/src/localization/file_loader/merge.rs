@@ -1,6 +1,6 @@
-use crate::translation::{Line, Lines};
+use crate::localization::{Line, Lines};
 
-pub(super) fn merge(lines: &mut Lines, overlay: Lines) {
+pub(in crate::localization) fn merge(lines: &mut Lines, overlay: Lines) {
     for (key, incoming) in overlay {
         if let Some(current) = lines.get_mut(&key) {
             merge_line(current, incoming);
@@ -37,7 +37,7 @@ fn merge_line(current: &mut Line, incoming: Line) {
     }
 }
 
-pub(in crate::translation) fn indexed(items: Vec<Line>) -> Lines {
+pub(in crate::localization) fn indexed(items: Vec<Line>) -> Lines {
     items
         .into_iter()
         .enumerate()

@@ -8,9 +8,9 @@ use std::{
 
 use openrust::{
     config::Repository,
-    contracts::translation::{Loader, Translator as _},
+    contracts::localization::{Loader, Localizer as _},
     database::{Connection, DatabaseManager, Value, query::Record},
-    translation::{FileLoader, Line, Lines, TranslationError, TranslationResource, Translator},
+    localization::{FileLoader, Line, Lines, Localizer, TranslationError, TranslationResource},
 };
 use openrust_localization_database::DatabaseLoader;
 use serde_json::{Value as Json, json};
@@ -137,8 +137,8 @@ fn resource<'a>(
         namespace,
     }
 }
-fn get(translator: &Translator, key: &str, locale: Option<&str>) -> String {
-    translator.get(key, &BTreeMap::new(), locale)
+fn get(localizer: &Localizer, key: &str, locale: Option<&str>) -> String {
+    localizer.get(key, &BTreeMap::new(), locale)
 }
 
 #[tokio::test]
@@ -220,13 +220,13 @@ async fn database_file_overlay_preserves_nested_lists_empty_strings_and_locale_f
         loader.load("fr", "*", None).await.unwrap()["Phrase"],
         Line::Text("database".into())
     );
-    let translator = Translator::new(
+    let localizer = Localizer::new(
         FileLoader::new(directory.path().into()),
         "fr".into(),
         "en".into(),
     )
     .unwrap();
-    translator
+    localizer
         .load_from(
             &loader,
             &[
@@ -236,24 +236,24 @@ async fn database_file_overlay_preserves_nested_lists_empty_strings_and_locale_f
         )
         .await
         .unwrap();
-    assert_eq!(get(&translator, "messages.welcome", None), "Base");
-    assert_eq!(get(&translator, "messages.nested.file", None), "kept");
-    assert_eq!(get(&translator, "messages.nested.shared", None), "database");
-    assert_eq!(get(&translator, "messages.items.0", None), "new");
-    assert_eq!(get(&translator, "messages.items.1", None), "kept");
-    assert_eq!(get(&translator, "messages.empty", None), "");
-    assert_eq!(get(&translator, "messages.fallback", None), "English");
+    assert_eq!(get(&localizer, "messages.welcome", None), "Base");
+    assert_eq!(get(&localizer, "messages.nested.file", None), "kept");
+    assert_eq!(get(&localizer, "messages.nested.shared", None), "database");
+    assert_eq!(get(&localizer, "messages.items.0", None), "new");
+    assert_eq!(get(&localizer, "messages.items.1", None), "kept");
+    assert_eq!(get(&localizer, "messages.empty", None), "");
+    assert_eq!(get(&localizer, "messages.fallback", None), "English");
     f.connection
         .table(&f.table)
         .r#where("key", "=", "welcome")
         .delete()
         .await
         .unwrap();
-    translator
+    localizer
         .load_from(&loader, &[resource("fr", "messages", None)])
         .await
         .unwrap();
-    assert_eq!(get(&translator, "messages.welcome", None), "Fichier");
+    assert_eq!(get(&localizer, "messages.welcome", None), "Fichier");
     f.close().await;
 }
 
@@ -263,7 +263,7 @@ async fn database_invalid_rows_and_limits_never_publish_partial_catalogs() {
         return;
     };
     let directory = tempfile::tempdir().unwrap();
-    let translator = Translator::new(
+    let localizer = Localizer::new(
         FileLoader::new(directory.path().into()),
         "en".into(),
         "en".into(),
@@ -272,7 +272,7 @@ async fn database_invalid_rows_and_limits_never_publish_partial_catalogs() {
     let loader = f.loader();
     f.put("en", "messages", "", "title", json!("previous"))
         .await;
-    translator
+    localizer
         .load_from(&loader, &[resource("en", "messages", None)])
         .await
         .unwrap();
@@ -280,7 +280,7 @@ async fn database_invalid_rows_and_limits_never_publish_partial_catalogs() {
     f.put("en", "messages", "", "title", json!("new")).await;
     f.raw("en", "broken", "", "title", "invalid JSON").await;
     assert!(matches!(
-        translator
+        localizer
             .load_from(
                 &loader,
                 &[
@@ -291,7 +291,7 @@ async fn database_invalid_rows_and_limits_never_publish_partial_catalogs() {
             .await,
         Err(TranslationError::Source(_))
     ));
-    assert_eq!(get(&translator, "messages.title", None), "previous");
+    assert_eq!(get(&localizer, "messages.title", None), "previous");
     f.clear().await;
     f.put("en", "messages", "", "title", json!("one")).await;
     f.put("en", "messages", "", "second", json!("two")).await;
@@ -313,7 +313,7 @@ async fn database_invalid_rows_and_limits_never_publish_partial_catalogs() {
             .await,
         Err(TranslationError::Source(_))
     ));
-    assert_eq!(get(&translator, "messages.title", None), "previous");
+    assert_eq!(get(&localizer, "messages.title", None), "previous");
     f.close().await;
 }
 
@@ -375,7 +375,7 @@ async fn database_connections_tables_and_published_applications_do_not_share_cat
         .await;
     let directory = tempfile::tempdir().unwrap();
     let app = || {
-        Translator::new(
+        Localizer::new(
             FileLoader::new(directory.path().into()),
             "en".into(),
             "en".into(),
@@ -454,16 +454,16 @@ async fn invalid_configuration_and_resource_names_are_rejected_before_sql() {
 }
 
 #[tokio::test]
-async fn database_explicit_provider_publishes_the_app_catalog_to_real_http() {
+async fn database_default_provider_publishes_the_app_catalog_to_real_http() {
     use axum::{extract::State, handler::Handler as _};
     use openrust::{
-        contracts::http::Kernel as _,
+        contracts::{container::Container as _, foundation::Application as _, http::Kernel as _},
         foundation::{Application, configuration::Routing, http::Kernel},
         http::{HttpError, HttpFuture, Request, Response, StatusCode},
         routing::RoutingError,
         support::{
             ProviderResult, ServiceProvider,
-            facades::{Lang, Route},
+            facades::{Config, Lang, Route},
         },
     };
     use tokio::{
@@ -472,12 +472,20 @@ async fn database_explicit_provider_publishes_the_app_catalog_to_real_http() {
     };
     struct Publish(DatabaseLoader);
     impl ServiceProvider for Publish {
-        fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
+        fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
             Box::pin(async move {
-                app.make::<Translator>()
-                    .await?
-                    .load_from(&self.0, &[resource("en", "messages", None)])
-                    .await?;
+                let container = app.container();
+                let loader = self
+                    .0
+                    .clone()
+                    .with_fallback(container.make::<FileLoader>()?);
+                let named =
+                    container.instance_named::<dyn Loader>("lang.loader", Arc::new(loader))?;
+                assert!(Arc::ptr_eq(&named, &container.make::<dyn Loader>()?));
+                Config::set(
+                    "lang.resources",
+                    json!([{"locale":"en","group":"messages"}]),
+                )?;
                 Ok(())
             })
         }

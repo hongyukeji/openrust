@@ -557,9 +557,9 @@ Use `accepted_if`, `declined_if`, `missing_if`, `missing_unless`, `missing_with`
 
 Use `get_data`, `get_value`, and `get_rules` to inspect input and expanded rules. `get_rules` returns ordered `(attribute, rules)` pairs using native escaped paths. `set_value` updates one concrete path; wildcards are rejected. `set_data` replaces the input and restores the rules supplied to `set_rules` or the factory. `add_rules` merges temporary rules; `append_rules` also makes the merged declarations the next reset baseline.
 
-`set_custom_messages` merges messages. `set_attribute_names` and `set_value_names` replace their maps, while `add_custom_attributes` and `add_custom_values` merge at the field level. `get_translator` and `set_translator` expose the translator used for errors. Outside an active validation pass, mutations discard cached success and errors; call `validate().await` again before reading `validated()` or `safe()`.
+`set_custom_messages` merges messages. `set_attribute_names` and `set_value_names` replace their maps, while `add_custom_attributes` and `add_custom_values` merge at the field level. `get_localizer` and `set_localizer` expose the translator used for errors. Outside an active validation pass, mutations discard cached success and errors; call `validate().await` again before reading `validated()` or `safe()`.
 
-`get_exception` and `set_exception` use a typed function `fn(MessageBag, Option<&Translator>) -> ValidationException`. It can customize the actual rejection status, error bag, and redirect. The return type replaces runtime exception class names and inheritance; each validator keeps its own factory.
+`get_exception` and `set_exception` use a typed function `fn(MessageBag, Option<&Localizer>) -> ValidationException`. It can customize the actual rejection status, error bag, and redirect. The return type replaces runtime exception class names and inheritance; each validator keeps its own factory.
 
 ## Registering validation extensions
 

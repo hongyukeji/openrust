@@ -15,7 +15,7 @@ use crate::{
 
 use super::source_edit::file_error;
 
-use crate::translation::bundled::CATALOGS;
+use crate::localization::bundled::CATALOGS;
 
 pub(super) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
     let syntax = clap::Command::new("lang:publish")

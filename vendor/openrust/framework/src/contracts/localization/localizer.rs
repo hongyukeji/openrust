@@ -1,9 +1,9 @@
 use std::collections::BTreeMap;
 
-use crate::translation::{Lines, TranslationResult};
+use crate::localization::{Lines, TranslationResult};
 
 /// Resolves messages using the selected or fallback locale.
-pub trait Translator: Send + Sync {
+pub trait Localizer: Send + Sync {
     fn get(
         &self,
         key: &str,

@@ -19,11 +19,11 @@ impl ValidationException {
 
     pub(super) fn localized(
         errors: MessageBag,
-        translator: Option<&crate::translation::Translator>,
+        localizer: Option<&crate::localization::Localizer>,
     ) -> Self {
         const DEFAULT: &str = "The given data was invalid.";
         let translated = |key, replacements: &std::collections::BTreeMap<String, String>| {
-            translator.and_then(|translator| translator.string(key, replacements, None).ok())
+            localizer.and_then(|localizer| localizer.string(key, replacements, None).ok())
         };
         let mut message = errors.first(None, None);
         if message.is_empty() {

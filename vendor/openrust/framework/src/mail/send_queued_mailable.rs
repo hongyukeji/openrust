@@ -44,7 +44,7 @@ impl PreparedMail {
             .locale
             .as_deref()
             .or_else(|| mailable.locale())
-            .map(crate::translation::canonical_locale)
+            .map(crate::localization::canonical_locale)
             .transpose()
             .map_err(super::composition)?;
         let prepare = || {

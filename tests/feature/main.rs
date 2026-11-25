@@ -389,7 +389,7 @@ fn artisan_uses_application_translation_fallback() {
 
 #[test]
 fn artisan_publishes_consumable_catalogs_without_replacing_bcp47_resources() {
-    use openrust::translation::{FileLoader, Translator};
+    use openrust::localization::{FileLoader, Localizer};
     use std::{collections::BTreeMap, fs};
 
     struct Cleanup(std::path::PathBuf);
@@ -437,23 +437,23 @@ fn artisan_publishes_consumable_catalogs_without_replacing_bcp47_resources() {
         if relative == "resources/lang" {
             assert!(!root.join("lang").exists());
         }
-        let translator =
-            Translator::new(FileLoader::new(catalogs), "zh-Hans".into(), "en".into()).unwrap();
+        let localizer =
+            Localizer::new(FileLoader::new(catalogs), "zh-Hans".into(), "en".into()).unwrap();
         let replacements = BTreeMap::from([("attribute".into(), "email".into())]);
         assert_eq!(
-            translator
+            localizer
                 .string("validation.required", &replacements, None)
                 .unwrap(),
             "请填写email。"
         );
         assert_eq!(
-            translator
+            localizer
                 .string("validation.required", &replacements, Some("zh-CN"))
                 .unwrap(),
             "The email field is required."
         );
         assert!(
-            translator
+            localizer
                 .string("validation.required", &replacements, Some("zh_CN"))
                 .is_err()
         );

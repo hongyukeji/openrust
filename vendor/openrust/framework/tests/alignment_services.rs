@@ -282,45 +282,45 @@ impl openrust::contracts::events::Event for NamedEvent {
 #[tokio::test]
 async fn translation_contract_names_observe_nested_locales_and_fallback() {
     use openrust::{
-        contracts::translation::Translator as Contract,
-        translation::{FileLoader, Translator},
+        contracts::localization::Localizer as Contract,
+        localization::{FileLoader, Localizer},
     };
     let root = tempfile::tempdir().unwrap();
-    let mut translator = Translator::new(
+    let mut localizer = Localizer::new(
         FileLoader::new(root.path().to_owned()),
         "en".into(),
         "en".into(),
     )
     .unwrap();
     {
-        let contract: &mut dyn Contract = &mut translator;
+        let contract: &mut dyn Contract = &mut localizer;
         contract.set_locale("zh-CN").unwrap();
         contract.set_fallback("en").unwrap();
         assert_eq!(contract.get_locale(), "zh-CN");
         assert_eq!(contract.get_fallback(), "en");
     }
-    translator
+    localizer
         .with_locale("fr", async {
-            assert_eq!(Contract::get_locale(&translator), "fr");
-            translator
+            assert_eq!(Contract::get_locale(&localizer), "fr");
+            localizer
                 .with_locale("de", async {
-                    assert_eq!(translator.get_locale(), "de");
+                    assert_eq!(localizer.get_locale(), "de");
                 })
                 .await
                 .unwrap();
-            assert_eq!(translator.get_locale(), "fr");
+            assert_eq!(localizer.get_locale(), "fr");
         })
         .await
         .unwrap();
-    assert_eq!(translator.get_locale(), "zh-CN");
+    assert_eq!(localizer.get_locale(), "zh-CN");
     let (one, two) = tokio::join!(
-        translator.with_locale("en", async {
+        localizer.with_locale("en", async {
             tokio::task::yield_now().await;
-            translator.get_locale()
+            localizer.get_locale()
         }),
-        translator.with_locale("fr", async {
+        localizer.with_locale("fr", async {
             tokio::task::yield_now().await;
-            translator.get_locale()
+            localizer.get_locale()
         })
     );
     assert_eq!(one.unwrap(), "en");
@@ -1101,12 +1101,12 @@ async fn view_and_translation_facades_keep_boot_defaults_and_concurrent_scopes_s
         .make::<openrust::view::Factory>()
         .unwrap()
         .share("shared", "boot");
-    let translator = app
+    let localizer = app
         .container()
-        .make::<openrust::translation::Translator>()
+        .make::<openrust::localization::Localizer>()
         .unwrap();
-    translator.set_locale("en").unwrap();
-    translator.set_fallback("en").unwrap();
+    localizer.set_locale("en").unwrap();
+    localizer.set_fallback("en").unwrap();
     let [one, two] = ["fr", "de"].map(|expected| {
         let expected = expected.to_owned();
         app.container().scope(app.call(
@@ -1144,7 +1144,7 @@ async fn view_and_translation_facades_keep_boot_defaults_and_concurrent_scopes_s
     let (one, two) = tokio::join!(one, two);
     one.unwrap();
     two.unwrap();
-    assert_eq!(translator.get_locale(), "en");
+    assert_eq!(localizer.get_locale(), "en");
     assert_eq!(
         app.container()
             .make::<openrust::view::Factory>()
@@ -1187,21 +1187,21 @@ async fn translation_defaults_come_from_cached_configuration_without_reloading_e
         .create()
         .unwrap();
     app.boot().await.unwrap();
-    let translator = app
+    let localizer = app
         .container()
-        .make::<openrust::translation::Translator>()
+        .make::<openrust::localization::Localizer>()
         .unwrap();
-    assert_eq!(translator.get_locale(), "zh-CN");
-    assert_eq!(translator.get_fallback(), "en");
+    assert_eq!(localizer.get_locale(), "zh-CN");
+    assert_eq!(localizer.get_fallback(), "en");
     app.container()
         .scope(async {
-            translator.set_locale("fr").unwrap();
-            translator.set_fallback("de").unwrap();
-            assert_eq!(translator.get_locale(), "fr");
+            localizer.set_locale("fr").unwrap();
+            localizer.set_fallback("de").unwrap();
+            assert_eq!(localizer.get_locale(), "fr");
         })
         .await;
-    assert_eq!(translator.get_locale(), "zh-CN");
-    assert_eq!(translator.get_fallback(), "en");
+    assert_eq!(localizer.get_locale(), "zh-CN");
+    assert_eq!(localizer.get_fallback(), "en");
 }
 
 #[tokio::test]

@@ -24,7 +24,7 @@ async fn native_artisan_discovers_activitylog_publishes_migrates_and_caches_conf
         std::fs::create_dir_all(path.join(format!("lang/{lang}"))).unwrap();
         std::fs::copy(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
-                "vendor/openrust/framework/src/translation/lang/{lang}/schema.json"
+                "vendor/openrust/framework/src/localization/lang/{lang}/schema.json"
             )),
             path.join(format!("lang/{lang}/schema.json")),
         )

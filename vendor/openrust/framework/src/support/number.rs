@@ -114,7 +114,7 @@ impl Default for Number {
 
 impl Number {
     pub fn use_locale(&mut self, locale: &str) -> Result<(), NumberError> {
-        self.locale = crate::translation::canonical_locale(locale)
+        self.locale = crate::localization::canonical_locale(locale)
             .map_err(|_| NumberError::InvalidLocale)?
             .parse()
             .map_err(|_| NumberError::InvalidLocale)?;

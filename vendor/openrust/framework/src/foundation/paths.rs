@@ -22,7 +22,7 @@ struct State {
 
 impl Paths {
     pub(crate) fn new(base: PathBuf) -> Self {
-        let lang = crate::translation::language_path(&base);
+        let lang = crate::localization::language_path(&base);
         Self {
             base,
             initial_storage: std::env::var_os("APP_STORAGE_PATH"),

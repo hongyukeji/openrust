@@ -19,6 +19,9 @@ pub enum BootstrapError {
     ConfigurationFailed {
         source: ConfigError,
     },
+    LocalizationFailed {
+        source: crate::localization::TranslationError,
+    },
     RoutingFailed {
         source: RoutingError,
     },
@@ -58,6 +61,7 @@ impl fmt::Display for BootstrapError {
             }
             Self::ContainerFailed { .. } => f.write_str("service container failed"),
             Self::ConfigurationFailed { source } => write!(f, "configuration failed: {source}"),
+            Self::LocalizationFailed { source } => write!(f, "无法加载应用词条：{source}"),
             Self::RoutingFailed { source } => write!(f, "route registration failed: {source}"),
             Self::GrpcRegistrationFailed { .. } => f.write_str("gRPC service registration failed"),
             Self::CommandRegistrationFailed { source } => {
@@ -82,6 +86,7 @@ impl Error for BootstrapError {
             Self::InvalidBasePath { source, .. } => Some(source),
             Self::ContainerFailed { source } => Some(source),
             Self::ConfigurationFailed { source } => Some(source),
+            Self::LocalizationFailed { source } => Some(source),
             Self::RoutingFailed { source } => Some(source),
             Self::CommandRegistrationFailed { source } => Some(source),
             Self::LifecycleFailed { source }

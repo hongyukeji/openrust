@@ -6,18 +6,22 @@ use std::{
     sync::{Arc, Mutex, RwLock},
 };
 
-use crate::contracts::translation::{Loader, Translator as Contract};
+use crate::contracts::localization::{Loader, Localizer as Contract};
 
 use super::{
     FileLoader, Line, Lines, MessageSelector, PluralCount, Replacement, Selector, TranslationError,
     TranslationResource, TranslationResult,
-    file_loader::{merge::indexed, valid_group, valid_segment},
+    file_loader::{
+        merge::{indexed, merge},
+        valid_group, valid_segment,
+    },
     locale::canonical_locale,
     lookup::{LookupHooks, MissingTranslation},
     replacement::{Stringables, replace},
 };
 
 type Replacements = BTreeMap<String, String>;
+type SourceCatalog = HashMap<CatalogKey, Arc<Lines>>;
 
 #[derive(Clone, Eq, Hash, PartialEq)]
 struct CatalogKey {
@@ -29,7 +33,8 @@ struct CatalogKey {
 #[derive(Default)]
 struct Catalog {
     lines: Arc<Lines>,
-    runtime: bool,
+    runtime: Option<Arc<Lines>>,
+    inherits_file_on_release: bool,
 }
 
 struct ResolvedLine {
@@ -76,18 +81,19 @@ struct Locales {
 pub(crate) struct LocaleState(Mutex<HashMap<usize, (Arc<()>, Locales)>>);
 
 /// Resolves translations using one application's catalog and locale defaults.
-pub struct Translator {
+pub struct Localizer {
     loader: Arc<FileLoader>,
     selector: RwLock<Arc<dyn Selector>>,
     defaults: Mutex<Locales>,
     owner: std::sync::Weak<crate::container::Container>,
     loaded: Mutex<HashMap<CatalogKey, Catalog>>,
+    default_catalog: Mutex<Arc<SourceCatalog>>,
     identity: Arc<()>,
     hooks: LookupHooks,
     stringables: Stringables,
 }
 
-impl Translator {
+impl Localizer {
     pub fn new(loader: FileLoader, locale: String, fallback: String) -> TranslationResult<Self> {
         Self::with_loader(Arc::new(loader), locale, fallback)
     }
@@ -106,6 +112,7 @@ impl Translator {
             }),
             owner: std::sync::Weak::new(),
             loaded: Mutex::default(),
+            default_catalog: Mutex::default(),
             identity: Arc::new(()),
             hooks: LookupHooks::default(),
             stringables: Stringables::default(),
@@ -123,8 +130,9 @@ impl Translator {
         let mut loaded = self.loaded.lock().unwrap();
         self.loader
             .register_namespace_path(namespace.to_owned(), path);
-        loaded
-            .retain(|key, catalog| catalog.runtime || key.namespace.as_deref() != Some(namespace));
+        loaded.retain(|key, catalog| {
+            catalog.runtime.is_some() || key.namespace.as_deref() != Some(namespace)
+        });
         Ok(())
     }
 
@@ -132,7 +140,7 @@ impl Translator {
         let mut loaded = self.loaded.lock().unwrap();
         self.loader.add_json_path(path);
         loaded.retain(|key, catalog| {
-            catalog.runtime || key.group != "*" || key.namespace.as_deref() != Some("*")
+            catalog.runtime.is_some() || key.group != "*" || key.namespace.as_deref() != Some("*")
         });
     }
 
@@ -184,7 +192,8 @@ impl Translator {
     ) -> TranslationResult<()> {
         let locale = canonical_locale(locale)?;
         let namespace = catalog_namespace(group, namespace)?;
-        self.catalog(&locale, group, namespace)?;
+        let sources = self.default_catalog.lock().unwrap().clone();
+        self.catalog(&sources, &locale, group, namespace)?;
         Ok(())
     }
 
@@ -194,34 +203,14 @@ impl Translator {
         loader: &dyn Loader,
         resources: &[TranslationResource<'_>],
     ) -> TranslationResult<()> {
-        let mut seen = HashSet::with_capacity(resources.len());
-        let mut keys = Vec::with_capacity(resources.len());
-        for resource in resources {
-            let locale = canonical_locale(resource.locale)?;
-            let namespace = catalog_namespace(resource.group, resource.namespace)?;
-            let key = CatalogKey {
-                locale,
-                group: resource.group.to_owned(),
-                namespace: namespace.map(str::to_owned),
-            };
-            if seen.insert(key.clone()) {
-                keys.push(key);
-            }
-        }
+        let keys = catalog_keys(resources.iter().copied())?;
         let versions: Vec<_> = {
             let loaded = self.loaded.lock().unwrap();
             keys.iter()
                 .map(|key| runtime_lines(&loaded, key).cloned())
                 .collect()
         };
-        let mut incoming = Vec::with_capacity(keys.len());
-        for key in &keys {
-            incoming.push(
-                loader
-                    .load(&key.locale, &key.group, key.namespace.as_deref())
-                    .await?,
-            );
-        }
+        let incoming = materialize(loader, &keys).await?;
         let mut loaded = self.loaded.lock().unwrap();
         for (key, previous) in keys.iter().zip(&versions) {
             match (runtime_lines(&loaded, key), previous.as_ref()) {
@@ -234,11 +223,52 @@ impl Translator {
             loaded.insert(
                 key,
                 Catalog {
-                    lines: Arc::new(lines),
-                    runtime: true,
+                    lines: lines.clone(),
+                    runtime: Some(lines),
+                    inherits_file_on_release: false,
                 },
             );
         }
+        Ok(())
+    }
+
+    /// 按当前应用配置刷新默认来源，保留运行时覆盖。
+    pub async fn refresh_default_source(&self) -> TranslationResult<()> {
+        let owner = self
+            .owner
+            .upgrade()
+            .ok_or(TranslationError::DefaultSourceUnavailable)?;
+        let resources = super::default_source::resources(&owner)?;
+        self.refresh_configured(&owner, &resources).await
+    }
+
+    pub(super) async fn refresh_configured(
+        &self,
+        container: &crate::container::Container,
+        resources: &[super::default_source::ConfiguredResource],
+    ) -> TranslationResult<()> {
+        use crate::contracts::container::Container as _;
+
+        let previous = self.default_catalog.lock().unwrap().clone();
+        let keys = catalog_keys(
+            resources
+                .iter()
+                .map(super::default_source::ConfiguredResource::as_resource),
+        )?;
+        let incoming = if keys.is_empty() {
+            HashMap::new()
+        } else {
+            let loader = crate::container::ScopeSnapshot::without(container)
+                .run(|| container.get::<dyn Loader>("lang.loader"))?;
+            let lines = materialize(loader.as_ref(), &keys).await?;
+            keys.into_iter().zip(lines).collect()
+        };
+
+        let mut published = self.default_catalog.lock().unwrap();
+        if !Arc::ptr_eq(&published, &previous) {
+            return Err(TranslationError::CatalogChanged);
+        }
+        *published = Arc::new(incoming);
         Ok(())
     }
 
@@ -269,11 +299,20 @@ impl Translator {
                 ))
             })
             .collect::<TranslationResult<Vec<_>>>()?;
+        let sources = self.default_catalog.lock().unwrap().clone();
         let mut loaded = self.loaded.lock().unwrap();
         for (key, item, line) in entries {
-            let catalog = loaded.entry(key).or_default();
-            set_line(Arc::make_mut(&mut catalog.lines), &item, line);
-            catalog.runtime = true;
+            let inherits_file_on_release = sources.contains_key(&key);
+            let catalog = loaded.entry(key).or_insert_with(|| Catalog {
+                inherits_file_on_release,
+                ..Catalog::default()
+            });
+            set_line(Arc::make_mut(&mut catalog.lines), &item, line.clone());
+            set_line(
+                Arc::make_mut(catalog.runtime.get_or_insert_with(Arc::default)),
+                &item,
+                line,
+            );
         }
         Ok(())
     }
@@ -497,7 +536,7 @@ impl Translator {
             .replace(chosen, args, Some(count.to_string()))
     }
 
-    /// Registers a formatter for one concrete Rust type on this translator.
+    /// Registers a formatter for one concrete Rust type on this localizer.
     pub fn stringable<T: Any>(&self, formatter: impl Fn(&T) -> String + Send + Sync + 'static) {
         self.stringables.register(formatter);
     }
@@ -544,7 +583,12 @@ impl Translator {
         locale: &str,
         fallback: bool,
     ) -> TranslationResult<Option<ResolvedLine>> {
-        if let Some(line) = self.catalog(locale, "*", Some("*"))?.get(key).cloned() {
+        let sources = self.default_catalog.lock().unwrap().clone();
+        if let Some(line) = self
+            .catalog(&sources, locale, "*", Some("*"))?
+            .get(key)
+            .cloned()
+        {
             let line = match line {
                 Line::Text(text) if text.is_empty() || text == "0" => Line::Text(key.to_owned()),
                 line => line,
@@ -566,7 +610,7 @@ impl Translator {
         }
         if !fallback {
             return Ok(self
-                .group_line(locale, group, namespace, item)?
+                .group_line(&sources, locale, group, namespace, item)?
                 .map(|line| ResolvedLine {
                     line,
                     locale: locale.to_owned(),
@@ -574,7 +618,7 @@ impl Translator {
                 }));
         }
         for locale in self.hooks.locales(locale, &self.get_fallback())? {
-            if let Some(line) = self.group_line(&locale, group, namespace, item)? {
+            if let Some(line) = self.group_line(&sources, &locale, group, namespace, item)? {
                 return Ok(Some(ResolvedLine {
                     line,
                     locale,
@@ -587,12 +631,13 @@ impl Translator {
 
     fn group_line(
         &self,
+        sources: &SourceCatalog,
         locale: &str,
         group: &str,
         namespace: Option<&str>,
         item: Option<&str>,
     ) -> TranslationResult<Option<Line>> {
-        let lines = self.catalog(locale, group, namespace)?;
+        let lines = self.catalog(sources, locale, group, namespace)?;
         Ok(match item {
             Some(item) => find(&lines, item).cloned(),
             None => Some(Line::Group((*lines).clone())),
@@ -606,6 +651,7 @@ impl Translator {
 
     fn catalog(
         &self,
+        sources: &SourceCatalog,
         locale: &str,
         group: &str,
         namespace: Option<&str>,
@@ -616,22 +662,42 @@ impl Translator {
             namespace: namespace.map(str::to_owned),
         };
         let mut loaded = self.loaded.lock().unwrap();
-        if let Some(lines) = loaded.get(&key) {
-            return Ok(Arc::clone(&lines.lines));
+        if let Some(lines) = sources.get(&key) {
+            if let Some(runtime) = runtime_lines(&loaded, &key) {
+                let mut lines = (**lines).clone();
+                if group == "*" {
+                    lines.extend((**runtime).clone());
+                } else {
+                    merge(&mut lines, (**runtime).clone());
+                }
+                return Ok(Arc::new(lines));
+            }
+            return Ok(lines.clone());
         }
-        let lines = Arc::new(self.loader.load_lines(locale, group, namespace)?);
-        loaded.insert(
-            key,
-            Catalog {
-                lines: Arc::clone(&lines),
-                runtime: false,
-            },
-        );
-        Ok(lines)
+        match loaded.entry(key) {
+            std::collections::hash_map::Entry::Occupied(entry) => {
+                let catalog = entry.into_mut();
+                if catalog.inherits_file_on_release {
+                    let mut lines = self.loader.load_lines(locale, group, namespace)?;
+                    merge(&mut lines, (*catalog.lines).clone());
+                    catalog.lines = Arc::new(lines);
+                    catalog.inherits_file_on_release = false;
+                }
+                Ok(catalog.lines.clone())
+            }
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                let lines = Arc::new(self.loader.load_lines(locale, group, namespace)?);
+                entry.insert(Catalog {
+                    lines: lines.clone(),
+                    ..Catalog::default()
+                });
+                Ok(lines)
+            }
+        }
     }
 }
 
-impl Translator {
+impl Localizer {
     pub(crate) fn with_owner(
         mut self,
         owner: std::sync::Weak<crate::container::Container>,
@@ -691,7 +757,7 @@ impl Translator {
     }
 }
 
-impl Contract for Translator {
+impl Contract for Localizer {
     fn get_fallback(&self) -> String {
         self.get_fallback()
     }
@@ -752,14 +818,45 @@ impl Contract for Translator {
     }
 }
 
+fn catalog_keys<'a>(
+    resources: impl IntoIterator<Item = TranslationResource<'a>>,
+) -> TranslationResult<Vec<CatalogKey>> {
+    let mut seen = HashSet::new();
+    let mut keys = Vec::new();
+    for resource in resources {
+        let locale = canonical_locale(resource.locale)?;
+        let namespace = catalog_namespace(resource.group, resource.namespace)?;
+        let key = CatalogKey {
+            locale,
+            group: resource.group.to_owned(),
+            namespace: namespace.map(str::to_owned),
+        };
+        if seen.insert(key.clone()) {
+            keys.push(key);
+        }
+    }
+    Ok(keys)
+}
+
+async fn materialize(
+    loader: &dyn Loader,
+    keys: &[CatalogKey],
+) -> TranslationResult<Vec<Arc<Lines>>> {
+    let mut incoming = Vec::with_capacity(keys.len());
+    for key in keys {
+        let lines = loader
+            .load(&key.locale, &key.group, key.namespace.as_deref())
+            .await?;
+        incoming.push(Arc::new(lines));
+    }
+    Ok(incoming)
+}
+
 fn runtime_lines<'a>(
     loaded: &'a HashMap<CatalogKey, Catalog>,
     key: &CatalogKey,
 ) -> Option<&'a Arc<Lines>> {
-    loaded
-        .get(key)
-        .filter(|catalog| catalog.runtime)
-        .map(|catalog| &catalog.lines)
+    loaded.get(key).and_then(|catalog| catalog.runtime.as_ref())
 }
 
 fn catalog_namespace<'a>(

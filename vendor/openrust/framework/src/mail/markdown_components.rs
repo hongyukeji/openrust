@@ -4,8 +4,8 @@ use std::{cell::RefCell, collections::HashMap};
 use pulldown_cmark::{CodeBlockKind, CowStr, Event, Parser, Tag, TagEnd, html};
 
 use crate::{
+    localization::TranslationError,
     support::{Date, escape_html, facades::Lang, markdown::safe_url},
-    translation::TranslationError,
     view::{Factory, ViewData, ViewError, ViewResult},
 };
 

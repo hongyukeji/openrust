@@ -130,7 +130,7 @@ impl Middleware {
     pub fn set_locale(
         &mut self,
         locales: &[&str],
-    ) -> crate::translation::TranslationResult<&mut Self> {
+    ) -> crate::localization::TranslationResult<&mut Self> {
         self.set_locale.set_locale(locales)?;
         Ok(self)
     }

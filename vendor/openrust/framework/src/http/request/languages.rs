@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use crate::translation::{TranslationResult, canonical_locale};
+use crate::localization::{TranslationResult, canonical_locale};
 
 use super::Request;
 

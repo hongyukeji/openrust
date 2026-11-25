@@ -2543,7 +2543,7 @@ fn faker_miscellaneous_codes_and_emoji_preserve_the_configured_locale() -> Datab
     for _ in 0..252 {
         let locale = unique.random_locale()?;
         assert_eq!(
-            openrust::translation::canonical_locale(locale)
+            openrust::localization::canonical_locale(locale)
                 .as_deref()
                 .ok(),
             Some(locale)

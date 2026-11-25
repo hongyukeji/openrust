@@ -4,8 +4,8 @@ use crate::{
     contracts::{container::Container as _, foundation::Application as _},
     foundation::Application,
     http::HttpFuture,
+    localization::Localizer,
     support::{ProviderResult, ServiceProvider},
-    translation::Translator,
 };
 
 use super::{DatabasePresenceVerifier, Factory};
@@ -33,7 +33,7 @@ impl ServiceProvider for ValidationServiceProvider {
             )?;
             let owner = Arc::downgrade(&app.container_handle());
             container.singleton_named("validator", move |container| {
-                let mut factory = Factory::new(container.get::<Translator>("translator")?);
+                let mut factory = Factory::new(container.get::<Localizer>("lang")?);
                 factory.owner = owner.clone();
                 factory.set_presence_verifier(DatabasePresenceVerifier::new(
                     container.make::<dyn crate::database::ConnectionResolverInterface>()?,

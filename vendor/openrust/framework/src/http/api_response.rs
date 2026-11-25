@@ -26,7 +26,7 @@ enum Message {
     },
 }
 impl Message {
-    fn resolve(&self) -> crate::translation::TranslationResult<String> {
+    fn resolve(&self) -> crate::localization::TranslationResult<String> {
         match self {
             Self::Literal(message) => Ok(message.clone()),
             Self::Translation {
