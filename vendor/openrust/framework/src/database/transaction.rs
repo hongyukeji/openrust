@@ -179,7 +179,7 @@ impl Connection {
         let mut physical = self.acquire(false).await?;
         let connection = self.clone();
         // Let the owning task restore its session state even when the caller is cancelled.
-        let result = tokio::spawn(async move {
+        let result = tokio::spawn(super::events::with_inherited_query_scope(async move {
             let foreign_keys = sqlite_pragma(&mut physical, "pragma foreign_keys").await?;
             let legacy_alter = sqlite_pragma(&mut physical, "pragma legacy_alter_table").await?;
             physical.retire_on_drop(true);
@@ -216,7 +216,7 @@ impl Connection {
                 transaction.release_session().await?;
             }
             result
-        })
+        }))
         .await
         .map_err(|_| DatabaseError::InvalidSchema("SQLite schema task interrupted"))?;
         if result.is_ok() {

@@ -54,6 +54,7 @@ impl Schema {
         Ok(Db::connection(None)?.get_schema_builder())
     }
 
+    schema_queries! {
     pub async fn session() -> DatabaseResult<SchemaSession> {
         Self::default_builder()?.session().await
     }
@@ -128,6 +129,7 @@ impl Schema {
     pub async fn rename(from: &str, to: &str) -> DatabaseResult<()> {
         Self::default_builder()?.rename(from, to).await
     }
+    }
 
     /// Returns the default schema of the application's write connection.
     pub fn get_current_schema_name() -> DatabaseResult<String> {
@@ -151,6 +153,7 @@ impl Schema {
         Ok((schema.map(str::to_owned), table.to_owned()))
     }
 
+    schema_queries! {
     pub async fn get_schemas() -> DatabaseResult<Vec<SchemaInfo>> {
         Self::default_builder()?.get_schemas().await
     }
@@ -299,5 +302,6 @@ impl Schema {
 
     pub async fn get_foreign_keys(table: &str) -> DatabaseResult<Vec<ForeignKey>> {
         Self::default_builder()?.get_foreign_keys(table).await
+    }
     }
 }

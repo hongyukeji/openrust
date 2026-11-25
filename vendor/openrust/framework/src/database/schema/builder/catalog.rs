@@ -61,6 +61,7 @@ impl Builder<'_> {
         Ok((schema, table))
     }
 
+    schema_queries! {
     pub async fn get_schemas(&mut self) -> DatabaseResult<Vec<SchemaInfo>> {
         let mysql_sql;
         let sql = if self.grammar.mysql() {
@@ -97,6 +98,7 @@ impl Builder<'_> {
     pub async fn get_types_in(&mut self, schemas: &[&str]) -> DatabaseResult<Vec<TypeInfo>> {
         self.catalog_types(Some(schemas)).await
     }
+    }
 
     async fn catalog_types(&mut self, schemas: Option<&[&str]>) -> DatabaseResult<Vec<TypeInfo>> {
         if !self.grammar.postgres() {
@@ -119,6 +121,7 @@ impl Builder<'_> {
             .collect()
     }
 
+    schema_queries! {
     pub async fn get_views(&mut self, schema: Option<&str>) -> DatabaseResult<Vec<ViewInfo>> {
         match schema {
             Some(schema) => self.get_views_in(&[schema]).await,
@@ -177,6 +180,7 @@ impl Builder<'_> {
             .await?
             .iter()
             .any(|item| item.name.eq_ignore_ascii_case(&view.name)))
+    }
     }
 
     async fn mysql_views(&mut self, schemas: Option<&[&str]>) -> DatabaseResult<Vec<ViewInfo>> {
@@ -248,6 +252,7 @@ impl Builder<'_> {
         Ok(views)
     }
 
+    schema_queries! {
     pub async fn has_table(&mut self, table: &str) -> DatabaseResult<bool> {
         let table = self.resolve_table(table)?;
         if let Executor::Session(session) = &self.executor
@@ -312,6 +317,7 @@ impl Builder<'_> {
                 }
             })
             .collect())
+    }
     }
 
     async fn catalog_tables(&mut self, schemas: Option<&[&str]>) -> DatabaseResult<Vec<TableInfo>> {
@@ -388,6 +394,7 @@ impl Builder<'_> {
             .collect()
     }
 
+    schema_queries! {
     pub async fn get_columns(&mut self, table: &str) -> DatabaseResult<Vec<Column>> {
         let table = self.catalog_table(table)?;
         let parameters = self.catalog_parameters(&table);
@@ -736,6 +743,7 @@ impl Builder<'_> {
                 })
             })
             .collect()
+    }
     }
 }
 

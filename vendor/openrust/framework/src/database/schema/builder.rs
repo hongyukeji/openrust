@@ -80,6 +80,7 @@ impl<'connection> Builder<'connection> {
         }
     }
 
+    schema_queries! {
     pub async fn session(&self) -> DatabaseResult<SchemaSession> {
         let Executor::Connection(connection) = &self.executor else {
             return Err(DatabaseError::UnsupportedSchema(
@@ -101,6 +102,7 @@ impl<'connection> Builder<'connection> {
         let output = result?;
         cleanup?;
         Ok(output)
+    }
     }
 
     /// Sets the initializer for blueprints produced by this schema builder.
@@ -136,6 +138,7 @@ impl<'connection> Builder<'connection> {
         Ok(online && self.grammar.postgres())
     }
 
+    schema_queries! {
     /// Creates a database on the selected connection's server or a new SQLite file.
     pub async fn create_database(&mut self, name: &str) -> DatabaseResult<bool> {
         if self.grammar.postgres() {
@@ -175,6 +178,7 @@ impl<'connection> Builder<'connection> {
             }
         }
         Ok(true)
+    }
     }
 
     async fn execute_postgres_database_ddl(&mut self, sql: String) -> DatabaseResult<()> {
@@ -230,6 +234,7 @@ impl<'connection> Builder<'connection> {
         Ok(())
     }
 
+    schema_queries! {
     pub async fn create<R: super::BlueprintCallbackResult>(
         &mut self,
         table: &str,
@@ -261,6 +266,7 @@ impl<'connection> Builder<'connection> {
         }
         let sql = self.grammar.create(&resolved_table, blueprint)?;
         self.execute_blueprint(sql, online).await
+    }
     }
 
     fn resolve_table(&self, name: &str) -> DatabaseResult<Table> {
@@ -298,6 +304,7 @@ impl<'connection> Builder<'connection> {
         Ok(format!("drop{temporary} table{guard} {table}"))
     }
 
+    schema_queries! {
     pub async fn table<R: super::BlueprintCallbackResult>(
         &mut self,
         table: &str,
@@ -439,6 +446,7 @@ impl<'connection> Builder<'connection> {
     pub async fn drop_all_types(&mut self) -> DatabaseResult<()> {
         self.drop_schema_objects(false, false, true).await
     }
+    }
 
     pub(in crate::database) async fn drop_schema_objects(
         &mut self,
@@ -491,6 +499,7 @@ impl<'connection> Builder<'connection> {
         })).await
     }
 
+    schema_queries! {
     pub async fn drop_columns(&mut self, table: &str, columns: &[&str]) -> DatabaseResult<()> {
         self.table(table, |blueprint| {
             blueprint.drop_column(columns);
@@ -504,6 +513,7 @@ impl<'connection> Builder<'connection> {
 
     pub async fn drop_if_exists(&mut self, table: &str) -> DatabaseResult<()> {
         self.drop_table(table, true).await
+    }
     }
 
     async fn drop_table(&mut self, table: &str, if_exists: bool) -> DatabaseResult<()> {
@@ -520,6 +530,7 @@ impl<'connection> Builder<'connection> {
             .await
     }
 
+    schema_queries! {
     pub async fn rename(&mut self, from: &str, to: &str) -> DatabaseResult<()> {
         let from = self.resolve_table(from)?;
         let mut to = self.grammar.table(to)?;
@@ -554,6 +565,7 @@ impl<'connection> Builder<'connection> {
             }
         }
         self.execute(vec![sql]).await
+    }
     }
 
     async fn execute(&mut self, statements: Vec<String>) -> DatabaseResult<()> {

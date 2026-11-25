@@ -178,12 +178,14 @@ impl SchemaSession {
         Ok(())
     }
 
+    schema_queries! {
     pub async fn enable_foreign_key_constraints(&mut self) -> DatabaseResult<bool> {
         self.set_foreign_keys(true).await
     }
 
     pub async fn disable_foreign_key_constraints(&mut self) -> DatabaseResult<bool> {
         self.set_foreign_keys(false).await
+    }
     }
 
     async fn set_foreign_keys(&mut self, enabled: bool) -> DatabaseResult<bool> {
@@ -197,16 +199,24 @@ impl SchemaSession {
             self.restore_foreign_keys = Some(original);
             self.physical()?.retire_on_drop(true);
         }
+        let sql = foreign_key_sql(sqlite, enabled);
+        let bindings = (&[]).into();
+        self.before_query(sql, bindings).await?;
+        let started = Instant::now();
         apply_foreign_keys(self.physical()?, sqlite, enabled).await?;
+        self.after_query(sql, bindings, started).await?;
         Ok(true)
     }
 
+    schema_queries! {
     /// Drops managed temporary tables and restores the session settings before release.
     pub async fn close(mut self) -> DatabaseResult<()> {
         if self.temporary_tables.is_empty() && self.restore_foreign_keys.is_none() {
             return Ok(());
         }
         let sqlite = self.connection.is_sqlite();
+        let restore = self.restore_foreign_keys.map(|enabled| foreign_key_sql(sqlite, enabled));
+        let started = Instant::now();
         let physical = self
             .physical
             .as_mut()
@@ -220,6 +230,9 @@ impl SchemaSession {
         .await?;
         self.temporary_tables.clear();
         self.restore_foreign_keys = None;
+        if let Some(sql) = restore {
+            self.after_query(sql, (&[]).into(), started).await?;
+        }
         Ok(())
     }
 
@@ -246,6 +259,7 @@ impl SchemaSession {
         let start = self.execute_statement(sql, bindings).await?;
         self.after_query(sql, bindings, start).await?;
         Ok(true)
+    }
     }
 
     async fn execute_statement(

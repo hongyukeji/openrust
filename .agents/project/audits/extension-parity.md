@@ -333,7 +333,11 @@ PHP 8.5.12、固定 Laravel 和固定 Telescope、真实 SQLite 连接。`Schema
 
 公开 Facade 探针另确认 `whenTableHasColumn` 的目录读取及实际 DDL 共三条都归到条件入口，`getForeignKeys` 归到实际目录入口，`withoutForeignKeyConstraints` 的两条外键设置归到包装调用，回调内的业务查询单独归到回调实际行。证据为 `target/tmp/observability-parity/query-schema-facade-upstream.log`。
 
-Rust `Schema` Facade、Builder 与目录检查仍需传播应用调用位置，并通过真实入口验证 DDL 和目录查询，包括一次入口生成多条 SQL 的情况。现有查询来源作用域已用于 Query Builder 和 Eloquent，Schema 构建器尚未接入。
+Rust 的 `Schema` Facade、Builder、目录检查和 `SchemaSession` 复用数据库调用位置栈。应用调用时捕获位置，SQL Future 在轮询时携带该位置。条件改表的目录查询和 DDL 归到同一应用入口，显式外键状态变化及恢复各产生查询事件，业务回调的 SQL 优先使用自身的调用行。SQLite 改列重建的独立任务继承查询位置和仍有效的请求作用域，请求取消后继续完成有保护的重建和会话恢复。
+
+直接以物理会话执行的 MySQL 批量清理、自动取消后的后台回收、PostgreSQL 外键约束包装和发布路径重映射仍须分别对账。PostgreSQL 的建表、目录检查和条件 DDL 路径独立验收。
+
+macOS 用真实 HTTP、SQLite、PostgreSQL 18.7、MySQL 8.4.13 核对 DDL、目录检查、执行及跳过条件改表、SQLite 重建、支持驱动上的外键往返和回调行。框架默认 `database_schema` 目标 80 项通过，含 SQLite 取消后仍完成重建并恢复外键状态。该目标中依赖外部参数的用例沿用原有环境判断，另用 MySQL 8.4.13 实跑会话恢复专项。Telescope Watchers 11 项、三包默认 89 项、全仓格式、修改范围严格 Clippy、三语构建和 12 组浏览器检查通过。证据为 `target/tmp/observability-parity/query-schema-source-{runtime,matrix,docs}.log`。
 
 ### Pulse SlowQueries 数据库调用来源
 

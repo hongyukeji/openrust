@@ -33,6 +33,7 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
     Route::get("/model-write-callers", model_write_callers)?;
     Route::get("/relationship-callers", relationship_callers)?;
     Route::get("/pivot-callers", pivot_callers)?;
+    Route::get("/schema-callers", schema_callers)?;
     for path in ["/json", "/plain", "/boundary", "/large", "/opaque"] {
         Route::get(path, response_handler)?;
     }
@@ -362,6 +363,120 @@ async fn query_watcher_attributes_pivot_writes_to_the_public_entry() {
         &["select ", "insert ", "update ", "delete "],
     )
     .await;
+}
+
+fn schema_callers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    use openrust::database::schema::Schema;
+    Box::pin(async {
+        let table = "query_schema_probe";
+        let create = line!() + 1;
+        Schema::create(table, |blueprint| {
+            blueprint.id();
+            blueprint.string("label", None);
+        })
+        .await
+        .unwrap();
+        let mut schema = Schema::connection("test").unwrap();
+        let exists = line!() + 1;
+        assert!(schema.has_table(table).await.unwrap());
+        let alter = line!() + 1;
+        let altered = schema.table(table, |blueprint| {
+            blueprint.string("direct", None).nullable();
+        });
+        altered.await.unwrap();
+        let condition = line!() + 1;
+        Schema::when_table_has_column(table, "label", |blueprint| {
+            blueprint.string("added", None).nullable();
+        })
+        .await
+        .unwrap();
+        let absent = line!() + 1;
+        Schema::when_table_doesnt_have_column(table, "added", |_| {
+            panic!("added column should exist")
+        })
+        .await
+        .unwrap();
+        let foreign = line!() + 1;
+        assert!(Schema::get_foreign_keys(table).await.unwrap().is_empty());
+        let column = line!() + 1;
+        assert!(schema.has_column(table, "direct").await.unwrap());
+        let mut calls = vec![create, exists, alter, condition, absent, foreign, column];
+        let connection = Db::connection(None).unwrap();
+        let mut foreign_toggle = None;
+        if connection.get_driver_name() == "sqlite" {
+            let rebuild = line!() + 1;
+            Schema::table(table, |blueprint| {
+                blueprint.text("direct").nullable().change();
+            })
+            .await
+            .unwrap();
+            calls.push(rebuild);
+        }
+        if matches!(connection.get_driver_name(), "sqlite" | "mysql") {
+            let outer = line!() + 1;
+            let inner = Schema::without_foreign_key_constraints(|session| {
+                Box::pin(async move {
+                    let inner = line!() + 1;
+                    let selected = session.select("select 42 as schema_callback_probe", &[]);
+                    selected.await?;
+                    Ok(inner)
+                })
+            })
+            .await
+            .unwrap();
+            calls.extend([outer, inner]);
+            foreign_toggle = Some(outer);
+        }
+        let drop = line!() + 1;
+        Schema::drop_if_exists(table).await.unwrap();
+        let removed = line!() + 1;
+        assert!(!schema.has_table(table).await.unwrap());
+        calls.extend([drop, removed]);
+        Response::json(http::StatusCode::OK, json!((calls, foreign_toggle)))
+    })
+}
+
+#[tokio::test]
+async fn query_watcher_attributes_schema_queries_to_the_public_entry() {
+    let mut app = application();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    QueryWatcher::new(
+        json!({"ignore_packages":false})
+            .as_object()
+            .unwrap()
+            .clone(),
+    )
+    .register(app.app())
+    .await
+    .unwrap();
+    let response = app.get("/api/schema-callers").await.unwrap();
+    response.assert_ok();
+    let (expected, foreign_toggle) = response.json::<(Vec<u64>, Option<u64>)>().unwrap();
+    let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
+    let entries = repository
+        .get(Some(EntryType::Query), EntryQueryOptions::default())
+        .await
+        .unwrap();
+    let mut actual = std::collections::BTreeMap::new();
+    for entry in entries {
+        let sql = entry.content["sql"].as_str().unwrap();
+        if sql.contains("query_schema_probe")
+            || sql.contains("schema_callback_probe")
+            || sql.starts_with("pragma foreign_keys =")
+            || sql.starts_with("set session foreign_key_checks =")
+        {
+            assert_eq!(entry.content["file"], file!(), "{sql}");
+            *actual
+                .entry(entry.content["line"].as_u64().unwrap())
+                .or_insert(0) += 1;
+        }
+    }
+    if let Some(line) = foreign_toggle {
+        assert_eq!(actual.get(&line), Some(&2));
+    }
+    assert_eq!(actual.keys().copied().collect::<Vec<_>>(), expected);
 }
 
 async fn assert_query_source_lines(path: &str, table: &str, statements: &[&str]) {

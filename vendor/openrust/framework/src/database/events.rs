@@ -85,18 +85,25 @@ pub(super) fn query_callers() -> Vec<&'static Location<'static>> {
     QUERY_CALLERS.with_borrow(|callers| callers.iter().rev().copied().collect())
 }
 
-fn poll_query_caller<T>(caller: &'static Location<'static>, poll: impl FnOnce() -> T) -> T {
-    struct RestoreCaller;
+fn poll_query_callers<T>(
+    callers: impl IntoIterator<Item = &'static Location<'static>>,
+    poll: impl FnOnce() -> T,
+) -> T {
+    struct RestoreCaller(usize);
     impl Drop for RestoreCaller {
         fn drop(&mut self) {
             QUERY_CALLERS.with_borrow_mut(|callers| {
-                callers.pop();
+                callers.truncate(self.0);
             });
         }
     }
     // 只在 poll 期间登记，挂起、跨线程恢复和取消都不会留下位置。
-    QUERY_CALLERS.with_borrow_mut(|callers| callers.push(caller));
-    let _restore = RestoreCaller;
+    let depth = QUERY_CALLERS.with_borrow_mut(|stack| {
+        let depth = stack.len();
+        stack.extend(callers);
+        depth
+    });
+    let _restore = RestoreCaller(depth);
     poll()
 }
 
@@ -105,7 +112,27 @@ pub(in crate::database) fn with_query_caller<F: Future>(
     future: F,
 ) -> impl Future<Output = F::Output> {
     let mut future = Box::pin(future);
-    std::future::poll_fn(move |context| poll_query_caller(caller, || future.as_mut().poll(context)))
+    std::future::poll_fn(move |context| {
+        poll_query_callers([caller], || future.as_mut().poll(context))
+    })
+}
+
+/// 将 SQLite 重建任务的查询位置和仍有效的应用作用域传给新任务。
+pub(super) fn with_inherited_query_scope<F: Future>(future: F) -> impl Future<Output = F::Output> {
+    let callers = QUERY_CALLERS.with_borrow(Clone::clone);
+    let facade = crate::support::facades::context_snapshot();
+    let scope = crate::container::ScopeSnapshot::capture();
+    let mut future = Box::pin(future);
+    std::future::poll_fn(move |context| {
+        poll_query_callers(callers.iter().copied(), || {
+            if facade.is_closed() {
+                // 请求取消后仍须完成重建与会话恢复。
+                future.as_mut().poll(context)
+            } else {
+                facade.run(|| scope.run(|| future.as_mut().poll(context)))
+            }
+        })
+    })
 }
 
 pub(in crate::database) fn stream_with_query_caller<S: futures_util::Stream>(
@@ -114,7 +141,7 @@ pub(in crate::database) fn stream_with_query_caller<S: futures_util::Stream>(
 ) -> impl futures_util::Stream<Item = S::Item> {
     let mut stream = Box::pin(stream);
     futures_util::stream::poll_fn(move |context| {
-        poll_query_caller(caller, || stream.as_mut().poll_next(context))
+        poll_query_callers([caller], || stream.as_mut().poll_next(context))
     })
 }
 
