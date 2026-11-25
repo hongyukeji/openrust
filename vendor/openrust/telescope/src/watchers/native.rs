@@ -253,8 +253,7 @@ impl NativeWatcher {
         rooted
             .split_once("/vendor/openrust/")
             .is_some_and(|(_, package)| package.contains("/src/"))
-            || (cargo_package(&rooted)
-                && rooted.split('/').any(|part| part.starts_with("openrust-")))
+            || cargo_package(&rooted).is_some_and(|package| package.starts_with("openrust-"))
     }
     pub(super) fn caller_visible(&self, watcher: &str, caller: &Location<'_>) -> bool {
         if Self::framework_caller(caller) {
@@ -266,7 +265,12 @@ impl NativeWatcher {
             .option(watcher, "ignore_packages")
             .and_then(|value| value.as_bool())
             .unwrap_or(true);
-        if ignore_packages && (cargo_package(&rooted) || rooted.contains("/vendor/")) {
+        if ignore_packages
+            && (cargo_package(&rooted).is_some()
+                || rooted.contains("/.cargo/registry/")
+                || rooted.contains("/.cargo/git/")
+                || rooted.contains("/vendor/"))
+        {
             return false;
         }
         !self.option(watcher, "ignore_paths").is_some_and(|paths| {
@@ -292,8 +296,23 @@ impl NativeWatcher {
         Ok(())
     }
 }
-fn cargo_package(path: &str) -> bool {
-    path.contains("/.cargo/registry/") || path.contains("/.cargo/git/")
+fn cargo_package(path: &str) -> Option<&str> {
+    // 自定义 CARGO_HOME 和发布路径重映射可移除 .cargo 目录名。
+    if let Some((_, tail)) = path.split_once("/registry/src/")
+        && let Some((index, source)) = tail.split_once('/')
+        && cargo_cache_key(index)
+    {
+        return source.split_once('/').map(|(package, _)| package);
+    }
+    let (_, tail) = path.split_once("/git/checkouts/")?;
+    let (checkout, _) = tail.split_once('/')?;
+    cargo_cache_key(checkout).then_some(checkout)
+}
+
+fn cargo_cache_key(component: &str) -> bool {
+    component.rsplit_once('-').is_some_and(|(_, fingerprint)| {
+        fingerprint.len() == 16 && fingerprint.bytes().all(|byte| byte.is_ascii_hexdigit())
+    })
 }
 
 fn ignored_job(payload: &openrust::queue::Payload) -> bool {

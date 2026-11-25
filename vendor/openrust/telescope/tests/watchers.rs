@@ -1110,6 +1110,7 @@ async fn query_watcher_uses_the_nearest_eligible_entry_across_nested_queries() {
                         entry.content["file"]
                             .as_str()
                             .unwrap()
+                            .replace('\\', "/")
                             .ends_with("support/query_caller.rs")
                     );
                     assert!(entry.content["line"].as_u64().unwrap() > 0);

@@ -353,6 +353,16 @@ Rust 在授权 Future 中传播同一应用的外层授权位置，通过当前�
 
 SQLite、PostgreSQL 18.7、MySQL 8.4.13 的 Telescope Gate 专项及框架授权实测通过，框架事件默认 8 项、三个扩展默认 91 项、快照全仓格式、严格 Clippy、三语站点构建和 12 组浏览器检查通过。Linux 7.0.14 ARM64 和 Windows 11 ARM64 使用 Rust 1.94.0 通过同一源码快照的嵌套授权 HTTP 与 SQLite 专项。证据为 `target/tmp/observability-parity/gate-outer-caller-complete{,-linux,-docs}.log` 与 `target/tmp/observability-windows/gate-outer-caller-complete-arm64.log`。
 
+### 发布构建的源码路径重映射
+
+固定 Telescope 的来源过滤以可观察路径为输入。Rust 使用 `cargo rustc --test` 给实际调用点所在测试目标传入 `--remap-path-prefix`。验证可执行文件内包含重映射文件名，再从应用路由执行真实授权与 SQL，通过仓储核对文件、行号、忽略规则和外层回退。Pulse 同批验证慢查询位置及关闭位置选项。
+
+将测试调用点映射到自定义 Cargo 注册表布局，原 Telescope 的包过滤漏掉了没有 `.cargo` 段的依赖路径。修复依据实际 Cargo registry 和 Git checkout 的缓存布局识别包，并以有效包目录判断框架来源，避免把父目录中的 `openrust-` 前缀误认为框架包。Windows 首轮回归暴露测试中的 Unix 路径分隔符假设，修复只归一化该断言的文件名比较。原始证据为 `target/tmp/observability-parity/source-remap-{custom-cargo-baseline,windows-test}.log`。
+
+重映射保留包目录结构时可继续使用 `ignore_packages`。重映射若抹平应用与依赖的包目录，Rust 无法从文件位置恢复归属，部署应为依赖保留可区分前缀，再用 `ignore_paths` 配置。
+
+修复版在 macOS、Linux ARM64 和 Windows 11 ARM64 的测试构建中各实跑 8 项 SQLite 路由回归。标准映射验证 Gate、嵌套 Gate、Query 和 Pulse SlowQueries。自定义 registry 与 Git checkout 两种布局各验证 Gate 和 Query，并在 Cargo 根的父目录加入 `openrust-` 前缀检查误判。相关严格 Clippy、快照全仓格式、三语文档构建和浏览器检查通过。编译后的实际路径及测试证据为 `target/tmp/observability-parity/source-remap-{macos-test,linux-verified,windows-verified,clippy-fmt,docs}.log`。macOS 默认优化构建及远端数据库组合另记 Release 验收。
+
 ### Telescope Query 数据库调用来源
 
 固定 [QueryWatcher](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Watchers/QueryWatcher.php) 选择第一处未过滤来源。Rust 用 `Location::caller()` 捕获连接与 Facade SQL、事务 SQL、游标、常用 Query Builder 终结操作和 Eloquent Builder 读取入口的编译位置。位置只在 Future 或 Stream 的当前 `poll` 期间加入候选，复用原有成功 SQL 事件和观测派发。旧版数据库连接示例使用 SeaORM，缺少对应的 OpenRust 查询事件来源。
