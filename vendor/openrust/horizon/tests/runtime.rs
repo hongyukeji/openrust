@@ -1354,6 +1354,293 @@ fn retry_config(base: &Path, env: &Environment) -> Result<BTreeMap<String, Value
         json!({"driver":"database-uuids","database":"sqlite","table":"failed_jobs"});
     Ok(values)
 }
+
+#[tokio::test]
+#[ignore = "requires dedicated Redis 8 acceptance wrapper"]
+async fn redis_public_failure_follows_confirmation_and_worker_failed_callback() {
+    use openrust::{
+        contracts::{
+            container::Container as _,
+            events::{Dispatcher as _, Event, Listener},
+            foundation::Application as _,
+            queue::JobHandler,
+        },
+        events::{
+            Delivery, Dispatcher, EventContext, EventError, EventFuture, EventResult,
+            ListenerResponse,
+        },
+        queue::{
+            DispatchOptions, JobContext, Payload, QueueError, QueueFuture, QueueManager,
+            QueueResult,
+            failed::{FailedJob, FailedJobProviderInterface},
+        },
+    };
+    use openrust_horizon::{JobDeleted, JobFailed};
+
+    struct FailureJob(Arc<std::sync::atomic::AtomicUsize>);
+    impl JobHandler for FailureJob {
+        fn handle<'a>(
+            &'a self,
+            _: &'a mut JobContext<'_>,
+            _: &'a Payload,
+        ) -> QueueFuture<'a, QueueResult<()>> {
+            Box::pin(async {
+                Err(QueueError::execution(std::io::Error::other(
+                    "failure-probe",
+                )))
+            })
+        }
+        fn failed<'a>(
+            &'a self,
+            _: &'a mut JobContext<'_>,
+            _: &'a Payload,
+            _: &'a QueueError,
+        ) -> QueueFuture<'a, QueueResult<()>> {
+            Box::pin(async move {
+                self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                Err(QueueError::InvalidPayload)
+            })
+        }
+    }
+
+    struct FailureProbe {
+        repository: Arc<Repository>,
+        store: Arc<dyn FailedJobProviderInterface>,
+        queue: Arc<dyn openrust::contracts::queue::Queue>,
+        callbacks: Arc<std::sync::atomic::AtomicUsize>,
+        observed: std::sync::Mutex<Vec<(&'static str, String, String)>>,
+        core_failures: std::sync::Mutex<Vec<String>>,
+    }
+    impl Listener for FailureProbe {
+        fn handle<'a>(
+            &'a self,
+            event: &'a dyn Event,
+            _: &'a mut EventContext<'_>,
+        ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+            Box::pin(async move {
+                if let Some(failed) = event.downcast_ref::<openrust::queue::events::JobFailed>() {
+                    self.core_failures
+                        .lock()
+                        .unwrap()
+                        .push(failed.connection_name.clone());
+                    return Ok(None);
+                }
+                if let Some(deleted) = event.downcast_ref::<JobDeleted>() {
+                    assert!(deleted.failed);
+                    self.observed.lock().unwrap().push((
+                        JobDeleted::NAME,
+                        deleted.job.id.clone(),
+                        String::new(),
+                    ));
+                    return Ok(None);
+                }
+                let Some(failed) = event.downcast_ref::<JobFailed>() else {
+                    return Ok(None);
+                };
+                assert_eq!(failed.connection_name, "redis");
+                let job = &failed.job;
+                assert_eq!(
+                    self.queue.metrics(Some(&job.queue)).await.unwrap().reserved,
+                    Some(0)
+                );
+                let details = self
+                    .repository
+                    .jobs()
+                    .find_failed(&job.id)
+                    .await
+                    .unwrap()
+                    .unwrap();
+                assert_eq!(details.payload_uuid().unwrap(), job.payload.uuid());
+                assert_eq!(details.record.attempts, job.attempts);
+                assert_eq!(
+                    details.exception.as_deref(),
+                    Some(failed.exception.as_str())
+                );
+                assert!(
+                    self.repository
+                        .tags()
+                        .jobs("failed:tracked")
+                        .await
+                        .unwrap()
+                        .contains(&job.id)
+                );
+                let persisted = self.store.find(job.payload.uuid()).await.unwrap();
+                match job.queue.as_str() {
+                    "manual" => assert!(persisted.is_none()),
+                    "worker" => {
+                        assert_eq!(self.callbacks.load(std::sync::atomic::Ordering::SeqCst), 1);
+                        assert_eq!(persisted.unwrap().exception, failed.exception);
+                    }
+                    "recovery" => assert_eq!(persisted.unwrap().exception, failed.exception),
+                    queue => panic!("unexpected failure on {queue}"),
+                }
+                self.observed.lock().unwrap().push((
+                    JobFailed::NAME,
+                    job.id.clone(),
+                    failed.exception.clone(),
+                ));
+                Err(EventError::InvalidPayload)
+            })
+        }
+    }
+
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(|base, env| {
+                let mut values = retry_config(base, env)?;
+                values.get_mut("queue").unwrap()["connections"]["sync"] = json!({"driver":"sync"});
+                values.get_mut("queue").unwrap()["connections"]["wrapper"] =
+                    json!({"driver":"failover","connections":["redis","sync"]});
+                Ok(values)
+            })
+            .with_providers(vec![Box::new(HorizonServiceProvider)])
+            .with_routing(Routing::default().api(transport_routes))
+    })
+    .unwrap();
+    app.boot().await.unwrap();
+    let database = app
+        .app()
+        .make::<openrust::database::DatabaseManager>()
+        .await
+        .unwrap()
+        .connection(None)
+        .unwrap();
+    database
+        .get_schema_builder()
+        .create("failed_jobs", |table| {
+            table.id();
+            table.string("uuid", None).unique();
+            table.text("connection");
+            table.text("queue");
+            table.long_text("payload");
+            table.long_text("exception");
+            table.timestamp("failed_at", 0);
+        })
+        .await
+        .unwrap();
+    let manager = app.app().make::<QueueManager>().await.unwrap();
+    let queue = manager.connection(Some("redis")).unwrap();
+    let repository = app.app().make::<Repository>().await.unwrap();
+    let store = app
+        .app()
+        .container()
+        .get::<dyn FailedJobProviderInterface>("queue.failer")
+        .unwrap();
+    let callbacks = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    manager
+        .register("failure-probe", Arc::new(FailureJob(callbacks.clone())))
+        .unwrap();
+    let probe = Arc::new(FailureProbe {
+        repository: repository.clone(),
+        store: store.clone(),
+        queue: queue.clone(),
+        callbacks,
+        observed: Default::default(),
+        core_failures: Default::default(),
+    });
+    let dispatcher = app.app().make::<Dispatcher>().await.unwrap();
+    for name in [
+        JobDeleted::NAME,
+        JobFailed::NAME,
+        openrust::queue::events::JobFailed::NAME,
+    ] {
+        dispatcher
+            .listen(name, probe.clone(), Delivery::Sync)
+            .unwrap();
+    }
+    let payload = || Payload::new("failure-probe", json!({})).unwrap();
+    let manual_id = queue
+        .push(&payload(), Some("manual"))
+        .await
+        .unwrap()
+        .unwrap();
+    let mut manual = queue.pop_now(Some("manual")).await.unwrap().unwrap();
+    manual.fail(None).await.unwrap();
+    manual.fail(None).await.unwrap();
+    assert!(manual.is_deleted() && manual.has_failed());
+    let worker_id = manager
+        .connection(Some("wrapper"))
+        .unwrap()
+        .push(&payload(), Some("worker"))
+        .await
+        .unwrap()
+        .unwrap();
+    app.artisan([
+        "horizon:work",
+        "wrapper",
+        "--queue=worker",
+        "--once",
+        "--tries=1",
+        "--force",
+        "--memory=1024",
+    ])
+    .await
+    .assert_successful();
+    let restored = payload();
+    let recovered_id = queue
+        .push(&restored, Some("recovery"))
+        .await
+        .unwrap()
+        .unwrap();
+    store
+        .log(&FailedJob {
+            id: restored.uuid().into(),
+            connection: "redis".into(),
+            queue: "recovery".into(),
+            payload: restored,
+            exception: "durable failure".into(),
+            failed_at: "2026-01-01 00:00:00".into(),
+        })
+        .await
+        .unwrap();
+    app.artisan([
+        "horizon:work",
+        "redis",
+        "--queue=recovery",
+        "--once",
+        "--tries=1",
+        "--force",
+        "--memory=1024",
+    ])
+    .await
+    .assert_successful();
+    queue
+        .push(&payload(), Some("stale"))
+        .await
+        .unwrap()
+        .unwrap();
+    let mut stale = queue.pop_now(Some("stale")).await.unwrap().unwrap();
+    queue.clearable().unwrap().clear("stale").await.unwrap();
+    assert!(stale.fail(None).await.is_err());
+    assert!(!stale.is_deleted() && !stale.has_failed());
+    assert!(
+        manager
+            .dispatch(
+                payload(),
+                DispatchOptions {
+                    connection: Some("sync".into()),
+                    ..Default::default()
+                },
+                None
+            )
+            .await
+            .is_err()
+    );
+    let observed = probe.observed.lock().unwrap();
+    assert_eq!(observed.len(), 6);
+    for (pair, id) in observed
+        .chunks_exact(2)
+        .zip([manual_id, worker_id, recovered_id])
+    {
+        assert_eq!((pair[0].0, pair[1].0), (JobDeleted::NAME, JobFailed::NAME));
+        assert_eq!((&pair[0].1, &pair[1].1), (&id, &id));
+    }
+    assert_eq!(observed[1].2, "任务被手动标记为失败。");
+    assert!(observed[3].2.contains("failure-probe"));
+    assert_eq!(observed[5].2, "durable failure");
+    assert_eq!(*probe.core_failures.lock().unwrap(), ["redis", "sync"]);
+}
+
 #[tokio::test]
 #[ignore = "requires dedicated Redis 8 acceptance wrapper"]
 async fn native_retries_keep_transport_ids_separate_from_the_failed_payload_uuid() {

@@ -618,6 +618,7 @@ impl Worker {
             }
             job.mark_as_failed();
             job.delete().await?;
+            job.observe_worker_failure(&failed.exception).await;
             self.release_unique_lock(job.payload()).await;
             return Ok(WorkResult::Failed);
         }
@@ -906,6 +907,7 @@ impl Worker {
                 // Keep terminal failure settlement out of the attempt future's stack frame.
                 let result = Box::pin(self.fail(manager, job, error, batch)).await;
                 if matches!(result, Ok(WorkResult::Failed)) && job.has_failed() {
+                    let exception = attempt_exception_message(error);
                     self.observe_job_event(
                         manager,
                         job,
@@ -913,10 +915,11 @@ impl Worker {
                         |connection_name, job| JobFailed {
                             connection_name,
                             job,
-                            exception: attempt_exception_message(error),
+                            exception: exception.clone(),
                         },
                     )
                     .await;
+                    job.observe_worker_failure(&exception).await;
                 }
                 result
             } else {
@@ -1093,7 +1096,7 @@ impl Worker {
         if let Some(batch) = batch {
             Box::pin(batch.record(&self.app, job.payload(), Some(&failed.exception), None)).await?;
         }
-        job.fail(Some(error)).await?;
+        job.settle_worker_failure(error).await?;
         let payload = job.payload();
         self.release_unique_lock(payload).await;
         if matches!(error, QueueError::MissingModel(_)) {

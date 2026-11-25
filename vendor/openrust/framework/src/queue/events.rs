@@ -196,6 +196,11 @@ queue_event!(
 );
 
 queue_event!(
+    /// 真实 Redis 保留任务已确认失败。
+    RedisJobFailed { connection_name: String, job: JobSnapshot, exception: String }
+);
+
+queue_event!(
     /// A worker reserved a job before executing it.
     JobPopped {
         connection_name: String,

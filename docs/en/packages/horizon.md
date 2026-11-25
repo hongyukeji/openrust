@@ -59,6 +59,8 @@ Register synchronous listeners for `JobPending::NAME`, `JobPushed::NAME`, and `J
 
 `JobsMigrated::NAME` runs after each Redis promotion batch and before the worker reserves a job. Each poll checks delayed jobs first, then expired reservations. Listeners receive the connection, queue, and job snapshots, including an empty list when a batch moves no jobs.
 
+`JobFailed::NAME` identifies a failed Redis delivery. It includes the connection, reservation snapshot, and exception text. For worker failures, Horizon publishes the event after confirmation and the failed job callback, when failed-job details and tags are available to listeners. A direct `Job::fail` also publishes after confirmation.
+
 Supervisor queue names follow the native Redis transport's 255-byte limit. Spaces, Unicode, and colons are retained. Supervisor queue lists use commas as separators. Names ending in `:delayed`, `:reserved`, or `:notify` are reserved by the transport.
 
 Long-wait alerts include the deployment name in the email subject, SMS body and Slack details. Pass an incoming webhook URL or a channel ID to `Horizon::route_slack_notifications_to`. A channel ID uses the Slack Bot API and requires `services.slack.notifications.bot_user_oauth_token`.

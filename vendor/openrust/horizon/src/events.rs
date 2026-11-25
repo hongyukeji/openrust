@@ -108,3 +108,21 @@ impl Event for JobDeleted {
         Self::NAME
     }
 }
+
+/// 已确认失败的 Redis 投递、保留态快照和完整异常文本。
+#[derive(Clone, Debug)]
+pub struct JobFailed {
+    pub connection_name: String,
+    pub job: JobSnapshot,
+    pub exception: String,
+}
+
+impl JobFailed {
+    pub const NAME: &str = "Horizon.JobFailed";
+}
+
+impl Event for JobFailed {
+    fn name(&self) -> &str {
+        Self::NAME
+    }
+}

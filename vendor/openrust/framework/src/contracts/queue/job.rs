@@ -21,6 +21,19 @@ pub trait Job: Send {
     }
     fn fire<'a>(&'a mut self, context: &'a mut JobContext<'_>) -> QueueFuture<'a, QueueResult<()>>;
     fn fail<'a>(&'a mut self, cause: Option<&'a QueueError>) -> QueueFuture<'a, QueueResult<()>>;
+    /// Worker 确认失败，运输层可将通知延迟到失败回调完成后。
+    #[doc(hidden)]
+    fn settle_worker_failure<'a>(
+        &'a mut self,
+        cause: &'a QueueError,
+    ) -> QueueFuture<'a, QueueResult<()>> {
+        self.fail(Some(cause))
+    }
+    /// Worker 完成失败回调后派发运输层观察事件。
+    #[doc(hidden)]
+    fn observe_worker_failure<'a>(&'a mut self, _exception: &'a str) -> QueueFuture<'a, ()> {
+        Box::pin(async {})
+    }
     fn release(&mut self, delay: Duration) -> QueueFuture<'_, QueueResult<()>>;
     /// Atomically acknowledges this reservation and enqueues its successor.
     fn advance_chain<'a>(&'a mut self, _next: &'a Payload) -> QueueFuture<'a, QueueResult<()>> {

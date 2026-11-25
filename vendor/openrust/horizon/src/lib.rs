@@ -23,7 +23,9 @@ pub use tags::{TagCallback, Tags};
 mod master_supervisor;
 
 pub use dashboard::{Dashboard, Horizon};
-pub use events::{JobDeleted, JobPending, JobPushed, JobReleased, JobReserved, JobsMigrated};
+pub use events::{
+    JobDeleted, JobFailed, JobPending, JobPushed, JobReleased, JobReserved, JobsMigrated,
+};
 pub use job_trim::{TrimFailedJobs, TrimMonitoredJobs, TrimRecentJobs};
 pub use master_supervisor::{
     ExpireSupervisors, MasterSupervisor, MasterSupervisorDeployed, MasterSupervisorLooped,

@@ -1,6 +1,6 @@
 use crate::{
-    Dashboard, Error, JobDeleted, JobPending, JobPushed, JobRecord, JobReleased, JobReserved,
-    JobsMigrated, Repository,
+    Dashboard, Error, JobDeleted, JobFailed, JobPending, JobPushed, JobRecord, JobReleased,
+    JobReserved, JobsMigrated, Repository,
 };
 use openrust::support::facades::Facade;
 use openrust::{
@@ -145,6 +145,7 @@ impl ServiceProvider for HorizonServiceProvider {
                 RedisJobsMigrated::NAME,
                 RedisJobReleased::NAME,
                 RedisJobDeleted::NAME,
+                RedisJobFailed::NAME,
                 JobPending::NAME,
                 JobPushed::NAME,
                 JobReserved::NAME,
@@ -243,6 +244,15 @@ impl Listener for JobListener {
                     job: event.job.clone(),
                     failed: event.failed,
                     duration: event.duration,
+                })
+                .await?;
+                return Ok(None);
+            }
+            if let Some(event) = event.downcast_ref::<RedisJobFailed>() {
+                EventFacade::dispatch(JobFailed {
+                    connection_name: event.connection_name.clone(),
+                    job: event.job.clone(),
+                    exception: event.exception.clone(),
                 })
                 .await?;
                 return Ok(None);

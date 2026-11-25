@@ -4,7 +4,9 @@ use crate::contracts::{events::Event, queue::Job};
 
 use super::super::{
     Delay, JobContext, JobOptions, Payload, Queue, QueueError, QueueFuture, QueueResult,
-    events::{JobSnapshot, RedisJobDeleted, RedisJobReleased},
+    events::{
+        JobSnapshot, RedisJobDeleted, RedisJobFailed, RedisJobReleased, attempt_exception_message,
+    },
 };
 
 pub(in crate::queue) trait Reservation: Send {
@@ -65,6 +67,27 @@ impl ReservedJob {
                 duration,
             },
         )
+        .await;
+    }
+
+    async fn settle_failure(&mut self) -> QueueResult<()> {
+        let was_failed = self.failed;
+        self.failed = true;
+        if let Err(error) = self.delete().await {
+            self.failed = was_failed;
+            return Err(error);
+        }
+        Ok(())
+    }
+
+    async fn observe_failure(&mut self, exception: &str) {
+        self.observe_redis_settlement(RedisJobFailed::NAME, |connection_name, job, _, _| {
+            RedisJobFailed {
+                connection_name,
+                job,
+                exception: exception.into(),
+            }
+        })
         .await;
     }
 }
@@ -140,16 +163,30 @@ impl Job for ReservedJob {
         })
     }
 
-    fn fail<'a>(&'a mut self, _cause: Option<&'a QueueError>) -> QueueFuture<'a, QueueResult<()>> {
+    fn fail<'a>(&'a mut self, cause: Option<&'a QueueError>) -> QueueFuture<'a, QueueResult<()>> {
         Box::pin(async move {
-            let was_failed = self.failed;
-            self.failed = true;
-            if let Err(error) = self.delete().await {
-                self.failed = was_failed;
-                return Err(error);
+            let unsettled = !self.deleted && !self.released;
+            self.settle_failure().await?;
+            if unsettled && self.storage.redis_reserved_at().is_some() {
+                let exception = cause.map_or_else(
+                    || "任务被手动标记为失败。".into(),
+                    attempt_exception_message,
+                );
+                self.observe_failure(&exception).await;
             }
             Ok(())
         })
+    }
+
+    fn settle_worker_failure<'a>(
+        &'a mut self,
+        _: &'a QueueError,
+    ) -> QueueFuture<'a, QueueResult<()>> {
+        Box::pin(self.settle_failure())
+    }
+
+    fn observe_worker_failure<'a>(&'a mut self, exception: &'a str) -> QueueFuture<'a, ()> {
+        Box::pin(self.observe_failure(exception))
     }
 
     fn release(&mut self, delay: Duration) -> QueueFuture<'_, QueueResult<()>> {
