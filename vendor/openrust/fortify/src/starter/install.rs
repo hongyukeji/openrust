@@ -64,6 +64,10 @@ pub(crate) fn register(app: &Application) -> ProviderResult {
                 include_bytes!("../../stubs/starter/views/home.blade.html"),
             ),
             (
+                "resources/views/user/api-tokens.blade.html",
+                include_bytes!("../../stubs/starter/views/api-tokens.blade.html"),
+            ),
+            (
                 "resources/views/user/sessions.blade.html",
                 include_bytes!("../../stubs/starter/views/sessions.blade.html"),
             ),

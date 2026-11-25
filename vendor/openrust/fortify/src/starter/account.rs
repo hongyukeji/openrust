@@ -131,175 +131,223 @@ where
     })
 }
 
-pub fn tokens<M>(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
-where
-    M: HasApiTokens + Clone,
-{
+pub fn tokens<M: HasApiTokens + Clone>(
+    request: &mut Request,
+) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        let user = user::<M>(request).await?;
-        let actor = actor(request, &user, Some("tokens:manage"))?;
-        let sanctum = App::make::<Sanctum>().await?;
-        let db = App::make::<DatabaseManager>().await?;
-        let tokens = user.tokens(&sanctum, &db)?.get().await?;
-        let data=tokens.into_iter().map(|token|json!({"id":token.id,"name":token.name,"abilities":token.abilities,"created_at":token.created_at,"last_used_at":token.last_used_at,"expires_at":token.expires_at,"current":actor.as_ref().is_some_and(|id|serde_json::to_value(id).ok()==serde_json::to_value(&token.id).ok())})).collect::<Vec<_>>();
         Ok(client::no_store(
-            ApiResponse::success(data).into_response()?,
+            ApiResponse::success(token_summaries::<M>(request, false).await?).into_response()?,
         ))
     })
 }
-
-pub fn create_token<M>(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
-where
-    M: HasApiTokens + TwoFactorAuthenticatable + Clone,
-{
-    Box::pin(async move {
-        Validator::make(
-            Data::from_request(request).await?,
-            RuleSet::parse([
-                ("device_name", "required|string|max:255"),
-                ("abilities", "sometimes|array|max:100"),
-            ])?,
-        )?
-        .validate()
-        .await?;
-        let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
-        let mut user = user::<M>(request).await?;
-        let actor = actor(request, &user, Some("tokens:manage"))?;
-        let name = request
-            .input("device_name")
-            .await?
-            .and_then(|value| value.as_str().map(str::to_owned))
-            .unwrap_or_default();
-        let requested = request.input("abilities").await?;
-        let mut chosen = client::abilities(&user, &fortify, requested.as_ref())?;
-        if requested.is_none()
-            && let Some(AccessToken::Personal(parent)) = user.current_access_token(request)
-        {
-            chosen.retain(|ability| parent.can(ability));
-            if chosen.is_empty() {
-                return Err(HttpError::MissingAbility(
-                    openrust::sanctum::MissingAbilityException::new(["tokens:manage"]),
-                ));
-            }
-        }
-        let proof = confirmation::claim(request, &user, Purpose::Tokens, &fortify).await?;
-        let sanctum = App::make::<Sanctum>().await?;
-        let database = App::make::<DatabaseManager>().await?;
-        let policy = fortify.clone();
-        let checked = chosen.clone();
-        let checked_sanctum = sanctum.clone();
-        let checked_database = database.clone();
-        let resource = UserResource::for_request(&user, request).await?;
-        let refs = chosen.iter().map(String::as_str).collect::<Vec<_>>();
-        let token = credentials::issue_checked(
-            &mut user,
-            &sanctum,
-            &database,
-            fortify.config.as_ref(),
-            Grant {
-                name: &name,
-                abilities: &refs,
-                expires_at: None,
-            },
-            move |locked, transaction| {
-                let proof = proof.clone();
-                let policy = policy.clone();
-                let checked = checked.clone();
-                let checked_sanctum = checked_sanctum.clone();
-                let checked_database = checked_database.clone();
-                let actor = actor.clone();
-                Box::pin(async move {
-                    proof
-                        .validate_in_transaction(locked, &policy, transaction)
-                        .await?;
-                    client::abilities(locked, &policy, Some(&json!(checked)))
-                        .map_err(openrust::auth::AuthError::from)?;
-                    check_actor(
-                        locked,
-                        transaction,
-                        &checked_sanctum,
-                        &checked_database,
-                        actor,
-                        Some("tokens:manage"),
-                        &checked,
-                    )
-                    .await?;
-                    proof
-                        .validate_in_transaction(locked, &policy, transaction)
-                        .await
-                })
-            },
-        )
-        .await?;
-        Ok(client::no_store(ApiResponse::success(json!({"token_type":"Bearer","token":token.plain_text_token.as_str(),"expires_at":token.access_token.expires_at,"user":resource})).with_status(StatusCode::CREATED).into_response()?))
-    })
+pub(super) async fn token_summaries<M: HasApiTokens + Clone>(
+    request: &mut Request,
+    browser: bool,
+) -> Result<serde_json::Value, HttpError> {
+    let user = user::<M>(request).await?;
+    let actor = if browser {
+        None
+    } else {
+        actor(request, &user, Some("tokens:manage"))?
+    };
+    let sanctum = App::make::<Sanctum>().await?;
+    let db = App::make::<DatabaseManager>().await?;
+    let tokens = user.tokens(&sanctum, &db)?.get().await?;
+    let data=tokens.into_iter().map(|token|json!({"id":token.id,"name":token.name,"abilities":token.abilities,"created_at":token.created_at,"last_used_at":token.last_used_at,"expires_at":token.expires_at,"current":actor.as_ref().is_some_and(|id|serde_json::to_value(id).ok()==serde_json::to_value(&token.id).ok())})).collect::<Vec<_>>();
+    Ok(json!(data))
 }
 
-pub fn revoke_token<M>(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
-where
-    M: HasApiTokens + TwoFactorAuthenticatable + Clone,
-{
+pub fn create_token<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
+    request: &mut Request,
+) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
-        let mut user = user::<M>(request).await?;
-        let actor = actor(request, &user, Some("tokens:manage"))?;
-        let id = request
-            .route("token")
-            .ok_or(HttpError::NotFound)?
-            .to_owned();
-        let proof = confirmation::claim(request, &user, Purpose::Tokens, &fortify).await?;
-        let sanctum = App::make::<Sanctum>().await?;
-        let database = App::make::<DatabaseManager>().await?;
-        credentials::with_locked(&mut user, move |locked, transaction| {
+        Ok(client::no_store(
+            ApiResponse::success(issue_token::<M>(request, false).await?)
+                .with_status(StatusCode::CREATED)
+                .into_response()?,
+        ))
+    })
+}
+/// 网页与API使用同一签发事务；浏览器身份仅由原生受保护路由传入。
+pub(super) async fn issue_token<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
+    request: &mut Request,
+    browser: bool,
+) -> Result<serde_json::Value, HttpError> {
+    Validator::make(
+        Data::from_request(request).await?,
+        RuleSet::parse([
+            ("device_name", "required|string|max:255"),
+            ("abilities", "sometimes|array|max:100"),
+        ])?,
+    )?
+    .validate()
+    .await?;
+    let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
+    let mut user = user::<M>(request).await?;
+    let actor = if browser {
+        None
+    } else {
+        actor(request, &user, Some("tokens:manage"))?
+    };
+    let name = request
+        .input("device_name")
+        .await?
+        .and_then(|value| value.as_str().map(str::to_owned))
+        .unwrap_or_default();
+    let requested = request.input("abilities").await?;
+    let requested = if browser {
+        Some(requested.unwrap_or_else(|| json!([])))
+    } else {
+        requested
+    };
+    let mut chosen = client::abilities(&user, &fortify, requested.as_ref())?;
+    if requested.is_none()
+        && let Some(AccessToken::Personal(parent)) = user.current_access_token(request)
+    {
+        chosen.retain(|ability| parent.can(ability));
+        if chosen.is_empty() {
+            return Err(HttpError::MissingAbility(
+                openrust::sanctum::MissingAbilityException::new(["tokens:manage"]),
+            ));
+        }
+    }
+    let proof = if browser {
+        confirmation::claim_session(request, &user, &fortify)?
+    } else {
+        confirmation::claim(request, &user, Purpose::Tokens, &fortify).await?
+    };
+    let sanctum = App::make::<Sanctum>().await?;
+    let database = App::make::<DatabaseManager>().await?;
+    let policy = fortify.clone();
+    let checked = chosen.clone();
+    let checked_sanctum = sanctum.clone();
+    let checked_database = database.clone();
+    let resource = UserResource::for_request(&user, request).await?;
+    let refs = chosen.iter().map(String::as_str).collect::<Vec<_>>();
+    let token = credentials::issue_checked(
+        &mut user,
+        &sanctum,
+        &database,
+        fortify.config.as_ref(),
+        Grant {
+            name: &name,
+            abilities: &refs,
+            expires_at: None,
+        },
+        move |locked, transaction| {
+            let proof = proof.clone();
+            let policy = policy.clone();
+            let checked = checked.clone();
+            let checked_sanctum = checked_sanctum.clone();
+            let checked_database = checked_database.clone();
+            let actor = actor.clone();
             Box::pin(async move {
                 proof
-                    .validate_in_transaction(locked, &fortify, transaction)
+                    .validate_in_transaction(locked, &policy, transaction)
                     .await?;
+                client::abilities(locked, &policy, Some(&json!(checked)))
+                    .map_err(openrust::auth::AuthError::from)?;
                 check_actor(
                     locked,
                     transaction,
-                    &sanctum,
-                    &database,
+                    &checked_sanctum,
+                    &checked_database,
                     actor,
                     Some("tokens:manage"),
-                    &[],
+                    &checked,
                 )
                 .await?;
-                let store = sanctum.personal_access_tokens(&database, "")?;
-                if store
-                    .find_owned_in_transaction(
-                        transaction,
-                        locked.get_morph_class()?,
-                        owner_id(locked)?,
-                        AuthIdentifier::String(id.clone()),
-                    )
-                    .await?
-                    .is_none()
-                {
-                    return Err(HttpError::NotFound.into());
-                }
                 proof
-                    .validate_in_transaction(locked, &fortify, transaction)
-                    .await?;
-                if !store
-                    .revoke_token_in_transaction(
-                        transaction,
-                        locked.get_morph_class()?,
-                        owner_id(locked)?,
-                        AuthIdentifier::String(id),
-                    )
-                    .await?
-                {
-                    return Err(HttpError::NotFound.into());
-                }
-                proof
-                    .validate_in_transaction(locked, &fortify, transaction)
+                    .validate_in_transaction(locked, &policy, transaction)
                     .await
             })
-        })
-        .await?;
+        },
+    )
+    .await?;
+    Ok(
+        json!({"token_type":"Bearer","token":token.plain_text_token.as_str(),"expires_at":token.access_token.expires_at,"user":resource}),
+    )
+}
+
+pub fn revoke_token<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
+    request: &mut Request,
+) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        revoke_token_for::<M>(request, false).await?;
         Ok(client::no_store(Response::empty(StatusCode::NO_CONTENT)))
     })
+}
+pub(super) async fn revoke_token_for<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
+    request: &mut Request,
+    browser: bool,
+) -> Result<(), HttpError> {
+    let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
+    let mut user = user::<M>(request).await?;
+    let actor = if browser {
+        None
+    } else {
+        actor(request, &user, Some("tokens:manage"))?
+    };
+    let id = request
+        .route("token")
+        .ok_or(HttpError::NotFound)?
+        .to_owned();
+    let proof = if browser {
+        confirmation::claim_session(request, &user, &fortify)?
+    } else {
+        confirmation::claim(request, &user, Purpose::Tokens, &fortify).await?
+    };
+    let sanctum = App::make::<Sanctum>().await?;
+    let database = App::make::<DatabaseManager>().await?;
+    credentials::with_locked(&mut user, move |locked, transaction| {
+        Box::pin(async move {
+            proof
+                .validate_in_transaction(locked, &fortify, transaction)
+                .await?;
+            check_actor(
+                locked,
+                transaction,
+                &sanctum,
+                &database,
+                actor,
+                Some("tokens:manage"),
+                &[],
+            )
+            .await?;
+            let store = sanctum.personal_access_tokens(&database, "")?;
+            if store
+                .find_owned_in_transaction(
+                    transaction,
+                    locked.get_morph_class()?,
+                    owner_id(locked)?,
+                    AuthIdentifier::String(id.clone()),
+                )
+                .await?
+                .is_none()
+            {
+                return Err(HttpError::NotFound.into());
+            }
+            proof
+                .validate_in_transaction(locked, &fortify, transaction)
+                .await?;
+            if !store
+                .revoke_token_in_transaction(
+                    transaction,
+                    locked.get_morph_class()?,
+                    owner_id(locked)?,
+                    AuthIdentifier::String(id),
+                )
+                .await?
+            {
+                return Err(HttpError::NotFound.into());
+            }
+            proof
+                .validate_in_transaction(locked, &fortify, transaction)
+                .await
+        })
+    })
+    .await?;
+    Ok(())
 }
 
 /// 近期重新认证后撤销全部旧凭据；持久化版本覆盖全部节点与会话存储。

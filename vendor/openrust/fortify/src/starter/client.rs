@@ -112,6 +112,20 @@ pub(super) fn abilities<M: Authenticatable>(
     fortify: &Fortify,
     requested: Option<&serde_json::Value>,
 ) -> Result<Vec<String>, HttpError> {
+    abilities_with_policy(user, fortify, requested, false)
+}
+pub(super) fn available_abilities<M: Authenticatable>(
+    user: &M,
+    fortify: &Fortify,
+) -> Result<Vec<String>, HttpError> {
+    abilities_with_policy(user, fortify, None, true)
+}
+fn abilities_with_policy<M: Authenticatable>(
+    user: &M,
+    fortify: &Fortify,
+    requested: Option<&serde_json::Value>,
+    allow_empty: bool,
+) -> Result<Vec<String>, HttpError> {
     let whitelist = fortify
         .config
         .get("user.token_abilities")
@@ -161,7 +175,7 @@ pub(super) fn abilities<M: Authenticatable>(
             .collect::<Result<Vec<_>, _>>()?,
         Some(_) => return Err(failed("abilities", "validation.in")),
     };
-    if values.is_empty()
+    if (!allow_empty && values.is_empty())
         || values.iter().any(|value| {
             !list.iter().any(|allowed| allowed.as_str() == Some(value)) || !permitted(value)
         })
@@ -561,6 +575,7 @@ where
     super::bind_password_tokens::<M>(app)?;
     super::web::register::<M>(app)?;
     super::StarterKitServiceProvider.load_routes_from(app, super::device_web::routes::<M>)?;
+    super::StarterKitServiceProvider.load_routes_from(app, super::token_web::routes::<M>)?;
     super::StarterKitServiceProvider
         .commands(app, crate::console::prune_auth_challenges::register::<M>);
     super::StarterKitServiceProvider.load_routes_from(app, routes::<M>)

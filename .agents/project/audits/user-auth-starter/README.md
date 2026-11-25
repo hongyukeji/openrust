@@ -457,3 +457,20 @@ full预设新增/user/sessions及原生DELETE表单、近期确认／本地化�
 设备新功能没有冒充Laravel核心内置端点；属于已确认套件扩展。APP_KEY轮换的本单元跨节点运行尚未专项重跑（既有Session解密证据仅复用），自定义Provider／主键及安装全面矩阵继续由S10收口；头像、注销、个人令牌网页和可选因素仍待后续单元。真实外部供应商／物理设备／生产TLS仍独立发布验收。源码清单／SHA、最终兼容回归、空间清理结果另见browser-devices-files.json、browser-devices-final-source-sha.json、browser-devices-core-final.log及browser-devices-delivery-space.json；保留记录、源码、数据库和可复用Cargo缓存，不推送。
 
 最终兼容补充：browser-devices-core-final.log中的无Sanctum套件12项实际通过；其后追加的核心目标在编译阶段触32GB守卫中断，不能算本次追加回归通过。复用未再次修改的核心源码在browser-devices-ninth.log中的路由组1项、原生会话8项、会话设备2项，以及sixth.log的组排除证据；后续工作遵循守卫清理结果。最终文档新增迁移发布名称说明为事实修正，36组页面证据对应此前相同章节结构。
+
+## A01-03／04 个人令牌网页
+
+沿计划已引用的Jetstream API管理边界（https://jetstream.laravel.com/features/api.html ，本轮重新核对5.x官方概念页）补齐full预设/user/api-tokens及本人账户导航，不引入Livewire／前端依赖。该页面为用户套件扩展，不宣称Laravel Framework内置相同路由；固定Fortify／Sanctum原生契约不改变。旧版没有可直接复用的同契约令牌网页，复用本仓已验收账户签发、哈希、期限、近期证明、Eloquent生命周期与撤销事务。
+
+account::tokens/create_token/revoke_token仍保留原公开API签名和返回，内部提取同一摘要／签发／撤销核心，网页仅通过私有浏览器模式选择原生web Guard及claim_session，不能以客户端参数切换身份校验。没有伪造TransientToken或解析HTTP正文绕行。事务继续核对本人模型、真实当前凭据、能力、证明和设备撤销点；Token API原有默认选择能力保持不变。网页要求显式勾选能力，空选择及越权失败；服务端白名单为空时隐藏新建表单，仍允许撤销已有令牌。
+
+GET页面仅含安全元数据。POST原生表单创建后201展示一次明文，不放闪存／Cookie／URL；nativeSession添加private后仍包含no-store，页面另有no-referrer。后续GET没有明文。DELETE通过标准表单方法覆盖并保留CSRF及近期确认，事务核对归属后302回页和三语状态。API-only不发布页面；三语模板、教程和安装资源同步。设备HTML测试的form_request抽为共同测试助手，仅复用原传输，不变其断言。
+
+实际证据target/tmp/user-starter：
+
+- token-web-third.log首先3项通过，随后新增空白名单用例。token-web-final-gates-second.log最终61项套件、13安装、6配置通过；workspace及Fortify+Sanctum两组严格Clippy、fmt通过。首次新测试缺Facade trait导入已修正，失败不计通过。
+- token-web-matrix-build.log独立MySQL8.4.13及PostgreSQL18.7原生database会话各4项通过，包括实际表单、一次性明文、不保存秘密、CSRF、跨用户、空／非法能力、空白名单撤销、API-only404。SQLite相同4项含在61项里。探针使用夹具明确发布的/api/token-me，原生web探针可能发送SessionCookie，不借用纯API无Cookie断言冒充；实际安装应用由后项验证真正/api/user。
+- token-web-runtime-second.log及token-web-app-browser.json：真实init full首次／重复安装、真实MySQL加密会话、三语桌面／移动六组Chrome。每组原生注册／密码确认／创建表单、显式能力、明文只显示一次、独立无Cookie请求上下文Bearer访问/api/user成功、原生表单撤销后独立Bearer401、当前浏览器保留。首轮验收将no-store错误限制为单值，未允许原生追加private，已仅修正断言为Cache-Control指令集合；运行时未放宽。
+- token-web-docs-final.log：三语站点构建及12组两挂载／桌面移动检查通过，token-management-page可见、正文与公开路径完整、无页面异常／横向溢出。
+
+本批仅闭合个人令牌网页的上述入口，不把整个A01-03／04计完成。无Sanctum实际HTTP在本批仅复用前单元12项及本批默认feature编译证据，最终S10组合仍须复核；头像、可恢复注销、可选因素及完整安装矩阵继续。生产账号／设备验收独立跟踪。显式清单／SHA及空间记录为token-web-files.json、token-web-final-source-sha.json、token-web-delivery-space.json；保留源码、证据、数据和正常复用缓存，未推送。

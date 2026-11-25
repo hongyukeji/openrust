@@ -1,0 +1,38 @@
+@extends('user.layout')
+@section('title', __('user.api_tokens'))
+@section('content')
+<p><a href="{{ route('user.profile') }}">{{ __('user.account') }}</a></p>
+@if($new_token)
+<section aria-label="{{ __('user.new_api_token') }}"><p>{{ __('user.token_once') }}</p>
+<code class="device-meta" id="new-token">{{ $new_token }}</code></section>
+@endif
+<p>{{ __('user.confirmation_required') }} <a href="{{ route('password.confirm') }}">{{ __('user.confirm_password') }}</a></p>
+@if($available_abilities)
+<form method="POST" action="{{ route('user.api-tokens.store') }}">
+@csrf
+<label for="device_name">{{ __('user.token_name') }}</label>
+<input id="device_name" name="device_name" value="{{ old('device_name') }}" maxlength="255" required>
+@error('device_name')<p class="error" role="alert">{{ $message }}</p>@enderror
+<fieldset><legend>{{ __('user.token_abilities') }}</legend>
+@foreach($available_abilities as $ability)
+<label><input type="checkbox" name="abilities[]" value="{{ $ability }}"> {{ $ability }}</label>
+@endforeach
+@error('abilities')<p class="error" role="alert">{{ $message }}</p>@enderror
+</fieldset>
+<button type="submit">{{ __('user.create_api_token') }}</button></form>
+@else
+<p>{{ __('user.tokens_creation_disabled') }}</p>
+@endif
+@forelse($tokens as $token)
+<fieldset class="device-meta"><legend>{{ $token['name'] }}</legend>
+<p>{{ __('user.token_created') }}: {{ $token['created_at'] ?? __('user.unknown_device') }}</p>
+<p>{{ __('user.last_active') }}: {{ $token['last_used_at'] ?? __('user.unknown_device') }}</p>
+<p>{{ __('user.token_expires') }}: {{ $token['expires_at'] ?? __('user.unknown_device') }}</p>
+<ul>@foreach($token['abilities'] as $ability)<li>{{ $ability }}</li>@endforeach</ul>
+<form method="POST" action="{{ route('user.api-tokens.destroy', ['token' => $token['id']]) }}">
+@csrf
+@method('DELETE')<button type="submit">{{ __('user.revoke_api_token') }}</button></form></fieldset>
+@empty
+<p>{{ __('user.tokens_empty') }}</p>
+@endforelse
+@endsection

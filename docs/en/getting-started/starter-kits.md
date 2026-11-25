@@ -417,3 +417,15 @@ The kit attaches `TrackBrowserSessions<User>` to existing `web` and `api` groups
 ```
 
 This removes records whose session expiry is older than the selected retention, including revoked records; `--hours=0` removes already expired records immediately. It is idempotent and does not remove active records, users, PATs or external session data. Schedule it using the normal scheduler; expiry and revocation take effect before cleanup.
+
+## API token management page {#token-management-page}
+
+The full preset provides `GET /user/api-tokens`, linked from the account page. It uses the native web Guard, Session and CSRF middleware; a browser does not need to create a PAT to manage PATs. The API-only preset omits this page and keeps the [token APIs](#account-tokens).
+
+Confirm your password through the page link, enter a token name and explicitly select allowed abilities. `POST /user/api-tokens` issues a token using the same locked credential transaction and configured 30-day policy as the API. Unchecked abilities are not silently granted; selecting none or a server-disallowed ability fails validation. The configured unverified-email restrictions also apply.
+
+The resulting page displays the plain-text token once. Copy it immediately and store it securely. A later GET only shows safe metadata; the token is not placed in flash data, the URL or a Cookie. Responses use `Cache-Control: no-store` and the page uses `Referrer-Policy: no-referrer`. Do not put screenshots or page contents containing a fresh token in logs. The database stores only its native Sanctum hash.
+
+Each token has a revoke form targeting `DELETE /user/api-tokens/{token}` through the standard method override. It requires the same recent confirmation and CSRF protection, verifies ownership under the user lock, then redirects with a localized status. Revocation does not log out the current browser. Applications may customize the published `resources/views/user/api-tokens.blade.html` without replacing the underlying authentication contract.
+
+An empty server ability whitelist disables new token creation on the page while leaving existing-token revocation available.

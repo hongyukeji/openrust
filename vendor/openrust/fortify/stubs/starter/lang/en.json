@@ -42,5 +42,17 @@
   "revoke_session": "Sign out this session",
   "revoke_other_sessions": "Sign out other browsers",
   "sessions_empty": "No browser sessions.",
-  "sessions_updated": "Browser sessions updated."
+  "sessions_updated": "Browser sessions updated.",
+  "api_tokens": "API tokens",
+  "new_api_token": "New API token",
+  "token_once": "Copy this token now. It will not be shown again.",
+  "token_name": "Token name",
+  "token_abilities": "Abilities",
+  "create_api_token": "Create token",
+  "token_created": "Created",
+  "token_expires": "Expires",
+  "revoke_api_token": "Revoke token",
+  "tokens_empty": "No API tokens.",
+  "token_revoked": "API token revoked.",
+  "tokens_creation_disabled": "No token abilities are available. You can still revoke existing tokens."
 }

@@ -42,5 +42,17 @@
   "revoke_session": "退出此设备",
   "revoke_other_sessions": "退出其他浏览器",
   "sessions_empty": "暂无浏览器设备。",
-  "sessions_updated": "浏览器设备已更新。"
+  "sessions_updated": "浏览器设备已更新。",
+  "api_tokens": "API 令牌",
+  "new_api_token": "新 API 令牌",
+  "token_once": "请立即复制令牌，关闭后不再展示明文。",
+  "token_name": "令牌名称",
+  "token_abilities": "能力",
+  "create_api_token": "创建令牌",
+  "token_created": "创建时间",
+  "token_expires": "到期时间",
+  "revoke_api_token": "撤销令牌",
+  "tokens_empty": "暂无 API 令牌。",
+  "token_revoked": "API 令牌已撤销。",
+  "tokens_creation_disabled": "当前没有可授予的令牌能力，仍可撤销已有令牌。"
 }

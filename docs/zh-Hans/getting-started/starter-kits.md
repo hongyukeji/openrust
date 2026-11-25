@@ -417,3 +417,15 @@ curl -X DELETE "$APP_URL/api/user/sessions/<opaque-device-id>"   -H "Authorizati
 ```
 
 命令按会话过期时间加保留期清理索引，包括已撤销记录；`--hours=0` 立即清理已经过期的记录。可重复执行，不删除活动记录、用户、PAT 或外部会话数据。通过原生调度器定期运行；过期及撤销不等待清理才生效。
+
+## API 令牌管理页面 {#token-management-page}
+
+完整预设提供 `GET /user/api-tokens`，本人账户页面含跳转入口。页面使用原生 web Guard、Session 和 CSRF 中间件，浏览器不必先创建 PAT 才能管理 PAT。仅 API 预设不发布此页面，仍提供[令牌接口](#account-tokens)。
+
+先通过页面链接确认密码，再填写令牌名称并显式勾选能力。`POST /user/api-tokens` 复用 API 的凭据锁事务及可配置的30天期限。未勾选的能力不会被暗中授予；未选能力或提交服务端白名单之外的能力时验证失败，未验证邮箱的能力限制同样生效。
+
+创建结果页只展示一次令牌明文，请立即复制并妥善保存。后续 GET 只展示安全摘要；明文不进入闪存、URL 或 Cookie。响应设置 `Cache-Control: no-store`，页面设置 `Referrer-Policy: no-referrer`。不要将含新令牌的截图或页面内容写入日志；数据库仍只保存原生 Sanctum 哈希。
+
+每个令牌含撤销表单，通过标准方法覆盖请求 `DELETE /user/api-tokens/{token}`。撤销同样要求近期确认及 CSRF，在用户锁内核对本人归属后重定向并显示本地化状态，不退出当前浏览器。应用可修改发布的 `resources/views/user/api-tokens.blade.html`，不必替换底层认证契约。
+
+服务端能力白名单为空时，页面关闭新建令牌，仍保留已有令牌的撤销入口。

@@ -42,5 +42,17 @@
   "revoke_session": "登出此裝置",
   "revoke_other_sessions": "登出其他瀏覽器",
   "sessions_empty": "暫無瀏覽器裝置。",
-  "sessions_updated": "瀏覽器裝置已更新。"
+  "sessions_updated": "瀏覽器裝置已更新。",
+  "api_tokens": "API 權杖",
+  "new_api_token": "新 API 權杖",
+  "token_once": "請立即複製權杖，關閉後不再展示明文。",
+  "token_name": "權杖名稱",
+  "token_abilities": "能力",
+  "create_api_token": "建立權杖",
+  "token_created": "建立時間",
+  "token_expires": "到期時間",
+  "revoke_api_token": "撤銷權杖",
+  "tokens_empty": "暫無 API 權杖。",
+  "token_revoked": "API 權杖已撤銷。",
+  "tokens_creation_disabled": "目前沒有可授予的權杖能力，仍可撤銷已有權杖。"
 }

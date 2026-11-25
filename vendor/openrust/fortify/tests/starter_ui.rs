@@ -218,6 +218,7 @@ async fn start_custom_resource(
         "layout.blade.html",
         "home.blade.html",
         "sessions.blade.html",
+        "api-tokens.blade.html",
         "auth/login.blade.html",
         "auth/mail-login.blade.html",
         "auth/register.blade.html",
@@ -5218,3 +5219,20 @@ async fn verification_mail_policy_is_scoped_to_the_user_type_and_application() {
 #[cfg(feature = "sanctum")]
 #[path = "starter_ui/browser_devices.rs"]
 mod browser_devices;
+
+#[cfg(feature = "sanctum")]
+#[path = "starter_ui/token_web.rs"]
+mod token_web;
+
+#[cfg(feature = "sanctum")]
+async fn form_request(client: &mut Client, path: &str, body: &str) -> (u16, String, String) {
+    tokio::time::timeout(std::time::Duration::from_secs(10),async {
+        let mut socket=TcpStream::connect(client.address).await.unwrap();
+        let cookies=client.cookies.iter().map(|(k,v)|format!("{k}={v}")).collect::<Vec<_>>().join("; ");
+        let wire=format!("POST {path} HTTP/1.1\r\nHost: {}\r\nAccept: text/html\r\nContent-Type: application/x-www-form-urlencoded\r\nX-CSRF-TOKEN: {}\r\nCookie: {cookies}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",client.address,client.csrf,body.len());
+        socket.write_all(wire.as_bytes()).await.unwrap();let mut wire=String::new();socket.read_to_string(&mut wire).await.unwrap();
+        let (headers,body)=wire.split_once("\r\n\r\n").unwrap();let status=headers.split_whitespace().nth(1).unwrap().parse().unwrap();
+        for line in headers.lines(){if let Some(cookie)=line.strip_prefix("set-cookie: "){let(name,value)=cookie.split(';').next().unwrap().split_once('=').unwrap();client.cookies.insert(name.into(),value.into());}}
+        (status,headers.into(),body.into())
+    }).await.unwrap()
+}

@@ -599,11 +599,13 @@ async fn browser_devices_html_forms_keep_csrf_recent_confirmation_redirects_and_
     assert!(!page.contains("user.browser_sessions"));
     let csrf = std::mem::take(&mut first.csrf);
     assert_eq!(
-        form(&mut first, "/user/sessions", "_method=DELETE").await.0,
+        form_request(&mut first, "/user/sessions", "_method=DELETE")
+            .await
+            .0,
         419
     );
     first.csrf = csrf;
-    let (status, headers, _) = form(&mut first, "/user/sessions", "_method=DELETE").await;
+    let (status, headers, _) = form_request(&mut first, "/user/sessions", "_method=DELETE").await;
     assert_eq!(status, 302);
     assert!(headers.contains("/user/confirm-password"));
     assert_eq!(
@@ -624,7 +626,8 @@ async fn browser_devices_html_forms_keep_csrf_recent_confirmation_redirects_and_
     assert_eq!(status, 302, "{body}");
     assert!(headers.to_ascii_lowercase().contains("location:"));
     assert_eq!(first.send("GET", "/user/sessions", "", false).await.0, 200);
-    let (status, headers, body) = form(&mut first, "/user/sessions", "_method=DELETE").await;
+    let (status, headers, body) =
+        form_request(&mut first, "/user/sessions", "_method=DELETE").await;
     assert_eq!(status, 302, "{body}");
     assert!(headers.contains("/user/sessions"));
     let (status, page) = first.send("GET", "/user/sessions", "", false).await;
@@ -639,18 +642,6 @@ async fn browser_devices_html_forms_keep_csrf_recent_confirmation_redirects_and_
         401
     );
     assert_eq!(sessions(&mut first).await.as_array().unwrap().len(), 1);
-}
-
-async fn form(client: &mut Client, path: &str, body: &str) -> (u16, String, String) {
-    tokio::time::timeout(std::time::Duration::from_secs(10),async {
-        let mut socket=TcpStream::connect(client.address).await.unwrap();
-        let cookies=client.cookies.iter().map(|(k,v)|format!("{k}={v}")).collect::<Vec<_>>().join("; ");
-        let wire=format!("POST {path} HTTP/1.1\r\nHost: {}\r\nAccept: text/html\r\nContent-Type: application/x-www-form-urlencoded\r\nX-CSRF-TOKEN: {}\r\nCookie: {cookies}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",client.address,client.csrf,body.len());
-        socket.write_all(wire.as_bytes()).await.unwrap();let mut wire=String::new();socket.read_to_string(&mut wire).await.unwrap();
-        let (headers,body)=wire.split_once("\r\n\r\n").unwrap();let status=headers.split_whitespace().nth(1).unwrap().parse().unwrap();
-        for line in headers.lines(){if let Some(cookie)=line.strip_prefix("set-cookie: "){let(name,value)=cookie.split(';').next().unwrap().split_once('=').unwrap();client.cookies.insert(name.into(),value.into());}}
-        (status,headers.into(),body.into())
-    }).await.unwrap()
 }
 
 #[tokio::test]

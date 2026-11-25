@@ -146,6 +146,7 @@ fn account(
             [
                 ("user".into(), user.into()),
                 ("can_manage_devices".into(), can_manage_devices.into()),
+                ("can_manage_tokens".into(), cfg!(feature = "sanctum").into()),
                 (
                     "can_update_profile".into(),
                     features

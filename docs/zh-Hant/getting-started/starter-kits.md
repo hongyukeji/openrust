@@ -417,3 +417,15 @@ curl -X DELETE "$APP_URL/api/user/sessions/<opaque-device-id>"   -H "Authorizati
 ```
 
 命令依工作階段過期時間加保留期清理索引，包括已撤銷紀錄；`--hours=0` 立即清理已經過期的紀錄。可重複執行，不刪除活動紀錄、使用者、PAT 或外部工作階段資料。透過原生排程器定期執行；過期與撤銷不等待清理才生效。
+
+## API 權杖管理頁面 {#token-management-page}
+
+完整預設提供 `GET /user/api-tokens`，本人帳戶頁面含跳轉入口。頁面使用原生 web Guard、Session 和 CSRF 中介軟體，瀏覽器不必先建立 PAT 才能管理 PAT。僅 API 預設不發布此頁面，仍提供[權杖介面](#account-tokens)。
+
+先透過頁面連結確認密碼，再填寫權杖名稱並明確勾選能力。`POST /user/api-tokens` 複用 API 的憑據鎖交易及可設定的30天期限。未勾選的能力不會被暗中授予；未選能力或提交伺服器白名單之外的能力時驗證失敗，未驗證信箱的能力限制同樣生效。
+
+建立結果頁只展示一次權杖明文，請立即複製並妥善保存。後續 GET 只展示安全摘要；明文不進入閃存、URL 或 Cookie。回應設定 `Cache-Control: no-store`，頁面設定 `Referrer-Policy: no-referrer`。不要將含新權杖的截圖或頁面內容寫入日誌；資料庫仍只保存原生 Sanctum 雜湊。
+
+每個權杖含撤銷表單，透過標準方法覆寫請求 `DELETE /user/api-tokens/{token}`。撤銷同樣要求近期確認及 CSRF，在使用者鎖內核對本人歸屬後重新導向並顯示本地化狀態，不登出目前瀏覽器。應用可修改發布的 `resources/views/user/api-tokens.blade.html`，不必替換底層認證契約。
+
+伺服器能力白名單為空時，頁面關閉新建權杖，仍保留已有權杖的撤銷入口。
