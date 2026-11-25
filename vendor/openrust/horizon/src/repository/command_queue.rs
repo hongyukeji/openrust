@@ -24,7 +24,7 @@ impl Repository {
     }
 }
 
-const TAKE: &str =
+pub(super) const TAKE: &str =
     "local commands=redis.call('LRANGE',KEYS[1],0,-1); redis.call('DEL',KEYS[1]); return commands";
 
 impl RedisHorizonCommandQueue {
@@ -124,7 +124,7 @@ impl RedisHorizonCommandQueue {
         Ok(self.0.command_queue_key(name))
     }
 
-    fn decode(entries: Value) -> Result<Vec<QueuedCommand>> {
+    pub(super) fn decode(entries: Value) -> Result<Vec<QueuedCommand>> {
         let Value::Array(entries) = entries else {
             return Err(Error::Redis);
         };

@@ -173,15 +173,14 @@ impl Command for SupervisorCommand {
                 .cloned()
                 .unwrap_or_else(CancellationToken::new);
             let signals = signals().map_err(error)?;
-            let run = supervisor.run(&shutdown);
+            let run = supervisor.run_with_status(&shutdown);
             tokio::pin!(run);
             let result = tokio::select! { result=&mut run=>result, ()=signals=>{shutdown.cancel();run.await} };
             if matches!(result, Err(crate::Error::MemoryLimitExceeded)) {
                 output.error("Supervisor memory limit exceeded.");
                 return Ok(12);
             }
-            result.map_err(error)?;
-            Ok(0)
+            result.map_err(error)
         })
     }
 }

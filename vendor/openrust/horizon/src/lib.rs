@@ -18,6 +18,7 @@ mod repository;
 mod signals;
 mod silenced;
 mod supervisor;
+pub mod supervisor_commands;
 mod tags;
 pub use notifications::{
     LongWaitDetected, LongWaitDetectedNotification, LongWaitNotificationFactory, MonitorWaitTimes,

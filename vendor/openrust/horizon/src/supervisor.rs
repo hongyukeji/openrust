@@ -1,5 +1,6 @@
 use crate::{
     AutoScaler, Error, Repository, Result, SupervisorOptions, repository::MasterOwnership,
+    supervisor_commands::Command,
 };
 use openrust::{
     contracts::events::Event,
@@ -218,9 +219,13 @@ impl Supervisor {
         self.initially_paused = paused;
         self
     }
-    pub async fn run(mut self, shutdown: &CancellationToken) -> Result<()> {
+    pub async fn run(self, shutdown: &CancellationToken) -> Result<()> {
+        self.run_with_status(shutdown).await.map(|_| ())
+    }
+
+    pub async fn run_with_status(mut self, shutdown: &CancellationToken) -> Result<i32> {
         self.repository
-            .check_master_ownership(self.ownership.as_ref())
+            .flush_structured_supervisor_commands(&self.id, self.ownership.as_ref())
             .await?;
         if self.initially_paused && !self.repository.paused().await? {
             self.set_paused(true).await?;
@@ -248,8 +253,8 @@ impl Supervisor {
         let result = loop {
             tokio::select! {
                 biased;
-                closed = &mut parent_closed => break closed.map_err(|_| Error::Process),
-                _=shutdown.cancelled()=>break Ok(()),
+                closed = &mut parent_closed => break closed.map(|()| 0).map_err(|_| Error::Process),
+                _=shutdown.cancelled()=>break Ok(0),
                 paused=control.next()=>{
                     if let Err(error) = self.set_paused(paused).await {
                         break Err(error);
@@ -259,8 +264,8 @@ impl Supervisor {
                 _=ticker.tick()=>{},
             }
             match self.tick(&generation).await {
-                Ok(true) => {}
-                Ok(false) => break Ok(()),
+                Ok(None) => {}
+                Ok(Some(status)) => break Ok(status),
                 Err(error) => break Err(error),
             }
         };
@@ -269,46 +274,49 @@ impl Supervisor {
             .repository
             .forget_supervisor_for_master(&self.id, self.ownership.as_ref())
             .await;
-        result.and(cleanup).and(forget)
+        result.and_then(|status| cleanup.and(forget).map(|()| status))
     }
     async fn set_paused(&self, paused: bool) -> Result<()> {
         self.repository
             .set_supervisor_paused(&self.id, paused, self.ownership.as_ref())
             .await
     }
-    async fn tick(&mut self, generation: &Option<String>) -> Result<bool> {
+    async fn tick(&mut self, generation: &Option<String>) -> Result<Option<i32>> {
         if &self.repository.generation().await? != generation {
-            return Ok(false);
+            return Ok(Some(0));
         }
         #[cfg(unix)]
         if self.parent > 1
             && rustix::process::getppid().is_none_or(|pid| pid.as_raw_pid() as u32 != self.parent)
         {
-            return Ok(false);
+            return Ok(Some(0));
         }
         for command in self
             .repository
             .take_supervisor_commands(&self.id, self.ownership.as_ref())
             .await?
         {
-            match command.as_str() {
-                "terminate" => return Ok(false),
-                "pause" => self.set_paused(true).await?,
-                "continue" => self.set_paused(false).await?,
-                "restart" => {
-                    let option = self
-                        .options
-                        .values()
-                        .next()
-                        .cloned()
-                        .ok_or(Error::InvalidConfiguration)?;
-                    for queue in option.pools() {
-                        let count = self.pools[&queue].active_process_count();
-                        self.resize(&queue, &option, 0).await?;
-                        self.resize(&queue, &option, count).await?;
+            if let Some(status) = self.apply_command(Command::legacy(&command)?).await? {
+                return Ok(Some(status));
+            }
+        }
+        for command in self
+            .repository
+            .take_structured_supervisor_commands(&self.id, self.ownership.as_ref())
+            .await?
+        {
+            match Command::queued(command) {
+                Ok(command) => {
+                    if let Some(status) = self.apply_command(command).await? {
+                        return Ok(Some(status));
                     }
                 }
-                _ => return Err(Error::InvalidRecord),
+                Err(error) => {
+                    let _ = openrust::support::facades::Log::warning(
+                        &format!("Horizon Supervisor 命令未执行: {error}"),
+                        &Default::default(),
+                    );
+                }
             }
         }
         let paused = self
@@ -467,7 +475,69 @@ impl Supervisor {
         if event.memory_check.exceeded() {
             return Err(Error::MemoryLimitExceeded);
         }
-        Ok(true)
+        Ok(None)
+    }
+
+    async fn apply_command(&mut self, command: Command) -> Result<Option<i32>> {
+        match command {
+            Command::Pause => self.set_paused(true).await?,
+            Command::Continue => self.set_paused(false).await?,
+            Command::Terminate(status) => return Ok(Some(status)),
+            Command::Restart => {
+                self.set_paused(false).await?;
+                let option = self
+                    .options
+                    .values()
+                    .next()
+                    .cloned()
+                    .ok_or(Error::InvalidConfiguration)?;
+                for queue in option.pools() {
+                    let count = self.pools[&queue].active_process_count();
+                    self.resize(&queue, &option, 0).await?;
+                    self.resize(&queue, &option, count).await?;
+                }
+            }
+            Command::Balance(targets) => self.balance(targets).await?,
+            Command::Scale(processes) => {
+                let count = self.pools.len();
+                let option = self
+                    .options
+                    .values_mut()
+                    .next()
+                    .ok_or(Error::InvalidConfiguration)?;
+                option.max_processes = option.max_processes.max(processes).max(count);
+                let targets = option
+                    .pools()
+                    .into_iter()
+                    .map(|queue| (queue, processes / count))
+                    .collect();
+                self.balance(targets).await?;
+            }
+        }
+        Ok(None)
+    }
+
+    async fn balance(&mut self, targets: Vec<(String, usize)>) -> Result<()> {
+        let (name, options) = self
+            .options
+            .iter()
+            .next()
+            .map(|(name, options)| (name.clone(), options.clone()))
+            .ok_or(Error::InvalidConfiguration)?;
+        for (queue, count) in targets {
+            if self.pools.contains_key(&queue) {
+                self.resize(&queue, &options, count).await?;
+            }
+        }
+        self.targets.insert(
+            name,
+            options
+                .pools()
+                .iter()
+                .map(|queue| self.pools[queue].active_process_count())
+                .collect(),
+        );
+        Ok(())
     }
     async fn scale_pool(
         &mut self,

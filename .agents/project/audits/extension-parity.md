@@ -133,6 +133,8 @@ Horizon 增加 Master 命令队列和动态 `AddSupervisor` 消费。真实 Redi
 
 默认 Artisan 部署与公开 `ProvisioningPlan::deploy` 共用结构化队列及 `AddSupervisor` 消费。保留首个通配环境的选择、递归默认值、停用项过滤和空部署事件契约。 [ProvisioningPlan 审计](horizon/README.md#provisioningplan-与默认部署)
 
+Supervisor 的结构化命令已接入同一 Redis 队列服务，覆盖暂停、继续、重启、整组扩缩容、分池调整与带状态码的排空终止。 [Supervisor 命令审计](horizon/README.md#supervisor-结构化命令)
+
 ### Horizon 分组等待时间与 HTTP 排序
 
 固定上游 [RedisWorkloadRepository::get](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Repositories/RedisWorkloadRepository.php) 与 [WaitTimeCalculator::calculateTimeToClear](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/WaitTimeCalculator.php) 分别确定各分队列先取整再累加、整组以原始总量独立取整的行为。[WorkloadController::index](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Http/Controllers/WorkloadController.php) 对 HTTP 结果按名称排序，仓储按等待时间降序供监控消费。Rust 已补齐两处规则。

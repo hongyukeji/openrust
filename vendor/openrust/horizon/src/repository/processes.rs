@@ -58,7 +58,7 @@ impl Repository {
             return Err(Error::InvalidRecord);
         }
         match self.supervisor_operation(
-            "redis.call('DEL',KEYS[1],KEYS[3],KEYS[4]);redis.call('ZREM',KEYS[2],ARGV[1]);return 1",
+            "redis.call('DEL',KEYS[1],KEYS[3],KEYS[4],KEYS[5]);redis.call('ZREM',KEYS[2],ARGV[1]);return 1",
             self.supervisor_keys(name).to_vec(), vec![name.into()], ownership,
         ).await {
             Ok(_) | Err(Error::MasterOwnershipLost) => Ok(()),
@@ -96,14 +96,46 @@ impl Repository {
         }
         Ok(())
     }
-    fn supervisor_keys(&self, name: &str) -> [String; 4] {
-        let name = super::encode(name);
+    fn supervisor_keys(&self, name: &str) -> [String; 5] {
+        let encoded = super::encode(name);
         [
-            self.key(&format!("supervisor:{name}")),
+            self.key(&format!("supervisor:{encoded}")),
             self.key("supervisors"),
-            self.key(&format!("supervisor-paused:{name}")),
-            self.key(&format!("commands:{name}")),
+            self.key(&format!("supervisor-paused:{encoded}")),
+            self.key(&format!("commands:{encoded}")),
+            self.command_queue_key(name),
         ]
+    }
+
+    pub(crate) async fn flush_structured_supervisor_commands(
+        &self,
+        name: &str,
+        ownership: Option<&MasterOwnership>,
+    ) -> Result<()> {
+        self.supervisor_operation(
+            "return redis.call('DEL',KEYS[1])",
+            vec![self.command_queue_key(name)],
+            vec![],
+            ownership,
+        )
+        .await?;
+        Ok(())
+    }
+
+    pub(crate) async fn take_structured_supervisor_commands(
+        &self,
+        name: &str,
+        ownership: Option<&MasterOwnership>,
+    ) -> Result<Vec<super::QueuedCommand>> {
+        let entries = self
+            .supervisor_operation(
+                super::command_queue::TAKE,
+                vec![self.command_queue_key(name)],
+                vec![],
+                ownership,
+            )
+            .await?;
+        super::RedisHorizonCommandQueue::decode(entries)
     }
     pub async fn supervisors(&self) -> Result<Vec<Json>> {
         self.supervisor_repository().all().await

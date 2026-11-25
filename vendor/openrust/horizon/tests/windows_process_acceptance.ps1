@@ -53,6 +53,20 @@ function Recorded($File, $Job) {
     return (Test-Path $path) -and (@(Get-Content $path) -contains $Job)
 }
 
+function Supervisor-Command($Name, $Command, $Options) {
+    $env:HORIZON_PROBE_COMMAND_QUEUE = @{
+        action = 'push'; name = $Name
+        command = 'Laravel\Horizon\SupervisorCommands\' + $Command
+        options = $Options
+    } | ConvertTo-Json -Depth 4 -Compress
+    try {
+        & $Binary
+        if ($LASTEXITCODE -ne 0) { throw "Could not enqueue Supervisor command $Command." }
+    } finally {
+        Remove-Item Env:HORIZON_PROBE_COMMAND_QUEUE
+    }
+}
+
 foreach ($mode in @('idle', 'wait', 'fast', 'parent-exit')) {
     $fixture = Join-Path $TempRoot "horizon-$mode-$([guid]::NewGuid().ToString('N'))"
     New-Item -ItemType Directory $fixture | Out-Null
@@ -84,7 +98,10 @@ foreach ($mode in @('idle', 'wait', 'fast', 'parent-exit')) {
             if ($empty.supervisors.Count -ne 0) { throw 'A command survived the startup flush.' }
             $env:HORIZON_PROBE_COMMAND_QUEUE = @{
                 action = 'push'; name = $empty.name; master = $true
-                options = @{ name = $empty.name + ':supervisor-1'; queue = @('default'); maxProcesses = 1 }
+                options = @{
+                    name = $empty.name + ':supervisor-1'; queue = @('default')
+                    maxProcesses = 1; balanceCooldown = 120
+                }
             } | ConvertTo-Json -Depth 4 -Compress
             try {
                 & $Binary
@@ -113,6 +130,25 @@ foreach ($mode in @('idle', 'wait', 'fast', 'parent-exit')) {
         if ($mode -eq 'idle') {
             $dynamic = Dispatch 20
             Wait-For 'job on the dynamically added Worker' { Recorded 'completed.log' $dynamic } | Out-Null
+
+            Supervisor-Command $name Pause @()
+            Wait-For 'structured pause' { ((Artisan horizon:supervisor-status $name) -join "`n") -match 'is paused' } | Out-Null
+            Supervisor-Command $name ContinueWorking @()
+            Wait-For 'structured continue' { ((Artisan horizon:supervisor-status $name) -join "`n") -match 'is running' } | Out-Null
+            Supervisor-Command $name Restart @()
+            Wait-For 'structured Worker restart' { @((Status).workers | Where-Object { !$_.terminating -and $_.pid -ne $worker.Id }).Count -eq 1 } | Out-Null
+            Supervisor-Command $name Scale @{scale = 2}
+            Wait-For 'structured scale' { @((Status).workers | Where-Object { !$_.terminating }).Count -eq 2 } | Out-Null
+            Supervisor-Command $name Balance @{default = 1; unknown = 5}
+            $balancedWorker = Wait-For 'structured balance' {
+                $running = @((Status).workers | Where-Object { !$_.terminating })
+                if ($running.Count -eq 1) { $running[0] }
+            }
+            $worker = Get-Process -Id $balancedWorker.pid
+            $null = $worker.Handle
+            Supervisor-Command $name Terminate @()
+            if (!$supervisor.WaitForExit(15000) -or $supervisor.ExitCode -ne 0) { throw 'Structured Terminate did not exit with status 0.' }
+            'PASS: Windows native structured Supervisor commands'
         }
 
         if ($mode -eq 'wait') {

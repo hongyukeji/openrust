@@ -141,9 +141,9 @@ if redis.call('EXISTS', KEYS[1]) == 1 then return 0 end
 if (redis.call('GET', KEYS[2]) or '') ~= ARGV[2] then return 2 end
 redis.call('DEL', KEYS[2], KEYS[4])
 redis.call('ZREM', KEYS[3], ARGV[1])
-for index = 6, #KEYS, 4 do
-    redis.call('DEL', KEYS[index], KEYS[index+2], KEYS[index+3])
-    redis.call('ZREM', KEYS[index+1], ARGV[3+(index-6)/4])
+for index = 6, #KEYS, 5 do
+    redis.call('DEL', KEYS[index], KEYS[index+2], KEYS[index+3], KEYS[index+4])
+    redis.call('ZREM', KEYS[index+1], ARGV[3+(index-6)/5])
 end
 return 1
 "#,

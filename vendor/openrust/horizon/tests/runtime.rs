@@ -373,14 +373,25 @@ async fn same_named_master_cannot_overwrite_an_owner_or_remove_its_replacement()
     let repository = app.app().make::<Repository>().await.unwrap();
     let name = MasterSupervisor::process_name().unwrap();
     let masters = repository.master_supervisors();
-    let supervisor = format!("{name}:legacy");
-    repository
-        .heartbeat_supervisor(&supervisor, &json!({"pid":1}))
-        .await
-        .unwrap();
-    repository.pause_supervisor(&supervisor).await.unwrap();
-    repository.push_command(&supervisor, "pause").await.unwrap();
-    let legacy = json!({"name":name,"status":"running","pid":1,"supervisors":[supervisor]});
+    let supervisors = [format!("{name}:legacy"), format!("{name}:second")];
+    let queue = repository.command_queue();
+    for supervisor in &supervisors {
+        repository
+            .heartbeat_supervisor(supervisor, &json!({"pid":1}))
+            .await
+            .unwrap();
+        repository.pause_supervisor(supervisor).await.unwrap();
+        repository.push_command(supervisor, "pause").await.unwrap();
+        queue
+            .push(
+                supervisor,
+                openrust_horizon::supervisor_commands::PAUSE,
+                json!([]),
+            )
+            .await
+            .unwrap();
+    }
+    let legacy = json!({"name":name,"status":"running","pid":1,"supervisors":supervisors});
     masters.update(&name, &legacy).await.unwrap();
     let artisan = app.artisan(["horizon"]).await;
     artisan.assert_successful();
@@ -391,17 +402,26 @@ async fn same_named_master_cannot_overwrite_an_owner_or_remove_its_replacement()
                 .contains("A master supervisor is already running on this machine.")
     );
     assert_eq!(masters.find(&name).await.unwrap(), Some(legacy));
-    assert!(repository.supervisor(&supervisor).await.unwrap().is_some());
-    masters.forget(&name).await.unwrap();
-    assert!(repository.supervisor(&supervisor).await.unwrap().is_none());
-    assert!(!repository.supervisor_paused(&supervisor).await.unwrap());
     assert!(
         repository
-            .pop_commands(&supervisor)
+            .supervisor(&supervisors[0])
             .await
             .unwrap()
-            .is_empty()
+            .is_some()
     );
+    masters.forget(&name).await.unwrap();
+    for supervisor in &supervisors {
+        assert!(repository.supervisor(supervisor).await.unwrap().is_none());
+        assert!(!repository.supervisor_paused(supervisor).await.unwrap());
+        assert!(
+            repository
+                .pop_commands(supervisor)
+                .await
+                .unwrap()
+                .is_empty()
+        );
+        assert!(queue.pending(supervisor).await.unwrap().is_empty());
+    }
     app.get("/api/claim").await.unwrap().assert_ok();
 }
 
