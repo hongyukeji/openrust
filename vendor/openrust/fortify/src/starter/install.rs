@@ -144,6 +144,42 @@ pub(crate) fn register(app: &Application) -> ProviderResult {
         ("database/migrations/0001_01_01_000024_create_user_resource_cleanups_table.rs", include_bytes!("../../stubs/starter/migrations/resource-cleanups.rs")),
         ("database/migrations/0001_01_01_000025_add_profile_photo_to_users_table.rs", include_bytes!("../../stubs/starter/migrations/profile-photo.rs")),
     ], "user-kit-migrations")?;
+    provider.publishes(
+        app,
+        &[(
+            "app/actions/fortify/create_user_from_provider.rs",
+            include_bytes!("../../stubs/starter/create_user_from_provider.rs"),
+        )],
+        "user-kit-socialite-support",
+    )?;
+    provider.publishes(
+        app,
+        &[
+            (
+                "resources/views/user/connected-accounts.blade.html",
+                include_bytes!("../../stubs/starter/views/connected-accounts.blade.html"),
+            ),
+            (
+                "resources/views/user/connected-account-confirm.blade.html",
+                include_bytes!("../../stubs/starter/views/connected-account-confirm.blade.html"),
+            ),
+        ],
+        "user-kit-socialite-views",
+    )?;
+    provider.publishes_migrations(
+        app,
+        &[
+            (
+                "database/migrations/0001_01_01_000026_create_user_social_identities_table.rs",
+                include_bytes!("../../stubs/starter/migrations/social-identities.rs"),
+            ),
+            (
+                "database/migrations/0001_01_01_000027_allow_provider_accounts_without_password.rs",
+                include_bytes!("../../stubs/starter/migrations/provider-password.rs"),
+            ),
+        ],
+        "user-kit-socialite-migrations",
+    )?;
     // 使用已有路径发布器；应用自定义lang路径和旧resources/lang兼容遵循同一入口。
     for locale in ["en", "zh-Hans", "zh-Hant"] {
         let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -230,10 +266,17 @@ fn initialize<'a>(
             let without_resource = without_binding.replacen(resource, "", 1);
             let oldest = without_resource.replacen(addition, "", 1);
             let without_client = without_binding.replacen(addition, "", 1);
+            let socialite = r#"            #[cfg(feature = "socialite")]
+            openrust_fortify::starter::socialite::create_users_using(
+                app,
+                std::sync::Arc::new(crate::app::actions::fortify::create_user_from_provider::CreateUserFromProvider),
+            )?;
+"#;
+            let before_socialite = template.replacen(socialite, "", 1);
             if edit(template).is_ok() {
                 None
             } else {
-                let updated=[without_deletion,without_mail,without_binding,without_resource,oldest,without_client].iter().find_map(|expected|edit(expected).ok())
+                let updated=[before_socialite,without_deletion,without_mail,without_binding,without_resource,oldest,without_client].iter().find_map(|expected|edit(expected).ok())
                     .ok_or_else(||ConsoleError::new("用户套件Provider已自定义，请手动接入configure_mail_queue、bind_password_tokens和用户资源；不会覆盖业务代码"))?;
                 Some((previous.clone(), updated))
             }
@@ -445,6 +488,19 @@ fn initialize<'a>(
                 .publish("user-kit-passkeys-client", options.force, output)
                 .await?;
         }
+        installation
+            .publish("user-kit-socialite-support", options.force, output)
+            .await?;
+        if options.extensions.iter().any(|name| name == "socialite") {
+            installation
+                .publish("user-kit-socialite-migrations", false, output)
+                .await?;
+            if full {
+                installation
+                    .publish("user-kit-socialite-views", options.force, output)
+                    .await?;
+            }
+        }
         if full {
             installation
                 .publish("user-kit-web-views", options.force, output)
@@ -528,7 +584,7 @@ fn initialize<'a>(
 
 /*
  * 用户套件Hook可能先于Fortify资源发布；缺失时采用正式Action模块模板。
- * Fortify强制发布后再次调用，保持注销模块接线，不改变普通Fortify骨架。
+ * Fortify强制发布后再次调用，保持注销及已发布第三方创建动作的模块接线，不改变普通Fortify骨架。
  */
 pub(crate) fn wire_deletion_module(root: &std::path::Path) -> Result<(), ConsoleError> {
     if !root.join("config/user.rs").is_file()
@@ -556,5 +612,18 @@ pub(crate) fn wire_deletion_module(root: &std::path::Path) -> Result<(), Console
         std::fs::write(&path, &previous)
             .map_err(|error| ConsoleError::new(format!("无法建立Action模块：{error}")))?;
     }
-    replace(&path, &previous, &updated)
+    replace(&path, &previous, &updated)?;
+    if root
+        .join("app/actions/fortify/create_user_from_provider.rs")
+        .is_file()
+    {
+        let previous = read(&path)?;
+        let updated = openrust::foundation::console::source_edit::declare_module(
+            &previous,
+            "create_user_from_provider",
+            Some("socialite"),
+        )?;
+        replace(&path, &previous, &updated)?;
+    }
+    Ok(())
 }

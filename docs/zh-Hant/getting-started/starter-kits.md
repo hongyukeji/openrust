@@ -2,7 +2,7 @@
 
 ## 支援狀態 {#support-status}
 
-明確選取的使用者套件安裝原生 Fortify Action、安全資源、Blade 認證及 Cookie／權杖 API。下文說明已提供的操作；已提供帳戶註銷介面，可選因素管理頁面尚未提供。不產生 React、Vue 或 Livewire 前端。
+明確選取的使用者套件安裝原生 Fortify Action、安全資源、Blade 認證及 Cookie／權杖 API。下文說明已提供的操作；已提供帳戶註銷及啟用後的雙因素、通行密鑰和關聯帳戶頁面。不產生 React、Vue 或 Livewire 前端。
 
 ## 可用入口 {#available-entry-points}
 
@@ -620,3 +620,72 @@ export async function removePasskey(token, id) {
 伺服器保留起始階段選定的裝置名稱與請求能力，簽發時依目前策略再驗證，提交結果時不能擴大權限。挑戰依設定的儀式逾時到期，上限五分鐘；註冊階段也不能超過起始近期證明的期限。`user.limiters.passkeys` 可選擇具名限流器，套件預設每分鐘十次並使用獨立鍵前綴，明確指定空字串或 `false` 關閉該限流器。 自訂 API 限流器也必須支援沒有瀏覽器 Session 的請求；原生 `fortify.limiters.passkeys` 策略仍用於網頁儀式。
 
 應用程式可在一般 `lang/<語言>.json` 覆寫原生錯誤原句，編譯內建的英文、簡體中文、繁體中文只補缺少的鍵。實體裝置、生物辨識、雲端同步、正式 HTTPS 與真實身分供應商須另外完成部署驗收。
+
+## 第三方帳戶 {#user-socialite}
+
+使用 `./artisan init --starter-kit=full --extensions=api,fortify,socialite` 安裝可選接線；僅權杖用戶端將 `full` 改成 `api`，不產生帳戶管理頁面。在應用 Cargo 預設特性中保留 `fortify`、`sanctum`、`socialite` 和既有特性。套件安裝時接通自己的 Socialite 特性轉送；單獨啟用 Socialite 不會安裝使用者套件。
+
+編輯產生的 `config/user.rs` 分組：
+
+```rust
+"socialite": {
+    "providers": ["google", "github"],
+    "api_redirects": ["https://frontend.example.com/auth/return"],
+},
+```
+
+`providers` 留空即關閉這些路由和按鈕。憑證繼續使用現有 `services.google`、`services.github` 配置：`GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`、`GOOGLE_REDIRECT_URI` 及對應的 `GITHUB_*` 變數。向供應商登記精確回呼位址，預設路徑為 `/auth/google/callback`、`/auth/github/callback`；瀏覽器握手路由也遵循 `fortify.prefix`、`fortify.domain`。API 路徑獨立跟隨 `API_PREFIX`。
+
+完整預設在登入頁增加供應商按鈕，並提供 `/user/connected-accounts` 關聯帳戶頁面。綁定要求近期確認，供應商回呼先顯示身分預覽，只有明確 POST 確認才建立關聯，取消不會綁定。OAuth state 與 PKCE 仍由原生 Socialite 處理，不因電子郵件相同自動合併帳戶。預設建立動作要求 Google 或 GitHub 提供已驗證電子郵件，建立沒有本機密碼的帳戶，不保存供應商存取／更新權杖，也不下載遠端頭像。電子郵件已有本機帳戶時，必須先登入該帳戶再明確綁定。
+
+透過 `app/actions/fortify/create_user_from_provider.rs` 調整本機欄位或建立策略，也可綁定 `dyn openrust_fortify::starter::socialite::CreatesUsersFromProvider`。必須使用傳入的使用者交易，回傳選定且已儲存的模型。其他原生 OAuth2 驅動需要應用自行提供可信電子郵件／建立策略並驗收，不包含在 Google／GitHub 的接線驗收聲明中。
+
+第三方登入繼續要求已啟用的 TOTP／復原碼階段。解除綁定會使綁定該身分的待完成登入失效，重新綁定產生新版本；不會撤銷所有已簽發的工作階段和權杖，相關操作使用既有裝置／權杖管理。無密碼帳戶不能移除最後已啟用的主要登入方式，TOTP、復原碼和既有 PAT 不算主因素。在確認頁點選「登出並透過電子郵件找回密碼」，先登出目前 Cookie 工作階段，再進入原生密碼復原表單。真正完成郵件重設後才建立本機密碼並使舊憑證失效，不將供應商的靜默 SSO 工作階段當成近期密碼證明。
+
+權杖用戶端須配置精確的前端回跳白名單。支援 HTTPS universal/app links，一般 HTTP 僅用於回環開發位址；拒絕私有 URI scheme、配置位址中的 fragment、使用者憑證和控制字元。回呼只把不透明的一次性 code 放入 URL fragment；用戶端自行保管 S256 verifier，回呼既不簽發 PAT，也不自動綁定目前登入帳戶。
+
+以下函式用於權杖用戶端的前端來源。第一方 stateful SPA 仍須遵循 Sanctum 的 Cookie／CSRF 規則；`prefix` 與安裝後的 API 前綴一致：
+
+```javascript
+
+const prefix = '/api';
+async function post(path, body, token) {
+    const response = await fetch(prefix + path, {
+        method: 'POST', credentials: 'omit',
+        headers: {Accept: 'application/json', 'Content-Type': 'application/json',
+            ...(token ? {Authorization: `Bearer ${token}`} : {})},
+        body: JSON.stringify(body),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.message);
+    return result;
+}
+const base64url = bytes => btoa(String.fromCharCode(...bytes))
+    .replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
+export async function beginProvider(provider, redirectUri, deviceName) {
+    const verifier = base64url(crypto.getRandomValues(new Uint8Array(32)));
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
+    const result = await post(`/auth/providers/${encodeURIComponent(provider)}`, {
+        redirect_uri: redirectUri, device_name: deviceName,
+        code_challenge: base64url(new Uint8Array(digest)),
+    });
+    sessionStorage.setItem('provider_verifier', verifier);
+    location.assign(result.data.url);
+}
+export async function completeProvider() {
+    const code = new URLSearchParams(location.hash.slice(1)).get('code');
+    const verifier = sessionStorage.getItem('provider_verifier');
+    history.replaceState(null, '', location.pathname + location.search);
+    try {
+        return await post('/auth/providers/exchange', {code, code_verifier: verifier});
+    } finally {
+        sessionStorage.removeItem('provider_verifier');
+    }
+}
+```
+
+交換成功回傳201，包含 `data.token`、`token_type`、`expires_at` 和安全使用者資源。啟用二次驗證時回傳200及 `code=auth_challenge_required`，須先完成 `/api/auth/token/challenge` 才能取得權杖。失敗、過期或已消費的交換須重新發起；最長五分鐘的期限不會被瀏覽器回呼或預覽延長。未知供應商、帳戶憑證變更或已撤銷綁定不能完成舊流程。
+
+API 綁定先取得 `factors` 證明，再向 `/api/user/connected-accounts/{provider}` POST 該證明、`code_challenge` 和白名單內的 `redirect_uri`，在瀏覽器開啟回傳的握手 URL。使用同一 PAT 將 code／verifier POST 到 `/api/user/connected-accounts/exchange`，取得身分預覽及新的 `challenge`；明確將 `{challenge, confirm: true}` POST 到 `/api/user/connected-accounts/confirm` 才綁定，`false` 為拒絕。確認保留初始證明期限，重新核對發起權杖、帳戶及用於確認的通行密鑰，不要求再次輸入密碼。GET `/api/user/connected-accounts` 讀取啟用的供應商和關聯狀態；DELETE `/api/user/connected-accounts/{provider}` 需要 `account:update` 及新的 `factors` 證明，列表需要 `account:read`。
+
+可選遷移先建立身分表，再允許選定密碼欄為空。仍有無密碼使用者時拒絕回滾，保留身分記錄及遷移帳本。既有可空、預設值、產生欄或自訂約束須手動合併；預設遷移僅修改支援的 SQLite／MySQL／MariaDB／PostgreSQL 密碼欄，其他方言在改欄前明確失敗。解除本機關聯不會刪除遠端供應商帳戶。

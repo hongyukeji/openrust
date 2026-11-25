@@ -119,6 +119,7 @@ impl<M: HasApiTokens + TwoFactorAuthenticatable + Clone> passkeys::contracts::Pa
                     proof
                         .validate_in_transaction(user, &fortify, transaction)
                         .await?;
+                    ensure_other_primary(user, transaction, &record, &fortify).await?;
                     passkeys::actions::DeletePasskey
                         .call_in_transaction(user, transaction, &record)
                         .await?;
@@ -352,4 +353,41 @@ fn page<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
             .await?,
         ))
     })
+}
+
+/// 无本地密码账户不能撤销最后可登录主因素；调用方已持有共同用户写锁。
+async fn ensure_other_primary<M: HasApiTokens + TwoFactorAuthenticatable>(
+    user: &M,
+    transaction: &mut openrust::database::Transaction,
+    record: &PasskeyRecord,
+    fortify: &Fortify,
+) -> openrust::auth::AuthResult<()> {
+    if user
+        .get_auth_password()
+        .is_some_and(|password| !password.is_empty())
+    {
+        return Ok(());
+    }
+    let service = Resolver::<Passkeys>::get_facade_root()
+        .map_err(|e| openrust::auth::AuthError::Backend(Box::new(e)))?;
+    let removing = record
+        .get_key()
+        .await
+        .ok_or(openrust::auth::AuthError::InvalidIdentity)?;
+    for other in service.for_user_in_transaction(user, transaction).await? {
+        let other_key = other
+            .get_key()
+            .await
+            .ok_or(openrust::auth::AuthError::InvalidIdentity)?;
+        if other_key != removing {
+            return Ok(());
+        }
+    }
+    #[cfg(feature = "socialite")]
+    if super::socialite::has_enabled_identity(user, transaction, fortify).await? {
+        return Ok(());
+    }
+    #[cfg(not(feature = "socialite"))]
+    let _ = fortify;
+    Err(super::client::failed("passkey", "user.last_primary_required").into())
 }

@@ -55,6 +55,7 @@ impl Middleware for BodyCredentials {
                         "challenge",
                         "proof",
                         "code",
+                        "code_verifier",
                         "recovery_code",
                         "credential",
                         "access_token",

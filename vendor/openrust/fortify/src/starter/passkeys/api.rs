@@ -9,16 +9,16 @@ use crate::{
         challenges::{ChallengeStore, Pending},
         client,
         confirmation::{self, Purpose},
-        credentials, devices,
+        credentials,
     },
 };
 use openrust::{
     auth::{AuthError, AuthIdentifier, AuthResult},
-    contracts::{session::Session as _, validation::Validator as _},
-    database::{DatabaseManager, Transaction},
+    contracts::validation::Validator as _,
+    database::Transaction,
     http::{ApiResponse, HttpError, HttpFuture, Request, Response, StatusCode},
-    sanctum::{HasApiTokens, Sanctum},
-    support::facades::{App, Date, Facade as _, Validator},
+    sanctum::HasApiTokens,
+    support::facades::{Date, Facade as _, Validator},
     validation::{Data, RuleSet},
 };
 use serde_json::{Value, json};
@@ -34,9 +34,6 @@ fn now_ms() -> Result<i64, HttpError> {
             .div_euclid(1_000_000),
     )
     .map_err(internal)
-}
-fn identity_equal(a: &AuthIdentifier, b: &AuthIdentifier) -> AuthResult<bool> {
-    Ok(serde_json::to_value(a)? == serde_json::to_value(b)?)
 }
 async fn credential(request: &mut Request) -> Result<Value, HttpError> {
     request
@@ -135,87 +132,7 @@ async fn consume<M: HasApiTokens>(
         .ok_or(HttpError::Unauthenticated)?;
     Ok(pending)
 }
-struct Actor {
-    id: Option<AuthIdentifier>,
-    client: String,
-    session: Option<String>,
-    sanctum: Arc<Sanctum>,
-    database: Arc<DatabaseManager>,
-}
-impl Actor {
-    async fn new<M: HasApiTokens>(
-        request: &mut Request,
-        user: &M,
-        fortify: &Fortify,
-        ability: Option<&str>,
-    ) -> Result<Self, HttpError> {
-        let id = account::actor(request, user, ability)?;
-        let (_, client) = confirmation::binding(request, user, fortify)?;
-        let session = if id.is_none() {
-            Some(request.session().map_err(internal)?.get_id().into())
-        } else {
-            None
-        };
-        Ok(Self {
-            id,
-            client,
-            session,
-            sanctum: App::make::<Sanctum>().await?,
-            database: App::make::<DatabaseManager>().await?,
-        })
-    }
-    async fn check<M: HasApiTokens>(
-        &self,
-        user: &M,
-        transaction: &mut Transaction,
-        ability: Option<&str>,
-    ) -> AuthResult<()> {
-        account::check_actor(
-            user,
-            transaction,
-            &self.sanctum,
-            &self.database,
-            self.id.clone(),
-            ability,
-            &[],
-        )
-        .await?;
-        if let Some(session) = &self.session
-            && let Some(policy) = devices::policy()?
-        {
-            policy
-                .check_in_transaction(user, transaction, session)
-                .await?;
-        }
-        Ok(())
-    }
-    fn validate<M: HasApiTokens + TwoFactorAuthenticatable>(
-        &self,
-        user: &M,
-        fortify: &Fortify,
-        pending: &Pending,
-    ) -> AuthResult<()> {
-        let tokens = match (&self.id, &pending.token) {
-            (None, None) => true,
-            (Some(a), Some(b)) => identity_equal(a, b)?,
-            _ => false,
-        };
-        if !tokens
-            || !identity_equal(&pending.user, &user.get_auth_identifier())?
-            || pending.owner != user.get_morph_class()?
-            || !client::same_binding(&pending.credential, &credentials::stamp(user)?)
-            || !client::same_binding(&pending.factor, &client::security(user, fortify)?)
-            || pending
-                .payload
-                .get("client")
-                .and_then(Value::as_str)
-                .is_none_or(|binding| !client::same_binding(binding, &self.client))
-        {
-            return Err(HttpError::Unauthenticated.into());
-        }
-        Ok(())
-    }
-}
+use super::super::account::Actor;
 
 pub(super) fn login_options<M: HasApiTokens>(
     request: &mut Request,
@@ -278,7 +195,7 @@ pub(super) fn login<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
         }
         request.merge(json!({"device_name":pending.payload["device_name"],"abilities":pending.payload["abilities"]})).await?;
         let proof = CredentialProof::from_record(&service, &record).await?;
-        client::complete_primary(request, &mut user, &fortify, Some(proof)).await
+        client::complete_primary(request, &mut user, &fortify, Some(proof.into()), None).await
     })
 }
 
@@ -457,6 +374,7 @@ pub(super) fn delete<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
                     .find_owned_in_transaction(user, transaction, key.into())
                     .await?
                     .ok_or(HttpError::NotFound)?;
+                super::ensure_other_primary(user, transaction, &record, &fortify).await?;
                 passkeys::actions::DeletePasskey
                     .call_in_transaction(user, transaction, &record)
                     .await?;

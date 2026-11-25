@@ -37,4 +37,7 @@ form.addEventListener('submit', async event => {
 });
 </script>
 @endif
+@foreach(config('user.socialite.providers', []) as $provider)
+<p><a href="{{ route('user.providers.redirect', ['provider' => $provider]) }}">{{ __('user.provider_login', ['provider' => $provider]) }}</a></p>
+@endforeach
 @endsection

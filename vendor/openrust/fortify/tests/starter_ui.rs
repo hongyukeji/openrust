@@ -45,6 +45,13 @@ mod app {
                     "/stubs/starter/delete_user.rs"
                 ));
             }
+            #[cfg(feature = "socialite")]
+            pub(crate) mod create_user_from_provider {
+                include!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/stubs/starter/create_user_from_provider.rs"
+                ));
+            }
             pub(crate) use crate::installed::*;
         }
     }
@@ -212,6 +219,9 @@ async fn start_custom_resource(
     if let Some(devices) = mail.as_ref().and_then(|mail| mail.get("__user_devices")) {
         settings["devices"] = devices.clone();
     }
+    if let Some(socialite) = mail.as_ref().and_then(|m| m.get("__user_socialite")) {
+        settings["socialite"] = socialite.clone();
+    }
     std::fs::write(root.0.join("user-config.json"), settings.to_string()).unwrap();
     if let Some(mut mail) = mail {
         mail.as_object_mut().unwrap().remove("__user_queue");
@@ -226,9 +236,13 @@ async fn start_custom_resource(
             full_configuration
         })
         .with_providers(vec![
+            #[cfg(feature = "socialite")]
+            Box::new(openrust_socialite::SocialiteServiceProvider),
             Box::new(user_provider::UserServiceProvider),
             Box::new(openrust_fortify::FortifyServiceProvider),
             Box::new(installed_provider::FortifyServiceProvider),
+            #[cfg(feature = "socialite")]
+            Box::new(socialite::FixtureProvider),
         ])
         .with_routing(openrust::foundation::configuration::Routing::default().web(fixture_routes))
         .with_middleware(|_middleware| {
@@ -243,6 +257,8 @@ async fn start_custom_resource(
         "home.blade.html",
         "two-factor.blade.html",
         "passkeys.blade.html",
+        "connected-accounts.blade.html",
+        "connected-account-confirm.blade.html",
         "deleted.blade.html",
         "sessions.blade.html",
         "api-tokens.blade.html",
@@ -326,7 +342,7 @@ async fn start_custom_resource(
             table.string("name", None);
             table.string("email", None).unique();
             table.timestamp("email_verified_at", 0).nullable();
-            let column = table.string("password", None);
+            let column = table.string("password", None).comment("密码哈希");
             if passkeys {
                 column.nullable();
             }
@@ -5321,3 +5337,7 @@ mod passkey_api;
 #[cfg(feature = "sanctum")]
 #[path = "../../passkeys/tests/support/authenticator.rs"]
 mod passkey_authenticator;
+
+#[cfg(feature = "socialite")]
+#[path = "starter_ui/socialite.rs"]
+mod socialite;

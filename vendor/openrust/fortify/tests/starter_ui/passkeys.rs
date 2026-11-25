@@ -234,6 +234,33 @@ async fn passwordless_user_confirms_with_passkey_and_safely_establishes_a_passwo
         .0,
         200
     );
+    let key = App::set_facade_application(Some(server._kernel.get_application()), async {
+        let user = app::models::User::query()
+            .unwrap()
+            .first()
+            .await
+            .unwrap()
+            .unwrap();
+        let service = server
+            ._kernel
+            .get_application()
+            .make::<openrust_fortify::passkeys::Passkeys>()
+            .await
+            .unwrap();
+        openrust::auth::AuthIdentifier::try_from(
+            &service.for_user(&user).await.unwrap()[0]
+                .get_key()
+                .await
+                .unwrap(),
+        )
+        .unwrap()
+        .to_string()
+    })
+    .await;
+    let denied = browser
+        .send("DELETE", &format!("/user/passkeys/{key}"), "{}", true)
+        .await;
+    assert_eq!(denied.0, 422, "{}", denied.1);
     let update=browser.send("PUT","/user/password",r#"{"password":"new-local-password-123","password_confirmation":"new-local-password-123"}"#,true).await;
     assert_eq!(update.0, 200, "{}", update.1);
     let home = browser.send("GET", "/home", "", false).await;

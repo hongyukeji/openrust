@@ -63,6 +63,17 @@ pub async fn configure(app: &Application) -> ProviderResult {
             boolean(config.as_ref(), "user.passkeys", false)?,
         ),
     ];
+    #[cfg(feature = "sanctum")]
+    {
+        let providers = super::socialite::configured(config.as_ref())?;
+        if !providers.is_empty() && !cfg!(feature = "socialite") {
+            return Err(invalid(
+                "user.socialite.providers",
+                "先启用用户套件的socialite编译特性",
+            )
+            .into());
+        }
+    }
     let days = config
         .get("user.token_expiration_days")
         .unwrap_or(json!(30));

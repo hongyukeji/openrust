@@ -64,18 +64,56 @@ pub(super) fn record<'a, M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
             .downcast_ref::<M>()
             .ok_or(HttpError::Unauthenticated)?;
         let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
-        let passkey = request.parts().extensions.get::<CredentialProof>().cloned();
+        let evidence = request
+            .parts()
+            .extensions
+            .get::<super::primary::Evidence>()
+            .cloned()
+            .or_else(|| {
+                request
+                    .parts()
+                    .extensions
+                    .get::<CredentialProof>()
+                    .cloned()
+                    .map(Into::into)
+            });
+        let mut payload = json!({"cookie":true,"cookie_client":super::confirmation::session_binding(request,&fortify)?,"remember":request.session().map_err(internal)?.get("login.remember").cloned().unwrap_or(false.into()),"passkey":null});
+        if let Some(proof) = &evidence {
+            proof.write(&mut payload)?;
+        }
         let pending = Pending {
             user: user.get_auth_identifier(),
             owner: user.get_morph_class()?.into(),
-            purpose: "login".into(),
+            purpose: evidence
+                .as_ref()
+                .map_or("login", super::primary::Evidence::purpose)
+                .into(),
             credential: credentials::stamp(user)?,
             factor: client::security(user, &fortify)?,
             token: None,
-            payload: json!({"cookie":true,"cookie_client":super::confirmation::session_binding(request,&fortify)?,"remember":request.session().map_err(internal)?.get("login.remember").cloned().unwrap_or(false.into()),"passkey":passkey}),
+            payload,
+        };
+        let lifetime = match request
+            .parts()
+            .extensions
+            .get::<super::socialite::Deadline>()
+        {
+            Some(end) => end
+                .0
+                .checked_sub(
+                    openrust::support::facades::Date::now(None)
+                        .map_err(internal)?
+                        .as_date_time()
+                        .timestamp()
+                        .as_second(),
+                )
+                .filter(|seconds| *seconds > 0)
+                .ok_or(HttpError::Unauthenticated)?
+                .min(300),
+            None => 300,
         };
         let stage = ChallengeStore::new(user.get_connection()?)
-            .create(&pending, 300)
+            .create(&pending, lifetime)
             .await?;
         request
             .session_mut()
@@ -116,14 +154,7 @@ pub(super) async fn finish<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
     check(request, pending, fortify)?;
     let binding = pending.factor.clone();
     let policy = fortify.clone();
-    let passkey = pending
-        .payload
-        .get("passkey")
-        .filter(|value| !value.is_null())
-        .cloned()
-        .map(serde_json::from_value::<CredentialProof>)
-        .transpose()
-        .map_err(internal)?;
+    let evidence = super::primary::Evidence::read(pending)?;
     credentials::with_locked(user, move |locked, transaction| {
         Box::pin(async move {
             let now = openrust::support::facades::Date::now(None)
@@ -136,8 +167,8 @@ pub(super) async fn finish<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
             {
                 return Err(HttpError::Unauthenticated.into());
             }
-            if let Some(passkey) = passkey
-                && !passkey.current(locked, &policy, Some(transaction)).await?
+            if let Some(proof) = evidence
+                && !proof.current(locked, &policy, transaction).await?
             {
                 return Err(HttpError::Unauthenticated.into());
             }

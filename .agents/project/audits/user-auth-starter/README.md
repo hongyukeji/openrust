@@ -746,3 +746,29 @@ Telescope保留被允许采集的安全请求元数据，去除原始URI参数�
 首轮夹具API类型错误、ScopeClosed和Redis封装假设的失败日志全部保留。此前已修复的通知语言作用域栈问题未通过加大测试栈绕过。本单元完成HTTP之外的后台通知保护；Socialite和S10最终组合继续开发，A01各阶段仍未整簇闭合，未推送。
 
 交付清理worker-privacy-cleanup.json：持本批Cargo锁直接删除已闲置的运行夹具、敏感测试可执行文件和文档dist，净释放1,005,498,368字节，清后可用37,419,700,224字节；正常增量缓存、源码、验收记录、依赖下载、数据库和数据卷保留。
+
+
+## 第三方账户接线（本单元验收通过）
+
+沿用固定Socialite5.33（8032bb1fa9d74aae54438f216e4d45db90d27ea9）原生Manager／Google／GitHub的state、PKCE与HTTP协议，不另建OAuth或TOTP引擎。本单元实现、测试及三语正文已验收，不据此计整个A01闭合。复用旧版扫描结果及本计划参考，成熟设计补充参考Socialstream的GHSA-3q97-vjpp-c8rp账户自动关联公告，采用明确身份预览／确认／拒绝，拒绝按相同邮箱静默联结；不复制其令牌刷新或生成虚拟邮箱策略。
+
+已裁决：身份持久化保存供应商、大小写敏感主体摘要、所选模型及真实Eloquent主键和绑定generation，不保存OAuth访问／刷新令牌；可变认证邮箱不是永久身份归属。新注册和身份写入使用同一用户事务；默认创建Action可替换，Google／GitHub要求可信已验证邮箱。API使用客户端自持S256 verifier与短时一次性握手／交换，回调不签发PAT或绑定当前账户；绑定另需同一发起PAT、原证明期限及明确POST确认。已启用二次因素不能绕过，解绑后旧登录挑战及同主体重绑前的generation无效。沿用既有Context与sensitive诊断保护。
+
+新增最后主因素保护：没有本地密码时，不能删除最后仍启用的Passkey／第三方主因素，TOTP、恢复码、PAT和当前Session不算替代主因素。此前允许撤销唯一Passkey后仅靠邮箱恢复的用例，调整为明确422并验证凭据与旧证明没有被错误撤销；原生独立Passkeys应用行为不改。网页无本地密码确认页提供退出当前会话后进入原生邮箱恢复的表单，复用已有Broker／通知／重置，不将静默SSO当近期密码证明，也不放宽原生guest中间件。
+
+回跳首版采用HTTPS universal/app links及开发HTTP回环地址精确白名单。草稿曾考虑私有scheme，核对现有正式Redirector只接受HTTP目标后，不绕过其公开保护或扩大任意scheme；未将私有scheme宣称已实现。网页握手遵循fortify.prefix／domain，API独立跟随API_PREFIX；API-only没有普通网页第三方登录／账户页，只保留握手回调。
+
+阶段证据：socialite-regression-second.log的安装16、配置7、UI／HTTP102及原生事务动作1项通过；包括真实ES256下唯一凭据保护以及新增for_user_in_transaction的自定义凭据模型／错误连接验证。socialite-mysql-second.log与socialite-postgres-first.log分别在MySQL8.4.13／PostgreSQL18.7、database Session下5组真实HTTP通过；前者早轮DDL默认索引名超长，改为保留连接前缀的短索引名后实际通过。mysql-new-paths-second与postgres-new-paths补验认证前缀和API-only关闭路径，MySQL另补NULL用户回滚拒绝／身份与账本保留。socialite-clippy-first.log在当时组合严格Clippy通过；后续修改仍待最终检查。
+
+真实Artisan首轮socialite-runtime-full-first的资源发布成功但迁移失败，不计通过。查实默认users迁移自带密码列中文注释，被草稿过度保守的检测拦截；现保留原注释、类型和排序规则，只修改可空性。重建后的socialite-runtime-full-second通过首次安装、自动重建、迁移／重复执行与重复安装，证明自定义配置保留。发布器继续按既有正式规则生成日期文件名，不为夹具改变发布器。失败日志保留。
+
+最终证据（target/tmp/user-starter/）：
+
+- socialite-clippy-final.log：Fortify与Passkeys全部targets、Socialite开启的严格Clippy通过；范围格式检查通过。socialite-current-source.json记录隔离快照父版本64422da0e7da5308d45f9308e9a888584b9a5d6f；根清单只叠加本单元feature／依赖边，不纳入内容审核、Horizon等其他未提交修改。
+- socialite-runtime-full-second/browser-results.json：三语桌面／手机视口共6组真实Chrome全流程，加1组教程S256客户端。实际包括原生网页注册／密码确认、Google绑定、GitHub拒绝及明确确认、退出和第三方登录、重新确认后解绑。OAuth回调实际交给第二应用节点，两个节点共用独立MySQL8.4和database Session。手机视口不是实体手机验收。
+- socialite-runtime-api-first.log及同名目录结果：从干净应用实际执行仅API预设，首次／重复安装、回车自动重建与迁移通过；不同源教程客户端通过真实CORS完成握手、fragment清除和S256兑换，并用Bearer访问实际生成的/api/admin/user，API无Cookie／CSRF依赖，回调仍跨节点。运行器finally恢复隔离应用并停止两个服务；独立MySQL夹具退出后回收临时容器，无数据卷。
+- socialite-docs.log、socialite-docs-build.log与socialite-docs-browser.log：三语JavaScript片段一致、解析／内容门禁、全站构建及两种挂载前缀、桌面／手机12组实际DOM通过。新增可重复浏览器夹具为fortify/tests/starter_socialite_browser.mjs。
+
+本单元的供应商协议使用真实TCP模拟Google／GitHub端点，校验原生state、PKCE和授权请求；没有使用真实厂商账号，不宣称真实授权、手机设备、生产HTTPS或供应商邮件投递已通过。S10继续复核自定义用户（UUID／ULID及认证标识不同于主键）、关闭选项、驱动组合及最终支持矩阵；旧注销的Passkeys清理需确认包绑定与功能开关的实际区别，不能仅按扫描判断遗留。全部A01阶段仍待最终整簇裁决，未推送。
+
+交付补验socialite-feature-off-clippy.log：不启用Sanctum／Socialite的Fortify lib严格Clippy通过。socialite-delivery-sha.json核对正式代码与实际测试源码逐字一致；根Cargo.toml／Cargo.lock已按HEAD加本单元差异核定。交付清理socialite-cleanup.json持Cargo锁直接删除本批闲置测试／应用二进制及文档dist，净释放1,474,351,104字节、清后可用35,409,289,216字节；增量缓存、源码、日志、依赖、数据库和数据卷保留。

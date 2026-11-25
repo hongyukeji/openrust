@@ -4359,6 +4359,7 @@ dependencies = [
  "md-5 0.11.0",
  "openrust-framework",
  "openrust-passkeys",
+ "openrust-socialite",
  "qrcode",
  "serde",
  "serde_cbor_2",
@@ -4366,6 +4367,7 @@ dependencies = [
  "subtle",
  "thiserror 2.0.21",
  "tokio",
+ "url",
  "zeroize",
 ]
 

@@ -26,7 +26,11 @@ mod passkey_confirmation;
 #[cfg(feature = "sanctum")]
 mod passkeys;
 #[cfg(feature = "sanctum")]
+mod primary;
+#[cfg(feature = "sanctum")]
 pub mod resource_cleanup;
+#[cfg(feature = "sanctum")]
+pub mod socialite;
 #[cfg(feature = "sanctum")]
 mod token_web;
 #[cfg(feature = "sanctum")]

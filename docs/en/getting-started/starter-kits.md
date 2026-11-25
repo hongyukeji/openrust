@@ -2,7 +2,7 @@
 
 ## Support status {#support-status}
 
-The explicit user starter installs native Fortify actions, safe resources, Blade authentication and Cookie/token APIs. The sections below describe the available operations. Account deletion is available; optional-factor management pages are not provided. React, Vue and Livewire frontends are not generated.
+The explicit user starter installs native Fortify actions, safe resources, Blade authentication and Cookie/token APIs. The sections below describe the available operations. Account deletion and the enabled 2FA, passkey and provider-account pages are available. React, Vue and Livewire frontends are not generated.
 
 ## Available entry points {#available-entry-points}
 
@@ -620,3 +620,72 @@ Bind these functions to user actions. The local bundle exports the fixed SimpleW
 The server retains the initial device name and requested abilities, validates them against current policy at issuance, and ignores attempts to widen them in the submission. Challenges expire at the configured ceremony timeout, capped at five minutes. An enrollment stage also cannot outlive the recent proof that started it. `user.limiters.passkeys` can select a named limiter; the kit defaults to ten requests per minute with a dedicated key prefix, and an explicit empty string or `false` disables this limiter. A custom API limiter must work without a browser Session; the native `fortify.limiters.passkeys` policy remains dedicated to web ceremonies.
 
 Normal application `lang/<locale>.json` files can override native error sentences. Compiled English, Simplified Chinese and Traditional Chinese defaults only fill missing keys. Hardware, biometrics, cloud synchronization, production HTTPS and real identity providers require their own deployment acceptance.
+
+## Third-party accounts {#user-socialite}
+
+Install the optional integration with `./artisan init --starter-kit=full --extensions=api,fortify,socialite`; replace `full` with `api` for token clients without account pages. In the application's Cargo default features retain `fortify`, `sanctum` and `socialite` alongside existing features. The installed kit adds its Socialite feature forwarding; standalone Socialite does not install the user kit.
+
+Edit the generated `config/user.rs` group:
+
+```rust
+"socialite": {
+    "providers": ["google", "github"],
+    "api_redirects": ["https://frontend.example.com/auth/return"],
+},
+```
+
+Leave `providers` empty to disable these routes and buttons. Credentials remain in the existing `services.google` and `services.github` configuration: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` and the equivalent `GITHUB_*` variables. Register the exact callback URL with the provider. The default paths are `/auth/google/callback` and `/auth/github/callback`; a configured `fortify.prefix` and `fortify.domain` also apply to the browser handshake routes. API paths follow `API_PREFIX` independently.
+
+The full preset adds provider buttons to login and a **Connected accounts** page at `/user/connected-accounts`. Linking requires recent confirmation. The provider callback shows an identity preview; only the explicit POST confirmation links it, and Cancel does not link anything. OAuth state and PKCE remain in native Socialite. An existing email never silently links an account. The default creation action requires a verified email from Google or GitHub, creates a local account without a password, and retains no provider access/refresh token or remote avatar. A matching local email requires signing in locally and explicitly linking the provider.
+
+Customize `app/actions/fortify/create_user_from_provider.rs` for additional local fields or creation policy, or bind `dyn openrust_fortify::starter::socialite::CreatesUsersFromProvider`. Use its supplied user transaction; return the selected persisted model. Other native OAuth2 drivers require the application's trusted-email/creation policy and their own provider acceptance. They are not covered by the Google/GitHub integration claim.
+
+A provider login still requires any enabled TOTP/recovery-code stage. Unlinking invalidates pending logins tied to that binding; relinking creates a new generation. It does not revoke every already issued session or token: use the existing device/token controls for that. Passwordless accounts cannot remove the last enabled primary sign-in method; TOTP, recovery codes and existing PATs are not primary methods. On the confirmation page, **Sign out and recover by email** exits the current Cookie session and opens the native password recovery form. The actual email reset establishes a local password and invalidates old credentials; the provider's silent SSO session is never a recent password proof.
+
+For token clients, allowlist the exact frontend return address. HTTPS universal/app links are supported; plain HTTP is limited to loopback development addresses. Private URI schemes, fragments in the configured address, credentials and control characters are rejected. The callback returns only an opaque one-use code in the URL fragment. The client keeps its own S256 verifier; the callback neither issues a PAT nor links an authenticated local account.
+
+The following functions assume a token-client frontend origin. A first-party stateful SPA must also follow Sanctum's Cookie/CSRF rules. `prefix` follows the installed API prefix:
+
+```javascript
+
+const prefix = '/api';
+async function post(path, body, token) {
+    const response = await fetch(prefix + path, {
+        method: 'POST', credentials: 'omit',
+        headers: {Accept: 'application/json', 'Content-Type': 'application/json',
+            ...(token ? {Authorization: `Bearer ${token}`} : {})},
+        body: JSON.stringify(body),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.message);
+    return result;
+}
+const base64url = bytes => btoa(String.fromCharCode(...bytes))
+    .replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
+export async function beginProvider(provider, redirectUri, deviceName) {
+    const verifier = base64url(crypto.getRandomValues(new Uint8Array(32)));
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
+    const result = await post(`/auth/providers/${encodeURIComponent(provider)}`, {
+        redirect_uri: redirectUri, device_name: deviceName,
+        code_challenge: base64url(new Uint8Array(digest)),
+    });
+    sessionStorage.setItem('provider_verifier', verifier);
+    location.assign(result.data.url);
+}
+export async function completeProvider() {
+    const code = new URLSearchParams(location.hash.slice(1)).get('code');
+    const verifier = sessionStorage.getItem('provider_verifier');
+    history.replaceState(null, '', location.pathname + location.search);
+    try {
+        return await post('/auth/providers/exchange', {code, code_verifier: verifier});
+    } finally {
+        sessionStorage.removeItem('provider_verifier');
+    }
+}
+```
+
+A successful exchange returns201 with `data.token`, `token_type`, `expires_at` and the safe user resource. With two-factor authentication it returns200 and `code=auth_challenge_required`; complete `/api/auth/token/challenge` before receiving a token. Failed/expired/consumed exchanges require a new flow. The five-minute maximum is not extended by browser callbacks or previews. Unknown providers, changed account credentials and revoked bindings cannot complete the old flow.
+
+For API linking, first obtain a `factors` proof, then POST `/api/user/connected-accounts/{provider}` with that proof, `code_challenge` and the allowlisted `redirect_uri`. Follow the returned handoff URL in a browser. POST its code/verifier to `/api/user/connected-accounts/exchange` using the same PAT to receive an identity preview and a new `challenge`. Explicitly POST `{challenge, confirm: true}` to `/api/user/connected-accounts/confirm`; `false` denies it. Confirmation retains the original proof deadline and rechecks the initiating token/account and any confirming passkey. It does not require a second password prompt. GET `/api/user/connected-accounts` lists enabled providers and link state; DELETE `/api/user/connected-accounts/{provider}` requires `account:update` and a fresh `factors` proof. List access requires `account:read`.
+
+The optional migrations create the identity table before making the selected password column nullable. Rollback refuses while passwordless users remain, preserving identity records and the migration ledger. Existing nullable/default/generated/customized columns require manual merging; the default migration changes only supported SQLite/MySQL/MariaDB/PostgreSQL password columns. Other dialects fail before altering the password column. No remote provider account is deleted by local unlinking.

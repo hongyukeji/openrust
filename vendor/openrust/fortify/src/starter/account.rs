@@ -10,6 +10,7 @@ use crate::{
 };
 use openrust::{
     auth::{AuthIdentifier, AuthResult},
+    contracts::session::Session as _,
     contracts::validation::Validator as _,
     database::{DatabaseManager, Transaction},
     http::{ApiResponse, HttpError, HttpFuture, Request, Response, StatusCode},
@@ -406,4 +407,87 @@ where
         }
         Ok(client::no_store(Response::empty(StatusCode::NO_CONTENT)))
     })
+}
+
+pub(super) struct Actor {
+    pub(super) id: Option<AuthIdentifier>,
+    pub(super) client: String,
+    session: Option<String>,
+    sanctum: std::sync::Arc<Sanctum>,
+    database: std::sync::Arc<DatabaseManager>,
+}
+impl Actor {
+    pub(super) async fn new<M: HasApiTokens>(
+        request: &mut Request,
+        user: &M,
+        fortify: &Fortify,
+        ability: Option<&str>,
+    ) -> Result<Self, HttpError> {
+        let id = actor(request, user, ability)?;
+        let (_, client) = confirmation::binding(request, user, fortify)?;
+        let session = if id.is_none() {
+            Some(request.session().map_err(internal)?.get_id().into())
+        } else {
+            None
+        };
+        Ok(Self {
+            id,
+            client,
+            session,
+            sanctum: App::make::<Sanctum>().await?,
+            database: App::make::<DatabaseManager>().await?,
+        })
+    }
+    pub(super) async fn check<M: HasApiTokens>(
+        &self,
+        user: &M,
+        transaction: &mut Transaction,
+        ability: Option<&str>,
+    ) -> AuthResult<()> {
+        check_actor(
+            user,
+            transaction,
+            &self.sanctum,
+            &self.database,
+            self.id.clone(),
+            ability,
+            &[],
+        )
+        .await?;
+        if let Some(session) = &self.session
+            && let Some(policy) = super::devices::policy()?
+        {
+            policy
+                .check_in_transaction(user, transaction, session)
+                .await?;
+        }
+        Ok(())
+    }
+    pub(super) fn validate<M: HasApiTokens + TwoFactorAuthenticatable>(
+        &self,
+        user: &M,
+        fortify: &Fortify,
+        pending: &super::challenges::Pending,
+    ) -> AuthResult<()> {
+        let tokens = match (&self.id, &pending.token) {
+            (None, None) => true,
+            (Some(a), Some(b)) => serde_json::to_value(a)? == serde_json::to_value(b)?,
+            _ => false,
+        };
+        if !tokens
+            || serde_json::to_value(&pending.user)?
+                != serde_json::to_value(user.get_auth_identifier())?
+            || pending.owner != user.get_morph_class()?
+            || !client::same_binding(&pending.credential, &credentials::stamp(user)?)
+            || !client::same_binding(&pending.factor, &client::security(user, fortify)?)
+            || pending
+                .payload
+                .get("client")
+                .and_then(serde_json::Value::as_str)
+                .is_none_or(|binding| !client::same_binding(binding, &self.client))
+        {
+            return Err(HttpError::Unauthenticated.into());
+        }
+        Ok(())
+    }
 }

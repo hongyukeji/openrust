@@ -1,0 +1,11 @@
+@extends('user.layout')
+@section('title', __('user.provider_confirm'))
+@section('content')
+<p>{{ __('user.provider_confirm_help') }}</p>
+<dl><dt>{{ __('user.provider') }}</dt><dd>{{ $profile['provider'] }}</dd>
+<dt>{{ __('user.name') }}</dt><dd>{{ $profile['name'] }}</dd>
+<dt>{{ __('user.email') }}</dt><dd>{{ $profile['verified_email'] }}</dd></dl>
+<form method="POST" action="{{ route('user.providers.confirm') }}">@csrf
+<button type="submit" name="confirm" value="1">{{ __('user.provider_link') }}</button>
+<button type="submit" name="confirm" value="0">{{ __('user.cancel') }}</button></form>
+@endsection

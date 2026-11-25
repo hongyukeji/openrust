@@ -268,7 +268,7 @@ where
             })?
             .clone();
         limiter.clear(request).await?;
-        complete_primary(request, &mut user, &fortify, None).await
+        complete_primary(request, &mut user, &fortify, None, None).await
     })
 }
 
@@ -277,7 +277,8 @@ pub(super) async fn complete_primary<M: HasApiTokens + TwoFactorAuthenticatable 
     request: &mut Request,
     user: &mut M,
     fortify: &Arc<Fortify>,
-    passkey: Option<super::passkey_confirmation::CredentialProof>,
+    evidence: Option<super::primary::Evidence>,
+    deadline: Option<i64>,
 ) -> Result<Response, HttpError> {
     let device = request
         .input("device_name")
@@ -299,18 +300,38 @@ pub(super) async fn complete_primary<M: HasApiTokens + TwoFactorAuthenticatable 
             .map_err(internal)?;
     if has_factor {
         let store = ChallengeStore::new(user.get_connection()?);
+        let mut payload = json!({"device_name":device,"abilities":chosen,"passkey":null});
+        if let Some(proof) = &evidence {
+            proof.write(&mut payload)?;
+        }
         let challenge = store
             .create(
                 &Pending {
                     user: user.get_auth_identifier(),
                     owner: user.get_morph_class()?.into(),
-                    purpose: "login".into(),
+                    purpose: evidence
+                        .as_ref()
+                        .map_or("login", super::primary::Evidence::purpose)
+                        .into(),
                     credential: credentials::stamp(user)?,
                     factor: binding,
                     token: None,
-                    payload: json!({"device_name":device,"abilities":chosen,"passkey":passkey}),
+                    payload,
                 },
-                300,
+                match deadline {
+                    Some(end) => end
+                        .checked_sub(
+                            openrust::support::facades::Date::now(None)
+                                .map_err(internal)?
+                                .as_date_time()
+                                .timestamp()
+                                .as_second(),
+                        )
+                        .filter(|seconds| *seconds > 0)
+                        .ok_or(HttpError::Unauthenticated)?
+                        .min(300),
+                    None => 300,
+                },
             )
             .await?;
         crate::actions::emit(
@@ -332,8 +353,8 @@ pub(super) async fn complete_primary<M: HasApiTokens + TwoFactorAuthenticatable 
         &chosen,
         Issuance {
             binding,
-            deadline: None,
-            passkey,
+            deadline,
+            evidence,
         },
     )
     .await
@@ -342,7 +363,7 @@ pub(super) async fn complete_primary<M: HasApiTokens + TwoFactorAuthenticatable 
 struct Issuance {
     binding: String,
     deadline: Option<i64>,
-    passkey: Option<super::passkey_confirmation::CredentialProof>,
+    evidence: Option<super::primary::Evidence>,
 }
 
 async fn issue<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
@@ -362,7 +383,7 @@ async fn issue<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
     let Issuance {
         binding,
         deadline,
-        passkey,
+        evidence,
     } = context;
     let token = credentials::issue_checked(
         user,
@@ -378,7 +399,7 @@ async fn issue<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
             let checked_fortify = checked_fortify.clone();
             let checked_chosen = checked_chosen.clone();
             let binding = binding.clone();
-            let passkey = passkey.clone();
+            let evidence = evidence.clone();
             Box::pin(async move {
                 let fortify = checked_fortify.as_ref();
                 let chosen = checked_chosen;
@@ -397,8 +418,8 @@ async fn issue<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
                 if !same_binding(&security(locked, fortify)?, &binding) {
                     return Err(HttpError::Unauthenticated.into());
                 }
-                if let Some(proof) = passkey
-                    && !proof.current(locked, fortify, Some(transaction)).await?
+                if let Some(proof) = evidence
+                    && !proof.current(locked, fortify, transaction).await?
                 {
                     return Err(HttpError::Unauthenticated.into());
                 }
@@ -436,8 +457,7 @@ where
             .await?
             .and_then(|value| value.as_str().map(str::to_owned))
             .ok_or(HttpError::Unauthenticated)?;
-        let pending = store
-            .resolve(&raw, "login")
+        let pending = super::primary::resolve(&store, &raw)
             .await?
             .ok_or(HttpError::Unauthenticated)?;
         super::login_challenges::check(request, &pending, &fortify)?;
@@ -466,6 +486,19 @@ where
                 .map_err(internal)?
         {
             return Err(HttpError::Unauthenticated);
+        }
+        // 已撤销的替代主因素先拒绝，避免明显失效的挑战消耗用户恢复码。
+        if let Some(proof) = super::primary::Evidence::read(&pending)? {
+            let policy = fortify.clone();
+            credentials::with_locked(&mut user, move |user, transaction| {
+                Box::pin(async move {
+                    if !proof.current(user, &policy, transaction).await? {
+                        return Err(HttpError::Unauthenticated.into());
+                    }
+                    Ok(())
+                })
+            })
+            .await?;
         }
         let limiter = App::make::<openrust::cache::RateLimiter>().await?;
         let identity = serde_json::to_vec(&json!([pending.owner, pending.user]))?;
@@ -609,14 +642,7 @@ where
             Issuance {
                 binding: pending.factor.clone(),
                 deadline: Some(deadline),
-                passkey: pending
-                    .payload
-                    .get("passkey")
-                    .filter(|v| !v.is_null())
-                    .cloned()
-                    .map(serde_json::from_value)
-                    .transpose()
-                    .map_err(internal)?,
+                evidence: super::primary::Evidence::read(&pending)?,
             },
         )
         .await?;
@@ -643,6 +669,8 @@ where
     super::bind_password_tokens::<M>(app)?;
     super::web::register::<M>(app)?;
     super::passkeys::register::<M>(app)?;
+    #[cfg(feature = "socialite")]
+    super::socialite::register::<M>(app)?;
     super::StarterKitServiceProvider.load_routes_from(app, super::device_web::routes::<M>)?;
     super::StarterKitServiceProvider.load_routes_from(app, super::token_web::routes::<M>)?;
     super::StarterKitServiceProvider

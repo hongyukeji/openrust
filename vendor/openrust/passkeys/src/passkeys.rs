@@ -149,6 +149,18 @@ impl Passkeys {
             .await
             .map_err(crate::internal)
     }
+    /// 调用方持有用户锁时，从同一事务读取所选模型的凭据，避免另取连接或绕过作用域。
+    pub async fn for_user_in_transaction(
+        &self,
+        user: &dyn Authenticatable,
+        transaction: &mut Transaction,
+    ) -> Result<Vec<PasskeyRecord>, HttpError> {
+        self.validate_user_transaction(user, transaction)?;
+        self.passkey_store()
+            .records_in_transaction(transaction, "user_id", self.account(user)?.key)
+            .await
+            .map_err(crate::internal)
+    }
     pub async fn find_owned_in_transaction(
         &self,
         user: &dyn Authenticatable,

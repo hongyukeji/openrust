@@ -95,5 +95,21 @@
   "passkey_confirm": "使用通行金鑰確認",
   "passkey_cancelled": "操作已取消，可以重試。",
   "passkey_failed": "無法使用此通行金鑰，請檢查裝置後重試。",
-  "local_credential_required": "請使用已綁定的通行金鑰確認，或透過已驗證的電子郵件安全設定本機密碼。"
+  "local_credential_required": "請使用已綁定的通行金鑰確認，或透過已驗證的電子郵件安全設定本機密碼。",
+  "provider_email_required": "供應商未提供已驗證的電子郵件，請使用既有帳戶或其他登入方式。",
+  "provider_email_exists": "此電子郵件已註冊，請先登入既有帳戶，再明確綁定第三方身分。",
+  "provider_registration_disabled": "已關閉透過此供應商註冊帳戶。",
+  "provider_failed": "無法完成第三方登入，請重新嘗試。",
+  "provider_redirect_invalid": "不允許使用此回跳位址。",
+  "last_primary_required": "請先設定本機密碼或保留其他已啟用的登入方式，再移除最後一項。",
+  "connected_accounts": "關聯帳戶",
+  "provider_link_help": "請只綁定屬於自己的第三方帳戶，敏感變更需要近期確認。",
+  "provider_unlink": "解除關聯",
+  "provider_link": "關聯帳戶",
+  "provider_confirm": "確認關聯帳戶",
+  "provider_confirm_help": "請核對以下供應商帳戶。關聯後，此身分可以登入你的本機帳戶。",
+  "provider": "供應商",
+  "provider_login": "使用 :provider 登入",
+  "cancel": "取消",
+  "recover_local_password": "登出並透過電子郵件找回密碼"
 }

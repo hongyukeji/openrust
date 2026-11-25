@@ -304,6 +304,12 @@ async fn native_transaction_actions_verify_real_signatures_and_preserve_selected
                 .await
                 .is_err()
         );
+        assert!(
+            service
+                .for_user_in_transaction(&user, &mut wrong)
+                .await
+                .is_err()
+        );
         wrong.roll_back(None).await.unwrap();
         let mut tx = connection.begin_transaction().await.unwrap();
         user.refresh_for_update(&mut tx).await.unwrap();
@@ -316,6 +322,12 @@ async fn native_transaction_actions_verify_real_signatures_and_preserve_selected
             Some("PHONE".into())
         );
         assert!(matches!(record.get_key().await, Some(Value::Text(_))));
+        let selected = service
+            .for_user_in_transaction(&user, &mut tx)
+            .await
+            .unwrap();
+        assert_eq!(selected.len(), 1);
+        assert_eq!(selected[0].get_key().await, record.get_key().await);
         tx.roll_back(None).await.unwrap();
         assert_eq!(connection.table("tx_passkeys").count("*").await.unwrap(), 0);
         let mut tx = connection.begin_transaction().await.unwrap();

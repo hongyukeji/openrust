@@ -95,5 +95,21 @@
   "passkey_confirm": "使用通行密钥确认",
   "passkey_cancelled": "操作已取消，可以重试。",
   "passkey_failed": "无法使用此通行密钥，请检查设备后重试。",
-  "local_credential_required": "请使用已绑定的通行密钥确认，或通过已验证的邮箱安全设置本地密码。"
+  "local_credential_required": "请使用已绑定的通行密钥确认，或通过已验证的邮箱安全设置本地密码。",
+  "provider_email_required": "供应商未提供已验证的邮箱，请使用已有账户或其他登录方式。",
+  "provider_email_exists": "此邮箱已注册，请先登录已有账户，再明确绑定第三方身份。",
+  "provider_registration_disabled": "已关闭通过此供应商注册账户。",
+  "provider_failed": "未能完成第三方登录，请重新尝试。",
+  "provider_redirect_invalid": "不允许使用此回跳地址。",
+  "last_primary_required": "请先设置本地密码或保留其他已启用的登录方式，再移除最后一项。",
+  "connected_accounts": "关联账户",
+  "provider_link_help": "请只绑定属于自己的第三方账户，敏感变更需要近期确认。",
+  "provider_unlink": "解除关联",
+  "provider_link": "关联账户",
+  "provider_confirm": "确认关联账户",
+  "provider_confirm_help": "请核对以下供应商账户。关联后，此身份可以登录你的本地账户。",
+  "provider": "供应商",
+  "provider_login": "使用 :provider 登录",
+  "cancel": "取消",
+  "recover_local_password": "退出并通过邮箱找回密码"
 }

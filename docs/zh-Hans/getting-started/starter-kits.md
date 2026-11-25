@@ -2,7 +2,7 @@
 
 ## 支持状态 {#support-status}
 
-显式用户套件安装原生 Fortify Action、安全资源、Blade 认证及 Cookie／令牌 API。下文说明已经提供的操作；已提供账户注销接口，可选因素管理页面尚未提供。不生成 React、Vue 或 Livewire 前端。
+显式用户套件安装原生 Fortify Action、安全资源、Blade 认证及 Cookie／令牌 API。下文说明已经提供的操作；已提供账户注销及启用后的双因素、通行密钥和关联账户页面。不生成 React、Vue 或 Livewire 前端。
 
 ## 可用入口 {#available-entry-points}
 
@@ -620,3 +620,72 @@ export async function removePasskey(token, id) {
 服务端保留起始阶段选定的设备名称和请求能力，签发时按当前策略再校验，提交结果时不能扩大权限。挑战按配置的仪式超时到期，上限五分钟；注册阶段也不能超过起始近期证明的期限。`user.limiters.passkeys` 可选择命名限流器，套件缺省为每分钟十次并使用独立键前缀，显式空字符串或 `false` 关闭该限流器。 自定义 API 限流器也必须支持无浏览器 Session 的请求；原生 `fortify.limiters.passkeys` 策略继续用于网页仪式。
 
 应用可在常规 `lang/<语言>.json` 覆盖原生错误原句，编译内置的英文、简体中文、繁体中文只补缺键。实体设备、生物识别、云同步、生产 HTTPS 及真实身份供应商须单独完成部署验收。
+
+## 第三方账户 {#user-socialite}
+
+使用 `./artisan init --starter-kit=full --extensions=api,fortify,socialite` 安装可选接线；仅令牌客户端将 `full` 改为 `api`，不生成账户管理页面。在应用 Cargo 默认特性中保留 `fortify`、`sanctum`、`socialite` 和已有特性。套件安装时接通自己的 Socialite 特性转发；单独启用 Socialite 不会安装用户套件。
+
+编辑生成的 `config/user.rs` 分组：
+
+```rust
+"socialite": {
+    "providers": ["google", "github"],
+    "api_redirects": ["https://frontend.example.com/auth/return"],
+},
+```
+
+`providers` 留空即关闭这些路由和按钮。凭据继续使用现有 `services.google`、`services.github` 配置：`GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`、`GOOGLE_REDIRECT_URI` 及对应的 `GITHUB_*` 变量。在供应商登记精确回调地址，默认路径为 `/auth/google/callback`、`/auth/github/callback`；浏览器握手路由也遵循 `fortify.prefix`、`fortify.domain`。API 路径独立跟随 `API_PREFIX`。
+
+完整预设在登录页增加供应商按钮，并提供 `/user/connected-accounts` 关联账户页面。绑定要求近期确认，供应商回调先展示身份预览，只有明确 POST 确认才建立关联，取消不会绑定。OAuth state 与 PKCE 仍由原生 Socialite 处理，不因邮箱相同自动合并账户。默认创建动作要求 Google 或 GitHub 提供已验证邮箱，创建没有本地密码的账户，不保存供应商访问／刷新令牌，也不下载远程头像。邮箱已有本地账户时，必须先登录该账户再明确绑定。
+
+通过 `app/actions/fortify/create_user_from_provider.rs` 调整本地字段或创建策略，也可绑定 `dyn openrust_fortify::starter::socialite::CreatesUsersFromProvider`。必须使用传入的用户事务，返回选定且已保存的模型。其他原生 OAuth2 驱动需要应用自行提供可信邮箱／创建策略并验收，不包含在 Google／GitHub 的接线验收声明中。
+
+第三方登录继续要求已启用的 TOTP／恢复码阶段。解绑使绑定该身份的待完成登录失效，重新绑定产生新版本；不会撤销所有已签发的会话和令牌，相关操作使用既有设备／令牌管理。无密码账户不能移除最后已启用的主登录方式，TOTP、恢复码和已有 PAT 不算主因素。在确认页点击“退出并通过邮箱找回密码”，先退出当前 Cookie 会话，再进入原生密码恢复表单。真正完成邮件重置后才建立本地密码并使旧凭据失效，不将供应商的静默 SSO 会话当成近期密码证明。
+
+令牌客户端须配置精确的前端回跳白名单。支持 HTTPS universal/app links，普通 HTTP 仅用于回环开发地址；拒绝私有 URI scheme、配置地址中的 fragment、用户凭据和控制字符。回调只把不透明的一次性 code 放入 URL fragment；客户端自行保管 S256 verifier，回调既不签发 PAT，也不自动绑定当前登录账户。
+
+下面函数面向令牌客户端的前端来源。第一方 stateful SPA 仍须遵循 Sanctum 的 Cookie／CSRF 规则；`prefix` 与安装后的 API 前缀一致：
+
+```javascript
+
+const prefix = '/api';
+async function post(path, body, token) {
+    const response = await fetch(prefix + path, {
+        method: 'POST', credentials: 'omit',
+        headers: {Accept: 'application/json', 'Content-Type': 'application/json',
+            ...(token ? {Authorization: `Bearer ${token}`} : {})},
+        body: JSON.stringify(body),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.message);
+    return result;
+}
+const base64url = bytes => btoa(String.fromCharCode(...bytes))
+    .replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
+export async function beginProvider(provider, redirectUri, deviceName) {
+    const verifier = base64url(crypto.getRandomValues(new Uint8Array(32)));
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
+    const result = await post(`/auth/providers/${encodeURIComponent(provider)}`, {
+        redirect_uri: redirectUri, device_name: deviceName,
+        code_challenge: base64url(new Uint8Array(digest)),
+    });
+    sessionStorage.setItem('provider_verifier', verifier);
+    location.assign(result.data.url);
+}
+export async function completeProvider() {
+    const code = new URLSearchParams(location.hash.slice(1)).get('code');
+    const verifier = sessionStorage.getItem('provider_verifier');
+    history.replaceState(null, '', location.pathname + location.search);
+    try {
+        return await post('/auth/providers/exchange', {code, code_verifier: verifier});
+    } finally {
+        sessionStorage.removeItem('provider_verifier');
+    }
+}
+```
+
+交换成功返回201，包含 `data.token`、`token_type`、`expires_at` 和安全用户资源。启用二次验证时返回200及 `code=auth_challenge_required`，须先完成 `/api/auth/token/challenge` 才能取得令牌。失败、过期或已消费的交换须重新发起；最长五分钟的期限不会被浏览器回调或预览延长。未知供应商、账户凭据变更或已撤销绑定不能完成旧流程。
+
+API 绑定先取得 `factors` 证明，再向 `/api/user/connected-accounts/{provider}` POST 该证明、`code_challenge` 和白名单内的 `redirect_uri`，在浏览器打开返回的握手 URL。使用同一 PAT 将 code／verifier POST 到 `/api/user/connected-accounts/exchange`，取得身份预览及新的 `challenge`；明确将 `{challenge, confirm: true}` POST 到 `/api/user/connected-accounts/confirm` 才绑定，`false` 为拒绝。确认保留初始证明期限，重新核对发起令牌、账户及用于确认的通行密钥，不要求再次输入密码。GET `/api/user/connected-accounts` 读取启用的供应商和关联状态；DELETE `/api/user/connected-accounts/{provider}` 需要 `account:update` 及新的 `factors` 证明，列表需要 `account:read`。
+
+可选迁移先建立身份表，再允许所选密码列为空。仍有无密码用户时拒绝回滚，保留身份记录及迁移账本。已有可空、默认值、生成列或自定义约束须手动合并；默认迁移仅修改支持的 SQLite／MySQL／MariaDB／PostgreSQL 密码列，其他方言在改列前明确失败。解除本地关联不会删除远程供应商账户。

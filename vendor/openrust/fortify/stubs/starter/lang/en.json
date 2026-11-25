@@ -95,5 +95,21 @@
   "passkey_confirm": "Confirm with a passkey",
   "passkey_cancelled": "The operation was cancelled. You can try again.",
   "passkey_failed": "Unable to use this passkey. Check your device and try again.",
-  "local_credential_required": "Confirm with a bound passkey, or safely establish a local password through your verified email."
+  "local_credential_required": "Confirm with a bound passkey, or safely establish a local password through your verified email.",
+  "provider_email_required": "This provider did not supply a verified email address. Use an existing account or a different sign-in method.",
+  "provider_email_exists": "An account with this email already exists. Sign in to that account and explicitly link the provider.",
+  "provider_registration_disabled": "Account registration through this provider is disabled.",
+  "provider_failed": "The provider sign-in could not be completed. Please try again.",
+  "provider_redirect_invalid": "The return address is not allowed.",
+  "last_primary_required": "Set a local password or keep another enabled sign-in method before removing the last one.",
+  "connected_accounts": "Connected accounts",
+  "provider_link_help": "Link a provider only when the account shown belongs to you. Sensitive changes require recent confirmation.",
+  "provider_unlink": "Unlink account",
+  "provider_link": "Link account",
+  "provider_confirm": "Confirm account link",
+  "provider_confirm_help": "Check the provider account below. Linking it allows this identity to sign in to your local account.",
+  "provider": "Provider",
+  "provider_login": "Continue with :provider",
+  "cancel": "Cancel",
+  "recover_local_password": "Sign out and recover by email"
 }

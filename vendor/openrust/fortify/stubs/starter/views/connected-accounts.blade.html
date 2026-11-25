@@ -1,0 +1,17 @@
+@extends('user.layout')
+@section('title', __('user.connected_accounts'))
+@section('content')
+<p>{{ __('user.provider_link_help') }}</p>
+<ul>
+@foreach($providers as $provider)
+<li><span>{{ $provider['provider'] }}</span>
+@if($provider['linked'])
+<form method="POST" action="{{ route('user.providers.destroy', ['provider' => $provider['provider']]) }}">@csrf @method('DELETE')<button type="submit">{{ __('user.provider_unlink') }}</button></form>
+@else
+<form method="POST" action="{{ route('user.providers.link', ['provider' => $provider['provider']]) }}">@csrf<button type="submit">{{ __('user.provider_link') }}</button></form>
+@endif
+</li>
+@endforeach
+</ul>
+<p><a href="{{ route('user.profile') }}">{{ __('user.account') }}</a></p>
+@endsection

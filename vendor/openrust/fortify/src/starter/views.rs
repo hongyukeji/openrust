@@ -134,6 +134,10 @@ fn account_routes() -> Result<(), openrust::routing::RoutingError> {
         ));
     Route::group(group, |router| {
         router.get("/user/profile", account)?.name("user.profile");
+        router
+            .post("/user/password/recovery", recover_local_password)?
+            .middleware_name("throttle:6,1")
+            .name("user.password.recovery");
         if fortify.string("fortify.home", "/home") == "/home" {
             router.get("/home", account)?.name("dashboard");
         }
@@ -233,4 +237,49 @@ async fn local_password(
         .ok_or(openrust::http::HttpError::Unauthenticated)?
         .get_auth_password()
         .is_some())
+}
+
+/// 无本地密码账户先退出当前会话，再进入原生邮箱恢复，不把供应商SSO当近期密码证明。
+fn recover_local_password(
+    request: &mut openrust::http::Request,
+) -> openrust::http::HttpFuture<'_, Result<Response, openrust::http::HttpError>> {
+    Box::pin(async move {
+        use crate::resolver::{Resolver, internal};
+        use openrust::{
+            contracts::{
+                auth::{Guard as _, StatefulGuard as _},
+                session::Session as _,
+            },
+            http::HttpError,
+            support::facades::{Auth, Redirect},
+        };
+        let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
+        let email = {
+            let mut guard = Auth::session_guard(request, fortify.guard().as_deref())?;
+            let user = guard.user().await?.ok_or(HttpError::Unauthenticated)?;
+            if user.get_auth_password().is_some_and(|p| !p.is_empty()) {
+                return Err(HttpError::NotFound);
+            }
+            user.as_password_reset()
+                .ok_or(HttpError::Unauthenticated)?
+                .get_email_for_password_reset()
+                .to_owned()
+        };
+        Auth::session_guard(request, fortify.guard().as_deref())?
+            .logout()
+            .await?;
+        let session = request.session_mut().map_err(internal)?;
+        session.invalidate().await.map_err(internal)?;
+        session.regenerate_token().map_err(internal)?;
+        let mut input = serde_json::Map::new();
+        input.insert(fortify.email(), email.into());
+        let response: Response = Redirect::route("password.request", &[], Default::default())?
+            .with_input(request, Some(serde_json::Value::Object(input)))
+            .await?
+            .into();
+        Ok(response.header(
+            "cache-control".parse().expect("静态头名称"),
+            "no-store".parse().expect("静态头值"),
+        ))
+    })
 }

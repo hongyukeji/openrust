@@ -231,6 +231,8 @@ fn remove<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
                 if let Some(passkeys) = passkeys {
                     passkeys.purge_user_in_transaction(tx, locked).await?;
                 }
+                #[cfg(feature = "socialite")]
+                super::socialite::purge(locked, tx).await?;
                 if let Some(devices) = devices::policy()? {
                     devices.revoke_others(locked, tx, None).await?;
                 }

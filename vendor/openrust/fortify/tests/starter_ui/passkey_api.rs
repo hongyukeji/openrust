@@ -94,7 +94,7 @@ async fn confirm(
     result.2["data"]["proof"].as_str().unwrap().into()
 }
 #[tokio::test]
-async fn token_passkeys_enroll_login_confirm_and_revoke_without_cookie_sessions() {
+async fn token_passkeys_enroll_login_confirm_and_preserve_last_primary_without_cookie_sessions() {
     let server = server().await;
     openrust::support::facades::App::set_facade_application(
         Some(server._kernel.get_application()),
@@ -198,16 +198,16 @@ async fn token_passkeys_enroll_login_confirm_and_revoke_without_cookie_sessions(
         json!({"proof":factor_proof}),
     )
     .await;
-    assert_eq!(deleted.0, 204, "{}", deleted.2);
-    let revoked = request(
+    assert_eq!(deleted.0, 422, "{}", deleted.2);
+    let preserved = request(
         &server,
         second,
         "POST",
         "/user/tokens",
-        json!({"proof":token_proof,"device_name":"撤销后不得创建","abilities":["account:read"]}),
+        json!({"proof":token_proof,"device_name":"撤销被拒后原凭据仍有效","abilities":["account:read"]}),
     )
     .await;
-    assert_eq!(revoked.0, 401, "{}", revoked.2);
+    assert_eq!(preserved.0, 201, "{}", token_failure(&preserved.2));
 }
 
 #[tokio::test]
