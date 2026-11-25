@@ -2,6 +2,7 @@ use openrust::{
     contracts::events::Event,
     queue::{Payload, events::JobSnapshot},
 };
+use std::time::Duration;
 
 macro_rules! enqueue_event {
     ($(#[$meta:meta])* $name:ident) => {
@@ -48,6 +49,43 @@ impl JobReserved {
 }
 
 impl Event for JobReserved {
+    fn name(&self) -> &str {
+        Self::NAME
+    }
+}
+
+/// 已确认重新入队的 Redis 保留任务及其延迟。
+#[derive(Clone, Debug)]
+pub struct JobReleased {
+    pub connection_name: String,
+    pub job: JobSnapshot,
+    pub delay: Duration,
+}
+
+impl JobReleased {
+    pub const NAME: &str = "Horizon.JobReleased";
+}
+
+impl Event for JobReleased {
+    fn name(&self) -> &str {
+        Self::NAME
+    }
+}
+
+/// 已确认删除的 Redis 保留任务、失败标记和保留后的实际时长。
+#[derive(Clone, Debug)]
+pub struct JobDeleted {
+    pub connection_name: String,
+    pub job: JobSnapshot,
+    pub failed: bool,
+    pub duration: Duration,
+}
+
+impl JobDeleted {
+    pub const NAME: &str = "JobDeleted";
+}
+
+impl Event for JobDeleted {
     fn name(&self) -> &str {
         Self::NAME
     }

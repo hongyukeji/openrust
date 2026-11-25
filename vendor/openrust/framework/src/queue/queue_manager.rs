@@ -427,6 +427,19 @@ impl QueueManager {
         Ok(dispatcher.observes(name))
     }
 
+    pub(super) async fn observe_settlement_event(&self, event: impl Event) {
+        // Redis 已完成确认，监听器错误不能让调用方误判为可重试的确认失败。
+        if let Err(error) = self.emit_control_event(event).await
+            && let Some(owner) = self.owner.upgrade()
+        {
+            application_scope(owner, async {
+                let _ =
+                    crate::support::facades::Log::warning(&error.to_string(), &Default::default());
+            })
+            .await;
+        }
+    }
+
     pub(super) fn job_popped_event(
         &self,
         connection: &str,

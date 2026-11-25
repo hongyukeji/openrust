@@ -55,6 +55,8 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
 
 從 `openrust_horizon` 匯入事件類型，為 `JobPending::NAME`、`JobPushed::NAME` 和 `JobReserved::NAME` 註冊同步監聽器。三個事件分別在 Redis 寫入前、成功寫入後和保留工作後派發，提供連線、佇列、投遞 ID 和原生承載資料。`JobReserved` 的 `job` 快照也提供嘗試次數。使用承載資料的 UUID 關聯同一工作的不同投遞。
 
+Redis 將保留工作放回延遲佇列後派發 `JobReleased::NAME`。`delay` 是 Rust 的 `Duration`，工作詳情以 `release_delay_ms` 提供該值。Redis 確認刪除保留工作後派發 `JobDeleted::NAME`，工作鏈推進時也會派發。它提供工作快照、失敗標記和保留後的實際時間。
+
 長等待警示在郵件主旨、簡訊內文和 Slack 詳情中顯示部署名稱。`Horizon::route_slack_notifications_to` 接受傳入 Webhook 網址或頻道 ID。頻道 ID 使用 Slack Bot API，需設定 `services.slack.notifications.bot_user_oauth_token`。
 
 使用 `Horizon::route_slack_webhook_notifications_to(url, channel)` 可在傳入 Webhook 的承載資料中指定頻道。Slack 應用程式的傳入 Webhook 固定投遞至安裝時選定的頻道。需要依請求指定目標頻道時，請使用 Bot API 頻道 ID。

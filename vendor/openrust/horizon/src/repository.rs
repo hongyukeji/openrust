@@ -65,8 +65,9 @@ local data=cjson.decode(ARGV[1])
 local phase=ARGV[2]
 if phase=='finalize' then
  local previous=redis.call('HGET',KEYS[1],'status')
- if previous=='failed' or previous=='released' then phase=previous
+ if previous=='failed' then phase=previous
  elseif ARGV[4]=='1' then phase='retrying' else phase='completed' end
+ if previous=='released' and ARGV[4]=='0' then phase=previous end
  data.status=phase
  redis.call('HSET',KEYS[1],'finalized','1')
  redis.call('HINCRBY',KEYS[3],'attempts',1)

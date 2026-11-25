@@ -1,4 +1,7 @@
-use crate::{Dashboard, Error, JobPending, JobPushed, JobRecord, JobReserved, Repository};
+use crate::{
+    Dashboard, Error, JobDeleted, JobPending, JobPushed, JobRecord, JobReleased, JobReserved,
+    Repository,
+};
 use openrust::support::facades::Facade;
 use openrust::{
     contracts::{
@@ -139,9 +142,12 @@ impl ServiceProvider for HorizonServiceProvider {
                 RedisJobQueueing::NAME,
                 JobQueued::NAME,
                 RedisJobReserved::NAME,
+                RedisJobReleased::NAME,
+                RedisJobDeleted::NAME,
                 JobPending::NAME,
                 JobPushed::NAME,
                 JobReserved::NAME,
+                JobDeleted::NAME,
                 JobFailed::NAME,
                 JobReleased::NAME,
                 JobAttempted::NAME,
@@ -211,6 +217,25 @@ impl Listener for JobListener {
                 .await?;
                 return Ok(None);
             }
+            if let Some(event) = event.downcast_ref::<RedisJobReleased>() {
+                EventFacade::dispatch(JobReleased {
+                    connection_name: event.connection_name.clone(),
+                    job: event.job.clone(),
+                    delay: event.delay,
+                })
+                .await?;
+                return Ok(None);
+            }
+            if let Some(event) = event.downcast_ref::<RedisJobDeleted>() {
+                EventFacade::dispatch(JobDeleted {
+                    connection_name: event.connection_name.clone(),
+                    job: event.job.clone(),
+                    failed: event.failed,
+                    duration: event.duration,
+                })
+                .await?;
+                return Ok(None);
+            }
             if let Some(event) = event.downcast_ref::<JobPending>() {
                 let repository = crate::dashboard::Store::get_facade_root()?;
                 let tags = crate::Tags::for_payload(&event.payload).map_err(|source| {
@@ -249,9 +274,21 @@ impl Listener for JobListener {
                     })?;
                 return Ok(None);
             }
+            let release = event.downcast_ref::<JobReleased>();
             let (connection, job, phase, exception, duration) =
                 if let Some(e) = event.downcast_ref::<JobReserved>() {
                     (&e.connection_name, &e.job, "processing", None, 0.)
+                } else if let Some(e) = event.downcast_ref::<JobDeleted>() {
+                    if e.failed {
+                        return Ok(None);
+                    }
+                    (
+                        &e.connection_name,
+                        &e.job,
+                        "finalize",
+                        None,
+                        e.duration.as_secs_f64() * 1_000.,
+                    )
                 } else if let Some(e) = event.downcast_ref::<JobFailed>() {
                     (
                         &e.connection_name,
@@ -260,7 +297,7 @@ impl Listener for JobListener {
                         Some(e.exception.as_str()),
                         0.,
                     )
-                } else if let Some(e) = event.downcast_ref::<JobReleased>() {
+                } else if let Some(e) = release {
                     (&e.connection_name, &e.job, "released", None, 0.)
                 } else if let Some(e) = event.downcast_ref::<JobAttempted>() {
                     (
@@ -308,28 +345,30 @@ impl Listener for JobListener {
                         })
                     })
                     .unwrap_or(false);
-            repository
-                .record_payload(
-                    JobRecord {
-                        id: job.id.clone(),
-                        name: job.payload.name().into(),
-                        connection: connection.clone(),
-                        queue: job.queue.clone(),
-                        attempts: job.attempts,
-                        status: String::new(),
-                        duration,
-                        updated_at: 0,
-                    },
-                    phase,
-                    &job.payload,
-                    &tags,
-                    silenced,
-                    exception,
-                )
-                .await
-                .map_err(|source| EventError::Listener {
-                    source: Box::new(source),
-                })?;
+            let record = JobRecord {
+                id: job.id.clone(),
+                name: job.payload.name().into(),
+                connection: connection.clone(),
+                queue: job.queue.clone(),
+                attempts: job.attempts,
+                status: String::new(),
+                duration,
+                updated_at: 0,
+            };
+            if let Some(release) = release {
+                let delay_ms = u64::try_from(release.delay.as_millis())
+                    .map_err(|_| EventError::InvalidPayload)?;
+                repository
+                    .record_release(record, &job.payload, &tags, silenced, delay_ms)
+                    .await
+            } else {
+                repository
+                    .record_payload(record, phase, &job.payload, &tags, silenced, exception)
+                    .await
+            }
+            .map_err(|source| EventError::Listener {
+                source: Box::new(source),
+            })?;
             Ok(None)
         })
     }

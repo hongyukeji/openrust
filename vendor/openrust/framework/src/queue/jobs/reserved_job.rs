@@ -1,9 +1,10 @@
 use std::{sync::Arc, time::Duration};
 
-use crate::contracts::queue::Job;
+use crate::contracts::{events::Event, queue::Job};
 
 use super::super::{
     Delay, JobContext, JobOptions, Payload, Queue, QueueError, QueueFuture, QueueResult,
+    events::{JobSnapshot, RedisJobDeleted, RedisJobReleased},
 };
 
 pub(in crate::queue) trait Reservation: Send {
@@ -15,6 +16,9 @@ pub(in crate::queue) trait Reservation: Send {
     ) -> QueueFuture<'a, QueueResult<()>>;
     fn delete(&mut self) -> QueueFuture<'_, QueueResult<()>>;
     fn release(&mut self, delay: Duration) -> QueueFuture<'_, QueueResult<()>>;
+    fn redis_reserved_at(&self) -> Option<tokio::time::Instant> {
+        None
+    }
 }
 
 pub(crate) struct ReservedJob {
@@ -26,6 +30,43 @@ pub(crate) struct ReservedJob {
     pub(in crate::queue) deleted: bool,
     pub(in crate::queue) released: bool,
     pub(in crate::queue) failed: bool,
+}
+
+impl ReservedJob {
+    async fn observe_redis_settlement<E: Event>(
+        &mut self,
+        name: &str,
+        event: impl FnOnce(String, JobSnapshot, Duration, bool) -> E + Send,
+    ) {
+        let Some(reserved_at) = self.storage.redis_reserved_at() else {
+            return;
+        };
+        if let Ok(manager) = self.registry.manager()
+            && matches!(manager.observes_worker_event(name), Ok(true))
+        {
+            manager
+                .observe_settlement_event(event(
+                    self.context.connection.clone(),
+                    JobSnapshot::from_job(self),
+                    reserved_at.elapsed(),
+                    self.failed,
+                ))
+                .await;
+        }
+    }
+
+    async fn observe_deletion(&mut self) {
+        self.observe_redis_settlement(
+            RedisJobDeleted::NAME,
+            |connection_name, job, duration, failed| RedisJobDeleted {
+                connection_name,
+                job,
+                failed,
+                duration,
+            },
+        )
+        .await;
+    }
 }
 
 impl Job for ReservedJob {
@@ -94,14 +135,19 @@ impl Job for ReservedJob {
             }
             self.storage.advance_chain(next, queue, delay).await?;
             self.deleted = true;
+            self.observe_deletion().await;
             Ok(())
         })
     }
 
     fn fail<'a>(&'a mut self, _cause: Option<&'a QueueError>) -> QueueFuture<'a, QueueResult<()>> {
         Box::pin(async move {
-            self.delete().await?;
+            let was_failed = self.failed;
             self.failed = true;
+            if let Err(error) = self.delete().await {
+                self.failed = was_failed;
+                return Err(error);
+            }
             Ok(())
         })
     }
@@ -113,6 +159,14 @@ impl Job for ReservedJob {
             }
             self.storage.release(delay).await?;
             self.released = true;
+            self.observe_redis_settlement(RedisJobReleased::NAME, |connection_name, job, _, _| {
+                RedisJobReleased {
+                    connection_name,
+                    job,
+                    delay,
+                }
+            })
+            .await;
             Ok(())
         })
     }
@@ -124,6 +178,7 @@ impl Job for ReservedJob {
             }
             self.storage.delete().await?;
             self.deleted = true;
+            self.observe_deletion().await;
             Ok(())
         })
     }

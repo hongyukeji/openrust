@@ -55,6 +55,8 @@ Set `HORIZON_NAME` to show a deployment name in the dashboard title and heading.
 
 Register synchronous listeners for `JobPending::NAME`, `JobPushed::NAME`, and `JobReserved::NAME` from `openrust_horizon` to observe Redis queue operations. `JobPending` runs before Redis writes the job, `JobPushed` runs after a successful write, and `JobReserved` runs after Redis reserves the job. The events include the connection, queue, delivery ID, and native payload. For `JobReserved`, the `job` snapshot also records the attempt number. Use the payload UUID to correlate separate deliveries of the same job.
 
+`JobReleased::NAME` runs after Redis returns the reservation to the delayed queue. Its `delay` is a Rust `Duration`, and job details expose it as `release_delay_ms`. `JobDeleted::NAME` runs after Redis acknowledges deletion, including when a job advances its chain. It includes the job snapshot, failure flag, and elapsed time since reservation.
+
 Long-wait alerts include the deployment name in the email subject, SMS body and Slack details. Pass an incoming webhook URL or a channel ID to `Horizon::route_slack_notifications_to`. A channel ID uses the Slack Bot API and requires `services.slack.notifications.bot_user_oauth_token`.
 
 Use `Horizon::route_slack_webhook_notifications_to(url, channel)` to include a channel override in the incoming Webhook payload. Slack app incoming Webhooks always post to the channel selected during installation. Use a Bot API channel ID to choose the destination on each request.

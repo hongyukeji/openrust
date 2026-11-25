@@ -181,6 +181,16 @@ queue_event!(
 );
 
 queue_event!(
+    /// Redis 已将保留任务重新放入延迟队列。
+    RedisJobReleased { connection_name: String, job: JobSnapshot, delay: Duration }
+);
+
+queue_event!(
+    /// Redis 已确认删除保留任务。
+    RedisJobDeleted { connection_name: String, job: JobSnapshot, failed: bool, duration: Duration }
+);
+
+queue_event!(
     /// A worker reserved a job before executing it.
     JobPopped {
         connection_name: String,

@@ -333,15 +333,15 @@ Rust 1.94.0 单作业构建通过，实际运行于 Linux 7.0.14-linuxkit、Debi
 
 固定 `MasterSupervisorReviving` 和 `SupervisorProcessRestarting` 保留公开类型。当前固定源码只找到前者的定义和后者的定义与事件映射，移植前须保留该区别。已接入的 `WorkerProcessRestarting`、`MasterSupervisorDeployed` 和 `UnableToLaunchProcess` 见下文。 [固定进程代码](https://github.com/laravel/horizon/tree/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src) [固定 EventMap](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/EventMap.php)
 
-固定 Redis 运输事件的共同字段为连接、队列和载荷，`JobsMigrated` 提供载荷序列。已实现的入队与保留事件见下节。释放、删除、迁移和失败仍待补齐公开契约，现有原生队列监听器已覆盖部分仓储消费者。 [固定 RedisQueue](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/RedisQueue.php) [固定失败事件桥接](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Listeners/MarshalFailedEvent.php)
+固定 Redis 运输事件的共同字段为连接、队列和载荷，`JobsMigrated` 提供载荷序列。已实现的入队、保留、释放和删除事件见下节。迁移和失败仍待补齐公开契约，现有原生队列监听器已覆盖部分仓储消费者。 [固定 RedisQueue](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/RedisQueue.php) [固定失败事件桥接](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Listeners/MarshalFailedEvent.php)
 
 | 固定事件 | 运输边界与上游消费者 |
 |---|---|
 | `JobPending` | 即时与延迟写入 Redis 前派发并保存待处理详情，真实 Redis 写失败仍保留该事件和已写详情。 |
 | `JobPushed` | Redis 写入成功后派发，保存被监控标签，已验即时、延迟与事务提交。 |
 | `JobReserved` | Redis 成功保留后派发，原生快照携带尝试次数，实际入队／取出夹具验证保留态仓储。Worker 计时仍走原生尝试事件。 |
-| `JobReleased` | Redis 删除保留记录并重新入队后派发，携带延迟秒数，更新释放状态。 |
-| `JobDeleted` | Redis 删除保留记录后派发，携带 Job 与保留态载荷，触发完成状态和指标监听器。需核对正常删除、手动删除和失败路径。 |
+| `JobReleased` | Redis 确认重新入队后派发，原生延迟为 `Duration`，任务详情保留毫秒值。 |
+| `JobDeleted` | Redis 确认删除保留记录后派发，带保留快照与失败标记。成功删除更新完成状态和指标，失败删除等待失败处理，避免重复记为成功。 |
 | `JobsMigrated` | 从延迟或保留集合迁回 Ready 后派发，固定实现将 Redis 返回的 `false` 映射为空数组。需验证实际迁移、空批和任务详情更新。 |
 | `JobFailed` | 固定监听器仅将底层的 Redis Job 失败事件转换为 Horizon 事件，携带异常、Job 和保留态载荷；分包监听器负责失败状态与标签。 |
 
@@ -352,6 +352,14 @@ Rust 1.94.0 单作业构建通过，实际运行于 Linux 7.0.14-linuxkit、Debi
 基于 `0621a67a3` 加本批文件的 macOS 隔离快照，在独占 Redis 8.10.3 上经公开事件监听器逐次读取 Ready、延迟、保留队列、任务详情和监控标签。已验即时与延迟入队、Redis 写入错误、SQLite 事务提交和回滚、直接保留与尝试次数。Horizon 默认 24 项和 Redis 13 项、Pulse 默认 21 项和 Redis 1 项、Telescope 默认 38 项和 Redis 1 项通过。实际 Artisan 进程矩阵与核心不启用 Horizon 的 Redis HTTP／阻塞取任务通过。快照全仓格式、Horizon 全目标严格 Clippy、三语站点和 12 组浏览器检查通过。证据为 `target/tmp/observability-parity/horizon-redis-transport-*.log`。本批 Linux、Windows 和全仓发布组合待验。
 
 原生 Redis 原子任务链转接未走普通写入入口，仍须独立核对通知顺序与事务保证。固定 PHP `JobPayload` 的附加字段和原生标签回调求值时机仍需专项对账。
+
+### Horizon Redis 释放与删除事件
+
+固定 `RedisQueue` 在释放或删除保留任务后派发事件。释放监听器写入待处理状态和延迟，成功删除监听器完成任务并记录从保留开始的运行时间；失败删除不计为成功。Rust 在实际 Redis 变更确认后桥接公开事件，任务链原子推进时也观察旧保留记录的删除。事件给应用传递拥有所有权的保留快照，`JobReleased::NAME` 使用 `Horizon.JobReleased` 区分核心 Worker 同名事件。任务详情提供可选的 `release_delay_ms`，旧记录无需迁移。原生尝试结算保留失败、重试和显式释放的区别，成功删除与 Worker 最终事件共用幂等记账。固定 PHP 同步监听器可将异常传回调用者。Rust 对已确认的队列变更记日志，保留确认结果及任务句柄的终态，防止重复操作。 [固定释放监听器](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Listeners/MarkJobAsReleased.php) [固定完成监听器](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Listeners/MarkJobAsComplete.php) [固定指标监听器](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Listeners/UpdateJobMetrics.php)
+
+基于 `86b602de9` 加本批文件的 macOS 隔离快照，真实 Redis 8.10.3 验证同步 Listener、授权 HTTP 任务详情、直接释放和删除、失效和重复确认、任务链成功推进、Worker 永久失败及退避重试。额外验证观察者错误时 Redis 结果和句柄标记一致，成功和失败各自只记账一次。三包默认测试共 83 项、Horizon Redis 专项 14 项、真实 Artisan 进程矩阵和无 Horizon 的框架 Redis HTTP／阻塞取任务均通过。快照全仓格式、Horizon 全目标严格 Clippy、三语站点和 12 组文档浏览器检查通过。证据为 `target/tmp/observability-parity/horizon-redis-settlement-*.log`。本批 Linux、Windows 和发布组合待验。
+
+对账时还发现 Horizon 的监督器选项及仓储使用较窄的 ASCII 队列名检查，原生 Redis 接受更宽的队列名。保留事件的仓储处理错误目前可能阻断已经成功的原生 `pop`。需核对可用名称、分组分隔符、指标和命令入口，并验证保留后的错误边界。
 
 ### Horizon WorkerProcessRestarting 公开事件
 

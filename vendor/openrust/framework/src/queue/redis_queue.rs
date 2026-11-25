@@ -231,6 +231,7 @@ impl RedisQueue {
             delayed,
             reserved,
             raw,
+            reserved_at: tokio::time::Instant::now(),
         };
         let reservation = ReservedJob {
             registry: self.registry.clone(),
@@ -409,6 +410,7 @@ struct RedisReservation {
     delayed: String,
     reserved: String,
     raw: String,
+    reserved_at: tokio::time::Instant,
 }
 
 impl RedisReservation {
@@ -427,6 +429,10 @@ impl RedisReservation {
 }
 
 impl Reservation for RedisReservation {
+    fn redis_reserved_at(&self) -> Option<tokio::time::Instant> {
+        Some(self.reserved_at)
+    }
+
     fn advance_chain<'a>(
         &'a mut self,
         next: &'a Payload,

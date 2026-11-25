@@ -258,12 +258,15 @@ struct TransportObservation {
     status: String,
     monitored: bool,
     attempts: u32,
+    delay_ms: Option<u64>,
+    failed: Option<bool>,
 }
 
 struct TransportListener {
     queue: Arc<dyn openrust::contracts::queue::Queue>,
     repository: Arc<Repository>,
     observations: std::sync::Mutex<Vec<TransportObservation>>,
+    fail_settlement_listeners: bool,
 }
 
 impl openrust::contracts::events::Listener for TransportListener {
@@ -276,7 +279,9 @@ impl openrust::contracts::events::Listener for TransportListener {
         openrust::events::EventResult<Option<openrust::events::ListenerResponse>>,
     > {
         Box::pin(async move {
-            use openrust_horizon::{JobPending, JobPushed, JobReserved};
+            use openrust_horizon::{JobDeleted, JobPending, JobPushed, JobReleased, JobReserved};
+            let released = event.downcast_ref::<JobReleased>();
+            let deleted = event.downcast_ref::<JobDeleted>();
             let (connection, queue, id, payload, attempts) =
                 if let Some(event) = event.downcast_ref::<JobPending>() {
                     (
@@ -302,6 +307,11 @@ impl openrust::contracts::events::Listener for TransportListener {
                         &event.job.payload,
                         event.job.attempts,
                     )
+                } else if let Some((connection, job)) = released
+                    .map(|event| (&event.connection_name, &event.job))
+                    .or_else(|| deleted.map(|event| (&event.connection_name, &event.job)))
+                {
+                    (connection, &job.queue, &job.id, &job.payload, job.attempts)
                 } else {
                     return Ok(None);
                 };
@@ -333,7 +343,18 @@ impl openrust::contracts::events::Listener for TransportListener {
                     status: details.record.status,
                     monitored,
                     attempts,
+                    delay_ms: details.release_delay_ms,
+                    failed: deleted.map(|event| event.failed),
                 });
+            if let Some(event) = released {
+                assert_eq!(
+                    details.release_delay_ms.map(u128::from),
+                    Some(event.delay.as_millis())
+                );
+            }
+            if self.fail_settlement_listeners && (released.is_some() || deleted.is_some()) {
+                return Err(openrust::events::EventError::InvalidPayload);
+            }
             Ok(None)
         })
     }
@@ -381,6 +402,7 @@ async fn redis_public_transport_events_follow_writes_reservations_and_commit() {
         queue: queue.clone(),
         repository,
         observations: Default::default(),
+        fail_settlement_listeners: false,
     });
     let dispatcher = app.app().make::<Dispatcher>().await.unwrap();
     for name in [JobPending::NAME, JobPushed::NAME, JobReserved::NAME] {
@@ -512,6 +534,182 @@ async fn redis_public_transport_events_follow_writes_reservations_and_commit() {
             ),
         ]
     );
+}
+
+#[tokio::test]
+#[ignore = "requires dedicated Redis 8 acceptance wrapper"]
+async fn redis_public_settlement_events_follow_confirmed_operations_and_count_once() {
+    use openrust::{
+        contracts::events::Dispatcher as _,
+        events::{Delivery, Dispatcher},
+        queue::{JobOptions, Payload, QueueManager},
+    };
+    use openrust_horizon::{JobDeleted, JobReleased};
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(config)
+            .with_providers(vec![Box::new(HorizonServiceProvider)])
+            .with_routing(Routing::default().api(authorized_routes))
+    })
+    .unwrap();
+    app.boot().await.unwrap();
+    let manager = app.app().make::<QueueManager>().await.unwrap();
+    let queue = manager.connection(Some("redis")).unwrap();
+    let repository = app.app().make::<Repository>().await.unwrap();
+    let listener = Arc::new(TransportListener {
+        queue: queue.clone(),
+        repository: repository.clone(),
+        observations: Default::default(),
+        fail_settlement_listeners: true,
+    });
+    let dispatcher = app.app().make::<Dispatcher>().await.unwrap();
+    for name in [JobReleased::NAME, JobDeleted::NAME] {
+        dispatcher
+            .listen(name, listener.clone(), Delivery::Sync)
+            .unwrap();
+    }
+    let payload = Payload::new("probe", json!({"id": 42})).unwrap();
+    let release_id = queue
+        .push(&payload, Some("release"))
+        .await
+        .unwrap()
+        .unwrap();
+    let mut released = queue.pop_now(Some("release")).await.unwrap().unwrap();
+    released
+        .release(Duration::from_millis(90_123))
+        .await
+        .unwrap();
+    assert!(released.is_released());
+    released.release(Duration::ZERO).await.unwrap();
+    released.delete().await.unwrap();
+
+    let delete_id = queue.push(&payload, Some("delete")).await.unwrap().unwrap();
+    let mut deleted = queue.pop_now(Some("delete")).await.unwrap().unwrap();
+    deleted.delete().await.unwrap();
+    assert!(deleted.is_deleted());
+    deleted.delete().await.unwrap();
+    assert_eq!(
+        repository
+            .metrics("redis", "delete")
+            .await
+            .unwrap()
+            .completed,
+        1
+    );
+
+    queue.push(&payload, Some("stale")).await.unwrap();
+    let mut stale = queue.pop_now(Some("stale")).await.unwrap().unwrap();
+    queue.clearable().unwrap().clear("stale").await.unwrap();
+    assert!(stale.release(Duration::ZERO).await.is_err());
+    assert!(stale.delete().await.is_err());
+    assert!(!stale.is_deleted() && !stale.is_released());
+
+    let chain_id = queue.push(&payload, Some("chain")).await.unwrap().unwrap();
+    let mut member = queue.pop_now(Some("chain")).await.unwrap().unwrap();
+    member
+        .advance_chain(&Payload::new("next", json!({})).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(queue.metrics(Some("chain")).await.unwrap().pending, Some(1));
+
+    manager.register("fail", Arc::new(Handler("fail"))).unwrap();
+    let failed_id = queue
+        .push(&Payload::new("fail", json!({})).unwrap(), None)
+        .await
+        .unwrap()
+        .unwrap();
+    app.artisan(["queue:work", "redis", "--once", "--force", "--memory=1024"])
+        .await
+        .assert_successful();
+    let retry = Payload::new("fail", json!({}))
+        .unwrap()
+        .with_options(JobOptions {
+            max_tries: Some(2),
+            backoff: vec![Duration::from_secs(90)],
+            ..Default::default()
+        });
+    let retry_id = queue.push(&retry, None).await.unwrap().unwrap();
+    app.artisan(["queue:work", "redis", "--once", "--force", "--memory=1024"])
+        .await
+        .assert_successful();
+    let metrics = repository.metrics("redis", "default").await.unwrap();
+    assert_eq!(
+        (
+            metrics.attempts,
+            metrics.failed,
+            metrics.retrying,
+            metrics.completed
+        ),
+        (2, 1, 1, 0)
+    );
+    let details = repository.jobs().find(&retry_id).await.unwrap().unwrap();
+    assert_eq!(details.release_delay_ms, Some(90_000));
+    let request = http::Request::builder()
+        .uri(format!("/api/horizon/api/jobs/{retry_id}"))
+        .header("x-test-operator", "operator")
+        .body(openrust::http::Body::empty())
+        .unwrap();
+    let response = app.call(request).await.unwrap();
+    response.assert_ok();
+    let job: Value = serde_json::from_slice(response.body()).unwrap();
+    assert_eq!(job["release_delay_ms"], 90_000);
+    let observations = listener.observations.lock().unwrap();
+    let expected = [
+        (
+            JobReleased::NAME,
+            &release_id,
+            (0, 1, 0),
+            "pending",
+            Some(90_123),
+            None,
+        ),
+        (
+            JobDeleted::NAME,
+            &delete_id,
+            (0, 0, 0),
+            "completed",
+            None,
+            Some(false),
+        ),
+        (
+            JobDeleted::NAME,
+            &chain_id,
+            (1, 0, 0),
+            "completed",
+            None,
+            Some(false),
+        ),
+        (
+            JobDeleted::NAME,
+            &failed_id,
+            (0, 0, 0),
+            "reserved",
+            None,
+            Some(true),
+        ),
+        (
+            JobReleased::NAME,
+            &retry_id,
+            (0, 1, 0),
+            "pending",
+            Some(90_000),
+            None,
+        ),
+    ];
+    let observed: Vec<_> = observations
+        .iter()
+        .map(|row| {
+            (
+                row.name.as_str(),
+                &row.id,
+                row.counts.unwrap(),
+                row.status.as_str(),
+                row.delay_ms,
+                row.failed,
+            )
+        })
+        .collect();
+    assert_eq!(observed, expected);
 }
 
 #[tokio::test]

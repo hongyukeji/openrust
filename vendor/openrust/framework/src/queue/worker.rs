@@ -616,6 +616,7 @@ impl Worker {
                 Box::pin(batch.record(&self.app, job.payload(), Some(&failed.exception), None))
                     .await?;
             }
+            job.mark_as_failed();
             job.delete().await?;
             self.release_unique_lock(job.payload()).await;
             return Ok(WorkResult::Failed);

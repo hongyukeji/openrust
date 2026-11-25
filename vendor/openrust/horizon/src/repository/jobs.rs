@@ -13,6 +13,8 @@ pub struct JobDetails {
     pub silenced: bool,
     pub created_at: u64,
     pub reserved_at: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub release_delay_ms: Option<u64>,
     pub completed_at: Option<u64>,
     pub failed_at: Option<u64>,
     pub retried_by: Vec<Json>,
@@ -34,6 +36,32 @@ pub struct JobRepository(pub(super) Repository);
 impl Repository {
     pub fn jobs(&self) -> JobRepository {
         JobRepository(self.clone())
+    }
+    pub(crate) async fn record_release(
+        &self,
+        record: JobRecord,
+        payload: &Payload,
+        tags: &[String],
+        silenced: bool,
+        delay_ms: u64,
+    ) -> Result<()> {
+        if let Some(status) = self
+            .record_accepted(record.clone(), "released", false)
+            .await?
+        {
+            self.jobs()
+                .store_with_release_delay(
+                    record,
+                    payload,
+                    tags,
+                    silenced,
+                    None,
+                    &status,
+                    Some(delay_ms),
+                )
+                .await?;
+        }
+        Ok(())
     }
     #[allow(
         clippy::too_many_arguments,
@@ -421,12 +449,29 @@ impl JobRepository {
     )]
     pub(super) async fn store(
         &self,
+        record: JobRecord,
+        payload: &Payload,
+        tags: &[String],
+        silenced: bool,
+        exception: Option<&str>,
+        phase: &str,
+    ) -> Result<()> {
+        self.store_with_release_delay(record, payload, tags, silenced, exception, phase, None)
+            .await
+    }
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "Stores the complete queue event projection including the Redis release delay"
+    )]
+    async fn store_with_release_delay(
+        &self,
         mut record: JobRecord,
         payload: &Payload,
         tags: &[String],
         silenced: bool,
         exception: Option<&str>,
         phase: &str,
+        release_delay_ms: Option<u64>,
     ) -> Result<()> {
         if !crate::label(&record.id) || record.connection.is_empty() || record.queue.is_empty() {
             return Err(Error::InvalidRecord);
@@ -478,6 +523,8 @@ impl JobRepository {
             } else {
                 old.as_ref().and_then(|j| j.reserved_at)
             },
+            release_delay_ms: release_delay_ms
+                .or_else(|| old.as_ref().and_then(|job| job.release_delay_ms)),
             completed_at: if status == "completed" {
                 Some(now)
             } else {
