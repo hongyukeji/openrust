@@ -33,6 +33,8 @@ mod query_budget_migration;
 mod query_retry_migration;
 #[path = "../database/migrations/2026_11_26_000005_add_moderation_recovery_dispatch.rs"]
 mod recovery_dispatch_migration;
+#[path = "../database/migrations/2026_11_26_000013_create_moderation_remote_leases_table.rs"]
+mod remote_leases_migration;
 #[path = "../database/migrations/2026_11_26_000001_create_moderation_reviews_table.rs"]
 mod reviews_migration;
 #[path = "../database/migrations/2026_11_26_000003_add_moderation_submission_lease.rs"]
@@ -104,6 +106,7 @@ openrust::compiled_migration_assets!("content-moderation";
     "2026_11_26_000010_create_moderation_review_decisions_table.rs" => decisions_migration,
     "2026_11_26_000011_add_moderation_query_retry_at.rs" => query_retry_migration,
     "2026_11_26_000012_create_moderation_account_rate_buckets_table.rs" => account_rates_migration,
+    "2026_11_26_000013_create_moderation_remote_leases_table.rs" => remote_leases_migration,
 );
 
 impl ModerationServiceProvider {

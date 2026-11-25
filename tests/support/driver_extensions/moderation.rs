@@ -70,6 +70,10 @@ pub(super) fn configuration(env: &Environment) -> Result<Value, ConfigError> {
         configuration["account_rate_limits"] =
             serde_json::from_str(limits).expect("验收账户速率配置");
     }
+    if let Some(limits) = env.get_utf8("MODERATION_FIXTURE_IN_FLIGHT")? {
+        configuration["account_in_flight_limits"] =
+            serde_json::from_str(limits).expect("验收账户在途上限配置");
+    }
     if env.get_utf8("MODERATION_FIXTURE_GROUP")? == Some("1") {
         for (mode, modality) in [
             ("visual", "visual"),

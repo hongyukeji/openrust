@@ -22,8 +22,18 @@ SUBMISSION = runpy.run_path(str(ROOT / "tests/moderation_submission_acceptance.p
 VIDEO, HTTP, DATABASE, COMMAND = (SUBMISSION[key] for key in ("VIDEO", "HTTP", "DATABASE", "COMMAND"))
 
 
+LEASE_MIGRATION = ("--path=vendor/openrust/content-moderation/database/migrations/"
+                   "2026_11_26_000013_create_moderation_remote_leases_table.rs")
+LEASES = "moderation_remote_leases"
+
+
 class Supplier(SUBMISSION["PausedSupplier"]):
     def respond(self, status, payload):
+        if self.command == "POST" and status == 200 and self.server.unique_task_ids:
+            if payload["media"]["id"] == VIDEO["TASK"]:
+                with self.server.lock:
+                    self.server.issued += 1
+                    payload["media"]["id"] = f"med_capacity{self.server.issued}"
         if self.command != "DELETE":
             return super().respond(status, payload)
         if gate := self.server.cancel_gate:
@@ -40,7 +50,7 @@ class Supplier(SUBMISSION["PausedSupplier"]):
                 raise
 
 
-def exercise(binary, driver, url, root, storage_env, storage):
+def exercise(binary, driver, url, root, storage_env, storage, *, test_in_flight=False):
     first, _, original, _ = VIDEO["versioned_clips"](root, storage)
     supplier = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Supplier)
     supplier.lock, supplier.mode = threading.Lock(), "accepted"
@@ -48,6 +58,7 @@ def exercise(binary, driver, url, root, storage_env, storage):
     supplier.gate = supplier.query_gate = supplier.cancel_gate = None
     supplier.cancel_reject, supplier.query_mode = False, "finished"
     supplier.posted, supplier.queried, supplier.stops = [], [], []
+    supplier.unique_task_ids, supplier.issued = test_in_flight, 0
     supplier.storage = urlsplit(storage_env["AWS_ENDPOINT"])
     thread = threading.Thread(target=supplier.serve_forever, daemon=True)
     thread.start()
@@ -80,6 +91,8 @@ def exercise(binary, driver, url, root, storage_env, storage):
         "MODERATION_FIXTURE_RECOVERY_QUEUE": "database",
         "MODERATION_FIXTURE_GROUP": "1",
     }
+    if test_in_flight:
+        env["MODERATION_FIXTURE_IN_FLIGHT"] = json.dumps({"sightengine": {"original-account": 2}})
     if url:
         env["DB_URL"] = url
     else:
@@ -129,13 +142,139 @@ def exercise(binary, driver, url, root, storage_env, storage):
         assert review["state"] == "Cancelled" and review["provider_cancellation"] == status, review
         assert review["decision"] is None
 
+    def post_submit(review):
+        connection = http.client.HTTPConnection("127.0.0.1", port, timeout=20)
+        try:
+            connection.request("POST", "/api/drivers/moderation/sightengine-video", headers={
+                "Accept": "application/json", "X-Fixture-Submit-Review": review["id"],
+            })
+            response = connection.getresponse()
+            body = response.read()
+            assert response.status == 200 and VIDEO["SECRET"].encode() not in body, (response.status, body)
+            return json.loads(body)
+        finally:
+            connection.close()
+
+    def probe_legacy_migration():
+        artisan("migrate:rollback", "--force", LEASE_MIGRATION)
+        record = stage("legacy-active")
+        sql("UPDATE moderation_reviews SET state = 'Running' " f"WHERE id = '{record['id']}'")
+        sql("UPDATE moderation_checks SET submission = 'Submitted', remote_task_id = 'med_legacy' "
+            f"WHERE id = '{record['check_id']}'")
+        artisan("migrate", "--force", LEASE_MIGRATION, successful=False)
+        sql("UPDATE moderation_reviews SET deadline_at = 1 " f"WHERE id = '{record['id']}'")
+        artisan("migrate", "--force", LEASE_MIGRATION)
+        assert model("query", record["id"])["state"] == "Expired" and not supplier.queried
+
+    def in_flight():
+        first_review, second, delayed = (stage(name) for name in ("slot-first", "slot-second", "slot-delayed"))
+        def occupied():
+            return sql(f"SELECT COUNT(*) FROM {LEASES}")
+
+        def due(review):
+            sql(f"UPDATE moderation_checks SET available_at = 1 WHERE id = '{review['check_id']}'")
+
+        def slot(review):
+            id = review["check_id"]
+            return sql(f"SELECT COUNT(*) FROM {LEASES} WHERE check_id = '{id}'")
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            reached, release = supplier.gate = (threading.Event(), threading.Event())
+            active = (pool.submit(post_submit, first_review), pool.submit(worker, review=second["id"]))
+            try:
+                assert reached.wait(8)
+                stop = time.monotonic() + 8
+                while len(supplier.posted) < 2 and time.monotonic() < stop:
+                    time.sleep(.02)
+                assert occupied() == "2" and len(supplier.posted) == 2
+                pending = post_submit(delayed)
+                assert pending["state"] == "Pending" and pending["submission"]["state"] == "Ready"
+                assert occupied() == "2" and len(supplier.posted) == 2
+                assert sql("SELECT used FROM moderation_account_rate_buckets WHERE operation = 'submit'") == "2"
+            finally:
+                release.set()
+            sent_first, sent_second = [item.result(timeout=12) for item in active]
+            supplier.gate = None
+        task_first = sent_first["submission"]["task"]
+        task_second = sent_second["submission"]["task"]
+        assert task_first != task_second and occupied() == "2"
+        still_waiting = worker(review=delayed["id"])
+        assert still_waiting["state"] == "Pending" and still_waiting["submission"]["state"] == "Ready"
+        assert occupied() == "2" and len(supplier.posted) == 2
+
+        supplier.query_mode = "wait"
+        due(first_review)
+        assert worker(query=True, review=first_review["id"])["state"] == "Running"
+        assert occupied() == "2" and supplier.queried == [task_first]
+
+        assert_cancelled(cancel(second["id"]), "acknowledged")
+        assert slot(second) == "0" and occupied() == "1" and supplier.stops == [task_second]
+        due(delayed)
+        assert worker(review=delayed["id"])["submission"]["state"] == "Submitted" and occupied() == "2"
+
+        supplier.query_mode = "finished"
+        due(first_review)
+        completed = worker(query=True, review=first_review["id"])
+        assert completed["state"] == "Failed" and completed["query_failure"] == "incomplete_coverage"
+        assert slot(first_review) == "0" and occupied() == "1"
+
+        unknown = stage("slot-crashed")
+        reached, release = supplier.gate = (threading.Event(), threading.Event())
+        with subprocess.Popen(command(COMMAND, "submit", "app", "tenant", unknown["id"]),
+                              env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) as process:
+            try:
+                assert reached.wait(8)
+                process.kill()
+                assert process.wait(timeout=5) != 0
+                assert slot(unknown) == "1" and occupied() == "2"
+                sql("UPDATE moderation_checks SET submit_lease_until = 1 "
+                    f"WHERE id = '{unknown['check_id']}'")
+                assert model("submit", unknown["id"])["submission"]["state"] == "Unknown"
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                    process.wait(timeout=5)
+                release.set()
+        supplier.gate = None
+        assert_cancelled(cancel(unknown["id"]), "task_unknown")
+        assert slot(unknown) == "1" and occupied() == "2"
+
+        supplier.cancel_reject = True
+        assert_cancelled(cancel(delayed["id"]), "rejected")
+        supplier.cancel_reject = False
+        waiting = stage("slot-wait-expiry")
+        assert post_submit(waiting)["submission"]["state"] == "Ready"
+        assert len(supplier.posted) == 4 and occupied() == "2"
+        sql(f"UPDATE {LEASES} SET expires_at = 1 WHERE check_id = '{unknown['check_id']}'")
+        sql("UPDATE moderation_reviews SET deadline_at = 1 " f"WHERE id = '{unknown['id']}'")
+        due(waiting)
+        assert worker(review=waiting["id"])["submission"]["state"] == "Submitted"
+        assert slot(unknown) == "0" and slot(delayed) == "1" and occupied() == "2"
+
+        assert_cancelled(cancel(waiting["id"]), "acknowledged")
+        assert slot(waiting) == "0" and occupied() == "1"
+        refused = stage("slot-provider-quota")
+        supplier.mode = "quota"
+        result = post_submit(refused)
+        assert result["submission"] == {"state": "Failed", "reason": "throttled"}
+        assert slot(refused) == "0" and occupied() == "1"
+        assert supplier.posted == [(first, original)] * 6
+        assert supplier.queried == [task_first, task_first]
+        assert sql("SELECT COUNT(*) FROM jobs") == sql("SELECT COUNT(*) FROM failed_jobs") == "0"
+        artisan("migrate:rollback", "--force", LEASE_MIGRATION, successful=False)
+
     try:
         artisan("migrate", "--force")
+        if test_in_flight:
+            probe_legacy_migration()
         artisan("config:cache")
         artisan("route:cache")
         with (root / "http.log").open("w+") as log:
             server = HTTP["serve"](binary, env | {"MODERATION_FIXTURE_PIN_ENDPOINT": "http://127.0.0.1:1"}, log)
             try:
+                if test_in_flight:
+                    in_flight()
+                    return
                 pending = stage("cancel-pending")
                 cancel(pending["id"], 404, "Tenant")
                 canceled = cancel(pending["id"])
@@ -240,7 +379,11 @@ if __name__ == "__main__":
     parser.add_argument("binary", type=Path)
     args = parser.parse_args()
     driver, url = DATABASE["database_settings"]()
+    test_slots = os.environ.get("MODERATION_TEST_IN_FLIGHT") == "1"
     with tempfile.TemporaryDirectory(dir=ROOT / "target/tmp", prefix="moderation-cancel-") as root, \
             VIDEO["VIDEO"]["OBJECTS"]["TOPOLOGY"]["object_storage"](True) as (env, storage):
-        exercise(args.binary.resolve(), driver, url, Path(root), env, storage)
-    print(f"{driver}: 真实 HTTP、Artisan、独立 Worker 的本地取消、远端回执与迟到隔离通过")
+        exercise(args.binary.resolve(), driver, url, Path(root), env, storage, test_in_flight=test_slots)
+    if test_slots:
+        print(f"{driver}: 真实 HTTP、Artisan、独立 Worker 的远端在途上限、已知结果释放和未知任务恢复通过")
+    else:
+        print(f"{driver}: 真实 HTTP、Artisan、独立 Worker 的本地取消、远端回执与迟到隔离通过")

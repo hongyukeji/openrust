@@ -1,7 +1,7 @@
 use openrust::database::{DatabaseError, Transaction, Value};
 use std::sync::Arc;
 
-use super::{CHECKS, ModerationStore, REVIEWS, database_clock_query, read_clock};
+use super::{CHECKS, ModerationStore, REVIEWS, database_clock_query, read_clock, remote_leases};
 use crate::{
     ModerationError, ModerationResult, ProviderCancellation, ReviewState, TaskId, VideoReview,
     VideoReviewGroup, VideoSubmission,
@@ -89,32 +89,51 @@ impl ModerationStore {
         if status == ProviderCancellation::Unconfirmed {
             return Ok(());
         }
-        let mut current = self
-            .connection
-            .table(REVIEWS)
-            .where_column("moderation_reviews.id", "=", "moderation_checks.review_id")
-            .r#where("scope_key", "=", self.scope_key.as_str())
-            .r#where("version", "=", version)
-            .r#where("state", "=", ReviewState::Cancelled.as_str());
+        let scope = self.scope_key.clone();
+        let (id, check) = (review.id().to_owned(), review.check_id().to_owned());
         self.connection
-            .table(CHECKS)
-            .r#where("id", "=", review.check_id())
-            .r#where("review_id", "=", review.id())
-            .r#where(
-                "provider_cancellation",
-                "=",
-                ProviderCancellation::Unconfirmed.as_str(),
-            )
-            .where_exists(&mut current)
-            .map_err(|_| ModerationError::ReviewStorage)?
-            .update(
-                [("provider_cancellation".into(), status.as_str().into())]
-                    .into_iter()
-                    .collect(),
+            .transaction(
+                move |tx| {
+                    let (scope, id, check) = (scope.clone(), id.clone(), check.clone());
+                    Box::pin(async move {
+                        let cancelled = tx
+                            .table(REVIEWS)
+                            .r#where("id", "=", id.as_str())
+                            .r#where("scope_key", "=", scope.as_str())
+                            .r#where("version", "=", version)
+                            .r#where("state", "=", ReviewState::Cancelled.as_str())
+                            .select(["id"])
+                            .lock_for_update()
+                            .first()
+                            .await?;
+                        if cancelled.is_none() {
+                            return Ok(());
+                        }
+                        let saved = tx
+                            .table(CHECKS)
+                            .r#where("id", "=", check.as_str())
+                            .r#where("review_id", "=", id.as_str())
+                            .r#where(
+                                "provider_cancellation",
+                                "=",
+                                ProviderCancellation::Unconfirmed.as_str(),
+                            )
+                            .update(
+                                [("provider_cancellation".into(), status.as_str().into())]
+                                    .into_iter()
+                                    .collect(),
+                            )
+                            .await?;
+                        if saved == 1 && status == ProviderCancellation::Acknowledged {
+                            remote_leases::release(tx, &check).await?;
+                        }
+                        Ok(())
+                    })
+                },
+                3,
             )
             .await
-            .map_err(|_| ModerationError::ReviewStorage)?;
-        Ok(())
+            .map_err(|_| ModerationError::ReviewStorage)
     }
 }
 

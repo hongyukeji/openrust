@@ -124,22 +124,45 @@ impl ModerationManager {
         &self,
         profile: &ProfileRevision,
     ) -> ModerationResult<AccountRates> {
-        let Some(config) = self.config.get("moderation.account_rate_limits") else {
-            return AccountRates::configured(None);
+        AccountRates::configured(
+            self.account_setting(profile, "account_rate_limits")?
+                .as_ref(),
+        )
+    }
+
+    pub(crate) fn in_flight_limit(&self, profile: &ProfileRevision) -> ModerationResult<u16> {
+        let key = "account_in_flight_limits";
+        match self.account_setting(profile, key)? {
+            None => Ok(32),
+            Some(value) => value
+                .as_u64()
+                .filter(|value| (1..=1024).contains(value))
+                .map(|value| value as u16)
+                .ok_or(ModerationError::InvalidConfiguration(key)),
+        }
+    }
+
+    fn account_setting(
+        &self,
+        profile: &ProfileRevision,
+        key: &'static str,
+    ) -> ModerationResult<Option<Value>> {
+        let Some(config) = self.config.get(&format!("moderation.{key}")) else {
+            return Ok(None);
         };
-        let invalid = || ModerationError::InvalidConfiguration("account_rate_limits");
+        let invalid = || ModerationError::InvalidConfiguration(key);
         let accounts = config
             .as_object()
             .ok_or_else(invalid)?
             .get(profile.driver());
-        let configured = match accounts {
-            None => None,
-            Some(accounts) => accounts
+        match accounts {
+            None => Ok(None),
+            Some(accounts) => Ok(accounts
                 .as_object()
                 .ok_or_else(invalid)?
-                .get(profile.account()),
-        };
-        AccountRates::configured(configured)
+                .get(profile.account())
+                .cloned()),
+        }
     }
 
     pub fn driver(&self, name: &str) -> ModerationResult<Arc<dyn ModerationDriver>> {

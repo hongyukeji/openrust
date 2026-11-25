@@ -1,8 +1,8 @@
 use openrust::database::{DatabaseError, Transaction};
 
-use super::{ModerationStore, digest, integer};
+use super::{ModerationStore, digest, integer, remote_leases};
 use crate::{
-    ProfileRevision,
+    ProfileRevision, VideoReview,
     rate_policy::{AccountRates, RateOperation},
 };
 
@@ -46,6 +46,7 @@ impl RateBudget {
         &self,
         tx: &mut Transaction,
         now: i64,
+        in_flight: Option<u16>,
     ) -> Result<Option<i64>, DatabaseError> {
         tx.table(BUCKETS)
             .upsert(
@@ -81,6 +82,12 @@ impl RateBudget {
         } else {
             (used + 1, reset_at)
         };
+        if let Some(maximum) = in_flight
+            && let Some(available) =
+                remote_leases::next_capacity_at(tx, &self.id, maximum, now).await?
+        {
+            return Ok(Some(available));
+        }
         let affected = tx
             .table(BUCKETS)
             .r#where("id", "=", self.id.as_str())
@@ -97,5 +104,13 @@ impl RateBudget {
             return Err(invalid());
         }
         Ok(None)
+    }
+
+    pub(super) async fn open_remote(
+        &self,
+        tx: &mut Transaction,
+        review: &VideoReview,
+    ) -> Result<(), DatabaseError> {
+        remote_leases::open(tx, &self.id, review).await
     }
 }

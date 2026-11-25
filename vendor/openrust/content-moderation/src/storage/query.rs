@@ -9,7 +9,7 @@ use crate::{
 
 use super::{
     CHECKS, ModerationStore, REVIEWS, RateBudget, assessment_record, database_clock,
-    database_clock_query, integer, rates::RESERVATION_STALE,
+    database_clock_query, integer, rates::RESERVATION_STALE, remote_leases,
 };
 
 const QUERY_LEASE_SECONDS: i64 = 150;
@@ -18,7 +18,7 @@ const QUERY_LEASE_SECONDS: i64 = 150;
 enum Action {
     Claim,
     Wait(Option<QueryFailure>, Option<RetryAfter>),
-    Stop(ReviewState, Option<QueryFailure>, Option<String>),
+    Stop(ReviewState, Option<QueryFailure>, Option<String>, bool),
 }
 
 impl ModerationStore {
@@ -44,13 +44,25 @@ impl ModerationStore {
                 failure,
                 assessment,
             } => {
+                let closed_remotely = matches!(
+                    state,
+                    ReviewState::Succeeded | ReviewState::Cancelled | ReviewState::Expired
+                ) || matches!(
+                    failure,
+                    Some(QueryFailure::ProviderFailed | QueryFailure::IncompleteCoverage)
+                );
                 match assessment
                     .as_ref()
                     .map(assessment_record::encode)
                     .transpose()
                 {
-                    Ok(encoded) => Action::Stop(state, failure, encoded),
-                    Err(_) => Action::Stop(ReviewState::Failed, Some(QueryFailure::Protocol), None),
+                    Ok(encoded) => Action::Stop(state, failure, encoded, closed_remotely),
+                    Err(_) => Action::Stop(
+                        ReviewState::Failed,
+                        Some(QueryFailure::Protocol),
+                        None,
+                        closed_remotely,
+                    ),
                 }
             }
         };
@@ -117,6 +129,7 @@ impl ModerationStore {
                             .await?
                             .and_then(|row| integer(&row, "created_at"))
                             .ok_or(DatabaseError::InvalidQuery("无法读取审核存储时钟"))?;
+                        let closed_remotely = matches!(&action, Action::Stop(_, _, _, true));
                         let Some((mut next, assessment)) = plan_query(&review, action, now) else {
                             return Ok(None);
                         };
@@ -124,7 +137,7 @@ impl ModerationStore {
                         if let Some(budget) = budget
                             && next.query_lease_until.is_some()
                         {
-                            match budget.reserve(transaction, now).await? {
+                            match budget.reserve(transaction, now, None).await? {
                                 Some(available) => {
                                     next.query_attempts = review.query_attempts;
                                     next.query_lease_until = None;
@@ -153,6 +166,9 @@ impl ModerationStore {
                             } else {
                                 Ok(None)
                             };
+                        }
+                        if closed_remotely {
+                            remote_leases::release(transaction, next.check_id()).await?;
                         }
                         if next.state == ReviewState::Expired
                             && review.query_lease_until.is_none()
@@ -271,7 +287,7 @@ fn plan_query(
                 next.query_failure = failure;
             }
         }
-        Action::Stop(state, failure, record) => {
+        Action::Stop(state, failure, record, _) => {
             next.state = state;
             next.query_failure = failure;
             next.query_lease_until = None;

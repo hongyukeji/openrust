@@ -95,7 +95,12 @@ impl VideoReviewService {
         let budget = self
             .store
             .rate_budget(review.profile(), RateOperation::Submit, rates);
-        if let Some(claim) = self.store.claim_submission(review, budget).await? {
+        let in_flight = self.manager.in_flight_limit(review.profile())?;
+        if let Some(claim) = self
+            .store
+            .claim_submission(review, budget, in_flight)
+            .await?
+        {
             let outcome = match self.driver(&claim) {
                 Ok(driver) if self.store.submission_is_live(&claim).await? => {
                     Self::send(driver.as_ref(), claim.source().clone()).await

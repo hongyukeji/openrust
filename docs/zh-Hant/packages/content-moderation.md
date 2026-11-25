@@ -202,6 +202,8 @@ let recommendation = result.decision(&[Modality::Text]);
 
 持久化隨選送審與查詢分別依應用程式、供應商驅動和帳號共享速率額度，涵蓋該應用程式的不同租戶及固定設定修訂。預設每 60 秒允許 60 次送審和 300 次查詢。可在 `moderation.account_rate_limits.<driver>.<account>` 設定 `submit`、`query` 和 `window_seconds`，次數支援 1–10,000，視窗支援 1–300 秒。同一應用程式的副本使用相同應用程式 ID、設定和資料庫。等待額度時，原審核截止時間和查詢次數預算仍有效。直接呼叫驅動的應用程式自行管理呼叫頻率。
 
+同一帳號預設最多保留 32 個遠端執行中的隨選檢查。可在 `moderation.account_in_flight_limits.<driver>.<account>` 設定 1–1,024 的整數。送審已受理或結果未知時繼續佔用名額。遠端確認結束、停止或拒絕受理後釋放名額。遠端狀態仍不確定時，租約持續到審核截止時間。本機租約到期時遠端工作仍可能存在。升級已有資料庫時先暫停新送審，讓舊 Worker 推進已有檢查。仍可能執行的審核須完成、確認取消或達到原截止時間，再停止舊 Worker 並套用遷移。
+
 ### 多項必查的審核 {#video-review-groups}
 
 透過 `VideoReviewGroupRequest::new` 和 `ModerationStore::stage_video_group` 為同一內容修訂和媒體版本保存 2–8 個相異的固定設定修訂，明確選擇各必查模態對應的設定。同一意圖及相同順序的檢查會傳回原審核群組。同一意圖下變更順序、設定、內容或媒體版本時會傳回衝突。

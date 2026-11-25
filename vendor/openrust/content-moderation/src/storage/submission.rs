@@ -6,7 +6,7 @@ use crate::{ModerationError, ModerationResult, ReviewState, VideoReview, VideoSu
 
 use super::{
     CHECKS, ModerationStore, REVIEWS, RateBudget, database_clock, database_clock_query, integer,
-    rates::RESERVATION_STALE,
+    rates::RESERVATION_STALE, remote_leases,
 };
 
 // 给当前最长 120 秒的供应商请求留出提交上下文时间，到期只转未知。
@@ -24,8 +24,10 @@ impl ModerationStore {
         &self,
         review: &VideoReview,
         budget: RateBudget,
+        in_flight: u16,
     ) -> ModerationResult<Option<VideoReview>> {
-        self.transition(review, Action::Claim, Some(budget)).await
+        self.transition(review, Action::Claim, Some((budget, in_flight)))
+            .await
     }
 
     pub(crate) async fn recover_submission(&self, review: &VideoReview) -> ModerationResult<()> {
@@ -77,7 +79,7 @@ impl ModerationStore {
         &self,
         review: &VideoReview,
         action: Action,
-        budget: Option<RateBudget>,
+        budget: Option<(RateBudget, u16)>,
     ) -> ModerationResult<Option<VideoReview>> {
         let review = Arc::new(review.clone());
         let scope = self.scope_key.clone();
@@ -101,8 +103,8 @@ impl ModerationStore {
                             return Ok(None);
                         };
                         let mut charged = false;
-                        if let Some(budget) = budget {
-                            match budget.reserve(transaction, now).await? {
+                        if let Some((budget, limit)) = &budget {
+                            match budget.reserve(transaction, now, Some(*limit)).await? {
                                 Some(available) => {
                                     next.state = review.state;
                                     next.submission = review.submission.clone();
@@ -173,6 +175,14 @@ impl ModerationStore {
                             .await?;
                         if changed_check != 1 {
                             return Err(DatabaseError::InvalidQuery("送审检查状态与父审核不一致"));
+                        }
+                        if let Some((budget, _)) = budget
+                            && charged
+                        {
+                            budget.open_remote(transaction, &next).await?;
+                        }
+                        if matches!(next.submission, VideoSubmission::Failed(_)) {
+                            remote_leases::release(transaction, next.check_id()).await?;
                         }
                         Ok((next.submission == VideoSubmission::Submitting).then_some(next))
                     })

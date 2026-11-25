@@ -24,6 +24,7 @@ mod query;
 mod rates;
 pub(crate) use rates::RateBudget;
 mod recovery;
+mod remote_leases;
 mod submission;
 
 const REVIEWS: &str = "moderation_reviews";
