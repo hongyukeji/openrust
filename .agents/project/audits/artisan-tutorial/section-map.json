@@ -368,11 +368,13 @@
         "accepted-sections.json",
         "console_section_consumers",
         "section-table-oracle.json",
-        "accepted-section-consumers.json"
+        "accepted-section-consumers.json",
+        "console_section_editors",
+        "section-editor-oracle.json"
       ],
       "native": "console::CommandIo::table",
       "remaining": [
-        "分区终端自动补全／多行与嵌套OutputStyle、组件SDK继续核对；本批未关闭整章。"
+        "嵌套OutputStyle与组件SDK、通用输出缓冲继续核对；本批未关闭整章。"
       ]
     },
     {

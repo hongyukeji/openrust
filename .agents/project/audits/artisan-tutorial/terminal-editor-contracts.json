@@ -1,0 +1,54 @@
+{
+  "reference": "Fixed Symfony Console7.4.0 QuestionHelper::autocomplete/readInput, SymfonyQuestionHelper and ConsoleSectionOutput",
+  "public_consumers": [
+    "Question::new / set_autocompleter_values / set_multiline",
+    "ChoiceQuestion::new / set_multiselect / set_max_attempts",
+    "OutputStyle::ask_question",
+    "Application::handle_command / Artisan::call / actual HTTP kernel"
+  ],
+  "fixed_source_tty_cases": 33,
+  "completion_and_choice_exact_cases": 29,
+  "multiline_cases": 4,
+  "native_cancel_cleanup": {
+    "exitcode": 130,
+    "restores_full_termios": true,
+    "method": "Observe after handle_command returns while the process keeps the controlling PTY alive; then release and verify exit"
+  },
+  "mechanism": [
+    "One inherited stdin lease/key-event loop; plain input and completion have distinct readers like the source",
+    "No initial selected candidate; arrows select and cycle, Tab accepts, first backspace clears a candidate and later backspace deletes entered text",
+    "Accepted full choice and current completion input remain separate, including comma-separated multi-choice",
+    "Source cursor clear/save/restore writes and hl formatter style use the selected output and preserve source section state",
+    "Completion takes precedence when multiline and completion are both set"
+  ],
+  "native_adaptations": [
+    "Reference TTY CRLF is normalized to LF before comparing redirected native stdout. The 29 completion/choice output byte sequences are then identical.",
+    "Plain multiline keeps existing nonblocking async editing rather than canonical OS echo. Its four cases compare answer and section state, not falsely identical echo bytes.",
+    "Existing native EOF keys and async cancellation/error/default rules are preserved; no new stream dispatcher, unsafe pointer or dependency.",
+    "The initial restoration probe queried a detached PTY after process exit and failed ENOTTY. The corrected probe checks full original termios while the completed command session is still alive; it passes."
+  ],
+  "baseline": {
+    "cases": 25,
+    "failed": 15,
+    "value_mismatches": [
+      6,
+      7,
+      18,
+      19
+    ],
+    "combination_timeouts": [
+      11,
+      23
+    ],
+    "completed_before_rebuild": true
+  },
+  "evidence": [
+    "console_section_editors",
+    "tests/artisan_section_editors.py",
+    "section-editor-oracle.json"
+  ],
+  "remaining": [
+    "Windows real terminal release matrix",
+    "Nested styles/component SDK and arbitrary output sinks are separate remaining chapter work"
+  ]
+}

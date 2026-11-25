@@ -6,6 +6,7 @@ mod choice;
 mod error_format;
 mod input;
 pub use choice::{ChoiceKey, ChoiceLabel, ChoiceQuestion};
+mod autocomplete;
 mod io;
 mod reader;
 pub(super) use input::Interaction;

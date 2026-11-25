@@ -1,0 +1,87 @@
+{
+  "scope": "Artisan phase28 terminal completion, choices and multiline section accounting",
+  "base": "8745bc5fa9d8a0e5d3acc624a822d753766e2a1a",
+  "source_sha256": {
+    "docs/en/digging-deeper/artisan.md": "51ba70935bfda33d4a48db6d5ce44e6849ee48dae20887908cf0bce14d855879",
+    "docs/tests/check_artisan_tutorial.mjs": "8bbeecdaa484e3c4f3f6b61f4f15115003ba997ae01e1b83fae1e9cc6c9b2143",
+    "docs/zh-Hans/digging-deeper/artisan.md": "30895db2e10fbb59ea87e309ef1eb2d711cde0ff1f87a49653b438f4c1be999d",
+    "docs/zh-Hant/digging-deeper/artisan.md": "8006022f4274592de4ab6524e847fd0ebebd962d6e7e89b8649fb3061539108a",
+    "tests/artisan_tutorial_docs.py": "818cd2706b425f2be5d8091ccc981ccb77af7a34462b55daff16a18414f9e5f6",
+    "vendor/openrust/framework/src/console/question/mod.rs": "c71b07ec972ac5666aca6f1973a2ed18041206789fe8cfe050509cc24cf6aadb",
+    "vendor/openrust/framework/src/console/question/reader.rs": "731d3e894a168a537ef269fe91f567ae78943ff819065d6e422b9bbebc0ed25c",
+    "vendor/openrust/framework/src/console/question/autocomplete.rs": "39f4ae08920e7c1cb2068aa1dae1dff197cde0249ad713b2b94a686df9f0f19e",
+    "vendor/openrust/framework/tests/console_section_editors.rs": "7b5b2dd253d2468e69d742356ba33cf0b4d2f19ba181fef45ead737c078042eb",
+    "tests/artisan_section_editors.py": "29b18d5c687353bd279ce80937f4690ea5819f0cf99b7f6d8578022babf52c13",
+    ".agents/project/audits/artisan-tutorial/section-editor-oracle.json": "a463d9b90db1abddeecb675fc0967a1bdc451c349c12c982817d3b4a89a3819f",
+    ".agents/project/audits/artisan-tutorial/question-contracts.json": "bed6851641e8a1357f333ae79a96ca3c7d026f22c6f31d5a7a303791f63b0717",
+    ".agents/project/audits/artisan-tutorial/section-contracts.json": "d9b45cdd96553c61637d85b6cb47131f9926ead85cd97888110124f5a381a861",
+    ".agents/project/audits/artisan-tutorial/output-reference-contracts.json": "674598e34e04d0f2ceb48516b0f7f88ce521a5e4c90eb70f38ab865ddbcbe8e2",
+    ".agents/project/audits/artisan-tutorial/io-contracts.json": "33f117b339fd862996e6b68186c9e28f2e597125ab9d6ef9a550a4786fc847fe",
+    ".agents/project/audits/artisan-tutorial/section-map.json": "f6ca3a1044c7ac6017b2e5e03b80c18d52c49fdc2e4d836018d94960b47041af",
+    ".agents/project/audits/artisan-tutorial/terminal-editor-contracts.json": "9f6c844c45b9af348ee515f82461aa9fe9d78e66ec1f87bbe3526e08ab6d3858"
+  },
+  "passed": {
+    "framework": 130,
+    "root": 128
+  },
+  "unique_parent_tests": 258,
+  "ignored_driven_fixtures_excluded": 23,
+  "formal_trilingual_examples": 87,
+  "source_tty_cases": 33,
+  "normalized_exact_completion_choice_stdout_cases": 29,
+  "multiline_metadata_and_values_cases": 4,
+  "source_stderr": "Reference TTY merges stdout/stderr; metadata marker is removed, no reference errors accepted",
+  "native_cancel_cleanup": {
+    "passed": true,
+    "exitcode": 130,
+    "restored_terminal": true
+  },
+  "strict_clippy_time": "53.00s",
+  "gates": [
+    {
+      "name": "format",
+      "returncode": 0
+    },
+    {
+      "name": "final-framework",
+      "returncode": 0
+    },
+    {
+      "name": "final-rustdoc",
+      "returncode": 0
+    },
+    {
+      "name": "final-rustdoc-reference",
+      "returncode": 0
+    },
+    {
+      "name": "final-root",
+      "returncode": 0
+    },
+    {
+      "name": "final-fmt",
+      "returncode": 0
+    },
+    {
+      "name": "final-clippy",
+      "returncode": 0
+    },
+    {
+      "name": "final-main",
+      "returncode": 0
+    },
+    {
+      "name": "final-docs",
+      "returncode": 0
+    }
+  ],
+  "browser_cases": 12,
+  "real_http": true,
+  "real_artisan": true,
+  "source_baseline_failure_record": "target/tmp/artisan-tutorial-20261125/section-editors-before.json",
+  "limitations": [
+    "Plain multiline echo is an existing native implementation adaptation, not byte-identical canonical echo",
+    "Windows real terminal release acceptance is not claimed",
+    "No entire Artisan chapter, full active worktree, nested-style/component SDK or arbitrary output interface acceptance claimed"
+  ]
+}

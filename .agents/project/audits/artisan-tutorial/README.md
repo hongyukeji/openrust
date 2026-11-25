@@ -408,3 +408,18 @@ ProgressBar／ProgressOutput保留同一目标：分区进度按源计算旧消�
 最终正式三语直接提取84例编译执行，20框架目标128项、根6目标125项，共253不同父消费者通过，22个父驱动ignore不叠加；OutputReference逃逸1项compile-fail、既有TableCellOptions2项单列不叠加。既有表格、问答、双流与进度全组保留。原始构造签名／借用转发及测试布尔表达式失败均修复，最终fmt、workspace all-targets严格Clippy 5.37s、main(pail)、三语构建、12项桌面／手机／双挂载浏览器通过。实际main HTTP/up/静态/HTML与JSON404/HEAD、Artisan inspire/list/Pail过滤/-vv/timeout清理/Ctrl+C通过。期间32GB守卫停止并清理全项目编译产物；中断不算通过，恢复后按最终源码重新完成门禁，日志保留。
 
 正式证据accepted-section-consumers.json、output-reference-contracts.json和三份源oracle；原始日志target/tmp/artisan-tutorial-20261125/section-consumers-*、section-progress-*、section-questions-*、section-table-*。本批运行目录清理，PHP容器结束，保留源码／日志／可复用缓存与数据库／数据卷。一般自定义OutputInterface（含Artisan.call输出缓冲）、嵌套OutputStyle计数、组件Factory及终端自动补全／多行分区明确待核对，不把本批当完整继承SDK或整章闭合。保护其他在途改动，仅核定范围本地提交，不推送。
+
+
+## 第二十八簇：分区终端补全、选择与多行输入（2026-11-25）
+
+第二十七簇已本地提交7cb9ff54ec637a3a360576666521ddda437bf240，未推送。本簇固定Symfony Console7.4.0 QuestionHelper／SymfonyQuestionHelper／ConsoleSectionOutput，先生成并运行真实PHP TTY消费者，再核对现有原生事件读取。v0.x没有对应编辑器可提取，复用当前stdin租约、非阻塞key-event、异步回调、格式器、Unicode切片、输入／默认／校验／取消机制。集中完成一个补全状态机，移除旧的整行候选重绘路径，没有平行命令派发器、新依赖或生产unsafe；既有console/LICENSE.symfony保留。
+
+真实旧二进制25组中15组未对齐：4组退格答案错误，2组补全与多行组合等待超时，其余为分区状态差异。section-editors-before.json完整保留，其完成时间早于新构建开始，未用混合新旧二进制冒充反例。修复后分别保存已输入内容、完整已接受选择和当前候选；按源逐段写光标清理／保存／恢复与hl高亮。候选退格先取消候选、后删输入，Tab接受，方向键循环；组合补全与多行时按源让Enter完成补全，避免等待不存在的后续EOF。普通多行回显不再重复计入分区。
+
+正式集扩大为33组真实固定PHP终端消费者，全部答案／分区元数据一致；29组补全、单选、多选在参考TTY CRLF归一为LF后输出逐字一致，涵盖两种装饰、空Enter默认、Tab、方向、两类退格、补全后续输入、逗号多选和Unicode。4组普通多行保留既有原生异步编辑回显，物理重绘字节不同但值／状态一致，不宣称全TTY字节相同。现有原生EOF键／取消规则不另行更改。
+
+实际Ctrl+C130与完整终端属性恢复通过。初始探针在会话进程退出后读PTY属性遇到ENOTTY，属夹具测量时序；改为handle_command结束后保持控制终端会话存活，检查完整termios恢复，再释放进程并确认130，无降低验收标准。正式tests/artisan_section_editors.py可重跑此探针及33组矩阵；所有临时应用目录、PTY和参考容器均结束／删除。真实Artisan标准输入管道多行，真实HTTP200／JSON500／200恢复通过，500内容类型与JSON对象均实际断言。
+
+三语正式代码直接提取87例编译执行。21个框架目标130项、根6目标128项，共258不同父消费者通过，23个被父驱动ignore不叠加；既有编译期拒绝消费者保持通过。旧补全／选择／问题／表格／进度回归保留。首次文档消费编译指出夹具缺少Output导入，补在夹具，不污染正式示例。最终fmt、workspace all-targets严格Clippy 53.00s、main(pail)、三语构建与12个桌面／手机／双挂载浏览器通过；实际main HTTP/up/静态/HTML与JSON404/HEAD、Artisan inspire/list/Pail过滤/-vv/timeout清理/Ctrl+C通过。
+
+正式证据terminal-editor-contracts.json、accepted-section-editors.json与section-editor-oracle.json；原始日志target/tmp/artisan-tutorial-20261125/section-editors-*。保留源码／日志／可复用缓存与数据库／数据卷，本批运行目录直接清理。嵌套OutputStyle计数、组件Factory、一般OutputInterface／程序化输出缓冲仍继续，不把本批当整个继承SDK或章节已闭合。Windows实机列发布验收，未声称新终端矩阵已通过；仅核定范围本地提交，不推送，其他在途保留。

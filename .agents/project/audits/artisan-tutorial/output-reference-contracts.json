@@ -48,11 +48,13 @@
     "console_section_consumers",
     "section-progress-oracle.json",
     "section-questions-oracle.json",
-    "section-table-oracle.json"
+    "section-table-oracle.json",
+    "console_section_editors",
+    "artisan_section_editors.py",
+    "section-editor-oracle.json"
   ],
   "remaining": [
     "Nested OutputStyle counter delegation and component Factory",
-    "Full arbitrary output sinks and programmatic call buffer parameter",
-    "Section terminal completion/multiline variants beyond accepted normal PTY"
+    "Full arbitrary output sinks and programmatic call buffer parameter"
   ]
 }

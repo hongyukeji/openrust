@@ -1202,4 +1202,40 @@ fn register_section_progress() -> Result<(), ConsoleError> {
 }
 ```
 
-Questions use the selected formatter and account for the submitted input line before the following blank line. Validation retries prepend the block once rather than repeating it on every attempt. Normal terminal editing echoes input directly without storing the echo a second time in section content. Stream-input questions, confirmation, hidden input, retries, cancellation and a normal interactive PTY have been verified. Terminal autocomplete and multiline section bookkeeping are not yet covered by that acceptance.
+Questions use the selected formatter and account for the submitted input line before the following blank line. Validation retries prepend the block once rather than repeating it on every attempt. Normal terminal editing echoes input directly without storing the echo a second time in section content. Stream-input questions, confirmation, hidden input, retries, cancellation and a normal interactive PTY have been verified. Completion and multiline behavior are described below.
+
+
+## Section completion and multiline input {#section-editors}
+
+Completion starts without a selected suggestion. Up/Down select the last/first initial candidate; typing filters candidates, Tab accepts the current candidate, and Enter accepts a selected candidate or the entered/default value. When a suggestion is visible, Backspace first removes the suggestion; another Backspace removes the entered character. Choice and multiple-choice questions use the same editor, including comma-separated matches.
+
+```rust
+use openrust::{
+    console::{AsyncCommandCallback, ConsoleError, OutputOptions, Question},
+    support::facades::Artisan,
+};
+
+fn register_editor() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:editor", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut section = output.section();
+            let mut style = section.style(input);
+            let mut question = Question::new("Name", Some("Guest".into()))?;
+            question.set_autocompleter_values(Some(vec![
+                "Ada".into(), "Adam".into(), "Beta".into(),
+            ]))?;
+            let answer = style.ask_question(&question).await?;
+            style.writeln(
+                format!("answer={}", answer.as_str().unwrap_or_default()).as_str(),
+                OutputOptions::default(),
+            )?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+`Question::set_multiline(true)` reads until the native EOF key, preserving embedded line breaks. An initial empty Enter uses the default. If completion and multiline are both enabled, completion takes precedence and Enter finishes that answer. Plain multiline echo uses the native asynchronous editor rather than the operating system canonical echo; its terminal redraw bytes differ, while the answer and section bookkeeping match.
+
+Ctrl+C keeps exit status `130` and restores the terminal mode before command handling finishes. Cancellation and timeout keep the existing question error/default rules. Windows terminal acceptance remains part of the release checks.

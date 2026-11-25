@@ -1202,4 +1202,40 @@ fn register_section_progress() -> Result<(), ConsoleError> {
 }
 ```
 
-問答使用所選格式器，在隨後空列之前計入提交輸入的換列；驗證重試只在問題開始前準備一次空列，不在每次重試重複執行。普通終端編輯直接回顯輸入，不把回顯再次儲存到分區內容。已驗證串流輸入問答、確認、隱藏輸入、重試、取消和普通互動 PTY；終端自動完成及多行輸入的分區記帳尚未包含在這批驗收中。
+問答使用所選格式器，在隨後空列之前計入提交輸入的換列；驗證重試只在問題開始前準備一次空列，不在每次重試重複執行。普通終端編輯直接回顯輸入，不把回顯再次儲存到分區內容。已驗證串流輸入問答、確認、隱藏輸入、重試、取消和普通互動 PTY；補全和多行行為見下節。
+
+
+## 分區補全與多行輸入 {#section-editors}
+
+補全開始時沒有選中候選。初次按上／下方向鍵選擇最後／第一個候選，輸入字元會篩選候選，Tab 接受目前候選，Enter 接受已選候選或輸入值／預設值。候選可見時，第一次退格移除候選，下一次才刪除已輸入字元。單選和多選使用同一編輯器，支援逗號分隔候選。
+
+```rust
+use openrust::{
+    console::{AsyncCommandCallback, ConsoleError, OutputOptions, Question},
+    support::facades::Artisan,
+};
+
+fn register_editor() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:editor", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut section = output.section();
+            let mut style = section.style(input);
+            let mut question = Question::new("Name", Some("Guest".into()))?;
+            question.set_autocompleter_values(Some(vec![
+                "Ada".into(), "Adam".into(), "Beta".into(),
+            ]))?;
+            let answer = style.ask_question(&question).await?;
+            style.writeln(
+                format!("answer={}", answer.as_str().unwrap_or_default()).as_str(),
+                OutputOptions::default(),
+            )?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+`Question::set_multiline(true)` 讀取到原生 EOF 鍵，保留中間換行；開始時直接按空 Enter 使用預設值。同時啟用補全和多行時，補全優先，Enter 完成本次回答。普通多行回顯使用原生非同步編輯器，而非作業系統規範模式回顯；終端重繪位元組存在差異，答案與分區記帳一致。
+
+Ctrl+C 維持結束碼 `130`，在命令處理完成前恢復終端模式。取消和逾時沿用既有問答錯誤／預設值規則。Windows 終端實機驗收仍屬於發佈檢查。

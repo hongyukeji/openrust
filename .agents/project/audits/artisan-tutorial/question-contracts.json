@@ -54,7 +54,10 @@
         "evidence": [
           "console_questions_tutorial",
           "question-accepted-framework.log",
-          "question-accepted-tty.log"
+          "question-accepted-tty.log",
+          "console_section_editors",
+          "artisan_section_editors.py",
+          "section-editor-oracle.json"
         ]
       },
       {
@@ -142,7 +145,10 @@
         "evidence": [
           "console_questions_tutorial",
           "question-accepted-framework.log",
-          "question-accepted-tty.log"
+          "question-accepted-tty.log",
+          "console_section_editors",
+          "artisan_section_editors.py",
+          "section-editor-oracle.json"
         ]
       },
       {
@@ -164,7 +170,10 @@
         "evidence": [
           "console_questions_tutorial",
           "question-accepted-framework.log",
-          "question-accepted-tty.log"
+          "question-accepted-tty.log",
+          "console_section_editors",
+          "artisan_section_editors.py",
+          "section-editor-oracle.json"
         ]
       },
       {
@@ -303,7 +312,10 @@
           "console_choices_tutorial",
           "choice-final-framework2.log",
           "choice-label-tests.log",
-          "choice-final-tty.log"
+          "choice-final-tty.log",
+          "console_section_editors",
+          "artisan_section_editors.py",
+          "section-editor-oracle.json"
         ]
       },
       {
@@ -358,7 +370,8 @@
   },
   "notes": [
     "声明只用于盘点，不算实现；实际输入、默认、校验、隐藏、补全及取消须由正式入口验收。",
-    "复用既有CommandIo／OutputStyle／输入元数据与容器作用域，不新增平行命令派发器。"
+    "复用既有CommandIo／OutputStyle／输入元数据与容器作用域，不新增平行命令派发器。",
+    "分区终端编辑器追加实际TTY消费者：33组固定源，29组补全／选择在CRLF归一后逐字一致；多行答案／元数据一致，保留原生异步回显。退格候选、Tab、方向键、补全优先级、单选多选及真实Ctrl+C130／终端属性恢复均验收，见terminal-editor-contracts.json。"
   ],
   "scope": "Question 23 public declarations, ConfirmationQuestion constructor and ChoiceQuestion 7 declarations reviewed through native JSON/text answers. ChoiceLabel is an explicit Display-text adapter; PHP object identity/binary strings/global VM warnings are not represented by this native API. Inherited optional SDK APIs remain independently inventoried."
 }

@@ -55,7 +55,8 @@
     "Mutable stream access is an exclusive borrow. ConsoleSectionHandle carries output identity and is rejected by a different output; reborrowing cannot outlive its output. Section metadata remains output-owned after a borrow ends.",
     "Typed OutputOptions, message slices/iterators and signed optional clear/height values retain existing native conventions. Source VM type notices are not simulated.",
     "Root output uses no heap allocation for section identity until the first section is created. Formatter state is initially shared; replacing a section formatter and changing its verbosity remain section-local.",
-    "Checked arithmetic reports impossible line counts rather than native debug overflow. Zero terminal width fails at the source-equivalent content accounting stage, with partial content preserved."
+    "Checked arithmetic reports impossible line counts rather than native debug overflow. Zero terminal width fails at the source-equivalent content accounting stage, with partial content preserved.",
+    "Completion follows the fixed incremental cursor/highlight writer instead of recording a full-line redraw on every key. Plain multiline keeps its native asynchronous editing echo outside section accounting; values and section metadata match source, while its physical echo bytes are explicitly different. Native EOF key handling and Ctrl+C130 remain the existing conventions."
   ],
   "internal_source_methods": {
     "addContent": "Private section_add_content, verified by every write/wrap/content step",
@@ -64,7 +65,6 @@
   "remaining": [
     "OutputStyle section(message), blocks/titles/component SDK and inherited counters",
     "Generic arbitrary StreamOutput constructor and exact ConsoleOutputInterface trait are not claimed; current stream ownership is expressed by existing native Output",
-    "Terminal section autocomplete and multiline bookkeeping are not covered by the normal-question PTY and stream-input matrix",
     "Nested OutputStyle counters, full component Factory and programmatic custom OutputInterface buffers remain open"
   ],
   "evidence": [
@@ -75,6 +75,10 @@
     "section-progress-oracle.json",
     "section-questions-oracle.json",
     "section-table-oracle.json",
-    "output-reference-contracts.json"
+    "output-reference-contracts.json",
+    "console_section_editors",
+    "artisan_section_editors.py",
+    "section-editor-oracle.json",
+    "accepted-section-editors.json"
   ]
 }

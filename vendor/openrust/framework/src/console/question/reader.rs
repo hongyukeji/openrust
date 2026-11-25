@@ -1,6 +1,6 @@
-use super::super::{ConsoleError, OutputFormat, OutputStyle, OutputVerbosity};
+use super::super::{ConsoleError, OutputStyle};
 use super::{ConsoleQuestionError, Question};
-use crossterm::event::{Event, KeyCode, KeyEventKind, KeyModifiers};
+use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use std::{
     io::{self, IsTerminal as _},
     sync::LazyLock,
@@ -110,20 +110,8 @@ pub(super) async fn read(
         Session::Pipe(_lease) => pipe(question.multiline && !question.hidden).await,
     }
 }
-async fn terminal(
-    style: &mut OutputStyle<'_>,
-    question: &Question,
-    prompt: &str,
-) -> Result<Option<String>, ConsoleError> {
-    let mut text = String::new();
-    let mut suggestions = if let Some(callback) = &question.completion {
-        callback.call(String::new()).await?
-    } else {
-        Vec::new()
-    };
-    let mut selected = None;
+pub(super) async fn key_event() -> Result<KeyEvent, ConsoleError> {
     loop {
-        // 租约串行持有终端；poll 成功后 read 不阻塞，不跨问答遗留后台唤醒器。
         if !crossterm::event::poll(Duration::ZERO).map_err(ConsoleError::from_source)? {
             tokio::time::sleep(Duration::from_millis(10)).await;
             continue;
@@ -141,6 +129,20 @@ async fn terminal(
         {
             key.code = KeyCode::Enter;
         }
+        return Ok(key);
+    }
+}
+async fn terminal(
+    style: &mut OutputStyle<'_>,
+    question: &Question,
+    prompt: &str,
+) -> Result<Option<String>, ConsoleError> {
+    if question.completion.is_some() {
+        return super::autocomplete::read(style, question).await;
+    }
+    let mut text = String::new();
+    loop {
+        let key = key_event().await?;
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
             return Err(ConsoleError::from_source(ConsoleQuestionError::Interrupted));
         }
@@ -151,33 +153,19 @@ async fn terminal(
                 (!text.is_empty() || (question.multiline && !question.hidden)).then_some(text),
             );
         }
-        let mut changed = false;
         match key.code {
             KeyCode::Enter => {
-                if let Some(index) = selected {
-                    complete(&mut text, &suggestions, index);
-                }
                 if question.multiline && !question.hidden {
+                    style.get_output().emit_input_echo("\r\n")?;
                     if text.is_empty() {
                         return Ok(Some(text));
                     }
                     text.push('\n');
-                    if !question.hidden {
-                        style
-                            .get_output()
-                            .emit_rendered("\r\n", OutputVerbosity::Normal)?;
-                    }
                 } else {
                     if !question.hidden {
-                        if question.completion.is_some() {
-                            style.write("\r\n", false, OutputFormat::Raw)?;
-                        } else {
-                            style.get_output().emit_input_echo("\r\n")?;
-                        }
+                        style.get_output().emit_input_echo("\r\n")?;
                     }
-                    if question.completion.is_none() {
-                        text.push('\n');
-                    }
+                    text.push('\n');
                     return Ok(Some(text));
                 }
             }
@@ -190,73 +178,21 @@ async fn terminal(
                         .contains(KeyModifiers::CONTROL | KeyModifiers::ALT) =>
             {
                 text.push(character);
-                changed = true;
             }
             KeyCode::Backspace => {
                 text.pop();
-                changed = true;
             }
-            KeyCode::Tab if question.completion.is_none() => {
-                text.push('\t');
-                changed = true;
-            }
-            KeyCode::Tab if !suggestions.is_empty() => {
-                if let Some(index) = selected {
-                    complete(&mut text, &suggestions, index);
-                }
-                selected = None;
-                suggestions.clear();
-            }
-            KeyCode::Up | KeyCode::Down if !suggestions.is_empty() => {
-                selected = Some(match selected {
-                    None if key.code == KeyCode::Down => 0,
-                    None => suggestions.len() - 1,
-                    Some(current) if key.code == KeyCode::Down => (current + 1) % suggestions.len(),
-                    Some(current) => (current + suggestions.len() - 1) % suggestions.len(),
-                });
-            }
+            KeyCode::Tab => text.push('\t'),
             _ => continue,
         }
-        if changed && let Some(callback) = &question.completion {
-            let prefix = text.rsplit(',').next().unwrap_or(&text).trim();
-            suggestions = callback
-                .call(text.clone())
-                .await?
-                .into_iter()
-                .filter(|value| value.starts_with(prefix))
-                .collect();
-            selected = (!suggestions.is_empty()).then_some(0);
-        }
         if !question.hidden {
-            // 终端编辑只重画当前回答，不向日志或捕获缓冲保存隐藏输入。
-            let ghost = selected
-                .and_then(|index| suggestions.get(index))
-                .and_then(|value| {
-                    value.strip_prefix(text.rsplit(',').next().unwrap_or(&text).trim())
-                })
-                .unwrap_or("");
             let visible = text.rsplit('\n').next().unwrap_or(&text);
             let message = if style.get_output().is_decorated() {
-                format!("\r\x1b[2K{prompt}{visible}\x1b[s\x1b[30;47m{ghost}\x1b[39;49m\x1b[u")
+                format!("\r\x1b[2K{prompt}{visible}\x1b[s\x1b[30;47m\x1b[39;49m\x1b[u")
             } else {
-                format!("\r{prompt}{visible}{ghost}")
+                format!("\r{prompt}{visible}")
             };
-            if question.completion.is_none() {
-                // 原生编辑器模拟终端回显，不把输入回显重复记入分区输出。
-                style.get_output().emit_input_echo(&message)?;
-            } else {
-                style.write(message.as_str(), false, OutputFormat::Raw)?;
-            }
-        }
-    }
-}
-fn complete(text: &mut String, suggestions: &[String], index: usize) {
-    if let Some(value) = suggestions.get(index) {
-        if let Some(comma) = text.rfind(',') {
-            text.truncate(comma + 1);
-            text.push_str(value);
-        } else {
-            *text = value.clone();
+            style.get_output().emit_input_echo(&message)?;
         }
     }
 }

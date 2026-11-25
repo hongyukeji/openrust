@@ -1,0 +1,575 @@
+[
+  {
+    "kind": "complete",
+    "keys": "\r",
+    "default": "Guest",
+    "values": [
+      "Ada",
+      "Adam",
+      "Beta"
+    ],
+    "decorated": false,
+    "metadata": {
+      "value": "Guest",
+      "before": "\n",
+      "after": "\n"
+    },
+    "output": "prefix\nlater\n\n Name [Guest]:\n > \n\nafter\n"
+  },
+  {
+    "kind": "complete",
+    "keys": "A\r",
+    "default": "Guest",
+    "values": [
+      "Ada",
+      "Adam",
+      "Beta"
+    ],
+    "decorated": false,
+    "metadata": {
+      "value": "Ada",
+      "before": "\n",
+      "after": "\n"
+    },
+    "output": "prefix\nlater\n\n Name [Guest]:\n > A\u001b[K\u001b7da\u001b8da\n\nafter\n"
+  },
+  {
+    "kind": "complete",
+    "keys": "A\t\r",
+    "default": "Guest",
+    "values": [
+      "Ada",
+      "Adam",
+      "Beta"
+    ],
+    "decorated": false,
+    "metadata": {
+      "value": "Ada",
+      "before": "\n",
+      "after": "\n"
+    },
+    "output": "prefix\nlater\n\n Name [Guest]:\n > A\u001b[K\u001b7da\u001b8da\n\nafter\n"
+  },
+  {
+    "kind": "complete",
+    "keys": "\u001b[B\r",
+    "default": "Guest",
+    "values": [
+      "Ada",
+      "Adam",
+      "Beta"
+    ],
+    "decorated": false,
+    "metadata": {
+      "value": "Ada",
+      "before": "\n",
+      "after": "\n"
+    },
+    "output": "prefix\nlater\n\n Name [Guest]:\n > \u001b[K\u001b7Ada\u001b8Ada\n\nafter\n"
+  },
+  {
+    "kind": "complete",
+    "keys": "\u001b[A\r",
+    "default": "Guest",
+    "values": [
+      "Ada",
+      "Adam",
+      "Beta"
+    ],
+    "decorated": false,
+    "metadata": {
+      "value": "Beta",
+      "before": "\n",
+      "after": "\n"
+    },
+    "output": "prefix\nlater\n\n Name [Guest]:\n > \u001b[K\u001b7Beta\u001b8Beta\n\nafter\n"
+  },
+  {
+    "kind": "complete",
+    "keys": "A\u001b[B\r",
+    "default": "Guest",
+    "values": [
+      "Ada",
+      "Adam",
+      "Beta"
+    ],
+    "decorated": false,
+    "metadata": {
+      "value": "Adam",
+      "before": "\n",
+      "after": "\n"
+    },
+    "output": "prefix\nlater\n\n Name [Guest]:\n > A\u001b[K\u001b7da\u001b8\u001b[K\u001b7dam\u001b8dam\n\nafter\n"
+  },
+  {
+    "kind": "complete",
+    "keys": "A\r",
+    "default": "Guest",
+    "values": [
+      "Ada",
+      "Adam",
+      "Beta"
+    ],
+    "decorated": false,
+    "metadata": {
+      "value": "A",
+      "before": "\n",
+      "after": "\n"
+    },
+    "output": "prefix\nlater\n\n Name [Guest]:\n > A\u001b[K\u001b7da\u001b8\u001b[K\n\nafter\n"
+  },
+  {
+    "kind": "complete",
+    "keys": "Ax\r",
+    "default": "Guest",
+    "values": [
+      "Ada",
+      "Adam",
+      "Beta"
+    ],
+    "decorated": false,
+    "metadata": {
+      "value": "A",
+      "before": "\n",
+      "after": "\n"
+    },
+    "output": "prefix\nlater\n\n Name [Guest]:\n > A\u001b[K\u001b7da\u001b8x\u001b[K\u001b[1D\u001b[K\n\nafter\n"
+  },
+  {
+    "kind": "complete",
+    "keys": "A\tm\r",
+    "default": "Guest",
+    "values": [
+      "Ada",
+      "Adam",
+      "Beta"
+    ],
+    "decorated": false,
+    "metadata": {
+      "value": "Adam",
+      "before": "\n",
+      "after": "\n"
+    },
+    "output": "prefix\nlater\n\n Name [Guest]:\n > A\u001b[K\u001b7da\u001b8dam\u001b[K\u001b7\u001b8\n\nafter\n"
+  },
+  {
+    "kind": "multi",
+    "keys": "one\rtwo\r\u0004",
+    "default": "Guest",
+    "values": [
+      "Ada",
+      "Adam",
+      "Beta"
+    ],
+    "decorated": false,
+    "metadata": {
+      "value": "one\ntwo",
+      "before": "\n",
+      "after": "\n"
+    },
+    "output": "prefix\nlater\n\n Name (press Ctrl+D to continue) [Guest]:\n > one\ntwo\n\nafter\n"
+  },
+  {
+    "kind": "multi",
+    "keys": "\r",
+    "default": "Guest",
+    "values": [
+      "Ada",
+      "Adam",
+      "Beta"
+    ],
+    "decorated": false,
+    "metadata": {
+      "value": "Guest",
+      "before": "\n",
+      "after": "\n"
+    },
+    "output": "prefix\nlater\n\n Name (press Ctrl+D to continue) [Guest]:\n > \n\nafter\n"
+  },
+  {
+    "kind": "complete-multi",
+    "keys": "A\r",
+    "default": "Guest",
+    "values": [
+      "Ada",
+      "Adam",
+      "Beta"
+    ],
+    "decorated": false,
+    "metadata": {
+      "value": "Ada",
+      "before": "\n",
+      "after": "\n"
+    },
+    "output": "prefix\nlater\n\n Name (press Ctrl+D to continue) [Guest]:\n > A\u001b[K\u001b7da\u001b8da\n\nafter\n"
+  },
+  {
+    "kind": "complete",
+    "keys": "\r",
+    "default": "Guest",
+    "values": [
+      "Ada",
+      "Adam",
+      "Beta"
+    ],
+    "decorated": true,
+    "metadata": {
+      "value": "Guest",
+      "before": "prefix\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\n\n",
+      "after": "after\n"
+    },
+    "output": "prefix\nlater\n\u001b[1A\u001b[0J\nlater\n\u001b[1A\u001b[0J \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\nlater\n\u001b[1A\u001b[0J > \nlater\n\u001b[2A\u001b[0J > \nlater\n\u001b[1A\u001b[0J\nlater\n\u001b[7A\u001b[0Jlater\n\u001b[1A\u001b[0Jafter\nlater\n"
+  },
+  {
+    "kind": "complete",
+    "keys": "A\r",
+    "default": "Guest",
+    "values": [
+      "Ada",
+      "Adam",
+      "Beta"
+    ],
+    "decorated": true,
+    "metadata": {
+      "value": "Ada",
+      "before": "prefix\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8da\n\n\n",
+      "after": "after\n"
+    },
+    "output": "prefix\nlater\n\u001b[1A\u001b[0J\nlater\n\u001b[1A\u001b[0J \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\nlater\n\u001b[1A\u001b[0J > \nlater\n\u001b[2A\u001b[0J > A\nlater\n\u001b[2A\u001b[0J > A\u001b[K\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8da\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8da\nlater\n\u001b[1A\u001b[0J\nlater\n\u001b[7A\u001b[0Jlater\n\u001b[1A\u001b[0Jafter\nlater\n"
+  },
+  {
+    "kind": "complete",
+    "keys": "A\t\r",
+    "default": "Guest",
+    "values": [
+      "Ada",
+      "Adam",
+      "Beta"
+    ],
+    "decorated": true,
+    "metadata": {
+      "value": "Ada",
+      "before": "prefix\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8da\n\n\n",
+      "after": "after\n"
+    },
+    "output": "prefix\nlater\n\u001b[1A\u001b[0J\nlater\n\u001b[1A\u001b[0J \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\nlater\n\u001b[1A\u001b[0J > \nlater\n\u001b[2A\u001b[0J > A\nlater\n\u001b[2A\u001b[0J > A\u001b[K\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8da\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8da\nlater\n\u001b[1A\u001b[0J\nlater\n\u001b[7A\u001b[0Jlater\n\u001b[1A\u001b[0Jafter\nlater\n"
+  },
+  {
+    "kind": "complete",
+    "keys": "\u001b[B\r",
+    "default": "Guest",
+    "values": [
+      "Ada",
+      "Adam",
+      "Beta"
+    ],
+    "decorated": true,
+    "metadata": {
+      "value": "Ada",
+      "before": "prefix\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \u001b[K\u001b7\u001b[30;47mAda\u001b[39;49m\u001b8Ada\n\n\n",
+      "after": "after\n"
+    },
+    "output": "prefix\nlater\n\u001b[1A\u001b[0J\nlater\n\u001b[1A\u001b[0J \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\nlater\n\u001b[1A\u001b[0J > \nlater\n\u001b[2A\u001b[0J > \u001b[K\nlater\n\u001b[2A\u001b[0J > \u001b[K\u001b7\nlater\n\u001b[2A\u001b[0J > \u001b[K\u001b7\u001b[30;47mAda\u001b[39;49m\nlater\n\u001b[2A\u001b[0J > \u001b[K\u001b7\u001b[30;47mAda\u001b[39;49m\u001b8\nlater\n\u001b[2A\u001b[0J > \u001b[K\u001b7\u001b[30;47mAda\u001b[39;49m\u001b8Ada\nlater\n\u001b[2A\u001b[0J > \u001b[K\u001b7\u001b[30;47mAda\u001b[39;49m\u001b8Ada\nlater\n\u001b[1A\u001b[0J\nlater\n\u001b[7A\u001b[0Jlater\n\u001b[1A\u001b[0Jafter\nlater\n"
+  },
+  {
+    "kind": "complete",
+    "keys": "\u001b[A\r",
+    "default": "Guest",
+    "values": [
+      "Ada",
+      "Adam",
+      "Beta"
+    ],
+    "decorated": true,
+    "metadata": {
+      "value": "Beta",
+      "before": "prefix\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \u001b[K\u001b7\u001b[30;47mBeta\u001b[39;49m\u001b8Beta\n\n\n",
+      "after": "after\n"
+    },
+    "output": "prefix\nlater\n\u001b[1A\u001b[0J\nlater\n\u001b[1A\u001b[0J \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\nlater\n\u001b[1A\u001b[0J > \nlater\n\u001b[2A\u001b[0J > \u001b[K\nlater\n\u001b[2A\u001b[0J > \u001b[K\u001b7\nlater\n\u001b[2A\u001b[0J > \u001b[K\u001b7\u001b[30;47mBeta\u001b[39;49m\nlater\n\u001b[2A\u001b[0J > \u001b[K\u001b7\u001b[30;47mBeta\u001b[39;49m\u001b8\nlater\n\u001b[2A\u001b[0J > \u001b[K\u001b7\u001b[30;47mBeta\u001b[39;49m\u001b8Beta\nlater\n\u001b[2A\u001b[0J > \u001b[K\u001b7\u001b[30;47mBeta\u001b[39;49m\u001b8Beta\nlater\n\u001b[1A\u001b[0J\nlater\n\u001b[7A\u001b[0Jlater\n\u001b[1A\u001b[0Jafter\nlater\n"
+  },
+  {
+    "kind": "complete",
+    "keys": "A\u001b[B\r",
+    "default": "Guest",
+    "values": [
+      "Ada",
+      "Adam",
+      "Beta"
+    ],
+    "decorated": true,
+    "metadata": {
+      "value": "Adam",
+      "before": "prefix\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8\u001b[K\u001b7\u001b[30;47mdam\u001b[39;49m\u001b8dam\n\n\n",
+      "after": "after\n"
+    },
+    "output": "prefix\nlater\n\u001b[1A\u001b[0J\nlater\n\u001b[1A\u001b[0J \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\nlater\n\u001b[1A\u001b[0J > \nlater\n\u001b[2A\u001b[0J > A\nlater\n\u001b[2A\u001b[0J > A\u001b[K\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8\u001b[K\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8\u001b[K\u001b7\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8\u001b[K\u001b7\u001b[30;47mdam\u001b[39;49m\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8\u001b[K\u001b7\u001b[30;47mdam\u001b[39;49m\u001b8\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8\u001b[K\u001b7\u001b[30;47mdam\u001b[39;49m\u001b8dam\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8\u001b[K\u001b7\u001b[30;47mdam\u001b[39;49m\u001b8dam\nlater\n\u001b[1A\u001b[0J\nlater\n\u001b[7A\u001b[0Jlater\n\u001b[1A\u001b[0Jafter\nlater\n"
+  },
+  {
+    "kind": "complete",
+    "keys": "A\r",
+    "default": "Guest",
+    "values": [
+      "Ada",
+      "Adam",
+      "Beta"
+    ],
+    "decorated": true,
+    "metadata": {
+      "value": "A",
+      "before": "prefix\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8\u001b[K\n\n\n",
+      "after": "after\n"
+    },
+    "output": "prefix\nlater\n\u001b[1A\u001b[0J\nlater\n\u001b[1A\u001b[0J \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\nlater\n\u001b[1A\u001b[0J > \nlater\n\u001b[2A\u001b[0J > A\nlater\n\u001b[2A\u001b[0J > A\u001b[K\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8\u001b[K\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8\u001b[K\nlater\n\u001b[1A\u001b[0J\nlater\n\u001b[7A\u001b[0Jlater\n\u001b[1A\u001b[0Jafter\nlater\n"
+  },
+  {
+    "kind": "complete",
+    "keys": "Ax\r",
+    "default": "Guest",
+    "values": [
+      "Ada",
+      "Adam",
+      "Beta"
+    ],
+    "decorated": true,
+    "metadata": {
+      "value": "A",
+      "before": "prefix\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8x\u001b[K\u001b[1D\u001b[K\n\n\n",
+      "after": "after\n"
+    },
+    "output": "prefix\nlater\n\u001b[1A\u001b[0J\nlater\n\u001b[1A\u001b[0J \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\nlater\n\u001b[1A\u001b[0J > \nlater\n\u001b[2A\u001b[0J > A\nlater\n\u001b[2A\u001b[0J > A\u001b[K\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8x\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8x\u001b[K\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8x\u001b[K\u001b[1D\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8x\u001b[K\u001b[1D\u001b[K\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8x\u001b[K\u001b[1D\u001b[K\nlater\n\u001b[1A\u001b[0J\nlater\n\u001b[7A\u001b[0Jlater\n\u001b[1A\u001b[0Jafter\nlater\n"
+  },
+  {
+    "kind": "complete",
+    "keys": "A\tm\r",
+    "default": "Guest",
+    "values": [
+      "Ada",
+      "Adam",
+      "Beta"
+    ],
+    "decorated": true,
+    "metadata": {
+      "value": "Adam",
+      "before": "prefix\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8dam\u001b[K\u001b7\u001b8\n\n\n",
+      "after": "after\n"
+    },
+    "output": "prefix\nlater\n\u001b[1A\u001b[0J\nlater\n\u001b[1A\u001b[0J \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\nlater\n\u001b[1A\u001b[0J > \nlater\n\u001b[2A\u001b[0J > A\nlater\n\u001b[2A\u001b[0J > A\u001b[K\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8da\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8dam\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8dam\u001b[K\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8dam\u001b[K\u001b7\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8dam\u001b[K\u001b7\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8dam\u001b[K\u001b7\u001b8\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8dam\u001b[K\u001b7\u001b8\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8dam\u001b[K\u001b7\u001b8\nlater\n\u001b[1A\u001b[0J\nlater\n\u001b[7A\u001b[0Jlater\n\u001b[1A\u001b[0Jafter\nlater\n"
+  },
+  {
+    "kind": "multi",
+    "keys": "one\rtwo\r\u0004",
+    "default": "Guest",
+    "values": [
+      "Ada",
+      "Adam",
+      "Beta"
+    ],
+    "decorated": true,
+    "metadata": {
+      "value": "one\ntwo",
+      "before": "prefix\n\n \u001b[32mName (press \u001b[39m\u001b[33mCtrl+D\u001b[39m\u001b[32m to continue)\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\n",
+      "after": "after\n"
+    },
+    "output": "prefix\nlater\n\u001b[1A\u001b[0J\nlater\n\u001b[1A\u001b[0J \u001b[32mName (press \u001b[39m\u001b[33mCtrl+D\u001b[39m\u001b[32m to continue)\u001b[39m [\u001b[33mGuest\u001b[39m]:\nlater\n\u001b[1A\u001b[0J > \nlater\none\ntwo\n\u001b[1A\u001b[0J\nlater\n\u001b[7A\u001b[0Jlater\n\u001b[1A\u001b[0Jafter\nlater\n"
+  },
+  {
+    "kind": "multi",
+    "keys": "\r",
+    "default": "Guest",
+    "values": [
+      "Ada",
+      "Adam",
+      "Beta"
+    ],
+    "decorated": true,
+    "metadata": {
+      "value": "Guest",
+      "before": "prefix\n\n \u001b[32mName (press \u001b[39m\u001b[33mCtrl+D\u001b[39m\u001b[32m to continue)\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\n",
+      "after": "after\n"
+    },
+    "output": "prefix\nlater\n\u001b[1A\u001b[0J\nlater\n\u001b[1A\u001b[0J \u001b[32mName (press \u001b[39m\u001b[33mCtrl+D\u001b[39m\u001b[32m to continue)\u001b[39m [\u001b[33mGuest\u001b[39m]:\nlater\n\u001b[1A\u001b[0J > \nlater\n\n\u001b[1A\u001b[0J\nlater\n\u001b[7A\u001b[0Jlater\n\u001b[1A\u001b[0Jafter\nlater\n"
+  },
+  {
+    "kind": "complete-multi",
+    "keys": "A\r",
+    "default": "Guest",
+    "values": [
+      "Ada",
+      "Adam",
+      "Beta"
+    ],
+    "decorated": true,
+    "metadata": {
+      "value": "Ada",
+      "before": "prefix\n\n \u001b[32mName (press \u001b[39m\u001b[33mCtrl+D\u001b[39m\u001b[32m to continue)\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8da\n\n\n",
+      "after": "after\n"
+    },
+    "output": "prefix\nlater\n\u001b[1A\u001b[0J\nlater\n\u001b[1A\u001b[0J \u001b[32mName (press \u001b[39m\u001b[33mCtrl+D\u001b[39m\u001b[32m to continue)\u001b[39m [\u001b[33mGuest\u001b[39m]:\nlater\n\u001b[1A\u001b[0J > \nlater\n\u001b[2A\u001b[0J > A\nlater\n\u001b[2A\u001b[0J > A\u001b[K\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8da\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8da\nlater\n\u001b[1A\u001b[0J\nlater\n\u001b[7A\u001b[0Jlater\n\u001b[1A\u001b[0Jafter\nlater\n"
+  },
+  {
+    "kind": "complete",
+    "keys": "界\r",
+    "default": null,
+    "values": [
+      "界面",
+      "界限",
+      "Beta"
+    ],
+    "decorated": true,
+    "metadata": {
+      "value": "界面",
+      "before": "prefix\n\n \u001b[32mName\u001b[39m:\n > 界\u001b[K\u001b7\u001b[30;47m面\u001b[39;49m\u001b8面\n\n\n",
+      "after": "after\n"
+    },
+    "output": "prefix\nlater\n\u001b[1A\u001b[0J\nlater\n\u001b[1A\u001b[0J \u001b[32mName\u001b[39m:\nlater\n\u001b[1A\u001b[0J > \nlater\n\u001b[2A\u001b[0J > 界\nlater\n\u001b[2A\u001b[0J > 界\u001b[K\nlater\n\u001b[2A\u001b[0J > 界\u001b[K\u001b7\nlater\n\u001b[2A\u001b[0J > 界\u001b[K\u001b7\u001b[30;47m面\u001b[39;49m\nlater\n\u001b[2A\u001b[0J > 界\u001b[K\u001b7\u001b[30;47m面\u001b[39;49m\u001b8\nlater\n\u001b[2A\u001b[0J > 界\u001b[K\u001b7\u001b[30;47m面\u001b[39;49m\u001b8面\nlater\n\u001b[2A\u001b[0J > 界\u001b[K\u001b7\u001b[30;47m面\u001b[39;49m\u001b8面\nlater\n\u001b[1A\u001b[0J\nlater\n\u001b[7A\u001b[0Jlater\n\u001b[1A\u001b[0Jafter\nlater\n"
+  },
+  {
+    "kind": "choice",
+    "keys": "\u001b[B\r",
+    "default": 0,
+    "values": [
+      "Ada",
+      "Adam",
+      "Beta"
+    ],
+    "decorated": false,
+    "metadata": {
+      "value": "Ada",
+      "before": "\n",
+      "after": "\n"
+    },
+    "output": "prefix\nlater\n\n Name [Ada]:\n  [0] Ada\n  [1] Adam\n  [2] Beta\n > \u001b[K\u001b7Ada\u001b8Ada\n\nafter\n"
+  },
+  {
+    "kind": "choice",
+    "keys": "A\u001b[B\r",
+    "default": 0,
+    "values": [
+      "Ada",
+      "Adam",
+      "Beta"
+    ],
+    "decorated": false,
+    "metadata": {
+      "value": "Adam",
+      "before": "\n",
+      "after": "\n"
+    },
+    "output": "prefix\nlater\n\n Name [Ada]:\n  [0] Ada\n  [1] Adam\n  [2] Beta\n > A\u001b[K\u001b7da\u001b8\u001b[K\u001b7dam\u001b8dam\n\nafter\n"
+  },
+  {
+    "kind": "choice-many",
+    "keys": "A\t,B\r",
+    "default": "0,1",
+    "values": [
+      "Ada",
+      "Adam",
+      "Beta"
+    ],
+    "decorated": false,
+    "metadata": {
+      "value": [
+        "Ada",
+        "Beta"
+      ],
+      "before": "\n",
+      "after": "\n"
+    },
+    "output": "prefix\nlater\n\n Name [Ada, Adam]:\n  [0] Ada\n  [1] Adam\n  [2] Beta\n > A\u001b[K\u001b7da\u001b8da,\u001b[KB\u001b[K\u001b7eta\u001b8eta\n\nafter\n"
+  },
+  {
+    "kind": "choice-many",
+    "keys": "0,2\r",
+    "default": "0,1",
+    "values": [
+      "Ada",
+      "Adam",
+      "Beta"
+    ],
+    "decorated": false,
+    "metadata": {
+      "value": [
+        "Ada",
+        "Beta"
+      ],
+      "before": "\n",
+      "after": "\n"
+    },
+    "output": "prefix\nlater\n\n Name [Ada, Adam]:\n  [0] Ada\n  [1] Adam\n  [2] Beta\n > 0\u001b[K,\u001b[K2\u001b[K\n\nafter\n"
+  },
+  {
+    "kind": "choice",
+    "keys": "\u001b[B\r",
+    "default": 0,
+    "values": [
+      "Ada",
+      "Adam",
+      "Beta"
+    ],
+    "decorated": true,
+    "metadata": {
+      "value": "Ada",
+      "before": "prefix\n\n \u001b[32mName\u001b[39m [\u001b[33mAda\u001b[39m]:\n  [\u001b[33m0\u001b[39m] Ada\n  [\u001b[33m1\u001b[39m] Adam\n  [\u001b[33m2\u001b[39m] Beta\n > \u001b[K\u001b7\u001b[30;47mAda\u001b[39;49m\u001b8Ada\n\n\n",
+      "after": "after\n"
+    },
+    "output": "prefix\nlater\n\u001b[1A\u001b[0J\nlater\n\u001b[1A\u001b[0J \u001b[32mName\u001b[39m [\u001b[33mAda\u001b[39m]:\nlater\n\u001b[1A\u001b[0J  [\u001b[33m0\u001b[39m] Ada\nlater\n\u001b[1A\u001b[0J  [\u001b[33m1\u001b[39m] Adam\nlater\n\u001b[1A\u001b[0J  [\u001b[33m2\u001b[39m] Beta\nlater\n\u001b[1A\u001b[0J > \nlater\n\u001b[2A\u001b[0J > \u001b[K\nlater\n\u001b[2A\u001b[0J > \u001b[K\u001b7\nlater\n\u001b[2A\u001b[0J > \u001b[K\u001b7\u001b[30;47mAda\u001b[39;49m\nlater\n\u001b[2A\u001b[0J > \u001b[K\u001b7\u001b[30;47mAda\u001b[39;49m\u001b8\nlater\n\u001b[2A\u001b[0J > \u001b[K\u001b7\u001b[30;47mAda\u001b[39;49m\u001b8Ada\nlater\n\u001b[2A\u001b[0J > \u001b[K\u001b7\u001b[30;47mAda\u001b[39;49m\u001b8Ada\nlater\n\u001b[1A\u001b[0J\nlater\n\u001b[10A\u001b[0Jlater\n\u001b[1A\u001b[0Jafter\nlater\n"
+  },
+  {
+    "kind": "choice",
+    "keys": "A\u001b[B\r",
+    "default": 0,
+    "values": [
+      "Ada",
+      "Adam",
+      "Beta"
+    ],
+    "decorated": true,
+    "metadata": {
+      "value": "Adam",
+      "before": "prefix\n\n \u001b[32mName\u001b[39m [\u001b[33mAda\u001b[39m]:\n  [\u001b[33m0\u001b[39m] Ada\n  [\u001b[33m1\u001b[39m] Adam\n  [\u001b[33m2\u001b[39m] Beta\n > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8\u001b[K\u001b7\u001b[30;47mdam\u001b[39;49m\u001b8dam\n\n\n",
+      "after": "after\n"
+    },
+    "output": "prefix\nlater\n\u001b[1A\u001b[0J\nlater\n\u001b[1A\u001b[0J \u001b[32mName\u001b[39m [\u001b[33mAda\u001b[39m]:\nlater\n\u001b[1A\u001b[0J  [\u001b[33m0\u001b[39m] Ada\nlater\n\u001b[1A\u001b[0J  [\u001b[33m1\u001b[39m] Adam\nlater\n\u001b[1A\u001b[0J  [\u001b[33m2\u001b[39m] Beta\nlater\n\u001b[1A\u001b[0J > \nlater\n\u001b[2A\u001b[0J > A\nlater\n\u001b[2A\u001b[0J > A\u001b[K\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8\u001b[K\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8\u001b[K\u001b7\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8\u001b[K\u001b7\u001b[30;47mdam\u001b[39;49m\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8\u001b[K\u001b7\u001b[30;47mdam\u001b[39;49m\u001b8\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8\u001b[K\u001b7\u001b[30;47mdam\u001b[39;49m\u001b8dam\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8\u001b[K\u001b7\u001b[30;47mdam\u001b[39;49m\u001b8dam\nlater\n\u001b[1A\u001b[0J\nlater\n\u001b[10A\u001b[0Jlater\n\u001b[1A\u001b[0Jafter\nlater\n"
+  },
+  {
+    "kind": "choice-many",
+    "keys": "A\t,B\r",
+    "default": "0,1",
+    "values": [
+      "Ada",
+      "Adam",
+      "Beta"
+    ],
+    "decorated": true,
+    "metadata": {
+      "value": [
+        "Ada",
+        "Beta"
+      ],
+      "before": "prefix\n\n \u001b[32mName\u001b[39m [\u001b[33mAda, Adam\u001b[39m]:\n  [\u001b[33m0\u001b[39m] Ada\n  [\u001b[33m1\u001b[39m] Adam\n  [\u001b[33m2\u001b[39m] Beta\n > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8da,\u001b[KB\u001b[K\u001b7\u001b[30;47meta\u001b[39;49m\u001b8eta\n\n\n",
+      "after": "after\n"
+    },
+    "output": "prefix\nlater\n\u001b[1A\u001b[0J\nlater\n\u001b[1A\u001b[0J \u001b[32mName\u001b[39m [\u001b[33mAda, Adam\u001b[39m]:\nlater\n\u001b[1A\u001b[0J  [\u001b[33m0\u001b[39m] Ada\nlater\n\u001b[1A\u001b[0J  [\u001b[33m1\u001b[39m] Adam\nlater\n\u001b[1A\u001b[0J  [\u001b[33m2\u001b[39m] Beta\nlater\n\u001b[1A\u001b[0J > \nlater\n\u001b[2A\u001b[0J > A\nlater\n\u001b[2A\u001b[0J > A\u001b[K\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8da\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8da,\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8da,\u001b[K\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8da,\u001b[KB\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8da,\u001b[KB\u001b[K\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8da,\u001b[KB\u001b[K\u001b7\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8da,\u001b[KB\u001b[K\u001b7\u001b[30;47meta\u001b[39;49m\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8da,\u001b[KB\u001b[K\u001b7\u001b[30;47meta\u001b[39;49m\u001b8\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8da,\u001b[KB\u001b[K\u001b7\u001b[30;47meta\u001b[39;49m\u001b8eta\nlater\n\u001b[2A\u001b[0J > A\u001b[K\u001b7\u001b[30;47mda\u001b[39;49m\u001b8da,\u001b[KB\u001b[K\u001b7\u001b[30;47meta\u001b[39;49m\u001b8eta\nlater\n\u001b[1A\u001b[0J\nlater\n\u001b[10A\u001b[0Jlater\n\u001b[1A\u001b[0Jafter\nlater\n"
+  },
+  {
+    "kind": "choice-many",
+    "keys": "0,2\r",
+    "default": "0,1",
+    "values": [
+      "Ada",
+      "Adam",
+      "Beta"
+    ],
+    "decorated": true,
+    "metadata": {
+      "value": [
+        "Ada",
+        "Beta"
+      ],
+      "before": "prefix\n\n \u001b[32mName\u001b[39m [\u001b[33mAda, Adam\u001b[39m]:\n  [\u001b[33m0\u001b[39m] Ada\n  [\u001b[33m1\u001b[39m] Adam\n  [\u001b[33m2\u001b[39m] Beta\n > 0\u001b[K,\u001b[K2\u001b[K\n\n\n",
+      "after": "after\n"
+    },
+    "output": "prefix\nlater\n\u001b[1A\u001b[0J\nlater\n\u001b[1A\u001b[0J \u001b[32mName\u001b[39m [\u001b[33mAda, Adam\u001b[39m]:\nlater\n\u001b[1A\u001b[0J  [\u001b[33m0\u001b[39m] Ada\nlater\n\u001b[1A\u001b[0J  [\u001b[33m1\u001b[39m] Adam\nlater\n\u001b[1A\u001b[0J  [\u001b[33m2\u001b[39m] Beta\nlater\n\u001b[1A\u001b[0J > \nlater\n\u001b[2A\u001b[0J > 0\nlater\n\u001b[2A\u001b[0J > 0\u001b[K\nlater\n\u001b[2A\u001b[0J > 0\u001b[K,\nlater\n\u001b[2A\u001b[0J > 0\u001b[K,\u001b[K\nlater\n\u001b[2A\u001b[0J > 0\u001b[K,\u001b[K2\nlater\n\u001b[2A\u001b[0J > 0\u001b[K,\u001b[K2\u001b[K\nlater\n\u001b[2A\u001b[0J > 0\u001b[K,\u001b[K2\u001b[K\nlater\n\u001b[1A\u001b[0J\nlater\n\u001b[10A\u001b[0Jlater\n\u001b[1A\u001b[0Jafter\nlater\n"
+  }
+]

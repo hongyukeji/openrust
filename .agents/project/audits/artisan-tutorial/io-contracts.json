@@ -513,7 +513,8 @@
     "TableCellStyle all five methods, TableCell with_style/get_style and nested default separators are real public renderer consumers. Preprocessing and column-major width callbacks, per-physical-line format capture and live separators follow fixed source. Spans and section redraw remain open.",
     "TableCell/Separator full typed options, inherited getters and rowspan/colspan now have source oracles and actual HTTP/Artisan consumers. ConsoleSectionOutput/append_row redraw and other inherited component interfaces remain open.",
     "Output::section and actual Table::append_row are verified. ConsoleSectionOutput exposes output options, formatter/verbosity controls, height/clear/overwrite/content; safe handles replace shared mutable stream references. OutputStyle::section(message) remains a separate heading SDK gap. Section-bound progress and interactive input are not claimed by this batch.",
-    "OutputStyle now stores the selected OutputReference; get_output returns a mutable borrow of it. AsOutput constructors borrow plain Output, current references and sections without moving an existing &mut Output. Read-only Deref preserves capture-buffer reads, no DerefMut allows bypassing selection. Explicit concrete raw-output helper annotations may use &mut impl AsOutput; nested style/counter forwarding and arbitrary OutputInterface sinks remain separately open."
+    "OutputStyle now stores the selected OutputReference; get_output returns a mutable borrow of it. AsOutput constructors borrow plain Output, current references and sections without moving an existing &mut Output. Read-only Deref preserves capture-buffer reads, no DerefMut allows bypassing selection. Explicit concrete raw-output helper annotations may use &mut impl AsOutput; nested style/counter forwarding and arbitrary OutputInterface sinks remain separately open.",
+    "The terminal completion state machine tracks entered text, accepted full choice and active suggestions separately. First backspace removes the visible suggestion; later backspace removes input, and completion takes precedence over multiline reading. Existing key-event lease/polling, input normalization, callbacks, validators and formatter are reused; no second dispatcher or dependency is introduced."
   ],
   "inherited_output_style_inventory": {
     "OutputStyle": [
@@ -843,7 +844,7 @@
     "ask_question及具体Question／Choice／Confirmation公开类型与交互消费者",
     "嵌套OutputStyle包装的计数委托",
     "继承的格式器／详细程度设置、组件样式、问答、表格、进度及其他清单入口",
-    "分区终端自动补全／多行记账、嵌套样式计数与通用组件Factory仍逐项核对",
+    "分区补全／多行当前消费者已验收；嵌套样式计数与通用组件Factory继续逐项核对",
     "任意OutputInterface缓冲（包括Artisan.call第三参数）的专用消费者与类型仍待核对；现有原生入口不冒充完整接口"
   ]
 }
