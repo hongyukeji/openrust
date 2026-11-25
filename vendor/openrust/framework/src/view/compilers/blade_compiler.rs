@@ -339,7 +339,10 @@ impl BladeCompiler {
         let extensions = self.extensions.read().unwrap().clone();
         let template = self.load(path, source, &extensions)?;
         context.extensions = extensions;
-        template.render(data, context).map(trim_php_output)
+        template
+            .render(data, context)
+            .map(trim_php_output)
+            .map_err(|error| crate::view::ViewException::wrap(path, error))
     }
 
     pub fn render(&self, path: &Path, source: &str, data: &ViewData) -> ViewResult<String> {

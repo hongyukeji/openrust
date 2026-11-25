@@ -85,3 +85,5 @@ Rust 1.94 的格式、工作区与启用功能后的严格 Clippy、包公开契
 - 以 `37e471407` 为合入基线，保留六个独立交付提交和两边的交接记录。包名为 `openrust-localization-database`，根应用可选 feature 为 `localization-database`。三语指南记录了 Cargo 依赖、Rust 导入和既有 `language_lines` 迁移的升级方式。
 - Rust 1.94 格式检查通过。数据库包在 SQLite、MySQL 8.4.13 和 PostgreSQL 18.7 各通过 9 项，包括 BCP47 升级脚本回滚、原子性、幂等及冲突保护。文本翻译包 2 项公开契约、两包共 5 项 Rustdoc 通过。日志见 `target/tmp/localization-translate/integration-tests-retry.log`、`integration-db.log`。
 - 三语站点构建通过。Chrome 在根路径及 `/docs/` 分别通过三语数据库词条包页面检查，合计 6 项。日志见 `target/tmp/localization-translate/integration-browser.log`。
+- 同步主分支 `363647db9` 后，Rust 1.94 格式、25 项框架词条回归和两包 11 项定向测试通过。数据库词条用 SQLite、MySQL、PostgreSQL 重跑发布、迁移、启动错误、HTTP 刷新、独立 Artisan 和配置缓存 Worker 均通过。外部驱动进程验收及七家隔离协议也全部重跑通过。日志见 `target/tmp/localization-translate/integration-final-retry.log`。
+- 在同步后的源码上，`openrust-localization-database` 与 `openrust-translate` 的全部目标通过 Rust 1.94 严格 Clippy（`-D warnings`）。

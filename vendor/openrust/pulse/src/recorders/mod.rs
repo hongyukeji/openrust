@@ -720,6 +720,7 @@ pub(crate) fn register(
 pub(crate) fn register_exceptions(
     handler: Arc<dyn openrust::contracts::debug::ExceptionHandler>,
     config: Arc<dyn Repository>,
+    base_path: std::path::PathBuf,
     options: Arc<crate::pulse::Options>,
 ) -> std::result::Result<(), openrust::contracts::container::BindingResolutionError> {
     use openrust::contracts::container::BindingResolutionError;
@@ -737,6 +738,7 @@ pub(crate) fn register_exceptions(
         let owner = owner.clone();
         let recorders = recorders.clone();
         let options = options.clone();
+        let base_path = base_path.clone();
         configuration.reportable_all(move |exception| {
             if !Pulse::is_ignoring(&options)
                 && let Ok(pulse) = crate::facades::Pulse::get_facade_root()
@@ -747,16 +749,7 @@ pub(crate) fn register_exceptions(
                 && pulse.is_recording()
                 && let Some(handler) = owner.upgrade()
             {
-                let snapshot = handler.build_log_exception(exception, None, true);
-                let class = snapshot
-                    .get("class")
-                    .and_then(Value::as_str)
-                    .unwrap_or("Error")
-                    .to_owned();
-                let location = snapshot
-                    .get("location")
-                    .and_then(Value::as_str)
-                    .map(str::to_owned);
+                let (class, location) = exception_group(&*handler, exception, &base_path);
                 let recorders = recorders.clone();
                 let timestamp = jiff::Timestamp::now().as_second();
                 pulse.defer(move |pulse| {
@@ -782,4 +775,35 @@ pub(crate) fn register_exceptions(
         }
         result => result,
     }
+}
+
+fn exception_group(
+    handler: &dyn openrust::contracts::debug::ExceptionHandler,
+    exception: &openrust::contracts::debug::Exception<'_>,
+    base_path: &std::path::Path,
+) -> (String, Option<String>) {
+    use openrust::{contracts::debug::Exception, view::ViewException};
+
+    if let Some(view) = ViewException::from_exception(exception) {
+        let previous = view.previous();
+        let class = if previous.is::<ViewException>() {
+            std::any::type_name::<ViewException>().to_owned()
+        } else {
+            let previous = Exception::Error(previous);
+            let snapshot = handler.build_log_exception(&previous, previous.type_name(), true);
+            snapshot["class"].as_str().unwrap_or("Error").to_owned()
+        };
+        // 固定上游以最早出现在嵌套错误消息中的视图路径分组。
+        let mut origin = view;
+        while let Some(nested) = origin.previous().downcast_ref::<ViewException>() {
+            origin = nested;
+        }
+        let path = origin.path();
+        let relative = path.strip_prefix(base_path).unwrap_or(path);
+        return (class, Some(relative.to_string_lossy().replace('\\', "/")));
+    }
+    let snapshot = handler.build_log_exception(exception, None, true);
+    let class = snapshot["class"].as_str().unwrap_or("Error").to_owned();
+    let location = snapshot["location"].as_str().map(str::to_owned);
+    (class, location)
 }

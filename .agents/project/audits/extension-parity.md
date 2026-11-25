@@ -391,7 +391,11 @@ PHP 8.5.12 使用固定 Laravel 和固定 Pulse，通过实际异常处理器、
 
 Rust 将默认采集注册到框架异常处理器的 `reportable_all`，保留显式 Pulse 事件。真实 HTTP 核对普通带类型日志、日志级别过滤、较早报告回调停止传播、关闭来源与持久化键。自定义处理器缺少运行期报告配置时可正常启动，并使用显式 Pulse 报告。macOS 的 SQLite、PostgreSQL 18.7、MySQL 8.4.13，以及 Linux 7.0.14 ARM64 与 Windows 11 ARM64 的 SQLite 均通过两个专项。框架异常上下文 14 项、三个扩展默认 93 项、严格 Clippy、全仓格式、三语文档与 12 组浏览器检查通过。证据为 `target/tmp/observability-parity/pulse-exception-sources-{accepted,complete-linux,custom-linux,complete-docs}.log` 和 `target/tmp/observability-windows/pulse-exception-sources-accepted-arm64.log`。Release 与部署组合仍待验。
 
-固定 Pulse 对 `ViewException` 以原始异常类型与应用相对视图路径分组，禁用位置时保留类型并写入空值。PHP 8.5.12 已用真实 Pulse Ingest 验证，证据为 `target/tmp/observability-parity/pulse-view-exception-upstream.log`。Rust 的视图包装错误分类、归一化位置、开启位置时的标准错误文件及行号仍待实现和实测。
+固定 Pulse 对 `ViewException` 以直接来源的类型与应用相对视图路径分组，禁用位置时保留类型并写入空值。PHP 8.5.12 的实际 Blade 编译及渲染探针确认，嵌套视图失败时类型是直接来源的 `ViewException`，位置仍取最内层失败视图。证据为 `target/tmp/observability-parity/pulse-view-exception-{upstream,render-oracle}.log`。普通异常启用位置时的源码文件及行号仍须独立核对。
+
+OpenRust 的 Blade 渲染保留原有 `ViewError::RenderFailed` 分类，并在来源中附带 `ViewException`。Pulse 识别直接视图错误或经框架透明包装传来的错误，沿视图来源读取失败模板路径，按原生类型名记录并去掉应用根路径。保留 Rust `.blade.html` 扩展名。macOS 真实 HTTP 请求通过公开 View Facade 渲染应用对象，分别在 SQLite、PostgreSQL 18.7、MySQL 8.4.13 核对单层错误、嵌套错误与关闭位置时的数据库条目键。证据为 `target/tmp/observability-parity/pulse-view-exception-macos-final-retry.log`。未携带类型名的通用 Rust 动态错误仍使用既有分类回退。 [固定 Blade 包装入口](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/Engines/CompilerEngine.php#L98) [固定 Pulse 分组实现](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Recorders/Exceptions.php#L70)
+
+同一 macOS 快照通过 29 项框架视图回归、Pulse Provider 16 项、Telescope Provider 15 项及选定目标严格 Clippy，另有 1 项 Telescope Provider 按环境条件跳过。快照全仓格式通过。三扩展默认组合重跑因 32 GB 停线中止。Windows 11 ARM64 的前一实现快照通过同一真实 HTTP 用例与 Pulse Provider 16 项，最终限制为透明包装的实现仍须复验。Linux ARM64 最终快照也待复验。Windows 前一实现证据为 `target/tmp/observability-parity/pulse-view-exception-windows-accepted.log`。
 
 ### Horizon Linux ARM64 Release 进程矩阵
 

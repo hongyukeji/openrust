@@ -1001,6 +1001,125 @@ async fn explicit_exception_reports_work_with_a_custom_handler_without_runtime_c
 }
 
 #[tokio::test]
+async fn exceptions_group_failed_blade_responses_by_original_view_and_error() {
+    use openrust::{
+        contracts::{
+            debug::{Exception, SharedException},
+            foundation::Application as _,
+            support::Responsable as _,
+        },
+        support::facades::View,
+        view::{ViewData, ViewError, ViewException, ViewObject, ViewResult, ViewValue},
+    };
+
+    #[derive(Debug)]
+    struct TemplateFailure;
+    impl std::fmt::Display for TemplateFailure {
+        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter.write_str("模板调用失败")
+        }
+    }
+    impl std::error::Error for TemplateFailure {}
+    struct TemplateModel;
+    impl ViewObject for TemplateModel {
+        fn call(&self, _: &str, _: &[ViewValue]) -> ViewResult<ViewValue> {
+            Err(ViewError::RenderFailed(Box::new(SharedException::new(
+                TemplateFailure,
+            ))))
+        }
+    }
+
+    fn failing_view(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async {
+            let name = if request.uri().path().ends_with("/outer") {
+                "outer"
+            } else {
+                "broken"
+            };
+            let data = ViewData::from_iter([(
+                "model".into(),
+                ViewValue::from_object(Arc::new(TemplateModel)),
+            )]);
+            let view = View::make(name, data).unwrap();
+            let Err(error) = view.to_response(request).await else {
+                panic!("预期模板渲染失败");
+            };
+            assert!(
+                ViewException::from_exception(&Exception::Http(&error)).is_some(),
+                "{error:?}"
+            );
+            Err(error)
+        })
+    }
+
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(|root, env| {
+                let mut values = recorder_database_config(root, env)?;
+                values.get_mut("pulse").unwrap()["recorders"] =
+                    json!({"Exceptions": {"location": true}});
+                Ok(values)
+            })
+            .with_providers(vec![Box::new(PulseServiceProvider)])
+            .with_routing(Routing::default().api(|| {
+                Route::get("/broken", failing_view)?;
+                Route::get("/outer", failing_view)
+            }))
+    })
+    .unwrap();
+    let views = app.root().join("resources/views");
+    std::fs::create_dir_all(&views).unwrap();
+    std::fs::write(views.join("broken.blade.html"), "{{ $model->method() }}").unwrap();
+    std::fs::write(views.join("outer.blade.html"), "@include('broken')").unwrap();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+
+    app.get("/api/broken")
+        .await
+        .unwrap()
+        .assert_status(http::StatusCode::INTERNAL_SERVER_ERROR);
+    app.get("/api/outer")
+        .await
+        .unwrap()
+        .assert_status(http::StatusCode::INTERNAL_SERVER_ERROR);
+    app.app()
+        .config()
+        .unwrap()
+        .set("pulse.recorders.Exceptions.location", json!(false))
+        .unwrap();
+    app.get("/api/broken")
+        .await
+        .unwrap()
+        .assert_status(http::StatusCode::INTERNAL_SERVER_ERROR);
+
+    let storage = app.app().make::<DatabaseStorage>().await.unwrap();
+    let rows = storage
+        .connection()
+        .table("pulse_entries")
+        .r#where("type", "=", "exception")
+        .get()
+        .await
+        .unwrap();
+    let keys: Vec<_> = rows.iter().map(|row| row.get("key").unwrap()).collect();
+    let class = std::any::type_name::<TemplateFailure>();
+    let path = Some("resources/views/broken.blade.html");
+    assert_eq!(keys.len(), 3);
+    for (class, location) in [
+        (class, path),
+        (class, None),
+        (std::any::type_name::<ViewException>(), path),
+    ] {
+        assert!(
+            keys.contains(&&openrust::database::Value::Text(
+                json!([class, location]).to_string()
+            )),
+            "{keys:?}"
+        );
+    }
+}
+
+#[tokio::test]
 async fn native_recorders_capture_real_client_sql_cache_and_typed_errors_without_identity_leaks() {
     use openrust::contracts::foundation::Application as _;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
