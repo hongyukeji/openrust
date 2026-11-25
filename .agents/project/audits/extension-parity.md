@@ -361,9 +361,11 @@ PHP 8.5.12 探针执行固定 `JobPayload::prepare`、`JobPushed` 与 `RetryFail
 
 原子脚本继续核对旧保留和目标 Redis 键，保留失效时可能已有 `JobPending`，且不会派发 `JobPushed` 或 `JobDeleted`。入队前监听器报错时可以重试同一保留，入队后监听器报错时记录日志并完成旧任务的通知，避免重复推进。显式队列名复用 Redis 入队校验。
 
-基于 `eb189cfb1` 加失败事件与本批文件的 macOS 隔离快照，独占 Redis 8.10.3 经 HTTP `Bus::chain`、实际 `horizon:work` 命令和公开事件监听器验证延迟跨队列推进。队列名保留前置空格、Unicode 和冒号。直接调用 `Job::advance_chain_to` 验证即时入队、清除后失效的保留、无效队列名和前后监听器报错，后继任务载荷保留大整数且只能推进一次。三包默认 84 项与 Horizon Redis 18 项、快照全仓格式、Horizon 全目标严格 Clippy、三语站点和 12 组浏览器检查通过。证据为 `target/tmp/observability-parity/horizon-redis-chain-{focused,accepted,docs}.log`。本批 Windows 和发布组合仍待验。
+基于 `eb189cfb1` 加失败事件与本批文件的 macOS 隔离快照，独占 Redis 8.10.3 经 HTTP `Bus::chain`、实际 `horizon:work` 命令和公开事件监听器验证延迟跨队列推进。队列名保留前置空格、Unicode 和冒号。直接调用 `Job::advance_chain_to` 验证即时入队、清除后失效的保留、无效队列名和前后监听器报错，后继任务载荷保留大整数且只能推进一次。三包默认 84 项与 Horizon Redis 18 项、快照全仓格式、Horizon 全目标严格 Clippy、三语站点和 12 组浏览器检查通过。证据为 `target/tmp/observability-parity/horizon-redis-chain-{focused,accepted,docs}.log`。
 
 同一快照在 Linux 7.0.14 ARM64、Rust 1.94.0 下编译原生测试程序，独占 Redis 8.10.3 复验本节 `JobPending`／`JobPushed` 与下节 `JobFailed` 两个实际入口，均通过。使用编译后的同一程序执行测试，显式向夹具传入专用 Redis 容器标识。证据为 `target/tmp/observability-parity/horizon-redis-events-linux-{serial,verified}.log`。本次 Linux 证据覆盖这两个行为的定向测试，完整 Release 组合仍待验。
+
+同一快照使用 Windows 11 ARM64 虚机、Rust 1.94.0 `aarch64-pc-windows-msvc` 与专用 NTFS 构建卷，在独占 Redis 8.10.3 上通过两个原生行为测试。覆盖公开失败事件的 Worker 回调与持久确认顺序，以及任务链的即时、延迟和无效保留路径。证据为 `target/tmp/observability-windows/horizon-redis-events-arm64.log`。完整 Windows 发布组合仍待验。
 
 ### Horizon Redis 释放与删除事件
 
@@ -395,7 +397,7 @@ PHP 8.5.12 探针执行固定 `JobPayload::prepare`、`JobPushed` 与 `RetryFail
 
 实时失败与重投递恢复共用文本异常契约，历史失败记录保存的也是文本。固定 PHP 监听器可检查异常对象类型，实时事件是否保留等价的原生类型信息仍须核对。
 
-基于 `eb189cfb1` 加本批文件的 macOS 隔离快照，独占 Redis 8.10.3 与 SQLite 验证实际 `horizon:work` 的终态失败回调、数据库记录、Redis 保留删除、失败详情与标签的可见顺序。同步队列仍派发核心失败事件，实际落到 Redis 的 failover 队列派发 Horizon 事件。验证手动失败、重复确认、保留失效以及历史失败记录恢复。Horizon、Pulse、Telescope 默认测试共 84 项，Horizon Redis 专项 17 项，无 Horizon 的核心 SQLite 和 Redis Worker、真实 Artisan 进程矩阵、快照全仓格式、Horizon 全目标严格 Clippy、三语站点与 12 组浏览器检查通过。证据为 `target/tmp/observability-parity/horizon-redis-failure-{accepted,core,docs}.log`。Linux ARM64 专项随上一节复验通过，Windows 和发布组合待验。
+基于 `eb189cfb1` 加本批文件的 macOS 隔离快照，独占 Redis 8.10.3 与 SQLite 验证实际 `horizon:work` 的终态失败回调、数据库记录、Redis 保留删除、失败详情与标签的可见顺序。同步队列仍派发核心失败事件，实际落到 Redis 的 failover 队列派发 Horizon 事件。验证手动失败、重复确认、保留失效以及历史失败记录恢复。Horizon、Pulse、Telescope 默认测试共 84 项，Horizon Redis 专项 17 项，无 Horizon 的核心 SQLite 和 Redis Worker、真实 Artisan 进程矩阵、快照全仓格式、Horizon 全目标严格 Clippy、三语站点与 12 组浏览器检查通过。证据为 `target/tmp/observability-parity/horizon-redis-failure-{accepted,core,docs}.log`。Linux ARM64 与 Windows ARM64 专项随上一节复验通过，完整发布组合待验。
 
 ### Horizon WorkerProcessRestarting 公开事件
 
