@@ -48,7 +48,7 @@ Horizon包与其已验快照逐文件一致；当前核心的Worker／事件／A
 | 分仓储、任务、标签、指标与通知 | 七类仓储职责、任务终态与详情／重试引用、监控／静默标签、trim、指标快照／锁、长等待与去重已实现；原生database批次三库已验 |
 | 原生队列身份 | transport ID与payload UUID显式桥接，重复／过时事件保护、历史forget竞态、未部署队列观测均已实际验证，属明确原生队列适配 |
 | 授权面板 | 实际任务分页／详情／重试、指标／快照、标签写入、失败和批次操作；当前源码Chrome桌面手机、同源写保护、XSS／CSP及布局通过 |
-| Redis与平台 | Redis8.10.3独立夹具通过；拒绝上游同样不支持的Redis Cluster。Unix/macOS信号实测，不扩大为Linux／Windows或真实收件人通知已验 |
+| Redis与平台 | Redis 8.10.3 隔离夹具通过；拒绝上游同样不支持的 Redis Cluster。macOS 和 Linux ARM64 容器均有真实进程与信号证据。Linux x86_64、Windows 应用装配、实际收件与部署组合仍待验收。 |
 
 上述关闭原来“Master直管Worker／命令与分仓储未实现／只读面板”等过时缺口。不宣称执行完整PHP PHPUnit，也不隐藏Rust显式标签、轮询listen与内存衡量方式等已记录适配。
 
@@ -79,7 +79,7 @@ O01 Activitylog、O02 Horizon、O03 Telescope原生范围、O04 Pennant、O05 Pu
 | Telescope 非 multipart 出站载荷 | 诊断从原始 GET 地址或结构化正文选择载荷，并与线上 URL 分别记录。已核对 JSON／表单 POST、GET 查询覆盖、HEAD、原始正文、自定义媒体类型与表单标量快照。成功重定向保留原始输入，连接失败从实际缓冲正文解码。 | multipart 重定向、重试回调改写与其他中间件组合仍需对账。 |
 | Telescope `FetchesStackTrace`、`QueryWatcher`、`GateWatcher` | 固定上游按路径子串跳过被忽略的帧，再选第一处合格来源。找不到合格帧时 Query 不入库，Gate 仍入库且行号和文件为空。Gate 已提供授权入口位置，Query 已从核心 SQL、分页、模型写入、直接关系读取及多对多中间表入口收集候选。 | Gate 外层候选、关联模型写入和读取时创建的变体、schema、懒加载入口，以及发布构建路径重映射仍须逐项核对。 |
 | Pulse 默认 Recorder 清单 | 固定配置的十个 Recorder 均可映射到本地配置。已核对采样率 1、慢操作阈值 1000、异常和慢查询位置开关、默认存储及采集驱动。SlowQueries 现使用数据库事件的调用位置。Servers 默认主机名随配置加载求值。 | 逐 Recorder 核对触发事件、筛选、采样、聚合、配置覆盖和扩展入口，再核对命令和面板。 |
-| Horizon `horizon:listen` 的 `watch` | 上游发布配置提供默认监听列表。Rust 配置补充应用、启动、配置、数据库、路由、视图、公开目录及资源目录中的 Rust 文件和 Cargo 构建入口的对应监听路径。真实 Artisan 使用默认配置监控 `routes/web.rs`，文件更新后重建 Master 和 Worker，SIGTERM 后子树退出。 | 补 Linux／Windows 目标平台验收。 |
+| Horizon `horizon:listen` 的 `watch` | 上游发布配置提供默认监听列表。Rust 配置补充应用、启动、配置、数据库、路由、视图、公开目录及资源目录中的 Rust 文件和 Cargo 构建入口的对应监听路径。macOS 和 Linux ARM64 的真实 Artisan 使用默认配置监控 `routes/web.rs`，文件更新后重建 Master 和 Worker，SIGTERM 后子树退出。 | 发布组合与其余适用的 Unix 目标。 |
 | Horizon 其余配置 | 固定上游含 `name`、`waits`、`silenced`、`silenced_tags` 及 Supervisor `nice`。本地已读静默配置并具备 `nice` 运行时默认；配置形状、面板名称、等待时间入口仍须逐项核对。 | 对照发布配置及实际命令、Redis 和面板消费者，分别核对默认、覆盖及非法值。 |
 
 源文件对照：[Telescope ClientRequestWatcher](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Watchers/ClientRequestWatcher.php) · [Pulse 默认配置](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/config/pulse.php) · [Horizon 默认配置](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/config/horizon.php)。
@@ -318,3 +318,19 @@ Rust 使用原生 `QueryExecuted.callers` 已捕获的位置，跳过框架、Pu
 固定 [Pulse 配置](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/config/pulse.php) 在载入时求值默认主机名，显式 `PULSE_SERVER_NAME` 覆盖默认。PHP 8.5.12 探针直接载入固定配置，确认两种名称和先前已载入值的稳定性。Rust 包默认配置与发布配置共用现有原生主机名检测。缺少名称的历史快照和手写 Recorder 配置沿用采样时的回退，系统查询失败保留 `unknown`。
 
 基于 `38285b7c1` 加本批文件的隔离快照，使用真实 Artisan `config:cache`、`config:show`、`config:clear` 验证包默认配置与发布配置。两种配置均可缓存本机主机名或显式覆盖，缓存期间修改环境变量仍读取原值。Pulse 默认 21 项、快照格式、全目标严格 Clippy、三语构建和 12 组浏览器检查通过。证据位于 `target/tmp/observability-parity/pulse-server-*.log`。
+
+### Horizon Linux ARM64 Release 进程矩阵
+
+固定 Horizon 的进程树采用 Unix 信号，包依赖 `ext-pcntl` 和 `ext-posix`。PHP 官方明确 PCNTL 不在原生 Windows 上工作。Linux 的进程验收对应固定上游支持范围；OpenRust 在 Windows 上的元数据命令及应用装配仍须按项目发布范围单独核对。 [固定 Horizon 依赖](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/composer.json) [PHP PCNTL 安装文档](https://www.php.net/manual/en/pcntl.installation.php)
+
+使用 `8745bc5fa` 的 Git 隔离快照与 Debian Bookworm 原生 ARM64 容器构建 `horizon-acceptance`。进程夹具可在独占容器网络内使用 Redis CLI，无需挂载 Docker 套接字。末段关闭该批 Redis，验证元数据连接中断后的进程回收。首轮优化构建的框架编译进程收到 SIGKILL。Docker 虚机内存约 8 GB，重试将 Cargo 并发限制为 1，保留正常 Release 优化。
+
+Rust 1.94.0 单作业构建通过，实际运行于 Linux 7.0.14-linuxkit、Debian glibc 2.36 与隔离 Redis 8.10.3。Worker、孤儿清理和完整进程矩阵均通过，覆盖 Master／Supervisor／Worker 进程树、扩缩容、异常补位、暂停恢复、SIGTERM 排空、维护模式、内存保护、文件热重载、Redis 中断回收和 HTTP 授权／脱敏。首轮热重载暴露夹具在一次判断中重复读取状态的竞态。改为一次读取一份状态后，同一 Linux 二进制完整复跑通过。证据为 `target/tmp/horizon-linux/build-retry.log`、`acceptance.log` 与 `acceptance-retry.log`。
+
+本批验证 Linux ARM64 容器中的 Artisan 和 HTTP 接口。Linux x86_64、部署主机资源与信号配置、正式 Redis 拓扑、浏览器及完整发布组合仍需按目标环境验收。
+
+### Horizon 待补齐的公开进程与队列事件
+
+固定 `MasterSupervisorDeployed` 在 `ProvisioningPlan::deploy` 结束时派发；`WorkerProcessRestarting` 在实际重启前派发；`UnableToLaunchProcess` 在进程启动异常达到条件时派发。Rust 具备部署、进程补位与启动错误路径，还缺这三个公开事件及其实际派发验收。固定 `MasterSupervisorReviving` 和 `SupervisorProcessRestarting` 保留公开类型。当前固定源码只找到前者的定义和后者的定义与事件映射，移植前须保留该区别。 [固定进程代码](https://github.com/laravel/horizon/tree/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src) [固定 EventMap](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/EventMap.php)
+
+固定队列事件另有 `JobPending`、`JobPushed`、`JobReserved`、`JobReleased`、`JobDeleted`、`JobsMigrated` 与包内 `JobFailed`。Rust 的 Provider 当前经核心队列事件更新仓储。须逐项对照公开字段、Redis 运输边界、派发顺序和内置监听器，再决定原生核心事件桥接与包公开事件的对应关系。

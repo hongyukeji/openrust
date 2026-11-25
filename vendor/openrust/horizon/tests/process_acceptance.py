@@ -22,11 +22,19 @@ def main():
         with sqlite3.connect(root / 'database.sqlite') as db:
             db.execute('CREATE TABLE failed_jobs (id INTEGER PRIMARY KEY AUTOINCREMENT, uuid TEXT UNIQUE, connection TEXT, queue TEXT, payload TEXT, exception TEXT, failed_at TEXT)')
         env = dict(os.environ, APP_BASE_PATH=base, APP_ENV='testing', LOG_CHANNEL='null', HORIZON_PREFIX='horizon-probe:')
-        redis_auth = dict(os.environ, REDISCLI_AUTH=urlsplit(env['HORIZON_TEST_REDIS_URL']).password)
+        redis_url = urlsplit(env['HORIZON_TEST_REDIS_URL'])
+        redis_auth = dict(os.environ, REDISCLI_AUTH=redis_url.password)
+        redis_container = env.get('HORIZON_ACCEPTANCE_REDIS_CONTAINER')
+        if redis_container:
+            redis_command = ['docker', 'exec', '-e', 'REDISCLI_AUTH', redis_container, 'redis-cli']
+        else:
+            # Linux 容器通过验收专用网络直接访问独占 Redis，不挂载 Docker 套接字。
+            assert env['HORIZON_ACCEPTANCE_REDIS_DIRECT'] == '1'
+            redis_command = ['redis-cli', '-h', redis_url.hostname, '-p', str(redis_url.port)]
         wait_lock = f'{root.name}:horizon-probe:{{horizon}}:wait_time_monitor'
         def redis(*args):
             return subprocess.check_output(
-                ['docker', 'exec', '-e', 'REDISCLI_AUTH', env['HORIZON_ACCEPTANCE_REDIS_CONTAINER'], 'redis-cli', *args],
+                [*redis_command, *args],
                 env=redis_auth, text=True, timeout=10,
             ).strip()
         def artisan(*args, code=0):
@@ -49,6 +57,12 @@ def main():
                     return result
                 time.sleep(.2)
             raise AssertionError('acceptance condition timed out: ' + repr({'status': status(), 'stats': stats()}))
+        def until_master(predicate):
+            def read():
+                masters = status()
+                if masters and predicate(masters[0]):
+                    return masters[0]
+            return until(read)
         with socket.socket() as listener:
             listener.bind(('127.0.0.1', 0))
             port = listener.getsockname()[1]
@@ -86,7 +100,7 @@ def main():
             dispatch(password='secret-never-exported')
             assert redis('SET', wait_lock, 'contender', 'EX', '30') == 'OK'
             master = subprocess.Popen([binary, 'artisan', 'horizon'], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            until(lambda: status() and status()[0]['status'] == 'paused')
+            until_master(lambda state: state['status'] == 'paused')
             time.sleep(1.2)
             assert redis('GET', wait_lock) == 'contender'
             assert redis('DEL', wait_lock) == '1'
@@ -101,7 +115,7 @@ def main():
             until(lambda: stats()['queues'][0]['metrics']['completed'] == 1)
             if os.environ.get('HORIZON_TEST_BROWSER') == '1':
                 subprocess.run(['node', str(Path(__file__).with_name('dashboard_browser.mjs')), endpoint], env=env, check=True, timeout=35)
-            initial = until(lambda: status() and status()[0]['workers'] and status()[0])
+            initial = until_master(lambda state: state['workers'])
             child_pids.update(w['pid'] for w in initial['workers'])
             worker_pid = initial['workers'][0]['pid']
             command = subprocess.check_output(['ps', '-p', str(worker_pid), '-o', 'command='], text=True)
@@ -121,12 +135,15 @@ def main():
             # Unexpected termination is detected, reaped and replaced.
             killed = initial['workers'][0]['pid']
             os.kill(killed, signal.SIGKILL)
-            recovered = until(lambda: status() and status()[0]['unexpected_exits'] >= 1 and status()[0]['workers'] and all(w['pid'] != killed for w in status()[0]['workers']) and status()[0])
+            recovered = until_master(lambda state: (
+                state['unexpected_exits'] >= 1 and state['workers']
+                and all(worker['pid'] != killed for worker in state['workers'])
+            ))
             child_pids.update(w['pid'] for w in recovered['workers'])
             # Backlog grows the pool within its cap; maxJobs also recycles workers.
             for _ in range(4):
                 dispatch(sleep_ms=1500)
-            scaled = until(lambda: status() and len(status()[0]['workers']) == 2 and status()[0])
+            scaled = until_master(lambda state: len(state['workers']) == 2)
             child_pids.update(w['pid'] for w in scaled['workers'])
             until(lambda: stats()['queues'][0]['metrics']['completed'] == 5)
             assert all(len(m['workers']) <= 2 for m in status())
@@ -138,7 +155,10 @@ def main():
             # supervisor PID was already verified against the real process tree.
             old_supervisor = supervisor_pid
             os.kill(old_supervisor, signal.SIGKILL)
-            rebuilt = until(lambda: status() and status()[0]['unexpected_exits'] >= 2 and status()[0]['workers'] and all(worker['pid'] not in old_workers for worker in status()[0]['workers']) and status()[0])
+            rebuilt = until_master(lambda state: (
+                state['unexpected_exits'] >= 2 and state['workers']
+                and all(worker['pid'] not in old_workers for worker in state['workers'])
+            ))
             child_pids.update(worker['pid'] for worker in rebuilt['workers'])
             def gone(pid):
                 try:
@@ -161,7 +181,7 @@ def main():
             assert 'secret-never-exported' not in text and 'private-token' not in text
             # Live reservations stop and resume without dropping pending work.
             artisan('horizon:pause')
-            until(lambda: status() and status()[0]['status'] == 'paused')
+            until_master(lambda state: state['status'] == 'paused')
             time.sleep(1.2)
             dispatch()
             before = stats()['queues'][0]['metrics']['completed']
@@ -190,7 +210,7 @@ def main():
             artisan('down')
             forced_id = dispatch(payload_uuid=True)
             master = subprocess.Popen([binary, 'artisan', 'horizon'], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            until(lambda: status() and status()[0]['workers'])
+            until_master(lambda state: state['workers'])
             # HTTP correctly returns 503 during maintenance. Observe native
             # completion directly, then inspect Horizon after leaving maintenance.
             until(lambda: (root / 'completed.log').exists() and forced_id in (root / 'completed.log').read_text())
@@ -243,9 +263,9 @@ def main():
             watched.parent.mkdir()
             watched.write_text('// first version\n')
             master = subprocess.Popen([binary, 'artisan', 'horizon:listen', '--poll'], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            watched_master = until(lambda: status() and status()[0]['workers'] and status()[0]['name'])
+            watched_master = until_master(lambda state: state['workers'])['name']
             watched.write_text('// changed version\n')
-            until(lambda: status() and status()[0]['name'] != watched_master and status()[0]['workers'])
+            until_master(lambda state: state['name'] != watched_master and state['workers'])
             master.send_signal(signal.SIGTERM)
             stdout, stderr = master.communicate(timeout=20)
             assert master.returncode == 0, (stdout, stderr)
@@ -266,9 +286,12 @@ def main():
             artisan('horizon:purge', '--signal=invalid', code=1)
             # Loss of metadata terminates the master and reaps its owned workers.
             master = subprocess.Popen([binary, 'artisan', 'horizon'], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            until(lambda: status() and status()[0]['workers'])
-            last_workers = [w['pid'] for w in status()[0]['workers']]
-            subprocess.run(['docker', 'stop', '--time', '3', os.environ['HORIZON_ACCEPTANCE_REDIS_CONTAINER']], check=True, capture_output=True)
+            last_master = until_master(lambda state: state['workers'])
+            last_workers = [worker['pid'] for worker in last_master['workers']]
+            if redis_container:
+                subprocess.run(['docker', 'stop', '--time', '3', redis_container], check=True, capture_output=True)
+            else:
+                redis('SHUTDOWN', 'NOSAVE')
             master.communicate(timeout=25)
             assert master.returncode != 0
             for pid in last_workers:

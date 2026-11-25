@@ -26,7 +26,7 @@ Rust 无 PHP 的任务对象运行时反射，模型标签通过 `Horizon::tag`�
 
 PHP Horizon 的 JobPayload::id 优先 UUID，重试时 preparePayload 改写 UUID 并保存 retry_of。Rust 原生队列的 payload UUID 同时参与失败与批次语义，因此 Horizon 使用每次 Redis push 的 transport ID 作为监控身份，并以原 payload UUID 桥接原生失败提供器；重试生成独立监控记录及引用，不覆盖父记录。历史失败删除会核对当前失败索引，避免误删同一 payload UUID 的新一次失败。这属于明确的语言／原生契约适配，不能写成 PHP 本身直接按 transport ID 管理。该修复及真实 Redis+SQLite 回归已执行通过。
 
-信号控制、进程检查与父进程检测依赖 Unix；未将 macOS 实测扩展为 Linux／Windows 实机通过。Windows job 的 detach 明确返回不支持。Redis Cluster 队列运输拒绝，与上游支持边界一致。面板详情授权后可读取载荷及异常，旧监控投影仍只返回固定元数据；两者不可混同。
+信号控制、进程检查与父进程检测依赖 Unix。macOS 历史实测之外，Linux ARM64 Release 已独立运行进程矩阵，见[对齐账本](../extension-parity.md#horizon-linux-arm64-release-进程矩阵)。Windows job 的 detach 明确返回不支持。Redis Cluster 队列运输拒绝，与上游支持边界一致。面板详情授权后可读取载荷及异常，旧监控投影仍只返回固定元数据；两者不可混同。
 
 ## 本轮验收环境与已执行结果
 
