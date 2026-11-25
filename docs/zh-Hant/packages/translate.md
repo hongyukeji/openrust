@@ -89,6 +89,8 @@ async fn preview() -> TranslationResult<String> {
 | `tencent` | 設定 `api_key_env` 與 TokenHub 專用翻譯模型，例如 `hy-mt3-plus`。`base_url` 可選擇其他 TokenHub 站點。 | 呼叫 `/v1/api/translations` 並送出 `stream=false`。`zh-Hant` 對應 `zh-TR`，自動辨識時省略 source。 |
 | `aliyun` | 設定 `access_key_id_env` 和 `access_key_secret_env`，臨時憑證可用 `security_token_env`。`region` 預設為 `cn-hangzhou`。 | 對純文字表單執行 ACS3 簽名後呼叫 `TranslateGeneral`。`zh-Hant` 對應 `zh-tw`，自動辨識使用 auto。 |
 | `baidu` | 設定通用文字服務的 `app_id_env` 和 `api_key_env`。 | 使用原始 UTF-8 文字簽名後才編碼表單。`zh-Hant`、ja、ko 分別對應 `cht`、`jp`、`kor`。譯文分段依序以換行連接。 |
+| `azure` | 用 `api_key_env` 指定訂閱金鑰。區域和多服務資源須設定 `region`。`base_url` 可包含自訂資源位址的路徑前綴。 | 呼叫 `/translate`，送出 `api-version=3.0` 和一個 `to`。自動辨識時省略 `from`。保留 `zh-Hans` 與 `zh-Hant` 的區別。 |
+| `google` | 設定 `project` 和 `location`（預設 `global`），可選 `quota_project`、`base_url`。程序使用 Google 應用程式預設憑證。 | 呼叫 Cloud Translation Advanced v3，採用 `text/plain`。`zh-Hans`、`zh-Hant` 對應 `zh-CN`、`zh-TW`。自動辨識時省略 `sourceLanguageCode`。 |
 
 ```json
 {
@@ -101,3 +103,5 @@ async fn preview() -> TranslationResult<String> {
 ```
 
 遠端端點使用 HTTPS，本機服務可使用回送 HTTP。每次翻譯只送出一次 POST，收到重新導向時立即傳回錯誤。逾時時服務商可能已處理該請求。
+
+Google 驅動程式使用官方 Rust 驗證函式庫。提供受信任的 `GOOGLE_APPLICATION_CREDENTIALS` 檔案，或使用具備應用所需 Cloud Translation 權限的執行身分。憑證檔案與應用程式設定分開存放。驗證函式庫快取 OAuth 存取權杖並依需要更新。

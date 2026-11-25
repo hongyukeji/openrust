@@ -1,6 +1,8 @@
 mod aliyun;
+mod azure;
 mod baidu;
 mod deepl;
+mod google;
 mod libretranslate;
 mod tencent;
 
@@ -54,8 +56,21 @@ pub(crate) fn register(manager: &TranslateManager, http: Arc<Factory>, env: Arc<
             profile,
         )?))
     });
+    let client = http.clone();
+    let environment = env.clone();
     manager.extend("baidu", move |profile| {
-        Ok(Arc::new(baidu::Baidu::new(http.clone(), &env, profile)?))
+        Ok(Arc::new(baidu::Baidu::new(
+            client.clone(),
+            &environment,
+            profile,
+        )?))
+    });
+    let client = http.clone();
+    manager.extend("azure", move |profile| {
+        Ok(Arc::new(azure::Azure::new(client.clone(), &env, profile)?))
+    });
+    manager.extend("google", move |profile| {
+        Ok(Arc::new(google::Google::new(http.clone(), profile)?))
     });
 }
 

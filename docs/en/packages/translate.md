@@ -89,6 +89,8 @@ Set the `driver` field of a profile as shown below. The `api_key_env` field hold
 | `tencent` | Set `api_key_env` and the TokenHub translation model, such as `hy-mt3-plus`. An optional `base_url` selects a different TokenHub site. | Uses `/v1/api/translations` and sends `stream=false`. Maps `zh-Hant` to `zh-TR` and omits source for automatic detection. |
 | `aliyun` | Set `access_key_id_env` and `access_key_secret_env`. Use `security_token_env` with temporary credentials. Select `region` if needed (default `cn-hangzhou`). | Calls `TranslateGeneral` with an ACS3-signed plain-text form. Maps `zh-Hant` to `zh-tw` and uses auto for automatic detection. |
 | `baidu` | Set `app_id_env` and `api_key_env` for the general text translation service. | Signs the original UTF-8 text before form encoding. Maps `zh-Hant` to `cht`, ja to `jp`, and ko to `kor`. Joins returned segments in order with newlines. |
+| `azure` | Set `api_key_env` for the subscription key. Set `region` for regional and multi-service resources. `base_url` may include the path prefix of a custom resource endpoint. | Requests `/translate` with `api-version=3.0` and one `to`. Omits `from` for detection. Preserves `zh-Hans` and `zh-Hant`. |
+| `google` | Set `project` and `location` (default `global`). `quota_project` and `base_url` are optional. Use Google Application Default Credentials in the process environment. | Uses Cloud Translation Advanced v3 with `text/plain`. Maps `zh-Hans` and `zh-Hant` `to` `zh-CN` and `zh-TW`. Omits `sourceLanguageCode` for detection. |
 
 ```json
 {
@@ -101,3 +103,5 @@ Set the `driver` field of a profile as shown below. The `api_key_env` field hold
 ```
 
 Use HTTPS for remote endpoints. HTTP is available on loopback for a local service. Each translation sends one POST and leaves redirects untouched. After a timeout the supplier may have processed the request.
+
+The Google driver uses the official Rust authentication library. Provide a trusted `GOOGLE_APPLICATION_CREDENTIALS` file or an attached identity with the Cloud Translation permissions required by your application. Keep credential files outside app configuration. The library caches OAuth access tokens and refreshes them when needed.

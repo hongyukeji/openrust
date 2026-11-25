@@ -62,3 +62,20 @@
 三个驱动各自通过隔离服务真实 HTTP、单发、禁止重定向和事件／错误脱敏。阿里云临时安全令牌在出站观测中随同其他标记敏感的头移除。DeepL／LibreTranslate 协议整批重跑通过。既有 HTTP Client 3 项与 SMS 真实协议 1 项回归通过。日志见 `target/tmp/localization-translate/tr-02b-*`。
 
 Rust 1.94 格式、工作区及启用功能后的严格 Clippy、2 项包回归、1 项 Rustdoc、三语站点与 12 组 Chrome 通过。
+
+## TR-02C Azure 与 Google Cloud
+
+| 驱动 | 协议核对与验收 |
+| --- | --- |
+| Azure | [Translator v3](https://learn.microsoft.com/en-us/azure/ai-services/translator/text-translation/reference/v3/translate) 的区域／全局密钥头、`api-version=3.0`、单条纯文本和单一目标。验证 `from` 缺省／显式、简繁映射、成功结构与[供应商错误码](https://learn.microsoft.com/en-us/azure/ai-services/translator/text-translation/reference/status-response-codes)、限流、超时、单发和脱敏。 |
+| Google Cloud | [Advanced v3](https://docs.cloud.google.com/translate/docs/reference/rest/v3/projects.locations/translateText) 项目／地点路径、`text/plain`、单条内容、显式／自动识别和简繁映射。采用 [google-cloud-auth 1.19.0](https://docs.rs/google-cloud-auth/1.19.0/google_cloud_auth/) 的 ADC。以受控授权用户凭据文件和本地 OAuth 端点验证 scope、配额项目、令牌复用与提前刷新。同一个 Artisan 进程在刷新前后分别发送一次翻译请求，使用两代不同令牌。验证鉴权失败、额度、限流、超时、结构错误、禁止重定向和脱敏。 |
+
+在最终源码上重跑七家协议和外部驱动 HTTP／Artisan／Worker、配置缓存及应用隔离回归。Google 首次用例的 1 秒寿命落入 SDK 10 秒轮询分支，改用符合 SDK 提前 4 分钟刷新策略的 242 秒寿命后，通过实际 OAuth 请求验证刷新。Google 官方凭据延迟到第一次异步翻译初始化，具名解析本身不触发鉴权。
+
+Rust 1.94 的格式、工作区与启用功能后的严格 Clippy、包公开契约 2 项及 Rustdoc 1 项均通过。三语站点构建、两挂载 12 组 Chrome 与导航通过。同期重跑全部七个驱动，结果见 `target/tmp/localization-translate/tr-02c-verified.log`、`tr-02c-docs.log`。
+
+## 真实环境验收
+
+- LibreTranslate 1.9.6 已使用官方 Linux ARM64 镜像、Argos en→es 1.0 模型和隔离 HTTP。真实独立 Artisan 将 `Hello world.` 翻译为 `Hola mundo.`，显式语言和自动识别都通过，后者返回 `en`。初次容器启动未在时限内装好模型，改用预下载模型后通过。两次验收容器均已回收。镜像多架构摘要 `sha256:1de2d7056bb8ad607a412f4563d9abe324ff632b43b5be9428bcc8e213aebb32`。日志见 `target/tmp/localization-translate/libretranslate-real-retry.log`。
+- DeepL 的 Free／Pro 权限与实际额度、腾讯云的站点及模型权限、阿里云的区域与 RAM／STS、百度的产品开通与 APP ID、Azure 的区域资源与订阅权限、Google Cloud 的项目／地点、生产 ADC 身份与 IAM，均留待分别使用授权凭据和端点验收实际译文、配额、计费错误与失败恢复。
+- LibreTranslate 的其他部署、模型组合及远端 TLS／API key 由对应发布环境验收。AI Agent 翻译仍属于后续计划。

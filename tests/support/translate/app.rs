@@ -226,6 +226,7 @@ fn commands(artisan: &mut Artisan) -> Result<(), ConsoleError> {
     ))))?;
     artisan.add_command(Box::new(Protocol(CommandDefinition::new(
         clap::Command::new("translate:request")
+            .arg(clap::Arg::new("repeat-after-ms").long("repeat-after-ms"))
             .arg(clap::Arg::new("text").required(true))
             .arg(clap::Arg::new("target").required(true))
             .arg(clap::Arg::new("source")),
@@ -253,17 +254,29 @@ impl Command for Protocol {
                 if let Some(source) = input.argument("source") {
                     request = request.with_source(source.as_str().unwrap())?;
                 }
-                Translate::translate_request(request).await
+                let first = protocol_result(request.clone()).await?;
+                if let Some(delay) = input.option("repeat-after-ms") {
+                    let millis: u64 = delay.as_str().unwrap().parse().unwrap();
+                    tokio::time::sleep(std::time::Duration::from_millis(millis)).await;
+                    return Ok(json!([first, protocol_result(request).await?]));
+                }
+                Ok::<_, TranslationError>(first)
             }
             .await
             .map_err(|error| ConsoleError::new(format!("{error:?} | {error}")))?;
-            let value = json!({"text": result.text(), "source": result.detected_source()});
             output
-                .write_raw(&format!("{value}\n"))
+                .write_raw(&format!("{result}\n"))
                 .map_err(ConsoleError::from_source)?;
             Ok(0)
         })
     }
+}
+
+async fn protocol_result(
+    request: TranslationRequest,
+) -> openrust_translate::TranslationResult<Value> {
+    let result = Translate::translate_request(request).await?;
+    Ok(json!({"text": result.text(), "source": result.detected_source()}))
 }
 
 #[tokio::main(flavor = "current_thread")]

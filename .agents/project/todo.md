@@ -24,7 +24,7 @@ L01–L22本批实现和实际验收见[审计修复节](audits/laravel-code-aud
 
 ## 自定义驱动与文本翻译能力（2026-11-25）
 
-本节来自用户对“支付／短信／翻译能否像 Laravel 文件存储一样扩展驱动”的复核，属于代码与公开契约补齐，不是等待供应商账号的验收事项。本次只读核对源码和既有测试并登记待办，未实现或重跑消费者；不得据此标记已完成。接手时先复查最新源码及固定上游，按项目原生命名和既有模块职责设计；“可配置多个名称”不等于“可注册外部实现”。用户随后明确：本节“翻译”指把输入文本翻译为指定语言的机器翻译能力，要求像短信／存储一样支持服务商配置与自定义驱动；不是Lang语言词条查询或Loader来源替换。此前误记的Loader问题移至DRV-06独立跟踪，不替代此需求。
+本节来自用户对“支付／短信／翻译能否像 Laravel 文件存储一样扩展驱动”的复核，属于代码与公开契约补齐，不是等待供应商账号的验收事项。初次只读审计登记后，以下各项按最新实现和验收更新。接手时先复查最新源码及固定上游，按项目原生命名和既有模块职责设计；“可配置多个名称”不等于“可注册外部实现”。用户随后明确：本节“翻译”指把输入文本翻译为指定语言的机器翻译能力，要求像短信／存储一样支持服务商配置与自定义驱动；不是Lang语言词条查询或Loader来源替换。此前误记的Loader问题移至DRV-06独立跟踪，不替代此需求。
 
 本轮从顺序2开始持续开发，当前实现、回归、真实消费者与未验边界见[驱动扩展验收](audits/driver-extensions/README.md)；本节初始只读结论由各项最新记录补充。
 
@@ -38,9 +38,9 @@ L01–L22本批实现和实际验收见[审计修复节](audits/laravel-code-aud
   - **处理范围：** 提供可由外部crate实现的支付契约与应用实例内工厂注册，打通Pay::driver到Gateway的实际消费者；核对[公共输入／结果与VerifiedNotification](../../vendor/openrust/pay/src/types.rs)对外部实现的可构造性和信任边界，不通过直接开放全部私有验签字段绕过既有校验。保留内置微信／支付宝、订单／金额／场景、密钥快照、错误及回调语义；不顺带承诺新币种、服务商或新支付产品。
   - **验收：** 外部测试驱动经Provider注册，使用原Pay入口执行支付、查询、关闭、退款及回调，明确不支持操作；内置协议正反例继续通过。保持DatabaseNotifications的去重、行锁、业务回调及完成标记在同一事务边界；涉及共享存储的改动按项目三库规则实测。未知驱动、工厂失败重试、具名隔离、替换／旧句柄、配置缓存、HTTP与独立Artisan均需覆盖。
 
-- [ ] **DRV-03 文本机器翻译与七个内置驱动（开发中）**。命名、分批迁移及验收见[本地化与文本翻译拆分计划](plans/localization-and-text-translation.md)。
-  - **已完成：** [TR-01](audits/localization-and-text-translation/README.md#tr-01-文本翻译底座)已交付独立包、异步契约、默认和具名驱动，以及外部消费者。[TR-02A](audits/localization-and-text-translation/README.md#tr-02a-deepl-与-libretranslate) 的 DeepL、LibreTranslate 协议夹具已通过。[TR-02B](audits/localization-and-text-translation/README.md#tr-02b-腾讯云阿里云与百度) 的腾讯云、阿里云、百度协议夹具也已通过。续接 TR-02C。
-  - **需求与现状：** 接收原文与目标语言，返回翻译后的文本；源语言显式指定或按服务商能力自动识别。现有[localization 模块](../../vendor/openrust/framework/src/localization/mod.rs)负责语言资源查询、替换及复数选择，[Loader](../../vendor/openrust/framework/src/contracts/localization/loader.rs)负责词条来源，不能据此认定已有机器翻译能力。
+- [x] **DRV-03 文本机器翻译与七个内置驱动（本地交付完成）**。命名、分批迁移及验收见[本地化与文本翻译拆分计划](plans/localization-and-text-translation.md)。
+  - **已完成：** [TR-01、TR-02A／B／C](audits/localization-and-text-translation/README.md#tr-01-文本翻译底座)均已交付。独立包、外部驱动契约、七个驱动的协议验收和三语文档齐备。LibreTranslate 另通过本地真实模型翻译。
+  - **需求与现状：** 接收原文与目标语言，返回翻译后的文本；源语言显式指定或按服务商能力自动识别。现有[localization 模块](../../vendor/openrust/framework/src/localization/mod.rs)负责语言资源查询、替换及复数选择，[Loader](../../vendor/openrust/framework/src/contracts/localization/loader.rs)负责词条来源。文本翻译通过独立包的 Translate 门面调用。
   - **处理范围：** 按拆分计划交付 DeepL、LibreTranslate、Azure、Google Cloud、腾讯云、阿里云及百度翻译开放平台，分批适配和逐家验收。提供异步文本翻译契约、具名服务商配置、默认驱动解析、外部crate可实现的驱动与应用Provider工厂注册；明确原文／译文、源／目标语言及供应商错误语义。支持同驱动多份配置、应用隔离和可预测的实例复用／配置刷新，复用现有HTTP Client、配置与容器机制；不预先引入复杂翻译平台，也不把网络翻译隐式接入Lang／__／Blade词条查询。
   - **验收：** 独立消费crate实现自定义驱动，经正式公开入口把文本翻译为指定语言；实测HTTP、独立Artisan和Worker装配及配置缓存前后。覆盖未知驱动、配置错误、空文本、Unicode、语言标签与不支持语言、服务商超时／限流／错误响应、工厂失败重试、同驱动具名隔离、替换／旧句柄和多应用隔离。对未实现的自动识别／批量等可选能力明确边界；模拟服务商验收记录协议与装配覆盖，真实供应商凭据就绪后另验实际译文和错误，不把模拟成功当成真实翻译效果。同步三语用法及验收记录，不改既有Lang公开契约。
 
@@ -85,7 +85,7 @@ L01–L22本批实现和实际验收见[审计修复节](audits/laravel-code-aud
 - [ ] **邮件、短信与通知**：提供已验证的发件域名、SMTP／供应商凭据及受控邮箱、号码或 Slack 工作区；逐驱动验证实际投递、回执、TLS、拒绝与重试，确认最终收件人收到。
 - [ ] **AWS 与对象存储**：提供隔离的 S3 bucket、SQS 标准／FIFO 队列、DynamoDB 表及实际 IAM／STS／KMS 权限；验证真实签名、角色授权、对象操作、队列顺序／去重／重试及持久化行为。
 - [ ] **托管广播与商业服务**：提供 Pusher 应用／集群及实际商业 embedding 等已承诺驱动的测试端点；验证 HTTPS／WSS 发布订阅、鉴权、重连、错误传播和供应商实际响应。
-- [ ] **文本机器翻译供应商（DRV-03 七个驱动按批复验）**：提供所选服务商的授权测试账号／端点与受控文本，逐驱动核对源／目标语言、实际译文、自动识别等已承诺能力，以及限流、配额／计费错误和超时边界。当前先完成模块实现；缺账号不等于已经具备该能力。
+- [ ] **文本机器翻译发布验收**：使用授权测试账号和端点逐家验证 DeepL、腾讯云、阿里云、百度、Azure、Google Cloud 的实际译文、账号／地区／模型权限、源语种识别、额度／计费和超时。LibreTranslate 已验 1.9.6 en→es 本机模型，部署所用模型、远端认证和 TLS 仍随实际环境复核。见[真实环境验收](audits/localization-and-text-translation/README.md#真实环境验收)。
 - [ ] **正式 HTTPS 与文档地址**：提供授权测试域名、受信任证书、反向代理及最终托管地址；核对部署版本、转发、HTTP／Artisan／Worker、正常关停、三语与 API 链接。生产部署、推送、版本发布仍需用户单独授权。
 
 执行范围和历史本地结果见[发布验收账本](audits/core-closure-ledger.md#v010-acceptance)。明确不支持的能力不列作待真实服务验收，按开发者文档的支持边界处理。

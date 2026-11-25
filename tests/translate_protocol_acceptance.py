@@ -117,15 +117,15 @@ def round_trip(artisan, events, profile, cases, calls, faults, scenario, *, targ
                outcome=None, error=None, expected_observations=None):
     before = len(events())
     count = len(calls)
-    if scenario is not None:
-        cases.append(scenario)
+    network = scenario if isinstance(scenario, list) else [scenario] if scenario is not None else []
+    cases.extend(network)
     arguments = ["translate:request", ORIGINAL, target]
     if source is not None:
         arguments.append(source)
     stdout = artisan(profile, *arguments, error=error)
     if outcome is not None:
         assert json.loads(stdout) == outcome, stdout
-    assert len(calls) == count + (scenario is not None), calls
+    assert len(calls) == count + len(network), calls
     assert not faults, faults
     if expected_observations is None:
         expected_observations = ["request", "response"] if scenario is not None else []
@@ -341,14 +341,142 @@ def batch_b(binary, stage):
         print("Baidu: MD5 and form, source and segments, business errors, timeout, single send and redaction PASS")
 
 
+def batch_c(binary, stage):
+    artisan, events = runner(binary, stage)
+
+    with server() as (base, cases, calls, faults):
+        def submit(profile, scenario, **options):
+            round_trip(artisan, events, profile, cases, calls, faults, scenario, **options)
+
+        azure = {"driver": "azure", "region": "eastus", "base_url": base + "/azure",
+                 "api_key_env": "TRANSLATE_TEST_KEY", "timeout_ms": 3000}
+
+        def verify_azure(region):
+            def check(headers, payload, _):
+                assert headers.get("Authorization") is None
+                assert headers.get("Ocp-Apim-Subscription-Key") == KEY
+                assert headers.get("Ocp-Apim-Subscription-Region") == region
+                assert payload == [{"Text": ORIGINAL}]
+            return check
+
+        azure_auto = {
+            "path": "/azure/translate", "query": {"api-version": ["3.0"], "to": ["zh-Hant"]},
+            "check": verify_azure("eastus"),
+            "response": [{"detectedLanguage": {"language": "en", "score": .99},
+                          "translations": [{"text": TRANSLATED, "to": "zh-Hant"}]}],
+        }
+        submit(azure, azure_auto, target="zh-Hant", outcome={"text": TRANSLATED, "source": "en"})
+        global_profile = {name: value for name, value in azure.items() if name != "region"}
+        submit(global_profile, azure_auto | {
+            "query": {"api-version": ["3.0"], "to": ["en"], "from": ["fr"]},
+            "check": verify_azure(None),
+            "response": [{"translations": [{"text": TRANSLATED, "to": "en"}]}],
+        }, target="en", source="fr", outcome={"text": TRANSLATED, "source": None})
+        submit(azure, None, target="en-AU", error="UnsupportedLanguage")
+        submit(azure, azure_auto | {"response": [{"translations": []}]},
+               target="zh-Hant", error="InvalidResponse")
+        for http, code, category in [(400, 400019, "UnsupportedLanguage"), (401, 401000, "Authentication"),
+                                     (403, 403001, "Quota"), (429, 429001, "RateLimited"),
+                                     (500, 500000, "Service"), (307, 307000, "Service")]:
+            submit(azure, azure_auto | {"status": http, "response": {"error": ERROR_BODY | {"code": code}}},
+                   target="zh-Hant", error=category)
+        submit(azure | {"timeout_ms": 140}, azure_auto | {"delay": .45}, target="zh-Hant",
+               error="Timeout", expected_observations=["request", "failure"])
+        print("Azure: v3 query, subscription headers, automatic source, errors, timeout, single send and redaction PASS")
+
+        credentials = stage / "adc.json"
+        credentials.write_text(json.dumps({
+            "type": "authorized_user", "client_id": "fixture-client",
+            "client_secret": "SYNTHETIC_SECRET_OAUTH", "refresh_token": "SYNTHETIC_SECRET_REFRESH",
+            "quota_project_id": "fixture-quota", "token_uri": base + "/oauth2/token",
+        }))
+        credentials.chmod(0o600)
+
+        def google_artisan(profile, *arguments, error=None):
+            return artisan(profile, *arguments, error=error, extra={
+                "GOOGLE_APPLICATION_CREDENTIALS": str(credentials),
+                "GOOGLE_CLOUD_QUOTA_PROJECT": "fixture-quota",
+            })
+
+        def verify_oauth(headers, payload, _):
+            assert payload == {
+                "grant_type": "refresh_token", "client_id": "fixture-client",
+                "client_secret": "SYNTHETIC_SECRET_OAUTH", "refresh_token": "SYNTHETIC_SECRET_REFRESH",
+                "scope": "https://www.googleapis.com/auth/cloud-translation",
+            }
+
+        def token(value="SYNTHETIC_SECRET_ACCESS", expires=3600):
+            return {"path": "/oauth2/token",
+                    "check": verify_oauth,
+                    "response": {"access_token": value, "expires_in": expires, "token_type": "Bearer"}}
+
+        def verify_google(payload, token="SYNTHETIC_SECRET_ACCESS"):
+            def check(headers, data, _):
+                assert data == payload
+                assert headers["Authorization"] == f"Bearer {token}"
+                assert headers.get("x-goog-user-project") == "fixture-quota"
+            return check
+
+        google = {"driver": "google", "project": "test-project", "location": "us-central1",
+                  "base_url": base + "/google", "timeout_ms": 3000}
+        auto_body = {"contents": [ORIGINAL], "targetLanguageCode": "zh-TW", "mimeType": "text/plain"}
+        google_auto = {
+            "path": "/google/v3/projects/test-project/locations/us-central1:translateText",
+            "check": verify_google(auto_body),
+            "response": {"translations": [{"translatedText": TRANSLATED, "detectedLanguageCode": "zh-CN"}]},
+        }
+
+        def submit_google(scenario, profile=google, **options):
+            round_trip(google_artisan, events, profile, cases, calls, faults, scenario, **options)
+
+        submit_google([token(), google_auto], target="zh-Hant",
+                      outcome={"text": TRANSLATED, "source": "zh-Hans"})
+        submit_google([token(), google_auto | {
+            "path": "/google/v3/projects/test-project/locations/global:translateText",
+            "check": verify_google(auto_body | {"targetLanguageCode": "en", "sourceLanguageCode": "fr"}),
+            "response": {"translations": [{"translatedText": TRANSLATED}]},
+        }], profile=google | {"location": "global"}, target="en", source="fr",
+            outcome={"text": TRANSLATED, "source": None})
+        submit_google(None, target="en-AU", error="UnsupportedLanguage")
+        submit_google([token() | {"status": 400, "response": {"error": "invalid_grant"}}],
+                      target="zh-Hant", error="Authentication", expected_observations=[])
+        submit_google([token(), google_auto | {"response": {"translations": []}}],
+                      target="zh-Hant", error="InvalidResponse")
+        for code, reason, category in [(401, "INVALID_CREDENTIALS", "Authentication"),
+                                        (403, "QUOTA_EXCEEDED", "Quota"), (429, "RATE_LIMIT_EXCEEDED", "RateLimited"),
+                                        (500, "BACKEND_ERROR", "Service"), (307, "REDIRECTED", "Service")]:
+            submit_google([token(), google_auto | {
+                "status": code, "response": {"error": ERROR_BODY | {"details": [{"reason": reason}]}},
+            }], target="zh-Hant", error=category)
+        submit_google([token(), google_auto | {"delay": .45}], profile=google | {"timeout_ms": 180},
+                      target="zh-Hant", error="Timeout", expected_observations=["request", "failure"])
+
+        before = len(events())
+        cases.extend([
+            token(expires=242), google_auto, token("SYNTHETIC_SECRET_RENEWED"),
+            google_auto | {"check": verify_google(auto_body, "SYNTHETIC_SECRET_RENEWED")},
+        ])
+        # SDK 1.19 对有效期大于 4 分钟的令牌提前 4 分钟刷新。
+        repeated = google_artisan(google, "translate:request", "--repeat-after-ms=2600", ORIGINAL, "zh-Hant")
+        assert json.loads(repeated) == [{"text": TRANSLATED, "source": "zh-Hans"}] * 2
+        assert events()[before:] == ["request", "response", "request", "response"]
+        assert len(calls) == len(cases) and not faults, faults
+
+        cases.extend([token(), google_auto, google_auto])
+        cached_token = google_artisan(google, "translate:request", "--repeat-after-ms=25", ORIGINAL, "zh-Hant")
+        assert json.loads(cached_token) == [{"text": TRANSLATED, "source": "zh-Hans"}] * 2
+        assert len(calls) == len(cases) and not faults, faults
+        print("Google Advanced v3: ADC OAuth, cached and refreshed token, project/location, errors, timeout, single send and redaction PASS")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", required=True, type=Path)
     parser.add_argument("--stage", required=True, type=Path)
-    parser.add_argument("--batch", default="a", choices=["a", "b"])
+    parser.add_argument("--batch", default="a", choices=["a", "b", "c"])
     args = parser.parse_args()
     stage = args.stage.resolve()
     project = Path(__file__).resolve().parents[1]
     assert stage.is_relative_to(project / "target/tmp")
     stage.mkdir(parents=True, exist_ok=False)
-    {"a": batch_a, "b": batch_b}[args.batch](args.binary.resolve(), stage)
+    {"a": batch_a, "b": batch_b, "c": batch_c}[args.batch](args.binary.resolve(), stage)
