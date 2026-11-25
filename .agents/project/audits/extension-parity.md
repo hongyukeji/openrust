@@ -395,7 +395,19 @@ Rust 将默认采集注册到框架异常处理器的 `reportable_all`，保留�
 
 OpenRust 的 Blade 渲染保留原有 `ViewError::RenderFailed` 分类，并在来源中附带 `ViewException`。Pulse 识别直接视图错误或经框架透明包装传来的错误，沿视图来源读取失败模板路径，按原生类型名记录并去掉应用根路径。保留 Rust `.blade.html` 扩展名。macOS 真实 HTTP 请求通过公开 View Facade 渲染应用对象，分别在 SQLite、PostgreSQL 18.7、MySQL 8.4.13 核对单层错误、嵌套错误与关闭位置时的数据库条目键。证据为 `target/tmp/observability-parity/pulse-view-exception-macos-final-retry.log`。未携带类型名的通用 Rust 动态错误仍使用既有分类回退。 [固定 Blade 包装入口](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/Engines/CompilerEngine.php#L98) [固定 Pulse 分组实现](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Recorders/Exceptions.php#L70)
 
-同一 macOS 快照通过 29 项框架视图回归、Pulse Provider 16 项、Telescope Provider 15 项及选定目标严格 Clippy，另有 1 项 Telescope Provider 按环境条件跳过。快照全仓格式通过。三扩展默认组合重跑因 32 GB 停线中止。Windows 11 ARM64 的前一实现快照通过同一真实 HTTP 用例与 Pulse Provider 16 项，最终限制为透明包装的实现仍须复验。Linux ARM64 最终快照也待复验。Windows 前一实现证据为 `target/tmp/observability-parity/pulse-view-exception-windows-accepted.log`。
+同一 macOS 快照通过 29 项框架视图回归、Pulse Provider 16 项、Telescope Provider 15 项及选定目标严格 Clippy，另有 1 项 Telescope Provider 按环境条件跳过。快照全仓格式通过。触及 32 GB 停线后持锁清理，重新构建的三扩展默认组合通过 98 项，23 项按环境条件跳过。最终源码在 Linux 7.0.14 ARM64 和 Windows 11 ARM64 各通过 4 项 Pulse 分组测试和 16 项 Provider 测试，包含 SQLite 上的真实视图失败用例。Linux 同批通过 Telescope Provider 15 项，1 项按环境条件跳过。证据为 `target/tmp/observability-parity/pulse-view-exception-{macos-combined,linux-final,windows-final}.log`。
+
+### Pulse 普通异常的类型与发生位置
+
+PHP 8.5.12 通过固定 Pulse 的公开报告入口、实际 Recorder 和 Ingest 验证普通异常的分组。应用异常写入创建文件与行号，来自应用 `vendor` 目录的异常优先写入首个应用调用帧，禁用位置时写入 `null`。证据为 `target/tmp/observability-parity/pulse-exception-origin-oracle.log`。 [固定 Pulse 位置选择](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Recorders/Exceptions.php#L105)
+
+Rust 的 `Error` trait 不提供创建位置与调用栈。应用可在实际构造或首次捕获处使用 `SharedException::located`，传播时可用 `with_caller` 保留调用帧。Pulse 从同一错误实例读取具体类型、原始位置和显式传播的调用帧，框架普通报告及 HTTP 内部错误均传递此元数据。缺少元数据的错误沿用既有位置回退。独立 Rust HTTP 消费者从 `vendor/origin.rs` 创建异常，在应用 `main.rs` 登记调用帧，实际 SQLite 记录保存原类型和 `main.rs:39`。证据为 `target/tmp/observability-parity/pulse-exception-origin-consumer.log`。
+
+macOS 隔离快照经真实 HTTP 覆盖公开报告、HTTP 直接返回、经 HTTP 包装后显式报告、缺少位置与关闭位置。SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 均读取到预期的具体错误类型与创建行号。框架异常回归 43 项、Pulse Provider 17 项和 Telescope Provider 15 项通过，另有 1 项 Telescope Provider 按环境条件跳过。快照全仓格式、选定目标严格 Clippy 和三扩展默认组合通过，组合 99 项通过、23 项按环境条件跳过。证据为 `target/tmp/observability-parity/pulse-exception-origin-macos-accepted.log`。
+
+Windows 11 ARM64 使用同源码通过 4 项模式测试和 17 项 Pulse Provider 测试，含 SQLite 上的普通异常与 Blade 异常 HTTP 专项。Linux ARM64 同源码复验已经启动。Windows 证据为 `target/tmp/observability-parity/pulse-exception-origin-windows-accepted.log`。
+
+包级 `Pulse::report` 的原有接口仍显式接收类型和位置字符串，接受原生错误对象的入口待核对。无调用帧的部署行为继续按来源核对。
 
 ### Horizon Linux ARM64 Release 进程矩阵
 

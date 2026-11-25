@@ -208,6 +208,14 @@ impl From<crate::view::ViewError> for HttpError {
     }
 }
 
+impl From<crate::contracts::debug::SharedException> for HttpError {
+    fn from(source: crate::contracts::debug::SharedException) -> Self {
+        Self::Internal {
+            source: Box::new(source),
+        }
+    }
+}
+
 impl From<crate::database::DatabaseError> for HttpError {
     fn from(source: crate::database::DatabaseError) -> Self {
         Self::Internal {

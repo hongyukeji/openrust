@@ -2,6 +2,7 @@ use std::{
     any::Any,
     error::Error,
     fmt,
+    panic::Location,
     sync::{Arc, Weak},
 };
 
@@ -13,7 +14,18 @@ use crate::{
 
 /// An error with explicit, shared instance identity for duplicate reporting.
 #[derive(Clone, Debug)]
-pub struct SharedException(Arc<dyn Error + Send + Sync>, Option<&'static str>, bool);
+pub struct SharedException {
+    error: Arc<dyn Error + Send + Sync>,
+    type_name: Option<&'static str>,
+    suppress_reporting: bool,
+    trace: Option<Arc<ExceptionTrace>>,
+}
+
+#[derive(Clone, Debug)]
+struct ExceptionTrace {
+    origin: &'static Location<'static>,
+    callers: Vec<&'static Location<'static>>,
+}
 
 /// 借用的错误无法凭空取得共享所有权，不能用字符串快照代替原对象。
 #[derive(Clone, Copy, Debug)]
@@ -33,15 +45,51 @@ impl SharedException {
         if let Some(shared) = (&error as &(dyn Error + 'static)).downcast_ref::<Self>() {
             shared.clone()
         } else {
-            Self(Arc::new(error), Some(std::any::type_name::<E>()), false)
+            Self::from_typed_arc(Arc::new(error))
         }
+    }
+
+    /// 在创建或首次捕获错误处记录源码位置，供后续报告使用。
+    #[track_caller]
+    pub fn located<E: Error + Send + Sync + 'static>(error: E) -> Self {
+        let mut shared = Self::new(error);
+        let origin = Location::caller();
+        shared.trace.get_or_insert_with(|| {
+            Arc::new(ExceptionTrace {
+                origin,
+                callers: Vec::new(),
+            })
+        });
+        shared
+    }
+
+    /// 传播已定位的错误时记录当前调用位置，顺序从内层到外层。
+    #[track_caller]
+    pub fn with_caller(mut self) -> Self {
+        if let Some(trace) = &mut self.trace {
+            Arc::make_mut(trace).callers.push(Location::caller());
+        }
+        self
+    }
+
+    pub fn origin(&self) -> Option<&'static Location<'static>> {
+        self.trace.as_ref().map(|trace| trace.origin)
+    }
+
+    pub fn callers(&self) -> &[&'static Location<'static>] {
+        self.trace.as_ref().map_or(&[], |trace| &trace.callers)
     }
 
     pub fn from_arc(error: Arc<dyn Error + Send + Sync>) -> Self {
         if let Some(shared) = error.as_ref().downcast_ref::<Self>() {
             shared.clone()
         } else {
-            Self(error, None, false)
+            Self {
+                error,
+                type_name: None,
+                suppress_reporting: false,
+                trace: None,
+            }
         }
     }
 
@@ -50,14 +98,19 @@ impl SharedException {
         if let Some(shared) = (error.as_ref() as &(dyn Error + 'static)).downcast_ref::<Self>() {
             shared.clone()
         } else {
-            Self(error, Some(std::any::type_name::<E>()), false)
+            Self {
+                error,
+                type_name: Some(std::any::type_name::<E>()),
+                suppress_reporting: false,
+                trace: None,
+            }
         }
     }
 
     /// 在原始实例上保留ShouldntReport，不转成消息或重新包装其身份。
     pub fn unreported<E: super::ShouldntReport>(error: E) -> Self {
         let mut shared = Self::new(error);
-        shared.2 = true;
+        shared.suppress_reporting = true;
         shared
     }
 
@@ -70,19 +123,19 @@ impl SharedException {
     }
 
     pub(crate) fn identity(&self) -> Weak<dyn Error + Send + Sync> {
-        Arc::downgrade(&self.0)
+        Arc::downgrade(&self.error)
     }
 }
 
 impl fmt::Display for SharedException {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(&self.0, formatter)
+        fmt::Display::fmt(&self.error, formatter)
     }
 }
 
 impl Error for SharedException {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
-        Some(self.0.as_ref())
+        Some(self.error.as_ref())
     }
 }
 
@@ -104,13 +157,34 @@ impl<'a> Exception<'a> {
 
     pub fn type_name(&self) -> Option<&'static str> {
         if let Some(shared) = self.error().downcast_ref::<SharedException>() {
-            return shared.1;
+            return shared.type_name;
         }
         match self {
             Self::Http(_) => Some(std::any::type_name::<HttpError>()),
             Self::Typed(_, name) => Some(name),
             Self::Error(_) | Self::Mapped(_) => None,
         }
+    }
+
+    /// 获取直接报告的共享错误，允许经过框架 HTTP 的透明传输。
+    pub fn shared(&self) -> Option<&SharedException> {
+        let mut error = self.error();
+        let mut outer = None;
+        for _ in 0..32 {
+            if let Some(shared) = error.downcast_ref::<SharedException>() {
+                if shared.trace.is_some() {
+                    return Some(shared);
+                }
+                outer = Some(shared);
+                error = shared.error.as_ref();
+            }
+            if let Some(HttpError::Internal { source }) = error.downcast_ref::<HttpError>() {
+                error = source.as_ref();
+            } else {
+                return outer;
+            }
+        }
+        outer
     }
 
     pub(crate) fn error(&self) -> &(dyn Error + 'static) {
@@ -126,10 +200,10 @@ impl<'a> Exception<'a> {
         let mut error = self.error();
         for _ in 0..32 {
             if let Some(shared) = error.downcast_ref::<SharedException>() {
-                if shared.2 {
+                if shared.suppress_reporting {
                     return true;
                 }
-                error = shared.0.as_ref();
+                error = shared.error.as_ref();
             } else if let Some(HttpError::Internal { source }) = error.downcast_ref::<HttpError>() {
                 error = source.as_ref();
             } else {

@@ -802,8 +802,40 @@ fn exception_group(
         let relative = path.strip_prefix(base_path).unwrap_or(path);
         return (class, Some(relative.to_string_lossy().replace('\\', "/")));
     }
-    let snapshot = handler.build_log_exception(exception, None, true);
+    let shared = exception.shared();
+    let class = shared
+        .and_then(|error| Exception::Error(error).type_name())
+        .or_else(|| exception.type_name());
+    let snapshot = handler.build_log_exception(exception, class, true);
     let class = snapshot["class"].as_str().unwrap_or("Error").to_owned();
-    let location = snapshot["location"].as_str().map(str::to_owned);
+    let location = shared
+        .and_then(|error| exception_location(error, base_path))
+        .or_else(|| snapshot["location"].as_str().map(str::to_owned));
     (class, location)
+}
+
+fn exception_location(
+    error: &openrust::contracts::debug::SharedException,
+    base_path: &std::path::Path,
+) -> Option<String> {
+    let relative_file = |location: &std::panic::Location<'_>| {
+        let path = std::path::Path::new(location.file());
+        path.strip_prefix(base_path)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .replace('\\', "/")
+    };
+    let internal =
+        |file: &str| file.starts_with("vendor") || matches!(file, "artisan" | "public/index.php");
+    let origin = error.origin()?;
+    let file = relative_file(origin);
+    if internal(&file)
+        && let Some((file, line)) = error.callers().iter().find_map(|caller| {
+            let file = relative_file(caller);
+            (!internal(&file)).then(|| (file, caller.line()))
+        })
+    {
+        return Some(format!("{file}:{line}"));
+    }
+    Some(format!("{file}:{}", origin.line()))
 }

@@ -1120,6 +1120,103 @@ async fn exceptions_group_failed_blade_responses_by_original_view_and_error() {
 }
 
 #[tokio::test]
+async fn exceptions_keep_concrete_types_and_the_captured_origin_through_reporting() {
+    use openrust::contracts::{debug::SharedException, foundation::Application as _};
+
+    #[derive(Debug)]
+    struct LocatedFailure;
+    impl std::fmt::Display for LocatedFailure {
+        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter.write_str("业务处理失败")
+        }
+    }
+    impl std::error::Error for LocatedFailure {}
+
+    fn report(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async move {
+            let line = line!() + 1;
+            let error = SharedException::located(LocatedFailure);
+            let propagated = error.clone().with_caller();
+            assert!(error.callers().is_empty());
+            assert_eq!(propagated.callers().len(), 1);
+            if request.uri().path().ends_with("/propagated") {
+                return Err(propagated.into());
+            }
+            if request.uri().path().ends_with("/transported-report") {
+                openrust::support::report(HttpError::from(propagated)).await?;
+                return Ok(Response::from("reported"));
+            }
+            openrust::support::report(propagated).await?;
+            openrust::support::report(LocatedFailure).await?;
+            Response::json(
+                http::StatusCode::OK,
+                json!(format!("{}:{line}", file!().replace('\\', "/"))),
+            )
+        })
+    }
+
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(|root, env| {
+                let mut values = recorder_database_config(root, env)?;
+                values.get_mut("pulse").unwrap()["recorders"] =
+                    json!({"Exceptions": {"location": true}});
+                Ok(values)
+            })
+            .with_providers(vec![Box::new(PulseServiceProvider)])
+            .with_routing(Routing::default().api(|| {
+                Route::get("/reported", report)?;
+                Route::get("/propagated", report)?;
+                Route::get("/transported-report", report)
+            }))
+    })
+    .unwrap();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+
+    let response = app.get("/api/reported").await.unwrap();
+    response.assert_ok();
+    let location: String = serde_json::from_slice(response.body()).unwrap();
+    app.get("/api/propagated")
+        .await
+        .unwrap()
+        .assert_server_error();
+    app.get("/api/transported-report")
+        .await
+        .unwrap()
+        .assert_ok();
+    app.app()
+        .config()
+        .unwrap()
+        .set("pulse.recorders.Exceptions.location", json!(false))
+        .unwrap();
+    app.get("/api/propagated")
+        .await
+        .unwrap()
+        .assert_server_error();
+
+    let storage = app.app().make::<DatabaseStorage>().await.unwrap();
+    let rows = storage
+        .connection()
+        .table("pulse_entries")
+        .r#where("type", "=", "exception")
+        .get()
+        .await
+        .unwrap();
+    let class = std::any::type_name::<LocatedFailure>();
+    let count = |location: Option<&str>| {
+        let key = openrust::database::Value::Text(json!([class, location]).to_string());
+        rows.iter()
+            .filter(|row| row.get("key") == Some(&key))
+            .count()
+    };
+    assert_eq!(rows.len(), 5, "{rows:?}");
+    assert_eq!(count(Some(&location)), 3, "{rows:?}");
+    assert_eq!(count(None), 2, "{rows:?}");
+}
+
+#[tokio::test]
 async fn native_recorders_capture_real_client_sql_cache_and_typed_errors_without_identity_leaks() {
     use openrust::contracts::foundation::Application as _;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
