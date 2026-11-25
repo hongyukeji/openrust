@@ -1,6 +1,6 @@
 use super::Repository;
 use crate::{Error, Result};
-use serde_json::{Value as Json, json};
+use serde_json::{Map, Value as Json, json};
 use std::collections::BTreeMap;
 #[derive(Clone)]
 pub struct WorkloadRepository(pub(super) Repository);
@@ -35,11 +35,11 @@ impl WorkloadRepository {
             let mut total_runtime = 0.;
             let mut split_wait = 0.;
             let workers_for_estimate = workers.max(1) as f64;
-            let mut split = Vec::new();
+            let grouped = queues.contains(',');
+            let mut split = Map::new();
             for name in queues.split(',') {
                 let metrics = queue.metrics(Some(name)).await.map_err(|_| Error::Queue)?;
                 let ready = metrics.pending.unwrap_or(metrics.size);
-                length += ready;
                 let runtime = self
                     .0
                     .metrics_repository()
@@ -47,11 +47,37 @@ impl WorkloadRepository {
                     .await?;
                 let runtime = ready as f64 * runtime;
                 total_runtime += runtime;
-                split_wait += (runtime / workers_for_estimate / 1000.).round();
-                split.push(json!({"name":name,"length":ready,"wait":split_wait}));
+                if !grouped {
+                    length = ready;
+                } else if !split.contains_key(name) {
+                    length += ready;
+                    split_wait += (runtime / workers_for_estimate / 1000.).round();
+                    // PHP 将规范的有符号整数字符串用作整数键。
+                    let name_value = name
+                        .parse::<i64>()
+                        .ok()
+                        .filter(|value| value.to_string() == name)
+                        .map_or_else(|| json!(name), |value| json!(value));
+                    split.insert(
+                        name.into(),
+                        json!({"name":name_value,"length":ready,"wait":split_wait}),
+                    );
+                }
             }
             let wait = (total_runtime / workers_for_estimate / 1000.).round();
-            result.push(json!({"name":queues,"connection":connection,"length":length,"wait":wait,"processes":workers,"split_queues":if split.len()>1{Some(split)}else{None}}));
+            // PHP 只将按插入顺序从 0 连续编号的集合编码为 JSON 数组。
+            let split_queues = if !grouped {
+                Json::Null
+            } else if split
+                .keys()
+                .enumerate()
+                .all(|(index, key)| *key == index.to_string())
+            {
+                Json::Array(split.into_values().collect())
+            } else {
+                Json::Object(split)
+            };
+            result.push(json!({"name":queues,"connection":connection,"length":length,"wait":wait,"processes":workers,"split_queues":split_queues}));
         }
         result.sort_by(|left, right| {
             right["wait"]

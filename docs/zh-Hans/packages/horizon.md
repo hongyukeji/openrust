@@ -103,3 +103,5 @@ Redis 队列事件记录 ID、任务名、连接、队列、尝试次数、状�
 `horizon.trim` 按分钟控制任务列表保留时间：`recent`、`pending`、`completed` 默认为 60，`recent_failed`、`failed`、`monitored` 默认为 10080。任务列表每页返回 50 条。`horizon.metrics.trim_snapshots.job` 与 `.queue` 默认各保留 24 个快照。平均耗时和吞吐量只计算成功完成的任务，失败、释放和等待重试不参与计算。重复结束事件在下一次处理事件前忽略；手动重试重置尝试次数时开始新的观测。
 
 `Repository::jobs()`、`tags()`、`metrics_repository()`、`master_supervisors()`、`supervisor_repository()`、`processes()` 与 `workload()` 提供独立仓储操作。监控标签按元数据前缀保存。每个指标的快照写入与当前计数重置原子执行。Master 心跳 15 秒后过期，监督器心跳 30 秒后过期。元数据服务错误会暂停领取新任务并结束 Master，由操作系统进程管理器恢复。监控记录会过期，不作为持久执行账本。
+
+负载接口（默认 `/horizon/api/workload`）对单队列返回 `split_queues: null`。分组队列的 `split_queues` 以队列名为键。去重后的键按顺序为 `0`、`1` 等连续整数时，编码为 JSON 数组。重复队列在积压数和分项中只计一次，每次出现都计入整组等待时间估算。

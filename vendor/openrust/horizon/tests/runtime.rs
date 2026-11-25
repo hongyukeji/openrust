@@ -677,7 +677,7 @@ async fn native_retries_keep_transport_ids_separate_from_the_failed_payload_uuid
 
 #[tokio::test]
 #[ignore = "requires dedicated Redis 8 acceptance wrapper"]
-async fn redis_workload_rounds_grouped_and_split_queue_waits_independently() {
+async fn redis_workload_preserves_grouped_waits_order_and_queue_keys() {
     let mut app = TestApp::create(|builder| {
         builder
             .with_config(config)
@@ -693,7 +693,15 @@ async fn redis_workload_rounds_grouped_and_split_queue_waits_independently() {
         .unwrap();
     let queue = manager.connection(Some("redis")).unwrap();
     let repository = app.app().make::<Repository>().await.unwrap();
-    for (name, runtime) in [("high", 1200.), ("low", 1200.), ("standalone", 2400.)] {
+    for (name, runtime) in [
+        ("high", 1200.),
+        ("low", 1200.),
+        ("standalone", 2400.),
+        ("0", 1200.),
+        ("1", 1200.),
+        ("01", 1200.),
+        ("-1", 1200.),
+    ] {
         let payload = openrust::queue::Payload::new("success", json!({})).unwrap();
         queue.push(&payload, Some(name)).await.unwrap().unwrap();
         repository
@@ -713,9 +721,18 @@ async fn redis_workload_rounds_grouped_and_split_queue_waits_independently() {
         .unwrap()
         .unwrap();
     for name in ["master:first", "master:second"] {
-        repository.heartbeat_supervisor(name, &json!({
-            "name":name,"pid":1,"status":"running","processes":{"redis:high,low":1,"redis:standalone":0}
-        })).await.unwrap();
+        repository
+            .heartbeat_supervisor(
+                name,
+                &json!({
+                    "name":name,"pid":1,"status":"running","processes":{
+                        "redis:high,low,high":1,"redis:low,low":1,"redis:standalone":0,
+                        "redis:0,1":1,"redis:1,0":1,"redis:01,-1":1
+                    }
+                }),
+            )
+            .await
+            .unwrap();
     }
     let response = app
         .call(
@@ -732,9 +749,21 @@ async fn redis_workload_rounds_grouped_and_split_queue_waits_independently() {
     assert_eq!(
         workload,
         json!([
-            {"name":"high,low","connection":"redis","length":2,"wait":1,"processes":2,"split_queues":[
-                {"name":"high","length":1,"wait":1},{"name":"low","length":1,"wait":2}
+            {"name":"0,1","connection":"redis","length":2,"wait":1,"processes":2,"split_queues":[
+                {"name":0,"length":1,"wait":1},{"name":1,"length":1,"wait":2}
             ]},
+            {"name":"01,-1","connection":"redis","length":2,"wait":1,"processes":2,"split_queues":{
+                "01":{"name":"01","length":1,"wait":1},"-1":{"name":-1,"length":1,"wait":2}
+            }},
+            {"name":"1,0","connection":"redis","length":2,"wait":1,"processes":2,"split_queues":{
+                "1":{"name":1,"length":1,"wait":1},"0":{"name":0,"length":1,"wait":2}
+            }},
+            {"name":"high,low,high","connection":"redis","length":2,"wait":2,"processes":2,"split_queues":{
+                "high":{"name":"high","length":1,"wait":1},"low":{"name":"low","length":1,"wait":2}
+            }},
+            {"name":"low,low","connection":"redis","length":1,"wait":1,"processes":2,"split_queues":{
+                "low":{"name":"low","length":1,"wait":1}
+            }},
             {"name":"standalone","connection":"redis","length":1,"wait":2,"processes":0,"split_queues":null}
         ])
     );
