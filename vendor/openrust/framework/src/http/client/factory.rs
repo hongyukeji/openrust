@@ -62,6 +62,8 @@ pub enum RecordedRequestDataSource {
     Form(Option<Arc<serde_json::Value>>),
     Json,
     Payload(Arc<serde_json::Value>),
+    /// 按首次出现顺序排列的 multipart 字段名。
+    Multipart(Arc<[String]>),
 }
 
 #[derive(Clone)]
@@ -118,7 +120,9 @@ impl RecordedRequest {
                 .or_else(|| self.decode_body_fields(true, false)),
             Some(RecordedRequestDataSource::Json) => self.decode_body_fields(false, true),
             Some(RecordedRequestDataSource::Payload(payload)) => Some(payload.as_ref().clone()),
-            None => self.decode_body_fields(is_form, is_json),
+            Some(RecordedRequestDataSource::Multipart(_)) | None => {
+                self.decode_body_fields(is_form, is_json)
+            }
         };
         match data {
             Some(serde_json::Value::Object(fields)) if fields.is_empty() => serde_json::json!([]),

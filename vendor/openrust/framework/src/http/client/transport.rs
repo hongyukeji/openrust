@@ -1,6 +1,7 @@
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use http::{HeaderMap, HeaderValue, Method, StatusCode, header};
+use indexmap::IndexMap;
 use reqwest::Request;
 use serde_json::{Map, Value};
 use tokio::time::Instant;
@@ -13,13 +14,39 @@ use super::{
     pending_request::RequestMiddleware,
 };
 
+pub(super) struct MultipartObservation {
+    fields: Arc<BTreeMap<String, RecordedMultipartField>>,
+    order: Arc<[String]>,
+    content_type: HeaderValue,
+}
+
+impl MultipartObservation {
+    pub(super) fn new(
+        fields: IndexMap<String, RecordedMultipartField>,
+        content_type: HeaderValue,
+    ) -> Self {
+        Self {
+            order: fields.keys().cloned().collect(),
+            fields: Arc::new(fields.into_iter().collect()),
+            content_type,
+        }
+    }
+
+    fn record(&self, request: &mut RecordedRequest) {
+        request.multipart = Some(Arc::clone(&self.fields));
+        request.diagnostic_source = Some(RecordedRequestDataSource::Multipart(Arc::clone(
+            &self.order,
+        )));
+    }
+}
+
 pub(super) struct Transport<'a> {
     pub middleware: &'a [std::sync::Arc<super::Middleware>],
     pub factory: &'a Factory,
     pub client: &'a reqwest::Client,
     pub before_sending: &'a [Box<RequestMiddleware>],
     pub attributes: &'a Map<String, Value>,
-    pub multipart: Option<(Arc<BTreeMap<String, RecordedMultipartField>>, HeaderValue)>,
+    pub multipart: Option<MultipartObservation>,
     pub query_override: Option<(url::Url, Option<RecordedRequestDataSource>)>,
     pub diagnostic_source: Option<RecordedRequestDataSource>,
     pub form_body: Option<reqwest::Body>,
@@ -37,16 +64,10 @@ pub(super) struct Transport<'a> {
 impl Transport<'_> {
     pub(super) async fn send(&self, mut request: Request) -> Result<Response> {
         let has_events = self.factory.events.is_some();
-        let (event_source, event_multipart) = if has_events && !self.redact_payload {
-            (
-                self.event_source(&request),
-                self.multipart
-                    .as_ref()
-                    .map(|(fields, _)| Arc::clone(fields)),
-            )
-        } else {
-            (None, None)
-        };
+        let observe_payload = has_events && !self.redact_payload;
+        let event_source = observe_payload
+            .then(|| self.event_source(&request))
+            .flatten();
         let started_at = Instant::now();
         let mut redirects = 0;
         let mut authentications = 0;
@@ -63,7 +84,9 @@ impl Transport<'_> {
                     sending = has_events.then(|| {
                         let mut snapshot = self.snapshot(&request);
                         snapshot.diagnostic_source.clone_from(&event_source);
-                        snapshot.multipart.clone_from(&event_multipart);
+                        if observe_payload && let Some(multipart) = &self.multipart {
+                            multipart.record(&mut snapshot);
+                        }
                         snapshot
                     });
                     if let Some(request) = &sending {
@@ -274,12 +297,12 @@ impl Transport<'_> {
             for name in sensitive {
                 snapshot.headers.remove(name);
             }
-        } else if let Some((fields, content_type)) = &self.multipart
+        } else if let Some(multipart) = &self.multipart
             && request.body().is_some_and(|body| body.as_bytes().is_none())
-            && request.headers().get(header::CONTENT_TYPE) == Some(content_type)
+            && request.headers().get(header::CONTENT_TYPE) == Some(&multipart.content_type)
             && request.url().origin() == self.digest_origin
         {
-            snapshot.multipart = Some(Arc::clone(fields));
+            multipart.record(&mut snapshot);
         }
         snapshot
     }

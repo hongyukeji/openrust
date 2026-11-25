@@ -784,50 +784,66 @@ fn client_content(
     telescope: &Telescope,
     request: &openrust::http::client::RecordedRequest,
 ) -> Map<String, Value> {
-    use openrust::http::client::RecordedMultipartField;
+    use openrust::http::client::{RecordedMultipartField, RecordedRequestDataSource};
 
     let payload = request.multipart.as_ref().map_or_else(
-        || request.diagnostic_data(),
+        || telescope.request_parameters(request.diagnostic_data()),
         |fields| {
             if fields.is_empty() {
                 return json!([]);
             }
-            Value::Object(
-                fields
-                    .iter()
-                    .map(|(key, field)| {
-                        let value = match field {
-                            RecordedMultipartField::Value(value) => value.clone(),
-                            RecordedMultipartField::Attachment {
-                                filename,
-                                length,
-                                headers,
-                            } => {
-                                let size = length.map(|bytes| {
-                                    let whole = bytes / 1000;
-                                    let fraction = bytes % 1000;
-                                    if fraction == 0 {
-                                        format!("{whole}KB")
-                                    } else {
-                                        let fraction = format!("{fraction:03}");
-                                        format!("{whole}.{}KB", fraction.trim_end_matches('0'))
-                                    }
-                                });
-                                let headers = if headers.is_empty() {
-                                    json!([])
-                                } else {
-                                    telescope.headers(headers)
-                                };
-                                json!({"name":filename,"size":size,"headers":headers})
+            let entry = |(key, field): (&String, &RecordedMultipartField)| {
+                let value = match field {
+                    RecordedMultipartField::Value(value) => value.clone(),
+                    RecordedMultipartField::Attachment {
+                        filename,
+                        length,
+                        headers,
+                    } => {
+                        let size = length.map(|bytes| {
+                            let whole = bytes / 1000;
+                            let fraction = bytes % 1000;
+                            if fraction == 0 {
+                                format!("{whole}KB")
+                            } else {
+                                let fraction = format!("{fraction:03}");
+                                format!("{whole}.{}KB", fraction.trim_end_matches('0'))
                             }
+                        });
+                        let headers = if headers.is_empty() {
+                            json!([])
+                        } else {
+                            telescope.headers(headers)
                         };
-                        (key.clone(), value)
-                    })
-                    .collect(),
-            )
+                        json!({"name":filename,"size":size,"headers":headers})
+                    }
+                };
+                (key.clone(), value)
+            };
+            if let Some(RecordedRequestDataSource::Multipart(order)) = &request.diagnostic_source {
+                let values: Map<String, Value> = order
+                    .iter()
+                    .filter_map(|key| fields.get_key_value(key))
+                    .map(entry)
+                    .collect();
+                if values.len() == fields.len() {
+                    let sequential = values
+                        .keys()
+                        .enumerate()
+                        .all(|(index, key)| key == &index.to_string());
+                    let payload = telescope.request_parameters(Value::Object(values));
+                    return match (sequential, payload) {
+                        (true, Value::Object(values)) => {
+                            Value::Array(values.into_values().collect())
+                        }
+                        (_, payload) => payload,
+                    };
+                }
+            }
+            telescope.request_parameters(Value::Object(fields.iter().map(entry).collect()))
         },
     );
-    json!({"method":request.method.as_str(),"uri":request.url.as_str(),"headers":telescope.headers(&request.headers),"payload":telescope.request_parameters(payload)}).as_object().unwrap().clone()
+    json!({"method":request.method.as_str(),"uri":request.url.as_str(),"headers":telescope.headers(&request.headers),"payload":payload}).as_object().unwrap().clone()
 }
 
 fn interpolate(message: &str, context: &Map<String, Value>) -> String {

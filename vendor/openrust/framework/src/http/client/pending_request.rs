@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, num::NonZeroUsize, sync::Arc, time::Duration};
+use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
 use http::{HeaderMap, HeaderValue, Method, header};
 use serde::Serialize;
@@ -7,7 +7,7 @@ use super::factory::{
     BODY_LIMIT, CONNECT_TIMEOUT, TIMEOUT, build_client, build_client_with_socket,
     build_pinned_client,
 };
-use super::transport::Transport;
+use super::transport::{MultipartObservation, Transport};
 use super::uri_template;
 use super::{
     BatchResults, Error, Factory, Form, Pool, RecordedMultipartField, RecordedRequestDataSource,
@@ -721,7 +721,7 @@ impl PendingRequest {
             (Payload::Raw(body), _) => request.body(body),
             (Payload::Multipart(parts), data) => {
                 let mut form = Form::new();
-                let mut fields = BTreeMap::new();
+                let mut fields = indexmap::IndexMap::new();
                 if let Some(data) = data {
                     let value = serde_json::to_value(data).map_err(Error::InvalidJson)?;
                     for (name, part, value) in super::multipart_input::parts(value)? {
@@ -745,7 +745,7 @@ impl PendingRequest {
                 ))
                 .map_err(|_| Error::InvalidRequest)?;
                 let explicitly_empty = data.is_some() && fields.is_empty();
-                multipart = Some((Arc::new(fields), content_type.clone()));
+                multipart = Some(MultipartObservation::new(fields, content_type.clone()));
                 if explicitly_empty {
                     request
                         .header(header::CONTENT_TYPE, content_type)

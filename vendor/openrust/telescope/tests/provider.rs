@@ -1710,6 +1710,26 @@ fn client_handler(
                 .unwrap()
                 .ok()
         );
+        for fields in [
+            vec![("0", "first"), ("1", "hidden-index"), ("0", "last")],
+            vec![("1", "hidden-index"), ("0", "zero")],
+            vec![("0", "zero"), ("2", "two")],
+            vec![("0", "zero"), ("01", "leading-zero")],
+        ] {
+            let data: Vec<_> = fields
+                .into_iter()
+                .map(|(name, contents)| json!({"name": name, "contents": contents}))
+                .collect();
+            assert!(
+                Http::pending_request()
+                    .unwrap()
+                    .as_multipart()
+                    .post(url, &data)
+                    .await
+                    .unwrap()
+                    .ok()
+            );
+        }
         Ok(openrust::http::Response::from("observed"))
     })
 }
@@ -1722,7 +1742,7 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
     let redirect_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let redirect_address = redirect_listener.local_addr().unwrap();
     let origin = tokio::spawn(async move {
-        for index in 0..25 {
+        for index in 0..29 {
             let target = if matches!(index, 17 | 19) {
                 &redirect_listener
             } else {
@@ -1854,7 +1874,7 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
         .await
         .assert_successful();
     let telescope = app.app().make::<Telescope>().await.unwrap();
-    telescope.hide_request_parameters(&["secret", "nested.password"]);
+    telescope.hide_request_parameters(&["secret", "nested.password", "1"]);
     telescope.hide_response_parameters(&["token"]);
     telescope.hide_request_headers(&["x-secret"]);
     let failed = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -1893,7 +1913,16 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
         .get(Some(EntryType::ClientRequest), EntryQueryOptions::default())
         .await
         .unwrap();
-    assert_eq!(entries.len(), 23);
+    assert_eq!(entries.len(), 27);
+    for (entry, expected) in entries[..4].iter().zip([
+        json!({"0":"zero","01":"leading-zero"}),
+        json!({"0":"zero","2":"two"}),
+        json!({"1":"********","0":"zero"}),
+        json!(["last", "********"]),
+    ]) {
+        assert_eq!(entry.content["payload"], expected);
+    }
+    let entries = &entries[4..];
     assert_eq!(entries[0].content["payload"], json!([]));
     assert_eq!(entries[0].content["response_status"], 200);
     assert!(

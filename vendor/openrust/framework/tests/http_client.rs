@@ -1723,7 +1723,7 @@ async fn reference_header_replacement_preserves_other_keys_multi_values_and_sink
 
 #[tokio::test]
 async fn multipart_accepts_ordered_descriptors_and_rejects_invalid_values() {
-    use openrust::http::client::RecordedMultipartField;
+    use openrust::http::client::{RecordedMultipartField, RecordedRequestDataSource};
 
     async fn echo(body: axum::body::Bytes) -> axum::body::Bytes {
         body
@@ -1754,6 +1754,13 @@ async fn multipart_accepts_ordered_descriptors_and_rejects_invalid_values() {
     assert!(body.contains("name=\"wire\""));
     assert!(!body.contains("name=\"logical\""));
     let recorded = factory.recorded();
+    let Some(RecordedRequestDataSource::Multipart(order)) = &recorded[0].0.diagnostic_source else {
+        panic!("multipart 快照缺少字段顺序");
+    };
+    assert_eq!(
+        order.as_ref(),
+        ["dup", "file", "logical", "number", "false"]
+    );
     let fields = recorded[0].0.multipart.as_ref().unwrap();
     for (name, expected) in [
         ("dup", json!("last")),
