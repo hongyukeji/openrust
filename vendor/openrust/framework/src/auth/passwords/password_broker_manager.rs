@@ -22,6 +22,7 @@ pub struct PasswordBrokerManager {
     config: Arc<dyn Repository>,
     container: Weak<Container>,
     brokers: Mutex<HashMap<String, Arc<PasswordBroker>>>,
+    bindings: Mutex<HashMap<String, Arc<super::user_bindings::UserBindings>>>,
 }
 
 impl PasswordBrokerManager {
@@ -30,6 +31,7 @@ impl PasswordBrokerManager {
             config,
             container,
             brokers: Mutex::default(),
+            bindings: Mutex::default(),
         }
     }
 
@@ -38,6 +40,26 @@ impl PasswordBrokerManager {
             .get("auth.defaults.passwords")
             .and_then(|value| value.as_str().map(str::to_owned))
             .unwrap_or_else(|| "users".into())
+    }
+
+    /// 为某类用户追加具名快照规则；同名规则替换，其他规则与已缓存Broker均保留。
+    pub fn bind_user_tokens_using<M: crate::contracts::auth::Authenticatable>(
+        &self,
+        name: Option<&str>,
+        key: &str,
+        callback: impl Fn(&M) -> AuthResult<String> + Send + Sync + 'static,
+    ) -> AuthResult<()> {
+        let default = self.get_default_driver();
+        let name = name.filter(|value| !value.is_empty()).unwrap_or(&default);
+        self.user_bindings(name).register::<M>(key, callback)
+    }
+    fn user_bindings(&self, name: &str) -> Arc<super::user_bindings::UserBindings> {
+        self.bindings
+            .lock()
+            .expect("password user binding registry lock")
+            .entry(name.into())
+            .or_default()
+            .clone()
     }
 
     pub fn broker(&self, name: Option<&str>) -> AuthResult<Arc<PasswordBroker>> {
@@ -94,9 +116,10 @@ impl PasswordBrokerManager {
                 let cache = app
                     .make::<CacheManager>()?
                     .store(config["store"].as_str())?;
-                Arc::new(CacheTokenRepository::new(
-                    cache, app_key, hasher, expires, throttle,
-                )?)
+                Arc::new(
+                    CacheTokenRepository::new(cache, app_key, hasher, expires, throttle)?
+                        .with_user_bindings(self.user_bindings(name)),
+                )
             }
             "database" => {
                 let connection = app
@@ -105,9 +128,12 @@ impl PasswordBrokerManager {
                 let table = config["table"]
                     .as_str()
                     .ok_or(AuthError::Configuration("password token table"))?;
-                Arc::new(DatabaseTokenRepository::new(
-                    connection, table, app_key, hasher, expires, throttle,
-                )?)
+                Arc::new(
+                    DatabaseTokenRepository::new(
+                        connection, table, app_key, hasher, expires, throttle,
+                    )?
+                    .with_user_bindings(self.user_bindings(name)),
+                )
             }
             _ => return Err(AuthError::Configuration("password broker driver")),
         };
@@ -117,11 +143,9 @@ impl PasswordBrokerManager {
             .get("auth.timebox_duration")
             .and_then(|value| value.as_u64())
             .unwrap_or(200_000);
-        Ok(PasswordBroker::new(
-            tokens,
-            users,
-            events,
-            Duration::from_micros(microseconds),
-        ))
+        Ok(
+            PasswordBroker::new(tokens, users, events, Duration::from_micros(microseconds))
+                .with_user_bindings(self.user_bindings(name)),
+        )
     }
 }

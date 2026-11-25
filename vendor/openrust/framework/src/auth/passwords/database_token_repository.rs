@@ -24,6 +24,14 @@ pub struct DatabaseTokenRepository {
 }
 
 impl DatabaseTokenRepository {
+    pub(super) fn with_user_bindings(
+        mut self,
+        bindings: Arc<super::user_bindings::UserBindings>,
+    ) -> Self {
+        self.policy.bindings = bindings;
+        self
+    }
+
     pub fn new(
         database: Connection,
         table: impl Into<String>,
@@ -70,7 +78,7 @@ impl DatabaseTokenRepository {
 impl TokenRepository for DatabaseTokenRepository {
     fn create<'a>(&'a self, user: &'a dyn CanResetPassword) -> AuthFuture<'a, AuthResult<String>> {
         Box::pin(async move {
-            let (token, hash) = self.policy.generate().await?;
+            let (token, hash) = self.policy.generate(user).await?;
             let record: Record = [
                 ("email".into(), user.get_email_for_password_reset().into()),
                 ("token".into(), hash.into()),
@@ -96,7 +104,7 @@ impl TokenRepository for DatabaseTokenRepository {
             let Some(_) = self.policy.throttle_cutoff(now()) else {
                 return self.create(user).await.map(Some);
             };
-            let (token, hash) = self.policy.generate().await?;
+            let (token, hash) = self.policy.generate(user).await?;
             let now = now();
             let cutoff = self.policy.throttle_cutoff(now).expect("throttle enabled");
             let email = user.get_email_for_password_reset();
@@ -140,7 +148,7 @@ impl TokenRepository for DatabaseTokenRepository {
             };
             if hash.starts_with('!')
                 || created <= self.policy.expiry_cutoff(now())
-                || !self.policy.matches(token, &hash).await?
+                || !self.policy.matches(user, token, &hash).await?
             {
                 return Ok(None);
             }
@@ -192,7 +200,7 @@ impl TokenRepository for DatabaseTokenRepository {
             if hash.starts_with('!') || created <= self.policy.expiry_cutoff(now()) {
                 return Ok(false);
             }
-            self.policy.matches(token, &hash).await
+            self.policy.matches(user, token, &hash).await
         })
     }
 

@@ -14,9 +14,11 @@ mod configuration;
 #[cfg(feature = "sanctum")]
 pub mod confirmation;
 mod messages;
+mod password_tokens;
 #[cfg(feature = "sanctum")]
 pub(crate) use challenges::prune_for as prune_challenges_for;
 pub use jiff::Timestamp as TokenTimestamp;
+pub use password_tokens::bind_password_tokens;
 #[cfg(feature = "sanctum")]
 pub mod credentials;
 pub(crate) mod install;

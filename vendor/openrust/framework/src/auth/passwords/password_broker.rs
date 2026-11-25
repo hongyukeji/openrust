@@ -19,6 +19,7 @@ use super::{PasswordResetStatus as Status, TokenRepository};
 /// Coordinates user lookup, reset notifications, and token consumption.
 pub struct PasswordBroker {
     tokens: Arc<dyn TokenRepository>,
+    bindings: Arc<super::user_bindings::UserBindings>,
     users: Arc<dyn UserProvider>,
     events: Arc<Dispatcher>,
     timebox: Duration,
@@ -32,11 +33,20 @@ impl PasswordBroker {
         timebox: Duration,
     ) -> Self {
         Self {
+            bindings: Arc::default(),
             tokens,
             users,
             events,
             timebox,
         }
+    }
+
+    pub(super) fn with_user_bindings(
+        mut self,
+        bindings: Arc<super::user_bindings::UserBindings>,
+    ) -> Self {
+        self.bindings = bindings;
+        self
     }
 
     pub async fn get_user(
@@ -59,6 +69,9 @@ impl PasswordBroker {
             return Err(AuthError::Configuration(
                 "user must implement CanResetPassword",
             ));
+        }
+        if let Some(user) = user.as_deref() {
+            self.bindings.ensure_capability(user)?;
         }
         Ok(user)
     }

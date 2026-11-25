@@ -129,8 +129,8 @@ fn initialize<'a>(
             let addition = r#"            #[cfg(feature = "sanctum")]
             openrust_fortify::starter::client::register_routes::<crate::app::models::User>(app)?;
 "#;
-            let legacy = template.replacen(addition, "", 1);
-            if legacy == template {
+            let without_client_check = template.replacen(addition, "", 1);
+            if without_client_check == template {
                 return Err(ConsoleError::new("用户套件Provider升级模板不一致"));
             }
             let edit = |expected: &str| {
@@ -147,14 +147,20 @@ fn initialize<'a>(
                 crate::app::http::resources::user_resource::UserResource,
             >(app)?;
 "#;
-            let without_resource = template.replacen(resource, "", 1);
-            let oldest = legacy.replacen(resource, "", 1);
+            let binding = "            openrust_fortify::starter::bind_password_tokens::<crate::app::models::User>(app)?;\n";
+            let without_binding = template.replacen(binding, "", 1);
+            if without_binding == template {
+                return Err(ConsoleError::new("用户套件密码绑定模板不一致"));
+            }
+            let without_resource = without_binding.replacen(resource, "", 1);
+            let oldest = without_resource.replacen(addition, "", 1);
+            let without_client = without_binding.replacen(addition, "", 1);
             if edit(template).is_ok() {
                 None
-            } else if let Ok(updated) = edit(&without_resource) {
-                Some((previous.clone(), updated))
             } else {
-                Some((previous.clone(), edit(&oldest)?))
+                let updated=[without_binding,without_resource,oldest,without_client].iter().find_map(|expected|edit(expected).ok())
+                    .ok_or_else(||ConsoleError::new("用户套件Provider已自定义，请手动接入bind_password_tokens和用户资源；不会覆盖业务代码"))?;
+                Some((previous.clone(), updated))
             }
         } else {
             None

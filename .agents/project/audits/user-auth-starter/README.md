@@ -322,3 +322,24 @@ Cookie在提交前核对配置的Fortify会话Guard与本人类型／身份，�
 `profile-runtime-first.log`已有生成full应用实际重建，真实Artisan init:resources无force给旧标准Action追加方法，再重建及两进程file会话24次TCP通过：跨节点资料更新／证明重放、Cookie当前设备保留、PAT密码变更撤销旧凭据、新密码登录。无需覆盖业务或修改现有用户数据库Schema。最终吸收其间已提交Console依赖并重检，`profile-delivery-gates.log`workspace33.36秒及feature16.08秒严格Clippy、格式退出0。
 
 交付清单／SHA为profile-files.json／profile-final-source-sha.json；原始输出均在target/tmp/user-starter，文档dist直接删除、正常增量缓存与数据保留，实际空间profile-delivery-space.json。下一单元优先实证并强化密码重置链接在邮箱再分配、密码变化并发旧快照时的身份绑定；原生按邮箱定位／提交后删除不等于这些边界已闭合。已核对固定Laravel DatabaseTokenRepository及Django6.0 PasswordResetTokenGenerator的身份／凭据绑定设计作为参考，不将尚未实现的强化计通过。随后继续网页、设备枚举、头像／注销可靠清理、队列邮件及可选因素。
+
+
+## A01-02／03：密码重置令牌身份与领取后竞态（本子单元验收通过）
+
+固定[Laravel DatabaseTokenRepository 13.40.0](https://github.com/laravel/framework/blob/v13.40.0/src/Illuminate/Auth/Passwords/DatabaseTokenRepository.php)按邮箱定位令牌，本套件额外参考[Django 6.0 PasswordResetTokenGenerator](https://github.com/django/django/blob/6.0/django/contrib/auth/tokens.py)的身份／凭据绑定思路。下列是用户套件的安全增强，不宣称为上游原生强制行为。复用已有数据库／缓存仓储、原生64位十六进制客户端令牌、哈希器、节流和claim／finish；没有另建令牌表或URL协议。
+
+实际先复现两个失败：password-token-baseline.log中，旧邮箱更换归属后旧链接仍返回200；password-token-claim-race-baseline.log中，令牌已领取而密码保存尚未开始时换邮箱，旧请求仍返回200。现在绑定真实模型类型、连接配置（含Schema／search_path）、表、主键、重置邮箱、密码摘要和可选凭据版本；旧快照在凭据变化后才写入仓储也不能得到有效链接。即使两个归属密码摘要同为空，实际主键仍区分。
+
+Password::bind_user_tokens_using<M>为具名代理注册应用级、具名可组合规则，已缓存代理即时读取同一注册表；同名同类型规则可重复注册，其他类型保留原生语义。回调执行前释放注册表锁，空键／空值及回调错误明确拒绝。Authenticatable转为不同CanResetPassword包装类型时，必须显式注册该具体类型规则，不能静默绕过。默认独立密码代理未注册规则时仍使用原生哈希输入。套件bind_password_tokens<M>由生成Provider及手动API路由装配幂等调用，旧标准Provider可无force升级，自定义业务boot不覆盖。
+
+绑定材料先摘要为固定64字符，再交给原有bcrypt／Argon，避免长字段触发bcrypt截断。共同用户写锁的内部凭据快照升级为user-credentials:v2并纳入重置邮箱，领取后变更也在保存前拒绝；PAT持久化token_stamp保持原v1，不因此无差别撤销现有PAT。既有短期确认／挑战及未绑定重置链接需重新申请。节点须使用一致模型／代理规则，动态租户连接及自定义包装由应用明确装配。
+
+password-token-matrix-fourth.log中，SQLite3.54.1、独立MySQL8.4.13、PostgreSQL18.7数据库仓储及array／file会话、独立Redis8.10.3缓存与会话共五组各5项通过，覆盖邮箱再分配、旧快照迟到、同摘要不同主键、仅版本变化及已领取后换邮箱。临时容器已退出，未改现有数据库。核心password_user_bindings另覆盖具名规则组合、缓存代理、长材料、包装类型和错误关闭。
+
+password-token-final-gates.log已通过核心1、安装13、完整套件45、SQLite凭据生命周期1及无Sanctum网页11；最终Clippy因32GB停线中断，不计通过，恢复日志为password-token-final-clippy-resumed.log。password-token-docs-final.log三语站构建及两挂载／桌面手机12组正文浏览器通过。实际运行与最终提交结果继续补入本节，不据此提前闭合A01-02／03。
+
+最终password-token-final-clippy-resumed.log在安全清理后恢复，workspace严格Clippy1分34秒、Fortify+Sanctum56.66秒及格式退出0。原生仓储回归中的无环境外部目标不计MySQL／Redis实测，以上述显式矩阵为准。password-token-runtime-resumed.log生成full应用实际重建、真实Artisan升级原标准Provider并再重建通过；首次--locked因旧生成应用锁文件落后于已同步依赖声明失败，随后只在隔离生成应用中--offline更新，主仓库依赖未改。
+
+password-token-runtime-http-fourth.log／password-token-runtime-http.json两个应用进程、独立file缓存／Session目录、本地SMTP、14次真实TCP通过：更换邮箱并由另一用户注册旧邮箱后旧链接422；新归属原密码仍可登录；新邮箱收到的新链接跨节点并发一200一422；旧PAT401、新密码登录及另一节点当前用户200。前两轮夹具复用了file缓存导致原生6/min共享限流429，CACHE_PREFIX不隔离原生file路径；改用本批独立APP_STORAGE_PATH，并等待正常限流窗口再测并发，不关闭或放宽生产限流。失败日志保留，本地SMTP捕获不代表真实供应商投递。
+
+本项仅闭合重置身份边界，未闭合整个用户套件。继续网页事务更新／确认时快照、设备枚举、头像／注销可靠清理、队列邮件、可选认证和最终安装矩阵。交付清单／源码SHA见password-token-files.json／password-token-final-source-sha.json；本批文档dist直接删除，正常增量缓存与数据保留，停线清理及实际剩余空间见password-token-delivery-space.json。

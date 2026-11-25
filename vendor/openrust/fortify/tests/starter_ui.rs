@@ -571,6 +571,20 @@ async fn api_preset_email_pages_use_native_auth_without_a_dashboard() {
     assert_eq!(status, 404, "{body}");
 }
 
+fn password_token_configuration() -> Value {
+    match std::env::var("OPENRUST_USER_KIT_PASSWORD_STORE")
+        .as_deref()
+        .unwrap_or("database")
+    {
+        "database" => {
+            json!({"driver":"database","provider":"users","table":"password_reset_tokens","expire":60,"throttle":60})
+        }
+        store @ ("array" | "redis") => {
+            json!({"driver":"cache","provider":"users","store":store,"expire":60,"throttle":60})
+        }
+        other => panic!("未知验收密码存储{other}"),
+    }
+}
 fn full_configuration(
     base: &std::path::Path,
     _env: &openrust::config::Environment,
@@ -583,7 +597,7 @@ fn full_configuration(
         ("session".into(),session_configuration(base)),
         ("cache".into(),json!({"default":"array","stores":{"array":{"driver":"array"},"redis":{"driver":"redis","connection":"default","prefix":format!("{}:",base.file_name().unwrap().to_string_lossy())}}})),
         ("hashing".into(),json!({"driver":"bcrypt","bcrypt":{"rounds":4}})),
-        ("auth".into(),json!({"defaults":{"guard":"web","passwords":"users"},"guards":{"web":{"driver":"session","provider":"users"},"admin":{"driver":"session","provider":"admins"}},"providers":{"users":{"driver":"eloquent","model":"StarterUser"},"admins":{"driver":"database","table":"admins"}},"passwords":{"users":{"provider":"users","table":"password_reset_tokens","expire":60,"throttle":60}}})),
+        ("auth".into(),json!({"defaults":{"guard":"web","passwords":"users"},"guards":{"web":{"driver":"session","provider":"users"},"admin":{"driver":"session","provider":"admins"}},"providers":{"users":{"driver":"eloquent","model":"StarterUser"},"admins":{"driver":"database","table":"admins"}},"passwords":{"users":password_token_configuration()}})),
         ("fortify-options".into(),json!({"two-factor-authentication":{"confirm":true,"confirmPassword":true}})),
         ("mail".into(),std::fs::read(base.join("mail-config.json")).ok().map(|bytes|serde_json::from_slice::<Value>(&bytes).unwrap()).unwrap_or_else(||json!({"default":"array","mailers":{"array":{"transport":"array"}},"from":{"address":"admin@example.test","name":"用户套件测试"}}))),
     ].into())
@@ -4202,6 +4216,376 @@ async fn profile_legacy_action_is_rejected_without_falling_back_to_nontransactio
     assert_eq!(status, 500, "{body}");
     assert_eq!(
         token_client_request(server.address, "/api/auth/token", device_login())
+            .await
+            .0,
+        201
+    );
+}
+
+#[cfg(feature = "sanctum")]
+#[tokio::test]
+async fn password_tokens_cannot_reset_a_new_owner_after_email_reassignment() {
+    use openrust::database::eloquent::Model as _;
+    use openrust::support::facades::{App, Facade as _};
+    let server = start().await;
+    register_token_user(&server).await;
+    let app = server._kernel.get_application();
+    let old = App::set_facade_application(Some(app), async {
+        let user = app::models::User::query()
+            .unwrap()
+            .first()
+            .await
+            .unwrap()
+            .unwrap();
+        let broker = app
+            .make::<openrust::auth::passwords::PasswordBrokerManager>()
+            .await
+            .unwrap()
+            .broker(None)
+            .unwrap();
+        broker.create_token(&user).await.unwrap()
+    })
+    .await;
+    let (_, _, body) =
+        token_client_request(server.address, "/api/auth/token", device_login()).await;
+    let token = body["data"]["token"].as_str().unwrap();
+    let proof = confirmation(&server, token, "email").await;
+    assert_eq!(
+        account_request_with_proof(
+            server.address,
+            token,
+            "PUT",
+            "/api/user/profile-information",
+            json!({"name":"原用户","email":"old-owner@example.test"}),
+            Some(&proof)
+        )
+        .await
+        .0,
+        200
+    );
+    let signup = json!({"name":"新用户","email":"device@example.test","password":"long-password-123","password_confirmation":"long-password-123"});
+    assert_eq!(
+        token_client_request(server.address, "/api/auth/register", signup)
+            .await
+            .0,
+        201
+    );
+    let (status,_,_)=token_client_request(server.address,"/api/auth/reset-password",json!({"email":"device@example.test","token":old,"password":"must-not-reset-456","password_confirmation":"must-not-reset-456"})).await;
+    assert_eq!(status, 422, "原用户的重置令牌不能授权新的邮箱归属人");
+    assert_eq!(
+        token_client_request(server.address, "/api/auth/token", device_login())
+            .await
+            .0,
+        201
+    );
+}
+
+#[cfg(feature = "sanctum")]
+#[tokio::test]
+async fn password_tokens_from_stale_credential_snapshots_fail_and_fresh_tokens_still_reset() {
+    use openrust::database::eloquent::Model as _;
+    use openrust::support::facades::{App, Facade as _};
+    let server = start().await;
+    register_token_user(&server).await;
+    let app = server._kernel.get_application();
+    let stale = App::set_facade_application(Some(app), async {
+        app::models::User::query()
+            .unwrap()
+            .first()
+            .await
+            .unwrap()
+            .unwrap()
+    })
+    .await;
+    let (_, _, body) =
+        token_client_request(server.address, "/api/auth/token", device_login()).await;
+    let token = body["data"]["token"].as_str().unwrap();
+    let proof = confirmation(&server, token, "password").await;
+    assert_eq!(account_request_with_proof(server.address,token,"PUT","/api/user/password",json!({"password":"new-bound-password-456","password_confirmation":"new-bound-password-456"}),Some(&proof)).await.0,200);
+    // 模拟先读取身份、密码变更提交后才写入重置存储的另一个进程。
+    let late = App::set_facade_application(Some(app), async {
+        app.make::<openrust::auth::passwords::PasswordBrokerManager>()
+            .await
+            .unwrap()
+            .broker(None)
+            .unwrap()
+            .create_token(&stale)
+            .await
+            .unwrap()
+    })
+    .await;
+    let reset = json!({"email":"device@example.test","token":late,"password":"must-not-reset-789","password_confirmation":"must-not-reset-789"});
+    assert_eq!(
+        token_client_request(server.address, "/api/auth/reset-password", reset)
+            .await
+            .0,
+        422
+    );
+    let fresh = App::set_facade_application(Some(app), async {
+        let user = app::models::User::query()
+            .unwrap()
+            .first()
+            .await
+            .unwrap()
+            .unwrap();
+        app.make::<openrust::auth::passwords::PasswordBrokerManager>()
+            .await
+            .unwrap()
+            .broker(None)
+            .unwrap()
+            .create_token(&user)
+            .await
+            .unwrap()
+    })
+    .await;
+    assert_eq!(token_client_request(server.address,"/api/auth/reset-password",json!({"email":"device@example.test","token":fresh,"password":"final-bound-password-789","password_confirmation":"final-bound-password-789"})).await.0,200);
+    let mut login = device_login();
+    login["password"] = json!("final-bound-password-789");
+    assert_eq!(
+        token_client_request(server.address, "/api/auth/token", login)
+            .await
+            .0,
+        201
+    );
+}
+
+#[cfg(feature = "sanctum")]
+#[tokio::test]
+async fn password_tokens_bind_primary_keys_even_when_passwordless_owners_share_other_fields() {
+    use openrust::database::{Value as DbValue, eloquent::Model as _};
+    use openrust::support::facades::{App, Facade as _};
+    let server = start().await;
+    register_token_user(&server).await;
+    assert_eq!(token_client_request(server.address,"/api/auth/register",json!({"name":"第二用户","email":"next-owner@example.test","password":"long-password-123","password_confirmation":"long-password-123"})).await.0,201);
+    let app = server._kernel.get_application();
+    let (old, fresh) = App::set_facade_application(Some(app), async {
+        let mut first = app::models::User::query()
+            .unwrap()
+            .find(1)
+            .await
+            .unwrap()
+            .unwrap();
+        let connection = first.get_connection().unwrap();
+        connection
+            .table(first.get_table())
+            .r#where("id", "=", 1)
+            .update([("password".into(), DbValue::Text(String::new()))].into())
+            .await
+            .unwrap();
+        first.refresh().await.unwrap();
+        let broker = app
+            .make::<openrust::auth::passwords::PasswordBrokerManager>()
+            .await
+            .unwrap()
+            .broker(None)
+            .unwrap();
+        let old = broker.create_token(&first).await.unwrap();
+        first
+            .force_fill(
+                [(
+                    "email".into(),
+                    DbValue::Text("retired-owner@example.test".into()),
+                )]
+                .into(),
+            )
+            .unwrap()
+            .save()
+            .await
+            .unwrap();
+        let mut second = app::models::User::query()
+            .unwrap()
+            .find(2)
+            .await
+            .unwrap()
+            .unwrap();
+        second
+            .force_fill([("email".into(), DbValue::Text("device@example.test".into()))].into())
+            .unwrap()
+            .save()
+            .await
+            .unwrap();
+        connection
+            .table(second.get_table())
+            .r#where("id", "=", 2)
+            .update([("password".into(), DbValue::Text(String::new()))].into())
+            .await
+            .unwrap();
+        second.refresh().await.unwrap();
+        assert!(!broker.get_repository().exists(&second, &old).await.unwrap());
+        assert!(
+            broker
+                .get_repository()
+                .claim(&second, &old)
+                .await
+                .unwrap()
+                .is_none()
+        );
+        let fresh = broker.create_token(&second).await.unwrap();
+        (old, fresh)
+    })
+    .await;
+    assert_eq!(token_client_request(server.address,"/api/auth/reset-password",json!({"email":"device@example.test","token":old,"password":"wrong-owner-password-456","password_confirmation":"wrong-owner-password-456"})).await.0,422);
+    assert_eq!(token_client_request(server.address,"/api/auth/reset-password",json!({"email":"device@example.test","token":fresh,"password":"new-owner-password-789","password_confirmation":"new-owner-password-789"})).await.0,200);
+    let mut login = device_login();
+    login["password"] = json!("new-owner-password-789");
+    assert_eq!(
+        token_client_request(server.address, "/api/auth/token", login)
+            .await
+            .0,
+        201
+    );
+}
+
+#[cfg(feature = "sanctum")]
+#[tokio::test]
+async fn password_tokens_credential_version_rejects_late_links_without_password_changes() {
+    use openrust::contracts::auth::Authenticatable as _;
+    use openrust::database::eloquent::Model as _;
+    use openrust::support::facades::{App, Facade as _};
+    let server = start().await;
+    register_token_user(&server).await;
+    let app = server._kernel.get_application();
+    let stale = App::set_facade_application(Some(app), async {
+        app::models::User::query()
+            .unwrap()
+            .first()
+            .await
+            .unwrap()
+            .unwrap()
+    })
+    .await;
+    let (_, _, body) =
+        token_client_request(server.address, "/api/auth/token", device_login()).await;
+    let token = body["data"]["token"].as_str().unwrap();
+    let proof = confirmation(&server, token, "devices").await;
+    assert_eq!(
+        account_request_with_proof(
+            server.address,
+            token,
+            "POST",
+            "/api/auth/logout-all",
+            json!({}),
+            Some(&proof)
+        )
+        .await
+        .0,
+        204
+    );
+    let late = App::set_facade_application(Some(app), async {
+        let fresh = app::models::User::query()
+            .unwrap()
+            .first()
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(stale.get_auth_password(), fresh.get_auth_password());
+        let broker = app
+            .make::<openrust::auth::passwords::PasswordBrokerManager>()
+            .await
+            .unwrap()
+            .broker(None)
+            .unwrap();
+        let late = broker.create_token(&stale).await.unwrap();
+        assert!(!broker.get_repository().exists(&fresh, &late).await.unwrap());
+        late
+    })
+    .await;
+    assert_eq!(token_client_request(server.address,"/api/auth/reset-password",json!({"email":"device@example.test","token":late,"password":"must-not-change-456","password_confirmation":"must-not-change-456"})).await.0,422);
+    assert_eq!(
+        token_client_request(server.address, "/api/auth/token", device_login())
+            .await
+            .0,
+        201
+    );
+}
+
+#[cfg(feature = "sanctum")]
+struct PausingResetAction {
+    entered: Arc<tokio::sync::Notify>,
+    resume: Arc<tokio::sync::Notify>,
+}
+#[cfg(feature = "sanctum")]
+impl openrust_fortify::contracts::ResetsUserPasswords for PausingResetAction {
+    fn reset<'a>(
+        &'a self,
+        user: &'a mut dyn openrust::contracts::auth::CanResetPassword,
+        input: &'a openrust::http::RequestValue,
+    ) -> openrust::http::HttpFuture<'a, Result<(), openrust::http::HttpError>> {
+        Box::pin(async move {
+            self.entered.notify_one();
+            self.resume.notified().await;
+            installed::ResetUserPassword.reset(user, input).await
+        })
+    }
+}
+#[cfg(feature = "sanctum")]
+#[tokio::test]
+async fn password_tokens_claimed_before_email_change_cannot_apply_after_it_commits() {
+    use openrust::database::eloquent::Model as _;
+    use openrust::support::facades::{App, Facade as _};
+    let server = start().await;
+    register_token_user(&server).await;
+    let app = server._kernel.get_application();
+    let reset = App::set_facade_application(Some(app), async {
+        let user = app::models::User::query()
+            .unwrap()
+            .first()
+            .await
+            .unwrap()
+            .unwrap();
+        app.make::<openrust::auth::passwords::PasswordBrokerManager>()
+            .await
+            .unwrap()
+            .broker(None)
+            .unwrap()
+            .create_token(&user)
+            .await
+            .unwrap()
+    })
+    .await;
+    let (_, _, body) =
+        token_client_request(server.address, "/api/auth/token", device_login()).await;
+    let token = body["data"]["token"].as_str().unwrap();
+    let proof = confirmation(&server, token, "email").await;
+    let entered = Arc::new(tokio::sync::Notify::new());
+    let resume = Arc::new(tokio::sync::Notify::new());
+    app.make::<openrust_fortify::Fortify>()
+        .await
+        .unwrap()
+        .reset_user_passwords_using(Arc::new(PausingResetAction {
+            entered: entered.clone(),
+            resume: resume.clone(),
+        }));
+    let address = server.address;
+    let task = tokio::spawn(async move {
+        token_client_request(address,"/api/auth/reset-password",json!({"email":"device@example.test","token":reset,"password":"must-not-change-456","password_confirmation":"must-not-change-456"})).await
+    });
+    tokio::time::timeout(std::time::Duration::from_secs(5), entered.notified())
+        .await
+        .unwrap();
+    assert_eq!(
+        account_request_with_proof(
+            address,
+            token,
+            "PUT",
+            "/api/user/profile-information",
+            json!({"name":"并发邮箱","email":"committed-email@example.test"}),
+            Some(&proof)
+        )
+        .await
+        .0,
+        200
+    );
+    resume.notify_one();
+    let (status, _, _) = task.await.unwrap();
+    assert_eq!(
+        status, 401,
+        "领取重置凭据后发生邮箱变更，保存前必须重新核对"
+    );
+    let mut login = device_login();
+    login["email"] = json!("committed-email@example.test");
+    assert_eq!(
+        token_client_request(address, "/api/auth/token", login)
             .await
             .0,
         201

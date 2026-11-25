@@ -22,20 +22,27 @@ pub(super) fn version(user: &dyn Authenticatable) -> AuthResult<u64> {
     }
 }
 
-/// 摘要绑定密码哈希与持久化版本；它不是访问令牌，也不应公开到用户资源。
+/// 摘要绑定密码哈希、重置邮箱与持久化版本；它不是访问令牌，也不应公开到用户资源。
 pub fn stamp(user: &dyn Authenticatable) -> AuthResult<String> {
     let password = user.get_auth_password().unwrap_or_default();
     let identity = serde_json::to_string(&user.get_auth_identifier())?;
     let name = user.get_auth_identifier_name();
+    let email = serde_json::to_string(
+        &user
+            .as_password_reset()
+            .map(|user| user.get_email_for_password_reset()),
+    )?;
     let input = format!(
-        "user-credentials:v1:{}:{}:{}:{}:{}:{}:{}",
+        "user-credentials:v2:{}:{}:{}:{}:{}:{}:{}:{}:{}",
         name.len(),
         name,
         identity.len(),
         identity,
         password.len(),
         password,
-        version(user)?
+        version(user)?,
+        email.len(),
+        email
     );
     let hash = digest::digest(&digest::SHA256, input.as_bytes());
     Ok(hash

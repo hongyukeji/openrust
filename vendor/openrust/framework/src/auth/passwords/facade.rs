@@ -21,6 +21,15 @@ impl Facade for Password {
 }
 
 impl Password {
+    /// 应用扩展的具名用户绑定；原生应用未注册时不改变Token格式或验证方式。
+    pub fn bind_user_tokens_using<M: crate::contracts::auth::Authenticatable>(
+        name: Option<&str>,
+        key: &str,
+        callback: impl Fn(&M) -> AuthResult<String> + Send + Sync + 'static,
+    ) -> AuthResult<()> {
+        Self::get_facade_root()?.bind_user_tokens_using::<M>(name, key, callback)
+    }
+
     pub fn broker(name: Option<&str>) -> AuthResult<Arc<PasswordBroker>> {
         Self::get_facade_root()?.broker(name)
     }

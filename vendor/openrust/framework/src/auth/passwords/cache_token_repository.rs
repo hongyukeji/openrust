@@ -32,6 +32,14 @@ struct Record {
 }
 
 impl CacheTokenRepository {
+    pub(super) fn with_user_bindings(
+        mut self,
+        bindings: Arc<super::user_bindings::UserBindings>,
+    ) -> Self {
+        self.policy.bindings = bindings;
+        self
+    }
+
     pub fn new(
         store: Arc<Repository>,
         app_key: &str,
@@ -87,7 +95,7 @@ impl CacheTokenRepository {
 impl TokenRepository for CacheTokenRepository {
     fn create<'a>(&'a self, user: &'a dyn CanResetPassword) -> AuthFuture<'a, AuthResult<String>> {
         Box::pin(async move {
-            let (token, hash) = self.policy.generate().await?;
+            let (token, hash) = self.policy.generate(user).await?;
             let key = cache_key(user);
             self.locked(
                 &key,
@@ -112,7 +120,7 @@ impl TokenRepository for CacheTokenRepository {
             if self.recently_created_token(user).await? {
                 return Ok(None);
             }
-            let (token, hash) = self.policy.generate().await?;
+            let (token, hash) = self.policy.generate(user).await?;
             let key = cache_key(user);
             self.locked(&key, async {
                 if self.recently_created_token(user).await? {
@@ -144,7 +152,7 @@ impl TokenRepository for CacheTokenRepository {
             };
             if record.hash.starts_with('!')
                 || record.created <= self.policy.expiry_cutoff(now())
-                || !self.policy.matches(token, &record.hash).await?
+                || !self.policy.matches(user, token, &record.hash).await?
             {
                 return Ok(None);
             }
@@ -216,7 +224,7 @@ impl TokenRepository for CacheTokenRepository {
             if record.hash.starts_with('!') || record.created <= self.policy.expiry_cutoff(now()) {
                 return Ok(false);
             }
-            self.policy.matches(token, &record.hash).await
+            self.policy.matches(user, token, &record.hash).await
         })
     }
 

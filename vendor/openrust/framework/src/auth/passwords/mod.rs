@@ -7,6 +7,7 @@ mod password_broker;
 mod password_broker_manager;
 mod token_policy;
 mod token_repository;
+mod user_bindings;
 
 pub use cache_token_repository::CacheTokenRepository;
 pub use database_token_repository::DatabaseTokenRepository;
