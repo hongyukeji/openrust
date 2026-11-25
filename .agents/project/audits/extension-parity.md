@@ -373,6 +373,8 @@ PHP 8.5.12 探针按固定源码给四类包装设置对应底层对象。广播
 
 macOS 冷构建在真实 Redis 8.10.3 验证广播、带自定义名称的监听器、邮件、加密通知及普通任务。覆盖配置底层类、配置只有包装名称、应用间显式注册隔离以及真实 `horizon:retry` 重置静默结果。Horizon Redis 20 项、三包默认 84 项、严格 Clippy、全仓格式、三语文档和 12 组浏览器检查通过。Windows 11 ARM64 用同一源码、专用 NTFS 构建卷和独占 Redis 8.10.3，通过 15 项 Redis Runtime。证据为 `target/tmp/observability-parity/horizon-silenced-{accepted,docs}.log` 及 `target/tmp/observability-windows/horizon-silenced-arm64.log`。完整发布组合待验。
 
+Linux 7.0.14 ARM64 用同一源码快照、Rust 1.94.0 和独占 Redis 8.10.3 冷构建后通过 15 项 Horizon Redis Runtime。证据为 `target/tmp/observability-parity/horizon-silenced-linux.log`。
+
 固定 Laravel `FailoverQueue::later` 在调用目标、登记事务回调时处理 failover。PHP 8.5.12 探针使用两个固定 Horizon RedisQueue 子类和受控事务回调验证，首个准备成功的连接在提交前确定并只生成一次标签。只有登记前的同步失败才会选择下一连接，已登记回调在提交后写入失败时异常交回事务，第二连接不会被调用。Rust 当前仍在提交回调中执行 failover。后续须核对提交前的目标选择、准备或注册错误时的回退以及提交后错误传播，避免提前运行候选连接的标签钩子。对照日志为 `target/tmp/observability-parity/horizon-failover-commit-upstream.log`。 [固定 FailoverQueue](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/FailoverQueue.php)
 
 基于 `eb189cfb1` 加已提交 Redis 事件与本批文件的 macOS 隔离快照，独占 Redis 8.10.3 和 SQLite 验证 `JobPending`、`JobPushed`、保留和结算读取相同的标签及静默结果。原生 Artisan 验证标签回调仅在入队执行一次、成功完成后保留原静默结果、Horizon 重试保留标签及原投递引用并重算截止时间。授权 HTTP 验证旧失败任务的重投递和标签回退。Horizon Redis 18 项与三包默认 84 项、无 Horizon 的框架 Redis Worker、真实 Artisan 进程矩阵、全仓格式、Horizon 全目标严格 Clippy、三语站点和 12 组浏览器检查通过。新载荷行为的 Linux、Windows 和完整发布组合待验。验证日志位于 `target/tmp/observability-parity/horizon-payload-{verified,core,process,docs}.log`。
