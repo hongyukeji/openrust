@@ -1,10 +1,10 @@
 # Laravel AI SDK 与模型网关开发计划
 
-用户确认 E07 的完整目标为 **Laravel AI + Sub2API + DeepSeek Harness（DSH）的模型接入体验**。Laravel AI 定义框架内的 SDK 契约，Sub2API 提供外部协议与模型网关参考，DSH 提供添加供应商、选择协议、发现及选用模型的体验参考。E07 已完成基线固定、生态调研、协议类型试编和初步分批。SDK、网关和模型接入体验的实现及运行验收待办。
+用户确认 E07 的完整目标为 **Laravel AI + Sub2API + DeepSeek Harness（DSH）的模型接入体验**。Laravel AI 定义框架内的 SDK 契约，Sub2API 提供外部协议与模型网关参考，DSH 提供添加供应商、选择协议、发现及选用模型的体验参考。当前完成计划复审、固定基线取证和协议类型试编。成员级对齐、实现及运行验收待办。
 
 ## 开发需求
 
-- 将 OpenRust 的 AI 模块对齐固定 Laravel AI SDK。公开入口、目录结构、配置键、默认值、Provider 生命周期、Artisan 命令、测试方式及可观察行为逐项对应 Laravel。Rust 接口使用本项目的命名规范和异步类型，必要适配随契约核对记录依据。
+- 将 OpenRust 的 AI 模块对齐固定 Laravel AI SDK。公开入口、目录职责、配置键、Provider 生命周期、Artisan 命令、测试方式及可观察行为逐项对应 Laravel。默认供应商、默认模型及预设清单按用户确认改为显式配置。Rust 接口使用本项目的命名规范和异步类型，必要适配随契约核对记录依据。
 - 按固定版本交付完整适用能力。覆盖 Agent、结构化输出、流、工具及审批、会话、队列、广播、图像、音频、转录、Embeddings、Reranking、Classification、文件与向量仓库，以及用量、故障转移、事件和 Fake。供应商按下方矩阵逐能力验收。
 - 开发前参考成熟的 GitHub 项目及 Laravel 生态实现。优先复用经过验证的方案和 OpenRust 已有机制，按实际协议差异决定是否增加依赖或适配层。
 - 同时交付三种使用方式。OpenRust 应用能在进程内使用 SDK，能通过兼容或原生协议接入供应商、自建模型服务和 Sub2API，也能启用模型网关，为外部客户端提供兼容 API。网关覆盖协议转换、模型路由与上游账号接入。
@@ -31,7 +31,8 @@
 | [Rig `f4d73dacdfabb3d9daa3f1de091efa490a84c601`](https://github.com/0xPlaygrounds/rig/tree/f4d73dacdfabb3d9daa3f1de091efa490a84c601) | MIT。参考按模型和工具分隔运行步骤、流式测试及检查点。该版本最低 Rust 1.97.1，当前项目为 1.94，本轮作设计参考。 |
 | [Sub2API `0f6671457132425d1b84f3d80536b53e02942424`](https://github.com/Wei-Shaw/sub2api/tree/0f6671457132425d1b84f3d80536b53e02942424) | 核对公开协议路由、Responses 转 Anthropic Messages，以及按模型和端点选择上游的组合路由。按固定源码核对协议入口、账号类型、实际能力和运维行为，作为网关实现与实测参考。 |
 | [DeepSeek Harness `4b399c39a6d1479cd84ca591b4d7c88e24d38a96`](https://github.com/deepseek-ai/deepseek-harness/blob/4b399c39a6d1479cd84ca591b4d7c88e24d38a96/docs/user/guide/providers.md) | 采用其自定义模型 API 流程。命名连接选择单一协议，凭证独立保存，模型发现结果经明确选择后才保存，发现不可用时允许手填模型 ID。用 OpenRust 原生配置和 Artisan 实现。 |
-| [OpenCode Provider 配置](https://opencode.ai/docs/providers) · [LiteLLM 模型管理](https://docs.litellm.ai/docs/proxy/model_management) | OpenCode 将自定义地址和凭证归 Provider，模型 ID 和能力元数据归模型。LiteLLM 分开对外模型名与真实上游模型。分别用于佐证 OpenRust 的配置组织和网关别名，保持现有 Laravel 键名和 Rust 依赖栈。 |
+| [OpenCode Provider 配置](https://opencode.ai/docs/providers) · [LiteLLM 路由名称](https://docs.litellm.ai/docs/router/learn/names) · [LiteLLM 模型权限](https://docs.litellm.ai/docs/routing) | OpenCode 将地址和凭证归 Provider，模型 ID 和能力归模型。LiteLLM 分开公开名、部署目标和访问权限。采用命名连接与可列出、可调用范围一致的发布规则。配置沿用 Laravel 键名。 |
+| [TensorZero 配置指南](https://www.tensorzero.com/docs/gateway/configure-models-and-providers) · [Rust 源码 `62eb8f63e8ec62018d70420dbf1a8c5d1c026315`](https://github.com/tensorzero/tensorzero/tree/62eb8f63e8ec62018d70420dbf1a8c5d1c026315) | 参考模型名映射具体 Provider 和有序路由。GW-02 先用精确模型名映射一个目标，GW-03 再按兼容需求补规则和回退。继续使用 OpenRust 的传输、配置和路由装配。 |
 
 现有代码优先复用包发现、应用容器及生命周期、HTTP 客户端、事件、Cache、Storage、Queue、Broadcast／Reverb、数据库与 Artisan。旧版 `openrust-v0.x`（`6d1a81924`）的 `.agents/project/plans/ai-capabilities.md` 保留了 AI SDK 后续交付意图与自建模型服务边界。当前计划承接其通用 SDK 范围。可复用回归场景见旧版 `vendor/seaql/sea-orm/tests/embedding_tests.rs`。自建服务通过 HTTP 接入，旧计划中的千问（Qwen）可在各自接口验收后作为兼容配置案例；DeepSeek 和 Anthropic 继续按官方驱动验收。数据库查询侧 `EmbeddingProvider`、`HttpEmbeddingProvider`、缓存查询及向量结果校验见[当前实现](../../../vendor/openrust/framework/src/database/query/embeddings.rs)。通过适配器接入 SDK，保留旧查询入口、缓存和 SQL 行为。复核应用现有的向量实现后再定适配位置。
 
@@ -56,14 +57,26 @@
 | `AiServiceProvider` 使用 `ai.conversations.connection` 构造 `DatabaseConversationStore`，在 `Looping` 和 Octane `OperationTerminated` 事件清理按需 Provider 状态 | AI-03 核对默认及显式会话数据库连接。AI-04 验证 OpenRust 常驻 Worker 和 HTTP 运行环境对应生命周期的清理时点，连续运行两个作业或请求验证隔离。具体 Hook 及等价依据记录在验收账本。 |
 | `Embeddings::for` | `for` 是 Rust 关键字，AI-05 用 `Embeddings::r#for` 保留方法名，编译验证公开入口及数据库查询桥接。 |
 
+### 复审发现与实现约束
+
+| 核对项 | 复审结论与处理 |
+|---|---|
+| 默认装配与扩展 | `AiServiceProvider`、`AiManager`、`Ai` 及实际消费者列入 AI-00。Laravel 默认使用已预设实例，本项目发布空配置；保留 `AiManager` 的实例解析、注册扩展、按需构建和清理。AI-01 验收空配置启动、显式/默认选择、未知驱动以及缓存配置。 |
+| Provider 入口和序列化 | `Provider` 有 `name`、`driver`、`providerCredentials`、`additionalConfiguration`、`withHeaders` 及序列化行为。`AiManager` 有各能力和 Fake 入口。AI-00 按所属类型登记，AI-01/04 验证应用、请求、作业之间隔离。对于 Laravel 凭证可访问与 PHP 序列化行为，明确 Rust API、作业凭证引用和缺少凭证时的结果；作业在运行时解析凭证，协议内容及密钥按框架脱敏能力处理。 |
+| Prompt、响应与测试 | `Promptable::make`、`withMessages`、`withTools`、`assertPromptedTimes`、`assertNeverPrompted` 等公开入口随所属能力核对。AI-02 覆盖 `StreamableAgentResponse` 的 `each`、`catch`、`then`、`usingProtocol`、`usingVercelDataProtocol`、`usingAgentUserInteractionProtocol`，并逐项核对 `AgentUserInteraction` 和 Vercel 的输入、状态与事件。Fake、模拟协议服务和供应商实机提供三种独立证据。 |
+| 真实流式传输 | 当前框架 [HTTP 客户端响应转换](../../../vendor/openrust/framework/src/http/client/response.rs) 会将网络块读完才返回，现有 [HTTP 响应流](../../../vendor/openrust/framework/src/http/response.rs) 用于向下游发送。AI-02 先补最小通用出站流入口，SDK 和网关共同使用，并复用 HTTP 工厂、目标校验、TLS、代理、重定向策略和脱敏。以慢速上游验证首块在完成前到达、取消时释放连接、限额和下游背压。 |
+| 会话、审批与远程资源 | AI-03 按 `PendingApproval`、`Decision`、`Decisions`、`ConversationStore`、审批恢复路径及会话迁移核对状态绑定和授权。AI-05 对比 SDK Embeddings 缓存配置和旧查询缓存策略。AI-06 补 `Store::add/remove/refresh/delete`、成员文件 ID 与上游文件 ID、文件删除选项及各 Fake 断言。文件、仓库和响应 ID 后续调用按发出它们的 Provider 及权限处理。 |
+| Artisan 和对外响应 | Laravel 的 `make:agent`、`make:tool`、`make:agent-middleware` 和 `vendor:publish` 依照固定命令实现。模型连接查询、选择和试调用复用现有 Artisan 的 choice、confirm 和 secret 能力，其命令名称由 AI-00 确认。GW-02 对协议路由逐项验证正常结果和鉴权、限流、解析失败等异常，保留 HTTP 状态、响应头、协议错误体、SSE、multipart／二进制行为，避免业务 API envelope 改写协议。 |
+
 ## 交付与验收账本
 
 各批开始前，按上游类型建立成员级清单，跟踪到实际声明、下游应用调用和测试。继承方法、trait/macro、门面转发、Pending 到 Response、事件、Fake 和反例随所属能力一同关闭。以下是分批的入口索引，成员逐项复核和实现均待办。
 
 | 批次 | 按类型跟踪的入口与行为 | 首要实测 |
 |---|---|---|
+| AI-00 契约清单与依赖 | 从固定 SDK 建立模块、类型、公开成员、继承／trait／宏／Facade、配置、Artisan、迁移和实际调用入口的索引。落定各批次责任与协议命名，记录现有框架可复用能力及真实缺口。复核无预设的默认值差异和二进制特性隔离 | 按条记录上游位置、本地入口、裁决、批次和实际测试。尚未准备好实现的成员保留待办。按包启停验证空配置无副作用，网关依赖 SDK 的协议实现 |
 | AI-01 包发现＋文本 | `AiServiceProvider`、`Ai`、`AiManager` 的命名实例、`build`、`text_provider`、`text_provider_for`、默认及清理，`Agent`、`AnonymousAgent`、`agent()`、`prompt`、文本请求／响应及 Agent Fake。先完成 OpenAI Compatible 与 OpenAI 的非流式纯文本，并明确默认/显式 Provider 及模型优先级 | 启用、未启用及配置缓存后的应用启动。真实 HTTP 路由调用、两个本地协议服务验证 URL／鉴权／JSON／用量。覆盖不支持能力、缺模型、错误响应、Fake 断言及应用隔离。用 Artisan 检查包发现与发布；以 Rust 1.94 试编协议类型并验证不引入重复网络路径 |
-| AI-02 多轮文本基础 | `AgentPrompt`、Messages、附件、`HasStructuredOutput`、`StructuredAgentResponse`、`HasProviderOptions`、属性／模型选项、默认／廉价／高级模型、`SummarizeAgent` 与 `Str`／`Stringable` 摘要入口、`StreamableAgentResponse`、流事件、SSE／Vercel、Usage、代理及每步生成事件；各文本供应商的限流、过载、故障转移及异常 | 相同调用分别实测普通、结构化和流。覆盖 Schema 深层对象／数组、拒答、畸形响应、UTF-8 与行跨数据块、取消与用量、已经向客户端输出时的失败处理。供应商失败分类用协议样本逐个确认 |
+| AI-02 多轮文本基础 | `AgentPrompt`、Messages、附件、`HasStructuredOutput`、`StructuredAgentResponse`、`HasProviderOptions`、属性／模型选项、显式默认／廉价／高级模型、`SummarizeAgent` 与 `Str`／`Stringable` 摘要入口、`StreamableAgentResponse`、SSE／Vercel／AG-UI、Usage、提示缓存、代理及每步生成事件；各文本供应商的限流、过载、故障转移及异常 | 相同调用分别实测普通、结构化和流。覆盖 Schema 深层对象／数组、拒答、畸形响应、UTF-8 与行跨数据块、取消与用量、已经向客户端输出时的失败处理。供应商失败分类用协议样本逐个确认 |
 | AI-03 工具与会话 | `HasTools`、`Tool`／`ToolCall`／`ToolResult`、校验、修复、检索／延迟加载、文件工具、Provider 工具、MCP 工具桥、Skills、`CanActAsTool`、子 Agent、`HasMiddleware`、`StepTextGateway`、停止条件；`Conversational`、`RemembersConversations`、`ConversationStore`、参与者与归属检查；审批请求、审批结果、恢复相关类型与事件 | 实测多个步骤的 Middleware 次数及顺序、工具调用关联、会话迁移、历史裁剪／分页、跨账户隔离、拒绝／批准／过期、重放及并发恢复。Provider 工具用独立合同约束其支持范围 |
 | AI-04 队列、广播和生成器 | `Agent::queue`／`broadcast`／`broadcast_now`／`broadcast_on_queue`、Jobs、Pending、广播事件、失败和大事件，Fake 排队断言；前述 Artisan 生成器、配置／stub／迁移发布 | 独立 Artisan／Worker 进程实际消费，并通过 HTTP／订阅者观察流或广播事件；核对重试、作业间 Provider 清理、私有频道授权及序列化边界。编译模板生成的消费代码 |
 | AI-05 向量、分类和排序 | `Embeddings::for`、`Reranking::of`、`Classification::of`、各 Provider／Gateway、Pending／Response、Stringable／Collection 对应便利入口、缓存与数据库桥，附件分类、二元分类与 Fake | 批量及单条、并发、维度／非法浮点、缓存开关／Store／粒度、真实向量查询；排序命中原始索引；分类分别核对问题、标签、附件支持与错误 |
@@ -129,18 +142,29 @@ Laravel 基线的驱动行为作为能力验收依据，供应商配置通过文
 
 固定版 [Sub2API 路由](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/server/routes/gateway.go)、[Responses 桥接](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/handler/gateway_handler_responses.go)和[组合路由设计](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/docs/COMPOSITE_GROUPS.md)作为首批参考。优先走同协议上游。跨协议时明确映射请求、响应、工具 ID、流事件、停止原因、错误和用量；对于无法表达的能力返回相应协议的错误。外部客户端的工具调用按协议返回供客户端处理，应用自有 Agent 工具仍由 SDK 按权限与审批配置执行。
 
+### 模型配置、发现与发布
+
+| 入口和用途 | 约定 |
+|---|---|
+| `config/ai.rs` 中的 `ai.providers.<name>` | 保存连接、协议、凭证引用、手填或经确认选择的上游模型，以及 `models.text.default` 等能力默认值。SDK 直接调用时解析命名连接与模型 ID。 |
+| Artisan 模型选择 | 同一命名连接显示服务器返回的模型和手填模型，按原始模型 ID 去重，保持大小写。已保存的设置优先，发现结果补充可用的展示信息。刷新时保留手填及已选模型。不同连接的同名模型分别展示。查询失败时保留可编辑列表与错误原因。 |
+| 网关发布配置，建议文件名 `config/ai_gateway.rs` | 每个公开模型名显式映射到 `provider` 与真实 `model`。可以发布自定义名，也可以显式发布上游原名。多个公开名可以指向同一模型。首批使用精确模型名映射一个目标，后续按固定协议与路由需求增加端点匹配和回退。默认发布表为空。 |
+| 对外模型目录与调用 | `/v1/models` 返回当前 Key 在该协议上获准调用的已发布模型；发现模型作为可选集合，由显式操作加入发布配置。列表与调用共用发布和授权规则。核对两个 Key 的可见集合、未发布或无权限模型、映射冲突、禁用以及同一别名改绑后客户端配置保持可用。 |
+
+示例关系为 `support-chat → deepseek / deepseek-flash`。网关用发布名解析目标，以真实 ID 请求上游，通过协议定义返回对外模型标识。管理与审计可按权限读取实际路由。配置应在启用时验证发布名称冲突、目标连接及已知协议能力，手填可用的模型以试调用确认。框架内的 SDK 模型参数沿用 Laravel 语义，网关发布名归网关配置。
+
 ### 网关分批交付
 
 | 批次 | 交付与验收 |
 |---|---|
-| GW-00 协议与能力清单 | 按固定 Sub2API 源码建立端点、上游协议、账号类型、能力选项及管理行为清单。记录客户端可观察契约、版本、实现批次和证据。以网关协议能力确定兼容范围，完整商业平台界面与业务仍按独立项目范围确认。 |
+| GW-00 协议与能力清单 | 按固定 Sub2API 源码建立端点、上游协议、账号类型、能力选项及管理行为清单。除主协议外，逐项裁决 `/models/{id}`、`/messages/count_tokens`、Responses 子路径／WebSocket／状态、模型目录、Embeddings、图片／视频／语音、兼容别名、用量等公开路由。将请求方法、路径／版本、鉴权与能力、实现批次和证据逐条记录；固定源码有路由只证明存在入口。商业平台界面与业务仍按独立项目范围确认。 |
 | GW-01 接入现有网关 | 随 AI-01／02／05／06 使用真实 Sub2API 进程和本地协议服务，分批验收普通请求、流、工具、结构化输出、Embeddings 及媒体。记录网关版本、端点、分组、上游及模型；供应商实机结果单独记录。 |
-| GW-02 OpenAI 兼容入口 | 对外提供 `/v1/models`、`/v1/responses`、`/v1/chat/completions`，验证现有客户端只改基础 URL、凭证及可用模型即可调用。核对 HTTP 状态、协议错误、鉴权头、JSON、SSE、取消及用量。协议路由使用对应响应格式。 |
+| GW-02 OpenAI 兼容入口 | 对外提供 `/v1/models`、`/v1/responses`、`/v1/chat/completions`，先验收单模型映射、Key 鉴权和模型授权，再验证实际客户端切换连接。核对 HTTP 状态、协议错误、鉴权头、JSON、SSE、取消及用量。支持 Responses 持久状态与否按操作和上游实际能力裁决，覆盖 `store`、`previous_response_id` 及对不支持的请求的响应。 |
 | GW-03 多协议与路由 | 补 Anthropic Messages、Gemini 原生入口及双向协议适配，首个跨协议验收为 Responses 请求经 Anthropic 上游返回 Responses 事件。覆盖模型别名、按端点和模型选路、能力检测、同协议透传、回退限制。Embeddings、图片、音频、WebSocket 等按 GW-00 实际能力矩阵推进。 |
 | GW-04 账号与运维 | 交付下游 API Key、分组与权限，上游 API Key、适用的 OAuth／订阅账号接入、轮询和冷却、并发与用量限额、审计及计量。按账号类型验证授权生命周期、失效、路由回退与使用记录；跨租户及部分失败纳入反例。 |
 | GW-05 联合验收 | 同一合成任务分别从应用 SDK、经 Sub2API 的上游调用、现有外部客户端访问 OpenRust 网关完成。覆盖直接连接、协议转换和实际路由，验证接入文档、三语支持矩阵和 E07 账本。 |
 
-同一请求输出了流事件或执行了工具之后，测试其失败路径及重复执行风险。兼容结果以实际调用和可观察行为为准，模型目录可见、HTTP 路由存在和单一模型成功各自保留验证边界。E07 在 SDK 与网关批次均完成、三条使用路径均通过相应验收后关闭。
+网关回退与 SDK failover 独立验收。在向客户端发出首个可见事件之前，按错误分类和能力允许范围选择备援；输出开始、工具产生副作用或上游是否已接受请求不确定时，按对应协议处理失败并记录用量状态，避免自动重放。对外路由和上游连接各做一次明确的选路决策，验收组合启用时的总尝试边界。兼容结果以实际调用和可观察行为为准，模型目录可见、HTTP 路由存在和单一模型成功各自保留验证边界。E07 在 SDK 与网关批次均完成、三条使用路径均通过相应验收后关闭。
 
 ## DSH 式模型接入
 
@@ -151,4 +175,9 @@ Laravel 基线的驱动行为作为能力验收依据，供应商配置通过文
 
 DeepSeek 官方端点作为首个完整示例。使用 Chat Completions 的命名连接对照固定 Laravel `deepseek` 驱动行为，测试文本、流、思考模式和工具回合的 `reasoning_content`。DeepSeek 官方另提供 Responses 和 Anthropic Messages，作为对应协议的独立配置案例，分别验收请求字段和能力。参考 [Laravel DeepSeek Provider 固定源码](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Providers/DeepSeekProvider.php)、[Prism DeepSeek 文档](https://prismphp.com/providers/deepseek/)、[DeepSeek 首次调用](https://api-docs.deepseek.com/)、[Responses](https://api-docs.deepseek.com/guides/responses_api/)、[Anthropic](https://api-docs.deepseek.com/guides/anthropic_api/)及[思考模式](https://api-docs.deepseek.com/guides/thinking_mode/)。
 
-实施顺序沿用 AI-01／02／03、GW-01／02／03／05。先验收配置即可调用，再接模型发现、选择与独立试调用，最后用 DSH 连接 OpenRust 网关复现整条流程。E07 关闭时须同时具备三语配置示例、真实客户端验收结果和供应商能力矩阵。
+## 实施顺序与完成条件
+
+1. AI-00 与 GW-00 先确认契约、可选包边界和能力对应。按类型或端点保留待核对项，计划复审结果用于确定批次，成员级清单继续随实现核对。
+2. AI-01 验收空配置启动、显式连接、非流式文本和配置即可调用，GW-01 用现有 Sub2API 验证接入。随后接模型发现、选择与独立试调用。配置发布只写包拥有的示例与默认空值，用户确认的连接或模型写入方式按现有配置管理约定验收。
+3. AI-02 完成出站流能力后，GW-02 先跑通精确映射和协议响应，GW-03 再验收跨协议、按端点路由与回退。AI-03 至 AI-06 和 GW-04 按各自依赖补齐生命周期、能力、账号与运维。SDK 可独立启用，网关复用 SDK 专用调用所需的协议实现及框架公共能力。
+4. AI-07 与 GW-05 用独立消费者、真实 HTTP／Artisan、适用的 Worker 与 DSH 客户端验收三种调用路径；逐项比对三语配置示例、发布行为、供应商能力矩阵及主账本。兼容性记录保留上游版本、模型、协议、能力、凭证类型及实测条件。公开宣告的能力有实际入口证据；缺账号、地区、权限等条件的能力保持待实机验收。
