@@ -36,6 +36,11 @@ pub(super) struct Transport<'a> {
 impl Transport<'_> {
     pub(super) async fn send(&self, mut request: Request) -> Result<Response> {
         let has_events = self.factory.events.is_some();
+        let event_source = if has_events && !self.redact_payload {
+            self.event_source(&request)
+        } else {
+            None
+        };
         let started_at = Instant::now();
         let mut redirects = 0;
         let mut authentications = 0;
@@ -49,7 +54,11 @@ impl Transport<'_> {
             let remaining = self.timeout.saturating_sub(started_at.elapsed());
             let next = super::Next::new(|mut request: Request| {
                 Box::pin(async {
-                    sending = has_events.then(|| self.snapshot(&request));
+                    sending = has_events.then(|| {
+                        let mut snapshot = self.snapshot(&request);
+                        snapshot.diagnostic_source.clone_from(&event_source);
+                        snapshot
+                    });
                     if let Some(request) = &sending {
                         self.factory
                             .emit(RequestSending {
@@ -138,9 +147,12 @@ impl Transport<'_> {
                 Ok(response) => response,
                 Err(error) => {
                     if has_events
-                        && let Some(request) = sent
+                        && let Some(mut request) = sent
                         && let Some(exception) = ConnectionFailure::from_error(&error)
                     {
+                        // 连接失败使用异常携带的实际请求，只有媒体类型允许时才解码正文。
+                        request.diagnostic_source = None;
+                        request.multipart = None;
                         self.factory
                             .emit(ConnectionFailed { request, exception })
                             .await?;
@@ -180,6 +192,31 @@ impl Transport<'_> {
                     .await?;
             }
             return Ok(response);
+        }
+    }
+
+    fn event_source(&self, request: &Request) -> Option<RecordedRequestDataSource> {
+        use RecordedRequestDataSource::{Form, Json, Payload, Query};
+
+        // 原始构建参数随请求发送与响应事件保留，重定向只替换方法和地址等线上字段。
+        match &self.diagnostic_source {
+            Some(Form(Some(fields))) => Some(Payload(Arc::clone(fields))),
+            Some(Json) => {
+                let body = request.body()?.as_bytes()?;
+                serde_json::from_slice(body)
+                    .ok()
+                    .map(|data| Payload(Arc::new(data)))
+            }
+            _ if request.method() == Method::GET && request.body().is_none() => {
+                if let Some((url, original)) = &self.query_override
+                    && request.url() == url
+                {
+                    original.clone()
+                } else {
+                    request.url().query().map(|query| Query(Arc::from(query)))
+                }
+            }
+            _ => None,
         }
     }
 

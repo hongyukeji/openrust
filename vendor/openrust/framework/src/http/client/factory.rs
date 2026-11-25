@@ -61,6 +61,7 @@ pub enum RecordedRequestDataSource {
     Query(Arc<str>),
     Form(Option<Arc<serde_json::Value>>),
     Json,
+    Payload(Arc<serde_json::Value>),
 }
 
 #[derive(Clone)]
@@ -116,6 +117,7 @@ impl RecordedRequest {
                 .cloned()
                 .or_else(|| self.decode_body_fields(true, false)),
             Some(RecordedRequestDataSource::Json) => self.decode_body_fields(false, true),
+            Some(RecordedRequestDataSource::Payload(payload)) => Some(payload.as_ref().clone()),
             None => self.decode_body_fields(is_form, is_json),
         };
         match data {

@@ -721,7 +721,10 @@ async fn events_cover_redirect_hops_retries_and_the_wire_request_on_failure() {
                 get(move || async move {
                     (
                         StatusCode::FOUND,
-                        [(header::LOCATION, format!("{target}/target"))],
+                        [(
+                            header::LOCATION,
+                            format!("{target}/target?destination=value"),
+                        )],
                         "redirect body larger than the final body",
                     )
                 }),
@@ -756,6 +759,8 @@ async fn events_cover_redirect_hops_retries_and_the_wire_request_on_failure() {
             .with_token("local-test-token")
             .with_attributes(attrs.clone())
             .before_sending(|request| {
+                let path = HeaderValue::from_str(request.url().path()).unwrap();
+                request.headers_mut().insert("x-callback-path", path);
                 request
                     .headers_mut()
                     .insert("x-wire", HeaderValue::from_static("sent"));
@@ -775,12 +780,12 @@ async fn events_cover_redirect_hops_retries_and_the_wire_request_on_failure() {
                 b"rewritten",
             ))
         })
-        .get(&format!("{base}/redirect"))
+        .get(&format!("{base}/redirect?initial=value"))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
     assert!(matches!(
-        pending().get(&format!("{base}/broken")).await,
+        pending().get(&format!("{base}/broken?ignored=value")).await,
         Err(Error::Connection)
     ));
     assert!(matches!(
@@ -828,6 +833,11 @@ async fn events_cover_redirect_hops_retries_and_the_wire_request_on_failure() {
     assert_eq!(first.request.attributes["trace"], "local");
     assert!(!first.request.headers.contains_key("x-wire"));
     let cross_origin = sending[1].downcast_ref::<RequestSending>().unwrap();
+    assert_eq!(cross_origin.request.url.query(), Some("destination=value"));
+    assert_eq!(
+        cross_origin.request.diagnostic_data(),
+        json!({"initial":"value"})
+    );
     assert!(
         !cross_origin
             .request
@@ -838,6 +848,8 @@ async fn events_cover_redirect_hops_retries_and_the_wire_request_on_failure() {
     for reply in replies {
         let reply = reply.downcast_ref::<ResponseReceived>().unwrap();
         assert_eq!(reply.request.url.path(), "/target");
+        assert_eq!(reply.request.diagnostic_data(), json!({"initial":"value"}));
+        assert_eq!(reply.request.headers["x-callback-path"], "/redirect");
         assert_eq!(reply.response.status(), StatusCode::SERVICE_UNAVAILABLE);
     }
     assert_eq!(failures.len(), 2);
@@ -845,7 +857,9 @@ async fn events_cover_redirect_hops_retries_and_the_wire_request_on_failure() {
     assert_eq!(failure.exception, ConnectionFailure::Connection);
     assert_eq!(failure.request.url.path(), "/disconnected");
     assert_eq!(failure.request.headers["x-wire"], "sent");
+    assert_eq!(failure.request.headers["x-callback-path"], "/disconnected");
     assert_eq!(failure.request.attributes["trace"], "local");
+    assert_eq!(failure.request.diagnostic_data(), json!([]));
     let timed_out = failures[1].downcast_ref::<ConnectionFailed>().unwrap();
     assert_eq!(timed_out.exception, ConnectionFailure::Timeout);
     assert_eq!(timed_out.request.url.path(), "/slow");
@@ -854,6 +868,101 @@ async fn events_cover_redirect_hops_retries_and_the_wire_request_on_failure() {
     for server in [server, target_server, broken_server] {
         server.abort();
     }
+}
+
+#[tokio::test]
+async fn redirect_events_keep_structured_input_and_apply_request_middleware_before_callbacks() {
+    use openrust::events::Dispatcher;
+    use openrust::http::client::events::ResponseReceived;
+
+    let (base, server) = serve(
+        Router::new()
+            .route(
+                "/preserve",
+                any(|| async {
+                    (
+                        StatusCode::TEMPORARY_REDIRECT,
+                        [(header::LOCATION, "/final")],
+                    )
+                }),
+            )
+            .route(
+                "/drop",
+                any(|| async { (StatusCode::FOUND, [(header::LOCATION, "/final?next=yes")]) }),
+            )
+            .route(
+                "/final",
+                any(|request: axum::extract::Request| async {
+                    assert_eq!(request.headers()["x-global"], "global");
+                    assert_eq!(request.headers()["x-local"], "local");
+                    let (parts, body) = request.into_parts();
+                    let body = axum::body::to_bytes(body, 512).await.unwrap();
+                    if parts.method == Method::POST {
+                        assert_eq!(&body[..], b"flag=false&count=2");
+                    } else {
+                        assert_eq!(parts.method, Method::GET);
+                        assert!(body.is_empty());
+                    }
+                    StatusCode::OK
+                }),
+            ),
+    )
+    .await;
+    let dispatcher = Arc::new(Dispatcher::new());
+    let events = dispatcher.fake(&[]);
+    let factory = Factory::new().unwrap().with_dispatcher(dispatcher);
+    factory.global_request_middleware(|request| {
+        request
+            .headers_mut()
+            .insert("x-global", HeaderValue::from_static("global"));
+        Ok(())
+    });
+    let pending = || {
+        factory.pending_request().before_sending(|request| {
+            request
+                .headers_mut()
+                .insert("x-local", HeaderValue::from_static("local"));
+            Ok(())
+        })
+    };
+    assert!(
+        pending()
+            .as_form()
+            .post(
+                &format!("{base}/preserve"),
+                &[("flag", json!(false)), ("count", json!(2))]
+            )
+            .await
+            .unwrap()
+            .ok()
+    );
+    assert!(
+        pending()
+            .with_body(
+                r#"{"raw":true}"#,
+                HeaderValue::from_static("application/json")
+            )
+            .send(Method::POST, &format!("{base}/drop"))
+            .await
+            .unwrap()
+            .ok()
+    );
+    let replies = events.dispatched(r"OpenRust\Http\Client\Events\ResponseReceived");
+    assert_eq!(replies.len(), 2);
+    let form = replies[0].downcast_ref::<ResponseReceived>().unwrap();
+    assert_eq!(form.request.method, Method::POST);
+    assert_eq!(
+        form.request.diagnostic_data(),
+        json!({"flag":false,"count":2})
+    );
+    let raw = replies[1].downcast_ref::<ResponseReceived>().unwrap();
+    assert_eq!(raw.request.method, Method::GET);
+    assert_eq!(raw.request.url.query(), Some("next=yes"));
+    assert_eq!(raw.request.diagnostic_data(), json!([]));
+    assert_eq!(raw.request.headers["x-global"], "global");
+    // Guzzle 在重定向创建的新请求中沿用上一跳实际发送的头部。
+    assert_eq!(raw.request.headers["x-local"], "local");
+    server.abort();
 }
 
 #[tokio::test]

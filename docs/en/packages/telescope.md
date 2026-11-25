@@ -40,6 +40,8 @@ Source locations and stack frames are absent when the runtime provides no reliab
 
 Outbound diagnostics show JSON or form fields, or the query parameters supplied in a GET URL. Forms preserve the original scalar types in diagnostics. When a name repeats, diagnostics show its last value. Builder query options still affect the URL sent over HTTP. Raw bodies are only decoded for supported JSON or form content types.
 
+After a redirect, response diagnostics show the final URL and preserve the original GET, JSON, or form input. Connection failures use the request carried by the exception, so diagnostics only decode a supported buffered body.
+
 ## Queries and commands {#commands}
 
 ```sh

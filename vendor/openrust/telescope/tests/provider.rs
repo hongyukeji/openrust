@@ -1609,6 +1609,20 @@ fn client_handler(
                 .unwrap()
                 .ok()
         );
+        let redirect_url = url.replace("/outgoing", "/redirect");
+        assert!(
+            Http::pending_request()
+                .unwrap()
+                .as_form()
+                .post(
+                    &redirect_url,
+                    &json!({"flag":false,"count":2,"secret":"private"})
+                )
+                .await
+                .unwrap()
+                .ok()
+        );
+        assert!(Http::get(failed).await.is_err());
         Ok(openrust::http::Response::from("observed"))
     })
 }
@@ -1619,7 +1633,7 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
     let origin = tokio::spawn(async move {
-        for index in 0..12 {
+        for index in 0..14 {
             let (mut socket, _) = listener.accept().await.unwrap();
             let mut bytes = Vec::new();
             loop {
@@ -1637,6 +1651,14 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
                         })
                         .unwrap_or(0);
                     if bytes.len() >= end + 4 + size {
+                        if index == 12 {
+                            assert!(headers.starts_with("post /redirect?"));
+                        }
+                        if index == 13 {
+                            assert!(headers.starts_with("get /final?destination=value "));
+                            assert_eq!(size, 0);
+                            assert!(!headers.contains("content-type:"));
+                        }
                         if index == 1 {
                             assert_eq!(
                                 &bytes[end + 4..],
@@ -1665,6 +1687,10 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
                         break;
                     }
                 }
+            }
+            if index == 12 {
+                socket.write_all(b"HTTP/1.1 302 Found\r\nLocation: /final?destination=value\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").await.unwrap();
+                continue;
             }
             let body = r#"{"token":"secret","value":true}"#;
             tokio::time::sleep(std::time::Duration::from_millis(10)).await;
@@ -1709,7 +1735,22 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
         .get(Some(EntryType::ClientRequest), EntryQueryOptions::default())
         .await
         .unwrap();
-    assert_eq!(entries.len(), 14);
+    assert_eq!(entries.len(), 16);
+    assert_eq!(entries[0].content["method"], "GET");
+    assert_eq!(entries[0].content["payload"], json!([]));
+    assert!(entries[0].content["response_status"].is_null());
+    assert!(
+        entries[1].content["uri"]
+            .as_str()
+            .unwrap()
+            .ends_with("/final?destination=value")
+    );
+    assert_eq!(entries[1].content["method"], "GET");
+    assert_eq!(
+        entries[1].content["payload"],
+        json!({"flag":false,"count":2,"secret":"********"})
+    );
+    let entries = &entries[2..];
     assert_eq!(entries[0].content["payload"], json!([]));
     assert!(!entries[0].content["uri"].as_str().unwrap().contains('?'));
     let entries = &entries[1..];
@@ -1749,7 +1790,7 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
     let payload = json!({"same":{"name":"replaced.txt","size":"0.008KB","headers":[]},"secret":"********","enabled":true,"optional":null,
         "file":{"name":"file.bin","size":"1.5KB","headers":{"content-type":"application/octet-stream","x-secret":"********"}}});
     assert!(multipart[0].content["response_status"].is_null());
-    assert_eq!(multipart[0].content["payload"], payload);
+    assert_eq!(multipart[0].content["payload"], json!([]));
     assert_eq!(multipart[1].content["payload"], json!([]));
     assert!(!multipart[1].content["uri"].as_str().unwrap().contains('?'));
     assert_eq!(multipart[2].content["payload"], payload);

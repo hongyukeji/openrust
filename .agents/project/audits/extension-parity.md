@@ -76,7 +76,7 @@ O01 Activitylog、O02 Horizon、O03 Telescope原生范围、O04 Pennant、O05 Pu
 |---|---|---|
 | Telescope `ClientRequestWatcher::duration` | 固定上游在有正计时时以毫秒向下取整，缺少计时时输出空值。Rust 从现有传输统计输出整数毫秒或 JSON 空值。测试由真实出站 HTTP 与 fake 消费者覆盖。 | 命令与面板展示随完整输出审计核对。 |
 | Telescope `ClientRequestWatcher::input` | 已捕获构建器提供的 multipart 普通字段及 `attach_body` 附件的文件名、长度、头部。普通字段先于附件发送，同名取最后一项，复用请求字段／头部脱敏。原生 `attach` 保留发送契约。 | 原生 reqwest `Part` 元数据和中间件替换流的边界见[包审计](telescope/README.md#出站-multipart)。Query／Gate 来源过滤仍待实现。 |
-| Telescope 非 multipart 出站载荷 | 诊断从原始 GET 地址或结构化正文选择载荷，并与线上 URL 分别记录。已核对 JSON／表单 POST、GET 查询覆盖、HEAD、原始正文、自定义媒体类型与表单标量快照。重复字段照常发送，诊断取最后一项。 | 重定向及所有中间件组合的诊断选择仍需对账。 |
+| Telescope 非 multipart 出站载荷 | 诊断从原始 GET 地址或结构化正文选择载荷，并与线上 URL 分别记录。已核对 JSON／表单 POST、GET 查询覆盖、HEAD、原始正文、自定义媒体类型与表单标量快照。成功重定向保留原始输入，连接失败从实际缓冲正文解码。 | multipart 重定向、重试回调改写与其他中间件组合仍需对账。 |
 | Telescope `FetchesStackTrace`、`QueryWatcher`、`GateWatcher` | 固定上游按路径子串跳过被忽略的帧，再选第一处合格来源。找不到合格帧时 Query 不入库，Gate 仍入库且行号和文件为空。当前原生 `QueryExecuted`、`GateEvaluated` 均没有来源字段。 | 实现并验证原生调用来源的传播，覆盖公开 Facade、直接连接、查询构建器、模型、Gate 入口及框架内部触发。验证筛掉帧后的候选与未知来源策略。 |
 | Pulse 默认 Recorder 清单 | 固定配置的十个 Recorder 均可映射到本地配置。核对了采样率 1、慢操作阈值 1000、异常和慢查询位置开关、默认存储及采集驱动；这一轮只读配置。 | 逐 Recorder 核对触发事件、筛选、采样、聚合、配置覆盖和扩展入口，再核对命令和面板。Servers 主机名上游在配置加载时求值，本地在记录时回退，配置缓存边界待裁决。 |
 | Horizon `horizon:listen` 的 `watch` | 上游发布配置提供默认监听列表。Rust 配置补充应用、启动、配置、数据库、路由、视图、公开目录及资源目录中的 Rust 文件和 Cargo 构建入口的对应监听路径。真实 Artisan 使用默认配置监控 `routes/web.rs`，文件更新后重建 Master 和 Worker，SIGTERM 后子树退出。 | 补 Linux／Windows 目标平台验收。 |
@@ -234,3 +234,11 @@ Telescope 改用 `RecordedRequest::diagnostic_data()`，失败事件复用同一
 旧版 HTTP 客户端直接调用 reqwest 表单编码，未提供类型快照。对比以 JSON 或排序映射作中间值的方案时，发现会丢失重复键、顺序或原始标量编码，故依赖锁只增加捕获库及框架引用。仍须逐项核对重定向、修改请求的中间件和诊断覆盖。
 
 真实回环 HTTP 回归在 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 各通过，验证线上表单顺序、实际入库的布尔值和数字、原样字段名和嵌套字段遮盖。框架 HTTP 客户端 20 项验证单次序列化、重复字段和替换正文后的快照，Telescope 全包 32 项及独立 Redis 8.10.3 用例通过。快照全仓格式、框架库及 Telescope 全目标严格 Clippy、三语文档构建及 12 组浏览器检查通过。快照沿用 `8041ae15a` 加前批和本批文件，根工作区另用锁定依赖树验证新增依赖。直接匹配预览 API 的 `RecordedRequestDataSource::Form` 时需使用新的带快照变体。
+
+### Telescope 出站请求重定向与连接失败
+
+固定 [Laravel PendingRequest](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Client/PendingRequest.php) 在每一跳执行首个 `beforeSending` 回调保存请求。成功响应复用最后一跳的回调前请求和原始 GET／JSON／表单参数。连接失败通过 `marshalTransportException` 根据异常的线上请求重新构造 `Request`，未传递原始参数。PHP 8.5.12 和 Guzzle 7.10.0 MockHandler 实测 9 组，覆盖 GET／JSON／表单／原始正文 302、表单 307、发送回调改写以及 GET／表单／multipart 失败。记录位于 `target/tmp/observability-parity/redirect-upstream.log`。
+
+Rust 将原始参数传给 `RequestSending` 与 `ResponseReceived`，连接失败仅按线上媒体类型解析可用缓冲正文。真实请求记录器仍使用实际发送的快照，原生 URL 编码器及其布尔值拼写沿用现有接口，所以失败表单记录实际线上值。额外 PHP 探针确认重定向超限派发六次发送事件，响应与失败事件均为空。Guzzle 的 302 会保留 OPTIONS，Rust 当前转换为 GET。后续须核对流式附件的 multipart 重定向、退避重试改写、初始参数为空时的正文回退与重定向方法选择。
+
+隔离快照沿用 `8041ae15a` 加前批和本批文件。真实回环 HTTP 核对跨源目标、GET 初始查询、表单 302／307、原始正文 302、回调前后头部与重定向超限。Telescope 仓储用例在 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 分别实际通过。Telescope 全包 32 项、框架 HTTP 客户端 21 项、独立 Redis 8.10.3 用例、快照全仓格式、框架库及 Telescope 全目标严格 Clippy、三语文档构建和 12 组浏览器检查通过。
