@@ -276,6 +276,11 @@ async fn formal_progress_example(){
     qcomponents_checks='use openrust::console::Output;\n'+progress_checks.replace('formal_progress_example','formal_question_components_example').replace('register_progress)', 'register_question_components)').replace('"reports:progress"','"reports:question-components"').replace('assert!(output.stdout.contains("CSV,JSON,HTML:11"));assert_eq!(output.stdout.matches("100%").count(),2);assert!(output.stdout.contains("build"));','assert!(output.stdout.contains("User:\\"Guest\\"; Color:\\"red\\"; Confirmed:false; Format:\\"CSV\\"; Secret supplied:false"),"{}",output.stdout);')
     parts.append('mod '+locale.replace('-','_').lower()+'_question_components{\n'+qcomponents_code+qcomponents_checks+'}\n')
 
+    factory_code=re.search(r'```rust\n(.*?)```',text.split('{#component-factories}',1)[1],re.S).group(1)
+    factory_checks='use openrust::console::Output;\n'+progress_checks.replace('formal_progress_example','formal_component_factory_example').replace('register_progress)', 'register_component_factories)').replace('"reports:progress"','"components:save"').replace('assert!(output.stdout.contains("CSV,JSON,HTML:11"));assert_eq!(output.stdout.matches("100%").count(),2);assert!(output.stdout.contains("build"));','assert!(output.stdout.contains("Saved"));assert!(output.stdout.contains("Guest"));assert!(output.stdout.contains("DONE"));')
+    parts.append('mod '+locale.replace('-','_').lower()+'_component_factories{\n'+factory_code+factory_checks+'}\n')
+
+
 
 
 

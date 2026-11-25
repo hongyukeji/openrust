@@ -1,0 +1,71 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "status": "verified_typed_factory_and_command_io_original_style_binding",
+  "native": "console::view::components::{Factory,ComponentOutput}",
+  "typed_methods": [
+    "new",
+    "get_output",
+    "line",
+    "line_with",
+    "info",
+    "info_with",
+    "success",
+    "success_with",
+    "error",
+    "error_with",
+    "warn",
+    "warn_with",
+    "alert",
+    "alert_with",
+    "bullet_list",
+    "bullet_list_with",
+    "two_column_detail",
+    "two_column_detail_with",
+    "task",
+    "task_with",
+    "task_callback",
+    "task_callback_with",
+    "ask",
+    "ask_with",
+    "ask_with_completion",
+    "ask_with_completion_with",
+    "ask_with_completion_callback",
+    "confirm",
+    "confirm_with",
+    "secret",
+    "secret_with",
+    "choice",
+    "choice_with",
+    "choice_pairs_with"
+  ],
+  "command_io": [
+    "components",
+    "output_components",
+    "set_output",
+    "set_input"
+  ],
+  "source_oracles": {
+    "factory-questions-oracle.json": 134,
+    "factory-display-oracle.json": 108,
+    "factory-rebinding-oracle.json": 1
+  },
+  "runtime": {
+    "real_artisan_processes": 41,
+    "http_requests": 18,
+    "pty_scenarios": 10,
+    "docs_consumers": 141,
+    "browser_checks": 12
+  },
+  "adaptations": [
+    "工厂借用输出，不持有全局状态；以typed methods表达内置组件默认参数及重载。",
+    "显示返回Result；问答异步，返回既有JSON值；Confirm返回bool。",
+    "原Factory所持样式以首次替换时保留原OutputStyle表达；后续set_output只改变普通输出，原输入及样式内部状态不重建。",
+    "ComponentOutput能力复用AsOutput和QuestionStyle。普通流可显示，缺问答能力在打印问题前返回运行时错误。",
+    "保留既有安全借用限制；持有Factory时不能并发重新借用输出或更换CommandIo输出。"
+  ],
+  "remaining": [
+    "Factory::__call动态名称及参数分发、未知组件错误和显式编译注册扩展待实现。",
+    "Command容器解析Factory覆盖及装配生命周期待实际消费者。",
+    "抽象Component所属compile/renderView/mutate/usingQuestionHelper、一般输出接口及Helper/HelperSet/Time其余入口保持开放；不宣称Factory类或Artisan整章已闭合。"
+  ]
+}

@@ -482,7 +482,7 @@ fn register_output() -> Result<(), ConsoleError> {
             io.error("A record needs correction")?;
             io.new_line(1)?;
             io.alert("Check complete")?;
-            io.output_components().info("Saved");
+            io.output_components().info("Saved")?;
             io.line(&format!("Calls: {}", calls.fetch_add(1, Ordering::SeqCst) + 1))?;
             Ok(0)
         })
@@ -1795,3 +1795,26 @@ fn register_question_components() -> Result<(), ConsoleError> {
 `Choice::render` 使用列表，無預設值及嘗試次數上限。`render_with` 增加預設值、最多嘗試次數及多選開關，次數為零時回報錯誤。`render_pairs_with` 保留關聯鍵及稀疏整數鍵。元件將非 list 鍵排列視為關聯選擇：稀疏數字鍵回傳 `"1"` 這樣的字串鍵；標準列表回傳選中值。一般 `ChoiceQuestion::from_pairs` 仍沿用原本的字串鍵分類機制。
 
 `Choice::get_choice_question` 和 `get_choice_question_pairs` 提供已準備的問題定義，供組合使用；`is_assoc` 檢查 `ChoiceQuestion::get_choices` 回傳的規範鍵值順序。`ChoiceQuestion::from_pairs_with_associative` 接收 `Send + Sync` 鍵分類函式，參數是規範鍵值；分類結果在建構或重建驗證器時保存，不在每次回答時重新計算。補全候選保留建構時的快照。複製保留分類，同時沿用既有獨立 trim 設定。
+
+
+### 元件工廠 {#component-factories}
+
+`CommandIo::components()` 和 `output_components()` 傳回借用的 `Factory`，不再傳回一般輸出串流。型別化方法重用對應元件：`info`、`success`、`warn`、`error`、`line`、`alert`、`bullet_list`、`two_column_detail`、`task`、`ask`、`ask_with_completion`、`choice`、`confirm` 和 `secret`。顯示方法傳回 `Result<(), ConsoleError>`；問答方法非同步執行。需要直接操作串流時使用 `get_output()` 或 `AsOutput`。
+
+```rust
+use openrust::{console::{AsyncCommandCallback, ConsoleError}, support::facades::Artisan};
+fn register_component_factories() -> Result<(), ConsoleError> {
+    Artisan::command_with("components:save", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut io = input.io(output);
+            let name = io.components().ask_with("Name", Some("Guest".into()), false).await?;
+            io.output_components().info(&format!("Saved {name}"))?;
+            io.components().task_callback("Index", |_| Ok(true))?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+工廠保留命令最初的輸出樣式和問答輸入。`set_output` 只替換一般輸出，多次替換不會遷移元件輸出或問答輸入；`set_input` 更換命令輸入存取，不替換原樣式。獨立的 `Factory::new(&mut output)` 可在 `Output`、輸出參照和區段上顯示元件。問答需要 `OutputStyle`、`ConsoleStyle` 或自訂 `ComponentOutput::question_style` 實作；一般串流會在列印問題前傳回執行階段錯誤。任務回呼接收同一所選輸出參照，保留任務失敗顯示與錯誤傳遞行為。

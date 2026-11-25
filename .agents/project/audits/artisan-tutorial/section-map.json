@@ -345,11 +345,12 @@
         "console_tree_nodes",
         "tree-node-contracts.json",
         "console_tree_helpers",
-        "tree-helper-contracts.json"
+        "tree-helper-contracts.json",
+        "factory-typed-contracts.json"
       ],
       "native": "console::CommandIo",
       "remaining": [
-        "内置输出上的TreeNode/TreeHelper/TreeStyle与派生/基础样式tree/create_tree已验；完整组件Factory、通用输出接口/任意sink及整章其他锚点继续。"
+        "14具体组件及类型化Factory/CommandIo原样式绑定已验；Factory动态分发与容器覆盖、抽象Component、通用输出接口及其余SDK继续。"
       ]
     },
     {
@@ -528,5 +529,14 @@
     "status": "verified_concrete_question_components_builtin_styles",
     "contracts": "question-components-contracts.json",
     "abstract_component_and_factory": "pending"
+  },
+  "typed_component_factory": {
+    "status": "verified_typed_factory_and_command_io_original_style_binding",
+    "contract": "factory-typed-contracts.json",
+    "remaining": [
+      "Factory::__call动态名称及参数分发、未知组件错误和显式编译注册扩展待实现。",
+      "Command容器解析Factory覆盖及装配生命周期待实际消费者。",
+      "抽象Component所属compile/renderView/mutate/usingQuestionHelper、一般输出接口及Helper/HelperSet/Time其余入口保持开放；不宣称Factory类或Artisan整章已闭合。"
+    ]
   }
 }

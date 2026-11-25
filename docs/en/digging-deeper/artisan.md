@@ -482,7 +482,7 @@ fn register_output() -> Result<(), ConsoleError> {
             io.error("A record needs correction")?;
             io.new_line(1)?;
             io.alert("Check complete")?;
-            io.output_components().info("Saved");
+            io.output_components().info("Saved")?;
             io.line(&format!("Calls: {}", calls.fetch_add(1, Ordering::SeqCst) + 1))?;
             Ok(0)
         })
@@ -1795,3 +1795,26 @@ fn register_question_components() -> Result<(), ConsoleError> {
 `Choice::render` uses a list without a default or attempt limit. `render_with` adds the default, maximum attempts and multiple-selection flag; zero attempts returns an error. `render_pairs_with` preserves associative and sparse integer keys. A component treats every non-list key layout as associative: sparse numeric keys return string keys such as `"1"`. A proper list returns its selected value. Ordinary `ChoiceQuestion::from_pairs` retains its existing string-key classification.
 
 `Choice::get_choice_question` and `get_choice_question_pairs` expose the prepared definition for composition. `is_assoc` examines normalized key/value entries from `ChoiceQuestion::get_choices`. `ChoiceQuestion::from_pairs_with_associative` accepts a `Send + Sync` key classifier over normalized entries; its boolean is captured when constructing or rebuilding the validator, not recomputed per answer. Completion candidates keep their construction snapshot. Cloning preserves that classification while retaining the existing independent trim setting.
+
+
+### Component factories {#component-factories}
+
+`CommandIo::components()` and `output_components()` return a borrowed `Factory`, not a raw output stream. Its typed methods reuse the component classes: `info`, `success`, `warn`, `error`, `line`, `alert`, `bullet_list`, `two_column_detail`, `task`, `ask`, `ask_with_completion`, `choice`, `confirm` and `secret`. Display methods return `Result<(), ConsoleError>`; question methods are asynchronous. Use `get_output()` or `AsOutput` when direct stream access is required.
+
+```rust
+use openrust::{console::{AsyncCommandCallback, ConsoleError}, support::facades::Artisan};
+fn register_component_factories() -> Result<(), ConsoleError> {
+    Artisan::command_with("components:save", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut io = input.io(output);
+            let name = io.components().ask_with("Name", Some("Guest".into()), false).await?;
+            io.output_components().info(&format!("Saved {name}"))?;
+            io.components().task_callback("Index", |_| Ok(true))?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+The factory retains the command's original output style and its question input. `set_output` replaces the ordinary output only; repeated replacements do not move component output or question input. `set_input` changes command input access without replacing that original style. A standalone `Factory::new(&mut output)` supports display on `Output`, output references and sections. Questions require an `OutputStyle`, `ConsoleStyle`, or a custom `ComponentOutput::question_style` implementation; a plain stream returns a runtime error before printing a question. Task callbacks receive the same selected output reference and retain task failure and error propagation behavior.

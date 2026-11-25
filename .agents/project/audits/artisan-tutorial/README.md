@@ -663,3 +663,14 @@ Choice源的isAssoc实际属于getChoiceQuestion返回的匿名ChoiceQuestion，
 ### 当前组件索引状态复核（2026-11-26）
 
 修正两份实时索引的旧子状态：TaskResult下的task_rendering和QuestionHelper下的组件render此前仍是pending；现在分别关联已验Task（e5d83cf87）和五问答组件（818811e8f）的正式契约与状态。对应源码、HTTP/Artisan/TTY、三语与门禁证据既已入库，本次不重复开发或重新计测试。仅更新实时component-factory-contracts.json/section-map.json，历史accepted文件保留原组合。JSON解析、每项引用存在、目标状态一致及基类/Factory/HelperSet原待办仍开放逐项检查通过。无产品代码或运行时改动，本地提交、不推送。
+
+
+## 46. 类型化组件工厂与命令原样式绑定（2026-11-26）
+
+Factory正式类型及14内置组件方法接通，CommandIo::components/output_components返回借用Factory，显示方法返回Result，问答异步。原Output上的信息方法继续保留，不能用其存在证明Factory；需要裸流时通过get_output/AsOutput。复用全部已验具体组件和QuestionStyle，不另造显示、读取、验证或任务机制；旧版没有可复用的Factory实现，无新依赖或lint豁免。
+
+固定源InteractsWithIO::setOutput只替换普通output，原components仍持创建时样式。实际PHP消费者两次替换输出并更换命令input，问答读到original而非replacement；原生相同消费者逐字比较三流。首次替换时保留原样式，之后只改普通输出；原问题Helper/输入/格式与分区状态不重建。Rust借用防止持有工厂时再可变借用原输出，不以复制输入或全局渲染器模仿对象引用。普通Output/引用/分区具备显示能力，问答须输出提供QuestionStyle；缺能力为打印前运行时错误。
+
+固定PHP Factory直接产生134问答、108显示及1绑定向量；实际Artisan进程41例对照已验物理流，HTTP18请求含五问答类型、500与12并发恢复，真实PTY10例含Unicode、数组/回调补全、多行、隐藏不回显、禁止回退、Ctrl+C130和回调错误1。termios/fd恢复且无外部stty。工厂可选输出参数与既有组件消费者逐字比较，原错误/任务回调/原始输出继续可用。三语示例直接提取141个消费者；三语构建与12浏览器检查通过。完整命令和最终门禁见accepted-factory-typed.json，证据target/tmp/artisan-tutorial-20261125/factory-*。首次测试夹具保留了Secret旧类型名、Alert断言误用小写，均修正测试后重跑；运行中32GB中断不计通过，守卫清理75,102,064,640字节，恢复后原验收继续。
+
+这里只关闭类型化内置工厂和CommandIo原样式绑定。源Factory::__call、类名/未知组件/自定义编译注册和容器Factory覆盖仍开放，不能将14转发方法包装为完整Factory类。抽象Component及Helper/HelperSet/Time其余SDK继续；Artisan整章未闭合。仅提交核定范围到本地，不推送。

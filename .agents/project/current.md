@@ -6,6 +6,8 @@ Git 默认流程已于 2026-11-23 更新：已授权任务完成并通过相关�
 
 ## 正在推进与等待条件
 
+- 2026-11-26 Artisan第46簇类型化Factory/CommandIo原样式绑定已验：134问答/108显示源码向量、1双替换绑定、41实际Artisan、18HTTP、10PTY、三语141直接消费者及严格门禁。见[契约](audits/artisan-tutorial/factory-typed-contracts.json)。继续动态分发/自定义注册/容器覆盖与抽象Component，整章未闭合，不推送。
+
 - 2026-11-26 Artisan第四十五簇五问答组件所属render与Choice非list键策略已验：134源码向量、41实际Artisan、分类快照子类、18HTTP、10真实PTY、三语138例及严格门禁通过。见[问答组件契约](audits/artisan-tutorial/question-components-contracts.json)。14具体组件在所述范围通过，继续抽象Component/Factory/CommandIo与其余SDK，整章未闭合，不推送。
 
 - 2026-11-26 Artisan第四十四簇QuestionHelper核心/原生临时作用域已验：76固定源场景、实际Artisan/HTTP恢复并发、6真实PTY、三语135例及严格门禁通过。见[帮助器契约](audits/artisan-tutorial/question-helper-contracts.json)。继续五组件所属render和Choice非list键策略；HelperSet/完整Component与工厂等仍开放，不以原语代替所属入口，整章未闭合，不推送。

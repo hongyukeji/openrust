@@ -673,9 +673,6 @@ impl<'a> OutputStyle<'a> {
 }
 
 impl OutputStyle<'_> {
-    pub(super) fn root_output(&mut self) -> &mut Output {
-        self.output.output
-    }
     pub(super) fn section_input_submit(&mut self) -> Result<(), ConsoleError> {
         if let Some(id) = self.section {
             let section = &mut self.output.output.sections[id];

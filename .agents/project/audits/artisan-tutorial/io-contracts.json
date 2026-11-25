@@ -291,11 +291,11 @@
         "method": "setOutput",
         "source_line": 428,
         "signature": "public function setOutput(OutputStyle $output)",
-        "status": "verified_native_typed_parameters",
+        "status": "verified_ordinary_output_replacement_preserves_original_factory_style",
         "native": "console::CommandIo::set_output",
         "evidence": [
-          "console_io_tutorial",
-          "artisan_docs_generated"
+          "console_component_factory::replacing_ordinary_output_does_not_rebind_components_or_their_input",
+          "factory-rebinding-oracle.json"
         ]
       },
       {
@@ -313,13 +313,15 @@
         "method": "outputComponents",
         "source_line": 478,
         "signature": "public function outputComponents()",
-        "status": "verified_legacy_component_subset",
+        "status": "verified_typed_factory_and_command_io_original_style_binding",
         "native": "console::CommandIo::output_components",
         "evidence": [
-          "console_io_tutorial::live_binary_emits_before_completion_and_nested_components_keep_order_without_duplication"
+          "console_component_factory",
+          "factory-typed-contracts.json"
         ],
         "remaining": [
-          "目前返回原生Output组件入口，仅信息／警告／错误组件已确认；未冒称完整上游Factory类型"
+          "Factory::__call动态名称及参数分发、未知组件错误和显式编译注册扩展待实现。",
+          "Command容器解析Factory覆盖及装配生命周期待实际消费者。"
         ]
       }
     ],

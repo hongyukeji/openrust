@@ -7,3 +7,5 @@ mod task;
 pub use task::Task;
 mod questions;
 pub use questions::{Ask, AskWithCompletion, Choice, Confirm, Secret};
+mod factory;
+pub use factory::{ComponentOutput, Factory};

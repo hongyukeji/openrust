@@ -1,0 +1,758 @@
+[
+  {
+    "kind": "info",
+    "decorated": false,
+    "level": 8,
+    "output": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "success",
+    "decorated": false,
+    "level": 8,
+    "output": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "error",
+    "decorated": false,
+    "level": 8,
+    "output": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "warn",
+    "decorated": false,
+    "level": 8,
+    "output": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "line",
+    "decorated": false,
+    "level": 8,
+    "output": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "alert",
+    "decorated": false,
+    "level": 8,
+    "output": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "bulletList",
+    "decorated": false,
+    "level": 8,
+    "output": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "twoColumnDetail",
+    "decorated": false,
+    "level": 8,
+    "output": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "task",
+    "decorated": false,
+    "level": 8,
+    "output": "",
+    "new_lines": 0
+  },
+  {
+    "kind": "info",
+    "decorated": false,
+    "level": 16,
+    "output": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "success",
+    "decorated": false,
+    "level": 16,
+    "output": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "error",
+    "decorated": false,
+    "level": 16,
+    "output": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "warn",
+    "decorated": false,
+    "level": 16,
+    "output": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "line",
+    "decorated": false,
+    "level": 16,
+    "output": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "alert",
+    "decorated": false,
+    "level": 16,
+    "output": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "bulletList",
+    "decorated": false,
+    "level": 16,
+    "output": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "twoColumnDetail",
+    "decorated": false,
+    "level": 16,
+    "output": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "task",
+    "decorated": false,
+    "level": 16,
+    "output": "",
+    "new_lines": 0
+  },
+  {
+    "kind": "info",
+    "decorated": false,
+    "level": 32,
+    "output": "\n   INFO  Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "success",
+    "decorated": false,
+    "level": 32,
+    "output": "\n   SUCCESS  Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "error",
+    "decorated": false,
+    "level": 32,
+    "output": "\n   ERROR  Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "warn",
+    "decorated": false,
+    "level": 32,
+    "output": "\n   WARN  Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "line",
+    "decorated": false,
+    "level": 32,
+    "output": "\n   INFO  Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "alert",
+    "decorated": false,
+    "level": 32,
+    "output": "\n                                                                                \n                                     SAVED.                                     \n                                                                                \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "bulletList",
+    "decorated": false,
+    "level": 32,
+    "output": "  ⇂ One  \n  ⇂ Two  \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "twoColumnDetail",
+    "decorated": false,
+    "level": 32,
+    "output": "  Key .................................................................. Value  \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "task",
+    "decorated": false,
+    "level": 32,
+    "output": "  Saved ................................................................. DONE\n",
+    "new_lines": 1
+  },
+  {
+    "kind": "info",
+    "decorated": false,
+    "level": 64,
+    "output": "\n   INFO  Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "success",
+    "decorated": false,
+    "level": 64,
+    "output": "\n   SUCCESS  Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "error",
+    "decorated": false,
+    "level": 64,
+    "output": "\n   ERROR  Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "warn",
+    "decorated": false,
+    "level": 64,
+    "output": "\n   WARN  Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "line",
+    "decorated": false,
+    "level": 64,
+    "output": "\n   INFO  Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "alert",
+    "decorated": false,
+    "level": 64,
+    "output": "\n                                                                                \n                                     SAVED.                                     \n                                                                                \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "bulletList",
+    "decorated": false,
+    "level": 64,
+    "output": "  ⇂ One  \n  ⇂ Two  \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "twoColumnDetail",
+    "decorated": false,
+    "level": 64,
+    "output": "  Key .................................................................. Value  \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "task",
+    "decorated": false,
+    "level": 64,
+    "output": "  Saved ................................................................. DONE\n",
+    "new_lines": 1
+  },
+  {
+    "kind": "info",
+    "decorated": false,
+    "level": 128,
+    "output": "\n   INFO  Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "success",
+    "decorated": false,
+    "level": 128,
+    "output": "\n   SUCCESS  Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "error",
+    "decorated": false,
+    "level": 128,
+    "output": "\n   ERROR  Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "warn",
+    "decorated": false,
+    "level": 128,
+    "output": "\n   WARN  Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "line",
+    "decorated": false,
+    "level": 128,
+    "output": "\n   INFO  Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "alert",
+    "decorated": false,
+    "level": 128,
+    "output": "\n                                                                                \n                                     SAVED.                                     \n                                                                                \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "bulletList",
+    "decorated": false,
+    "level": 128,
+    "output": "  ⇂ One  \n  ⇂ Two  \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "twoColumnDetail",
+    "decorated": false,
+    "level": 128,
+    "output": "  Key .................................................................. Value  \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "task",
+    "decorated": false,
+    "level": 128,
+    "output": "  Saved ................................................................. DONE\n",
+    "new_lines": 1
+  },
+  {
+    "kind": "info",
+    "decorated": false,
+    "level": 256,
+    "output": "\n   INFO  Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "success",
+    "decorated": false,
+    "level": 256,
+    "output": "\n   SUCCESS  Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "error",
+    "decorated": false,
+    "level": 256,
+    "output": "\n   ERROR  Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "warn",
+    "decorated": false,
+    "level": 256,
+    "output": "\n   WARN  Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "line",
+    "decorated": false,
+    "level": 256,
+    "output": "\n   INFO  Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "alert",
+    "decorated": false,
+    "level": 256,
+    "output": "\n                                                                                \n                                     SAVED.                                     \n                                                                                \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "bulletList",
+    "decorated": false,
+    "level": 256,
+    "output": "  ⇂ One  \n  ⇂ Two  \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "twoColumnDetail",
+    "decorated": false,
+    "level": 256,
+    "output": "  Key .................................................................. Value  \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "task",
+    "decorated": false,
+    "level": 256,
+    "output": "  Saved ................................................................. DONE\n",
+    "new_lines": 1
+  },
+  {
+    "kind": "info",
+    "decorated": true,
+    "level": 8,
+    "output": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "success",
+    "decorated": true,
+    "level": 8,
+    "output": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "error",
+    "decorated": true,
+    "level": 8,
+    "output": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "warn",
+    "decorated": true,
+    "level": 8,
+    "output": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "line",
+    "decorated": true,
+    "level": 8,
+    "output": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "alert",
+    "decorated": true,
+    "level": 8,
+    "output": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "bulletList",
+    "decorated": true,
+    "level": 8,
+    "output": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "twoColumnDetail",
+    "decorated": true,
+    "level": 8,
+    "output": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "task",
+    "decorated": true,
+    "level": 8,
+    "output": "",
+    "new_lines": 0
+  },
+  {
+    "kind": "info",
+    "decorated": true,
+    "level": 16,
+    "output": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "success",
+    "decorated": true,
+    "level": 16,
+    "output": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "error",
+    "decorated": true,
+    "level": 16,
+    "output": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "warn",
+    "decorated": true,
+    "level": 16,
+    "output": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "line",
+    "decorated": true,
+    "level": 16,
+    "output": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "alert",
+    "decorated": true,
+    "level": 16,
+    "output": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "bulletList",
+    "decorated": true,
+    "level": 16,
+    "output": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "twoColumnDetail",
+    "decorated": true,
+    "level": 16,
+    "output": "",
+    "new_lines": 1
+  },
+  {
+    "kind": "task",
+    "decorated": true,
+    "level": 16,
+    "output": "",
+    "new_lines": 0
+  },
+  {
+    "kind": "info",
+    "decorated": true,
+    "level": 32,
+    "output": "\n  \u001b[37;44m INFO \u001b[39;49m Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "success",
+    "decorated": true,
+    "level": 32,
+    "output": "\n  \u001b[37;42m SUCCESS \u001b[39;49m Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "error",
+    "decorated": true,
+    "level": 32,
+    "output": "\n  \u001b[37;41m ERROR \u001b[39;49m Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "warn",
+    "decorated": true,
+    "level": 32,
+    "output": "\n  \u001b[30;43m WARN \u001b[39;49m Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "line",
+    "decorated": true,
+    "level": 32,
+    "output": "\n  \u001b[37;44m INFO \u001b[39;49m Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "alert",
+    "decorated": true,
+    "level": 32,
+    "output": "\n  \u001b[30;43m                                                                            \u001b[39;49m  \n  \u001b[30;43m                                   SAVED.                                   \u001b[39;49m  \n  \u001b[30;43m                                                                            \u001b[39;49m  \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "bulletList",
+    "decorated": true,
+    "level": 32,
+    "output": "  \u001b[90m⇂ One\u001b[39m  \n  \u001b[90m⇂ Two\u001b[39m  \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "twoColumnDetail",
+    "decorated": true,
+    "level": 32,
+    "output": "  Key \u001b[90m..................................................................\u001b[39m Value  \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "task",
+    "decorated": true,
+    "level": 32,
+    "output": "  Saved \u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m \u001b[32;1mDONE\u001b[39;22m\n",
+    "new_lines": 1
+  },
+  {
+    "kind": "info",
+    "decorated": true,
+    "level": 64,
+    "output": "\n  \u001b[37;44m INFO \u001b[39;49m Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "success",
+    "decorated": true,
+    "level": 64,
+    "output": "\n  \u001b[37;42m SUCCESS \u001b[39;49m Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "error",
+    "decorated": true,
+    "level": 64,
+    "output": "\n  \u001b[37;41m ERROR \u001b[39;49m Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "warn",
+    "decorated": true,
+    "level": 64,
+    "output": "\n  \u001b[30;43m WARN \u001b[39;49m Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "line",
+    "decorated": true,
+    "level": 64,
+    "output": "\n  \u001b[37;44m INFO \u001b[39;49m Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "alert",
+    "decorated": true,
+    "level": 64,
+    "output": "\n  \u001b[30;43m                                                                            \u001b[39;49m  \n  \u001b[30;43m                                   SAVED.                                   \u001b[39;49m  \n  \u001b[30;43m                                                                            \u001b[39;49m  \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "bulletList",
+    "decorated": true,
+    "level": 64,
+    "output": "  \u001b[90m⇂ One\u001b[39m  \n  \u001b[90m⇂ Two\u001b[39m  \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "twoColumnDetail",
+    "decorated": true,
+    "level": 64,
+    "output": "  Key \u001b[90m..................................................................\u001b[39m Value  \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "task",
+    "decorated": true,
+    "level": 64,
+    "output": "  Saved \u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m \u001b[32;1mDONE\u001b[39;22m\n",
+    "new_lines": 1
+  },
+  {
+    "kind": "info",
+    "decorated": true,
+    "level": 128,
+    "output": "\n  \u001b[37;44m INFO \u001b[39;49m Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "success",
+    "decorated": true,
+    "level": 128,
+    "output": "\n  \u001b[37;42m SUCCESS \u001b[39;49m Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "error",
+    "decorated": true,
+    "level": 128,
+    "output": "\n  \u001b[37;41m ERROR \u001b[39;49m Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "warn",
+    "decorated": true,
+    "level": 128,
+    "output": "\n  \u001b[30;43m WARN \u001b[39;49m Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "line",
+    "decorated": true,
+    "level": 128,
+    "output": "\n  \u001b[37;44m INFO \u001b[39;49m Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "alert",
+    "decorated": true,
+    "level": 128,
+    "output": "\n  \u001b[30;43m                                                                            \u001b[39;49m  \n  \u001b[30;43m                                   SAVED.                                   \u001b[39;49m  \n  \u001b[30;43m                                                                            \u001b[39;49m  \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "bulletList",
+    "decorated": true,
+    "level": 128,
+    "output": "  \u001b[90m⇂ One\u001b[39m  \n  \u001b[90m⇂ Two\u001b[39m  \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "twoColumnDetail",
+    "decorated": true,
+    "level": 128,
+    "output": "  Key \u001b[90m..................................................................\u001b[39m Value  \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "task",
+    "decorated": true,
+    "level": 128,
+    "output": "  Saved \u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m \u001b[32;1mDONE\u001b[39;22m\n",
+    "new_lines": 1
+  },
+  {
+    "kind": "info",
+    "decorated": true,
+    "level": 256,
+    "output": "\n  \u001b[37;44m INFO \u001b[39;49m Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "success",
+    "decorated": true,
+    "level": 256,
+    "output": "\n  \u001b[37;42m SUCCESS \u001b[39;49m Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "error",
+    "decorated": true,
+    "level": 256,
+    "output": "\n  \u001b[37;41m ERROR \u001b[39;49m Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "warn",
+    "decorated": true,
+    "level": 256,
+    "output": "\n  \u001b[30;43m WARN \u001b[39;49m Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "line",
+    "decorated": true,
+    "level": 256,
+    "output": "\n  \u001b[37;44m INFO \u001b[39;49m Saved.  \n\n",
+    "new_lines": 2
+  },
+  {
+    "kind": "alert",
+    "decorated": true,
+    "level": 256,
+    "output": "\n  \u001b[30;43m                                                                            \u001b[39;49m  \n  \u001b[30;43m                                   SAVED.                                   \u001b[39;49m  \n  \u001b[30;43m                                                                            \u001b[39;49m  \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "bulletList",
+    "decorated": true,
+    "level": 256,
+    "output": "  \u001b[90m⇂ One\u001b[39m  \n  \u001b[90m⇂ Two\u001b[39m  \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "twoColumnDetail",
+    "decorated": true,
+    "level": 256,
+    "output": "  Key \u001b[90m..................................................................\u001b[39m Value  \n",
+    "new_lines": 1
+  },
+  {
+    "kind": "task",
+    "decorated": true,
+    "level": 256,
+    "output": "  Saved \u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m\u001b[90m.\u001b[39m \u001b[32;1mDONE\u001b[39;22m\n",
+    "new_lines": 1
+  }
+]

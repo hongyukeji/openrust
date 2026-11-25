@@ -99,7 +99,13 @@
         "__call"
       ],
       "protected": [],
-      "status": "pending_native_type_and_actual_consumer"
+      "status": "partial_typed_factory_verified_dynamic_and_container_pending",
+      "native": "console::view::components::{Factory,ComponentOutput}",
+      "evidence": "factory-typed-contracts.json",
+      "remaining": [
+        "Factory::__call动态名称及参数分发、未知组件错误和显式编译注册扩展待实现。",
+        "Command容器解析Factory覆盖及装配生命周期待实际消费者。"
+      ]
     },
     {
       "source_type": "Info",
@@ -187,5 +193,9 @@
     "component_owned_entries": "verified_concrete_question_components_builtin_styles",
     "base_helper_sdk": "pending",
     "component_evidence": "question-components-contracts.json"
+  },
+  "typed_factory": {
+    "status": "verified_typed_factory_and_command_io_original_style_binding",
+    "evidence": "factory-typed-contracts.json"
   }
 }

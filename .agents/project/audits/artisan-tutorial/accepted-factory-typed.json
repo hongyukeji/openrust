@@ -1,0 +1,32 @@
+{
+  "source_base": "501fc1c217f9d1d8f422d28ea2b9349288d0ffe0",
+  "contracts": "factory-typed-contracts.json",
+  "gates": {
+    "final": "target/tmp/artisan-tutorial-20261125/factory-gates-final.log",
+    "root_docs": "target/tmp/artisan-tutorial-20261125/factory-gates-resumed.log",
+    "site_browser": "target/tmp/artisan-tutorial-20261125/factory-site.log",
+    "pty": "target/tmp/artisan-tutorial-20261125/factory-tty-results.json"
+  },
+  "runtime": {
+    "real_artisan_processes": 41,
+    "http_requests": 18,
+    "pty_scenarios": 10,
+    "docs_consumers": 141,
+    "browser_checks": 12
+  },
+  "test_summaries": [
+    "test result: ok. 8 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.85s",
+    "test result: ok. 13 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.35s",
+    "test result: ok. 6 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.90s",
+    "test result: ok. 7 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.29s",
+    "test result: ok. 7 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 1.15s",
+    "test result: ok. 141 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.71s"
+  ],
+  "interrupted_gate_not_passed": "factory-gates-second.log / exit75; profiles safely cleaned",
+  "remaining": [
+    "Factory::__call动态名称及参数分发、未知组件错误和显式编译注册扩展待实现。",
+    "Command容器解析Factory覆盖及装配生命周期待实际消费者。",
+    "抽象Component所属compile/renderView/mutate/usingQuestionHelper、一般输出接口及Helper/HelperSet/Time其余入口保持开放；不宣称Factory类或Artisan整章已闭合。"
+  ],
+  "pushed": false
+}

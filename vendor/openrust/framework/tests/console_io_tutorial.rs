@@ -192,7 +192,7 @@ fn commands() -> Result<(), ConsoleError> {
             Box::pin(async move {
                 output.info("OUTER_COMPONENT");
                 Artisan::call("io:output", &["info".into(), "INNER_LINE".into()], output).await?;
-                input.io(output).components().info("AFTER_COMPONENT");
+                input.io(output).components().info("AFTER_COMPONENT")?;
                 input.io(output).line("FINAL_LINE")?;
                 Ok(0)
             })
@@ -204,7 +204,7 @@ fn commands() -> Result<(), ConsoleError> {
             Box::pin(async move {
                 let mut io = input.io(output);
                 io.info("IO_BEFORE")?;
-                assert!(io.components().stdout.is_empty());
+                assert!(io.components().get_output().stdout.is_empty());
                 let file =
                     std::env::var("COMMAND_IO_RELEASE").map_err(ConsoleError::from_source)?;
                 let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(8);
@@ -215,7 +215,7 @@ fn commands() -> Result<(), ConsoleError> {
                     tokio::time::sleep(std::time::Duration::from_millis(10)).await;
                 }
                 io.line("IO_AFTER")?;
-                assert!(io.components().stdout.is_empty());
+                assert!(io.components().get_output().stdout.is_empty());
                 Ok(0)
             })
         }),

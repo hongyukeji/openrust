@@ -7,6 +7,7 @@ use crate::support::Str;
 pub struct CommandIo<'a> {
     input: &'a Input,
     output: OutputStyle<'a>,
+    components_output: Option<Box<OutputStyle<'a>>>,
 }
 impl Input {
     pub fn io<'a>(&'a self, output: &'a mut Output) -> CommandIo<'a> {
@@ -18,6 +19,7 @@ impl<'a> CommandIo<'a> {
         Self {
             input,
             output: OutputStyle::new(input, output),
+            components_output: None,
         }
     }
     pub fn has_argument(&self, name: &str) -> bool {
@@ -45,11 +47,15 @@ impl<'a> CommandIo<'a> {
         self.input.input()
     }
 
-    /// 沿用原组件入口；后续实时写入前会先发出待写组件，保持顺序。
-    pub fn components(&mut self) -> &mut Output {
-        self.output.root_output()
+    /// 组件工厂绑定创建时的样式；后续set_output仅更换普通输出入口。
+    pub fn components(&mut self) -> super::view::components::Factory<'_, OutputStyle<'a>> {
+        let output = self
+            .components_output
+            .as_deref_mut()
+            .unwrap_or(&mut self.output);
+        super::view::components::Factory::new(output)
     }
-    pub fn output_components(&mut self) -> &mut Output {
+    pub fn output_components(&mut self) -> super::view::components::Factory<'_, OutputStyle<'a>> {
         self.components()
     }
 
@@ -57,7 +63,10 @@ impl<'a> CommandIo<'a> {
         &mut self.output
     }
     pub fn set_output(&mut self, output: OutputStyle<'a>) {
-        self.output = output;
+        let previous = std::mem::replace(&mut self.output, output);
+        if self.components_output.is_none() {
+            self.components_output = Some(Box::new(previous));
+        }
     }
     pub fn set_input(&mut self, input: &'a Input) {
         self.input = input;

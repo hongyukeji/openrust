@@ -482,7 +482,7 @@ fn register_output() -> Result<(), ConsoleError> {
             io.error("A record needs correction")?;
             io.new_line(1)?;
             io.alert("Check complete")?;
-            io.output_components().info("Saved");
+            io.output_components().info("Saved")?;
             io.line(&format!("Calls: {}", calls.fetch_add(1, Ordering::SeqCst) + 1))?;
             Ok(0)
         })
@@ -1795,3 +1795,26 @@ fn register_question_components() -> Result<(), ConsoleError> {
 `Choice::render` 使用列表，无默认值及尝试次数上限。`render_with` 增加默认值、最多尝试次数及多选开关，次数为零时报错。`render_pairs_with` 保留关联键和稀疏整数键。组件把非 list 键布局视为关联选择：稀疏数字键返回 `"1"` 这样的字符串键；标准列表返回选中值。普通 `ChoiceQuestion::from_pairs` 仍沿用原来的字符串键分类机制。
 
 `Choice::get_choice_question` 和 `get_choice_question_pairs` 提供已准备的问题定义，供组合使用；`is_assoc` 检查 `ChoiceQuestion::get_choices` 返回的规范键值顺序。`ChoiceQuestion::from_pairs_with_associative` 接收 `Send + Sync` 键分类函数，参数是规范键值；分类结果在构造或重建校验器时保存，不在每次回答时重新计算。补全候选保留构造时的快照。克隆保留分类，同时沿用已有独立 trim 设置。
+
+
+### 组件工厂 {#component-factories}
+
+`CommandIo::components()` 和 `output_components()` 返回借用的 `Factory`，不再返回普通输出流。类型化方法复用对应组件：`info`、`success`、`warn`、`error`、`line`、`alert`、`bullet_list`、`two_column_detail`、`task`、`ask`、`ask_with_completion`、`choice`、`confirm` 和 `secret`。显示方法返回 `Result<(), ConsoleError>`；问答方法异步执行。需要直接操作流时使用 `get_output()` 或 `AsOutput`。
+
+```rust
+use openrust::{console::{AsyncCommandCallback, ConsoleError}, support::facades::Artisan};
+fn register_component_factories() -> Result<(), ConsoleError> {
+    Artisan::command_with("components:save", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut io = input.io(output);
+            let name = io.components().ask_with("Name", Some("Guest".into()), false).await?;
+            io.output_components().info(&format!("Saved {name}"))?;
+            io.components().task_callback("Index", |_| Ok(true))?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+工厂保留命令最初的输出样式和问答输入。`set_output` 只替换普通输出，多次替换不会迁移组件输出或问答输入；`set_input` 更换命令输入访问，不替换原样式。独立的 `Factory::new(&mut output)` 可在 `Output`、输出引用和分区上显示组件。问答需要 `OutputStyle`、`ConsoleStyle` 或自定义 `ComponentOutput::question_style` 实现；普通流会在打印问题前返回运行时错误。任务回调接收同一所选输出引用，保留任务失败显示与错误传播行为。
