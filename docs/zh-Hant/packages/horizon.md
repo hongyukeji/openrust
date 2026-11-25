@@ -84,6 +84,8 @@ Horizon 工作 ID 識別獨立的 Redis 投遞，由佇列推送和面板回傳�
 
 `horizon:listen` 是開發命令，每 500 毫秒輪詢一次 `horizon.watch` 檔案，即使省略 `--poll` 也是如此。檔案變化後重新啟動 Horizon；原始碼應用包含 `Cargo.toml` 時透過 Cargo 啟動，以重新編譯 Rust 原始碼和設定變更。監控時略過符號連結。
 
+預設監控應用程式、啟動、設定、資料庫、路由和檢視目錄，以及 `public/` 和 `resources/` 下的 Rust 檔案和根目錄的 `main.rs`、`build.rs`、`Cargo.toml`、`Cargo.lock`、`.env`。
+
 ## 工作標籤 {#tags}
 
 在應用 Provider 中、Horizon 註冊後呼叫 `Horizon::tag(fn(&Payload) -> Vec<String>)`。回呼對每個被觀察的承載資料產生標籤，忽略空字串，重複標籤保留首次出現順序。Rust 工作透過這些回呼明確提供標籤，不透過反射自動探索承載資料中的模型欄位。

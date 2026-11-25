@@ -29,7 +29,7 @@ fn config(base: &Path, _: &Environment) -> Result<BTreeMap<String, Value>, Confi
         ),
         (
             "horizon".into(),
-            json!({"retention":3600,"fast_termination":std::env::var("HORIZON_PROBE_FAST_TERMINATION").as_deref()==Ok("1"),"memory_limit":std::env::var("HORIZON_PROBE_MEMORY_LIMIT").ok().and_then(|value|value.parse::<u64>().ok()).unwrap_or(64),"watch":["watched.rs"],"defaults":{"supervisor-1":{"timeout":5,"sleep":1,"balanceCooldown":1,"memory":1024,"maxProcesses":2,"maxJobs":3,"workersName":"horizon-probe","tries":2,"backoff":[1,2],"rest":1,"force":true,"json":true,"nice":1}},"environments":{"testing":{}}}),
+            json!({"retention":3600,"fast_termination":std::env::var("HORIZON_PROBE_FAST_TERMINATION").as_deref()==Ok("1"),"memory_limit":std::env::var("HORIZON_PROBE_MEMORY_LIMIT").ok().and_then(|value|value.parse::<u64>().ok()).unwrap_or(64),"defaults":{"supervisor-1":{"timeout":5,"sleep":1,"balanceCooldown":1,"memory":1024,"maxProcesses":2,"maxJobs":3,"workersName":"horizon-probe","tries":2,"backoff":[1,2],"rest":1,"force":true,"json":true,"nice":1}},"environments":{"testing":{}}}),
         ),
     ]))
 }

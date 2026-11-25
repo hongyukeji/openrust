@@ -84,6 +84,8 @@ Configure durable failed-job storage as described in [queues](../digging-deeper/
 
 `horizon:listen` is a development command that polls `horizon.watch` files every 500 ms, including when `--poll` is omitted. It restarts Horizon after a change. In a source application with `Cargo.toml`, it runs through Cargo so Rust source and configuration changes are recompiled. Watched symbolic links are skipped.
 
+By default it watches the application, bootstrap, configuration, database, routes and view directories, Rust files under `public/` and `resources/`, and the root files `main.rs`, `build.rs`, `Cargo.toml`, `Cargo.lock` and `.env`.
+
 ## Job tags {#tags}
 
 Register `Horizon::tag(fn(&Payload) -> Vec<String>)` in the application provider after Horizon is registered. Callbacks run for each observed payload; empty tags are omitted and duplicate tags retain their first occurrence. Rust jobs explicitly supply their tags through these callbacks. Payloads are not reflected to discover model fields automatically.

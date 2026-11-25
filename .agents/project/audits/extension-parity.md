@@ -67,3 +67,21 @@ O01 Activitylog、O02 Horizon、O03 Telescope原生范围、O04 Pennant、O05 Pu
 每项关闭前要求：上游源码／适用测试到 Rust 的对照、真实入口和失败路径、相关三库／缓存驱动、默认骨架／配置缓存边界、三语开发者文档及浏览器验收。与最终核心源码的全功能组合统一复验。许可证、命名、默认值及任何必要差异同时核对；仅“自己的测试全绿”不构成完整对齐证据。
 
 早期Horizon纠偏的224组固定PHP参考只证明对应算法／配置／Worker选项；后续进程树、命令、仓储、标签及面板已另行实现验收，当前状态以O02段和最终组合记录为准。完整PHP PHPUnit套件未执行。
+
+## Telescope、Pulse、Horizon 上游复核（2026-11-25）
+
+本轮沿用上表固定提交。旧版没有对应独立扩展；复用当前包的配置加载、事件与消费者测试。三个包继续保留逐项对齐未完成状态。
+
+| 所属类型或配置 | 本轮裁决 | 后续核对 |
+|---|---|---|
+| Telescope `ClientRequestWatcher::duration` | 固定上游在有正计时时以毫秒向下取整，缺少计时时输出空值。Rust 从现有传输统计输出整数毫秒或 JSON 空值。测试由真实出站 HTTP 与 fake 消费者覆盖。 | 命令与面板展示随完整输出审计核对。 |
+| Telescope `ClientRequestWatcher::input` | 固定上游使用结构化 multipart 字段，保留普通值，附件按来源产生名称、大小、头部。Rust 的 `attach` 接收 reqwest `Part`，该类型未公开读取这些属性的接口。 | 在请求构建阶段保留结构化元数据，核对原附件入口兼容、单次流消费、重复字段、脱敏和成功／连接失败事件。Query／Gate 来源过滤见[包审计](telescope/README.md)。 |
+| Pulse 默认 Recorder 清单 | 固定配置的十个 Recorder 均可映射到本地配置。核对了采样率 1、慢操作阈值 1000、异常和慢查询位置开关、默认存储及采集驱动；这一轮只读配置。 | 逐 Recorder 核对触发事件、筛选、采样、聚合、配置覆盖和扩展入口，再核对命令和面板。Servers 主机名上游在配置加载时求值，本地在记录时回退，配置缓存边界待裁决。 |
+| Horizon `horizon:listen` 的 `watch` | 上游发布配置提供默认监听列表。Rust 配置补充应用、启动、配置、数据库、路由、视图、公开目录及资源目录中的 Rust 文件和 Cargo 构建入口的对应监听路径。真实 Artisan 使用默认配置监控 `routes/web.rs`，文件更新后重建 Master 和 Worker，SIGTERM 后子树退出。 | 补 Linux／Windows 目标平台验收。 |
+| Horizon 其余配置 | 固定上游含 `name`、`waits`、`silenced`、`silenced_tags` 及 Supervisor `nice`。本地已读静默配置并具备 `nice` 运行时默认；配置形状、面板名称、等待时间入口仍须逐项核对。 | 对照发布配置及实际命令、Redis 和面板消费者，分别核对默认、覆盖及非法值。 |
+
+源文件对照：[Telescope ClientRequestWatcher](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Watchers/ClientRequestWatcher.php) · [Pulse 默认配置](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/config/pulse.php) · [Horizon 默认配置](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/config/horizon.php)。
+
+全仓严格 Clippy 卡在隔离快照中 Fortify 的 `two_factor_model`、`installed_actions`、`starter_ui` 测试编译深度溢出。
+
+验证使用提交 `8041ae15a` 加本批文件的隔离快照，保留共享工作区的在途锁文件和核心改动。Telescope Provider／Watcher 共 19 项通过，独立 Redis 用例未执行。Provider 的数据库 Worker 用例在默认测试线程栈上溢出，设置 `RUST_MIN_STACK=33554432` 后重跑通过。Horizon 配置 4 项通过，独立 Redis 配置用例未执行；真实进程、HTTP 和 Artisan 验收使用隔离 Redis 8.10.3。三语站点构建和 12 组浏览器检查通过，构建有现有包大小提示。快照全仓格式、Telescope／Horizon 全目标严格 Clippy 及差异空白检查通过。

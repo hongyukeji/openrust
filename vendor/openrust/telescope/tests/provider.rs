@@ -1504,6 +1504,7 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
                 }
             }
             let body = r#"{"token":"secret","value":true}"#;
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
             socket.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",body.len(),body).as_bytes()).await.unwrap();
         }
     });
@@ -1538,10 +1539,13 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
         .await
         .unwrap();
     assert_eq!(entries.len(), 2);
-    assert!(entries.iter().all(|entry| entry.content["response"]
-        == json!({"token":"********","value":true})
-        && entry.content["response_status"] == 200
-        && entry.content["duration"].as_f64().unwrap() > 0.0));
+    assert!(entries.iter().all(|entry| {
+        entry.content["response"] == json!({"token":"********","value":true})
+            && entry.content["response_status"] == 200
+            && entry.content["duration"]
+                .as_u64()
+                .is_some_and(|ms| ms >= 10)
+    }));
     assert!(
         entries
             .iter()

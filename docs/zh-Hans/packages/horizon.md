@@ -84,6 +84,8 @@ Horizon 任务 ID 标识独立的 Redis 投递，由队列推送和面板返回�
 
 `horizon:listen` 是开发命令，每 500 毫秒轮询一次 `horizon.watch` 文件，即使省略 `--poll` 也是如此。文件变化后重启 Horizon；源码应用包含 `Cargo.toml` 时通过 Cargo 启动，以重新编译 Rust 源码和配置改动。监控时跳过符号链接。
 
+默认监控应用、启动、配置、数据库、路由和视图目录，以及 `public/` 和 `resources/` 下的 Rust 文件和根目录的 `main.rs`、`build.rs`、`Cargo.toml`、`Cargo.lock`、`.env`。
+
 ## 任务标签 {#tags}
 
 在应用 Provider 中、Horizon 注册后调用 `Horizon::tag(fn(&Payload) -> Vec<String>)`。回调对每个被观察的载荷生成标签，忽略空字符串，重复标签保留首次出现顺序。Rust 任务通过这些回调显式提供标签，不通过反射自动发现载荷中的模型字段。

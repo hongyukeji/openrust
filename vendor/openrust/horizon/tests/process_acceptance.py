@@ -213,7 +213,8 @@ def main():
             assert status() == []
             # File watching is live, responds to a change once, and cleans up
             # its child tree when interrupted.
-            watched = root / 'watched.rs'
+            watched = root / 'routes' / 'web.rs'
+            watched.parent.mkdir()
             watched.write_text('// first version\n')
             master = subprocess.Popen([binary, 'artisan', 'horizon:listen', '--poll'], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             watched_master = until(lambda: status() and status()[0]['workers'] and status()[0]['name'])

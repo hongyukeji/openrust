@@ -40,6 +40,25 @@ async fn environment_defaults_and_provider_routes_follow_configuration_without_r
     let defaults = configuration::load(&env).unwrap();
     assert_eq!(defaults["prefix"], "laravel_horizon:");
     assert_eq!(defaults["middleware"], json!(["web"]));
+    assert_eq!(config.get("horizon.watch"), Some(defaults["watch"].clone()));
+    assert_eq!(
+        defaults["watch"],
+        json!([
+            "app",
+            "bootstrap",
+            "config",
+            "database",
+            "public/*.rs",
+            "resources/*.rs",
+            "resources/views",
+            "routes",
+            "main.rs",
+            "build.rs",
+            "Cargo.lock",
+            "Cargo.toml",
+            ".env"
+        ])
+    );
 }
 
 #[tokio::test]

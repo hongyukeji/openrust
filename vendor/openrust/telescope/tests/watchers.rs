@@ -339,6 +339,10 @@ async fn client_watcher_handles_closed_streams_and_uses_character_kilobytes() {
         .unwrap();
     assert_eq!(entries.len(), 3);
     for entry in entries {
+        assert_eq!(
+            entry.content.get("duration"),
+            Some(&serde_json::Value::Null)
+        );
         match entry.content["uri"].as_str().unwrap() {
             "http://example.test/small" => assert_eq!(
                 entry.content["response"],

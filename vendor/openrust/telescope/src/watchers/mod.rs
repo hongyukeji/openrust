@@ -646,14 +646,13 @@ impl NativeWatcher {
             content.insert("response".into(), response);
             content.insert(
                 "duration".into(),
-                (event
+                event
                     .response
                     .transfer_stats
                     .as_ref()
                     .map(|stats| stats.get_transfer_time())
-                    .unwrap_or(0.0)
-                    * 1000.0)
-                    .into(),
+                    .filter(|seconds| *seconds > 0.0)
+                    .map_or(Value::Null, |seconds| ((seconds * 1000.0) as u64).into()),
             );
             telescope.record_client_request(
                 IncomingEntry::make(content)?.tags(event.request.url.host_str()),

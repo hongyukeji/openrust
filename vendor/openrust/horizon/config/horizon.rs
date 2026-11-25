@@ -23,6 +23,7 @@ pub fn load(environment: &Environment) -> Result<Value, ConfigError> {
         "use":"default", "prefix":environment.get_utf8("HORIZON_PREFIX")?.unwrap_or(&prefix), "retention":3600,"fast_termination":false,"memory_limit":64,
         "trim":{"recent":60,"pending":60,"completed":60,"recent_failed":10080,"failed":10080,"monitored":10080},
         "metrics":{"snapshot_lock":300,"trim_snapshots":{"job":24,"queue":24}},
+        "watch":["app","bootstrap","config","database","public/*.rs","resources/*.rs","resources/views","routes","main.rs","build.rs","Cargo.lock","Cargo.toml",".env"],
         "defaults":{"supervisor-1":{
             "connection":"redis", "queue":["default"], "balance":"auto",
             "autoScalingStrategy":"time", "minProcesses":1, "maxProcesses":1,
