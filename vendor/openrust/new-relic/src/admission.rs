@@ -16,6 +16,19 @@ use opentelemetry_sdk::{
 
 pub(crate) const CAPACITY: usize = 2048;
 
+// 在并发下只在计数未达上限时预留一个名额。
+pub(crate) fn try_reserve(counter: &AtomicUsize, limit: usize) -> bool {
+    let mut count = counter.load(Ordering::Relaxed);
+    while count < limit {
+        match counter.compare_exchange_weak(count, count + 1, Ordering::Relaxed, Ordering::Relaxed)
+        {
+            Ok(_) => return true,
+            Err(observed) => count = observed,
+        }
+    }
+    false
+}
+
 // 与 SDK 队列使用同一容量。保留待导出项的名额，SDK 取出批次后释放。
 // 在 SDK 入队前记录拒绝，指标按应用隔离，不依赖全局 MeterProvider。
 #[derive(Debug, Default)]
@@ -26,13 +39,7 @@ pub(crate) struct Admission {
 
 impl Admission {
     fn accept(&self) -> bool {
-        if self
-            .pending
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |pending| {
-                (pending < CAPACITY).then_some(pending + 1)
-            })
-            .is_ok()
-        {
+        if try_reserve(&self.pending, CAPACITY) {
             return true;
         }
         self.dropped.fetch_add(1, Ordering::Relaxed);

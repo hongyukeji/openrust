@@ -44,7 +44,7 @@ use opentelemetry_sdk::{
 };
 
 use crate::{
-    admission::{Admission, CAPACITY},
+    admission::{Admission, CAPACITY, try_reserve},
     export::{Destination, EXPORT_TIMEOUT, ExportStats, Transport},
 };
 
@@ -252,12 +252,7 @@ impl Recorder {
             || !key
                 .bytes()
                 .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
-            || active
-                .attributes
-                .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |count| {
-                    (count < 32).then_some(count + 1)
-                })
-                .is_err()
+            || !try_reserve(&active.attributes, 32)
         {
             return false;
         }

@@ -37,12 +37,15 @@ impl ModelPruner for ArchivePruner {
                 .make::<Archive>()
                 .await
                 .map_err(ConsoleError::from_source)?;
-            let before = rows
-                .0
-                .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |rows| {
-                    Some(rows.saturating_sub(chunk))
-                })
-                .expect("总是接受更新");
+            let mut before = rows.0.load(Ordering::Relaxed);
+            while let Err(observed) = rows.0.compare_exchange_weak(
+                before,
+                before.saturating_sub(chunk),
+                Ordering::Relaxed,
+                Ordering::Relaxed,
+            ) {
+                before = observed;
+            }
             Ok(u64::from(before.min(chunk)))
         })
     }
