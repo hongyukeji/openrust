@@ -1442,3 +1442,36 @@ fn register_style_tables() -> Result<(), ConsoleError> {
 ```
 
 Use `serde_json::Value::Null.into()` for a nullable scalar cell. A null value and an empty string display alike in an ordinary cell, but horizontal tables must distinguish them: null under a spanning title is omitted, while an empty string remains a cell. Explicit styled/spanning cells remain cell objects. Definition-list titles use this same general table behavior, rather than a separate renderer. Formatting errors return the existing `ConsoleError` with its original source and preserve partial output; no success blank line is added after an error.
+
+## The style interface {#style-interface}
+
+`openrust::console::style::StyleInterface` is a public trait; `openrust::console::StyleInterface` re-exports the same type. It exposes titles, sections, lists, text, success/error/warning/note/caution messages, tables, four question helpers, newlines and progress start/advance/finish. `OutputStyle` implements all 18 entries, so services can accept a generic style or `&mut dyn StyleInterface`.
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, OutputStyle};
+use openrust::console::style::StyleInterface;
+use openrust::support::facades::Artisan;
+
+fn render_report<S: StyleInterface + ?Sized>(style: &mut S) -> Result<(), ConsoleError> {
+    style.title("Report")?;
+    style.table(["Name", "Value"].into(), vec![["Ada", "42"].into()])?;
+    style.success("Ready".into())
+}
+
+fn register_style_interface() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:interface", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut style = OutputStyle::new(input, output);
+            render_report(&mut style)?;
+            let dynamic: &mut dyn StyleInterface = &mut style;
+            render_report(dynamic)?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+Trait calls use explicit parameters instead of optional PHP arguments: `ask` takes an optional default and validator, `ask_hidden` an optional validator, `confirm` a boolean default, and `choice` an ordered `Vec<(ChoiceKey, Value)>` with an optional default. Integer keys express sequential choices; string keys preserve associative results. Questions retain the complete `serde_json::Value` result. `table` takes `TableHeaders` and `Vec<TableRow>`, messages use the existing `OutputMessages`, and `new_line`/`progress_advance` take explicit counts. The existing concrete-type convenience methods remain available.
+
+The four asynchronous trait methods return the existing `ConsoleFuture`. This adds one future box at the trait boundary to support dynamic dispatch; directly calling the concrete `OutputStyle` async methods does not add this layer. Synchronous trait methods do not box futures. The trait requires `Send` for the existing asynchronous command execution, and does not require `NewLineAware`. Consecutive questions share the same input and output history, including hidden input and failure recovery.

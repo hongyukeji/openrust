@@ -473,6 +473,242 @@
           "nested-style-contracts.json"
         ]
       }
+    ],
+    "StyleInterface": [
+      {
+        "method": "title",
+        "source_line": 24,
+        "signature": "public function title(string $message): void;",
+        "status": "verified_real_trait_generic_and_dynamic_source_http_cli_tty",
+        "native": "console::style::StyleInterface::title",
+        "evidence": [
+          "console_style_interface",
+          "style-interface-oracle.json",
+          "style-interface-contracts.json",
+          "artisan_docs_generated"
+        ]
+      },
+      {
+        "method": "section",
+        "source_line": 29,
+        "signature": "public function section(string $message): void;",
+        "status": "verified_real_trait_generic_and_dynamic_source_http_cli_tty",
+        "native": "console::style::StyleInterface::section",
+        "evidence": [
+          "console_style_interface",
+          "style-interface-oracle.json",
+          "style-interface-contracts.json",
+          "artisan_docs_generated"
+        ]
+      },
+      {
+        "method": "listing",
+        "source_line": 34,
+        "signature": "public function listing(array $elements): void;",
+        "status": "verified_real_trait_generic_and_dynamic_source_http_cli_tty",
+        "native": "console::style::StyleInterface::listing",
+        "evidence": [
+          "console_style_interface",
+          "style-interface-oracle.json",
+          "style-interface-contracts.json",
+          "artisan_docs_generated"
+        ]
+      },
+      {
+        "method": "text",
+        "source_line": 39,
+        "signature": "public function text(string|array $message): void;",
+        "status": "verified_real_trait_generic_and_dynamic_source_http_cli_tty",
+        "native": "console::style::StyleInterface::text",
+        "evidence": [
+          "console_style_interface",
+          "style-interface-oracle.json",
+          "style-interface-contracts.json",
+          "artisan_docs_generated"
+        ]
+      },
+      {
+        "method": "success",
+        "source_line": 44,
+        "signature": "public function success(string|array $message): void;",
+        "status": "verified_real_trait_generic_and_dynamic_source_http_cli_tty",
+        "native": "console::style::StyleInterface::success",
+        "evidence": [
+          "console_style_interface",
+          "style-interface-oracle.json",
+          "style-interface-contracts.json",
+          "artisan_docs_generated"
+        ]
+      },
+      {
+        "method": "error",
+        "source_line": 49,
+        "signature": "public function error(string|array $message): void;",
+        "status": "verified_real_trait_generic_and_dynamic_source_http_cli_tty",
+        "native": "console::style::StyleInterface::error",
+        "evidence": [
+          "console_style_interface",
+          "style-interface-oracle.json",
+          "style-interface-contracts.json",
+          "artisan_docs_generated"
+        ]
+      },
+      {
+        "method": "warning",
+        "source_line": 54,
+        "signature": "public function warning(string|array $message): void;",
+        "status": "verified_real_trait_generic_and_dynamic_source_http_cli_tty",
+        "native": "console::style::StyleInterface::warning",
+        "evidence": [
+          "console_style_interface",
+          "style-interface-oracle.json",
+          "style-interface-contracts.json",
+          "artisan_docs_generated"
+        ]
+      },
+      {
+        "method": "note",
+        "source_line": 59,
+        "signature": "public function note(string|array $message): void;",
+        "status": "verified_real_trait_generic_and_dynamic_source_http_cli_tty",
+        "native": "console::style::StyleInterface::note",
+        "evidence": [
+          "console_style_interface",
+          "style-interface-oracle.json",
+          "style-interface-contracts.json",
+          "artisan_docs_generated"
+        ]
+      },
+      {
+        "method": "caution",
+        "source_line": 64,
+        "signature": "public function caution(string|array $message): void;",
+        "status": "verified_real_trait_generic_and_dynamic_source_http_cli_tty",
+        "native": "console::style::StyleInterface::caution",
+        "evidence": [
+          "console_style_interface",
+          "style-interface-oracle.json",
+          "style-interface-contracts.json",
+          "artisan_docs_generated"
+        ]
+      },
+      {
+        "method": "table",
+        "source_line": 69,
+        "signature": "public function table(array $headers, array $rows): void;",
+        "status": "verified_real_trait_generic_and_dynamic_source_http_cli_tty",
+        "native": "console::style::StyleInterface::table",
+        "evidence": [
+          "console_style_interface",
+          "style-interface-oracle.json",
+          "style-interface-contracts.json",
+          "artisan_docs_generated"
+        ]
+      },
+      {
+        "method": "ask",
+        "source_line": 76,
+        "signature": "public function ask(string $question, ?string $default = null, ?callable $validator = null): mixed;",
+        "status": "verified_real_trait_generic_and_dynamic_source_http_cli_tty",
+        "native": "console::style::StyleInterface::ask",
+        "evidence": [
+          "console_style_interface",
+          "style-interface-oracle.json",
+          "style-interface-contracts.json",
+          "artisan_docs_generated"
+        ]
+      },
+      {
+        "method": "askHidden",
+        "source_line": 83,
+        "signature": "public function askHidden(string $question, ?callable $validator = null): mixed;",
+        "status": "verified_real_trait_generic_and_dynamic_source_http_cli_tty",
+        "native": "console::style::StyleInterface::ask_hidden",
+        "evidence": [
+          "console_style_interface",
+          "style-interface-oracle.json",
+          "style-interface-contracts.json",
+          "artisan_docs_generated"
+        ]
+      },
+      {
+        "method": "confirm",
+        "source_line": 88,
+        "signature": "public function confirm(string $question, bool $default = true): bool;",
+        "status": "verified_real_trait_generic_and_dynamic_source_http_cli_tty",
+        "native": "console::style::StyleInterface::confirm",
+        "evidence": [
+          "console_style_interface",
+          "style-interface-oracle.json",
+          "style-interface-contracts.json",
+          "artisan_docs_generated"
+        ]
+      },
+      {
+        "method": "choice",
+        "source_line": 93,
+        "signature": "public function choice(string $question, array $choices, mixed $default = null): mixed;",
+        "status": "verified_real_trait_generic_and_dynamic_source_http_cli_tty",
+        "native": "console::style::StyleInterface::choice",
+        "evidence": [
+          "console_style_interface",
+          "style-interface-oracle.json",
+          "style-interface-contracts.json",
+          "artisan_docs_generated"
+        ]
+      },
+      {
+        "method": "newLine",
+        "source_line": 98,
+        "signature": "public function newLine(int $count = 1): void;",
+        "status": "verified_real_trait_generic_and_dynamic_source_http_cli_tty",
+        "native": "console::style::StyleInterface::new_line",
+        "evidence": [
+          "console_style_interface",
+          "style-interface-oracle.json",
+          "style-interface-contracts.json",
+          "artisan_docs_generated"
+        ]
+      },
+      {
+        "method": "progressStart",
+        "source_line": 103,
+        "signature": "public function progressStart(int $max = 0): void;",
+        "status": "verified_real_trait_generic_and_dynamic_source_http_cli_tty",
+        "native": "console::style::StyleInterface::progress_start",
+        "evidence": [
+          "console_style_interface",
+          "style-interface-oracle.json",
+          "style-interface-contracts.json",
+          "artisan_docs_generated"
+        ]
+      },
+      {
+        "method": "progressAdvance",
+        "source_line": 108,
+        "signature": "public function progressAdvance(int $step = 1): void;",
+        "status": "verified_real_trait_generic_and_dynamic_source_http_cli_tty",
+        "native": "console::style::StyleInterface::progress_advance",
+        "evidence": [
+          "console_style_interface",
+          "style-interface-oracle.json",
+          "style-interface-contracts.json",
+          "artisan_docs_generated"
+        ]
+      },
+      {
+        "method": "progressFinish",
+        "source_line": 113,
+        "signature": "public function progressFinish(): void;",
+        "status": "verified_real_trait_generic_and_dynamic_source_http_cli_tty",
+        "native": "console::style::StyleInterface::progress_finish",
+        "evidence": [
+          "console_style_interface",
+          "style-interface-oracle.json",
+          "style-interface-contracts.json",
+          "artisan_docs_generated"
+        ]
+      }
     ]
   },
   "notes": [
@@ -526,7 +762,8 @@
     "TableCell/Separator full typed options, inherited getters and rowspan/colspan now have source oracles and actual HTTP/Artisan consumers. ConsoleSectionOutput/append_row redraw and other inherited component interfaces remain open.",
     "Output::section and actual Table::append_row are verified. ConsoleSectionOutput exposes output options, formatter/verbosity controls, height/clear/overwrite/content; safe handles replace shared mutable stream references. OutputStyle::section(message) remains a separate heading SDK gap. Section-bound progress and interactive input are not claimed by this batch.",
     "OutputStyle now stores the selected OutputReference; get_output returns a mutable borrow of it. AsOutput constructors borrow plain Output, current references and sections without moving an existing &mut Output. Read-only Deref preserves capture-buffer reads, no DerefMut allows bypassing selection. Explicit concrete raw-output helper annotations may use &mut impl AsOutput; Nested style/counter forwarding is verified by nested-style-contracts.json; arbitrary OutputInterface sinks remain separately open.",
-    "The terminal completion state machine tracks entered text, accepted full choice and active suggestions separately. First backspace removes the visible suggestion; later backspace removes input, and completion takes precedence over multiline reading. Existing key-event lease/polling, input normalization, callbacks, validators and formatter are reused; no second dispatcher or dependency is introduced."
+    "The terminal completion state machine tracks entered text, accepted full choice and active suggestions separately. First backspace removes the visible suggestion; later backspace removes input, and completion takes precedence over multiline reading. Existing key-event lease/polling, input normalization, callbacks, validators and formatter are reused; no second dispatcher or dependency is introduced.",
+    "StyleInterface在console::style和console根导出同一真实Trait，18方法经过泛型／dyn连续消费者；四个异步Trait入口使用ConsoleFuture装箱以保持对象安全，具体类型inherent async不增加该层。Trait要求Send，不要求NewLineAware。"
   ],
   "inherited_output_style_inventory": {
     "OutputStyle": [
@@ -1002,11 +1239,8 @@
     ]
   },
   "remaining_output_style_behaviors": [
-    "完整组件Factory与OutputStyle继承的树、table/create_table/definition_list、get_error_style等继续逐项核对；标题／文本／列表／八种块助手已验",
-    "任意OutputInterface缓冲（包括Artisan.call第三参数）的专用消费者与类型仍待核对；现有原生入口不冒充完整接口",
-    "公开StyleInterface完整Trait契约随其余依赖方法核对，不能用已有inherent助手冒充完整Trait实现",
-    "样式问答简写／带参数入口已验证，Source异常类别与原生显式运行错误标记已分别验收；其余表格构造／完整Trait／通用输出继续",
-    "Table::new已有单生命周期输出借用，create_table已验真实控制台分区／捕获／样式身份和局部样式克隆；table/horizontal_table/definition_list与完整Trait仍待接通。",
-    "table/horizontal_table/definition_list已由432个固定源实际消费者核定；完整StyleInterface Trait、树／错误流样式／组件Factory及通用OutputInterface仍继续。"
+    "SymfonyStyle继承仍需get_error_style、tree、create_tree的完整公开类型与实际消费者；既有标题／文本／块／问答／表格／进度及StyleInterface已验，不重开。",
+    "完整组件Factory仍需逐类型核对，不以现有OutputStyle助手代替组件公开入口。",
+    "通用OutputInterface及任意自定义输出／Artisan.call第三参数仍待专用类型与消费者；AsOutput不冒充完整接口。"
   ]
 }

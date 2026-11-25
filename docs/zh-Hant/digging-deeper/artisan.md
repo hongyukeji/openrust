@@ -1442,3 +1442,36 @@ fn register_style_tables() -> Result<(), ConsoleError> {
 ```
 
 可空純量儲存格使用 `serde_json::Value::Null.into()`。一般儲存格裡的 null 與空字串顯示相同，水平表格仍須區分：跨欄標題下的 null 被省略，空字串保留為儲存格；明確的樣式／跨欄儲存格仍作為儲存格物件處理。定義列表標題複用這項公共表格行為，不另造渲染器。格式錯誤保留既有 `ConsoleError` 來源鏈與部分輸出，失敗後不補成功空行。
+
+## 樣式介面 {#style-interface}
+
+`openrust::console::style::StyleInterface` 是正式公開 Trait，`openrust::console::StyleInterface` 匯出同一型別。它包含標題、分節、列表、文字、成功／錯誤／警告／備註／注意訊息、表格、四類問答、換行及進度開始／推進／完成。`OutputStyle` 實作全部 18 個入口，服務可以接收泛型樣式或 `&mut dyn StyleInterface`。
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, OutputStyle};
+use openrust::console::style::StyleInterface;
+use openrust::support::facades::Artisan;
+
+fn render_report<S: StyleInterface + ?Sized>(style: &mut S) -> Result<(), ConsoleError> {
+    style.title("Report")?;
+    style.table(["Name", "Value"].into(), vec![["Ada", "42"].into()])?;
+    style.success("Ready".into())
+}
+
+fn register_style_interface() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:interface", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut style = OutputStyle::new(input, output);
+            render_report(&mut style)?;
+            let dynamic: &mut dyn StyleInterface = &mut style;
+            render_report(dynamic)?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+Trait 呼叫明確傳入原可選參數：`ask` 接受可選預設值與驗證器，`ask_hidden` 接受可選驗證器，`confirm` 接受布林預設值，`choice` 接受有序 `Vec<(ChoiceKey, Value)>` 與可選預設值；整數鍵表達順序選擇，字串鍵保留關聯結果。問答保留完整 `serde_json::Value` 回傳值。`table` 接受 `TableHeaders` 與 `Vec<TableRow>`，訊息複用 `OutputMessages`，`new_line`／`progress_advance` 明確傳入次數。具體型別的既有便利方法繼續可用。
+
+四類非同步 Trait 方法回傳既有 `ConsoleFuture`，為支援動態派發，在 Trait 邊界增加一次 Future 裝箱；直接呼叫具體 `OutputStyle` 的非同步方法不增加這一層。同步 Trait 方法不裝箱 Future。Trait 為既有非同步命令執行要求 `Send`，不要求實作 `NewLineAware`。連續問答共用同一輸入與輸出歷史，包含隱藏輸入與失敗復原。

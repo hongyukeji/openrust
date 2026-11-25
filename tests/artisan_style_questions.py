@@ -4,7 +4,7 @@ if sys.platform=="win32":raise SystemExit("此验收需要POSIX终端；Windows�
 import fcntl,pty,struct,termios
 from pathlib import Path
 root=Path(__file__).resolve().parents[1]
-p=argparse.ArgumentParser();p.add_argument('--binary',type=Path,required=True);p.add_argument('--report',type=Path,required=True);args=p.parse_args();binary=args.binary.resolve()
+p=argparse.ArgumentParser();p.add_argument('--binary',type=Path,required=True);p.add_argument('--report',type=Path,required=True);p.add_argument('--fixture',default='style_questions_cli_driver');args=p.parse_args();binary=args.binary.resolve()
 if not binary.is_relative_to(root/'target/tmp')or not args.report.resolve().is_relative_to(root/'target/tmp'):p.error('二进制与报告必须位于项目target/tmp中')
 space=root/'target/tmp/pv';space.mkdir(parents=True,exist_ok=True);results=[]
 def session():os.setsid();fcntl.ioctl(0,termios.TIOCSCTTY,0)
@@ -13,7 +13,7 @@ for cancel in [False,True]:
   master,slave=pty.openpty();fcntl.ioctl(slave,termios.TIOCSWINSZ,struct.pack('HHHH',24,80,0,0));original=termios.tcgetattr(slave);release=Path(app_root)/'release';output=b'';errors=b'';echo=b'';child=None
   try:
    env=dict(os.environ,STYLE_QUESTIONS_ROOT=app_root,STYLE_QUESTIONS_LIVE='1',STYLE_QUESTIONS_RELEASE=str(release),COLUMNS='80',TERM='xterm-256color',APP_LOCALE='en',TMPDIR=str(space))
-   child=subprocess.Popen([str(binary),'--exact','style_questions_cli_driver','--ignored','--nocapture'],stdin=slave,stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=env,preexec_fn=session)
+   child=subprocess.Popen([str(binary),'--exact',args.fixture,'--ignored','--nocapture'],stdin=slave,stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=env,preexec_fn=session)
    def wait_for(predicate):
     global output,errors,echo
     deadline=time.monotonic()+15

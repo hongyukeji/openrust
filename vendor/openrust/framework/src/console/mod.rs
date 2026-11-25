@@ -19,6 +19,8 @@ mod isolation;
 mod list_command;
 pub(crate) mod localization;
 mod output_style;
+pub mod style;
+pub use style::StyleInterface;
 mod planned;
 mod progress_bar;
 mod prompting;

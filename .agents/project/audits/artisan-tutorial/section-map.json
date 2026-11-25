@@ -337,11 +337,13 @@
         "console_table_outputs",
         "table-output-contracts.json",
         "console_style_tables",
-        "style-table-contracts.json"
+        "style-table-contracts.json",
+        "console_style_interface",
+        "style-interface-contracts.json"
       ],
       "native": "console::CommandIo",
       "remaining": [
-        "表格便利布局已验；完整StyleInterface／组件Factory、树／错误流样式／通用输出继续，整章不关闭。"
+        "真实StyleInterface全部18入口已验；get_error_style、树／组件Factory、通用OutputInterface及其余章节继续，整章不关闭。"
       ]
     },
     {

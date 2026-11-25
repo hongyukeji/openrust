@@ -1,0 +1,86 @@
+{
+  "source_base": "1989780ba5c3b766ceee68712c97a0e27b8f14d6",
+  "source_hashes": {
+    "docs/en/digging-deeper/artisan.md": "d51b8a6e812770b74c02d7946c3a68055a75a3e18b2f232881fa3c31ed5a61d4",
+    "docs/tests/check_artisan_tutorial.mjs": "bca6450140312714f788c6a7ee1b9dcc2e9fc964a828128aa5bddfbc413fb93d",
+    "docs/zh-Hans/digging-deeper/artisan.md": "8c91cc06f51d3d8ba815e8f60407d9d584bb5548ec0be0030f4cecc1d68c30b1",
+    "docs/zh-Hant/digging-deeper/artisan.md": "1d53ff22d73620b45fb4355f4e5ded529fa7b2e1e60fdabe2bc3bf066120c7ab",
+    "tests/artisan_style_questions.py": "7014ab399f69b9c21c9896e242f1f739b5ac3f3a8c85c3830f0c27a673898f95",
+    "tests/artisan_tutorial_docs.py": "f3cb8566d6f2b6663bf99951b941a948381c86628d714c292e507a68e307347d",
+    "vendor/openrust/framework/src/console/mod.rs": "719d429a22310e060d2a6634611ee75d3632cd2b83651689f0bb829b77fe6973",
+    "vendor/openrust/framework/src/console/output_style.rs": "5100a954b413a36228a4dd14de048ed39c65b414864ad878a1a2adf6219dda55",
+    "vendor/openrust/framework/src/console/question/mod.rs": "11e1b3ed96de54c5c74da1dadeee23a2d10d6ee55c087021796b3971dfd2ade7",
+    "vendor/openrust/framework/src/console/style.rs": "488c9b80e1bdf5907d228b36b237fea117f9cd277595d765177a4f464263c7f8",
+    "vendor/openrust/framework/tests/console_style_interface.rs": "6695439dbce0592a5db08cb775b72301877ac5e2839adcf1243e9b51782ec599",
+    ".agents/project/audits/artisan-tutorial/style-interface-oracle.json": "3d75dc38a2d63c383dccdaf8a4f43ed9fbab8638f271028a260d8e29a22ab17f",
+    ".agents/project/audits/artisan-tutorial/style-interface-console-oracle.json": "263cb1e114a187138e20ebec57819967b578bf9875173959119da4fbf65164d3",
+    ".agents/project/audits/artisan-tutorial/style-interface-docs-oracle.json": "97367540297c64887df37e5671bef8fe49686e432b983db1ff9b8b9c1831a739",
+    ".agents/project/audits/artisan-tutorial/io-contracts.json": "1894e2f417e2c88b78d2238c4e3d0d07bd1974d216bd964636ecb6533cc42c73",
+    ".agents/project/audits/artisan-tutorial/section-map.json": "a530192c682baabc65f4f4f6f6bb072a6d52c0f2e2f86a66ef6c112c4bc1e79e"
+  },
+  "parent_consumers": {
+    "framework": {
+      "targets": 28,
+      "passed": 159,
+      "ignored_drivers": 40
+    },
+    "root": {
+      "targets": 6,
+      "passed": 149,
+      "ignored_drivers": 0
+    }
+  },
+  "total_distinct_parent_consumers": 308,
+  "full_suite_ignored_drivers": 40,
+  "additional_live_fixture": 1,
+  "final_target_retest": "4 pass +3 ignored, not added again to308 parents",
+  "formal_examples": 108,
+  "source_continuous_sequences": 96,
+  "native_continuous_sequences": 192,
+  "source_expected_error_steps": 160,
+  "native_expected_error_steps": 320,
+  "actual_artisan": {
+    "normal_console_processes": 4,
+    "fatal_processes": 2,
+    "exit_codes": [
+      0,
+      1
+    ],
+    "stdout_stderr_values_counters_match_source": true
+  },
+  "actual_http": {
+    "sequence": [
+      "200",
+      "JSON500",
+      "200 recovery"
+    ],
+    "concurrent": 12
+  },
+  "actual_terminal": {
+    "dynamic_and_concrete_each": [
+      0,
+      130
+    ],
+    "hidden_echo_disabled": true,
+    "secret_not_echoed": true,
+    "full_attributes_restored": true,
+    "section_editors": 33,
+    "section_ctrl_c": 130
+  },
+  "fmt": true,
+  "workspace_all_targets_strict_clippy": true,
+  "strict_clippy_after_added_live_fixture": true,
+  "actual_main_runtime": true,
+  "browser_checks": 12,
+  "failures": [
+    "initial full sequence exposed missing success submission LF in per-style history; fixed shared question completion and reran",
+    "reference ConsoleSectionOutput fixture initially lacked required fifth formatter argument; fixed reference driver",
+    "32GB guard interrupted full framework build; not counted, recovered after generated-profile cleanup and reran all gates"
+  ],
+  "scope_limits": [
+    "Not complete active worktree or Artisan chapter",
+    "Windows native terminal release verification pending"
+  ],
+  "logs": "target/tmp/artisan-tutorial-20261125/style-interface-*",
+  "pushed": false
+}

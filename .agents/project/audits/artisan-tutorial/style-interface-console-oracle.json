@@ -1,0 +1,514 @@
+[
+  {
+    "variant": 0,
+    "decorated": false,
+    "level": 16,
+    "interactive": false,
+    "depth": 1,
+    "section": false,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "steps": [
+        {
+          "method": "title",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "section",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "listing",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "text",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "success",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "error",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "warning",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "note",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "caution",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "table",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "ask",
+          "value": {
+            "name": "Guest"
+          },
+          "error": null
+        },
+        {
+          "method": "askHidden",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "confirm",
+          "value": true,
+          "error": null
+        },
+        {
+          "method": "choice",
+          "value": "green",
+          "error": null
+        },
+        {
+          "method": "newLine",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "progressFinish-before",
+          "value": null,
+          "error": "Symfony\\Component\\Console\\Exception\\RuntimeException"
+        },
+        {
+          "method": "progressStart",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "progressAdvance",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "progressFinish",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "text-recovery",
+          "value": null,
+          "error": null
+        }
+      ],
+      "trace": [
+        [
+          "ask",
+          "Guest"
+        ]
+      ],
+      "counts": [
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "variant": 0,
+    "decorated": false,
+    "level": 32,
+    "interactive": false,
+    "depth": 1,
+    "section": false,
+    "stdout": "\nTitle\n=====\n\nSection\n-------\n\n * first\n * 名\n\n alpha\n beta\n\n [OK] Ready                                                                     \n\n [ERROR] Failure                                                                \n\n [WARNING] Review                                                               \n\n ! [NOTE] one                                                                   \n !                                                                              \n !        two                                                                   \n\n ! [CAUTION] Caution                                                            \n\n --- --- \n  K   V  \n --- --- \n  x   y  \n --- --- \n\n\n\n\n\n Recovered\n",
+    "stderr": "0/2\n2/2",
+    "metadata": {
+      "steps": [
+        {
+          "method": "title",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "section",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "listing",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "text",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "success",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "error",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "warning",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "note",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "caution",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "table",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "ask",
+          "value": {
+            "name": "Guest"
+          },
+          "error": null
+        },
+        {
+          "method": "askHidden",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "confirm",
+          "value": true,
+          "error": null
+        },
+        {
+          "method": "choice",
+          "value": "green",
+          "error": null
+        },
+        {
+          "method": "newLine",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "progressFinish-before",
+          "value": null,
+          "error": "Symfony\\Component\\Console\\Exception\\RuntimeException"
+        },
+        {
+          "method": "progressStart",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "progressAdvance",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "progressFinish",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "text-recovery",
+          "value": null,
+          "error": null
+        }
+      ],
+      "trace": [
+        [
+          "ask",
+          "Guest"
+        ]
+      ],
+      "counts": [
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "variant": 0,
+    "decorated": true,
+    "level": 16,
+    "interactive": false,
+    "depth": 1,
+    "section": false,
+    "stdout": "",
+    "stderr": "",
+    "metadata": {
+      "steps": [
+        {
+          "method": "title",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "section",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "listing",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "text",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "success",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "error",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "warning",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "note",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "caution",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "table",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "ask",
+          "value": {
+            "name": "Guest"
+          },
+          "error": null
+        },
+        {
+          "method": "askHidden",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "confirm",
+          "value": true,
+          "error": null
+        },
+        {
+          "method": "choice",
+          "value": "green",
+          "error": null
+        },
+        {
+          "method": "newLine",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "progressFinish-before",
+          "value": null,
+          "error": "Symfony\\Component\\Console\\Exception\\RuntimeException"
+        },
+        {
+          "method": "progressStart",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "progressAdvance",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "progressFinish",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "text-recovery",
+          "value": null,
+          "error": null
+        }
+      ],
+      "trace": [
+        [
+          "ask",
+          "Guest"
+        ]
+      ],
+      "counts": [
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "variant": 0,
+    "decorated": true,
+    "level": 32,
+    "interactive": false,
+    "depth": 1,
+    "section": false,
+    "stdout": "\n\u001b[33mTitle\u001b[39m\n\u001b[33m=====\u001b[39m\n\n\u001b[33mSection\u001b[39m\n\u001b[33m-------\u001b[39m\n\n * first\n * 名\n\n alpha\n beta\n\n\u001b[30;42m                                                                                \u001b[39;49m\n\u001b[30;42m [OK] Ready                                                                     \u001b[39;49m\n\u001b[30;42m                                                                                \u001b[39;49m\n\n\u001b[37;41m                                                                                \u001b[39;49m\n\u001b[37;41m [ERROR] Failure                                                                \u001b[39;49m\n\u001b[37;41m                                                                                \u001b[39;49m\n\n\u001b[30;43m                                                                                \u001b[39;49m\n\u001b[30;43m [WARNING] Review                                                               \u001b[39;49m\n\u001b[30;43m                                                                                \u001b[39;49m\n\n\u001b[33m ! [NOTE] one                                                                   \u001b[39m\n\u001b[33m !                                                                              \u001b[39m\n\u001b[33m !        two                                                                   \u001b[39m\n\n\u001b[37;41m !                                                                              \u001b[39;49m\n\u001b[37;41m ! [CAUTION] Caution                                                            \u001b[39;49m\n\u001b[37;41m !                                                                              \u001b[39;49m\n\n --- --- \n \u001b[32m K \u001b[39m \u001b[32m V \u001b[39m \n --- --- \n  x   y  \n --- --- \n\n\n\n\n\n Recovered\n",
+    "stderr": "0/2\u001b[1G\u001b[2K2/2",
+    "metadata": {
+      "steps": [
+        {
+          "method": "title",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "section",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "listing",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "text",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "success",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "error",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "warning",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "note",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "caution",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "table",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "ask",
+          "value": {
+            "name": "Guest"
+          },
+          "error": null
+        },
+        {
+          "method": "askHidden",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "confirm",
+          "value": true,
+          "error": null
+        },
+        {
+          "method": "choice",
+          "value": "green",
+          "error": null
+        },
+        {
+          "method": "newLine",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "progressFinish-before",
+          "value": null,
+          "error": "Symfony\\Component\\Console\\Exception\\RuntimeException"
+        },
+        {
+          "method": "progressStart",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "progressAdvance",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "progressFinish",
+          "value": null,
+          "error": null
+        },
+        {
+          "method": "text-recovery",
+          "value": null,
+          "error": null
+        }
+      ],
+      "trace": [
+        [
+          "ask",
+          "Guest"
+        ]
+      ],
+      "counts": [
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  }
+]

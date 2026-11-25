@@ -537,8 +537,7 @@ pub(super) async fn ask(
         match answer {
             Ok(answer) => {
                 if style.question_input().is_interactive() {
-                    style.section_input_submit()?;
-                    style.new_line(1)?;
+                    style.finish_question()?;
                 }
                 return Ok(answer);
             }

@@ -381,6 +381,12 @@ impl<'a> OutputStyle<'a> {
     pub(super) fn prepare_question(&mut self) -> Result<(), ConsoleError> {
         self.prepare_block()
     }
+    pub(super) fn finish_question(&mut self) -> Result<(), ConsoleError> {
+        self.section_input_submit()?;
+        self.new_line(1)?;
+        // 输入提交还需在本层历史缓冲记一行，不向实际输出或父样式重复写入。
+        self.state.buffer("\n", false, OutputOptions::default())
+    }
     pub(super) fn question_validation_error(&mut self, message: &str) -> Result<(), ConsoleError> {
         self.new_line(1)?;
         self.error(message)

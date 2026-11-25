@@ -509,3 +509,22 @@ TableHeaders::Cells/Rows明确区分PHP单层／多层数组，普通平面字�
 严格Clippy期间触及32GB停线，守卫持锁清理94623113216字节，清理后可用126568902656字节；中断未计通过，保留源码／日志后恢复同源Clippy及主程序构建。
 
 证据style-table-contracts.json、accepted-style-table.json与style-table-oracle.json，原始日志target/tmp/artisan-tutorial-20261125/style-table-*。临时应用／HTTP服务／参考容器回收，保留源码／日志／可复用缓存与数据库／数据卷。完整StyleInterface、错误流样式、树／组件Factory／通用OutputInterface和其余Artisan章继续，未声称整章或全工作区已闭合；Windows实机属发布待验。仅本批本地提交，不推送，其他在途保留。
+
+
+## 第三十五簇：真实样式接口与连续问答历史（2026-11-25）
+
+第三十四簇已提交1989780ba5c3b766ceee68712c97a0e27b8f14d6。按固定Style/StyleInterface.php全部18声明接通console::style::StyleInterface，console根导出同一Trait，OutputStyle真实实现；不是类型别名／空Trait或仅inherent方法盘点。逐声明映射、可见性、参数、返回、实际消费者见style-interface-contracts.json。沿用前序旧版核对结论，无完整对应SDK可提取，所有方法薄转发现有样式／问答／表格／进度，不另造引擎或依赖。
+
+借用消息、类型化表头／行与有键选择复用既有类型；可选参数用显式Option／默认布尔和次数，问答保留Value，具体便利方法不改。四个异步Trait入口复用ConsoleFuture，为generic与dyn调用的对象安全均增加一层Future装箱；具体OutputStyle的inherent async不增加该层，十四个同步入口不装箱Future，不声称零成本。Send服从既有Command异步执行，不额外要求Sync或NewLineAware。
+
+96组固定PHP连续消费者经真实StyleInterface调用全部18入口，涵盖一／两层、普通流／分区、两种装饰、quiet／normal及交互／非交互。每组同时经过原生泛型和dyn两条路径共192序列，比对整段输出、逐步返回／失败、校验轨迹、各层换行状态与最终交互状态。160个源预期错误步骤（无效标题／校验运行异常／未启动进度）对应两条原生路径320步骤，失败后仍验证恢复，不把显示error状态条当成命令异常。
+
+连续消费者暴露原有问答的成功提交历史缺少额外LF，单次问答测试未覆盖，连续问答多出空行。已按固定SymfonyStyle::askQuestion把额外LF仅写入本层克隆格式器／构造详细程度的历史缓冲，不向真实流或父层重复输出，不改变换行计数；当前Question／嵌套样式及全输出回归通过。
+
+4个真实PHP ConsoleOutput进程与4个独立原生Artisan进程逐一比较stdout／stderr、返回与换行状态，另外2个格式失败进程核对OS退出1，正常退出0。实际HTTP200／JSON500／200恢复和12并发隔离通过。三语直接提取108份正式示例，同时运行泛型和dyn代码并对照4组单独固定源教程序列；框架28目标159父消费者与根6目标149父消费者共308通过，40个完整回归ignored驱动不叠加。
+
+追加动态问答TTY夹具后，专用4父消费者与workspace all-targets严格Clippy／fmt再次通过，重跑不叠加父数；新增ignored夹具另记1个。正式终端工具增加可选fixture参数，默认旧入口不变。同一真实PTY工具对动态Trait及原具体方法各验正常0／隐藏输入处Ctrl+C130，坏值重试、ECHO关闭、口令不回显、完整termios恢复全部通过；33分区编辑场景与Ctrl+C130回归通过。实际main(pail) HTTP/up／静态／HTML与JSON404／HEAD、Artisan inspire/list/Pail过滤／详细输出／超时回收／Ctrl+C，三语构建及12浏览器检查通过。
+
+首轮参考脚本漏传ConsoleSectionOutput必需格式器参数已修正，不计为源验收通过。完整回归前32GB守卫中断并等待其他构建安全退出，空间恢复后原源码全部门禁重跑；中断不计通过。原始日志target/tmp/artisan-tutorial-20261125/style-interface-*与三份oracle保留，正式核对accepted-style-interface.json。临时应用／PTY／HTTP服务／参考容器回收，保留源码／日志／可复用缓存与数据库／数据卷。
+
+同步把当前余项清单收为实际未闭合项，历史验收不改写。get_error_style的基类身份、tree/create_tree、完整组件Factory与通用OutputInterface及其余章节继续，不把本Trait完成当整章或全工作区完成；Windows实机仍属发布待验。仅本批本地提交，不推送，其他在途保留。
