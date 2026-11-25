@@ -50,7 +50,7 @@ gate.define_guest("viewPulse", |user, _| Box::pin(async move {
 
 慢請求耗時包含回應終止中介層及延後執行的工作，錯誤回應也會計入。使用者歸因在終止前的請求作用域中取得。
 
-`groups` 與按模式設定的 `threshold` 使用有序的 `[[pattern, value], ...]` 表達首次符合規則。例如 `[["/^orders:\\d+$/", "orders:*"]]`；物件形式按 JSON 物件的鍵順序比對。工作取樣以工作 UUID 保持生命週期一致。請求指標使用符合的路由，避免為每個動態 ID 建立指標鍵；外部 HTTP 移除 URL 使用者名稱與密碼。
+`groups` 與按模式設定的 `threshold` 使用有序的 `[[pattern, value], ...]` 表達首次符合規則。例如 `[["/^orders:\\d+$/", "orders:*"]]`；物件形式按 JSON 物件的鍵順序比對。工作取樣以工作 UUID 保持生命週期一致。請求指標使用符合的路由，避免為每個動態 ID 建立指標鍵；外部 HTTP 移除 URL 使用者名稱與密碼。`u` 啟用 Unicode 字元類別。`r` 修飾符需要 PCRE2 10.43 或更新版本。
 
 慢查詢 `location` 使用資料庫事件擷取的呼叫位置，Release 建置也可記錄。沒有可用位置時寫入空字串，關閉 `location` 時寫入空值。`Exceptions` 採集框架例外處理器回報的例外（含回報的工作失敗）及 `Pulse::report`。僅將錯誤附加到應用程式日誌不會向 Pulse 回報。錯誤缺少原始碼位置時，可在 `Pulse::report` 明確傳入。自行管理回報流程的自訂處理器可直接呼叫 `Pulse::report`。
 

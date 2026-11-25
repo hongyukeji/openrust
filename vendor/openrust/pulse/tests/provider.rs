@@ -871,6 +871,8 @@ fn observed(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
         Auth::user(request).await?;
         Db::select("select 1 as probe", &[]).await?;
         Cache::get("feature:123").await?;
+        Cache::get("secret:skip").await?;
+        Cache::get("中文").await?;
         Cache::put("feature:123", &openrust::cache::Value::from("cached"), None).await?;
         Cache::get("feature:123").await?;
         let log = Log::channel(None)?;
@@ -912,7 +914,17 @@ fn recorder_config(
     env: &openrust::config::Environment,
 ) -> Result<BTreeMap<String, serde_json::Value>, openrust::config::ConfigError> {
     let mut values = recorder_database_config(root, env)?;
-    values.get_mut("pulse").unwrap()["recorders"] = json!({"SlowRequests":{"threshold":0},"SlowQueries":{"threshold":1000000000000_i64,"location":false},"SlowOutgoingRequests":{"threshold":0},"CacheInteractions":{"groups":[[r"/^feature:\d+$/","feature:*"]]},"Exceptions":{"location":false},"UserRequests":{}});
+    values.get_mut("pulse").unwrap()["recorders"] = json!({
+        "SlowRequests": {"threshold": 0},
+        "SlowQueries": {"threshold": 1000000000000_i64, "location": false},
+        "SlowOutgoingRequests": {"threshold": 0},
+        "CacheInteractions": {
+            "ignore": [r"/secret:/A", r"/^\w+$/u"],
+            "groups": [[r"/feature:\d+\z/A", "feature:*"], [r"/feature/", "second"]]
+        },
+        "Exceptions": {"location": false},
+        "UserRequests": {}
+    });
     Ok(values)
 }
 
@@ -1046,7 +1058,9 @@ async fn native_recorders_capture_real_client_sql_cache_and_typed_errors_without
             }
         })
         .unwrap();
-    config.set("pulse.recorders",json!({"SlowRequests":{"threshold":0},"SlowQueries":{"threshold":0,"location":false},"SlowOutgoingRequests":{"threshold":0},"CacheInteractions":{"groups":[[r"/^feature:\d+$/","feature:*"]]},"Exceptions":{"location":false},"UserRequests":{}})).unwrap();
+    config
+        .set("pulse.recorders.SlowQueries.threshold", json!(0))
+        .unwrap();
     app.get("/api/observe?user=1").await.unwrap().assert_ok();
     app.get("/api/observe?drop=1").await.unwrap().assert_ok();
     peer.await.unwrap();

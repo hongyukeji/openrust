@@ -60,4 +60,14 @@ O05单包验收关闭，接续O06。语言适配明确保留：原生HTML／JS�
 
 PHP 8.5.12 使用固定 Laravel 的缓存 Repository、ArrayStore、固定 Pulse Recorder 和 Ingest 消费者验证命中与未命中。两种事件分别入库，值为空，时间戳取自事件发生时。多个分组规则命中时使用首个规则，忽略规则过滤原始键。事件进入延迟队列后将采样率设为零，实际消费时丢弃该条。证据为 `target/tmp/observability-parity/pulse-cache-interactions-upstream.log`。 [固定 CacheInteractions](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Recorders/CacheInteractions.php)
 
-Rust 的既有真实 HTTP 用例已运行命中／未命中、动态采样率与分组。首条规则优先、忽略键、存储字段以及缓存驱动组合仍须逐项核对。Rust 通用 Recorder 模式解析当前拒绝 PHP 8.5.12 实测接受的 `A`、`D`、`J`、`n`、`S`、`X`、`r` 修饰符，后续需核对 PCRE2 选项映射、适用版本与实际过滤、分组和阈值消费者。参考输出为 `target/tmp/observability-parity/pulse-pcre-options-upstream.log`。
+Rust 的既有真实 HTTP 用例已运行命中／未命中、动态采样率与分组。缓存存储字段以及缓存驱动组合仍须逐项核对。
+
+## Recorder 模式修饰符与分隔符
+
+PHP 8.5.12 与 PCRE2 10.44 的 12 组匹配与替换验证选项组合、Unicode 字符类、重复捕获名、ASCII 大小写折叠边界和分组替换。另有 13 组核对分隔符配对、转义、前置与后置空白、未转义内部分隔符及 `u` 对 `\C` 的限制。固定扩展的 `S`、`X` 保留默认行为。证据为 `target/tmp/observability-parity/pulse-pcre-options-matrix-upstream.log` 和 `target/tmp/observability-parity/pulse-pcre-delimiters-upstream.log`。 [固定 PHP PCRE 实现](https://github.com/php/php-src/blob/php-8.5.12/ext/pcre/php_pcre.c#L580)
+
+Rust 直接设置 PCRE2 编译选项并按固定分隔符规则解析。真实 HTTP 文件缓存消费者核对 Unicode 与锚定忽略规则、首个匹配分组和延迟采样，SQLite、PostgreSQL 18.7 与 MySQL 8.4.13 各通过。Rust 模式专项覆盖阈值。macOS 的 PCRE2 库 24 项、三个扩展默认 96 项、全仓格式、严格 Clippy、三语文档和 12 组浏览器检查通过。
+
+Linux 7.0.14 ARM64 与 Windows 11 ARM64 使用相同源码通过模式专测及实际 HTTP 消费者。Linux 的 SQLite 专项确认动态链接系统 PCRE2 10.42，并核对该版本对 `r` 返回配置错误。同平台的静态 PCRE2 10.45 探针验证该选项的匹配行为。使用 `r` 需要 PCRE2 10.43 或更新版本。证据为 `target/tmp/observability-parity/pulse-php-pcre-{accepted,accepted-linux,bundled-linux-final,system-linkage,docs}.log` 和 `target/tmp/observability-windows/pulse-php-pcre-accepted-arm64.log`。 [PCRE2 版本记录](https://github.com/PCRE2Project/pcre2/blob/pcre2-10.43/NEWS)
+
+PHP `preg_replace` 在零宽匹配后会在同一位置再次尝试非空匹配。例 `/(?=a)|a/` 对 `a` 替换为 `X` 得到 `XX`，Rust 当前 `concerns::group` 得到 `Xa`。后续须按匹配起始位置重试的规则修复分组的全局替换，并覆盖 UTF 字符边界。证据为 `target/tmp/observability-parity/pulse-pcre-zero-width-{upstream,native}.log`。

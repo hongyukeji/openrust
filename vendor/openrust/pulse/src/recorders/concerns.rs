@@ -3,10 +3,19 @@ use pcre2::bytes::Regex;
 use serde_json::Value;
 
 fn expression(pattern: &str) -> Result<Regex> {
-    let mut chars = pattern.char_indices();
-    let (_, delimiter) = chars
+    let pattern = pattern.trim_start_matches(|c| matches!(c, '\t'..='\r' | ' '));
+    let delimiter = pattern
+        .chars()
         .next()
         .ok_or_else(|| Error::InvalidConfiguration("empty regular expression".into()))?;
+    if !delimiter.is_ascii()
+        || delimiter.is_ascii_alphanumeric()
+        || matches!(delimiter, '\\' | '\0')
+    {
+        return Err(Error::InvalidConfiguration(
+            "regular expression requires PHP delimiters".into(),
+        ));
+    }
     let closing = match delimiter {
         '(' => ')',
         '[' => ']',
@@ -14,38 +23,52 @@ fn expression(pattern: &str) -> Result<Regex> {
         '<' => '>',
         c => c,
     };
-    if delimiter.is_alphanumeric() || delimiter == '\\' || delimiter.is_whitespace() {
-        return Err(Error::InvalidConfiguration(
-            "regular expression requires PHP delimiters".into(),
-        ));
-    }
-    let end = pattern
-        .char_indices()
-        .rev()
-        .find(|(index, c)| *index > 0 && *c == closing)
-        .map(|(i, _)| i)
-        .ok_or_else(|| Error::InvalidConfiguration("unclosed regular expression".into()))?;
-    let mut options = String::new();
-    for modifier in pattern[end + closing.len_utf8()..].chars() {
+    let body = &pattern[1..];
+    let mut chars = body.char_indices();
+    let mut depth = 1usize;
+    let end = loop {
+        let (index, character) = chars
+            .next()
+            .ok_or_else(|| Error::InvalidConfiguration("unclosed regular expression".into()))?;
+        match character {
+            '\\' => {
+                chars.next();
+            }
+            c if c == closing => {
+                depth -= 1;
+                if depth == 0 {
+                    break index;
+                }
+            }
+            c if c == delimiter => depth += 1,
+            _ => {}
+        }
+    };
+    let mut builder = pcre2::bytes::RegexBuilder::new();
+    for modifier in body[end + 1..].chars() {
         match modifier {
-            'i' | 'm' | 's' | 'x' | 'U' => options.push(modifier),
-            'u' => {}
+            'i' => builder.caseless(true),
+            'm' => builder.multi_line(true),
+            's' => builder.dotall(true),
+            'x' => builder.extended(true),
+            'A' => builder.anchored(true),
+            'D' => builder.dollar_endonly(true),
+            'J' => builder.duplicate_names(true),
+            'n' => builder.no_auto_capture(true),
+            'U' => builder.ungreedy(true),
+            'u' => builder.ucp(true).never_backslash_c(true),
+            'r' => builder.caseless_restrict(true),
+            // PHP 接受这两个修饰符，固定运行时的 PCRE2 行为保持默认。
+            'S' | 'X' | ' ' | '\n' | '\r' => &mut builder,
             _ => {
                 return Err(Error::InvalidConfiguration(format!(
                     "unsupported regular expression modifier [{modifier}]"
                 )));
             }
-        }
+        };
     }
-    let body = &pattern[delimiter.len_utf8()..end];
-    let body = if options.is_empty() {
-        body.to_owned()
-    } else {
-        format!("(?{options}){body}")
-    };
-    pcre2::bytes::RegexBuilder::new()
-        .utf(pattern[end + closing.len_utf8()..].contains('u'))
-        .build(&body)
+    builder
+        .build(&body[..end])
         .map_err(|e| Error::InvalidConfiguration(e.to_string()))
 }
 pub fn matches(pattern: &str, value: &str) -> Result<bool> {

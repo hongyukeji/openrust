@@ -5,9 +5,11 @@ use std::{
 };
 
 use pcre2_sys::{
-    PCRE2_CASELESS, PCRE2_DOLLAR_ENDONLY, PCRE2_DOTALL, PCRE2_EXTENDED,
-    PCRE2_MATCH_INVALID_UTF, PCRE2_MULTILINE, PCRE2_NEWLINE_ANYCRLF,
-    PCRE2_UCP, PCRE2_UNSET, PCRE2_UTF,
+    PCRE2_ANCHORED, PCRE2_CASELESS, PCRE2_DOLLAR_ENDONLY, PCRE2_DOTALL,
+    PCRE2_DUPNAMES, PCRE2_EXTENDED, PCRE2_EXTRA_CASELESS_RESTRICT,
+    PCRE2_MATCH_INVALID_UTF, PCRE2_MULTILINE, PCRE2_NEVER_BACKSLASH_C,
+    PCRE2_NEWLINE_ANYCRLF, PCRE2_NO_AUTO_CAPTURE, PCRE2_UCP, PCRE2_UNGREEDY,
+    PCRE2_UNSET, PCRE2_UTF,
 };
 
 use crate::{
@@ -59,6 +61,8 @@ impl<'s> Match<'s> {
 
 #[derive(Clone, Debug)]
 struct Config {
+    compile_options: u32,
+    caseless_restrict: bool,
     /// PCRE2_CASELESS
     caseless: bool,
     /// PCRE2_DOTALL
@@ -94,6 +98,8 @@ enum JITChoice {
 impl Default for Config {
     fn default() -> Config {
         Config {
+            compile_options: 0,
+            caseless_restrict: false,
             caseless: false,
             dotall: false,
             dollar_endonly: false,
@@ -126,7 +132,7 @@ impl RegexBuilder {
     /// If there was a problem compiling the pattern, then an error is
     /// returned.
     pub fn build(&self, pattern: &str) -> Result<Regex, Error> {
-        let mut options = 0;
+        let mut options = self.config.compile_options;
         if self.config.caseless {
             options |= PCRE2_CASELESS;
         }
@@ -152,6 +158,9 @@ impl RegexBuilder {
         }
 
         let mut ctx = CompileContext::new();
+        if self.config.caseless_restrict {
+            ctx.set_extra_options(PCRE2_EXTRA_CASELESS_RESTRICT)?;
+        }
         if self.config.crlf {
             ctx.set_newline(PCRE2_NEWLINE_ANYCRLF)
                 .expect("PCRE2_NEWLINE_ANYCRLF is a legal value");
@@ -192,6 +201,46 @@ impl RegexBuilder {
             capture_names_idx: Arc::new(idx),
             match_data,
         })
+    }
+
+    fn set_compile_option(&mut self, option: u32, yes: bool) -> &mut Self {
+        self.config.compile_options &= !option;
+        if yes {
+            self.config.compile_options |= option;
+        }
+        self
+    }
+
+    /// 仅在当前起始位置尝试匹配。
+    pub fn anchored(&mut self, yes: bool) -> &mut Self {
+        self.set_compile_option(PCRE2_ANCHORED, yes)
+    }
+
+    /// 允许多个捕获组使用相同的名称。
+    pub fn duplicate_names(&mut self, yes: bool) -> &mut Self {
+        self.set_compile_option(PCRE2_DUPNAMES, yes)
+    }
+
+    /// 仅为显式命名的分组创建捕获。
+    pub fn no_auto_capture(&mut self, yes: bool) -> &mut Self {
+        self.set_compile_option(PCRE2_NO_AUTO_CAPTURE, yes)
+    }
+
+    /// 禁止匹配单个代码单元的 `\C` 转义。
+    pub fn never_backslash_c(&mut self, yes: bool) -> &mut Self {
+        self.set_compile_option(PCRE2_NEVER_BACKSLASH_C, yes)
+    }
+
+    /// 反转量词默认的贪婪行为。
+    pub fn ungreedy(&mut self, yes: bool) -> &mut Self {
+        self.set_compile_option(PCRE2_UNGREEDY, yes)
+    }
+
+    /// 大小写匹配时避免在 ASCII 与非 ASCII 字符之间折叠。
+    /// 此选项需要 PCRE2 10.43 或更新版本。
+    pub fn caseless_restrict(&mut self, yes: bool) -> &mut Self {
+        self.config.caseless_restrict = yes;
+        self
     }
 
     /// Enables case insensitive matching.

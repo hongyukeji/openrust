@@ -278,6 +278,15 @@ impl CompileContext {
         if rc == 0 { Ok(()) } else { Err(Error::option(rc)) }
     }
 
+    /// Set the additional PCRE2 compilation options.
+    pub(crate) fn set_extra_options(
+        &mut self,
+        options: u32,
+    ) -> Result<(), Error> {
+        let rc = unsafe { pcre2_set_compile_extra_options_8(self.0, options) };
+        if rc == 0 { Ok(()) } else { Err(Error::option(rc)) }
+    }
+
     fn as_mut_ptr(&mut self) -> *mut pcre2_compile_context_8 {
         self.0
     }

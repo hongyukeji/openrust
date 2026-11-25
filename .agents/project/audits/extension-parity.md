@@ -101,6 +101,8 @@ O01 Activitylog、O02 Horizon、O03 Telescope原生范围、O04 Pennant、O05 Pu
 
 2026-11-26 阶段组合包含 Telescope 关联写入、关系加载和 Gate 回退，Pulse 异常报告入口，以及 Horizon 显式监督器事件。三个扩展的同一隔离源码快照默认 94 项通过、23 项按环境条件跳过，仓库格式通过。证据为 `target/tmp/observability-parity/observability-combined-verified.log`。Release、各扩展剩余公开契约和实际部署组合继续验收。
 
+同日补齐 Pulse [Recorder 模式修饰符与分隔符](pulse/README.md#recorder-模式修饰符与分隔符)，复跑同组源码的默认测试，96 项通过、23 项按环境条件跳过。新增发现的零宽全局替换差异已复现，保留为待修项。
+
 ### Horizon 面板名称与配置默认值
 
 固定上游[配置](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/config/horizon.php)与[面板模板](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/resources/views/layout.blade.php)均已核对。补齐 `HORIZON_NAME`，将可选名称作为文本显示于页面标题与主标题，同时发布 `waits.redis:default=60`、空静默清单以及 Supervisor 的 `nice=0`。现有等待时间监控、静默行为及进程参数的完整行为对账继续保留。

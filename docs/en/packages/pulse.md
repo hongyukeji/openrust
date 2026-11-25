@@ -50,7 +50,7 @@ For named routes ending in `livewire.update`, `SlowRequests` and `UserRequests` 
 
 Slow request timing includes response termination middleware and deferred work, including on error responses. User attribution is captured within the request scope before termination.
 
-Use ordered `[[pattern, value], ...]` arrays for `groups` and pattern-specific `threshold` values. For example, `[["/^orders:\\d+$/", "orders:*"]]` preserves first-match precedence; object forms follow JSON object key order. Job sampling uses UUIDs consistently across their lifecycle. Request keys use matched routes instead of individual dynamic IDs. Outgoing HTTP URLs omit usernames and passwords.
+Use ordered `[[pattern, value], ...]` arrays for `groups` and pattern-specific `threshold` values. For example, `[["/^orders:\\d+$/", "orders:*"]]` preserves first-match precedence; object forms follow JSON object key order. Job sampling uses UUIDs consistently across their lifecycle. Request keys use matched routes instead of individual dynamic IDs. Outgoing HTTP URLs omit usernames and passwords. Unicode character classes are enabled by `u`. The `r` modifier requires PCRE2 10.43 or later.
 
 Slow query `location` uses call sites captured by the database event, including in release builds. An unavailable call site is recorded as an empty string, while disabling `location` records a null value. `Exceptions` records exceptions reported through the framework handler, including reported job failures, and through `Pulse::report`. Attaching an error to an application log entry does not report it to Pulse. Supply a location to `Pulse::report` when the error has no source location. Custom handlers with their own reporting flow can call `Pulse::report` directly.
 

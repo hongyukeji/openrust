@@ -1,5 +1,52 @@
 use openrust_pulse::recorders::concerns::*;
 use serde_json::json;
+
+#[test]
+fn php_pcre_modifiers_preserve_compilation_and_matching_options() {
+    for (pattern, subject, expected) in [
+        (r"/(*UTF)foo/A", "foo", true),
+        (r"/(*UTF)foo/A", "xfoo", false),
+        (r"/foo$/D", "foo\n", false),
+        (r"/foo$/Dm", "foo\nbar", true),
+        (r"/(?<value>a)|(?<value>b)/J", "b", true),
+        (r"/foo/SX", "foo", true),
+        (r"/^\w+$/", "中文", false),
+        (r"/^\w+$/u", "中文", true),
+        (r"/K/iu", "K", true),
+    ] {
+        assert_eq!(matches(pattern, subject).unwrap(), expected, "{pattern:?}");
+    }
+    let restricted = matches(r"/K/iur", "K");
+    if pcre2::bytes::Regex::new("(?r)K").is_ok() {
+        assert!(!restricted.unwrap());
+    } else {
+        assert!(restricted.is_err());
+    }
+    assert_eq!(
+        group(&json!([[r"/(foo)(?<word>bar)/n", "$1"]]), "foobar").unwrap(),
+        "bar"
+    );
+    assert_eq!(group(&json!([[r"/<.*>/U", "x"]]), "<a><b>").unwrap(), "xx");
+    assert_eq!(
+        threshold(&json!([[r"/slow$/D", 10], ["default", 100]]), "slow\n").unwrap(),
+        100.0
+    );
+}
+
+#[test]
+fn php_pcre_delimiters_preserve_escaping_and_modifier_whitespace() {
+    for pattern in [" /foo/i", "/foo/ i", "/foo/i ", "/foo/i\n\r"] {
+        assert!(matches(pattern, "FOO").unwrap());
+    }
+    assert!(matches(r"/foo\/bar/", "foo/bar").unwrap());
+    assert!(matches("{a{2}}", "aa").unwrap());
+    assert!(matches(r"{a\}b}", "a}b").unwrap());
+    assert!(matches(r"/\C/", "x").unwrap());
+    for pattern in ["/foo/bar/", "/foo/i\t", r"/\q/", r"/\q/X", r"/\C/u"] {
+        assert!(matches(pattern, "foo").is_err(), "{pattern:?}");
+    }
+}
+
 #[test]
 fn php_pcre_groups_thresholds_and_deterministic_sampling_preserve_order() {
     assert!(matches(r"#^/api/(?<name>\w+)$#i", "/API/users").unwrap());

@@ -50,7 +50,7 @@ gate.define_guest("viewPulse", |user, _| Box::pin(async move {
 
 慢请求耗时包含响应终止中间件及延后执行的工作，错误响应也会计入。用户归因在终止前的请求作用域中获取。
 
-`groups` 和按模式设置的 `threshold` 用有序的 `[[pattern, value], ...]` 表达首次匹配规则。例如 `[["/^orders:\\d+$/", "orders:*"]]`；对象形式按 JSON 对象的键顺序匹配。任务采样以任务 UUID 保持生命周期一致。请求指标使用匹配路由，避免为每个动态 ID 创建指标键；外部 HTTP 去掉 URL 用户名和密码。
+`groups` 和按模式设置的 `threshold` 用有序的 `[[pattern, value], ...]` 表达首次匹配规则。例如 `[["/^orders:\\d+$/", "orders:*"]]`；对象形式按 JSON 对象的键顺序匹配。任务采样以任务 UUID 保持生命周期一致。请求指标使用匹配路由，避免为每个动态 ID 创建指标键；外部 HTTP 去掉 URL 用户名和密码。`u` 启用 Unicode 字符类。`r` 修饰符需要 PCRE2 10.43 或更新版本。
 
 慢查询 `location` 使用数据库事件捕获的调用位置，Release 构建也可记录。没有可用位置时写入空字符串，关闭 `location` 时写入空值。`Exceptions` 采集框架异常处理器报告的异常（含报告的任务失败）及 `Pulse::report`。仅将错误附加到应用日志不会向 Pulse 报告。错误缺少源码位置时，可在 `Pulse::report` 显式传入。自行管理报告流程的自定义处理器可直接调用 `Pulse::report`。
 
