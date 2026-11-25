@@ -1554,8 +1554,9 @@ fn client_handler(
                         )])),
                 )
         };
-        let data = json!({"same":"multipart","enabled":true,"optional":null,
-            "descriptor":{"name":"renamed","contents":42,"filename":"typed.txt"},
+        let precise = 1.234_567_890_123_456_7_f64;
+        let data = json!({"same":"multipart","enabled":true,"optional":null,"whole":1.0,
+            "descriptor":{"name":"renamed","contents":precise,"filename":"typed.txt"},
             "hidden":{"name":"secret","contents":"private"}
         });
         assert_eq!(
@@ -1834,10 +1835,14 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
                             assert!(body.contains("name=\"anonymous\"\r\n\r\nnative-stream"));
                             assert!(body.contains("filename=\"raw.bin\""));
                             assert!(body.contains("name=\"renamed\"; filename=\"typed.txt\""));
-                            assert!(body.contains("\r\n\r\n42\r\n"));
-                            assert!(body.contains("name=\"same\"\r\n\r\nmultipart"));
+                            assert!(body.contains("\r\n\r\n1.2345678901235\r\n"));
                             assert!(
-                                body.find("name=\"same\"\r\n\r\nmultipart").unwrap()
+                                body.contains("name=\"whole\"\r\ncontent-length: 1\r\n\r\n1\r\n")
+                            );
+                            let original = "name=\"same\"\r\ncontent-length: 9\r\n\r\nmultipart";
+                            assert!(body.contains(original));
+                            assert!(
+                                body.find(original).unwrap()
                                     < body.find("filename=\"replaced.txt\"").unwrap()
                             );
                         }
@@ -1934,7 +1939,7 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
     let entries = &entries[1..];
     let payload = json!({
         "same":{"name":"replaced.txt","size":"0.008KB","headers":[]},
-        "secret":"********","enabled":true,"optional":null,"renamed":42,
+        "secret":"********","enabled":true,"optional":null,"whole":1.0,"renamed":1.234_567_890_123_456_7_f64,
         "file":{"name":"file.bin","size":"1.5KB","headers":{"content-type":"application/octet-stream","x-secret":"********"}},
         "opaque":"native",
         "utf8-bytes":"native-bytes",

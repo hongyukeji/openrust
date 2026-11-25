@@ -22,7 +22,10 @@ pub(super) fn parts(data: Value) -> Result<Vec<(String, Part, Value)>> {
 
 fn part(name: String, value: Value) -> Result<(String, Part, Value)> {
     let Value::Object(fields) = value else {
-        let field = Part::text(scalar(&value)?);
+        let body = scalar(&value)?;
+        let mut headers = HeaderMap::new();
+        add_content_length(&body, &mut headers);
+        let field = Part::text(body).headers(headers);
         return Ok((name, field, value));
     };
     descriptor(fields)
@@ -43,9 +46,7 @@ fn descriptor(mut fields: serde_json::Map<String, Value>) -> Result<(String, Par
         _ => return Err(Error::InvalidRequest),
     };
     let mut headers = part_headers(fields.remove("headers"))?;
-    if !body.is_empty() && !headers.contains_key(header::CONTENT_LENGTH) {
-        headers.insert(header::CONTENT_LENGTH, HeaderValue::from(body.len() as u64));
-    }
+    add_content_length(&body, &mut headers);
     let disposition = headers.remove(header::CONTENT_DISPOSITION);
     let mut field = Part::text(body);
     if let Some(filename) = filename {
@@ -70,14 +71,46 @@ fn descriptor(mut fields: serde_json::Map<String, Value>) -> Result<(String, Par
     Ok((name, field.headers(headers), contents))
 }
 
+fn add_content_length(body: &str, headers: &mut HeaderMap) {
+    if !body.is_empty() {
+        headers
+            .entry(header::CONTENT_LENGTH)
+            .or_insert_with(|| HeaderValue::from(body.len() as u64));
+    }
+}
+
 fn scalar(value: &Value) -> Result<String> {
     match value {
         Value::String(value) => Ok(value.clone()),
+        Value::Number(value) if value.is_f64() => {
+            Ok(php_float(value.as_f64().expect("JSON 浮点值")))
+        }
         Value::Number(value) => Ok(value.to_string()),
         Value::Bool(true) => Ok("1".into()),
         Value::Bool(false) | Value::Null => Ok(String::new()),
         _ => Err(Error::InvalidRequest),
     }
+}
+
+fn php_float(value: f64) -> String {
+    const PRECISION: i32 = 14;
+
+    // 固定 PHP 默认精度。先舍入有效位，再用舍入后的指数选择表示法。
+    let fractional_digits = (PRECISION - 1) as usize;
+    let scientific = format!("{value:.fractional_digits$e}");
+    let (mantissa, exponent) = scientific.split_once('e').expect("有限浮点数有指数");
+    let exponent: i32 = exponent.parse().expect("浮点指数为整数");
+    if (-4..PRECISION).contains(&exponent) {
+        let plain = format!("{value:.*}", (PRECISION - 1 - exponent) as usize);
+        if plain.contains('.') {
+            return plain.trim_end_matches('0').trim_end_matches('.').to_owned();
+        }
+        return plain;
+    }
+
+    let mantissa = mantissa.trim_end_matches('0').trim_end_matches('.');
+    let fractional_zero = if mantissa.contains('.') { "" } else { ".0" };
+    format!("{mantissa}{fractional_zero}E{exponent:+}")
 }
 
 fn part_headers(value: Option<Value>) -> Result<HeaderMap> {

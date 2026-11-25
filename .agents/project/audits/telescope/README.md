@@ -95,11 +95,15 @@ Telescope.ignoreFrameworkEvents 使用应用共享 Arc<AtomicBool>，默认 true
 
 直接预格式化入口的固定探针确认，列表保留提交顺序及重复部件，普通对象中可嵌入 `name`／`contents` 描述项。有效的布尔与数字保留原诊断类型。普通字段允许空值，空值描述项及嵌套数组会被 Guzzle 拒绝。证据为 `target/tmp/observability-parity/multipart-descriptor-shapes-upstream.log`。
 
-固定补充探针核对了字符串名称与文件名、显式 `Content-Disposition`、文件名去目录及空列表。自定义 disposition 能改写线上的字段名，诊断仍使用描述项原名称；显式空列表发送结束边界，诊断为空数组。Rust 的 `as_multipart` 接入描述项列表和混合对象，保留描述项顺序、标量诊断和既有 `attach` 追加规则。普通对象字段的部件默认头部继续沿用已有发送行为。证据为 `target/tmp/observability-parity/multipart-descriptor-extra-upstream.log`。
+固定补充探针核对了字符串名称与文件名、显式 `Content-Disposition`、文件名去目录及空列表。自定义 disposition 能改写线上的字段名，诊断仍使用描述项原名称；显式空列表发送结束边界，诊断为空数组。Rust 的 `as_multipart` 接入描述项列表和混合对象，保留描述项顺序、标量诊断和既有 `attach` 追加规则。普通字段与描述项的非空正文均按编码字节数默认补上部件级 `Content-Length`，显式提供的长度仍由调用方控制。证据为 `target/tmp/observability-parity/multipart-descriptor-extra-upstream.log`。
 
 命名为 `0`、`1`、`0` 的上游探针得到 `["last","one"]`，倒序、稀疏和带前导零的名称得到 JSON 对象。脱敏键 `1` 可遮盖连续数组的第二项，`01` 只匹配同名对象字段。Rust 保留既有 multipart 字段映射，通过新的 `RecordedRequestDataSource::Multipart` 携带字段首次出现顺序。Telescope 先按原字段名脱敏，再将顺序连续的数字字段呈现为数组。公开诊断来源的穷尽匹配需处理新增变体。证据为 `target/tmp/observability-parity/multipart-numeric-{fields,redaction}-upstream.log`。
 
-PHP 浮点字段在发送时按字符串转换精度编码，并在诊断中保留原数字。固定探针观察到默认 `precision=14`，`1.0` 发送为 `1`，`1e20` 为 `1.0E+20`。四舍五入后指数小于 -4 或达到 14 时进入科学计数法，负零发送为 `-0`。独立 Rust 原型与 PHP 的 4105 个相同二进制浮点输入逐字节一致，真实 HTTP 入口仍沿用 JSON 数字编码。证据为 `target/tmp/observability-parity/multipart-float-{fields,precision}-upstream.log` 和 `target/tmp/observability-parity/float-comparison/{php,rust}.tsv`。
+PHP 浮点字段在发送时按字符串转换精度编码，并在诊断中保留原数字。固定探针观察到默认 `precision=14`，`1.0` 发送为 `1`，`1e20` 为 `1.0E+20`。舍入后指数小于 -4 或达到 14 时进入科学计数法，负零发送为 `-0`。独立 Rust 原型与 PHP 的 4105 个相同二进制浮点输入逐字节一致。真实 HTTP 普通字段与预格式化部件共用固定默认精度编码，录制数据继续携带原始数字值。证据为 `target/tmp/observability-parity/multipart-float-{fields,precision}-upstream.log` 和 `target/tmp/observability-parity/float-comparison/{php,rust}.tsv`。
+
+固定的中间件矩阵核对成功及连接失败各 10 组。发送前回调替换媒体类型时，成功诊断仍使用回调前的 multipart 参数。请求中间件换成 JSON、表单或纯文本时，成功诊断随事件媒体类型返回原始部件描述列表。保留 multipart 类型时，边界变化仍保留原字段诊断。连接失败依据实际上线请求的媒体类型，解码 JSON／表单，multipart 与纯文本为空。Rust 对请求中间件改写媒体类型仍套用 multipart 字段快照，原描述列表分支待对齐。证据为 `target/tmp/observability-parity/multipart-middleware-types-upstream.log`。
+
+附加探针确认，原描述列表为空时，经过请求中间件改写的 JSON 和表单由实际上线正文解码。原列表非空时，描述项保留附加字段并在清单末尾追加登记附件；流在该非 multipart 诊断中序列化为空对象。证据为 `target/tmp/observability-parity/multipart-middleware-{empty,attachments}-upstream.log`。
 
 macOS 的回环 HTTP 同时核对线上字节、重复字段、敏感部件头部、完全脱敏、302 后原始字段、307 重放及重试。未知长度的原生流在发送前未被轮询，传输中消费一次。SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 的专项入库通过。框架 HTTP 客户端 23 项、Telescope Provider 15 项及独立 Redis 8.10.3 的观察和 Redis 缓存用例通过。
 
@@ -108,3 +112,5 @@ Linux 7.0.14 ARM64 同源码通过框架 HTTP 客户端 23 项、Telescope Provi
 预格式化入口在 macOS 和 Linux ARM64 各通过 HTTP 客户端 24 项、Telescope Provider 15 项，Windows 11 ARM64 通过三项 multipart 真实传输及一项 Telescope SQLite 入库。macOS 另通过 PostgreSQL 18.7、MySQL 8.4.13 和 Redis 8.10.3 缓存专项。实测涵盖发送顺序、部件头部、空边界、非法数据在发送前被拒绝、重复字段末项入库和敏感字段脱敏。首次 macOS 构建触及磁盘停线，空间恢复后用相同隔离目录重新构建。相关目标严格 Clippy、隔离快照格式、三语文档构建及浏览器检查均通过。证据为 `target/tmp/observability-parity/multipart-descriptors-{macos,macos-final,macos-redis,linux,windows,docs,fmt}.log`。
 
 数字名称专项通过真实出站请求验证重复覆盖、按字段名脱敏、连续数组、倒序对象、稀疏对象及前导零对象。macOS 和 Linux ARM64 各通过客户端 24 项和 Provider 15 项，Windows 11 ARM64 通过三项 multipart 真实传输和一项 Telescope SQLite 入库。macOS 的 PostgreSQL 18.7、MySQL 8.4.13、Redis 8.10.3 缓存专项及独立 Redis 观察通过。相关目标严格 Clippy、隔离快照格式、三语文档构建和浏览器检查均通过。证据为 `target/tmp/observability-parity/multipart-numeric-{macos,macos-redis,linux,windows,docs}.log`。
+
+浮点专项通过两种真实输入验证 12 个发送样例和对应部件字节长度，覆盖正负零、舍入后的指数切换、极大值和次正规数。框架录制核对原浮点位值，Telescope 入库核对长小数诊断。macOS 和 Linux ARM64 各通过客户端 25 项、Provider 15 项，Windows 11 ARM64 通过四项 multipart 真实传输和一项 Telescope SQLite 入库。macOS 另通过 PostgreSQL 18.7、MySQL 8.4.13 和 Redis 8.10.3 缓存专项。相关目标严格 Clippy、隔离快照格式及三语站点构建和浏览器检查通过。证据为 `target/tmp/observability-parity/multipart-float-{macos,macos-redis,linux,windows,docs}.log`。

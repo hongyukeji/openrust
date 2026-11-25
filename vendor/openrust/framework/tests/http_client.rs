@@ -1828,6 +1828,70 @@ async fn multipart_accepts_ordered_descriptors_and_rejects_invalid_values() {
 }
 
 #[tokio::test]
+async fn multipart_sends_php_float_spelling_and_records_the_original_values() {
+    use openrust::http::client::RecordedMultipartField;
+
+    async fn echo(body: axum::body::Bytes) -> axum::body::Bytes {
+        body
+    }
+    let (url, task) = serve(Router::new().route("/", any(echo))).await;
+    let factory = Factory::new().unwrap();
+    factory.fake(|_| None);
+    let cases = [
+        ("zero", 0.0, "0"),
+        ("negative-zero", -0.0, "-0"),
+        ("whole", 1.0, "1"),
+        ("fixed-small", 1e-4, "0.0001"),
+        ("scientific-small", 1e-5, "1.0E-5"),
+        ("fixed-large", 1e13, "10000000000000"),
+        ("scientific-large", 1e14, "1.0E+14"),
+        ("rounded-large", 9.999_999_999_999_999e13, "1.0E+14"),
+        ("rounded-small", 9.999_999_999_999_999e-5, "0.0001"),
+        ("rounded", 1.234_567_890_123_456_7, "1.2345678901235"),
+        ("max", f64::MAX, "1.7976931348623E+308"),
+        ("subnormal", f64::from_bits(1), "4.9406564584125E-324"),
+    ];
+    let ordinary = Value::Object(
+        cases
+            .iter()
+            .map(|&(name, value, _)| (name.into(), json!(value)))
+            .collect(),
+    );
+    let preformatted = Value::Array(
+        cases
+            .iter()
+            .map(|&(name, value, _)| json!({"name": name, "contents": value}))
+            .collect(),
+    );
+    for data in [ordinary, preformatted] {
+        let response = factory
+            .pending_request()
+            .as_multipart()
+            .post(&url, &data)
+            .await
+            .unwrap();
+        let body = String::from_utf8(response.body().unwrap().to_vec()).unwrap();
+        let requests = factory.recorded();
+        let fields = requests.last().unwrap().0.multipart.as_ref().unwrap();
+        for (name, value, wire) in cases {
+            assert!(
+                body.contains(&format!(
+                    "name=\"{name}\"\r\ncontent-length: {}\r\n\r\n{wire}\r\n",
+                    wire.len()
+                )),
+                "{name} 的发送内容不匹配"
+            );
+            assert!(matches!(
+                &fields[name],
+                RecordedMultipartField::Value(number)
+                    if number.as_f64().map(f64::to_bits) == Some(value.to_bits())
+            ));
+        }
+    }
+    task.abort();
+}
+
+#[tokio::test]
 async fn multipart_redirect_limits_and_invalid_header_state_use_the_real_transport() {
     use openrust::http::client::RecordedMultipartField;
 
@@ -1860,7 +1924,7 @@ async fn multipart_redirect_limits_and_invalid_header_state_use_the_real_transpo
         body["body"]
             .as_str()
             .unwrap()
-            .contains("name=\"title\"\r\n\r\nvalue")
+            .contains("name=\"title\"\r\ncontent-length: 5\r\n\r\nvalue")
     );
     factory.fake(|_| None);
     let polls = Arc::new(AtomicUsize::new(0));
@@ -2051,7 +2115,7 @@ async fn multipart_replays_buffered_and_file_parts_on_redirect_and_retry() {
         );
         assert_eq!(first.3, second.3);
         let body = std::str::from_utf8(&first.3).unwrap();
-        assert!(body.contains("name=\"title\"\r\n\r\noriginal"));
+        assert!(body.contains("name=\"title\"\r\ncontent-length: 8\r\n\r\noriginal"));
         assert!(body.contains("filename=\"file.txt\"\r\n\r\nattachment"));
         assert!(body.contains("name=\"native\"\r\n\r\nnative-part"));
         assert!(body.contains("name=\"file\"; filename=\"upload.txt\""));
