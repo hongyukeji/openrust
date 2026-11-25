@@ -26,11 +26,16 @@ impl VerifiedWebhook<'_> {
 
 /// 实现负责派发处理任务；成功表示派发成功，不代表业务已完成。
 pub trait WebhookJobDispatcher: Send + Sync {
+    /// 对照上游任务构造：保存后、清除异常前准备，失败也记入接收记录。
+    fn prepare(&self, _: &WebhookCall) -> Result<()> {
+        Ok(())
+    }
     fn dispatch<'a>(&'a self, call: &'a WebhookCall) -> HttpFuture<'a, Result<()>>;
 }
 
 /// 每个端点显式选择的接收依赖，不使用全局工厂或共享账号回退。
 pub struct WebhookRuntime {
+    pub(crate) application: Option<Arc<openrust::foundation::Application>>,
     store: Arc<dyn WebhookStore>,
     job: Arc<dyn WebhookJobDispatcher>,
     validator: Arc<dyn SignatureValidator>,
@@ -45,6 +50,7 @@ impl WebhookRuntime {
         events: Arc<dyn Dispatcher>,
     ) -> Self {
         Self {
+            application: None,
             store,
             job,
             events,
@@ -86,6 +92,20 @@ impl<'a> WebhookProcessor<'a> {
         }
     }
     pub async fn process(&self) -> Result<Response> {
+        if let Some(app) = &self.runtime.application {
+            app.call(
+                openrust::container::Callback::new(&[], |_| async {
+                    Ok(self.process_inner().await)
+                }),
+                Default::default(),
+            )
+            .await
+            .map_err(Error::binding)?
+        } else {
+            self.process_inner().await
+        }
+    }
+    async fn process_inner(&self) -> Result<Response> {
         // 资源预算由流程入口再次检查，自定义验证器不能绕过正文上限。
         if self.request.body().len() > self.config.max_body_bytes() {
             return Err(Error::PayloadTooLarge);
@@ -119,6 +139,7 @@ impl<'a> WebhookProcessor<'a> {
         };
         let mut call = WebhookCall::store_webhook(self.runtime.store.as_ref(), &verified).await?;
         let dispatched = async {
+            self.runtime.job.prepare(&call)?;
             call.clear_exception(self.runtime.store.as_ref()).await?;
             self.runtime.job.dispatch(&call).await
         }

@@ -2,7 +2,7 @@
 
 ## Support status {#support-status}
 
-The optional `openrust-webhook-client` package supplies named configuration, signature validators, a manual `WebhookProcessor` and scoped database receipt storage. Applications provide the job dispatcher. Automatic callback routing, parsed payloads/attachments, deduplication and recovery remain unavailable. A saved receipt and successful dispatch do not prove business completion. No public callback route is installed automatically.
+The optional `openrust-webhook-client` package supplies named configuration, typed implementation factories, explicit callback routing, `WebhookController`, a manual `WebhookProcessor` and scoped database receipt storage. Applications provide the job dispatcher. Parsed payloads/attachments, deduplication and recovery remain unavailable. A saved receipt and successful dispatch do not prove business completion. No public callback route is installed automatically.
 
 ## Enable and configure {#configuration}
 
@@ -56,13 +56,62 @@ pub async fn receive(
     let runtime = WebhookRuntime::new(store, job, events);
     WebhookProcessor::new(request, config, &runtime).process().await
 }
+
+pub fn register_routes() -> Result<(), openrust::routing::RoutingError> {
+    use openrust::support::facades::Route;
+    use openrust_webhook_client::{WebhookRouteOptions, WebhookRoutes};
+    Route::webhooks("/callbacks/payments", WebhookRouteOptions::new().name("payments"))
+}
+
+pub fn register_dispatcher(
+    container: &openrust::container::Container,
+    dispatcher: std::sync::Arc<dyn openrust_webhook_client::WebhookJobDispatcher>,
+) -> openrust_webhook_client::Result<()> {
+    openrust_webhook_client::WebhookRuntime::register_job_dispatcher(
+        container, "payments", move |_, _| Ok(dispatcher.clone()),
+    )
+}
+
+pub async fn process_named(
+    app: std::sync::Arc<Application>,
+    config: std::sync::Arc<openrust_webhook_client::WebhookConfig>,
+    request: &WebhookRequest,
+) -> openrust_webhook_client::Result<openrust::http::Response> {
+    use openrust_webhook_client::{WebhookProcessor, WebhookRuntime};
+    let owner = app.clone();
+    app.call(openrust::container::Callback::new(&[], move |_| async move {
+        let runtime = WebhookRuntime::from_application(owner, config.clone()).await;
+        Ok(match runtime {
+            Ok(runtime) => WebhookProcessor::new(request, &config, &runtime).process().await,
+            Err(error) => Err(error),
+        })
+    }), Default::default()).await?
+}
 ```
 
 `StandardSignatureValidator` uses the official `standardwebhooks 1.3.0` library with `webhook-id`, `webhook-timestamp` and `webhook-signature`. Supply a valid base64 or `whsec_` secret. Its five-minute timestamp window and multiple signatures in one header are supported; duplicate protocol headers are rejected. The library requires UTF-8 payloads. Validation does not replace persistent event deduplication.
 
+### Register callback routes and implementations {#routes}
+
+Import `WebhookRoutes` to call `Route::webhooks(uri, options)` or `Route::webhooks_with(uri, options, configure)`. `WebhookRouteOptions::default()` uses the `default` configuration and `post`. Its `name` and `methods` builders select a different profile or method list. Registration accepts the exact lowercase values `get`, `query`, `post`, `put`, `patch`, `delete`; `HEAD` follows native GET routing, but `head` is not a registration option. Uppercase options and unsupported methods fail registration. Native OPTIONS negotiation and 405/Allow behavior remain in effect.
+
+Place routes in the application’s existing API or web route registration. The underlying `Router` also has a `webhooks` extension when `WebhookRouter` is imported; call it within application route registration. Groups retain prefixes, names and middleware. `webhooks_with` allows native constraints, defaults and route middleware customization. The package does not disable CSRF. If a supplier uses a web route, explicitly exclude only that callback path through the application’s request-forgery configuration; unrelated web routes remain protected.
+
+Configuration is selected from the router’s actual matched route name, not a custom Request route resolver or an account supplied in the URL/body. By default the name is `webhook-client-{name}`. `add_unique_token_to_route_name=true` appends a random eight-character suffix; this is naming, not authentication. Matching the fixed source, unique-token mode uses the first dot-separated name before that suffix; use names without dots in that mode.
+
+Register custom implementations in the application Provider using `WebhookRuntime::register_signature_validator`, `register_webhook_profile`, `register_webhook_response`, `register_webhook_store` or `register_job_dispatcher`. Each factory receives the immutable `WebhookConfig` and the application’s `Container` and returns an `Arc` of the appropriate trait. Await `WebhookRuntime::from_application`; construction and processing use that application’s native context and restore the caller’s context afterward. The HTTP controller keeps request-dependent factories and processing inside one request lease; request handles must not escape that lease. Names are case-sensitive ASCII identifiers of at most 128 bytes, using letters, digits, `-`, `_`, `.`, `:`. A missing or wrongly typed binding fails; another application/account is never used as a fallback.
+
+The corresponding profile fields are `signature_validator`, `webhook_profile`, `webhook_response`, `webhook_model`, `process_webhook_job`. Built-ins are validator `default`/`standard`, profile `process-everything`, response `default`, store `database`. The job dispatcher must be registered explicitly. `process_webhook_job` currently selects that dispatcher; the complete upstream queueable processing-job API remains pending. A database profile needs its trusted stable `scope` and optional named `connection` (`null` uses the application default). The published template leaves `scope` null and the job name empty so an unconfigured receiver fails instead of acknowledging a delivery. Select `signature_validator`, `webhook_profile`, `webhook_model` and `process_webhook_job` explicitly; missing required fields are rejected. Only `webhook_response` may be omitted or null to select the default.
+
+For example, a profile named `payments` may use `scope="billing/site-a"`, `signing_secret={"env":"PAYMENT_WEBHOOK_SECRET"}`, the built-in default validator/profile/response and database store, and `process_webhook_job="payments"`. Put those fields in the published profile configuration and register the `payments` dispatcher in your Provider. For manual consumers, `WebhookConfig` also provides `with_signature_validator`, `with_webhook_profile`, `with_webhook_response`, `with_webhook_model`, `with_process_webhook_job`, `with_scope` and `with_connection` builders.
+
+Validators, profiles and responses are constructed before processing. Stores are resolved only after validation and profile acceptance; a valid ignored event does not open storage. The job factory is checked for registration up front but constructs the dispatcher after saving and before clearing the old exception. Missing configuration and invalid signatures are ordinary errors: the default controller returns 500, matching the fixed package source, unless your [exception handling](../the-basics/errors.md) maps them differently. Body-limit failures remain 413. Earlier examples that call a validator directly can choose their own response policy.
+
+The controller uses native `Request::body_bytes_with_limit`: raw bytes are retained, including when middleware has already parsed JSON/form input, and cached bytes must still satisfy the endpoint limit. This method cannot increase the native 8 MiB raw-reader ceiling. An earlier middleware read may already have consumed data up to its own limit; the smaller endpoint limit does not retroactively reduce that memory use.
+
 ## Custom implementations and snapshots {#customization}
 
-Implement `SignatureValidator`, `WebhookProfile`, `RespondsToWebhook`, `WebhookStore` or `WebhookJobDispatcher` in another crate. `ProcessEverythingWebhookProfile` selects every request; `DefaultRespondsTo` produces `{"message":"ok"}`. Build `WebhookRuntime` with the application’s store, job dispatcher and event dispatcher. Select custom validators, profiles and responses through its builder methods; configuration class-name fields do not yet resolve these implementations automatically.
+Implement `SignatureValidator`, `WebhookProfile`, `RespondsToWebhook`, `WebhookStore` or `WebhookJobDispatcher` in another crate. `ProcessEverythingWebhookProfile` selects every request; `DefaultRespondsTo` produces `{"message":"ok"}`. `WebhookRuntime::new` accepts explicit dependencies. `WebhookRuntime::from_application` resolves the selected names through the current application’s typed factories; it does not evaluate class-name strings or use a global registry.
 
 `WebhookConfigRepository::add_config` replaces a named configuration. Owned `Arc<WebhookConfig>` values retain their original revision and key snapshot. Unknown names return `Ok(None)`, and resolution errors remain errors. The provider binds the repository to the current HTTP, Artisan or Worker lifecycle; runtime additions do not leak into the next lifecycle. `WebhookConfig::new` accepts a runtime-injected secret, keeps it private and redacts Debug; do not serialize that secret into jobs or logs. `with_verification_secrets` adds at most seven previous keys for a total of eight in one profile.
 

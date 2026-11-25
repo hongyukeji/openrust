@@ -83,11 +83,14 @@
       "public_methods": [
         "__invoke"
       ],
-      "status": "pending",
+      "status": "controller_entry_verified",
       "parent_classes": [],
       "declared_public_properties": [],
-      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
-      "evidence": []
+      "notes": "公开 invoke 与原生 Handler 共用已实现 Processor；当前匹配路由配置由 Provider 解析。普通签名／配置错误默认500，原始正文413；显式应用 CSRF 排除，三库真实 HTTP／Artisan Worker 与缓存前后已验。解析载荷／附件、正式处理 Job／恢复仍属于未完成的相邻类型，不据本入口关闭 WH-02。",
+      "evidence": [
+        "tests/webhooks_routes_acceptance.py"
+      ],
+      "rust_source": "vendor/openrust/webhook-client/src/http/controllers.rs"
     },
     {
       "package": "client",
@@ -187,16 +190,18 @@
         "packageRegistered",
         "packageBooted"
       ],
-      "status": "partial_provider_verified",
+      "status": "partial_routing_provider_verified",
       "parent_classes": [
         "PackageServiceProvider"
       ],
       "declared_public_properties": [],
-      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。 包发现、配置、发布已验；内置接收表迁移已按实际三库 Artisan 验证，完整路由／发布迁移／任务装配仍待实现。",
+      "notes": "包发现、配置合并／发布／缓存、内置迁移、默认具名工厂、scoped Repo、当前匹配路由的 WebhookConfig 绑定与公开 trait 路由已验。无 Provider 的登记失败；没有自动公开回调或关闭 CSRF。完整新应用安装／迁移发布仍待完成。",
       "evidence": [
         "tests/webhooks_features.py",
         "tests/webhooks_acceptance.py",
-        "tests/webhooks_receiver_acceptance.py"
+        "tests/webhooks_receiver_acceptance.py",
+        "vendor/openrust/webhook-client/tests/factories.rs",
+        "tests/webhooks_routes_acceptance.py"
       ]
     },
     {
@@ -207,7 +212,7 @@
       "public_methods": [
         "__construct"
       ],
-      "status": "partial_configuration_verified",
+      "status": "partial_configuration_factories_verified",
       "parent_classes": [],
       "declared_public_properties": [
         "name",
@@ -221,12 +226,14 @@
         "storeAttachments",
         "processWebhookJobClass"
       ],
-      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。 基本字段／凭据引用／快照已验，Validator／Profile／Response／Model／Job工厂与完整字段契约未闭合。 逐源码复查补入带空格 union 声明 storeHeaders，不能依赖初始扫描遗漏。store_headers 选择／空默认／显式字符串 * 及边界已验；拒绝数组含 *，不把它错误扩大为全头保存。",
+      "notes": "名称／凭据引用／头／预算／快照及运行时 Builder 已验。签名验证器／Profile／模型／Job 派发引用必填，Response 缺失或 null 默认；store_headers 的省略／null／列表／明确字符串 * 已验。五类类型化 Factory 与生命周期 Runtime 保持不可变配置元数据不缓存跨请求对象，工厂对象不按配置或任务序列化。storeAttachments、完整模型／可排队 Job 及配置字段／错误继承最终裁决仍待完成；不把 Runtime 的对象当该源类型全部公开字段已对齐。",
       "evidence": [
         "vendor/openrust/webhook-client/tests/contracts.rs",
         "vendor/openrust/webhook-client/tests/provider.rs",
         "vendor/openrust/webhook-client/tests/processor.rs",
-        "tests/webhooks_receiver_acceptance.py"
+        "tests/webhooks_receiver_acceptance.py",
+        "vendor/openrust/webhook-client/tests/factories.rs",
+        "tests/webhooks_routes_acceptance.py"
       ],
       "rust_source": "vendor/openrust/webhook-client/src/webhook_config.rs"
     },
@@ -260,13 +267,15 @@
         "__construct",
         "process"
       ],
-      "status": "partial_manual_processor_verified",
+      "status": "partial_processor_runtime_verified",
       "parent_classes": [],
       "declared_public_properties": [],
-      "notes": "new／process 手动消费者已验签→Profile→模型委托保存→clearException→任务派发→响应；异常与原始字节已验。Runtime 显式注入依赖；配置类名工厂、Controller／路由装配、附件／解析载荷、受控处理 Job 及恢复仍待完成。不得据手动 Processor 关闭 WH-02。",
+      "notes": "new／process 手动入口与公开 Controller 共用验签→Profile→模型委托保存→prepare→clear_exception→dispatch→响应；构造失败与异常顺序已验。类型化 Runtime 在所属 App 上下文构造及执行并恢复调用者；HTTP 同次请求借用支持请求依赖。解析载荷／附件、正式处理 Job、可靠领取／恢复仍未完成，不据此关闭 WH-02。",
       "evidence": [
         "vendor/openrust/webhook-client/tests/processor.rs",
-        "tests/webhooks_receiver_acceptance.py"
+        "tests/webhooks_receiver_acceptance.py",
+        "vendor/openrust/webhook-client/tests/factories.rs",
+        "tests/webhooks_routes_acceptance.py"
       ],
       "rust_source": "vendor/openrust/webhook-client/src/processor.rs"
     },
@@ -726,8 +735,8 @@
       "entry": "Route::webhooks",
       "package": "client",
       "source": "src/WebhookClientServiceProvider.php",
-      "status": "pending",
-      "notes": "源码packageRegistered中的路由宏；需Rust扩展trait或等价入口，不能仅靠手工Route::post夹具认定已实现。固定白名单包含非标准query，不能擅自换成常见HTTP方法集合。",
+      "status": "public_entry_verified",
+      "notes": "Facade WebhookRoutes::webhooks／webhooks_with 与底层 WebhookRouter::webhooks 已有公开消费者。默认值以 Options 表达，实际匹配名称解析、组／域名／约束／覆盖／参数、三种缓存／唯一名称状态、局部 CSRF 在三库真实 HTTP／Artisan／Worker 验收；未替换 Router 或缓存格式。",
       "allowed_method_inputs": [
         "get",
         "query",
@@ -737,7 +746,12 @@
         "delete"
       ],
       "default_method_input": "post",
-      "uppercase_input_behavior": "rejected by fixed source allowlist"
+      "uppercase_input_behavior": "rejected by fixed source allowlist",
+      "rust_source": "vendor/openrust/webhook-client/src/routes.rs",
+      "evidence": [
+        "tests/webhooks_routes_acceptance.py",
+        "tests/webhooks_docs.py"
+      ]
     }
   ]
 }

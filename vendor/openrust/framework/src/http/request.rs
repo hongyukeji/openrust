@@ -442,13 +442,18 @@ impl Request {
         self.method().as_str().eq_ignore_ascii_case(method)
     }
 
-    /// Matches the resolved route name against any supplied wildcard pattern.
-    pub fn route_is(&self, patterns: &[&str]) -> bool {
-        let name = if let Some(route) = self.custom_resolved_route() {
+    /// 当前解析路由的名称；尊重自定义 RouteResolver。
+    pub fn route_name(&self) -> Option<&str> {
+        if let Some(route) = self.custom_resolved_route() {
             route.name.as_deref()
         } else {
             self.route_name.as_deref()
-        };
+        }
+    }
+
+    /// Matches the resolved route name against any supplied wildcard pattern.
+    pub fn route_is(&self, patterns: &[&str]) -> bool {
+        let name = self.route_name();
         name.is_some_and(|name| {
             patterns
                 .iter()

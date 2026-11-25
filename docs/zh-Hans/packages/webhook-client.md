@@ -2,7 +2,7 @@
 
 ## 支持状态 {#support-status}
 
-可选包 `openrust-webhook-client` 提供具名配置、签名验证器、手动 `WebhookProcessor` 和按范围隔离的数据库接收记录。应用提供任务派发实现。自动回调路由、解析后的载荷／附件、去重和恢复尚未提供。保存记录及派发成功不代表业务完成，包不会自动安装公开回调路由。
+可选包 `openrust-webhook-client` 提供具名配置、类型化实现工厂、显式回调路由、`WebhookController`、手动 `WebhookProcessor` 和按范围隔离的数据库接收记录。应用提供任务派发实现。解析后的载荷／附件、去重和恢复尚未提供。保存记录及派发成功不代表业务完成，包不会自动安装公开回调路由。
 
 ## 启用与配置 {#configuration}
 
@@ -56,13 +56,62 @@ pub async fn receive(
     let runtime = WebhookRuntime::new(store, job, events);
     WebhookProcessor::new(request, config, &runtime).process().await
 }
+
+pub fn register_routes() -> Result<(), openrust::routing::RoutingError> {
+    use openrust::support::facades::Route;
+    use openrust_webhook_client::{WebhookRouteOptions, WebhookRoutes};
+    Route::webhooks("/callbacks/payments", WebhookRouteOptions::new().name("payments"))
+}
+
+pub fn register_dispatcher(
+    container: &openrust::container::Container,
+    dispatcher: std::sync::Arc<dyn openrust_webhook_client::WebhookJobDispatcher>,
+) -> openrust_webhook_client::Result<()> {
+    openrust_webhook_client::WebhookRuntime::register_job_dispatcher(
+        container, "payments", move |_, _| Ok(dispatcher.clone()),
+    )
+}
+
+pub async fn process_named(
+    app: std::sync::Arc<Application>,
+    config: std::sync::Arc<openrust_webhook_client::WebhookConfig>,
+    request: &WebhookRequest,
+) -> openrust_webhook_client::Result<openrust::http::Response> {
+    use openrust_webhook_client::{WebhookProcessor, WebhookRuntime};
+    let owner = app.clone();
+    app.call(openrust::container::Callback::new(&[], move |_| async move {
+        let runtime = WebhookRuntime::from_application(owner, config.clone()).await;
+        Ok(match runtime {
+            Ok(runtime) => WebhookProcessor::new(request, &config, &runtime).process().await,
+            Err(error) => Err(error),
+        })
+    }), Default::default()).await?
+}
 ```
 
 `StandardSignatureValidator` 复用官方 `standardwebhooks 1.3.0`，使用 `webhook-id`、`webhook-timestamp`、`webhook-signature`。密钥为合法 base64 或带 `whsec_` 前缀的形式。支持五分钟时间窗与单个头内的多个签名，拒绝重复协议头。该库要求 UTF-8 正文；验签不替代持久事件去重。
 
+### 注册回调路由与实现 {#routes}
+
+导入 `WebhookRoutes` 后调用 `Route::webhooks(uri, options)` 或 `Route::webhooks_with(uri, options, configure)`。`WebhookRouteOptions::default()` 使用 `default` 配置及 `post` 方法，可用 `name`、`methods` Builder 指定其他配置和方法列表。注册参数只接受小写 `get`、`query`、`post`、`put`、`patch`、`delete`；GET 继承原生 HEAD 匹配，但不能把 `head` 作为注册选项。大写或不支持的方法使注册失败；原生 OPTIONS 协商及405／Allow行为保留。
+
+在应用现有 API 或 web 路由登记中注册。导入 `WebhookRouter` 后，底层 `Router` 也提供 `webhooks` 扩展，应在应用路由登记期间调用。组前缀、名称和中间件保留，`webhooks_with` 可设置原生参数约束、默认值和路由中间件。包不会关闭 CSRF；供应商使用 web 路由时，仅在应用请求伪造防护配置中显式排除该回调路径，其他 web 路由继续受保护。
+
+配置从路由器实际匹配的路由名选择，不跟随请求的自定义路由解析器，也不由 URL／正文里传入的账号选择。默认名称为 `webhook-client-{name}`，`add_unique_token_to_route_name=true` 追加八位随机后缀；这是命名机制，不是鉴权。与固定源码一致，唯一令牌模式按第一个点分隔名称，因此该模式下应使用不含点的配置名。
+
+在应用 Provider 中调用 `WebhookRuntime::register_signature_validator`、`register_webhook_profile`、`register_webhook_response`、`register_webhook_store` 或 `register_job_dispatcher`。工厂接收不可变 `WebhookConfig` 和当前应用 `Container`，返回对应 trait 的 `Arc`。`WebhookRuntime::from_application` 需要 await；构造与处理使用指定应用的原生上下文，结束后恢复调用者。HTTP 控制器让请求依赖工厂与处理共用一次请求借用，请求句柄不能带出该借用。注册名区分大小写，最多128字节，只允许 ASCII 字母、数字及 `-`、`_`、`.`、`:`。未知或类型错误的绑定会失败，不回退到其他应用或账号。
+
+配置字段依次为 `signature_validator`、`webhook_profile`、`webhook_response`、`webhook_model`、`process_webhook_job`。内置验证器为 `default`／`standard`，Profile 为 `process-everything`，响应为 `default`，存储为 `database`。任务派发器必须显式注册；目前 `process_webhook_job` 选择派发器，完整上游可排队处理 Job API 仍待补齐。数据库配置还需要可信稳定 `scope`，可选 `connection` 为数据库连接名，`null` 使用应用默认连接。发布模板保留空 scope 和空任务名，未配置的接收端会报错，不会假确认。 必须显式选择 `signature_validator`、`webhook_profile`、`webhook_model`、`process_webhook_job`，缺失字段会被拒绝；只有 `webhook_response` 可省略或为 null，并使用默认响应。
+
+例如具名 `payments` 配置可使用 `scope="billing/site-a"`、`signing_secret={"env":"PAYMENT_WEBHOOK_SECRET"}`、内置默认验证器／Profile／响应、database 存储及 `process_webhook_job="payments"`。将这些字段写入发布后的配置，并在 Provider 注册 payments 派发器。手动消费者也可通过 `WebhookConfig` 的 `with_signature_validator`、`with_webhook_profile`、`with_webhook_response`、`with_webhook_model`、`with_process_webhook_job`、`with_scope`、`with_connection` Builder 创建配置。
+
+验证器、Profile 和响应在处理前构造；仅在验签和 Profile 通过后解析存储，有效但忽略的事件不访问存储。任务工厂先检查注册，保存后、清除旧异常前才构造派发器。缺失配置和无效签名是普通错误，默认控制器按固定源码返回500；应用可用[异常处理](../the-basics/errors.md)自行映射。正文超限保留413。前面直接调用验证器的示例仍可自行决定响应策略。
+
+控制器复用原生 `Request::body_bytes_with_limit`，保留原文，即使中间件已解析 JSON／form，也会检查已缓存正文是否超过端点上限；该方法不提高原生8 MiB读取上限。前置中间件可能已经按自己的上限读取正文，较小端点限制不能倒退减少此前的内存使用。
+
 ## 自定义实现与快照 {#customization}
 
-外部 crate 可实现 `SignatureValidator`、`WebhookProfile`、`RespondsToWebhook`、`WebhookStore` 和 `WebhookJobDispatcher`。`ProcessEverythingWebhookProfile` 选择所有请求，`DefaultRespondsTo` 生成 `{"message":"ok"}`。通过应用的存储、任务派发器与事件派发器构造 `WebhookRuntime`，用其 Builder 方法选择验证器、Profile 与响应；配置中的类名字段尚不会自动解析这些实现。
+外部 crate 可实现 `SignatureValidator`、`WebhookProfile`、`RespondsToWebhook`、`WebhookStore` 和 `WebhookJobDispatcher`。`ProcessEverythingWebhookProfile` 选择所有请求，`DefaultRespondsTo` 生成 `{"message":"ok"}`。`WebhookRuntime::new` 接受显式依赖；`WebhookRuntime::from_application` 按当前应用的类型化工厂解析选定名称，不执行类名字符串，也不使用全局注册表。
 
 `WebhookConfigRepository::add_config` 按名称替换配置，已取得的 `Arc<WebhookConfig>` 保留原修订与密钥快照。未知名称返回 `Ok(None)`，解析错误仍为错误。Provider 将仓库绑定到当前 HTTP、Artisan 或 Worker 生命周期，运行时追加不会泄漏到下一生命周期。`WebhookConfig::new` 接受运行时注入的密钥，私有保存并对 Debug 脱敏；不要把密钥序列化到任务或日志。`with_verification_secrets` 最多增加七个旧密钥，同一配置总共最多八个。
 

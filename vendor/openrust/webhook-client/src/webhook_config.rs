@@ -112,6 +112,53 @@ impl WebhookConfig {
         }
         Ok(result)
     }
+    fn with_implementation(mut self, field: &'static str, name: impl Into<String>) -> Result<Self> {
+        let name = name.into();
+        crate::factories::validate_reference(field, &name)?;
+        if self.options.is_null() {
+            self.options = serde_json::json!({});
+        }
+        self.options[field] = Value::String(name);
+        Ok(self)
+    }
+    pub fn with_signature_validator(self, name: impl Into<String>) -> Result<Self> {
+        self.with_implementation("signature_validator", name)
+    }
+    pub fn with_webhook_profile(self, name: impl Into<String>) -> Result<Self> {
+        self.with_implementation("webhook_profile", name)
+    }
+    pub fn with_webhook_response(self, name: impl Into<String>) -> Result<Self> {
+        self.with_implementation("webhook_response", name)
+    }
+    pub fn with_webhook_model(self, name: impl Into<String>) -> Result<Self> {
+        self.with_implementation("webhook_model", name)
+    }
+    pub fn with_process_webhook_job(self, name: impl Into<String>) -> Result<Self> {
+        self.with_implementation("process_webhook_job", name)
+    }
+    pub fn with_scope(mut self, scope: impl Into<String>) -> Result<Self> {
+        let scope = scope.into();
+        if scope.is_empty() || scope.len() > 128 || scope.chars().any(char::is_control) {
+            return Err(Error::InvalidConfig("scope"));
+        }
+        if self.options.is_null() {
+            self.options = serde_json::json!({});
+        }
+        self.options["scope"] = Value::String(scope);
+        Ok(self)
+    }
+    pub fn with_connection(mut self, name: Option<&str>) -> Result<Self> {
+        if name.is_some_and(|name| {
+            name.is_empty() || name.len() > 128 || name.chars().any(char::is_control)
+        }) {
+            return Err(Error::InvalidConfig("connection"));
+        }
+        if self.options.is_null() {
+            self.options = serde_json::json!({});
+        }
+        self.options["connection"] = name.map_or(Value::Null, |name| Value::String(name.into()));
+        Ok(self)
+    }
     pub fn with_signature_header(mut self, name: &str) -> Result<Self> {
         self.signature_header = HeaderName::from_bytes(name.as_bytes())
             .map_err(|_| Error::InvalidConfig("signature_header_name"))?;
@@ -217,7 +264,7 @@ impl WebhookConfig {
             )?;
         }
         config.options = value.clone();
-        if let Some(names) = value.get("store_headers") {
+        if let Some(names) = value.get("store_headers").filter(|names| !names.is_null()) {
             if names.as_str() == Some("*") {
                 config = config.with_store_headers(&["*"])?;
             } else {
@@ -264,6 +311,25 @@ impl WebhookConfigRepository {
         Ok(Self {
             configs: RwLock::default(),
             source: Some((configs.clone(), env)),
+        })
+    }
+    /// 按固定 Provider 的当前路由名选择配置；唯一令牌模式取第一个点之前的名称。
+    pub fn get_config_for_route(
+        &self,
+        route_name: Option<&str>,
+        unique_token: bool,
+    ) -> Result<Arc<WebhookConfig>> {
+        let route_name = route_name.unwrap_or_default();
+        let suffix = route_name
+            .split_once("webhook-client-")
+            .map_or(route_name, |(_, suffix)| suffix);
+        let name = if unique_token {
+            suffix.split_once('.').map_or(suffix, |(name, _)| name)
+        } else {
+            suffix
+        };
+        self.get_config(name)?.ok_or_else(|| Error::ConfigNotFound {
+            name: name.to_owned(),
         })
     }
     pub fn add_config(&self, config: WebhookConfig) {

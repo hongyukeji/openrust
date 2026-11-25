@@ -10,6 +10,18 @@ pub enum Error {
     HeadersTooLarge,
     #[error("Webhook 签名无效")]
     InvalidSignature,
+    #[error("未找到 Webhook 配置：{name:?}")]
+    ConfigNotFound { name: String },
+    #[error("Webhook 方法不允许：{method:?}")]
+    InvalidMethod { method: String },
+    #[error("Webhook 实现绑定无效：{field}")]
+    InvalidImplementation {
+        field: &'static str,
+        #[source]
+        source: openrust::contracts::container::BindingResolutionError,
+    },
+    #[error("Webhook HTTP 读取失败")]
+    Http(#[from] openrust::http::HttpError),
     #[error("Webhook 存储操作失败")]
     Database(#[from] openrust::database::DatabaseError),
     #[error("Webhook 存储记录无效")]
@@ -23,3 +35,17 @@ pub enum Error {
     },
 }
 pub type Result<T> = std::result::Result<T, Error>;
+
+impl Error {
+    pub(crate) fn binding(source: openrust::contracts::container::BindingResolutionError) -> Self {
+        Self::Runtime {
+            source: Box::new(source),
+        }
+    }
+}
+
+impl From<openrust::contracts::container::BindingResolutionError> for Error {
+    fn from(source: openrust::contracts::container::BindingResolutionError) -> Self {
+        Self::binding(source)
+    }
+}

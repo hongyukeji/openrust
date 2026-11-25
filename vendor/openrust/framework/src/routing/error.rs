@@ -7,6 +7,9 @@ use crate::{broadcasting::BroadcastException, config::ConfigError};
 #[non_exhaustive]
 pub enum RoutingError {
     NoRegistrationScope,
+    ExtensionRegistration {
+        source: Box<dyn Error + Send + Sync>,
+    },
     RegistrationBorrowed,
     ContainerFailed {
         source: crate::contracts::container::BindingResolutionError,
@@ -57,6 +60,7 @@ pub enum RoutingError {
 impl fmt::Display for RoutingError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::ExtensionRegistration { source } => write!(f, "路由扩展注册失败：{source}"),
             Self::ContainerFailed { .. } => {
                 f.write_str("service container failed during route registration")
             }
@@ -105,6 +109,7 @@ impl fmt::Display for RoutingError {
 impl Error for RoutingError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
+            Self::ExtensionRegistration { source } => Some(source.as_ref()),
             Self::ContainerFailed { source } => Some(source),
             Self::InvalidRoutePattern { source, .. } => Some(source),
             Self::InvalidPcreRoutePattern { source, .. } => Some(source),

@@ -656,20 +656,49 @@ impl Request {
 
     /// Returns a bounded copy-on-write view of the original body bytes.
     pub async fn body_bytes(&mut self) -> Result<Bytes, HttpError> {
+        if let Some(bytes) = self.prepare_body_read(MAX_BODY_BYTES)? {
+            return Ok(bytes);
+        }
+        let result = collect(self.take_body(), MAX_BODY_BYTES).await;
+        self.finish_body_read(result)
+    }
+
+    /// 有界读取原始正文并复用缓存；较小限制同样适用于已读取的正文。
+    /// 不提高框架的全局上限；流读取失败后原始正文不可重试。
+    pub async fn body_bytes_with_limit(&mut self, limit: usize) -> Result<Bytes, HttpError> {
+        let limit = limit.min(MAX_BODY_BYTES);
+        if let Some(bytes) = self.prepare_body_read(limit)? {
+            return Ok(bytes);
+        }
+        let result = collect(self.take_body(), limit).await;
+        self.finish_body_read(result)
+    }
+
+    // 共享同步检查及写回，保留两个 async 入口而不增加 Future 嵌套或装箱。
+    fn prepare_body_read(&mut self, limit: usize) -> Result<Option<Bytes>, HttpError> {
         match &self.raw_input {
-            RawBody::Ready(bytes) => return Ok(bytes.clone()),
+            RawBody::Ready(bytes) => {
+                return if bytes.len() <= limit {
+                    Ok(Some(bytes.clone()))
+                } else {
+                    Err(HttpError::PayloadTooLarge)
+                };
+            }
             RawBody::Failed(error) => return Err((*error).into()),
             RawBody::Unread => {}
         }
-
-        if self.declared_body_exceeds_limit() {
+        if self.declared_body_exceeds(limit) {
             self.raw_input = RawBody::Failed(InputFailure::Limit);
             return Err(HttpError::PayloadTooLarge);
         }
-
-        // Leave an explicit error if the collection future is cancelled.
+        // 取消读取后明确失败，不能把已消费的流当作完整正文重新读取。
         self.raw_input = RawBody::Failed(InputFailure::Invalid);
-        let result = collect(self.take_body()).await;
+        Ok(None)
+    }
+    fn finish_body_read(
+        &mut self,
+        result: Result<Bytes, InputFailure>,
+    ) -> Result<Bytes, HttpError> {
         match result {
             Ok(bytes) => {
                 self.body = Body::from(bytes.clone());
@@ -684,11 +713,14 @@ impl Request {
     }
 
     pub(crate) fn declared_body_exceeds_limit(&self) -> bool {
+        self.declared_body_exceeds(MAX_BODY_BYTES)
+    }
+    fn declared_body_exceeds(&self, limit: usize) -> bool {
         self.headers()
             .get(::http::header::CONTENT_LENGTH)
             .and_then(|header| header.to_str().ok())
             .and_then(|header| header.parse::<u64>().ok())
-            .is_some_and(|size| size > MAX_BODY_BYTES as u64)
+            .is_some_and(|size| size > limit as u64)
     }
 
     async fn payload(&mut self) -> Result<&Payload, HttpError> {
@@ -789,14 +821,14 @@ fn is_json_media(media: &str) -> bool {
     media.ends_with("/json") || media.ends_with("+json")
 }
 
-async fn collect(body: Body) -> Result<Bytes, InputFailure> {
+async fn collect(body: Body, limit: usize) -> Result<Bytes, InputFailure> {
     let mut stream = body.into_data_stream();
     let mut first = Bytes::new();
     let mut combined = None;
     while let Some(chunk) = stream.next().await {
         let chunk = chunk.map_err(|_| InputFailure::Invalid)?;
         let current = combined.as_ref().map_or(first.len(), Vec::len);
-        if chunk.len() > MAX_BODY_BYTES.saturating_sub(current) {
+        if chunk.len() > limit.saturating_sub(current) {
             return Err(InputFailure::Limit);
         }
         if first.is_empty() && combined.is_none() {

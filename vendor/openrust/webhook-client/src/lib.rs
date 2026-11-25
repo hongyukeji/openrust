@@ -4,6 +4,10 @@
 mod configuration;
 mod contracts;
 mod error;
+mod factories;
+pub mod http;
+mod routes;
+pub use routes::{WebhookRouteOptions, WebhookRouter, WebhookRoutes};
 pub mod events;
 #[path = "../database/migrations/2026_11_25_000001_create_webhook_calls_table.rs"]
 mod migration;
@@ -41,6 +45,7 @@ impl ServiceProvider for WebhookClientServiceProvider {
                 let env = app.make::<openrust::config::Environment>().await?;
                 self.merge_config_from(app, configuration::load(&env)?, "webhook-client")?;
             }
+            factories::defaults(app.container())?;
             app.container()
                 .scoped::<WebhookConfigRepository, _>(|container| {
                     let config =
@@ -61,6 +66,26 @@ impl ServiceProvider for WebhookClientServiceProvider {
                             }
                         })
                 })?;
+            app.container().bind::<WebhookConfig, _>(|container| {
+                let name = openrust::support::facades::Route::current_route_name()?;
+                let config =
+                    container.get::<dyn openrust::contracts::config::Repository>("config")?;
+                let unique = routes::unique_token(config.as_ref()).map_err(|source| {
+                    openrust::contracts::container::BindingResolutionError::FactoryFailed {
+                        service: "webhook-client",
+                        source: Box::new(source),
+                    }
+                })?;
+                container
+                    .make::<WebhookConfigRepository>()?
+                    .get_config_for_route(name.as_deref(), unique)
+                    .map_err(|source| {
+                        openrust::contracts::container::BindingResolutionError::FactoryFailed {
+                            service: "webhook-client",
+                            source: Box::new(source),
+                        }
+                    })
+            })?;
             Ok(())
         })
     }

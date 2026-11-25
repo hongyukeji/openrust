@@ -8,7 +8,7 @@ pub fn load(_: &Environment) -> Result<Value, ConfigError> {
             "signing_secret":{"env":"WEBHOOK_CLIENT_SECRET"},
             "signature_header_name":"Signature", "signature_validator":"default",
             "webhook_profile":"process-everything", "webhook_response":"default",
-            "webhook_model":"database", "process_webhook_job":"",
+            "webhook_model":"database", "scope":null, "connection":null, "process_webhook_job":"",
             "store_headers":[], "store_attachments":true,
             "max_body_bytes":1048576,
             "verification_secrets":[]

@@ -235,6 +235,210 @@ impl Command for Record {
         })
     }
 }
+struct FixtureProvider;
+impl openrust::support::ServiceProvider for FixtureProvider {
+    fn register<'a>(
+        &'a mut self,
+        app: &'a Application,
+    ) -> HttpFuture<'a, openrust::support::ProviderResult> {
+        Box::pin(async move {
+            use openrust_webhook_client::WebhookRuntime;
+            WebhookRuntime::register_job_dispatcher(
+                openrust::contracts::foundation::Application::container(app),
+                "fixture",
+                |_, _| Ok(std::sync::Arc::new(ReceiveJob { fail: false })),
+            )?;
+            WebhookRuntime::register_job_dispatcher(
+                openrust::contracts::foundation::Application::container(app),
+                "factory-fails",
+                |_, _| {
+                    Err(openrust_webhook_client::Error::InvalidConfig(
+                        "fixture job factory",
+                    ))
+                },
+            )?;
+            WebhookRuntime::register_webhook_profile(
+                openrust::contracts::foundation::Application::container(app),
+                "ignored",
+                |_, _| Ok(std::sync::Arc::new(Ignore)),
+            )?;
+            WebhookRuntime::register_signature_validator(
+                openrust::contracts::foundation::Application::container(app),
+                "custom",
+                |_, container| {
+                    use openrust::contracts::container::Container as _;
+                    Ok(std::sync::Arc::new(CustomValidator {
+                        request: container.get("request")?,
+                    }))
+                },
+            )?;
+            WebhookRuntime::register_webhook_response(
+                openrust::contracts::foundation::Application::container(app),
+                "custom",
+                |_, _| Ok(std::sync::Arc::new(CustomResponse)),
+            )?;
+            WebhookRuntime::register_webhook_store(
+                openrust::contracts::foundation::Application::container(app),
+                "custom",
+                |config, container| {
+                    use openrust::contracts::container::Container as _;
+                    let manager = container.make::<openrust::database::DatabaseManager>()?;
+                    Ok(std::sync::Arc::new(
+                        openrust_webhook_client::DatabaseWebhookStore::new(
+                            manager.connection(None)?,
+                            config.options()["scope"].as_str().unwrap(),
+                        )?,
+                    ))
+                },
+            )?;
+            Ok(())
+        })
+    }
+}
+struct CustomValidator {
+    request: std::sync::Arc<openrust::support::facades::RequestHandle>,
+}
+impl SignatureValidator for CustomValidator {
+    fn is_valid(
+        &self,
+        request: &WebhookRequest,
+        config: &openrust_webhook_client::WebhookConfig,
+    ) -> openrust_webhook_client::Result<bool> {
+        assert!(self.request.with(|request| {
+            request
+                .route_name()
+                .unwrap_or_default()
+                .contains("webhook-client-custom")
+        })?);
+        DefaultSignatureValidator.is_valid(request, config)
+    }
+}
+struct CustomResponse;
+impl RespondsToWebhook for CustomResponse {
+    fn respond_to_valid_webhook(
+        &self,
+        _: &WebhookRequest,
+        config: &openrust_webhook_client::WebhookConfig,
+    ) -> openrust_webhook_client::Result<Response> {
+        Response::json(StatusCode::ACCEPTED, json!({"profile":config.name()})).map_err(|source| {
+            openrust_webhook_client::Error::Runtime {
+                source: Box::new(source),
+            }
+        })
+    }
+}
+struct ResolverSwap;
+impl openrust::contracts::http::Middleware for ResolverSwap {
+    fn handle<'a>(
+        &'a self,
+        request: &'a mut Request,
+        next: openrust::http::Next<'a>,
+    ) -> HttpFuture<'a, Result<Response, HttpError>> {
+        request.set_route_resolver(openrust::http::RouteResolver(std::sync::Arc::new(|| {
+            openrust::http::ResolvedRoute {
+                name: Some("webhook-client-missing-config".into()),
+                ..Default::default()
+            }
+        })));
+        assert_eq!(request.route_name(), Some("webhook-client-missing-config"));
+        Box::pin(async move { Ok(next.run(request).await) })
+    }
+}
+struct Stamp;
+impl openrust::contracts::http::Middleware for Stamp {
+    fn handle<'a>(
+        &'a self,
+        request: &'a mut Request,
+        next: openrust::http::Next<'a>,
+    ) -> HttpFuture<'a, Result<Response, HttpError>> {
+        Box::pin(async move {
+            Ok(next.run(request).await.header(
+                "x-webhook-group".parse().unwrap(),
+                "preserved".parse().unwrap(),
+            ))
+        })
+    }
+}
+fn api_routes() -> Result<(), openrust::routing::RoutingError> {
+    use openrust_webhook_client::{WebhookRouteOptions as Options, WebhookRouter, WebhookRoutes};
+    Route::post("/webhooks/{profile}", verify)?;
+    Route::post("/received/{profile}", receive)?;
+    Route::webhooks("/package/default", Options::default())?;
+    Route::webhooks("/package/post", Options::new().name("spatie"))?;
+    Route::webhooks("/package/standard", Options::new().name("standard"))?;
+    Route::webhooks(
+        "/package/methods",
+        Options::new()
+            .name("spatie")
+            .methods(["get", "query", "post", "put", "patch", "delete"]),
+    )?;
+    Route::webhooks("/package/provider/{account}", Options::new().name("spatie"))?;
+    Route::webhooks("/package/custom", Options::new().name("custom"))?;
+    Route::webhooks("/package/ignored", Options::new().name("package-ignored"))?;
+    Route::webhooks("/package/unknown", Options::new().name("missing-config"))?;
+    Route::webhooks(
+        "/package/factory-fails",
+        Options::new().name("factory-fails"),
+    )?;
+    Route::webhooks_with(
+        "/package/resolved",
+        Options::new().name("spatie"),
+        |route| {
+            route.middleware(std::sync::Arc::new(ResolverSwap));
+            Ok(())
+        },
+    )?;
+    Route::webhooks("/package/overlap", Options::new().name("default"))?;
+    Route::webhooks("/package/overlap", Options::new().name("spatie"))?;
+    Route::group(
+        openrust::routing::RouteGroup::new()
+            .prefix("package/group")
+            .name("team.")
+            .middleware(std::sync::Arc::new(Stamp)),
+        |router| {
+            router.webhooks("/direct", Options::new().name("spatie"))?;
+            Ok(())
+        },
+    )?;
+    Route::group(
+        openrust::routing::RouteGroup::new()
+            .prefix("package/domain")
+            .name("domain.")
+            .domain("{tenant}.webhook.test"),
+        |router| {
+            router.webhooks("/callback", Options::new().name("spatie"))?;
+            Ok(())
+        },
+    )?;
+    Route::webhooks_with(
+        "/package/optional/{id?}",
+        Options::new().name("spatie"),
+        |route| {
+            route.defaults("id", "42").where_number("id")?;
+            Ok(())
+        },
+    )?;
+    // 注册期无效方法必须失败且不留下半条路由。
+    for method in ["POST", "head", "options", "trace", "connect", ""] {
+        assert!(
+            Route::webhooks(
+                "/package/must-not-register",
+                Options::new().methods([method])
+            )
+            .is_err()
+        );
+    }
+    Ok(())
+}
+fn web_routes() -> Result<(), openrust::routing::RoutingError> {
+    use openrust_webhook_client::{WebhookRouteOptions as Options, WebhookRoutes};
+    Route::webhooks("/webhook-web/protected", Options::new().name("spatie"))?;
+    Route::webhooks("/webhook-web/except", Options::new().name("spatie"))?;
+    Route::post("/webhook-web/ordinary", ordinary)
+}
+fn ordinary(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async { Response::json(StatusCode::OK, json!({"ordinary":true})) })
+}
 struct Sign(CommandDefinition);
 impl Command for Sign {
     fn definition(&self) -> &CommandDefinition {
@@ -357,15 +561,20 @@ async fn main() -> ExitCode {
         let root=Application::infer_base_path(Some(env!("CARGO_MANIFEST_DIR")))?;
         Application::configure(root).with_config(|root,env| {
             let mut config=config::load(root,env)?;
-            config.insert("webhook-client".into(),json!({"configs":[
-                {"name":"spatie","revision":"one","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"}},
-                {"name":"standard","revision":"one","signing_secret":{"env":"FIXTURE_STANDARD_SECRET"}},
+            config.insert("webhook-client".into(),json!({"add_unique_token_to_route_name": env.get_utf8("FIXTURE_UNIQUE_ROUTES")?==Some("true"),"configs":[
+                {"name":"spatie","revision":"one","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"fixture","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database"},
+                {"name":"standard","revision":"one","signing_secret":{"env":"FIXTURE_STANDARD_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"fixture","signature_validator":"standard","webhook_profile":"process-everything","webhook_model":"database"},
                 {"name":"ignored","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"}},
-                {"name":"dispatch-fails","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"}}
+                {"name":"dispatch-fails","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"}},
+                {"name":"default","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"fixture","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database"},
+                {"name":"custom","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"signature_header_name":"X-Webhook","scope":"webhook-custom","process_webhook_job":"fixture","signature_validator":"custom","webhook_model":"custom","webhook_response":"custom","webhook_profile":"process-everything"},
+                {"name":"package-ignored","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"webhook_profile":"ignored","webhook_model":"missing","process_webhook_job":"fixture","signature_validator":"default"},
+                {"name":"factory-fails","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"factory-fails","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database"}
             ]}));
             Ok(config)
-        }).with_packages(packages::manifest()).with_commands(commands).with_migrations(migrations::entries())
-        .with_routing(Routing::default().api(||{Route::post("/webhooks/{profile}",verify)?;Route::post("/received/{profile}",receive)}))
+        }).with_packages(packages::manifest()).with_providers(vec![Box::new(FixtureProvider)]).with_commands(commands).with_migrations(migrations::entries())
+        .with_middleware(|middleware| { middleware.prevent_request_forgery(["webhook-web/except"],false,false); })
+        .with_routing(Routing::default().api(api_routes).web(web_routes))
         .create().map_err(Into::into)
     }).await
 }

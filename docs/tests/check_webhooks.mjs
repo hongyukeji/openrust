@@ -22,7 +22,8 @@ try {
                         assert.ok((await page.locator(".vp-doc").innerText()).includes(type));
                         if(kind==="client") {
                             assert.equal(await page.locator("h3#receipts").count(),1);
-                            for(const entry of ["WebhookProcessor","DatabaseWebhookStore","WebhookJobDispatcher"])
+                            assert.equal(await page.locator("h3#routes").count(),1);
+                            for(const entry of ["WebhookProcessor","DatabaseWebhookStore","WebhookJobDispatcher","WebhookRoutes","register_job_dispatcher"])
                                 assert.ok((await page.locator(".vp-doc").innerText()).includes(entry));
                         }
                         assert.ok((await page.locator(".vp-doc").innerText()).includes("vendor:publish"));

@@ -289,6 +289,16 @@ impl Facade for Route {
 }
 
 impl Route {
+    /// 读取路由器实际匹配的名称，不读取可覆写的请求解析器；处理器须先使用 with_container。
+    pub fn current_route_name()
+    -> Result<Option<String>, crate::contracts::container::BindingResolutionError> {
+        App::get_facade_root()?;
+        if crate::http::request_context::with_client_ips(|_| ()).is_none() {
+            return Ok(None);
+        }
+        Request::get_facade_root()?.with(|request| request.route_name.clone())
+    }
+
     /// 在当前应用的路由器上分发命名路由；请求借用保持显式以保证并发隔离。
     pub async fn respond_with_route(
         name: &str,
@@ -569,6 +579,17 @@ impl Route {
         handler: impl IntoRouteHandler<Arguments>,
     ) -> Result<(), RoutingError> {
         Self::register_configured(methods, uri, handler, |_| Ok(()))
+    }
+
+    /// 在当前登记作用域内配置任意方法路由，避免返回超出借用范围的引用。
+    #[track_caller]
+    pub fn match_with<Arguments>(
+        methods: &[crate::http::Method],
+        uri: &str,
+        handler: impl IntoRouteHandler<Arguments>,
+        configure: impl FnOnce(&mut crate::routing::Route) -> Result<(), RoutingError>,
+    ) -> Result<(), RoutingError> {
+        Self::register_configured(methods, uri, handler, configure)
     }
 
     #[track_caller]

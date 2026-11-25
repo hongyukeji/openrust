@@ -92,7 +92,7 @@ async fn provider_is_lazy_scoped_and_keeps_credential_references_out_of_configur
                 .is_err()
         );
     }
-    for policy in [json!("*"), json!(["X-Source"]), json!([])] {
+    for policy in [json!("*"), json!(["X-Source"]), json!([]), json!(null)] {
         assert!(
             WebhookConfig::from_config(&json!({"name":"headers","store_headers":policy}), &env)
                 .is_ok()
