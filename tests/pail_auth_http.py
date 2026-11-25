@@ -56,7 +56,7 @@ def run():
                 )
                 def request():
                     try:
-                        with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=2) as response:
+                        with urllib.request.urlopen(f"http://127.0.0.1:{port}/welcome", timeout=2) as response:
                             return response.status, response.read().decode()
                     except urllib.error.HTTPError as error:
                         return error.code, error.read().decode()
@@ -73,7 +73,7 @@ def run():
                 records = [json.loads(line) for line in session.read_text(encoding="utf-8").splitlines()]
                 event = next(record for record in records if record["context"].get("status") == 500)
                 origin = event["context"]["__pail"]["origin"]
-                assert origin["type"] == "http" and origin["method"] == "GET" and origin["path"] == "/", origin
+                assert origin["type"] == "http" and origin["method"] == "GET" and origin["path"] == "welcome", origin
                 assert origin["auth_id"] is None and origin["auth_email"] is None, origin
                 assert "exception" in event["context"]
                 (root / "resources/views/welcome.blade.html").write_text("recovered", encoding="utf-8")

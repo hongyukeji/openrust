@@ -67,6 +67,8 @@ pub(super) fn load(env: &Environment) -> Result<Loaded<'_>, ConfigError> {
         "port": port,
         "url": url,
         "url_explicit": url_explicit,
+        // 根路由跳转到应用内首页。
+        "home_path": get(env, "APP_HOME_PATH", "/welcome")?,
         "frontend_url": get(env, "FRONTEND_URL", "http://localhost:3000")?,
         "asset_url": get(env, "ASSET_URL", Value::Null)?,
 

@@ -1832,6 +1832,7 @@ async fn welcome_route_reads_the_named_view_from_the_application_root() {
         .with_config(|base, env| {
             let mut config = web_config(base, env)?;
             config.get_mut("app").unwrap()["name"] = json!("Startup Test");
+            config.get_mut("app").unwrap()["home_path"] = json!("/api");
             config.get_mut("view").unwrap()["paths"] = json!(["custom-views", "resources/views"]);
             Ok(config)
         })
@@ -1840,6 +1841,19 @@ async fn welcome_route_reads_the_named_view_from_the_application_root() {
         .unwrap();
     let mut kernel = Kernel::new(application);
     kernel.bootstrap().await.unwrap();
+
+    let (parts, body) = axum::extract::Request::builder()
+        .uri("/?search=a%26b")
+        .header("host", "localhost")
+        .body(Body::empty())
+        .unwrap()
+        .into_parts();
+    let redirect = kernel.handle(&mut Request::from_parts(parts, body)).await;
+    assert_eq!(redirect.status(), StatusCode::FOUND);
+    assert_eq!(
+        redirect.headers()["location"],
+        "http://localhost/api?search=a%26b"
+    );
 
     let (parts, body) = axum::extract::Request::builder()
         .uri("/api")
@@ -1857,7 +1871,14 @@ async fn welcome_route_reads_the_named_view_from_the_application_root() {
     assert_eq!(value["data"]["name"], "Startup Test");
     assert_eq!(value["data"]["version"], env!("CARGO_PKG_VERSION"));
 
-    let (parts, body) = http_request().into_parts();
+    let welcome_request = || {
+        axum::extract::Request::builder()
+            .uri("/welcome")
+            .body(Body::empty())
+            .unwrap()
+            .into_parts()
+    };
+    let (parts, body) = welcome_request();
     let (_, body) = kernel
         .handle(&mut Request::from_parts(parts, body))
         .await
@@ -1880,7 +1901,7 @@ async fn welcome_route_reads_the_named_view_from_the_application_root() {
             "<h1>{heading} Startup Test {}</h1>",
             env!("CARGO_PKG_VERSION")
         );
-        let (parts, body) = http_request().into_parts();
+        let (parts, body) = welcome_request();
         let response = kernel.handle(&mut Request::from_parts(parts, body)).await;
         assert_eq!(response.status(), StatusCode::OK);
         let (parts, body) = response.into_parts();
@@ -1892,7 +1913,7 @@ async fn welcome_route_reads_the_named_view_from_the_application_root() {
     }
 
     fs::remove_file(welcome).unwrap();
-    let (parts, body) = http_request().into_parts();
+    let (parts, body) = welcome_request();
     let response = kernel.handle(&mut Request::from_parts(parts, body)).await;
     assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
 }

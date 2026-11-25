@@ -394,9 +394,9 @@ THE SOFTWARE.
                             @endforeach
                         </form>
                         @else
-                        <a href="{{ request()->getBaseUrl() }}/@if(Arr::query(Arr::except(request()->query(), [request()->localeSelection()['query_parameter']])))?{{ Arr::query(Arr::except(request()->query(), [request()->localeSelection()['query_parameter']])) }}@endif" @if(!request()->localeSelection()['from_query'])aria-current="true"@endif lang="{{ app()->currentLocale() }}">{{ __('welcome.follow_browser') }}</a>
+                        <a href="{{ request()->getBaseUrl() }}{{ request()->getPathInfo() }}@if(Arr::query(Arr::except(request()->query(), [request()->localeSelection()['query_parameter']])))?{{ Arr::query(Arr::except(request()->query(), [request()->localeSelection()['query_parameter']])) }}@endif" @if(!request()->localeSelection()['from_query'])aria-current="true"@endif lang="{{ app()->currentLocale() }}">{{ __('welcome.follow_browser') }}</a>
                         @foreach(request()->localeSelection()['supported'] as $choice)
-                        <a href="{{ request()->getBaseUrl() }}/?{{ Arr::query([request()->localeSelection()['query_parameter'] => $choice] + request()->query()) }}" @if(request()->localeSelection()['from_query'] && app()->currentLocale() === $choice)aria-current="true"@endif @if(app()->currentLocale() === $choice)data-current-language="true"@endif lang="{{ $choice }}" dir="auto">@if(Lang::hasForLocale('languages.name', $choice)){{ __('languages.name', [], $choice) }}@else{{ $choice }}@endif</a>
+                        <a href="{{ request()->getBaseUrl() }}{{ request()->getPathInfo() }}?{{ Arr::query([request()->localeSelection()['query_parameter'] => $choice] + request()->query()) }}" @if(request()->localeSelection()['from_query'] && app()->currentLocale() === $choice)aria-current="true"@endif @if(app()->currentLocale() === $choice)data-current-language="true"@endif lang="{{ $choice }}" dir="auto">@if(Lang::hasForLocale('languages.name', $choice)){{ __('languages.name', [], $choice) }}@else{{ $choice }}@endif</a>
                         @endforeach
                         @endif
                     </nav>

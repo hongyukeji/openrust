@@ -402,10 +402,10 @@ async fn browser_preferences_localize_the_real_welcome_view_and_links() {
         ("zh-CN;q=0.5, zh-TW;q=0.5", "zh-Hans"),
         ("zh-TW;q=1.000, en;q=0.999", "zh-Hant"),
     ] {
-        let (headers, html) = send(&kernel, "/", &[language]).await;
+        let (headers, html) = send(&kernel, "/welcome", &[language]).await;
         assert_page(&headers, &html, expected);
     }
-    let (headers, html) = send(&kernel, "/", &["en;q=0.2", "zh-HK;q=0.9"]).await;
+    let (headers, html) = send(&kernel, "/welcome", &["en;q=0.2", "zh-HK;q=0.9"]).await;
     assert_page(&headers, &html, "zh-Hant");
 }
 
@@ -432,7 +432,7 @@ async fn invalid_or_unsupported_preferences_use_the_supported_default() {
             Some("zh-Latn"),
         ] {
             let languages: Vec<_> = language.into_iter().collect();
-            let (headers, html) = send(&kernel, "/", &languages).await;
+            let (headers, html) = send(&kernel, "/welcome", &languages).await;
             assert_page(&headers, &html, expected);
         }
     }
@@ -445,10 +445,10 @@ async fn concurrent_languages_do_not_change_request_or_application_defaults() {
     let (first, second) = tokio::join!(english.kernel(), traditional.kernel());
     for _ in 0..8 {
         let (en, cn, tw, fallback) = tokio::join!(
-            send(&first, "/", &["en"]),
-            send(&first, "/", &["zh-CN"]),
-            send(&first, "/", &["zh-TW"]),
-            send(&second, "/", &[])
+            send(&first, "/welcome", &["en"]),
+            send(&first, "/welcome", &["zh-CN"]),
+            send(&first, "/welcome", &["zh-TW"]),
+            send(&second, "/welcome", &[])
         );
         for ((headers, html), locale) in [
             (en, "en"),
@@ -478,7 +478,7 @@ async fn missing_application_translation_uses_framework_defaults() {
     copy.as_object_mut().unwrap().remove("changelog");
     fs::write(path, serde_json::to_vec(&copy).unwrap()).unwrap();
     let kernel = root.kernel().await;
-    let (headers, html) = send(&kernel, "/", &["zh-TW"]).await;
+    let (headers, html) = send(&kernel, "/welcome", &["zh-TW"]).await;
     assert_eq!(headers["content-language"], "zh-Hant");
     assert!(html.contains("開始使用"));
     assert!(html.contains("查看更新日誌"));
@@ -567,7 +567,7 @@ async fn welcome_without_browser_detection_uses_configured_translation_fallback(
         )
         .unwrap();
         let kernel = root.kernel_with_browser(false).await;
-        let (headers, html) = send(&kernel, "/", &["zh-CN"]).await;
+        let (headers, html) = send(&kernel, "/welcome", &["zh-CN"]).await;
         assert!(html.contains(title));
         assert!(html.contains(&format!("<html lang=\"{locale}\">")));
         assert_links(&html, locale);
@@ -600,7 +600,7 @@ async fn custom_welcome_translation_uses_english_documentation_links() {
         )
         .unwrap();
         let kernel = root.kernel_with_browser(false).await;
-        let (headers, html) = send(&kernel, "/", &["zh-TW"]).await;
+        let (headers, html) = send(&kernel, "/welcome", &["zh-TW"]).await;
         assert_eq!(headers["content-language"], "fr");
         assert!(html.contains("<html lang=\"fr\">"));
         assert!(html.contains("Bienvenue"));
@@ -627,7 +627,7 @@ async fn partial_translations_do_not_guess_the_page_language_from_the_heading() 
     )
     .unwrap();
     let kernel = root.kernel_with_browser(false).await;
-    let (headers, html) = send(&kernel, "/", &[]).await;
+    let (headers, html) = send(&kernel, "/welcome", &[]).await;
     assert_eq!(headers["content-language"], "fr");
     assert!(html.contains("<html lang=\"fr\">"));
     let defaults: serde_json::Value = serde_json::from_str(include_str!(
@@ -648,7 +648,7 @@ async fn missing_display_text_uses_framework_defaults_without_changing_links() {
     data.as_object_mut().unwrap().remove("documentation");
     fs::write(path, serde_json::to_vec(&data).unwrap()).unwrap();
     let kernel = root.kernel().await;
-    let (headers, html) = send(&kernel, "/", &["zh-CN"]).await;
+    let (headers, html) = send(&kernel, "/welcome", &["zh-CN"]).await;
     assert_eq!(headers["content-language"], "zh-Hans");
     assert!(html.contains("开始使用"));
     assert!(html.contains("开发文档"));
@@ -665,7 +665,7 @@ async fn missing_display_text_does_not_prevent_link_rendering() {
     )
     .unwrap();
     let kernel = root.kernel_with_browser(false).await;
-    let (headers, html) = send(&kernel, "/", &[]).await;
+    let (headers, html) = send(&kernel, "/welcome", &[]).await;
     assert_eq!(headers["content-language"], "fr");
     assert!(!html.contains("welcome.heading"));
     let defaults: serde_json::Value = serde_json::from_str(include_str!(
@@ -702,13 +702,13 @@ async fn manual_switching_uses_selected_language_and_auto_removes_only_its_param
     for locale in ["en", "zh-Hans", "zh-Hant"] {
         let (headers, html) = send(
             &kernel,
-            &format!("/?locale={locale}&search=a%26b"),
+            &format!("/welcome?locale={locale}&search=a%26b"),
             &["en-US"],
         )
         .await;
         assert_page(&headers, &html, locale);
         assert!(html.contains("class=\"language-switcher\""));
-        assert!(html.contains("href=\"/?search=a%26b\""));
+        assert!(html.contains("href=\"/welcome?search=a%26b\""));
         let selected = html
             .split("<a ")
             .map(|part| part.split('>').next().unwrap())
@@ -717,8 +717,8 @@ async fn manual_switching_uses_selected_language_and_auto_removes_only_its_param
         assert!(selected.contains(&format!("locale={locale}")));
         assert!(selected.contains("search=a%26b"));
     }
-    let (_, html) = send(&kernel, "/", &["zh-TW"]).await;
-    assert!(html.contains("href=\"/\" aria-current=\"true\""));
+    let (_, html) = send(&kernel, "/welcome", &["zh-TW"]).await;
+    assert!(html.contains("href=\"/welcome\" aria-current=\"true\""));
     assert!(html.contains("data-locale=\"zh-Hant\""));
 }
 
@@ -733,10 +733,10 @@ async fn switcher_tracks_custom_parameter_null_and_actual_candidates() {
             Some(vec!["en", "zh-Hant", "fr"]),
         )
         .await;
-    let (headers, html) = send(&custom, "/?language=zh-Hant&lang=keep", &["en"]).await;
+    let (headers, html) = send(&custom, "/welcome?language=zh-Hant&lang=keep", &["en"]).await;
     assert_page(&headers, &html, "zh-Hant");
-    assert!(html.contains("/?language=en&amp;lang=keep"));
-    assert!(html.contains("href=\"/?lang=keep\""));
+    assert!(html.contains("/welcome?language=en&amp;lang=keep"));
+    assert!(html.contains("href=\"/welcome?lang=keep\""));
     assert!(!html.contains("language=zh-Hans"));
     assert!(html.contains("language=fr"));
     for (browser, parameter, candidates) in [
@@ -744,9 +744,9 @@ async fn switcher_tracks_custom_parameter_null_and_actual_candidates() {
         (false, None, None),
     ] {
         let path = if browser && candidates.is_some() {
-            "/"
+            "/welcome"
         } else {
-            "/?locale[]=bad"
+            "/welcome?locale[]=bad"
         };
         let kernel = root.kernel_options(browser, parameter, candidates).await;
         let (_, html) = send(&kernel, path, &["en"]).await;
@@ -758,7 +758,7 @@ async fn switcher_tracks_custom_parameter_null_and_actual_candidates() {
 async fn callback_selected_language_hides_controls_that_cannot_override_it() {
     let root = Root::new("en");
     let kernel = root.kernel_custom(true, None, None, Some("zh-Hant")).await;
-    let (headers, html) = send(&kernel, "/?locale[]=invalid", &["en"]).await;
+    let (headers, html) = send(&kernel, "/welcome?locale[]=invalid", &["en"]).await;
     assert_page(&headers, &html, "zh-Hant");
     assert!(!html.contains("class=\"language-switcher\""));
 }
@@ -768,7 +768,7 @@ async fn header_shows_native_language_names_and_default_system_theme_controls() 
     let root = Root::new("en");
     let kernel = root.kernel().await;
     for locale in ["en", "zh-Hans", "zh-Hant"] {
-        let (headers, html) = send(&kernel, &format!("/?locale={locale}"), &["en-US"]).await;
+        let (headers, html) = send(&kernel, &format!("/welcome?locale={locale}"), &["en-US"]).await;
         assert_page(&headers, &html, locale);
         let header = html
             .split("<header class=\"page-header\">")
@@ -802,19 +802,19 @@ async fn blade_switcher_keeps_nested_encoded_query_data_and_does_not_retain_prev
     let kernel = root.kernel().await;
     let (_, html) = send(
         &kernel,
-        "/?locale=zh-Hant&filter[tags][]=a%26b&filter[tags][]=%E7%94%B2&search=%3Cscript%3E",
+        "/welcome?locale=zh-Hant&filter[tags][]=a%26b&filter[tags][]=%E7%94%B2&search=%3Cscript%3E",
         &["en"],
     )
     .await;
     assert!(html.contains("filter%5Btags%5D%5B0%5D=a%26b"));
     assert!(html.contains("filter%5Btags%5D%5B1%5D=%E7%94%B2"));
     assert!(html.contains("search=%3Cscript%3E"));
-    assert!(html.contains("href=\"/?locale=en&amp;"));
+    assert!(html.contains("href=\"/welcome?locale=en&amp;"));
     assert!(!html.contains("search=<script>"));
-    let (_, next) = send(&kernel, "/?locale=en", &["zh-TW"]).await;
+    let (_, next) = send(&kernel, "/welcome?locale=en", &["zh-TW"]).await;
     assert!(!next.contains("filter%5Btags%5D"));
     assert!(!next.contains("search=%3Cscript%3E"));
-    assert!(next.contains("href=\"/\""));
+    assert!(next.contains("href=\"/welcome\""));
 }
 
 #[tokio::test]
@@ -822,10 +822,10 @@ async fn blade_switcher_preserves_numeric_keys_for_custom_language_parameter() {
     let root = Root::new("en");
     fs::write(root.0.join("locale-cookie.json"), "null").unwrap();
     let kernel = root.kernel_options(true, Some("5".into()), None).await;
-    let (headers, html) = send(&kernel, "/?5=zh-Hant&9=keep", &["en"]).await;
+    let (headers, html) = send(&kernel, "/welcome?5=zh-Hant&9=keep", &["en"]).await;
     assert_page(&headers, &html, "zh-Hant");
-    assert!(html.contains("href=\"/?5=en&amp;9=keep\""));
-    assert!(html.contains("href=\"/?9=keep\""));
+    assert!(html.contains("href=\"/welcome?5=en&amp;9=keep\""));
+    assert!(html.contains("href=\"/welcome?9=keep\""));
     assert!(!html.contains("0=zh-Hant"));
 }
 
@@ -844,11 +844,11 @@ async fn welcome_links_and_translations_follow_configured_header_and_query() {
             .await;
         for (uri, expected) in [
             (
-                "/?search=a%26b",
+                "/welcome?search=a%26b",
                 if header.is_null() { "en" } else { "zh-Hant" },
             ),
-            ("/?language=zh-Hans&search=a%26b", "zh-Hans"),
-            ("/?language=en", "en"),
+            ("/welcome?language=zh-Hans&search=a%26b", "zh-Hans"),
+            ("/welcome?language=en", "en"),
         ] {
             let mut request = Request::from(
                 axum::extract::Request::builder()
@@ -899,7 +899,7 @@ async fn welcome_links_and_translations_follow_configured_header_and_query() {
             assert!(html.contains(expected_heading));
             assert!(html.contains("language=zh-Hant"));
             if uri.contains("search=") {
-                assert!(html.contains("href=\"/?search=a%26b\""));
+                assert!(html.contains("href=\"/welcome?search=a%26b\""));
             }
         }
     }
@@ -924,7 +924,7 @@ async fn environment_header_selection_and_cached_configuration_reach_real_welcom
     async fn render(kernel: &Kernel) -> (axum::http::response::Parts, String) {
         let mut request = Request::from(
             axum::extract::Request::builder()
-                .uri("/")
+                .uri("/welcome")
                 .header("host", "localhost")
                 .header("accept-language", "zh-Hans")
                 .header("x-language", "zh-Hant")
@@ -1060,7 +1060,7 @@ async fn browser_preference_is_explicit_encrypted_persistent_and_resettable() {
     let root = Root::new("en");
     let kernel = root.kernel().await;
     let (status, headers, html) =
-        preference_request(&kernel, "GET", "/?search=a%26b", "zh-TW", "", "").await;
+        preference_request(&kernel, "GET", "/welcome?search=a%26b", "zh-TW", "", "").await;
     assert_eq!(status, StatusCode::OK);
     assert_page(&headers, &html, "zh-Hant");
     assert_mode(&html, "auto", "");
@@ -1092,7 +1092,7 @@ async fn browser_preference_is_explicit_encrypted_persistent_and_resettable() {
     let cookies = response_cookies(&saved);
     for header in ["en", "zh-TW", "fr"] {
         let (status, headers, html) =
-            preference_request(&kernel, "GET", "/", header, &cookies, "").await;
+            preference_request(&kernel, "GET", "/welcome", header, &cookies, "").await;
         assert_eq!(status, StatusCode::OK);
         assert_page(&headers, &html, "zh-Hans");
         assert_mode(&html, "fixed", "zh-Hans");
@@ -1104,8 +1104,15 @@ async fn browser_preference_is_explicit_encrypted_persistent_and_resettable() {
         preference_request(&kernel, "GET", "/other", "en", &cookies, "").await;
     assert!(other.contains("开始使用"));
     assert_eq!(headers["content-language"], "zh-Hans");
-    let (_, headers, html) =
-        preference_request(&kernel, "GET", "/?locale=zh-Hant", "en", &cookies, "").await;
+    let (_, headers, html) = preference_request(
+        &kernel,
+        "GET",
+        "/welcome?locale=zh-Hant",
+        "en",
+        &cookies,
+        "",
+    )
+    .await;
     assert_page(&headers, &html, "zh-Hant");
     assert_mode(&html, "fixed", "zh-Hans");
     assert!(
@@ -1126,8 +1133,15 @@ async fn browser_preference_is_explicit_encrypted_persistent_and_resettable() {
     .await;
     // POST 必须携带固定偏好并非必要；会话 token 与加密 Cookie 仍须正确。
     assert_eq!(status, StatusCode::SEE_OTHER);
-    let (_, headers, html) =
-        preference_request(&kernel, "GET", "/", "en", &response_cookies(&updated), "").await;
+    let (_, headers, html) = preference_request(
+        &kernel,
+        "GET",
+        "/welcome",
+        "en",
+        &response_cookies(&updated),
+        "",
+    )
+    .await;
     assert_page(&headers, &html, "zh-Hant");
     assert_mode(&html, "fixed", "zh-Hant");
     let body = format!("_token={}&locale=", csrf_token(&html));
@@ -1143,7 +1157,7 @@ async fn browser_preference_is_explicit_encrypted_persistent_and_resettable() {
     assert_eq!(status, StatusCode::SEE_OTHER);
     assert_eq!(cleared["location"], "http://localhost");
     assert!(locale_cookie(&cleared).to_lowercase().contains("max-age=0"));
-    let (_, headers, html) = preference_request(&kernel, "GET", "/", "zh-TW", "", "").await;
+    let (_, headers, html) = preference_request(&kernel, "GET", "/welcome", "zh-TW", "", "").await;
     assert_page(&headers, &html, "zh-Hant");
     assert_mode(&html, "auto", "");
 }
@@ -1152,7 +1166,7 @@ async fn browser_preference_is_explicit_encrypted_persistent_and_resettable() {
 async fn preference_submission_rejects_bad_input_and_requires_csrf() {
     let root = Root::new("en");
     let kernel = root.kernel().await;
-    let (_, headers, html) = preference_request(&kernel, "GET", "/", "en", "", "").await;
+    let (_, headers, html) = preference_request(&kernel, "GET", "/welcome", "en", "", "").await;
     let cookies = response_cookies(&headers);
     let token = csrf_token(&html);
     for value in [
@@ -1208,8 +1222,15 @@ async fn query_disabled_still_allows_cookie_controls_and_cookie_disabled_preserv
     let kernel = root
         .kernel_options(true, Some(serde_json::Value::Null), None)
         .await;
-    let (_, headers, html) =
-        preference_request(&kernel, "GET", "/?lang=keep&search=x", "zh-Hans", "", "").await;
+    let (_, headers, html) = preference_request(
+        &kernel,
+        "GET",
+        "/welcome?lang=keep&search=x",
+        "zh-Hans",
+        "",
+        "",
+    )
+    .await;
     assert_page(&headers, &html, "zh-Hans");
     assert_mode(&html, "auto", "");
     assert!(html.contains("action=\"/locale?lang=keep&amp;search=x\""));
@@ -1230,13 +1251,13 @@ async fn query_disabled_still_allows_cookie_controls_and_cookie_disabled_preserv
     let (_, _, html) = preference_request(
         &disabled,
         "GET",
-        "/?locale=zh-Hans",
+        "/welcome?locale=zh-Hans",
         "en",
         &response_cookies(&saved),
         "",
     )
     .await;
-    assert!(html.contains("href=\"/?locale=zh-Hant\""));
+    assert!(html.contains("href=\"/welcome?locale=zh-Hant\""));
     assert!(!html.contains("name=\"locale\""));
 }
 
@@ -1246,7 +1267,7 @@ async fn renamed_cookie_reuses_https_path_domain_and_same_site_on_save_and_delet
     fs::write(root.0.join(".env"),"APP_LOCALE=en\nAPP_FALLBACK_LOCALE=en\nAPP_LOCALE_COOKIE=language-preference\nSESSION_PATH=/portal\nSESSION_DOMAIN=example.test\nSESSION_SECURE_COOKIE=true\nSESSION_SAME_SITE=strict\n").unwrap();
     let kernel = root.kernel().await;
     let (_, headers, html) =
-        preference_request(&kernel, "GET", "https://example.test/", "en", "", "").await;
+        preference_request(&kernel, "GET", "https://example.test/welcome", "en", "", "").await;
     let body = format!("_token={}&locale=zh-Hant", csrf_token(&html));
     let (status, saved, _) = preference_request(
         &kernel,
@@ -1284,8 +1305,15 @@ async fn renamed_cookie_reuses_https_path_domain_and_same_site_on_save_and_delet
         .unwrap();
     assert!((34_559_990..=34_560_000).contains(&age));
     let cookies = response_cookies(&saved);
-    let (_, headers, html) =
-        preference_request(&kernel, "GET", "https://example.test/", "en", &cookies, "").await;
+    let (_, headers, html) = preference_request(
+        &kernel,
+        "GET",
+        "https://example.test/welcome",
+        "en",
+        &cookies,
+        "",
+    )
+    .await;
     assert_mode(&html, "fixed", "zh-Hant");
     let body = format!("_token={}&locale=", csrf_token(&html));
     let (status, deleted, _) = preference_request(
@@ -1378,7 +1406,20 @@ async fn locale_post_keeps_csrf_session_and_preferences_over_tcp() {
         .with_state(Arc::new(root.kernel().await))
         .into_make_service();
     let server = tokio::spawn(async move { axum::serve(listener, service).await.unwrap() });
-    let (status, headers, html) = send(address, "GET", "/?search=a%26b", "", "").await;
+    let (status, headers, _) = send(
+        address,
+        "GET",
+        "/?locale=zh-Hant&search=a%26b&tag=1&tag=2",
+        "",
+        "",
+    )
+    .await;
+    assert_eq!(status, 302);
+    assert_eq!(
+        headers["location"],
+        "http://localhost/welcome?locale=zh-Hant&search=a%26b&tag=1&tag=2"
+    );
+    let (status, headers, html) = send(address, "GET", "/welcome?search=a%26b", "", "").await;
     assert_eq!(status, 200);
     let cookies = response_cookies(&headers);
     let token = csrf_token(&html);
@@ -1390,7 +1431,7 @@ async fn locale_post_keeps_csrf_session_and_preferences_over_tcp() {
             .iter()
             .any(|value| value.to_str().unwrap().starts_with("locale="))
     );
-    let body = format!("_token={token}&locale=zh-Hans");
+    let body = format!("_token={token}&locale=zh-Hans&redirect=%2Fwelcome");
     let (status, headers, _) = send(
         address,
         "POST",
@@ -1400,16 +1441,17 @@ async fn locale_post_keeps_csrf_session_and_preferences_over_tcp() {
     )
     .await;
     assert_eq!(status, 303);
-    assert_eq!(headers["location"], "http://localhost?search=a%26b");
+    assert_eq!(headers["location"], "http://localhost/welcome?search=a%26b");
     assert!(!locale_cookie(&headers).starts_with("locale=zh-Hans"));
     let cookies = response_cookies(&headers);
-    let (status, headers, html) = send(address, "GET", "/", &cookies, "").await;
+    let (status, headers, html) = send(address, "GET", "/welcome", &cookies, "").await;
     assert_eq!(status, 200);
     assert_eq!(headers["content-language"], "zh-Hans");
     assert_mode(&html, "fixed", "zh-Hans");
-    let body = format!("_token={}&locale=", csrf_token(&html));
+    let body = format!("_token={}&locale=&redirect=%2Fwelcome", csrf_token(&html));
     let (status, headers, _) = send(address, "POST", "/locale", &cookies, &body).await;
     assert_eq!(status, 303);
+    assert_eq!(headers["location"], "http://localhost/welcome");
     assert!(locale_cookie(&headers).contains("Max-Age=0"));
     server.abort();
 }
@@ -1421,7 +1463,7 @@ async fn default_locale_ignores_old_query_and_explicit_lang_configuration_still_
     let (status, headers, html) = preference_request(
         &default,
         "GET",
-        "/?lang=zh-Hant&locale=zh-Hans",
+        "/welcome?lang=zh-Hant&locale=zh-Hans",
         "en",
         "lang=zh-Hant",
         "",
@@ -1432,7 +1474,7 @@ async fn default_locale_ignores_old_query_and_explicit_lang_configuration_still_
     assert_mode(&html, "auto", "");
     assert!(html.contains("action=\"/locale?lang=zh-Hant\""));
     let (status, headers, html) =
-        preference_request(&default, "GET", "/?lang[]=bad", "en", "", "").await;
+        preference_request(&default, "GET", "/welcome?lang[]=bad", "en", "", "").await;
     assert_eq!(status, StatusCode::OK);
     assert_page(&headers, &html, "en");
     fs::write(
@@ -1441,8 +1483,15 @@ async fn default_locale_ignores_old_query_and_explicit_lang_configuration_still_
     )
     .unwrap();
     let custom = root.kernel().await;
-    let (status, headers, html) =
-        preference_request(&custom, "GET", "/?lang=zh-Hant&locale=keep", "en", "", "").await;
+    let (status, headers, html) = preference_request(
+        &custom,
+        "GET",
+        "/welcome?lang=zh-Hant&locale=keep",
+        "en",
+        "",
+        "",
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
     assert_page(&headers, &html, "zh-Hant");
     assert!(html.contains("action=\"/locale?locale=keep\""));
@@ -1464,8 +1513,15 @@ async fn default_locale_ignores_old_query_and_explicit_lang_configuration_still_
             .iter()
             .any(|h| h.to_str().unwrap().starts_with("lang="))
     );
-    let (_, headers, html) =
-        preference_request(&custom, "GET", "/", "zh-TW", &response_cookies(&saved), "").await;
+    let (_, headers, html) = preference_request(
+        &custom,
+        "GET",
+        "/welcome",
+        "zh-TW",
+        &response_cookies(&saved),
+        "",
+    )
+    .await;
     assert_page(&headers, &html, "zh-Hans");
     assert_mode(&html, "fixed", "zh-Hans");
 }
@@ -1500,7 +1556,7 @@ async fn discovered_languages_render_native_names_and_include_framework_and_appl
         }
     }
     let kernel = root.kernel().await;
-    let (headers, html) = send(&kernel, "/?locale=ja", &["en"]).await;
+    let (headers, html) = send(&kernel, "/welcome?locale=ja", &["en"]).await;
     assert_eq!(headers["content-language"], "ja");
     assert_eq!(html.matches("name=\"locale\" value=").count(), 21);
     for (locale, name) in extra {
@@ -1514,15 +1570,15 @@ async fn discovered_languages_render_native_names_and_include_framework_and_appl
     assert!(html.contains("lang=\"pl\" dir=\"auto\">pl</button>"));
     assert!(!html.contains("languages.name"));
     for locale in ["ar", "he"] {
-        let (headers, html) = send(&kernel, &format!("/?locale={locale}"), &["en"]).await;
+        let (headers, html) = send(&kernel, &format!("/welcome?locale={locale}"), &["en"]).await;
         assert_eq!(headers["content-language"], locale);
         assert!(html.contains(&format!("<html lang=\"{locale}\" dir=\"rtl\">")));
     }
     // 自动候选也直接供 GET 模式使用，无需额外维护页面列表。
     fs::write(root.0.join("locale-cookie.json"), "null").unwrap();
     let temporary = root.kernel().await;
-    let (_, html) = send(&temporary, "/", &["ja"]).await;
-    assert_eq!(html.matches("<a href=\"/?locale=").count(), 20);
+    let (_, html) = send(&temporary, "/welcome", &["ja"]).await;
+    assert_eq!(html.matches("<a href=\"/welcome?locale=").count(), 20);
     assert!(html.contains("lang=\"ja\" dir=\"auto\">日本語</a>"));
 }
 
@@ -1536,7 +1592,7 @@ async fn a_new_language_uses_existing_csrf_preference_and_explicit_candidate_con
     )
     .unwrap();
     let kernel = root.kernel().await;
-    let (_, headers, html) = preference_request(&kernel, "GET", "/", "en", "", "").await;
+    let (_, headers, html) = preference_request(&kernel, "GET", "/welcome", "en", "", "").await;
     let body = format!("_token={}&locale=ja", csrf_token(&html));
     let (status, saved, _) = preference_request(
         &kernel,
@@ -1548,16 +1604,23 @@ async fn a_new_language_uses_existing_csrf_preference_and_explicit_candidate_con
     )
     .await;
     assert_eq!(status, StatusCode::SEE_OTHER);
-    let (status, headers, html) =
-        preference_request(&kernel, "GET", "/", "en", &response_cookies(&saved), "").await;
+    let (status, headers, html) = preference_request(
+        &kernel,
+        "GET",
+        "/welcome",
+        "en",
+        &response_cookies(&saved),
+        "",
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(headers["content-language"], "ja");
     assert_mode(&html, "fixed", "ja");
     let restricted = root.kernel_options(true, None, Some(vec!["en"])).await;
-    let (_, html) = send(&restricted, "/", &["ja"]).await;
+    let (_, html) = send(&restricted, "/welcome", &["ja"]).await;
     assert!(!html.contains("value=\"ja\""));
     let inactive = root.kernel_with_browser(false).await;
-    let (_, html) = send(&inactive, "/?locale[]=invalid", &["ja"]).await;
+    let (_, html) = send(&inactive, "/welcome?locale[]=invalid", &["ja"]).await;
     assert!(!html.contains("class=\"language-switcher\""));
 }
 
@@ -1567,7 +1630,7 @@ async fn preference_redirect_removes_custom_locale_override_and_preserves_nested
     let kernel = root
         .kernel_options(true, Some("language".into()), None)
         .await;
-    let (_, headers, html) = preference_request(&kernel, "GET", "/", "en", "", "").await;
+    let (_, headers, html) = preference_request(&kernel, "GET", "/welcome", "en", "", "").await;
     let body = format!("_token={}&locale=zh-Hant", csrf_token(&html));
     let (status, saved, _) = preference_request(
         &kernel,
@@ -1583,8 +1646,15 @@ async fn preference_redirect_removes_custom_locale_override_and_preserves_nested
         saved["location"],
         "http://localhost?filter%5Bterm%5D=a%26b&locale=keep&plus=%2B"
     );
-    let (_, headers, html) =
-        preference_request(&kernel, "GET", "/", "en", &response_cookies(&saved), "").await;
+    let (_, headers, html) = preference_request(
+        &kernel,
+        "GET",
+        "/welcome",
+        "en",
+        &response_cookies(&saved),
+        "",
+    )
+    .await;
     assert_page(&headers, &html, "zh-Hant");
     assert_mode(&html, "fixed", "zh-Hant");
 }
@@ -1604,7 +1674,7 @@ async fn environment_candidates_control_menu_and_preference_without_bootstrap_co
     )
     .unwrap();
     let configured = root.kernel().await;
-    let (_, headers, html) = preference_request(&configured, "GET", "/", "ja", "", "").await;
+    let (_, headers, html) = preference_request(&configured, "GET", "/welcome", "ja", "", "").await;
     assert_eq!(headers["content-language"], "ja");
     assert_eq!(html.matches("name=\"locale\" value=").count(), 3);
     assert!(!html.contains("value=\"zh-Hans\""));
@@ -1620,12 +1690,19 @@ async fn environment_candidates_control_menu_and_preference_without_bootstrap_co
     )
     .await;
     assert_eq!(status, StatusCode::SEE_OTHER);
-    let (_, headers, html) =
-        preference_request(&configured, "GET", "/", "ja", &response_cookies(&saved), "").await;
+    let (_, headers, html) = preference_request(
+        &configured,
+        "GET",
+        "/welcome",
+        "ja",
+        &response_cookies(&saved),
+        "",
+    )
+    .await;
     assert_eq!(headers["content-language"], "en");
     assert_mode(&html, "fixed", "en");
     let restricted = root.kernel_options(true, None, Some(vec!["en"])).await;
-    let (_, html) = send(&restricted, "/", &["ja"]).await;
+    let (_, html) = send(&restricted, "/welcome", &["ja"]).await;
     assert!(!html.contains("value=\"ja\""));
     fs::write(
         root.0.join(".env"),
@@ -1633,7 +1710,7 @@ async fn environment_candidates_control_menu_and_preference_without_bootstrap_co
     )
     .unwrap();
     let disabled = root.kernel().await;
-    let (_, html) = send(&disabled, "/", &["ja"]).await;
+    let (_, html) = send(&disabled, "/welcome", &["ja"]).await;
     assert!(!html.contains("class=\"language-switcher\""));
     fs::write(
         root.0.join(".env"),
@@ -1641,7 +1718,7 @@ async fn environment_candidates_control_menu_and_preference_without_bootstrap_co
     )
     .unwrap();
     let automatic = root.kernel().await;
-    let (_, html) = send(&automatic, "/", &["ja"]).await;
+    let (_, html) = send(&automatic, "/welcome", &["ja"]).await;
     assert_eq!(html.matches("name=\"locale\" value=").count(), 19);
 }
 
@@ -1649,8 +1726,8 @@ async fn environment_candidates_control_menu_and_preference_without_bootstrap_co
 async fn preference_redirect_uses_a_body_local_target_before_saving() {
     let root = Root::new("en");
     let kernel = root.kernel().await;
-    let (_, headers, html) = preference_request(&kernel, "GET", "/", "en", "", "").await;
-    assert!(html.contains("name=\"redirect\" value=\"/\""));
+    let (_, headers, html) = preference_request(&kernel, "GET", "/welcome", "en", "", "").await;
+    assert!(html.contains("name=\"redirect\" value=\"/welcome\""));
     let cookie = response_cookies(&headers);
     let token = csrf_token(&html);
     for (field, expected) in [
@@ -1673,8 +1750,15 @@ async fn preference_redirect_uses_a_body_local_target_before_saving() {
         .await;
         assert_eq!(status, StatusCode::SEE_OTHER, "{field}");
         assert_eq!(saved["location"], expected);
-        let (_, next, html) =
-            preference_request(&kernel, "GET", "/", "en", &response_cookies(&saved), "").await;
+        let (_, next, html) = preference_request(
+            &kernel,
+            "GET",
+            "/welcome",
+            "en",
+            &response_cookies(&saved),
+            "",
+        )
+        .await;
         assert_page(&next, &html, "zh-Hans");
     }
     for field in [
@@ -1720,7 +1804,7 @@ async fn configured_locale_form_field_reaches_the_view_save_and_clear_flow() {
     )
     .unwrap();
     let kernel = root.kernel().await;
-    let (_, headers, html) = preference_request(&kernel, "GET", "/", "en", "", "").await;
+    let (_, headers, html) = preference_request(&kernel, "GET", "/welcome", "en", "", "").await;
     assert!(html.contains("name=\"preferred_locale\" value=\"zh-Hans\""));
     assert!(!html.contains("name=\"locale\" value="));
     let body = format!("_token={}&locale=zh-Hant", csrf_token(&html));
@@ -1754,13 +1838,15 @@ async fn configured_locale_form_field_reaches_the_view_save_and_clear_flow() {
             preference_request(&kernel, "POST", "/locale", "en", &cookies, &body).await;
         assert_eq!(status, StatusCode::SEE_OTHER);
         cookies = response_cookies(&saved);
-        let (_, next, page) = preference_request(&kernel, "GET", "/", "en", &cookies, "").await;
+        let (_, next, page) =
+            preference_request(&kernel, "GET", "/welcome", "en", &cookies, "").await;
         assert_page(&next, &page, language);
         assert_mode_field(&page, mode, value, "preferred_locale");
     }
     // 另一应用仍使用默认字段，不继承前一应用的名称。
     let other = Root::new("en");
-    let (_, _, html) = preference_request(&other.kernel().await, "GET", "/", "en", "", "").await;
+    let (_, _, html) =
+        preference_request(&other.kernel().await, "GET", "/welcome", "en", "", "").await;
     assert!(html.contains("name=\"locale\" value=\"zh-Hans\""));
     assert!(!html.contains("name=\"preferred_locale\""));
 }
@@ -1780,7 +1866,7 @@ async fn locale_form_field_uses_config_cache_and_requires_a_string() {
     values["app"]["locale_form_field"] = "cached_field".into();
     fs::write(&cache, serde_json::to_vec(&values).unwrap()).unwrap();
     let cached = root.kernel().await;
-    let (_, headers, html) = preference_request(&cached, "GET", "/", "en", "", "").await;
+    let (_, headers, html) = preference_request(&cached, "GET", "/welcome", "en", "", "").await;
     assert!(html.contains("name=\"cached_field\" value=\"zh-Hans\""));
     let body = format!("_token={}&cached_field=zh-Hans", csrf_token(&html));
     let (status, saved, _) = preference_request(
@@ -1793,10 +1879,17 @@ async fn locale_form_field_uses_config_cache_and_requires_a_string() {
     )
     .await;
     assert_eq!(status, StatusCode::SEE_OTHER);
-    let (_, headers, html) =
-        preference_request(&cached, "GET", "/", "en", &response_cookies(&saved), "").await;
+    let (_, headers, html) = preference_request(
+        &cached,
+        "GET",
+        "/welcome",
+        "en",
+        &response_cookies(&saved),
+        "",
+    )
+    .await;
     assert_page(&headers, &html, "zh-Hans");
-    let (_, _, html) = preference_request(&live, "GET", "/", "en", "", "").await;
+    let (_, _, html) = preference_request(&live, "GET", "/welcome", "en", "", "").await;
     assert!(html.contains("name=\"live_field\" value=\"zh-Hans\""));
     values["app"]
         .as_object_mut()
@@ -1804,7 +1897,7 @@ async fn locale_form_field_uses_config_cache_and_requires_a_string() {
         .remove("locale_form_field");
     fs::write(&cache, serde_json::to_vec(&values).unwrap()).unwrap();
     let missing = root.kernel().await;
-    let (status, _, error) = preference_request(&missing, "GET", "/", "en", "", "").await;
+    let (status, _, error) = preference_request(&missing, "GET", "/welcome", "en", "", "").await;
     assert_eq!(status, StatusCode::OK);
     assert!(error.contains("name=\"\" value=\"zh-Hans\""));
     fs::write(
@@ -1860,7 +1953,7 @@ async fn locale_form_field_strict_types_and_unmatched_names_preserve_safe_writes
         )
         .unwrap();
         let kernel = root.kernel().await;
-        let (status, _, error) = preference_request(&kernel, "GET", "/", "en", "", "").await;
+        let (status, _, error) = preference_request(&kernel, "GET", "/welcome", "en", "", "").await;
         if value.is_array() || value.is_object() {
             assert_eq!(
                 status,
@@ -1911,7 +2004,7 @@ async fn welcome_documentation_links_follow_application_language_resources() {
     )
     .unwrap();
     let kernel = root.kernel_with_browser(false).await;
-    let (headers, html) = send(&kernel, "/", &[]).await;
+    let (headers, html) = send(&kernel, "/welcome", &[]).await;
     assert_eq!(headers["content-language"], "ja");
     for path in ["README.md", "getting-started/deployment.md"] {
         assert!(html.contains(&format!(
@@ -1947,7 +2040,7 @@ async fn welcome_description_uses_configured_application_name_in_every_bundled_l
         let description = resource["description"].as_str().unwrap();
         assert_eq!(description.matches(":name").count(), 1, "{locale}");
         let kernel = root.kernel_with_browser(false).await;
-        let (headers, html) = send(&kernel, "/", &[]).await;
+        let (headers, html) = send(&kernel, "/welcome", &[]).await;
         assert_eq!(headers["content-language"], locale);
         assert!(
             html.contains(&format!(
