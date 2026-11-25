@@ -143,6 +143,8 @@
 - [Database Settings (Extension)](packages/settings.md)
 - [New Relic APM (Extension)](packages/new-relic.md)
 - [Payments (Extension)](packages/pay.md)
+- [Webhook Client (Extension)](packages/webhook-client.md)
+- [Webhook Server (Extension)](packages/webhook-server.md)
 - [Telescope](packages/telescope.md)
 - [Valet](packages/valet.md)
 - [Activity Log (Extension)](packages/activitylog.md)

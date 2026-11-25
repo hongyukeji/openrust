@@ -1,0 +1,20 @@
+[
+  {
+    "crate": "standardwebhooks",
+    "version": "1.3.0",
+    "checksum": "ca0476284408cba80764ef46b87a479225c97b4171b59e7eb89244c7f7cf8c9d",
+    "license": "MIT",
+    "license_file": "StandardWebhooks-MIT.txt",
+    "license_sha256": "5ec8c7b26b64d881a6706617bed25c049f97f2f35de034c756de8546fd6dbe27",
+    "source_commit": "daee8284cfe9d4e435ec16e3e68a8f30084d6aaf"
+  },
+  {
+    "crate": "hmac-sha256",
+    "version": "1.1.15",
+    "checksum": "1ad320b3b96fb2a455a0726d16efe0a5afdbd34b71dea5bc53b05ea057714d4e",
+    "license": "ISC",
+    "license_file": "HmacSha256-ISC.txt",
+    "license_sha256": "6f4e2de03c87fde1f0d4481b5a6358f9d2ba1f4bf8ed331d8f2d2fc4579b4747",
+    "source_commit": "registry artifact checksum"
+  }
+]

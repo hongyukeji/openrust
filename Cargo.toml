@@ -57,6 +57,8 @@ oidc = ["dep:openrust-oidc"]
 settings = ["dep:openrust-settings"]
 pay = ["dep:openrust-pay"]
 new-relic = ["dep:openrust-new-relic"]
+webhook-client = ["dep:openrust-webhook-client"]
+webhook-server = ["dep:openrust-webhook-server"]
 cashier = ["dep:openrust-cashier"]
 activitylog = ["dep:openrust-activitylog"]
 horizon = ["dep:openrust-horizon"]
@@ -78,6 +80,8 @@ openrust-oidc = { path = "vendor/openrust/oidc", optional = true }
 openrust-settings = { path = "vendor/openrust/settings", optional = true }
 openrust-pay = { path = "vendor/openrust/pay", optional = true }
 openrust-new-relic = { path = "vendor/openrust/new-relic", optional = true }
+openrust-webhook-client = { path = "vendor/openrust/webhook-client", optional = true }
+openrust-webhook-server = { path = "vendor/openrust/webhook-server", optional = true }
 openrust-cashier = { path = "vendor/openrust/cashier", optional = true }
 openrust-activitylog = { path = "vendor/openrust/activitylog", optional = true }
 openrust-horizon = { path = "vendor/openrust/horizon", optional = true }
@@ -123,3 +127,9 @@ name = "new_relic_app"
 path = "tests/support/new_relic/app.rs"
 harness = false
 required-features = ["new-relic"]
+
+[[test]]
+name = "webhooks_app"
+path = "tests/support/webhooks/app.rs"
+harness = false
+required-features = ["webhook-client", "webhook-server"]

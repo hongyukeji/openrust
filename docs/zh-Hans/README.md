@@ -143,6 +143,8 @@
 - [数据库设置（扩展）](packages/settings.md)
 - [New Relic APM（扩展）](packages/new-relic.md)
 - [支付（扩展）](packages/pay.md)
+- [Webhook 接收（扩展）](packages/webhook-client.md)
+- [Webhook 发送（扩展）](packages/webhook-server.md)
 - [Telescope 应用调试](packages/telescope.md)
 - [Valet macOS 本地开发环境](packages/valet.md)
 - [操作审计（扩展）](packages/activitylog.md)

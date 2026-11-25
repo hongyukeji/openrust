@@ -2646,6 +2646,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "hmac-sha256"
+version = "1.1.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1ad320b3b96fb2a455a0726d16efe0a5afdbd34b71dea5bc53b05ea057714d4e"
+
+[[package]]
 name = "hostname"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4215,6 +4221,8 @@ dependencies = [
  "openrust-settings",
  "openrust-socialite",
  "openrust-telescope",
+ "openrust-webhook-client",
+ "openrust-webhook-server",
  "serde",
  "serde_json",
  "tokio",
@@ -4663,6 +4671,35 @@ dependencies = [
  "openrust-framework",
  "serde_json",
  "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "openrust-webhook-client"
+version = "0.0.0"
+dependencies = [
+ "aws-lc-rs",
+ "http 1.5.0",
+ "openrust-framework",
+ "serde_json",
+ "standardwebhooks",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "zeroize",
+]
+
+[[package]]
+name = "openrust-webhook-server"
+version = "0.0.0"
+dependencies = [
+ "aws-lc-rs",
+ "http 1.5.0",
+ "openrust-framework",
+ "serde_json",
+ "standardwebhooks",
+ "tempfile",
+ "thiserror 2.0.21",
  "tokio",
 ]
 
@@ -6560,6 +6597,19 @@ name = "stable_deref_trait"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
+
+[[package]]
+name = "standardwebhooks"
+version = "1.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ca0476284408cba80764ef46b87a479225c97b4171b59e7eb89244c7f7cf8c9d"
+dependencies = [
+ "base64 0.23.1",
+ "hmac-sha256",
+ "http 1.5.0",
+ "thiserror 2.0.21",
+ "time",
+]
 
 [[package]]
 name = "static_assertions"

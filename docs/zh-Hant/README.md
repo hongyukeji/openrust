@@ -143,6 +143,8 @@
 - [資料庫設定（擴充）](packages/settings.md)
 - [New Relic APM（擴充）](packages/new-relic.md)
 - [支付（擴充）](packages/pay.md)
+- [Webhook 接收（擴展）](packages/webhook-client.md)
+- [Webhook 發送（擴展）](packages/webhook-server.md)
 - [Telescope 應用程式除錯](packages/telescope.md)
 - [Valet macOS 本機開發環境](packages/valet.md)
 - [操作稽核（擴充）](packages/activitylog.md)

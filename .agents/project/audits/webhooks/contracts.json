@@ -1,0 +1,725 @@
+{
+  "scope": "fixed upstream directly declared types; pending contracts are not closed",
+  "types": [
+    {
+      "package": "client",
+      "revision": "ff886d1bae33d35ad98b6c91403f280df158129d",
+      "source": "src/Events/InvalidWebhookSignatureEvent.php",
+      "type": "InvalidWebhookSignatureEvent",
+      "public_methods": [
+        "__construct"
+      ],
+      "status": "pending",
+      "parent_classes": [],
+      "declared_public_properties": [
+        "request",
+        "config"
+      ],
+      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
+      "evidence": []
+    },
+    {
+      "package": "client",
+      "revision": "ff886d1bae33d35ad98b6c91403f280df158129d",
+      "source": "src/Exceptions/InvalidConfig.php",
+      "type": "InvalidConfig",
+      "public_methods": [
+        "couldNotFindConfig",
+        "invalidSignatureValidator",
+        "invalidWebhookProfile",
+        "invalidWebhookResponse",
+        "invalidProcessWebhookJob",
+        "signingSecretNotSet",
+        "invalidPrunable"
+      ],
+      "status": "pending",
+      "parent_classes": [
+        "Exception"
+      ],
+      "declared_public_properties": [],
+      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
+      "evidence": []
+    },
+    {
+      "package": "client",
+      "revision": "ff886d1bae33d35ad98b6c91403f280df158129d",
+      "source": "src/Exceptions/InvalidMethod.php",
+      "type": "InvalidMethod",
+      "public_methods": [
+        "make"
+      ],
+      "status": "pending",
+      "parent_classes": [
+        "Exception"
+      ],
+      "declared_public_properties": [],
+      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
+      "evidence": []
+    },
+    {
+      "package": "client",
+      "revision": "ff886d1bae33d35ad98b6c91403f280df158129d",
+      "source": "src/Exceptions/InvalidWebhookSignature.php",
+      "type": "InvalidWebhookSignature",
+      "public_methods": [
+        "make"
+      ],
+      "status": "pending",
+      "parent_classes": [
+        "Exception"
+      ],
+      "declared_public_properties": [],
+      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
+      "evidence": []
+    },
+    {
+      "package": "client",
+      "revision": "ff886d1bae33d35ad98b6c91403f280df158129d",
+      "source": "src/Http/Controllers/WebhookController.php",
+      "type": "WebhookController",
+      "public_methods": [
+        "__invoke"
+      ],
+      "status": "pending",
+      "parent_classes": [],
+      "declared_public_properties": [],
+      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
+      "evidence": []
+    },
+    {
+      "package": "client",
+      "revision": "ff886d1bae33d35ad98b6c91403f280df158129d",
+      "source": "src/Jobs/ProcessWebhookJob.php",
+      "type": "ProcessWebhookJob",
+      "public_methods": [
+        "__construct"
+      ],
+      "status": "pending",
+      "parent_classes": [],
+      "declared_public_properties": [
+        "webhookCall"
+      ],
+      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
+      "evidence": []
+    },
+    {
+      "package": "client",
+      "revision": "ff886d1bae33d35ad98b6c91403f280df158129d",
+      "source": "src/Models/WebhookCall.php",
+      "type": "WebhookCall",
+      "public_methods": [
+        "storeWebhook",
+        "headersToStore",
+        "headerBag",
+        "headers",
+        "saveException",
+        "clearException",
+        "prunable",
+        "getAttachments"
+      ],
+      "status": "pending",
+      "parent_classes": [
+        "Model"
+      ],
+      "declared_public_properties": [
+        "guarded"
+      ],
+      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
+      "evidence": []
+    },
+    {
+      "package": "client",
+      "revision": "ff886d1bae33d35ad98b6c91403f280df158129d",
+      "source": "src/SignatureValidator/DefaultSignatureValidator.php",
+      "type": "DefaultSignatureValidator",
+      "public_methods": [
+        "isValid"
+      ],
+      "status": "foundation_verified",
+      "parent_classes": [],
+      "declared_public_properties": [],
+      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。 已验证的是本文记录的基础契约，不包含后续Processor／Builder／持久化／集群入口。",
+      "rust_source": "vendor/openrust/webhook-client/src/signature_validator.rs",
+      "evidence": [
+        "vendor/openrust/webhook-client/tests/contracts.rs",
+        "vendor/openrust/webhook-client/tests/provider.rs",
+        "tests/webhooks_acceptance.py",
+        "tests/webhooks_worker_acceptance.py"
+      ]
+    },
+    {
+      "package": "client",
+      "revision": "ff886d1bae33d35ad98b6c91403f280df158129d",
+      "source": "src/SignatureValidator/SignatureValidator.php",
+      "type": "SignatureValidator",
+      "public_methods": [
+        "isValid"
+      ],
+      "status": "foundation_verified",
+      "parent_classes": [],
+      "declared_public_properties": [],
+      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。 已验证的是本文记录的基础契约，不包含后续Processor／Builder／持久化／集群入口。",
+      "rust_source": "vendor/openrust/webhook-client/src/contracts.rs",
+      "evidence": [
+        "vendor/openrust/webhook-client/tests/contracts.rs",
+        "vendor/openrust/webhook-client/tests/provider.rs",
+        "tests/webhooks_acceptance.py",
+        "tests/webhooks_worker_acceptance.py"
+      ]
+    },
+    {
+      "package": "client",
+      "revision": "ff886d1bae33d35ad98b6c91403f280df158129d",
+      "source": "src/WebhookClientServiceProvider.php",
+      "type": "WebhookClientServiceProvider",
+      "public_methods": [
+        "configurePackage",
+        "packageRegistered",
+        "packageBooted"
+      ],
+      "status": "partial_provider_verified",
+      "parent_classes": [
+        "PackageServiceProvider"
+      ],
+      "declared_public_properties": [],
+      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。 包发现、配置、发布已验；完整路由／迁移／任务装配待实现。",
+      "evidence": [
+        "tests/webhooks_features.py",
+        "tests/webhooks_acceptance.py"
+      ]
+    },
+    {
+      "package": "client",
+      "revision": "ff886d1bae33d35ad98b6c91403f280df158129d",
+      "source": "src/WebhookConfig.php",
+      "type": "WebhookConfig",
+      "public_methods": [
+        "__construct"
+      ],
+      "status": "partial_configuration_verified",
+      "parent_classes": [],
+      "declared_public_properties": [
+        "name",
+        "signingSecret",
+        "signatureHeaderName",
+        "signatureValidator",
+        "webhookProfile",
+        "webhookResponse",
+        "webhookModel",
+        "storeAttachments",
+        "processWebhookJobClass"
+      ],
+      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。 基本字段／凭据引用／快照已验，Validator／Profile／Response／Model／Job工厂与完整字段契约未闭合。",
+      "evidence": [
+        "vendor/openrust/webhook-client/tests/contracts.rs",
+        "vendor/openrust/webhook-client/tests/provider.rs"
+      ],
+      "rust_source": "vendor/openrust/webhook-client/src/webhook_config.rs"
+    },
+    {
+      "package": "client",
+      "revision": "ff886d1bae33d35ad98b6c91403f280df158129d",
+      "source": "src/WebhookConfigRepository.php",
+      "type": "WebhookConfigRepository",
+      "public_methods": [
+        "addConfig",
+        "getConfig"
+      ],
+      "status": "foundation_verified",
+      "parent_classes": [],
+      "declared_public_properties": [],
+      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。 已验证的是本文记录的基础契约，不包含后续Processor／Builder／持久化／集群入口。",
+      "rust_source": "vendor/openrust/webhook-client/src/webhook_config.rs",
+      "evidence": [
+        "vendor/openrust/webhook-client/tests/contracts.rs",
+        "vendor/openrust/webhook-client/tests/provider.rs",
+        "tests/webhooks_acceptance.py",
+        "tests/webhooks_worker_acceptance.py"
+      ]
+    },
+    {
+      "package": "client",
+      "revision": "ff886d1bae33d35ad98b6c91403f280df158129d",
+      "source": "src/WebhookProcessor.php",
+      "type": "WebhookProcessor",
+      "public_methods": [
+        "__construct",
+        "process"
+      ],
+      "status": "pending",
+      "parent_classes": [],
+      "declared_public_properties": [],
+      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
+      "evidence": []
+    },
+    {
+      "package": "client",
+      "revision": "ff886d1bae33d35ad98b6c91403f280df158129d",
+      "source": "src/WebhookProfile/ProcessEverythingWebhookProfile.php",
+      "type": "ProcessEverythingWebhookProfile",
+      "public_methods": [
+        "shouldProcess"
+      ],
+      "status": "foundation_verified",
+      "parent_classes": [],
+      "declared_public_properties": [],
+      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。 已验证的是本文记录的基础契约，不包含后续Processor／Builder／持久化／集群入口。",
+      "rust_source": "vendor/openrust/webhook-client/src/contracts.rs",
+      "evidence": [
+        "vendor/openrust/webhook-client/tests/contracts.rs",
+        "vendor/openrust/webhook-client/tests/provider.rs",
+        "tests/webhooks_acceptance.py",
+        "tests/webhooks_worker_acceptance.py"
+      ]
+    },
+    {
+      "package": "client",
+      "revision": "ff886d1bae33d35ad98b6c91403f280df158129d",
+      "source": "src/WebhookProfile/WebhookProfile.php",
+      "type": "WebhookProfile",
+      "public_methods": [
+        "shouldProcess"
+      ],
+      "status": "foundation_verified",
+      "parent_classes": [],
+      "declared_public_properties": [],
+      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。 已验证的是本文记录的基础契约，不包含后续Processor／Builder／持久化／集群入口。",
+      "rust_source": "vendor/openrust/webhook-client/src/contracts.rs",
+      "evidence": [
+        "vendor/openrust/webhook-client/tests/contracts.rs",
+        "vendor/openrust/webhook-client/tests/provider.rs",
+        "tests/webhooks_acceptance.py",
+        "tests/webhooks_worker_acceptance.py"
+      ]
+    },
+    {
+      "package": "client",
+      "revision": "ff886d1bae33d35ad98b6c91403f280df158129d",
+      "source": "src/WebhookResponse/DefaultRespondsTo.php",
+      "type": "DefaultRespondsTo",
+      "public_methods": [
+        "respondToValidWebhook"
+      ],
+      "status": "foundation_verified",
+      "parent_classes": [],
+      "declared_public_properties": [],
+      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。 已验证的是本文记录的基础契约，不包含后续Processor／Builder／持久化／集群入口。",
+      "rust_source": "vendor/openrust/webhook-client/src/contracts.rs",
+      "evidence": [
+        "vendor/openrust/webhook-client/tests/contracts.rs",
+        "vendor/openrust/webhook-client/tests/provider.rs",
+        "tests/webhooks_acceptance.py",
+        "tests/webhooks_worker_acceptance.py"
+      ]
+    },
+    {
+      "package": "client",
+      "revision": "ff886d1bae33d35ad98b6c91403f280df158129d",
+      "source": "src/WebhookResponse/RespondsToWebhook.php",
+      "type": "RespondsToWebhook",
+      "public_methods": [
+        "respondToValidWebhook"
+      ],
+      "status": "foundation_verified",
+      "parent_classes": [],
+      "declared_public_properties": [],
+      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。 已验证的是本文记录的基础契约，不包含后续Processor／Builder／持久化／集群入口。",
+      "rust_source": "vendor/openrust/webhook-client/src/contracts.rs",
+      "evidence": [
+        "vendor/openrust/webhook-client/tests/contracts.rs",
+        "vendor/openrust/webhook-client/tests/provider.rs",
+        "tests/webhooks_acceptance.py",
+        "tests/webhooks_worker_acceptance.py"
+      ]
+    },
+    {
+      "package": "server",
+      "revision": "6da6be3a721190bcdedcdef32d31d5980b77eb0e",
+      "source": "src/BackoffStrategy/BackoffStrategy.php",
+      "type": "BackoffStrategy",
+      "public_methods": [
+        "waitInSecondsAfterAttempt"
+      ],
+      "status": "foundation_verified",
+      "parent_classes": [],
+      "declared_public_properties": [],
+      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。 已验证的是本文记录的基础契约，不包含后续Processor／Builder／持久化／集群入口。",
+      "rust_source": "vendor/openrust/webhook-server/src/backoff_strategy.rs",
+      "evidence": [
+        "vendor/openrust/webhook-server/tests/contracts.rs",
+        "vendor/openrust/webhook-server/tests/provider.rs",
+        "tests/webhooks_acceptance.py",
+        "tests/webhooks_worker_acceptance.py"
+      ]
+    },
+    {
+      "package": "server",
+      "revision": "6da6be3a721190bcdedcdef32d31d5980b77eb0e",
+      "source": "src/BackoffStrategy/ExponentialBackoffStrategy.php",
+      "type": "ExponentialBackoffStrategy",
+      "public_methods": [
+        "waitInSecondsAfterAttempt"
+      ],
+      "status": "foundation_verified",
+      "parent_classes": [],
+      "declared_public_properties": [],
+      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。 已验证的是本文记录的基础契约，不包含后续Processor／Builder／持久化／集群入口。",
+      "rust_source": "vendor/openrust/webhook-server/src/backoff_strategy.rs",
+      "evidence": [
+        "vendor/openrust/webhook-server/tests/contracts.rs",
+        "vendor/openrust/webhook-server/tests/provider.rs",
+        "tests/webhooks_acceptance.py",
+        "tests/webhooks_worker_acceptance.py"
+      ]
+    },
+    {
+      "package": "server",
+      "revision": "6da6be3a721190bcdedcdef32d31d5980b77eb0e",
+      "source": "src/CallWebhookJob.php",
+      "type": "CallWebhookJob",
+      "public_methods": [
+        "handle",
+        "tags",
+        "getResponse",
+        "getBody",
+        "getWebhookUrl",
+        "failed"
+      ],
+      "status": "pending",
+      "parent_classes": [],
+      "declared_public_properties": [
+        "webhookUrl",
+        "httpVerb",
+        "proxy",
+        "tries",
+        "retryableStatusCodes",
+        "respectRetryAfter",
+        "useRetryJitter",
+        "requestTimeout",
+        "cert",
+        "certPassphrase",
+        "sslKey",
+        "sslKeyPassphrase",
+        "backoffStrategyClass",
+        "signerClass",
+        "headers",
+        "verifySsl",
+        "useTimestamp",
+        "throwExceptionOnFailure",
+        "queue",
+        "payload",
+        "preparedBody",
+        "meta",
+        "tags",
+        "uuid",
+        "outputType"
+      ],
+      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
+      "evidence": []
+    },
+    {
+      "package": "server",
+      "revision": "6da6be3a721190bcdedcdef32d31d5980b77eb0e",
+      "source": "src/Concerns/SerializesWebhookData.php",
+      "type": "SerializesWebhookData",
+      "public_methods": [
+        "__serialize",
+        "__unserialize"
+      ],
+      "status": "pending",
+      "parent_classes": [],
+      "declared_public_properties": [],
+      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
+      "evidence": []
+    },
+    {
+      "package": "server",
+      "revision": "6da6be3a721190bcdedcdef32d31d5980b77eb0e",
+      "source": "src/Events/DispatchingWebhookCallEvent.php",
+      "type": "DispatchingWebhookCallEvent",
+      "public_methods": [
+        "__construct"
+      ],
+      "status": "pending",
+      "parent_classes": [],
+      "declared_public_properties": [
+        "httpVerb",
+        "webhookUrl",
+        "payload",
+        "headers",
+        "meta",
+        "tags",
+        "uuid"
+      ],
+      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
+      "evidence": []
+    },
+    {
+      "package": "server",
+      "revision": "6da6be3a721190bcdedcdef32d31d5980b77eb0e",
+      "source": "src/Events/FinalWebhookCallFailedEvent.php",
+      "type": "FinalWebhookCallFailedEvent",
+      "public_methods": [],
+      "status": "pending",
+      "parent_classes": [
+        "WebhookCallEvent"
+      ],
+      "declared_public_properties": [],
+      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
+      "evidence": []
+    },
+    {
+      "package": "server",
+      "revision": "6da6be3a721190bcdedcdef32d31d5980b77eb0e",
+      "source": "src/Events/WebhookCallEvent.php",
+      "type": "WebhookCallEvent",
+      "public_methods": [
+        "__construct",
+        "__serialize",
+        "__unserialize"
+      ],
+      "status": "pending",
+      "parent_classes": [],
+      "declared_public_properties": [
+        "httpVerb",
+        "webhookUrl",
+        "payload",
+        "headers",
+        "meta",
+        "tags",
+        "attempt",
+        "response",
+        "errorType",
+        "errorMessage",
+        "uuid",
+        "transferStats"
+      ],
+      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
+      "evidence": []
+    },
+    {
+      "package": "server",
+      "revision": "6da6be3a721190bcdedcdef32d31d5980b77eb0e",
+      "source": "src/Events/WebhookCallFailedEvent.php",
+      "type": "WebhookCallFailedEvent",
+      "public_methods": [],
+      "status": "pending",
+      "parent_classes": [
+        "WebhookCallEvent"
+      ],
+      "declared_public_properties": [],
+      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
+      "evidence": []
+    },
+    {
+      "package": "server",
+      "revision": "6da6be3a721190bcdedcdef32d31d5980b77eb0e",
+      "source": "src/Events/WebhookCallSucceededEvent.php",
+      "type": "WebhookCallSucceededEvent",
+      "public_methods": [],
+      "status": "pending",
+      "parent_classes": [
+        "WebhookCallEvent"
+      ],
+      "declared_public_properties": [],
+      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
+      "evidence": []
+    },
+    {
+      "package": "server",
+      "revision": "6da6be3a721190bcdedcdef32d31d5980b77eb0e",
+      "source": "src/Exceptions/CouldNotCallWebhook.php",
+      "type": "CouldNotCallWebhook",
+      "public_methods": [
+        "urlNotSet",
+        "secretNotSet"
+      ],
+      "status": "pending",
+      "parent_classes": [
+        "LogicException"
+      ],
+      "declared_public_properties": [],
+      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
+      "evidence": []
+    },
+    {
+      "package": "server",
+      "revision": "6da6be3a721190bcdedcdef32d31d5980b77eb0e",
+      "source": "src/Exceptions/InvalidBackoffStrategy.php",
+      "type": "InvalidBackoffStrategy",
+      "public_methods": [
+        "doesNotExtendBackoffStrategy"
+      ],
+      "status": "pending",
+      "parent_classes": [
+        "LogicException"
+      ],
+      "declared_public_properties": [],
+      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
+      "evidence": []
+    },
+    {
+      "package": "server",
+      "revision": "6da6be3a721190bcdedcdef32d31d5980b77eb0e",
+      "source": "src/Exceptions/InvalidSigner.php",
+      "type": "InvalidSigner",
+      "public_methods": [
+        "doesNotImplementSigner"
+      ],
+      "status": "pending",
+      "parent_classes": [
+        "LogicException"
+      ],
+      "declared_public_properties": [],
+      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
+      "evidence": []
+    },
+    {
+      "package": "server",
+      "revision": "6da6be3a721190bcdedcdef32d31d5980b77eb0e",
+      "source": "src/Exceptions/InvalidWebhookJob.php",
+      "type": "InvalidWebhookJob",
+      "public_methods": [
+        "doesNotExtendCallWebhookJob"
+      ],
+      "status": "pending",
+      "parent_classes": [
+        "LogicException"
+      ],
+      "declared_public_properties": [],
+      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
+      "evidence": []
+    },
+    {
+      "package": "server",
+      "revision": "6da6be3a721190bcdedcdef32d31d5980b77eb0e",
+      "source": "src/Signer/DefaultSigner.php",
+      "type": "DefaultSigner",
+      "public_methods": [
+        "__construct",
+        "calculateSignature",
+        "signatureHeaderName"
+      ],
+      "status": "foundation_verified",
+      "parent_classes": [],
+      "declared_public_properties": [],
+      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。 已验证的是本文记录的基础契约，不包含后续Processor／Builder／持久化／集群入口。",
+      "rust_source": "vendor/openrust/webhook-server/src/signer.rs",
+      "evidence": [
+        "vendor/openrust/webhook-server/tests/contracts.rs",
+        "vendor/openrust/webhook-server/tests/provider.rs",
+        "tests/webhooks_acceptance.py",
+        "tests/webhooks_worker_acceptance.py"
+      ]
+    },
+    {
+      "package": "server",
+      "revision": "6da6be3a721190bcdedcdef32d31d5980b77eb0e",
+      "source": "src/Signer/Signer.php",
+      "type": "Signer",
+      "public_methods": [
+        "signatureHeaderName",
+        "calculateSignature"
+      ],
+      "status": "foundation_verified",
+      "parent_classes": [],
+      "declared_public_properties": [],
+      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。 已验证的是本文记录的基础契约，不包含后续Processor／Builder／持久化／集群入口。",
+      "rust_source": "vendor/openrust/webhook-server/src/signer.rs",
+      "evidence": [
+        "vendor/openrust/webhook-server/tests/contracts.rs",
+        "vendor/openrust/webhook-server/tests/provider.rs",
+        "tests/webhooks_acceptance.py",
+        "tests/webhooks_worker_acceptance.py"
+      ]
+    },
+    {
+      "package": "server",
+      "revision": "6da6be3a721190bcdedcdef32d31d5980b77eb0e",
+      "source": "src/WebhookCall.php",
+      "type": "WebhookCall",
+      "public_methods": [
+        "create",
+        "__construct",
+        "url",
+        "payload",
+        "uuid",
+        "getUuid",
+        "getUrl",
+        "onQueue",
+        "onConnection",
+        "useSecret",
+        "useHttpVerb",
+        "maximumTries",
+        "retryOn",
+        "respectRetryAfter",
+        "withJitter",
+        "mutualTls",
+        "useBackoffStrategy",
+        "timeoutInSeconds",
+        "signUsing",
+        "doNotSign",
+        "withHeaders",
+        "withWebhookIdHeader",
+        "verifySsl",
+        "doNotVerifySsl",
+        "throwExceptionOnFailure",
+        "useProxy",
+        "meta",
+        "withTags",
+        "useJob",
+        "useTimestamp",
+        "dispatch",
+        "dispatchIf",
+        "dispatchUnless",
+        "dispatchSync",
+        "dispatchSyncIf",
+        "dispatchSyncUnless",
+        "sendRawBody"
+      ],
+      "status": "pending",
+      "parent_classes": [],
+      "declared_public_properties": [],
+      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
+      "evidence": []
+    },
+    {
+      "package": "server",
+      "revision": "6da6be3a721190bcdedcdef32d31d5980b77eb0e",
+      "source": "src/WebhookServerServiceProvider.php",
+      "type": "WebhookServerServiceProvider",
+      "public_methods": [
+        "configurePackage"
+      ],
+      "status": "partial_provider_verified",
+      "parent_classes": [
+        "PackageServiceProvider"
+      ],
+      "declared_public_properties": [],
+      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。 包发现、配置、发布已验；完整路由／迁移／任务装配待实现。",
+      "evidence": [
+        "tests/webhooks_features.py",
+        "tests/webhooks_acceptance.py"
+      ]
+    }
+  ],
+  "additional_public_entries": [
+    {
+      "entry": "Route::webhooks",
+      "package": "client",
+      "source": "src/WebhookClientServiceProvider.php",
+      "status": "pending",
+      "notes": "源码packageRegistered中的路由宏；需Rust扩展trait或等价入口，不能仅靠手工Route::post夹具认定已实现。固定白名单包含非标准query，不能擅自换成常见HTTP方法集合。",
+      "allowed_method_inputs": [
+        "get",
+        "query",
+        "post",
+        "put",
+        "patch",
+        "delete"
+      ],
+      "default_method_input": "post",
+      "uppercase_input_behavior": "rejected by fixed source allowlist"
+    }
+  ]
+}

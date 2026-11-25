@@ -53,8 +53,13 @@ fn default_application_does_not_ship_optional_package_configuration() {
             !root.join(format!("config/{name}.rs")).exists(),
             "optional {name} configuration belongs to its package until explicitly published"
         );
+        let module = name.replace('-', "_");
         assert!(
-            !source.contains(&format!("mod {name};")),
+            !root.join(format!("config/{module}.rs")).exists(),
+            "optional {name} configuration belongs to its package until explicitly published"
+        );
+        assert!(
+            !source.contains(&format!("mod {module};")),
             "default loader preinstalls {name}"
         );
     }
