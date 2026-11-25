@@ -489,11 +489,43 @@ impl QueueManager {
 
     pub async fn dispatch(
         &self,
-        mut payload: Payload,
+        payload: Payload,
         options: DispatchOptions,
         transaction: Option<&mut Transaction>,
     ) -> QueueResult<DispatchResult> {
+        self.dispatch_inner(payload, options, transaction, false)
+            .await
+    }
+
+    /// 仅允许当前事务所属的数据库队列连接，拒绝事务外派发及提交后回调。
+    pub async fn dispatch_in_database_transaction(
+        &self,
+        payload: Payload,
+        mut options: DispatchOptions,
+        transaction: &mut Transaction,
+    ) -> QueueResult<DispatchResult> {
+        options.after_commit = Some(false);
+        self.dispatch_inner(payload, options, Some(transaction), true)
+            .await
+    }
+
+    async fn dispatch_inner(
+        &self,
+        mut payload: Payload,
+        options: DispatchOptions,
+        transaction: Option<&mut Transaction>,
+        require_database_transaction: bool,
+    ) -> QueueResult<DispatchResult> {
         let configured = self.resolve(options.connection.as_deref())?;
+        if require_database_transaction
+            && !matches!(
+                (&configured.batch_backend, transaction.as_deref()),
+                (BatchBackend::Database(connection), Some(tx))
+                    if tx.transaction_level() != 0 && tx.belongs_to(connection)
+            )
+        {
+            return Err(QueueError::InvalidConfiguration);
+        }
         if configured.capture_context_on_dispatch {
             self.capture_context(&mut payload)?;
         }

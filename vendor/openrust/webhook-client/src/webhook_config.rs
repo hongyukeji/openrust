@@ -74,6 +74,22 @@ impl WebhookConfig {
         }
     }
 
+    pub fn atomic_database_queue(&self) -> Result<bool> {
+        match self.options.get("atomic_database_queue") {
+            None | Some(Value::Null) => Ok(false),
+            Some(Value::Bool(enabled)) => Ok(*enabled),
+            _ => Err(Error::InvalidConfig("atomic_database_queue")),
+        }
+    }
+
+    pub fn with_atomic_database_queue(mut self, enabled: bool) -> Self {
+        if self.options.is_null() {
+            self.options = serde_json::json!({});
+        }
+        self.options["atomic_database_queue"] = Value::Bool(enabled);
+        self
+    }
+
     pub fn with_store_attachments(mut self, enabled: bool) -> Self {
         if self.options.is_null() {
             self.options = serde_json::json!({});
@@ -282,6 +298,7 @@ impl WebhookConfig {
         }
         config.options = value.clone();
         config.store_attachments()?;
+        config.atomic_database_queue()?;
         if let Some(names) = value.get("store_headers").filter(|names| !names.is_null()) {
             if names.as_str() == Some("*") {
                 config = config.with_store_headers(&["*"])?;

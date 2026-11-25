@@ -297,6 +297,37 @@ impl openrust_webhook_client::jobs::ProcessWebhookJob for FixtureJob {
         })
     }
 }
+struct AtomicFixtureDispatcher {
+    inner: openrust_webhook_client::jobs::QueuedWebhookJob,
+    crash: Option<String>,
+}
+impl openrust_webhook_client::WebhookJobDispatcher for AtomicFixtureDispatcher {
+    fn dispatch<'a>(
+        &'a self,
+        call: &'a openrust_webhook_client::models::WebhookCall,
+    ) -> HttpFuture<'a, openrust_webhook_client::Result<()>> {
+        self.inner.dispatch(call)
+    }
+
+    fn dispatch_in_transaction<'a>(
+        &'a self,
+        call: &'a openrust_webhook_client::models::WebhookCall,
+        transaction: &'a mut openrust::database::Transaction,
+    ) -> HttpFuture<'a, openrust_webhook_client::Result<()>> {
+        Box::pin(async move {
+            if self.crash.as_deref() == Some("before-enqueue") {
+                std::process::exit(77);
+            }
+            self.inner
+                .dispatch_in_transaction(call, transaction)
+                .await?;
+            if self.crash.as_deref() == Some("after-enqueue") {
+                std::process::exit(78);
+            }
+            Ok(())
+        })
+    }
+}
 struct FixtureProvider;
 impl openrust::support::ServiceProvider for FixtureProvider {
     fn register<'a>(
@@ -327,6 +358,33 @@ impl openrust::support::ServiceProvider for FixtureProvider {
                     },
                 )?;
             }
+            WebhookRuntime::register_job_dispatcher(
+                openrust::contracts::foundation::Application::container(app),
+                "atomic",
+                |config, container| {
+                    use openrust::contracts::container::Container as _;
+                    let env = container.make::<openrust::config::Environment>()?;
+                    let connection = match config.name() {
+                        "atomic-null" => "null",
+                        "atomic-foreign" => "foreign-database",
+                        _ => "database",
+                    };
+                    Ok(std::sync::Arc::new(AtomicFixtureDispatcher {
+                        inner: openrust_webhook_client::jobs::QueuedWebhookJob::new("fixture")?
+                            .on_connection(connection)
+                            .on_queue("webhook-receipts")
+                            .with_options(openrust::queue::JobOptions {
+                                max_tries: Some(2),
+                                timeout: Some(std::time::Duration::from_secs(12)),
+                                ..Default::default()
+                            }),
+                        crash: env
+                            .get_utf8("FIXTURE_ATOMIC_CRASH")
+                            .map_err(runtime_error)?
+                            .map(str::to_owned),
+                    }))
+                },
+            )?;
             WebhookRuntime::register_job_dispatcher(
                 openrust::contracts::foundation::Application::container(app),
                 "factory-fails",
@@ -467,6 +525,9 @@ fn api_routes() -> Result<(), openrust::routing::RoutingError> {
     use openrust_webhook_client::{WebhookRouteOptions as Options, WebhookRouter, WebhookRoutes};
     Route::post("/webhooks/{profile}", verify)?;
     Route::post("/received/{profile}", receive)?;
+    for route in ["atomic", "atomic-null", "atomic-foreign"] {
+        Route::webhooks(&format!("/package/{route}"), Options::new().name(route))?;
+    }
     Route::webhooks("/package/default", Options::default())?;
     Route::webhooks("/package/unregistered", Options::new().name("unregistered"))?;
     Route::webhooks("/package/discarded", Options::new().name("discarded"))?;
@@ -671,6 +732,12 @@ async fn main() -> ExitCode {
         let root=Application::infer_base_path(Some(env!("CARGO_MANIFEST_DIR")))?;
         Application::configure(root).with_config(|root,env| {
             let mut config=config::load(root,env)?;
+            let database=config["database"]["default"].as_str().unwrap().to_owned();
+            let alias=config["database"]["connections"][&database].clone();
+            config.get_mut("database").unwrap()["connections"]["fixture-foreign"]=alias;
+            // 原子派发须覆盖普通连接的提交后派发默认值。
+            config.get_mut("queue").unwrap()["connections"]["database"]["after_commit"]=json!(true);
+            config.get_mut("queue").unwrap()["connections"]["foreign-database"]=json!({"driver":"database","connection":"fixture-foreign","table":"jobs","queue":"webhook-receipts"});
             config.insert("webhook-client".into(),json!({"add_unique_token_to_route_name": env.get_utf8("FIXTURE_UNIQUE_ROUTES")?==Some("true"),"configs":[
                 {"name":"spatie","revision":"one","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"fixture","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database"},
                 {"name":"no-attachments","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"fixture","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","store_attachments":false},
@@ -682,6 +749,9 @@ async fn main() -> ExitCode {
                 {"name":"package-ignored","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"webhook_profile":"ignored","webhook_model":"missing","process_webhook_job":"fixture","signature_validator":"default"},
                 {"name":"discarded","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"fixture","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database"},
                 {"name":"unregistered","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"unregistered","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database"},
+                {"name":"atomic","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","atomic_database_queue":true},
+                {"name":"atomic-null","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","atomic_database_queue":true},
+                {"name":"atomic-foreign","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","atomic_database_queue":true},
                 {"name":"factory-fails","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"factory-fails","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database"}
             ]}));
             Ok(config)

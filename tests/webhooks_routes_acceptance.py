@@ -109,6 +109,9 @@ def main():
       assert sql("SELECT COUNT(*) FROM jobs")=="0"
       return record
      send("/api/package/default",b"default",expected_name="default")
+     send("/api/package/atomic",b"atomic-receipt",expected_name="atomic")
+     send("/api/package/atomic-null",b"atomic-null",status=500,stored=False)
+     send("/api/package/atomic-foreign",b"atomic-foreign",status=500,stored=False)
      send("/api/package/post",b"retry-binary-receipt",expected_name="spatie",attempt_failure=True)
      if phase=="unique":
       send("/api/package/post",b"terminal-binary-receipt",expected_name="spatie",terminal=True)
@@ -162,6 +165,44 @@ def main():
      log.flush();print((root/f"http-{phase}.log").read_text());raise
     finally:http_helpers["stop"](server)
   assert sql("SELECT COUNT(*) FROM failed_jobs")=="1"
+  original=set(sql("SELECT id FROM webhook_calls").split())
+  for checkpoint,exit_code in (("before-enqueue",77),("after-enqueue",78)):
+   with (root/f"crash-{checkpoint}.log").open("w+") as log:
+    server=http_helpers["serve"](binary,current|{"FIXTURE_ATOMIC_CRASH":checkpoint},log)
+    connection=http.client.HTTPConnection("127.0.0.1",port,timeout=10)
+    try:
+     body=b"atomic-crash-probe"
+     signature=hmac.new(SECRET.encode(),body,hashlib.sha256).hexdigest()
+     connection.request("POST","/api/package/atomic",body,{"Content-Type":"application/octet-stream","Signature":signature})
+     try:
+      response=connection.getresponse()
+     except http.client.RemoteDisconnected:
+      pass
+     else:
+      raise AssertionError((checkpoint,response.status,response.read()))
+     assert server.wait(timeout=10)==exit_code
+     requests+=1
+    finally:
+     connection.close()
+     if server.poll() is None:http_helpers["stop"](server)
+   assert set(sql("SELECT id FROM webhook_calls").split())==original
+   assert sql("SELECT COUNT(*) FROM jobs")=="0"
+  command(binary,env,"config:clear")
+  with (root/"missing-queue-table.log").open("w+") as log:
+   server=http_helpers["serve"](binary,env|{"DB_QUEUE_TABLE":"fixture_absent_jobs"},log)
+   connection=http.client.HTTPConnection("127.0.0.1",port,timeout=10)
+   try:
+    body=b"atomic-restart-probe"
+    signature=hmac.new(SECRET.encode(),body,hashlib.sha256).hexdigest()
+    connection.request("POST","/api/package/atomic",body,{"Content-Type":"application/octet-stream","Signature":signature})
+    response=connection.getresponse()
+    assert response.status==500,response.read()
+    requests+=1
+   finally:
+    connection.close()
+    http_helpers["stop"](server)
+  assert set(sql("SELECT id FROM webhook_calls").split())==original
+  assert sql("SELECT COUNT(*) FROM jobs")=="0"
   legacy_id=sql("SELECT id FROM webhook_calls WHERE name='default' ORDER BY id LIMIT 1")
   assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate:rollback","--step=1","--force")
   assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate","--force")

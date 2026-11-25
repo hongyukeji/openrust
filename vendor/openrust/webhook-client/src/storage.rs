@@ -17,6 +17,13 @@ pub trait WebhookStore: Send + Sync {
         &'a self,
         webhook: &'a VerifiedWebhook<'_>,
     ) -> HttpFuture<'a, Result<WebhookCall>>;
+    fn store_and_dispatch_atomic<'a>(
+        &'a self,
+        _webhook: &'a VerifiedWebhook<'_>,
+        _dispatcher: &'a dyn crate::WebhookJobDispatcher,
+    ) -> HttpFuture<'a, Result<()>> {
+        Box::pin(async { Err(Error::InvalidConfig("atomic_database_queue")) })
+    }
     fn payload<'a>(&'a self, _id: &'a str) -> HttpFuture<'a, Result<Option<Json>>> {
         Box::pin(async { Err(Error::PayloadUnsupported) })
     }
@@ -65,76 +72,112 @@ impl DatabaseWebhookStore {
         ))
     }
 }
+impl DatabaseWebhookStore {
+    async fn prepare(
+        &self,
+        webhook: &VerifiedWebhook<'_>,
+    ) -> Result<(WebhookCall, openrust::database::query::Record)> {
+        let url = webhook.request().uri().to_string();
+        if url.len() > 8192 || webhook.request().method().as_str().len() > 32 {
+            return Err(Error::InvalidRecord);
+        }
+        let payload = crate::payload::ReceiptPayload::prepare(webhook).await?;
+        let headers = WebhookCall::headers_to_store(webhook.config(), webhook.request())?;
+        let encoded_headers: Vec<_> = headers
+            .iter()
+            .map(|(name, value)| (name.as_str().to_owned(), STANDARD.encode(value.as_bytes())))
+            .collect();
+        let created_at = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .ok()
+            .and_then(|d| i64::try_from(d.as_secs()).ok())
+            .ok_or(Error::InvalidRecord)?;
+        let id = Str::uuid().map_err(|_| Error::InvalidRecord)?.to_string();
+        let call = WebhookCall {
+            id,
+            scope: self.scope.clone(),
+            name: webhook.config().name().into(),
+            revision: webhook.config().revision().into(),
+            url,
+            method: webhook.request().method().clone(),
+            headers,
+            raw_body: webhook.request().body().to_vec(),
+            created_at,
+            exception: None,
+        };
+        let row = [
+            ("id".into(), call.id.clone().into()),
+            ("scope".into(), self.scope.clone().into()),
+            ("scope_key".into(), scope_key(&self.scope).into()),
+            ("name".into(), call.name.clone().into()),
+            ("revision".into(), call.revision.clone().into()),
+            ("url".into(), call.url.clone().into()),
+            ("method".into(), call.method.as_str().into()),
+            (
+                "headers".into(),
+                serde_json::to_string(&encoded_headers)
+                    .map_err(|_| Error::InvalidRecord)?
+                    .into(),
+            ),
+            ("raw_body".into(), STANDARD.encode(&call.raw_body).into()),
+            ("created_at".into(), created_at.into()),
+            ("exception".into(), Value::Null),
+            (
+                "payload".into(),
+                serde_json::to_string(&payload.input)
+                    .map_err(|_| Error::InvalidRecord)?
+                    .into(),
+            ),
+            (
+                "attachment_media_type".into(),
+                payload
+                    .attachment_media_type
+                    .map_or(Value::Null, Value::Text),
+            ),
+        ]
+        .into_iter()
+        .collect();
+        Ok((call, row))
+    }
+}
 impl WebhookStore for DatabaseWebhookStore {
     fn store_webhook<'a>(
         &'a self,
         webhook: &'a VerifiedWebhook<'_>,
     ) -> HttpFuture<'a, Result<WebhookCall>> {
         Box::pin(async move {
-            let url = webhook.request().uri().to_string();
-            if url.len() > 8192 || webhook.request().method().as_str().len() > 32 {
-                return Err(Error::InvalidRecord);
-            }
-            let payload = crate::payload::ReceiptPayload::prepare(webhook).await?;
-            let headers = WebhookCall::headers_to_store(webhook.config(), webhook.request())?;
-            let encoded_headers: Vec<_> = headers
-                .iter()
-                .map(|(name, value)| (name.as_str().to_owned(), STANDARD.encode(value.as_bytes())))
-                .collect();
-            let created_at = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .ok()
-                .and_then(|d| i64::try_from(d.as_secs()).ok())
-                .ok_or(Error::InvalidRecord)?;
-            let id = Str::uuid().map_err(|_| Error::InvalidRecord)?.to_string();
-            let call = WebhookCall {
-                id,
-                scope: self.scope.clone(),
-                name: webhook.config().name().into(),
-                revision: webhook.config().revision().into(),
-                url,
-                method: webhook.request().method().clone(),
-                headers,
-                raw_body: webhook.request().body().to_vec(),
-                created_at,
-                exception: None,
-            };
+            let (call, row) = self.prepare(webhook).await?;
             self.connection
                 .table("webhook_calls")
-                .insert(&[[
-                    ("id".into(), call.id.clone().into()),
-                    ("scope".into(), self.scope.clone().into()),
-                    ("scope_key".into(), scope_key(&self.scope).into()),
-                    ("name".into(), call.name.clone().into()),
-                    ("revision".into(), call.revision.clone().into()),
-                    ("url".into(), call.url.clone().into()),
-                    ("method".into(), call.method.as_str().into()),
-                    (
-                        "headers".into(),
-                        serde_json::to_string(&encoded_headers)
-                            .map_err(|_| Error::InvalidRecord)?
-                            .into(),
-                    ),
-                    ("raw_body".into(), STANDARD.encode(&call.raw_body).into()),
-                    ("created_at".into(), created_at.into()),
-                    ("exception".into(), Value::Null),
-                    (
-                        "payload".into(),
-                        serde_json::to_string(&payload.input)
-                            .map_err(|_| Error::InvalidRecord)?
-                            .into(),
-                    ),
-                    (
-                        "attachment_media_type".into(),
-                        payload
-                            .attachment_media_type
-                            .map_or(Value::Null, Value::Text),
-                    ),
-                ]
-                .into_iter()
-                .collect()])
+                .insert(&[row])
                 .await?;
             Ok(call)
+        })
+    }
+
+    fn store_and_dispatch_atomic<'a>(
+        &'a self,
+        webhook: &'a VerifiedWebhook<'_>,
+        dispatcher: &'a dyn crate::WebhookJobDispatcher,
+    ) -> HttpFuture<'a, Result<()>> {
+        Box::pin(async move {
+            let (call, row) = self.prepare(webhook).await?;
+            let mut transaction = self.connection.begin_transaction().await?;
+            let queued = async {
+                transaction.table("webhook_calls").insert(&[row]).await?;
+                dispatcher.prepare(&call)?;
+                dispatcher
+                    .dispatch_in_transaction(&call, &mut transaction)
+                    .await
+            }
+            .await;
+            match queued {
+                Ok(()) => transaction.commit().await.map_err(Into::into),
+                Err(error) => {
+                    transaction.roll_back(None).await?;
+                    Err(error)
+                }
+            }
         })
     }
     fn find<'a>(&'a self, id: &'a str) -> HttpFuture<'a, Result<Option<WebhookCall>>> {

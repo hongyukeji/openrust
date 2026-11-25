@@ -256,6 +256,17 @@ impl DeferredStore {
     }
 }
 impl WebhookStore for DeferredStore {
+    fn store_and_dispatch_atomic<'a>(
+        &'a self,
+        webhook: &'a crate::VerifiedWebhook<'_>,
+        dispatcher: &'a dyn WebhookJobDispatcher,
+    ) -> HttpFuture<'a, Result<()>> {
+        Box::pin(async move {
+            self.resolve()?
+                .store_and_dispatch_atomic(webhook, dispatcher)
+                .await
+        })
+    }
     fn store_webhook<'a>(
         &'a self,
         webhook: &'a crate::VerifiedWebhook<'_>,
@@ -305,6 +316,17 @@ impl DeferredJob {
 impl WebhookJobDispatcher for DeferredJob {
     fn prepare(&self, call: &WebhookCall) -> Result<()> {
         self.resolve()?.prepare(call)
+    }
+    fn dispatch_in_transaction<'a>(
+        &'a self,
+        call: &'a WebhookCall,
+        transaction: &'a mut openrust::database::Transaction,
+    ) -> HttpFuture<'a, Result<()>> {
+        Box::pin(async move {
+            self.resolve()?
+                .dispatch_in_transaction(call, transaction)
+                .await
+        })
     }
     fn dispatch<'a>(&'a self, call: &'a WebhookCall) -> HttpFuture<'a, Result<()>> {
         Box::pin(async move { self.resolve()?.dispatch(call).await })

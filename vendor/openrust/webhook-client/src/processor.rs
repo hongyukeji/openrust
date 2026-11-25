@@ -30,6 +30,13 @@ pub trait WebhookJobDispatcher: Send + Sync {
     fn prepare(&self, _: &WebhookCall) -> Result<()> {
         Ok(())
     }
+    fn dispatch_in_transaction<'a>(
+        &'a self,
+        _call: &'a WebhookCall,
+        _transaction: &'a mut openrust::database::Transaction,
+    ) -> HttpFuture<'a, Result<()>> {
+        Box::pin(async { Err(Error::InvalidConfig("atomic_database_queue")) })
+    }
     fn dispatch<'a>(&'a self, call: &'a WebhookCall) -> HttpFuture<'a, Result<()>>;
 }
 
@@ -137,6 +144,13 @@ impl<'a> WebhookProcessor<'a> {
             request: self.request,
             config: self.config,
         };
+        if self.config.atomic_database_queue()? {
+            self.runtime
+                .store
+                .store_and_dispatch_atomic(&verified, self.runtime.job.as_ref())
+                .await?;
+            return self.create_response();
+        }
         let mut call = WebhookCall::store_webhook(self.runtime.store.as_ref(), &verified).await?;
         let dispatched = async {
             self.runtime.job.prepare(&call)?;

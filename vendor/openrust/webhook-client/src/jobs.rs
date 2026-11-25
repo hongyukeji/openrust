@@ -62,9 +62,42 @@ impl QueuedWebhookJob {
         queue.register(&job_name(name)?, Arc::new(RegisteredJob { store, handler }))?;
         Ok(())
     }
+    fn payload(&self, call: &WebhookCall) -> Result<Payload> {
+        let receipt = Receipt {
+            id: call.id(),
+            scope: call.scope(),
+            profile: call.name(),
+            revision: call.revision(),
+        };
+        receipt.validate()?;
+        Ok(Payload::new(&self.name, receipt)?.with_options(self.options.clone()))
+    }
 }
 
 impl WebhookJobDispatcher for QueuedWebhookJob {
+    fn dispatch_in_transaction<'a>(
+        &'a self,
+        call: &'a WebhookCall,
+        transaction: &'a mut openrust::database::Transaction,
+    ) -> HttpFuture<'a, Result<()>> {
+        Box::pin(async move {
+            let manager = QueueFacade::manager()?;
+            if !manager.has_handler(&self.name) {
+                return Err(QueueError::UnknownJob(self.name.clone()).into());
+            }
+            match manager
+                .dispatch_in_database_transaction(
+                    self.payload(call)?,
+                    self.dispatch.clone(),
+                    transaction,
+                )
+                .await?
+            {
+                DispatchResult::Queued(_) => Ok(()),
+                _ => Err(QueueError::InvalidConfiguration.into()),
+            }
+        })
+    }
     fn dispatch<'a>(&'a self, call: &'a WebhookCall) -> HttpFuture<'a, Result<()>> {
         Box::pin(async move {
             let manager = QueueFacade::manager()?;
@@ -74,14 +107,7 @@ impl WebhookJobDispatcher for QueuedWebhookJob {
             if manager.connection_is_synchronous(self.dispatch.connection.as_deref())? {
                 return Err(Error::InvalidConfig("process_webhook_job.connection"));
             }
-            let receipt = Receipt {
-                id: call.id(),
-                scope: call.scope(),
-                profile: call.name(),
-                revision: call.revision(),
-            };
-            receipt.validate()?;
-            let payload = Payload::new(&self.name, receipt)?.with_options(self.options.clone());
+            let payload = self.payload(call)?;
             match Bus::dispatch(payload, self.dispatch.clone(), None).await? {
                 DispatchResult::Queued(_) => Ok(()),
                 _ => Err(QueueError::InvalidConfiguration.into()),

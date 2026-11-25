@@ -133,7 +133,11 @@ Provider 注册 `webhook_calls` 迁移，使用 `DatabaseWebhookStore` 前运行
 
 实现 `jobs::ProcessWebhookJob` 处理已保存的接收记录。在 HTTP 和 Worker 共用的应用 Provider 中，调用 `QueuedWebhookJob::register`，传入原生 `QueueManager`、稳定名称、可信范围的存储及处理器。再按 `process_webhook_job` 选择的名称注册 `QueuedWebhookJob` 派发器。不同存储范围使用各自的注册名。Worker 对照原记录核对 ID、范围、配置名和修订号后才调用处理器。
 
-派发器可指定队列连接和名称，原生 `JobOptions` 控制尝试次数、退避及超时。业务策略由处理器决定。队列载荷保存接收记录标识，Worker 直接读取已验收的记录，无需接收方的验签密钥。处理器失败时记录固定异常，下次尝试清除上次诊断。保存至派发之间的崩溃窗口、幂等及恢复仍待完成。请选择由 Worker 消费的连接。派发器拒绝内置 sync、null、deferred 和 background 连接，并要求队列返回已入队结果。
+派发器可指定队列连接和名称，原生 `JobOptions` 控制尝试次数、退避及超时。业务策略由处理器决定。队列载荷保存接收记录标识，Worker 直接读取已验收的记录，无需接收方的验签密钥。处理器失败时记录固定异常，下次尝试清除上次诊断。跨后端派发恢复及幂等仍待完成。请选择由 Worker 消费的连接。派发器拒绝内置 sync、null、deferred 和 background 连接，并要求队列返回已入队结果。
+
+### 同事务保存接收记录与数据库队列任务 {#atomic-database-queue}
+
+在配置中设置 `atomic_database_queue: true`，或在运行时调用 `with_atomic_database_queue(true)`。让 `DatabaseWebhookStore` 和 `QueuedWebhookJob` 使用同一应用数据库连接。接收记录和队列任务一起提交后才返回 HTTP 确认，队列写入失败时一并回滚。其他驱动或分开的连接实例会被拒绝，即使指向同一个数据库。该选项默认关闭，开启后覆盖入队前的进程退出窗口。HTTP 重试去重和队列重复投递处理仍需另行实现。
 
 ## 使用边界 {#scope}
 
