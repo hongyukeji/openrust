@@ -9,7 +9,7 @@ use openrust::{
     support::facades::Config,
 };
 
-use crate::{DeliveryProgress, DeliveryService, Error, Result, extensions};
+use crate::{DeliveryService, Error, Result, events, extensions};
 
 impl DeliveryService {
     /// 注册指定范围的发送任务，Worker 和应用应使用同一份策略配置。
@@ -24,12 +24,42 @@ impl DeliveryService {
     /// 已持久提交的投递可加入具名 Worker 队列。队列仅收到内部投递 ID。
     pub async fn dispatch(&self, queue: &QueueManager, id: &str) -> Result<DispatchResult> {
         let snapshot = self.store.snapshot(id).await?.ok_or(Error::InvalidRecord)?;
-        let name = self.worker_name(&snapshot.job)?;
+        let (name, connection) =
+            self.queue_route(queue, &snapshot.job, snapshot.connection.as_deref())?;
+        let selected_queue = snapshot.queue.clone();
+        let payload = Payload::new(name, id)?.with_options(JobOptions {
+            // 重试由投递记录控制，底层任务不叠加额度。
+            max_tries: Some(1),
+            timeout: Some(Duration::from_secs(u64::from(snapshot.timeout) + 3)),
+            ..Default::default()
+        });
+        events::dispatching(self.store.scope(), id, snapshot).await?;
+        Ok(queue
+            .dispatch(
+                payload,
+                DispatchOptions {
+                    connection: Some(connection),
+                    queue: selected_queue,
+                    after_commit: Some(false),
+                    ..Default::default()
+                },
+                None,
+            )
+            .await?)
+    }
+
+    pub(crate) fn queue_route(
+        &self,
+        queue: &QueueManager,
+        job: &str,
+        connection: Option<&str>,
+    ) -> Result<(String, String)> {
+        let name = self.worker_name(job)?;
         if !queue.has_handler(&name) {
             return Err(Error::InvalidConfig("delivery.job"));
         }
-        let connection = snapshot
-            .connection
+        let connection = connection
+            .map(str::to_owned)
             .or_else(|| {
                 Config::get("queue.default")
                     .ok()
@@ -41,24 +71,7 @@ impl DeliveryService {
         if !queue.connection_is_direct_worker_queue(&connection)? {
             return Err(Error::InvalidConfig("delivery.connection"));
         }
-        let payload = Payload::new(name, id)?.with_options(JobOptions {
-            // 重试由投递记录控制，底层任务不叠加额度。
-            max_tries: Some(1),
-            timeout: Some(Duration::from_secs(u64::from(snapshot.timeout) + 3)),
-            ..Default::default()
-        });
-        Ok(queue
-            .dispatch(
-                payload,
-                DispatchOptions {
-                    connection: Some(connection),
-                    queue: snapshot.queue,
-                    after_commit: Some(false),
-                    ..Default::default()
-                },
-                None,
-            )
-            .await?)
+        Ok((name, connection))
     }
 
     fn worker_name(&self, name: &str) -> Result<String> {
@@ -81,12 +94,7 @@ impl JobHandler for DeliveryJob {
         Box::pin(async move {
             let id = payload.data().as_str().ok_or(QueueError::InvalidPayload)?;
             let (progress, throw) = self.0.run(id).await.map_err(queue_error)?;
-            if throw
-                && matches!(
-                    progress,
-                    DeliveryProgress::Failed | DeliveryProgress::Expired
-                )
-            {
+            if throw && progress.is_final_failure() {
                 return Err(queue_error(Error::DeliveryFailed));
             }
             Ok(())

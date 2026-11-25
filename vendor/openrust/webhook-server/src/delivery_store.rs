@@ -39,6 +39,12 @@ pub enum DeliveryProgress {
     Expired,
 }
 
+impl DeliveryProgress {
+    pub(crate) fn is_final_failure(self) -> bool {
+        matches!(self, Self::Failed | Self::Expired)
+    }
+}
+
 pub(crate) struct AttemptResult {
     pub outcome: &'static str,
     pub status: Option<u16>,

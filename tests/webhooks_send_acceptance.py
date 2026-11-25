@@ -42,7 +42,7 @@ class Receiver(http.server.BaseHTTPRequestHandler):
             if not owner.release[key].wait(timeout=12):
                 return
         status = 204
-        if (key in ("retry", "retry-date") and attempt == 1) or key in ("exhausted", "excluded"):
+        if (key in ("retry", "retry-date") and attempt == 1) or key in ("exhausted", "excluded", "sync-throws", "worker-throws"):
             status = 503
         if key == "redirect":
             status = 302
@@ -82,10 +82,12 @@ def exercise(binary, env, log, receiver, driver, sql):
             response = connection.getresponse()
             result = response.read()
             assert response.status == expected, (response.status, result)
-            if expected == 202:
+            if expected in (202, 502, 503):
                 identifier = json.loads(result)["id"]
                 assert re.fullmatch("[0-9a-f]{64}", identifier)
                 return identifier
+            if expected == 200:
+                assert json.loads(result) == {"skipped": True}
         finally:
             connection.close()
 
@@ -263,6 +265,83 @@ def exercise(binary, env, log, receiver, driver, sql):
             process.wait(timeout=10)
 
 
+    before = sql("SELECT COUNT(*) FROM webhook_deliveries")
+    for mode in ("async-if", "async-unless", "sync-if", "sync-unless"):
+        submit(f"skip-{mode}", f"builder-{mode}-skip", expected=200)
+        captured(f"skip-{mode}", 0)
+    submit("missing-job", "builder-async-missing", expected=422)
+    assert sql("SELECT COUNT(*) FROM webhook_deliveries") == before
+    assert sql("SELECT COUNT(*) FROM jobs WHERE queue='webhook-outgoing' AND reserved_at IS NULL") == "0"
+
+    for mode in ("async-if", "async-unless"):
+        key = f"supported-{mode}"
+        identifier = submit(key, f"builder-{mode}")
+        assert read(identifier) == "pending\t0"
+        captured(key, 0)
+        command(*worker)
+        assert read(identifier) == "succeeded\t1"
+        captured(key)
+    for mode in ("sync-if", "sync-unless"):
+        key = f"supported-{mode}"
+        identifier = submit(key, f"builder-{mode}")
+        assert read(identifier) == "succeeded\t1"
+        captured(key)
+
+    sync_failure = submit("sync-throws", "builder-sync-throw", expected=502)
+    assert read(sync_failure) == "failed\t1"
+    captured("sync-throws")
+    native_failure = submit("worker-throws", "builder-async-throw")
+    command(*worker)
+    assert read(native_failure) == "failed\t1"
+    assert sql("SELECT COUNT(*) FROM failed_jobs WHERE queue='webhook-outgoing'") == "1"
+    captured("worker-throws")
+
+    listener_failure = submit("dispatch-listener-error", "builder-async-if", expected=503)
+    assert read(listener_failure) == "pending\t0"
+    assert sql("SELECT COUNT(*) FROM jobs WHERE queue='webhook-outgoing' AND reserved_at IS NULL") == "0"
+    captured("dispatch-listener-error", 0)
+    assert '"succeeded"' in send(listener_failure)
+    captured("dispatch-listener-error")
+
+    listener_attempt = submit("attempt-listener-error", "builder-sync-unless")
+    assert read(listener_attempt) == "succeeded\t1"
+    assert '"unavailable"' in send(listener_attempt)
+    captured("attempt-listener-error")
+
+    recorded = Path(env["FIXTURE_SEND_EVENTS"]).read_text()
+    assert SECRET.decode() not in recorded and "fixture-sensitive-listener-sentinel" not in recorded
+    events = [json.loads(line) for line in recorded.splitlines()]
+    def activity(key):
+        return [event for event in events if event["message_id"] == key]
+
+    queued = activity("supported-async-if")
+    assert [event["kind"] for event in queued] == ["DispatchingWebhookCallEvent", "WebhookCallSucceededEvent"], queued
+    assert queued[0]["state"] == "pending" and queued[0]["jobs"] == 0 and queued[0]["attempt"] is None, queued[0]
+    assert queued[1]["state"] == "succeeded" and queued[1]["attempt"] == {
+        "number": 1, "status": 204, "outcome": "succeeded", "progress": "succeeded",
+    }
+    for event in queued:
+        assert event["id"] and event["scope"] == SCOPE and event["method"] == "POST"
+        assert event["body_length"] == len(BODY) and event["url"] == env["FIXTURE_SEND_TARGET"]
+        assert set(event["headers"]) == {"content-type", "webhook-id"}, event["headers"]
+        assert event["meta"] == {"trace": "fixture"} and event["tags"] == ["audit"]
+    assert [event["kind"] for event in activity("supported-sync-if")] == ["WebhookCallSucceededEvent"]
+    assert [event["kind"] for event in activity("worker-throws")] == [
+        "DispatchingWebhookCallEvent", "WebhookCallFailedEvent", "FinalWebhookCallFailedEvent",
+    ]
+    retry_events = activity("retry")
+    assert [event["kind"] for event in retry_events] == ["WebhookCallFailedEvent", "WebhookCallSucceededEvent"]
+    assert [event["attempt"]["number"] for event in retry_events] == [1, 2]
+    assert [event["state"] for event in retry_events] == ["pending", "succeeded"]
+    assert [event["kind"] for event in activity("stale")] == ["WebhookCallSucceededEvent"]
+    assert not [event for event in events if event["message_id"].startswith("skip-")]
+    log.flush()
+    logs = [Path(log.name), *(Path(env["APP_BASE_PATH"]) / "storage/logs").glob("*.log")]
+    for path in logs:
+        output = path.read_bytes()
+        assert SECRET not in output and b"fixture-sensitive-listener-sentinel" not in output
+
+
 def main():
     binary = routes["args"].binary.resolve()
     driver, url = helpers["database_settings"]()
@@ -294,6 +373,7 @@ def main():
                 "FIXTURE_SPATIE_SECRET": routes["SECRET"], "FIXTURE_STANDARD_SECRET": routes["STANDARD"],
                 "FIXTURE_SEND_TARGET": f"http://outgoing-fixture.invalid:{receiver.server_port}/receiver",
                 "FIXTURE_SEND_ADDRESS": f"127.0.0.1:{receiver.server_port}",
+                "FIXTURE_SEND_EVENTS": str(Path(root) / "delivery-events.jsonl"),
                 "HTTP_PROXY": "http://127.0.0.1:1", "NO_PROXY": "",
             }
             if url:
@@ -318,7 +398,7 @@ def main():
                     raise
                 finally:
                     http_helpers["stop"](app)
-        print(f"{driver}: HTTP 签名和字节、事务回滚、重复领取、重试预算、撤销、超时与崩溃恢复通过")
+        print(f"{driver}: HTTP 签名和字节、事务回滚、重复领取、重试预算、撤销、超时、崩溃恢复、Builder 分支与投递事件通过")
     finally:
         receiver.shutdown()
         receiver.server_close()

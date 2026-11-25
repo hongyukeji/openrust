@@ -20,6 +20,10 @@ pub enum Error {
     LeaseLost,
     #[error("Webhook 投递已结束且未成功")]
     DeliveryFailed,
+    #[error("Webhook 同步投递已结束且未成功：{delivery_id}")]
+    SynchronousDeliveryFailed { delivery_id: String },
+    #[error("Webhook 派发前事件失败：{delivery_id}")]
+    DispatchEventFailed { delivery_id: String },
     #[error("Webhook 正文不符合签名协议")]
     InvalidPayload,
 }

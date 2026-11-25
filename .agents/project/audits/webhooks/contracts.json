@@ -445,7 +445,7 @@
         "uuid",
         "outputType"
       ],
-      "notes": "首次 HTTP 请求、2xx 成功、状态码允许列表、独立重试预算、Retry-After、数据库领取、旧令牌写回隔离与 Worker 路由已接入。响应访问器、任务定制、事件、自动调度、完整失败钩子及双拓扑仍开放。",
+      "notes": "首次 HTTP、状态码、独立重试预算、Retry-After、数据库领取、旧令牌隔离、Worker 路由与结果事件已接入。响应访问器、任务定制、自动调度、完整失败钩子及双拓扑仍开放。",
       "evidence": [
         "tests/webhooks_send_acceptance.py"
       ],
@@ -474,7 +474,7 @@
       "public_methods": [
         "__construct"
       ],
-      "status": "pending",
+      "status": "rust_event_adapter_verified",
       "parent_classes": [],
       "declared_public_properties": [
         "httpVerb",
@@ -485,8 +485,12 @@
         "tags",
         "uuid"
       ],
-      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
-      "evidence": []
+      "notes": "异步投递记录提交后、原生队列推送前触发；同步与跳过条件不触发。同步监听器失败时保留可恢复投递并返回 ID。",
+      "evidence": [
+        "tests/webhooks_send_acceptance.py",
+        ".agents/project/audits/webhooks/dispatch-events.md"
+      ],
+      "rust_source": "vendor/openrust/webhook-server/src/events.rs"
     },
     {
       "package": "server",
@@ -494,13 +498,17 @@
       "source": "src/Events/FinalWebhookCallFailedEvent.php",
       "type": "FinalWebhookCallFailedEvent",
       "public_methods": [],
-      "status": "pending",
+      "status": "rust_event_adapter_verified",
       "parent_classes": [
         "WebhookCallEvent"
       ],
       "declared_public_properties": [],
-      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
-      "evidence": []
+      "notes": "仅在已提交的尝试结果终结投递时触发，顺序在单次失败事件之后。崩溃补记与重放仍随恢复实现验收。",
+      "evidence": [
+        "tests/webhooks_send_acceptance.py",
+        ".agents/project/audits/webhooks/dispatch-events.md"
+      ],
+      "rust_source": "vendor/openrust/webhook-server/src/events.rs"
     },
     {
       "package": "server",
@@ -512,7 +520,7 @@
         "__serialize",
         "__unserialize"
       ],
-      "status": "pending",
+      "status": "rust_event_adapter_verified",
       "parent_classes": [],
       "declared_public_properties": [
         "httpVerb",
@@ -528,8 +536,12 @@
         "uuid",
         "transferStats"
       ],
-      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
-      "evidence": []
+      "notes": "共同载荷提供范围、ID、方法、去查询串 URL、请求头名称、原始签名字节、Meta／Tags、状态码与尝试结果。敏感头值、完整响应及 PHP 序列化不暴露；无 Debug／自动诊断属性。",
+      "evidence": [
+        "tests/webhooks_send_acceptance.py",
+        ".agents/project/audits/webhooks/dispatch-events.md"
+      ],
+      "rust_source": "vendor/openrust/webhook-server/src/events.rs"
     },
     {
       "package": "server",
@@ -537,13 +549,17 @@
       "source": "src/Events/WebhookCallFailedEvent.php",
       "type": "WebhookCallFailedEvent",
       "public_methods": [],
-      "status": "pending",
+      "status": "rust_event_adapter_verified",
       "parent_classes": [
         "WebhookCallEvent"
       ],
       "declared_public_properties": [],
-      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
-      "evidence": []
+      "notes": "失败尝试写回成功后按次触发，等待重试与最终失败均报告；旧令牌无法写回或触发该结果事件。",
+      "evidence": [
+        "tests/webhooks_send_acceptance.py",
+        ".agents/project/audits/webhooks/dispatch-events.md"
+      ],
+      "rust_source": "vendor/openrust/webhook-server/src/events.rs"
     },
     {
       "package": "server",
@@ -551,13 +567,17 @@
       "source": "src/Events/WebhookCallSucceededEvent.php",
       "type": "WebhookCallSucceededEvent",
       "public_methods": [],
-      "status": "pending",
+      "status": "rust_event_adapter_verified",
       "parent_classes": [
         "WebhookCallEvent"
       ],
       "declared_public_properties": [],
-      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
-      "evidence": []
+      "notes": "成功尝试写回并提交后触发；后续重复 Worker 领取不到记录，不重复派发结果事件。",
+      "evidence": [
+        "tests/webhooks_send_acceptance.py",
+        ".agents/project/audits/webhooks/dispatch-events.md"
+      ],
+      "rust_source": "vendor/openrust/webhook-server/src/events.rs"
     },
     {
       "package": "server",
@@ -714,7 +734,7 @@
       "status": "partial_delivery_verified",
       "parent_classes": [],
       "declared_public_properties": [],
-      "notes": "已验请求准备、稳定 ID、正文／GET 查询、具名签名及退避、目的地和固定连接地址；持久登记、同步尝试与 Worker 派发通过 DeliveryStore／DeliveryService 接入。Builder 的公开派发变体、事件、代理、mTLS、自定义 CA 仍开放。",
+      "notes": "已验请求准备、稳定 ID、正文／GET 查询、具名签名及退避、目的地和固定连接地址；六个公开派发及条件入口已接入持久登记、同步尝试及原生 Worker。代理、mTLS、自定义 CA 和完整 Job 扩展仍开放。",
       "rust_source": "vendor/openrust/webhook-server/src/webhook_call.rs",
       "evidence": [
         "vendor/openrust/webhook-server/tests/builder.rs",

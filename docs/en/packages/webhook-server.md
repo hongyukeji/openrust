@@ -42,19 +42,33 @@ pub fn standard_headers(
     })
 }
 
-pub fn prepare_invoice() -> Result<openrust_webhook_server::PreparedWebhook> {
-    use openrust_webhook_server::{TargetPolicy, WebhookCall};
+fn invoice_call() -> Result<openrust_webhook_server::WebhookCall> {
+    use openrust_webhook_server::WebhookCall;
 
-    WebhookCall::new()?
+    Ok(WebhookCall::new()?
         .url("https://billing.example.com/callback")
         .uuid("invoice-issued-inv-123")
         .payload(serde_json::json!({"invoice_id": "inv-123"}))
         .use_secret_reference("billing-v1")
-        .prepare(&TargetPolicy::default())
+        .on_connection(Some("database".into())))
+}
+
+pub fn prepare_invoice() -> Result<openrust_webhook_server::PreparedWebhook> {
+    invoice_call()?.prepare(&openrust_webhook_server::TargetPolicy::default())
 }
 
 pub async fn submit_invoice(store: &openrust_webhook_server::DeliveryStore) -> Result<String> {
     store.submit("invoice-issued-inv-123", &prepare_invoice()?, 3600).await
+}
+
+pub async fn queue_invoice(
+    service: &openrust_webhook_server::DeliveryService,
+    queue: &openrust::queue::QueueManager,
+) -> Result<openrust_webhook_server::QueuedDelivery> {
+    invoice_call()?.dispatch(
+        service, queue, &openrust_webhook_server::TargetPolicy::default(),
+        "invoice-issued-inv-123", 3600,
+    ).await
 }
 ```
 
@@ -74,6 +88,10 @@ Run `./artisan migrate` after enabling the package. Create a `DeliveryStore` wit
 Enable `register_delivery_policy` in the application. The policy evaluates the current delivery scope, URL and credential reference for each attempt. Resolve secrets at runtime. The saved snapshot excludes inline secrets and sensitive headers. Queue payloads contain only the delivery ID. Keep sensitive values out of the URL, body and metadata wherever possible.
 
 For queued sending, register the prepared Job name with `DeliveryService::register_worker` in each Worker process. Use the same named database, scope and policy on all Workers, and configure a direct Worker queue connection such as `database`. Each command or Worker can claim only one attempt for a given delivery at a time. HTTP 2xx succeeds. Other statuses follow the configured retry rules. Timeouts and interrupted attempts can leave the remote result unknown. Use the stable message ID for receiver-side deduplication.
+
+Use the Builder’s `dispatch` / `dispatch_if` / `dispatch_unless` methods to save and enqueue a delivery. The `dispatch_sync` variants save the delivery and attempt it in the current process. Pass a Rust boolean to the conditional variants. A skipped call returns `None` before preparing a request. A synchronous call with `throw_exception_on_failure(true)` returns a typed error with the delivery ID on terminal failure. Queued terminal failures use the native failed-job mechanism.
+
+Register synchronous listeners for these events under `openrust_webhook_server::events`. `DispatchingWebhookCallEvent` runs after the delivery record commits and before the queue push. `WebhookCallSucceededEvent` and `WebhookCallFailedEvent` report committed attempts. A terminal failure also emits `FinalWebhookCallFailedEvent` after the attempt failure. The shared payload exposes message and delivery IDs, request method, URL path, body and metadata accessors, and the attempt’s status. Request header values and response contents stay out of the event, and the URL omits its query string. Dispatch-time listener errors leave a recoverable record. A result listener error leaves the recorded result intact.
 
 ```sh
 ./artisan webhook-server:send <delivery-id> --scope=billing

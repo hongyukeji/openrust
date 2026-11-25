@@ -10,7 +10,9 @@ mod delivery;
 mod delivery_migration;
 mod delivery_store;
 mod destination;
+mod dispatch;
 mod error;
+pub mod events;
 mod extensions;
 mod signer;
 mod snapshot;
@@ -23,6 +25,7 @@ pub use delivery::{
 };
 pub use delivery_store::{DeliveryProgress, DeliveryStore};
 pub use destination::{BoundTarget, TargetPolicy};
+pub use dispatch::{QueuedDelivery, SynchronousDelivery};
 pub use error::{Error, Result};
 pub use extensions::{register_backoff_strategy, register_signer};
 pub use signer::{DefaultSigner, Signer, SigningContext, StandardWebhookSigner};

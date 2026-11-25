@@ -18,6 +18,7 @@ use zeroize::Zeroizing;
 use crate::{
     DeliveryProgress, DeliveryStore, Error, Result, TargetPolicy,
     delivery_store::{AttemptResult, Claim, RetryAfter},
+    events::{self, WebhookAttempt, WebhookCallEvent},
     extensions,
 };
 
@@ -103,8 +104,25 @@ impl DeliveryService {
         } else {
             None
         };
+        let status = attempt.status;
+        let outcome = attempt.outcome;
+        let elapsed = started.elapsed();
         let progress = self.store.finish(id, &claim, attempt, backoff).await?;
-        Ok((progress, claim.snapshot.throws_on_failure))
+        let throw = claim.snapshot.throws_on_failure;
+        let event = WebhookCallEvent::new(
+            self.store.scope(),
+            id,
+            claim.snapshot,
+            Some(WebhookAttempt {
+                number: claim.number,
+                status,
+                outcome,
+                progress,
+                elapsed,
+            }),
+        );
+        events::attempted(event, progress).await;
+        Ok((progress, throw))
     }
 
     async fn attempt(&self, id: &str, claim: &Claim, deadline: Instant) -> AttemptResult {

@@ -42,19 +42,33 @@ pub fn standard_headers(
     })
 }
 
-pub fn prepare_invoice() -> Result<openrust_webhook_server::PreparedWebhook> {
-    use openrust_webhook_server::{TargetPolicy, WebhookCall};
+fn invoice_call() -> Result<openrust_webhook_server::WebhookCall> {
+    use openrust_webhook_server::WebhookCall;
 
-    WebhookCall::new()?
+    Ok(WebhookCall::new()?
         .url("https://billing.example.com/callback")
         .uuid("invoice-issued-inv-123")
         .payload(serde_json::json!({"invoice_id": "inv-123"}))
         .use_secret_reference("billing-v1")
-        .prepare(&TargetPolicy::default())
+        .on_connection(Some("database".into())))
+}
+
+pub fn prepare_invoice() -> Result<openrust_webhook_server::PreparedWebhook> {
+    invoice_call()?.prepare(&openrust_webhook_server::TargetPolicy::default())
 }
 
 pub async fn submit_invoice(store: &openrust_webhook_server::DeliveryStore) -> Result<String> {
     store.submit("invoice-issued-inv-123", &prepare_invoice()?, 3600).await
+}
+
+pub async fn queue_invoice(
+    service: &openrust_webhook_server::DeliveryService,
+    queue: &openrust::queue::QueueManager,
+) -> Result<openrust_webhook_server::QueuedDelivery> {
+    invoice_call()?.dispatch(
+        service, queue, &openrust_webhook_server::TargetPolicy::default(),
+        "invoice-issued-inv-123", 3600,
+    ).await
 }
 ```
 
@@ -74,6 +88,10 @@ POST 等正文方法使用已準備的位元組。GET 將載荷編碼為 RFC 398
 透過 `register_delivery_policy` 註冊應用策略。每次嘗試都按目前設定核對投遞範圍、URL 和憑據引用，在執行時解析金鑰。保存的快照拒絕內嵌金鑰與敏感請求頭，佇列載荷只含投遞 ID。避免把敏感值放進 URL、本文與中繼資料。
 
 佇列發送需要在各 Worker 程序用 `DeliveryService::register_worker` 註冊準備時選定的 Job 名稱，統一具名資料庫、投遞範圍和策略，並設定 `database` 等直接供 Worker 使用的佇列連線。同一投遞同一時間只允許一個領取。HTTP 2xx 視為成功，其餘狀態按設定重試。請求逾時或程序中斷可能使遠端結果未知，接收端可按穩定的訊息 ID 去重。
+
+Builder 的 `dispatch`、`dispatch_if` 和 `dispatch_unless` 登記投遞並入佇列。對應的 `dispatch_sync` 系列會在登記後由目前程序嘗試投遞。條件方法傳入 Rust 布林值，略過時直接回傳 `None`。啟用 `throw_exception_on_failure(true)` 後，同步投遞最終失敗會回傳帶有投遞 ID 的型別化錯誤，佇列投遞則交由原生 Worker 記錄失敗工作。
+
+在 `openrust_webhook_server::events` 下註冊同步監聽器。`DispatchingWebhookCallEvent` 在投遞記錄提交後、入佇列前觸發。`WebhookCallSucceededEvent` 和 `WebhookCallFailedEvent` 在嘗試結果提交後觸發，最終失敗隨後還會派發 `FinalWebhookCallFailedEvent`。共用載荷提供訊息與投遞 ID、請求方法、URL 路徑、本文和中繼資料的存取方法，以及嘗試狀態。事件省略 URL 查詢字串、請求標頭的值和回應內容。入佇列前監聽器失敗時可從持久記錄繼續投遞，結果監聽器失敗時以已提交的結果為準。
 
 ```sh
 ./artisan webhook-server:send <delivery-id> --scope=billing
