@@ -30,6 +30,7 @@
 | [async-openai `18a85cba921ccef08b2d058e5080f7083071e39c`](https://github.com/64bit/async-openai/tree/18a85cba921ccef08b2d058e5080f7083071e39c) | MIT。按能力启用 Chat Completions、Responses、Embeddings 等协议类型，声明的 workspace MSRV 为 1.75，实际传递依赖仍需编译核对。首选试用类型特性，经 OpenRust HTTP 发送和解析，保持加密、代理、超时、观测及测试入口一致。若类型与锁定协议不吻合，适配该差异并用 HTTP 用例固定。 |
 | [Rig `f4d73dacdfabb3d9daa3f1de091efa490a84c601`](https://github.com/0xPlaygrounds/rig/tree/f4d73dacdfabb3d9daa3f1de091efa490a84c601) | MIT。参考按模型和工具分隔运行步骤、流式测试及检查点。该版本最低 Rust 1.97.1，当前项目为 1.94，本轮作设计参考。 |
 | [Sub2API `0f6671457132425d1b84f3d80536b53e02942424`](https://github.com/Wei-Shaw/sub2api/tree/0f6671457132425d1b84f3d80536b53e02942424) | 核对公开协议路由、Responses 转 Anthropic Messages，以及按模型和端点选择上游的组合路由。按固定源码核对协议入口、账号类型、实际能力和运维行为，作为网关实现与实测参考。 |
+| [腾讯云 TokenHub 语言模型调用概览](https://cloud.tencent.com/document/product/1823/130079) | 作为多协议网关的公开行为参考。同一地域基础 URL 下提供 Chat Completions、Responses 和 Anthropic Messages，按协议使用对应鉴权头。同一模型按协议区分原生、转换兼容和不支持。借鉴统一地址、动态模型目录和逐模型协议能力矩阵。 |
 | [DeepSeek Harness `4b399c39a6d1479cd84ca591b4d7c88e24d38a96`](https://github.com/deepseek-ai/deepseek-harness/blob/4b399c39a6d1479cd84ca591b4d7c88e24d38a96/docs/user/guide/providers.md) | 采用其自定义模型 API 流程。命名连接选择单一协议，凭证独立保存，模型发现结果经明确选择后才保存，发现不可用时允许手填模型 ID。用 OpenRust 原生配置和 Artisan 实现。 |
 | [OpenCode Provider 配置](https://opencode.ai/docs/providers) · [LiteLLM 路由名称](https://docs.litellm.ai/docs/router/learn/names) · [LiteLLM 模型权限](https://docs.litellm.ai/docs/routing) | OpenCode 将地址和凭证归 Provider，模型 ID 和能力归模型。LiteLLM 分开公开名、部署目标和访问权限。采用命名连接与可列出、可调用范围一致的发布规则。配置沿用 Laravel 键名。 |
 | [TensorZero 配置指南](https://www.tensorzero.com/docs/gateway/configure-models-and-providers) · [Rust 源码 `62eb8f63e8ec62018d70420dbf1a8c5d1c026315`](https://github.com/tensorzero/tensorzero/tree/62eb8f63e8ec62018d70420dbf1a8c5d1c026315) | 参考模型名映射具体 Provider 和有序路由。GW-02 先用精确模型名映射一个目标，GW-03 再按兼容需求补规则和回退。继续使用 OpenRust 的传输、配置和路由装配。 |
@@ -141,6 +142,8 @@ Laravel 基线的驱动行为作为能力验收依据，供应商配置通过文
 | 对外服务 | 采用独立可选的 `ai-model-gateway` 工作名称，允许单独部署。外部客户端按已有协议和鉴权头访问 OpenRust 网关。网关复用 SDK 的供应商适配与 HTTP 传输，通过自己的路由、凭证与限额策略调用上游。SDK 的 `Gateway` trait 仍表示应用侧协议适配。 |
 
 固定版 [Sub2API 路由](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/server/routes/gateway.go)、[Responses 桥接](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/handler/gateway_handler_responses.go)和[组合路由设计](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/docs/COMPOSITE_GROUPS.md)作为首批参考。优先走同协议上游。跨协议时明确映射请求、响应、工具 ID、流事件、停止原因、错误和用量；对于无法表达的能力返回相应协议的错误。外部客户端的工具调用按协议返回供客户端处理，应用自有 Agent 工具仍由 SDK 按权限与审批配置执行。
+
+GW-03 参考 [TokenHub 的统一入口和模型协议矩阵](https://cloud.tencent.com/document/product/1823/130079)。在同一基础 URL 下，以 `/chat/completions`、`/responses` 和 `/messages` 区分协议，验证 Bearer 与 `x-api-key` 的对应入口。逐模型记录原生、协议转换及不支持的行为。目录发现时分别验证模型在线状态、账号开通和实际调用，记录转换兼容模式的字段与工具限制。
 
 ### 模型配置、发现与发布
 
