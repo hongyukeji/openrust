@@ -132,6 +132,10 @@ def main():
             until(lambda: 'running' in artisan('horizon:supervisor-status', supervisor_name))
             assert initial['name'] in artisan('horizon:list')
             assert supervisor_name in artisan('horizon:supervisors')
+            restart_events = root / 'restart-events.jsonl'
+            assert not restart_events.exists(), 'initial launch is not a restart'
+            def worker_restarts():
+                return [json.loads(line) for line in restart_events.read_text().splitlines()]
             # Unexpected termination is detected, reaped and replaced.
             killed = initial['workers'][0]['pid']
             os.kill(killed, signal.SIGKILL)
@@ -140,6 +144,13 @@ def main():
                 and all(worker['pid'] != killed for worker in state['workers'])
             ))
             child_pids.update(w['pid'] for w in recovered['workers'])
+            assert [event for event in worker_restarts() if event['pid'] == killed] == [{
+                'name': 'WorkerProcessRestarting',
+                'supervisor': supervisor_name,
+                'queue': 'default',
+                'pid': killed,
+                'exit_code': 128 + signal.SIGKILL,
+            }]
             # Backlog grows the pool within its cap; maxJobs also recycles workers.
             for _ in range(4):
                 dispatch(sleep_ms=1500)

@@ -61,6 +61,8 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
 
 為 `SupervisorLooped::NAME` 註冊同步監聽器，可在 Supervisor 持久化心跳後觀察其狀態。`SupervisorLooped` 提供 Supervisor 名稱和暫停狀態，Horizon 為該事件註冊 `MonitorWaitTimes`。
 
+Horizon 在替補 Worker 啟動前派發 `WorkerProcessRestarting`，提供監督器、佇列、可用的原程序 PID 與結束碼。
+
 Master 持久化心跳後也會派發 `MasterSupervisorLooped::NAME`，事件提供 Master 名稱和暫停狀態。Horizon 註冊 `ExpireSupervisors`，清理兩個程序索引中的過期項目。
 
 程序超過記憶體上限時，會在以結束碼 `12` 關閉前派發 `MasterSupervisorOutOfMemory` 或 `SupervisorOutOfMemory`。事件提供程序名稱、實測常駐記憶體及上限，記憶體單位為 MiB。

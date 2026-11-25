@@ -12,7 +12,7 @@ use openrust::{
 };
 use openrust_horizon::{
     Horizon, HorizonServiceProvider, MasterSupervisorLooped, MasterSupervisorOutOfMemory,
-    SupervisorLooped, SupervisorOutOfMemory,
+    SupervisorLooped, SupervisorOutOfMemory, WorkerProcessRestarting,
 };
 use serde_json::json;
 use std::{collections::BTreeMap, path::Path, sync::Arc, time::Duration};
@@ -72,6 +72,40 @@ impl JobHandler for Probe {
 struct ProbeProvider;
 
 struct MemoryEventRecorder(std::path::PathBuf);
+
+struct RestartEventRecorder(std::path::PathBuf);
+
+impl Listener for RestartEventRecorder {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn Event,
+        _: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            let restart = event
+                .downcast_ref::<WorkerProcessRestarting>()
+                .ok_or(EventError::InvalidPayload)?;
+            use std::io::Write as _;
+            let row = json!({
+                "name": event.name(),
+                "supervisor": restart.supervisor,
+                "queue": restart.queue,
+                "pid": restart.pid,
+                "exit_code": restart.exit_code,
+            });
+            writeln!(
+                std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(&self.0)
+                    .unwrap(),
+                "{row}"
+            )
+            .unwrap();
+            Err(EventError::InvalidPayload)
+        })
+    }
+}
 
 struct LoopDispatchFailure(std::path::PathBuf);
 
@@ -147,6 +181,13 @@ impl ServiceProvider for ProbeProvider {
                 Delivery::Sync,
             )?;
             dispatcher.listen(SupervisorOutOfMemory::NAME, recorder, Delivery::Sync)?;
+            dispatcher.listen(
+                WorkerProcessRestarting::NAME,
+                Arc::new(RestartEventRecorder(
+                    app.base_path().join("restart-events.jsonl"),
+                )),
+                Delivery::Sync,
+            )?;
             if std::env::var("HORIZON_PROBE_FAIL_LOOP_DISPATCH").as_deref() == Ok("1") {
                 let listener =
                     Arc::new(LoopDispatchFailure(app.base_path().join("loop-errors.log")));

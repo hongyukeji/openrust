@@ -4,7 +4,12 @@ use openrust::{
     process::{Factory, InvokedProcess},
     queue::QueueManager,
 };
-use std::{collections::BTreeMap, path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    collections::{BTreeMap, VecDeque},
+    path::PathBuf,
+    sync::Arc,
+    time::Duration,
+};
 use tokio::sync::Mutex;
 use tokio::time::Instant;
 use tokio_util::sync::CancellationToken;
@@ -13,9 +18,30 @@ pub struct WorkerProcess {
     supervisor: String,
     queue: String,
     process: InvokedProcess,
+    pid: Option<u32>,
     stopping: Option<Instant>,
     grace: Duration,
 }
+
+/// 即将补位的 Worker 退出时的快照。
+#[derive(Clone, Debug)]
+pub struct WorkerProcessRestarting {
+    pub supervisor: String,
+    pub queue: String,
+    pub pid: Option<u32>,
+    pub exit_code: i32,
+}
+
+impl WorkerProcessRestarting {
+    pub const NAME: &str = "WorkerProcessRestarting";
+}
+
+impl Event for WorkerProcessRestarting {
+    fn name(&self) -> &str {
+        Self::NAME
+    }
+}
+
 /// Owns process pools for one deployed supervisor.
 pub struct Supervisor {
     repository: Arc<Repository>,
@@ -98,6 +124,7 @@ impl Supervisor {
                     queue,
                     ProcessPool {
                         workers: Vec::new(),
+                        restarting: VecDeque::new(),
                         desired: 0,
                         restart_again_at: Instant::now(),
                     },
@@ -219,9 +246,15 @@ impl Supervisor {
                     let result = worker.process.wait().await.map_err(|_| Error::Process)?;
                     if worker.stopping.is_none() {
                         pool.restart_again_at = Instant::now() + Duration::from_secs(1);
-                    }
-                    if result.failed() && worker.stopping.is_none() {
-                        self.failures = self.failures.saturating_add(1);
+                        pool.restarting.push_back(WorkerProcessRestarting {
+                            supervisor: worker.supervisor,
+                            queue: worker.queue,
+                            pid: worker.pid,
+                            exit_code: result.exit_code(),
+                        });
+                        if result.failed() {
+                            self.failures = self.failures.saturating_add(1);
+                        }
                     }
                 } else if pool.workers[index]
                     .stopping
@@ -363,6 +396,7 @@ impl Supervisor {
             .ok_or(Error::InvalidConfiguration)?;
         pool.desired = target;
         let active = pool.active_process_count();
+        pool.restarting.truncate(target.saturating_sub(active));
         if active > target {
             let mut remaining = active - target;
             for worker in pool.workers.iter_mut().filter(|w| w.stopping.is_none()) {
@@ -379,6 +413,14 @@ impl Supervisor {
                 // The dedicated supervisor already applied nice; workers inherit it.
                 worker_options.nice = 0;
                 let args = worker_options.to_worker_command(&self.executable)?;
+                if let Some(event) = pool.restarting.pop_front()
+                    && let Err(error) = openrust::support::facades::Event::dispatch(event).await
+                {
+                    let _ = openrust::support::facades::Log::warning(
+                        &format!("Horizon Worker 重启监听器失败: {error}"),
+                        &Default::default(),
+                    );
+                }
                 let process = self
                     .factory
                     .command(args)
@@ -394,6 +436,7 @@ impl Supervisor {
                 pool.workers.push(WorkerProcess {
                     supervisor: self.id.clone(),
                     queue: queue.into(),
+                    pid: process.id(),
                     process,
                     stopping: None,
                     grace: Duration::from_secs(u64::from(options.timeout) + 5),
@@ -436,6 +479,7 @@ impl Supervisor {
 /// A queue pool keeps active and terminating workers in the scaling count.
 pub struct ProcessPool {
     workers: Vec<WorkerProcess>,
+    restarting: VecDeque<WorkerProcessRestarting>,
     desired: usize,
     restart_again_at: Instant,
 }

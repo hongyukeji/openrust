@@ -61,6 +61,8 @@ To customize these alerts, bind `dyn LongWaitNotificationFactory` in an applicat
 
 Register a synchronous listener for `SupervisorLooped::NAME` to observe a Supervisor after it persists its heartbeat. `SupervisorLooped` exposes the Supervisor name and paused state. Horizon registers `MonitorWaitTimes` for this event.
 
+Horizon emits `WorkerProcessRestarting` immediately before replacing an exited worker. The event identifies the supervisor, queue, previous PID when available, and exit code.
+
 `MasterSupervisorLooped::NAME` likewise fires after the Master heartbeat is persisted. `MasterSupervisorLooped` exposes the Master name and paused state. Horizon registers `ExpireSupervisors` to prune expired entries from both process indexes.
 
 A process that exceeds its memory limit dispatches `MasterSupervisorOutOfMemory` or `SupervisorOutOfMemory` before shutting down with exit code `12`. The event includes the process name, measured resident memory and limit in MiB.

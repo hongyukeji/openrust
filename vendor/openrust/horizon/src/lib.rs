@@ -36,7 +36,9 @@ pub use repository::{
     JobDetails, JobRecord, JobRepository, MasterSupervisorRepository, Metrics, MetricsRepository,
     ProcessRepository, Repository, SupervisorRepository, TagRepository, WorkloadRepository,
 };
-pub use supervisor::{ProcessPool, Supervisor, SupervisorLooped, WorkerProcess};
+pub use supervisor::{
+    ProcessPool, Supervisor, SupervisorLooped, WorkerProcess, WorkerProcessRestarting,
+};
 
 pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug)]
