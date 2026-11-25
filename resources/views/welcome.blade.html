@@ -422,19 +422,19 @@ THE SOFTWARE.
                 <ul class="steps">
                     <li>
                         <span class="step-dot" aria-hidden="true"></span>
-                        <span>{{ __('welcome.read') }} <a class="text-link" href="{{ Application::REPOSITORY }}/blob/master/docs/@if(Lang::hasForLocale('welcome.documentation_locale')){{ __('welcome.documentation_locale') }}@else{{ 'en' }}@endif/README.md">{{ __('welcome.documentation') }} <span class="arrow" aria-hidden="true">↗</span></a></span>
+                        <span>{{ __('welcome.read') }} <a class="text-link" href="{{ Application::REPOSITORY }}/blob/master/docs/@if(Lang::hasForLocale('welcome.documentation_locale')){{ __('welcome.documentation_locale') }}@else{{ 'en' }}@endif/README.md" target="_blank" rel="noopener">{{ __('welcome.documentation') }} <span class="arrow" aria-hidden="true">↗</span></a></span>
                     </li>
                     <li>
                         <span class="step-dot" aria-hidden="true"></span>
-                        <span>{{ __('welcome.explore') }} <a class="text-link" href="{{ Application::REPOSITORY }}">{{ __('welcome.source') }} <span class="arrow" aria-hidden="true">↗</span></a></span>
+                        <span>{{ __('welcome.explore') }} <a class="text-link" href="{{ Application::REPOSITORY }}" target="_blank" rel="noopener">{{ __('welcome.source') }} <span class="arrow" aria-hidden="true">↗</span></a></span>
                     </li>
                 </ul>
 
-                <a class="button" href="{{ Application::REPOSITORY }}/blob/master/docs/@if(Lang::hasForLocale('welcome.documentation_locale')){{ __('welcome.documentation_locale') }}@else{{ 'en' }}@endif/getting-started/deployment.md">{{ __('welcome.deployment') }}</a>
+                <a class="button" href="{{ Application::REPOSITORY }}/blob/master/docs/@if(Lang::hasForLocale('welcome.documentation_locale')){{ __('welcome.documentation_locale') }}@else{{ 'en' }}@endif/getting-started/deployment.md" target="_blank" rel="noopener">{{ __('welcome.deployment') }}</a>
 
                 <p class="release">
                     <bdi dir="ltr">{{ config('app.name') }} v{{ config('app.version') }}</bdi>
-                    <a class="text-link" href="{{ Application::REPOSITORY }}/blob/master/CHANGELOG.md">{{ __('welcome.changelog') }} <span class="arrow" aria-hidden="true">↗</span></a>
+                    <a class="text-link" href="{{ Application::REPOSITORY }}/blob/master/CHANGELOG.md" target="_blank" rel="noopener">{{ __('welcome.changelog') }} <span class="arrow" aria-hidden="true">↗</span></a>
                 </p>
             </section>
             <div class="artwork" aria-hidden="true">
