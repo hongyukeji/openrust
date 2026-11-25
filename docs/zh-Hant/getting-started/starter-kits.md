@@ -72,6 +72,15 @@ let plaintext = token.plain_text_token;
 
 以上為生命週期服務和產生的密碼 Action。完整帳戶中心仍在開發；裝置登入及近期確認／權杖管理見下節。僅註冊回應適配器不會啟用憑據策略。
 
+
+### 其他 Guard 與多態權杖歸屬
+
+套件將憑據版本及登入時強制指紋限制在選定會話 Guard、匹配的 Eloquent Provider 設定及實際連線／資料表。獨立後台資料表不需要套件憑據欄位，其他身分的原生登入、密碼重新雜湊和 remember Cookie 保持原有行為。撤銷套件使用者裝置不會撤銷數值 ID 相同的獨立歸屬。
+
+Sanctum 仍可認證其他已註冊權杖模型，它們在自己的路由照常使用；套件帳戶管理路由對其他使用者模型類型回傳401。套件附加歸屬檢查，不覆蓋應用既有驗證器。使用 `Sanctum::add_token_owner_validator` 附加檢查，所有檢查必須通過，錯誤不會放行；`validate_token_owner_using` 保留明確取代回呼的原有行為。
+
+手動使用框架的應用仍可設定原有全域 `auth.session_credential_version_attribute`；未設定 `auth.session_credential_version_scope` 時保留全域語義。選用作用域包含 `guards` 與 `tables`（每項含 `connection`、`table`），格式錯誤會失敗，不靜默退回無限制。已安裝套件按設定裝配作用域；手動接入執行期 Provider 或異名模型別名時，須在開始服務前明確核對選中 Guard／連線並對應設定作用域，不能將預設 User 驗收當成自訂組合已通過。
+
 ## 明確選擇裝置權杖登入 {#client-tokens}
 
 網頁和第一方 SPA 仍預設使用 Cookie 驗證。向 `/login` 請求 JSON 不會自動簽發個人權杖。已註冊帳戶可以明確申請裝置權杖：

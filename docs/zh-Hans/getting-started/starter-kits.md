@@ -72,6 +72,15 @@ let plaintext = token.plain_text_token;
 
 以上为生命周期服务和生成的密码 Action。完整账户中心仍在开发；设备登录及近期确认／令牌管理见下节。仅注册响应适配器不会启用凭据策略。
 
+
+### 其他 Guard 与多态令牌归属
+
+套件将凭据版本及登录时强制指纹限制在选定会话 Guard、匹配的 Eloquent Provider 配置及实际连接／表。独立后台表不需要套件凭据列，其他身份的原生登录、密码重哈希和 remember Cookie 保持原有行为。撤销套件用户设备不会撤销数值 ID 相同的独立归属。
+
+Sanctum 仍可认证其他已注册令牌模型，它们在自己的路由照常使用；套件账户管理路由对其他用户模型类型返回401。套件追加归属检查，不覆盖应用既有校验器。使用 `Sanctum::add_token_owner_validator` 追加检查，所有检查必须通过，错误不会放行；`validate_token_owner_using` 保留明确替换回调的原有行为。
+
+手动使用框架的应用仍可配置原有全局 `auth.session_credential_version_attribute`；未设置 `auth.session_credential_version_scope` 时保留全局语义。可选作用域包含 `guards` 与 `tables`（每项含 `connection`、`table`），格式错误会失败，不静默回退到无限制。已安装套件按配置装配作用域；手动接入运行时 Provider 或异名模型别名时，须在开始服务前明确核对选中 Guard／连接并相应设置作用域，不能把默认 User 验收当成自定义组合已通过。
+
 ## 显式设备令牌登录 {#client-tokens}
 
 网页和第一方 SPA 仍默认使用 Cookie 认证。向 `/login` 请求 JSON 不会自动签发个人令牌。已注册账户可以显式申请设备令牌：

@@ -425,6 +425,17 @@ async fn installed_blade_forms_and_real_database_registration_login_and_logout()
 }
 
 fn fixture_routes() -> Result<(), openrust::routing::RoutingError> {
+    openrust::support::facades::Route::post("/admin-fixture-login", admin_fixture_login)?;
+    openrust::support::facades::Route::get_with(
+        "/admin-fixture-user",
+        admin_fixture_user,
+        |route| {
+            route
+                .middleware_name("auth:admin")
+                .middleware_name("auth.session");
+            Ok(())
+        },
+    )?;
     #[cfg(feature = "sanctum")]
     {
         openrust::support::facades::Route::post("/fixture-token", native_token)?;
@@ -535,7 +546,7 @@ fn full_configuration(
         ("session".into(),session_configuration(base)),
         ("cache".into(),json!({"default":"array","stores":{"array":{"driver":"array"},"redis":{"driver":"redis","connection":"default","prefix":format!("{}:",base.file_name().unwrap().to_string_lossy())}}})),
         ("hashing".into(),json!({"driver":"bcrypt","bcrypt":{"rounds":4}})),
-        ("auth".into(),json!({"defaults":{"guard":"web","passwords":"users"},"guards":{"web":{"driver":"session","provider":"users"}},"providers":{"users":{"driver":"eloquent","model":"StarterUser"}},"passwords":{"users":{"provider":"users","table":"password_reset_tokens","expire":60,"throttle":60}}})),
+        ("auth".into(),json!({"defaults":{"guard":"web","passwords":"users"},"guards":{"web":{"driver":"session","provider":"users"},"admin":{"driver":"session","provider":"admins"}},"providers":{"users":{"driver":"eloquent","model":"StarterUser"},"admins":{"driver":"database","table":"admins"}},"passwords":{"users":{"provider":"users","table":"password_reset_tokens","expire":60,"throttle":60}}})),
         ("fortify-options".into(),json!({"two-factor-authentication":{"confirm":true,"confirmPassword":true}})),
         ("mail".into(),std::fs::read(base.join("mail-config.json")).ok().map(|bytes|serde_json::from_slice::<Value>(&bytes).unwrap()).unwrap_or_else(||json!({"default":"array","mailers":{"array":{"transport":"array"}},"from":{"address":"admin@example.test","name":"用户套件测试"}}))),
     ].into())
@@ -2947,4 +2958,407 @@ async fn devices_expired_during_model_save_rolls_back_and_concurrent_proof_has_o
     statuses.sort();
     assert_eq!(statuses, [204, 401]);
     assert_eq!(bearer_request(server.address, token).await, 401);
+}
+
+fn admin_fixture_login(
+    request: &mut openrust::http::Request,
+) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {
+    use openrust::contracts::auth::StatefulGuard as _;
+    Box::pin(async move {
+        let password = request
+            .input("password")
+            .await?
+            .and_then(|value| value.as_str().map(str::to_owned))
+            .unwrap_or_default();
+        let credentials = openrust::auth::Credentials::new(
+            [(
+                "email".to_owned(),
+                openrust::database::Value::from("admin@example.test"),
+            )],
+            password,
+        );
+        let result = openrust::auth::Auth::session_guard(request, Some("admin"))?
+            .attempt(&credentials, true)
+            .await?;
+        if !result {
+            return Err(openrust::http::HttpError::Unauthenticated);
+        }
+        Ok(openrust::http::Response::no_content())
+    })
+}
+fn admin_fixture_user(
+    request: &mut openrust::http::Request,
+) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {
+    Box::pin(async move {
+        let user = openrust::auth::Auth::user(request)
+            .await?
+            .ok_or(openrust::http::HttpError::Unauthenticated)?;
+        openrust::http::Response::json(
+            openrust::http::StatusCode::OK,
+            json!({"id":user.get_auth_identifier()}),
+        )
+    })
+}
+
+#[cfg(feature = "sanctum")]
+#[derive(Clone)]
+struct OtherAccount(openrust::database::eloquent::ModelState);
+#[cfg(feature = "sanctum")]
+impl openrust::database::eloquent::Model for OtherAccount {
+    fn metadata() -> &'static openrust::database::eloquent::ModelMetadata {
+        static META: openrust::database::eloquent::ModelMetadata =
+            openrust::database::eloquent::ModelMetadata::new("admins").timestamps(None, None);
+        &META
+    }
+    fn from_state(state: openrust::database::eloquent::ModelState) -> Self {
+        Self(state)
+    }
+    fn state(&self) -> &openrust::database::eloquent::ModelState {
+        &self.0
+    }
+    fn state_mut(&mut self) -> &mut openrust::database::eloquent::ModelState {
+        &mut self.0
+    }
+}
+#[cfg(feature = "sanctum")]
+impl openrust::contracts::auth::Authenticatable for OtherAccount {
+    fn get_auth_identifier_name(&self) -> &str {
+        "id"
+    }
+    fn get_auth_identifier(&self) -> openrust::auth::AuthIdentifier {
+        use openrust::database::eloquent::Model as _;
+        self.get_key().unwrap().try_into().unwrap()
+    }
+    fn get_auth_password_name(&self) -> &str {
+        "password"
+    }
+    fn get_auth_password(&self) -> Option<&str> {
+        use openrust::database::eloquent::Model as _;
+        match self.get_attribute("password") {
+            Some(openrust::database::Value::Text(value)) => Some(value),
+            _ => None,
+        }
+    }
+    fn get_remember_token_name(&self) -> &str {
+        "remember_token"
+    }
+    fn get_remember_token(&self) -> Option<&str> {
+        use openrust::database::eloquent::Model as _;
+        match self.get_attribute("remember_token") {
+            Some(openrust::database::Value::Text(value)) => Some(value),
+            _ => None,
+        }
+    }
+    fn set_remember_token(&mut self, token: Option<String>) {
+        use openrust::database::eloquent::Model as _;
+        self.set_attribute(
+            "remember_token",
+            token.map_or(openrust::database::Value::Null, Into::into),
+        );
+    }
+}
+#[cfg(feature = "sanctum")]
+impl openrust::sanctum::HasApiTokens for OtherAccount {}
+
+#[cfg(feature = "sanctum")]
+#[tokio::test]
+async fn scope_other_guard_without_version_column_keeps_login_rehash_remember_and_tokens() {
+    use openrust::{
+        database::{Value as DbValue, eloquent::Model as _},
+        sanctum::HasApiTokens as _,
+        support::facades::{App, Facade as _},
+    };
+    let server = start().await;
+    register_token_user(&server).await;
+    let other = App::set_facade_application(Some(server._kernel.get_application()), async {
+        let app = server._kernel.get_application();
+        let db = app
+            .make::<openrust::database::DatabaseManager>()
+            .await
+            .unwrap();
+        let connection = db.connection(None).unwrap();
+        connection
+            .get_schema_builder()
+            .create("admins", |table| {
+                table.big_integer("id").primary();
+                table.string("email", 255);
+                table.string("password", 255).nullable();
+                table.string("remember_token", 100).nullable();
+            })
+            .await
+            .unwrap();
+        let password = openrust::support::facades::Hash::make(
+            "admin-password-123",
+            &openrust::hashing::HashOptions::from_iter([("rounds".into(), json!(5))]),
+        )
+        .await
+        .unwrap();
+        connection
+            .table("admins")
+            .insert(&[[
+                ("id".into(), DbValue::Integer(1)),
+                ("email".into(), "admin@example.test".into()),
+                ("password".into(), password.into()),
+            ]
+            .into()])
+            .await
+            .unwrap();
+        app.make::<openrust::auth::AuthManager>()
+            .await
+            .unwrap()
+            .register_sanctum_model::<OtherAccount>("OtherAccount");
+        let user = OtherAccount::query()
+            .unwrap()
+            .find(1)
+            .await
+            .unwrap()
+            .unwrap();
+        let sanctum = app.make::<openrust::sanctum::Sanctum>().await.unwrap();
+        user.create_token(&sanctum, &db, "admin-device", &["*"], None)
+            .await
+            .unwrap()
+            .plain_text_token
+            .to_string()
+    })
+    .await;
+    let mut admin = Client {
+        address: server.address,
+        cookies: Default::default(),
+        csrf: String::new(),
+    };
+    assert_eq!(admin.send("GET", "/login", "", false).await.0, 200);
+    assert_eq!(
+        admin
+            .send(
+                "POST",
+                "/admin-fixture-login",
+                r#"{"password":"admin-password-123"}"#,
+                true
+            )
+            .await
+            .0,
+        204
+    );
+    assert_eq!(
+        admin.send("GET", "/admin-fixture-user", "", true).await.0,
+        200
+    );
+    App::set_facade_application(Some(server._kernel.get_application()), async {
+        let db = server
+            ._kernel
+            .get_application()
+            .make::<openrust::database::DatabaseManager>()
+            .await
+            .unwrap();
+        let row = db
+            .connection(None)
+            .unwrap()
+            .table("admins")
+            .r#where("id", "=", 1)
+            .first()
+            .await
+            .unwrap()
+            .unwrap();
+        let Some(DbValue::Text(hash)) = row.get("password") else {
+            panic!("密码字段类型错误")
+        };
+        assert!(
+            hash.starts_with("$2y$04$") || hash.starts_with("$2b$04$"),
+            "管理员密码必须通过原生重哈希写入，不能被套件列条件阻断"
+        );
+    })
+    .await;
+    let mut remember = Client {
+        address: server.address,
+        cookies: admin
+            .cookies
+            .iter()
+            .filter(|(name, _)| name.starts_with("remember_admin"))
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect(),
+        csrf: String::new(),
+    };
+    assert!(!remember.cookies.is_empty());
+    assert_eq!(
+        remember
+            .send("GET", "/admin-fixture-user", "", true)
+            .await
+            .0,
+        200
+    );
+    assert_eq!(bearer_request(server.address, &other).await, 200);
+    assert_eq!(
+        account_request(
+            server.address,
+            &other,
+            "POST",
+            "/api/auth/confirm",
+            json!({"purpose":"devices","password":"admin-password-123"})
+        )
+        .await
+        .0,
+        401
+    );
+    assert_eq!(
+        account_request(
+            server.address,
+            &other,
+            "POST",
+            "/api/auth/email/verification-notification",
+            json!({})
+        )
+        .await
+        .0,
+        401
+    );
+    assert_eq!(
+        account_request(
+            server.address,
+            &other,
+            "GET",
+            "/api/user/tokens",
+            Value::Null
+        )
+        .await
+        .0,
+        401
+    );
+    let previous = App::set_facade_application(Some(server._kernel.get_application()), async {
+        let config = server
+            ._kernel
+            .get_application()
+            .make::<dyn openrust::contracts::config::Repository>()
+            .await
+            .unwrap();
+        let previous = config.get("auth.session_credential_version_scope").unwrap();
+        config
+            .set("auth.session_credential_version_scope", Value::Null)
+            .unwrap();
+        previous
+    })
+    .await;
+    // 显式恢复旧全局语义会要求管理员也具备套件列；独立后台并没有这个字段。
+    let mut probe = Client {
+        address: server.address,
+        cookies: Default::default(),
+        csrf: String::new(),
+    };
+    assert_eq!(probe.send("GET", "/login", "", false).await.0, 200);
+    assert_eq!(
+        probe
+            .send(
+                "POST",
+                "/admin-fixture-login",
+                r#"{"password":"admin-password-123"}"#,
+                true
+            )
+            .await
+            .0,
+        500
+    );
+    App::set_facade_application(Some(server._kernel.get_application()), async {
+        server
+            ._kernel
+            .get_application()
+            .make::<dyn openrust::contracts::config::Repository>()
+            .await
+            .unwrap()
+            .set("auth.session_credential_version_scope", previous)
+            .unwrap();
+    })
+    .await;
+    assert_eq!(
+        probe
+            .send(
+                "POST",
+                "/admin-fixture-login",
+                r#"{"password":"admin-password-123"}"#,
+                true
+            )
+            .await
+            .0,
+        204
+    );
+
+    let (_, _, body) =
+        token_client_request(server.address, "/api/auth/token", device_login()).await;
+    let user = body["data"]["token"].as_str().unwrap();
+    let proof = confirmation(&server, user, "devices").await;
+    assert_eq!(
+        account_request(
+            server.address,
+            user,
+            "POST",
+            "/api/auth/logout-all",
+            json!({"proof":proof})
+        )
+        .await
+        .0,
+        204
+    );
+    assert_eq!(bearer_request(server.address, user).await, 401);
+    assert_eq!(bearer_request(server.address, &other).await, 200);
+    assert_eq!(
+        admin.send("GET", "/admin-fixture-user", "", true).await.0,
+        200
+    );
+    assert_eq!(
+        remember
+            .send("GET", "/admin-fixture-user", "", true)
+            .await
+            .0,
+        200
+    );
+    App::set_facade_application(Some(server._kernel.get_application()), async {
+        let sanctum = server
+            ._kernel
+            .get_application()
+            .make::<openrust::sanctum::Sanctum>()
+            .await
+            .unwrap();
+        sanctum.validate_token_owner_using(|_, _| Ok(false));
+        openrust_fortify::starter::credentials::configure_for::<app::models::User>(&sanctum);
+    })
+    .await;
+    assert_eq!(
+        bearer_request(server.address, &other).await,
+        401,
+        "追加策略不能覆盖应用原有拒绝回调"
+    );
+}
+
+#[cfg(feature = "sanctum")]
+#[tokio::test]
+async fn scope_invalid_configuration_never_silently_disables_credential_checks() {
+    let server = start().await;
+    register_token_user(&server).await;
+    let (_, _, body) =
+        token_client_request(server.address, "/api/auth/token", device_login()).await;
+    let token = body["data"]["token"].as_str().unwrap();
+    let config = server
+        ._kernel
+        .get_application()
+        .make::<dyn openrust::contracts::config::Repository>()
+        .await
+        .unwrap();
+    let original = config.get("auth.session_credential_version_scope").unwrap();
+    for invalid in [
+        json!({"guards":["web"]}),
+        json!({"guards":["web"],"tables":[{"connection":"sqlite","table":""}]}),
+        json!({"guards":[""],"tables":[]}),
+        json!({"guards":["web"],"tables":[],"unknown":true}),
+    ] {
+        config
+            .set("auth.session_credential_version_scope", invalid)
+            .unwrap();
+        assert_eq!(bearer_request(server.address, token).await, 500);
+        let (status, headers, _) =
+            token_client_request(server.address, "/api/auth/token", device_login()).await;
+        assert_eq!(status, 500);
+        assert!(headers.to_ascii_lowercase().contains("no-store"));
+        config
+            .set("auth.session_credential_version_scope", original.clone())
+            .unwrap();
+        assert_eq!(bearer_request(server.address, token).await, 200);
+    }
 }

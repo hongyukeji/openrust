@@ -72,6 +72,15 @@ User mutation and token issuance lock and recheck the current identity/version b
 
 These are lifecycle services and the generated password Actions. The complete account center remains in progress. Device-token login, recent confirmation and token management are described below. Registering only the response adapter does not enable the credential policy.
 
+
+### Other guards and polymorphic token owners
+
+The suite scopes its credential version and mandatory login fingerprint to the selected session Guard, matching Eloquent provider configuration and actual connection/table. An independent admin table does not need the suite's credential column. Native login, password rehash and remember Cookies for other identities retain their behavior. Revoking a suite user's devices does not revoke an unrelated owner with the same numeric ID.
+
+Sanctum can authenticate other registered token models. They remain usable on their own routes, but suite account-management routes reject another user-model type with 401. The suite adds its owner check instead of replacing your existing validator. Use `Sanctum::add_token_owner_validator` to append a check; every check must succeed, and errors fail authentication. `validate_token_owner_using` keeps its explicit replacement behavior.
+
+Manual framework users may still use the existing global `auth.session_credential_version_attribute` setting. Without `auth.session_credential_version_scope`, it retains the original global behavior. The optional scope contains `guards` and `tables` (each table has `connection` and `table`); malformed scopes fail rather than silently enabling an unrestricted fallback. The installed suite assembles this scope from its configuration. If you wire runtime providers or differently named model aliases manually, explicitly verify the selected guards/connections and set the scope accordingly before serving requests; a default User fixture does not prove those custom combinations.
+
 ## Explicit device-token login {#client-tokens}
 
 Cookie authentication remains the default for the web application and first-party SPA. JSON requests to `/login` do not automatically issue a personal token. An already registered account can explicitly request a device token:

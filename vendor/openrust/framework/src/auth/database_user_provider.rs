@@ -23,11 +23,13 @@ pub struct DatabaseUserProvider {
 impl DatabaseUserProvider {
     fn query(&self) -> AuthResult<Builder<'static>> {
         let query = self.connection.table(&self.table);
-        Ok(if providers::requires_primary(&self.connection)? {
-            query.use_write_pdo()
-        } else {
-            query
-        })
+        Ok(
+            if providers::requires_primary(&self.connection, &self.table)? {
+                query.use_write_pdo()
+            } else {
+                query
+            },
+        )
     }
 
     pub fn new(connection: Connection, hasher: Arc<dyn Hasher>, table: impl Into<String>) -> Self {

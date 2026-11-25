@@ -291,7 +291,7 @@ impl<'a> SessionGuard<'a> {
             .upgrade()
             .ok_or(AuthError::Configuration("认证会话所属应用"))?;
         let config = owner.get::<dyn Repository>("config")?;
-        Ok(SessionFingerprint::from_config(config.as_ref()))
+        SessionFingerprint::for_guard(config.as_ref(), &self.name)
     }
 
     fn store_login_fingerprint(&mut self, user: &dyn Authenticatable) -> AuthResult<()> {
@@ -301,7 +301,7 @@ impl<'a> SessionGuard<'a> {
                 .upgrade()
                 .ok_or(AuthError::Configuration("认证会话所属应用"))?;
             let config = owner.get::<dyn Repository>("config")?;
-            let value = SessionFingerprint::from_config(config.as_ref())
+            let value = SessionFingerprint::for_guard(config.as_ref(), &self.name)?
                 .sign_for_guard(user, &self.name)?;
             let key = SessionFingerprint::session_key(&self.name);
             // 登录或经有效remember凭据恢复时立即建立指纹，不能延至首次受保护请求。
@@ -319,8 +319,8 @@ impl<'a> SessionGuard<'a> {
             .upgrade()
             .ok_or(AuthError::Configuration("认证会话所属应用"))?;
         let config = owner.get::<dyn Repository>("config")?;
-        let expected =
-            SessionFingerprint::from_config(config.as_ref()).sign_for_guard(user, &self.name)?;
+        let expected = SessionFingerprint::for_guard(config.as_ref(), &self.name)?
+            .sign_for_guard(user, &self.name)?;
         let key = SessionFingerprint::session_key(&self.name);
         Ok(self.session()?.get(&key).cloned().is_some_and(|stored| {
             serde_json::from_value::<Vec<u8>>(stored)
@@ -681,7 +681,7 @@ impl<'a> SessionGuard<'a> {
         }
         if let Some(owner) = self.owner.upgrade() {
             let config = owner.get::<dyn Repository>("config")?;
-            let value = SessionFingerprint::from_config(config.as_ref())
+            let value = SessionFingerprint::for_guard(config.as_ref(), &self.name)?
                 .sign_for_guard(user.as_ref(), &self.name)?;
             let key = SessionFingerprint::session_key(&self.name);
             self.session()?.put(&key, serde_json::json!(value))?;

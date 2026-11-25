@@ -55,6 +55,7 @@ pub(super) async fn update_token(
         ),
         connection,
         user,
+        table,
     )?
     .update(std::collections::BTreeMap::from([(
         field.to_owned(),
@@ -62,7 +63,7 @@ pub(super) async fn update_token(
     )]))
     .await?;
     if affected == 0 {
-        return Err(if requires_primary(connection)? {
+        return Err(if requires_primary(connection, table)? {
             crate::http::HttpError::Unauthenticated.into()
         } else {
             AuthError::InvalidIdentity
@@ -102,6 +103,7 @@ pub(super) async fn rehash(
             .r#where(field, "=", old),
         connection,
         user,
+        table,
     )?
     .update(std::collections::BTreeMap::from([(
         field.to_owned(),
@@ -109,7 +111,7 @@ pub(super) async fn rehash(
     )]))
     .await?;
     if affected == 0 {
-        return Err(if requires_primary(connection)? {
+        return Err(if requires_primary(connection, table)? {
             crate::http::HttpError::Unauthenticated.into()
         } else {
             AuthError::InvalidIdentity
@@ -140,12 +142,15 @@ pub(super) fn same_identity(requested: &AuthIdentifier, actual: &AuthIdentifier)
     }
 }
 
-fn version_attribute(connection: &Connection) -> AuthResult<Option<String>> {
+fn version_attribute(connection: &Connection, table: &str) -> AuthResult<Option<String>> {
     use crate::contracts::container::Container as _;
     let Some(container) = Connection::model_container(Some(connection)) else {
         return Ok(None);
     };
     let config = container.get::<dyn crate::contracts::config::Repository>("config")?;
+    if !super::credential_scope::table_applies(config.as_ref(), connection.get_name(), table)? {
+        return Ok(None);
+    }
     match config.get("auth.session_credential_version_attribute") {
         None | Some(serde_json::Value::Null) => Ok(None),
         Some(serde_json::Value::String(name)) if !name.is_empty() => Ok(Some(name)),
@@ -156,16 +161,17 @@ fn version_attribute(connection: &Connection) -> AuthResult<Option<String>> {
 }
 
 /// 持久化版本撤销要求读取主库，不能因副本延迟再次接受已撤销凭据。
-pub(super) fn requires_primary(connection: &Connection) -> AuthResult<bool> {
-    Ok(version_attribute(connection)?.is_some())
+pub(super) fn requires_primary(connection: &Connection, table: &str) -> AuthResult<bool> {
+    Ok(version_attribute(connection, table)?.is_some())
 }
 
 fn guard_credentials(
     query: crate::database::query::Builder<'static>,
     connection: &Connection,
     user: &dyn Authenticatable,
+    table: &str,
 ) -> AuthResult<crate::database::query::Builder<'static>> {
-    let Some(column) = version_attribute(connection)? else {
+    let Some(column) = version_attribute(connection, table)? else {
         return Ok(query);
     };
     let version = match user.get_auth_attribute(&column)? {

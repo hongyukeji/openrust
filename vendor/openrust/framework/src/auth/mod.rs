@@ -5,6 +5,7 @@ mod auth_manager;
 mod auth_service_provider;
 mod basic;
 pub(crate) mod console;
+mod credential_scope;
 mod database_user_provider;
 mod eloquent_user_provider;
 pub mod email_verification;

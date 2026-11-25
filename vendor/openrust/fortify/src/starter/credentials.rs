@@ -68,13 +68,27 @@ fn token_stamp(user: &dyn Authenticatable, owner: &str) -> AuthResult<String> {
 
 /// 在标准 Sanctum 校验之后核对最新用户版本；普通应用不安装此策略。
 pub fn configure(sanctum: &Sanctum) {
+    configure_matching(sanctum, |_| true);
+}
+
+/// 仅对选中的套件模型追加策略，保留其他多态归属及应用校验器。
+pub fn configure_for<M: Authenticatable>(sanctum: &Sanctum) {
+    configure_matching(sanctum, |user| (user as &dyn std::any::Any).is::<M>());
+}
+fn configure_matching(
+    sanctum: &Sanctum,
+    matches: impl Fn(&dyn Authenticatable) -> bool + Send + Sync + 'static,
+) {
     use subtle::ConstantTimeEq as _;
     if sanctum.personal_access_token_model()
         == std::any::type_name::<openrust::sanctum::DefaultPersonalAccessToken>()
     {
         sanctum.use_personal_access_token_model::<CredentialToken>();
     }
-    sanctum.validate_token_owner_using(|token, user| {
+    sanctum.add_token_owner_validator(move |token, user| {
+        if !matches(user) {
+            return Ok(true);
+        }
         let Some(Value::Text(stored)) = token.get_attribute_value(TOKEN_STAMP_ATTRIBUTE)? else {
             return Ok(false);
         };
@@ -364,3 +378,96 @@ impl Model for CredentialToken {
     }
 }
 impl openrust::sanctum::PersonalAccessTokenModel for CredentialToken {}
+
+/// 套件版本策略只作用于对应模型的会话Guard及实际数据表，不能波及独立后台身份。
+pub(crate) fn scope_for<M: Model + Authenticatable>(
+    app: &openrust::foundation::Application,
+) -> openrust::support::ProviderResult {
+    use openrust::contracts::{container::Container as _, foundation::Application as _};
+    use serde_json::json;
+    let config = app.container().get::<dyn Repository>("config")?;
+    let model = M::from_state(Default::default());
+    let guard = config
+        .get("fortify.guard")
+        .and_then(|value| {
+            value
+                .as_str()
+                .filter(|value| !value.is_empty())
+                .map(str::to_owned)
+        })
+        .or_else(|| {
+            config
+                .get("auth.defaults.guard")
+                .and_then(|value| value.as_str().map(str::to_owned))
+        })
+        .unwrap_or_else(|| "web".into());
+    let guards = config
+        .get("auth.guards")
+        .ok_or(AuthError::Configuration("auth.guards"))?;
+    let provider = guards
+        .get(&guard)
+        .and_then(|value| value.get("provider"))
+        .and_then(serde_json::Value::as_str)
+        .ok_or(AuthError::Configuration("用户套件会话Guard的Provider"))?;
+    let providers = config
+        .get("auth.providers")
+        .ok_or(AuthError::Configuration("auth.providers"))?;
+    let chosen = providers
+        .get(provider)
+        .ok_or(AuthError::Configuration("用户套件Provider"))?;
+    let database = app
+        .container()
+        .make::<openrust::database::DatabaseManager>()?;
+    let connection = database.connection(
+        chosen
+            .get("connection")
+            .and_then(serde_json::Value::as_str)
+            .or(model.get_connection_name()),
+    )?;
+    let mut eligible = vec![provider.to_owned()];
+    let mut tables = vec![json!({"connection":connection.get_name(),"table":model.get_table()})];
+    if chosen.get("driver").and_then(serde_json::Value::as_str) == Some("eloquent")
+        && let Some(entries) = providers.as_object()
+    {
+        for (name, value) in entries {
+            if value.get("driver").and_then(serde_json::Value::as_str) == Some("eloquent")
+                && value.get("model") == chosen.get("model")
+            {
+                let db = database.connection(
+                    value
+                        .get("connection")
+                        .and_then(serde_json::Value::as_str)
+                        .or(model.get_connection_name()),
+                )?;
+                eligible.push(name.clone());
+                let row = json!({"connection":db.get_name(),"table":model.get_table()});
+                if !tables.contains(&row) {
+                    tables.push(row);
+                }
+            }
+        }
+    }
+    let selected: Vec<_> = guards
+        .as_object()
+        .ok_or(AuthError::Configuration("auth.guards"))?
+        .iter()
+        .filter_map(|(name, value)| {
+            let selected = value.get("driver").and_then(serde_json::Value::as_str)
+                == Some("session")
+                && value
+                    .get("provider")
+                    .and_then(serde_json::Value::as_str)
+                    .is_some_and(|provider| eligible.iter().any(|name| name == provider));
+            selected.then_some(name.clone())
+        })
+        .collect();
+    if !selected.contains(&guard) {
+        return Err(AuthError::Configuration("用户套件需要会话Guard").into());
+    }
+    config.set(
+        "auth.session_credential_version_scope",
+        json!({"guards":selected,"tables":tables}),
+    )?;
+    configure_for::<M>(app.container().make::<Sanctum>()?.as_ref());
+    Ok(())
+}

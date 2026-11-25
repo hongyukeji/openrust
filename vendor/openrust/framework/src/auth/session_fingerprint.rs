@@ -26,6 +26,14 @@ impl SessionFingerprint {
         }
     }
 
+    pub(crate) fn for_guard(config: &dyn Repository, guard: &str) -> crate::auth::AuthResult<Self> {
+        let mut value = Self::from_config(config);
+        if !super::credential_scope::guard_applies(config, guard)? {
+            value.version_attribute = None;
+        }
+        Ok(value)
+    }
+
     pub(crate) fn credential_version(
         &self,
         user: &dyn crate::contracts::auth::Authenticatable,

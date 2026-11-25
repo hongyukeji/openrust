@@ -471,6 +471,8 @@ impl AuthManager {
                 ));
             }
         };
+        let fingerprint_on_login = fingerprint_on_login
+            && super::credential_scope::guard_applies(self.config.as_ref(), &name)?;
         Ok(SessionGuard::new(name, provider, request).configure(
             minutes,
             rehash,

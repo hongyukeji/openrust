@@ -26,11 +26,16 @@ pub struct EloquentUserProvider<M> {
 impl<M: Model + Authenticatable> EloquentUserProvider<M> {
     fn query(&self) -> AuthResult<crate::database::eloquent::Builder<'static, M>> {
         let query = M::query_on(&self.connection);
-        Ok(if providers::requires_primary(&self.connection)? {
-            query.use_write_pdo()
-        } else {
-            query
-        })
+        Ok(
+            if providers::requires_primary(
+                &self.connection,
+                M::from_state(ModelState::default()).get_table(),
+            )? {
+                query.use_write_pdo()
+            } else {
+                query
+            },
+        )
     }
 
     pub fn new(connection: Connection, hasher: Arc<dyn Hasher>) -> Self {

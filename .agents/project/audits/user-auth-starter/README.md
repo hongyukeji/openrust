@@ -261,3 +261,20 @@ API路径跟随既有`api.prefix`；端点由显式套件Provider注册，不改
 `devices-runtime-first.log`／`devices-runtime-http.json`：生成full应用真实重建、两个应用进程及file会话，共21次TCP通过，跨节点PAT／Cookie全设备退出、错误设备证明、新登录、旧PAT与浏览器失效。`devices-docs.log`：三语站构建与正文两挂载／桌面手机12组浏览器检查通过。该项只闭合全设备退出，不将设备列表、头像、注销或剩余账户中心计为完成。
 
 最终`devices-final-gates.log`：SQLite套件29项、凭据生命周期1项通过；未提供环境的另外2个生命周期目标ignored，独立数据库证据以矩阵日志为准。workspace严格Clippy25.50秒、Fortify+Sanctum严格Clippy13.08秒及全workspace格式检查退出0。吸收其间纯计划提交后的组合复核`devices-combination-gates.log`退出0，源码未夹带其他任务改动。交付清单／SHA为`devices-files.json`／`devices-final-source-sha.json`，空间及本批文档产物直接清理见`devices-delivery-space.json`；正常增量缓存、数据库、日志保留。
+
+## A01-02／05：凭据策略的Guard／模型作用域（本子单元验收通过）
+
+实际发现：套件原来将`auth.session_credential_version_attribute`与强制登录指纹全局启用，独立后台表没有该列时登录／remember写入会失败；Sanctum归属策略也会要求其他多态模型提供套件摘要。修正作用范围，沿用现有配置、Auth Provider、Session指纹及Sanctum校验，不新增全局Manager。
+
+- 套件在注册用户路由时，以选中会话Guard、相同Eloquent模型配置的Provider及其真实连接／表装配`auth.session_credential_version_scope`。持久化版本查询／条件更新按连接和表匹配；Session指纹及必须在登录时写入的要求按Guard匹配。未配置scope的手动框架应用保留原有全局语义；无Sanctum的网页构建仅收窄对应会话Guard，不引入PAT依赖。
+- 配置严格解析`guards`／`tables`，缺失字段、未知字段或空连接／表／Guard名称不静默回退。纯配置中可明确选择范围，不能信任客户端提供Guard／连接。动态Provider、异名模型别名、额外连接等手动组合仍须S10逐项核对；本项不宣称任意自定义配置自动等价。
+- `credentials::configure_for<M>`只追加所选模型的凭据摘要检查。新增公开`Sanctum::add_token_owner_validator`复用既有归属回调槽，以逻辑合取追加并保留原有拒绝／错误；原`validate_token_owner_using`保持显式替换语义。原`credentials::configure`继续提供显式全局选择，但现在也保留先前检查。
+- 新的账户路由用户模型中间件在Sanctum认证后限制为该套件显式模型；其他合法多态PAT仍能访问自身原生路由，访问套件确认／令牌管理／邮件操作返回401，不触发内部模型转换错误，也不误修改同ID套件账号。
+
+证据：`scope-tests-fourth.log`包含新增实际TCP作用域1项、Fortify无Sanctum的网页11项、SQLite凭据生命周期1项、完整套件30项通过。两个缺数据库环境的生命周期目标ignored，不计外部验收。后续`scope-native-regression.log`明确强制管理员bcrypt重哈希成本由5变4并保留remember恢复与其他模型令牌；原生配置认证2、Session／Response门面8、Sanctum 6、Session认证7个目标通过，其中缺外部数据库参数的提前返回不计真实MySQL通过。
+
+`scope-matrix-gates.log`：独立MySQL8.4.13／PostgreSQL18.7均实际执行Scope1＋设备撤销4；管理员表无版本列、用户／管理员数值ID同为1、原生重哈希及remember、其他模型PAT、跨模型401、回调保留及套件撤销通过。workspace严格Clippy28.96秒、Fortify+Sanctum16.56秒、无Sanctum37.79秒及格式门禁通过。
+
+`scope-final-gates.log`：新增4种格式错误作用域的真实HTTP失败／恢复检查，与原Scope回归共2项通过；最终feature严格Clippy11.73秒及格式退出0。`scope-runtime.log`：生成full应用重建、两进程file会话21次TCP通过。`scope-docs.log`：三语站构建及两前缀／桌面手机12组浏览器通过。先前测试夹具的trait import、类型推断及HashOptions构造错误已修正，失败日志保留。
+
+闭合范围是已选身份的策略隔离，不是完整A01-03或S10。下一步核对已有源码中验证邮件使用认证标识而非模型主键的组合，随后继续资料、头像、设备列表、注销与可选因素；队列及最终组合门禁不变。

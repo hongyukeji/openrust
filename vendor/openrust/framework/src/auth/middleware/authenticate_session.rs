@@ -31,16 +31,12 @@ impl Middleware for AuthenticateSession {
             let Some(user) = user else {
                 return Ok(next.run(request).await);
             };
+            let signer = SessionFingerprint::for_guard(manager.config(), &guard)?;
             if user.get_auth_password().is_none()
-                && manager
-                    .config()
-                    .get("auth.session_credential_version_attribute")
-                    .is_none_or(|value| value.is_null())
+                && signer.credential_version(user.as_ref())?.is_none()
             {
                 return Ok(next.run(request).await);
             }
-
-            let signer = SessionFingerprint::from_config(manager.config());
             let fingerprint = signer.sign_for_guard(user.as_ref(), &guard)?;
             let key = SessionFingerprint::session_key(&guard);
             let session = request.session_mut()?;
@@ -59,7 +55,8 @@ impl Middleware for AuthenticateSession {
                 }
                 Some(_) => {}
                 None if manager.config().get("auth.session_fingerprint_on_login")
-                    == Some(serde_json::json!(true)) =>
+                    == Some(serde_json::json!(true))
+                    && crate::auth::credential_scope::guard_applies(manager.config(), &guard)? =>
                 {
                     manager
                         .session_guard(request, Some(&guard))?

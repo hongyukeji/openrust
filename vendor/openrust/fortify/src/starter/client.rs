@@ -549,6 +549,7 @@ where
     M: HasApiTokens + TwoFactorAuthenticatable + Clone,
 {
     use openrust::support::ServiceProvider as _;
+    super::credentials::scope_for::<M>(app)?;
     super::StarterKitServiceProvider
         .commands(app, crate::console::prune_auth_challenges::register::<M>);
     super::StarterKitServiceProvider.load_routes_from(app, routes::<M>)
@@ -625,6 +626,7 @@ where
                     .post("/auth/email/verification-notification", super::api::resend)?
                     .name("user.api.verification.send")
                     .middleware_name("auth:sanctum")
+                    .middleware(Arc::new(super::client_middleware::UserModel::<M>::new()))
                     .middleware_name(format!(
                         "throttle:{}",
                         fortify.string("fortify.limiters.verification", "6,1")
@@ -633,26 +635,32 @@ where
             router
                 .post("/auth/confirm", super::confirmation::confirm::<M>)?
                 .middleware_name("auth:sanctum")
+                .middleware(Arc::new(super::client_middleware::UserModel::<M>::new()))
                 .name("user.confirmation");
             router
                 .post("/auth/logout", super::account::logout::<M>)?
                 .middleware_name("auth:sanctum")
+                .middleware(Arc::new(super::client_middleware::UserModel::<M>::new()))
                 .name("user.tokens.logout");
             router
                 .post("/auth/logout-all", super::account::logout_all::<M>)?
                 .middleware_name("auth:sanctum")
+                .middleware(Arc::new(super::client_middleware::UserModel::<M>::new()))
                 .name("user.devices.logout-all");
             router
                 .get("/user/tokens", super::account::tokens::<M>)?
                 .middleware_name("auth:sanctum")
+                .middleware(Arc::new(super::client_middleware::UserModel::<M>::new()))
                 .name("user.tokens.index");
             router
                 .post("/user/tokens", super::account::create_token::<M>)?
                 .middleware_name("auth:sanctum")
+                .middleware(Arc::new(super::client_middleware::UserModel::<M>::new()))
                 .name("user.tokens.store");
             router
                 .delete("/user/tokens/{token}", super::account::revoke_token::<M>)?
                 .middleware_name("auth:sanctum")
+                .middleware(Arc::new(super::client_middleware::UserModel::<M>::new()))
                 .name("user.tokens.destroy");
             Ok(())
         },

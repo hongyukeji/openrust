@@ -66,3 +66,28 @@ impl Middleware for BodyCredentials {
         })
     }
 }
+
+/// Sanctum可认证多态身份；套件账户操作只接受其显式注册的用户模型。
+pub(super) struct UserModel<M>(std::marker::PhantomData<fn() -> M>);
+impl<M> UserModel<M> {
+    pub const fn new() -> Self {
+        Self(std::marker::PhantomData)
+    }
+}
+impl<M: openrust::contracts::auth::Authenticatable> Middleware for UserModel<M> {
+    fn handle<'a>(
+        &'a self,
+        request: &'a mut Request,
+        next: Next<'a>,
+    ) -> HttpFuture<'a, Result<Response, HttpError>> {
+        Box::pin(async move {
+            let user = openrust::auth::Auth::user(request)
+                .await?
+                .ok_or(HttpError::Unauthenticated)?;
+            if !(user.as_ref() as &dyn std::any::Any).is::<M>() {
+                return Err(HttpError::Unauthenticated);
+            }
+            Ok(next.run(request).await)
+        })
+    }
+}

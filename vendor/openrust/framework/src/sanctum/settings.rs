@@ -234,6 +234,32 @@ impl Sanctum {
             .expect("Sanctum owner authentication lock") = Some(Arc::new(callback));
     }
 
+    /// 追加独立归属策略，保留应用此前设置的回调；任何一个拒绝或失败都不能放行。
+    pub fn add_token_owner_validator(
+        &self,
+        callback: impl Fn(
+            &PersonalAccessToken,
+            &dyn crate::contracts::auth::Authenticatable,
+        ) -> AuthResult<bool>
+        + Send
+        + Sync
+        + 'static,
+    ) {
+        let mut policy = self
+            .owner_authentication
+            .write()
+            .expect("Sanctum owner authentication lock");
+        let previous = policy.take();
+        *policy = Some(Arc::new(move |token, user| {
+            if let Some(previous) = &previous
+                && !previous(token, user)?
+            {
+                return Ok(false);
+            }
+            callback(token, user)
+        }));
+    }
+
     /// 对锁内重新读取的本人令牌复用有效期、自定义认证及归属检查。
     /// 调用者仍须先核对Provider和精确归属，时钟来自所属应用。
     pub fn validate_token_for_owner(

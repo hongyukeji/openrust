@@ -130,6 +130,45 @@ pub async fn configure(app: &Application) -> ProviderResult {
             ]);
         })?;
     config.set("auth.session_fingerprint_on_login", json!(true))?;
+    #[cfg(not(feature = "sanctum"))]
+    {
+        let guard = config
+            .get("fortify.guard")
+            .and_then(|value| {
+                value
+                    .as_str()
+                    .filter(|value| !value.is_empty())
+                    .map(str::to_owned)
+            })
+            .or_else(|| {
+                config
+                    .get("auth.defaults.guard")
+                    .and_then(|value| value.as_str().map(str::to_owned))
+            })
+            .unwrap_or_else(|| "web".into());
+        let guards = config
+            .get("auth.guards")
+            .ok_or_else(|| invalid("auth.guards", "会话Guard配置"))?;
+        let provider = guards
+            .get(&guard)
+            .and_then(|value| value.get("provider"))
+            .cloned()
+            .ok_or_else(|| invalid("auth.guards", "用户Provider"))?;
+        let selected: Vec<_> = guards
+            .as_object()
+            .ok_or_else(|| invalid("auth.guards", "对象"))?
+            .iter()
+            .filter_map(|(name, value)| {
+                (value.get("driver") == Some(&json!("session"))
+                    && value.get("provider") == Some(&provider))
+                .then_some(name.clone())
+            })
+            .collect();
+        config.set(
+            "auth.session_credential_version_scope",
+            json!({"guards":selected,"tables":[]}),
+        )?;
+    }
     #[cfg(feature = "sanctum")]
     config.set(
         "auth.session_credential_version_attribute",
@@ -159,8 +198,7 @@ pub async fn configure(app: &Application) -> ProviderResult {
     config.set("fortify.features", Value::Array(features))?;
     config.set("fortify.middleware", Value::Array(middleware))?;
     config.set("fortify.views", json!(full))?;
-    #[cfg(feature = "sanctum")]
-    super::credentials::configure(app.make::<openrust::sanctum::Sanctum>().await?.as_ref());
+
     if !full {
         let prefix = config
             .get("fortify.prefix")
