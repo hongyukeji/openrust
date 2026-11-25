@@ -712,3 +712,16 @@ Telescope保留被允许采集的安全请求元数据，去除原始URI参数�
 - 首轮夹具的公开API调用、Watcher完整配置及异步延后写入等待问题已修正，失败日志保留；磁盘中断不计通过。privacy-cleanup-stop.log记录停线后持锁释放77,292,556,288字节、可用109,274,398,720字节。交付清理privacy-cleanup.json直接删除本批闲置测试／HTTP二进制与文档dist，磁盘净释放635,699,200字节、清后可用41,443,205,120字节；保留正常增量缓存、源码、日志、依赖、数据库和数据卷。
 
 未闭合边界：此单元只保护HTTP作用域。后台认证邮件没有HTTP标记，须继续复用现有Context作用域与加密通知投递接线并用真实Worker验收。扩大回归发现native_event_gate_notification_model_view_and_dump_sources_are_observed在同步队列通知阶段发生默认测试栈溢出；privacy-baseline-provider.log/json已将本批正式改动逐项恢复为上述已提交基线后复现，privacy-provider-progress.log进一步定位到queued通知调用。该问题不是本批新增，不加大测试栈掩盖，纳入紧接的后台通知保护及S10收口；未将相关Provider整个测试组标成全过。Socialite、最终组合及其他A01缺口继续按主计划执行。
+
+
+## 同步队列通知的语言作用域栈修复（已独立验收）
+
+修复上节登记的基线默认栈溢出。Delivery::localized沿用现有Container::scope的布局做法：在构造语言作用域异步状态机前Box固定业务Future，随后仍通过原生Lang::with_locale运行。正常及排队通知的回调、错误、队列顺序、本地化与取消行为保持原契约；不新增公开调用或配置项，因此不向三语教程增加内部实现细节。
+
+- 基线和定位：privacy-baseline-provider.log在恢复已提交代码后复现；worker-stack-trace-detail.log显示HTTP→同步队列→通知→语言作用域的嵌套链。worker-future-size-detail.log与worker-delivery-size-detail.log记录邮件及投递子Future实际尺寸；worker-stack-frames.log保留本机ARM64函数栈分配片段。短信分支与Event.until的尝试未修复，已恢复；最终只改变通知语言包装的Future布局，未改默认测试栈或并发。
+- 最终独立候选：notification-stack-final-source.json核对3088份其他Rust／清单文件与11a2220e0edcffd1e06f335271829d54526d9f67一致；notification-stack-final-independent.py再把4份后台诊断保护草稿恢复为该基线并排除其新测试，只应用notification_sender.rs修复。notification-stack-final-baseline.json记录准确版本与排除范围；此前independent日志属于较早冻结组合，不冒充最终整仓验收。
+- notification-stack-final-regression.log：原失败综合场景在默认环境中通过，Telescope Provider完整15项通过、Redis外部项1项忽略；事件、通知邮件及Fortify Provider选择目标也正常返回。notification-stack-final-clippy.log对应选择目标严格Clippy通过，范围Rustfmt及差异检查通过。
+- notification-stack-independent-regression.log另保留SQLite／自定义队列与原生Artisan Worker暂停、恢复、失败重试、上下文隔离的本机记录。SMTP及MySQL／Redis／PostgreSQL／SQL Server的服务入口未在本轮提供必要环境，部分旧测试会提前返回，均不算对应真实服务验收；子进程夹具的重复输出不重复计数。
+- notification-stack-cleanup.json：持本批Cargo锁直接删除7份闲置验收测试二进制，净释放1,332,297,728字节，清后可用45,953,073,152字节；保留正常增量缓存、源码、日志、下载、数据库和数据卷，没有本批待清理Docker资源。
+
+该栈问题从后续缺口移除；后台认证邮件诊断保护、真实Worker与Socialite／S10仍在开发。Context草稿、自定义第三方身份草稿和其他代理在途文件未包含在本笔修复中。

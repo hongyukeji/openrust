@@ -147,15 +147,19 @@ impl Delivery {
         }
     }
 
-    pub(super) async fn localized<T>(
+    // 与原生执行作用域一致，先固定业务Future布局，避免语言作用域重复携带大型状态机。
+    pub(super) fn localized<T>(
         &self,
         operation: impl Future<Output = NotificationResult<T>>,
-    ) -> NotificationResult<T> {
-        match &self.locale {
-            Some(locale) => Lang::with_locale(locale, operation)
-                .await
-                .map_err(delivery)?,
-            None => operation.await,
+    ) -> impl Future<Output = NotificationResult<T>> {
+        let operation = Box::pin(operation);
+        async move {
+            match &self.locale {
+                Some(locale) => Lang::with_locale(locale, operation)
+                    .await
+                    .map_err(delivery)?,
+                None => operation.await,
+            }
         }
     }
 }
