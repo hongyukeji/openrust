@@ -12,6 +12,7 @@ use std::fmt::Write as _;
 use crate::{
     Error, PreparedWebhook, Result,
     endpoints::{EndpointPermission, EndpointStore},
+    idempotency::IdempotencyKind,
     limits::{self, DeliveryLimits},
     publication::MESSAGES,
     replay::ReplayRecord,
@@ -168,16 +169,47 @@ impl DeliveryStore {
         if self.endpoints().permission_in(&snapshot, tx).await? == EndpointPermission::Revoked {
             return Err(Error::EndpointRevoked);
         }
-        let id = hash(format!("{}:{key}", self.scope_key).as_bytes());
-        let (_, fingerprint) = self.insert_delivery(tx, &id, &snapshot).await?;
-        let row = self
-            .owned_row(tx.table(DELIVERIES), &id)
-            .select(["digest"])
-            .first()
-            .await?
-            .ok_or(Error::InvalidRecord)?;
-        if text(&row, "digest")? != fingerprint {
-            return Err(Error::IdempotencyConflict);
+        let legacy_id = hash(format!("{}:{key}", self.scope_key).as_bytes());
+        let parent = tx.transaction_level();
+        tx.begin_transaction().await?;
+        let result = self.persist_submission(tx, &legacy_id, &snapshot).await;
+        match result {
+            Ok(id) => {
+                tx.commit().await?;
+                Ok(id)
+            }
+            Err(error) => {
+                tx.roll_back(Some(parent)).await?;
+                Err(error)
+            }
+        }
+    }
+
+    async fn persist_submission(
+        &self,
+        tx: &mut Transaction,
+        legacy_id: &str,
+        snapshot: &Snapshot,
+    ) -> Result<String> {
+        let binding = self
+            .bind_idempotency_key(tx, IdempotencyKind::Delivery, legacy_id)
+            .await?;
+        let id = binding.id;
+        if binding.new_record {
+            if self.insert_delivery(tx, &id, snapshot).await?.0 != 1 {
+                return Err(Error::IdempotencyConflict);
+            }
+        } else {
+            let row = self
+                .owned_row(tx.table(DELIVERIES), &id)
+                .select(["digest"])
+                .shared_lock()
+                .first()
+                .await?
+                .ok_or(Error::InvalidRecord)?;
+            if text(&row, "digest")? != hash(snapshot.encode()?.as_bytes()) {
+                return Err(Error::IdempotencyConflict);
+            }
         }
         Ok(id)
     }

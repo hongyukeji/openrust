@@ -243,6 +243,55 @@ def exercise(binary, env, log, receiver, driver, sql):
         finally:
             connection.close()
 
+    if env.get("FIXTURE_SEND_KEY_BINDINGS"):
+        legacy = json.loads(env["FIXTURE_SEND_LEGACY_RECEIPTS"])
+        scope_hash = hashlib.sha256(SCOPE.encode()).hexdigest()
+        old_delivery = hashlib.sha256(f"{scope_hash}:legacy-submission".encode()).hexdigest()
+        old_message = hashlib.sha256(f"webhook-publication:{scope_hash}:legacy-message".encode()).hexdigest()
+        assert legacy[0]["id"] == old_delivery and legacy[1]["message_id"] == old_message
+        assert sql("SELECT count(*) FROM webhook_idempotency_keys") == "0"
+        with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
+            deliveries = [pool.submit(submit, "legacy-submission") for _ in range(3)]
+            publications = [pool.submit(publish, "legacy-message") for _ in range(3)]
+            assert [job.result() for job in deliveries] == [old_delivery] * 3
+            assert [job.result() for job in publications] == [legacy[1]] * 3
+        assert sql("SELECT count(*) FROM webhook_idempotency_keys") == "2"
+        submit("legacy-submission", body=b"changed", expected=409)
+        publish("legacy-message", {"different": True}, expected=409)
+
+        enqueue(old_delivery)
+        enqueue(legacy[1]["delivery_ids"][0])
+        command(*worker)
+        command(*worker)
+        captured("legacy-submission")
+        assert read(legacy[1]["delivery_ids"][0]) == "succeeded\t1"
+        with receiver.mutex:
+            legacy_payload = receiver.received[old_message][0][2]
+        assert json.loads(legacy_payload)["data"] == {"status": "retry"}
+
+        rollback = [submit("identity-rollback", mode="rollback") for _ in range(2)]
+        assert len(set(rollback)) == 2 and all(not read(identifier) for identifier in rollback)
+        association = f"SELECT count(*) FROM webhook_idempotency_keys WHERE record_id IN ('{rollback[0]}','{rollback[1]}')"
+        assert sql(association) == "0"
+        with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
+            ids = list(pool.map(submit, ["new-submission"] * 6))
+        assert len(set(ids)) == 1
+        fresh = ids[0]
+        assert fresh != hashlib.sha256(f"{scope_hash}:new-submission".encode()).hexdigest()
+        assert fresh not in rollback
+        assert sql(f"SELECT count(*) FROM webhook_idempotency_keys WHERE record_id='{fresh}'") == "1"
+        renewed = publish("new-message")
+        assert renewed["message_id"] != hashlib.sha256(
+            f"webhook-publication:{scope_hash}:new-message".encode()).hexdigest()
+        assert renewed == publish("new-message")
+        assert renewed["delivery_ids"] != legacy[1]["delivery_ids"]
+        assert all(read(identifier) for identifier in renewed["delivery_ids"])
+        migration = ("--path=vendor/openrust/webhook-server/database/migrations/"
+                     "2026_11_25_000000_create_webhook_idempotency_keys_table.rs")
+        command("migrate:rollback", migration, "--step=1000", "--force", success=False)
+        print(f"{driver}: 旧版升级、幂等映射、并发首写、原事务回滚和稳定 HTTP 收据通过")
+        return
+
     if env.get("FIXTURE_SEND_RETENTION"):
         def prune(*args, scope=SCOPE, success=True):
             output = command("webhook-server:prune", "--scope", scope, *args, success=success)
@@ -1626,6 +1675,32 @@ def main():
             def sql(query):
                 return helpers["database_rows"](helpers["database_container"](), query).strip()
 
+            if env.get("FIXTURE_SEND_KEY_BINDINGS"):
+                legacy_binary = Path(env["FIXTURE_SEND_LEGACY_BINARY"]).resolve()
+                routes["command"](legacy_binary, env, "migrate", "--force")
+                routes["command"](legacy_binary, env, "webhooks:fixture-endpoint", "create", "legacy-endpoint")
+                routes["command"](legacy_binary, env, "webhooks:fixture-endpoint", "subscribe", "legacy-endpoint",
+                                  "--topic=invoice.paid", "--schema=1")
+                with (Path(root) / "legacy-process.log").open("w+") as log:
+                    old = http_helpers["serve"](legacy_binary, env, log)
+                    receipts = []
+                    try:
+                        for route, body in (("normal/legacy-submission", BODY),
+                                            ("publish/legacy-message", b'{"status":"retry"}')):
+                            connection = http.client.HTTPConnection("127.0.0.1", app_port, timeout=20)
+                            try:
+                                connection.request("POST", f"/api/outbound/{route}", body,
+                                                   {"Accept": "application/json"})
+                                response = connection.getresponse()
+                                payload = json.loads(response.read())
+                                assert response.status == 202, payload
+                                receipts.append(payload)
+                            finally:
+                                connection.close()
+                    finally:
+                        http_helpers["stop"](old)
+                env["FIXTURE_SEND_LEGACY_RECEIPTS"] = json.dumps(receipts)
+
             routes["command"](binary, env, "migrate", "--force")
             routes["command"](binary, env, "config:cache")
             routes["command"](binary, env, "route:cache")
@@ -1643,7 +1718,8 @@ def main():
         if not (os.environ.get("FIXTURE_SEND_SCHEDULE") or os.environ.get("FIXTURE_SEND_REPLAY")
                 or os.environ.get("FIXTURE_SEND_ENDPOINTS") or os.environ.get("FIXTURE_SEND_LIMITS")
                 or os.environ.get("FIXTURE_SEND_FANOUT") or os.environ.get("FIXTURE_SEND_TLS")
-                or os.environ.get("FIXTURE_SEND_DIAGNOSTICS") or os.environ.get("FIXTURE_SEND_RETENTION")):
+                or os.environ.get("FIXTURE_SEND_DIAGNOSTICS") or os.environ.get("FIXTURE_SEND_RETENTION")
+                or os.environ.get("FIXTURE_SEND_KEY_BINDINGS")):
             print(f"{driver}: HTTP 签名和字节、事务回滚、重复领取、重试预算、撤销、超时、崩溃恢复、Builder 分支、投递事件与自定义 Job 通过")
     finally:
         if proxy_thread is not None:

@@ -21,6 +21,9 @@ mod endpoints;
 mod error;
 pub mod events;
 mod extensions;
+mod idempotency;
+#[path = "../database/migrations/2026_11_25_000000_create_webhook_idempotency_keys_table.rs"]
+mod idempotency_migration;
 mod limits;
 #[path = "../database/migrations/2026_11_25_000000_mark_webhook_messages_retention_hold.rs"]
 mod message_hold_migration;
@@ -156,6 +159,10 @@ impl WebhookServerServiceProvider {
             MigrationEntry::new(
                 "vendor/openrust/webhook-server/database/migrations/2026_11_25_000000_mark_webhook_messages_retention_hold.rs",
                 &message_hold_migration::MIGRATION,
+            ),
+            MigrationEntry::new(
+                "vendor/openrust/webhook-server/database/migrations/2026_11_25_000000_create_webhook_idempotency_keys_table.rs",
+                &idempotency_migration::MIGRATION,
             ),
         ];
         ENTRIES

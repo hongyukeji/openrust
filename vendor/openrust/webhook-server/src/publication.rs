@@ -9,6 +9,7 @@ use crate::{
     delivery_store::{check_text, hash, settle, text},
     endpoints::{ENDPOINTS, endpoint},
     extensions,
+    idempotency::IdempotencyKind,
     snapshot::{MessageReference, Snapshot},
 };
 
@@ -153,11 +154,35 @@ impl DeliveryStore {
         options: &PublishOptions,
         policy: &TargetPolicy,
     ) -> Result<PublishedMessage> {
+        let binding = self
+            .bind_idempotency_key(tx, IdempotencyKind::Publication, &input.legacy_id)
+            .await?;
+        let message_id = binding.id;
+        if !binding.new_record {
+            let row = tx
+                .table(MESSAGES)
+                .r#where("scope_key", "=", self.scope_key.as_str())
+                .r#where("id", "=", message_id.as_str())
+                .select(["fingerprint", "delivery_ids"])
+                .shared_lock()
+                .first()
+                .await?
+                .ok_or(Error::InvalidRecord)?;
+            if text(&row, "fingerprint")? != input.fingerprint {
+                return Err(Error::IdempotencyConflict);
+            }
+            let delivery_ids = read_delivery_manifest(text(&row, "delivery_ids")?)?;
+            return Ok(PublishedMessage {
+                message_id,
+                delivery_ids,
+            });
+        }
+
         let now = self.time_in(tx).await?;
         let inserted = tx
             .table(MESSAGES)
             .insert_or_ignore(&[[
-                ("id".into(), input.id.as_str().into()),
+                ("id".into(), message_id.as_str().into()),
                 ("scope_key".into(), self.scope_key.as_str().into()),
                 ("topic".into(), input.topic.name.as_str().into()),
                 (
@@ -173,24 +198,8 @@ impl DeliveryStore {
             .into_iter()
             .collect()])
             .await?;
-        if inserted == 0 {
-            let row = tx
-                .table(MESSAGES)
-                .r#where("scope_key", "=", self.scope_key.as_str())
-                .r#where("id", "=", input.id.as_str())
-                .select(["fingerprint", "delivery_ids"])
-                .shared_lock()
-                .first()
-                .await?
-                .ok_or(Error::InvalidRecord)?;
-            if text(&row, "fingerprint")? != input.fingerprint {
-                return Err(Error::IdempotencyConflict);
-            }
-            let delivery_ids = read_delivery_manifest(text(&row, "delivery_ids")?)?;
-            return Ok(PublishedMessage {
-                message_id: input.id,
-                delivery_ids,
-            });
+        if inserted != 1 {
+            return Err(Error::IdempotencyConflict);
         }
 
         let targets = tx
@@ -223,7 +232,7 @@ impl DeliveryStore {
             let id = hash(
                 format!(
                     "webhook-fanout:{}:{}:{}",
-                    input.id,
+                    message_id,
                     target.binding.id,
                     target.revision()
                 )
@@ -233,7 +242,7 @@ impl DeliveryStore {
             headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
             let mut builder = WebhookCall::create()?
                 .use_endpoint(&target)
-                .uuid(&input.id)
+                .uuid(&message_id)
                 .use_http_verb(Method::POST)
                 .with_headers(headers)
                 .send_raw_body(Vec::new());
@@ -245,7 +254,7 @@ impl DeliveryStore {
             }
             let mut snapshot = builder.prepare(policy)?.freeze(options.lifetime_seconds)?;
             snapshot.message_ref = Some(MessageReference {
-                id: input.id.clone(),
+                id: message_id.clone(),
                 digest: input.body_digest.clone(),
             });
             if self.insert_delivery(tx, &id, &snapshot).await?.0 != 1 {
@@ -255,7 +264,7 @@ impl DeliveryStore {
         }
         let encoded = serde_json::to_string(&delivery_ids).map_err(|_| Error::InvalidRecord)?;
         tx.table(MESSAGES)
-            .r#where("id", "=", input.id.as_str())
+            .r#where("id", "=", message_id.as_str())
             .r#where("scope_key", "=", self.scope_key.as_str())
             .update(
                 [("delivery_ids".into(), encoded.into())]
@@ -264,7 +273,7 @@ impl DeliveryStore {
             )
             .await?;
         Ok(PublishedMessage {
-            message_id: input.id,
+            message_id,
             delivery_ids,
         })
     }
@@ -314,7 +323,7 @@ pub(crate) fn read_delivery_manifest(manifest: &str) -> Result<Vec<String>> {
 
 struct Publication<'a> {
     topic: &'a EventType,
-    id: String,
+    legacy_id: String,
     fingerprint: String,
     body: String,
     body_digest: String,
@@ -340,10 +349,10 @@ impl<'a> Publication<'a> {
             &serde_json::to_vec(&(&topic.name, topic.schema_version, &body_digest, options))
                 .map_err(|_| Error::InvalidRecord)?,
         );
-        let id = hash(format!("webhook-publication:{scope}:{key}").as_bytes());
+        let legacy_id = hash(format!("webhook-publication:{scope}:{key}").as_bytes());
         Ok(Self {
             topic,
-            id,
+            legacy_id,
             fingerprint,
             body,
             body_digest,

@@ -215,7 +215,7 @@ This path uses SOCKS5 with local address resolution and verified HTTPS. The prox
 
 ### Submit and send a delivery {#delivery}
 
-Run `./artisan migrate` after enabling the package. Create a `DeliveryStore` with the application’s database connection and delivery scope. Use `submit_in_transaction` to record an outgoing delivery in the same database transaction as a business change. Use `submit` when the delivery has its own transaction. The same key and identical snapshot return the existing delivery ID. Changing the snapshot for that key returns a conflict. Assign a stable message ID before preparing repeated submissions.
+Run `./artisan migrate` after enabling the package. Create a `DeliveryStore` with the application’s database connection and delivery scope. Use `submit_in_transaction` to record an outgoing delivery in the same database transaction as a business change. Use `submit` when the delivery has its own transaction. The same key and identical snapshot return the existing delivery ID. Changing the snapshot for that key returns a conflict. Assign a stable message ID before preparing repeated submissions. Treat returned delivery IDs and published message IDs as opaque values. The same scoped key keeps its original result, including records registered before the idempotency mapping migration. Apply migrations and stop older writers before deploying the new write path.
 
 Enable `register_delivery_policy` in the application. The policy evaluates the current delivery scope, URL and credential reference for each attempt. Resolve secrets at runtime. The saved snapshot excludes inline secrets and sensitive headers. Queue payloads contain only the delivery ID. Keep sensitive values out of the URL, body and metadata wherever possible.
 
