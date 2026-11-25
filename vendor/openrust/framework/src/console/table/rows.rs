@@ -1,4 +1,4 @@
-use super::{ArrayKey, ConsoleError, Table, TableCell, template};
+use super::{ArrayKey, ConsoleError, Table, TableCell, TableRow, template};
 use std::collections::BTreeSet;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(super) enum Orientation {
@@ -11,13 +11,13 @@ pub(super) struct OrientedRows {
     pub(super) headers: Vec<Vec<String>>,
     pub(super) rows: Vec<Vec<String>>,
     pub(super) rules: BTreeSet<usize>,
+    pub(super) separators: BTreeSet<usize>,
 }
 impl Table<'_, '_> {
-    pub fn add_rows<I, R, T>(&mut self, rows: I) -> Result<&mut Self, ConsoleError>
+    pub fn add_rows<I, R>(&mut self, rows: I) -> Result<&mut Self, ConsoleError>
     where
         I: IntoIterator<Item = R>,
-        R: IntoIterator<Item = T>,
-        T: Into<TableCell>,
+        R: Into<TableRow>,
     {
         for row in rows {
             self.add_row(row)?;
@@ -29,12 +29,26 @@ impl Table<'_, '_> {
         I: IntoIterator<Item = T>,
         T: Into<TableCell>,
     {
-        let key = key.into().normalized();
-        let row = row
-            .into_iter()
-            .map(|cell| cell.into().to_string())
-            .collect();
-        if let Some(index) = self.row_keys.iter().position(|old| *old == key) {
+        self.insert_row(key.into().normalized(), TableRow::from(row));
+        self
+    }
+    pub(super) fn insert_row(&mut self, key: ArrayKey, row: TableRow) {
+        let index = self
+            .row_keys
+            .iter()
+            .position(|old| *old == key)
+            .unwrap_or(self.rows.len());
+        let row = match row {
+            TableRow::Cells(cells) => {
+                self.separators.remove(&index);
+                cells.into_iter().map(|cell| cell.to_string()).collect()
+            }
+            TableRow::Separator(_) => {
+                self.separators.insert(index);
+                Vec::new()
+            }
+        };
+        if index < self.rows.len() {
             self.rows[index] = row;
         } else {
             if let ArrayKey::Integer(index) = &key {
@@ -44,7 +58,6 @@ impl Table<'_, '_> {
             self.row_keys.push(key);
             self.rows.push(row);
         }
-        self
     }
     pub fn set_headers_rows<I, R, T>(&mut self, rows: I) -> &mut Self
     where
@@ -83,16 +96,23 @@ impl Table<'_, '_> {
             headers: Vec::new(),
             rows: Vec::new(),
             rules: BTreeSet::new(),
+            separators: BTreeSet::new(),
         };
         match self.orientation {
             Orientation::Default => {
                 result.headers = self.headers.clone();
                 result.rows = self.rows.clone();
+                result.separators = self.separators.clone();
             }
             Orientation::Horizontal => {
                 for (column, header) in self.headers.first().into_iter().flatten().enumerate() {
                     let mut row = vec![header.clone()];
-                    for source in &self.rows {
+                    for (_, source) in self
+                        .rows
+                        .iter()
+                        .enumerate()
+                        .filter(|(index, _)| !self.separators.contains(index))
+                    {
                         row.push(source.get(column).cloned().unwrap_or_default());
                     }
                     result.rows.push(row);
@@ -104,7 +124,14 @@ impl Table<'_, '_> {
                 for header in &headers {
                     maximum = maximum.max(self.visible_width(header)?);
                 }
-                for source in self.rows.clone() {
+                let sources: Vec<_> = self
+                    .rows
+                    .iter()
+                    .enumerate()
+                    .filter(|(index, _)| !self.separators.contains(index))
+                    .map(|(_, row)| row.clone())
+                    .collect();
+                for source in sources {
                     if !result.rows.is_empty() {
                         result.rules.insert(result.rows.len());
                         result.rows.push(vec![String::new()]);

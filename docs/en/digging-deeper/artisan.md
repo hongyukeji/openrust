@@ -619,7 +619,7 @@ fn register_tables() -> Result<(), ConsoleError> {
 
 `table_with` selects a `TableStyle`; `table_with_columns` additionally accepts `(column_index, style)` pairs. `TableStyle::from_name` provides `default`, `markdown`, `borderless`, `compact`, `symfony-style-guide`, `box`, and `box-double`. Customize a style with its border, padding and format setters. `TablePadding::{Left, Right, Both}` names the side that receives padding; `Right` is the default.
 
-For direct rendering, build `Table::new(io.get_output())?`, set headers, rows and column styles, then call `render()`. `TableCell::display(value)` explicitly adapts a business type implementing `Display`; JSON values and ordinary scalars convert directly. Multi-line cells, visible Unicode width, formatter tags, ANSI output and quiet/silent filtering share the original output pipeline. This rectangular-table interface does not claim support for cell spans, row separators or the entire inherited helper SDK.
+For direct rendering, build `Table::new(io.get_output())?`, set headers, rows and column styles, then call `render()`. `TableCell::display(value)` explicitly adapts a business type implementing `Display`; JSON values and ordinary scalars convert directly. Multi-line cells, visible Unicode width, formatter tags, ANSI output and quiet/silent filtering share the original output pipeline. This rectangular-table interface does not claim support for cell spans or the entire inherited helper SDK.
 
 ## Progress Bars {#progress-bars}
 
@@ -1019,3 +1019,29 @@ fn register_table_styles() -> Result<(), ConsoleError> {
 ```
 
 `set_style_named` and `set_column_style_named` resolve names and return errors for undefined definitions. The typed setters also accept borrowed styles. The `table` convenience method uses the application's current default. Use `table_named` or `table_with_named_columns` for named table and column styles. Explicit separator cells, spans and section redraw are still separate capabilities.
+
+## Explicit Row Separators {#table-row-separators}
+
+Use `TableRow` for a collection containing both data rows and whole-row separators. `TableSeparator::new()` is a separator, while an empty data array is an empty row. Ordinary arrays and iterators still convert to data rows automatically.
+
+```rust
+use openrust::{
+    console::{ConsoleError, Input, Output, TableRow, TableSeparator},
+    support::facades::Artisan,
+};
+
+fn register_separators() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:separators", |input: &Input, output: &mut Output| {
+        let rows = [
+            TableRow::from(["one", "two"]),
+            TableSeparator::new().into(),
+            TableRow::from(["three"]),
+        ];
+        input.io(output).table_named(["A", "B"], rows, "box-double")?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
+`set_rows`, `add_rows`, `add_row` and the table convenience methods accept these heterogeneous rows. `add_row` and `add_rows` continue to propagate index exhaustion with `?`; `set_row` replaces a separator with a data array at the same key. Leading, trailing and consecutive separators retain their declared order. Horizontal and vertical layouts omit explicit whole-row separators; vertical layout continues to generate its own record separators. Complex separator-cell options, spans and section redraw remain separate capabilities.

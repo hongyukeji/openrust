@@ -1,6 +1,6 @@
 {
   "reference": "Symfony Console v7.4.0 and fixed framework 1449bf241017087fbd38c118ecaabef3f6797fdc",
-  "scope": "Text rows, orientation, widths/titles, mutable style SDK and named shared style lifecycle verified. Explicit separator/spanning cells/sections and inherited style remain open.",
+  "scope": "Text rows, explicit default whole-row separators, orientation, widths/titles and mutable named styles verified. Nested separator cells/options, spanning/styled cells, sections and inherited components remain open.",
   "classes": {
     "Table": [
       {
@@ -129,33 +129,39 @@
       {
         "method": "setRows",
         "source_line": 193,
-        "status": "verified_array_rows_keys_and_overflow_remaining_separator_input",
+        "status": "verified_text_rows_and_explicit_whole_row_separators_remaining_complex_cells",
         "native": "console::Table::set_rows",
         "evidence": [
           "console_table_rows",
           "console_tables_tutorial",
-          "table-rows-oracle.json"
+          "table-rows-oracle.json",
+          "console_table_separators",
+          "table-separators-oracle.json"
         ]
       },
       {
         "method": "addRows",
         "source_line": 203,
-        "status": "verified_array_rows_and_orientation_contract",
+        "status": "verified_text_rows_and_explicit_whole_row_separators_remaining_complex_cells",
         "native": "console::Table::add_rows",
         "evidence": [
           "console_table_rows",
-          "table-rows-oracle.json"
+          "table-rows-oracle.json",
+          "console_table_separators",
+          "table-separators-oracle.json"
         ]
       },
       {
         "method": "addRow",
         "source_line": 215,
-        "status": "verified_array_rows_keys_and_overflow_remaining_separator_input",
+        "status": "verified_text_rows_and_explicit_whole_row_separators_remaining_complex_cells",
         "native": "console::Table::add_row",
         "evidence": [
           "console_table_rows",
           "console_tables_tutorial",
-          "table-rows-oracle.json"
+          "table-rows-oracle.json",
+          "console_table_separators",
+          "table-separators-oracle.json"
         ]
       },
       {
@@ -167,11 +173,13 @@
       {
         "method": "setRow",
         "source_line": 252,
-        "status": "verified_array_rows_and_orientation_contract",
+        "status": "verified_array_rows_replacing_data_or_separator_at_existing_key",
         "native": "console::Table::set_row",
         "evidence": [
           "console_table_rows",
-          "table-rows-oracle.json"
+          "table-rows-oracle.json",
+          "console_table_separators",
+          "table-separators-oracle.json"
         ]
       },
       {
@@ -468,8 +476,12 @@
       {
         "method": "__construct",
         "source_line": 21,
-        "status": "pending_sdk_entry_and_consumer_review",
-        "native": null
+        "status": "verified_default_whole_row_separator_remaining_inherited_cell_options",
+        "native": "console::TableSeparator::new / default",
+        "evidence": [
+          "console_table_separators",
+          "table-separators-oracle.json"
+        ]
       }
     ]
   },
@@ -488,11 +500,19 @@
     "TableStyle stores shared Arc<RwLock<State>> references. From<&TableStyle> preserves identity, explicit Clone deep-copies state; text/array getters now return owned snapshots, avoiding invalidated borrows. No lock crosses formatter callbacks; two actual source callback mutation vectors match output.",
     "Table::new returns Result to propagate current application service resolution. Definitions use the existing application container lifecycle, not process-global mutable state; standalone tables own isolated built-ins, static registry access requires application scope. Existing constructor consumers and all three formal docs migrate to ?/unwrap.",
     "Named overloads use set_style_named / set_column_style_named; table_named / table_with_named_columns resolve actual names. Default table convenience method now resolves current registered default instead of silently constructing a fresh style. Unknown names fail before changing the chosen object.",
-    "Existing tables retain selected objects when a definition is replaced; later named lookups use replacement. Each table retains its creating registry even if outer scope changes or original Application drops; no app-container cycle is introduced."
+    "Existing tables retain selected objects when a definition is replaced; later named lookups use replacement. Each table retains its creating registry even if outer scope changes or original Application drops; no app-container cycle is introduced.",
+    "TableRow expresses heterogeneous array rows and explicit whole-row separators without magic strings. Existing array/iterator calls still convert automatically. Private separator indices preserve ArrayKey replacement/reset semantics. Horizontal/vertical transformations skip explicit whole-row separators, leaving internal vertical record rules distinct."
   ],
   "remaining_sdk": [
     "appendRow with actual ConsoleSectionOutput",
-    "Explicit TableSeparator inputs, colspan/rowspan and per-cell style",
+    "Nested TableSeparator cells and inherited options, colspan/rowspan and per-cell style",
     "OutputStyle inherited table/create_table layout/counters and other component SDK remain separately reviewed in io-contracts"
-  ]
+  ],
+  "internal_types": {
+    "TableRows": {
+      "source": "Symfony Console7.4.0 Helper/TableRows.php, explicitly @internal",
+      "native": "Private PreparedLayout and derived iterators, not public console::TableRow",
+      "decision": "Internal re-iterable groups remain implementation detail; no missing public TableRows type is claimed."
+    }
+  }
 }

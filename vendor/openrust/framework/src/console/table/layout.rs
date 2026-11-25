@@ -7,6 +7,7 @@ pub(super) struct PreparedLayout {
     pub(super) rows: TextRows,
     pub(super) unsplit_headers: ColumnMasks,
     pub(super) rules: BTreeSet<usize>,
+    pub(super) separators: BTreeSet<usize>,
     pub(super) unsplit_rows: ColumnMasks,
 }
 impl Table<'_, '_> {
@@ -60,6 +61,7 @@ impl Table<'_, '_> {
             headers: oriented.headers,
             rows: oriented.rows,
             rules: oriented.rules,
+            separators: oriented.separators,
             unsplit_headers: ColumnMasks::new(),
             unsplit_rows: ColumnMasks::new(),
         };

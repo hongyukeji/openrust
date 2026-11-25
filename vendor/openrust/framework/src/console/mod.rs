@@ -73,7 +73,9 @@ pub use question::{
     ConsoleInputStream, ConsoleQuestionError, ConsoleReader, Question, QuestionCallback,
 };
 pub(crate) use table::TableDefinitions;
-pub use table::{ConsoleTableError, Table, TableCell, TablePadding, TableStyle};
+pub use table::{
+    ConsoleTableError, Table, TableCell, TablePadding, TableRow, TableSeparator, TableStyle,
+};
 pub use terminal::Terminal;
 
 /// A future for a console command or lifecycle hook.

@@ -8,6 +8,8 @@ pub use cell::TableCell;
 mod definitions;
 pub(crate) use definitions::Definitions as TableDefinitions;
 mod layout;
+mod row;
+pub use row::{TableRow, TableSeparator};
 mod rows;
 use crate::support::ArrayKey;
 use rows::Orientation;
@@ -22,6 +24,7 @@ pub struct Table<'a, 'o> {
     headers: Vec<Vec<String>>,
     rows: Vec<Vec<String>>,
     row_keys: Vec<ArrayKey>,
+    separators: std::collections::BTreeSet<usize>,
     max_integer_key: Option<i64>,
     orientation: Orientation,
     style: TableStyle,
@@ -41,6 +44,7 @@ impl<'a, 'o> Table<'a, 'o> {
             headers: Vec::new(),
             rows: Vec::new(),
             row_keys: Vec::new(),
+            separators: std::collections::BTreeSet::new(),
             max_integer_key: None,
             orientation: Orientation::Default,
             style,
@@ -64,42 +68,28 @@ impl<'a, 'o> Table<'a, 'o> {
         ];
         self
     }
-    pub fn set_rows<I, R, T>(&mut self, rows: I) -> &mut Self
+    pub fn set_rows<I, R>(&mut self, rows: I) -> &mut Self
     where
         I: IntoIterator<Item = R>,
-        R: IntoIterator<Item = T>,
-        T: Into<TableCell>,
+        R: Into<TableRow>,
     {
-        self.rows = rows
-            .into_iter()
-            .map(|row| {
-                row.into_iter()
-                    .map(|cell| cell.into().to_string())
-                    .collect()
-            })
-            .collect();
-        self.row_keys = (0..self.rows.len())
-            .map(|index| ArrayKey::Integer(i64::try_from(index).expect("内存中的行索引可表示")))
-            .collect();
-        self.max_integer_key = self
-            .rows
-            .len()
-            .checked_sub(1)
-            .map(|index| i64::try_from(index).expect("内存中的行索引可表示"));
+        self.rows.clear();
+        self.row_keys.clear();
+        self.separators.clear();
+        self.max_integer_key = None;
+        for row in rows {
+            self.add_row(row).expect("内存中的行索引可表示");
+        }
         self
     }
-    pub fn add_row<I, T>(&mut self, row: I) -> Result<&mut Self, ConsoleError>
-    where
-        I: IntoIterator<Item = T>,
-        T: Into<TableCell>,
-    {
+    pub fn add_row(&mut self, row: impl Into<TableRow>) -> Result<&mut Self, ConsoleError> {
         let key = match self.max_integer_key {
             None => 0,
             Some(index) => index
                 .checked_add(1)
                 .ok_or_else(|| ConsoleError::from_source(ConsoleTableError::RowIndexOverflow))?,
         };
-        self.set_row(key, row);
+        self.insert_row(key.into(), row.into());
         Ok(self)
     }
     pub fn set_style(&mut self, style: impl Into<TableStyle>) -> &mut Self {
@@ -163,7 +153,6 @@ impl<'a, 'o> Table<'a, 'o> {
                 ConsoleError::from_source(ConsoleTableError::InvalidColumnWidth(*value))
             })?;
         }
-        let has_rows = rows.iter().any(|row| !row.is_empty());
         let mut title_pending = true;
         for (index, row) in headers.iter().enumerate() {
             if !row.is_empty() && self.style.display_outside_border() {
@@ -172,16 +161,23 @@ impl<'a, 'o> Table<'a, 'o> {
             }
             self.row(row, &widths, true, prepared.unsplit_headers.get(&index))?;
         }
-        if has_rows {
-            if self.orientation == Orientation::Horizontal
-                || self.orientation == Orientation::Vertical && self.style.display_outside_border()
-            {
-                self.separator(&widths, 0, title_pending)?;
-            } else if self.orientation == Orientation::Default {
-                self.separator(&widths, 1, title_pending)?;
-            }
-        }
+        let mut first_row = true;
         for (index, row) in rows.iter().enumerate() {
+            if prepared.separators.contains(&index) {
+                self.separator(&widths, 3, false)?;
+                continue;
+            }
+            if first_row && !row.is_empty() {
+                if self.orientation == Orientation::Horizontal
+                    || self.orientation == Orientation::Vertical
+                        && self.style.display_outside_border()
+                {
+                    self.separator(&widths, 0, title_pending)?;
+                } else if self.orientation == Orientation::Default {
+                    self.separator(&widths, 1, title_pending)?;
+                }
+                first_row = false;
+            }
             if prepared.rules.contains(&index) {
                 self.rule_row(&widths)?;
             } else {
@@ -208,6 +204,7 @@ impl<'a, 'o> Table<'a, 'o> {
         let (horizontal, left, mid, right) = match position {
             0 => (&b[0], &c[1], &c[2], &c[3]),
             2 => (&b[0], &c[7], &c[6], &c[5]),
+            3 => (&b[2], &c[8], &c[0], &c[4]),
             _ => (&b[0], &c[9], &c[10], &c[11]),
         };
         let mut line = left.clone();
@@ -351,18 +348,17 @@ fn cell_lines(value: &str, unsplit: bool) -> impl Iterator<Item = &str> {
 }
 
 impl super::CommandIo<'_> {
-    pub fn table<H, HT, R, RT, C>(&mut self, headers: H, rows: R) -> Result<(), ConsoleError>
+    pub fn table<H, HT, R, RT>(&mut self, headers: H, rows: R) -> Result<(), ConsoleError>
     where
         H: IntoIterator<Item = HT>,
         HT: Into<TableCell>,
         R: IntoIterator<Item = RT>,
-        RT: IntoIterator<Item = C>,
-        C: Into<TableCell>,
+        RT: Into<TableRow>,
     {
         let mut table = Table::new(self.get_output())?;
         table.set_headers(headers).set_rows(rows).render()
     }
-    pub fn table_named<H, HT, R, RT, C>(
+    pub fn table_named<H, HT, R, RT>(
         &mut self,
         headers: H,
         rows: R,
@@ -372,12 +368,11 @@ impl super::CommandIo<'_> {
         H: IntoIterator<Item = HT>,
         HT: Into<TableCell>,
         R: IntoIterator<Item = RT>,
-        RT: IntoIterator<Item = C>,
-        C: Into<TableCell>,
+        RT: Into<TableRow>,
     {
         self.table_with_named_columns(headers, rows, style, std::iter::empty())
     }
-    pub fn table_with_named_columns<'s, H, HT, R, RT, C, S>(
+    pub fn table_with_named_columns<'s, H, HT, R, RT, S>(
         &mut self,
         headers: H,
         rows: R,
@@ -388,8 +383,7 @@ impl super::CommandIo<'_> {
         H: IntoIterator<Item = HT>,
         HT: Into<TableCell>,
         R: IntoIterator<Item = RT>,
-        RT: IntoIterator<Item = C>,
-        C: Into<TableCell>,
+        RT: Into<TableRow>,
         S: IntoIterator<Item = (usize, &'s str)>,
     {
         let mut table = Table::new(self.get_output())?;
@@ -402,7 +396,7 @@ impl super::CommandIo<'_> {
         }
         table.render()
     }
-    pub fn table_with<H, HT, R, RT, C>(
+    pub fn table_with<H, HT, R, RT>(
         &mut self,
         headers: H,
         rows: R,
@@ -412,12 +406,11 @@ impl super::CommandIo<'_> {
         H: IntoIterator<Item = HT>,
         HT: Into<TableCell>,
         R: IntoIterator<Item = RT>,
-        RT: IntoIterator<Item = C>,
-        C: Into<TableCell>,
+        RT: Into<TableRow>,
     {
         self.table_with_columns(headers, rows, style, std::iter::empty())
     }
-    pub fn table_with_columns<H, HT, R, RT, C, S>(
+    pub fn table_with_columns<H, HT, R, RT, S>(
         &mut self,
         headers: H,
         rows: R,
@@ -428,8 +421,7 @@ impl super::CommandIo<'_> {
         H: IntoIterator<Item = HT>,
         HT: Into<TableCell>,
         R: IntoIterator<Item = RT>,
-        RT: IntoIterator<Item = C>,
-        C: Into<TableCell>,
+        RT: Into<TableRow>,
         S: IntoIterator<Item = (usize, TableStyle)>,
     {
         let mut table = Table::new(self.get_output())?;

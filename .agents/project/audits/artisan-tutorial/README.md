@@ -333,3 +333,16 @@ add_row改为Result，与新add_rows一起在数字索引耗尽时返回有来�
 正式三语正文直接提取69例编译执行（新样例使用对应源向量逐字对照），受影响15个框架目标103项与根6目标110项，共213个不同父消费者通过；15个被父消费者驱动的ignore不叠加。原149矩形、204布局、230行键／方向及其他格式器／交互／进度回归保留。workspace all-targets严格Clippy69s、fmt、main(pail)、三语构建与12个桌面／手机／双挂载浏览器通过；实际main HTTP/up/静态/HTML与JSON404/HEAD、Artisan inspire/list/Pail过滤/-vv/timeout清理/Ctrl+C通过。没有运行完整活跃Webhook、Fortify或其他协作者在途，未声称全仓当前组合通过；未新验数据库／Windows。
 
 证据target/tmp/artisan-tutorial-20261125/table-definitions-{gates1,final-*,runtime,browser}.log、原始源输出及正式accepted-table-definitions.json；本批运行目录直接删除，临时PHP容器已自动删除，保留源码／日志／可复用缓存，数据与数据卷未变。共享命名样式本簇闭合；仍继续显式TableSeparator、合并单元格／TableCellStyle、ConsoleSectionOutput/appendRow及其他继承组件／注册／信号等，不关闭整章／持续目标。NewRelic供应商选型仍按真人裁决独立跟踪，不将其在途视作本簇交付。仅核定范围本地提交，不推送。
+
+
+## 第二十三簇：显式整行分隔与异构行（2026-11-25）
+
+第二十二簇已本地提交c650f3c1a38c1cd1034cb8ec7bf021c63eef8912，未推送。本簇继续固定Symfony Console7.4.0 Helper/Table.php、TableSeparator.php与标注@internal的TableRows.php；前者作为显式默认整行分隔入口，后者保留为私有派生布局／迭代，不把名称相近的公开TableRow冒充TableRows。旧版无相应SDK实现可提取，复用现有Table布局／样式／格式器及ArrayKey机制。
+
+增加公开TableSeparator::new/default和TableRow::{Cells,Separator}。现有数组／迭代器自动转换为数据行，混合集合使用原生枚举，不用魔法文本标记或空数组模拟分隔线。set_rows/add_rows/add_row与所有表格便利方法接通实际输入；set_row仍接数组，可按原键替换分隔行。显式分隔位置在私有集合保存，随行键替换和set_rows复位，不改变CLI、序列化、事件或数据格式。默认布局保留开头／末尾／连续分隔顺序及内边框／交叉点；第一条实际数据行的表头分隔按真实阶段渲染，不能提前挪到前置分隔线之前。水平／垂直跳过整行分隔，纵向自动记录分隔保持原机制。
+
+420个实际固定PHP向量全部通过、stderr0：7种样式、两种装饰、3种方向、头尾／连续／纯分隔／空数组／多行／Unicode、多表头、标题、批量追加／替换／重置。新增3个父消费者验证公开输入、真实独立handle_command三个方向的逐字输出和退出0、便利方法、真实HTTP三个方向及恢复；1个驱动ignore不叠加。正式三语直接提取72例，与源向量核对；最终16个框架目标106项与根6目标113项，共219个不同父消费者，16个被驱动ignore不叠加。旧矩形／宽度标题／行键／共享样式／交互进度回归继续通过。
+
+严格workspace all-targets Clippy52.12s、fmt和main初次通过；文档构建期间守卫触及32GB，安全退出75并持锁清理全项目编译产物119573581824字节，恢复约151.6GB。中断文档不算通过；源码不变，保留此前通过日志，之后实际重建main与三语文档并完成12个桌面／手机／双挂载浏览器，真实main HTTP/up/静态/404/HEAD、Artisan inspire/list/Pail过滤/-vv/timeout清理/Ctrl+C通过。清理前已完成的检查未伪称被中断，原始gates1与恢复gates2和-resumed日志均保留。没有复验其他协作者活跃Webhook／邮件／供应商组合或Windows发布矩阵。
+
+原始与正式证据table-separators-{source,tests*,gates1,gates2,final-*,runtime,browser}.log/json、accepted-table-separators.json。清理本批运行目录，临时PHP容器自动删除；源码、验收日志、可复用缓存和数据／数据卷保留。TableSeparator的继承单元格选项、放在单元格内的分隔、TableCellStyle／跨行跨列仍未完成，账本明确保留；appendRow仍须实际ConsoleSectionOutput，不用普通重绘冒充。继续下一簇，不关闭整章／持续目标，其他协作改动保留，仅核定范围本地提交，不推送。

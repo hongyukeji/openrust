@@ -619,7 +619,7 @@ fn register_tables() -> Result<(), ConsoleError> {
 
 `table_with` 選擇 `TableStyle`；`table_with_columns` 另外接受 `(欄位索引, 樣式)`。`TableStyle::from_name` 提供 `default`、`markdown`、`borderless`、`compact`、`symfony-style-guide`、`box` 和 `box-double`。可透過邊框、填充及格式設定方法自訂樣式。`TablePadding::{Left, Right, Both}` 表示填充所在側，預設 `Right`。
 
-直接呈現時使用 `Table::new(io.get_output())?`，設定表頭、資料列和欄位樣式後呼叫 `render()`。`TableCell::display(value)` 明確適配實作 `Display` 的業務型別；JSON 值和常用純量直接轉換。多行儲存格、Unicode 可見寬度、格式標籤、ANSI 輸出及 quiet／silent 過濾沿用原輸出管線。此矩形表格介面不代表已支援跨列／跨欄、列分隔符號或整個繼承輔助庫。
+直接呈現時使用 `Table::new(io.get_output())?`，設定表頭、資料列和欄位樣式後呼叫 `render()`。`TableCell::display(value)` 明確適配實作 `Display` 的業務型別；JSON 值和常用純量直接轉換。多行儲存格、Unicode 可見寬度、格式標籤、ANSI 輸出及 quiet／silent 過濾沿用原輸出管線。此矩形表格介面不代表已支援跨列／跨欄或整個繼承輔助庫。
 
 ## 進度條 {#progress-bars}
 
@@ -1019,3 +1019,29 @@ fn register_table_styles() -> Result<(), ConsoleError> {
 ```
 
 `set_style_named` 和 `set_column_style_named` 按名稱解析，未定義名稱回傳錯誤；原型別 setter 也可接收借用樣式。便利方法 `table` 使用應用程式目前預設定義，`table_named` 和 `table_with_named_columns` 支援命名表格與欄位樣式。明確分隔儲存格、跨列跨欄和分區重繪仍為獨立能力。
+
+## 明確整列分隔線 {#table-row-separators}
+
+同時包含資料列與整列分隔線的集合使用 `TableRow`。`TableSeparator::new()` 表示分隔線，空資料陣列仍是空列，兩者不混用。一般陣列和迭代器繼續自動轉換為資料列。
+
+```rust
+use openrust::{
+    console::{ConsoleError, Input, Output, TableRow, TableSeparator},
+    support::facades::Artisan,
+};
+
+fn register_separators() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:separators", |input: &Input, output: &mut Output| {
+        let rows = [
+            TableRow::from(["one", "two"]),
+            TableSeparator::new().into(),
+            TableRow::from(["three"]),
+        ];
+        input.io(output).table_named(["A", "B"], rows, "box-double")?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
+`set_rows`、`add_rows`、`add_row` 和表格便利方法接收這類異質列。`add_row`／`add_rows` 繼續用 `?` 傳遞索引耗盡；`set_row` 可將同鍵分隔線替換為資料陣列。開頭、末尾和連續分隔線保留宣告順序。橫向與縱向配置略過明確整列分隔線，縱向配置仍自行產生記錄間分隔。複雜分隔儲存格選項、跨列跨欄和分區重繪仍為獨立能力。

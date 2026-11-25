@@ -1,0 +1,80 @@
+{
+  "scope": "Artisan phase23 default whole-row separators and heterogeneous rows",
+  "base_snapshot": {
+    "head": "c650f3c1a38c1cd1034cb8ec7bf021c63eef8912"
+  },
+  "source_sha256": {
+    "vendor/openrust/framework/src/console/table.rs": "76750b53265f877200272205f740c3daaa73bb401fa054b32a418afe58d4711e",
+    "vendor/openrust/framework/src/console/table/rows.rs": "beb97e5b24724a95adffbf7869d41986b0d521a134121bdfd189abf4b2b6bfcb",
+    "vendor/openrust/framework/src/console/table/row.rs": "ca1a7f46c51c0437c1d50cbc99c67dd8e1d5abb5d468de1504869bf54bb83245",
+    "vendor/openrust/framework/src/console/table/layout.rs": "3bb221db01c41a92d86e7059cda20724101c7f27eadd7f700d334e03a82f5f26",
+    "vendor/openrust/framework/src/console/mod.rs": "b66c36efbe368057a9272e65e9d7d9698c299361882bd24bef5570d5d7e0ce53",
+    "vendor/openrust/framework/tests/console_table_separators.rs": "38cb6fa258ada48e278c35ab31f95b1a20681de4987eed3f965c33157ff37e3c",
+    "tests/artisan_tutorial_docs.py": "4d28fc72d789fe087009736a15cf04fd10f6c8b3d2019a9c3e8af807d4078043",
+    "docs/tests/check_artisan_tutorial.mjs": "0e657054d47e0d10402746656c02bfe743c2d4a78cb2b0d486f0a233b202518c",
+    "docs/en/digging-deeper/artisan.md": "1b0509f5f45ca892d7856867a7bee950d06bc4d38929c9dcf4833076e4e05d8b",
+    "docs/zh-Hans/digging-deeper/artisan.md": "4aa890cf83c4ed6b62400de97b46f1a22b30e574bfd688256529b5742ee51641",
+    "docs/zh-Hant/digging-deeper/artisan.md": "88a27d1510fd5ef24b069859ca3c3b9f23dbfd0d122d967562bd954212daa8b7",
+    ".agents/project/audits/artisan-tutorial/table-separators-oracle.json": "323b0567a8035b9c5b686fa1306eb28f86814feaf547e1cdc4f1d51b206238c4",
+    ".agents/project/audits/artisan-tutorial/table-contracts.json": "cf29cede1d35ff14906b8e294d89b0bb67283afadc4f8f9647c4ed12b44f20a8",
+    ".agents/project/audits/artisan-tutorial/io-contracts.json": "8b5954945e8c2a7938df5ba7d3eeb2b47c3953f5e2c166354f0468941b1f6d24",
+    ".agents/project/audits/artisan-tutorial/section-map.json": "0cceaa0bda7f3a4cfca3c0eaa590bc23769f5e6582e7db0cfca3c008d11aedab"
+  },
+  "gates": [
+    {
+      "name": "format",
+      "returncode": 0
+    },
+    {
+      "name": "final-framework",
+      "returncode": 0
+    },
+    {
+      "name": "final-root",
+      "returncode": 0
+    },
+    {
+      "name": "final-fmt",
+      "returncode": 0
+    },
+    {
+      "name": "final-clippy",
+      "returncode": 0
+    },
+    {
+      "name": "final-main",
+      "returncode": 0
+    },
+    {
+      "name": "final-docs",
+      "returncode": 0
+    }
+  ],
+  "final_gates_log": [
+    "target/tmp/artisan-tutorial-20261125/table-separators-gates1.log",
+    "target/tmp/artisan-tutorial-20261125/table-separators-gates2.log"
+  ],
+  "passed": {
+    "framework": 106,
+    "root": 113
+  },
+  "unique_parent_tests": 219,
+  "ignored_driven_fixtures_excluded": 16,
+  "formal_trilingual_examples": 72,
+  "fixed_source_cases": 420,
+  "source_stderr_bytes": 0,
+  "strict_clippy_seconds": 52.12,
+  "browser_cases": 12,
+  "real_http": true,
+  "real_artisan": true,
+  "disk_guard": {
+    "exit": 75,
+    "stopped": "docs build, not counted passed",
+    "released_bytes": 119573581824,
+    "recovery": "same source main and docs rebuilt; original completed test/clippy logs retained"
+  },
+  "limitations": [
+    "Default whole-row TableSeparator only; inherited cell options/nested cells and spans remain tracked",
+    "No full Artisan closure, all active-worktree or Windows release acceptance claimed"
+  ]
+}

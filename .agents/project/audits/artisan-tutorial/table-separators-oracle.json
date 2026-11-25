@@ -1,0 +1,8087 @@
+[
+    {
+        "style": "default",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": "+---+---+\n| A | B |\n+---+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+---+---+\n| A | B |\n+---+---+\n+---+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+---+---+\n| A | B |\n+---+---+\n+---+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+-----+-----+\n| A   | B   |\n+-----+-----+\n+-----+-----+\n| one | two |\n+-----+-----+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+-----+-----+\n| A   | B   |\n+-----+-----+\n| one | two |\n+-----+-----+\n+-----+-----+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+-------+-----+\n| A     | B   |\n+-------+-----+\n| one   | two |\n+-------+-----+\n| three |     |\n+-------+-----+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+-----+-----+\n| A   | B   |\n+-----+-----+\n+-----+-----+\n+-----+-----+\n| one | two |\n+-----+-----+\n+-----+-----+\n+-----+-----+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+-----+----+\n| A   | B  |\n+-----+----+\n+-----+----+\n| one | 界 |\n| two |    |\n+-----+----+\n+-----+----+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": "+---+\n| A |\n| B |\n+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+---+\n| A |\n| B |\n+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+---+--+\n| A |  |\n| B |  |\n+---+--+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+---+-----+\n| A | one |\n| B | two |\n+---+-----+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+---+-----+\n| A | one |\n| B | two |\n+---+-----+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+---+-----+-------+\n| A | one | three |\n| B | two |       |\n+---+-----+-------+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+---+-----+\n| A | one |\n| B | two |\n+---+-----+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+---+--+-----+--+\n| A |  | one |  |\n|   |  | two |  |\n| B |  | 界  |  |\n+---+--+-----+--+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+-----+\n| A:  |\n| B:  |\n+-----+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+--------+\n| A: one |\n| B: two |\n+--------+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+--------+\n| A: one |\n| B: two |\n+--------+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+----------+\n| A: one   |\n| B: two   |\n|----------|\n| A: three |\n| B:       |\n+----------+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+--------+\n| A: one |\n| B: two |\n+--------+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+--------+\n| A:     |\n| B:     |\n|--------|\n| A: one |\n|    two |\n| B: 界  |\n|--------|\n| A:     |\n| B:     |\n+--------+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": "+---+---+\n|\u001b[32m A \u001b[39m|\u001b[32m B \u001b[39m|\n+---+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+---+---+\n|\u001b[32m A \u001b[39m|\u001b[32m B \u001b[39m|\n+---+---+\n+---+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+---+---+\n|\u001b[32m A \u001b[39m|\u001b[32m B \u001b[39m|\n+---+---+\n+---+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+-----+-----+\n|\u001b[32m A   \u001b[39m|\u001b[32m B   \u001b[39m|\n+-----+-----+\n+-----+-----+\n| one | two |\n+-----+-----+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+-----+-----+\n|\u001b[32m A   \u001b[39m|\u001b[32m B   \u001b[39m|\n+-----+-----+\n| one | two |\n+-----+-----+\n+-----+-----+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+-------+-----+\n|\u001b[32m A     \u001b[39m|\u001b[32m B   \u001b[39m|\n+-------+-----+\n| one   | two |\n+-------+-----+\n| three |     |\n+-------+-----+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+-----+-----+\n|\u001b[32m A   \u001b[39m|\u001b[32m B   \u001b[39m|\n+-----+-----+\n+-----+-----+\n+-----+-----+\n| one | two |\n+-----+-----+\n+-----+-----+\n+-----+-----+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+-----+----+\n|\u001b[32m A   \u001b[39m|\u001b[32m B  \u001b[39m|\n+-----+----+\n+-----+----+\n| one | 界 |\n| two |    |\n+-----+----+\n+-----+----+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": "+---+\n|\u001b[32m A \u001b[39m|\n|\u001b[32m B \u001b[39m|\n+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+---+\n|\u001b[32m A \u001b[39m|\n|\u001b[32m B \u001b[39m|\n+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+---+--+\n|\u001b[32m A \u001b[39m|  |\n|\u001b[32m B \u001b[39m|  |\n+---+--+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+---+-----+\n|\u001b[32m A \u001b[39m| one |\n|\u001b[32m B \u001b[39m| two |\n+---+-----+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+---+-----+\n|\u001b[32m A \u001b[39m| one |\n|\u001b[32m B \u001b[39m| two |\n+---+-----+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+---+-----+-------+\n|\u001b[32m A \u001b[39m| one | three |\n|\u001b[32m B \u001b[39m| two |       |\n+---+-----+-------+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+---+-----+\n|\u001b[32m A \u001b[39m| one |\n|\u001b[32m B \u001b[39m| two |\n+---+-----+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+---+--+-----+--+\n|\u001b[32m A \u001b[39m|  | one |  |\n|\u001b[32m   \u001b[39m|  | two |  |\n|\u001b[32m B \u001b[39m|  | 界  |  |\n+---+--+-----+--+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+-----+\n| \u001b[33mA\u001b[39m:  |\n| \u001b[33mB\u001b[39m:  |\n+-----+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+--------+\n| \u001b[33mA\u001b[39m: one |\n| \u001b[33mB\u001b[39m: two |\n+--------+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+--------+\n| \u001b[33mA\u001b[39m: one |\n| \u001b[33mB\u001b[39m: two |\n+--------+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+----------+\n| \u001b[33mA\u001b[39m: one   |\n| \u001b[33mB\u001b[39m: two   |\n|----------|\n| \u001b[33mA\u001b[39m: three |\n| \u001b[33mB\u001b[39m:       |\n+----------+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+--------+\n| \u001b[33mA\u001b[39m: one |\n| \u001b[33mB\u001b[39m: two |\n+--------+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "+--------+\n| \u001b[33mA\u001b[39m:     |\n| \u001b[33mB\u001b[39m:     |\n|--------|\n| \u001b[33mA\u001b[39m: one |\n|    two |\n| \u001b[33mB\u001b[39m: 界  |\n|--------|\n| \u001b[33mA\u001b[39m:     |\n| \u001b[33mB\u001b[39m:     |\n+--------+\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": "┌───┬───┐\n│ A │ B │\n└───┴───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌───┬───┐\n│ A │ B │\n├───┼───┤\n└───┴───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌───┬───┐\n│ A │ B │\n├───┼───┤\n└───┴───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌─────┬─────┐\n│ A   │ B   │\n├─────┼─────┤\n├─────┼─────┤\n│ one │ two │\n└─────┴─────┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌─────┬─────┐\n│ A   │ B   │\n├─────┼─────┤\n│ one │ two │\n├─────┼─────┤\n└─────┴─────┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌───────┬─────┐\n│ A     │ B   │\n├───────┼─────┤\n│ one   │ two │\n├───────┼─────┤\n│ three │     │\n└───────┴─────┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌─────┬─────┐\n│ A   │ B   │\n├─────┼─────┤\n├─────┼─────┤\n├─────┼─────┤\n│ one │ two │\n├─────┼─────┤\n├─────┼─────┤\n└─────┴─────┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌─────┬────┐\n│ A   │ B  │\n├─────┼────┤\n├─────┼────┤\n│ one │ 界 │\n│ two │    │\n├─────┼────┤\n└─────┴────┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": "┌───┐\n│ A │\n│ B │\n└───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌───┐\n│ A │\n│ B │\n└───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌───┬──┐\n│ A │  │\n│ B │  │\n└───┴──┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌───┬─────┐\n│ A │ one │\n│ B │ two │\n└───┴─────┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌───┬─────┐\n│ A │ one │\n│ B │ two │\n└───┴─────┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌───┬─────┬───────┐\n│ A │ one │ three │\n│ B │ two │       │\n└───┴─────┴───────┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌───┬─────┐\n│ A │ one │\n│ B │ two │\n└───┴─────┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌───┬──┬─────┬──┐\n│ A │  │ one │  │\n│   │  │ two │  │\n│ B │  │ 界  │  │\n└───┴──┴─────┴──┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌─────┐\n│ A:  │\n│ B:  │\n└─────┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌────────┐\n│ A: one │\n│ B: two │\n└────────┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌────────┐\n│ A: one │\n│ B: two │\n└────────┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌──────────┐\n│ A: one   │\n│ B: two   │\n│──────────│\n│ A: three │\n│ B:       │\n└──────────┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌────────┐\n│ A: one │\n│ B: two │\n└────────┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌────────┐\n│ A:     │\n│ B:     │\n│────────│\n│ A: one │\n│    two │\n│ B: 界  │\n│────────│\n│ A:     │\n│ B:     │\n└────────┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": "┌───┬───┐\n│\u001b[32m A \u001b[39m│\u001b[32m B \u001b[39m│\n└───┴───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌───┬───┐\n│\u001b[32m A \u001b[39m│\u001b[32m B \u001b[39m│\n├───┼───┤\n└───┴───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌───┬───┐\n│\u001b[32m A \u001b[39m│\u001b[32m B \u001b[39m│\n├───┼───┤\n└───┴───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌─────┬─────┐\n│\u001b[32m A   \u001b[39m│\u001b[32m B   \u001b[39m│\n├─────┼─────┤\n├─────┼─────┤\n│ one │ two │\n└─────┴─────┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌─────┬─────┐\n│\u001b[32m A   \u001b[39m│\u001b[32m B   \u001b[39m│\n├─────┼─────┤\n│ one │ two │\n├─────┼─────┤\n└─────┴─────┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌───────┬─────┐\n│\u001b[32m A     \u001b[39m│\u001b[32m B   \u001b[39m│\n├───────┼─────┤\n│ one   │ two │\n├───────┼─────┤\n│ three │     │\n└───────┴─────┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌─────┬─────┐\n│\u001b[32m A   \u001b[39m│\u001b[32m B   \u001b[39m│\n├─────┼─────┤\n├─────┼─────┤\n├─────┼─────┤\n│ one │ two │\n├─────┼─────┤\n├─────┼─────┤\n└─────┴─────┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌─────┬────┐\n│\u001b[32m A   \u001b[39m│\u001b[32m B  \u001b[39m│\n├─────┼────┤\n├─────┼────┤\n│ one │ 界 │\n│ two │    │\n├─────┼────┤\n└─────┴────┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": "┌───┐\n│\u001b[32m A \u001b[39m│\n│\u001b[32m B \u001b[39m│\n└───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌───┐\n│\u001b[32m A \u001b[39m│\n│\u001b[32m B \u001b[39m│\n└───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌───┬──┐\n│\u001b[32m A \u001b[39m│  │\n│\u001b[32m B \u001b[39m│  │\n└───┴──┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌───┬─────┐\n│\u001b[32m A \u001b[39m│ one │\n│\u001b[32m B \u001b[39m│ two │\n└───┴─────┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌───┬─────┐\n│\u001b[32m A \u001b[39m│ one │\n│\u001b[32m B \u001b[39m│ two │\n└───┴─────┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌───┬─────┬───────┐\n│\u001b[32m A \u001b[39m│ one │ three │\n│\u001b[32m B \u001b[39m│ two │       │\n└───┴─────┴───────┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌───┬─────┐\n│\u001b[32m A \u001b[39m│ one │\n│\u001b[32m B \u001b[39m│ two │\n└───┴─────┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌───┬──┬─────┬──┐\n│\u001b[32m A \u001b[39m│  │ one │  │\n│\u001b[32m   \u001b[39m│  │ two │  │\n│\u001b[32m B \u001b[39m│  │ 界  │  │\n└───┴──┴─────┴──┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌─────┐\n│ \u001b[33mA\u001b[39m:  │\n│ \u001b[33mB\u001b[39m:  │\n└─────┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌────────┐\n│ \u001b[33mA\u001b[39m: one │\n│ \u001b[33mB\u001b[39m: two │\n└────────┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌────────┐\n│ \u001b[33mA\u001b[39m: one │\n│ \u001b[33mB\u001b[39m: two │\n└────────┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌──────────┐\n│ \u001b[33mA\u001b[39m: one   │\n│ \u001b[33mB\u001b[39m: two   │\n│──────────│\n│ \u001b[33mA\u001b[39m: three │\n│ \u001b[33mB\u001b[39m:       │\n└──────────┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌────────┐\n│ \u001b[33mA\u001b[39m: one │\n│ \u001b[33mB\u001b[39m: two │\n└────────┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "┌────────┐\n│ \u001b[33mA\u001b[39m:     │\n│ \u001b[33mB\u001b[39m:     │\n│────────│\n│ \u001b[33mA\u001b[39m: one │\n│    two │\n│ \u001b[33mB\u001b[39m: 界  │\n│────────│\n│ \u001b[33mA\u001b[39m:     │\n│ \u001b[33mB\u001b[39m:     │\n└────────┘\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": "╔═══╤═══╗\n║ A │ B ║\n╚═══╧═══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔═══╤═══╗\n║ A │ B ║\n╟───┼───╢\n╚═══╧═══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔═══╤═══╗\n║ A │ B ║\n╟───┼───╢\n╚═══╧═══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔═════╤═════╗\n║ A   │ B   ║\n╟─────┼─────╢\n╠═════╪═════╣\n║ one │ two ║\n╚═════╧═════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔═════╤═════╗\n║ A   │ B   ║\n╠═════╪═════╣\n║ one │ two ║\n╟─────┼─────╢\n╚═════╧═════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔═══════╤═════╗\n║ A     │ B   ║\n╠═══════╪═════╣\n║ one   │ two ║\n╟───────┼─────╢\n║ three │     ║\n╚═══════╧═════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔═════╤═════╗\n║ A   │ B   ║\n╟─────┼─────╢\n╟─────┼─────╢\n╠═════╪═════╣\n║ one │ two ║\n╟─────┼─────╢\n╟─────┼─────╢\n╚═════╧═════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔═════╤════╗\n║ A   │ B  ║\n╟─────┼────╢\n╠═════╪════╣\n║ one │ 界 ║\n║ two │    ║\n╟─────┼────╢\n╚═════╧════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": "╔═══╗\n║ A ║\n║ B ║\n╚═══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔═══╗\n║ A ║\n║ B ║\n╚═══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔═══╤══╗\n║ A │  ║\n║ B │  ║\n╚═══╧══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔═══╤═════╗\n║ A │ one ║\n║ B │ two ║\n╚═══╧═════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔═══╤═════╗\n║ A │ one ║\n║ B │ two ║\n╚═══╧═════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔═══╤═════╤═══════╗\n║ A │ one │ three ║\n║ B │ two │       ║\n╚═══╧═════╧═══════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔═══╤═════╗\n║ A │ one ║\n║ B │ two ║\n╚═══╧═════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔═══╤══╤═════╤══╗\n║ A │  │ one │  ║\n║   │  │ two │  ║\n║ B │  │ 界  │  ║\n╚═══╧══╧═════╧══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "box-double",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "box-double",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔═════╗\n║ A:  ║\n║ B:  ║\n╚═════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔════════╗\n║ A: one ║\n║ B: two ║\n╚════════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔════════╗\n║ A: one ║\n║ B: two ║\n╚════════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔══════════╗\n║ A: one   ║\n║ B: two   ║\n║──────────║\n║ A: three ║\n║ B:       ║\n╚══════════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔════════╗\n║ A: one ║\n║ B: two ║\n╚════════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔════════╗\n║ A:     ║\n║ B:     ║\n║────────║\n║ A: one ║\n║    two ║\n║ B: 界  ║\n║────────║\n║ A:     ║\n║ B:     ║\n╚════════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": "╔═══╤═══╗\n║\u001b[32m A \u001b[39m│\u001b[32m B \u001b[39m║\n╚═══╧═══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔═══╤═══╗\n║\u001b[32m A \u001b[39m│\u001b[32m B \u001b[39m║\n╟───┼───╢\n╚═══╧═══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔═══╤═══╗\n║\u001b[32m A \u001b[39m│\u001b[32m B \u001b[39m║\n╟───┼───╢\n╚═══╧═══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔═════╤═════╗\n║\u001b[32m A   \u001b[39m│\u001b[32m B   \u001b[39m║\n╟─────┼─────╢\n╠═════╪═════╣\n║ one │ two ║\n╚═════╧═════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔═════╤═════╗\n║\u001b[32m A   \u001b[39m│\u001b[32m B   \u001b[39m║\n╠═════╪═════╣\n║ one │ two ║\n╟─────┼─────╢\n╚═════╧═════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔═══════╤═════╗\n║\u001b[32m A     \u001b[39m│\u001b[32m B   \u001b[39m║\n╠═══════╪═════╣\n║ one   │ two ║\n╟───────┼─────╢\n║ three │     ║\n╚═══════╧═════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔═════╤═════╗\n║\u001b[32m A   \u001b[39m│\u001b[32m B   \u001b[39m║\n╟─────┼─────╢\n╟─────┼─────╢\n╠═════╪═════╣\n║ one │ two ║\n╟─────┼─────╢\n╟─────┼─────╢\n╚═════╧═════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔═════╤════╗\n║\u001b[32m A   \u001b[39m│\u001b[32m B  \u001b[39m║\n╟─────┼────╢\n╠═════╪════╣\n║ one │ 界 ║\n║ two │    ║\n╟─────┼────╢\n╚═════╧════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": "╔═══╗\n║\u001b[32m A \u001b[39m║\n║\u001b[32m B \u001b[39m║\n╚═══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔═══╗\n║\u001b[32m A \u001b[39m║\n║\u001b[32m B \u001b[39m║\n╚═══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔═══╤══╗\n║\u001b[32m A \u001b[39m│  ║\n║\u001b[32m B \u001b[39m│  ║\n╚═══╧══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔═══╤═════╗\n║\u001b[32m A \u001b[39m│ one ║\n║\u001b[32m B \u001b[39m│ two ║\n╚═══╧═════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔═══╤═════╗\n║\u001b[32m A \u001b[39m│ one ║\n║\u001b[32m B \u001b[39m│ two ║\n╚═══╧═════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔═══╤═════╤═══════╗\n║\u001b[32m A \u001b[39m│ one │ three ║\n║\u001b[32m B \u001b[39m│ two │       ║\n╚═══╧═════╧═══════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔═══╤═════╗\n║\u001b[32m A \u001b[39m│ one ║\n║\u001b[32m B \u001b[39m│ two ║\n╚═══╧═════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔═══╤══╤═════╤══╗\n║\u001b[32m A \u001b[39m│  │ one │  ║\n║\u001b[32m   \u001b[39m│  │ two │  ║\n║\u001b[32m B \u001b[39m│  │ 界  │  ║\n╚═══╧══╧═════╧══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔═════╗\n║ \u001b[33mA\u001b[39m:  ║\n║ \u001b[33mB\u001b[39m:  ║\n╚═════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔════════╗\n║ \u001b[33mA\u001b[39m: one ║\n║ \u001b[33mB\u001b[39m: two ║\n╚════════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔════════╗\n║ \u001b[33mA\u001b[39m: one ║\n║ \u001b[33mB\u001b[39m: two ║\n╚════════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔══════════╗\n║ \u001b[33mA\u001b[39m: one   ║\n║ \u001b[33mB\u001b[39m: two   ║\n║──────────║\n║ \u001b[33mA\u001b[39m: three ║\n║ \u001b[33mB\u001b[39m:       ║\n╚══════════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔════════╗\n║ \u001b[33mA\u001b[39m: one ║\n║ \u001b[33mB\u001b[39m: two ║\n╚════════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "╔════════╗\n║ \u001b[33mA\u001b[39m:     ║\n║ \u001b[33mB\u001b[39m:     ║\n║────────║\n║ \u001b[33mA\u001b[39m: one ║\n║    two ║\n║ \u001b[33mB\u001b[39m: 界  ║\n║────────║\n║ \u001b[33mA\u001b[39m:     ║\n║ \u001b[33mB\u001b[39m:     ║\n╚════════╝\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": "| A | B |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "| A | B |\n|---|---|\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": "| A | B |\n|---|---|\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "| A   | B   |\n|-----|-----|\n|-----|-----|\n| one | two |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "| A   | B   |\n|-----|-----|\n| one | two |\n|-----|-----|\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "| A     | B   |\n|-------|-----|\n| one   | two |\n|-------|-----|\n| three |     |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "| A   | B   |\n|-----|-----|\n|-----|-----|\n|-----|-----|\n| one | two |\n|-----|-----|\n|-----|-----|\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "| A   | B  |\n|-----|----|\n|-----|----|\n| one | 界 |\n| two |    |\n|-----|----|\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": "|---|\n| A |\n| B |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "|---|\n| A |\n| B |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": "|---|--|\n| A |  |\n| B |  |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "|---|-----|\n| A | one |\n| B | two |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "|---|-----|\n| A | one |\n| B | two |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "|---|-----|-------|\n| A | one | three |\n| B | two |       |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "|---|-----|\n| A | one |\n| B | two |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "|---|--|-----|--|\n| A |  | one |  |\n|   |  | two |  |\n| B |  | 界  |  |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": "| A:  |\n| B:  |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "| A: one |\n| B: two |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "| A: one |\n| B: two |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "| A: one   |\n| B: two   |\n|----------|\n| A: three |\n| B:       |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "| A: one |\n| B: two |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "| A:     |\n| B:     |\n|--------|\n| A: one |\n|    two |\n| B: 界  |\n|--------|\n| A:     |\n| B:     |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": "|\u001b[32m A \u001b[39m|\u001b[32m B \u001b[39m|\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "|\u001b[32m A \u001b[39m|\u001b[32m B \u001b[39m|\n|---|---|\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": "|\u001b[32m A \u001b[39m|\u001b[32m B \u001b[39m|\n|---|---|\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "|\u001b[32m A   \u001b[39m|\u001b[32m B   \u001b[39m|\n|-----|-----|\n|-----|-----|\n| one | two |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "|\u001b[32m A   \u001b[39m|\u001b[32m B   \u001b[39m|\n|-----|-----|\n| one | two |\n|-----|-----|\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "|\u001b[32m A     \u001b[39m|\u001b[32m B   \u001b[39m|\n|-------|-----|\n| one   | two |\n|-------|-----|\n| three |     |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "|\u001b[32m A   \u001b[39m|\u001b[32m B   \u001b[39m|\n|-----|-----|\n|-----|-----|\n|-----|-----|\n| one | two |\n|-----|-----|\n|-----|-----|\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "|\u001b[32m A   \u001b[39m|\u001b[32m B  \u001b[39m|\n|-----|----|\n|-----|----|\n| one | 界 |\n| two |    |\n|-----|----|\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": "|---|\n|\u001b[32m A \u001b[39m|\n|\u001b[32m B \u001b[39m|\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "|---|\n|\u001b[32m A \u001b[39m|\n|\u001b[32m B \u001b[39m|\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": "|---|--|\n|\u001b[32m A \u001b[39m|  |\n|\u001b[32m B \u001b[39m|  |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "|---|-----|\n|\u001b[32m A \u001b[39m| one |\n|\u001b[32m B \u001b[39m| two |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "|---|-----|\n|\u001b[32m A \u001b[39m| one |\n|\u001b[32m B \u001b[39m| two |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "|---|-----|-------|\n|\u001b[32m A \u001b[39m| one | three |\n|\u001b[32m B \u001b[39m| two |       |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "|---|-----|\n|\u001b[32m A \u001b[39m| one |\n|\u001b[32m B \u001b[39m| two |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "|---|--|-----|--|\n|\u001b[32m A \u001b[39m|  | one |  |\n|\u001b[32m   \u001b[39m|  | two |  |\n|\u001b[32m B \u001b[39m|  | 界  |  |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": "| \u001b[33mA\u001b[39m:  |\n| \u001b[33mB\u001b[39m:  |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "| \u001b[33mA\u001b[39m: one |\n| \u001b[33mB\u001b[39m: two |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "| \u001b[33mA\u001b[39m: one |\n| \u001b[33mB\u001b[39m: two |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "| \u001b[33mA\u001b[39m: one   |\n| \u001b[33mB\u001b[39m: two   |\n|----------|\n| \u001b[33mA\u001b[39m: three |\n| \u001b[33mB\u001b[39m:       |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "| \u001b[33mA\u001b[39m: one |\n| \u001b[33mB\u001b[39m: two |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "| \u001b[33mA\u001b[39m:     |\n| \u001b[33mB\u001b[39m:     |\n|--------|\n| \u001b[33mA\u001b[39m: one |\n|    two |\n| \u001b[33mB\u001b[39m: 界  |\n|--------|\n| \u001b[33mA\u001b[39m:     |\n| \u001b[33mB\u001b[39m:     |\n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": "A B \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "A B \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": "A B \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "A   B   \none two \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "A   B   \none two \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "A     B   \none   two \nthree     \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "A   B   \none two \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "A   B  \none 界 \ntwo    \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": "A \nB \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "A \nB \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": "A  \nB  \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "A one \nB two \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "A one \nB two \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "A one three \nB two       \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "A one \nB two \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "A  one  \n   two  \nB  界   \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": "A:  \nB:  \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "A: one \nB: two \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "A: one \nB: two \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "A: one   \nB: two   \n\nA: three \nB:       \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "A: one \nB: two \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "A:     \nB:     \n\nA: one \n   two \nB: 界  \n\nA:     \nB:     \n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": "\u001b[32mA \u001b[39m\u001b[32mB \u001b[39m\n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "\u001b[32mA \u001b[39m\u001b[32mB \u001b[39m\n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": "\u001b[32mA \u001b[39m\u001b[32mB \u001b[39m\n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "\u001b[32mA   \u001b[39m\u001b[32mB   \u001b[39m\none two \n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "\u001b[32mA   \u001b[39m\u001b[32mB   \u001b[39m\none two \n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "\u001b[32mA     \u001b[39m\u001b[32mB   \u001b[39m\none   two \nthree     \n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "\u001b[32mA   \u001b[39m\u001b[32mB   \u001b[39m\none two \n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "\u001b[32mA   \u001b[39m\u001b[32mB  \u001b[39m\none 界 \ntwo    \n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": "\u001b[32mA \u001b[39m\n\u001b[32mB \u001b[39m\n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "\u001b[32mA \u001b[39m\n\u001b[32mB \u001b[39m\n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": "\u001b[32mA \u001b[39m \n\u001b[32mB \u001b[39m \n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "\u001b[32mA \u001b[39mone \n\u001b[32mB \u001b[39mtwo \n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "\u001b[32mA \u001b[39mone \n\u001b[32mB \u001b[39mtwo \n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "\u001b[32mA \u001b[39mone three \n\u001b[32mB \u001b[39mtwo       \n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "\u001b[32mA \u001b[39mone \n\u001b[32mB \u001b[39mtwo \n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "\u001b[32mA \u001b[39m one  \n\u001b[32m  \u001b[39m two  \n\u001b[32mB \u001b[39m 界   \n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": "\u001b[33mA\u001b[39m:  \n\u001b[33mB\u001b[39m:  \n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "\u001b[33mA\u001b[39m: one \n\u001b[33mB\u001b[39m: two \n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "\u001b[33mA\u001b[39m: one \n\u001b[33mB\u001b[39m: two \n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": "\u001b[33mA\u001b[39m: one   \n\u001b[33mB\u001b[39m: two   \n\n\u001b[33mA\u001b[39m: three \n\u001b[33mB\u001b[39m:       \n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "\u001b[33mA\u001b[39m: one \n\u001b[33mB\u001b[39m: two \n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": "\u001b[33mA\u001b[39m:     \n\u001b[33mB\u001b[39m:     \n\n\u001b[33mA\u001b[39m: one \n   two \n\u001b[33mB\u001b[39m: 界  \n\n\u001b[33mA\u001b[39m:     \n\u001b[33mB\u001b[39m:     \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": " === === \n  A   B  \n === === \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " === === \n  A   B  \n === === \n === === \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": " === === \n  A   B  \n === === \n === === \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": " ===== ===== \n  A     B    \n ===== ===== \n ===== ===== \n  one   two  \n ===== ===== \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " ===== ===== \n  A     B    \n ===== ===== \n  one   two  \n ===== ===== \n ===== ===== \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": " ======= ===== \n  A       B    \n ======= ===== \n  one     two  \n ======= ===== \n  three        \n ======= ===== \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " ===== ===== \n  A     B    \n ===== ===== \n ===== ===== \n ===== ===== \n  one   two  \n ===== ===== \n ===== ===== \n ===== ===== \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " ===== ==== \n  A     B   \n ===== ==== \n ===== ==== \n  one   界  \n  two       \n ===== ==== \n ===== ==== \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": " === \n  A  \n  B  \n === \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " === \n  A  \n  B  \n === \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": " === == \n  A     \n  B     \n === == \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": " === ===== \n  A   one  \n  B   two  \n === ===== \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " === ===== \n  A   one  \n  B   two  \n === ===== \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": " === ===== ======= \n  A   one   three  \n  B   two          \n === ===== ======= \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " === ===== \n  A   one  \n  B   two  \n === ===== \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " === == ===== == \n  A      one     \n         two     \n  B      界      \n === == ===== == \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "borderless",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "borderless",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": " ===== \n  A:   \n  B:   \n ===== \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": " ======== \n  A: one  \n  B: two  \n ======== \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " ======== \n  A: one  \n  B: two  \n ======== \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": " ========== \n  A: one    \n  B: two    \n ========== \n  A: three  \n  B:        \n ========== \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " ======== \n  A: one  \n  B: two  \n ======== \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " ======== \n  A:      \n  B:      \n ======== \n  A: one  \n     two  \n  B: 界   \n ======== \n  A:      \n  B:      \n ======== \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": " === === \n \u001b[32m A \u001b[39m \u001b[32m B \u001b[39m \n === === \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " === === \n \u001b[32m A \u001b[39m \u001b[32m B \u001b[39m \n === === \n === === \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": " === === \n \u001b[32m A \u001b[39m \u001b[32m B \u001b[39m \n === === \n === === \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": " ===== ===== \n \u001b[32m A   \u001b[39m \u001b[32m B   \u001b[39m \n ===== ===== \n ===== ===== \n  one   two  \n ===== ===== \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " ===== ===== \n \u001b[32m A   \u001b[39m \u001b[32m B   \u001b[39m \n ===== ===== \n  one   two  \n ===== ===== \n ===== ===== \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": " ======= ===== \n \u001b[32m A     \u001b[39m \u001b[32m B   \u001b[39m \n ======= ===== \n  one     two  \n ======= ===== \n  three        \n ======= ===== \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " ===== ===== \n \u001b[32m A   \u001b[39m \u001b[32m B   \u001b[39m \n ===== ===== \n ===== ===== \n ===== ===== \n  one   two  \n ===== ===== \n ===== ===== \n ===== ===== \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " ===== ==== \n \u001b[32m A   \u001b[39m \u001b[32m B  \u001b[39m \n ===== ==== \n ===== ==== \n  one   界  \n  two       \n ===== ==== \n ===== ==== \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": " === \n \u001b[32m A \u001b[39m \n \u001b[32m B \u001b[39m \n === \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " === \n \u001b[32m A \u001b[39m \n \u001b[32m B \u001b[39m \n === \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": " === == \n \u001b[32m A \u001b[39m    \n \u001b[32m B \u001b[39m    \n === == \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": " === ===== \n \u001b[32m A \u001b[39m  one  \n \u001b[32m B \u001b[39m  two  \n === ===== \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " === ===== \n \u001b[32m A \u001b[39m  one  \n \u001b[32m B \u001b[39m  two  \n === ===== \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": " === ===== ======= \n \u001b[32m A \u001b[39m  one   three  \n \u001b[32m B \u001b[39m  two          \n === ===== ======= \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " === ===== \n \u001b[32m A \u001b[39m  one  \n \u001b[32m B \u001b[39m  two  \n === ===== \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " === == ===== == \n \u001b[32m A \u001b[39m     one     \n \u001b[32m   \u001b[39m     two     \n \u001b[32m B \u001b[39m     界      \n === == ===== == \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "borderless",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "borderless",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": " ===== \n  \u001b[33mA\u001b[39m:   \n  \u001b[33mB\u001b[39m:   \n ===== \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": " ======== \n  \u001b[33mA\u001b[39m: one  \n  \u001b[33mB\u001b[39m: two  \n ======== \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " ======== \n  \u001b[33mA\u001b[39m: one  \n  \u001b[33mB\u001b[39m: two  \n ======== \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": " ========== \n  \u001b[33mA\u001b[39m: one    \n  \u001b[33mB\u001b[39m: two    \n ========== \n  \u001b[33mA\u001b[39m: three  \n  \u001b[33mB\u001b[39m:        \n ========== \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " ======== \n  \u001b[33mA\u001b[39m: one  \n  \u001b[33mB\u001b[39m: two  \n ======== \n"
+    },
+    {
+        "style": "borderless",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " ======== \n  \u001b[33mA\u001b[39m:      \n  \u001b[33mB\u001b[39m:      \n ======== \n  \u001b[33mA\u001b[39m: one  \n     two  \n  \u001b[33mB\u001b[39m: 界   \n ======== \n  \u001b[33mA\u001b[39m:      \n  \u001b[33mB\u001b[39m:      \n ======== \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": " --- --- \n  A   B  \n --- --- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " --- --- \n  A   B  \n --- --- \n --- --- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": " --- --- \n  A   B  \n --- --- \n --- --- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": " ----- ----- \n  A     B    \n ----- ----- \n ----- ----- \n  one   two  \n ----- ----- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " ----- ----- \n  A     B    \n ----- ----- \n  one   two  \n ----- ----- \n ----- ----- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": " ------- ----- \n  A       B    \n ------- ----- \n  one     two  \n ------- ----- \n  three        \n ------- ----- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " ----- ----- \n  A     B    \n ----- ----- \n ----- ----- \n ----- ----- \n  one   two  \n ----- ----- \n ----- ----- \n ----- ----- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " ----- ---- \n  A     B   \n ----- ---- \n ----- ---- \n  one   界  \n  two       \n ----- ---- \n ----- ---- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": " --- \n  A  \n  B  \n --- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " --- \n  A  \n  B  \n --- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": " --- -- \n  A     \n  B     \n --- -- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": " --- ----- \n  A   one  \n  B   two  \n --- ----- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " --- ----- \n  A   one  \n  B   two  \n --- ----- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": " --- ----- ------- \n  A   one   three  \n  B   two          \n --- ----- ------- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " --- ----- \n  A   one  \n  B   two  \n --- ----- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " --- -- ----- -- \n  A      one     \n         two     \n  B      界      \n --- -- ----- -- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": " ----- \n  A:   \n  B:   \n ----- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": " -------- \n  A: one  \n  B: two  \n -------- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " -------- \n  A: one  \n  B: two  \n -------- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": " ---------- \n  A: one    \n  B: two    \n ---------- \n  A: three  \n  B:        \n ---------- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " -------- \n  A: one  \n  B: two  \n -------- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " -------- \n  A:      \n  B:      \n -------- \n  A: one  \n     two  \n  B: 界   \n -------- \n  A:      \n  B:      \n -------- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": " --- --- \n  A   B  \n --- --- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " --- --- \n  A   B  \n --- --- \n --- --- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": " --- --- \n  A   B  \n --- --- \n --- --- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": " ----- ----- \n  A     B    \n ----- ----- \n ----- ----- \n  one   two  \n ----- ----- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " ----- ----- \n  A     B    \n ----- ----- \n  one   two  \n ----- ----- \n ----- ----- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": " ------- ----- \n  A       B    \n ------- ----- \n  one     two  \n ------- ----- \n  three        \n ------- ----- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " ----- ----- \n  A     B    \n ----- ----- \n ----- ----- \n ----- ----- \n  one   two  \n ----- ----- \n ----- ----- \n ----- ----- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " ----- ---- \n  A     B   \n ----- ---- \n ----- ---- \n  one   界  \n  two       \n ----- ---- \n ----- ---- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": " --- \n  A  \n  B  \n --- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " --- \n  A  \n  B  \n --- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": " --- -- \n  A     \n  B     \n --- -- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": " --- ----- \n  A   one  \n  B   two  \n --- ----- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " --- ----- \n  A   one  \n  B   two  \n --- ----- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": " --- ----- ------- \n  A   one   three  \n  B   two          \n --- ----- ------- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " --- ----- \n  A   one  \n  B   two  \n --- ----- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " --- -- ----- -- \n  A      one     \n         two     \n  B      界      \n --- -- ----- -- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "ops": [],
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "error": false,
+        "output": " ----- \n  \u001b[33mA\u001b[39m:   \n  \u001b[33mB\u001b[39m:   \n ----- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": " -------- \n  \u001b[33mA\u001b[39m: one  \n  \u001b[33mB\u001b[39m: two  \n -------- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " -------- \n  \u001b[33mA\u001b[39m: one  \n  \u001b[33mB\u001b[39m: two  \n -------- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "error": false,
+        "output": " ---------- \n  \u001b[33mA\u001b[39m: one    \n  \u001b[33mB\u001b[39m: two    \n ---------- \n  \u001b[33mA\u001b[39m: three  \n  \u001b[33mB\u001b[39m:        \n ---------- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " -------- \n  \u001b[33mA\u001b[39m: one  \n  \u001b[33mB\u001b[39m: two  \n -------- \n"
+    },
+    {
+        "style": "symfony-style-guide",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "error": false,
+        "output": " -------- \n  \u001b[33mA\u001b[39m:      \n  \u001b[33mB\u001b[39m:      \n -------- \n  \u001b[33mA\u001b[39m: one  \n     two  \n  \u001b[33mB\u001b[39m: 界   \n -------- \n  \u001b[33mA\u001b[39m:      \n  \u001b[33mB\u001b[39m:      \n -------- \n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "default",
+        "headers": [],
+        "rows": [],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [],
+        "rows": [],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [],
+        "rows": [],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "default",
+        "headers": [],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "default",
+        "headers": [],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "default",
+        "headers": [],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╟─────┼─────╢\n╠══\u001b[30;47;1m Start \u001b[39;49;22m══╣\n║ one │ two ║\n╚═══\u001b[30;47;1m End \u001b[39;49;22m═══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═\u001b[30;47;1m Sta... \u001b[39;49;22m═╗\n║ one ║\n║ two ║\n╚═\u001b[30;47;1m E... \u001b[39;49;22m═╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "default",
+        "headers": [],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╠══\u001b[30;47;1m Start \u001b[39;49;22m══╣\n║ one │ two ║\n╟─────┼─────╢\n╚═══\u001b[30;47;1m End \u001b[39;49;22m═══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═\u001b[30;47;1m Sta... \u001b[39;49;22m═╗\n║ one ║\n║ two ║\n╚═\u001b[30;47;1m E... \u001b[39;49;22m═╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "default",
+        "headers": [],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╠═══\u001b[30;47;1m Start \u001b[39;49;22m═══╣\n║ one   │ two ║\n╟───────┼─────╢\n║ three │     ║\n╚════\u001b[30;47;1m End \u001b[39;49;22m════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═\u001b[30;47;1m ... \u001b[39;49;22m═╗\n║ one   ║\n║ two   ║\n║───────║\n║ three ║\n╚═\u001b[30;47;1m End \u001b[39;49;22m═╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "default",
+        "headers": [],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╟─────┼─────╢\n╟─────┼─────╢\n╠══\u001b[30;47;1m Start \u001b[39;49;22m══╣\n║ one │ two ║\n╟─────┼─────╢\n╟─────┼─────╢\n╚═══\u001b[30;47;1m End \u001b[39;49;22m═══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═\u001b[30;47;1m Sta... \u001b[39;49;22m═╗\n║ one ║\n║ two ║\n╚═\u001b[30;47;1m E... \u001b[39;49;22m═╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "default",
+        "headers": [],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╟─────┼────╢\n╠═\u001b[30;47;1m Start \u001b[39;49;22m══╣\n║ one │ 界 ║\n║ two │    ║\n╟─────┼────╢\n╚══\u001b[30;47;1m End \u001b[39;49;22m═══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═\u001b[30;47;1m Sta... \u001b[39;49;22m═╗\n║ one ║\n║ two ║\n║ 界  ║\n║─────║\n╚═\u001b[30;47;1m E... \u001b[39;49;22m═╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            [
+                "A",
+                "B"
+            ],
+            [
+                "C"
+            ]
+        ],
+        "rows": [],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═\u001b[30;47;1m ... \u001b[39;49;22m═╗\n║\u001b[32m A \u001b[39m│\u001b[32m B \u001b[39m║\n╔═══╤═══╗\n║\u001b[32m C \u001b[39m│\u001b[32m   \u001b[39m║\n╚═\u001b[30;47;1m End \u001b[39;49;22m═╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            [
+                "A",
+                "B"
+            ],
+            [
+                "C"
+            ]
+        ],
+        "rows": [],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═\u001b[30;47;1m S... \u001b[39;49;22m═╗\n║\u001b[32m A \u001b[39m║\n║\u001b[32m B \u001b[39m║\n╚═\u001b[30;47;1m ... \u001b[39;49;22m═╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            [
+                "A",
+                "B"
+            ],
+            [
+                "C"
+            ]
+        ],
+        "rows": [],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            [
+                "A",
+                "B"
+            ],
+            [
+                "C"
+            ]
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═\u001b[30;47;1m ... \u001b[39;49;22m═╗\n║\u001b[32m A \u001b[39m│\u001b[32m B \u001b[39m║\n╔═══╤═══╗\n║\u001b[32m C \u001b[39m│\u001b[32m   \u001b[39m║\n╟───┼───╢\n╚═\u001b[30;47;1m End \u001b[39;49;22m═╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            [
+                "A",
+                "B"
+            ],
+            [
+                "C"
+            ]
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═\u001b[30;47;1m S... \u001b[39;49;22m═╗\n║\u001b[32m A \u001b[39m║\n║\u001b[32m B \u001b[39m║\n╚═\u001b[30;47;1m ... \u001b[39;49;22m═╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            [
+                "A",
+                "B"
+            ],
+            [
+                "C"
+            ]
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            [
+                "A",
+                "B"
+            ],
+            [
+                "C"
+            ]
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═\u001b[30;47;1m ... \u001b[39;49;22m═╗\n║\u001b[32m A \u001b[39m│\u001b[32m B \u001b[39m║\n╔═══╤═══╗\n║\u001b[32m C \u001b[39m│\u001b[32m   \u001b[39m║\n╟───┼───╢\n╚═\u001b[30;47;1m End \u001b[39;49;22m═╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            [
+                "A",
+                "B"
+            ],
+            [
+                "C"
+            ]
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═\u001b[30;47;1m Star... \u001b[39;49;22m═╗\n║\u001b[32m A \u001b[39m│  ║\n║\u001b[32m B \u001b[39m│  ║\n╚═\u001b[30;47;1m En... \u001b[39;49;22m═╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            [
+                "A",
+                "B"
+            ],
+            [
+                "C"
+            ]
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═\u001b[30;47;1m Sta... \u001b[39;49;22m═╗\n║ \u001b[33mA\u001b[39m:  ║\n║ \u001b[33mB\u001b[39m:  ║\n╚═\u001b[30;47;1m E... \u001b[39;49;22m═╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            [
+                "A",
+                "B"
+            ],
+            [
+                "C"
+            ]
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔══\u001b[30;47;1m Start \u001b[39;49;22m══╗\n║\u001b[32m A   \u001b[39m│\u001b[32m B   \u001b[39m║\n╔═════╤═════╗\n║\u001b[32m C   \u001b[39m│\u001b[32m     \u001b[39m║\n╟─────┼─────╢\n╠═════╪═════╣\n║ one │ two ║\n╚═══\u001b[30;47;1m End \u001b[39;49;22m═══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            [
+                "A",
+                "B"
+            ],
+            [
+                "C"
+            ]
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═\u001b[30;47;1m Start \u001b[39;49;22m═╗\n║\u001b[32m A \u001b[39m│ one ║\n║\u001b[32m B \u001b[39m│ two ║\n╚══\u001b[30;47;1m End \u001b[39;49;22m══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            [
+                "A",
+                "B"
+            ],
+            [
+                "C"
+            ]
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═\u001b[30;47;1m S... \u001b[39;49;22m═╗\n║ \u001b[33mA\u001b[39m: one ║\n║ \u001b[33mB\u001b[39m: two ║\n╚═\u001b[30;47;1m End \u001b[39;49;22m══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            [
+                "A",
+                "B"
+            ],
+            [
+                "C"
+            ]
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔══\u001b[30;47;1m Start \u001b[39;49;22m══╗\n║\u001b[32m A   \u001b[39m│\u001b[32m B   \u001b[39m║\n╔═════╤═════╗\n║\u001b[32m C   \u001b[39m│\u001b[32m     \u001b[39m║\n╠═════╪═════╣\n║ one │ two ║\n╟─────┼─────╢\n╚═══\u001b[30;47;1m End \u001b[39;49;22m═══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            [
+                "A",
+                "B"
+            ],
+            [
+                "C"
+            ]
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═\u001b[30;47;1m Start \u001b[39;49;22m═╗\n║\u001b[32m A \u001b[39m│ one ║\n║\u001b[32m B \u001b[39m│ two ║\n╚══\u001b[30;47;1m End \u001b[39;49;22m══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            [
+                "A",
+                "B"
+            ],
+            [
+                "C"
+            ]
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═\u001b[30;47;1m S... \u001b[39;49;22m═╗\n║ \u001b[33mA\u001b[39m: one ║\n║ \u001b[33mB\u001b[39m: two ║\n╚═\u001b[30;47;1m End \u001b[39;49;22m══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            [
+                "A",
+                "B"
+            ],
+            [
+                "C"
+            ]
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═══\u001b[30;47;1m Start \u001b[39;49;22m═══╗\n║\u001b[32m A     \u001b[39m│\u001b[32m B   \u001b[39m║\n╔═══════╤═════╗\n║\u001b[32m C     \u001b[39m│\u001b[32m     \u001b[39m║\n╠═══════╪═════╣\n║ one   │ two ║\n╟───────┼─────╢\n║ three │     ║\n╚════\u001b[30;47;1m End \u001b[39;49;22m════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            [
+                "A",
+                "B"
+            ],
+            [
+                "C"
+            ]
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═══╤═\u001b[30;47;1m Start \u001b[39;49;22m═════╗\n║\u001b[32m A \u001b[39m│ one │ three ║\n║\u001b[32m B \u001b[39m│ two │       ║\n╚═══╧══\u001b[30;47;1m End \u001b[39;49;22m══════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            [
+                "A",
+                "B"
+            ],
+            [
+                "C"
+            ]
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═\u001b[30;47;1m Start \u001b[39;49;22m══╗\n║ \u001b[33mA\u001b[39m: one   ║\n║ \u001b[33mB\u001b[39m: two   ║\n║──────────║\n║ \u001b[33mA\u001b[39m: three ║\n║ \u001b[33mB\u001b[39m:       ║\n╚══\u001b[30;47;1m End \u001b[39;49;22m═══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            [
+                "A",
+                "B"
+            ],
+            [
+                "C"
+            ]
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔══\u001b[30;47;1m Start \u001b[39;49;22m══╗\n║\u001b[32m A   \u001b[39m│\u001b[32m B   \u001b[39m║\n╔═════╤═════╗\n║\u001b[32m C   \u001b[39m│\u001b[32m     \u001b[39m║\n╟─────┼─────╢\n╟─────┼─────╢\n╠═════╪═════╣\n║ one │ two ║\n╟─────┼─────╢\n╟─────┼─────╢\n╚═══\u001b[30;47;1m End \u001b[39;49;22m═══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            [
+                "A",
+                "B"
+            ],
+            [
+                "C"
+            ]
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═\u001b[30;47;1m Start \u001b[39;49;22m═╗\n║\u001b[32m A \u001b[39m│ one ║\n║\u001b[32m B \u001b[39m│ two ║\n╚══\u001b[30;47;1m End \u001b[39;49;22m══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            [
+                "A",
+                "B"
+            ],
+            [
+                "C"
+            ]
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═\u001b[30;47;1m S... \u001b[39;49;22m═╗\n║ \u001b[33mA\u001b[39m: one ║\n║ \u001b[33mB\u001b[39m: two ║\n╚═\u001b[30;47;1m End \u001b[39;49;22m══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            [
+                "A",
+                "B"
+            ],
+            [
+                "C"
+            ]
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═\u001b[30;47;1m Start \u001b[39;49;22m══╗\n║\u001b[32m A   \u001b[39m│\u001b[32m B  \u001b[39m║\n╔═════╤════╗\n║\u001b[32m C   \u001b[39m│\u001b[32m    \u001b[39m║\n╟─────┼────╢\n╠═════╪════╣\n║ one │ 界 ║\n║ two │    ║\n╟─────┼────╢\n╚══\u001b[30;47;1m End \u001b[39;49;22m═══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            [
+                "A",
+                "B"
+            ],
+            [
+                "C"
+            ]
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═══╤\u001b[30;47;1m Start \u001b[39;49;22m═╤══╗\n║\u001b[32m A \u001b[39m│  │ one │  ║\n║\u001b[32m   \u001b[39m│  │ two │  ║\n║\u001b[32m B \u001b[39m│  │ 界  │  ║\n╚═══╧═\u001b[30;47;1m End \u001b[39;49;22m══╧══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            [
+                "A",
+                "B"
+            ],
+            [
+                "C"
+            ]
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═\u001b[30;47;1m S... \u001b[39;49;22m═╗\n║ \u001b[33mA\u001b[39m:     ║\n║ \u001b[33mB\u001b[39m:     ║\n║────────║\n║ \u001b[33mA\u001b[39m: one ║\n║    two ║\n║ \u001b[33mB\u001b[39m: 界  ║\n║────────║\n║ \u001b[33mA\u001b[39m:     ║\n║ \u001b[33mB\u001b[39m:     ║\n╚═\u001b[30;47;1m End \u001b[39;49;22m══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "<info>A<\/info>",
+            "界"
+        ],
+        "rows": [],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═\u001b[30;47;1m S... \u001b[39;49;22m═╗\n║\u001b[32m \u001b[39m\u001b[32mA\u001b[39m\u001b[32m \u001b[39m│\u001b[32m 界 \u001b[39m║\n╚═\u001b[30;47;1m End \u001b[39;49;22m══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "<info>A<\/info>",
+            "界"
+        ],
+        "rows": [],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═\u001b[30;47;1m St... \u001b[39;49;22m═╗\n║\u001b[32m \u001b[39m\u001b[32mA\u001b[39m\u001b[32m  \u001b[39m║\n║\u001b[32m 界 \u001b[39m║\n╚═\u001b[30;47;1m ... \u001b[39;49;22m═╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "<info>A<\/info>",
+            "界"
+        ],
+        "rows": [],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "<info>A<\/info>",
+            "界"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═\u001b[30;47;1m S... \u001b[39;49;22m═╗\n║\u001b[32m \u001b[39m\u001b[32mA\u001b[39m\u001b[32m \u001b[39m│\u001b[32m 界 \u001b[39m║\n╟───┼────╢\n╚═\u001b[30;47;1m End \u001b[39;49;22m══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "<info>A<\/info>",
+            "界"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═\u001b[30;47;1m St... \u001b[39;49;22m═╗\n║\u001b[32m \u001b[39m\u001b[32mA\u001b[39m\u001b[32m  \u001b[39m║\n║\u001b[32m 界 \u001b[39m║\n╚═\u001b[30;47;1m ... \u001b[39;49;22m═╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "<info>A<\/info>",
+            "界"
+        ],
+        "rows": [
+            "@sep"
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": ""
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "<info>A<\/info>",
+            "界"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═\u001b[30;47;1m S... \u001b[39;49;22m═╗\n║\u001b[32m \u001b[39m\u001b[32mA\u001b[39m\u001b[32m \u001b[39m│\u001b[32m 界 \u001b[39m║\n╟───┼────╢\n╚═\u001b[30;47;1m End \u001b[39;49;22m══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "<info>A<\/info>",
+            "界"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═\u001b[30;47;1m ... \u001b[39;49;22m═╗\n║\u001b[32m \u001b[39m\u001b[32mA\u001b[39m\u001b[32m  \u001b[39m│  ║\n║\u001b[32m 界 \u001b[39m│  ║\n╚═\u001b[30;47;1m End \u001b[39;49;22m═╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "<info>A<\/info>",
+            "界"
+        ],
+        "rows": [
+            "@sep",
+            []
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═\u001b[30;47;1m Star... \u001b[39;49;22m═╗\n║ \u001b[33m \u001b[39m\u001b[32mA\u001b[39m:  ║\n║ \u001b[33m界\u001b[39m:  ║\n╚═\u001b[30;47;1m En... \u001b[39;49;22m═╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "<info>A<\/info>",
+            "界"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔══\u001b[30;47;1m Start \u001b[39;49;22m══╗\n║\u001b[32m \u001b[39m\u001b[32mA\u001b[39m\u001b[32m   \u001b[39m│\u001b[32m 界  \u001b[39m║\n╟─────┼─────╢\n╠═════╪═════╣\n║ one │ two ║\n╚═══\u001b[30;47;1m End \u001b[39;49;22m═══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "<info>A<\/info>",
+            "界"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═\u001b[30;47;1m Start \u001b[39;49;22m══╗\n║\u001b[32m \u001b[39m\u001b[32mA\u001b[39m\u001b[32m  \u001b[39m│ one ║\n║\u001b[32m 界 \u001b[39m│ two ║\n╚══\u001b[30;47;1m End \u001b[39;49;22m═══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "<info>A<\/info>",
+            "界"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "one",
+                "two"
+            ]
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═\u001b[30;47;1m Start \u001b[39;49;22m═╗\n║ \u001b[33m \u001b[39m\u001b[32mA\u001b[39m: one ║\n║ \u001b[33m界\u001b[39m: two ║\n╚══\u001b[30;47;1m End \u001b[39;49;22m══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "<info>A<\/info>",
+            "界"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔══\u001b[30;47;1m Start \u001b[39;49;22m══╗\n║\u001b[32m \u001b[39m\u001b[32mA\u001b[39m\u001b[32m   \u001b[39m│\u001b[32m 界  \u001b[39m║\n╠═════╪═════╣\n║ one │ two ║\n╟─────┼─────╢\n╚═══\u001b[30;47;1m End \u001b[39;49;22m═══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "<info>A<\/info>",
+            "界"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═\u001b[30;47;1m Start \u001b[39;49;22m══╗\n║\u001b[32m \u001b[39m\u001b[32mA\u001b[39m\u001b[32m  \u001b[39m│ one ║\n║\u001b[32m 界 \u001b[39m│ two ║\n╚══\u001b[30;47;1m End \u001b[39;49;22m═══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "<info>A<\/info>",
+            "界"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep"
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═\u001b[30;47;1m Start \u001b[39;49;22m═╗\n║ \u001b[33m \u001b[39m\u001b[32mA\u001b[39m: one ║\n║ \u001b[33m界\u001b[39m: two ║\n╚══\u001b[30;47;1m End \u001b[39;49;22m══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "<info>A<\/info>",
+            "界"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═══\u001b[30;47;1m Start \u001b[39;49;22m═══╗\n║\u001b[32m \u001b[39m\u001b[32mA\u001b[39m\u001b[32m     \u001b[39m│\u001b[32m 界  \u001b[39m║\n╠═══════╪═════╣\n║ one   │ two ║\n╟───────┼─────╢\n║ three │     ║\n╚════\u001b[30;47;1m End \u001b[39;49;22m════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "<info>A<\/info>",
+            "界"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔════╤\u001b[30;47;1m Start \u001b[39;49;22m══════╗\n║\u001b[32m \u001b[39m\u001b[32mA\u001b[39m\u001b[32m  \u001b[39m│ one │ three ║\n║\u001b[32m 界 \u001b[39m│ two │       ║\n╚════╧═\u001b[30;47;1m End \u001b[39;49;22m═══════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "<info>A<\/info>",
+            "界"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            [
+                "three"
+            ]
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔══\u001b[30;47;1m Start \u001b[39;49;22m══╗\n║ \u001b[33m \u001b[39m\u001b[32mA\u001b[39m: one   ║\n║ \u001b[33m界\u001b[39m: two   ║\n║───────────║\n║ \u001b[33m \u001b[39m\u001b[32mA\u001b[39m: three ║\n║ \u001b[33m界\u001b[39m:       ║\n╚═══\u001b[30;47;1m End \u001b[39;49;22m═══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "<info>A<\/info>",
+            "界"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔══\u001b[30;47;1m Start \u001b[39;49;22m══╗\n║\u001b[32m \u001b[39m\u001b[32mA\u001b[39m\u001b[32m   \u001b[39m│\u001b[32m 界  \u001b[39m║\n╟─────┼─────╢\n╟─────┼─────╢\n╠═════╪═════╣\n║ one │ two ║\n╟─────┼─────╢\n╟─────┼─────╢\n╚═══\u001b[30;47;1m End \u001b[39;49;22m═══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "<info>A<\/info>",
+            "界"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═\u001b[30;47;1m Start \u001b[39;49;22m══╗\n║\u001b[32m \u001b[39m\u001b[32mA\u001b[39m\u001b[32m  \u001b[39m│ one ║\n║\u001b[32m 界 \u001b[39m│ two ║\n╚══\u001b[30;47;1m End \u001b[39;49;22m═══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "<info>A<\/info>",
+            "界"
+        ],
+        "rows": [
+            "@sep",
+            "@sep",
+            [
+                "one",
+                "two"
+            ],
+            "@sep",
+            "@sep"
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═\u001b[30;47;1m Start \u001b[39;49;22m═╗\n║ \u001b[33m \u001b[39m\u001b[32mA\u001b[39m: one ║\n║ \u001b[33m界\u001b[39m: two ║\n╚══\u001b[30;47;1m End \u001b[39;49;22m══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "default",
+        "headers": [
+            "<info>A<\/info>",
+            "界"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═\u001b[30;47;1m Start \u001b[39;49;22m══╗\n║\u001b[32m \u001b[39m\u001b[32mA\u001b[39m\u001b[32m   \u001b[39m│\u001b[32m 界 \u001b[39m║\n╟─────┼────╢\n╠═════╪════╣\n║ one │ 界 ║\n║ two │    ║\n╟─────┼────╢\n╚══\u001b[30;47;1m End \u001b[39;49;22m═══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "horizontal",
+        "headers": [
+            "<info>A<\/info>",
+            "界"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔════\u001b[30;47;1m Start \u001b[39;49;22m══╤══╗\n║\u001b[32m \u001b[39m\u001b[32mA\u001b[39m\u001b[32m  \u001b[39m│  │ one │  ║\n║\u001b[32m    \u001b[39m│  │ two │  ║\n║\u001b[32m 界 \u001b[39m│  │ 界  │  ║\n╚════╧\u001b[30;47;1m End \u001b[39;49;22m═══╧══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": true,
+        "mode": "vertical",
+        "headers": [
+            "<info>A<\/info>",
+            "界"
+        ],
+        "rows": [
+            [],
+            "@sep",
+            [
+                "one\ntwo",
+                "界"
+            ],
+            [],
+            "@sep"
+        ],
+        "ops": [],
+        "header": "Start",
+        "footer": "End",
+        "error": false,
+        "output": "╔═\u001b[30;47;1m Start \u001b[39;49;22m═╗\n║ \u001b[33m \u001b[39m\u001b[32mA\u001b[39m:     ║\n║ \u001b[33m界\u001b[39m:     ║\n║─────────║\n║ \u001b[33m \u001b[39m\u001b[32mA\u001b[39m: one ║\n║     two ║\n║ \u001b[33m界\u001b[39m: 界  ║\n║─────────║\n║ \u001b[33m \u001b[39m\u001b[32mA\u001b[39m:     ║\n║ \u001b[33m界\u001b[39m:     ║\n╚══\u001b[30;47;1m End \u001b[39;49;22m══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "first"
+            ]
+        ],
+        "ops": [
+            [
+                "addRow",
+                "@sep"
+            ],
+            [
+                "addRow",
+                [
+                    "after"
+                ]
+            ]
+        ],
+        "error": false,
+        "output": "╔═══════╤═══╗\n║ A     │ B ║\n╟───────┼───╢\n╠═══════╪═══╣\n║ first │   ║\n╟───────┼───╢\n║ after │   ║\n╚═══════╧═══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "first"
+            ]
+        ],
+        "ops": [
+            [
+                "setRow",
+                0,
+                [
+                    "replace"
+                ]
+            ]
+        ],
+        "error": false,
+        "output": "╔═════════╤═══╗\n║ A       │ B ║\n╠═════════╪═══╣\n║ replace │   ║\n║ first   │   ║\n╚═════════╧═══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "first"
+            ]
+        ],
+        "ops": [
+            [
+                "addRows",
+                [
+                    "@sep",
+                    [
+                        "after"
+                    ],
+                    "@sep"
+                ]
+            ]
+        ],
+        "error": false,
+        "output": "╔═══════╤═══╗\n║ A     │ B ║\n╟───────┼───╢\n╠═══════╪═══╣\n║ first │   ║\n╟───────┼───╢\n║ after │   ║\n╟───────┼───╢\n╚═══════╧═══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": false,
+        "mode": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "first"
+            ]
+        ],
+        "ops": [
+            [
+                "setRows",
+                [
+                    [
+                        "reset"
+                    ],
+                    "@sep",
+                    [
+                        "last"
+                    ]
+                ]
+            ]
+        ],
+        "error": false,
+        "output": "╔═══════╤═══╗\n║ A     │ B ║\n╠═══════╪═══╣\n║ reset │   ║\n╟───────┼───╢\n║ last  │   ║\n╚═══════╧═══╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "first"
+            ]
+        ],
+        "ops": [
+            [
+                "addRow",
+                "@sep"
+            ],
+            [
+                "addRow",
+                [
+                    "after"
+                ]
+            ]
+        ],
+        "error": false,
+        "output": "╔═══╤═══════╤═══════╗\n║ A │ first │ after ║\n║ B │       │       ║\n╚═══╧═══════╧═══════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "first"
+            ]
+        ],
+        "ops": [
+            [
+                "setRow",
+                0,
+                [
+                    "replace"
+                ]
+            ]
+        ],
+        "error": false,
+        "output": "╔═══╤═════════╤═══════╗\n║ A │ replace │ first ║\n║ B │         │       ║\n╚═══╧═════════╧═══════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "first"
+            ]
+        ],
+        "ops": [
+            [
+                "addRows",
+                [
+                    "@sep",
+                    [
+                        "after"
+                    ],
+                    "@sep"
+                ]
+            ]
+        ],
+        "error": false,
+        "output": "╔═══╤═══════╤═══════╗\n║ A │ first │ after ║\n║ B │       │       ║\n╚═══╧═══════╧═══════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": false,
+        "mode": "horizontal",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "first"
+            ]
+        ],
+        "ops": [
+            [
+                "setRows",
+                [
+                    [
+                        "reset"
+                    ],
+                    "@sep",
+                    [
+                        "last"
+                    ]
+                ]
+            ]
+        ],
+        "error": false,
+        "output": "╔═══╤═══════╤══════╗\n║ A │ reset │ last ║\n║ B │       │      ║\n╚═══╧═══════╧══════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "first"
+            ]
+        ],
+        "ops": [
+            [
+                "addRow",
+                "@sep"
+            ],
+            [
+                "addRow",
+                [
+                    "after"
+                ]
+            ]
+        ],
+        "error": false,
+        "output": "╔══════════╗\n║ A: first ║\n║ B:       ║\n║──────────║\n║ A: after ║\n║ B:       ║\n╚══════════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "first"
+            ]
+        ],
+        "ops": [
+            [
+                "setRow",
+                0,
+                [
+                    "replace"
+                ]
+            ]
+        ],
+        "error": false,
+        "output": "╔════════════╗\n║ A: replace ║\n║ B:         ║\n║────────────║\n║ A: first   ║\n║ B:         ║\n╚════════════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "first"
+            ]
+        ],
+        "ops": [
+            [
+                "addRows",
+                [
+                    "@sep",
+                    [
+                        "after"
+                    ],
+                    "@sep"
+                ]
+            ]
+        ],
+        "error": false,
+        "output": "╔══════════╗\n║ A: first ║\n║ B:       ║\n║──────────║\n║ A: after ║\n║ B:       ║\n╚══════════╝\n"
+    },
+    {
+        "style": "box-double",
+        "decorated": false,
+        "mode": "vertical",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            "@sep",
+            [
+                "first"
+            ]
+        ],
+        "ops": [
+            [
+                "setRows",
+                [
+                    [
+                        "reset"
+                    ],
+                    "@sep",
+                    [
+                        "last"
+                    ]
+                ]
+            ]
+        ],
+        "error": false,
+        "output": "╔══════════╗\n║ A: reset ║\n║ B:       ║\n║──────────║\n║ A: last  ║\n║ B:       ║\n╚══════════╝\n"
+    }
+]
