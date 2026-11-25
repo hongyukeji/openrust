@@ -403,3 +403,18 @@ device-primitives-first／second／third保存初次测试夹具缺用户表、i
 device-primitives-final-gates.log SQLite2通过，严格Clippy发现测试显式函数指针类型复杂，改为现有Builder的分支配置形式，不加allow。device-primitives-gates-resumed.log SQLite2再次通过，workspace严格Clippy10.90秒、Fortify+Sanctum49.99秒及fmt退出0；冻结组合头见device-primitives-combination-head.txt，未含其他任务WIP。device-primitives-docs.log三语Session正文构建及两挂载／桌面手机12组通过，说明可信服务端使用、候选归属与敏感原始ID边界。
 
 本项不是设备列表／撤销功能交付。公开设备响应仍需不透明ID、授权、近期证明与持久化撤销；删除sessions行不能防止在途保存复活。多Guard共用浏览器时单列user_id可能遗漏另一Guard会话，正式设备能力需处理该边界，不能仅用这批候选读取宣称完整枚举。后续方案／待验证条件保存在target/tmp/user-starter/device-design.md，未计完成。清单／SHA及真实清理空间分别为device-primitives-files.json、device-primitives-final-source-sha.json、device-primitives-delivery-space.json；本批只删除文档dist／缓存，保留正常Cargo增量、源码、日志、数据库／数据卷。继续设备生命周期及其余A01，不推送。
+
+
+## A01前置复核：作用域栈占用与SQL异步类型边界（本子单元验收通过）
+
+新增Guard校验组合验收时，既有认证邮件Worker用例栈溢出；session-validator-baseline-probe.log移除新增Guard功能后，已提交SDK组合仍在同一路径SIGABRT，因此不归因为未验收的Guard钩子。阶段探针确认发生在真实Artisan Worker，macOS崩溃符号与ARM64函数序言分析见queue-stack-crash-frames.json／queue-stack-frame-sizes.json。按序言估算，私有Facade隔离作用域单帧319,472字节、Container隔离182,656字节，两层TaskLocal poll各约91KB；嵌套泛型业务Future被多层内联。用例本身Future12,984字节，单独装箱测试或Worker外层、Guard解析外层均不能解决，试验改动全部撤销，没有提高线程栈或编译递归限制。
+
+复用既有Facade::set_facade_application的固定布局方式：仅在公开Container::scope和私有Facade::isolated_scope进入async状态机前装箱业务Future。保留原生嵌套共享、独立隔离、取消关闭和清理顺序。起初更广的五层装箱缩减为这两个必要入口；其他作用域不改。Scope公开调用仍为scope(future).await，并保留非Send的本地Future支持。
+
+严格检查还发现，恢复原始作用域的已提交组合也有Fortify三个消费者布局查询深度130溢出，见observation-clippy-baseline.log，不将编译器建议增加recursion_limit作为修复。为SQL执行新增私有Execution::run_boxed，只在既有observed_query宏的执行边界擦除具体驱动Future类型，复用原来的run逻辑与结束／取消收尾。保留其他观测路径的泛型／非Send契约，未全局增加Send约束；没有夹带其他协作者的Worker／Console在途改动。该SQL接缝属于原生DatabaseFuture已保证Send的边界。
+
+scope-sql-boundary-gates.log：Rust1.94工作区严格Clippy1分00秒、Fortify+Sanctum1分03秒通过；门面生命周期8、新布局／输出／未poll取消／非Send支持3、原容器scoped14、完整用户套件50与fmt全部通过。原始邮件模板未改，默认测试线程栈下两个邮件队列用例已恢复。scope-sql-matrix.log独立MySQL8.4.13／PostgreSQL18.7各2项数据库队列及会话，Redis8.10.3队列／会话2项、file会话+SQLite数据库队列2项全部通过；本批专属容器已回收。该矩阵不代表生产SMTP或供应商投递验收。
+
+scope-sql-observer-final.log进一步通过真实SQLite查询的观察者用例1：成功、失败、in_scope实际poll，及独占事务耗尽单连接池时取消待执行查询，只收尾一次Cancelled；事务随后正常回滚。追加测试后workspace严格Clippy1.79秒、feature0.24秒及fmt再次通过。既有成功／错误消息与数据库行为沿用原机制，无需新增开发者配置或迁移。
+
+源码清单／SHA／组合头为scope-stack-files.json、scope-stack-final-source-sha.json、scope-stack-combination-head.txt；只交付已验代码。独立Blade深层渲染仍有默认栈问题，新增Guard校验、持久化设备功能及其他A01剩余项继续处理，未混入本项或计为闭合。空间记录scope-stack-delivery-space.json；本批没有需废弃的专用构建profile，按当前规范保留可复用增量缓存、源码、日志、数据库及数据卷。未推送。

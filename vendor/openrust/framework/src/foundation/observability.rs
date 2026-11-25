@@ -245,6 +245,15 @@ impl Execution {
         }
         result
     }
+    // SQL执行状态机已保证Send；在这里擦除具体类型，阻止调用者继续展开整个驱动Future布局。
+    pub(crate) fn run_boxed<'a, T: 'a>(
+        self,
+        future: impl Future<Output = T> + Send + 'a,
+        outcome: impl FnOnce(&T) -> Outcome + Send + 'a,
+    ) -> std::pin::Pin<Box<dyn Future<Output = T> + Send + 'a>> {
+        let future: std::pin::Pin<Box<dyn Future<Output = T> + Send + 'a>> = Box::pin(future);
+        Box::pin(self.run(future, outcome))
+    }
 }
 
 pub(crate) fn sql_stream<T, E>(

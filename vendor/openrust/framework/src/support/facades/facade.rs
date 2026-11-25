@@ -453,11 +453,18 @@ fn open_context(container: Arc<Container>) -> (Arc<Context>, CloseContext) {
     (context.clone(), CloseContext(context))
 }
 
-pub(crate) async fn isolated_scope<F: Future>(container: Arc<Container>, future: F) -> F::Output {
-    let (context, _close) = open_context(container.clone());
-    container
-        .isolated_scope(APPLICATION.scope(Some(context), future))
-        .await
+pub(crate) fn isolated_scope<F: Future>(
+    container: Arc<Container>,
+    future: F,
+) -> impl Future<Output = F::Output> {
+    // 在构造异步状态机前固定业务Future布局，避免嵌套作用域复制。
+    let future = Box::pin(future);
+    async move {
+        let (context, _close) = open_context(container.clone());
+        container
+            .isolated_scope(APPLICATION.scope(Some(context), future))
+            .await
+    }
 }
 
 pub(crate) async fn scope<F: Future>(container: Arc<Container>, future: F) -> F::Output {

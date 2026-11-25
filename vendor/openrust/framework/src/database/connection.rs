@@ -819,7 +819,7 @@ macro_rules! observed_query {
             $connection.get_driver_name(),
             $sql,
         )
-        .run(
+        .run_boxed(
             async {
                 let mut replayed = false;
                 let mut elapsed = Duration::ZERO;

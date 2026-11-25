@@ -301,12 +301,16 @@ impl Container {
 
     /// Runs a request or command lifecycle with an isolated scoped-instance cache.
     /// Nested execution for the same container shares the current lifecycle.
-    pub async fn scope<F: Future>(&self, future: F) -> F::Output {
-        if active(self) {
-            future.await
-        } else {
-            let (contexts, _close) = self.open_scope();
-            CURRENT.scope(contexts, future).await
+    pub fn scope<F: Future>(&self, future: F) -> impl Future<Output = F::Output> {
+        // 在构造异步状态机前固定业务Future布局，避免嵌套作用域复制。
+        let future = Box::pin(future);
+        async move {
+            if active(self) {
+                future.await
+            } else {
+                let (contexts, _close) = self.open_scope();
+                CURRENT.scope(contexts, future).await
+            }
         }
     }
 
