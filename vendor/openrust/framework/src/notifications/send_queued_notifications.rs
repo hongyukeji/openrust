@@ -100,6 +100,7 @@ impl SendQueuedNotifications {
             Payload::new(name.as_deref().unwrap_or(Self::NAME), job)
         }
         .map_err(NotificationError::Queue)?
+        .with_job_type(crate::queue::JobType::Notification)
         .with_options(job_options);
         Queue::dispatch(payload, options, transaction)
             .await

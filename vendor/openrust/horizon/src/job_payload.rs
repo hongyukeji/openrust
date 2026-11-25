@@ -1,7 +1,7 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use openrust::{
-    queue::{Payload, QueueError, QueueResult},
+    queue::{JobType, Payload, QueueError, QueueResult},
     support::facades::{Config, Facade},
 };
 use serde::{Deserialize, Serialize};
@@ -14,6 +14,8 @@ const KEY: &str = "horizon";
 /// Horizon 随 Redis 投递保存的观测元数据。
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct JobPayload {
+    #[serde(default, rename = "type")]
+    job_type: JobType,
     tags: Vec<String>,
     silenced: bool,
     #[serde(rename = "pushedAt")]
@@ -33,6 +35,10 @@ impl JobPayload {
 
     pub fn tags(&self) -> &[String] {
         &self.tags
+    }
+
+    pub fn job_type(&self) -> JobType {
+        self.job_type
     }
 
     pub fn is_silenced(&self) -> bool {
@@ -71,6 +77,11 @@ impl JobPayload {
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default();
         serde_json::to_value(Self {
+            job_type: if payload.is_retry_delivery() {
+                JobType::Job
+            } else {
+                payload.job_type()
+            },
             tags,
             silenced,
             pushed_at: format!("{}.{:06}", now.as_secs(), now.subsec_micros()),

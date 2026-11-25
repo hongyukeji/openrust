@@ -193,11 +193,31 @@ pub struct JobOptions {
     pub hard_timeout: bool,
 }
 
+/// 原生入队入口创建的任务类型。
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum JobType {
+    #[default]
+    Job,
+    Broadcast,
+    Event,
+    Mail,
+    Notification,
+}
+
+impl JobType {
+    fn is_job(&self) -> bool {
+        *self == Self::Job
+    }
+}
+
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct Payload {
     version: u32,
     uuid: String,
     name: String,
+    #[serde(default, skip_serializing_if = "JobType::is_job")]
+    job_type: JobType,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     display_name: Option<String>,
     data: serde_json::Value,
@@ -255,6 +275,7 @@ impl Payload {
             version: 1,
             uuid: new_id()?,
             name,
+            job_type: JobType::Job,
             display_name: None,
             data: serde_json::to_value(data).map_err(|_| QueueError::InvalidPayload)?,
             options: JobOptions::default(),
@@ -311,6 +332,13 @@ impl Payload {
     }
     pub fn name(&self) -> &str {
         &self.name
+    }
+    pub fn job_type(&self) -> JobType {
+        self.job_type
+    }
+    pub(crate) fn with_job_type(mut self, job_type: JobType) -> Self {
+        self.job_type = job_type;
+        self
     }
     pub(crate) fn with_display_name(mut self, name: String) -> Self {
         self.display_name = Some(name);

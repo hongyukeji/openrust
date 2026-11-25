@@ -530,7 +530,9 @@ impl Dispatcher {
                 .map_err(EventError::Broadcast)?;
         } else {
             delivery.unique = registration.unique.and_then(|unique| unique(source));
-            let payload = crate::queue::Payload::new(JOB, delivery).map_err(EventError::Queue)?;
+            let payload = crate::queue::Payload::new(JOB, delivery)
+                .map_err(EventError::Queue)?
+                .with_job_type(crate::queue::JobType::Broadcast);
             let options = crate::queue::DispatchOptions {
                 connection: event.broadcast_queue_connection().map(str::to_owned),
                 queue: event.broadcast_queue().map(str::to_owned),
@@ -584,7 +586,8 @@ impl Dispatcher {
                 ListenerSource::Queued(queued) => {
                     let payload =
                         crate::queue::Payload::new(&queued.name, (queued.encode)(event.as_ref())?)
-                            .map_err(EventError::Queue)?;
+                            .map_err(EventError::Queue)?
+                            .with_job_type(crate::queue::JobType::Event);
                     let options = crate::queue::DispatchOptions {
                         connection: queued.options.connection.clone(),
                         queue: queued.options.queue.clone(),

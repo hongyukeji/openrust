@@ -117,7 +117,9 @@ impl SendQueuedMailable {
         transaction: Option<&mut Transaction>,
     ) -> MailResult<Option<String>> {
         let message = PreparedMail::prepare(mailer, mailable, recipients).await?;
-        let payload = Payload::new(Self::NAME, message).map_err(MailError::Queue)?;
+        let payload = Payload::new(Self::NAME, message)
+            .map_err(MailError::Queue)?
+            .with_job_type(crate::queue::JobType::Mail);
         match Queue::dispatch(payload, options, transaction)
             .await
             .map_err(MailError::Queue)?

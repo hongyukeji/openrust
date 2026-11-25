@@ -1362,6 +1362,279 @@ fn retry_config(base: &Path, env: &Environment) -> Result<BTreeMap<String, Value
 
 #[tokio::test]
 #[ignore = "requires dedicated Redis 8 acceptance wrapper"]
+async fn redis_job_types_follow_native_producers_and_raw_retry() {
+    use openrust::{
+        broadcasting::{BroadcastChannel, Channel},
+        contracts::{
+            broadcasting::ShouldBroadcast,
+            events::{Event, Listener},
+        },
+        events::{
+            Dispatcher, EventContext, EventError, EventFuture, EventResult, ListenerRegistry,
+            ListenerResponse, QueuedListenerOptions,
+        },
+        http::Response,
+        mail::{
+            MailResult, Mailable,
+            mailables::{Content, Envelope},
+        },
+        notifications::{
+            AnonymousNotifiable, Notifiable, Notification as NativeNotification,
+            NotificationResult, NotificationRoute, SendQueuedNotifications, messages::MailDelivery,
+        },
+        queue::{DispatchOptions, JobType, Payload, QueueManager},
+        support::facades::{Event as EventFacade, Mail, Notification, Queue, Route},
+    };
+    use openrust_horizon::JobPayload;
+
+    #[derive(serde::Serialize, serde::Deserialize)]
+    struct Published;
+    impl Event for Published {
+        fn name(&self) -> &str {
+            "payload.published"
+        }
+    }
+    impl ShouldBroadcast for Published {
+        fn broadcast_on(&self) -> Vec<BroadcastChannel> {
+            vec![BroadcastChannel::Public(Channel {
+                name: "news".into(),
+            })]
+        }
+        fn broadcast_queue(&self) -> Option<&str> {
+            Some("broadcasts")
+        }
+    }
+
+    struct AuditListener;
+    impl Listener for AuditListener {
+        fn handle<'a>(
+            &'a self,
+            _: &'a dyn Event,
+            _: &'a mut EventContext<'_>,
+        ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+            Box::pin(async { Err(EventError::InvalidPayload) })
+        }
+    }
+    fn listeners(registry: &mut ListenerRegistry) -> EventResult<()> {
+        registry.listen_queued::<Published>(
+            "payload.published",
+            Arc::new(AuditListener),
+            QueuedListenerOptions {
+                listener_id: "custom.audit".into(),
+                queue: Some("events".into()),
+                connection: None,
+                delay: None,
+                after_commit: None,
+            },
+        )
+    }
+
+    struct Receipt;
+    impl Mailable for Receipt {
+        fn envelope(&self) -> MailResult<Envelope> {
+            Ok(Envelope {
+                to: vec!["to@example.org".into()],
+                subject: "Receipt".into(),
+                ..Default::default()
+            })
+        }
+        fn content(&self) -> MailResult<Content> {
+            Ok(Content {
+                text: Some("Receipt".into()),
+                ..Default::default()
+            })
+        }
+    }
+    struct Notice(bool);
+    impl NativeNotification for Notice {
+        fn via(&self, _: &dyn Notifiable) -> NotificationResult<Vec<String>> {
+            Ok(vec!["mail".into()])
+        }
+        fn to_mail(&self, _: &dyn Notifiable) -> NotificationResult<Option<MailDelivery>> {
+            Ok(Some(MailDelivery::Mailable(Box::new(Receipt))))
+        }
+        fn queue_options(&self, _: &dyn Notifiable, _: &str) -> Option<DispatchOptions> {
+            Some(DispatchOptions {
+                queue: Some(
+                    if self.0 {
+                        "encrypted-notices"
+                    } else {
+                        "notices"
+                    }
+                    .into(),
+                ),
+                ..Default::default()
+            })
+        }
+        fn should_encrypt(&self, _: &dyn Notifiable, _: &str) -> bool {
+            self.0
+        }
+        fn queue_middleware(&self, _: &dyn Notifiable, _: &str) -> Option<&str> {
+            self.0.then_some("audit")
+        }
+    }
+    fn dispatch(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async {
+            EventFacade::dispatch(Published).await.unwrap();
+            Mail::mailer(None)
+                .unwrap()
+                .queue(
+                    &Receipt,
+                    DispatchOptions {
+                        queue: Some("mail".into()),
+                        ..Default::default()
+                    },
+                    None,
+                )
+                .await
+                .unwrap();
+            let target = AnonymousNotifiable::default()
+                .route(
+                    "mail",
+                    NotificationRoute::Mail(vec!["to@example.org".into()]),
+                )
+                .unwrap();
+            Notification::send(&[&target], &Notice(false))
+                .await
+                .unwrap();
+            Notification::send(&[&target], &Notice(true)).await.unwrap();
+            Queue::dispatch(
+                Payload::new("mail.send_queued_mailable", json!({})).unwrap(),
+                DispatchOptions {
+                    queue: Some("ordinary".into()),
+                    ..Default::default()
+                },
+                None,
+            )
+            .await
+            .unwrap();
+            Ok(Response::from("queued"))
+        })
+    }
+    fn fixture_config(
+        base: &Path,
+        env: &Environment,
+    ) -> Result<BTreeMap<String, Value>, ConfigError> {
+        let mut config = retry_config(base, env)?;
+        config.get_mut("app").unwrap()["key"] = json!("01234567890123456789012345678901");
+        config.insert(
+            "mail".into(),
+            json!({
+                "default":"array", "from":{"address":"from@example.org","name":"Horizon"},
+                "mailers":{"array":{"transport":"array"}}
+            }),
+        );
+        Ok(config)
+    }
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(fixture_config)
+            .with_providers(vec![Box::new(HorizonServiceProvider)])
+            .with_routing(Routing::default().api(|| Route::get("/classify", dispatch)))
+    })
+    .unwrap();
+    app.boot().await.unwrap();
+    let dispatcher = app.app().make::<Dispatcher>().await.unwrap();
+    dispatcher.register_broadcast::<Published>();
+    dispatcher.register(listeners).unwrap();
+    let manager = app.app().make::<QueueManager>().await.unwrap();
+    SendQueuedNotifications::register_middleware(&manager, "audit", vec![]).unwrap();
+    app.app()
+        .make::<openrust::database::DatabaseManager>()
+        .await
+        .unwrap()
+        .connection(None)
+        .unwrap()
+        .get_schema_builder()
+        .create("failed_jobs", |table| {
+            table.id();
+            table.string("uuid", None).unique();
+            table.text("connection");
+            table.text("queue");
+            table.long_text("payload");
+            table.long_text("exception");
+            table.timestamp("failed_at", 0);
+        })
+        .await
+        .unwrap();
+    app.get("/api/classify").await.unwrap().assert_ok();
+
+    let transport = manager.connection(Some("redis")).unwrap();
+    let repository = app.app().make::<Repository>().await.unwrap();
+    let jobs = repository.jobs();
+    for (queue, kind, label) in [
+        ("broadcasts", JobType::Broadcast, "broadcast"),
+        ("mail", JobType::Mail, "mail"),
+        ("notices", JobType::Notification, "notification"),
+        ("encrypted-notices", JobType::Notification, "notification"),
+        ("ordinary", JobType::Job, "job"),
+    ] {
+        let mut job = transport.pop_now(Some(queue)).await.unwrap().unwrap();
+        assert_eq!(job.payload().job_type(), kind);
+        assert_eq!(
+            JobPayload::from_payload(job.payload())
+                .unwrap()
+                .unwrap()
+                .job_type(),
+            kind
+        );
+        let details = jobs.find(job.get_job_id()).await.unwrap().unwrap();
+        assert_eq!(details.payload["redis_metadata"]["horizon"]["type"], label);
+        if queue == "encrypted-notices" {
+            assert!(job.payload().data()["encrypted_delivery"].is_string());
+            assert_eq!(
+                job.payload().name(),
+                "notifications.send_queued_notifications.audit"
+            );
+        }
+        if queue == "mail" {
+            let mut old = details.payload;
+            old.as_object_mut().unwrap().remove("job_type");
+            old["redis_metadata"]["horizon"]
+                .as_object_mut()
+                .unwrap()
+                .remove("type");
+            let old: Payload = serde_json::from_value(old).unwrap();
+            assert_eq!(old.job_type(), JobType::Job);
+            assert_eq!(
+                JobPayload::from_payload(&old).unwrap().unwrap().job_type(),
+                JobType::Job
+            );
+        }
+        job.delete().await.unwrap();
+    }
+    app.artisan([
+        "horizon:work",
+        "redis",
+        "--queue=events",
+        "--once",
+        "--tries=1",
+        "--force",
+        "--memory=1024",
+    ])
+    .await
+    .assert_successful();
+    let failed = jobs.get_failed(None).await.unwrap();
+    assert_eq!(failed.len(), 1);
+    assert_eq!(
+        failed[0].payload["redis_metadata"]["horizon"]["type"],
+        "event"
+    );
+    let original = &failed[0].record.id;
+    app.artisan(["horizon:retry", original])
+        .await
+        .assert_successful();
+    let retried = transport.pop_now(Some("events")).await.unwrap().unwrap();
+    assert_eq!(retried.payload().job_type(), JobType::Event);
+    let metadata = JobPayload::from_payload(retried.payload())
+        .unwrap()
+        .unwrap();
+    assert_eq!(metadata.job_type(), JobType::Job);
+    assert_eq!(metadata.retry_of(), Some(original.as_str()));
+}
+
+#[tokio::test]
+#[ignore = "requires dedicated Redis 8 acceptance wrapper"]
 async fn redis_public_failure_follows_confirmation_and_worker_failed_callback() {
     use openrust::{
         contracts::{
