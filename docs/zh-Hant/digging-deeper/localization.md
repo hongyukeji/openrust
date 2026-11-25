@@ -304,6 +304,26 @@ pub fn register_translations(directory: PathBuf) -> TranslationResult<()> {
 }
 ```
 
+#### 執行期 JSON 譯文 {#runtime-json-messages}
+
+`Lang::add_json_lines` 向目前應用程式本地化服務加入 JSON 原句譯文。先載入該語言既有的 JSON 目錄，再取代同名鍵並保留其他項目；完整句子的標點與參數按字面保留。這個 OpenRust 執行期輔助入口適用於編譯內建的預設譯文或明確覆寫，分組路徑繼續使用 `add_lines`。應用程式可以在一般 `lang/<語言>.json` 中覆寫原生通行金鑰錯誤原句，使用者套件只補上缺少的預設譯文。
+
+```rust
+use openrust::{support::facades::Lang, localization::{Line, TranslationResult}};
+
+pub fn register_json_messages() -> TranslationResult<()> {
+    Lang::add_json_lines(
+        [("Unable to use :name.".into(), Line::Text("无法使用 :name。".into()))],
+        "zh-Hans",
+    )?;
+    assert_eq!(
+        Lang::get("Unable to use :name.", &[("name".into(), "Passkey".into())].into(), Some("zh-Hans"))?,
+        "无法使用 Passkey。",
+    );
+    Ok(())
+}
+```
+
 ### 從自訂來源載入分組 {#loading-custom-translation-sources}
 
 在應用程式的非同步入口向 `Lang::load_from` 傳入 `Loader`。每個資源指定語言、分組和選用的命名空間。框架一次替換這批分組。讀取失敗或其中一個分組在載入期間被執行期更新時，保留目前的目錄。後續翻譯查詢仍為同步呼叫。

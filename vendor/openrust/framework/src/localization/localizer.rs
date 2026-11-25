@@ -317,6 +317,36 @@ impl Localizer {
         Ok(())
     }
 
+    /// 合并运行时JSON译文；完整句子按字面键处理，保留同语言的其他文件译文。
+    pub fn add_json_lines(
+        &self,
+        lines: impl IntoIterator<Item = (String, Line)>,
+        locale: &str,
+    ) -> TranslationResult<()> {
+        let locale = canonical_locale(locale)?;
+        let lines: Lines = lines.into_iter().collect();
+        let key = CatalogKey {
+            locale,
+            group: "*".into(),
+            namespace: Some("*".into()),
+        };
+        let sources = self.default_catalog.lock().unwrap().clone();
+        let inherits_file_on_release = sources.contains_key(&key);
+        if !inherits_file_on_release {
+            self.catalog(&sources, &key.locale, &key.group, key.namespace.as_deref())?;
+        }
+        let mut loaded = self.loaded.lock().unwrap();
+        let catalog = loaded.entry(key).or_insert_with(|| Catalog {
+            inherits_file_on_release,
+            ..Catalog::default()
+        });
+        for (item, line) in lines {
+            Arc::make_mut(&mut catalog.lines).insert(item.clone(), line.clone());
+            Arc::make_mut(catalog.runtime.get_or_insert_with(Arc::default)).insert(item, line);
+        }
+        Ok(())
+    }
+
     pub fn locale(&self) -> String {
         ACTIVE_LOCALES
             .try_with(|locales| locales.borrow().get(&self.identity()).cloned())

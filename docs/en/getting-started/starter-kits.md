@@ -544,3 +544,79 @@ Install the full user kit together with the optional passkeys extension: `./arti
 The account page links to `/user/passkeys`. Confirm your identity, enter a device name and register a passkey. The login and confirmation pages offer a passkey button. A passkey login still requires TOTP or a recovery code when two-factor authentication is enabled. Enrollment and deletion use the same user transaction and recent confirmation policy as other sensitive account changes. Revoking the passkey that confirmed the session invalidates that confirmation on the next sensitive request. Passwordless accounts must confirm with a bound passkey or safely establish a local password through the email reset flow; the UI does not skip confirmation.
 
 The bundled client uses the native `/user/passkeys/options`, `/user/passkeys`, `/passkeys/login/options`, `/passkeys/login`, `/passkeys/confirm/options` and `/passkeys/confirm` routes, with CSRF-protected session requests. Its `options` and `redirect` fields keep the client protocol; these routes are not Sanctum Bearer Token endpoints. Application JSON APIs continue to use the user-kit response envelope. Keep the public origin stable across nodes and share the configured session and atomic challenge cache. Application views remain editable; repeated installation preserves customized files unless explicitly forced.
+
+## Passkeys for Token Clients {#user-passkey-api}
+
+Install `./artisan init --starter-kit=api --extensions=api,fortify,passkeys` for an API-only application, or use the full preset. Set `USER_PASSKEYS=true`, a valid public `APP_URL` and relying party settings, then migrate. Keep a non-empty API prefix when enabling passkeys, because the native session routes reserve `/user/passkeys`. `/api/admin` is supported through `API_PREFIX`. The client and its NOTICE are published for both presets; `vendor:publish --tag=user-kit-passkeys-client` is also available. Repeat installation keeps edits; explicit `--force` replaces selected resources.
+
+The routes below follow the API prefix and return the regular ApiResponse envelope. Enrollment and deletion require `account:update` and a recent `factors` proof; listing requires `account:read`. Confirmation binds its result to the current credential and requested purpose. Options and submissions use an opaque, expiring, single-use `challenge` handle; full server state stays in the existing challenge store. The credential ID, public key and JSON proof metadata never become private authenticator keys. Do not put credentials or challenges in URLs.
+
+| Method | Path | Success |
+|---|---|---|
+| POST | `/auth/passkeys/options` | 200 |
+| POST | `/auth/passkeys` | 201 / 200 |
+| GET | `/user/passkeys` | 200 |
+| POST | `/user/passkeys/options` | 200 |
+| POST | `/user/passkeys` | 201 |
+| DELETE | `/user/passkeys/{passkey}` | 204 |
+| POST | `/auth/passkeys/confirm/options` | 200 |
+| POST | `/auth/passkeys/confirm` | 201 |
+
+This example targets a Token API without SPA session authentication. If you explicitly enabled `stateful_api` and the request origin matches the configured Sanctum frontend domains, use the normal SPA cookie and CSRF flow; omitting cookies does not bypass that policy.
+
+
+```js
+import { startRegistration, startAuthentication } from '/vendor/user-starter/passkeys.js';
+
+const prefix = '/api';
+async function api(method, path, body, token) {
+    const response = await fetch(prefix + path, {
+        method,
+        credentials: 'omit',
+        headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            'Accept-Language': document.documentElement.lang || 'zh-Hans',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    if (response.status === 204) return;
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.message);
+    return result.data;
+}
+
+export async function addPasskey(token, password, name) {
+    const proof = await api('POST', '/auth/confirm', { purpose: 'factors', password }, token);
+    const stage = await api('POST', '/user/passkeys/options', { proof: proof.proof }, token);
+    const credential = await startRegistration({ optionsJSON: stage.options });
+    return api('POST', '/user/passkeys', { challenge: stage.challenge, credential, name }, token);
+}
+
+export async function signInWithPasskey(deviceName) {
+    const stage = await api('POST', '/auth/passkeys/options', {
+        device_name: deviceName,
+        abilities: ['account:read', 'account:update'],
+    });
+    const credential = await startAuthentication({ optionsJSON: stage.options });
+    return api('POST', '/auth/passkeys', { challenge: stage.challenge, credential });
+}
+
+export async function confirmWithPasskey(token, purpose) {
+    const stage = await api('POST', '/auth/passkeys/confirm/options', { purpose }, token);
+    const credential = await startAuthentication({ optionsJSON: stage.options });
+    return api('POST', '/auth/passkeys/confirm', { challenge: stage.challenge, credential }, token);
+}
+
+export async function removePasskey(token, id) {
+    const proof = await confirmWithPasskey(token, 'factors');
+    return api('DELETE', `/user/passkeys/${encodeURIComponent(id)}`, { proof: proof.proof }, token);
+}
+```
+
+Bind these functions to user actions. The local bundle exports the fixed SimpleWebAuthn ceremony helpers as well as the native `Passkeys` SDK; do not pass the API envelope to the session-only SDK methods. If login returns a second-factor `challenge`, submit it with a TOTP `code` or `recovery_code` to `/auth/token/challenge`. No personal token is issued before that step succeeds. Revoking a key prevents a pending login or recent proof based on that key from completing.
+
+The server retains the initial device name and requested abilities, validates them against current policy at issuance, and ignores attempts to widen them in the submission. Challenges expire at the configured ceremony timeout, capped at five minutes. An enrollment stage also cannot outlive the recent proof that started it. `user.limiters.passkeys` can select a named limiter; the kit defaults to ten requests per minute with a dedicated key prefix, and an explicit empty string or `false` disables this limiter. A custom API limiter must work without a browser Session; the native `fortify.limiters.passkeys` policy remains dedicated to web ceremonies.
+
+Normal application `lang/<locale>.json` files can override native error sentences. Compiled English, Simplified Chinese and Traditional Chinese defaults only fill missing keys. Hardware, biometrics, cloud synchronization, production HTTPS and real identity providers require their own deployment acceptance.

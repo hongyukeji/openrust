@@ -450,4 +450,4 @@ var _ = class extends Error {
 	optionsRoute: e.routes?.options ?? t.options,
 	submitRoute: e.routes?.submit ?? t.submit
 });
-export { S as InvalidDomainError, v as NotSupportedError, _ as PasskeyError, b as PasskeyExistsError, z as Passkeys, x as ServerError, C as UnexpectedResponseError, y as UserCancelledError, R as defaultRoutes };
+export { S as InvalidDomainError, v as NotSupportedError, _ as PasskeyError, b as PasskeyExistsError, z as Passkeys, x as ServerError, C as UnexpectedResponseError, y as UserCancelledError, R as defaultRoutes, g as startAuthentication, d as startRegistration };

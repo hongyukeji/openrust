@@ -5313,3 +5313,11 @@ mod two_factor_management;
 #[cfg(feature = "sanctum")]
 #[path = "starter_ui/passkeys.rs"]
 mod passkey_management;
+
+#[cfg(feature = "sanctum")]
+#[path = "starter_ui/passkey_api.rs"]
+mod passkey_api;
+
+#[cfg(feature = "sanctum")]
+#[path = "../../passkeys/tests/support/authenticator.rs"]
+mod passkey_authenticator;

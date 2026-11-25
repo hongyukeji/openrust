@@ -146,6 +146,14 @@ impl Lang {
         Self::get_facade_root()?.add_lines(lines, locale, namespace)
     }
 
+    /// JSON原句保留句点等字面字符，不按分组路径展开。
+    pub fn add_json_lines(
+        lines: impl IntoIterator<Item = (String, Line)>,
+        locale: &str,
+    ) -> TranslationResult<()> {
+        Self::get_facade_root()?.add_json_lines(lines, locale)
+    }
+
     pub fn get_locale() -> TranslationResult<String> {
         Ok(Self::get_facade_root()?.locale())
     }

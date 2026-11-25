@@ -1,4 +1,5 @@
 //! 将原生通行密钥动作接入套件共同用户锁及近期身份确认。
+mod api;
 use super::{confirmation, credentials, passkey_confirmation::CredentialProof, web};
 use crate::passkeys::{self, AuthenticationOptions, PasskeyRecord, Passkeys, RegistrationOptions};
 use crate::{
@@ -259,6 +260,7 @@ pub(super) fn register<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
         })?;
     use openrust::support::ServiceProvider as _;
     super::StarterKitServiceProvider.load_routes_from(app, routes::<M>)?;
+    super::StarterKitServiceProvider.load_routes_from(app, api::routes::<M>)?;
     Ok(())
 }
 fn routes<M: HasApiTokens + TwoFactorAuthenticatable + Clone>()
@@ -305,10 +307,15 @@ fn script(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
             )
         };
         let _ = request;
-        Ok(response.header(
-            "content-type".parse().expect("静态头名称"),
-            "text/javascript; charset=utf-8".parse().expect("静态头值"),
-        ))
+        Ok(response
+            .header(
+                "content-type".parse().expect("静态头名称"),
+                "text/javascript; charset=utf-8".parse().expect("静态头值"),
+            )
+            .header(
+                "cache-control".parse().expect("静态头名称"),
+                "no-cache".parse().expect("静态头值"),
+            ))
     })
 }
 fn page<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(

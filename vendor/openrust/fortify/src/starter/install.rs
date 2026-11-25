@@ -64,14 +64,6 @@ pub(crate) fn register(app: &Application) -> ProviderResult {
                 include_bytes!("../../stubs/starter/views/passkeys.blade.html"),
             ),
             (
-                "public/vendor/user-starter/passkeys.NOTICE",
-                include_bytes!("../../stubs/starter/passkeys.NOTICE"),
-            ),
-            (
-                "public/vendor/user-starter/passkeys.js",
-                include_bytes!("../../stubs/starter/passkeys.js"),
-            ),
-            (
                 "resources/views/user/two-factor.blade.html",
                 include_bytes!("../../stubs/starter/views/two-factor.blade.html"),
             ),
@@ -130,6 +122,20 @@ pub(crate) fn register(app: &Application) -> ProviderResult {
         )],
         "user-kit-support",
     )?;
+    provider.publishes(
+        app,
+        &[
+            (
+                "public/vendor/user-starter/passkeys.NOTICE",
+                include_bytes!("../../stubs/starter/passkeys.NOTICE"),
+            ),
+            (
+                "public/vendor/user-starter/passkeys.js",
+                include_bytes!("../../stubs/starter/passkeys.js"),
+            ),
+        ],
+        "user-kit-passkeys-client",
+    )?;
     provider.publishes_migrations(app, &[
         ("database/migrations/0001_01_01_000020_add_credential_version_to_users_table.rs", include_bytes!("../../stubs/starter/migrations/user-credentials.rs")),
         ("database/migrations/0001_01_01_000021_add_credential_stamp_to_personal_access_tokens_table.rs", include_bytes!("../../stubs/starter/migrations/token-credentials.rs")),
@@ -157,6 +163,29 @@ fn initialize<'a>(
         let root = installation.root();
         let full = options.extensions.iter().any(|name| name == "user-web");
         let configure = options.force || !root.join("config/user.rs").exists();
+        if full || options.extensions.iter().any(|name| name == "passkeys") {
+            let app = installation.application();
+            let config = app
+                .make::<dyn openrust::contracts::config::Repository>()
+                .await
+                .map_err(|error| ConsoleError::new(format!("无法读取API前缀配置：{error}")))?;
+            let environment = app
+                .make::<openrust::config::Environment>()
+                .await
+                .map_err(|error| ConsoleError::new(format!("无法读取应用环境：{error}")))?;
+            let configured = config.get("api.prefix");
+            let prefix = configured
+                .as_ref()
+                .and_then(serde_json::Value::as_str)
+                .or_else(|| environment.get("API_PREFIX"))
+                .unwrap_or("api");
+            if prefix.trim_matches('/').is_empty() {
+                return Err(ConsoleError::new(
+                    "网页或通行密钥用户套件需要非空API前缀，避免与原生账户路由冲突",
+                ));
+            }
+        }
+
         installation.validate_optional_provider(
             "crate::app::providers::user_service_provider::UserServiceProvider",
             "fortify",
@@ -411,6 +440,11 @@ fn initialize<'a>(
         installation
             .publish("user-kit-migrations", false, output)
             .await?;
+        if full || options.extensions.iter().any(|name| name == "passkeys") {
+            installation
+                .publish("user-kit-passkeys-client", options.force, output)
+                .await?;
+        }
         if full {
             installation
                 .publish("user-kit-web-views", options.force, output)

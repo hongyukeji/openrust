@@ -1,8 +1,8 @@
 use super::*;
 use openrust::support::facades::{App, Facade as _};
 use std::sync::atomic::{AtomicI64, Ordering};
-struct Provider {
-    engine: openrust_fortify::TwoFactorAuthenticationProvider,
+pub(super) struct Provider {
+    pub(super) engine: openrust_fortify::TwoFactorAuthenticationProvider,
 }
 impl openrust_fortify::contracts::TwoFactorAuthenticationProvider for Provider {
     fn generate_secret_key(&self, _: usize) -> openrust_fortify::FortifyResult<String> {

@@ -640,7 +640,7 @@ A01-04仍未闭合：后续继续Passkeys、第三方登录及无密码近期确
 
 证据统一保存在target/tmp/user-starter/。passkey-management-regression-final.log最终SQLite3.54.1套件94项通过，包含真实ES256注册／登录／确认／撤销、错误来源和挑战重放、凭据撤销后重新确认、无本地密码确认和设置密码、密码轮换后拒绝旧Cookie第二因素，以及合法第二因素完成后没有多发PAT。签名测试仅在内存生成私钥。passkey-management-native-regression.log的原生契约4项及事务生命周期1项通过，保留48组固定PHP向量。
 
-passkey-management-runtime-third.log记录真实Artisan完整预设首次及重复安装、自动重建和独立MySQL8.4.13迁移成功。passkey-management-app-browser.json记录三语／桌面和手机6组实际Chrome流程：本地官方SDK、CDP虚拟驻留凭据、注册、双因素恢复码登录、通行密钥近期确认及撤销后确认失效；没有把虚拟认证器计为实体设备、生物识别或云同步验收。passkey-management-published-assets.json核对真实发布的JS与NOTICE和内置文件逐字节一致。
+passkey-management-runtime-third.log记录真实Artisan完整预设首次及重复安装、自动重建和独立MySQL8.4.13迁移成功。passkey-management-app-browser.json当时记录三语／桌面和手机6组实际Chrome流程：本地官方SDK、CDP虚拟驻留凭据、注册、双因素恢复码登录、通行密钥近期确认及撤销后确认失效；没有把虚拟认证器计为实体设备、生物识别或云同步验收。passkey-management-published-assets.json核对真实发布的JS与NOTICE和内置文件逐字节一致。
 
 三语starter-kits正文增加user-passkey-pages章节；passkey-management-docs-first.log文档构建通过，passkey-management-docs-browser-first.log覆盖两种部署基路径、三语和桌面／手机12组正文DOM验收。新增正文只说明已交付的会话路由，不把尚未接通的无会话接口写成可用。
 
@@ -651,3 +651,46 @@ passkey-management-runtime-third.log记录真实Artisan完整预设首次及重�
 最终补验：passkey-management-clippy-final.log与passkey-management-native-clippy-final.log分别通过Fortify/Sanctum、Passkeys/Sanctum全部目标严格Clippy；passkey-management-install-final.log通过安装14项和原生2FA路由6项。passkey-management-mysql-first.log和passkey-management-pgsql-first.log的最终覆盖均为新增通行密钥／无密码两项及Cookie第二因素两项，分别在独立MySQL8.4.13、PostgreSQL18.7和database Session中全部通过。passkey-management-final-tests.log退出0，包含范围rustfmt检查；没有把先前中断或错误目标命令计入。
 
 最终清理仅直接删除本批文档dist，逻辑大小78,452,952字节；当次可用空间增加81,645,568字节，清理后可用53,311,385,600字节，系统差额可能包含并行进程，不全部归因本批。正常Cargo增量缓存保留，详见passkey-management-cleanup.json。独立清单passkey-management-files.json，源码摘要passkey-management-source-sha.json；除Cargo.lock仅取本包两项既有测试依赖外，清单源码与实际冻结验收源码逐字节一致。
+
+## 无会话通行密钥 API 与运行时 JSON 译文（2026-11-26）
+
+该单元在套件 API 前缀下增加八个端点：POST auth/passkeys/options、POST auth/passkeys、GET user/passkeys、POST user/passkeys/options、POST user/passkeys、DELETE user/passkeys/{passkey}、POST auth/passkeys/confirm/options、POST auth/passkeys/confirm。固定 Passkeys 0.3.0 的网页控制器与官方客户端协议保持不变；无会话端点属于套件扩展，不声称它们是该版本原生路由。客户端返回 ApiResponse，删除成功是204空正文。
+
+复用原生 WebAuthn Action、模型事件及共同用户事务锁。仪式状态只存既有 ChallengeStore，客户端只持有公开 options 和一次性 challenge；期限取原生 timeout，上限五分钟，注册还不能超过起始近期证明。管理动作复核真实认证令牌、能力、用户安全快照及确认所用密钥，事件后再次读取并检查。初始设备名称和请求能力由服务器保存，提交不能扩大授权。无本地密码登录仍须完成已启用第二因素；原生允许登录回调保留，撤销密钥后不能完成旧的第二因素挑战或使用旧确认。
+
+应用生成的原生网页 passkeys 限流器在缺少 credential.id 时读取 Session，不能用于无会话端点。真实双节点验收发现该混用导致500，本轮改为独立 user.limiters.passkeys，默认10,1,user-passkeys；原生 fortify.limiters.passkeys 不变。回归专门保留一个依赖 Session 的网页限流器，验证 API 不再调用它。应用可设置原生命名／数字策略，空字符串或false关闭；自定义 API 策略须支持无 Session。
+
+API-only安装同时发布固定官方客户端及NOTICE，导出 startRegistration、startAuthentication 供用户自己的界面调用；不发布账户管理网页。重复安装保护已编辑资源，--force才替换。完整或启用Passkeys的预设要求非空API前缀，避免与原生网页账户路由冲突；普通未启用Passkeys的API-only仍允许空前缀。安装预检在修改用户套件文件前拒绝不合法前缀。
+
+新增 Localizer::add_json_lines 与 Lang::add_json_lines，按字面键合并完整JSON原句，先加载并保留其他文件译文；现有 add_lines 分组／点路径规则不变。固定上游 Translator.php 的 addLines 使用 Arr::set，不能把句点行为错误归为上游缺陷。新入口是Rust编译内置JSON默认值的明确补充，来源核对保存在target/tmp/user-starter/reference/Translator-1449bf24.php，对照[固定源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Translation/Translator.php)。套件为八条原生通行密钥错误补齐英／简／繁编译默认译文，仅填缺项，正常应用lang/<locale>.json仍可覆盖。
+
+### 实际验收
+
+- passkey-api-regression-delivery.log：SQLite3.54.1回归138项通过，另4项外部环境用例保持ignored，不计通过。覆盖安装16、配置7、响应10、UI／客户端97、原生第二因素路由6及挑战／凭据各1。
+- passkey-api-mysql-delivery.log和passkey-api-pgsql-delivery.log：三个新增API用例分别在独立MySQL8.4.13、PostgreSQL18.7及database Session配置通过。包括真实ES256、无本地密码、能力限制、跨令牌／用途拒绝、到期、重放及撤销后不能完成旧第二因素。
+- passkey-api-json-delivery.log：新增字面JSON2项及既有复数选择2项通过；实际FileLoader和Lang门面验证完整标点键、参数替换、保留已有内容、非法locale拒绝及原分组入口不变。
+- passkey-api-runtime-fifth.log及当时的passkey-api-app-browser.json：真实Artisan API-only首次／重复安装、自动重建和迁移通过；两个应用实例共享MySQL8.4.13和Redis8.10.3，Chrome中英／简／繁及桌面／手机6组，每组13个API请求交替转发给两个节点。实际运行三语教程中的函数，完成注册、绑定、登录、近期确认和删除；请求没有Cookie或CSRF标头，密钥私钥没有写入日志。使用CDP虚拟认证器，不计真实硬件或生物识别验收。匿名默认限流跨批次生效，最后一组等待自然进入下一窗口，没有放宽产品默认限制。
+
+- passkey-api-clippy-delivery.log：Fortify全部targets、Sanctum特性严格Clippy通过；passkey-api-core-clippy-delivery.log：框架lib及两组受影响翻译测试在Sanctum特性严格Clippy通过。范围rustfmt检查通过。三语JavaScript示例与实际Chrome消费源码逐项一致。
+- passkey-api-web-client-regression.log：更新后的15,263字节本地SDK继续通过三语／桌面和手机6组完整网页流程，包含双因素恢复码登录、近期确认及撤销后确认失效；真实Artisan完整预设的首次／重复安装和MySQL迁移通过。与API-only六组分开记录。
+
+- passkey-api-docs-head-build.log和passkey-api-docs-head-browser.log：最终三语正文构建和两种部署前缀下24组桌面／手机DOM检查通过；本次新增user-passkey-api及runtime-json-messages章节。passkey-api-source-sha.json记录本批输入，passkey-api-published-assets.json核对JS／NOTICE字节。最终完整A01仍须基于当时已提交HEAD重新组合，不将隔离源码的局部检查冒充整个当前工作区已通过。
+
+首次三轮本地运行暴露网页限流器混用，保留失败日志；临时应用诊断已去除。第四轮触32GB磁盘停线后安全中断，不计通过。守卫协调清理后恢复，用户套件守卫最后得到释放差值-7,733,248字节、可用118,247,784,448字节，说明大部分释放发生在另一个守卫的清理中，不重复归因本批。源码、验收日志、下载及保留的数据不受影响。
+
+交付清理passkey-api-cleanup.json：持本批Cargo锁，直接删除已闲置的两份翻译测试可执行文件、文档dist和核定哈希的隔离应用发布JS／NOTICE，删除逻辑字节265,008,862、分配字节267,902,976，磁盘净增加273,936,384字节，清理后可用37,167,075,328字节。保留后续可复用的增量缓存、源码、证据、依赖下载、数据库和数据卷，未移入废纸篓。
+
+A01-04和整个A01仍不闭合：Socialite、S10最终自定义模型／驱动组合和观测脱敏继续实施。真实供应商账号、生产HTTPS和实体认证器属于另列的外部验收；本轮没有推送。
+
+### 已提交本地化重构后的最终组合
+
+提交前已合入主线的07b4ed8d3重构了语言目录、Localizer命名和默认词条源。原本按旧服务运行的证据保留为历史，最终采用归档基线21a5bcd7981b4b3e81553071fe7cf25aff07f5a4（含该重构）加本批明确清单：passkey-api-combination-base-verification.json核对3036份其他Rust源码／清单与该提交blob完全一致，未引入其他代理的未提交代码。旧隔离源码和应用备份分别保存在passkey-api-before-localization及browser-devices-app-backup-before-localization，没有覆盖或删除。
+
+- 公开入口使用localization::Localizer和Lang；消息注册转为同一Localizer实例。add_json_lines按新默认词条源的运行时覆盖／释放机制接线，先在锁外读取输入迭代器。新增配置词条源刷新及移除后的实际读取回归。
+- passkey-api-localization-json-delivery.log：复数选择2、既有默认词条源2及本批字面JSON3，共7项通过。passkey-api-localization-regression-delivery.log：138项套件回归通过、4项既有外部项忽略；对应mysql-delivery和pgsql-delivery各3项通过。passkey-api-localization-clippy-delivery.log：Fortify全部targets严格Clippy通过；passkey-api-localization-core-lib-clippy.log：框架lib严格Clippy通过。范围fmt通过。被磁盘守卫中断的框架lib加测试Clippy不算通过，后续只补未完成lib检查，已通过的普通测试和Fortify检查没有重新计数。
+- passkey-api-localization-runtime.log及passkey-management-localization-runtime.log：真实Artisan API-only与完整预设首次／重复安装、自动重建、MySQL迁移通过；新组合分别在Chrome以三语桌面完成3组API双节点／共享MySQL和Redis流程及3组网页／恢复码流程。独立结果保存为passkey-api-localization-browser.json与passkey-management-localization-browser.json。运行器原通用browser JSON是滚动输出，旧六组手机／桌面结果以当轮已保留日志为准；本次客户端和全部模板的字节未变（unchanged-ui.json记录实际数量与SHA），因此复用此前手机布局证据，不将桌面重跑冒充手机实机。
+- passkey-api-localization-docs-build.log与docs-browser.log：最终新命名下三语文档构建及24组两种挂载前缀／桌面手机正文通过。三语JS示例仍与实际运行源码相同。localization-published-assets.json核对当前实际发布JS／NOTICE与内置资源完全一致。
+- 组合期间再次触32GB，RustRover的本项目cargo check曾阻塞持锁清理；仅安全中断该次检查，没有关闭IDE。框架lib加测试的检查被守卫停止，随后其他守卫完成项目编译产物回收，未将其释放重复归因本单元。源码、日志、依赖下载和数据库保留。
+- passkey-api-localization-cleanup.json：再次持本批Cargo锁直接删除闲置文档dist及核定哈希的隔离发布资源，删除逻辑80,853,811字节、分配83,644,416字节，磁盘净增加83,980,288字节，清后可用38,104,809,472字节；保留下一单元需要的正常增量缓存与全部验收记录。
+
+本批只交付上述API／本地化接线，不闭合A01；Socialite和S10继续按主计划执行。新起草的socialite/identity.rs尚未接线／验收，不纳入本次提交。

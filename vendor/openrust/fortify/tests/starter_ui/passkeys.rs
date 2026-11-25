@@ -1,7 +1,5 @@
+use super::passkey_authenticator::Authenticator;
 use super::*;
-#[path = "../../../passkeys/tests/support/authenticator.rs"]
-mod authenticator;
-use authenticator::Authenticator;
 
 async fn server() -> Server {
     start_security_catalog_mail("full", false, false, "api", false, Some(json!({"default":"array","mailers":{"array":{"transport":"array"}},"from":{"address":"admin@example.test","name":"验收"},"__user_passkeys":true}))).await

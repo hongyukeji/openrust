@@ -544,3 +544,79 @@ openrust_fortify::starter::deletion::delete_users_using::<crate::app::models::Us
 账户页提供 `/user/passkeys` 入口。确认身份后填写设备名称并注册通行密钥，登录页和身份确认页也提供通行密钥按钮。启用双因素认证时，通行密钥登录仍需完成 TOTP 或恢复码验证。注册和撤销共用用户事务及敏感操作的近期确认策略；撤销本次确认所用的通行密钥后，下次敏感请求要求重新确认。无本地密码账户必须通过已绑定的通行密钥确认，或通过邮件重置流程安全设置本地密码，页面不会跳过确认。
 
 本地客户端使用原生 `/user/passkeys/options`、`/user/passkeys`、`/passkeys/login/options`、`/passkeys/login`、`/passkeys/confirm/options` 和 `/passkeys/confirm` 路由，发送受 CSRF 保护的会话请求。`options` 和 `redirect` 字段保留客户端协议，这些路由不是 Sanctum Bearer Token 接口；应用业务 JSON API 继续使用用户套件响应封装。多节点需保持同一公开来源并共享配置的会话和原子挑战缓存。应用视图可以修改，重复安装默认保留定制文件，只有显式强制安装才覆盖。
+
+## 无会话客户端的通行密钥 {#user-passkey-api}
+
+API-only 应用安装 `./artisan init --starter-kit=api --extensions=api,fortify,passkeys`，也可以选择完整预设。设置 `USER_PASSKEYS=true`、有效的公开 `APP_URL` 和依赖方配置后执行迁移。启用通行密钥时保留非空 API 前缀，原生会话路由已占用 `/user/passkeys`；可通过 `API_PREFIX` 使用 `/api/admin`。两种预设都会发布客户端和 NOTICE，也可执行 `vendor:publish --tag=user-kit-passkeys-client`；重复安装保留定制文件，显式 `--force` 覆盖所选资源。
+
+以下路径跟随 API 前缀，使用常规 ApiResponse 封装。注册和删除要求 `account:update` 及近期 `factors` 证明，列表要求 `account:read`。确认结果绑定当前认证凭据与指定用途。获取选项和提交结果通过不透明、限时、单次使用的 `challenge` 关联，完整服务器状态保留在既有挑战仓储中；凭据 ID、公钥和 JSON 证明元数据均不是认证器私钥。凭据和挑战不能放入 URL。
+
+| Method | Path | Success |
+|---|---|---|
+| POST | `/auth/passkeys/options` | 200 |
+| POST | `/auth/passkeys` | 201 / 200 |
+| GET | `/user/passkeys` | 200 |
+| POST | `/user/passkeys/options` | 200 |
+| POST | `/user/passkeys` | 201 |
+| DELETE | `/user/passkeys/{passkey}` | 204 |
+| POST | `/auth/passkeys/confirm/options` | 200 |
+| POST | `/auth/passkeys/confirm` | 201 |
+
+此示例用于未启用 SPA 会话认证的 Token API。若显式启用了 `stateful_api`，且请求来源匹配 Sanctum 前端域名，应走正常的 SPA Cookie 和 CSRF 流程；省略 Cookie 不会绕过该策略。
+
+
+```js
+import { startRegistration, startAuthentication } from '/vendor/user-starter/passkeys.js';
+
+const prefix = '/api';
+async function api(method, path, body, token) {
+    const response = await fetch(prefix + path, {
+        method,
+        credentials: 'omit',
+        headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            'Accept-Language': document.documentElement.lang || 'zh-Hans',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    if (response.status === 204) return;
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.message);
+    return result.data;
+}
+
+export async function addPasskey(token, password, name) {
+    const proof = await api('POST', '/auth/confirm', { purpose: 'factors', password }, token);
+    const stage = await api('POST', '/user/passkeys/options', { proof: proof.proof }, token);
+    const credential = await startRegistration({ optionsJSON: stage.options });
+    return api('POST', '/user/passkeys', { challenge: stage.challenge, credential, name }, token);
+}
+
+export async function signInWithPasskey(deviceName) {
+    const stage = await api('POST', '/auth/passkeys/options', {
+        device_name: deviceName,
+        abilities: ['account:read', 'account:update'],
+    });
+    const credential = await startAuthentication({ optionsJSON: stage.options });
+    return api('POST', '/auth/passkeys', { challenge: stage.challenge, credential });
+}
+
+export async function confirmWithPasskey(token, purpose) {
+    const stage = await api('POST', '/auth/passkeys/confirm/options', { purpose }, token);
+    const credential = await startAuthentication({ optionsJSON: stage.options });
+    return api('POST', '/auth/passkeys/confirm', { challenge: stage.challenge, credential }, token);
+}
+
+export async function removePasskey(token, id) {
+    const proof = await confirmWithPasskey(token, 'factors');
+    return api('DELETE', `/user/passkeys/${encodeURIComponent(id)}`, { proof: proof.proof }, token);
+}
+```
+
+把这些函数绑定到用户操作。该本地包同时导出固定版 SimpleWebAuthn 仪式函数和原生 `Passkeys` SDK，不把业务 API 封装直接传给仅供会话使用的 SDK 方法。登录返回第二因素 `challenge` 时，将它与 TOTP `code` 或 `recovery_code` 提交到 `/auth/token/challenge`；第二因素成功前不签发个人令牌。撤销通行密钥后，依赖它的待完成登录及近期证明不能继续完成。
+
+服务端保留起始阶段选定的设备名称和请求能力，签发时按当前策略再校验，提交结果时不能扩大权限。挑战按配置的仪式超时到期，上限五分钟；注册阶段也不能超过起始近期证明的期限。`user.limiters.passkeys` 可选择命名限流器，套件缺省为每分钟十次并使用独立键前缀，显式空字符串或 `false` 关闭该限流器。 自定义 API 限流器也必须支持无浏览器 Session 的请求；原生 `fortify.limiters.passkeys` 策略继续用于网页仪式。
+
+应用可在常规 `lang/<语言>.json` 覆盖原生错误原句，编译内置的英文、简体中文、繁体中文只补缺键。实体设备、生物识别、云同步、生产 HTTPS 及真实身份供应商须单独完成部署验收。

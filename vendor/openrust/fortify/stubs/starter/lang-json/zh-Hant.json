@@ -1,0 +1,10 @@
+{
+  "Invalid credential format.": "通行金鑰憑證格式無效。",
+  "Unable to register passkey. Please try again.": "無法註冊通行金鑰，請重試。",
+  "Unable to register this passkey.": "無法註冊此通行金鑰。",
+  "Unable to verify passkey. Please try again.": "無法驗證通行金鑰，請重試。",
+  "Passkey not recognized. It may have been removed from your account.": "無法識別通行金鑰，它可能已從帳戶中移除。",
+  "Passkey registration session expired. Please try again.": "通行金鑰註冊工作階段已過期，請重試。",
+  "Passkey verification session expired. Please try again.": "通行金鑰驗證工作階段已過期，請重試。",
+  "Unable to sign in with this account.": "無法使用此帳戶登入。"
+}

@@ -31,6 +31,20 @@ pub async fn configure(app: &Application) -> ProviderResult {
         Some("api") => false,
         _ => return Err(invalid("user.profile", "full 或 api").into()),
     };
+    if let Some(prefix) = config.get("api.prefix") {
+        let prefix = prefix
+            .as_str()
+            .ok_or_else(|| invalid("api.prefix", "字符串"))?;
+        if (full || boolean(config.as_ref(), "user.passkeys", false)?)
+            && prefix.trim_matches('/').is_empty()
+        {
+            return Err(invalid(
+                "api.prefix",
+                "网页或通行密钥用户套件需要非空API前缀，避免与原生账户路由冲突",
+            )
+            .into());
+        }
+    }
     let choices = [
         (
             "registration",

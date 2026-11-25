@@ -304,6 +304,26 @@ pub fn register_translations(directory: PathBuf) -> TranslationResult<()> {
 }
 ```
 
+#### Runtime JSON Messages {#runtime-json-messages}
+
+`Lang::add_json_lines` adds literal JSON messages to the application localizer. It first loads the locale’s existing JSON catalog, replaces matching keys and keeps other entries. Full sentences retain punctuation and placeholders. Use this OpenRust runtime helper for compiled message defaults or explicit overrides; grouped keys continue to use `add_lines`. Applications can supply native passkey error translations in their normal `lang/<locale>.json` files. The user kit only fills missing defaults.
+
+```rust
+use openrust::{support::facades::Lang, localization::{Line, TranslationResult}};
+
+pub fn register_json_messages() -> TranslationResult<()> {
+    Lang::add_json_lines(
+        [("Unable to use :name.".into(), Line::Text("无法使用 :name。".into()))],
+        "zh-Hans",
+    )?;
+    assert_eq!(
+        Lang::get("Unable to use :name.", &[("name".into(), "Passkey".into())].into(), Some("zh-Hans"))?,
+        "无法使用 Passkey。",
+    );
+    Ok(())
+}
+```
+
 ### Loading Groups From a Custom Source {#loading-custom-translation-sources}
 
 Pass a `Loader` to `Lang::load_from` at an async application boundary. Each resource identifies one locale, group, and optional namespace. The returned lines replace the selected groups together. A loader error or a concurrent runtime write to one of those groups leaves the batch unpublished. Subsequent lookups stay synchronous.

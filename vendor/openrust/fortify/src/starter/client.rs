@@ -267,52 +267,82 @@ where
                 ))
             })?
             .clone();
-        let device = request
-            .input("device_name")
-            .await?
-            .and_then(|value| value.as_str().map(str::to_owned))
-            .unwrap_or_default();
-        let requested = request.input("abilities").await?;
-        let chosen = abilities(&user, &fortify, requested.as_ref())?;
-        let binding = security(&user, &fortify)?;
         limiter.clear(request).await?;
-        let has_factor = Features::new(fortify.config.clone())
-            .enabled(Features::two_factor_authentication())?
-            && user
-                .has_enabled_two_factor_authentication(&fortify)
-                .map_err(internal)?;
-        if has_factor {
-            let store = ChallengeStore::new(user.get_connection()?);
-            let challenge = store
-                .create(
-                    &Pending {
-                        user: user.get_auth_identifier(),
-                        owner: user.get_morph_class()?.into(),
-                        purpose: "login".into(),
-                        credential: credentials::stamp(&user)?,
-                        factor: binding,
-                        token: None,
-                        payload: json!({"device_name":device,"abilities":chosen}),
-                    },
-                    300,
-                )
-                .await?;
-            crate::actions::emit(
-                crate::events::TwoFactorAuthenticationChallenged {
+        complete_primary(request, &mut user, &fortify, None).await
+    })
+}
+
+/// 已验证主因素后继续统一的因素挑战和令牌签发；调用方负责完成真实密码或签名验证。
+pub(super) async fn complete_primary<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
+    request: &mut Request,
+    user: &mut M,
+    fortify: &Arc<Fortify>,
+    passkey: Option<super::passkey_confirmation::CredentialProof>,
+) -> Result<Response, HttpError> {
+    let device = request
+        .input("device_name")
+        .await?
+        .and_then(|value| value.as_str().map(str::to_owned))
+        .unwrap_or_default();
+    let requested = request.input("abilities").await?;
+    let chosen = abilities(
+        user,
+        fortify,
+        requested.as_ref().filter(|value| !value.is_null()),
+    )?;
+    let binding = security(user, fortify)?;
+
+    let has_factor = Features::new(fortify.config.clone())
+        .enabled(Features::two_factor_authentication())?
+        && user
+            .has_enabled_two_factor_authentication(fortify)
+            .map_err(internal)?;
+    if has_factor {
+        let store = ChallengeStore::new(user.get_connection()?);
+        let challenge = store
+            .create(
+                &Pending {
                     user: user.get_auth_identifier(),
+                    owner: user.get_morph_class()?.into(),
+                    purpose: "login".into(),
+                    credential: credentials::stamp(user)?,
+                    factor: binding,
+                    token: None,
+                    payload: json!({"device_name":device,"abilities":chosen,"passkey":passkey}),
                 },
-                &[&user],
+                300,
             )
             .await?;
-            let response=ApiResponse::success(json!({"challenge":challenge.key.as_str(),"methods":["totp","recovery_code"],"expires_at":jiff::Timestamp::from_second(challenge.expires_at).map_err(internal)?}))
-                .with_field("code","auth_challenge_required").with_message_key("user.challenge_required",Default::default()).into_response()?;
-            return Ok(no_store(response));
-        }
-        issue(
-            request, &mut user, &fortify, &device, &chosen, &binding, None,
+        crate::actions::emit(
+            crate::events::TwoFactorAuthenticationChallenged {
+                user: user.get_auth_identifier(),
+            },
+            &[user],
         )
-        .await
-    })
+        .await?;
+        let response=ApiResponse::success(json!({"challenge":challenge.key.as_str(),"methods":["totp","recovery_code"],"expires_at":jiff::Timestamp::from_second(challenge.expires_at).map_err(internal)?}))
+                .with_field("code","auth_challenge_required").with_message_key("user.challenge_required",Default::default()).into_response()?;
+        return Ok(no_store(response));
+    }
+    issue(
+        request,
+        user,
+        fortify,
+        &device,
+        &chosen,
+        Issuance {
+            binding,
+            deadline: None,
+            passkey,
+        },
+    )
+    .await
+}
+
+struct Issuance {
+    binding: String,
+    deadline: Option<i64>,
+    passkey: Option<super::passkey_confirmation::CredentialProof>,
 }
 
 async fn issue<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
@@ -321,8 +351,7 @@ async fn issue<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
     fortify: &Arc<Fortify>,
     device: &str,
     chosen: &[String],
-    binding: &str,
-    deadline: Option<i64>,
+    context: Issuance,
 ) -> Result<Response, HttpError> {
     let resource = UserResource::for_request(user, request).await?;
     let sanctum = App::make::<Sanctum>().await?;
@@ -330,7 +359,11 @@ async fn issue<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
     let borrowed = chosen.iter().map(String::as_str).collect::<Vec<_>>();
     let checked_fortify = fortify.clone();
     let checked_chosen = chosen.to_vec();
-    let binding = binding.to_owned();
+    let Issuance {
+        binding,
+        deadline,
+        passkey,
+    } = context;
     let token = credentials::issue_checked(
         user,
         &sanctum,
@@ -341,10 +374,11 @@ async fn issue<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
             abilities: &borrowed,
             expires_at: None,
         },
-        move |locked, _| {
+        move |locked, transaction| {
             let checked_fortify = checked_fortify.clone();
             let checked_chosen = checked_chosen.clone();
             let binding = binding.clone();
+            let passkey = passkey.clone();
             Box::pin(async move {
                 let fortify = checked_fortify.as_ref();
                 let chosen = checked_chosen;
@@ -361,6 +395,11 @@ async fn issue<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
                 abilities(locked, fortify, Some(&json!(chosen)))
                     .map_err(openrust::auth::AuthError::from)?;
                 if !same_binding(&security(locked, fortify)?, &binding) {
+                    return Err(HttpError::Unauthenticated.into());
+                }
+                if let Some(proof) = passkey
+                    && !proof.current(locked, fortify, Some(transaction)).await?
+                {
                     return Err(HttpError::Unauthenticated.into());
                 }
                 Ok(())
@@ -567,8 +606,18 @@ where
             &fortify,
             device,
             &chosen,
-            &pending.factor,
-            Some(deadline),
+            Issuance {
+                binding: pending.factor.clone(),
+                deadline: Some(deadline),
+                passkey: pending
+                    .payload
+                    .get("passkey")
+                    .filter(|v| !v.is_null())
+                    .cloned()
+                    .map(serde_json::from_value)
+                    .transpose()
+                    .map_err(internal)?,
+            },
         )
         .await?;
         limiter.clear(&key).await?;

@@ -749,3 +749,91 @@ async fn deletion_action_wiring_survives_first_repeat_and_forced_resource_instal
         );
     }
 }
+
+#[tokio::test]
+async fn api_passkeys_publish_local_client_without_management_views_and_preserve_edits() {
+    let root = Root::new();
+    let mut kernel = root.user_kernel();
+    let args = vec![
+        "init:resources".into(),
+        "--extensions=user-api,api,fortify,passkeys".into(),
+        "--no-interaction".into(),
+    ];
+    let mut output = Output::default();
+    assert_eq!(
+        kernel.handle(&args, &mut output).await,
+        0,
+        "{}",
+        output.stderr
+    );
+    let script = "public/vendor/user-starter/passkeys.js";
+    let original = root.read(script);
+    assert!(original.contains("startRegistration"));
+    assert!(original.contains("startAuthentication"));
+    assert!(
+        root.read("public/vendor/user-starter/passkeys.NOTICE")
+            .contains("Copyright (c) 2020 Matthew Miller")
+    );
+    assert!(
+        !root
+            .0
+            .join("resources/views/user/passkeys.blade.html")
+            .exists()
+    );
+    let edited = format!("// 应用定制\n{original}");
+    std::fs::write(root.0.join(script), &edited).unwrap();
+    let mut output = Output::default();
+    assert_eq!(
+        kernel.handle(&args, &mut output).await,
+        0,
+        "{}",
+        output.stderr
+    );
+    assert_eq!(root.read(script), edited);
+    let mut forced = args;
+    forced.push("--force".into());
+    let mut output = Output::default();
+    assert_eq!(
+        kernel.handle(&forced, &mut output).await,
+        0,
+        "{}",
+        output.stderr
+    );
+    assert_eq!(root.read(script), original);
+}
+#[tokio::test]
+async fn user_resource_preflight_rejects_colliding_prefix_before_user_files_are_written() {
+    use openrust::contracts::{
+        config::Repository, container::Container as _, foundation::Application as _,
+    };
+    let root = Root::new();
+    let mut kernel = root.user_kernel();
+    kernel.0.boot().await.unwrap();
+    let config = kernel
+        .0
+        .app()
+        .container()
+        .get::<dyn Repository>("config")
+        .unwrap();
+    config.set("api.prefix", serde_json::json!("")).unwrap();
+    let mut output = Output::default();
+    let result = kernel
+        .handle(
+            &[
+                "init:resources".into(),
+                "--extensions=user-web,api,fortify".into(),
+                "--no-interaction".into(),
+            ],
+            &mut output,
+        )
+        .await;
+    assert_ne!(result, 0);
+    assert!(output.stderr.contains("非空API前缀"), "{}", output.stderr);
+    assert!(!root.0.join("config/user.rs").exists());
+    assert!(
+        !root
+            .0
+            .join("app/providers/user_service_provider.rs")
+            .exists()
+    );
+}

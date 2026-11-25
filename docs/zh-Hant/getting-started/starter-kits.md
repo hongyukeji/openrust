@@ -544,3 +544,79 @@ openrust_fortify::starter::deletion::delete_users_using::<crate::app::models::Us
 帳戶頁提供 `/user/passkeys` 入口。確認身分後填寫裝置名稱並註冊通行金鑰，登入頁與身分確認頁也提供通行金鑰按鈕。啟用雙因素驗證時，通行金鑰登入仍需完成 TOTP 或復原碼驗證。註冊與撤銷共用使用者交易及敏感操作的近期確認策略；撤銷本次確認使用的通行金鑰後，下次敏感請求要求重新確認。無本機密碼帳戶必須透過已綁定的通行金鑰確認，或透過郵件重設流程安全設定本機密碼，頁面不會跳過確認。
 
 本機用戶端使用原生 `/user/passkeys/options`、`/user/passkeys`、`/passkeys/login/options`、`/passkeys/login`、`/passkeys/confirm/options` 與 `/passkeys/confirm` 路由，傳送受 CSRF 保護的工作階段請求。`options` 與 `redirect` 欄位保留用戶端協定，這些路由不是 Sanctum Bearer Token 介面；應用程式業務 JSON API 繼續使用套件回應封裝。多節點需保持相同公開來源並共用設定的工作階段與原子挑戰快取。應用程式檢視可以修改，重複安裝預設保留自訂檔案，只有明確強制安裝才覆寫。
+
+## 無工作階段用戶端的通行金鑰 {#user-passkey-api}
+
+API-only 應用程式安裝 `./artisan init --starter-kit=api --extensions=api,fortify,passkeys`，也可以選擇完整預設。設定 `USER_PASSKEYS=true`、有效的公開 `APP_URL` 與依賴方設定後執行遷移。啟用通行金鑰時保留非空 API 前綴，原生工作階段路由已佔用 `/user/passkeys`；可透過 `API_PREFIX` 使用 `/api/admin`。兩種預設都會發布用戶端及 NOTICE，也可執行 `vendor:publish --tag=user-kit-passkeys-client`；重複安裝保留自訂檔案，明確指定 `--force` 覆寫所選資源。
+
+以下路徑跟隨 API 前綴，使用一般 ApiResponse 封裝。註冊與刪除要求 `account:update` 及近期 `factors` 證明，清單要求 `account:read`。確認結果綁定目前認證憑證與指定用途。取得選項及提交結果透過不透明、限時、單次使用的 `challenge` 關聯，完整伺服器狀態保留在既有挑戰儲存中；憑證 ID、公鑰與 JSON 證明中繼資料都不是認證器私鑰。憑證與挑戰不能放入 URL。
+
+| Method | Path | Success |
+|---|---|---|
+| POST | `/auth/passkeys/options` | 200 |
+| POST | `/auth/passkeys` | 201 / 200 |
+| GET | `/user/passkeys` | 200 |
+| POST | `/user/passkeys/options` | 200 |
+| POST | `/user/passkeys` | 201 |
+| DELETE | `/user/passkeys/{passkey}` | 204 |
+| POST | `/auth/passkeys/confirm/options` | 200 |
+| POST | `/auth/passkeys/confirm` | 201 |
+
+此範例用於未啟用 SPA 工作階段認證的 Token API。若明確啟用了 `stateful_api`，且請求來源符合 Sanctum 前端網域，應使用正常的 SPA Cookie 與 CSRF 流程；省略 Cookie 不會繞過該策略。
+
+
+```js
+import { startRegistration, startAuthentication } from '/vendor/user-starter/passkeys.js';
+
+const prefix = '/api';
+async function api(method, path, body, token) {
+    const response = await fetch(prefix + path, {
+        method,
+        credentials: 'omit',
+        headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            'Accept-Language': document.documentElement.lang || 'zh-Hans',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    if (response.status === 204) return;
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.message);
+    return result.data;
+}
+
+export async function addPasskey(token, password, name) {
+    const proof = await api('POST', '/auth/confirm', { purpose: 'factors', password }, token);
+    const stage = await api('POST', '/user/passkeys/options', { proof: proof.proof }, token);
+    const credential = await startRegistration({ optionsJSON: stage.options });
+    return api('POST', '/user/passkeys', { challenge: stage.challenge, credential, name }, token);
+}
+
+export async function signInWithPasskey(deviceName) {
+    const stage = await api('POST', '/auth/passkeys/options', {
+        device_name: deviceName,
+        abilities: ['account:read', 'account:update'],
+    });
+    const credential = await startAuthentication({ optionsJSON: stage.options });
+    return api('POST', '/auth/passkeys', { challenge: stage.challenge, credential });
+}
+
+export async function confirmWithPasskey(token, purpose) {
+    const stage = await api('POST', '/auth/passkeys/confirm/options', { purpose }, token);
+    const credential = await startAuthentication({ optionsJSON: stage.options });
+    return api('POST', '/auth/passkeys/confirm', { challenge: stage.challenge, credential }, token);
+}
+
+export async function removePasskey(token, id) {
+    const proof = await confirmWithPasskey(token, 'factors');
+    return api('DELETE', `/user/passkeys/${encodeURIComponent(id)}`, { proof: proof.proof }, token);
+}
+```
+
+將這些函式綁定至使用者操作。這個本機套件同時匯出固定版 SimpleWebAuthn 儀式函式與原生 `Passkeys` SDK，不把業務 API 封裝直接傳給僅供工作階段使用的 SDK 方法。登入回傳第二因素 `challenge` 時，將它與 TOTP `code` 或 `recovery_code` 提交至 `/auth/token/challenge`；第二因素成功前不簽發個人權杖。撤銷通行金鑰後，依賴它的待完成登入與近期證明不能繼續完成。
+
+伺服器保留起始階段選定的裝置名稱與請求能力，簽發時依目前策略再驗證，提交結果時不能擴大權限。挑戰依設定的儀式逾時到期，上限五分鐘；註冊階段也不能超過起始近期證明的期限。`user.limiters.passkeys` 可選擇具名限流器，套件預設每分鐘十次並使用獨立鍵前綴，明確指定空字串或 `false` 關閉該限流器。 自訂 API 限流器也必須支援沒有瀏覽器 Session 的請求；原生 `fortify.limiters.passkeys` 策略仍用於網頁儀式。
+
+應用程式可在一般 `lang/<語言>.json` 覆寫原生錯誤原句，編譯內建的英文、簡體中文、繁體中文只補缺少的鍵。實體裝置、生物辨識、雲端同步、正式 HTTPS 與真實身分供應商須另外完成部署驗收。

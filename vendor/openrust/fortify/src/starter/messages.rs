@@ -28,5 +28,25 @@ pub(super) async fn register(app: &Application) -> ProviderResult {
         }
         localizer.add_lines(missing, locale, None)?;
     }
+    for (locale, source) in [
+        ("en", include_str!("../../stubs/starter/lang-json/en.json")),
+        (
+            "zh-Hans",
+            include_str!("../../stubs/starter/lang-json/zh-Hans.json"),
+        ),
+        (
+            "zh-Hant",
+            include_str!("../../stubs/starter/lang-json/zh-Hant.json"),
+        ),
+    ] {
+        let defaults: Lines = serde_json::from_str(source)?;
+        let mut missing = Vec::new();
+        for (key, line) in defaults {
+            if !localizer.has_for_locale(&key, Some(locale))? {
+                missing.push((key, line));
+            }
+        }
+        localizer.add_json_lines(missing, locale)?;
+    }
     Ok(())
 }

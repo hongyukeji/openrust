@@ -31,7 +31,7 @@ pub(super) enum Purpose {
     Avatar,
 }
 impl Purpose {
-    fn parse(value: &str) -> Option<Self> {
+    pub(super) fn parse(value: &str) -> Option<Self> {
         Some(match value {
             "tokens" => Self::Tokens,
             "password" => Self::Password,
@@ -43,7 +43,7 @@ impl Purpose {
             _ => return None,
         })
     }
-    fn key(self) -> String {
+    pub(super) fn key(self) -> String {
         format!(
             "confirm:{}",
             match self {
@@ -58,7 +58,7 @@ impl Purpose {
         )
     }
 }
-fn binding<M: HasApiTokens>(
+pub(super) fn binding<M: HasApiTokens>(
     request: &Request,
     user: &M,
     fortify: &Fortify,
@@ -149,7 +149,6 @@ where
             .input("password")
             .await?
             .and_then(|value| value.as_str().map(str::to_owned));
-        let (token, client_binding) = binding(request, &user, &fortify)?;
         let original = client::security(&user, &fortify)?;
         let limiter = App::make::<openrust::cache::RateLimiter>().await?;
         let key = format!(
@@ -203,37 +202,53 @@ where
         if !client::same_binding(&original, &client::security(fresh, &fortify)?) {
             return Err(HttpError::Unauthenticated);
         }
-        if token.is_none() {
-            request
-                .session_mut()
-                .map_err(internal)?
-                .password_confirmed()
-                .map_err(internal)?;
-            super::web::remember(request, fresh, &fortify)?;
-            limiter.clear(&key).await?;
-            return Ok(client::no_store(
-                ApiResponse::empty()
-                    .with_status(StatusCode::CREATED)
-                    .into_response()?,
-            ));
-        }
-        let challenge = ChallengeStore::new(fresh.get_connection()?)
-            .create(
-                &Pending {
-                    user: fresh.get_auth_identifier(),
-                    owner: fresh.get_morph_class()?.into(),
-                    purpose: purpose.key(),
-                    credential: credentials::stamp(fresh)?,
-                    factor: original,
-                    token,
-                    payload: json!({"client":client_binding}),
-                },
-                lifetime(&fortify)?,
-            )
-            .await?;
+        let response = complete(request, fresh, &fortify, purpose, None).await?;
         limiter.clear(&key).await?;
-        Ok(client::no_store(ApiResponse::success(json!({"proof":challenge.key.as_str(),"expires_at":jiff::Timestamp::from_second(challenge.expires_at).map_err(internal)?})).with_status(StatusCode::CREATED).into_response()?))
+        Ok(response)
     })
+}
+
+/// 各主因素共用同一客户端／用途绑定的近期证明，不能由请求直接提交服务器状态。
+pub(super) async fn complete<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
+    request: &mut Request,
+    user: &M,
+    fortify: &Fortify,
+    purpose: Purpose,
+    passkey: Option<super::passkey_confirmation::CredentialProof>,
+) -> Result<Response, HttpError> {
+    let (token, client_binding) = binding(request, user, fortify)?;
+    if token.is_none() {
+        request
+            .session_mut()
+            .map_err(internal)?
+            .password_confirmed()
+            .map_err(internal)?;
+        if let Some(passkey) = passkey {
+            super::web::remember_passkey(request, user, fortify, passkey)?;
+        } else {
+            super::web::remember(request, user, fortify)?;
+        }
+        return Ok(client::no_store(
+            ApiResponse::empty()
+                .with_status(StatusCode::CREATED)
+                .into_response()?,
+        ));
+    }
+    let challenge = ChallengeStore::new(user.get_connection()?)
+        .create(
+            &Pending {
+                user: user.get_auth_identifier(),
+                owner: user.get_morph_class()?.into(),
+                purpose: purpose.key(),
+                credential: credentials::stamp(user)?,
+                factor: client::security(user, fortify)?,
+                token,
+                payload: json!({"client":client_binding,"passkey":passkey}),
+            },
+            lifetime(fortify)?,
+        )
+        .await?;
+    Ok(client::no_store(ApiResponse::success(json!({"proof":challenge.key.as_str(),"expires_at":jiff::Timestamp::from_second(challenge.expires_at).map_err(internal)?})).with_status(StatusCode::CREATED).into_response()?))
 }
 
 #[derive(Clone)]
@@ -244,6 +259,13 @@ pub(super) struct Proof {
     passkey: Option<super::passkey_confirmation::CredentialProof>,
 }
 impl Proof {
+    pub(super) fn passkey(&self) -> Option<super::passkey_confirmation::CredentialProof> {
+        self.passkey.clone()
+    }
+    pub(super) fn deadline(&self) -> i64 {
+        self.deadline
+    }
+
     pub async fn validate_in_transaction<
         M: TwoFactorAuthenticatable + openrust::database::eloquent::Model,
     >(

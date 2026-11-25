@@ -2,7 +2,7 @@ use openrust::{
     contracts::{config::Repository, container::Container as _, foundation::Application as _},
     foundation::Application,
 };
-use serde_json::json;
+use serde_json::{Value, json};
 
 #[tokio::test]
 async fn profiles_control_views_and_features_without_changing_guard_or_prefix() {
@@ -37,12 +37,22 @@ async fn profiles_control_views_and_features_without_changing_guard_or_prefix() 
         }
         assert_eq!(
             config.get("fortify.middleware"),
-            Some(json!(["web", "custom-middleware", "auth.session"]))
+            Some(json!([
+                "web",
+                "custom-middleware",
+                "auth.session",
+                "cache.headers:no_store;private"
+            ]))
         );
         openrust_fortify::starter::configure(&app).await.unwrap();
         assert_eq!(
             config.get("fortify.middleware"),
-            Some(json!(["web", "custom-middleware", "auth.session"]))
+            Some(json!([
+                "web",
+                "custom-middleware",
+                "auth.session",
+                "cache.headers:no_store;private"
+            ]))
         );
     }
 }
@@ -204,4 +214,30 @@ async fn auth_mail_queue_rejects_invalid_and_nonpersistent_connections_before_in
     assert!(
         openrust_fortify::starter::configure_mail_queue::<queued_mail_user::User>(&app).is_ok()
     );
+}
+
+#[tokio::test]
+async fn full_profile_rejects_api_prefix_collisions_before_mutating_configuration() {
+    let mut app = Application::configure(std::env::temp_dir())
+        .create()
+        .unwrap();
+    app.boot().await.unwrap();
+    let config = app.container().get::<dyn Repository>("config").unwrap();
+    config.set("auth",json!({"defaults":{"guard":"web"},"guards":{"web":{"driver":"session","provider":"users"}}})).unwrap();
+    let original = json!({"features":["custom"],"middleware":["web"]});
+    for prefix in [json!(""), json!("/"), json!("///"), Value::Null] {
+        config.set("fortify", original.clone()).unwrap();
+        config.set("user", json!({"profile":"full"})).unwrap();
+        config.set("api.prefix", prefix).unwrap();
+        assert!(openrust_fortify::starter::configure(&app).await.is_err());
+        assert_eq!(config.get("fortify"), Some(original.clone()));
+    }
+    config.set("api.prefix", json!("")).unwrap();
+    config.set("user", json!({"profile":"api"})).unwrap();
+    openrust_fortify::starter::configure(&app).await.unwrap();
+    assert_eq!(config.get("api.prefix"), Some(json!("")));
+    config.set("user.passkeys", json!(true)).unwrap();
+    let before = config.get("fortify");
+    assert!(openrust_fortify::starter::configure(&app).await.is_err());
+    assert_eq!(config.get("fortify"), before);
 }
