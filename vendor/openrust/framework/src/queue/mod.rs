@@ -373,7 +373,8 @@ impl Payload {
         self.display_name = Some(name);
         self
     }
-    pub(crate) fn display_name(&self) -> &str {
+    /// 返回任务展示名称。未设置时使用处理器注册名。
+    pub fn display_name(&self) -> &str {
         self.display_name.as_deref().unwrap_or(&self.name)
     }
     pub fn data(&self) -> &serde_json::Value {

@@ -217,7 +217,11 @@ Provider 按固定 [ExpireSupervisors](https://github.com/laravel/horizon/blob/b
 
 固定 Pulse 的 `Queues` 和 `UserJobs` 在入队时读取任务对象提供的 `displayName()`，`Queues` 的 Worker 事件及 `SlowJobs` 读取 `Job::resolveName()`。PHP 8.5.12 用同一处理器与两种显示名派发入队、开始和结束事件，三类 Recorder 均排除了被显示名规则忽略的任务。保留任务写入 `queued`、`processing`、`processed`、`user_job`，慢任务条目按显示名记录 7 毫秒。证据为 `target/tmp/observability-parity/pulse-job-display-name-upstream.log`。 [固定 Queues](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Recorders/Queues.php) [固定 UserJobs](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Recorders/UserJobs.php) [固定 SlowJobs](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Recorders/SlowJobs.php)
 
-当前 Rust 三类 Recorder 使用 `Payload::name()`，它是队列处理器注册名。原生 `Artisan::queue` 已为载荷设置命令显示名。待接通 Recorder 的显示名读取，并通过真实 Artisan 入队、已认证 HTTP 请求、数据库 Worker 与聚合验证筛选和分组。
+Rust 公开复用 `Payload::display_name()`，未设置显示名的载荷使用处理器注册名。`Queues`、`UserJobs` 与 `SlowJobs` 按显示名匹配忽略规则，慢任务阈值和聚合键也沿用显示名。真实 HTTP 夹具发现数据库队列虽然成功落库却未派发 `JobQueued`，造成入队及用户计数缺失。补齐每次成功写入后的事件，携带连接、队列、运输 ID 和载荷，立即或延迟投递复用同一入口。 [固定 Queue::enqueueUsing](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/Queue.php)
+
+带认证的 HTTP 入口通过 `Artisan::queue` 写入两个共享处理器的不同命令名。真实数据库 Worker 消费两个任务，Pulse 只保留一个入队、处理中、完成和用户计数，慢任务按保留命令名分组。macOS 的 SQLite、PostgreSQL 和 MySQL 专项均通过。SQS 与 Beanstalkd 的成功入队事件仍缺，参与队列 Recorder 对齐时需单独实现及验收。SQL Server 发布组合待验。
+
+macOS 同源码通过三包默认 88 项、Pulse 全目标严格 Clippy、全仓格式及三语页面 12 组浏览器检查。框架原生 HTTP 数据库队列回归分别在 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 通过，覆盖延迟、事务内派发和标准 Worker 入口。证据为 `target/tmp/observability-parity/pulse-job-display-name-{baseline,focused,verified,docs,core}.log`。
 
 ### Telescope 出站 multipart 构建器快照
 

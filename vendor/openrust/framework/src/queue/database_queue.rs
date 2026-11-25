@@ -10,6 +10,7 @@ use crate::{
 
 use super::{
     Delay, JobContext, Payload, Queue, QueueError, QueueFuture, QueueResult, backend,
+    events::JobQueued,
     jobs::{Reservation, ReservedJob},
     queue_name,
 };
@@ -80,6 +81,7 @@ impl DatabaseQueue {
         transaction: Option<&mut Transaction>,
     ) -> QueueResult<Option<String>> {
         let queue = queue_name(queue, &self.queue)?;
+        let manager = self.registry.manager()?;
         let (mut sql, bindings) = self.insert(queue, payload.encode()?, 0, delay)?;
         if self.connection.is_postgres() {
             sql.push_str(" returning id");
@@ -93,7 +95,18 @@ impl DatabaseQueue {
                 self.connection.insert_get_id(&sql, &bindings).await
             }
             .map_err(backend)?;
-        Ok(Some(number(&id)?.to_string()))
+        let id = number(&id)?.to_string();
+        if manager.observes_worker_event(JobQueued::NAME)? {
+            manager
+                .emit_control_event(JobQueued {
+                    connection_name: self.name.clone(),
+                    queue: queue.into(),
+                    id: id.clone(),
+                    job: payload.clone(),
+                })
+                .await?;
+        }
+        Ok(Some(id))
     }
 
     async fn reserve(&self, queue: &str) -> QueueResult<Option<Box<dyn Job>>> {

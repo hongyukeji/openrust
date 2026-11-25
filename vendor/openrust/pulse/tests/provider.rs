@@ -327,6 +327,152 @@ fn app() -> TestApp {
     .unwrap()
 }
 
+fn recorder_database_config(
+    root: &std::path::Path,
+    env: &openrust::config::Environment,
+) -> Result<BTreeMap<String, serde_json::Value>, openrust::config::ConfigError> {
+    let mut values = config(root, env)?;
+    let url = match std::env::var("PULSE_TEST_DRIVER").as_deref() {
+        Ok("pgsql") => {
+            assert_eq!(
+                std::env::var("OPENRUST_REQUIRE_POSTGRES").as_deref(),
+                Ok("1")
+            );
+            Some(std::env::var("OPENRUST_TEST_POSTGRES_URL").unwrap())
+        }
+        Ok("mysql") => {
+            assert_eq!(std::env::var("OPENRUST_REQUIRE_MYSQL").as_deref(), Ok("1"));
+            Some(std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap())
+        }
+        Ok("sqlite") | Err(std::env::VarError::NotPresent) => None,
+        driver => panic!("unexpected Pulse test driver {driver:?}"),
+    };
+    if let Some(url) = url {
+        values.get_mut("database").unwrap()["connections"]["test"] = json!({"url":url});
+    }
+    Ok(values)
+}
+
+#[tokio::test]
+async fn queued_artisan_recorders_filter_by_display_name() {
+    use openrust::{
+        database::Value as DbValue,
+        queue::Payload,
+        support::facades::{Artisan, Auth},
+    };
+
+    fn enqueue(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async move {
+            Auth::user(request).await?;
+            for name in ["pulse-probe:ignored", "pulse-probe:kept"] {
+                Artisan::queue(name, &[]).dispatch().await.unwrap();
+            }
+            Ok(Response::from("queued"))
+        })
+    }
+
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(|root, env| {
+                let mut values = recorder_database_config(root, env)?;
+                values.insert("queue".into(), json!({
+                    "default":"database",
+                    "connections":{"database":{"driver":"database","table":"jobs","retry_after":90}},
+                    "failed":{"driver":"null"}
+                }));
+                let ignore = json!(["/^pulse-probe:ignored$/"]);
+                values.get_mut("pulse").unwrap()["recorders"] = json!({
+                    "Queues":{"ignore":ignore},
+                    "UserJobs":{"ignore":ignore},
+                    "SlowJobs":{"ignore":ignore,"threshold":0}
+                });
+                Ok(values)
+            })
+            .with_providers(vec![Box::new(PulseServiceProvider), Box::new(AuthProvider)])
+            .with_routing(Routing::default().api(|| {
+                Route::get("/queue-commands", enqueue)
+            }).commands(|| {
+                Artisan::command("pulse-probe:ignored", |_| {})?;
+                Artisan::command("pulse-probe:kept", |_| {})?;
+                Ok(())
+            }))
+    }).unwrap();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    let storage = app.app().make::<DatabaseStorage>().await.unwrap();
+    let connection = storage.connection();
+    connection
+        .get_schema_builder()
+        .create("jobs", |table| {
+            table.id();
+            table.string("queue", 255).index();
+            table.long_text("payload");
+            table.unsigned_integer("attempts");
+            table.unsigned_big_integer("reserved_at").nullable();
+            table.unsigned_big_integer("available_at");
+            table.unsigned_big_integer("created_at");
+        })
+        .await
+        .unwrap();
+
+    app.get("/api/queue-commands?user=1")
+        .await
+        .unwrap()
+        .assert_ok();
+    let queued = connection
+        .table("jobs")
+        .order_by("id", "asc")
+        .get()
+        .await
+        .unwrap();
+    assert_eq!(queued.len(), 2);
+    for (row, name) in queued
+        .iter()
+        .zip(["pulse-probe:ignored", "pulse-probe:kept"])
+    {
+        let Some(DbValue::Text(raw)) = row.get("payload") else {
+            panic!("missing payload")
+        };
+        let payload: Payload = serde_json::from_str(raw).unwrap();
+        assert_eq!(payload.name(), "artisan.queued_command");
+        assert_eq!(payload.display_name(), name);
+    }
+
+    app.artisan([
+        "queue:work",
+        "database",
+        "--stop-when-empty",
+        "--sleep=0",
+        "--memory=0",
+    ])
+    .await
+    .assert_successful();
+    assert_eq!(connection.table("jobs").count("*").await.unwrap(), 0);
+    let counts = storage
+        .aggregate_total(
+            &["queued", "processing", "processed", "failed"].map(str::to_owned),
+            "count",
+            3600,
+        )
+        .await
+        .unwrap();
+    for kind in ["queued", "processing", "processed"] {
+        assert_eq!(counts.get(kind), Some(&Some(1.0)), "{kind}");
+    }
+    assert!(!counts.contains_key("failed"));
+    for (kind, key) in [("user_job", "42"), ("slow_job", "pulse-probe:kept")] {
+        let rows = connection
+            .table("pulse_entries")
+            .r#where("type", "=", kind)
+            .get()
+            .await
+            .unwrap();
+        assert_eq!(rows.len(), 1, "{kind}");
+        assert_eq!(rows[0].get("key"), Some(&DbValue::Text(key.into())));
+    }
+}
+
 #[tokio::test]
 async fn slow_queries_use_the_query_event_source_and_respect_the_location_switch() {
     use openrust::contracts::foundation::Application as _;
@@ -334,24 +480,7 @@ async fn slow_queries_use_the_query_event_source_and_respect_the_location_switch
     let mut app = TestApp::create(|builder| {
         builder
             .with_config(|root, env| {
-                let mut values = config(root, env)?;
-                match std::env::var("PULSE_TEST_DRIVER").as_deref() {
-                    Ok("pgsql") => {
-                        assert_eq!(
-                            std::env::var("OPENRUST_REQUIRE_POSTGRES").as_deref(),
-                            Ok("1")
-                        );
-                        values.get_mut("database").unwrap()["connections"]["test"] =
-                            json!({"url":std::env::var("OPENRUST_TEST_POSTGRES_URL").unwrap()});
-                    }
-                    Ok("mysql") => {
-                        assert_eq!(std::env::var("OPENRUST_REQUIRE_MYSQL").as_deref(), Ok("1"));
-                        values.get_mut("database").unwrap()["connections"]["test"] =
-                            json!({"url":std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap()});
-                    }
-                    Ok("sqlite") | Err(std::env::VarError::NotPresent) => {}
-                    driver => panic!("unexpected Pulse test driver {driver:?}"),
-                }
+                let mut values = recorder_database_config(root, env)?;
                 values.get_mut("pulse").unwrap()["recorders"]["SlowQueries"] =
                     json!({"threshold":0,"location":true});
                 Ok(values)

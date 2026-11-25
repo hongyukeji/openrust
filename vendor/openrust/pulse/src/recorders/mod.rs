@@ -291,7 +291,7 @@ impl Recorders {
         {
             if connection != "sync" {
                 let recorder = self.clone();
-                let name = job.name().to_owned();
+                let name = job.display_name().to_owned();
                 let uuid = job.uuid().to_owned();
                 let connection = connection.clone();
                 let queue = queue.clone();
@@ -333,7 +333,7 @@ impl Recorders {
                 && let Some(duration) = e.duration
             {
                 let recorder = self.clone();
-                let name = e.job.payload.name().to_owned();
+                let name = e.job.payload.display_name().to_owned();
                 pulse
                     .lazy(move |pulse| {
                         Box::pin(async move {
