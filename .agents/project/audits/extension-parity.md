@@ -343,6 +343,8 @@ Rust 的 `Schema` Facade、Builder、目录检查和 `SchemaSession` 复用数�
 
 macOS 用真实 HTTP、SQLite、PostgreSQL 18.7、MySQL 8.4.13 核对 DDL、目录检查、执行及跳过条件改表、SQLite 重建、支持驱动上的外键往返和回调行。框架默认 `database_schema` 目标 80 项通过，含 SQLite 取消后仍完成重建并恢复外键状态。该目标中依赖外部参数的用例沿用原有环境判断，另用 MySQL 8.4.13 实跑会话恢复专项。Telescope Watchers 11 项、三包默认 89 项、全仓格式、修改范围严格 Clippy、三语构建和 12 组浏览器检查通过。证据为 `target/tmp/observability-parity/query-schema-source-{runtime,matrix,docs}.log`。
 
+Linux 7.0.14 ARM64 与 Windows 11 ARM64 用 `274644de4` 的变更源码及 Rust 1.94.0，通过真实 HTTP 和 SQLite 的 Schema 归因专项，包含改列重建、外键开关与应用回调。证据为 `target/tmp/observability-parity/query-schema-source-linux.log` 和 `target/tmp/observability-windows/query-schema-source-arm64.log`。
+
 ### Pulse SlowQueries 数据库调用来源
 
 固定 [SlowQueries](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Recorders/SlowQueries.php) 从查询调用栈选首个可用文件与行号，省略应用根路径并跳过框架、Pulse 和启动脚本。无可用位置写空字符串，关掉 `location` 写 `null`。在 PHP 8.5.12 中实际注册固定 Recorder，通过 SQLite 查询、Pulse 延迟队列和 Ingest 契约核对这两种配置的条目键。
