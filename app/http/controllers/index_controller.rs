@@ -1,8 +1,8 @@
 use super::controller::Controller;
 use openrust::{
-    http::{HttpError, HttpFuture, Request, Response},
+    http::{HttpError, HttpFuture, Method, Request, Response},
     routing::RedirectOptions,
-    support::facades::{Config, Redirect},
+    support::facades::{Config, Facade, Redirect, Route},
 };
 
 pub(crate) struct IndexController;
@@ -14,7 +14,28 @@ impl IndexController {
         Box::pin(async move {
             let mut target = Config::string_or("app.home_url", "");
             if target.trim().is_empty() {
-                target = "/index.html".into();
+                let host = request.get_host()?;
+                let route = Route::get_facade_root()?
+                    .get_routes()
+                    .into_iter()
+                    .find(|route| {
+                        !matches!(route.uri.as_str(), "/" | "up")
+                            && !route.uri.contains('{')
+                            && route
+                                .method
+                                .split('|')
+                                .any(|method| method == Method::GET.as_str())
+                            && route
+                                .middleware
+                                .iter()
+                                .any(|middleware| middleware == "web")
+                            && route
+                                .domain
+                                .as_ref()
+                                .is_none_or(|domain| domain.eq_ignore_ascii_case(&host))
+                    })
+                    .ok_or(HttpError::NotFound)?;
+                target = format!("/{}", route.uri);
             }
             if let Some(query) = request.uri().query().filter(|query| !query.is_empty())
                 && !target.starts_with('#')

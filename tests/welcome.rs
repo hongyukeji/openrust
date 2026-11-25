@@ -1345,6 +1345,85 @@ async fn renamed_cookie_reuses_https_path_domain_and_same_site_on_save_and_delet
 }
 
 #[tokio::test]
+async fn automatic_homepage_uses_the_first_eligible_web_get_or_returns_not_found() {
+    use crate::http::controllers::index_controller::IndexController;
+    use openrust::routing::{RouteGroup, RoutingError};
+    use std::sync::Arc;
+    use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+    fn ineligible_routes() -> Result<(), RoutingError> {
+        Route::get("/", IndexController::index)?;
+        Route::get("/up", || "Health")?;
+        Route::post("/submit", || "POST")?;
+        Route::get("/users/{id}", || "User")?;
+        Route::get("/articles/{slug?}", || "Article")?;
+        Route::group(RouteGroup::new().domain("other.test"), |router| {
+            router.get("/other-host", || "Other host")?;
+            Ok(())
+        })
+    }
+
+    fn eligible_routes() -> Result<(), RoutingError> {
+        ineligible_routes()?;
+        Route::get("/z-first", || "First page")?;
+        Route::get("/a-second", || "Second page")
+    }
+
+    for has_page in [true, false] {
+        let root = Root::new("en");
+        fs::write(
+            root.0.join(".env"),
+            "APP_HOME_URL=\nAPP_KEY=01234567890123456789012345678901\nSESSION_DRIVER=array\n",
+        )
+        .unwrap();
+        let application = Application::configure(root.0.clone())
+            .with_config(config::load)
+            .with_routing(
+                Routing::default()
+                    .api(|| Route::get("/fixed", || "API"))
+                    .web(if has_page {
+                        eligible_routes
+                    } else {
+                        ineligible_routes
+                    }),
+            )
+            .create()
+            .unwrap();
+        let mut kernel = Kernel::new(application);
+        kernel.bootstrap().await.unwrap();
+        let kernel = Arc::new(kernel);
+        let service = axum::Router::new().fallback(move |request: axum::extract::Request| {
+            let kernel = kernel.clone();
+            async move { kernel.handle_transport(request).await }
+        });
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move { axum::serve(listener, service).await.unwrap() });
+        let mut socket = tokio::net::TcpStream::connect(address).await.unwrap();
+        socket
+            .write_all(
+                b"GET /?search=a%26b HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+            )
+            .await
+            .unwrap();
+        let mut response = String::new();
+        socket.read_to_string(&mut response).await.unwrap();
+        server.abort();
+        let (headers, _) = response.split_once("\r\n\r\n").unwrap();
+        if has_page {
+            assert!(headers.starts_with("HTTP/1.1 302 "), "{headers}");
+            assert!(
+                headers.contains("location: http://localhost/z-first?search=a%26b"),
+                "{headers}"
+            );
+        } else {
+            assert!(headers.starts_with("HTTP/1.1 404 "), "{headers}");
+            assert!(!headers.contains("location:"), "{headers}");
+        }
+    }
+}
+
+#[tokio::test]
 async fn homepage_redirect_accepts_redirect_targets_and_preserves_query() {
     let root = Root::new("en");
     for (target, location) in [
@@ -1448,7 +1527,7 @@ async fn locale_post_keeps_csrf_session_and_preferences_over_tcp() {
     assert_eq!(status, 302);
     assert_eq!(
         headers["location"],
-        "http://localhost/index.html?locale=zh-Hant&search=a%26b&tag=1&tag=2"
+        "http://localhost/welcome?locale=zh-Hant&search=a%26b&tag=1&tag=2"
     );
     let (status, headers, html) = send(address, "GET", "/welcome?search=a%26b", "", "").await;
     assert_eq!(status, 200);
