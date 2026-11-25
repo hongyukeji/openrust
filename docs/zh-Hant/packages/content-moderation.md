@@ -230,6 +230,8 @@ let recommendation = result.decision(&[Modality::Text]);
 
 呼叫 `VideoReviewService::cancel_group(id)`，在同一交易凍結待處理或執行中群組內的全部未結束檢查。已結束檢查保留原有證據。本機交易提交後，服務再嘗試停止已確認的遠端工作，並在對應檢查記錄供應商結果。
 
+用 `ModerationStore::late_video_notices(id)` 檢視目前應用程式和租戶內的遲到結果。送審、認證查詢和驗簽回呼各保留首次觀察，記錄當時的審核狀態和資料庫時間。回呼診斷可參照 Webhook Client 接收記錄。發布繼續使用 `effective_decision`。
+
 ## 定時復原影片審核 {#review-recovery}
 
 對每個需要管理的應用程式和租戶，將 `moderation:recover` 加入每分鐘排程。排程程序和 Worker 共用資料庫與佇列。命令領取最多 `--limit` 筆到期審核，預設 100，範圍 1–500，只將本機審核 ID 和版本等定位資訊加入佇列。

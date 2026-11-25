@@ -29,7 +29,7 @@ ALIYUN_SEEDS = ("aliyun_video_seed_01", "aliyun_video_seed_02", "aliyun_video_se
 ALIYUN_UIDS = ("1234500000000000", "9999900000000000")
 
 
-def exercise(binary, driver, url, root, storage_env, storage, mode):
+def exercise(binary, driver, url, root, storage_env, storage, mode, *, test_late=False):
     version, _, original, _ = VIDEO["versioned_clips"](root, storage)
     tencent, aliyun = mode == "tencent", mode == "aliyun"
     cloud = tencent or aliyun
@@ -201,6 +201,30 @@ def exercise(binary, driver, url, root, storage_env, storage, mode):
         finally:
             connection.close()
 
+    def late_callback(review):
+        submitted = json.loads(artisan(REVIEW, "submit", "app", "tenant", review["id"]))
+        assert submitted["submission"]["task"] == task
+        cancelled = json.loads(artisan(REVIEW, "cancel", "app", "tenant", review["id"]))
+        assert cancelled["state"] == "Cancelled" and cancelled["provider_cancellation"] == "acknowledged"
+        callback("finished", "late-invalid-signature", fault="changed")
+        assert sql("SELECT COUNT(*) FROM moderation_late_notices") == "0"
+        callback("finished", "late-first")
+        receipt = sql("SELECT id FROM webhook_calls WHERE processed_at IS NULL")
+        assert len(receipt) == 36
+        consume()
+        notices = json.loads(artisan(REVIEW, "late-notices", "app", "tenant", review["id"]))
+        assert len(notices) == 1 and notices[0]["kind"] == "signed_callback"
+        assert notices[0]["state"] == "Cancelled" and notices[0]["receipt_id"] == receipt
+        callback("finished", "late-second")
+        consume()
+        assert json.loads(artisan(REVIEW, "late-notices", "app", "tenant", review["id"])) == notices
+        assert json.loads(artisan(REVIEW, "late-notices", "App", "tenant", review["id"])) == []
+        assert sql("SELECT COUNT(*) FROM webhook_calls WHERE processed_at IS NOT NULL") == "2"
+        assert sql("SELECT COUNT(*) FROM moderation_late_notices") == "1"
+        assert read(review) == cancelled and not queried()
+        artisan("schedule:run")
+        assert sql("SELECT COUNT(*) FROM jobs") == "0"
+
     try:
         artisan("migrate", "--force")
         artisan("config:cache")
@@ -211,6 +235,9 @@ def exercise(binary, driver, url, root, storage_env, storage, mode):
         with (root / "http.log").open("w+") as log:
             app = HTTP["serve"](binary, env, log)
             try:
+                if test_late:
+                    late_callback(early)
+                    return
                 with ThreadPoolExecutor(max_workers=1) as executor:
                     reached, release = supplier.gate = (threading.Event(), threading.Event())
                     submission = executor.submit(artisan, REVIEW, "submit", "app", "tenant", early["id"])
@@ -331,8 +358,14 @@ if __name__ == "__main__":
     mode = os.environ.get("MODERATION_TEST_CALLBACK_PROVIDER", "sightengine")
     if mode not in {"sightengine", "tencent", "aliyun"}:
         parser.error("未知的回调供应商")
+    test_late = os.environ.get("MODERATION_TEST_LATE_CALLBACK") == "1"
+    if test_late and mode != "sightengine":
+        parser.error("迟到回调夹具使用 Sightengine")
     with tempfile.TemporaryDirectory(dir=ROOT / "target/tmp", prefix="moderation-callback-association-") as root, \
             VIDEO["VIDEO"]["OBJECTS"]["TOPOLOGY"]["object_storage"](True) as (env, storage):
-        exercise(args.binary.resolve(), driver, url, Path(root), env, storage, mode)
+        exercise(args.binary.resolve(), driver, url, Path(root), env, storage, mode, test_late=test_late)
     provider = {"tencent": "腾讯云", "aliyun": "阿里云", "sightengine": "Sightengine"}[mode]
-    print(f"{driver}: {provider} 实际 HTTP、Artisan、Worker 提前回调、延期唤醒、范围、查单与覆盖通过")
+    if test_late:
+        print(f"{driver}: {provider} 实际 HTTP、Artisan、Worker 迟到签名回调、诊断去重与终态隔离通过")
+    else:
+        print(f"{driver}: {provider} 实际 HTTP、Artisan、Worker 提前回调、延期唤醒、范围、查单与覆盖通过")

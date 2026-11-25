@@ -77,7 +77,7 @@ def exercise(binary, driver, database_url, root):
     artisan(env, "migrate", "--force")
     artisan(env, "vendor:publish", "--tag=moderation-migrations")
     migrations = sorted((root / "database/migrations").glob("*moderation*"))
-    assert len(migrations) == 14
+    assert len(migrations) == 15
     expected = migrations[0].read_text() + "\n// 自定义迁移保留\n"
     migrations[0].write_text(expected)
     artisan(env, "vendor:publish", "--tag=moderation-migrations")

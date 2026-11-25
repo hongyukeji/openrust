@@ -25,6 +25,8 @@ mod checks_migration;
 mod decisions_migration;
 #[path = "../database/migrations/2026_11_26_000008_create_moderation_review_groups_table.rs"]
 mod groups_migration;
+#[path = "../database/migrations/2026_11_26_000015_create_moderation_late_notices_table.rs"]
+mod late_notices_migration;
 #[path = "../database/migrations/2026_11_26_000007_add_moderation_lookup_hint.rs"]
 mod lookup_hint_migration;
 #[path = "../database/migrations/2026_11_26_000004_add_moderation_query_budget.rs"]
@@ -110,6 +112,7 @@ openrust::compiled_migration_assets!("content-moderation";
     "2026_11_26_000012_create_moderation_account_rate_buckets_table.rs" => account_rates_migration,
     "2026_11_26_000013_create_moderation_remote_leases_table.rs" => remote_leases_migration,
     "2026_11_26_000014_add_moderation_video_duration.rs" => video_duration_migration,
+    "2026_11_26_000015_create_moderation_late_notices_table.rs" => late_notices_migration,
 );
 
 impl ModerationServiceProvider {

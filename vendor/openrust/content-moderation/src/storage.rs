@@ -18,6 +18,7 @@ pub(crate) use cancellation::Cancellation;
 mod callback;
 mod decisions;
 mod groups;
+mod late_notices;
 #[cfg(feature = "webhooks")]
 pub(crate) use callback::ProviderTask;
 mod query;

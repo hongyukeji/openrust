@@ -694,7 +694,9 @@ fn video_route<'a>(
 ) -> HttpFuture<'a, Result<Response, HttpError>> {
     Box::pin(async move {
         let tenant = request.header("x-fixture-tenant")?.unwrap_or("tenant");
-        let result = if let Some(id) = request.header("x-fixture-query-review")? {
+        let result = if let Some(id) = request.header("x-fixture-late-notices")? {
+            late_notices("app", tenant, id).await
+        } else if let Some(id) = request.header("x-fixture-query-review")? {
             query_review("app", tenant, id).await
         } else if let Some(id) = request.header("x-fixture-submit-review")? {
             submit_review("app", tenant, id).await
@@ -1146,6 +1148,20 @@ fn render_review(review: VideoReview) -> Value {
     })
 }
 
+async fn late_notices(application: &str, tenant: &str, id: &str) -> ModerationResult<Value> {
+    let store = review_store(application, tenant)?;
+    let records = store.late_video_notices(id).await?;
+    Ok(json!(
+        records
+            .into_iter()
+            .map(|record| json!({
+                "kind": record.kind.as_str(), "state": format!("{:?}", record.state),
+                "observed_at": record.observed_at, "receipt_id": record.receipt_id,
+            }))
+            .collect::<Vec<_>>()
+    ))
+}
+
 async fn submit_review(application: &str, tenant: &str, id: &str) -> ModerationResult<Value> {
     let store = review_store(application, tenant)?;
     let service =
@@ -1336,6 +1352,7 @@ pub(super) fn register_command(artisan: &mut Artisan) -> Result<(), ConsoleError
             .arg(clap::Arg::new("action").required(true).value_parser([
                 "stage",
                 "find",
+                "late-notices",
                 "queue",
                 "submit",
                 "queue-submit",
@@ -1480,6 +1497,11 @@ impl Command for ReviewProbe {
                 .await
                 .map_err(ConsoleError::from_source)?,
                 "find" => reference.read().await.map_err(ConsoleError::from_source)?,
+                "late-notices" => {
+                    late_notices(&reference.application, &reference.tenant, &reference.id)
+                        .await
+                        .map_err(ConsoleError::from_source)?
+                }
                 "cancel" => cancel_review(&reference.application, &reference.tenant, &reference.id)
                     .await
                     .map_err(ConsoleError::from_source)?,

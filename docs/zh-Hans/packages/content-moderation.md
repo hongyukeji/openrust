@@ -230,6 +230,8 @@ let recommendation = result.decision(&[Modality::Text]);
 
 调用 `VideoReviewService::cancel_group(id)`，在同一事务冻结待处理或进行中组内的全部未结束检查。已结束检查保留原有证据。本地事务提交后，服务再尝试停止已确认的远端任务，并在对应检查记录供应商结果。
 
+用 `ModerationStore::late_video_notices(id)` 查看当前应用和租户内的迟到结果。送审、认证查单和验签回调各保留首次观察，记录当时的审核状态和数据库时间。回调诊断可引用 Webhook Client 接收记录。发布继续使用 `effective_decision`。
+
 ## 定时恢复视频审核 {#review-recovery}
 
 对每个需要托管的应用和租户，将 `moderation:recover` 加入每分钟调度。调度进程和 Worker 共用数据库与队列。命令领取不超过 `--limit` 条到期审核，默认 100，范围 1–500，只将本地审核 ID 和版本等定位信息入列。

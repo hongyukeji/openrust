@@ -230,6 +230,8 @@ For a confirmed task ID, the service attempts to stop the remote task with the o
 
 Call `VideoReviewService::cancel_group(id)` to freeze every unfinished check in a pending or running group in one database transaction. Completed checks retain their evidence. The service attempts remote cancellation for confirmed tasks after committing the local update, and records the provider result on each check.
 
+Use `ModerationStore::late_video_notices(id)` to inspect late results in the current application and tenant. It retains the first submission, authenticated lookup, and signed callback observations. For a callback the notice can reference the Webhook Client receipt. The record captures the observed state and database time. Publication continues to use `effective_decision`.
+
 ## Recovering scheduled reviews {#review-recovery}
 
 Schedule `moderation:recover` to run every minute for each application and tenant you manage. Use a shared database and queue so schedulers and workers see the same review state. The command claims up to `--limit` due reviews (100 by default, 1–500), and queues their local IDs and versions.

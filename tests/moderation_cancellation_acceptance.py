@@ -142,6 +142,30 @@ def exercise(binary, driver, url, root, storage_env, storage, *, test_in_flight=
         assert review["state"] == "Cancelled" and review["provider_cancellation"] == status, review
         assert review["decision"] is None
 
+    def notices(review, tenant="tenant"):
+        connection = http.client.HTTPConnection("127.0.0.1", port, timeout=12)
+        try:
+            connection.request("POST", "/api/drivers/moderation/sightengine-video", headers={
+                "Accept": "application/json", "X-Fixture-Late-Notices": review["id"],
+                "X-Fixture-Tenant": tenant,
+            })
+            response = connection.getresponse()
+            body = response.read()
+            assert response.status == 200 and VIDEO["SECRET"].encode() not in body
+            assert VIDEO["PRIVATE"].encode() not in body and VIDEO["TASK"].encode() not in body
+            return json.loads(body)
+        finally:
+            connection.close()
+
+    def assert_notice(review, kind):
+        records = notices(review)
+        assert len(records) == 1
+        record = records[0]
+        assert record["kind"] == kind and record["state"] == "Cancelled"
+        assert record["observed_at"] >= review["created_at"] and record["receipt_id"] is None
+        assert notices(review, "Tenant") == []
+        assert model("late-notices", review["id"]) == records
+
     def post_submit(review):
         connection = http.client.HTTPConnection("127.0.0.1", port, timeout=20)
         try:
@@ -301,6 +325,7 @@ def exercise(binary, driver, url, root, storage_env, storage, *, test_in_flight=
                     supplier.query_gate = None
                 assert saved["assessment"] is None and saved["query_attempts"] == 1
                 assert supplier.queried == supplier.stops == [VIDEO["TASK"]]
+                assert_notice(racing, "lookup")
 
                 running_submit = stage("cancel-while-submitting")
                 with ThreadPoolExecutor(max_workers=1) as pool:
@@ -314,6 +339,7 @@ def exercise(binary, driver, url, root, storage_env, storage, *, test_in_flight=
                         release.set()
                     assert submitting.result(timeout=12) == saved
                     supplier.gate = None
+                assert_notice(running_submit, "submission")
 
                 rejected = stage("remote-rejection")
                 model("submit", rejected["id"])
@@ -368,6 +394,10 @@ def exercise(binary, driver, url, root, storage_env, storage, *, test_in_flight=
                 "--path=vendor/openrust/content-moderation/database/migrations/"
                 "2026_11_26_000009_add_moderation_cancellation.rs", successful=False)
         assert sql("SELECT COUNT(*) FROM moderation_checks WHERE provider_cancellation IS NOT NULL") == "8"
+        artisan("migrate:rollback", "--force",
+                "--path=vendor/openrust/content-moderation/database/migrations/"
+                "2026_11_26_000015_create_moderation_late_notices_table.rs", successful=False)
+        assert sql("SELECT COUNT(*) FROM moderation_late_notices") == "2"
     finally:
         supplier.shutdown()
         supplier.server_close()

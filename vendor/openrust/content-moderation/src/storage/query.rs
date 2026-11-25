@@ -3,13 +3,13 @@ use std::sync::Arc;
 use openrust::database::{DatabaseError, Value};
 
 use crate::{
-    ModerationError, ModerationResult, QueryFailure, RetryAfter, ReviewState, VideoReview,
-    VideoSubmission, review::QueryOutcome,
+    LateVideoNoticeKind, ModerationError, ModerationResult, QueryFailure, RetryAfter, ReviewState,
+    VideoReview, VideoSubmission, review::QueryOutcome,
 };
 
 use super::{
     CHECKS, ModerationStore, REVIEWS, RateBudget, assessment_record, database_clock,
-    database_clock_query, integer, rates::RESERVATION_STALE, remote_leases,
+    database_clock_query, integer, late_notices, rates::RESERVATION_STALE, remote_leases,
 };
 
 const QUERY_LEASE_SECONDS: i64 = 150;
@@ -160,6 +160,17 @@ impl ModerationStore {
                                 .collect(),
                             )
                             .await?;
+                        if closed_remotely && (changed == 0 || review.deadline_at <= now) {
+                            late_notices::note_late(
+                                transaction,
+                                &scope,
+                                &review,
+                                LateVideoNoticeKind::Lookup,
+                                None,
+                                now,
+                            )
+                            .await?;
+                        }
                         if changed == 0 {
                             return if charged {
                                 Err(DatabaseError::InvalidQuery(RESERVATION_STALE))

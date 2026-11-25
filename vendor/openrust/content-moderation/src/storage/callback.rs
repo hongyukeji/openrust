@@ -83,6 +83,9 @@ impl ModerationStore {
             .and_then(|row| integer(&row, "created_at"))
             .ok_or(ModerationError::ReviewStorage)?;
         if review.deadline_at() <= timestamp {
+            if reference_column == "confirmation_callback_id" {
+                self.note_late_callback(review, receipt).await?;
+            }
             return Ok(true);
         }
         let mut current = self

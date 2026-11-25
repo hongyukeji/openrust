@@ -66,6 +66,16 @@ impl CallbackConfirmation {
             ProviderTask::Ambiguous => return Ok(PermanentFailure),
             ProviderTask::Found(review) => review,
         };
+        if matches!(
+            review.state(),
+            ReviewState::Cancelled | ReviewState::Expired
+        ) {
+            self.store
+                .note_late_callback(&review, receipt)
+                .await
+                .map_err(storage_error)?;
+            return Ok(Completed);
+        }
         if review.state() != ReviewState::Running
             || review.confirmation_callback_id().is_some()
             || self
@@ -78,6 +88,17 @@ impl CallbackConfirmation {
         }
         // 领取或终态写入可能在匹配后先胜出，再读取一次后决定是否延期。
         let current = self.store.find(review.id()).await.map_err(storage_error)?;
+        if let Some(current) = &current
+            && matches!(
+                current.state(),
+                ReviewState::Cancelled | ReviewState::Expired
+            )
+        {
+            self.store
+                .note_late_callback(current, receipt)
+                .await
+                .map_err(storage_error)?;
+        }
         if current.is_none_or(|review| {
             review.state() != ReviewState::Running || review.confirmation_callback_id().is_some()
         }) {

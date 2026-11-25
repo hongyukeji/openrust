@@ -12,6 +12,7 @@ mod drivers;
 #[cfg(feature = "webhooks")]
 mod hive_lookup_hint;
 mod input;
+mod late_notice;
 mod manager;
 mod moderation;
 mod provider;
@@ -43,6 +44,7 @@ pub use credentials::{CredentialReference, ModerationCredentialProvider, Moderat
 #[cfg(feature = "webhooks")]
 pub use hive_lookup_hint::HiveLookupHint;
 pub use input::{ImageInput, StoredMedia, TaskId, TextInput, VideoInput};
+pub use late_notice::{LateVideoNotice, LateVideoNoticeKind};
 pub use manager::ModerationManager;
 pub use moderation::Moderation;
 pub use openrust::http::client::RetryAfter;

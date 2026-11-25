@@ -3,13 +3,13 @@ use std::sync::Arc;
 use openrust::database::{DatabaseError, Value};
 
 use crate::{
-    ModerationError, ModerationResult, QueryFailure, ReviewState, VideoReview, VideoSubmission,
-    review::SubmissionOutcome,
+    LateVideoNoticeKind, ModerationError, ModerationResult, QueryFailure, ReviewState, VideoReview,
+    VideoSubmission, review::SubmissionOutcome,
 };
 
 use super::{
     CHECKS, ModerationStore, REVIEWS, RateBudget, assessment_record, database_clock,
-    database_clock_query, integer, rates::RESERVATION_STALE, remote_leases,
+    database_clock_query, integer, late_notices, rates::RESERVATION_STALE, remote_leases,
 };
 
 // 给当前最长 120 秒的供应商请求留出提交上下文时间，到期只转未知。
@@ -124,6 +124,8 @@ impl ModerationStore {
                             .await?
                             .and_then(|row| integer(&row, "created_at"))
                             .ok_or(DatabaseError::InvalidQuery("无法读取审核存储时钟"))?;
+                        let known_task =
+                            matches!(&action, Action::Finish(VideoSubmission::Submitted(_), _));
                         let inspection = match &action {
                             Action::Finish(_, inspection) => inspection.clone(),
                             _ => None,
@@ -180,6 +182,17 @@ impl ModerationStore {
                                 .collect(),
                             )
                             .await?;
+                        if known_task && (affected == 0 || review.deadline_at <= now) {
+                            late_notices::note_late(
+                                transaction,
+                                &scope,
+                                &review,
+                                LateVideoNoticeKind::Submission,
+                                None,
+                                now,
+                            )
+                            .await?;
+                        }
                         if affected == 0 {
                             return if charged {
                                 Err(DatabaseError::InvalidQuery(RESERVATION_STALE))

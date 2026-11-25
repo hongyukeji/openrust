@@ -175,6 +175,9 @@ def exercise(binary, driver, url, root, storage_env, storage):
                         release.set()
                     assert sending.result(15) == recovered
                     supplier.gate = None
+                    records = json.loads(artisan(env, COMMAND, "late-notices", "app", "tenant", late_review["id"]))
+                    assert len(records) == 1 and records[0]["kind"] == "submission"
+                    assert records[0]["state"] == "Running" and records[0]["receipt_id"] is None
             finally:
                 HTTP["stop"](app)
             log.seek(0)
