@@ -572,7 +572,11 @@ where
         }
     })?;
     Route::group(
-        RouteGroup::new().prefix(prefix).middleware_name("api"),
+        RouteGroup::new()
+            .prefix(prefix)
+            .middleware(Arc::new(super::client_middleware::NoStore))
+            .middleware(Arc::new(super::client_middleware::BodyCredentials))
+            .middleware_name("api"),
         |router| {
             let login = router.post("/auth/token", login::<M>)?;
             login.name("user.tokens.login");
@@ -585,6 +589,47 @@ where
             router
                 .post("/auth/token/challenge", challenge::<M>)?
                 .name("user.tokens.challenge");
+            let features = Features::new(fortify.config.clone());
+            if features
+                .enabled(Features::registration())
+                .map_err(|_| RoutingError::InvalidAction)?
+            {
+                router
+                    .post("/auth/register", super::api::register)?
+                    .name("user.api.register")
+                    .middleware_name("throttle:6,1");
+            }
+            if features
+                .enabled(Features::reset_passwords())
+                .map_err(|_| RoutingError::InvalidAction)?
+            {
+                router
+                    .post(
+                        "/auth/forgot-password",
+                        openrust::routing::ControllerDispatcher::with_form_request::<
+                            crate::http::requests::SendPasswordResetLinkRequest,
+                        >(super::api::PasswordResetLinkController::store),
+                    )?
+                    .name("user.api.password.email")
+                    .middleware_name("throttle:6,1");
+                router
+                    .post("/auth/reset-password", super::api::reset)?
+                    .name("user.api.password.update")
+                    .middleware_name("throttle:6,1");
+            }
+            if features
+                .enabled(Features::email_verification())
+                .map_err(|_| RoutingError::InvalidAction)?
+            {
+                router
+                    .post("/auth/email/verification-notification", super::api::resend)?
+                    .name("user.api.verification.send")
+                    .middleware_name("auth:sanctum")
+                    .middleware_name(format!(
+                        "throttle:{}",
+                        fortify.string("fortify.limiters.verification", "6,1")
+                    ));
+            }
             router
                 .post("/auth/confirm", super::confirmation::confirm::<M>)?
                 .middleware_name("auth:sanctum")

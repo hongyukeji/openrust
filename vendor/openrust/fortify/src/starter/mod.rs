@@ -3,9 +3,13 @@
 #[cfg(feature = "sanctum")]
 pub mod account;
 #[cfg(feature = "sanctum")]
+pub mod api;
+#[cfg(feature = "sanctum")]
 mod challenges;
 #[cfg(feature = "sanctum")]
 pub mod client;
+#[cfg(feature = "sanctum")]
+mod client_middleware;
 mod configuration;
 #[cfg(feature = "sanctum")]
 pub mod confirmation;
@@ -40,6 +44,11 @@ impl ServiceProvider for StarterKitServiceProvider {
         Box::pin(async move {
             use crate::contracts;
             use std::sync::Arc;
+            #[cfg(feature = "sanctum")]
+            app.container()
+                .singleton::<api::PasswordResetLinkController, _>(|_| {
+                    Ok(Arc::new(api::PasswordResetLinkController))
+                })?;
             macro_rules! response {
                 ($name:ident) => {
                     app.container().bind::<dyn contracts::$name, _>(|_| {

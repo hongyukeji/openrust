@@ -1243,3 +1243,64 @@ async fn asset_origins_secure_assets_and_defaults_are_instance_scoped() {
         "https://configured-cdn.test/static/logo.svg"
     );
 }
+
+#[tokio::test]
+async fn signature_expiration_uses_owning_application_clock_even_in_another_scope() {
+    use openrust::support::facades::Facade as _;
+    let mut first = make();
+    first.boot().await.unwrap();
+    let mut second = make();
+    second.boot().await.unwrap();
+    let a = first.make::<UrlGenerator>().await.unwrap();
+    let b = second.make::<UrlGenerator>().await.unwrap();
+    let ca = first
+        .make::<openrust::support::DateFactory>()
+        .await
+        .unwrap();
+    let cb = second
+        .make::<openrust::support::DateFactory>()
+        .await
+        .unwrap();
+    let at = "2030-01-01T00:00:00Z".parse::<jiff::Timestamp>().unwrap();
+    ca.set_test_now(Some(openrust::support::Date::from_utc(
+        at,
+        jiff::tz::TimeZone::UTC,
+    )));
+    cb.set_test_now(Some(openrust::support::Date::from_utc(
+        at + jiff::SignedDuration::from_secs(61),
+        jiff::tz::TimeZone::UTC,
+    )));
+    let link = a
+        .temporary_signed_route(
+            "article",
+            (at + jiff::SignedDuration::from_secs(60)).into(),
+            &[RouteParameter::named("article", "42")],
+            SignatureMode::Absolute,
+        )
+        .unwrap();
+    let request = Request::from(
+        http::Request::builder()
+            .uri(link)
+            .body(openrust::http::Body::empty())
+            .unwrap(),
+    );
+    openrust::support::facades::App::set_facade_application(Some(&second), async {
+        assert!(
+            a.has_valid_signature(&request, SignatureMode::Absolute, (&[] as &[&str]).into())
+                .unwrap()
+        );
+        assert!(
+            !b.has_valid_signature(&request, SignatureMode::Absolute, (&[] as &[&str]).into())
+                .unwrap()
+        );
+    })
+    .await;
+    ca.set_test_now(Some(openrust::support::Date::from_utc(
+        at + jiff::SignedDuration::from_secs(61),
+        jiff::tz::TimeZone::UTC,
+    )));
+    assert!(
+        !a.has_valid_signature(&request, SignatureMode::Absolute, (&[] as &[&str]).into())
+            .unwrap()
+    );
+}

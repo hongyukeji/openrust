@@ -7,8 +7,8 @@
 | 批次 | 状态 | 剩余工作 |
 | --- | --- | --- |
 | A01-01 安装与基础认证 | 开发中 | 显式安装预设、基础账户流程与响应适配、安装保护、真实Artisan／HTTP。 |
-| A01-02 邮件与生命周期 | 开发中 | 已验邮件落地与密码浏览器会话；待SMTP／队列、PAT／无密码及跨进程撤销。 |
-| A01-03 账户中心 | 未闭合 | Token客户端协议、重新认证、头像、设备与注销。 |
+| A01-02 邮件与生命周期 | 开发中 | 已验邮件落地、本地SMTP、无会话恢复及会话／PAT撤销；待可靠队列、无密码与跨驱动最终组合。 |
+| A01-03 账户中心 | 未闭合 | 已验Token登录、近期密码确认及本人令牌管理；资料敏感更新、头像、设备与注销待补齐。 |
 | A01-04 网页与可选认证 | 未闭合 | 完整Blade页面、2FA／Passkeys／第三方登录接线及三语教程。 |
 | A01-05 组合验收 | 未闭合 | 两种预设、三库／缓存、常用系统与最终支持矩阵。 |
 
@@ -219,3 +219,29 @@ API路径跟随既有`api.prefix`；端点由显式套件Provider注册，不改
 本单元实际父提交为 `a0e4dcbdb`；仅将已提交的41份Console／语言资源变化纳入组合快照复核，不提交它们。无重叠的在途 `tests/artisan_tutorial_docs.py` 保留；下一邮件单元的独立 `starter/api.rs` 草稿不纳入本单元。
 
 磁盘守卫在组合用例代码生成时触及32GB，安全终止后取得所有Cargo锁，直接释放81,531,502,592字节，之后可用113,549,819,904字节。两项已完成Clippy证据保留，未运行完的单个用例恢复冷构建并通过；日志／源码／依赖下载／数据库与卷保留。两库临时容器与三HTTP节点均退出，正常增量缓存继续复用；收尾实际空间见 `account-delivery-space.json`。
+
+## A01-02／03：无会话注册、邮件恢复与签名时钟
+
+本单元沿用固定Fortify控制器、FormRequest、Action、密码代理和通知，没有另建身份或邮件队列。新增API均为显式用户套件扩展，不称为上游自动注册的默认路由。参考固定[VerifyEmail](https://github.com/laravel/framework/blob/v13.40.0/src/Illuminate/Auth/Notifications/VerifyEmail.php)与[DatabaseTokenRepository](https://github.com/laravel/framework/blob/v13.40.0/src/Illuminate/Auth/Passwords/DatabaseTokenRepository.php)的应用时钟；既有旧版API适配的正文凭据／不可缓存边界继续复用本记录前述调研，不搬回旧JWT体系。
+
+- `POST /api/auth/register`：复用可替换CreatesNewUsers及Registered事件，201四字段资源，不自动建立浏览器会话、不签发PAT，不绕过额外因素。注册关闭时不装配该API。
+- `POST /api/auth/forgot-password`：ControllerDispatcher沿用原生SendPasswordResetLinkRequest的正式验证／预检生命周期，成功200，业务验证／代理失败422。
+- `POST /api/auth/reset-password`：复用原生重置控制器、配置Action及密码代理的单次消费，成功200。既有套件凭据版本继续拒绝旧PAT和会话；没有另外发明刷新令牌。
+- `POST /api/auth/email/verification-notification`：认证后允许未验证用户重发，202已发送、204已验证；保留配置限流器和功能开关。
+- 原生`verification.verify`签名路由位置及参数保持不变。套件默认将该路由的认证链设为已配置会话Guard优先、Sanctum回退，支持客户端对原URL提交Bearer；开发者自定义认证中间件不被覆盖。浏览器原有邮件登录与回跳保持。签名不允许更换Host或重写查询串；集群由公开Origin／负载均衡保留Host。此网页路由可以建立匿名Session Cookie，但不会因Bearer验证登录浏览器。
+- 本批API认证分组统一禁止缓存，包含内层400／401／422／429等失败。非GET／HEAD拒绝查询串中的用户名、邮箱、密码、重置Token、OTP、挑战和近期证明等；凭据走正文或正式认证标头，语言参数仍可用。Cookie请求的CSRF没有关闭。
+- VerifyEmail默认签发、URL默认验签和数据库／缓存密码重置策略使用现有应用Date时钟；URL生成器通过弱引用绑定所属应用，另一应用的当前作用域不能串用时钟。显式签名到期参数、URL／邮件自定义回调及系统时间默认值不变。
+
+### 本批实际验收
+
+父单元`e72f85254`；冻结源码`target/tmp/user-starter/source`。交付清单`mail-api-files.json`，最终组合HEAD见`mail-api-combination-head.txt`；复核中仅吸收其他已提交Console依赖，不改其代码或把其未提交工作夹入本批。
+
+- `mail-api-tests-third.log`：SQLite 3.54.1新增5项真实TCP通过，含多级API前缀、注册输出白名单、Bearer签名验证、幂等重发、过期与并发重置、旧PAT失效、查询秘密拒绝及错误no-store。
+- `mail-api-matrix-gates.log`：独立MySQL 8.4.13和PostgreSQL 18.7各新增5项通过，实际database会话；两库临时容器退出。SQLite完整套件25项、原生密码代理3项、URL6项回归通过；workspace及Fortify+Sanctum all-targets严格Clippy通过。
+- 本地SMTP实际接收注册验证与密码找回邮件。一次临时451拒收返回500且未计投递成功；显式重发202后收件箱增长一次。与完整SMTP／TLS既有专项分开，不把本地无TLS捕获端点冒充真实供应商投递或生产收信。
+- `mail-api-runtime-fourth.log`／`mail-api-runtime-http.json`：已有生成full应用实际重建后三进程20次TCP通过；配置关闭注册／验证404，本地SMTP捕获签名邮件、失败重发、跨节点验证、并发重置只有一个成功、新密码登录及旧PAT401。初轮验收快照混用Console版本的编译失败已修正；脚本误对公开`/api/user`要求认证分组no-store及跨端口丢失公开Host的失败均保留，随后按正式分组和公开Origin重跑通过。
+- `mail-api-docs.log`：三语文档站构建通过，正文`client-mail`在两种挂载前缀／桌面手机共12组浏览器检查通过。
+
+本单元不将账户中心、设备列表、注销／头像持久化清理、无密码PAT的Passkey近期确认、可选因素UI及最终安装矩阵计为闭合。认证默认邮件当前同步发送；自动队列重试／故障恢复尚待单独实现及真实Worker验收，真实外部SMTP和供应商收信留发布验收。自定义认证标识与模型主键不同的邮件生成／更新组合仍需在S10专项核对，不用默认User通过冒充高级自定义全部通过。
+
+最终组合`985c71511`：`mail-api-final-gates-second.log`中新增URL所属应用时钟隔离1项通过；随后新增匿名Cookie断言初次引用了夹具不存在的`/api/admin/user`而返回404，改为夹具已有受保护`/api/token-me`后，`mail-api-final-gates-third.log`的5项通过，并确认匿名Cookie不能登录浏览器。该日志workspace严格Clippy54.30秒、Fortify+Sanctum严格Clippy36.46秒及全workspace格式检查均退出0。最终内容以`mail-api-final-source-sha.json`为准，临时SMTP／HTTP进程均已退出；文档构建输出直接删除，正常增量缓存保留，空间记录`mail-api-delivery-space.json`。

@@ -1150,10 +1150,10 @@ impl Application {
             .expect("application route cache loaded once");
         self.shared.container.instance_named(
             "url",
-            Arc::new(crate::routing::UrlGenerator::new(
-                routes.url_routes(),
-                config.clone(),
-            )),
+            Arc::new(
+                crate::routing::UrlGenerator::new(routes.url_routes(), config.clone())
+                    .with_owner(Arc::downgrade(&self.container_handle())),
+            ),
         )?;
         self.shared
             .container

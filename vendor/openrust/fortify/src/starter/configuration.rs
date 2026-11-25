@@ -135,6 +135,27 @@ pub async fn configure(app: &Application) -> ProviderResult {
         "auth.session_credential_version_attribute",
         json!(super::credentials::VERSION_ATTRIBUTE),
     )?;
+    #[cfg(feature = "sanctum")]
+    if config.get("fortify.verification_auth_middleware").is_none()
+        && config
+            .get("fortify.auth_middleware")
+            .is_none_or(|value| value == json!("auth"))
+    {
+        let guard = config
+            .get("fortify.guard")
+            .and_then(|value| value.as_str().map(str::to_owned))
+            .or_else(|| {
+                config
+                    .get("auth.defaults.guard")
+                    .and_then(|value| value.as_str().map(str::to_owned))
+            })
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| "web".into());
+        config.set(
+            "fortify.verification_auth_middleware",
+            json!(format!("auth:{guard},sanctum")),
+        )?;
+    }
     config.set("fortify.features", Value::Array(features))?;
     config.set("fortify.middleware", Value::Array(middleware))?;
     config.set("fortify.views", json!(full))?;

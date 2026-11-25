@@ -196,3 +196,32 @@ Accept: application/json
 PAT 证明在应用数据库中只保存摘要，绑定用户、当前PAT、用途、凭据版本和有效的因素／邮箱状态。`auth.password_timeout` 为正整数秒，默认10800；不等清理任务就会到期。错误设备／用途、篡改或重放返回401。签发／撤销使用共同用户锁和令牌行锁，模型事件取消或提交前证明过期会回滚数据库变更。应用确认回调可支持自己的身份流程，没有本地密码不代表自动确认。无状态 Passkey 重新认证适配仍单独待补。
 
 密码错误422，一分钟内5次失败后429并带 `Retry-After`；缺少令牌能力403。消息跟随请求语言，证明、密码和令牌秘密不会进入旧输入；包含新证明／令牌的响应使用 `no-store`。完整账户中心、头像、设备列表和账户注销仍在开发。
+
+## 无会话客户端注册与邮件恢复 {#client-mail}
+
+显式安装套件后，以下路由读取 `api.prefix`（默认 `/api`）。它们复用 Fortify Action、验证器、密码代理和通知；独立 Fortify 的原有 Cookie／CSRF 路由不变。
+
+| 方法 | 路径 | 成功行为 |
+| --- | --- | --- |
+| POST | `/api/auth/register` | 201，返回四字段用户资源；不自动登录或签发令牌。 |
+| POST | `/api/auth/forgot-password` | 200，本地化重置邮件状态。 |
+| POST | `/api/auth/reset-password` | 200，本地化重置状态；重置凭据仅能兑换一次。 |
+| POST | `/api/auth/email/verification-notification` | Bearer 或有状态 Cookie 认证；发送成功202，已验证204。 |
+
+注册、密码找回和验证路由分别跟随相应功能开关。敏感凭据放在 JSON 正文，不放查询字符串。客户端认证路由拒绝查询凭据并返回400；成功、认证失败、验证错误及限流响应均带 `Cache-Control: no-store`。有状态请求仍需 CSRF，返回 JSON 不会取消此要求。
+
+```sh
+curl -i -X POST http://localhost:8000/api/auth/register \
+  -H 'Content-Type: application/json' -H 'Accept: application/json' \
+  -d '{"name":"开发者","email":"developer@example.test","password":"long-password-123","password_confirmation":"long-password-123"}'
+
+curl -i -X POST http://localhost:8000/api/auth/forgot-password \
+  -H 'Content-Type: application/json' -H 'Accept: application/json' \
+  -d '{"email":"developer@example.test"}'
+```
+
+注册后显式完成[令牌登录](#client-tokens)。原生客户端验证邮箱时，向**邮件中的原始签名 URL**发送 `Authorization: Bearer <token>` 和 `Accept: application/json`。不要将签名路由搬到 `/api`、向 URL 追加凭据或重组查询串。签名错误、过期或其他用户的链接均不能通过。成功204，重复有效链接幂等。这个网页落地路由可能产生匿名会话 Cookie，但 Bearer 验证不会登录浏览器；浏览器也可沿用邮件登录落地页。
+
+找回密码时，从原邮件链接取得重置凭据和邮箱，与 `password`、`password_confirmation` 一起提交至 `/api/auth/reset-password`。缺失、过期或已消费的凭据返回422；并发提交只有一个成功。重置使套件既有会话及个人访问令牌失效，须用新密码重新登录。消息跟随应用语言；验证签名和密码重置期限使用应用 Date 时钟。
+
+依赖邮件前先配置实际传输。同步发送失败返回错误，不会报告已发送；修复投递后可显式重发验证通知。这些路由不承诺队列自动补发或真实外部邮箱收信，应用通知回调仍可替换。

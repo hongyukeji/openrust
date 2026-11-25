@@ -90,5 +90,5 @@ impl TokenPolicy {
 }
 
 pub(super) fn now() -> Timestamp {
-    Timestamp::now()
+    crate::support::utc_now_for(crate::support::facades::current_container().as_deref())
 }

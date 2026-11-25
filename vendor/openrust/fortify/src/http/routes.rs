@@ -165,7 +165,7 @@ pub(crate) fn register() -> Result<(), RoutingError> {
                         crate::http::requests::VerifyEmailRequest,
                     >(VerifyEmailController::verify),
                 )?
-                .middleware_name(auth.clone())
+                .middleware_name(fortify.string("fortify.verification_auth_middleware", &auth))
                 .middleware_name("signed")
                 .middleware_name(format!("throttle:{limiter}"))
                 .name("verification.verify");

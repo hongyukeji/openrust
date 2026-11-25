@@ -66,7 +66,10 @@ impl VerifyEmail {
             .unwrap_or(60);
         let expiry = minutes
             .checked_mul(60)
-            .and_then(|seconds| SystemTime::now().checked_add(Duration::from_secs(seconds)))
+            .and_then(|seconds| {
+                SystemTime::from(crate::support::utc_now_for(Some(&container)))
+                    .checked_add(Duration::from_secs(seconds))
+            })
             .ok_or(AuthError::Configuration("auth.verification.expire"))?;
         Url::temporary_signed_route(
             "verification.verify",

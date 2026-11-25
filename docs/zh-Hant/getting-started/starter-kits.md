@@ -196,3 +196,32 @@ Accept: application/json
 PAT 證明在應用資料庫中僅儲存雜湊，綁定使用者、目前PAT、用途、憑據版本及有效的因素／郵箱狀態。`auth.password_timeout` 為正整數秒，預設10800；不等清理工作就會到期。錯誤裝置／用途、竄改或重放回傳401。簽發／撤銷使用共同使用者鎖及權杖列鎖，模型事件取消或提交前證明過期會回滾資料庫變更。應用確認回呼可支援自己的身分流程，沒有本機密碼不代表自動確認。無狀態 Passkey 重新驗證適配仍另列待補。
 
 密碼錯誤422，一分鐘內5次失敗後429並帶 `Retry-After`；缺少權杖能力403。訊息跟隨請求語言，證明、密碼與權杖秘密不會進入舊輸入；包含新證明／權杖的回應使用 `no-store`。完整帳戶中心、頭像、裝置清單與帳戶註銷仍在開發。
+
+## 無會話用戶端註冊與郵件恢復 {#client-mail}
+
+明確安裝套件後，以下路由讀取 `api.prefix`（預設 `/api`）。它們重用 Fortify Action、驗證器、密碼代理和通知；獨立 Fortify 原有的 Cookie／CSRF 路由不變。
+
+| 方法 | 路徑 | 成功行為 |
+| --- | --- | --- |
+| POST | `/api/auth/register` | 201，傳回四欄位使用者資源；不自動登入或簽發權杖。 |
+| POST | `/api/auth/forgot-password` | 200，本地化重設郵件狀態。 |
+| POST | `/api/auth/reset-password` | 200，本地化重設狀態；重設憑據只能兌換一次。 |
+| POST | `/api/auth/email/verification-notification` | Bearer 或有狀態 Cookie 認證；寄送成功202，已驗證204。 |
+
+註冊、密碼找回和驗證路由分別依循對應功能開關。敏感憑據放在 JSON 本文，不放查詢字串。用戶端認證路由拒絕查詢憑據並回傳400；成功、認證失敗、驗證錯誤與限流回應均帶 `Cache-Control: no-store`。有狀態請求仍需 CSRF，回傳 JSON 不會取消此要求。
+
+```sh
+curl -i -X POST http://localhost:8000/api/auth/register \
+  -H 'Content-Type: application/json' -H 'Accept: application/json' \
+  -d '{"name":"開發者","email":"developer@example.test","password":"long-password-123","password_confirmation":"long-password-123"}'
+
+curl -i -X POST http://localhost:8000/api/auth/forgot-password \
+  -H 'Content-Type: application/json' -H 'Accept: application/json' \
+  -d '{"email":"developer@example.test"}'
+```
+
+註冊後明確完成[權杖登入](#client-tokens)。原生用戶端驗證信箱時，向**郵件中的原始簽章 URL**送出 `Authorization: Bearer <token>` 和 `Accept: application/json`。不要將簽章路由搬到 `/api`、向 URL 附加憑據或重組查詢字串。簽章錯誤、過期或其他使用者的連結均不能通過。成功204，重複有效連結冪等。這個網頁落地路由可能產生匿名會話 Cookie，但 Bearer 驗證不會登入瀏覽器；瀏覽器亦可使用郵件登入落地頁。
+
+找回密碼時，從原郵件連結取得重設憑據和信箱，與 `password`、`password_confirmation` 一起提交至 `/api/auth/reset-password`。缺失、過期或已消費的憑據回傳422；並行提交只有一個成功。重設使套件既有會話與個人存取權杖失效，須以新密碼重新登入。訊息依循應用語言；驗證簽章與密碼重設期限使用應用 Date 時鐘。
+
+依賴郵件前先設定實際傳輸。同步寄送失敗回傳錯誤，不會報告已寄送；修復投遞後可明確重寄驗證通知。這些路由不承諾佇列自動補寄或真實外部信箱收信，應用通知回呼仍可替換。

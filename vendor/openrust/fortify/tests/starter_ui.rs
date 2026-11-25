@@ -125,6 +125,16 @@ async fn start_security_catalog(
     prefix: &str,
     legacy: bool,
 ) -> Server {
+    start_security_catalog_mail(profile, verification, two_factor, prefix, legacy, None).await
+}
+async fn start_security_catalog_mail(
+    profile: &'static str,
+    verification: bool,
+    two_factor: bool,
+    prefix: &str,
+    legacy: bool,
+    mail: Option<Value>,
+) -> Server {
     use axum::handler::Handler as _;
     static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let root = Root(std::env::temp_dir().join(format!(
@@ -142,6 +152,9 @@ async fn start_security_catalog(
             .to_string(),
     )
     .unwrap();
+    if let Some(mail) = mail {
+        std::fs::write(root.0.join("mail-config.json"), mail.to_string()).unwrap();
+    }
     let mut app = Application::configure(root.0.clone())
         .with_config(if profile == "api" {
             api_configuration
@@ -524,7 +537,7 @@ fn full_configuration(
         ("hashing".into(),json!({"driver":"bcrypt","bcrypt":{"rounds":4}})),
         ("auth".into(),json!({"defaults":{"guard":"web","passwords":"users"},"guards":{"web":{"driver":"session","provider":"users"}},"providers":{"users":{"driver":"eloquent","model":"StarterUser"}},"passwords":{"users":{"provider":"users","table":"password_reset_tokens","expire":60,"throttle":60}}})),
         ("fortify-options".into(),json!({"two-factor-authentication":{"confirm":true,"confirmPassword":true}})),
-        ("mail".into(),json!({"default":"array","mailers":{"array":{"transport":"array"}},"from":{"address":"admin@example.test","name":"用户套件测试"}})),
+        ("mail".into(),std::fs::read(base.join("mail-config.json")).ok().map(|bytes|serde_json::from_slice::<Value>(&bytes).unwrap()).unwrap_or_else(||json!({"default":"array","mailers":{"array":{"transport":"array"}},"from":{"address":"admin@example.test","name":"用户套件测试"}}))),
     ].into())
 }
 fn api_configuration(
@@ -1502,13 +1515,25 @@ async fn account_request_with_proof(
     payload: Value,
     proof: Option<&str>,
 ) -> (u16, String, Value) {
+    let result = account_wire_request(address, token, method, path, payload, proof).await;
+    assert!(!result.1.to_ascii_lowercase().contains("set-cookie:"));
+    result
+}
+#[cfg(feature = "sanctum")]
+async fn account_wire_request(
+    address: SocketAddr,
+    token: &str,
+    method: &str,
+    path: &str,
+    payload: Value,
+    proof: Option<&str>,
+) -> (u16, String, Value) {
     tokio::time::timeout(std::time::Duration::from_secs(10),async {
         let mut socket=TcpStream::connect(address).await.unwrap();let body=payload.to_string();
         let extra=proof.map(|value|format!("X-Auth-Confirmation: {value}\r\n")).unwrap_or_default();
         socket.write_all(format!("{method} {path} HTTP/1.1\r\nHost: {address}\r\nAccept: application/json\r\nContent-Type: application/json\r\nAuthorization: Bearer {token}\r\n{extra}Content-Length: {}\r\nConnection: close\r\n\r\n{body}",body.len()).as_bytes()).await.unwrap();
         let mut wire=String::new();socket.read_to_string(&mut wire).await.unwrap();
         let(headers,body)=wire.split_once("\r\n\r\n").unwrap();let status=headers.split_whitespace().nth(1).unwrap().parse().unwrap();
-        assert!(!headers.to_ascii_lowercase().contains("set-cookie:"));
         (status,headers.to_owned(),if body.is_empty(){Value::Null}else{serde_json::from_str(body).unwrap()})
     }).await.unwrap()
 }
@@ -2201,4 +2226,389 @@ async fn account_cookie_management_uses_native_session_confirmation_and_csrf() {
             .0,
         423
     );
+}
+
+#[cfg(feature = "sanctum")]
+#[tokio::test]
+async fn mail_api_register_verify_and_resend_work_without_browser_sessions() {
+    let server = start_security("full", true, false, "api/admin").await;
+    let registration = json!({"name":"客户端用户","email":"native@example.test","password":"long-password-123","password_confirmation":"long-password-123"});
+    let (status, headers, body) = token_client_request(
+        server.address,
+        "/api/admin/auth/register",
+        registration.clone(),
+    )
+    .await;
+    assert_eq!(status, 201, "{body}");
+    assert!(headers.to_ascii_lowercase().contains("no-store"));
+    assert_eq!(body["data"]["email"], "native@example.test");
+    assert_eq!(body["data"].as_object().unwrap().len(), 4);
+    let (status, _, _) =
+        token_client_request(server.address, "/api/admin/auth/register", registration).await;
+    assert_eq!(status, 422);
+    let mut login = device_login();
+    login["email"] = json!("native@example.test");
+    let (status, _, body) =
+        token_client_request(server.address, "/api/admin/auth/token", login).await;
+    assert_eq!(status, 201, "{}", token_failure(&body));
+    let token = body["data"]["token"].as_str().unwrap();
+    let link = server.mail_link("/email/verify/");
+    let (status, _, _) = account_wire_request(
+        server.address,
+        token,
+        "GET",
+        &format!("{link}&tampered=1"),
+        Value::Null,
+        None,
+    )
+    .await;
+    assert_eq!(status, 403);
+    let (status, _, body) = account_request(
+        server.address,
+        token,
+        "POST",
+        "/api/admin/auth/email/verification-notification",
+        json!({}),
+    )
+    .await;
+    assert_eq!(status, 202, "{body}");
+    let link = server.mail_link("/email/verify/");
+    let mut anonymous = Client {
+        address: server.address,
+        cookies: Default::default(),
+        csrf: String::new(),
+    };
+    for _ in 0..2 {
+        let (status, headers, body) =
+            account_wire_request(server.address, token, "GET", &link, Value::Null, None).await;
+        assert_eq!(status, 204, "{body}");
+        for line in headers.lines() {
+            if let Some(cookie) = line.strip_prefix("set-cookie: ") {
+                let (name, value) = cookie.split(';').next().unwrap().split_once('=').unwrap();
+                anonymous.cookies.insert(name.into(), value.into());
+            }
+        }
+    }
+    assert_eq!(
+        anonymous
+            .exchange_origin("GET", "/api/token-me", "", true, true)
+            .await
+            .0,
+        401
+    );
+    let (status, _, body) = account_request(
+        server.address,
+        token,
+        "POST",
+        "/api/admin/auth/email/verification-notification",
+        json!({}),
+    )
+    .await;
+    assert_eq!(status, 204, "{body}");
+    assert_eq!(server.mailer.sent().unwrap().len(), 2);
+}
+
+#[cfg(feature = "sanctum")]
+#[tokio::test]
+async fn mail_api_password_reset_is_single_use_and_revokes_existing_tokens() {
+    let server = start_security("api", false, false, "api").await;
+    let registration = json!({"name":"找回客户端","email":"device@example.test","password":"long-password-123","password_confirmation":"long-password-123"});
+    assert_eq!(
+        token_client_request(server.address, "/api/auth/register", registration)
+            .await
+            .0,
+        201
+    );
+    let (status, _, body) =
+        token_client_request(server.address, "/api/auth/token", device_login()).await;
+    assert_eq!(status, 201, "{}", token_failure(&body));
+    let token = body["data"]["token"].as_str().unwrap();
+    let (status, headers, body) = token_client_request(
+        server.address,
+        "/api/auth/forgot-password",
+        json!({"email":"device@example.test"}),
+    )
+    .await;
+    assert_eq!(status, 200, "{body}");
+    assert!(headers.to_ascii_lowercase().contains("no-store"));
+    let link = server.mail_link("/reset-password/");
+    let reset = link.split('?').next().unwrap().rsplit('/').next().unwrap();
+    let input = json!({"token":reset,"email":"device@example.test","password":"new-password-456","password_confirmation":"new-password-456"});
+    let (a, b) = tokio::join!(
+        token_client_request(server.address, "/api/auth/reset-password", input.clone()),
+        token_client_request(server.address, "/api/auth/reset-password", input.clone())
+    );
+    let mut statuses = [a.0, b.0];
+    statuses.sort();
+    assert_eq!(statuses, [200, 422]);
+    assert_eq!(bearer_request(server.address, token).await, 401);
+    assert_eq!(
+        token_client_request(server.address, "/api/auth/reset-password", input)
+            .await
+            .0,
+        422
+    );
+    assert_eq!(
+        token_client_request(server.address, "/api/auth/token", device_login())
+            .await
+            .0,
+        422
+    );
+    let mut login = device_login();
+    login["password"] = json!("new-password-456");
+    assert_eq!(
+        token_client_request(server.address, "/api/auth/token", login)
+            .await
+            .0,
+        201
+    );
+}
+
+#[cfg(feature = "sanctum")]
+#[tokio::test]
+async fn mail_api_rejects_query_credentials_and_disables_response_caching_on_errors() {
+    let server = start_security("api", false, false, "api").await;
+    for key in [
+        "email",
+        "password",
+        "token",
+        "challenge",
+        "proof",
+        "code",
+        "credential",
+    ] {
+        let (status, headers, _) = token_client_request(
+            server.address,
+            &format!("/api/auth/token?{key}=must-not-leak"),
+            device_login(),
+        )
+        .await;
+        assert_eq!(status, 400, "{key}");
+        assert!(headers.to_ascii_lowercase().contains("no-store"));
+    }
+    let (status, headers, _) =
+        token_client_request(server.address, "/api/auth/token", json!({})).await;
+    assert_eq!(status, 422);
+    assert!(headers.to_ascii_lowercase().contains("no-store"));
+    let (status, headers, _) = account_request(
+        server.address,
+        "invalid",
+        "POST",
+        "/api/auth/email/verification-notification",
+        json!({}),
+    )
+    .await;
+    assert_eq!(status, 404);
+    assert!(!headers.is_empty());
+    let (status, headers, _) = account_request(
+        server.address,
+        "invalid",
+        "POST",
+        "/api/auth/logout",
+        json!({}),
+    )
+    .await;
+    assert_eq!(status, 401);
+    assert!(headers.to_ascii_lowercase().contains("no-store"));
+}
+
+#[cfg(feature = "sanctum")]
+#[tokio::test]
+async fn mail_api_uses_application_clock_for_signed_links_and_password_expiration() {
+    let server = start_security("api", true, false, "api").await;
+    let clock = server
+        ._kernel
+        .get_application()
+        .make::<openrust::support::DateFactory>()
+        .await
+        .unwrap();
+    let start = "2030-01-01T00:00:00Z".parse::<jiff::Timestamp>().unwrap();
+    clock.set_test_now(Some(openrust::support::Date::from_utc(
+        start,
+        jiff::tz::TimeZone::UTC,
+    )));
+    let registration = json!({"name":"时钟用户","email":"device@example.test","password":"long-password-123","password_confirmation":"long-password-123"});
+    assert_eq!(
+        token_client_request(server.address, "/api/auth/register", registration)
+            .await
+            .0,
+        201
+    );
+    let link = server.mail_link("/email/verify/");
+    assert!(link.contains(&format!("expires={}", start.as_second() + 3600)));
+    let (status, _, body) =
+        token_client_request(server.address, "/api/auth/token", device_login()).await;
+    assert_eq!(status, 201, "{}", token_failure(&body));
+    let token = body["data"]["token"].as_str().unwrap();
+    assert_eq!(
+        token_client_request(
+            server.address,
+            "/api/auth/forgot-password",
+            json!({"email":"device@example.test"})
+        )
+        .await
+        .0,
+        200
+    );
+    let reset_link = server.mail_link("/reset-password/");
+    let reset = reset_link
+        .split('?')
+        .next()
+        .unwrap()
+        .rsplit('/')
+        .next()
+        .unwrap();
+    clock.set_test_now(Some(openrust::support::Date::from_utc(
+        start + jiff::SignedDuration::from_secs(3601),
+        jiff::tz::TimeZone::UTC,
+    )));
+    let (status, _, body) =
+        account_wire_request(server.address, token, "GET", &link, Value::Null, None).await;
+    assert_eq!(status, 403, "{body}");
+    let input = json!({"token":reset,"email":"device@example.test","password":"new-password-456","password_confirmation":"new-password-456"});
+    let (status, _, body) =
+        token_client_request(server.address, "/api/auth/reset-password", input).await;
+    assert_eq!(status, 422, "{body}");
+    // 前一令牌超过原生代理的节流期限，可再次发信；过期链接不改变账户验证状态。
+    let (status, _, body) = account_request(
+        server.address,
+        token,
+        "POST",
+        "/api/auth/email/verification-notification",
+        json!({}),
+    )
+    .await;
+    assert_eq!(status, 202, "{body}");
+    let new_link = server.mail_link("/email/verify/");
+    assert_ne!(new_link, link);
+    assert_eq!(
+        account_wire_request(server.address, token, "GET", &new_link, Value::Null, None)
+            .await
+            .0,
+        204
+    );
+}
+
+#[cfg(feature = "sanctum")]
+#[tokio::test]
+async fn mail_api_smtp_failure_is_reported_and_explicit_resend_delivers_to_local_inbox() {
+    use tokio::io::{AsyncBufReadExt as _, BufReader};
+    let smtp = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = smtp.local_addr().unwrap().port();
+    let inbox = Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+    let reject = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let messages = inbox.clone();
+    let reject_next = reject.clone();
+    let task = tokio::spawn(async move {
+        loop {
+            let (socket, _) = smtp.accept().await.unwrap();
+            let messages = messages.clone();
+            let reject_next = reject_next.clone();
+            tokio::spawn(async move {
+                let (read, mut write) = socket.into_split();
+                let mut read = BufReader::new(read);
+                write.write_all(b"220 localhost ESMTP\r\n").await.unwrap();
+                let mut data = false;
+                let mut body = String::new();
+                loop {
+                    let mut line = String::new();
+                    if read.read_line(&mut line).await.unwrap_or(0) == 0 {
+                        break;
+                    }
+                    let reply = if data {
+                        if line == ".\r\n" {
+                            data = false;
+                            messages.lock().unwrap().push(std::mem::take(&mut body));
+                            "250 accepted\r\n"
+                        } else {
+                            body.push_str(&line);
+                            continue;
+                        }
+                    } else if line.starts_with("EHLO") {
+                        "250-localhost\r\n250 OK\r\n"
+                    } else if line.starts_with("MAIL FROM:") || line.starts_with("RSET") {
+                        "250 OK\r\n"
+                    } else if line.starts_with("RCPT TO:") {
+                        if reject_next.swap(false, std::sync::atomic::Ordering::SeqCst) {
+                            "451 temporary rejection\r\n"
+                        } else {
+                            "250 OK\r\n"
+                        }
+                    } else if line.starts_with("DATA") {
+                        data = true;
+                        "354 send body\r\n"
+                    } else if line.starts_with("QUIT") {
+                        let _ = write.write_all(b"221 bye\r\n").await;
+                        break;
+                    } else {
+                        "250 OK\r\n"
+                    };
+                    if write.write_all(reply.as_bytes()).await.is_err() {
+                        break;
+                    }
+                }
+            });
+        }
+    });
+    struct Stop(tokio::task::JoinHandle<()>);
+    impl Drop for Stop {
+        fn drop(&mut self) {
+            self.0.abort();
+        }
+    }
+    let _smtp = Stop(task);
+    let mail = json!({"default":"smtp","mailers":{"smtp":{"transport":"smtp","host":"127.0.0.1","port":port,"scheme":"smtp","encryption":null,"timeout":5}},"from":{"address":"admin@example.test","name":"本地验收"}});
+    let server = start_security_catalog_mail("api", true, false, "api", false, Some(mail)).await;
+    let registration = json!({"name":"SMTP用户","email":"device@example.test","password":"long-password-123","password_confirmation":"long-password-123"});
+    let (status, _, body) =
+        token_client_request(server.address, "/api/auth/register", registration).await;
+    assert_eq!(status, 201, "{body}");
+    {
+        let inbox = inbox.lock().unwrap();
+        assert_eq!(inbox.len(), 1);
+        assert!(inbox[0].contains("device@example.test"));
+        assert!(inbox[0].contains("/email/verify/"));
+    }
+    let (status, _, body) =
+        token_client_request(server.address, "/api/auth/token", device_login()).await;
+    assert_eq!(status, 201, "{}", token_failure(&body));
+    let token = body["data"]["token"].as_str().unwrap();
+    reject.store(true, std::sync::atomic::Ordering::SeqCst);
+    let (status, headers, _) = account_request(
+        server.address,
+        token,
+        "POST",
+        "/api/auth/email/verification-notification",
+        json!({}),
+    )
+    .await;
+    assert_eq!(status, 500);
+    assert!(headers.to_ascii_lowercase().contains("no-store"));
+    assert_eq!(inbox.lock().unwrap().len(), 1);
+    assert_eq!(
+        account_request(
+            server.address,
+            token,
+            "POST",
+            "/api/auth/email/verification-notification",
+            json!({})
+        )
+        .await
+        .0,
+        202
+    );
+    assert_eq!(inbox.lock().unwrap().len(), 2);
+    assert_eq!(
+        token_client_request(
+            server.address,
+            "/api/auth/forgot-password",
+            json!({"email":"device@example.test"})
+        )
+        .await
+        .0,
+        200
+    );
+    let inbox = inbox.lock().unwrap();
+    assert_eq!(inbox.len(), 3);
+    assert!(inbox[2].contains("/reset-password/"));
 }

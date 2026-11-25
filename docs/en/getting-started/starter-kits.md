@@ -196,3 +196,32 @@ For first-party Cookie/SPA clients, retain the normal CSRF flow and send credent
 PAT proofs are hashed in the application's database, bound to the `user`, `current` PAT, purpose, credential version and effective factor/email state. `auth.password_timeout` is a positive number of seconds, default10800. Proofs expire without waiting for cleanup; wrong devices/purposes, tampering and replay return401. User and `token` row locks cover issuance/revocation. A late expiry or a cancelled model event rolls back the database mutation. Password callbacks may support an application-specific identity flow; an account without a local password is never automatically confirmed. Stateless Passkey reauthentication remains a separate pending adapter.
 
 Password errors return422; five failed confirmations within a minute cause429 with `Retry-After`. Missing `token` capabilities return403. All displayed messages use the request locale. Proofs, passwords and `token` secrets are excluded from old input. Responses containing a new proof/token use `no-store`. The complete account center, avatar, device list and account deletion remain in progress.
+
+## Stateless registration and recovery {#client-mail}
+
+The explicitly installed suite registers these routes beneath `api.prefix` (default `/api`). They reuse Fortify Actions, validation, the password broker and notifications; standalone Fortify routes retain their Cookie/CSRF behavior.
+
+| Method | Path | Success |
+| --- | --- | --- |
+| POST | `/api/auth/register` | 201, four-field user resource; no login or token issuance. |
+| POST | `/api/auth/forgot-password` | 200, localized reset-link status. |
+| POST | `/api/auth/reset-password` | 200, localized reset status; the reset credential is single-use. |
+| POST | `/api/auth/email/verification-notification` | Bearer or stateful Cookie authentication; 202 when sent, 204 when already verified. |
+
+Registration, password recovery and verification routes follow their respective feature settings. Send credentials in a JSON body, never in the query string. API authentication routes reject query credentials with 400 and return `Cache-Control: no-store`, including authentication, validation and rate-limit failures. Stateful requests still require CSRF; a JSON response does not remove this requirement.
+
+```sh
+curl -i -X POST http://localhost:8000/api/auth/register \
+  -H 'Content-Type: application/json' -H 'Accept: application/json' \
+  -d '{"name":"Developer","email":"developer@example.test","password":"long-password-123","password_confirmation":"long-password-123"}'
+
+curl -i -X POST http://localhost:8000/api/auth/forgot-password \
+  -H 'Content-Type: application/json' -H 'Accept: application/json' \
+  -d '{"email":"developer@example.test"}'
+```
+
+After registration, explicitly complete [token login](#client-tokens). To verify from a native client, open the **original signed URL from the email** with `Authorization: Bearer <token>` and `Accept: application/json`. Do not relocate the signed route under `/api`, append credentials to it or rebuild its query. Invalid signatures, expired links and another user's link fail. Verification returns 204; repeating a valid link is idempotent. This web landing route may issue an anonymous session Cookie, but Bearer verification does not log a browser in. A browser can instead use the existing mail-login landing page.
+
+For password recovery, extract the reset credential and email from the original mail link and POST them with `password` and `password_confirmation` to `/api/auth/reset-password`. A missing, expired or consumed credential returns 422. Concurrent submissions have one winner. Reset invalidates existing suite sessions and personal access tokens; log in again with the new password. Messages follow the selected application language. The application Date clock governs verification signatures and password reset expiry.
+
+Configure an actual mail transport before relying on email. Synchronous delivery failures return an error, not a sent acknowledgement; retry the verification notification explicitly after fixing delivery. This route does not promise queued retries or external inbox delivery. Application notification callbacks remain replaceable.

@@ -32,6 +32,7 @@ type UrlFormatter = dyn Fn(&str, Option<&RouteUrlGenerator>) -> String + Send + 
 #[derive(Clone)]
 pub struct UrlGenerator {
     routes: Arc<UrlRoutes>,
+    owner: std::sync::Weak<crate::container::Container>,
     config: Arc<dyn Repository>,
     uri: Option<Uri>,
     base_url: String,
@@ -256,6 +257,7 @@ impl UrlGenerator {
     pub(crate) fn new(routes: UrlRoutes, config: Arc<dyn Repository>) -> Self {
         Self {
             routes: Arc::new(routes),
+            owner: std::sync::Weak::new(),
             config,
             uri: None,
             base_url: String::new(),
@@ -267,6 +269,14 @@ impl UrlGenerator {
             host_formatter: None,
             path_formatter: None,
         }
+    }
+
+    pub(crate) fn with_owner(
+        mut self,
+        owner: std::sync::Weak<crate::container::Container>,
+    ) -> Self {
+        self.owner = owner;
+        self
     }
 
     pub fn force_scheme(&mut self, scheme: Option<&str>) {
@@ -827,7 +837,12 @@ impl Contract for UrlGenerator {
         mode: SignatureMode,
         ignore_query: SignatureQueryFilter<'_>,
     ) -> UrlResult<bool> {
-        self.valid_signature_at(request, mode, ignore_query, SystemTime::now())
+        self.valid_signature_at(
+            request,
+            mode,
+            ignore_query,
+            crate::support::utc_now_for(self.owner.upgrade().as_deref()).into(),
+        )
     }
 }
 
