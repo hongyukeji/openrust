@@ -123,8 +123,17 @@ impl DeliveryPolicy for FixturePolicy {
                 } else {
                     "local p@ss/%"
                 };
-                let proxy = openrust::http::client::PinnedSocksProxy::new(address)
-                    .and_then(|proxy| proxy.with_credentials("fixture-user", password))
+                use openrust::http::client::{PinnedHttpProxy, PinnedProxy, PinnedSocksProxy};
+                let proxy =
+                    if std::env::var("FIXTURE_SEND_PROXY_PROTOCOL").as_deref() == Ok("connect") {
+                        PinnedHttpProxy::new(address)
+                            .and_then(|proxy| proxy.with_credentials("fixture-user", password))
+                            .map(PinnedProxy::from)
+                    } else {
+                        PinnedSocksProxy::new(address)
+                            .and_then(|proxy| proxy.with_credentials("fixture-user", password))
+                            .map(PinnedProxy::from)
+                    }
                     .map_err(|_| Error::InvalidRecord)?;
                 let name = if context.message_id == "proxy-wrong-name" {
                     "other-egress"

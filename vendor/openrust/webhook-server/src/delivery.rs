@@ -12,7 +12,7 @@ use openrust::{
     contracts::container::Container as _,
     http::{
         HttpFuture,
-        client::{Factory, PinnedSocksProxy, Response, TlsCertificate, TlsIdentity},
+        client::{Factory, PinnedProxy, Response, TlsCertificate, TlsIdentity},
     },
     log::Log,
 };
@@ -44,7 +44,7 @@ pub struct DeliveryPermission {
     tls_ca: Option<Vec<TlsCertificate>>,
     tls_identity: Option<TlsIdentity>,
     allow_unverified_tls: bool,
-    proxy: Option<(String, PinnedSocksProxy)>,
+    proxy: Option<(String, PinnedProxy)>,
 }
 
 impl DeliveryPermission {
@@ -103,15 +103,15 @@ impl DeliveryPermission {
         self
     }
 
-    /// 为当前授权范围和目的地提供具名 SOCKS5 代理。认证材料保留在调用进程。
+    /// 为当前授权范围和目的地提供具名代理。认证材料保留在调用进程。
     pub fn with_proxy(
         mut self,
         reference: impl Into<String>,
-        proxy: PinnedSocksProxy,
+        proxy: impl Into<PinnedProxy>,
     ) -> Result<Self> {
         let reference = reference.into();
         extensions::validate_name("delivery.proxy", &reference)?;
-        self.proxy = Some((reference, proxy));
+        self.proxy = Some((reference, proxy.into()));
         Ok(self)
     }
 
@@ -391,7 +391,7 @@ impl DeliveryService {
         if snapshot.proxy.is_some()
             && let Some((_, proxy)) = permission.proxy
         {
-            request = request.through_pinned_socks_proxy(proxy);
+            request = request.through_pinned_proxy(proxy);
         }
         let Ok(limits) = limits::current() else {
             return AttemptResult::transient("unresolved").into();

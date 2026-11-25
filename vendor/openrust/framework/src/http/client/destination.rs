@@ -12,24 +12,73 @@ pub struct PinnedSocksProxy(pub(super) reqwest::Proxy);
 
 impl PinnedSocksProxy {
     pub fn new(address: SocketAddr) -> Result<Self> {
-        if address.port() == 0 || address.ip().is_unspecified() || address.ip().is_multicast() {
-            return Err(Error::Configuration);
-        }
-        reqwest::Proxy::all(format!("socks5://{address}"))
-            .map(Self)
-            .map_err(|_| Error::Configuration)
+        proxy_at(address, "socks5").map(Self)
     }
 
     pub fn with_credentials(self, username: &str, password: &str) -> Result<Self> {
-        if [username, password].iter().any(|value| {
-            value.is_empty()
-                || value.len() > 255
-                || value.bytes().any(|byte| byte.is_ascii_control())
-        }) {
+        validate_proxy_credentials(username, password)?;
+        Ok(Self(self.0.basic_auth(username, password)))
+    }
+}
+
+/// 通过应用指定的 HTTP 代理对已校验数字地址建立 CONNECT 隧道。
+pub struct PinnedHttpProxy(reqwest::Proxy);
+
+impl PinnedHttpProxy {
+    pub fn new(address: SocketAddr) -> Result<Self> {
+        proxy_at(address, "http").map(Self)
+    }
+
+    pub fn with_credentials(self, username: &str, password: &str) -> Result<Self> {
+        validate_proxy_credentials(username, password)?;
+        if username.contains(':') {
             return Err(Error::Configuration);
         }
         Ok(Self(self.0.basic_auth(username, password)))
     }
+}
+
+/// 显式授权且限定为固定 HTTPS 目的地的出站代理。
+pub enum PinnedProxy {
+    Socks5(PinnedSocksProxy),
+    HttpConnect(PinnedHttpProxy),
+}
+
+impl From<PinnedSocksProxy> for PinnedProxy {
+    fn from(proxy: PinnedSocksProxy) -> Self {
+        Self::Socks5(proxy)
+    }
+}
+
+impl From<PinnedHttpProxy> for PinnedProxy {
+    fn from(proxy: PinnedHttpProxy) -> Self {
+        Self::HttpConnect(proxy)
+    }
+}
+
+impl PinnedProxy {
+    pub(super) fn bind(self, destination: &PinnedDestination) -> reqwest::Proxy {
+        match self {
+            Self::Socks5(proxy) => proxy.0,
+            Self::HttpConnect(proxy) => proxy.0.with_connect_target(destination.addresses[0]),
+        }
+    }
+}
+
+fn proxy_at(address: SocketAddr, scheme: &str) -> Result<reqwest::Proxy> {
+    if address.port() == 0 || address.ip().is_unspecified() || address.ip().is_multicast() {
+        return Err(Error::Configuration);
+    }
+    reqwest::Proxy::all(format!("{scheme}://{address}")).map_err(|_| Error::Configuration)
+}
+
+fn validate_proxy_credentials(username: &str, password: &str) -> Result<()> {
+    if [username, password].iter().any(|value| {
+        value.is_empty() || value.len() > 255 || value.bytes().any(|byte| byte.is_ascii_control())
+    }) {
+        return Err(Error::Configuration);
+    }
+    Ok(())
 }
 
 pub(super) struct PinnedDestination {

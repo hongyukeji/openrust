@@ -260,7 +260,7 @@ pub(super) fn build_pinned_client(
     destination: &super::destination::PinnedDestination,
     tls_ca: Option<Vec<super::TlsCertificate>>,
     tls_identity: Option<super::TlsIdentity>,
-    proxy: Option<super::PinnedSocksProxy>,
+    proxy: Option<super::PinnedProxy>,
 ) -> Result<reqwest::Client> {
     let mut builder = destination.apply(client_builder(timeout, verify_tls));
     if let Some(ca) = tls_ca {
@@ -270,7 +270,7 @@ pub(super) fn build_pinned_client(
         builder = builder.identity(identity);
     }
     if let Some(proxy) = proxy {
-        builder = builder.proxy(proxy.0);
+        builder = builder.proxy(proxy.bind(destination));
     }
     builder.build().map_err(|_| Error::Configuration)
 }

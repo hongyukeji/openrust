@@ -1,4 +1,5 @@
 """用隔离 HTTP 接收器实测持久投递、Artisan 和独立 Worker。"""
+import base64
 import concurrent.futures
 import email.utils
 import hashlib
@@ -221,7 +222,8 @@ def exercise(binary, env, log, receiver, driver, sql):
             proxy = receiver.proxy
             assert proxy.targets == [destination] * (2 if profile in ("proxy", "proxy-mutual") else 1), proxy.targets
             assert proxy.rejected == (1 if profile == "proxy" else 0)
-        print(f"{driver}: TLS {profile} HTTP、Artisan、Worker 及固定连接通过")
+        protocol = env.get("FIXTURE_SEND_PROXY_PROTOCOL", "socks5") if profile.startswith("proxy") else "direct"
+        print(f"{driver}: TLS {profile} {protocol} HTTP、Artisan、Worker 及固定连接通过")
         return
 
     def admin(operation, name, *options):
@@ -1815,13 +1817,45 @@ class SocksProxy(socketserver.BaseRequestHandler):
         self.server.targets.append(target)
         with socket.create_connection(target, timeout=6) as peer:
             self.request.sendall(b"\x05\x00\x00\x01\x00\x00\x00\x00\x00\x00")
-            swap = {self.request: peer, peer: self.request}
-            while ready := select.select(list(swap), [], [], 6)[0]:
-                for source in ready:
-                    data = source.recv(8192)
-                    if not data:
-                        return
-                    swap[source].sendall(data)
+            relay_proxy(self.request, peer)
+
+
+class HttpConnectProxy(socketserver.BaseRequestHandler):
+    def handle(self):
+        self.request.settimeout(6)
+        with self.request.makefile("rb", buffering=0) as reader:
+            line = reader.readline(1024)
+            target = f"{self.server.expected[0]}:{self.server.expected[1]}".encode()
+            assert line == b"CONNECT " + target + b" HTTP/1.1\r\n", line
+            headers = {}
+            for _ in range(16):
+                line = reader.readline(1024)
+                if line == b"\r\n":
+                    break
+                field, value = line.split(b":", 1)
+                headers[field.lower()] = value.strip()
+            else:
+                raise AssertionError("CONNECT header limit")
+        expected = b"Basic " + base64.b64encode(b"fixture-user:local p@ss/%")
+        if headers.get(b"proxy-authorization") != expected:
+            self.server.rejected += 1
+            self.request.sendall(b"HTTP/1.1 407 Proxy Authentication Required\r\nContent-Length: 0\r\n\r\n")
+            return
+        assert headers.get(b"host") == target
+        self.server.targets.append(self.server.expected)
+        with socket.create_connection(self.server.expected, timeout=6) as peer:
+            self.request.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+            relay_proxy(self.request, peer)
+
+
+def relay_proxy(request, peer):
+    swap = {request: peer, peer: request}
+    while ready := select.select(list(swap), [], [], 6)[0]:
+        for source in ready:
+            data = source.recv(8192)
+            if not data:
+                return
+            swap[source].sendall(data)
 
 
 def configure_tls(receiver, folder, profile):
@@ -1890,7 +1924,9 @@ def main():
                 tls.mkdir(mode=0o700)
                 configure_tls(receiver, tls, profile)
             if profile and profile.startswith("proxy"):
-                proxy = socketserver.ThreadingTCPServer(("127.0.0.1", 0), SocksProxy)
+                handler = (HttpConnectProxy if os.environ.get("FIXTURE_SEND_PROXY_PROTOCOL") == "connect"
+                           else SocksProxy)
+                proxy = socketserver.ThreadingTCPServer(("127.0.0.1", 0), handler)
                 proxy.expected = ("127.0.0.1", receiver.server_port)
                 proxy.targets = []
                 proxy.rejected = 0

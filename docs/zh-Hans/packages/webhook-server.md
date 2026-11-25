@@ -161,6 +161,15 @@ pub fn grant_invoice_proxy(
 }
 
 
+pub fn grant_invoice_connect_proxy(
+    permission: openrust_webhook_server::DeliveryPermission,
+    address: std::net::SocketAddr,
+) -> Result<openrust_webhook_server::DeliveryPermission> {
+    let proxy = openrust::http::client::PinnedHttpProxy::new(address)
+        .map_err(|_| openrust_webhook_server::Error::InvalidConfig("proxy"))?;
+    permission.with_proxy("corp-egress", proxy)
+}
+
 pub async fn inspect_invoice_attempts(
     store: &openrust_webhook_server::DeliveryStore,
     id: &str,
@@ -228,9 +237,9 @@ POST 等正文方法使用已准备的字节。GET 将载荷编码为 RFC 3986 �
 
 ### 使用具名出站代理 {#proxy}
 
-在 `webhook-server.proxy` 中设置已批准的名称，例如 `corp-egress`，也可为单次投递调用 `use_proxy(Some("corp-egress".into()))`。调用 `use_proxy(None)` 可选择直连。应用策略授权投递范围和目的地后，用 `DeliveryPermission::with_proxy` 批准相同名称。可覆写 `DeliveryPolicy::authorize_transport` 读取所请求的名称。投递记录只保存名称。用可信配置中的数字 Socket 地址创建 `PinnedSocksProxy`，并在运行时提供可选凭据。
+在 `webhook-server.proxy` 中设置已批准的名称，例如 `corp-egress`，也可为单次投递调用 `use_proxy(Some("corp-egress".into()))`。调用 `use_proxy(None)` 可选择直连。应用策略授权投递范围和目的地后，用 `DeliveryPermission::with_proxy` 批准相同名称。可覆写 `DeliveryPolicy::authorize_transport` 读取所请求的名称。投递记录只保存名称。用可信配置中的数字 Socket 地址创建代理，并在运行时提供可选凭据。
 
-此路径使用本地解析的 SOCKS5 和经验证的 HTTPS。代理收到已校验的目标 IP，HTTP 和 TLS 仍使用原主机。SOCKS5 认证不加密，Worker 与代理之间应使用可信网络。缺少许可或无法经代理连接时，投递不会转为直连。HTTP CONNECT 和 SOCKS5 远程 DNS 尚未支持。
+可用 `PinnedSocksProxy` 进行本地解析的 SOCKS5 转发，也可用 `PinnedHttpProxy` 建立 HTTP CONNECT 隧道。代理收到已校验的目标 IP 和端口，HTTPS 与 TLS 握手仍使用原主机。Worker 到代理这段链路的认证未加密，应部署在可信网络。缺少许可或无法经代理连接时，投递不会转为直连。代理本身使用 TLS、以及 SOCKS5 远程 DNS 尚未支持。
 
 ### 登记和投递 {#delivery}
 

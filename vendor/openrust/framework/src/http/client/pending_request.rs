@@ -104,7 +104,7 @@ pub struct PendingRequest {
     verify_tls: bool,
     tls_ca: Option<Vec<super::TlsCertificate>>,
     tls_identity: Option<super::TlsIdentity>,
-    pinned_proxy: Option<super::PinnedSocksProxy>,
+    pinned_proxy: Option<super::PinnedProxy>,
     unix_socket: Option<std::path::PathBuf>,
     destination: Option<PinnedDestination>,
     timeout: Duration,
@@ -248,8 +248,13 @@ impl PendingRequest {
     }
 
     /// 仅在固定地址且启用证书及主机名校验的 HTTPS 连接上使用显式 SOCKS5。
-    pub fn through_pinned_socks_proxy(mut self, proxy: super::PinnedSocksProxy) -> Self {
-        self.pinned_proxy = Some(proxy);
+    pub fn through_pinned_socks_proxy(self, proxy: super::PinnedSocksProxy) -> Self {
+        self.through_pinned_proxy(proxy)
+    }
+
+    /// 仅在固定地址且启用证书及主机名校验的 HTTPS 连接上使用具名代理。
+    pub fn through_pinned_proxy(mut self, proxy: impl Into<super::PinnedProxy>) -> Self {
+        self.pinned_proxy = Some(proxy.into());
         self
     }
 

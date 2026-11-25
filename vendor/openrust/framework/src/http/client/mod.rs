@@ -17,7 +17,7 @@ mod uri_template;
 
 pub use batch::{Batch, BatchProgress, BatchResults};
 pub use body::ResponseResource;
-pub use destination::PinnedSocksProxy;
+pub use destination::{PinnedHttpProxy, PinnedProxy, PinnedSocksProxy};
 pub use facade::{Http, HttpClientServiceProvider};
 pub use factory::{
     Factory, RecordedMultipartField, RecordedRequest, RecordedRequestDataSource, ResponseSequence,

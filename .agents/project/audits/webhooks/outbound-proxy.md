@@ -6,7 +6,7 @@ Spatie Server 固定版 `useProxy` 将字符串或映射交给 HTTP Client。Ope
 
 复用 reqwest 0.13.5 的 SOCKS5 本地解析。受限解析器只取已通过目的地策略的地址。代理收到数值 IP，URL、HTTP Host、TLS SNI 和证书的服务端身份仍使用原目标。代理本身使用应用配置的固定数字 Socket 地址。需使用已开启证书及主机名校验的 HTTPS，仍可叠加自定义 CA 和双向 TLS。无许可或代理失败不会改走直连。自动系统代理、重定向和 SOCKS5 远程 DNS 关闭。代理认证在 SOCKS5 对端间未经加密，凭据应仅用于可信网络。[reqwest 固定连接源码](https://docs.rs/reqwest/0.13.5/src/reqwest/connect.rs.html)
 
-WS-08 的普通 HTTP／HTTPS CONNECT 代理仍待补齐。当前固定版客户端的 CONNECT 分支把原 URI 主机交给代理，固定本地解析器无从约束代理选中的上游 IP。代理映射及排除列表未开放。本批未验外部托管代理、IPv6 代理拓扑和多主机环境。WH-04／WH-05 保持开放。
+[固定地址 HTTP CONNECT](http-connect.md)已在后续批次接入。TLS 到代理的实现和验收仍开放。代理映射及排除列表未开放。本批未验外部托管代理、IPv6 代理拓扑和多主机环境。WH-04／WH-05 保持开放。
 
 ## 验收
 
