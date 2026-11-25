@@ -1,0 +1,2630 @@
+[
+  {
+    "name": "ansi16",
+    "env": {
+      "TERM": "dumb"
+    },
+    "cases": [
+      {
+        "ops": [
+          [
+            "pop"
+          ],
+          [
+            "current"
+          ],
+          [
+            "empty"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": "default",
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": "default",
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": "default",
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          }
+        ]
+      },
+      {
+        "ops": [
+          [
+            "push",
+            0
+          ],
+          [
+            "push",
+            1
+          ],
+          [
+            "push",
+            2
+          ],
+          [
+            "current"
+          ],
+          [
+            "pop"
+          ],
+          [
+            "pop"
+          ],
+          [
+            "pop"
+          ],
+          [
+            "pop"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[32;41mx\u001b[39;49m",
+            "current": 2,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 2,
+            "output": "\u001b[32;41mx\u001b[39;49m",
+            "current": 2,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 2,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 1,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 0,
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": "default",
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          }
+        ]
+      },
+      {
+        "ops": [
+          [
+            "push",
+            0
+          ],
+          [
+            "push",
+            1
+          ],
+          [
+            "push",
+            2
+          ],
+          [
+            "pop",
+            1
+          ],
+          [
+            "current"
+          ],
+          [
+            "pop",
+            2
+          ],
+          [
+            "pop"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[32;41mx\u001b[39;49m",
+            "current": 2,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 1,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 0,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": true,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 0,
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          }
+        ]
+      },
+      {
+        "ops": [
+          [
+            "push",
+            1
+          ],
+          [
+            "pop",
+            3
+          ],
+          [
+            "current"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 1,
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": "default",
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          }
+        ]
+      },
+      {
+        "ops": [
+          [
+            "setEmpty",
+            1
+          ],
+          [
+            "current"
+          ],
+          [
+            "push",
+            0
+          ],
+          [
+            "reset"
+          ],
+          [
+            "current"
+          ],
+          [
+            "empty"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 1,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 1,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 1,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          }
+        ]
+      },
+      {
+        "ops": [
+          [
+            "push",
+            4
+          ],
+          [
+            "pop",
+            5
+          ],
+          [
+            "current"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b]8;;https://example.test/a\u001b\\x\u001b]8;;\u001b\\",
+            "current": 4,
+            "clone_output": null
+          },
+          {
+            "error": true,
+            "returned": null,
+            "output": "\u001b]8;;https://example.test/a\u001b\\x\u001b]8;;\u001b\\",
+            "current": 4,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 4,
+            "output": "\u001b]8;;https://example.test/a\u001b\\x\u001b]8;;\u001b\\",
+            "current": 4,
+            "clone_output": null
+          }
+        ]
+      },
+      {
+        "ops": [
+          [
+            "push",
+            0
+          ],
+          [
+            "clone"
+          ],
+          [
+            "foreground",
+            0,
+            "red"
+          ],
+          [
+            "current"
+          ],
+          [
+            "cloneCurrent"
+          ],
+          [
+            "reset"
+          ],
+          [
+            "clonePop"
+          ],
+          [
+            "cloneCurrent"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": "\u001b[37;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[31;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": "\u001b[31;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": 0,
+            "output": "\u001b[31;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": "\u001b[31;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": 0,
+            "output": "\u001b[31;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": "\u001b[31;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "x",
+            "current": "default",
+            "clone_output": "\u001b[31;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": 0,
+            "output": "x",
+            "current": "default",
+            "clone_output": "x"
+          },
+          {
+            "error": false,
+            "returned": "default",
+            "output": "x",
+            "current": "default",
+            "clone_output": "x"
+          }
+        ]
+      },
+      {
+        "ops": [
+          [
+            "push",
+            0
+          ],
+          [
+            "clone"
+          ],
+          [
+            "setEmpty",
+            1
+          ],
+          [
+            "reset"
+          ],
+          [
+            "empty"
+          ],
+          [
+            "clonePop"
+          ],
+          [
+            "cloneCurrent"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": "\u001b[37;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": "\u001b[37;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": "\u001b[37;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": 1,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": "\u001b[37;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": 0,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": "x"
+          },
+          {
+            "error": false,
+            "returned": "default",
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": "x"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "ansi256",
+    "env": {
+      "TERM": "xterm-256color"
+    },
+    "cases": [
+      {
+        "ops": [
+          [
+            "pop"
+          ],
+          [
+            "current"
+          ],
+          [
+            "empty"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": "default",
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": "default",
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": "default",
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          }
+        ]
+      },
+      {
+        "ops": [
+          [
+            "push",
+            0
+          ],
+          [
+            "push",
+            1
+          ],
+          [
+            "push",
+            2
+          ],
+          [
+            "current"
+          ],
+          [
+            "pop"
+          ],
+          [
+            "pop"
+          ],
+          [
+            "pop"
+          ],
+          [
+            "pop"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[32;41mx\u001b[39;49m",
+            "current": 2,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 2,
+            "output": "\u001b[32;41mx\u001b[39;49m",
+            "current": 2,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 2,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 1,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 0,
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": "default",
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          }
+        ]
+      },
+      {
+        "ops": [
+          [
+            "push",
+            0
+          ],
+          [
+            "push",
+            1
+          ],
+          [
+            "push",
+            2
+          ],
+          [
+            "pop",
+            1
+          ],
+          [
+            "current"
+          ],
+          [
+            "pop",
+            2
+          ],
+          [
+            "pop"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[32;41mx\u001b[39;49m",
+            "current": 2,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 1,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 0,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": true,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 0,
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          }
+        ]
+      },
+      {
+        "ops": [
+          [
+            "push",
+            1
+          ],
+          [
+            "pop",
+            3
+          ],
+          [
+            "current"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 1,
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": "default",
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          }
+        ]
+      },
+      {
+        "ops": [
+          [
+            "setEmpty",
+            1
+          ],
+          [
+            "current"
+          ],
+          [
+            "push",
+            0
+          ],
+          [
+            "reset"
+          ],
+          [
+            "current"
+          ],
+          [
+            "empty"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 1,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 1,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 1,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          }
+        ]
+      },
+      {
+        "ops": [
+          [
+            "push",
+            4
+          ],
+          [
+            "pop",
+            5
+          ],
+          [
+            "current"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b]8;;https://example.test/a\u001b\\x\u001b]8;;\u001b\\",
+            "current": 4,
+            "clone_output": null
+          },
+          {
+            "error": true,
+            "returned": null,
+            "output": "\u001b]8;;https://example.test/a\u001b\\x\u001b]8;;\u001b\\",
+            "current": 4,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 4,
+            "output": "\u001b]8;;https://example.test/a\u001b\\x\u001b]8;;\u001b\\",
+            "current": 4,
+            "clone_output": null
+          }
+        ]
+      },
+      {
+        "ops": [
+          [
+            "push",
+            0
+          ],
+          [
+            "clone"
+          ],
+          [
+            "foreground",
+            0,
+            "red"
+          ],
+          [
+            "current"
+          ],
+          [
+            "cloneCurrent"
+          ],
+          [
+            "reset"
+          ],
+          [
+            "clonePop"
+          ],
+          [
+            "cloneCurrent"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": "\u001b[37;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[31;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": "\u001b[31;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": 0,
+            "output": "\u001b[31;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": "\u001b[31;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": 0,
+            "output": "\u001b[31;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": "\u001b[31;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "x",
+            "current": "default",
+            "clone_output": "\u001b[31;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": 0,
+            "output": "x",
+            "current": "default",
+            "clone_output": "x"
+          },
+          {
+            "error": false,
+            "returned": "default",
+            "output": "x",
+            "current": "default",
+            "clone_output": "x"
+          }
+        ]
+      },
+      {
+        "ops": [
+          [
+            "push",
+            0
+          ],
+          [
+            "clone"
+          ],
+          [
+            "setEmpty",
+            1
+          ],
+          [
+            "reset"
+          ],
+          [
+            "empty"
+          ],
+          [
+            "clonePop"
+          ],
+          [
+            "cloneCurrent"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": "\u001b[37;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": "\u001b[37;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": "\u001b[37;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": 1,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": "\u001b[37;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": 0,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": "x"
+          },
+          {
+            "error": false,
+            "returned": "default",
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": "x"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "truecolor",
+    "env": {
+      "COLORTERM": "truecolor",
+      "TERM": "dumb"
+    },
+    "cases": [
+      {
+        "ops": [
+          [
+            "pop"
+          ],
+          [
+            "current"
+          ],
+          [
+            "empty"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": "default",
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": "default",
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": "default",
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          }
+        ]
+      },
+      {
+        "ops": [
+          [
+            "push",
+            0
+          ],
+          [
+            "push",
+            1
+          ],
+          [
+            "push",
+            2
+          ],
+          [
+            "current"
+          ],
+          [
+            "pop"
+          ],
+          [
+            "pop"
+          ],
+          [
+            "pop"
+          ],
+          [
+            "pop"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[32;41mx\u001b[39;49m",
+            "current": 2,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 2,
+            "output": "\u001b[32;41mx\u001b[39;49m",
+            "current": 2,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 2,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 1,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 0,
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": "default",
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          }
+        ]
+      },
+      {
+        "ops": [
+          [
+            "push",
+            0
+          ],
+          [
+            "push",
+            1
+          ],
+          [
+            "push",
+            2
+          ],
+          [
+            "pop",
+            1
+          ],
+          [
+            "current"
+          ],
+          [
+            "pop",
+            2
+          ],
+          [
+            "pop"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[32;41mx\u001b[39;49m",
+            "current": 2,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 1,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 0,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": true,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 0,
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          }
+        ]
+      },
+      {
+        "ops": [
+          [
+            "push",
+            1
+          ],
+          [
+            "pop",
+            3
+          ],
+          [
+            "current"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 1,
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": "default",
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          }
+        ]
+      },
+      {
+        "ops": [
+          [
+            "setEmpty",
+            1
+          ],
+          [
+            "current"
+          ],
+          [
+            "push",
+            0
+          ],
+          [
+            "reset"
+          ],
+          [
+            "current"
+          ],
+          [
+            "empty"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 1,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 1,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 1,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          }
+        ]
+      },
+      {
+        "ops": [
+          [
+            "push",
+            4
+          ],
+          [
+            "pop",
+            5
+          ],
+          [
+            "current"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b]8;;https://example.test/a\u001b\\x\u001b]8;;\u001b\\",
+            "current": 4,
+            "clone_output": null
+          },
+          {
+            "error": true,
+            "returned": null,
+            "output": "\u001b]8;;https://example.test/a\u001b\\x\u001b]8;;\u001b\\",
+            "current": 4,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 4,
+            "output": "\u001b]8;;https://example.test/a\u001b\\x\u001b]8;;\u001b\\",
+            "current": 4,
+            "clone_output": null
+          }
+        ]
+      },
+      {
+        "ops": [
+          [
+            "push",
+            0
+          ],
+          [
+            "clone"
+          ],
+          [
+            "foreground",
+            0,
+            "red"
+          ],
+          [
+            "current"
+          ],
+          [
+            "cloneCurrent"
+          ],
+          [
+            "reset"
+          ],
+          [
+            "clonePop"
+          ],
+          [
+            "cloneCurrent"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": "\u001b[37;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[31;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": "\u001b[31;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": 0,
+            "output": "\u001b[31;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": "\u001b[31;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": 0,
+            "output": "\u001b[31;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": "\u001b[31;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "x",
+            "current": "default",
+            "clone_output": "\u001b[31;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": 0,
+            "output": "x",
+            "current": "default",
+            "clone_output": "x"
+          },
+          {
+            "error": false,
+            "returned": "default",
+            "output": "x",
+            "current": "default",
+            "clone_output": "x"
+          }
+        ]
+      },
+      {
+        "ops": [
+          [
+            "push",
+            0
+          ],
+          [
+            "clone"
+          ],
+          [
+            "setEmpty",
+            1
+          ],
+          [
+            "reset"
+          ],
+          [
+            "empty"
+          ],
+          [
+            "clonePop"
+          ],
+          [
+            "cloneCurrent"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": "\u001b[37;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": "\u001b[37;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": "\u001b[37;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": 1,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": "\u001b[37;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": 0,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": "x"
+          },
+          {
+            "error": false,
+            "returned": "default",
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": "x"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "24bit",
+    "env": {
+      "COLORTERM": "24bit",
+      "TERM": "dumb"
+    },
+    "cases": [
+      {
+        "ops": [
+          [
+            "pop"
+          ],
+          [
+            "current"
+          ],
+          [
+            "empty"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": "default",
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": "default",
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": "default",
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          }
+        ]
+      },
+      {
+        "ops": [
+          [
+            "push",
+            0
+          ],
+          [
+            "push",
+            1
+          ],
+          [
+            "push",
+            2
+          ],
+          [
+            "current"
+          ],
+          [
+            "pop"
+          ],
+          [
+            "pop"
+          ],
+          [
+            "pop"
+          ],
+          [
+            "pop"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[32;41mx\u001b[39;49m",
+            "current": 2,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 2,
+            "output": "\u001b[32;41mx\u001b[39;49m",
+            "current": 2,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 2,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 1,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 0,
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": "default",
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          }
+        ]
+      },
+      {
+        "ops": [
+          [
+            "push",
+            0
+          ],
+          [
+            "push",
+            1
+          ],
+          [
+            "push",
+            2
+          ],
+          [
+            "pop",
+            1
+          ],
+          [
+            "current"
+          ],
+          [
+            "pop",
+            2
+          ],
+          [
+            "pop"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[32;41mx\u001b[39;49m",
+            "current": 2,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 1,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 0,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": true,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 0,
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          }
+        ]
+      },
+      {
+        "ops": [
+          [
+            "push",
+            1
+          ],
+          [
+            "pop",
+            3
+          ],
+          [
+            "current"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 1,
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": "default",
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          }
+        ]
+      },
+      {
+        "ops": [
+          [
+            "setEmpty",
+            1
+          ],
+          [
+            "current"
+          ],
+          [
+            "push",
+            0
+          ],
+          [
+            "reset"
+          ],
+          [
+            "current"
+          ],
+          [
+            "empty"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 1,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 1,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 1,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          }
+        ]
+      },
+      {
+        "ops": [
+          [
+            "push",
+            4
+          ],
+          [
+            "pop",
+            5
+          ],
+          [
+            "current"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b]8;;https://example.test/a\u001b\\x\u001b]8;;\u001b\\",
+            "current": 4,
+            "clone_output": null
+          },
+          {
+            "error": true,
+            "returned": null,
+            "output": "\u001b]8;;https://example.test/a\u001b\\x\u001b]8;;\u001b\\",
+            "current": 4,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 4,
+            "output": "\u001b]8;;https://example.test/a\u001b\\x\u001b]8;;\u001b\\",
+            "current": 4,
+            "clone_output": null
+          }
+        ]
+      },
+      {
+        "ops": [
+          [
+            "push",
+            0
+          ],
+          [
+            "clone"
+          ],
+          [
+            "foreground",
+            0,
+            "red"
+          ],
+          [
+            "current"
+          ],
+          [
+            "cloneCurrent"
+          ],
+          [
+            "reset"
+          ],
+          [
+            "clonePop"
+          ],
+          [
+            "cloneCurrent"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": "\u001b[37;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[31;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": "\u001b[31;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": 0,
+            "output": "\u001b[31;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": "\u001b[31;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": 0,
+            "output": "\u001b[31;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": "\u001b[31;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "x",
+            "current": "default",
+            "clone_output": "\u001b[31;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": 0,
+            "output": "x",
+            "current": "default",
+            "clone_output": "x"
+          },
+          {
+            "error": false,
+            "returned": "default",
+            "output": "x",
+            "current": "default",
+            "clone_output": "x"
+          }
+        ]
+      },
+      {
+        "ops": [
+          [
+            "push",
+            0
+          ],
+          [
+            "clone"
+          ],
+          [
+            "setEmpty",
+            1
+          ],
+          [
+            "reset"
+          ],
+          [
+            "empty"
+          ],
+          [
+            "clonePop"
+          ],
+          [
+            "cloneCurrent"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": "\u001b[37;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": "\u001b[37;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": "\u001b[37;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": 1,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": "\u001b[37;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": 0,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": "x"
+          },
+          {
+            "error": false,
+            "returned": "default",
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": "x"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "no-href",
+    "env": {
+      "TERMINAL_EMULATOR": "JetBrains-JediTerm",
+      "TERM": "dumb"
+    },
+    "cases": [
+      {
+        "ops": [
+          [
+            "pop"
+          ],
+          [
+            "current"
+          ],
+          [
+            "empty"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": "default",
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": "default",
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": "default",
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          }
+        ]
+      },
+      {
+        "ops": [
+          [
+            "push",
+            0
+          ],
+          [
+            "push",
+            1
+          ],
+          [
+            "push",
+            2
+          ],
+          [
+            "current"
+          ],
+          [
+            "pop"
+          ],
+          [
+            "pop"
+          ],
+          [
+            "pop"
+          ],
+          [
+            "pop"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[32;41mx\u001b[39;49m",
+            "current": 2,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 2,
+            "output": "\u001b[32;41mx\u001b[39;49m",
+            "current": 2,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 2,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 1,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 0,
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": "default",
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          }
+        ]
+      },
+      {
+        "ops": [
+          [
+            "push",
+            0
+          ],
+          [
+            "push",
+            1
+          ],
+          [
+            "push",
+            2
+          ],
+          [
+            "pop",
+            1
+          ],
+          [
+            "current"
+          ],
+          [
+            "pop",
+            2
+          ],
+          [
+            "pop"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[32;41mx\u001b[39;49m",
+            "current": 2,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 1,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 0,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": true,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 0,
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          }
+        ]
+      },
+      {
+        "ops": [
+          [
+            "push",
+            1
+          ],
+          [
+            "pop",
+            3
+          ],
+          [
+            "current"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 1,
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": "default",
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          }
+        ]
+      },
+      {
+        "ops": [
+          [
+            "setEmpty",
+            1
+          ],
+          [
+            "current"
+          ],
+          [
+            "push",
+            0
+          ],
+          [
+            "reset"
+          ],
+          [
+            "current"
+          ],
+          [
+            "empty"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 1,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 1,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 1,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": null
+          }
+        ]
+      },
+      {
+        "ops": [
+          [
+            "push",
+            4
+          ],
+          [
+            "pop",
+            5
+          ],
+          [
+            "current"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": null,
+            "output": "x",
+            "current": 4,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": 4,
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": "default",
+            "output": "x",
+            "current": "default",
+            "clone_output": null
+          }
+        ]
+      },
+      {
+        "ops": [
+          [
+            "push",
+            0
+          ],
+          [
+            "clone"
+          ],
+          [
+            "foreground",
+            0,
+            "red"
+          ],
+          [
+            "current"
+          ],
+          [
+            "cloneCurrent"
+          ],
+          [
+            "reset"
+          ],
+          [
+            "clonePop"
+          ],
+          [
+            "cloneCurrent"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": "\u001b[37;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[31;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": "\u001b[31;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": 0,
+            "output": "\u001b[31;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": "\u001b[31;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": 0,
+            "output": "\u001b[31;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": "\u001b[31;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "x",
+            "current": "default",
+            "clone_output": "\u001b[31;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": 0,
+            "output": "x",
+            "current": "default",
+            "clone_output": "x"
+          },
+          {
+            "error": false,
+            "returned": "default",
+            "output": "x",
+            "current": "default",
+            "clone_output": "x"
+          }
+        ]
+      },
+      {
+        "ops": [
+          [
+            "push",
+            0
+          ],
+          [
+            "clone"
+          ],
+          [
+            "setEmpty",
+            1
+          ],
+          [
+            "reset"
+          ],
+          [
+            "empty"
+          ],
+          [
+            "clonePop"
+          ],
+          [
+            "cloneCurrent"
+          ]
+        ],
+        "trace": [
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": null
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": "\u001b[37;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[37;40mx\u001b[39;49m",
+            "current": 0,
+            "clone_output": "\u001b[37;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": null,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": "\u001b[37;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": 1,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": "\u001b[37;40mx\u001b[39;49m"
+          },
+          {
+            "error": false,
+            "returned": 0,
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": "x"
+          },
+          {
+            "error": false,
+            "returned": "default",
+            "output": "\u001b[33;44mx\u001b[39;49m",
+            "current": 1,
+            "clone_output": "x"
+          }
+        ]
+      }
+    ]
+  }
+]

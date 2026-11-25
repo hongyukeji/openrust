@@ -6,6 +6,7 @@ mod command_input;
 mod command_io;
 mod descriptor;
 pub mod events;
+mod formatter_style;
 mod formatting;
 pub mod generator_command;
 mod help_command;
@@ -43,6 +44,9 @@ pub use command::{
 };
 pub use command_input::CommandInput;
 pub use command_io::CommandIo;
+pub use formatter_style::{
+    FormatterStyle, OutputFormatterStyle, OutputFormatterStyleInterface, OutputFormatterStyleStack,
+};
 pub use formatting::{ConsoleFormatError, ConsoleTemplateError};
 pub use generator_command::GeneratorCommand;
 pub(crate) use isolation::IsolatedCommand;
@@ -114,7 +118,7 @@ pub struct Output {
     terminal: bool,
     capture_generation: u64,
     formatter: formatting::Formatter,
-    error_formatter: formatting::Formatter,
+    error_formatter: Option<formatting::Formatter>,
 }
 
 impl Output {

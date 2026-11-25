@@ -1,0 +1,5675 @@
+[
+  {
+    "name": "ansi16",
+    "env": {
+      "TERM": "dumb"
+    },
+    "cases": [
+      {
+        "ctor": [
+          "green",
+          "black",
+          [
+            "bold",
+            "underscore"
+          ]
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[32;40;1;4mfoo\u001b[39;49;22;24m"
+      },
+      {
+        "ctor": [
+          "red",
+          null,
+          [
+            "blink"
+          ]
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[31;5mfoo\u001b[39;25m"
+      },
+      {
+        "ctor": [
+          null,
+          "white",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[47mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "0",
+          "",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "",
+        "constructor_error": false,
+        "trace": [],
+        "initial": ""
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "é<literal>",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "é<literal>"
+      },
+      {
+        "ctor": [
+          "black",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[30mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "black",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[40mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "red",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[31mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "red",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[41mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "green",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[32mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "green",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[42mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "yellow",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[33mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "yellow",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[43mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "blue",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[34mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "blue",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[44mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "magenta",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[35mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "magenta",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[45mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "cyan",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[36mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "cyan",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[46mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "white",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[37mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "white",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[47mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "default",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[39mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "default",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[49mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "gray",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[90mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "gray",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[100mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "bright-red",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[91mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "bright-red",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[101mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "bright-green",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[92mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "bright-green",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[102mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "bright-yellow",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[93mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "bright-yellow",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[103mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "bright-blue",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[94mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "bright-blue",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[104mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "bright-magenta",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[95mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "bright-magenta",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[105mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "bright-cyan",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[96mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "bright-cyan",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[106mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "bright-white",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[97mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "bright-white",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[107mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "#000",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[30mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#fff",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[37mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#888",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[37mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#010101",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[30mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#080808",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[30mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#808080",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[37mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#f80",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[33mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#f00",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[31mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#09d",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[36mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#00ff00",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[32mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#Ff0099",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[35mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "unknown",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": true,
+        "trace": []
+      },
+      {
+        "ctor": [
+          "Red",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": true,
+        "trace": []
+      },
+      {
+        "ctor": [
+          "#",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": true,
+        "trace": []
+      },
+      {
+        "ctor": [
+          "##fff",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[37mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#1#2#3",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[30mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#ggg",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[30mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#1234567",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": true,
+        "trace": []
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setForeground",
+            "black"
+          ],
+          [
+            "setForeground",
+            "blue"
+          ],
+          [
+            "setForeground",
+            "default"
+          ],
+          [
+            "setForeground",
+            "undefined-color"
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b[30mfoo\u001b[39m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[34mfoo\u001b[39m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[39mfoo\u001b[39m"
+          },
+          {
+            "error": true,
+            "output": "\u001b[39mfoo\u001b[39m"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setBackground",
+            "black"
+          ],
+          [
+            "setBackground",
+            "yellow"
+          ],
+          [
+            "setBackground",
+            "default"
+          ],
+          [
+            "setBackground",
+            "undefined-color"
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b[40mfoo\u001b[49m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[43mfoo\u001b[49m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[49mfoo\u001b[49m"
+          },
+          {
+            "error": true,
+            "output": "\u001b[49mfoo\u001b[49m"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setOptions",
+            [
+              "reverse",
+              "conceal"
+            ]
+          ],
+          [
+            "setOption",
+            "bold"
+          ],
+          [
+            "unsetOption",
+            "reverse"
+          ],
+          [
+            "setOption",
+            "bold"
+          ],
+          [
+            "setOptions",
+            [
+              "bold"
+            ]
+          ],
+          [
+            "setOption",
+            "foo"
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b[7;8mfoo\u001b[27;28m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[7;8;1mfoo\u001b[27;28;22m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[8;1mfoo\u001b[28;22m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[8;1mfoo\u001b[28;22m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": true,
+            "output": "\u001b[1mfoo\u001b[22m"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setOption",
+            "bold"
+          ],
+          [
+            "setOption",
+            "bold"
+          ],
+          [
+            "unsetOption",
+            "bold"
+          ],
+          [
+            "unsetOption",
+            "missing"
+          ],
+          [
+            "unsetOption",
+            "bold"
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": false,
+            "output": "foo"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setForeground",
+            "green"
+          ],
+          [
+            "setForeground",
+            "bad"
+          ],
+          [
+            "setBackground",
+            "red"
+          ],
+          [
+            "setForeground",
+            null
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b[32mfoo\u001b[39m"
+          },
+          {
+            "error": true,
+            "output": "\u001b[32mfoo\u001b[39m"
+          },
+          {
+            "error": true,
+            "output": "\u001b[32mfoo\u001b[39m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[41mfoo\u001b[49m"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setOptions",
+            [
+              "bold"
+            ]
+          ],
+          [
+            "setOptions",
+            [
+              "bad"
+            ]
+          ],
+          [
+            "setForeground",
+            "red"
+          ],
+          [
+            "unsetOption",
+            "bad"
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": true,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": true,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[31mfoo\u001b[39m"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setForeground",
+            "red"
+          ],
+          [
+            "setForeground",
+            "0"
+          ],
+          [
+            "setBackground",
+            "0"
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b[31mfoo\u001b[39m"
+          },
+          {
+            "error": false,
+            "output": "foo"
+          },
+          {
+            "error": false,
+            "output": "foo"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setHref",
+            "https://example.test/a?x=1&y=2"
+          ],
+          [
+            "setForeground",
+            "green"
+          ],
+          [
+            "setHref",
+            ""
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b]8;;https://example.test/a?x=1&y=2\u001b\\foo\u001b]8;;\u001b\\"
+          },
+          {
+            "error": false,
+            "output": "\u001b[32m\u001b]8;;https://example.test/a?x=1&y=2\u001b\\foo\u001b]8;;\u001b\\\u001b[39m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[32m\u001b]8;;\u001b\\foo\u001b]8;;\u001b\\\u001b[39m"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setHref",
+            "https://example.test/a\\<b\\>"
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b]8;;https://example.test/a\\<b\\>\u001b\\foo\u001b]8;;\u001b\\"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setHref",
+            "https://example.test"
+          ]
+        ],
+        "text": "",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b]8;;https://example.test\u001b\\\u001b]8;;\u001b\\"
+          }
+        ],
+        "initial": ""
+      }
+    ]
+  },
+  {
+    "name": "ansi256",
+    "env": {
+      "TERM": "xterm-256color"
+    },
+    "cases": [
+      {
+        "ctor": [
+          "green",
+          "black",
+          [
+            "bold",
+            "underscore"
+          ]
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[32;40;1;4mfoo\u001b[39;49;22;24m"
+      },
+      {
+        "ctor": [
+          "red",
+          null,
+          [
+            "blink"
+          ]
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[31;5mfoo\u001b[39;25m"
+      },
+      {
+        "ctor": [
+          null,
+          "white",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[47mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "0",
+          "",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "",
+        "constructor_error": false,
+        "trace": [],
+        "initial": ""
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "é<literal>",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "é<literal>"
+      },
+      {
+        "ctor": [
+          "black",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[30mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "black",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[40mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "red",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[31mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "red",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[41mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "green",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[32mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "green",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[42mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "yellow",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[33mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "yellow",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[43mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "blue",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[34mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "blue",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[44mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "magenta",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[35mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "magenta",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[45mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "cyan",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[36mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "cyan",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[46mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "white",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[37mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "white",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[47mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "default",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[39mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "default",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[49mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "gray",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[90mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "gray",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[100mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "bright-red",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[91mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "bright-red",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[101mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "bright-green",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[92mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "bright-green",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[102mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "bright-yellow",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[93mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "bright-yellow",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[103mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "bright-blue",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[94mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "bright-blue",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[104mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "bright-magenta",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[95mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "bright-magenta",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[105mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "bright-cyan",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[96mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "bright-cyan",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[106mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "bright-white",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[97mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "bright-white",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[107mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "#000",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[38;5;16mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#fff",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[38;5;231mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#888",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[38;5;244mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#010101",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[38;5;16mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#080808",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[38;5;232mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#808080",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[38;5;244mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#f80",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[38;5;214mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#f00",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[38;5;196mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#09d",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[38;5;38mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#00ff00",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[38;5;46mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#Ff0099",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[38;5;199mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "unknown",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": true,
+        "trace": []
+      },
+      {
+        "ctor": [
+          "Red",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": true,
+        "trace": []
+      },
+      {
+        "ctor": [
+          "#",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": true,
+        "trace": []
+      },
+      {
+        "ctor": [
+          "##fff",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[38;5;231mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#1#2#3",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[38;5;23mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#ggg",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[38;5;16mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#1234567",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": true,
+        "trace": []
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setForeground",
+            "black"
+          ],
+          [
+            "setForeground",
+            "blue"
+          ],
+          [
+            "setForeground",
+            "default"
+          ],
+          [
+            "setForeground",
+            "undefined-color"
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b[30mfoo\u001b[39m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[34mfoo\u001b[39m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[39mfoo\u001b[39m"
+          },
+          {
+            "error": true,
+            "output": "\u001b[39mfoo\u001b[39m"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setBackground",
+            "black"
+          ],
+          [
+            "setBackground",
+            "yellow"
+          ],
+          [
+            "setBackground",
+            "default"
+          ],
+          [
+            "setBackground",
+            "undefined-color"
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b[40mfoo\u001b[49m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[43mfoo\u001b[49m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[49mfoo\u001b[49m"
+          },
+          {
+            "error": true,
+            "output": "\u001b[49mfoo\u001b[49m"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setOptions",
+            [
+              "reverse",
+              "conceal"
+            ]
+          ],
+          [
+            "setOption",
+            "bold"
+          ],
+          [
+            "unsetOption",
+            "reverse"
+          ],
+          [
+            "setOption",
+            "bold"
+          ],
+          [
+            "setOptions",
+            [
+              "bold"
+            ]
+          ],
+          [
+            "setOption",
+            "foo"
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b[7;8mfoo\u001b[27;28m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[7;8;1mfoo\u001b[27;28;22m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[8;1mfoo\u001b[28;22m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[8;1mfoo\u001b[28;22m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": true,
+            "output": "\u001b[1mfoo\u001b[22m"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setOption",
+            "bold"
+          ],
+          [
+            "setOption",
+            "bold"
+          ],
+          [
+            "unsetOption",
+            "bold"
+          ],
+          [
+            "unsetOption",
+            "missing"
+          ],
+          [
+            "unsetOption",
+            "bold"
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": false,
+            "output": "foo"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setForeground",
+            "green"
+          ],
+          [
+            "setForeground",
+            "bad"
+          ],
+          [
+            "setBackground",
+            "red"
+          ],
+          [
+            "setForeground",
+            null
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b[32mfoo\u001b[39m"
+          },
+          {
+            "error": true,
+            "output": "\u001b[32mfoo\u001b[39m"
+          },
+          {
+            "error": true,
+            "output": "\u001b[32mfoo\u001b[39m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[41mfoo\u001b[49m"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setOptions",
+            [
+              "bold"
+            ]
+          ],
+          [
+            "setOptions",
+            [
+              "bad"
+            ]
+          ],
+          [
+            "setForeground",
+            "red"
+          ],
+          [
+            "unsetOption",
+            "bad"
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": true,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": true,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[31mfoo\u001b[39m"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setForeground",
+            "red"
+          ],
+          [
+            "setForeground",
+            "0"
+          ],
+          [
+            "setBackground",
+            "0"
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b[31mfoo\u001b[39m"
+          },
+          {
+            "error": false,
+            "output": "foo"
+          },
+          {
+            "error": false,
+            "output": "foo"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setHref",
+            "https://example.test/a?x=1&y=2"
+          ],
+          [
+            "setForeground",
+            "green"
+          ],
+          [
+            "setHref",
+            ""
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b]8;;https://example.test/a?x=1&y=2\u001b\\foo\u001b]8;;\u001b\\"
+          },
+          {
+            "error": false,
+            "output": "\u001b[32m\u001b]8;;https://example.test/a?x=1&y=2\u001b\\foo\u001b]8;;\u001b\\\u001b[39m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[32m\u001b]8;;\u001b\\foo\u001b]8;;\u001b\\\u001b[39m"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setHref",
+            "https://example.test/a\\<b\\>"
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b]8;;https://example.test/a\\<b\\>\u001b\\foo\u001b]8;;\u001b\\"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setHref",
+            "https://example.test"
+          ]
+        ],
+        "text": "",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b]8;;https://example.test\u001b\\\u001b]8;;\u001b\\"
+          }
+        ],
+        "initial": ""
+      }
+    ]
+  },
+  {
+    "name": "truecolor",
+    "env": {
+      "COLORTERM": "truecolor",
+      "TERM": "dumb"
+    },
+    "cases": [
+      {
+        "ctor": [
+          "green",
+          "black",
+          [
+            "bold",
+            "underscore"
+          ]
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[32;40;1;4mfoo\u001b[39;49;22;24m"
+      },
+      {
+        "ctor": [
+          "red",
+          null,
+          [
+            "blink"
+          ]
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[31;5mfoo\u001b[39;25m"
+      },
+      {
+        "ctor": [
+          null,
+          "white",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[47mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "0",
+          "",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "",
+        "constructor_error": false,
+        "trace": [],
+        "initial": ""
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "é<literal>",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "é<literal>"
+      },
+      {
+        "ctor": [
+          "black",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[30mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "black",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[40mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "red",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[31mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "red",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[41mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "green",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[32mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "green",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[42mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "yellow",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[33mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "yellow",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[43mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "blue",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[34mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "blue",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[44mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "magenta",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[35mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "magenta",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[45mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "cyan",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[36mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "cyan",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[46mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "white",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[37mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "white",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[47mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "default",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[39mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "default",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[49mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "gray",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[90mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "gray",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[100mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "bright-red",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[91mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "bright-red",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[101mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "bright-green",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[92mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "bright-green",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[102mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "bright-yellow",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[93mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "bright-yellow",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[103mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "bright-blue",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[94mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "bright-blue",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[104mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "bright-magenta",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[95mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "bright-magenta",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[105mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "bright-cyan",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[96mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "bright-cyan",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[106mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "bright-white",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[97mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "bright-white",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[107mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "#000",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[38;2;0;0;0mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#fff",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[38;2;255;255;255mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#888",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[38;2;136;136;136mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#010101",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[38;2;1;1;1mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#080808",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[38;2;8;8;8mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#808080",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[38;2;128;128;128mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#f80",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[38;2;255;136;0mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#f00",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[38;2;255;0;0mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#09d",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[38;2;0;153;221mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#00ff00",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[38;2;0;255;0mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#Ff0099",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[38;2;255;0;153mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "unknown",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": true,
+        "trace": []
+      },
+      {
+        "ctor": [
+          "Red",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": true,
+        "trace": []
+      },
+      {
+        "ctor": [
+          "#",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": true,
+        "trace": []
+      },
+      {
+        "ctor": [
+          "##fff",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[38;2;255;255;255mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#1#2#3",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[38;2;17;34;51mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#ggg",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[38;2;0;0;0mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#1234567",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": true,
+        "trace": []
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setForeground",
+            "black"
+          ],
+          [
+            "setForeground",
+            "blue"
+          ],
+          [
+            "setForeground",
+            "default"
+          ],
+          [
+            "setForeground",
+            "undefined-color"
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b[30mfoo\u001b[39m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[34mfoo\u001b[39m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[39mfoo\u001b[39m"
+          },
+          {
+            "error": true,
+            "output": "\u001b[39mfoo\u001b[39m"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setBackground",
+            "black"
+          ],
+          [
+            "setBackground",
+            "yellow"
+          ],
+          [
+            "setBackground",
+            "default"
+          ],
+          [
+            "setBackground",
+            "undefined-color"
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b[40mfoo\u001b[49m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[43mfoo\u001b[49m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[49mfoo\u001b[49m"
+          },
+          {
+            "error": true,
+            "output": "\u001b[49mfoo\u001b[49m"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setOptions",
+            [
+              "reverse",
+              "conceal"
+            ]
+          ],
+          [
+            "setOption",
+            "bold"
+          ],
+          [
+            "unsetOption",
+            "reverse"
+          ],
+          [
+            "setOption",
+            "bold"
+          ],
+          [
+            "setOptions",
+            [
+              "bold"
+            ]
+          ],
+          [
+            "setOption",
+            "foo"
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b[7;8mfoo\u001b[27;28m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[7;8;1mfoo\u001b[27;28;22m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[8;1mfoo\u001b[28;22m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[8;1mfoo\u001b[28;22m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": true,
+            "output": "\u001b[1mfoo\u001b[22m"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setOption",
+            "bold"
+          ],
+          [
+            "setOption",
+            "bold"
+          ],
+          [
+            "unsetOption",
+            "bold"
+          ],
+          [
+            "unsetOption",
+            "missing"
+          ],
+          [
+            "unsetOption",
+            "bold"
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": false,
+            "output": "foo"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setForeground",
+            "green"
+          ],
+          [
+            "setForeground",
+            "bad"
+          ],
+          [
+            "setBackground",
+            "red"
+          ],
+          [
+            "setForeground",
+            null
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b[32mfoo\u001b[39m"
+          },
+          {
+            "error": true,
+            "output": "\u001b[32mfoo\u001b[39m"
+          },
+          {
+            "error": true,
+            "output": "\u001b[32mfoo\u001b[39m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[41mfoo\u001b[49m"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setOptions",
+            [
+              "bold"
+            ]
+          ],
+          [
+            "setOptions",
+            [
+              "bad"
+            ]
+          ],
+          [
+            "setForeground",
+            "red"
+          ],
+          [
+            "unsetOption",
+            "bad"
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": true,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": true,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[31mfoo\u001b[39m"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setForeground",
+            "red"
+          ],
+          [
+            "setForeground",
+            "0"
+          ],
+          [
+            "setBackground",
+            "0"
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b[31mfoo\u001b[39m"
+          },
+          {
+            "error": false,
+            "output": "foo"
+          },
+          {
+            "error": false,
+            "output": "foo"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setHref",
+            "https://example.test/a?x=1&y=2"
+          ],
+          [
+            "setForeground",
+            "green"
+          ],
+          [
+            "setHref",
+            ""
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b]8;;https://example.test/a?x=1&y=2\u001b\\foo\u001b]8;;\u001b\\"
+          },
+          {
+            "error": false,
+            "output": "\u001b[32m\u001b]8;;https://example.test/a?x=1&y=2\u001b\\foo\u001b]8;;\u001b\\\u001b[39m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[32m\u001b]8;;\u001b\\foo\u001b]8;;\u001b\\\u001b[39m"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setHref",
+            "https://example.test/a\\<b\\>"
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b]8;;https://example.test/a\\<b\\>\u001b\\foo\u001b]8;;\u001b\\"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setHref",
+            "https://example.test"
+          ]
+        ],
+        "text": "",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b]8;;https://example.test\u001b\\\u001b]8;;\u001b\\"
+          }
+        ],
+        "initial": ""
+      }
+    ]
+  },
+  {
+    "name": "24bit",
+    "env": {
+      "COLORTERM": "24bit",
+      "TERM": "dumb"
+    },
+    "cases": [
+      {
+        "ctor": [
+          "green",
+          "black",
+          [
+            "bold",
+            "underscore"
+          ]
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[32;40;1;4mfoo\u001b[39;49;22;24m"
+      },
+      {
+        "ctor": [
+          "red",
+          null,
+          [
+            "blink"
+          ]
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[31;5mfoo\u001b[39;25m"
+      },
+      {
+        "ctor": [
+          null,
+          "white",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[47mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "0",
+          "",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "",
+        "constructor_error": false,
+        "trace": [],
+        "initial": ""
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "é<literal>",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "é<literal>"
+      },
+      {
+        "ctor": [
+          "black",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[30mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "black",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[40mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "red",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[31mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "red",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[41mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "green",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[32mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "green",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[42mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "yellow",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[33mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "yellow",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[43mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "blue",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[34mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "blue",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[44mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "magenta",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[35mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "magenta",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[45mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "cyan",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[36mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "cyan",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[46mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "white",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[37mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "white",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[47mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "default",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[39mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "default",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[49mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "gray",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[90mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "gray",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[100mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "bright-red",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[91mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "bright-red",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[101mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "bright-green",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[92mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "bright-green",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[102mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "bright-yellow",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[93mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "bright-yellow",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[103mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "bright-blue",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[94mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "bright-blue",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[104mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "bright-magenta",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[95mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "bright-magenta",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[105mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "bright-cyan",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[96mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "bright-cyan",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[106mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "bright-white",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[97mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "bright-white",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[107mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "#000",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[30mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#fff",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[37mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#888",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[37mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#010101",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[30mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#080808",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[30mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#808080",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[37mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#f80",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[33mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#f00",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[31mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#09d",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[36mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#00ff00",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[32mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#Ff0099",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[35mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "unknown",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": true,
+        "trace": []
+      },
+      {
+        "ctor": [
+          "Red",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": true,
+        "trace": []
+      },
+      {
+        "ctor": [
+          "#",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": true,
+        "trace": []
+      },
+      {
+        "ctor": [
+          "##fff",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[37mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#1#2#3",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[30mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#ggg",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[30mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#1234567",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": true,
+        "trace": []
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setForeground",
+            "black"
+          ],
+          [
+            "setForeground",
+            "blue"
+          ],
+          [
+            "setForeground",
+            "default"
+          ],
+          [
+            "setForeground",
+            "undefined-color"
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b[30mfoo\u001b[39m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[34mfoo\u001b[39m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[39mfoo\u001b[39m"
+          },
+          {
+            "error": true,
+            "output": "\u001b[39mfoo\u001b[39m"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setBackground",
+            "black"
+          ],
+          [
+            "setBackground",
+            "yellow"
+          ],
+          [
+            "setBackground",
+            "default"
+          ],
+          [
+            "setBackground",
+            "undefined-color"
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b[40mfoo\u001b[49m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[43mfoo\u001b[49m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[49mfoo\u001b[49m"
+          },
+          {
+            "error": true,
+            "output": "\u001b[49mfoo\u001b[49m"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setOptions",
+            [
+              "reverse",
+              "conceal"
+            ]
+          ],
+          [
+            "setOption",
+            "bold"
+          ],
+          [
+            "unsetOption",
+            "reverse"
+          ],
+          [
+            "setOption",
+            "bold"
+          ],
+          [
+            "setOptions",
+            [
+              "bold"
+            ]
+          ],
+          [
+            "setOption",
+            "foo"
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b[7;8mfoo\u001b[27;28m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[7;8;1mfoo\u001b[27;28;22m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[8;1mfoo\u001b[28;22m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[8;1mfoo\u001b[28;22m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": true,
+            "output": "\u001b[1mfoo\u001b[22m"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setOption",
+            "bold"
+          ],
+          [
+            "setOption",
+            "bold"
+          ],
+          [
+            "unsetOption",
+            "bold"
+          ],
+          [
+            "unsetOption",
+            "missing"
+          ],
+          [
+            "unsetOption",
+            "bold"
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": false,
+            "output": "foo"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setForeground",
+            "green"
+          ],
+          [
+            "setForeground",
+            "bad"
+          ],
+          [
+            "setBackground",
+            "red"
+          ],
+          [
+            "setForeground",
+            null
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b[32mfoo\u001b[39m"
+          },
+          {
+            "error": true,
+            "output": "\u001b[32mfoo\u001b[39m"
+          },
+          {
+            "error": true,
+            "output": "\u001b[32mfoo\u001b[39m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[41mfoo\u001b[49m"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setOptions",
+            [
+              "bold"
+            ]
+          ],
+          [
+            "setOptions",
+            [
+              "bad"
+            ]
+          ],
+          [
+            "setForeground",
+            "red"
+          ],
+          [
+            "unsetOption",
+            "bad"
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": true,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": true,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[31mfoo\u001b[39m"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setForeground",
+            "red"
+          ],
+          [
+            "setForeground",
+            "0"
+          ],
+          [
+            "setBackground",
+            "0"
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b[31mfoo\u001b[39m"
+          },
+          {
+            "error": false,
+            "output": "foo"
+          },
+          {
+            "error": false,
+            "output": "foo"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setHref",
+            "https://example.test/a?x=1&y=2"
+          ],
+          [
+            "setForeground",
+            "green"
+          ],
+          [
+            "setHref",
+            ""
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b]8;;https://example.test/a?x=1&y=2\u001b\\foo\u001b]8;;\u001b\\"
+          },
+          {
+            "error": false,
+            "output": "\u001b[32m\u001b]8;;https://example.test/a?x=1&y=2\u001b\\foo\u001b]8;;\u001b\\\u001b[39m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[32m\u001b]8;;\u001b\\foo\u001b]8;;\u001b\\\u001b[39m"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setHref",
+            "https://example.test/a\\<b\\>"
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b]8;;https://example.test/a\\<b\\>\u001b\\foo\u001b]8;;\u001b\\"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setHref",
+            "https://example.test"
+          ]
+        ],
+        "text": "",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b]8;;https://example.test\u001b\\\u001b]8;;\u001b\\"
+          }
+        ],
+        "initial": ""
+      }
+    ]
+  },
+  {
+    "name": "no-href",
+    "env": {
+      "TERMINAL_EMULATOR": "JetBrains-JediTerm",
+      "TERM": "dumb"
+    },
+    "cases": [
+      {
+        "ctor": [
+          "green",
+          "black",
+          [
+            "bold",
+            "underscore"
+          ]
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[32;40;1;4mfoo\u001b[39;49;22;24m"
+      },
+      {
+        "ctor": [
+          "red",
+          null,
+          [
+            "blink"
+          ]
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[31;5mfoo\u001b[39;25m"
+      },
+      {
+        "ctor": [
+          null,
+          "white",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[47mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "0",
+          "",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "",
+        "constructor_error": false,
+        "trace": [],
+        "initial": ""
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "é<literal>",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "é<literal>"
+      },
+      {
+        "ctor": [
+          "black",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[30mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "black",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[40mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "red",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[31mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "red",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[41mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "green",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[32mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "green",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[42mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "yellow",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[33mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "yellow",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[43mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "blue",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[34mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "blue",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[44mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "magenta",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[35mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "magenta",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[45mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "cyan",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[36mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "cyan",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[46mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "white",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[37mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "white",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[47mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "default",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[39mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "default",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[49mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "gray",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[90mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "gray",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[100mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "bright-red",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[91mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "bright-red",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[101mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "bright-green",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[92mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "bright-green",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[102mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "bright-yellow",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[93mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "bright-yellow",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[103mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "bright-blue",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[94mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "bright-blue",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[104mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "bright-magenta",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[95mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "bright-magenta",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[105mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "bright-cyan",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[96mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "bright-cyan",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[106mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "bright-white",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[97mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          null,
+          "bright-white",
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[107mfoo\u001b[49m"
+      },
+      {
+        "ctor": [
+          "#000",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[30mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#fff",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[37mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#888",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[37mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#010101",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[30mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#080808",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[30mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#808080",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[37mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#f80",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[33mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#f00",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[31mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#09d",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[36mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#00ff00",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[32mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#Ff0099",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[35mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "unknown",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": true,
+        "trace": []
+      },
+      {
+        "ctor": [
+          "Red",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": true,
+        "trace": []
+      },
+      {
+        "ctor": [
+          "#",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": true,
+        "trace": []
+      },
+      {
+        "ctor": [
+          "##fff",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[37mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#1#2#3",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[30mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#ggg",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [],
+        "initial": "\u001b[30mfoo\u001b[39m"
+      },
+      {
+        "ctor": [
+          "#1234567",
+          null,
+          []
+        ],
+        "ops": [],
+        "text": "foo",
+        "constructor_error": true,
+        "trace": []
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setForeground",
+            "black"
+          ],
+          [
+            "setForeground",
+            "blue"
+          ],
+          [
+            "setForeground",
+            "default"
+          ],
+          [
+            "setForeground",
+            "undefined-color"
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b[30mfoo\u001b[39m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[34mfoo\u001b[39m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[39mfoo\u001b[39m"
+          },
+          {
+            "error": true,
+            "output": "\u001b[39mfoo\u001b[39m"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setBackground",
+            "black"
+          ],
+          [
+            "setBackground",
+            "yellow"
+          ],
+          [
+            "setBackground",
+            "default"
+          ],
+          [
+            "setBackground",
+            "undefined-color"
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b[40mfoo\u001b[49m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[43mfoo\u001b[49m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[49mfoo\u001b[49m"
+          },
+          {
+            "error": true,
+            "output": "\u001b[49mfoo\u001b[49m"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setOptions",
+            [
+              "reverse",
+              "conceal"
+            ]
+          ],
+          [
+            "setOption",
+            "bold"
+          ],
+          [
+            "unsetOption",
+            "reverse"
+          ],
+          [
+            "setOption",
+            "bold"
+          ],
+          [
+            "setOptions",
+            [
+              "bold"
+            ]
+          ],
+          [
+            "setOption",
+            "foo"
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b[7;8mfoo\u001b[27;28m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[7;8;1mfoo\u001b[27;28;22m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[8;1mfoo\u001b[28;22m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[8;1mfoo\u001b[28;22m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": true,
+            "output": "\u001b[1mfoo\u001b[22m"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setOption",
+            "bold"
+          ],
+          [
+            "setOption",
+            "bold"
+          ],
+          [
+            "unsetOption",
+            "bold"
+          ],
+          [
+            "unsetOption",
+            "missing"
+          ],
+          [
+            "unsetOption",
+            "bold"
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": false,
+            "output": "foo"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setForeground",
+            "green"
+          ],
+          [
+            "setForeground",
+            "bad"
+          ],
+          [
+            "setBackground",
+            "red"
+          ],
+          [
+            "setForeground",
+            null
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b[32mfoo\u001b[39m"
+          },
+          {
+            "error": true,
+            "output": "\u001b[32mfoo\u001b[39m"
+          },
+          {
+            "error": true,
+            "output": "\u001b[32mfoo\u001b[39m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[41mfoo\u001b[49m"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setOptions",
+            [
+              "bold"
+            ]
+          ],
+          [
+            "setOptions",
+            [
+              "bad"
+            ]
+          ],
+          [
+            "setForeground",
+            "red"
+          ],
+          [
+            "unsetOption",
+            "bad"
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": true,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": true,
+            "output": "\u001b[1mfoo\u001b[22m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[31mfoo\u001b[39m"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setForeground",
+            "red"
+          ],
+          [
+            "setForeground",
+            "0"
+          ],
+          [
+            "setBackground",
+            "0"
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "\u001b[31mfoo\u001b[39m"
+          },
+          {
+            "error": false,
+            "output": "foo"
+          },
+          {
+            "error": false,
+            "output": "foo"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setHref",
+            "https://example.test/a?x=1&y=2"
+          ],
+          [
+            "setForeground",
+            "green"
+          ],
+          [
+            "setHref",
+            ""
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "foo"
+          },
+          {
+            "error": false,
+            "output": "\u001b[32mfoo\u001b[39m"
+          },
+          {
+            "error": false,
+            "output": "\u001b[32mfoo\u001b[39m"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setHref",
+            "https://example.test/a\\<b\\>"
+          ]
+        ],
+        "text": "foo",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": "foo"
+          }
+        ],
+        "initial": "foo"
+      },
+      {
+        "ctor": [
+          null,
+          null,
+          []
+        ],
+        "ops": [
+          [
+            "setHref",
+            "https://example.test"
+          ]
+        ],
+        "text": "",
+        "constructor_error": false,
+        "trace": [
+          {
+            "error": false,
+            "output": ""
+          }
+        ],
+        "initial": ""
+      }
+    ]
+  }
+]

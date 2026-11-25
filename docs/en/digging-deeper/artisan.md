@@ -811,3 +811,40 @@ fn register_output_configuration() -> Result<(), ConsoleError> {
 ```
 
 A progress output view has its own `set_verbosity` and `set_decorated`. On a real console they configure stderr independently; a primary style setter updates both streams. Captured single-stream output shares the same settings. Progress formatting reads its selected stream, and nested explicit CLI flags temporarily apply to both. The existing command scope restores parent settings on completion and cancellation. Native direct string-buffer edits remain subject to command filtering; prefer the output methods for level-aware writing. Custom formatter replacement is a separate SDK entry.
+
+## Styles and the style stack {#formatter-styles}
+
+Low-level `OutputFormatterStyle` provides foreground, background, options and hyperlink configuration. It implements the public `OutputFormatterStyleInterface`; `FormatterStyle` is a shared trait-object handle. `apply` produces ANSI text independently of output decoration. Use Raw only when intentionally writing prepared control sequences.
+
+```rust
+use openrust::{
+    console::{ConsoleError, FormatterStyle, Input, Output, OutputFormat,
+        OutputFormatterStyle, OutputFormatterStyleStack},
+    contracts::service::ResetInterface,
+    support::facades::Artisan,
+};
+use std::sync::Arc;
+
+fn register_formatter_styles() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:styles", |input: &Input, output: &mut Output| {
+        let style = Arc::new(OutputFormatterStyle::new(Some("green"), None, &["bold"])?);
+        let shared: FormatterStyle = style.clone();
+        let mut stack = OutputFormatterStyleStack::default();
+        stack.push(shared.clone());
+        shared.set_foreground(Some("blue"))?;
+        let rendered = stack.get_current().apply("ready")?;
+        let mut io = input.io(output);
+        io.get_output().write(rendered.as_str(), false, OutputFormat::Raw)?;
+        let reset: &mut dyn ResetInterface = &mut stack;
+        reset.reset();
+        io.new_line(1)?;
+        io.info(&format!("stack:{}", stack.get_current().apply("plain")?))?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
+A cloned handle retains the same object; cloning the concrete style creates an independent configuration. `OutputFormatterStyleStack` retains references, supports ordinary and matching-style pops, and shares its styles when cloned. `reset` clears entries while keeping the configured empty style and is also available through `contracts::service::ResetInterface`. Matching uses actual empty-text style output, including hyperlink behavior.
+
+Setters return typed errors and may preserve the previous compiled display while later operations validate the latest fields. Propagate failures with `?`; `ConsoleError` retains their sources. Generic iterator and string adapters run before acquiring the default style lock. These types reuse the existing formatter pipeline. Named-style registration and whole-formatter replacement remain separate SDK entries.

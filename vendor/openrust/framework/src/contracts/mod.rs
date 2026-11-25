@@ -23,6 +23,7 @@ pub mod pagination;
 pub mod queue;
 pub mod redis;
 pub mod routing;
+pub mod service;
 pub mod session;
 pub mod support;
 pub mod translation;

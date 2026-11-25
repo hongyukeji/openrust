@@ -10,6 +10,7 @@ pub enum ConsoleFormatError {
     InvalidOption(String),
     IncorrectlyNestedTag,
     UnicodeSegmentation(pcre2::Error),
+    CustomSource(std::sync::Arc<dyn std::error::Error + Send + Sync>),
 }
 impl fmt::Display for ConsoleFormatError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -18,7 +19,18 @@ impl fmt::Display for ConsoleFormatError {
             Self::InvalidOption(value) => write!(f, "控制台样式选项无效：{value}"),
             Self::IncorrectlyNestedTag => f.write_str("控制台样式标签嵌套不匹配"),
             Self::UnicodeSegmentation(error) => write!(f, "控制台文本字素解析失败：{error}"),
+            Self::CustomSource(error) => write!(f, "控制台样式处理失败：{error}"),
         }
+    }
+}
+impl ConsoleFormatError {
+    pub fn from_source(error: impl std::error::Error + Send + Sync + 'static) -> Self {
+        Self::CustomSource(std::sync::Arc::new(error))
+    }
+}
+impl From<ConsoleFormatError> for super::ConsoleError {
+    fn from(error: ConsoleFormatError) -> Self {
+        Self::from_source(error)
     }
 }
 impl PartialEq for ConsoleFormatError {
@@ -32,6 +44,9 @@ impl PartialEq for ConsoleFormatError {
                     && left.offset() == right.offset()
                     && std::mem::discriminant(left.kind()) == std::mem::discriminant(right.kind())
             }
+            (Self::CustomSource(left), Self::CustomSource(right)) => {
+                std::sync::Arc::ptr_eq(left, right)
+            }
             _ => false,
         }
     }
@@ -40,6 +55,7 @@ impl Eq for ConsoleFormatError {}
 impl std::error::Error for ConsoleFormatError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Self::CustomSource(error) => Some(error.as_ref()),
             Self::UnicodeSegmentation(error) => Some(error),
             _ => None,
         }
@@ -47,17 +63,14 @@ impl std::error::Error for ConsoleFormatError {
 }
 
 #[derive(Clone, Default, Eq, PartialEq)]
-struct Style {
-    fg: String,
-    bg: String,
-    options: Vec<(u8, u8)>,
-    href: Option<String>,
+pub(super) struct Style {
+    pub(super) fg: String,
+    pub(super) bg: String,
+    pub(super) options: Vec<(u8, u8)>,
+    pub(super) href: Option<String>,
 }
 impl Style {
-    fn append(&self, text: &str, decorated: bool, target: &mut String) {
-        if text.is_empty() {
-            return;
-        }
+    pub(super) fn append(&self, text: &str, decorated: bool, target: &mut String) {
         if !decorated {
             target.push_str(text);
             return;
@@ -92,10 +105,48 @@ impl Style {
     }
 }
 
-#[derive(Clone, Default)]
 pub(super) struct Formatter {
-    stack: Vec<Style>,
-    warning: bool,
+    stack: super::OutputFormatterStyleStack,
+    styles: std::collections::BTreeMap<String, super::FormatterStyle>,
+}
+impl Default for Formatter {
+    fn default() -> Self {
+        let styles = [
+            ("error", Some("white"), Some("red")),
+            ("info", Some("green"), None),
+            ("comment", Some("yellow"), None),
+            ("question", Some("black"), Some("cyan")),
+        ]
+        .into_iter()
+        .map(|(name, fg, bg)| {
+            let style: super::FormatterStyle = std::sync::Arc::new(
+                super::OutputFormatterStyle::new(fg, bg, &[]).expect("内置颜色配置有效"),
+            );
+            (name.to_owned(), style)
+        })
+        .collect();
+        Self {
+            stack: super::OutputFormatterStyleStack::default(),
+            styles,
+        }
+    }
+}
+impl Clone for Formatter {
+    fn clone(&self) -> Self {
+        Self {
+            stack: self.stack.clone(),
+            styles: self
+                .styles
+                .iter()
+                .map(|(name, style)| {
+                    (
+                        name.clone(),
+                        std::sync::Arc::from(dyn_clone::clone_box(style.as_ref())),
+                    )
+                })
+                .collect(),
+        }
+    }
 }
 impl Formatter {
     pub(super) fn escape(text: &str) -> String {
@@ -120,7 +171,12 @@ impl Formatter {
         prefix
     }
     pub(super) fn register_warning(&mut self) {
-        self.warning = true;
+        self.styles.entry("warning".into()).or_insert_with(|| {
+            std::sync::Arc::new(
+                super::OutputFormatterStyle::new(Some("yellow"), None, &[])
+                    .expect("内置警告颜色有效"),
+            )
+        });
     }
     pub(super) fn format(
         &mut self,
@@ -150,7 +206,7 @@ impl Formatter {
                 || &text[offset..span.start()],
                 |slices| slices.slice(offset, Some(position)),
             );
-            self.append(visible, decorated, &mut output);
+            self.append(visible, decorated, &mut output)?;
             offset = if unicode.is_some() {
                 position + unicode::length(span.as_str())?
             } else {
@@ -158,25 +214,20 @@ impl Formatter {
             };
             let tag = &token[1];
             if tag == "/" {
-                self.stack.pop();
+                self.stack.pop()?;
                 continue;
             }
             let (closing, name) = tag
                 .strip_prefix('/')
                 .map_or((false, tag), |name| (true, name));
             let Some(style) = self.style(name)? else {
-                self.append(span.as_str(), decorated, &mut output);
+                self.append(span.as_str(), decorated, &mut output)?;
                 continue;
             };
             if !closing {
                 self.stack.push(style);
-            } else if !self.stack.is_empty() {
-                let index = self
-                    .stack
-                    .iter()
-                    .rposition(|entry| entry == &style)
-                    .ok_or(ConsoleFormatError::IncorrectlyNestedTag)?;
-                self.stack.truncate(index);
+            } else {
+                self.stack.pop_with_style(&style)?;
             }
         }
         let visible = match unicode.as_ref() {
@@ -184,88 +235,65 @@ impl Formatter {
             None if non_ascii => icu_normalizer::ComposingNormalizer::new_nfc().normalize(text),
             None => std::borrow::Cow::Borrowed(&text[offset..]),
         };
-        self.append(visible.as_ref(), decorated, &mut output);
+        self.append(visible.as_ref(), decorated, &mut output)?;
         Ok(output
             .replace('\0', "\\")
             .replace("\\<", "<")
             .replace("\\>", ">"))
     }
-    fn append(&self, text: &str, decorated: bool, target: &mut String) {
-        if let Some(style) = self.stack.last() {
-            style.append(text, decorated, target);
+    fn append(
+        &self,
+        text: &str,
+        decorated: bool,
+        target: &mut String,
+    ) -> Result<(), ConsoleFormatError> {
+        if text.is_empty() {
+            return Ok(());
+        }
+        if decorated {
+            self.stack.current_ref().append_to(text, target)?;
         } else {
             target.push_str(text);
         }
+        Ok(())
     }
-    fn style(&self, name: &str) -> Result<Option<Style>, ConsoleFormatError> {
-        let mut style = Style::default();
-        match name {
-            "info" => style.fg = "32".into(),
-            "comment" => style.fg = "33".into(),
-            "question" => {
-                style.fg = "30".into();
-                style.bg = "46".into();
-            }
-            "error" => {
-                style.fg = "37".into();
-                style.bg = "41".into();
-            }
-            "warning" if self.warning => style.fg = "33".into(),
-            _ => {
-                static ATTRS: LazyLock<Regex> = LazyLock::new(|| {
-                    Regex::new(r"([^=]+)=([^;]+)(?:;|$)").expect("合法控制台属性表达式")
-                });
-                let mut found = false;
-                for attribute in ATTRS.captures_iter(name) {
-                    found = true;
-                    let value = attribute[2].to_lowercase();
-                    match attribute[1].to_lowercase().as_str() {
-                        "fg" => style.fg = color(&value, false)?,
-                        "bg" => style.bg = color(&value, true)?,
-                        "options" => {
-                            for option in value.split(',').filter(|option| !option.is_empty()) {
-                                let codes = match option {
-                                    "bold" => (1, 22),
-                                    "underscore" => (4, 24),
-                                    "blink" => (5, 25),
-                                    "reverse" => (7, 27),
-                                    "conceal" => (8, 28),
-                                    _ => {
-                                        return Err(ConsoleFormatError::InvalidOption(
-                                            option.into(),
-                                        ));
-                                    }
-                                };
-                                if !style.options.contains(&codes) {
-                                    style.options.push(codes);
-                                }
-                            }
-                        }
-                        "href" => {
-                            if hyperlinks_supported() {
-                                style.href =
-                                    Some(attribute[2].replace("\\<", "<").replace("\\>", ">"));
-                            }
-                        }
-                        _ => return Ok(None),
+    fn style(&self, name: &str) -> Result<Option<super::FormatterStyle>, ConsoleFormatError> {
+        if let Some(style) = self.styles.get(name) {
+            return Ok(Some(style.clone()));
+        }
+        static ATTRS: LazyLock<Regex> =
+            LazyLock::new(|| Regex::new(r"([^=]+)=([^;]+)(?:;|$)").expect("合法控制台属性表达式"));
+        let style = super::OutputFormatterStyle::default();
+        let mut found = false;
+        for attribute in ATTRS.captures_iter(name) {
+            found = true;
+            let value = attribute[2].to_lowercase();
+            match attribute[1].to_lowercase().as_str() {
+                "fg" => style.set_foreground(Some(&value))?,
+                "bg" => style.set_background(Some(&value))?,
+                "options" => {
+                    for option in value.split(',').filter(|option| !option.is_empty()) {
+                        style.set_option(option)?;
                     }
                 }
-                if !found {
-                    return Ok(None);
-                }
+                "href" => style.set_href(attribute[2].replace("\\<", "<").replace("\\>", ">")),
+                _ => return Ok(None),
             }
         }
-        Ok(Some(style))
+        if !found {
+            return Ok(None);
+        }
+        Ok(Some(std::sync::Arc::new(style)))
     }
 }
-fn hyperlinks_supported() -> bool {
+pub(super) fn hyperlinks_supported() -> bool {
     std::env::var("TERMINAL_EMULATOR").as_deref() != Ok("JetBrains-JediTerm")
         && std::env::var_os("IDEA_INITIAL_DIRECTORY").is_none()
         && std::env::var("KONSOLE_VERSION")
             .ok()
             .is_none_or(|value| value.is_empty() || value.parse::<u64>().unwrap_or(0) > 201100)
 }
-fn color(value: &str, background: bool) -> Result<String, ConsoleFormatError> {
+pub(super) fn color(value: &str, background: bool) -> Result<String, ConsoleFormatError> {
     let base = if background { 40 } else { 30 };
     if value.starts_with('#') {
         let mut hex = value.replace('#', "");
@@ -275,8 +303,13 @@ fn color(value: &str, background: bool) -> Result<String, ConsoleFormatError> {
         if hex.len() != 6 {
             return Err(ConsoleFormatError::InvalidColor(value.into()));
         }
-        let rgb = u32::from_str_radix(&hex, 16)
-            .map_err(|_| ConsoleFormatError::InvalidColor(value.into()))?;
+        // 固定数值转换会忽略非十六进制字符；VM弃用告警不属于原生输出协议。
+        let digits: String = hex.chars().filter(char::is_ascii_hexdigit).collect();
+        let rgb = if digits.is_empty() {
+            0
+        } else {
+            u32::from_str_radix(&digits, 16).expect("已过滤的六位十六进制位于整数范围内")
+        };
         let (r, g, b) = ((rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255);
         let mode = ["COLORTERM", "TERM"]
             .into_iter()
@@ -390,4 +423,15 @@ pub(super) fn unformatted_text(
         plain = LINK.replace_all(&plain, "").into_owned();
     }
     Ok(plain)
+}
+
+pub(super) fn style_option(value: &str) -> Result<(u8, u8), ConsoleFormatError> {
+    match value {
+        "bold" => Ok((1, 22)),
+        "underscore" => Ok((4, 24)),
+        "blink" => Ok((5, 25)),
+        "reverse" => Ok((7, 27)),
+        "conceal" => Ok((8, 28)),
+        _ => Err(ConsoleFormatError::InvalidOption(value.into())),
+    }
 }

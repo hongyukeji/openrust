@@ -811,3 +811,40 @@ fn register_output_configuration() -> Result<(), ConsoleError> {
 ```
 
 进度输出视图也有 `set_verbosity` 和 `set_decorated`。真实控制台仅配置 stderr；主样式的设置器同时更新两条流。捕获调用的单一输出共享设置。进度排版读取所选流，嵌套命令的显式 CLI 标志临时作用于两条流；既有命令作用域在结束或取消时恢复父级配置。原生直接修改字符串缓冲仍受命令过滤约束，按级别写入应使用输出方法。自定义格式器替换为单独的 SDK 入口。
+
+## 样式与样式栈 {#formatter-styles}
+
+低层 `OutputFormatterStyle` 提供前景色、背景色、选项及超链接配置，并实现公开的 `OutputFormatterStyleInterface`；`FormatterStyle` 是共享 Trait 对象句柄。`apply` 生成 ANSI 文本，不读取输出装饰开关。只有明确要写入预渲染控制序列时才使用 Raw。
+
+```rust
+use openrust::{
+    console::{ConsoleError, FormatterStyle, Input, Output, OutputFormat,
+        OutputFormatterStyle, OutputFormatterStyleStack},
+    contracts::service::ResetInterface,
+    support::facades::Artisan,
+};
+use std::sync::Arc;
+
+fn register_formatter_styles() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:styles", |input: &Input, output: &mut Output| {
+        let style = Arc::new(OutputFormatterStyle::new(Some("green"), None, &["bold"])?);
+        let shared: FormatterStyle = style.clone();
+        let mut stack = OutputFormatterStyleStack::default();
+        stack.push(shared.clone());
+        shared.set_foreground(Some("blue"))?;
+        let rendered = stack.get_current().apply("ready")?;
+        let mut io = input.io(output);
+        io.get_output().write(rendered.as_str(), false, OutputFormat::Raw)?;
+        let reset: &mut dyn ResetInterface = &mut stack;
+        reset.reset();
+        io.new_line(1)?;
+        io.info(&format!("stack:{}", stack.get_current().apply("plain")?))?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
+克隆句柄保留同一个对象，克隆具体样式得到独立配置。`OutputFormatterStyleStack` 保留样式引用，支持普通弹出和按样式匹配弹出，克隆栈仍共享原样式。`reset` 清空条目并保留配置的空样式，也可通过 `contracts::service::ResetInterface` 调用。匹配比较实际空文本样式输出，包含超链接行为。
+
+设置器返回类型化错误；显示可继续使用此前已编译样式，后续修改会重新校验最新字段。用 `?` 传播失败，`ConsoleError` 保留具体来源。泛型迭代器及字符串转换在默认样式加锁前执行。这些类型复用既有格式化管线；命名样式注册和完整格式器替换仍是单独的 SDK 入口。

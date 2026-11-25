@@ -245,3 +245,20 @@ ProgressOutput的write／writeln及单次迭代器变体、类型化OutputOption
 新增7个不同父消费者，1个ignore子进程由实际驱动调用不计通过。包括真CLI子命令Quiet／NoAnsi临时覆盖、进入后主动取消等待命令、父错误流Debug与装饰恢复；无计时猜测，Notify确认回调已进入才取消。真实TCP六种配置200、未知命令500、后续200；类型化输出错误接口不因本批改动。最终9框架目标71项＋根6目标92项，共163个不同父消费者，含51个直接提取三语正式正文例。workspace格式、all-targets严格Clippy（24.95s）、main(pail)、三语构建／12组浏览器及最终HTTP／Artisan／Pail／Ctrl+C通过。具体命令／源SHA见accepted-output-configuration.json；最终日志output-configuration-final-*、gates-results.json、runtime.log和browser.log。
 
 组合本轮吸收已提交5ed4b12b0认证／事务改动后，以07eb666e8为底；不取其余在途。结束删除本批运行夹具，保留共享缓存、原始对照及日志，无本批遗留服务／容器。磁盘接近32GB时均通过守卫复查，本轮截至验收未触发新的清理，不把之前全项目清理再次归为本批事件。继续setFormatter／getFormatter及完整格式器／样式SDK、其余Table／组件／注册生成／信号事件／Tinker入口；整章和持续目标仍未闭合，只提交已验本簇，不推送。
+
+
+## 第十七簇：公开样式、Trait与样式栈（2026-11-25）
+
+第十六簇b203f1f2a已本地提交。旧v0.x@6d1a819的console.rs／command.rs只有回调、仓储及print，未找到完整样式／样式栈可复用。本簇复用本主线原标签／Unicode解析、颜色编码、终端超链接与写入管线，补齐公开OutputFormatterStyle、OutputFormatterStyleInterface、OutputFormatterStyleStack及contracts::service::ResetInterface绑定，全部Source声明逐项见formatter-contracts.json。未把私有Formatter存在当作公开OutputFormatter／Interface已经实现，其余类和getter／setter继续明确待办。
+
+调研固定Console7.4的[样式测试](https://raw.githubusercontent.com/symfony/console/v7.4.0/Tests/Formatter/OutputFormatterStyleTest.php)与[栈测试](https://raw.githubusercontent.com/symfony/console/v7.4.0/Tests/Formatter/OutputFormatterStyleStackTest.php)，克隆桥接使用已有锁内[dyn-clone1.0.20](https://docs.rs/dyn-clone/1.0.20/dyn_clone/)。本批只添加框架直接声明及lock依赖边，不增加解析包、工作区成员或另造clone工具。保留现有许可及第三方真实名称，不添加PHP运行依赖。
+
+FormatterStyle采用Arc Trait对象保留对象身份，默认样式配置同步；克隆句柄共享对象，具体默认样式Clone复制配置，克隆栈共享原样式／空样式引用，匹配弹出比较实际apply空字符串而非结构字段。类型化Result和From<ConsoleFormatError>保留自定义I/O来源；泛型字符串／迭代器在加锁前转换，实际重入消费者通过，不在默认样式锁内执行用户转换。默认append_to直接写同一缓冲，用户实现默认委托apply；该原生钩子须保留等价输出，无未经测量的性能收益结论。内部命名样式按原机制缓存对象，格式器Clone深复制名称表／保留栈引用；捕获输出的第二份错误格式器延迟到实际使用，避免无用样式表。原Parser、NFC、返回数据和输出过滤继续原路径，不另建格式化器。
+
+实际固定源码每种终端环境68组样式／8组栈，五模式共340＋40组；真实Artisan子进程同时检验构造、五个Trait设置器、Href、apply、元数据错误后状态、ANSI16／256／truecolor／24bit原有回退／禁超链接、克隆与保留引用及重置。写入的最终stdout逐字核对，非仅内部结果；栈Reset经真实Trait对象调用。Source原始PHP／SDK与脚本仅target/tmp，必要JSON为formatter-style-oracle及formatter-stack-oracle.json。Ctor错误夹具最初循环复用被handle_command消费的Application，编译实际指出后改为每次正式创建并执行，未绕开真实入口。
+
+实际反例：#ggg原数字转换忽略非十六进制字符而产生黑色，原生原先拒绝，formatter-style-tests2／3.log保留。按固定数字转换修复，五模式Source各143字节hexdec VM弃用告警保留formatter-style-*.stderr，Rust不模拟VM告警。继而原IO测试把#zzzzzz误当必定非法，实际Source已确认可转黑色；保留tests4.log失败，用真正非法长度#zzzzz继续验证InvalidColor，另增加六位非十六进制字符的正向公开命令消费者，不删除失败覆盖或篡改预期数据。颜色数值和显示按实跑Source，而非凭想象的严格解析。初轮严格Clippy要求重入测试map改inspect，已修复，无lint豁免。
+
+新增7个父消费者通过，1个ignore实际CLI夹具由五环境／错误状态驱动调用不计通过；具体自定义Trait错误保留std::io::Error，实际HTTP200／500／后续200，真实Artisan自定义样式错误退出1并保留内容。最终10框架目标78项＋根6目标95项，共173个不同父消费者，含54个正式三语直接提取示例；540模板、前序问答／表格／进度／输出配置同时回归。workspace格式、all-targets严格Clippy11.60s、main(pail)、三语构建及12组浏览器与实际HTTP／Artisan／Pail／Ctrl+C通过。源SHA／命令见accepted-formatter-styles.json，日志formatter-style-final-*、gates-results.json、runtime.log及browser.log；失败／中断不计通过，不叠加重复次数。
+
+本簇开始前全项目守卫在其他工作流触发32GB清理：before=31983710208、after=112220024832、released=80236314624字节，源码／日志／依赖／数据／锁保留，本批从保留源码重新编译完成；不冒称自己的命令触发或把未执行计通过。结束删除本批运行夹具，无遗留服务／容器，保留共享热缓存与证据。继续公开OutputFormatter／Wrappable与替换接口、Color／AnsiColorMode／Terminal以及其余Table／组件／注册生成／信号事件／Tinker，整章和持续目标未闭合；仅本地提交本簇，不推送，其他在途保留。

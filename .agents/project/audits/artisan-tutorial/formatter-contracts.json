@@ -1,0 +1,417 @@
+{
+  "reference": {
+    "framework": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+    "console": "v7.4.0"
+  },
+  "scope": "Public style class, style trait and stack with actual reset trait binding; complete formatter replacement and color/terminal SDK remain open.",
+  "classes": {
+    "OutputFormatterStyleInterface": [
+      {
+        "method": "setForeground",
+        "source_line": 24,
+        "status": "verified_public_style_contract",
+        "native": "console::OutputFormatterStyleInterface::set_foreground",
+        "evidence": [
+          "console_formatter_styles",
+          "formatter-style-oracle.json"
+        ]
+      },
+      {
+        "method": "setBackground",
+        "source_line": 29,
+        "status": "verified_public_style_contract",
+        "native": "console::OutputFormatterStyleInterface::set_background",
+        "evidence": [
+          "console_formatter_styles",
+          "formatter-style-oracle.json"
+        ]
+      },
+      {
+        "method": "setOption",
+        "source_line": 34,
+        "status": "verified_public_style_contract",
+        "native": "console::OutputFormatterStyleInterface::set_option",
+        "evidence": [
+          "console_formatter_styles",
+          "formatter-style-oracle.json"
+        ]
+      },
+      {
+        "method": "unsetOption",
+        "source_line": 39,
+        "status": "verified_public_style_contract",
+        "native": "console::OutputFormatterStyleInterface::unset_option",
+        "evidence": [
+          "console_formatter_styles",
+          "formatter-style-oracle.json"
+        ]
+      },
+      {
+        "method": "setOptions",
+        "source_line": 44,
+        "status": "verified_public_style_contract",
+        "native": "console::OutputFormatterStyleInterface::set_options",
+        "evidence": [
+          "console_formatter_styles",
+          "formatter-style-oracle.json"
+        ]
+      },
+      {
+        "method": "apply",
+        "source_line": 49,
+        "status": "verified_public_style_contract",
+        "native": "console::OutputFormatterStyleInterface::apply",
+        "evidence": [
+          "console_formatter_styles",
+          "formatter-style-oracle.json"
+        ]
+      }
+    ],
+    "OutputFormatterStyle": [
+      {
+        "method": "__construct",
+        "source_line": 36,
+        "status": "verified_public_style_contract",
+        "native": "console::OutputFormatterStyle::new / Default",
+        "evidence": [
+          "console_formatter_styles",
+          "formatter-style-oracle.json"
+        ]
+      },
+      {
+        "method": "setForeground",
+        "source_line": 41,
+        "status": "verified_public_style_contract",
+        "native": "console::OutputFormatterStyle::set_foreground",
+        "evidence": [
+          "console_formatter_styles",
+          "formatter-style-oracle.json"
+        ]
+      },
+      {
+        "method": "setBackground",
+        "source_line": 46,
+        "status": "verified_public_style_contract",
+        "native": "console::OutputFormatterStyle::set_background",
+        "evidence": [
+          "console_formatter_styles",
+          "formatter-style-oracle.json"
+        ]
+      },
+      {
+        "method": "setHref",
+        "source_line": 51,
+        "status": "verified_public_style_contract",
+        "native": "console::OutputFormatterStyle::set_href",
+        "evidence": [
+          "console_formatter_styles",
+          "formatter-style-oracle.json"
+        ]
+      },
+      {
+        "method": "setOption",
+        "source_line": 56,
+        "status": "verified_public_style_contract",
+        "native": "console::OutputFormatterStyle::set_option",
+        "evidence": [
+          "console_formatter_styles",
+          "formatter-style-oracle.json"
+        ]
+      },
+      {
+        "method": "unsetOption",
+        "source_line": 62,
+        "status": "verified_public_style_contract",
+        "native": "console::OutputFormatterStyle::unset_option",
+        "evidence": [
+          "console_formatter_styles",
+          "formatter-style-oracle.json"
+        ]
+      },
+      {
+        "method": "setOptions",
+        "source_line": 72,
+        "status": "verified_public_style_contract",
+        "native": "console::OutputFormatterStyle::set_options",
+        "evidence": [
+          "console_formatter_styles",
+          "formatter-style-oracle.json"
+        ]
+      },
+      {
+        "method": "apply",
+        "source_line": 77,
+        "status": "verified_public_style_contract",
+        "native": "console::OutputFormatterStyle::apply",
+        "evidence": [
+          "console_formatter_styles",
+          "formatter-style-oracle.json"
+        ]
+      }
+    ],
+    "OutputFormatterStyleStack": [
+      {
+        "method": "__construct",
+        "source_line": 29,
+        "status": "verified_public_style_contract",
+        "native": "console::OutputFormatterStyleStack::new / Default",
+        "evidence": [
+          "console_formatter_styles",
+          "formatter-stack-oracle.json"
+        ]
+      },
+      {
+        "method": "reset",
+        "source_line": 38,
+        "status": "verified_public_style_contract",
+        "native": "console::OutputFormatterStyleStack::reset",
+        "evidence": [
+          "console_formatter_styles",
+          "formatter-stack-oracle.json"
+        ]
+      },
+      {
+        "method": "push",
+        "source_line": 46,
+        "status": "verified_public_style_contract",
+        "native": "console::OutputFormatterStyleStack::push",
+        "evidence": [
+          "console_formatter_styles",
+          "formatter-stack-oracle.json"
+        ]
+      },
+      {
+        "method": "pop",
+        "source_line": 56,
+        "status": "verified_public_style_contract",
+        "native": "console::OutputFormatterStyleStack::pop / pop_with_style",
+        "evidence": [
+          "console_formatter_styles",
+          "formatter-stack-oracle.json"
+        ]
+      },
+      {
+        "method": "getCurrent",
+        "source_line": 80,
+        "status": "verified_public_style_contract",
+        "native": "console::OutputFormatterStyleStack::get_current",
+        "evidence": [
+          "console_formatter_styles",
+          "formatter-stack-oracle.json"
+        ]
+      },
+      {
+        "method": "setEmptyStyle",
+        "source_line": 92,
+        "status": "verified_public_style_contract",
+        "native": "console::OutputFormatterStyleStack::set_empty_style",
+        "evidence": [
+          "console_formatter_styles",
+          "formatter-stack-oracle.json"
+        ]
+      },
+      {
+        "method": "getEmptyStyle",
+        "source_line": 99,
+        "status": "verified_public_style_contract",
+        "native": "console::OutputFormatterStyleStack::get_empty_style",
+        "evidence": [
+          "console_formatter_styles",
+          "formatter-stack-oracle.json"
+        ]
+      }
+    ],
+    "ResetInterface": [
+      {
+        "method": "reset",
+        "source": "Service Contracts ResetInterface",
+        "native": "contracts::service::ResetInterface::reset",
+        "status": "verified_public_trait_binding",
+        "evidence": [
+          "console_formatter_styles::verify_stack",
+          "formal_formatter_style_example"
+        ]
+      }
+    ],
+    "OutputFormatter": [
+      {
+        "method": "__clone",
+        "source_line": 30,
+        "native": null,
+        "status": "pending_public_type_trait_and_real_consumer",
+        "evidence": []
+      },
+      {
+        "method": "escape",
+        "source_line": 41,
+        "native": null,
+        "status": "pending_public_type_trait_and_real_consumer",
+        "evidence": []
+      },
+      {
+        "method": "escapeTrailingBackslash",
+        "source_line": 53,
+        "native": null,
+        "status": "pending_public_type_trait_and_real_consumer",
+        "evidence": []
+      },
+      {
+        "method": "__construct",
+        "source_line": 70,
+        "native": null,
+        "status": "pending_public_type_trait_and_real_consumer",
+        "evidence": []
+      },
+      {
+        "method": "setDecorated",
+        "source_line": 86,
+        "native": null,
+        "status": "pending_public_type_trait_and_real_consumer",
+        "evidence": []
+      },
+      {
+        "method": "isDecorated",
+        "source_line": 91,
+        "native": null,
+        "status": "pending_public_type_trait_and_real_consumer",
+        "evidence": []
+      },
+      {
+        "method": "setStyle",
+        "source_line": 96,
+        "native": null,
+        "status": "pending_public_type_trait_and_real_consumer",
+        "evidence": []
+      },
+      {
+        "method": "hasStyle",
+        "source_line": 101,
+        "native": null,
+        "status": "pending_public_type_trait_and_real_consumer",
+        "evidence": []
+      },
+      {
+        "method": "getStyle",
+        "source_line": 106,
+        "native": null,
+        "status": "pending_public_type_trait_and_real_consumer",
+        "evidence": []
+      },
+      {
+        "method": "format",
+        "source_line": 115,
+        "native": null,
+        "status": "pending_public_type_trait_and_real_consumer",
+        "evidence": []
+      },
+      {
+        "method": "formatAndWrap",
+        "source_line": 120,
+        "native": null,
+        "status": "pending_public_type_trait_and_real_consumer",
+        "evidence": []
+      },
+      {
+        "method": "getStyleStack",
+        "source_line": 170,
+        "native": null,
+        "status": "pending_public_type_trait_and_real_consumer",
+        "evidence": []
+      }
+    ],
+    "WrappableOutputFormatterInterface": [
+      {
+        "method": "formatAndWrap",
+        "source_line": 24,
+        "native": null,
+        "status": "pending_public_type_trait_and_real_consumer",
+        "evidence": []
+      }
+    ],
+    "OutputFormatterInterface": [
+      {
+        "method": "setDecorated",
+        "source_line": 24,
+        "native": null,
+        "status": "pending_public_type_trait_and_real_consumer",
+        "evidence": []
+      },
+      {
+        "method": "isDecorated",
+        "source_line": 29,
+        "native": null,
+        "status": "pending_public_type_trait_and_real_consumer",
+        "evidence": []
+      },
+      {
+        "method": "setStyle",
+        "source_line": 34,
+        "native": null,
+        "status": "pending_public_type_trait_and_real_consumer",
+        "evidence": []
+      },
+      {
+        "method": "hasStyle",
+        "source_line": 39,
+        "native": null,
+        "status": "pending_public_type_trait_and_real_consumer",
+        "evidence": []
+      },
+      {
+        "method": "getStyle",
+        "source_line": 46,
+        "native": null,
+        "status": "pending_public_type_trait_and_real_consumer",
+        "evidence": []
+      },
+      {
+        "method": "format",
+        "source_line": 51,
+        "native": null,
+        "status": "pending_public_type_trait_and_real_consumer",
+        "evidence": []
+      }
+    ]
+  },
+  "native_adaptations": [
+    {
+      "contract": "Retained mutable style references",
+      "reason": "FormatterStyle is Arc<dyn OutputFormatterStyleInterface>; default style synchronizes its mutable configuration. Concrete Clone copies state, Arc clone and cloned stacks retain original object references. User iterator/string conversions run before locks.",
+      "evidence": "console_formatter_styles"
+    },
+    {
+      "contract": "Implicit object cloning",
+      "reason": "Reuse locked dyn-clone1.0.20 as a direct framework dependency. Implementers use ordinary Clone; no new resolved package or parallel clone utility.",
+      "evidence": "Cargo.lock; Cargo.toml; public custom trait object consumer"
+    },
+    {
+      "contract": "Append hook",
+      "reason": "Default append_to writes into the same output buffer to avoid a temporary String; custom implementations default to apply and must preserve equivalent output.",
+      "evidence": "formatter_style.rs; formatter-style-oracle.json"
+    },
+    {
+      "contract": "Errors and numeric compatibility",
+      "reason": "Result preserves concrete error sources; new From<ConsoleFormatError> permits command ?. Malformed six-digit hex values follow fixed numeric coercion without emitting PHP VM deprecation messages; original stderr retained.",
+      "evidence": "formatter-style-tests2.log; formatter-style-tests4.log; formatter-style-*.stderr"
+    }
+  ],
+  "research": [
+    {
+      "url": "https://docs.rs/dyn-clone/1.0.20/dyn_clone/",
+      "used": "Object-safe cloning without custom clone scaffolding"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/symfony/console/v7.4.0/Tests/Formatter/OutputFormatterStyleTest.php",
+      "used": "Constructor/color/options/href public consumers"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/symfony/console/v7.4.0/Tests/Formatter/OutputFormatterStyleStackTest.php",
+      "used": "Push/pop/empty/non-top/invalid public consumers"
+    }
+  ],
+  "remaining": [
+    "Public OutputFormatter and OutputFormatterInterface / WrappableOutputFormatterInterface including setFormatter/getFormatter consumers",
+    "Public Color, AnsiColorMode, Terminal color-mode lifecycle; private RGB conversion is not proof of those SDK types",
+    "Other table/component/registration/signal/Tinker chapter entries remain open"
+  ]
+}

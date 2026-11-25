@@ -319,7 +319,10 @@
         "console_io_tutorial",
         "artisan_docs_generated",
         "output-style-oracle.json",
-        "accepted-output-style.json"
+        "accepted-output-style.json",
+        "console_formatter_styles",
+        "accepted-formatter-styles.json",
+        "formatter-contracts.json"
       ],
       "native": "console::CommandIo",
       "remaining": [

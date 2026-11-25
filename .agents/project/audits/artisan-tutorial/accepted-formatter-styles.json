@@ -1,0 +1,44 @@
+{
+  "base": "b203f1f2acef1ad63b8a10eaa2787b3aa7822546",
+  "source": "target/tmp/logging-tutorial-20261124/source",
+  "source_sha256": {
+    "Cargo.lock": "ff92706bc23ef5f65f1d51d0415ee5fbe3cf620057cd80659620f926be8634e1",
+    "vendor/openrust/framework/Cargo.toml": "fd760af640e9c5440cc6864eff3c3f05acd17ecc65e225df27f74c0a993ee470",
+    "vendor/openrust/framework/src/console/mod.rs": "5301bc1671fc6baa61c8c45cc946154710380a39ff4ab5af046ec2541631f7a5",
+    "vendor/openrust/framework/src/console/formatting.rs": "9486c213d98ddd0b7375443b030bcb203b184eefa882b0381604f47e5f46272f",
+    "vendor/openrust/framework/src/console/output_style.rs": "53a94d3bcdd4da25d6171e3d1f04a68bd0c8569f09d5ba921194b7b35a6853c8",
+    "vendor/openrust/framework/src/console/formatter_style.rs": "c874353327918e4043677629ca8307e1f0578aabca094fa6f1641062b5fa5448",
+    "vendor/openrust/framework/src/console/formatter_style/stack.rs": "992224b650996df5417a261859ad833056dbe5d31eb3e47db02efc2004e6a801",
+    "vendor/openrust/framework/src/contracts/mod.rs": "55310b60026d207ca5dec431a16d2f683e4a6f66a15ac560a8d3034dd3f7a8a3",
+    "vendor/openrust/framework/src/contracts/service.rs": "f0a6d787dd8b90874297b30de5c078bff82a5d0110131a331c7124bf3c99e678",
+    "vendor/openrust/framework/tests/console_formatter_styles.rs": "6c1996adc2b251be9824926acf40db9f69b0f64d8896d5a693d437c16cd20079",
+    "vendor/openrust/framework/tests/console_io_tutorial.rs": "bd4603eee58fa51ad418e0932397ac491d0251b46c310ca7826074bd05d0953b",
+    "docs/en/digging-deeper/artisan.md": "cc5bd443513d26e70ddac7ee45f7c9e89e79ee3740501dcc2c2374e70980ec87",
+    "docs/zh-Hans/digging-deeper/artisan.md": "c089cb14ae06ff76be2ac1434c83a8f8e4053e4042a740b096c8f65e893bf00c",
+    "docs/zh-Hant/digging-deeper/artisan.md": "0fea39830780b1cf070ee9aaa409a5cad05f661366797e48ef8df4535f8fb776",
+    "docs/tests/check_artisan_tutorial.mjs": "65ec3f74ac41584af2821bfd161aa0a7b273ee68238e97a76cfee0ac12d4d1aa",
+    "tests/artisan_tutorial_docs.py": "bbfbd014f21ba157f244015e622413ff6870e287216b7d9c9e040d8018995061"
+  },
+  "reference": {
+    "framework": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+    "console": "v7.4.0",
+    "old_branch": "v0.x@6d1a81924451e15f595f68c8dfb520ad6d6c44cf",
+    "style_vectors": 340,
+    "stack_vectors": 40
+  },
+  "acceptance": {
+    "framework_parent_tests": 78,
+    "root_parent_tests": 95,
+    "total_distinct_parent_tests": 173,
+    "formal_docs_consumers": 54,
+    "ignored_fixtures_excluded": 10,
+    "gates": "formatter-style-gates-results.json",
+    "runtime": "formatter-style-runtime.log",
+    "browser": "formatter-style-browser.log"
+  },
+  "dependency": "dyn-clone1.0.20 is already locked; add only direct framework dependency and existing lock dependency edge.",
+  "remaining": [
+    "Public OutputFormatter and formatter interfaces/replacement",
+    "Public Color/AnsiColorMode/Terminal SDK and remaining chapter entries"
+  ]
+}

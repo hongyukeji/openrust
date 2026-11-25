@@ -483,7 +483,8 @@ impl Output {
             self.decorated
         };
         let formatter = if error_stream && self.terminal {
-            &mut self.error_formatter
+            self.error_formatter
+                .get_or_insert_with(super::formatting::Formatter::default)
         } else {
             &mut self.formatter
         };
@@ -517,7 +518,8 @@ impl Output {
     }
     pub(super) fn progress_formatter(&mut self) -> &mut super::formatting::Formatter {
         if self.terminal {
-            &mut self.error_formatter
+            self.error_formatter
+                .get_or_insert_with(super::formatting::Formatter::default)
         } else {
             &mut self.formatter
         }

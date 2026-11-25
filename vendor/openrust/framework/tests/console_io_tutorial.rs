@@ -335,7 +335,7 @@ async fn formatter_errors_keep_their_types_and_subsequent_calls_can_recover() {
         for text in [
             "<info>x</error>",
             "<fg=not-a-color>x</>",
-            "<fg=#zzzzzz>x</>",
+            "<fg=#zzzzz>x</>",
             "<options=not-an-option>x</>",
         ] {
             let error = Artisan::call(
@@ -347,6 +347,15 @@ async fn formatter_errors_keep_their_types_and_subsequent_calls_can_recover() {
             .unwrap_err();
             assert!(error.source().unwrap().is::<ConsoleFormatError>());
         }
+        let mut converted = Output::default();
+        Artisan::call(
+            "io:output",
+            &["line", "<fg=#zzzzzz>x</>"].map(Into::into),
+            &mut converted,
+        )
+        .await
+        .unwrap();
+        assert_eq!(converted.stdout, "x\n");
         let mut output = Output::default();
         Artisan::call(
             "io:output",
