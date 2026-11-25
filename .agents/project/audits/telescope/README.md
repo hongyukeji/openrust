@@ -62,7 +62,7 @@ database缓存此前把引擎毫秒时间戳及i64::MAX永久哨兵直接写入L
 
 - 面板为原生安全诊断UI，未使用上游Vue前端或avatar；列表、过滤、详情、监控标签、暂停恢复均已实际验收。18类公开Watcher已在下节补齐独立注册，内部共用格式化帮助器，不再用私有总监听器替代公开结构。
 - Rust异步调用栈没有可靠PHP式反射：Query／Gate源码file／line保持null，ignore_packages／ignore_paths未提供来源调用者筛选。EventWatcher默认忽略框架事件，应用内共享的ignoreFrameworkEvents开关已在下节补齐。
-- 服务端已捕获已知缓冲正文及实际处理器／控制器、已解析路由中间件类型；不透明Body／流仍不读取。HTTP客户端multipart元数据未捕获。View的闭包composer名称为null。通知Mail响应为实际收件人快照；不冒充PHP SentMessage对象反射。
+- 服务端已捕获已知缓冲正文及实际处理器／控制器、已解析路由中间件类型；不透明Body／流仍不读取。HTTP 客户端记录构建器提供的 multipart 元数据，来源边界见下文。View的闭包composer名称为null。通知Mail响应为实际收件人快照；不冒充PHP SentMessage对象反射。
 - 命令以普通文本表格及通用字段详情输出，尚未逐项复现上游颜色、相对时间、分类详情布局／batch统计。`--full`、JSON与查询语义已经验证。prune仅接受非负整数小时。
 - 正式托管服务、其他操作系统和最终全扩展组合／完整API导出未由本批通过结果覆盖。
 
@@ -84,3 +84,9 @@ Telescope.ignoreFrameworkEvents 使用应用共享 Arc<AtomicBool>，默认 true
 同目录http-browser-final.log覆盖真实服务器桌面／手机授权、防伪、XSS、详情、监控、暂停恢复、自定义路径／域名及disabled；docs-build.log、docs-telescope.log专项12、docs-check_browser.log通用12、docs-check_scope.log导航6均通过。三语正文与生命周期说明同步了Watcher和已缓冲响应的使用及支持限制。全workspace/all-features/all-targets严格Clippy、fmt、API与全部扩展组合见[最终组合记录](../extension-final.md)。
 
 本节关闭公开Watcher、框架事件开关及已知缓冲响应／路由字段的实现缺口。原生UI布局与PHP反射、调用源码过滤、multipart元数据及CLI装饰仍按上节明确支持边界描述，不冒充完整Laravel逐API或像素级等价。没有联系其他对话，没有替代性通用事件／观测内核。
+
+## 出站 multipart
+
+固定 `ClientRequestWatcher::input` 使用结构化字段，普通字段保留原值，文件或流使用文件名、十进制 KB 长度与部件头部，同名字段取请求中最后一项。Laravel `PendingRequest::parseHttpOptions` 先加入普通字段，再追加登记的附件。OpenRust 调整线上的字段顺序，通过 `RecordedRequest.multipart` 将原值和 `attach_body` 元数据传给 Watcher。未知流长度记为 `null`，流只由 HTTP 传输消费。字段、部件头部和整个载荷复用既有脱敏开关。
+
+`attach` 仍接受原生 reqwest `Part`。该类型没有元数据读取接口，最后一项为原生 `Part` 时省略对应字段。快照关联构建器生成的 multipart boundary 和请求 origin；中间件如保留原 boundary 却替换成其他流，记录仍是构建器提供的字段。Laravel 接受的预格式化 multipart 数据数组和 PHP 文件／资源类型仍须分别核对对应的 Rust 入口。`RecordedRequest` 增加公开字段，外部使用完整结构体字面量时需补齐该字段。

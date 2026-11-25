@@ -36,7 +36,7 @@ Watcher 覆盖请求、查询、异常、日志、任务、批次、缓存、HTT
 
 使用 `openrust::support::dump(&value).await?` 记录 Debug 内容；需要面板 Dump Watcher 活跃，或设置 `TELESCOPE_DUMP_WATCHER_ALWAYS=true`。该辅助方法不拦截 `dbg!`、`println!` 或同步集合 dump。请求载荷仅使用已解码数据，不读取尚未消费的请求体流。Redis 观察覆盖 `Connection::query_command` 成功执行的命令，不包含流水线和专用阻塞传输。
 
-运行时未提供可靠来源时，源码位置和调用栈为空。Query／Gate 的 `ignore_packages`、`ignore_paths` 暂不提供按调用源码过滤的能力。视图回调不提供 composer 名称。服务端记录已缓冲的 JSON／文本响应，应用响应参数脱敏及字符长度限制；不读取不透明正文或流，标记为 `Not Captured`。处理器／控制器名称和实际路由中间件类型来自路由器。HTTP 客户端暂不捕获 multipart 元数据。面板提供列表、过滤、详情、监控标签和采集控制，不复刻上游 Vue 界面或头像。
+运行时未提供可靠来源时，源码位置和调用栈为空。Query／Gate 的 `ignore_packages`、`ignore_paths` 暂不提供按调用源码过滤的能力。视图回调不提供 composer 名称。服务端记录已缓冲的 JSON／文本响应，应用响应参数脱敏及字符长度限制；不读取不透明正文或流，标记为 `Not Captured`。处理器／控制器名称和实际路由中间件类型来自路由器。HTTP 客户端记录传给 `as_multipart()` 的字段，以及通过 `attach_body()` 附加的文件名、十进制 KB 大小和头部。附件流由传输层消费，未知长度显示为 `null`。原生 `Part` 仍可通过 `attach()` 发送，同名字段的最后一项为不透明部件时，Telescope 省略该字段。面板提供列表、过滤、详情、监控标签和采集控制，不复刻上游 Vue 界面或头像。
 
 ## 查询与命令 {#commands}
 

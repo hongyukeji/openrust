@@ -1,4 +1,4 @@
-use std::{num::NonZeroUsize, sync::Arc, time::Duration};
+use std::{collections::BTreeMap, num::NonZeroUsize, sync::Arc, time::Duration};
 
 use http::{HeaderMap, HeaderValue, Method, header};
 use serde::Serialize;
@@ -9,7 +9,7 @@ use super::factory::{
 };
 use super::transport::Transport;
 use super::uri_template;
-use super::{BatchResults, Error, Factory, Form, Pool, Response, Result};
+use super::{BatchResults, Error, Factory, Form, Pool, RecordedMultipartField, Response, Result};
 
 pub(super) type RequestMiddleware = dyn Fn(&mut reqwest::Request) -> Result<()> + Send + Sync;
 type ResponseMiddleware = dyn Fn(Response) -> Result<Response> + Send + Sync;
@@ -74,7 +74,13 @@ enum Payload {
     Json,
     Form,
     Raw(reqwest::Body),
-    Multipart(Form),
+    Multipart(Vec<Attachment>),
+}
+
+struct Attachment {
+    name: String,
+    part: super::Part,
+    metadata: Option<RecordedMultipartField>,
 }
 
 /// Builder for one outbound request.
@@ -170,7 +176,7 @@ impl PendingRequest {
 
     pub fn as_multipart(mut self) -> Self {
         if !matches!(self.payload, Payload::Multipart(_)) {
-            self.payload = Payload::Multipart(Form::new());
+            self.payload = Payload::Multipart(Vec::new());
         }
         self
     }
@@ -288,12 +294,56 @@ impl PendingRequest {
         self
     }
 
-    pub fn attach(mut self, name: impl Into<String>, part: super::Part) -> Self {
-        let form = match self.payload {
-            Payload::Multipart(form) => form,
-            _ => Form::new(),
+    pub fn attach(self, name: impl Into<String>, part: super::Part) -> Self {
+        self.add_multipart_part(name.into(), part, None)
+    }
+
+    /// 附加缓冲正文或串流。未知长度传入 `None`，缓冲正文的长度会自动取得。
+    pub fn attach_body(
+        self,
+        name: impl Into<String>,
+        body: impl Into<reqwest::Body>,
+        filename: Option<&str>,
+        headers: HeaderMap,
+        length: Option<u64>,
+    ) -> Self {
+        let body = body.into();
+        let length = body.as_bytes().map(|bytes| bytes.len() as u64).or(length);
+        let mut part = match length {
+            Some(length) => super::Part::stream_with_length(body, length),
+            None => super::Part::stream(body),
         };
-        self.payload = Payload::Multipart(form.part(name.into(), part));
+        let filename = filename.map(str::to_owned);
+        if let Some(filename) = &filename {
+            part = part.file_name(filename.clone());
+        }
+        self.add_multipart_part(
+            name.into(),
+            part.headers(headers.clone()),
+            Some(RecordedMultipartField::Attachment {
+                filename,
+                length,
+                headers,
+            }),
+        )
+    }
+
+    fn add_multipart_part(
+        mut self,
+        name: String,
+        part: super::Part,
+        metadata: Option<RecordedMultipartField>,
+    ) -> Self {
+        let mut parts = match self.payload {
+            Payload::Multipart(parts) => parts,
+            _ => Vec::new(),
+        };
+        parts.push(Attachment {
+            name,
+            part,
+            metadata,
+        });
+        self.payload = Payload::Multipart(parts);
         self
     }
 
@@ -516,29 +566,53 @@ impl PendingRequest {
             url.set_query(Some(&query));
         }
         let mut request = client.request(method, url).headers(self.headers);
+        let mut multipart = None;
         request = match (self.payload, data) {
             (Payload::Json, Some(data)) => request.json(data),
             (Payload::Form, Some(data)) => request.form(data),
             (Payload::Raw(body), _) => request.body(body),
-            (Payload::Multipart(mut form), data) => {
+            (Payload::Multipart(parts), data) => {
+                let mut form = Form::new();
+                let mut fields = BTreeMap::new();
                 if let Some(data) = data {
                     let value = serde_json::to_value(data).map_err(Error::InvalidJson)?;
-                    let serde_json::Value::Object(fields) = value else {
+                    let serde_json::Value::Object(data_fields) = value else {
                         return Err(Error::InvalidRequest);
                     };
-                    for (name, value) in fields {
-                        let text = match value {
-                            serde_json::Value::String(value) => value,
+                    for (name, value) in data_fields {
+                        let text = match &value {
+                            serde_json::Value::String(value) => value.clone(),
                             serde_json::Value::Number(value) => value.to_string(),
                             serde_json::Value::Bool(value) => {
-                                if value { "1" } else { "" }.to_owned()
+                                if *value { "1" } else { "" }.to_owned()
                             }
                             serde_json::Value::Null => String::new(),
                             _ => return Err(Error::InvalidRequest),
                         };
-                        form = form.text(name, text);
+                        form = form.text(name.clone(), text);
+                        fields.insert(name, RecordedMultipartField::Value(value));
                     }
                 }
+                // Laravel 先发送普通字段，然后按登记顺序追加附件。
+                for Attachment {
+                    name,
+                    part,
+                    metadata,
+                } in parts
+                {
+                    if let Some(metadata) = metadata {
+                        fields.insert(name.clone(), metadata);
+                    } else {
+                        fields.remove(&name);
+                    }
+                    form = form.part(name, part);
+                }
+                let content_type = HeaderValue::from_str(&format!(
+                    "multipart/form-data; boundary={}",
+                    form.boundary(),
+                ))
+                .map_err(|_| Error::InvalidRequest)?;
+                multipart = Some((Arc::new(fields), content_type));
                 request.multipart(form)
             }
             _ => request,
@@ -561,6 +635,7 @@ impl PendingRequest {
             client: &client,
             before_sending: &self.before_sending,
             attributes: &self.attributes,
+            multipart,
             redact_payload: self.redact_payload,
             redact_response: self.redact_response,
             digest: self.digest.as_ref(),

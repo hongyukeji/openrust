@@ -58,7 +58,7 @@ Horizon包与其已验快照逐文件一致；当前核心的Worker／事件／A
 
 三库／缓存／Worker、实际服务器Chrome桌面手机、安装、发布保留定制、根配置缓存／骨架及全部扩展组合见包审计与[最终组合](extension-final.md)。先前公开Watcher、ignoreFrameworkEvents、缓冲响应／路由字段缺口已关闭。
 
-与PHP仍有明确差异：原生安全UI替代Vue／avatar；无任意结构或异步调用栈反射，Query／Gate未提供来源调用者过滤；未知Body／流及HTTP客户端multipart元数据不自动读取；CLI普通表格／时间戳替代PHP装饰与相对时间。这些限制留在三语正文和包审计，不能称作Laravel所有API或前端像素级完整移植。正式服务／其他OS也不由本地结果覆盖。
+与PHP仍有明确差异：原生安全UI替代Vue／avatar；无任意结构或异步调用栈反射，Query／Gate未提供来源调用者过滤；未知Body／流及不透明原生 `Part` 的元数据不可直接读取；CLI普通表格／时间戳替代PHP装饰与相对时间。HTTP 客户端已支持构建器提供的 multipart 元数据，见[包审计](telescope/README.md#出站-multipart)。正式服务／其他OS也不由本地结果覆盖。
 
 ## O03–O06 与完成条件
 
@@ -75,7 +75,9 @@ O01 Activitylog、O02 Horizon、O03 Telescope原生范围、O04 Pennant、O05 Pu
 | 所属类型或配置 | 本轮裁决 | 后续核对 |
 |---|---|---|
 | Telescope `ClientRequestWatcher::duration` | 固定上游在有正计时时以毫秒向下取整，缺少计时时输出空值。Rust 从现有传输统计输出整数毫秒或 JSON 空值。测试由真实出站 HTTP 与 fake 消费者覆盖。 | 命令与面板展示随完整输出审计核对。 |
-| Telescope `ClientRequestWatcher::input` | 固定上游使用结构化 multipart 字段，保留普通值，附件按来源产生名称、大小、头部。Rust 的 `attach` 接收 reqwest `Part`，该类型未公开读取这些属性的接口。 | 在请求构建阶段保留结构化元数据，核对原附件入口兼容、单次流消费、重复字段、脱敏和成功／连接失败事件。Query／Gate 来源过滤见[包审计](telescope/README.md)。 |
+| Telescope `ClientRequestWatcher::input` | 已捕获构建器提供的 multipart 普通字段及 `attach_body` 附件的文件名、长度、头部。普通字段先于附件发送，同名取最后一项，复用请求字段／头部脱敏。原生 `attach` 保留发送契约。 | 原生 reqwest `Part` 元数据和中间件替换流的边界见[包审计](telescope/README.md#出站-multipart)。Query／Gate 来源过滤仍待实现。 |
+| Telescope 非 multipart 出站载荷 | 固定 Watcher 读取 Laravel HTTP Client 的 `Request::data()`，正文和 query 的优先级来自 `parseRequestData`。Rust 目前使用 `RecordedRequest::data()` 合并 JSON／表单正文与 URL query。 | 以真实 GET、JSON／表单 POST、原始正文及失败路径对账，将诊断兼容差异与框架现有 `data()` 消费者区分处理。 |
+| Telescope `FetchesStackTrace`、`QueryWatcher`、`GateWatcher` | 固定上游按路径子串跳过被忽略的帧，再选第一处合格来源。找不到合格帧时 Query 不入库，Gate 仍入库且行号和文件为空。当前原生 `QueryExecuted`、`GateEvaluated` 均没有来源字段。 | 实现并验证原生调用来源的传播，覆盖公开 Facade、直接连接、查询构建器、模型、Gate 入口及框架内部触发。验证筛掉帧后的候选与未知来源策略。 |
 | Pulse 默认 Recorder 清单 | 固定配置的十个 Recorder 均可映射到本地配置。核对了采样率 1、慢操作阈值 1000、异常和慢查询位置开关、默认存储及采集驱动；这一轮只读配置。 | 逐 Recorder 核对触发事件、筛选、采样、聚合、配置覆盖和扩展入口，再核对命令和面板。Servers 主机名上游在配置加载时求值，本地在记录时回退，配置缓存边界待裁决。 |
 | Horizon `horizon:listen` 的 `watch` | 上游发布配置提供默认监听列表。Rust 配置补充应用、启动、配置、数据库、路由、视图、公开目录及资源目录中的 Rust 文件和 Cargo 构建入口的对应监听路径。真实 Artisan 使用默认配置监控 `routes/web.rs`，文件更新后重建 Master 和 Worker，SIGTERM 后子树退出。 | 补 Linux／Windows 目标平台验收。 |
 | Horizon 其余配置 | 固定上游含 `name`、`waits`、`silenced`、`silenced_tags` 及 Supervisor `nice`。本地已读静默配置并具备 `nice` 运行时默认；配置形状、面板名称、等待时间入口仍须逐项核对。 | 对照发布配置及实际命令、Redis 和面板消费者，分别核对默认、覆盖及非法值。 |
@@ -92,7 +94,7 @@ O01 Activitylog、O02 Horizon、O03 Telescope原生范围、O04 Pennant、O05 Pu
 
 | 范围 | 接续工作与关闭条件 |
 |---|---|
-| Telescope | 优先补齐出站 multipart 元数据、Query／Gate 来源过滤。逐类型核对 Watcher、Entry／过滤与脱敏、关联和仓储、生命周期、配置发布、命令输出及授权面板。原生界面和来源传递须验证同等使用结果。 |
+| Telescope | 继续 Query／Gate 来源过滤与出站 multipart 剩余边界。逐类型核对 Watcher、Entry／过滤与脱敏、关联和仓储、生命周期、配置发布、命令输出及授权面板。原生界面和来源传递须验证同等使用结果。 |
 | Pulse | 按固定配置的十个 Recorder 逐一核对订阅事件、默认参数、过滤、采样和聚合。继续核对自定义 Recorder、存储和 ingest 契约、Worker 与命令、面板授权及卡片数据。 |
 | Horizon | 先核对面板名称与配置默认值、等待时间与通知，再核对管理命令、监督器与 Worker、进程恢复、标签、仓储、指标和面板操作。Redis Cluster 沿用固定上游支持边界。 |
 | 发布验收 | 跟踪 Fortify 三个测试目标编译深度溢出，复验最终交付快照的全仓门禁。锁定提交、依赖、目标平台和实际数据库／Redis／Worker 组合，验收迁移、正常关停、故障恢复、业务端到端及容量。平台与供应商所需真实条件按[发布待办](../todo.md#平台与发布条件)记录。 |
@@ -210,3 +212,7 @@ Provider 按固定 [ExpireSupervisors](https://github.com/laravel/horizon/blob/b
 固定 [SlowOutgoingRequests](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Recorders/SlowOutgoingRequests.php) 在完成和异常两条路径记请求，用完成时刻作为条目时间戳，并在采样、忽略、阈值及分组前去除 URL 用户凭据。Rust 的原生 HTTP 中间件和公开 `SlowOutgoingRequests::record_outgoing` 共用记录与脱敏入口，已有 `Recorders::outgoing` 也经同一规范化函数。公开 `normalize_url` 接受有效绝对 URL，无遮蔽需求时保留原拼写；校验错误不回显地址。Native 传输使用单调时钟计时，保留已有完成时刻时间戳。
 
 真实回环 HTTP 覆盖先返回 500 后重试成功、已接收请求后断开以及带用户凭据的直接记录。SQLite 应用数据库中两次重试分别按脱敏地址分组，断开单列一条，直接记录保留查询字符串和明确的 25ms 耗时。Provider 12 项、快照全仓格式、Pulse 全目标严格 Clippy、三语文档构建及 12 组浏览器检查通过。PHP Guzzle 重定向统计、跨协议 URI 细节及生产组合仍需对账。
+
+### Telescope 出站 multipart 构建器快照
+
+真实回环 HTTP 与 SQLite 应用仓储覆盖上传成功、连接被拒、脱敏、原生 `Part` 兼容及两种重复字段覆盖。服务端检查附件字节、文件名和上传顺序。框架回归验证未知长度流到发送阶段才被读取，正文流只执行一次，快照长度为空。验证使用 `8041ae15a` 加前批和本批文件的隔离快照。Telescope 32 项、框架 HTTP 客户端 20 项、快照全仓格式、框架库及 Telescope 全目标严格 Clippy、三语站点及 12 组浏览器检查通过。Telescope 独立 Redis 用例本批未执行；出站 multipart 未遍历部署数据库或目标平台。保留原生 `Part`、预格式化输入与中间件替换流的差异，见[包审计](telescope/README.md#出站-multipart)。

@@ -50,6 +50,18 @@ pub struct RecordedRequest {
     pub headers: HeaderMap,
     pub body: Option<Vec<u8>>,
     pub attributes: serde_json::Map<String, serde_json::Value>,
+    /// 构建器提供的 multipart 字段快照。不会读取正文流。
+    pub multipart: Option<Arc<std::collections::BTreeMap<String, RecordedMultipartField>>>,
+}
+
+#[derive(Clone)]
+pub enum RecordedMultipartField {
+    Value(serde_json::Value),
+    Attachment {
+        filename: Option<String>,
+        length: Option<u64>,
+        headers: HeaderMap,
+    },
 }
 
 impl RecordedRequest {
@@ -153,6 +165,7 @@ impl From<&reqwest::Request> for RecordedRequest {
                 .and_then(reqwest::Body::as_bytes)
                 .map(<[u8]>::to_vec),
             attributes: Default::default(),
+            multipart: None,
         }
     }
 }

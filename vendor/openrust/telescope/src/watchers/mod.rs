@@ -760,7 +760,46 @@ fn client_content(
     telescope: &Telescope,
     request: &openrust::http::client::RecordedRequest,
 ) -> Map<String, Value> {
-    let payload = request.data().unwrap_or(json!({}));
+    use openrust::http::client::RecordedMultipartField;
+
+    let payload = request.multipart.as_ref().map_or_else(
+        || request.data().unwrap_or(json!({})),
+        |fields| {
+            Value::Object(
+                fields
+                    .iter()
+                    .map(|(key, field)| {
+                        let value = match field {
+                            RecordedMultipartField::Value(value) => value.clone(),
+                            RecordedMultipartField::Attachment {
+                                filename,
+                                length,
+                                headers,
+                            } => {
+                                let size = length.map(|bytes| {
+                                    let whole = bytes / 1000;
+                                    let fraction = bytes % 1000;
+                                    if fraction == 0 {
+                                        format!("{whole}KB")
+                                    } else {
+                                        let fraction = format!("{fraction:03}");
+                                        format!("{whole}.{}KB", fraction.trim_end_matches('0'))
+                                    }
+                                });
+                                let headers = if headers.is_empty() {
+                                    json!([])
+                                } else {
+                                    telescope.headers(headers)
+                                };
+                                json!({"name":filename,"size":size,"headers":headers})
+                            }
+                        };
+                        (key.clone(), value)
+                    })
+                    .collect(),
+            )
+        },
+    );
     json!({"method":request.method.as_str(),"uri":request.url.as_str(),"headers":telescope.headers(&request.headers),"payload":telescope.request_parameters(payload)}).as_object().unwrap().clone()
 }
 

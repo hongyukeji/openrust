@@ -36,7 +36,7 @@ Watcher 涵蓋請求、查詢、例外、日誌、工作、批次、快取、HTT
 
 使用 `openrust::support::dump(&value).await?` 記錄 Debug 傾印。蒐集需要啟用面板傾印監看或設定 `TELESCOPE_DUMP_WATCHER_ALWAYS=true`。此方法不攔截 `dbg!`、`println!` 或同步集合傾印方法。請求輸入記錄使用已解碼資料，不讀取尚未消費的本文串流。Redis 觀察涵蓋透過 `Connection::query_command` 成功執行的命令；管線與專用阻塞傳輸不在此觀察路徑內。
 
-執行環境未提供可靠位置時，來源位置與堆疊影格保持空值。Query／Gate 的 `ignore_packages`、`ignore_paths` 目前未提供依來源篩選呼叫端的能力。不透明 Rust 回呼無法提供檢視 composer 名稱。伺服器記錄已緩衝的 JSON／文字回應，套用回應參數遮罩及字元長度限制；不讀取不透明本文或串流，標示為 `Not Captured`。處理器／控制器名稱與實際路由中介軟體型別來自路由器。HTTP 用戶端 multipart 中繼資料未擷取。面板提供清單、過濾、詳情、監控標籤與記錄控制，未重現上游 Vue 介面或頭像功能。
+執行環境未提供可靠位置時，來源位置與堆疊影格保持空值。Query／Gate 的 `ignore_packages`、`ignore_paths` 目前未提供依來源篩選呼叫端的能力。不透明 Rust 回呼無法提供檢視 composer 名稱。伺服器記錄已緩衝的 JSON／文字回應，套用回應參數遮罩及字元長度限制；不讀取不透明本文或串流，標示為 `Not Captured`。處理器／控制器名稱與實際路由中介軟體型別來自路由器。HTTP 用戶端會記錄傳給 `as_multipart()` 的欄位，以及透過 `attach_body()` 附加的檔名、十進位 KB 大小和標頭。附件串流由傳輸層讀取，未知長度顯示為 `null`。原生 `Part` 仍可透過 `attach()` 傳送，同名欄位的最後一項為不透明部件時，Telescope 省略該欄位。面板提供清單、過濾、詳情、監控標籤與記錄控制，未重現上游 Vue 介面或頭像功能。
 
 ## 查詢與命令 {#commands}
 

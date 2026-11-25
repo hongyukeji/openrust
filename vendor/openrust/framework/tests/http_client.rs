@@ -1450,6 +1450,8 @@ async fn reference_header_replacement_preserves_other_keys_multi_values_and_sink
 
 #[tokio::test]
 async fn multipart_redirect_limits_and_invalid_header_state_use_the_real_transport() {
+    use openrust::http::client::RecordedMultipartField;
+
     async fn echo(request: axum::extract::Request) -> impl IntoResponse {
         let (parts, body) = request.into_parts();
         let body = axum::body::to_bytes(body, 65536).await.unwrap();
@@ -1481,6 +1483,47 @@ async fn multipart_redirect_limits_and_invalid_header_state_use_the_real_transpo
             .unwrap()
             .contains("name=\"title\"\r\n\r\nvalue")
     );
+    factory.fake(|_| None);
+    let polls = Arc::new(AtomicUsize::new(0));
+    let stream = futures_util::stream::once({
+        let polls = Arc::clone(&polls);
+        async move {
+            polls.fetch_add(1, Ordering::Relaxed);
+            Ok::<_, std::io::Error>("stream-content")
+        }
+    });
+    let observed_before_sending = Arc::clone(&polls);
+    let body: Value = factory
+        .pending_request()
+        .attach_body(
+            "stream",
+            reqwest::Body::wrap_stream(stream),
+            None,
+            HeaderMap::new(),
+            None,
+        )
+        .before_sending(move |_| {
+            assert_eq!(observed_before_sending.load(Ordering::Relaxed), 0);
+            Ok(())
+        })
+        .send(Method::POST, &format!("{base}/echo"))
+        .await
+        .unwrap()
+        .json()
+        .unwrap();
+    assert!(body["body"].as_str().unwrap().contains("stream-content"));
+    assert_eq!(polls.load(Ordering::Relaxed), 1);
+    let requests = factory.recorded();
+    let recorded = &requests.last().unwrap().0;
+    assert!(matches!(
+        recorded.multipart.as_ref().unwrap()["stream"],
+        RecordedMultipartField::Attachment {
+            filename: None,
+            length: None,
+            ..
+        }
+    ));
+    assert!(recorded.body.is_none());
     assert!(matches!(
         factory
             .pending_request()

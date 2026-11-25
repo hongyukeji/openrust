@@ -1471,6 +1471,64 @@ fn client_handler(
                 .as_u16(),
             200
         );
+        let headers = http::HeaderMap::from_iter([
+            (
+                http::HeaderName::from_static("content-type"),
+                http::HeaderValue::from_static("application/octet-stream"),
+            ),
+            (
+                http::HeaderName::from_static("x-secret"),
+                http::HeaderValue::from_static("header-private"),
+            ),
+        ]);
+        let multipart = || {
+            Http::pending_request()
+                .unwrap()
+                .attach_body(
+                    "file",
+                    vec![255_u8; 1500],
+                    Some("file.bin"),
+                    headers.clone(),
+                    None,
+                )
+                .attach_body(
+                    "same",
+                    "replaced",
+                    Some("replaced.txt"),
+                    Default::default(),
+                    None,
+                )
+                .attach_body(
+                    "opaque",
+                    "replaced",
+                    Some("opaque.txt"),
+                    Default::default(),
+                    None,
+                )
+                .attach("opaque", openrust::http::client::Part::text("native"))
+        };
+        let data = json!({"same":"multipart","secret":"private","enabled":true,"optional":null});
+        assert_eq!(
+            multipart()
+                .post(url, &data)
+                .await
+                .unwrap()
+                .status()
+                .as_u16(),
+            200
+        );
+        assert_eq!(
+            multipart()
+                .redact_payload()
+                .post(url, &data)
+                .await
+                .unwrap()
+                .status()
+                .as_u16(),
+            200
+        );
+        let failed = request.headers()["x-failed-url"].to_str().unwrap();
+        assert!(multipart().post(failed, &data).await.is_err());
         Ok(openrust::http::Response::from("observed"))
     })
 }
@@ -1481,7 +1539,7 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
     let origin = tokio::spawn(async move {
-        for _ in 0..2 {
+        for index in 0..4 {
             let (mut socket, _) = listener.accept().await.unwrap();
             let mut bytes = Vec::new();
             loop {
@@ -1499,6 +1557,19 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
                         })
                         .unwrap_or(0);
                     if bytes.len() >= end + 4 + size {
+                        if index >= 2 {
+                            let body = &bytes[end + 4..];
+                            assert!(headers.contains("multipart/form-data; boundary="));
+                            assert!(body.windows(1500).any(|bytes| bytes == [255_u8; 1500]));
+                            let body = String::from_utf8_lossy(body);
+                            assert!(body.contains("filename=\"file.bin\""));
+                            assert!(body.contains("name=\"opaque\"\r\n\r\nnative"));
+                            assert!(body.contains("name=\"same\"\r\n\r\nmultipart"));
+                            assert!(
+                                body.find("name=\"same\"\r\n\r\nmultipart").unwrap()
+                                    < body.find("filename=\"replaced.txt\"").unwrap()
+                            );
+                        }
                         break;
                     }
                 }
@@ -1515,6 +1586,10 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
     let telescope = app.app().make::<Telescope>().await.unwrap();
     telescope.hide_request_parameters(&["secret", "nested.password"]);
     telescope.hide_response_parameters(&["token"]);
+    telescope.hide_request_headers(&["x-secret"]);
+    let failed = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let failed_address = failed.local_addr().unwrap();
+    drop(failed);
     tokio::time::timeout(
         std::time::Duration::from_secs(5),
         app.call(
@@ -1523,6 +1598,10 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
                 .header(
                     "x-origin-url",
                     format!("http://{address}/outgoing?same=query&query=value"),
+                )
+                .header(
+                    "x-failed-url",
+                    format!("http://{failed_address}/failed?query=value"),
                 )
                 .body(openrust::http::Body::empty())
                 .unwrap(),
@@ -1538,7 +1617,25 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
         .get(Some(EntryType::ClientRequest), EntryQueryOptions::default())
         .await
         .unwrap();
-    assert_eq!(entries.len(), 2);
+    assert_eq!(entries.len(), 5);
+    let multipart: Vec<_> = entries
+        .iter()
+        .filter(|entry| {
+            entry.content["headers"]["content-type"]
+                .as_str()
+                .is_some_and(|value| value.starts_with("multipart/form-data"))
+        })
+        .collect();
+    assert_eq!(multipart.len(), 3);
+    let payload = json!({"same":{"name":"replaced.txt","size":"0.008KB","headers":[]},"secret":"********","enabled":true,"optional":null,
+        "file":{"name":"file.bin","size":"1.5KB","headers":{"content-type":"application/octet-stream","x-secret":"********"}}});
+    assert!(multipart[0].content["response_status"].is_null());
+    assert_eq!(multipart[0].content["payload"], payload);
+    assert_eq!(multipart[1].content["payload"], json!([]));
+    assert!(!multipart[1].content["uri"].as_str().unwrap().contains('?'));
+    assert_eq!(multipart[2].content["payload"], payload);
+    assert_eq!(multipart[2].content["response_status"], 200);
+    let entries = &entries[3..];
     assert!(entries.iter().all(|entry| {
         entry.content["response"] == json!({"token":"********","value":true})
             && entry.content["response_status"] == 200

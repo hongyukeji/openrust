@@ -1,12 +1,12 @@
-use std::time::Duration;
+use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
-use http::{HeaderMap, Method, StatusCode, header};
+use http::{HeaderMap, HeaderValue, Method, StatusCode, header};
 use reqwest::Request;
 use serde_json::{Map, Value};
 use tokio::time::Instant;
 
 use super::{
-    Error, Factory, RecordedRequest, Response, Result,
+    Error, Factory, RecordedMultipartField, RecordedRequest, Response, Result,
     digest::DigestCredentials,
     events::{ConnectionFailed, ConnectionFailure, RequestSending, ResponseReceived},
     pending_request::RequestMiddleware,
@@ -18,6 +18,7 @@ pub(super) struct Transport<'a> {
     pub client: &'a reqwest::Client,
     pub before_sending: &'a [Box<RequestMiddleware>],
     pub attributes: &'a Map<String, Value>,
+    pub multipart: Option<(Arc<BTreeMap<String, RecordedMultipartField>>, HeaderValue)>,
     pub redact_payload: bool,
     pub redact_response: bool,
     pub digest: Option<&'a DigestCredentials>,
@@ -195,6 +196,12 @@ impl Transport<'_> {
             snapshot.url.set_query(None);
             snapshot.body = None;
             snapshot.headers.remove(header::AUTHORIZATION);
+        } else if let Some((fields, content_type)) = &self.multipart
+            && request.body().is_some_and(|body| body.as_bytes().is_none())
+            && request.headers().get(header::CONTENT_TYPE) == Some(content_type)
+            && request.url().origin() == self.digest_origin
+        {
+            snapshot.multipart = Some(Arc::clone(fields));
         }
         snapshot
     }
