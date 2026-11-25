@@ -176,3 +176,11 @@
 基线 `2df0cb8d2`，Rust 1.94.0。本机 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 各配 Database 队列，另以 SQLite／PostgreSQL 配 Redis 8 队列。真实 HTTP 建立意图，Artisan `schedule:run` 通过原生命令派发，独立 Worker 实际消费。五组均验证单轮上限、租户隔离、删除已入列消息、等待租约、两个独立命令竞争、重复投递、查询未到期不派发，以及到期补查后完整视觉给出 Allow。通过修改本地数据库时刻字段加速测试窗口。Redis 夹具经修正无认证配置及读取原生消息封套后复跑通过。SQLite 持久化、送审／查单和外部驱动消费者回归、3 个包契约、修改范围格式、包和应用严格 Clippy、三语站点构建及 Chrome 双挂载点验收通过。
 
 本批使用本机共享后端和外部驱动测试实现。不同主机、托管队列、审核接收回调及账户共享使用量上限仍待独立验收。
+
+## CM-03J Sightengine 账户级回调验签 {#sightengine-callback-signature}
+
+固定 Sightengine 视频回调的 `Sightengine-Signature` 协议。按秒时间戳、点号和原始 JSON 字节计算 HMAC-SHA256，窗口为五分钟。验证当前挂载密钥和最多三个前序修订；同一请求可携带多个有效格式候选。数字时间戳、重复头、长度和签名方案分别检查，缺字段和无效签名由已有 Webhook Client 判拒。账户级 URL 路由使用自己的凭据，逐请求 URL 的无签名通知留给后续提示路径。仅同时启用内容审核和 Webhook Client 时注册工厂，接收记录、原文去重和队列交付沿用 Webhook Client。 [官方签名](https://sightengine.com/docs/callback-signature) · [视频回调](https://sightengine.com/docs/receive-video-moderation-callbacks)
+
+基线 `f936bd043`，Rust 1.94.0。SQLite、PostgreSQL 18.7、MySQL 8.4.13 均经过真实 HTTP、Artisan 和独立 Webhook Worker。各库验明在缓存后按文件引用核验旧／新密钥、同正文跨签名去重、账户隔离、错误签名、缺头、重复时间戳或头、过期及未来时间、错误版本、改动原始字节、正文限制及撤销旧修订。Worker 从 4 份通用记录恢复与 HTTP 对应的媒体 ID，队列不含凭据、签名或回调正文。配置命令、缓存文件及输出通过哨兵检查。通用接收路由保留现有错误状态映射。内容审核或 Webhook Client 单独启用的构建、外部驱动／调度回归、3 个包契约、修改范围格式及包／应用严格 Clippy 通过。三语站点构建和 Chrome 双挂载点验收通过。
+
+本批验证通用接收及验签工厂接线。测试 Worker 只读取回调媒体 ID。审核任务归属、提前到达的延期和唤醒、对生产回调证据的保留控制及真实 Sightengine 账户继续验收。

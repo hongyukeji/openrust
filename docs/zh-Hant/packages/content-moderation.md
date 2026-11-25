@@ -88,6 +88,12 @@
 
 `submit_video()` 傳回媒體 ID，用原具名設定查詢或停止工作。完成狀態可能來自時長限制或部分影格取樣。非同步入口只報告已取得的畫面和 OCR 證據，語音維持涵蓋缺失。HTTP 用戶端的診斷事件從查詢字串及停止請求正文中省略憑證。 [非同步影片](https://sightengine.com/docs/moderate-stored-video-asynchronously) · [工作操作](https://sightengine.com/docs/interact-with-video-moderation-jobs)
 
+### 帳戶層級影片回呼 {#sightengine-callbacks}
+
+同時啟用 `content-moderation` 和 `webhook-client`。在 Sightengine 帳戶中將回呼 URL 指向透過 Webhook Client 註冊的路由。各供應商帳戶使用自己的路由設定，將 `signature_validator` 設為 `moderation-sightengine`。`moderation_callback_credential` 填寫 `{"name":"sightengine-callback","revision":"r2"}` 這樣的物件，將 `signing_secret` 寫入掛載的 `sightengine-callback.r2.json`。選擇應用程式的 Webhook Client 儲存和處理 Job。
+
+輪替期間，`moderation_previous_callback_credentials` 可保留至多三個早期參照。撤銷時從路由設定移除已停用的參照。驗簽使用原始請求本文，並核對五分鐘時間窗。Sightengine 的逐請求回呼 URL 會傳送未簽章通知，簽章路由應使用帳戶層級 URL。 [Sightengine 回呼簽章](https://sightengine.com/docs/callback-signature)
+
 ## 自訂驅動 {#custom-drivers}
 
 以下範例會將文字送人工複核。在套件 Provider 之後註冊範例 Provider，HTTP、Artisan 和 Worker 都可解析相同的具名設定。

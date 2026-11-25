@@ -4333,8 +4333,10 @@ version = "0.0.0"
 dependencies = [
  "base64 0.22.1",
  "cap-std",
+ "hmac",
  "http 1.5.0",
  "openrust-framework",
+ "openrust-webhook-client",
  "rustix",
  "serde",
  "serde_json",

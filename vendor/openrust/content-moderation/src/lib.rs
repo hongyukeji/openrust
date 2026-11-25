@@ -11,6 +11,8 @@ mod input;
 mod manager;
 mod moderation;
 mod provider;
+#[cfg(feature = "webhooks")]
+mod provider_webhooks;
 mod query_policy;
 mod recovery;
 mod result;

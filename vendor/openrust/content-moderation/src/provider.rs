@@ -37,6 +37,8 @@ impl ServiceProvider for ModerationServiceProvider {
             container.singleton_if::<dyn ModerationCredentialProvider, _>(|container| {
                 Ok(Arc::new(FileCredentials(container.get("config")?)))
             })?;
+            #[cfg(feature = "webhooks")]
+            crate::provider_webhooks::register(container)?;
             container.singleton_named("moderation", |container| {
                 let manager = ModerationManager::new(container.get("config")?);
                 drivers::register(

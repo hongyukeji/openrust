@@ -88,6 +88,12 @@ Set `video_models` and `video_review_score` for a named `sightengine` profile. U
 
 `submit_video()` returns a media ID. Use the same profile to query the job or stop it. A finished job can reflect a duration limit or sampled frames. The async path reports only the visual and OCR evidence it received, and speech coverage remains unavailable. The HTTP client's diagnostics redact the service credentials from the outgoing query and stop body. [Async video](https://sightengine.com/docs/moderate-stored-video-asynchronously) · [Job operations](https://sightengine.com/docs/interact-with-video-moderation-jobs)
 
+### Account-level video callbacks {#sightengine-callbacks}
+
+Enable `content-moderation` and `webhook-client`. Point the Sightengine account’s callback URL at a route registered through Webhook Client. Use a separate route profile for each supplier account and set its `signature_validator` to `moderation-sightengine`. Set `moderation_callback_credential` to an object such as `{"name":"sightengine-callback","revision":"r2"}` and keep `signing_secret` in the mounted `sightengine-callback.r2.json` file. Select the Webhook Client store and processing job for the application.
+
+For a rotation, `moderation_previous_callback_credentials` can list up to three earlier references. Remove retired references from the route configuration when revoking them. Verification checks the raw body and the timestamp within five minutes. Sightengine’s per-request callback URLs send unsigned notifications, so use the account-level URL for this signed route. [Sightengine callback signatures](https://sightengine.com/docs/callback-signature)
+
 ## Custom drivers {#custom-drivers}
 
 This example sends every text assessment to manual review. Register its provider after the package provider so HTTP, Artisan, and Workers can resolve the same named profiles.

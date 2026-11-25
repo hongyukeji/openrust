@@ -10,11 +10,16 @@ publish = false
 version = 1
 providers = true
 
+[features]
+webhooks = ["dep:hmac", "dep:openrust-webhook-client"]
+
 [dependencies]
 base64 = "0.22"
 cap-std = "4.0.3"
+hmac = { version = "0.13", optional = true }
 http = "1.5"
 openrust = { package = "openrust-framework", path = "../framework" }
+openrust-webhook-client = { path = "../webhook-client", optional = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha2 = "0.11"

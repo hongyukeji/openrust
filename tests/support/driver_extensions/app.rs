@@ -4,6 +4,8 @@ mod app;
 mod config;
 #[cfg(feature = "content-moderation")]
 mod moderation;
+#[cfg(all(feature = "content-moderation", feature = "webhook-client"))]
+mod moderation_callbacks;
 #[cfg(feature = "pay")]
 mod pay;
 mod sms;
@@ -132,6 +134,11 @@ async fn main() -> ExitCode {
                 config.insert("pay".into(), pay::configuration(env)?);
                 #[cfg(feature = "content-moderation")]
                 config.insert("moderation".into(), moderation::configuration(env)?);
+                #[cfg(all(feature = "content-moderation", feature = "webhook-client"))]
+                config.insert(
+                    "webhook-client".into(),
+                    moderation_callbacks::configuration(env)?,
+                );
                 Ok(config)
             })
             .with_providers(vec![
@@ -141,16 +148,22 @@ async fn main() -> ExitCode {
                 Box::new(openrust_pay::PayServiceProvider),
                 #[cfg(feature = "pay")]
                 Box::new(pay::ExternalPayProvider),
+                #[cfg(all(feature = "content-moderation", feature = "webhook-client"))]
+                Box::new(openrust_webhook_client::WebhookClientServiceProvider),
                 #[cfg(feature = "content-moderation")]
                 Box::new(openrust_content_moderation::ModerationServiceProvider),
                 #[cfg(feature = "content-moderation")]
                 Box::new(moderation::ExternalProvider),
+                #[cfg(all(feature = "content-moderation", feature = "webhook-client"))]
+                Box::new(moderation_callbacks::CallbackFixtureProvider),
             ])
             .with_commands(commands)
             .with_routing(
                 Routing::default()
                     .web(|| Route::get("/drivers", http))
                     .api(|| {
+                        #[cfg(all(feature = "content-moderation", feature = "webhook-client"))]
+                        moderation_callbacks::routes()?;
                         #[cfg(feature = "pay")]
                         Route::post("/drivers/pay", pay::callback)?;
                         #[cfg(feature = "content-moderation")]

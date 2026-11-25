@@ -88,6 +88,12 @@
 
 `submit_video()` 返回媒体 ID，用原具名配置查询或停止任务。完成状态可能来自时长限制或对部分帧的采样。异步入口只报告已取得的画面和 OCR 证据，语音覆盖保持缺失。HTTP 客户端的诊断事件从查询串及停止请求正文中省略凭据。 [异步视频](https://sightengine.com/docs/moderate-stored-video-asynchronously) · [任务操作](https://sightengine.com/docs/interact-with-video-moderation-jobs)
 
+### 账户级视频回调 {#sightengine-callbacks}
+
+同时启用 `content-moderation` 和 `webhook-client`。在 Sightengine 账户中将回调 URL 指向通过 Webhook Client 注册的路由。各供应商账户使用自己的路由配置，将 `signature_validator` 设为 `moderation-sightengine`。`moderation_callback_credential` 填写 `{"name":"sightengine-callback","revision":"r2"}` 这样的对象，将 `signing_secret` 写入挂载的 `sightengine-callback.r2.json`。选择应用的 Webhook Client 存储与处理 Job。
+
+轮换期间，`moderation_previous_callback_credentials` 可保留至多三个早期引用。撤销时从路由配置中移除废弃引用。验签使用原始请求体，并校验五分钟时间窗。Sightengine 的逐请求回调 URL 发送无签名通知，签名路由应使用账户级 URL。 [Sightengine 回调签名](https://sightengine.com/docs/callback-signature)
+
 ## 自定义驱动 {#custom-drivers}
 
 以下示例将文本送人工复核。在包 Provider 之后注册示例 Provider，HTTP、Artisan 和 Worker 都可解析相同的具名配置。
