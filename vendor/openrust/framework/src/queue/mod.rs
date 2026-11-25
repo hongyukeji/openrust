@@ -516,6 +516,11 @@ impl JobContext<'_> {
         self.fail_immediately = true;
     }
 
+    /// 当前处理器是否要求本次错误直接进入终态失败。
+    pub fn fail_without_retry_requested(&self) -> bool {
+        self.fail_immediately
+    }
+
     pub fn transaction(&mut self) -> Option<&mut crate::database::Transaction> {
         self.transaction.as_deref_mut()
     }

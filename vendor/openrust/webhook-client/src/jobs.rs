@@ -388,19 +388,13 @@ impl RegisteredJob {
             .handle_outcome(context, &call, store)
             .await
             .unwrap_or(WebhookProcessingOutcome::RetryableFailure);
+        let permanent = result == WebhookProcessingOutcome::PermanentFailure;
         let outcome = match result {
             WebhookProcessingOutcome::Completed if context.release_delay().is_some() => {
                 ProcessingOutcome::Release
             }
             WebhookProcessingOutcome::Completed => ProcessingOutcome::Complete,
-            WebhookProcessingOutcome::PermanentFailure => {
-                store
-                    .stop_processing(&call, &token)
-                    .await
-                    .map_err(queue_error)?;
-                context.fail_without_retry();
-                return Err(queue_error(Error::ProcessingFailed));
-            }
+            WebhookProcessingOutcome::PermanentFailure => ProcessingOutcome::Failed,
             WebhookProcessingOutcome::Deferred { delay_seconds } => {
                 if let Some(policy) = self.deferred
                     && context.release_delay().is_none()
@@ -426,10 +420,18 @@ impl RegisteredJob {
             WebhookProcessingOutcome::RetryableFailure => ProcessingOutcome::Failed,
         };
         let failed = matches!(outcome, ProcessingOutcome::Failed);
-        store
-            .finish_processing(&call, &token, outcome)
-            .await
-            .map_err(queue_error)?;
+        if failed && (permanent || context.fail_without_retry_requested()) {
+            store
+                .stop_processing(&call, &token)
+                .await
+                .map_err(queue_error)?;
+            context.fail_without_retry();
+        } else {
+            store
+                .finish_processing(&call, &token, outcome)
+                .await
+                .map_err(queue_error)?;
+        }
         if failed {
             return Err(queue_error(Error::ProcessingFailed));
         }

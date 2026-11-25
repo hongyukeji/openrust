@@ -80,11 +80,37 @@ def check_processing_lease(binary, env, root, port, driver, sql):
             assert state(released) == "2\t0\t1" and (root / "release").exists()
             assert attempts(released) == "1\treleased\t1\n2\tcompleted\t1"
 
-            concurrent = dispatch(b"leased-concurrent")
             duplicate = (
                 "INSERT INTO jobs (queue,payload,attempts,reserved_at,available_at,created_at) "
                 "SELECT queue,payload,0,NULL,available_at,created_at FROM jobs"
             )
+            halted = dispatch(b"leased-stop-on-error")
+            failed_count = int(sql("SELECT COUNT(*) FROM failed_jobs"))
+            write_database(driver, sql, duplicate)
+            run("halted")
+            terminal_state = (state(halted), attempts(halted))
+            assert terminal_state == ("1\t0\t0", "1\tstopped\t1"), terminal_state
+            assert sql(f"SELECT CASE WHEN processing_stopped_at IS NULL THEN 0 ELSE 1 END "
+                       f"FROM webhook_calls WHERE id='{halted}'") == "1"
+            assert sql("SELECT COUNT(*) FROM jobs") == "1"
+            assert int(sql("SELECT COUNT(*) FROM failed_jobs")) == failed_count + 1
+            assert "private-terminal-sentinel" not in sql("SELECT exception FROM failed_jobs")
+            run("halted-duplicate")
+            assert state(halted) == "1\t0\t0" and attempts(halted) == "1\tstopped\t1"
+            assert sql("SELECT COUNT(*) FROM jobs") == "0"
+            assert int(sql("SELECT COUNT(*) FROM failed_jobs")) == failed_count + 1
+            assert not (root / "halted").exists() and not (root / "halted-duplicate").exists()
+            record = json.loads(command(binary, current, "webhooks:record", halted, "webhook-acceptance"))
+            assert record["exception"] == {"code":0,"message":"Webhook 处理已终止"}
+            write_database(driver, sql, f"DELETE FROM failed_jobs WHERE payload LIKE '%{halted}%'")
+
+            completed = dispatch(b"leased-stop-on-success")
+            run("completed-with-control")
+            assert state(completed) == "1\t0\t1" and attempts(completed) == "1\tcompleted\t1"
+            assert (root / "completed-with-control").exists()
+            assert int(sql("SELECT COUNT(*) FROM failed_jobs")) == failed_count
+
+            concurrent = dispatch(b"leased-concurrent")
             write_database(driver, sql, duplicate)
             entered = root / "first-entered"
             first = subprocess.Popen(
@@ -160,7 +186,7 @@ def check_processing_lease(binary, env, root, port, driver, sql):
             raise
         finally:
             http_helpers["stop"](server)
-    print(f"{driver}: 接收处理租约 4 个真实 HTTP、11 个独立 Worker；主动释放、并发重复投递、终态去重、崩溃重领及旧 Worker 写回隔离通过")
+    print(f"{driver}: 接收处理租约 6 个真实 HTTP、14 个独立 Worker；主动释放、显式终态失败、成功保持、并发重复投递、终态去重、崩溃重领及旧 Worker 写回隔离通过")
 
 
 def check_verified_event_identity(binary, env, root, port, driver, sql):

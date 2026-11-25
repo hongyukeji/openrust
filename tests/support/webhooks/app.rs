@@ -390,6 +390,16 @@ impl openrust_webhook_client::jobs::ProcessWebhookJob for FixtureJob {
                 context.release(std::time::Duration::ZERO);
                 return Ok(());
             }
+            if call.raw_body() == b"leased-stop-on-error" {
+                context.release(std::time::Duration::ZERO);
+                context.fail_without_retry();
+                return Err(runtime_error(std::io::Error::other(
+                    "private-terminal-sentinel",
+                )));
+            }
+            if call.raw_body() == b"leased-stop-on-success" {
+                context.fail_without_retry();
+            }
             if call.raw_body() == b"leased-stale"
                 && let Some(marker) = std::env::var_os("FIXTURE_OLD_ENTERED")
             {
