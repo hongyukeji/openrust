@@ -68,8 +68,9 @@ pub(super) fn load(env: &Environment) -> Result<Loaded<'_>, ConfigError> {
         "url": url,
         // 显式设置 APP_URL 时，生成 URL 优先使用 app.url，否则优先使用当前请求地址。
         "prefer_app_url": prefer_app_url,
-        // APP_HOME_URL 指定 / 的跳转目标，未设置或留空时自动选择路由。
-        // 选择首个匹配当前域名且无需路径参数的非根 Web GET 路由，无匹配则返回 404。
+        // APP_HOME_URL 指定根路由 / 的跳转目标。
+        // 未设置或留空时，按注册顺序选择当前主机可用的首条非根、固定路径的 Web GET 路由。
+        // 无符合条件的路由时，由框架返回 404。
         "home_url": get(env, "APP_HOME_URL", "")?,
         "frontend_url": get(env, "FRONTEND_URL", "http://localhost:3000")?,
         "asset_url": get(env, "ASSET_URL", Value::Null)?,
