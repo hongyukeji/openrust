@@ -60,6 +60,8 @@ pub enum Error {
     Queue,
     Process,
     MemoryLimitExceeded,
+    MasterAlreadyRunning,
+    MasterOwnershipLost,
     Unavailable,
 }
 impl std::fmt::Display for Error {
@@ -70,6 +72,8 @@ impl std::fmt::Display for Error {
             Self::Redis => "Horizon metadata storage failed",
             Self::Queue => "Horizon queue operation failed",
             Self::MemoryLimitExceeded => "Horizon memory limit exceeded",
+            Self::MasterAlreadyRunning => "A master supervisor is already running on this machine.",
+            Self::MasterOwnershipLost => "Horizon Master 已失去名称所有权。",
             Self::Process => "Horizon worker process failed",
             Self::Unavailable => "Horizon service is unavailable",
         })

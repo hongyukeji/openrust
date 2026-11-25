@@ -10,6 +10,7 @@ mod tags;
 mod workload;
 pub use jobs::{JobDetails, JobRepository};
 pub use metrics::MetricsRepository;
+pub(crate) use processes::MasterLease;
 pub use processes::{MasterSupervisorRepository, ProcessRepository, SupervisorRepository};
 pub use tags::TagRepository;
 pub use workload::WorkloadRepository;
@@ -371,28 +372,6 @@ return cjson.encode(total)
         } else {
             text(&value).map(Some)
         }
-    }
-    pub(crate) async fn heartbeat(&self, id: &str, status: &serde_json::Value) -> Result<()> {
-        if !label(id) {
-            return Err(Error::InvalidRecord);
-        }
-        let now = self.now().await?;
-        self.eval("redis.call('SET',KEYS[1],ARGV[1],'EX',15); redis.call('ZADD',KEYS[2],ARGV[2],ARGV[3]); redis.call('ZREMRANGEBYSCORE',KEYS[2],'-inf',ARGV[4]); redis.call('EXPIRE',KEYS[2],60); redis.call('EXPIRE',KEYS[3],30); return 1",
-            vec![self.key(&format!("master:{id}")),self.key("masters"),self.key(&format!("master-paused:{id}"))],vec![status.to_string(),now.to_string(),id.into(),now.saturating_sub(15000).to_string()]).await?;
-        Ok(())
-    }
-    pub(crate) async fn forget_master(&self, id: &str) -> Result<()> {
-        self.eval(
-            "redis.call('DEL',KEYS[1],KEYS[3]); redis.call('ZREM',KEYS[2],ARGV[1]); return 1",
-            vec![
-                self.key(&format!("master:{id}")),
-                self.key("masters"),
-                self.key(&format!("master-paused:{id}")),
-            ],
-            vec![id.into()],
-        )
-        .await?;
-        Ok(())
     }
     pub async fn masters(&self) -> Result<Vec<serde_json::Value>> {
         let now = self.now().await?;

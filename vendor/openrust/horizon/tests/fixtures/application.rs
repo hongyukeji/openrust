@@ -22,7 +22,11 @@ fn config(base: &Path, _: &Environment) -> Result<BTreeMap<String, Value>, Confi
     let defaults = if std::env::var("HORIZON_PROBE_EMPTY_DEFAULTS").as_deref() == Ok("1") {
         json!({})
     } else {
-        json!({"supervisor-1":{"timeout":5,"sleep":1,"balanceCooldown":1,"memory":1024,"maxProcesses":2,"maxJobs":3,"workersName":"horizon-probe","tries":2,"backoff":[1,2],"rest":1,"force":true,"json":true,"nice":1}})
+        let timeout = std::env::var("HORIZON_PROBE_WORKER_TIMEOUT")
+            .ok()
+            .and_then(|value| value.parse::<u32>().ok())
+            .unwrap_or(5);
+        json!({"supervisor-1":{"timeout":timeout,"sleep":1,"balanceCooldown":1,"memory":1024,"maxProcesses":2,"maxJobs":3,"workersName":"horizon-probe","tries":2,"backoff":[1,2],"rest":1,"force":true,"json":true,"nice":1}})
     };
     Ok(BTreeMap::from([
         ("app".into(), json!({"env":"testing","debug":false})),

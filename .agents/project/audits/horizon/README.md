@@ -28,7 +28,15 @@ Rust 的 `MasterSupervisor::basename`、`process_name` 和 `determine_name_using
 
 macOS 配置与公开 API 7 项通过，原按条件忽略的双应用 Redis 隔离专项另行通过。完整原生进程组合通过。真实 Artisan 在同机同一 Redis 前缀上启动名称相近的两组 Master 和 Worker，按全名执行监督器状态、暂停、继续及 Master 控制，另一组保持可用。旧 UUID 心跳在默认解析器下仍接收本机信号。Linux ARM64 两个 PID 1 Master 使用相同的自定义短名，共用 Redis 并通过本机控制和远端 Worker 重启复验。Windows ARM64 的实际空部署 Master 用连字符开头的自定义名通过启动、暂停、继续及终止。Horizon 严格 Clippy 和三语文档 12 组浏览器通过。证据为 `target/tmp/observability-parity/horizon-master-name-{macos-artisan,linux-artisan,windows-artisan,same-host,rolling,redis-configuration,docs}.log`。
 
-四字符令牌下还需处理同名启动。固定上游在 `HorizonCommand::handle` 发现同名记录时输出警告并停止启动，`MasterSupervisor::ensureNoOtherMasterSupervisors` 抛出同文异常，固定 PHP 探针已分别复现。Rust 当前心跳更新为无条件覆盖，两个同名实例可能写入同一记录。后续需让启动入口原子占用完整名称并保护心跳与清理的所有权，同时保留已获准运行实例的状态。Master 的 `commandQueue`、`commandQueueFor`、公开重启与输出回调也有独立契约待核对。证据为 `target/tmp/observability-parity/horizon-master-name-collision-upstream.log`。 [固定 HorizonCommand](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Console/HorizonCommand.php)
+### 同名 Master 的启动与心跳所有权
+
+固定上游在 `HorizonCommand::handle` 发现同名记录时输出警告并停止启动，`MasterSupervisor::ensureNoOtherMasterSupervisors` 抛出同文异常，固定 PHP 探针已分别复现。证据为 `target/tmp/observability-parity/horizon-master-name-collision-upstream.log`。 [固定 HorizonCommand](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Console/HorizonCommand.php)
+
+Rust 用单个 Redis 操作检查同名记录、占用名称并写入初始心跳。续期、Master 心跳、直接信号引起的暂停写入及清理均比较独立令牌。令牌与心跳分别保存，列表与面板无需暴露令牌。旧版本的有效心跳可阻止同名启动，仓储仍可维护无主记录。直接 `run` 返回 `MasterAlreadyRunning`，Artisan 显示上游警告且正常退出。正常关停期间继续续期，持有者消失时租约自然失效。沿用独占 Redis 的单实例所有权边界。 [Redis 令牌锁与续期](https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/)
+
+macOS 的真实 Redis 8.10.3 回归覆盖同时竞争时仅一方获得名称、旧记录的 Artisan 警告、公开仓储拒绝覆盖活跃记录及原有无主记录的 Supervisor 清理。模拟租约失效并接管后，旧 Master 退出并保留新 Master 的记录。严格 Clippy 与完整原生进程组合通过。真实 Artisan `horizon:terminate --wait` 等待 12 秒任务完成。隔离 Redis 将退出中的租约缩短为 5 秒后，原令牌续期到约 15 秒，任务完成后正常释放。Linux ARM64 的双 PID 1 进程和 Windows ARM64 的空部署原生 Master 通过启动、控制与退出复验。证据为 `target/tmp/observability-parity/horizon-master-lease-{macos-accepted,macos-process-verified,linux-accepted,windows-accepted,live-drain-verified}.log`。
+
+真实旧 Supervisor 在接管后仍能删除接管方的同名 Supervisor 心跳，Master 自身的心跳已受令牌保护。该复现使用专用 Redis 模拟接管并保留实际退场进程，下一批需让 Supervisor 的心跳和清理沿用 Master 所有权。证据为 `target/tmp/observability-parity/horizon-master-lease-stale-child.log`。Redis 主从切换及其他部署方式继续验收。Master 的 `commandQueue`、`commandQueueFor`、公开重启与输出回调也有独立契约待核对。
 
 ## 当前实现
 

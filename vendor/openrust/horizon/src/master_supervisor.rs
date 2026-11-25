@@ -1,4 +1,4 @@
-use crate::{Error, Repository, Result, SupervisorOptions};
+use crate::{Error, Repository, Result, SupervisorOptions, repository::MasterLease};
 use openrust::{
     contracts::events::{Event, Listener},
     events::{EventContext, EventError, EventFuture, EventResult, ListenerResponse},
@@ -251,7 +251,15 @@ impl MasterSupervisor {
         crate::master_names::MasterNames::determine_using(resolve)
     }
 
-    pub async fn run(mut self, shutdown: &CancellationToken) -> Result<()> {
+    pub async fn run(self, shutdown: &CancellationToken) -> Result<()> {
+        self.run_with_start(shutdown, || {}).await
+    }
+
+    pub(crate) async fn run_with_start(
+        mut self,
+        shutdown: &CancellationToken,
+        started: impl FnOnce() + Send,
+    ) -> Result<()> {
         let generation = self.repository.generation().await?;
         for (name, mut options) in self.options.clone() {
             options.name = format!("{}:{name}", self.id);
@@ -259,6 +267,13 @@ impl MasterSupervisor {
             self.supervisors.push(SupervisorProcess::new(options, None));
         }
         let mut control = crate::signals::ControlSignals::new()?;
+        let paused = self.repository.paused().await?;
+        let lease = self
+            .repository
+            .master_supervisors()
+            .claim(&self.id, &self.status(paused, &[]))
+            .await?;
+        started();
         if self.has_deployment_plan {
             let event = MasterSupervisorDeployed {
                 master: self.id.clone(),
@@ -282,23 +297,31 @@ impl MasterSupervisor {
                 _ = shutdown.cancelled() => break Ok(()),
                 _ = ticker.tick() => {},
                 paused = control.next() => {
-                    if let Err(error) = self.repository.master_supervisors().set_paused(&self.id, paused).await {
+                    if let Err(error) = lease.set_paused(paused).await {
                         break Err(error);
                     }
                     continue;
                 }
             }
-            match self.tick(&generation).await {
+            match self.tick(&generation, &lease).await {
                 Ok(true) => {}
                 Ok(false) => break Ok(()),
                 Err(error) => break Err(error),
             }
         };
-        let cleanup = self.stop().await;
-        let forget = self.repository.forget_master(&self.id).await;
+        let cleanup = {
+            let stop = self.stop(&lease);
+            tokio::pin!(stop);
+            tokio::select! {
+                result = &mut stop => result,
+                result = lease.keep_alive() => result.and(stop.await),
+            }
+        };
+        let forget = lease.release().await;
         result.and(cleanup).and(forget)
     }
-    async fn tick(&mut self, generation: &Option<String>) -> Result<bool> {
+    async fn tick(&mut self, generation: &Option<String>, lease: &MasterLease) -> Result<bool> {
+        lease.renew().await?;
         if &self.repository.generation().await? != generation {
             return Ok(false);
         }
@@ -330,7 +353,7 @@ impl MasterSupervisor {
                         .failures
                         .saturating_add(previous["unexpected_exits"].as_u64().unwrap_or(0));
                 }
-                self.repository.forget_supervisor(&supervisor.name).await?;
+                lease.forget_supervisor(&supervisor.name).await?;
             }
             if supervisor.dead
                 || supervisor.process.is_some()
@@ -361,32 +384,7 @@ impl MasterSupervisor {
                     .is_some_and(|name| name.starts_with(&format!("{}:", self.id)))
             })
             .collect();
-        let workers: Vec<_> = states
-            .iter()
-            .flat_map(|state| state["workers"].as_array().into_iter().flatten().cloned())
-            .collect();
-        let targets: BTreeMap<_, _> = states
-            .iter()
-            .filter_map(|state| {
-                Some((
-                    state["name"].as_str()?.rsplit(':').next()?.to_owned(),
-                    state["targets"].as_object()?.values().next()?.clone(),
-                ))
-            })
-            .collect();
-        let status = serde_json::json!({
-            "name": self.id,
-            "basename": self.basename,
-            "host": self.host,
-            "pid": std::process::id(),
-            "status": if paused { "paused" } else { "running" },
-            "environment": self.environment,
-            "supervisors": self.supervisors.iter().filter(|s| !s.dead).map(|s| &s.name).collect::<Vec<_>>(),
-            "workers": workers,
-            "targets": targets,
-            "unexpected_exits": self.failures + states.iter().filter_map(|state| state["unexpected_exits"].as_u64()).sum::<u64>(),
-        });
-        self.repository.heartbeat(&self.id, &status).await?;
+        lease.publish(&self.status(paused, &states)).await?;
         let event = MasterSupervisorLooped::new(self, paused);
         if let Err(error) = openrust::support::facades::Event::dispatch(event.clone()).await {
             let _ = openrust::support::facades::Log::warning(
@@ -403,7 +401,35 @@ impl MasterSupervisor {
         }
         Ok(true)
     }
-    async fn stop(&mut self) -> Result<()> {
+
+    fn status(&self, paused: bool, states: &[serde_json::Value]) -> serde_json::Value {
+        let workers: Vec<_> = states
+            .iter()
+            .flat_map(|state| state["workers"].as_array().into_iter().flatten().cloned())
+            .collect();
+        let targets: BTreeMap<_, _> = states
+            .iter()
+            .filter_map(|state| {
+                Some((
+                    state["name"].as_str()?.rsplit(':').next()?.to_owned(),
+                    state["targets"].as_object()?.values().next()?.clone(),
+                ))
+            })
+            .collect();
+        serde_json::json!({
+            "name": self.id,
+            "basename": self.basename,
+            "host": self.host,
+            "pid": std::process::id(),
+            "status": if paused { "paused" } else { "running" },
+            "environment": self.environment,
+            "supervisors": self.supervisors.iter().filter(|s| !s.dead).map(|s| &s.name).collect::<Vec<_>>(),
+            "workers": workers,
+            "targets": targets,
+            "unexpected_exits": self.failures + states.iter().filter_map(|state| state["unexpected_exits"].as_u64()).sum::<u64>(),
+        })
+    }
+    async fn stop(&mut self, lease: &MasterLease) -> Result<()> {
         let deadline = Instant::now()
             + Duration::from_secs(
                 self.supervisors
@@ -432,11 +458,7 @@ impl MasterSupervisor {
                     failed |= process.detach().await.is_err();
                 }
             }
-            failed |= self
-                .repository
-                .forget_supervisor(&supervisor.name)
-                .await
-                .is_err();
+            failed |= lease.forget_supervisor(&supervisor.name).await.is_err();
         }
         if failed { Err(Error::Process) } else { Ok(()) }
     }

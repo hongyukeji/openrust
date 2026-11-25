@@ -304,16 +304,26 @@ def main():
             # Fast termination releases the master while jobs finish; --wait
             # explicitly restores the draining guarantee.
             env['HORIZON_PROBE_FAST_TERMINATION'] = '1'
+            env['HORIZON_PROBE_WORKER_TIMEOUT'] = '22'
             for wait in [False, True]:
-                long_id = dispatch(sleep_ms=3000)
+                long_id = dispatch(sleep_ms=12000 if wait else 3000)
                 master = subprocess.Popen([binary, 'artisan', 'horizon'], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 until(lambda: any(job['id'] == long_id and job['status'] == 'processing' for job in stats()['recent']))
-                draining_workers = [worker['pid'] for worker in status()[0]['workers']]
+                draining = status()[0]
+                draining_workers = [worker['pid'] for worker in draining['workers']]
+                owner_key = prefix + 'master-owner:' + draining['name']
+                owner = redis('GET', owner_key)
+                assert owner
                 started = time.monotonic()
                 artisan('horizon:terminate', *(['--wait'] if wait else []))
-                stdout, stderr = master.communicate(timeout=15)
+                if wait:
+                    assert redis('PEXPIRE', owner_key, '5000') == '1'
+                    until(lambda: int(redis('PTTL', owner_key)) > 7500, timeout=7)
+                    assert redis('GET', owner_key) == owner and master.poll() is None
+                stdout, stderr = master.communicate(timeout=18)
                 elapsed = time.monotonic() - started
                 assert master.returncode == 0, (stdout, stderr)
+                assert redis('EXISTS', owner_key) == '0'
                 if wait:
                     assert any(job['id'] == long_id and job['status'] == 'completed' for job in stats()['recent'])
                 else:
@@ -322,6 +332,7 @@ def main():
                 until(lambda: all(gone(pid) for pid in draining_workers))
                 assert status() == []
             env.pop('HORIZON_PROBE_FAST_TERMINATION')
+            env.pop('HORIZON_PROBE_WORKER_TIMEOUT')
             # Both supervisor and master memory limits stop with the upstream
             # exit code and leave no live process registrations.
             for fail_loop in [False, True]:

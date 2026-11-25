@@ -126,18 +126,25 @@ impl Command for HorizonCommand {
                             .and_then(|value| value.as_bool())
                             .unwrap_or(false),
                     );
-                    output.info("Horizon started successfully.");
                     let shutdown = input
                         .shutdown()
                         .cloned()
                         .unwrap_or_else(CancellationToken::new);
                     let signals = signals().map_err(error)?;
-                    let run = supervisor.run(&shutdown);
-                    tokio::pin!(run);
-                    let result = tokio::select! {
-                        result = &mut run => result,
-                        () = signals => { shutdown.cancel(); run.await }
+                    let result = {
+                        let run = supervisor.run_with_start(&shutdown, || {
+                            output.info("Horizon started successfully.");
+                        });
+                        tokio::pin!(run);
+                        tokio::select! {
+                            result = &mut run => result,
+                            () = signals => { shutdown.cancel(); run.await }
+                        }
                     };
+                    if matches!(result, Err(Error::MasterAlreadyRunning)) {
+                        output.warning(&Error::MasterAlreadyRunning.to_string());
+                        return Ok(0);
+                    }
                     if matches!(result, Err(Error::MemoryLimitExceeded)) {
                         output.error(
                             "Memory limit exceeded. Consider increasing horizon.memory_limit.",

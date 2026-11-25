@@ -4,7 +4,9 @@ use openrust::{
     http::{HttpError, HttpFuture, Request},
     testing::TestApp,
 };
-use openrust_horizon::{Horizon, HorizonServiceProvider, JobRecord, Repository};
+use openrust_horizon::{
+    Error, Horizon, HorizonServiceProvider, JobRecord, MasterSupervisor, Repository,
+};
 use serde_json::json;
 use std::{collections::BTreeMap, path::Path, sync::Arc, time::Duration};
 
@@ -229,6 +231,168 @@ fn config(base: &Path, _: &Environment) -> Result<BTreeMap<String, Value>, Confi
             json!({"default":"redis","connections":{"redis":{"driver":"redis","connection":"default","queue":"default","retry_after":90}},"failed":{"driver":"null"}}),
         ),
     ]))
+}
+
+#[tokio::test]
+#[ignore = "requires dedicated Redis 8 acceptance wrapper"]
+async fn same_named_master_cannot_overwrite_an_owner_or_remove_its_replacement() {
+    use openrust::{
+        http::Response,
+        support::facades::{App, Config, Route},
+    };
+    use tokio_util::sync::CancellationToken;
+
+    fn compete(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async {
+            let repository = App::make::<Repository>().await.unwrap();
+            let masters = repository.master_supervisors();
+            let queues = App::make::<openrust::queue::QueueManager>().await.unwrap();
+            let create = |role| {
+                MasterSupervisor::new(
+                    repository.clone(),
+                    queues.clone(),
+                    BTreeMap::new(),
+                    std::env::current_exe().unwrap(),
+                    App::base_path("").unwrap(),
+                    String::from(role),
+                )
+                .unwrap()
+            };
+            let first = create("first");
+            let name = first.name().to_owned();
+            let other = create("replacement");
+            assert_eq!(other.name(), name);
+            let redis = App::make::<openrust::redis::RedisManager>()
+                .await
+                .unwrap()
+                .connection(None)
+                .unwrap();
+            let prefix = Config::get("horizon.prefix").unwrap().unwrap();
+            let prefix = prefix.as_str().unwrap();
+            let owner_key = redis.key(&format!("{prefix}{{horizon}}:master-owner:{name}"));
+            let snapshot_key = redis.key(&format!("{prefix}{{horizon}}:master:{name}"));
+
+            let simultaneous_shutdown = CancellationToken::new();
+            let mut left = std::pin::pin!(create("simultaneous-left").run(&simultaneous_shutdown));
+            let mut right =
+                std::pin::pin!(create("simultaneous-right").run(&simultaneous_shutdown));
+            let (rejected, winner) = tokio::select! {
+                result = &mut left => (result, &mut right),
+                result = &mut right => (result, &mut left),
+            };
+            assert!(matches!(rejected, Err(Error::MasterAlreadyRunning)));
+            assert!(masters.find(&name).await.unwrap().is_some());
+            simultaneous_shutdown.cancel();
+            winner.await.unwrap();
+            assert!(masters.find(&name).await.unwrap().is_none());
+
+            let (first_shutdown, next_shutdown) =
+                (CancellationToken::new(), CancellationToken::new());
+            let first_run = first.run(&first_shutdown);
+            let observation = async {
+                let mut first_run = std::pin::pin!(first_run);
+                tokio::select! {
+                    _ = async {
+                        while masters.find(&name).await.unwrap().is_none() {
+                            tokio::time::sleep(Duration::from_millis(10)).await;
+                        }
+                    } => {},
+                    result = &mut first_run => panic!("first Master stopped before contention: {result:?}"),
+                }
+                let (a, b) = tokio::join!(
+                    create("competitor-a").run(&next_shutdown),
+                    create("competitor-b").run(&next_shutdown)
+                );
+                assert!(matches!(a, Err(Error::MasterAlreadyRunning)));
+                assert!(matches!(b, Err(Error::MasterAlreadyRunning)));
+                assert!(matches!(
+                    masters.update(&name, &json!({"name":name})).await,
+                    Err(Error::MasterAlreadyRunning)
+                ));
+                assert!(matches!(
+                    masters.forget(&name).await,
+                    Err(Error::MasterAlreadyRunning)
+                ));
+                assert_eq!(
+                    masters.find(&name).await.unwrap().unwrap()["environment"],
+                    "first"
+                );
+                // 暂停旧实例的 Future，并在隔离 Redis 模拟它错过续期。
+                assert_eq!(
+                    redis
+                        .command("DEL", &[owner_key.as_bytes(), snapshot_key.as_bytes()])
+                        .await
+                        .unwrap(),
+                    openrust::redis::Value::Int(2)
+                );
+                let next_run = other.run(&next_shutdown);
+                let mut next_run = std::pin::pin!(next_run);
+                tokio::select! {
+                    _ = async {
+                        while masters.find(&name).await.unwrap().is_none() {
+                            tokio::time::sleep(Duration::from_millis(10)).await;
+                        }
+                    } => {},
+                    result = &mut next_run => panic!("replacement stopped before claim: {result:?}"),
+                }
+                tokio::time::sleep(Duration::from_secs(1)).await;
+                assert!(matches!(first_run.await, Err(Error::MasterOwnershipLost)));
+                assert_eq!(
+                    masters.find(&name).await.unwrap().unwrap()["environment"],
+                    "replacement"
+                );
+                next_shutdown.cancel();
+                next_run.await.unwrap();
+                assert!(masters.find(&name).await.unwrap().is_none());
+            };
+            tokio::time::timeout(Duration::from_secs(8), observation)
+                .await
+                .unwrap();
+            Response::json(http::StatusCode::OK, json!({"ok":true}))
+        })
+    }
+
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(config)
+            .with_providers(vec![Box::new(HorizonServiceProvider)])
+            .with_routing(Routing::default().api(|| Route::get("/claim", compete)))
+    })
+    .unwrap();
+    app.boot().await.unwrap();
+    let repository = app.app().make::<Repository>().await.unwrap();
+    let name = MasterSupervisor::process_name().unwrap();
+    let masters = repository.master_supervisors();
+    let supervisor = format!("{name}:legacy");
+    repository
+        .heartbeat_supervisor(&supervisor, &json!({"pid":1}))
+        .await
+        .unwrap();
+    repository.pause_supervisor(&supervisor).await.unwrap();
+    repository.push_command(&supervisor, "pause").await.unwrap();
+    let legacy = json!({"name":name,"status":"running","pid":1,"supervisors":[supervisor]});
+    masters.update(&name, &legacy).await.unwrap();
+    let artisan = app.artisan(["horizon"]).await;
+    artisan.assert_successful();
+    assert!(
+        artisan.stdout.contains("WARN")
+            && artisan
+                .stdout
+                .contains("A master supervisor is already running on this machine.")
+    );
+    assert_eq!(masters.find(&name).await.unwrap(), Some(legacy));
+    assert!(repository.supervisor(&supervisor).await.unwrap().is_some());
+    masters.forget(&name).await.unwrap();
+    assert!(repository.supervisor(&supervisor).await.unwrap().is_none());
+    assert!(!repository.supervisor_paused(&supervisor).await.unwrap());
+    assert!(
+        repository
+            .pop_commands(&supervisor)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    app.get("/api/claim").await.unwrap().assert_ok();
 }
 
 #[tokio::test]

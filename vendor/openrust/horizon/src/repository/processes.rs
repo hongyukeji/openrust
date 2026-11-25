@@ -4,6 +4,10 @@ use openrust::redis::Value;
 use serde_json::Value as Json;
 use std::collections::BTreeMap;
 
+#[path = "master_lease.rs"]
+mod master_lease;
+pub(crate) use master_lease::MasterLease;
+
 #[derive(Clone)]
 pub struct MasterSupervisorRepository(Repository);
 #[derive(Clone)]
@@ -35,21 +39,38 @@ impl Repository {
         Ok(())
     }
     pub async fn forget_supervisor(&self, name: &str) -> Result<()> {
+        self.forget_supervisor_for_master(name, None).await
+    }
+    async fn forget_supervisor_for_master(
+        &self,
+        name: &str,
+        ownership: Option<(&str, &str)>,
+    ) -> Result<()> {
         if !supervisor_name(name) {
             return Err(Error::InvalidRecord);
         }
+        let mut keys = self.supervisor_keys(name).to_vec();
+        let mut arguments = vec![name.into()];
+        if let Some((master, owner)) = ownership {
+            keys.push(self.key(&format!("master-owner:{master}")));
+            arguments.push(owner.into());
+        }
         self.eval(
-            "redis.call('DEL',KEYS[1],KEYS[3],KEYS[4]);redis.call('ZREM',KEYS[2],ARGV[1]);return 1",
-            vec![
-                self.key(&format!("supervisor:{}", super::encode(name))),
-                self.key("supervisors"),
-                self.key(&format!("supervisor-paused:{}", super::encode(name))),
-                self.key(&format!("commands:{}", super::encode(name))),
-            ],
-            vec![name.into()],
+            "if KEYS[5] and redis.call('GET',KEYS[5]) ~= ARGV[2] then return 0 end; redis.call('DEL',KEYS[1],KEYS[3],KEYS[4]);redis.call('ZREM',KEYS[2],ARGV[1]);return 1",
+            keys,
+            arguments,
         )
         .await?;
         Ok(())
+    }
+    fn supervisor_keys(&self, name: &str) -> [String; 4] {
+        let name = super::encode(name);
+        [
+            self.key(&format!("supervisor:{name}")),
+            self.key("supervisors"),
+            self.key(&format!("supervisor-paused:{name}")),
+            self.key(&format!("commands:{name}")),
+        ]
     }
     pub async fn supervisors(&self) -> Result<Vec<Json>> {
         self.supervisor_repository().all().await
@@ -190,9 +211,7 @@ impl MasterSupervisorRepository {
         }
         Ok(result)
     }
-    pub async fn update(&self, name: &str, status: &Json) -> Result<()> {
-        self.0.heartbeat(name, status).await
-    }
+    #[cfg(not(unix))]
     pub(crate) async fn set_paused(&self, name: &str, paused: bool) -> Result<()> {
         if !label(name) {
             return Err(Error::InvalidRecord);
@@ -265,16 +284,6 @@ impl MasterSupervisorRepository {
             return Ok(wait);
         }
         self.0.termination_wait().await
-    }
-    pub async fn forget(&self, name: &str) -> Result<()> {
-        if let Some(master) = self.find(name).await?
-            && let Some(supervisors) = master.get("supervisors").and_then(Json::as_array)
-        {
-            for supervisor in supervisors.iter().filter_map(Json::as_str) {
-                self.0.forget_supervisor(supervisor).await?;
-            }
-        }
-        self.0.forget_master(name).await
     }
     pub async fn flush_expired(&self) -> Result<()> {
         let now = self.0.now().await?;
