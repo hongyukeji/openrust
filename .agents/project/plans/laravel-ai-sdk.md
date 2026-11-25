@@ -8,7 +8,7 @@
 - 按固定版本交付完整适用能力。覆盖 Agent、结构化输出、流、工具及审批、会话、队列、广播、图像、音频、转录、Embeddings、Reranking、Classification、文件与向量仓库，以及用量、故障转移、事件和 Fake。供应商按下方矩阵逐能力验收。
 - 开发前参考成熟的 GitHub 项目及 Laravel 生态实现。优先复用经过验证的方案和 OpenRust 已有机制，按实际协议差异决定是否增加依赖或适配层。
 - 同时交付三种使用方式。OpenRust 应用能在进程内使用 SDK，能通过兼容或原生协议接入供应商、自建模型服务和 Sub2API，也能启用模型网关，为外部客户端提供兼容 API。网关覆盖协议转换、模型路由与上游账号接入。
-- 采用 DSH 式简洁接入流程。内置供应商提供合理默认值，自定义服务使用协议、基础 URL、凭证和模型 ID 即可接入。可发现模型的端点支持选取和显式保存，手动填写始终可用。将 DSH 本身作为 OpenRust 对外网关的实际客户端验收。
+- 采用 DSH 式简洁接入流程。用户确认发布默认配置时 `ai.providers` 为空，供应商和模型均按协议配置，已知服务商配置放入文档示例。支持目录查询的连接可拉取模型供选择，手动填写始终可用。将 DSH 本身作为 OpenRust 对外网关的实际客户端验收。
 - 应用语言词条、机器翻译、内容审核及 Boost／MCP 服务各自保留职责。AI SDK 自身的 MCP 工具桥接纳入 E07。AI Agent 翻译维持后续计划状态，当前阶段暂缓实施。
 
 ## 建议实施方案
@@ -30,7 +30,7 @@
 | [async-openai `18a85cba921ccef08b2d058e5080f7083071e39c`](https://github.com/64bit/async-openai/tree/18a85cba921ccef08b2d058e5080f7083071e39c) | MIT。按能力启用 Chat Completions、Responses、Embeddings 等协议类型，声明的 workspace MSRV 为 1.75，实际传递依赖仍需编译核对。首选试用类型特性，经 OpenRust HTTP 发送和解析，保持加密、代理、超时、观测及测试入口一致。若类型与锁定协议不吻合，适配该差异并用 HTTP 用例固定。 |
 | [Rig `f4d73dacdfabb3d9daa3f1de091efa490a84c601`](https://github.com/0xPlaygrounds/rig/tree/f4d73dacdfabb3d9daa3f1de091efa490a84c601) | MIT。参考按模型和工具分隔运行步骤、流式测试及检查点。该版本最低 Rust 1.97.1，当前项目为 1.94，本轮作设计参考。 |
 | [Sub2API `0f6671457132425d1b84f3d80536b53e02942424`](https://github.com/Wei-Shaw/sub2api/tree/0f6671457132425d1b84f3d80536b53e02942424) | 核对公开协议路由、Responses 转 Anthropic Messages，以及按模型和端点选择上游的组合路由。按固定源码核对协议入口、账号类型、实际能力和运维行为，作为网关实现与实测参考。 |
-| [DeepSeek Harness `4b399c39a6d1479cd84ca591b4d7c88e24d38a96`](https://github.com/deepseek-ai/deepseek-harness/blob/4b399c39a6d1479cd84ca591b4d7c88e24d38a96/docs/user/guide/providers.md) | 采用内置供应商和自定义模型 API 两条流程。自定义实例选择单一协议，凭证独立保存，发现结果经选择后才保存；发现不可用时允许手填模型 ID。参考其交互流程，用 OpenRust 原生配置和 Artisan 实现。 |
+| [DeepSeek Harness `4b399c39a6d1479cd84ca591b4d7c88e24d38a96`](https://github.com/deepseek-ai/deepseek-harness/blob/4b399c39a6d1479cd84ca591b4d7c88e24d38a96/docs/user/guide/providers.md) | 采用其自定义模型 API 流程。命名连接选择单一协议，凭证独立保存，模型发现结果经明确选择后才保存，发现不可用时允许手填模型 ID。用 OpenRust 原生配置和 Artisan 实现。 |
 | [OpenCode Provider 配置](https://opencode.ai/docs/providers) · [LiteLLM 模型管理](https://docs.litellm.ai/docs/proxy/model_management) | OpenCode 将自定义地址和凭证归 Provider，模型 ID 和能力元数据归模型。LiteLLM 分开对外模型名与真实上游模型。分别用于佐证 OpenRust 的配置组织和网关别名，保持现有 Laravel 键名和 Rust 依赖栈。 |
 
 现有代码优先复用包发现、应用容器及生命周期、HTTP 客户端、事件、Cache、Storage、Queue、Broadcast／Reverb、数据库与 Artisan。旧版 `openrust-v0.x`（`6d1a81924`）的 `.agents/project/plans/ai-capabilities.md` 保留了 AI SDK 后续交付意图与自建模型服务边界。当前计划承接其通用 SDK 范围。可复用回归场景见旧版 `vendor/seaql/sea-orm/tests/embedding_tests.rs`。自建服务通过 HTTP 接入，旧计划中的千问（Qwen）可在各自接口验收后作为兼容配置案例；DeepSeek 和 Anthropic 继续按官方驱动验收。数据库查询侧 `EmbeddingProvider`、`HttpEmbeddingProvider`、缓存查询及向量结果校验见[当前实现](../../../vendor/openrust/framework/src/database/query/embeddings.rs)。通过适配器接入 SDK，保留旧查询入口、缓存和 SQL 行为。复核应用现有的向量实现后再定适配位置。
@@ -43,7 +43,7 @@
 
 - 框架通过可选 Cargo feature `ai` 装配 `vendor/openrust/ai`。包发现注册 `AiServiceProvider`，由当前应用容器持有 `AiManager`。`Ai` 门面转发 Manager，`openrust_ai::agent(...)` 对应 Laravel 的独立 `agent()` helper。应用可实现 `Agent` trait 并通过 Rust async／Builder 表达提示词、覆盖选项与能力组合。
 - `AiManager` 分开解析 Provider 实例名及 `driver`，保留命名自定义实例、按能力默认、显式覆盖、按需实例、驱动扩展和作用域清理。每类能力是独立 Provider／Gateway 契约。协议适配保留在包内，第三方类型可在内部使用。
-- 发布 `config/ai.rs`。配置键采用 `ai.default`（openai）、`default_for_images`（gemini）、`default_for_audio`（openai）、`default_for_transcription`（openai）、`default_for_embeddings`（openai）、`default_for_reranking`（cohere）、`default_for_classification`（typesafe）、`caching.embeddings.{cache,store,individually}`（false、`CACHE_STORE` 默认 database、true）及 `ai.providers.<name>.driver`。以固定 `config/ai.php` 核对供应商变量、凭证优先级和默认模型。本地配置缓存和调试输出避免泄露原始密钥，应用及 Worker 从自己的运行时配置解析凭证。
+- 发布 `config/ai.rs`。保留 Laravel 的 `ai.default`、各 `default_for_*`、`caching.embeddings.{cache,store,individually}`（false、`CACHE_STORE` 默认 database、true）及 `ai.providers.<name>.driver`。应用显式配置默认连接，调用时也可显式选择连接和模型。发布状态下配置为空仍可启动，需要调用且未能解析连接或模型时报告配置错误。默认供应商、默认模型和凭证变量的预设取消，作为已确认的 Laravel 默认行为差异记录。本地配置缓存和调试输出避免泄露原始密钥，应用及 Worker 从自己的运行时配置解析凭证。
 - `openai` 和 `openai-compatible` 分开验收。固定版的 `OpenAiGateway` 发 `responses`，`OpenAiCompatibleGateway` 发 `chat/completions`。兼容驱动以 `models.text.default` 或显式模型为准，其余模型默认及覆盖同样按各自 Provider 源码核对。
 - Artisan 验收 `make:agent`（含 `--structured`）、`make:agent-middleware`、`make:tool`、`vendor:publish` 的 `ai`、`ai-config`、`ai-stubs` 及迁移发布／执行，逐命令查明参数、stub 优先级、覆盖、退出码和副作用。固定 SDK 将 `ChatCommand` 的注册注释掉，`agent:chat` 保留在来源清单的未注册项。
 
@@ -72,7 +72,7 @@
 
 ## 供应商矩阵
 
-驱动名取自固定源码。以下为目标，OpenRust SDK 的对应能力均待实现。工具支持、默认模型及协议差异随对应 Provider 单独验收。
+以下 17 个驱动名称取自固定 Laravel 源码，用于跟踪供应商和能力覆盖。OpenRust 按协议实现并通过命名连接验收，发布配置不预置这些连接或模型清单。工具支持和协议差异依据实际端点及模型验证，对应能力均待实现。
 
 | 能力 | 目标驱动 |
 |---|---|
@@ -92,13 +92,13 @@
 
 用户确认优先维护共用的 Chat Completions、Responses、Anthropic Messages 和 Gemini 原生协议实现。`ai.providers.<name>` 的名称标识命名连接，`driver` 选择对应驱动。兼容服务以现有 `driver`、基础 URL、凭证引用和模型 ID 接入，沿用同一个应用调用入口。新增供应商优先提交配置示例和协议验收用例。
 
-Laravel 基线的内置驱动名称、默认地址、模型和实际行为随对应批次验收。可共用的请求、响应、SSE 及工具映射在协议层复用。固定源码中的 `deepseek` 驱动与 `openai-compatible` 已共用 Chat Completions 请求逻辑，可作为复用参考。供应商特有的鉴权、字段及事件差异在相应驱动或适配器内补齐，例如 DeepSeek 的思考模式和 Bedrock Converse 的区域、模型路径及 AWS 凭证。参考 [Laravel DeepSeek Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/DeepSeek/DeepSeekGateway.php)及 [AWS Bedrock Converse](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Converse.html)。
+Laravel 基线的驱动行为作为能力验收依据，供应商配置通过文档示例接入。可共用的请求、响应、SSE 及工具映射在协议层复用。固定源码中的 `deepseek` 驱动与 `openai-compatible` 已共用 Chat Completions 请求逻辑，可作为复用参考。供应商特有的鉴权、字段及事件差异通过具体协议适配补齐，例如 DeepSeek 的思考模式和 Bedrock Converse 的区域、模型路径及 AWS 凭证。参考 [Laravel DeepSeek Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/DeepSeek/DeepSeekGateway.php)及 [AWS Bedrock Converse](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Converse.html)。
 
 以供应商、模型、协议和能力为单位记录验收结果。对话可用后，分别验证流、工具调用、结构化输出、Embeddings、图片和音频的实际端点及模型限制。同一家同时开放多个协议时，每种协议用独立命名连接和测试用例。
 
 ### 国内供应商接入
 
-用户确认在保留以上 17 个固定 Laravel 驱动的基础上，将以下四家纳入可配置的接入示例和兼容验收。应用可同时配置多家供应商，也可为同一家配置多个命名实例，例如两套百炼工作空间。`ai.default` 用于未指定 Provider 的文本调用，其他任务仍可显式选择 Provider 和模型。
+在以上 Laravel 供应商与能力覆盖范围基础上，将以下四家纳入可配置的接入示例和兼容验收。应用可同时配置多家供应商，也可为同一家配置多个命名实例，例如两套百炼工作空间。`ai.default` 用于未指定 Provider 的文本调用，其他任务仍可显式选择 Provider 和模型。
 
 | 命名实例 | 服务 | 首批接入与实测范围 |
 |---|---|---|
@@ -144,11 +144,11 @@ Laravel 基线的内置驱动名称、默认地址、模型和实际行为随对
 
 ## DSH 式模型接入
 
-1. **内置供应商。** 应用在 `ai.default` 选 `deepseek` 等已有 Provider，通过环境或已有凭证配置供给密钥。默认模型沿用固定 Laravel Provider；需要指定模型时设置 `ai.providers.<name>.models.text.default` 或在调用时显式覆盖。先用 Artisan 打通选择供应商、模型和测试调用的入口，具体命令名及参数列为 OpenRust 扩展并在实现前核对。
-2. **自定义服务。** 在 `ai.providers.<name>` 以 `driver` 选择协议，填写 `url`、凭证和模型 ID，沿用 SDK 已计划的配置键。`openai-compatible` 走 Chat Completions，`openai` 走 Responses，Anthropic 与 Gemini 使用各自驱动。一个网关提供多种协议时可按协议配置不同实例。验收带 `/v1`、`/v1beta` 或自定义路径前缀的基础 URL，并核对协议鉴权和模型 ID 的大小写。
-3. **发现、选用和验证。** 目录发现按 Provider 实际公布的能力调用，沿用已有 HTTP 和凭证解析，复用同一条模型配置与调用路径。遇到目录缺失、为空或请求失败，保留已配置模型和手填入口；确认后才写入选择结果。目录结果与实际调用测试分别展示。工具、流、图片等能力以协议和模型实测为准。
+1. **添加连接。** 在 `ai.providers.<name>` 选择 `driver`，填写基础 `url` 和凭证引用。`openai-compatible` 走 Chat Completions，`openai` 走 Responses，Anthropic 与 Gemini 使用各自驱动。网关提供多种协议时可为不同协议配置命名连接。验收带 `/v1`、`/v1beta` 或自定义路径前缀的基础 URL，以及协议鉴权和模型 ID 的大小写。
+2. **动态发现。** 使用当前命名连接对应的凭证和目录端点，请求按协议保留版本路径、处理分页并读取模型 ID。端点示例见 [OpenAI `/v1/models`](https://developers.openai.com/api/reference/resources/models/methods/list)、[Anthropic `/v1/models`](https://platform.claude.com/docs/en/api/models/list)、[Gemini `/v1beta/models`](https://ai.google.dev/api/models)及 [DeepSeek `/models`](https://api-docs.deepseek.com/api/list-models/)。模型能力元数据按上游实际声明显示，缺少描述的能力标记为未知。目录缺失、为空、无权限或返回失败时，保留已配置模型并允许手填模型 ID。
+3. **选用和试调用。** Artisan 显示目录结果并允许手填，用户确认后才写入选择结果。刷新目录时保留已选项和 `models.text.default` 等显式设置。发现目录和实际调用分别验证，且使用同一命名连接。实测覆盖分页、缺字段、错误、空目录、无目录、已选模型在刷新后消失及手填后仍能按协议调用。工具、流、图片等能力以对应调用结果为准。Artisan 命令名及参数作为 OpenRust 扩展随实现核对。
 4. **对外接入。** OpenRust 网关以对外模型名映射实际 Provider 和模型 ID，客户端只配置地址、匹配的协议、网关凭证和对外模型名。用固定版 DSH 的自定义模型 API 完成拉取列表（支持时）、手填、选择和真实调用；覆盖 Chat Completions、Responses 及后续 Anthropic Messages、Gemini 原生入口，按批补工具和 SSE。沿用 Sub2API 的模型路由验收，并继续使用本地模拟上游和授权实机分别留证据。
 
-DeepSeek 官方端点作为首个完整示例。固定 Laravel `deepseek` 驱动保持 Chat Completions 契约，测试文本、流、思考模式和工具回合的 `reasoning_content` 行为。DeepSeek 官方另提供 Responses 和 Anthropic Messages，作为对应协议的独立配置案例，分别验收请求字段和能力；稳定模型 ID 以验收时官方目录为准。参考 [Laravel DeepSeek Provider 固定源码](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Providers/DeepSeekProvider.php)、[Prism DeepSeek 文档](https://prismphp.com/providers/deepseek/)、[DeepSeek 首次调用](https://api-docs.deepseek.com/)、[Responses](https://api-docs.deepseek.com/guides/responses_api/)、[Anthropic](https://api-docs.deepseek.com/guides/anthropic_api/)及[思考模式](https://api-docs.deepseek.com/guides/thinking_mode/)。
+DeepSeek 官方端点作为首个完整示例。使用 Chat Completions 的命名连接对照固定 Laravel `deepseek` 驱动行为，测试文本、流、思考模式和工具回合的 `reasoning_content`。DeepSeek 官方另提供 Responses 和 Anthropic Messages，作为对应协议的独立配置案例，分别验收请求字段和能力。参考 [Laravel DeepSeek Provider 固定源码](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Providers/DeepSeekProvider.php)、[Prism DeepSeek 文档](https://prismphp.com/providers/deepseek/)、[DeepSeek 首次调用](https://api-docs.deepseek.com/)、[Responses](https://api-docs.deepseek.com/guides/responses_api/)、[Anthropic](https://api-docs.deepseek.com/guides/anthropic_api/)及[思考模式](https://api-docs.deepseek.com/guides/thinking_mode/)。
 
 实施顺序沿用 AI-01／02／03、GW-01／02／03／05。先验收配置即可调用，再接模型发现、选择与独立试调用，最后用 DSH 连接 OpenRust 网关复现整条流程。E07 关闭时须同时具备三语配置示例、真实客户端验收结果和供应商能力矩阵。
