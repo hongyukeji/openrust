@@ -4259,6 +4259,7 @@ dependencies = [
  "jiff 0.2.46",
  "openrust-activitylog",
  "openrust-cashier",
+ "openrust-content-moderation",
  "openrust-fortify",
  "openrust-framework",
  "openrust-horizon",
@@ -4324,6 +4325,17 @@ dependencies = [
  "tokio",
  "url",
  "zeroize",
+]
+
+[[package]]
+name = "openrust-content-moderation"
+version = "0.0.0"
+dependencies = [
+ "openrust-framework",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
 ]
 
 [[package]]

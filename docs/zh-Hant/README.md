@@ -142,6 +142,7 @@
 - [OpenID Connect（擴充）](packages/oidc.md)
 - [資料庫設定（擴充）](packages/settings.md)
 - [文字機器翻譯（擴充）](packages/translate.md)
+- [內容審核（擴充）](packages/content-moderation.md)
 - [New Relic APM（擴充）](packages/new-relic.md)
 - [支付（擴充）](packages/pay.md)
 - [Webhook 接收（擴展）](packages/webhook-client.md)

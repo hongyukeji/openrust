@@ -1,0 +1,23 @@
+[package]
+name = "openrust-content-moderation"
+version.workspace = true
+edition = "2024"
+rust-version = "1.94"
+license = "MIT"
+publish = false
+
+[package.metadata.openrust.discovery]
+version = 1
+providers = true
+
+[dependencies]
+openrust = { package = "openrust-framework", path = "../framework" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2"
+
+[dev-dependencies]
+tokio = { version = "1.54.1", features = ["macros", "rt"] }
+
+[lints]
+workspace = true

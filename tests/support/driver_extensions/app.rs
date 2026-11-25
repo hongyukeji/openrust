@@ -2,6 +2,8 @@
 mod app;
 #[path = "../../../config/mod.rs"]
 mod config;
+#[cfg(feature = "content-moderation")]
+mod moderation;
 #[cfg(feature = "pay")]
 mod pay;
 mod sms;
@@ -106,6 +108,8 @@ fn commands(artisan: &mut Artisan) -> Result<(), ConsoleError> {
     )))))?;
     #[cfg(feature = "pay")]
     pay::register_command(artisan)?;
+    #[cfg(feature = "content-moderation")]
+    moderation::register_command(artisan)?;
     Ok(())
 }
 #[tokio::main(flavor = "current_thread")]
@@ -126,6 +130,8 @@ async fn main() -> ExitCode {
                     json!({"driver":"example","endpoint":env.get_utf8("SMS_EXAMPLE_ENDPOINT")?});
                 #[cfg(feature = "pay")]
                 config.insert("pay".into(), pay::configuration(env)?);
+                #[cfg(feature = "content-moderation")]
+                config.insert("moderation".into(), moderation::configuration(env)?);
                 Ok(config)
             })
             .with_providers(vec![
@@ -135,6 +141,10 @@ async fn main() -> ExitCode {
                 Box::new(openrust_pay::PayServiceProvider),
                 #[cfg(feature = "pay")]
                 Box::new(pay::ExternalPayProvider),
+                #[cfg(feature = "content-moderation")]
+                Box::new(openrust_content_moderation::ModerationServiceProvider),
+                #[cfg(feature = "content-moderation")]
+                Box::new(moderation::ExternalProvider),
             ])
             .with_commands(commands)
             .with_routing(
@@ -143,6 +153,8 @@ async fn main() -> ExitCode {
                     .api(|| {
                         #[cfg(feature = "pay")]
                         Route::post("/drivers/pay", pay::callback)?;
+                        #[cfg(feature = "content-moderation")]
+                        Route::get("/drivers/moderation", moderation::route)?;
                         Ok(())
                     })
                     .health("/up"),

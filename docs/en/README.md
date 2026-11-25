@@ -142,6 +142,7 @@
 - [OpenID Connect (Extension)](packages/oidc.md)
 - [Database Settings (Extension)](packages/settings.md)
 - [Text Translation (Extension)](packages/translate.md)
+- [Content Moderation (Extension)](packages/content-moderation.md)
 - [New Relic APM (Extension)](packages/new-relic.md)
 - [Payments (Extension)](packages/pay.md)
 - [Webhook Client (Extension)](packages/webhook-client.md)

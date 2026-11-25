@@ -1,0 +1,30 @@
+# 内容审核工程核对
+
+范围以[已确认开发计划](../../plans/content-moderation.md)为准。CM-00 起步核对公开契约与四家协议。下表为开发依据，运行验收随对应批次记录。
+
+## CM-00 协议依据 {#protocols}
+
+| 驱动 | 即时入口 | 异步入口与覆盖 |
+| --- | --- | --- |
+| 阿里云 | 国内站增强内容安全 `Green/2022-03-02`。`TextModeration` 以 `ServiceParameters` 中的原文调用，适用文档限定 600 字符，按实际服务代码和结果形态映射。`ImageModeration` 明确绑定 `Service`，用经授权的图片 URL 或 OSS 参数。两个入口分别核对响应字段，HTTP 成功后仍检查业务 `Code`。 [文本](https://help.aliyun.com/zh/document_detail/434034.html) · [图片](https://help.aliyun.com/zh/document_detail/2528742.html) | `VideoModeration` 提交，`VideoModerationResult` 以 `taskId` 查询。场景参数与帧、音频、OCR 的证据应逐项验收。查询的推荐间隔与 24 小时保留期用于确定轮询预算；到期或字段缺失无法产生 Allow。 [API 列表](https://help.aliyun.com/zh/document_detail/2528737.html) · [查询](https://next.api.aliyun.com/document/Green/2022-03-02/VideoModerationResult) |
+| 腾讯云 | `2020-12-29` 标准内容安全，`tms.tencentcloudapi.com` 的 `TextModeration` 使用 UTF-8 Base64，官方限制 10,000 Unicode 字符，覆盖中文和英文。`ims.tencentcloudapi.com` 的 `ImageModeration` 使用标准场景，图片 OCR 单独核对。 [文本](https://cloud.tencent.com.cn/document/api/1124/51860) · [图片](https://cloud.tencent.cn/document/product/1124/137268) | 标准点播视频的 `CreateVideoModerationTask`／`DescribeTaskDetail`，按 `VIDEO` 与配置的 `BizType` 请求。视频 Agent 和生成内容识别使用同名 Action 但属于不同能力。以标准 API 查询补足回调中未覆盖的片段，并分别保留语音和画面结果。 [标准视频](https://cloud.tencent.com/document/product/1124/137270) · [API 列表](https://cloud.tencent.com/document/api/1265/80029) |
+| Sightengine | `text/check.json`、`check.json`，分别选择文本规则／模型和图像模型。动图结果以采样覆盖记录。图片 OCR 与纯文本模型分别配置。 [API](https://sightengine.com/docs/reference) · [OCR](https://sightengine.com/docs/ocr-text-moderation-in-images-2.0) | `video/check.json` 提交、`video/byid.json` 查询／取消。账号级回调可使用 `Sightengine-Signature`，只对启用且实际签名的来源使用验签处理器。官方将语音内容审核示例接到 `video/check-sync.json`，长视频语音覆盖须另外落实及验收，缺少结果时保留覆盖缺口。 [签名](https://sightengine.com/docs/callback-signature) · [视频与语音端点](https://sightengine.com/docs/reference) |
+| Hive | Hive Model API `https://api.thehive.ai/api/v2/task/sync`，各项目用自己的 token。文本使用 `text_data`，视觉用 `media` 或 URL。语音、OCR 与视觉模型按项目能力配置。 [认证](https://docs.thehive.ai/reference/authentication) · [媒体参数](https://docs.thehive.ai/reference/submitting-via-task-api) | V2 `/api/v2/task/async` 生成项目内任务 ID。公开查询参考仍列 V1 `/api/v1/task`、`task_id` 与长视频／音频分页。V2 ID 是否能经该读入口查询、项目权限和回调签名需要供应商文档或授权项目确认；目前不假定 V2 查询路径，也不将未验签回调作为最终结果。Hive Moderation Dashboard 路径归另一产品。 [V2](https://docs.thehive.ai/reference/api-reference-introduction) · [公开查询参考](https://docs.thehive.ai/reference/get-task-summary) |
+
+## 公共接缝 {#contracts}
+
+- `openrust-content-moderation` 作为可选包。应用通过 Provider、`ModerationManager::extend`、具名 profile 与 `Moderation` 门面装配，复用既有短信／翻译的每应用工厂和实例缓存。替换工厂或配置后显式清除实例，手中句柄继续使用原快照。任一 HTTP、Artisan 或 Worker 进程均独立注册工厂。
+- 对外使用 `TextInput`、`ImageInput`、`VideoInput`、`TaskId` 和 `Assessment` 等类型。小的内嵌图片有固定入口上限，私有图片／视频以具名 Storage 磁盘、对象键和内容版本标识。授权下载链接在供应商传输阶段生成，任务中保留私有对象引用与期望版本。文本字符上限、图片 MIME／格式、帧和音频预算由各驱动按协议缩紧。
+- `ModerationDriver` 的文本、图片、视频提交、查询与可选取消可独立实现，未提供的入口返回指定能力的错误。视频提交只返回供应商任务身份；持久层保存父审核、子检查、期限、凭据版本及领取信息。每次查询使用原 profile、项目和凭据修订，回调路径复用 `webhook-client`。未获独立验签的回调通过已有提示入口记录，经认证查单复核后才推进完成状态。
+- `Assessment` 保留原始供应商标签、归一化结论和已完成／部分／缺失的模态覆盖。调用方必须给出必检模态集合；缺任何一项时无法得到有效 Allow。取样、截断、Unknown、失败和取消分别记录，风险证据仍可提示拦截。持久父任务以子检查的完整终态和内容修订决定发布资格，人工或旧修订裁决遵循原先计划。
+- 阿里云适配复用框架 `AliyunRpcSigner`。腾讯 SMS 签名中固定了 `sms` 服务作用域，内容审核需要按 `tms`／`ims`／`vm` 的实际规范校验；共享签名应保留已有短信测试。四家均复用框架 HTTP Client，给响应、重定向、文件读取和 HTTP 诊断脱敏设置明确边界。测试以本地协议替身验证，真实业务准确率、授权和费用按 CM-04 分别记录。
+
+## CM-01 可选包和外部消费者 {#external-drivers}
+
+`content-moderation` 功能启用可选的 `openrust-content-moderation`。包 Provider 发布 `config/moderation.rs`，默认配置名来自 `MODERATION_DRIVER`。公开文本／媒体输入保持原文与私有对象版本，任务 ID 的反序列化复用构造校验。覆盖结果用 `Assessment::decision` 检查调用方明确要求的模态。未知或部分覆盖没有隐式的有效 Allow。查任务需要调用应用选定的原具名驱动，默认驱动不会隐式接管任务。
+
+包的外部消费测试覆盖输入、任务 ID 序列化、Allow 的覆盖约束、工厂失败重试、应用隔离、具名实例复用和清除后的旧句柄。独立应用登记仅文本驱动及媒体驱动，使用默认和具名入口。SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 各通过隔离迁移、配置发布及重复发布、两次真实 HTTP、两次独立 Artisan 读取、两次 Artisan 提交与两次独立 Worker。配置和路由缓存生成后，再改进程环境的媒体配置标记，原任务仍可解析。原生队列仅保存任务 ID；Worker 核对缺语音完整覆盖无法给出 Allow。HTTP 流程模拟驱动结果，视频持久状态、媒体读取、网络协议及回调仍由后续批次完成。
+
+编译后的正式 `main` 另通过自动发现、`config:show moderation`、`vendor:publish`、`config:cache` 和实际 `/up`。首轮夹具引用了不存在的迁移常量，改为实际迁移类型。随后删除过时的根应用语言文件复制步骤，使用框架已内置的迁移语言资源。
+
+冻结提交 `b9a751e80` 上叠加本批文件，Rust 1.94.0。3 项包测试、全工作区 `fmt`、包所有目标及应用验收目标的严格 Clippy 通过。三语用法的 Provider 与调用片段拼接为独立消费者编译，三语文档站内容检查和构建通过。日志位于 `target/tmp/content-moderation`。本批验毕外部驱动底座，四家协议、持久视频恢复、内容安全效果和服务开通仍按后续门禁验收。
