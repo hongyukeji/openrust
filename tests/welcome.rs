@@ -1417,7 +1417,7 @@ async fn locale_post_keeps_csrf_session_and_preferences_over_tcp() {
     assert_eq!(status, 302);
     assert_eq!(
         headers["location"],
-        "http://localhost/welcome?locale=zh-Hant&search=a%26b&tag=1&tag=2"
+        "http://localhost/index.html?locale=zh-Hant&search=a%26b&tag=1&tag=2"
     );
     let (status, headers, html) = send(address, "GET", "/welcome?search=a%26b", "", "").await;
     assert_eq!(status, 200);
