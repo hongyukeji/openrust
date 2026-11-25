@@ -19,7 +19,7 @@ use openrust::{
 ///
 /// ```no_run
 /// use openrust::{database::Connection, localization::{Localizer, TranslationResource, TranslationResult}};
-/// use openrust_translation_database::DatabaseLoader;
+/// use openrust_localization_database::DatabaseLoader;
 ///
 /// async fn publish(connection: Connection, localizer: &Localizer) -> TranslationResult<()> {
 ///     let loader = DatabaseLoader::new(connection).with_table("language_lines")?;

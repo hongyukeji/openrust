@@ -24,3 +24,12 @@
 | 实际根进程与资源 | `localization_bundled_http.py` 的 4 套候选配置，`localization_18_acceptance.py` 的 18 语帮助及失败提示、两种语言目录的发布／保留／覆盖、一共 36 次终端生成，以及 `localization_standard_resources.py` 的 4 项均通过。 |
 | 18 语真实页面 | 独立应用与真实 Chrome 的 18 语 × 4 组设备、主题组合共 72 项通过。 |
 | 生成应用 | 独立 MySQL 8.4.13 执行 `artisan init` 成功，重新构建生成应用。另从该二进制实际验证英、简中、繁中、日文 HTTP 与独立 `lang:publish`。旧完整 init 脚本的无关 `/api/user` 断言返回 404。生成应用保留原 `routes/api.rs`，该文件在基线只注册 API 根路径。认证路由仍由其专项处理。首次 init 尝试触及构建守卫停线，已用独立目录重试，原日志保留。 |
+
+## L10N-02 默认 Loader 与数据库词条
+
+- `lang.loader` 是应用 Provider 替换入口，`dyn Loader` 为同一绑定。应用启动在所有普通 Provider 的 boot 后读取声明，文件路径注册先完成。空列表不会解析持有数据库连接的来源。
+- `lang.resources` 声明精确语言、组和可选命名空间。`Lang::refresh_default_source` 和 `Localizer::refresh_default_source` 锁外读取整批，校验后交换来源快照。竞争中的旧刷新返回 `CatalogChanged`。运行时词条层独立，刷新失败与来源删除均不覆盖它。
+- 数据库包迁到 `openrust-localization-database`。既有结构、JSON、SQL 升级脚本未改动。新增的可选发布资源沿用 `create_language_lines_table` 后缀，并按现有 Artisan 发布规则保留已发布文件。原包没有自动登记迁移，已有应用继续使用自己的迁移标识。
+- 定向框架 11 项通过，覆盖启动顺序、错误、并发刷新、词条删除与回到文件模式。数据库 9 项各自在 SQLite、MySQL 8.4.13、PostgreSQL 18.7 通过，含独立应用真实 TCP、现有 JSON 数据语义与升级脚本。SQLite 另编译通过 4 项包文档用例。
+- `tests/localization_database_acceptance.py` 三库全部通过，实跑独立 HTTP、Artisan 和数据库 Worker。发布迁移、重复发布、`migrate`、`lang:publish`、缺表启动失败、HTTP 刷新失败保留旧值、删词回退及缓存重启均有断言。MySQL／PostgreSQL 使用项目隔离容器与 REQUIRE 门禁。
+- 格式、工作区严格 Clippy、含可选 feature 的消费者严格 Clippy、三语构建、两挂载 Chrome 12 组和数据库章节额外 6 组均通过。日志见 `target/tmp/localization-translate/l10n-02-*`。

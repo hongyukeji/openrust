@@ -126,6 +126,11 @@ impl Lang {
         Self::get_facade_root()?.load(namespace, group, locale)
     }
 
+    /// 重新读取并原子发布当前应用的默认词条来源。
+    pub async fn refresh_default_source() -> TranslationResult<()> {
+        Self::get_facade_root()?.refresh_default_source().await
+    }
+
     pub async fn load_from(
         loader: &dyn Loader,
         resources: &[TranslationResource<'_>],

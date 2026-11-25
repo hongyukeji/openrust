@@ -12,7 +12,7 @@ use openrust::{
     database::{Connection, DatabaseManager, Value, query::Record},
     localization::{FileLoader, Line, Lines, Localizer, TranslationError, TranslationResource},
 };
-use openrust_translation_database::DatabaseLoader;
+use openrust_localization_database::DatabaseLoader;
 use serde_json::{Value as Json, json};
 
 fn connection(url: &str, name: &str, driver: &str) -> Connection {
@@ -454,16 +454,16 @@ async fn invalid_configuration_and_resource_names_are_rejected_before_sql() {
 }
 
 #[tokio::test]
-async fn database_explicit_provider_publishes_the_app_catalog_to_real_http() {
+async fn database_default_provider_publishes_the_app_catalog_to_real_http() {
     use axum::{extract::State, handler::Handler as _};
     use openrust::{
-        contracts::http::Kernel as _,
+        contracts::{container::Container as _, foundation::Application as _, http::Kernel as _},
         foundation::{Application, configuration::Routing, http::Kernel},
         http::{HttpError, HttpFuture, Request, Response, StatusCode},
         routing::RoutingError,
         support::{
             ProviderResult, ServiceProvider,
-            facades::{Lang, Route},
+            facades::{Config, Lang, Route},
         },
     };
     use tokio::{
@@ -472,12 +472,20 @@ async fn database_explicit_provider_publishes_the_app_catalog_to_real_http() {
     };
     struct Publish(DatabaseLoader);
     impl ServiceProvider for Publish {
-        fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
+        fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
             Box::pin(async move {
-                app.make::<Localizer>()
-                    .await?
-                    .load_from(&self.0, &[resource("en", "messages", None)])
-                    .await?;
+                let container = app.container();
+                let loader = self
+                    .0
+                    .clone()
+                    .with_fallback(container.make::<FileLoader>()?);
+                let named =
+                    container.instance_named::<dyn Loader>("lang.loader", Arc::new(loader))?;
+                assert!(Arc::ptr_eq(&named, &container.make::<dyn Loader>()?));
+                Config::set(
+                    "lang.resources",
+                    json!([{"locale":"en","group":"messages"}]),
+                )?;
                 Ok(())
             })
         }

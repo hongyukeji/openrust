@@ -328,7 +328,7 @@ pub async fn load_notice(source: &dyn Loader) -> TranslationResult<()> {
 
 ### Database Translation Source (Extension) {#database-translation-loader}
 
-Add `openrust-translation-database` to the application's Cargo dependencies using `path = "vendor/openrust/translation-database"`. `DatabaseLoader` accepts an explicit framework `Connection`; obtain it from the application's database manager or `Db::connection`. It reads translations from PostgreSQL 18, MySQL 8.4, and SQLite. Other database targets require separate behavior validation.
+Add `openrust-localization-database` to the application's Cargo dependencies using `path = "vendor/openrust/localization-database"`. `DatabaseLoader` accepts an explicit framework `Connection`; obtain it from the application's database manager or `Db::connection`. It reads translations from PostgreSQL 18, MySQL 8.4, and SQLite. Other database targets require separate behavior validation.
 
 Create the table through an application migration before loading translations. This minimal schema is supported:
 
@@ -357,7 +357,7 @@ use openrust::{
     support::facades::Lang,
     localization::{FileLoader, TranslationResource, TranslationResult},
 };
-use openrust_translation_database::DatabaseLoader;
+use openrust_localization_database::DatabaseLoader;
 
 pub async fn load_database_translations(
     connection: Connection,
@@ -384,6 +384,61 @@ The selected connection's table prefix applies. The table name is an unqualified
 `Lang::load_from` publishes all requested groups together. Database, file, or parsing failures leave the previous published catalog available and return an error; missing rows produce an empty database overlay. Reads occur per group; publication atomicity does not provide a transaction spanning all database reads. Reloads are explicit. Applications manage writes, migrations, and refresh timing; the package does not automatically select a source or start background tasks.
 
 Unlike Spatie’s PHP model, this source does not perform locale fallback while reading each row: the localizer applies its configured fallback after loading exact locales. This also preserves file translations for the selected locale. A missing table returns an error so a failed explicit reload cannot silently replace a published database catalog with files.
+
+### Default database source
+
+For a new application, publish and run the migration while file mode is active. Applications with an existing table keep their original migration and data.
+
+```sh
+./artisan vendor:publish --tag=localization-database-migrations
+./artisan migrate
+```
+
+Bind the default source in an application provider’s `register` method. The example uses the default database connection and the same `FileLoader` used by application and package language paths.
+
+```rust
+use std::sync::Arc;
+use openrust::{
+    contracts::{container::{BindingResolutionError, Container as _}, foundation::Application as _, localization::Loader},
+    database::DatabaseManager,
+    foundation::Application,
+    http::HttpFuture,
+    localization::FileLoader,
+    support::{ProviderResult, ServiceProvider},
+};
+use openrust_localization_database::DatabaseLoader;
+
+struct LanguageSource;
+
+impl ServiceProvider for LanguageSource {
+    fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            app.container().singleton_named::<dyn Loader, _>("lang.loader", |container| {
+                let files = container.make::<FileLoader>()?;
+                let connection = container.make::<DatabaseManager>()?.connection(None).map_err(|source| {
+                    BindingResolutionError::FactoryFailed { service: "lang.loader", source: Box::new(source) }
+                })?;
+                Ok(Arc::new(DatabaseLoader::new(connection).with_fallback(files)))
+            })?;
+            Ok(())
+        })
+    }
+}
+```
+
+Add a `LanguageSource` instance to the application’s provider list. Insert the `resources` value under the `lang` key in the configuration loader’s returned map.
+
+```rust
+use serde_json::json;
+
+let resources = json!({"resources":[
+    {"locale":"fr","group":"messages"},
+    {"locale":"en","group":"messages"},
+    {"locale":"fr","group":"*"}
+]});
+```
+
+The application loads declared groups after providers boot. `Lang` queries remain synchronous. Database updates become visible after `Lang::refresh_default_source().await` or a restart. A failed refresh retains the prior snapshot. Runtime entries added with `add_lines` and `load_from` take precedence. Set `lang.resources` to an empty array for file mode. If a cached declaration prevents startup during an outage, deploy the empty list and point `APP_CONFIG_CACHE` at an unused absolute path before restarting. Rebuild the intended cache after recovery. The cache stores declarations. Each process loads the terms at startup.
 
 ## Retrieving Translation Strings
 
@@ -515,7 +570,7 @@ The first two mappings apply only to this project's default catalogs and confirm
 
 Clear old configuration and view caches with the old binary (`./main artisan config:clear`, `./main artisan view:clear`) before replacing it, or use the existing source `./artisan` entrypoint. Deploy the new code and resources together, rebuild with `config:cache` and `view:cache` using the new configuration, and restart all long-lived processes. Translation directory caches are process-local and disappear on restart. Drain old queued mail/notification jobs before upgrading, or inspect their serialized `locale` fields with application-specific tooling; encrypted payloads require the old application's encryption keys. A generic text replacement in queue, cache or settings blobs is unsafe.
 
-For database translations, inventory `language_lines.text` JSON keys and any application-owned settings or locale columns first. The templates in `vendor/openrust/translation-database/database/upgrade-bcp47/` include separate read-only inventory queries and PostgreSQL, MySQL and SQLite transactions. They map the two default catalogs plus `en_US`/`en_GB`; customize table names and any other legacy locale mappings after review. Unknown underscore keys or any old/new collision abort the transaction, including equal or null values; no content is overwritten. The final statement is **ROLLBACK** by default. Inspect the result and backup before explicitly changing it to **COMMIT**. On error roll back and close that dedicated database session. Re-running a successful migration is a no-op; rollback after a committed migration requires restoring the backup, since existing new-format keys cannot safely be distinguished from migrated ones.
+For database translations, inventory `language_lines.text` JSON keys and any application-owned settings or locale columns first. The templates in `vendor/openrust/localization-database/database/upgrade-bcp47/` include separate read-only inventory queries and PostgreSQL, MySQL and SQLite transactions. They map the two default catalogs plus `en_US`/`en_GB`; customize table names and any other legacy locale mappings after review. Unknown underscore keys or any old/new collision abort the transaction, including equal or null values; no content is overwritten. The final statement is **ROLLBACK** by default. Inspect the result and backup before explicitly changing it to **COMMIT**. On error roll back and close that dedicated database session. Re-running a successful migration is a no-op; rollback after a committed migration requires restoring the backup, since existing new-format keys cannot safely be distinguished from migrated ones.
 
 Faker keeps native provider keys private; `locale()` and `random_locale()` return BCP 47. Script-only `zh-Hans`/`zh-Hant` use the corresponding existing Chinese providers, while the public label retains its original region and extensions. Third-party protocols such as WeChat's native `lang=zh_CN` are unchanged at that boundary.
 

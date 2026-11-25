@@ -43,7 +43,7 @@ use openrust::{
     support::facades::Lang,
     localization::{FileLoader, TranslationResource, TranslationResult},
 };
-use openrust_translation_database::DatabaseLoader;
+use openrust_localization_database::DatabaseLoader;
 
 pub async fn load_database_translations(
     connection: Connection,
@@ -63,6 +63,6 @@ pub async fn load_database_translations(
 }
 ```
 
-The package does not register a provider or run migrations. Reads are explicit and asynchronous; translation lookups use the published catalog without SQL.
+The package provider exposes the `localization-database-migrations` publication tag. Run the published migration before enabling the database source. Existing applications keep their original migration and table. Register your `DatabaseLoader` as `lang.loader` in the application provider and declare its exact groups in `lang.resources`. The application reads these groups at startup and on `Lang::refresh_default_source().await`. Synchronous lookups use the published catalog without SQL.
 
 The schema and loading behavior follow `spatie/laravel-translation-loader` 2.8.3 (MIT). Upstream copyright and license are preserved in `LICENSE.spatie.md`. Locale fallback stays in OpenRust's translator; missing tables fail an explicit reload.

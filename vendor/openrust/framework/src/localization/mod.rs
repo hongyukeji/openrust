@@ -3,6 +3,7 @@
 pub(crate) mod bundled;
 
 mod choice_case;
+pub(crate) mod default_source;
 mod facade;
 mod file_loader;
 mod locale;
@@ -61,6 +62,7 @@ pub enum TranslationError {
     MissingStringable(&'static str),
     StringableFormat(std::fmt::Error),
     CatalogChanged,
+    DefaultSourceUnavailable,
     Source(Box<dyn std::error::Error + Send + Sync>),
     Unavailable(crate::contracts::container::BindingResolutionError),
 }
@@ -82,6 +84,9 @@ impl std::fmt::Display for TranslationError {
             }
             Self::StringableFormat(_) => {
                 formatter.write_str("Could not format translation object.")
+            }
+            Self::DefaultSourceUnavailable => {
+                formatter.write_str("当前译器没有关联的应用词条来源。")
             }
             Self::CatalogChanged => {
                 formatter.write_str("Translation catalog changed during loading.")

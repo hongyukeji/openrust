@@ -51,10 +51,7 @@ L01–L22本批实现和实际验收见[审计修复节](audits/laravel-code-aud
   - **已有能力：** [SmsDriver／SmsManager::extend](../../vendor/openrust/framework/src/notifications/sms/sms_manager.rs)及[自定义驱动测试](../../vendor/openrust/framework/tests/sms_manager.rs)已存在，覆盖实例复用、显式配置刷新、失败重试、工厂替换及应用隔离。此项不是新增短信驱动引擎，也不以Sms门面没有同名extend就判为无法扩展。
   - **处理与验收：** 在[三语短信指南](../../docs/zh-Hans/digging-deeper/sms.md#custom-sms-providers)补外部SmsDriver实现、Provider解析Manager注册工厂、具名配置及Sms::driver调用的完整可编译示例，并实测HTTP与独立Artisan／队列Worker的装配。替换工厂／修改配置后，沿用forget_drivers与旧SmsSender保留快照的既有规则；常驻进程须获得自己的注册，不序列化闭包或依赖父进程内存。
 
-- [ ] **DRV-06 语言资源默认 Loader 可替换性（待实施）**。L10N-01 核心迁移已完成，[验收记录](audits/localization-and-text-translation/README.md#l10n-01-核心迁移)。接续[拆分计划的 L10N-02](plans/localization-and-text-translation.md#实施顺序)核对默认本地化读取及数据库词条源。
-  - **当前证据：** [Loader契约](../../vendor/openrust/framework/src/contracts/localization/loader.rs)、Lang::load_from及DatabaseLoader已有自定义来源导入能力；[Localizer](../../vendor/openrust/framework/src/localization/localizer.rs)及[LocalizationServiceProvider](../../vendor/openrust/framework/src/localization/localization_service_provider.rs)仍具体依赖FileLoader。只替换容器中的dyn Loader绑定，不能保证默认Lang查询使用该实现；不应把显式预加载记为默认加载器可替换。
-  - **处理范围：** 按固定Laravel Loader／Translator／Provider契约核定默认来源替换、文件与数据库组合、缺失／回退及缓存的接线。Rust同步查询与异步Loader的边界须明确，保留既有Lang::load_from批量原子发布、FileLoader句柄及命名空间／JSON／复数行为，不偷偷阻塞异步运行时或每次翻译都发网络请求。不为表面统一强造Lang::driver；本项只处理语言词条加载，不承担DRV-03的文本机器翻译需求。
-  - **验收：** 独立crate实现Loader并经正式装配后，让真实HTTP、Artisan及Worker中的Lang查询实际消费它；覆盖locale／fallback、命名空间与JSON、文件覆盖、加载失败和并发更新冲突、缓存与应用隔离。复验已有十八语默认资源和数据库加载三库行为，不能只测直接调用自定义Loader。
+- [x] **DRV-06 语言资源默认 Loader 可替换性**。L10N-01／L10N-02 已交付。按应用 Provider 注册 `lang.loader` 并配置 `lang.resources`，普通 Lang 查询使用启动时发布的来源。显式刷新保留运行时覆盖，支持失败回退。数据库包已迁名，三库 HTTP／Artisan／Worker 与配置缓存通过。见[拆分验收](audits/localization-and-text-translation/README.md#l10n-02-默认-loader-与数据库词条)。
 
 **共同交付标准：** 每项保持既有公开契约和应用隔离；注册、解析、执行和错误路径必须由实际公开消费者验证。优先复用现有契约／Manager／Provider，不新增全局注册表，不把SDK、存储适配与业务流程重新混入模型。支持范围及Rust适配写入相关三语正文和逐项验收记录，通过相应格式／严格Clippy与相关回归后逐批本地提交、清理本批临时产物，不推送。DRV-01至DRV-03可按文件归属独立推进，复用统一的生命周期验收要求；DRV-04先核定边界，DRV-05复用现有实现，DRV-06单独处理语言资源装配。真实供应商资金、凭据、投递与正式环境验证继续归下节，不能用模拟驱动通过消除这些未验边界。
 

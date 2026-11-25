@@ -328,7 +328,7 @@ pub async fn load_notice(source: &dyn Loader) -> TranslationResult<()> {
 
 ### 数据库翻译源（扩展） {#database-translation-loader}
 
-在应用 Cargo 依赖中通过 `path = "vendor/openrust/translation-database"` 添加 `openrust-translation-database`。`DatabaseLoader` 接收显式的框架 `Connection`，可从当前应用的数据库管理器或 `Db::connection` 获取。支持 PostgreSQL 18、MySQL 8.4 和 SQLite 的数据库词条加载，其他数据库目标须分别验证行为。
+在应用 Cargo 依赖中通过 `path = "vendor/openrust/localization-database"` 添加 `openrust-localization-database`。`DatabaseLoader` 接收显式的框架 `Connection`，可从当前应用的数据库管理器或 `Db::connection` 获取。支持 PostgreSQL 18、MySQL 8.4 和 SQLite 的数据库词条加载，其他数据库目标须分别验证行为。
 
 先通过应用迁移创建表，再加载翻译。可使用以下最小结构：
 
@@ -357,7 +357,7 @@ use openrust::{
     support::facades::Lang,
     localization::{FileLoader, TranslationResource, TranslationResult},
 };
-use openrust_translation_database::DatabaseLoader;
+use openrust_localization_database::DatabaseLoader;
 
 pub async fn load_database_translations(
     connection: Connection,
@@ -384,6 +384,61 @@ pub async fn load_database_translations(
 `Lang::load_from` 一次发布全部请求组。数据库、文件或解析错误会返回失败，并保留先前发布的目录；没有词条的资源提供空数据库覆盖。数据库按组读取，发布原子性不提供横跨所有读取的数据库事务快照。重新加载由应用显式触发。写入、迁移和刷新时机由应用管理，包不会自动选择来源或启动后台任务。
 
 与 Spatie 的 PHP 模型不同，本来源读取每行时不执行语言回退；翻译器在加载精确语言后按自身配置回退，也因此保留所选语言的文件词条。缺表会返回错误，避免显式重载失败时静默用文件替换已发布的数据库目录。
+
+### 默认数据库来源
+
+新应用先在文件模式下发布并运行迁移。已有该表的应用沿用自己的迁移标识和数据。
+
+```sh
+./artisan vendor:publish --tag=localization-database-migrations
+./artisan migrate
+```
+
+在应用 Provider 的 `register` 中绑定默认来源。本例使用默认数据库连接，文件回退复用应用和包语言路径共用的 `FileLoader`。
+
+```rust
+use std::sync::Arc;
+use openrust::{
+    contracts::{container::{BindingResolutionError, Container as _}, foundation::Application as _, localization::Loader},
+    database::DatabaseManager,
+    foundation::Application,
+    http::HttpFuture,
+    localization::FileLoader,
+    support::{ProviderResult, ServiceProvider},
+};
+use openrust_localization_database::DatabaseLoader;
+
+struct LanguageSource;
+
+impl ServiceProvider for LanguageSource {
+    fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            app.container().singleton_named::<dyn Loader, _>("lang.loader", |container| {
+                let files = container.make::<FileLoader>()?;
+                let connection = container.make::<DatabaseManager>()?.connection(None).map_err(|source| {
+                    BindingResolutionError::FactoryFailed { service: "lang.loader", source: Box::new(source) }
+                })?;
+                Ok(Arc::new(DatabaseLoader::new(connection).with_fallback(files)))
+            })?;
+            Ok(())
+        })
+    }
+}
+```
+
+将 `LanguageSource` 实例加入应用 Provider 列表，并把 `resources` 值以 `lang` 为键加入应用配置加载器返回的映射。
+
+```rust
+use serde_json::json;
+
+let resources = json!({"resources":[
+    {"locale":"fr","group":"messages"},
+    {"locale":"en","group":"messages"},
+    {"locale":"fr","group":"*"}
+]});
+```
+
+应用在 Provider 引导结束后读取声明的分组，`Lang` 查询保持同步。数据库修改在应用调用 `Lang::refresh_default_source().await` 或重启后生效。刷新失败保留上一次成功快照。`add_lines` 和 `load_from` 加入的运行时词条优先。将 `lang.resources` 设为空数组即可切回文件模式。如果故障时配置缓存导致无法启动，先部署空列表，再让 `APP_CONFIG_CACHE` 指向一个未使用的绝对路径后启动。恢复后重建实际部署使用的缓存。缓存保存资源声明，运行进程在启动时读取词条。
 
 ## 获取翻译字符串
 
@@ -515,7 +570,7 @@ Localizer 契约、具体实现和 Lang Facade 均提供 `get_locale`、`set_loc
 
 替换旧二进制前，使用旧版本执行 `./main artisan config:clear`、`./main artisan view:clear`，源码方式可用既有 `./artisan` 入口。新代码、资源和配置同时部署，再执行 `config:cache`、`view:cache` 重建缓存并重启所有常驻进程；进程内翻译目录缓存随重启清除。旧邮件／通知队列应先排空；无法排空时，由应用专用工具检查序列化 `locale` 字段，加密任务还需要旧应用密钥。不要在队列、共享缓存或设置 JSON 中做通用文本替换。
 
-数据库翻译先只读盘点 `language_lines.text` 的 JSON 语言键，以及应用自有设置或语言列。`vendor/openrust/translation-database/database/upgrade-bcp47/`提供独立只读盘点及 PostgreSQL、MySQL、SQLite 事务，映射默认两种中文及 `en_US`／`en_GB`；审阅后按实际情况调整表名和其他旧语言映射。未列入映射的下划线键、任意新旧键碰撞（包括相同值或 null）均使事务失败，不覆盖内容。默认末尾为 **ROLLBACK**，核对结果和备份后，才显式改为 **COMMIT**。发生错误需回滚并关闭该专属数据库会话。成功后重复执行为空操作；已提交后的回退需要恢复备份，不能凭新键名判断哪些内容来自迁移。
+数据库翻译先只读盘点 `language_lines.text` 的 JSON 语言键，以及应用自有设置或语言列。`vendor/openrust/localization-database/database/upgrade-bcp47/`提供独立只读盘点及 PostgreSQL、MySQL、SQLite 事务，映射默认两种中文及 `en_US`／`en_GB`；审阅后按实际情况调整表名和其他旧语言映射。未列入映射的下划线键、任意新旧键碰撞（包括相同值或 null）均使事务失败，不覆盖内容。默认末尾为 **ROLLBACK**，核对结果和备份后，才显式改为 **COMMIT**。发生错误需回滚并关闭该专属数据库会话。成功后重复执行为空操作；已提交后的回退需要恢复备份，不能凭新键名判断哪些内容来自迁移。
 
 Faker 原生 provider 键仅保留在私有边界，`locale()`、`random_locale()` 输出 BCP 47；仅有文字体系的 `zh-Hans`／`zh-Hant` 使用已有对应中文 provider，公开标签仍保留原地区与扩展。微信原生 `lang=zh_CN` 等第三方协议字段保持不变。
 

@@ -1,6 +1,6 @@
 use crate::localization::{Line, Lines};
 
-pub(super) fn merge(lines: &mut Lines, overlay: Lines) {
+pub(in crate::localization) fn merge(lines: &mut Lines, overlay: Lines) {
     for (key, incoming) in overlay {
         if let Some(current) = lines.get_mut(&key) {
             merge_line(current, incoming);

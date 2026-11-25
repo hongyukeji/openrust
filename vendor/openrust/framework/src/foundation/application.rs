@@ -1115,6 +1115,9 @@ impl Application {
                 })?;
         }
         deferred.boot_registered().await?;
+        crate::localization::default_source::boot(&self.shared.container)
+            .await
+            .map_err(|source| BootstrapError::LocalizationFailed { source })?;
         let routing_failed = |source| BootstrapError::RoutingFailed { source };
         let routing = self
             .shared
