@@ -1,6 +1,6 @@
 {
   "reference": "Symfony Console v7.4.0 and fixed framework 1449bf241017087fbd38c118ecaabef3f6797fdc",
-  "scope": "Rectangular tutorial, owned styles and title/minimum/maximum width SDK with actual custom wrapping dispatch; mutable named registries, orientation, complex rows/cells/sections remain open.",
+  "scope": "Rectangular tutorial, text row keys/mutations/multiple headers/orientation, owned styles and width/title SDK verified; named shared styles, explicit separator/spanning cells/sections and inherited style remain open.",
   "classes": {
     "Table": [
       {
@@ -92,26 +92,45 @@
       {
         "method": "setHeaders",
         "source_line": 178,
-        "status": "verified_rectangular_tutorial_scope",
-        "native": "console::Table::set_headers"
+        "status": "verified_single_and_multiple_text_headers_remaining_spanning_cells",
+        "native": "console::Table::set_headers",
+        "native_multiple": "console::Table::set_headers_rows",
+        "evidence": [
+          "console_table_rows",
+          "table-rows-oracle.json"
+        ]
       },
       {
         "method": "setRows",
         "source_line": 193,
-        "status": "verified_rectangular_tutorial_scope",
-        "native": "console::Table::set_rows"
+        "status": "verified_array_rows_keys_and_overflow_remaining_separator_input",
+        "native": "console::Table::set_rows",
+        "evidence": [
+          "console_table_rows",
+          "console_tables_tutorial",
+          "table-rows-oracle.json"
+        ]
       },
       {
         "method": "addRows",
         "source_line": 203,
-        "status": "pending_sdk_entry_and_consumer_review",
-        "native": null
+        "status": "verified_array_rows_and_orientation_contract",
+        "native": "console::Table::add_rows",
+        "evidence": [
+          "console_table_rows",
+          "table-rows-oracle.json"
+        ]
       },
       {
         "method": "addRow",
         "source_line": 215,
-        "status": "verified_rectangular_tutorial_scope",
-        "native": "console::Table::add_row"
+        "status": "verified_array_rows_keys_and_overflow_remaining_separator_input",
+        "native": "console::Table::add_row",
+        "evidence": [
+          "console_table_rows",
+          "console_tables_tutorial",
+          "table-rows-oracle.json"
+        ]
       },
       {
         "method": "appendRow",
@@ -122,8 +141,12 @@
       {
         "method": "setRow",
         "source_line": 252,
-        "status": "pending_sdk_entry_and_consumer_review",
-        "native": null
+        "status": "verified_array_rows_and_orientation_contract",
+        "native": "console::Table::set_row",
+        "evidence": [
+          "console_table_rows",
+          "table-rows-oracle.json"
+        ]
       },
       {
         "method": "setHeaderTitle",
@@ -150,14 +173,22 @@
       {
         "method": "setHorizontal",
         "source_line": 282,
-        "status": "pending_sdk_entry_and_consumer_review",
-        "native": null
+        "status": "verified_array_rows_and_orientation_contract",
+        "native": "console::Table::set_horizontal",
+        "evidence": [
+          "console_table_rows",
+          "table-rows-oracle.json"
+        ]
       },
       {
         "method": "setVertical",
         "source_line": 292,
-        "status": "pending_sdk_entry_and_consumer_review",
-        "native": null
+        "status": "verified_array_rows_and_orientation_contract",
+        "native": "console::Table::set_vertical",
+        "evidence": [
+          "console_table_rows",
+          "table-rows-oracle.json"
+        ]
       },
       {
         "method": "render",
@@ -400,12 +431,15 @@
     "Keep existing read-only style getters and add _mut variants for safe mutable borrowing; no return-type break or dynamic mutable alias.",
     "Column indices remain native usize like existing column-style methods; signed i64 widths retain zero/negative rendering behavior. Sequential and indexed bulk variants express source array shapes without changing CLI/data formats.",
     "Propagate typed ConsoleTableError for unsupported wrapping or invalid effective widths, preserving source failure stage and already emitted output. Header Option<&str> clearing maps source nullable strings.",
-    "PreparedLayout is private derived data, not another renderer. Source Table only expands a formatter result containing LF; otherwise original text, including raw newlines, is retained. Actual custom interface calls and output compared to source."
+    "PreparedLayout is private derived data, not another renderer. Source Table only expands a formatter result containing LF; otherwise original text, including raw newlines, is retained. Actual custom interface calls and output compared to source.",
+    "Reuse support::ArrayKey canonical integer/string keys; preserve insertion position, negative-index next-key and checked i64 exhaustion. add_row now returns Result and add_rows propagates partial success; the existing in-repo caller is migrated to unwrap/?, CLI/data names unchanged.",
+    "set_headers_rows is the native multiple-header counterpart of overloaded source array shape. Boolean direction setters explicitly restore Default when false; layout never destroys stored input rows.",
+    "Vertical record separators are private derived cell markers with actual column style and wrapping behavior. They do not claim public TableSeparator/merged-cell options have been implemented."
   ],
   "remaining_sdk": [
     "Named mutable style definitions and shared reference lifecycle",
-    "Row mutation/append, orientations and explicit sections",
-    "Multiple header rows, explicit separators, colspan/rowspan and per-cell style",
+    "appendRow with actual ConsoleSectionOutput",
+    "Explicit TableSeparator inputs, colspan/rowspan and per-cell style",
     "OutputStyle inherited table/create_table layout/counters and other component SDK remain separately reviewed in io-contracts"
   ]
 }

@@ -6,6 +6,9 @@ mod cell;
 pub use cell::TableCell;
 
 mod layout;
+mod rows;
+use crate::support::ArrayKey;
+use rows::Orientation;
 mod style;
 use std::collections::BTreeMap;
 pub use style::{TablePadding, TableStyle};
@@ -15,6 +18,9 @@ pub struct Table<'a, 'o> {
     output: &'a mut OutputStyle<'o>,
     headers: Vec<Vec<String>>,
     rows: Vec<Vec<String>>,
+    row_keys: Vec<ArrayKey>,
+    max_integer_key: Option<i64>,
+    orientation: Orientation,
     style: TableStyle,
     column_styles: BTreeMap<usize, TableStyle>,
     column_widths: BTreeMap<usize, i64>,
@@ -28,6 +34,9 @@ impl<'a, 'o> Table<'a, 'o> {
             output,
             headers: Vec::new(),
             rows: Vec::new(),
+            row_keys: Vec::new(),
+            max_integer_key: None,
+            orientation: Orientation::Default,
             style: TableStyle::default(),
             column_styles: BTreeMap::new(),
             column_widths: BTreeMap::new(),
@@ -63,19 +72,29 @@ impl<'a, 'o> Table<'a, 'o> {
                     .collect()
             })
             .collect();
+        self.row_keys = (0..self.rows.len())
+            .map(|index| ArrayKey::Integer(i64::try_from(index).expect("内存中的行索引可表示")))
+            .collect();
+        self.max_integer_key = self
+            .rows
+            .len()
+            .checked_sub(1)
+            .map(|index| i64::try_from(index).expect("内存中的行索引可表示"));
         self
     }
-    pub fn add_row<I, T>(&mut self, row: I) -> &mut Self
+    pub fn add_row<I, T>(&mut self, row: I) -> Result<&mut Self, ConsoleError>
     where
         I: IntoIterator<Item = T>,
         T: Into<TableCell>,
     {
-        self.rows.push(
-            row.into_iter()
-                .map(|cell| cell.into().to_string())
-                .collect(),
-        );
-        self
+        let key = match self.max_integer_key {
+            None => 0,
+            Some(index) => index
+                .checked_add(1)
+                .ok_or_else(|| ConsoleError::from_source(ConsoleTableError::RowIndexOverflow))?,
+        };
+        self.set_row(key, row);
+        Ok(self)
     }
     pub fn set_style(&mut self, style: TableStyle) -> &mut Self {
         self.style = style;
@@ -138,26 +157,42 @@ impl<'a, 'o> Table<'a, 'o> {
                 ConsoleError::from_source(ConsoleTableError::InvalidColumnWidth(*value))
             })?;
         }
-        let has_headers = headers.iter().any(|row| !row.is_empty());
         let has_rows = rows.iter().any(|row| !row.is_empty());
-        if has_headers && self.style.display_outside_border() {
-            self.separator(&widths, 0)?;
-        }
+        let mut title_pending = true;
         for (index, row) in headers.iter().enumerate() {
+            if !row.is_empty() && self.style.display_outside_border() {
+                self.separator(&widths, 0, title_pending)?;
+                title_pending = false;
+            }
             self.row(row, &widths, true, prepared.unsplit_headers.get(&index))?;
         }
         if has_rows {
-            self.separator(&widths, 1)?;
+            if self.orientation == Orientation::Horizontal
+                || self.orientation == Orientation::Vertical && self.style.display_outside_border()
+            {
+                self.separator(&widths, 0, title_pending)?;
+            } else if self.orientation == Orientation::Default {
+                self.separator(&widths, 1, title_pending)?;
+            }
         }
         for (index, row) in rows.iter().enumerate() {
-            self.row(row, &widths, false, prepared.unsplit_rows.get(&index))?;
+            if prepared.rules.contains(&index) {
+                self.rule_row(&widths)?;
+            } else {
+                self.row(row, &widths, false, prepared.unsplit_rows.get(&index))?;
+            }
         }
         if self.style.display_outside_border() {
-            self.separator(&widths, 2)?;
+            self.separator(&widths, 2, false)?;
         }
         Ok(())
     }
-    fn separator(&mut self, widths: &[i64], position: usize) -> Result<(), ConsoleError> {
+    fn separator(
+        &mut self,
+        widths: &[i64],
+        position: usize,
+        include_header: bool,
+    ) -> Result<(), ConsoleError> {
         let b = &self.style.borders;
         let c = &self.style.crossings;
         if b[0].is_empty() && b[2].is_empty() && c[0].is_empty() {
@@ -183,10 +218,7 @@ impl<'a, 'o> Table<'a, 'o> {
             self.footer_title
                 .clone()
                 .map(|title| (title, self.style.footer_title_format.clone()))
-        } else if position == 0
-            || self.headers.iter().all(Vec::is_empty)
-            || !self.style.display_outside_border()
-        {
+        } else if include_header {
             self.header_title
                 .as_ref()
                 .filter(|title| !title.is_empty() && title.as_str() != "0")
@@ -276,7 +308,7 @@ impl<'a, 'o> Table<'a, 'o> {
                     padding(&style.padding_char, right)?
                 );
                 line.push_str(&template(
-                    if header {
+                    if header || self.orientation == Orientation::Horizontal && column == 0 {
                         &self.style.cell_header_format
                     } else {
                         &self.style.cell_row_format

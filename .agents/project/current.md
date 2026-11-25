@@ -6,6 +6,8 @@ Git 默认流程已于 2026-11-23 更新：已授权任务完成并通过相关�
 
 ## 正在推进与等待条件
 
+- 2026-11-25 Artisan第二十一簇文本行键／批量追加／多表头／方向通过：230源向量含24个操作失败、204父消费者含三语66例、真实HTTP与Artisan溢出恢复、严格门禁／12浏览器；见[第二十一簇](audits/artisan-tutorial/README.md)。add_row以Result保留追加阶段错误，已有调用已迁移；公开分隔符／合并单元格／共享样式及其余SDK仍推进，不关闭整章／目标，不推送。
+
 - 2026-11-25 Artisan第二十簇表格标题／最小最大宽度／可变样式访问通过：204布局＋6实际自定义wrappable源向量，原149矩形回归、198父消费者含三语63例、真实HTTP与独立Artisan、严格门禁和12组浏览器通过；见[第二十簇](audits/artisan-tutorial/README.md)。保留负宽度失败阶段、部分输出与无LF结果规则，继续注册／复杂行及其余SDK，不关闭整章／持续目标，不推送。
 
 - 2026-11-25 Artisan第十九簇Color／AnsiColorMode／Terminal公开入口及所选流替换复核通过：318颜色＋48hex＋23环境源码向量、两个真实PTY（含失败恢复）、191父消费者含三语60例、严格门禁／真实HTTP与Artisan／12浏览器；见[第十九簇](audits/artisan-tutorial/README.md)。尺寸失败可恢复、Unicode trim与继承getter/setter账本已收口，Windows发布矩阵仍待验；继续Table／组件等SDK和章锚点，不关闭整章／持续目标，不推送。

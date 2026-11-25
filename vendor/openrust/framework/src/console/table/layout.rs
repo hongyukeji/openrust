@@ -6,6 +6,7 @@ pub(super) struct PreparedLayout {
     pub(super) headers: TextRows,
     pub(super) rows: TextRows,
     pub(super) unsplit_headers: ColumnMasks,
+    pub(super) rules: BTreeSet<usize>,
     pub(super) unsplit_rows: ColumnMasks,
 }
 impl Table<'_, '_> {
@@ -54,16 +55,18 @@ impl Table<'_, '_> {
         self
     }
     pub(super) fn prepare_layout(&mut self) -> Result<PreparedLayout, ConsoleError> {
+        let oriented = self.oriented_rows()?;
         let mut prepared = PreparedLayout {
-            headers: self.headers.clone(),
-            rows: self.rows.clone(),
+            headers: oriented.headers,
+            rows: oriented.rows,
+            rules: oriented.rules,
             unsplit_headers: ColumnMasks::new(),
             unsplit_rows: ColumnMasks::new(),
         };
         let formatter = self.output.get_formatter();
-        for (rows, masks) in [
-            (&mut prepared.headers, &mut prepared.unsplit_headers),
-            (&mut prepared.rows, &mut prepared.unsplit_rows),
+        for (is_body, rows, masks) in [
+            (false, &mut prepared.headers, &mut prepared.unsplit_headers),
+            (true, &mut prepared.rows, &mut prepared.unsplit_rows),
         ] {
             for (row_index, row) in rows.iter_mut().enumerate() {
                 for (column, cell) in row.iter_mut().enumerate() {
@@ -92,6 +95,9 @@ impl Table<'_, '_> {
                             // 只有带换行的结果进入拆行；其他结果保留原单元格与原始换行。
                             if wrapped.contains('\n') {
                                 *cell = wrapped;
+                                if is_body {
+                                    prepared.rules.remove(&row_index);
+                                }
                             } else if cell.contains('\n') {
                                 masks.entry(row_index).or_default().insert(column);
                             }

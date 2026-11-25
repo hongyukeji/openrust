@@ -1,0 +1,74 @@
+{
+  "scope": "Artisan phase21 text row keys/mutations, multiple headers and orientations",
+  "base_snapshot": {
+    "base": "7fe235e81f8fa84116660f431eb3a440c0574c57",
+    "refreshed": [],
+    "active_wip_excluded": true
+  },
+  "source_sha256": {
+    "vendor/openrust/framework/src/console/table.rs": "181cffaf53eda6336900604465b9538e1729abf542d42104da680e36a985aee3",
+    "vendor/openrust/framework/src/console/table/rows.rs": "6a0c38deaef91da0fb8acbcc34d530a4fe871a9f90af23a8cacbab870376805f",
+    "vendor/openrust/framework/src/console/table/layout.rs": "4e312cf080da7ec1b7c299dbfc2d56fdcb1d3711efd6a1fe133c9e9427f6b12a",
+    "vendor/openrust/framework/src/console/table/error.rs": "d93add8d4a1cd0497aba641479db7e522c829a18d9aa7222054b86c5cbf3c935",
+    "vendor/openrust/framework/tests/console_table_rows.rs": "cc1e7d9ad88d24f84cb8ba71f233194371e347eae3ed31ca0b071c7ba532863d",
+    "vendor/openrust/framework/tests/console_tables_tutorial.rs": "d0bec7e41c29297d3931a2dbe174b1054c5524e8ed2dd5a3fd90506d2a1ad816",
+    "tests/artisan_tutorial_docs.py": "fbfd7c67b07cc4bc09fec9f95abf4421269a06cace6dab0830ffc2d77a776841",
+    "docs/tests/check_artisan_tutorial.mjs": "d1ffb91c300ea94f9c420c11f7687e099a528ebc1a537979f399a254d65dbe85",
+    "docs/en/digging-deeper/artisan.md": "a55ac64534b9827d036d07424e7b004bbee3d8c714b00bf930c6da1a681662b3",
+    "docs/zh-Hans/digging-deeper/artisan.md": "c1eb2a74e0fece6e25bb2c074f9da4db63bf50e402c9f560a38dc29f1f304a3f",
+    "docs/zh-Hant/digging-deeper/artisan.md": "3f65a7a4053a4f151c9496c79362e3256f4ce9fa56aa28663cf5969e5eff7a3c",
+    ".agents/project/audits/artisan-tutorial/table-rows-oracle.json": "45b47b4f2bab06525666de5e607a83f0f1bebfaec893ed45f2d9365049a323ba",
+    ".agents/project/audits/artisan-tutorial/table-contracts.json": "a3608a20c8c72dca7fc8ed94093b3bf6682adbcad4c28a718fc9c60b32bfc2df",
+    ".agents/project/audits/artisan-tutorial/section-map.json": "10863457de1f8f494d242eb2113c2a7a9341d966dae8516e6e3cba62ea63a118"
+  },
+  "gates": [
+    {
+      "name": "format",
+      "returncode": 0
+    },
+    {
+      "name": "final-framework",
+      "returncode": 0
+    },
+    {
+      "name": "final-root",
+      "returncode": 0
+    },
+    {
+      "name": "final-fmt",
+      "returncode": 0
+    },
+    {
+      "name": "final-clippy",
+      "returncode": 0
+    },
+    {
+      "name": "final-main",
+      "returncode": 0
+    },
+    {
+      "name": "final-docs",
+      "returncode": 0
+    }
+  ],
+  "final_gates_log": "target/tmp/artisan-tutorial-20261125/table-rows-gates1.log",
+  "passed": {
+    "framework": 97,
+    "root": 107
+  },
+  "unique_parent_tests": 204,
+  "ignored_driven_fixtures_excluded": 14,
+  "formal_trilingual_examples": 66,
+  "fixed_row_source_cases": 230,
+  "expected_source_operation_failures": 24,
+  "source_vm_warnings_bytes": 9408,
+  "strict_clippy_seconds": 50.5,
+  "browser_cases": 12,
+  "real_http": true,
+  "real_artisan": true,
+  "limitations": [
+    "Public TableSeparator and merged-cell arguments remain tracked, not counted complete",
+    "Named shared styles, ConsoleSectionOutput and other Artisan entries remain open",
+    "No full active-worktree, new storage/queue driver or Windows release acceptance claimed"
+  ]
+}

@@ -956,3 +956,31 @@ fn register_layout() -> Result<(), ConsoleError> {
 寬度保留帶符號值，非正數按繪製規則處理，不默默替換為預設值。最大寬度為零不換行；不相容的有效寬度可能在先前已有輸出後才於繪製時失敗，應傳播 `render` 錯誤。換行複用目前的 `WrappableOutputFormatterInterface`，亦支援自訂實作。標題按可見寬度與格式置中、截斷。具名可變註冊表、複雜列與合併儲存格仍為單獨的 SDK 入口。
 
 表格僅在換行結果含 LF 時採用它來拆列；否則保留原儲存格，原始換行亦保持原樣，不展開成表格列。自訂換行介面不是一般儲存格內容轉換掛鉤。
+
+## 表格列與版面方向 {#table-rows-orientation}
+
+`add_row`、`add_rows` 傳回 `Result`，用 `?` 傳播數字索引耗盡錯誤，不觸發溢位 panic；先前成功附加的列保留。`set_row` 按整數或字串索引鍵替換列，保留插入順序；新索引鍵附加。標準數字字串共用整數索引鍵，負數索引鍵影響後續數字索引，`set_rows` 同時重設列與索引。
+
+```rust
+use openrust::{
+    console::{ConsoleError, Input, Output, Table},
+    support::facades::Artisan,
+};
+
+fn register_rows() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:rows", |input: &Input, output: &mut Output| {
+        let mut io = input.io(output);
+        let mut table = Table::new(io.get_output());
+        table.set_headers(["Name", "Value"])
+            .set_rows([["alpha", "1"]]);
+        table.add_rows([["beta", "2"]])?;
+        table.set_row(0_i64, ["changed", "1"])
+            .set_vertical(true);
+        table.render()?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
+`set_headers_rows` 接收多列表頭，原 `set_headers` 保留單列形式。`set_horizontal(true)` 將第一列表頭轉成各列首部，`set_vertical(true)` 用同一列表頭產生欄位標籤並在記錄間繪製分隔。兩個設置器傳 false 都還原預設版面，不還原先前方向。每次繪製從保存的列派生版面，並保留欄寬與標題設定。具名樣式註冊、明確分隔符物件、合併儲存格與主控台區段另行追蹤。

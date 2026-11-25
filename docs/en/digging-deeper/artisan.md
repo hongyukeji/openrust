@@ -956,3 +956,31 @@ Titles use `set_header_title` and `set_footer_title`; pass `None` to clear them.
 Widths remain signed: non-positive values follow their rendering rules rather than being silently replaced with defaults. A zero maximum does not wrap text; incompatible effective widths can fail during rendering after earlier output has already been written. Propagate `render` failures. Wrapping reuses the active `WrappableOutputFormatterInterface`, including custom implementations. Titles are centered and truncated using their visible width and configured formats. Named mutable registries, complex rows and merged cells are separate SDK entries.
 
 Table uses returned wrapping text for line expansion only when it contains LF. Otherwise it keeps the original cell; existing raw newlines remain raw rather than being expanded into table rows. Custom wrapping is not a general cell-content transformation hook.
+
+## Table rows and orientation {#table-rows-orientation}
+
+`add_row` and `add_rows` return `Result`; use `?` to propagate exhausted numeric-index errors instead of panicking. Successful earlier additions remain. `set_row` replaces an integer or string key without changing insertion order, or appends a new key. Canonical numeric strings reuse integer keys. Negative keys influence the next numeric index, and `set_rows` resets both rows and indexing.
+
+```rust
+use openrust::{
+    console::{ConsoleError, Input, Output, Table},
+    support::facades::Artisan,
+};
+
+fn register_rows() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:rows", |input: &Input, output: &mut Output| {
+        let mut io = input.io(output);
+        let mut table = Table::new(io.get_output());
+        table.set_headers(["Name", "Value"])
+            .set_rows([["alpha", "1"]]);
+        table.add_rows([["beta", "2"]])?;
+        table.set_row(0_i64, ["changed", "1"])
+            .set_vertical(true);
+        table.render()?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
+`set_headers_rows` accepts multiple header rows; the existing `set_headers` remains the single-row form. `set_horizontal(true)` transposes the first header row into leading header cells. `set_vertical(true)` formats records with labels from that same first header row and separators between records. Both setters with false restore the default orientation rather than a previous direction. Layout derives from stored rows on each render and preserves width/title settings. Named style registries, explicit separator objects, merged cells and console sections are tracked separately.

@@ -1,0 +1,8242 @@
+[
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": false,
+        "ops": [],
+        "trace": [],
+        "error": false,
+        "output": "+-------+--------+\n| A     | Longer |\n+-------+--------+\n| one   | two    |\n| three |        |\n+-------+--------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": false,
+        "ops": [
+            [
+                "setRows",
+                []
+            ],
+            [
+                "setRow",
+                -9223372036854775808,
+                [
+                    "N"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "M"
+                ]
+            ],
+            [
+                "setRow",
+                -9223372036854775807,
+                [
+                    "Replace"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false,
+            false,
+            false
+        ],
+        "error": false,
+        "output": "+---------+--------+\n| A       | Longer |\n+---------+--------+\n| N       |        |\n| Replace |        |\n+---------+--------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                9223372036854775806,
+                [
+                    "PRE"
+                ]
+            ],
+            [
+                "addRows",
+                [
+                    [
+                        "LAST"
+                    ],
+                    [
+                        "overflow"
+                    ]
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            true
+        ],
+        "error": false,
+        "output": "+-------+--------+\n| A     | Longer |\n+-------+--------+\n| one   | two    |\n| three |        |\n| PRE   |        |\n| LAST  |        |\n+-------+--------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                "01",
+                [
+                    "first"
+                ]
+            ],
+            [
+                "setRow",
+                "01",
+                [
+                    "replaced"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "+----------+--------+\n| A        | Longer |\n+----------+--------+\n| one      | two    |\n| three    |        |\n| replaced |        |\n+----------+--------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": false,
+        "ops": [
+            [
+                "addRows",
+                [
+                    [
+                        "E",
+                        "F"
+                    ],
+                    [
+                        "G",
+                        "H"
+                    ]
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "+-------+--------+\n| A     | Longer |\n+-------+--------+\n| one   | two    |\n| three |        |\n| E     | F      |\n| G     | H      |\n+-------+--------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                0,
+                [
+                    "R",
+                    "S"
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "+-------+--------+\n| A     | Longer |\n+-------+--------+\n| R     | S      |\n| three |        |\n+-------+--------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                5,
+                [
+                    "R"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "N"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "+-------+--------+\n| A     | Longer |\n+-------+--------+\n| one   | two    |\n| three |        |\n| R     |        |\n| N     |        |\n+-------+--------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": false,
+        "ops": [
+            [
+                "setRows",
+                []
+            ],
+            [
+                "setRow",
+                -5,
+                [
+                    "N"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "M"
+                ]
+            ],
+            [
+                "setRow",
+                -4,
+                [
+                    "Replace"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false,
+            false,
+            false
+        ],
+        "error": false,
+        "output": "+---------+--------+\n| A       | Longer |\n+---------+--------+\n| N       |        |\n| Replace |        |\n+---------+--------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": false,
+        "ops": [
+            [
+                "setRows",
+                []
+            ],
+            [
+                "setRow",
+                -9223372036854775808,
+                [
+                    "N"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "M"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false,
+            false
+        ],
+        "error": false,
+        "output": "+---+--------+\n| A | Longer |\n+---+--------+\n| N |        |\n| M |        |\n+---+--------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                "0",
+                [
+                    "R"
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "+-------+--------+\n| A     | Longer |\n+-------+--------+\n| R     |        |\n| three |        |\n+-------+--------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                "01",
+                [
+                    "R"
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "+-------+--------+\n| A     | Longer |\n+-------+--------+\n| one   | two    |\n| three |        |\n| R     |        |\n+-------+--------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                "name",
+                [
+                    "R"
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "+-------+--------+\n| A     | Longer |\n+-------+--------+\n| one   | two    |\n| three |        |\n| R     |        |\n+-------+--------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                "name",
+                [
+                    "R"
+                ]
+            ],
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "+--------+-----+-------+---+\n| A      | one | three | R |\n| Longer | two |       |   |\n+--------+-----+-------+---+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                "name",
+                [
+                    "R"
+                ]
+            ],
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "+---------------+\n|      A: one   |\n| Longer: two   |\n|---------------|\n|      A: three |\n| Longer:       |\n|---------------|\n|      A: R     |\n| Longer:       |\n+---------------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                9223372036854775807,
+                [
+                    "MAX"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "overflow"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            true
+        ],
+        "error": false,
+        "output": "+-------+--------+\n| A     | Longer |\n+-------+--------+\n| one   | two    |\n| three |        |\n| MAX   |        |\n+-------+--------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                9223372036854775807,
+                [
+                    "MAX"
+                ]
+            ],
+            [
+                "addRows",
+                [
+                    [
+                        "overflow"
+                    ]
+                ]
+            ],
+            [
+                "setRows",
+                [
+                    [
+                        "after"
+                    ]
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            true,
+            false
+        ],
+        "error": false,
+        "output": "+-------+--------+\n| A     | Longer |\n+-------+--------+\n| after |        |\n+-------+--------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": false,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "+--------+-----+-------+\n| A      | one | three |\n| Longer | two |       |\n+--------+-----+-------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": false,
+        "ops": [
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "+---------------+\n|      A: one   |\n| Longer: two   |\n|---------------|\n|      A: three |\n| Longer:       |\n+---------------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": false,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ],
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "+---------------+\n|      A: one   |\n| Longer: two   |\n|---------------|\n|      A: three |\n| Longer:       |\n+---------------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": false,
+        "ops": [
+            [
+                "vertical",
+                true
+            ],
+            [
+                "horizontal",
+                false
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "+-------+--------+\n| A     | Longer |\n+-------+--------+\n| one   | two    |\n| three |        |\n+-------+--------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": false,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ],
+            [
+                "vertical",
+                false
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "+-------+--------+\n| A     | Longer |\n+-------+--------+\n| one   | two    |\n| three |        |\n+-------+--------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": false,
+        "ops": [
+            [
+                "headers",
+                [
+                    [
+                        "H1",
+                        "H2"
+                    ],
+                    [
+                        "H3"
+                    ]
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "+-------+-----+\n| H1    | H2  |\n+-------+-----+\n| H3    |     |\n+-------+-----+\n| one   | two |\n| three |     |\n+-------+-----+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": false,
+        "ops": [
+            [
+                "headers",
+                [
+                    [
+                        "H1",
+                        "H2"
+                    ],
+                    [
+                        "H3"
+                    ]
+                ]
+            ],
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "+----+-----+-------+\n| H1 | one | three |\n| H2 | two |       |\n+----+-----+-------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": false,
+        "ops": [
+            [
+                "headers",
+                [
+                    [
+                        "H1",
+                        "H2"
+                    ],
+                    [
+                        "H3"
+                    ]
+                ]
+            ],
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "+-----------+\n| H1: one   |\n| H2: two   |\n|-----------|\n| H1: three |\n| H2:       |\n+-----------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": false,
+        "ops": [],
+        "trace": [],
+        "error": false,
+        "output": "┌───────┬────────┐\n│ A     │ Longer │\n├───────┼────────┤\n│ one   │ two    │\n│ three │        │\n└───────┴────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": false,
+        "ops": [
+            [
+                "setRows",
+                []
+            ],
+            [
+                "setRow",
+                -9223372036854775808,
+                [
+                    "N"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "M"
+                ]
+            ],
+            [
+                "setRow",
+                -9223372036854775807,
+                [
+                    "Replace"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false,
+            false,
+            false
+        ],
+        "error": false,
+        "output": "┌─────────┬────────┐\n│ A       │ Longer │\n├─────────┼────────┤\n│ N       │        │\n│ Replace │        │\n└─────────┴────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                9223372036854775806,
+                [
+                    "PRE"
+                ]
+            ],
+            [
+                "addRows",
+                [
+                    [
+                        "LAST"
+                    ],
+                    [
+                        "overflow"
+                    ]
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            true
+        ],
+        "error": false,
+        "output": "┌───────┬────────┐\n│ A     │ Longer │\n├───────┼────────┤\n│ one   │ two    │\n│ three │        │\n│ PRE   │        │\n│ LAST  │        │\n└───────┴────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                "01",
+                [
+                    "first"
+                ]
+            ],
+            [
+                "setRow",
+                "01",
+                [
+                    "replaced"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "┌──────────┬────────┐\n│ A        │ Longer │\n├──────────┼────────┤\n│ one      │ two    │\n│ three    │        │\n│ replaced │        │\n└──────────┴────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": false,
+        "ops": [
+            [
+                "addRows",
+                [
+                    [
+                        "E",
+                        "F"
+                    ],
+                    [
+                        "G",
+                        "H"
+                    ]
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "┌───────┬────────┐\n│ A     │ Longer │\n├───────┼────────┤\n│ one   │ two    │\n│ three │        │\n│ E     │ F      │\n│ G     │ H      │\n└───────┴────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                0,
+                [
+                    "R",
+                    "S"
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "┌───────┬────────┐\n│ A     │ Longer │\n├───────┼────────┤\n│ R     │ S      │\n│ three │        │\n└───────┴────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                5,
+                [
+                    "R"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "N"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "┌───────┬────────┐\n│ A     │ Longer │\n├───────┼────────┤\n│ one   │ two    │\n│ three │        │\n│ R     │        │\n│ N     │        │\n└───────┴────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": false,
+        "ops": [
+            [
+                "setRows",
+                []
+            ],
+            [
+                "setRow",
+                -5,
+                [
+                    "N"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "M"
+                ]
+            ],
+            [
+                "setRow",
+                -4,
+                [
+                    "Replace"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false,
+            false,
+            false
+        ],
+        "error": false,
+        "output": "┌─────────┬────────┐\n│ A       │ Longer │\n├─────────┼────────┤\n│ N       │        │\n│ Replace │        │\n└─────────┴────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": false,
+        "ops": [
+            [
+                "setRows",
+                []
+            ],
+            [
+                "setRow",
+                -9223372036854775808,
+                [
+                    "N"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "M"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false,
+            false
+        ],
+        "error": false,
+        "output": "┌───┬────────┐\n│ A │ Longer │\n├───┼────────┤\n│ N │        │\n│ M │        │\n└───┴────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                "0",
+                [
+                    "R"
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "┌───────┬────────┐\n│ A     │ Longer │\n├───────┼────────┤\n│ R     │        │\n│ three │        │\n└───────┴────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                "01",
+                [
+                    "R"
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "┌───────┬────────┐\n│ A     │ Longer │\n├───────┼────────┤\n│ one   │ two    │\n│ three │        │\n│ R     │        │\n└───────┴────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                "name",
+                [
+                    "R"
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "┌───────┬────────┐\n│ A     │ Longer │\n├───────┼────────┤\n│ one   │ two    │\n│ three │        │\n│ R     │        │\n└───────┴────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                "name",
+                [
+                    "R"
+                ]
+            ],
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "┌────────┬─────┬───────┬───┐\n│ A      │ one │ three │ R │\n│ Longer │ two │       │   │\n└────────┴─────┴───────┴───┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                "name",
+                [
+                    "R"
+                ]
+            ],
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "┌───────────────┐\n│      A: one   │\n│ Longer: two   │\n│───────────────│\n│      A: three │\n│ Longer:       │\n│───────────────│\n│      A: R     │\n│ Longer:       │\n└───────────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                9223372036854775807,
+                [
+                    "MAX"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "overflow"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            true
+        ],
+        "error": false,
+        "output": "┌───────┬────────┐\n│ A     │ Longer │\n├───────┼────────┤\n│ one   │ two    │\n│ three │        │\n│ MAX   │        │\n└───────┴────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                9223372036854775807,
+                [
+                    "MAX"
+                ]
+            ],
+            [
+                "addRows",
+                [
+                    [
+                        "overflow"
+                    ]
+                ]
+            ],
+            [
+                "setRows",
+                [
+                    [
+                        "after"
+                    ]
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            true,
+            false
+        ],
+        "error": false,
+        "output": "┌───────┬────────┐\n│ A     │ Longer │\n├───────┼────────┤\n│ after │        │\n└───────┴────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": false,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "┌────────┬─────┬───────┐\n│ A      │ one │ three │\n│ Longer │ two │       │\n└────────┴─────┴───────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": false,
+        "ops": [
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "┌───────────────┐\n│      A: one   │\n│ Longer: two   │\n│───────────────│\n│      A: three │\n│ Longer:       │\n└───────────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": false,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ],
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "┌───────────────┐\n│      A: one   │\n│ Longer: two   │\n│───────────────│\n│      A: three │\n│ Longer:       │\n└───────────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": false,
+        "ops": [
+            [
+                "vertical",
+                true
+            ],
+            [
+                "horizontal",
+                false
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "┌───────┬────────┐\n│ A     │ Longer │\n├───────┼────────┤\n│ one   │ two    │\n│ three │        │\n└───────┴────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": false,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ],
+            [
+                "vertical",
+                false
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "┌───────┬────────┐\n│ A     │ Longer │\n├───────┼────────┤\n│ one   │ two    │\n│ three │        │\n└───────┴────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": false,
+        "ops": [
+            [
+                "headers",
+                [
+                    [
+                        "H1",
+                        "H2"
+                    ],
+                    [
+                        "H3"
+                    ]
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "┌───────┬─────┐\n│ H1    │ H2  │\n┌───────┬─────┐\n│ H3    │     │\n├───────┼─────┤\n│ one   │ two │\n│ three │     │\n└───────┴─────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": false,
+        "ops": [
+            [
+                "headers",
+                [
+                    [
+                        "H1",
+                        "H2"
+                    ],
+                    [
+                        "H3"
+                    ]
+                ]
+            ],
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "┌────┬─────┬───────┐\n│ H1 │ one │ three │\n│ H2 │ two │       │\n└────┴─────┴───────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": false,
+        "ops": [
+            [
+                "headers",
+                [
+                    [
+                        "H1",
+                        "H2"
+                    ],
+                    [
+                        "H3"
+                    ]
+                ]
+            ],
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "┌───────────┐\n│ H1: one   │\n│ H2: two   │\n│───────────│\n│ H1: three │\n│ H2:       │\n└───────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": false,
+        "ops": [],
+        "trace": [],
+        "error": false,
+        "output": "| A     | Longer |\n|-------|--------|\n| one   | two    |\n| three |        |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": false,
+        "ops": [
+            [
+                "setRows",
+                []
+            ],
+            [
+                "setRow",
+                -9223372036854775808,
+                [
+                    "N"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "M"
+                ]
+            ],
+            [
+                "setRow",
+                -9223372036854775807,
+                [
+                    "Replace"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false,
+            false,
+            false
+        ],
+        "error": false,
+        "output": "| A       | Longer |\n|---------|--------|\n| N       |        |\n| Replace |        |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                9223372036854775806,
+                [
+                    "PRE"
+                ]
+            ],
+            [
+                "addRows",
+                [
+                    [
+                        "LAST"
+                    ],
+                    [
+                        "overflow"
+                    ]
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            true
+        ],
+        "error": false,
+        "output": "| A     | Longer |\n|-------|--------|\n| one   | two    |\n| three |        |\n| PRE   |        |\n| LAST  |        |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                "01",
+                [
+                    "first"
+                ]
+            ],
+            [
+                "setRow",
+                "01",
+                [
+                    "replaced"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "| A        | Longer |\n|----------|--------|\n| one      | two    |\n| three    |        |\n| replaced |        |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": false,
+        "ops": [
+            [
+                "addRows",
+                [
+                    [
+                        "E",
+                        "F"
+                    ],
+                    [
+                        "G",
+                        "H"
+                    ]
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "| A     | Longer |\n|-------|--------|\n| one   | two    |\n| three |        |\n| E     | F      |\n| G     | H      |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                0,
+                [
+                    "R",
+                    "S"
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "| A     | Longer |\n|-------|--------|\n| R     | S      |\n| three |        |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                5,
+                [
+                    "R"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "N"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "| A     | Longer |\n|-------|--------|\n| one   | two    |\n| three |        |\n| R     |        |\n| N     |        |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": false,
+        "ops": [
+            [
+                "setRows",
+                []
+            ],
+            [
+                "setRow",
+                -5,
+                [
+                    "N"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "M"
+                ]
+            ],
+            [
+                "setRow",
+                -4,
+                [
+                    "Replace"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false,
+            false,
+            false
+        ],
+        "error": false,
+        "output": "| A       | Longer |\n|---------|--------|\n| N       |        |\n| Replace |        |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": false,
+        "ops": [
+            [
+                "setRows",
+                []
+            ],
+            [
+                "setRow",
+                -9223372036854775808,
+                [
+                    "N"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "M"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false,
+            false
+        ],
+        "error": false,
+        "output": "| A | Longer |\n|---|--------|\n| N |        |\n| M |        |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                "0",
+                [
+                    "R"
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "| A     | Longer |\n|-------|--------|\n| R     |        |\n| three |        |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                "01",
+                [
+                    "R"
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "| A     | Longer |\n|-------|--------|\n| one   | two    |\n| three |        |\n| R     |        |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                "name",
+                [
+                    "R"
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "| A     | Longer |\n|-------|--------|\n| one   | two    |\n| three |        |\n| R     |        |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                "name",
+                [
+                    "R"
+                ]
+            ],
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "|--------|-----|-------|---|\n| A      | one | three | R |\n| Longer | two |       |   |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                "name",
+                [
+                    "R"
+                ]
+            ],
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "|      A: one   |\n| Longer: two   |\n|---------------|\n|      A: three |\n| Longer:       |\n|---------------|\n|      A: R     |\n| Longer:       |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                9223372036854775807,
+                [
+                    "MAX"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "overflow"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            true
+        ],
+        "error": false,
+        "output": "| A     | Longer |\n|-------|--------|\n| one   | two    |\n| three |        |\n| MAX   |        |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                9223372036854775807,
+                [
+                    "MAX"
+                ]
+            ],
+            [
+                "addRows",
+                [
+                    [
+                        "overflow"
+                    ]
+                ]
+            ],
+            [
+                "setRows",
+                [
+                    [
+                        "after"
+                    ]
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            true,
+            false
+        ],
+        "error": false,
+        "output": "| A     | Longer |\n|-------|--------|\n| after |        |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": false,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "|--------|-----|-------|\n| A      | one | three |\n| Longer | two |       |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": false,
+        "ops": [
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "|      A: one   |\n| Longer: two   |\n|---------------|\n|      A: three |\n| Longer:       |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": false,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ],
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "|      A: one   |\n| Longer: two   |\n|---------------|\n|      A: three |\n| Longer:       |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": false,
+        "ops": [
+            [
+                "vertical",
+                true
+            ],
+            [
+                "horizontal",
+                false
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "| A     | Longer |\n|-------|--------|\n| one   | two    |\n| three |        |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": false,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ],
+            [
+                "vertical",
+                false
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "| A     | Longer |\n|-------|--------|\n| one   | two    |\n| three |        |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": false,
+        "ops": [
+            [
+                "headers",
+                [
+                    [
+                        "H1",
+                        "H2"
+                    ],
+                    [
+                        "H3"
+                    ]
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "| H1    | H2  |\n| H3    |     |\n|-------|-----|\n| one   | two |\n| three |     |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": false,
+        "ops": [
+            [
+                "headers",
+                [
+                    [
+                        "H1",
+                        "H2"
+                    ],
+                    [
+                        "H3"
+                    ]
+                ]
+            ],
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "|----|-----|-------|\n| H1 | one | three |\n| H2 | two |       |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": false,
+        "ops": [
+            [
+                "headers",
+                [
+                    [
+                        "H1",
+                        "H2"
+                    ],
+                    [
+                        "H3"
+                    ]
+                ]
+            ],
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "| H1: one   |\n| H2: two   |\n|-----------|\n| H1: three |\n| H2:       |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": false,
+        "ops": [],
+        "trace": [],
+        "error": false,
+        "output": "A     Longer \none   two    \nthree        \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": false,
+        "ops": [
+            [
+                "setRows",
+                []
+            ],
+            [
+                "setRow",
+                -9223372036854775808,
+                [
+                    "N"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "M"
+                ]
+            ],
+            [
+                "setRow",
+                -9223372036854775807,
+                [
+                    "Replace"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false,
+            false,
+            false
+        ],
+        "error": false,
+        "output": "A       Longer \nN              \nReplace        \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                9223372036854775806,
+                [
+                    "PRE"
+                ]
+            ],
+            [
+                "addRows",
+                [
+                    [
+                        "LAST"
+                    ],
+                    [
+                        "overflow"
+                    ]
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            true
+        ],
+        "error": false,
+        "output": "A     Longer \none   two    \nthree        \nPRE          \nLAST         \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                "01",
+                [
+                    "first"
+                ]
+            ],
+            [
+                "setRow",
+                "01",
+                [
+                    "replaced"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "A        Longer \none      two    \nthree           \nreplaced        \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": false,
+        "ops": [
+            [
+                "addRows",
+                [
+                    [
+                        "E",
+                        "F"
+                    ],
+                    [
+                        "G",
+                        "H"
+                    ]
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "A     Longer \none   two    \nthree        \nE     F      \nG     H      \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                0,
+                [
+                    "R",
+                    "S"
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "A     Longer \nR     S      \nthree        \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                5,
+                [
+                    "R"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "N"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "A     Longer \none   two    \nthree        \nR            \nN            \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": false,
+        "ops": [
+            [
+                "setRows",
+                []
+            ],
+            [
+                "setRow",
+                -5,
+                [
+                    "N"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "M"
+                ]
+            ],
+            [
+                "setRow",
+                -4,
+                [
+                    "Replace"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false,
+            false,
+            false
+        ],
+        "error": false,
+        "output": "A       Longer \nN              \nReplace        \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": false,
+        "ops": [
+            [
+                "setRows",
+                []
+            ],
+            [
+                "setRow",
+                -9223372036854775808,
+                [
+                    "N"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "M"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false,
+            false
+        ],
+        "error": false,
+        "output": "A Longer \nN        \nM        \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                "0",
+                [
+                    "R"
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "A     Longer \nR            \nthree        \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                "01",
+                [
+                    "R"
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "A     Longer \none   two    \nthree        \nR            \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                "name",
+                [
+                    "R"
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "A     Longer \none   two    \nthree        \nR            \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                "name",
+                [
+                    "R"
+                ]
+            ],
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "A      one three R \nLonger two         \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                "name",
+                [
+                    "R"
+                ]
+            ],
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "     A: one   \nLonger: two   \n\n     A: three \nLonger:       \n\n     A: R     \nLonger:       \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                9223372036854775807,
+                [
+                    "MAX"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "overflow"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            true
+        ],
+        "error": false,
+        "output": "A     Longer \none   two    \nthree        \nMAX          \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": false,
+        "ops": [
+            [
+                "setRow",
+                9223372036854775807,
+                [
+                    "MAX"
+                ]
+            ],
+            [
+                "addRows",
+                [
+                    [
+                        "overflow"
+                    ]
+                ]
+            ],
+            [
+                "setRows",
+                [
+                    [
+                        "after"
+                    ]
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            true,
+            false
+        ],
+        "error": false,
+        "output": "A     Longer \nafter        \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": false,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "A      one three \nLonger two       \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": false,
+        "ops": [
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "     A: one   \nLonger: two   \n\n     A: three \nLonger:       \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": false,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ],
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "     A: one   \nLonger: two   \n\n     A: three \nLonger:       \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": false,
+        "ops": [
+            [
+                "vertical",
+                true
+            ],
+            [
+                "horizontal",
+                false
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "A     Longer \none   two    \nthree        \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": false,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ],
+            [
+                "vertical",
+                false
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "A     Longer \none   two    \nthree        \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": false,
+        "ops": [
+            [
+                "headers",
+                [
+                    [
+                        "H1",
+                        "H2"
+                    ],
+                    [
+                        "H3"
+                    ]
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "H1    H2  \nH3        \none   two \nthree     \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": false,
+        "ops": [
+            [
+                "headers",
+                [
+                    [
+                        "H1",
+                        "H2"
+                    ],
+                    [
+                        "H3"
+                    ]
+                ]
+            ],
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "H1 one three \nH2 two       \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": false,
+        "ops": [
+            [
+                "headers",
+                [
+                    [
+                        "H1",
+                        "H2"
+                    ],
+                    [
+                        "H3"
+                    ]
+                ]
+            ],
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "H1: one   \nH2: two   \n\nH1: three \nH2:       \n"
+    },
+    {
+        "headers": [],
+        "rows": [],
+        "style": "default",
+        "decorated": false,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": ""
+    },
+    {
+        "headers": [],
+        "rows": [],
+        "style": "default",
+        "decorated": false,
+        "ops": [
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": ""
+    },
+    {
+        "headers": [],
+        "rows": [
+            [
+                ""
+            ],
+            [
+                "0"
+            ],
+            [
+                "a\r\nb"
+            ]
+        ],
+        "style": "default",
+        "decorated": false,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": ""
+    },
+    {
+        "headers": [],
+        "rows": [
+            [
+                ""
+            ],
+            [
+                "0"
+            ],
+            [
+                "a\r\nb"
+            ]
+        ],
+        "style": "default",
+        "decorated": false,
+        "ops": [
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "+---+\n| 0 |\n|---|\n| a |\n| b |\n+---+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "style": "default",
+        "decorated": false,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "+---+\n| A |\n| B |\n+---+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "style": "default",
+        "decorated": false,
+        "ops": [
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": ""
+    },
+    {
+        "headers": [
+            "<info>A<\/info>",
+            "界"
+        ],
+        "rows": [
+            [
+                "a\nb",
+                "c"
+            ],
+            [
+                "é",
+                ""
+            ]
+        ],
+        "style": "default",
+        "decorated": false,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "+----+---+---+\n| A  | a | é |\n|    | b |   |\n| 界 | c |   |\n+----+---+---+\n"
+    },
+    {
+        "headers": [
+            "<info>A<\/info>",
+            "界"
+        ],
+        "rows": [
+            [
+                "a\nb",
+                "c"
+            ],
+            [
+                "é",
+                ""
+            ]
+        ],
+        "style": "default",
+        "decorated": false,
+        "ops": [
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "+-------+\n|  A: a |\n|     b |\n| 界: c |\n|-------|\n|  A: é |\n| 界:   |\n+-------+\n"
+    },
+    {
+        "headers": [
+            "A"
+        ],
+        "rows": [
+            [
+                "v",
+                "extra"
+            ],
+            []
+        ],
+        "style": "default",
+        "decorated": false,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "+---+---+--+\n| A | v |  |\n+---+---+--+\n"
+    },
+    {
+        "headers": [
+            "A"
+        ],
+        "rows": [
+            [
+                "v",
+                "extra"
+            ],
+            []
+        ],
+        "style": "default",
+        "decorated": false,
+        "ops": [
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "+----------+\n| A: v     |\n|  : extra |\n|----------|\n| A:       |\n+----------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": true,
+        "ops": [],
+        "trace": [],
+        "error": false,
+        "output": "+-------+--------+\n|\u001b[32m A     \u001b[39m|\u001b[32m Longer \u001b[39m|\n+-------+--------+\n| one   | two    |\n| three |        |\n+-------+--------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": true,
+        "ops": [
+            [
+                "setRows",
+                []
+            ],
+            [
+                "setRow",
+                -9223372036854775808,
+                [
+                    "N"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "M"
+                ]
+            ],
+            [
+                "setRow",
+                -9223372036854775807,
+                [
+                    "Replace"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false,
+            false,
+            false
+        ],
+        "error": false,
+        "output": "+---------+--------+\n|\u001b[32m A       \u001b[39m|\u001b[32m Longer \u001b[39m|\n+---------+--------+\n| N       |        |\n| Replace |        |\n+---------+--------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                9223372036854775806,
+                [
+                    "PRE"
+                ]
+            ],
+            [
+                "addRows",
+                [
+                    [
+                        "LAST"
+                    ],
+                    [
+                        "overflow"
+                    ]
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            true
+        ],
+        "error": false,
+        "output": "+-------+--------+\n|\u001b[32m A     \u001b[39m|\u001b[32m Longer \u001b[39m|\n+-------+--------+\n| one   | two    |\n| three |        |\n| PRE   |        |\n| LAST  |        |\n+-------+--------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                "01",
+                [
+                    "first"
+                ]
+            ],
+            [
+                "setRow",
+                "01",
+                [
+                    "replaced"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "+----------+--------+\n|\u001b[32m A        \u001b[39m|\u001b[32m Longer \u001b[39m|\n+----------+--------+\n| one      | two    |\n| three    |        |\n| replaced |        |\n+----------+--------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": true,
+        "ops": [
+            [
+                "addRows",
+                [
+                    [
+                        "E",
+                        "F"
+                    ],
+                    [
+                        "G",
+                        "H"
+                    ]
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "+-------+--------+\n|\u001b[32m A     \u001b[39m|\u001b[32m Longer \u001b[39m|\n+-------+--------+\n| one   | two    |\n| three |        |\n| E     | F      |\n| G     | H      |\n+-------+--------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                0,
+                [
+                    "R",
+                    "S"
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "+-------+--------+\n|\u001b[32m A     \u001b[39m|\u001b[32m Longer \u001b[39m|\n+-------+--------+\n| R     | S      |\n| three |        |\n+-------+--------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                5,
+                [
+                    "R"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "N"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "+-------+--------+\n|\u001b[32m A     \u001b[39m|\u001b[32m Longer \u001b[39m|\n+-------+--------+\n| one   | two    |\n| three |        |\n| R     |        |\n| N     |        |\n+-------+--------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": true,
+        "ops": [
+            [
+                "setRows",
+                []
+            ],
+            [
+                "setRow",
+                -5,
+                [
+                    "N"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "M"
+                ]
+            ],
+            [
+                "setRow",
+                -4,
+                [
+                    "Replace"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false,
+            false,
+            false
+        ],
+        "error": false,
+        "output": "+---------+--------+\n|\u001b[32m A       \u001b[39m|\u001b[32m Longer \u001b[39m|\n+---------+--------+\n| N       |        |\n| Replace |        |\n+---------+--------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": true,
+        "ops": [
+            [
+                "setRows",
+                []
+            ],
+            [
+                "setRow",
+                -9223372036854775808,
+                [
+                    "N"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "M"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false,
+            false
+        ],
+        "error": false,
+        "output": "+---+--------+\n|\u001b[32m A \u001b[39m|\u001b[32m Longer \u001b[39m|\n+---+--------+\n| N |        |\n| M |        |\n+---+--------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                "0",
+                [
+                    "R"
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "+-------+--------+\n|\u001b[32m A     \u001b[39m|\u001b[32m Longer \u001b[39m|\n+-------+--------+\n| R     |        |\n| three |        |\n+-------+--------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                "01",
+                [
+                    "R"
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "+-------+--------+\n|\u001b[32m A     \u001b[39m|\u001b[32m Longer \u001b[39m|\n+-------+--------+\n| one   | two    |\n| three |        |\n| R     |        |\n+-------+--------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                "name",
+                [
+                    "R"
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "+-------+--------+\n|\u001b[32m A     \u001b[39m|\u001b[32m Longer \u001b[39m|\n+-------+--------+\n| one   | two    |\n| three |        |\n| R     |        |\n+-------+--------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                "name",
+                [
+                    "R"
+                ]
+            ],
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "+--------+-----+-------+---+\n|\u001b[32m A      \u001b[39m| one | three | R |\n|\u001b[32m Longer \u001b[39m| two |       |   |\n+--------+-----+-------+---+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                "name",
+                [
+                    "R"
+                ]
+            ],
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "+---------------+\n| \u001b[33m     A\u001b[39m: one   |\n| \u001b[33mLonger\u001b[39m: two   |\n|---------------|\n| \u001b[33m     A\u001b[39m: three |\n| \u001b[33mLonger\u001b[39m:       |\n|---------------|\n| \u001b[33m     A\u001b[39m: R     |\n| \u001b[33mLonger\u001b[39m:       |\n+---------------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                9223372036854775807,
+                [
+                    "MAX"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "overflow"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            true
+        ],
+        "error": false,
+        "output": "+-------+--------+\n|\u001b[32m A     \u001b[39m|\u001b[32m Longer \u001b[39m|\n+-------+--------+\n| one   | two    |\n| three |        |\n| MAX   |        |\n+-------+--------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                9223372036854775807,
+                [
+                    "MAX"
+                ]
+            ],
+            [
+                "addRows",
+                [
+                    [
+                        "overflow"
+                    ]
+                ]
+            ],
+            [
+                "setRows",
+                [
+                    [
+                        "after"
+                    ]
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            true,
+            false
+        ],
+        "error": false,
+        "output": "+-------+--------+\n|\u001b[32m A     \u001b[39m|\u001b[32m Longer \u001b[39m|\n+-------+--------+\n| after |        |\n+-------+--------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": true,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "+--------+-----+-------+\n|\u001b[32m A      \u001b[39m| one | three |\n|\u001b[32m Longer \u001b[39m| two |       |\n+--------+-----+-------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": true,
+        "ops": [
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "+---------------+\n| \u001b[33m     A\u001b[39m: one   |\n| \u001b[33mLonger\u001b[39m: two   |\n|---------------|\n| \u001b[33m     A\u001b[39m: three |\n| \u001b[33mLonger\u001b[39m:       |\n+---------------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": true,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ],
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "+---------------+\n| \u001b[33m     A\u001b[39m: one   |\n| \u001b[33mLonger\u001b[39m: two   |\n|---------------|\n| \u001b[33m     A\u001b[39m: three |\n| \u001b[33mLonger\u001b[39m:       |\n+---------------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": true,
+        "ops": [
+            [
+                "vertical",
+                true
+            ],
+            [
+                "horizontal",
+                false
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "+-------+--------+\n|\u001b[32m A     \u001b[39m|\u001b[32m Longer \u001b[39m|\n+-------+--------+\n| one   | two    |\n| three |        |\n+-------+--------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": true,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ],
+            [
+                "vertical",
+                false
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "+-------+--------+\n|\u001b[32m A     \u001b[39m|\u001b[32m Longer \u001b[39m|\n+-------+--------+\n| one   | two    |\n| three |        |\n+-------+--------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": true,
+        "ops": [
+            [
+                "headers",
+                [
+                    [
+                        "H1",
+                        "H2"
+                    ],
+                    [
+                        "H3"
+                    ]
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "+-------+-----+\n|\u001b[32m H1    \u001b[39m|\u001b[32m H2  \u001b[39m|\n+-------+-----+\n|\u001b[32m H3    \u001b[39m|\u001b[32m     \u001b[39m|\n+-------+-----+\n| one   | two |\n| three |     |\n+-------+-----+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": true,
+        "ops": [
+            [
+                "headers",
+                [
+                    [
+                        "H1",
+                        "H2"
+                    ],
+                    [
+                        "H3"
+                    ]
+                ]
+            ],
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "+----+-----+-------+\n|\u001b[32m H1 \u001b[39m| one | three |\n|\u001b[32m H2 \u001b[39m| two |       |\n+----+-----+-------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "default",
+        "decorated": true,
+        "ops": [
+            [
+                "headers",
+                [
+                    [
+                        "H1",
+                        "H2"
+                    ],
+                    [
+                        "H3"
+                    ]
+                ]
+            ],
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "+-----------+\n| \u001b[33mH1\u001b[39m: one   |\n| \u001b[33mH2\u001b[39m: two   |\n|-----------|\n| \u001b[33mH1\u001b[39m: three |\n| \u001b[33mH2\u001b[39m:       |\n+-----------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": true,
+        "ops": [],
+        "trace": [],
+        "error": false,
+        "output": "┌───────┬────────┐\n│\u001b[32m A     \u001b[39m│\u001b[32m Longer \u001b[39m│\n├───────┼────────┤\n│ one   │ two    │\n│ three │        │\n└───────┴────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": true,
+        "ops": [
+            [
+                "setRows",
+                []
+            ],
+            [
+                "setRow",
+                -9223372036854775808,
+                [
+                    "N"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "M"
+                ]
+            ],
+            [
+                "setRow",
+                -9223372036854775807,
+                [
+                    "Replace"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false,
+            false,
+            false
+        ],
+        "error": false,
+        "output": "┌─────────┬────────┐\n│\u001b[32m A       \u001b[39m│\u001b[32m Longer \u001b[39m│\n├─────────┼────────┤\n│ N       │        │\n│ Replace │        │\n└─────────┴────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                9223372036854775806,
+                [
+                    "PRE"
+                ]
+            ],
+            [
+                "addRows",
+                [
+                    [
+                        "LAST"
+                    ],
+                    [
+                        "overflow"
+                    ]
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            true
+        ],
+        "error": false,
+        "output": "┌───────┬────────┐\n│\u001b[32m A     \u001b[39m│\u001b[32m Longer \u001b[39m│\n├───────┼────────┤\n│ one   │ two    │\n│ three │        │\n│ PRE   │        │\n│ LAST  │        │\n└───────┴────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                "01",
+                [
+                    "first"
+                ]
+            ],
+            [
+                "setRow",
+                "01",
+                [
+                    "replaced"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "┌──────────┬────────┐\n│\u001b[32m A        \u001b[39m│\u001b[32m Longer \u001b[39m│\n├──────────┼────────┤\n│ one      │ two    │\n│ three    │        │\n│ replaced │        │\n└──────────┴────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": true,
+        "ops": [
+            [
+                "addRows",
+                [
+                    [
+                        "E",
+                        "F"
+                    ],
+                    [
+                        "G",
+                        "H"
+                    ]
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "┌───────┬────────┐\n│\u001b[32m A     \u001b[39m│\u001b[32m Longer \u001b[39m│\n├───────┼────────┤\n│ one   │ two    │\n│ three │        │\n│ E     │ F      │\n│ G     │ H      │\n└───────┴────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                0,
+                [
+                    "R",
+                    "S"
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "┌───────┬────────┐\n│\u001b[32m A     \u001b[39m│\u001b[32m Longer \u001b[39m│\n├───────┼────────┤\n│ R     │ S      │\n│ three │        │\n└───────┴────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                5,
+                [
+                    "R"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "N"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "┌───────┬────────┐\n│\u001b[32m A     \u001b[39m│\u001b[32m Longer \u001b[39m│\n├───────┼────────┤\n│ one   │ two    │\n│ three │        │\n│ R     │        │\n│ N     │        │\n└───────┴────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": true,
+        "ops": [
+            [
+                "setRows",
+                []
+            ],
+            [
+                "setRow",
+                -5,
+                [
+                    "N"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "M"
+                ]
+            ],
+            [
+                "setRow",
+                -4,
+                [
+                    "Replace"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false,
+            false,
+            false
+        ],
+        "error": false,
+        "output": "┌─────────┬────────┐\n│\u001b[32m A       \u001b[39m│\u001b[32m Longer \u001b[39m│\n├─────────┼────────┤\n│ N       │        │\n│ Replace │        │\n└─────────┴────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": true,
+        "ops": [
+            [
+                "setRows",
+                []
+            ],
+            [
+                "setRow",
+                -9223372036854775808,
+                [
+                    "N"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "M"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false,
+            false
+        ],
+        "error": false,
+        "output": "┌───┬────────┐\n│\u001b[32m A \u001b[39m│\u001b[32m Longer \u001b[39m│\n├───┼────────┤\n│ N │        │\n│ M │        │\n└───┴────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                "0",
+                [
+                    "R"
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "┌───────┬────────┐\n│\u001b[32m A     \u001b[39m│\u001b[32m Longer \u001b[39m│\n├───────┼────────┤\n│ R     │        │\n│ three │        │\n└───────┴────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                "01",
+                [
+                    "R"
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "┌───────┬────────┐\n│\u001b[32m A     \u001b[39m│\u001b[32m Longer \u001b[39m│\n├───────┼────────┤\n│ one   │ two    │\n│ three │        │\n│ R     │        │\n└───────┴────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                "name",
+                [
+                    "R"
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "┌───────┬────────┐\n│\u001b[32m A     \u001b[39m│\u001b[32m Longer \u001b[39m│\n├───────┼────────┤\n│ one   │ two    │\n│ three │        │\n│ R     │        │\n└───────┴────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                "name",
+                [
+                    "R"
+                ]
+            ],
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "┌────────┬─────┬───────┬───┐\n│\u001b[32m A      \u001b[39m│ one │ three │ R │\n│\u001b[32m Longer \u001b[39m│ two │       │   │\n└────────┴─────┴───────┴───┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                "name",
+                [
+                    "R"
+                ]
+            ],
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "┌───────────────┐\n│ \u001b[33m     A\u001b[39m: one   │\n│ \u001b[33mLonger\u001b[39m: two   │\n│───────────────│\n│ \u001b[33m     A\u001b[39m: three │\n│ \u001b[33mLonger\u001b[39m:       │\n│───────────────│\n│ \u001b[33m     A\u001b[39m: R     │\n│ \u001b[33mLonger\u001b[39m:       │\n└───────────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                9223372036854775807,
+                [
+                    "MAX"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "overflow"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            true
+        ],
+        "error": false,
+        "output": "┌───────┬────────┐\n│\u001b[32m A     \u001b[39m│\u001b[32m Longer \u001b[39m│\n├───────┼────────┤\n│ one   │ two    │\n│ three │        │\n│ MAX   │        │\n└───────┴────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                9223372036854775807,
+                [
+                    "MAX"
+                ]
+            ],
+            [
+                "addRows",
+                [
+                    [
+                        "overflow"
+                    ]
+                ]
+            ],
+            [
+                "setRows",
+                [
+                    [
+                        "after"
+                    ]
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            true,
+            false
+        ],
+        "error": false,
+        "output": "┌───────┬────────┐\n│\u001b[32m A     \u001b[39m│\u001b[32m Longer \u001b[39m│\n├───────┼────────┤\n│ after │        │\n└───────┴────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": true,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "┌────────┬─────┬───────┐\n│\u001b[32m A      \u001b[39m│ one │ three │\n│\u001b[32m Longer \u001b[39m│ two │       │\n└────────┴─────┴───────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": true,
+        "ops": [
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "┌───────────────┐\n│ \u001b[33m     A\u001b[39m: one   │\n│ \u001b[33mLonger\u001b[39m: two   │\n│───────────────│\n│ \u001b[33m     A\u001b[39m: three │\n│ \u001b[33mLonger\u001b[39m:       │\n└───────────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": true,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ],
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "┌───────────────┐\n│ \u001b[33m     A\u001b[39m: one   │\n│ \u001b[33mLonger\u001b[39m: two   │\n│───────────────│\n│ \u001b[33m     A\u001b[39m: three │\n│ \u001b[33mLonger\u001b[39m:       │\n└───────────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": true,
+        "ops": [
+            [
+                "vertical",
+                true
+            ],
+            [
+                "horizontal",
+                false
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "┌───────┬────────┐\n│\u001b[32m A     \u001b[39m│\u001b[32m Longer \u001b[39m│\n├───────┼────────┤\n│ one   │ two    │\n│ three │        │\n└───────┴────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": true,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ],
+            [
+                "vertical",
+                false
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "┌───────┬────────┐\n│\u001b[32m A     \u001b[39m│\u001b[32m Longer \u001b[39m│\n├───────┼────────┤\n│ one   │ two    │\n│ three │        │\n└───────┴────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": true,
+        "ops": [
+            [
+                "headers",
+                [
+                    [
+                        "H1",
+                        "H2"
+                    ],
+                    [
+                        "H3"
+                    ]
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "┌───────┬─────┐\n│\u001b[32m H1    \u001b[39m│\u001b[32m H2  \u001b[39m│\n┌───────┬─────┐\n│\u001b[32m H3    \u001b[39m│\u001b[32m     \u001b[39m│\n├───────┼─────┤\n│ one   │ two │\n│ three │     │\n└───────┴─────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": true,
+        "ops": [
+            [
+                "headers",
+                [
+                    [
+                        "H1",
+                        "H2"
+                    ],
+                    [
+                        "H3"
+                    ]
+                ]
+            ],
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "┌────┬─────┬───────┐\n│\u001b[32m H1 \u001b[39m│ one │ three │\n│\u001b[32m H2 \u001b[39m│ two │       │\n└────┴─────┴───────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "box",
+        "decorated": true,
+        "ops": [
+            [
+                "headers",
+                [
+                    [
+                        "H1",
+                        "H2"
+                    ],
+                    [
+                        "H3"
+                    ]
+                ]
+            ],
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "┌───────────┐\n│ \u001b[33mH1\u001b[39m: one   │\n│ \u001b[33mH2\u001b[39m: two   │\n│───────────│\n│ \u001b[33mH1\u001b[39m: three │\n│ \u001b[33mH2\u001b[39m:       │\n└───────────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": true,
+        "ops": [],
+        "trace": [],
+        "error": false,
+        "output": "|\u001b[32m A     \u001b[39m|\u001b[32m Longer \u001b[39m|\n|-------|--------|\n| one   | two    |\n| three |        |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": true,
+        "ops": [
+            [
+                "setRows",
+                []
+            ],
+            [
+                "setRow",
+                -9223372036854775808,
+                [
+                    "N"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "M"
+                ]
+            ],
+            [
+                "setRow",
+                -9223372036854775807,
+                [
+                    "Replace"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false,
+            false,
+            false
+        ],
+        "error": false,
+        "output": "|\u001b[32m A       \u001b[39m|\u001b[32m Longer \u001b[39m|\n|---------|--------|\n| N       |        |\n| Replace |        |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                9223372036854775806,
+                [
+                    "PRE"
+                ]
+            ],
+            [
+                "addRows",
+                [
+                    [
+                        "LAST"
+                    ],
+                    [
+                        "overflow"
+                    ]
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            true
+        ],
+        "error": false,
+        "output": "|\u001b[32m A     \u001b[39m|\u001b[32m Longer \u001b[39m|\n|-------|--------|\n| one   | two    |\n| three |        |\n| PRE   |        |\n| LAST  |        |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                "01",
+                [
+                    "first"
+                ]
+            ],
+            [
+                "setRow",
+                "01",
+                [
+                    "replaced"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "|\u001b[32m A        \u001b[39m|\u001b[32m Longer \u001b[39m|\n|----------|--------|\n| one      | two    |\n| three    |        |\n| replaced |        |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": true,
+        "ops": [
+            [
+                "addRows",
+                [
+                    [
+                        "E",
+                        "F"
+                    ],
+                    [
+                        "G",
+                        "H"
+                    ]
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "|\u001b[32m A     \u001b[39m|\u001b[32m Longer \u001b[39m|\n|-------|--------|\n| one   | two    |\n| three |        |\n| E     | F      |\n| G     | H      |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                0,
+                [
+                    "R",
+                    "S"
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "|\u001b[32m A     \u001b[39m|\u001b[32m Longer \u001b[39m|\n|-------|--------|\n| R     | S      |\n| three |        |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                5,
+                [
+                    "R"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "N"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "|\u001b[32m A     \u001b[39m|\u001b[32m Longer \u001b[39m|\n|-------|--------|\n| one   | two    |\n| three |        |\n| R     |        |\n| N     |        |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": true,
+        "ops": [
+            [
+                "setRows",
+                []
+            ],
+            [
+                "setRow",
+                -5,
+                [
+                    "N"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "M"
+                ]
+            ],
+            [
+                "setRow",
+                -4,
+                [
+                    "Replace"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false,
+            false,
+            false
+        ],
+        "error": false,
+        "output": "|\u001b[32m A       \u001b[39m|\u001b[32m Longer \u001b[39m|\n|---------|--------|\n| N       |        |\n| Replace |        |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": true,
+        "ops": [
+            [
+                "setRows",
+                []
+            ],
+            [
+                "setRow",
+                -9223372036854775808,
+                [
+                    "N"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "M"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false,
+            false
+        ],
+        "error": false,
+        "output": "|\u001b[32m A \u001b[39m|\u001b[32m Longer \u001b[39m|\n|---|--------|\n| N |        |\n| M |        |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                "0",
+                [
+                    "R"
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "|\u001b[32m A     \u001b[39m|\u001b[32m Longer \u001b[39m|\n|-------|--------|\n| R     |        |\n| three |        |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                "01",
+                [
+                    "R"
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "|\u001b[32m A     \u001b[39m|\u001b[32m Longer \u001b[39m|\n|-------|--------|\n| one   | two    |\n| three |        |\n| R     |        |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                "name",
+                [
+                    "R"
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "|\u001b[32m A     \u001b[39m|\u001b[32m Longer \u001b[39m|\n|-------|--------|\n| one   | two    |\n| three |        |\n| R     |        |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                "name",
+                [
+                    "R"
+                ]
+            ],
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "|--------|-----|-------|---|\n|\u001b[32m A      \u001b[39m| one | three | R |\n|\u001b[32m Longer \u001b[39m| two |       |   |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                "name",
+                [
+                    "R"
+                ]
+            ],
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "| \u001b[33m     A\u001b[39m: one   |\n| \u001b[33mLonger\u001b[39m: two   |\n|---------------|\n| \u001b[33m     A\u001b[39m: three |\n| \u001b[33mLonger\u001b[39m:       |\n|---------------|\n| \u001b[33m     A\u001b[39m: R     |\n| \u001b[33mLonger\u001b[39m:       |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                9223372036854775807,
+                [
+                    "MAX"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "overflow"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            true
+        ],
+        "error": false,
+        "output": "|\u001b[32m A     \u001b[39m|\u001b[32m Longer \u001b[39m|\n|-------|--------|\n| one   | two    |\n| three |        |\n| MAX   |        |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                9223372036854775807,
+                [
+                    "MAX"
+                ]
+            ],
+            [
+                "addRows",
+                [
+                    [
+                        "overflow"
+                    ]
+                ]
+            ],
+            [
+                "setRows",
+                [
+                    [
+                        "after"
+                    ]
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            true,
+            false
+        ],
+        "error": false,
+        "output": "|\u001b[32m A     \u001b[39m|\u001b[32m Longer \u001b[39m|\n|-------|--------|\n| after |        |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": true,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "|--------|-----|-------|\n|\u001b[32m A      \u001b[39m| one | three |\n|\u001b[32m Longer \u001b[39m| two |       |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": true,
+        "ops": [
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "| \u001b[33m     A\u001b[39m: one   |\n| \u001b[33mLonger\u001b[39m: two   |\n|---------------|\n| \u001b[33m     A\u001b[39m: three |\n| \u001b[33mLonger\u001b[39m:       |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": true,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ],
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "| \u001b[33m     A\u001b[39m: one   |\n| \u001b[33mLonger\u001b[39m: two   |\n|---------------|\n| \u001b[33m     A\u001b[39m: three |\n| \u001b[33mLonger\u001b[39m:       |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": true,
+        "ops": [
+            [
+                "vertical",
+                true
+            ],
+            [
+                "horizontal",
+                false
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "|\u001b[32m A     \u001b[39m|\u001b[32m Longer \u001b[39m|\n|-------|--------|\n| one   | two    |\n| three |        |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": true,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ],
+            [
+                "vertical",
+                false
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "|\u001b[32m A     \u001b[39m|\u001b[32m Longer \u001b[39m|\n|-------|--------|\n| one   | two    |\n| three |        |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": true,
+        "ops": [
+            [
+                "headers",
+                [
+                    [
+                        "H1",
+                        "H2"
+                    ],
+                    [
+                        "H3"
+                    ]
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "|\u001b[32m H1    \u001b[39m|\u001b[32m H2  \u001b[39m|\n|\u001b[32m H3    \u001b[39m|\u001b[32m     \u001b[39m|\n|-------|-----|\n| one   | two |\n| three |     |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": true,
+        "ops": [
+            [
+                "headers",
+                [
+                    [
+                        "H1",
+                        "H2"
+                    ],
+                    [
+                        "H3"
+                    ]
+                ]
+            ],
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "|----|-----|-------|\n|\u001b[32m H1 \u001b[39m| one | three |\n|\u001b[32m H2 \u001b[39m| two |       |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": true,
+        "ops": [
+            [
+                "headers",
+                [
+                    [
+                        "H1",
+                        "H2"
+                    ],
+                    [
+                        "H3"
+                    ]
+                ]
+            ],
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "| \u001b[33mH1\u001b[39m: one   |\n| \u001b[33mH2\u001b[39m: two   |\n|-----------|\n| \u001b[33mH1\u001b[39m: three |\n| \u001b[33mH2\u001b[39m:       |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": true,
+        "ops": [],
+        "trace": [],
+        "error": false,
+        "output": "\u001b[32mA     \u001b[39m\u001b[32mLonger \u001b[39m\none   two    \nthree        \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": true,
+        "ops": [
+            [
+                "setRows",
+                []
+            ],
+            [
+                "setRow",
+                -9223372036854775808,
+                [
+                    "N"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "M"
+                ]
+            ],
+            [
+                "setRow",
+                -9223372036854775807,
+                [
+                    "Replace"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false,
+            false,
+            false
+        ],
+        "error": false,
+        "output": "\u001b[32mA       \u001b[39m\u001b[32mLonger \u001b[39m\nN              \nReplace        \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                9223372036854775806,
+                [
+                    "PRE"
+                ]
+            ],
+            [
+                "addRows",
+                [
+                    [
+                        "LAST"
+                    ],
+                    [
+                        "overflow"
+                    ]
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            true
+        ],
+        "error": false,
+        "output": "\u001b[32mA     \u001b[39m\u001b[32mLonger \u001b[39m\none   two    \nthree        \nPRE          \nLAST         \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                "01",
+                [
+                    "first"
+                ]
+            ],
+            [
+                "setRow",
+                "01",
+                [
+                    "replaced"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "\u001b[32mA        \u001b[39m\u001b[32mLonger \u001b[39m\none      two    \nthree           \nreplaced        \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": true,
+        "ops": [
+            [
+                "addRows",
+                [
+                    [
+                        "E",
+                        "F"
+                    ],
+                    [
+                        "G",
+                        "H"
+                    ]
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "\u001b[32mA     \u001b[39m\u001b[32mLonger \u001b[39m\none   two    \nthree        \nE     F      \nG     H      \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                0,
+                [
+                    "R",
+                    "S"
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "\u001b[32mA     \u001b[39m\u001b[32mLonger \u001b[39m\nR     S      \nthree        \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                5,
+                [
+                    "R"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "N"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "\u001b[32mA     \u001b[39m\u001b[32mLonger \u001b[39m\none   two    \nthree        \nR            \nN            \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": true,
+        "ops": [
+            [
+                "setRows",
+                []
+            ],
+            [
+                "setRow",
+                -5,
+                [
+                    "N"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "M"
+                ]
+            ],
+            [
+                "setRow",
+                -4,
+                [
+                    "Replace"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false,
+            false,
+            false
+        ],
+        "error": false,
+        "output": "\u001b[32mA       \u001b[39m\u001b[32mLonger \u001b[39m\nN              \nReplace        \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": true,
+        "ops": [
+            [
+                "setRows",
+                []
+            ],
+            [
+                "setRow",
+                -9223372036854775808,
+                [
+                    "N"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "M"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            false,
+            false
+        ],
+        "error": false,
+        "output": "\u001b[32mA \u001b[39m\u001b[32mLonger \u001b[39m\nN        \nM        \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                "0",
+                [
+                    "R"
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "\u001b[32mA     \u001b[39m\u001b[32mLonger \u001b[39m\nR            \nthree        \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                "01",
+                [
+                    "R"
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "\u001b[32mA     \u001b[39m\u001b[32mLonger \u001b[39m\none   two    \nthree        \nR            \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                "name",
+                [
+                    "R"
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "\u001b[32mA     \u001b[39m\u001b[32mLonger \u001b[39m\none   two    \nthree        \nR            \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                "name",
+                [
+                    "R"
+                ]
+            ],
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "\u001b[32mA      \u001b[39mone three R \n\u001b[32mLonger \u001b[39mtwo         \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                "name",
+                [
+                    "R"
+                ]
+            ],
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "\u001b[33m     A\u001b[39m: one   \n\u001b[33mLonger\u001b[39m: two   \n\n\u001b[33m     A\u001b[39m: three \n\u001b[33mLonger\u001b[39m:       \n\n\u001b[33m     A\u001b[39m: R     \n\u001b[33mLonger\u001b[39m:       \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                9223372036854775807,
+                [
+                    "MAX"
+                ]
+            ],
+            [
+                "addRow",
+                [
+                    "overflow"
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            true
+        ],
+        "error": false,
+        "output": "\u001b[32mA     \u001b[39m\u001b[32mLonger \u001b[39m\none   two    \nthree        \nMAX          \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": true,
+        "ops": [
+            [
+                "setRow",
+                9223372036854775807,
+                [
+                    "MAX"
+                ]
+            ],
+            [
+                "addRows",
+                [
+                    [
+                        "overflow"
+                    ]
+                ]
+            ],
+            [
+                "setRows",
+                [
+                    [
+                        "after"
+                    ]
+                ]
+            ]
+        ],
+        "trace": [
+            false,
+            true,
+            false
+        ],
+        "error": false,
+        "output": "\u001b[32mA     \u001b[39m\u001b[32mLonger \u001b[39m\nafter        \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": true,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "\u001b[32mA      \u001b[39mone three \n\u001b[32mLonger \u001b[39mtwo       \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": true,
+        "ops": [
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "\u001b[33m     A\u001b[39m: one   \n\u001b[33mLonger\u001b[39m: two   \n\n\u001b[33m     A\u001b[39m: three \n\u001b[33mLonger\u001b[39m:       \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": true,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ],
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "\u001b[33m     A\u001b[39m: one   \n\u001b[33mLonger\u001b[39m: two   \n\n\u001b[33m     A\u001b[39m: three \n\u001b[33mLonger\u001b[39m:       \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": true,
+        "ops": [
+            [
+                "vertical",
+                true
+            ],
+            [
+                "horizontal",
+                false
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "\u001b[32mA     \u001b[39m\u001b[32mLonger \u001b[39m\none   two    \nthree        \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": true,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ],
+            [
+                "vertical",
+                false
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "\u001b[32mA     \u001b[39m\u001b[32mLonger \u001b[39m\none   two    \nthree        \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": true,
+        "ops": [
+            [
+                "headers",
+                [
+                    [
+                        "H1",
+                        "H2"
+                    ],
+                    [
+                        "H3"
+                    ]
+                ]
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "\u001b[32mH1    \u001b[39m\u001b[32mH2  \u001b[39m\n\u001b[32mH3    \u001b[39m\u001b[32m    \u001b[39m\none   two \nthree     \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": true,
+        "ops": [
+            [
+                "headers",
+                [
+                    [
+                        "H1",
+                        "H2"
+                    ],
+                    [
+                        "H3"
+                    ]
+                ]
+            ],
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "\u001b[32mH1 \u001b[39mone three \n\u001b[32mH2 \u001b[39mtwo       \n"
+    },
+    {
+        "headers": [
+            "A",
+            "Longer"
+        ],
+        "rows": [
+            [
+                "one",
+                "two"
+            ],
+            [
+                "three"
+            ]
+        ],
+        "style": "compact",
+        "decorated": true,
+        "ops": [
+            [
+                "headers",
+                [
+                    [
+                        "H1",
+                        "H2"
+                    ],
+                    [
+                        "H3"
+                    ]
+                ]
+            ],
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false
+        ],
+        "error": false,
+        "output": "\u001b[33mH1\u001b[39m: one   \n\u001b[33mH2\u001b[39m: two   \n\n\u001b[33mH1\u001b[39m: three \n\u001b[33mH2\u001b[39m:       \n"
+    },
+    {
+        "headers": [],
+        "rows": [],
+        "style": "default",
+        "decorated": true,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": ""
+    },
+    {
+        "headers": [],
+        "rows": [],
+        "style": "default",
+        "decorated": true,
+        "ops": [
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": ""
+    },
+    {
+        "headers": [],
+        "rows": [
+            [
+                ""
+            ],
+            [
+                "0"
+            ],
+            [
+                "a\r\nb"
+            ]
+        ],
+        "style": "default",
+        "decorated": true,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": ""
+    },
+    {
+        "headers": [],
+        "rows": [
+            [
+                ""
+            ],
+            [
+                "0"
+            ],
+            [
+                "a\r\nb"
+            ]
+        ],
+        "style": "default",
+        "decorated": true,
+        "ops": [
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "+---+\n| 0 |\n|---|\n| a |\n| b |\n+---+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "style": "default",
+        "decorated": true,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "+---+\n|\u001b[32m A \u001b[39m|\n|\u001b[32m B \u001b[39m|\n+---+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "style": "default",
+        "decorated": true,
+        "ops": [
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": ""
+    },
+    {
+        "headers": [
+            "<info>A<\/info>",
+            "界"
+        ],
+        "rows": [
+            [
+                "a\nb",
+                "c"
+            ],
+            [
+                "é",
+                ""
+            ]
+        ],
+        "style": "default",
+        "decorated": true,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "+----+---+---+\n|\u001b[32m \u001b[39m\u001b[32mA\u001b[39m\u001b[32m  \u001b[39m| a | é |\n|\u001b[32m    \u001b[39m| b |   |\n|\u001b[32m 界 \u001b[39m| c |   |\n+----+---+---+\n"
+    },
+    {
+        "headers": [
+            "<info>A<\/info>",
+            "界"
+        ],
+        "rows": [
+            [
+                "a\nb",
+                "c"
+            ],
+            [
+                "é",
+                ""
+            ]
+        ],
+        "style": "default",
+        "decorated": true,
+        "ops": [
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "+-------+\n| \u001b[33m \u001b[39m\u001b[32mA\u001b[39m: a |\n|     b |\n| \u001b[33m界\u001b[39m: c |\n|-------|\n| \u001b[33m \u001b[39m\u001b[32mA\u001b[39m: é |\n| \u001b[33m界\u001b[39m:   |\n+-------+\n"
+    },
+    {
+        "headers": [
+            "A"
+        ],
+        "rows": [
+            [
+                "v",
+                "extra"
+            ],
+            []
+        ],
+        "style": "default",
+        "decorated": true,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "+---+---+--+\n|\u001b[32m A \u001b[39m| v |  |\n+---+---+--+\n"
+    },
+    {
+        "headers": [
+            "A"
+        ],
+        "rows": [
+            [
+                "v",
+                "extra"
+            ],
+            []
+        ],
+        "style": "default",
+        "decorated": true,
+        "ops": [
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "+----------+\n| \u001b[33mA\u001b[39m: v     |\n| \u001b[33m \u001b[39m: extra |\n|----------|\n| \u001b[33mA\u001b[39m:       |\n+----------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "z"
+            ],
+            [
+                "v",
+                "extra"
+            ]
+        ],
+        "style": "default",
+        "decorated": false,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "options": {
+            "maximum": [
+                [
+                    0,
+                    6
+                ]
+            ],
+            "header": "Title",
+            "footer": "End",
+            "column_style": true
+        },
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "+---+------ Title --+-------+\n|[A]| one two three | v     |\n|[B]| z             | extra |\n+---+------- End ---+-------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "z"
+            ],
+            [
+                "v",
+                "extra"
+            ]
+        ],
+        "style": "default",
+        "decorated": false,
+        "ops": [
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "options": {
+            "maximum": [
+                [
+                    0,
+                    6
+                ]
+            ],
+            "header": "Title",
+            "footer": "End",
+            "column_style": true
+        },
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "+- T... -+\n|[A: one]|\n|..[ two]|\n|.[three]|\n|..[B: z]|\n|~~~~~~~~|\n|..[A: v]|\n|[B: ext]|\n|....[ra]|\n+- End --+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "z"
+            ],
+            [
+                "v",
+                "extra"
+            ]
+        ],
+        "style": "box",
+        "decorated": false,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "options": {
+            "maximum": [
+                [
+                    0,
+                    6
+                ]
+            ],
+            "header": "Title",
+            "footer": "End",
+            "column_style": true
+        },
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "┌───┬────── Title ──┬───────┐\n│[A]│ one two three │ v     │\n│[B]│ z             │ extra │\n└───┴─────── End ───┴───────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "z"
+            ],
+            [
+                "v",
+                "extra"
+            ]
+        ],
+        "style": "box",
+        "decorated": false,
+        "ops": [
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "options": {
+            "maximum": [
+                [
+                    0,
+                    6
+                ]
+            ],
+            "header": "Title",
+            "footer": "End",
+            "column_style": true
+        },
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "┌─ T... ─┐\n│[A: one]│\n│..[ two]│\n│.[three]│\n│..[B: z]│\n│~~~~~~~~│\n│..[A: v]│\n│[B: ext]│\n│....[ra]│\n└─ End ──┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "z"
+            ],
+            [
+                "v",
+                "extra"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": false,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "options": {
+            "maximum": [
+                [
+                    0,
+                    6
+                ]
+            ],
+            "header": "Title",
+            "footer": "End",
+            "column_style": true
+        },
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "|---|------ Title --|-------|\n|[A]| one two three | v     |\n|[B]| z             | extra |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "z"
+            ],
+            [
+                "v",
+                "extra"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": false,
+        "ops": [
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "options": {
+            "maximum": [
+                [
+                    0,
+                    6
+                ]
+            ],
+            "header": "Title",
+            "footer": "End",
+            "column_style": true
+        },
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "|[A: one]|\n|..[ two]|\n|.[three]|\n|..[B: z]|\n|~~~~~~~~|\n|..[A: v]|\n|[B: ext]|\n|....[ra]|\n"
+    },
+    {
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "z"
+            ],
+            [
+                "v",
+                "extra"
+            ]
+        ],
+        "style": "compact",
+        "decorated": false,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "options": {
+            "maximum": [
+                [
+                    0,
+                    6
+                ]
+            ],
+            "header": "Title",
+            "footer": "End",
+            "column_style": true
+        },
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "[A]one two three v     \n[B]z             extra \n"
+    },
+    {
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "z"
+            ],
+            [
+                "v",
+                "extra"
+            ]
+        ],
+        "style": "compact",
+        "decorated": false,
+        "ops": [
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "options": {
+            "maximum": [
+                [
+                    0,
+                    6
+                ]
+            ],
+            "header": "Title",
+            "footer": "End",
+            "column_style": true
+        },
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "[A: one]\n.[ two]\n[three]\n.[B: z]\n~~~~~~~\n.[A: v]\n[B: ext]\n...[ra]\n"
+    },
+    {
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "z"
+            ],
+            [
+                "v",
+                "extra"
+            ]
+        ],
+        "style": "default",
+        "decorated": true,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "options": {
+            "maximum": [
+                [
+                    0,
+                    6
+                ]
+            ],
+            "header": "Title",
+            "footer": "End",
+            "column_style": true
+        },
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "+---+------\u001b[30;47;1m Title \u001b[39;49;22m--+-------+\n|\u001b[32m[A]\u001b[39m| one two three | v     |\n|\u001b[32m[B]\u001b[39m| z             | extra |\n+---+-------\u001b[30;47;1m End \u001b[39;49;22m---+-------+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "z"
+            ],
+            [
+                "v",
+                "extra"
+            ]
+        ],
+        "style": "default",
+        "decorated": true,
+        "ops": [
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "options": {
+            "maximum": [
+                [
+                    0,
+                    6
+                ]
+            ],
+            "header": "Title",
+            "footer": "End",
+            "column_style": true
+        },
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "+-\u001b[30;47;1m T... \u001b[39;49;22m-+\n|[\u001b[33mA\u001b[39m: one]|\n|..[ two]|\n|.[three]|\n|..[\u001b[33mB\u001b[39m: z]|\n|~~~~~~~~|\n|..[\u001b[33mA\u001b[39m: v]|\n|[\u001b[33mB\u001b[39m: ext]|\n|....[ra]|\n+-\u001b[30;47;1m End \u001b[39;49;22m--+\n"
+    },
+    {
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "z"
+            ],
+            [
+                "v",
+                "extra"
+            ]
+        ],
+        "style": "box",
+        "decorated": true,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "options": {
+            "maximum": [
+                [
+                    0,
+                    6
+                ]
+            ],
+            "header": "Title",
+            "footer": "End",
+            "column_style": true
+        },
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "┌───┬──────\u001b[30;47;1m Title \u001b[39;49;22m──┬───────┐\n│\u001b[32m[A]\u001b[39m│ one two three │ v     │\n│\u001b[32m[B]\u001b[39m│ z             │ extra │\n└───┴───────\u001b[30;47;1m End \u001b[39;49;22m───┴───────┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "z"
+            ],
+            [
+                "v",
+                "extra"
+            ]
+        ],
+        "style": "box",
+        "decorated": true,
+        "ops": [
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "options": {
+            "maximum": [
+                [
+                    0,
+                    6
+                ]
+            ],
+            "header": "Title",
+            "footer": "End",
+            "column_style": true
+        },
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "┌─\u001b[30;47;1m T... \u001b[39;49;22m─┐\n│[\u001b[33mA\u001b[39m: one]│\n│..[ two]│\n│.[three]│\n│..[\u001b[33mB\u001b[39m: z]│\n│~~~~~~~~│\n│..[\u001b[33mA\u001b[39m: v]│\n│[\u001b[33mB\u001b[39m: ext]│\n│....[ra]│\n└─\u001b[30;47;1m End \u001b[39;49;22m──┘\n"
+    },
+    {
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "z"
+            ],
+            [
+                "v",
+                "extra"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": true,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "options": {
+            "maximum": [
+                [
+                    0,
+                    6
+                ]
+            ],
+            "header": "Title",
+            "footer": "End",
+            "column_style": true
+        },
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "|---|------\u001b[30;47;1m Title \u001b[39;49;22m--|-------|\n|\u001b[32m[A]\u001b[39m| one two three | v     |\n|\u001b[32m[B]\u001b[39m| z             | extra |\n"
+    },
+    {
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "z"
+            ],
+            [
+                "v",
+                "extra"
+            ]
+        ],
+        "style": "markdown",
+        "decorated": true,
+        "ops": [
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "options": {
+            "maximum": [
+                [
+                    0,
+                    6
+                ]
+            ],
+            "header": "Title",
+            "footer": "End",
+            "column_style": true
+        },
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "|[\u001b[33mA\u001b[39m: one]|\n|..[ two]|\n|.[three]|\n|..[\u001b[33mB\u001b[39m: z]|\n|~~~~~~~~|\n|..[\u001b[33mA\u001b[39m: v]|\n|[\u001b[33mB\u001b[39m: ext]|\n|....[ra]|\n"
+    },
+    {
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "z"
+            ],
+            [
+                "v",
+                "extra"
+            ]
+        ],
+        "style": "compact",
+        "decorated": true,
+        "ops": [
+            [
+                "horizontal",
+                true
+            ]
+        ],
+        "options": {
+            "maximum": [
+                [
+                    0,
+                    6
+                ]
+            ],
+            "header": "Title",
+            "footer": "End",
+            "column_style": true
+        },
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "\u001b[32m[A]\u001b[39mone two three v     \n\u001b[32m[B]\u001b[39mz             extra \n"
+    },
+    {
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "z"
+            ],
+            [
+                "v",
+                "extra"
+            ]
+        ],
+        "style": "compact",
+        "decorated": true,
+        "ops": [
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "options": {
+            "maximum": [
+                [
+                    0,
+                    6
+                ]
+            ],
+            "header": "Title",
+            "footer": "End",
+            "column_style": true
+        },
+        "trace": [
+            false
+        ],
+        "error": false,
+        "output": "[\u001b[33mA\u001b[39m: one]\n.[ two]\n[three]\n.[\u001b[33mB\u001b[39m: z]\n~~~~~~~\n.[\u001b[33mA\u001b[39m: v]\n[\u001b[33mB\u001b[39m: ext]\n...[ra]\n"
+    },
+    {
+        "headers": [
+            "Name",
+            "Value"
+        ],
+        "rows": [
+            [
+                "alpha",
+                "1"
+            ]
+        ],
+        "style": "default",
+        "decorated": false,
+        "ops": [
+            [
+                "addRows",
+                [
+                    [
+                        "beta",
+                        "2"
+                    ]
+                ]
+            ],
+            [
+                "setRow",
+                0,
+                [
+                    "changed",
+                    "1"
+                ]
+            ],
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false,
+            false
+        ],
+        "error": false,
+        "output": "+----------------+\n|  Name: changed |\n| Value: 1       |\n|----------------|\n|  Name: beta    |\n| Value: 2       |\n+----------------+\n"
+    },
+    {
+        "headers": [
+            "Name",
+            "Value"
+        ],
+        "rows": [
+            [
+                "alpha",
+                "1"
+            ]
+        ],
+        "style": "default",
+        "decorated": true,
+        "ops": [
+            [
+                "addRows",
+                [
+                    [
+                        "beta",
+                        "2"
+                    ]
+                ]
+            ],
+            [
+                "setRow",
+                0,
+                [
+                    "changed",
+                    "1"
+                ]
+            ],
+            [
+                "vertical",
+                true
+            ]
+        ],
+        "trace": [
+            false,
+            false,
+            false
+        ],
+        "error": false,
+        "output": "+----------------+\n| \u001b[33m Name\u001b[39m: changed |\n| \u001b[33mValue\u001b[39m: 1       |\n|----------------|\n| \u001b[33m Name\u001b[39m: beta    |\n| \u001b[33mValue\u001b[39m: 2       |\n+----------------+\n"
+    }
+]

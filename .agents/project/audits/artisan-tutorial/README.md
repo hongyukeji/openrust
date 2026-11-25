@@ -305,3 +305,16 @@ Unix用已锁定rustix1.1.6原生tcgetwinsize读取stdin设备，启用termios�
 新增4个父消费者通过，1个ignore仅实际Artisan驱动夹具不计通过；独立Artisan逐字验证标题、换行、部分stdout失败前缀与退出1，真实TCP HTTP成功／列宽失败500／后续成功。正式三语代码直接提取，并与固定源对应样例逐字对比四个CLI标志。最终13框架目标94项＋根6目标104项，198个不同父消费者，含63个三语正文例子；13个驱动夹具不叠加。格式／workspace all-targets严格Clippy65s／main(pail)／三语构建／12组浏览器、实际main的HTTP/up/静态/404/HEAD与Artisan/Pail/Ctrl+C通过。门禁table-layout-gates2、final-*、runtime、browser日志及accepted-table-layout.json保存源SHA、隔离基线与范围，不把并行新模块混算为通过。
 
 普通运行目录与临时PHP容器均清理；保留源码、原始证据和可复用缓存，未修改开发数据库／数据卷。继续命名样式共享注册、行操作／方向、复杂单元格／分隔符／ConsoleSection及其他组件、注册生成／信号事件／Tinker；只有本簇功能闭合，整章和持续目标仍未闭合。核定范围本地提交，不推送，其他在途完整保留。
+
+
+## 第二十一簇：文本行键、追加、多表头与方向（2026-11-25）
+
+第二十簇本地提交7fe235e81f8fa84116660f431eb3a440c0574c57，未推送。本簇使用其提交树及对应基线继续，未复制新Webhook／邮件等活跃在途。实际补齐addRows、setRow、setHorizontal、setVertical及多表头数组形状；保留原单表头setter，增加set_headers_rows。复用support::ArrayKey，不造另一套键转换：规范数字字符串重用整数键、同键替换保留位置、新键按声明顺序追加；set_rows重置行键。空／负／稀疏／MIN／MAX数字键及字符串键与真实源对照，而非只测试关键词存在。
+
+add_row改为Result，与新add_rows一起在数字索引耗尽时返回有来源的RowIndexOverflow，真实Source在同一追加阶段失败；批量此前成功行保留，重新set_rows恢复。迁移唯一既有仓库调用并在三语明确?，不以panic、提前拒绝set_row(MAX)或延迟到render冒充上游行为。方向setter false直接恢复默认，不恢复此前方向；每次渲染从原输入派生，不破坏原行。横向仅使用第一行表头并保持首列header样式；纵向字段标签／原CRLF／缺失值／记录间行内分隔复用当前列样式，标题与宽度仍有效。多表头的逻辑行边框及标题仅首次使用按实际源落实。
+
+230个固定PHP源向量，4预设／两种装饰、行追加／替换／复位、24个预期操作错误、方向往返、多个表头、空／Unicode／CRLF、列样式、标题／最大宽度组合全部通过。源的字符串键内部会产生9408字节VM告警，原始table-rows-source1.stderr保留，实际最终行内容与顺序保留，原生不模拟VM告警。未据此前猜测把字符串键渲染改成失败。原149矩形、204布局与6个自定义wrappable回归仍通过。
+
+新增3个父消费者通过，1个ignore真实Artisan驱动夹具不计通过；实际handle_command逐字验证水平／垂直／多表头输出，索引耗尽退出1；真实TCP验证200／溢出500／后续200，任务状态不泄漏。66份三语正文直接提取样例，以对应真实源输出对照四种CLI标志。最终14框架目标97项＋根6目标107项，共204个不同父消费者，14个驱动夹具不叠加。格式、workspace all-targets严格Clippy50.50s、main(pail)、三语构建与12组浏览器，实际main HTTP/up/静态/404/HEAD、Artisan/Pail/Ctrl+C通过。证据table-rows-gates1/final-*/runtime/browser.log及accepted-table-rows.json；声明／参数／状态与余项更新table-contracts与section-map。
+
+清理本批运行目录，临时PHP容器已结束，保留源码／日志和可复用缓存；没有修改开发数据库或数据卷。方向转换中的内部记录分隔只表示本簇真实功能，不冒称公开TableSeparator/复杂单元格已完成。继续共享命名样式注册、显式分隔符与跨行跨列、ConsoleSection/appendRow及其他组件／注册／信号／Tinker；整章与持续目标未闭合。仅核定范围本地提交，不推送，其他协作在途保留。

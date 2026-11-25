@@ -91,6 +91,7 @@ fn table_builder_reuses_output_and_validates_style() {
         .set_headers(["Number"])
         .set_rows([[1]])
         .add_row([2])
+        .unwrap()
         .render()
         .unwrap();
     assert!(TableStyle::from_name("missing").is_err());

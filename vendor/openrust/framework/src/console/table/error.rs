@@ -5,6 +5,7 @@ use std::{error::Error, fmt, string::FromUtf8Error};
 pub enum ConsoleTableError {
     UndefinedStyle(String),
     EmptyPadding,
+    RowIndexOverflow,
     UnsupportedWrappingFormatter,
     InvalidColumnWidth(i64),
     InvalidFormat(ConsoleError),
@@ -16,6 +17,7 @@ impl fmt::Display for ConsoleTableError {
             Self::UndefinedStyle(name) => write!(f, "表格样式未定义：{name}"),
             Self::UnsupportedWrappingFormatter => f.write_str("当前格式器不支持列宽换行"),
             Self::InvalidColumnWidth(width) => write!(f, "表格有效列宽无效：{width}"),
+            Self::RowIndexOverflow => f.write_str("表格无法追加行：数字索引已达到上限"),
             Self::EmptyPadding => f.write_str("表格填充字符不能为空"),
             Self::InvalidFormat(error) => write!(f, "表格格式模板无效：{error}"),
             Self::InvalidPaddingEncoding(error) => {
