@@ -9,7 +9,7 @@
   "deployment": "部署指南",
   "changelog": "查看更新日誌",
   "language": "語言",
-  "follow_browser": "跟隨瀏覽器",
+  "follow_browser": "自動偵測",
   "theme": "主題",
   "theme_light": "淺色",
   "theme_dark": "深色",
