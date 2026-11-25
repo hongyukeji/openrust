@@ -88,6 +88,14 @@
 
 本地实测将使用合成业务输入和真实 HTTP 回环协议服务，Fake 断言与 HTTP 协议测试分别记证据。遇到脱敏、缓存键归属、重试中的副作用或应用间状态隔离差异时，加入对应反例验证。涉及供应商账号、权限、地区、配额或模型可用性的实机结果逐项记录，缺条件的项目保持待验收。运行时用法和当前支持范围同步到现有三语 AI SDK 文档。
 
+### 按协议复用
+
+用户确认优先维护共用的 Chat Completions、Responses、Anthropic Messages 和 Gemini 原生协议实现。`ai.providers.<name>` 的名称标识命名连接，`driver` 选择对应驱动。兼容服务以现有 `driver`、基础 URL、凭证引用和模型 ID 接入，沿用同一个应用调用入口。新增供应商优先提交配置示例和协议验收用例。
+
+Laravel 基线的内置驱动名称、默认地址、模型和实际行为随对应批次验收。可共用的请求、响应、SSE 及工具映射在协议层复用。固定源码中的 `deepseek` 驱动与 `openai-compatible` 已共用 Chat Completions 请求逻辑，可作为复用参考。供应商特有的鉴权、字段及事件差异在相应驱动或适配器内补齐，例如 DeepSeek 的思考模式和 Bedrock Converse 的区域、模型路径及 AWS 凭证。参考 [Laravel DeepSeek Gateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/DeepSeek/DeepSeekGateway.php)及 [AWS Bedrock Converse](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Converse.html)。
+
+以供应商、模型、协议和能力为单位记录验收结果。对话可用后，分别验证流、工具调用、结构化输出、Embeddings、图片和音频的实际端点及模型限制。同一家同时开放多个协议时，每种协议用独立命名连接和测试用例。
+
 ### 国内供应商接入
 
 用户确认在保留以上 17 个固定 Laravel 驱动的基础上，将以下四家纳入可配置的接入示例和兼容验收。应用可同时配置多家供应商，也可为同一家配置多个命名实例，例如两套百炼工作空间。`ai.default` 用于未指定 Provider 的文本调用，其他任务仍可显式选择 Provider 和模型。
@@ -102,6 +110,14 @@
 配置示例复用 `ai.providers.<name>.{driver,url,models.text.default}` 和运行时凭证解析。配置预览中的 `key_env` 仍是凭证引用字段的建议名称。确认真实协议差异后才补专用适配，兼容端点继续复用通用驱动。同一个对外别名（例如 `support-chat`）可改绑到这些实例，验证客户端沿用相同网关地址、接口协议、Key 和模型名即可调用。
 
 随 AI-01 验收基础 URL 拼接、鉴权、模型选择、显式覆盖及 Chat Completions 请求与响应。流、结构化输出、工具调用、Embeddings 和额外协议随对应 SDK 与网关批次按供应商、模型和协议逐项核对。三语文档提供最小配置与调用示例，实测记录分别标明协议模拟、服务商实机和待验收范围。
+
+以下供应商登记为后续兼容候选，目前有官方协议文档，OpenRust 实机验收待办。先按各自公开端点复用驱动，再按模型核对其余能力。
+
+| 命名实例建议 | 服务 | 候选协议 |
+|---|---|---|
+| `kimi` | 月之暗面 Kimi | Chat Completions、Responses、Anthropic Messages 分开配置和验收。 [Kimi API 快速开始](https://platform.kimi.ai/docs/get-your-api-key) |
+| `zhipu` | 智谱 GLM | 优先以 `openai-compatible` 验收 Chat Completions。 [智谱 OpenAI API 兼容文档](https://docs.bigmodel.cn/cn/guide/develop/openai/introduction) |
+| `minimax` | MiniMax | 优先以 `openai-compatible` 验收 Chat Completions。 [MiniMax OpenAI SDK 文档](https://platform.minimax.io/docs/api-reference/text-openai-api) |
 
 ## Sub2API 兼容接入与模型网关
 
