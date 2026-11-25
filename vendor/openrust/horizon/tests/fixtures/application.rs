@@ -12,7 +12,8 @@ use openrust::{
 };
 use openrust_horizon::{
     Horizon, HorizonServiceProvider, MasterSupervisorDeployed, MasterSupervisorLooped,
-    MasterSupervisorOutOfMemory, SupervisorLooped, SupervisorOutOfMemory, WorkerProcessRestarting,
+    MasterSupervisorOutOfMemory, SupervisorLooped, SupervisorOutOfMemory, UnableToLaunchProcess,
+    WorkerProcessRestarting,
 };
 use serde_json::json;
 use std::{collections::BTreeMap, path::Path, sync::Arc, time::Duration};
@@ -39,7 +40,7 @@ fn config(base: &Path, _: &Environment) -> Result<BTreeMap<String, Value>, Confi
         ),
         (
             "horizon".into(),
-            json!({"retention":3600,"fast_termination":std::env::var("HORIZON_PROBE_FAST_TERMINATION").as_deref()==Ok("1"),"memory_limit":std::env::var("HORIZON_PROBE_MEMORY_LIMIT").ok().and_then(|value|value.parse::<u64>().ok()).unwrap_or(64),"defaults":defaults,"environments":{"testing":{},"empty":{},"disabled":{"supervisor-1":{"maxProcesses":0}}}}),
+            json!({"retention":3600,"fast_termination":std::env::var("HORIZON_PROBE_FAST_TERMINATION").as_deref()==Ok("1"),"memory_limit":std::env::var("HORIZON_PROBE_MEMORY_LIMIT").ok().and_then(|value|value.parse::<u64>().ok()).unwrap_or(64),"defaults":defaults,"environments":{"testing":{},"empty":{},"disabled":{"supervisor-1":{"maxProcesses":0}},"cooldown":{"supervisor-1":{"maxProcesses":1}}}}),
         ),
     ]))
 }
@@ -98,6 +99,17 @@ impl Listener for ProcessEventRecorder {
                         "queue": restart.queue,
                         "pid": restart.pid,
                         "exit_code": restart.exit_code,
+                    }),
+                )
+            } else if let Some(failure) = event.downcast_ref::<UnableToLaunchProcess>() {
+                (
+                    "restart-events.jsonl",
+                    json!({
+                        "name": event.name(),
+                        "supervisor": failure.supervisor,
+                        "queue": failure.queue,
+                        "pid": failure.pid,
+                        "exit_code": failure.exit_code,
                     }),
                 )
             } else if let Some(deployment) = event.downcast_ref::<MasterSupervisorDeployed>() {
@@ -204,6 +216,11 @@ impl ServiceProvider for ProbeProvider {
             let recorder = Arc::new(ProcessEventRecorder(app.base_path().to_owned()));
             dispatcher.listen(
                 WorkerProcessRestarting::NAME,
+                recorder.clone(),
+                Delivery::Sync,
+            )?;
+            dispatcher.listen(
+                UnableToLaunchProcess::NAME,
                 recorder.clone(),
                 Delivery::Sync,
             )?;

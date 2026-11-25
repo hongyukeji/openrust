@@ -38,7 +38,8 @@ pub use repository::{
     ProcessRepository, Repository, SupervisorRepository, TagRepository, WorkloadRepository,
 };
 pub use supervisor::{
-    ProcessPool, Supervisor, SupervisorLooped, WorkerProcess, WorkerProcessRestarting,
+    ProcessPool, Supervisor, SupervisorLooped, UnableToLaunchProcess, WorkerProcess,
+    WorkerProcessRestarting,
 };
 
 pub type Result<T> = std::result::Result<T, Error>;

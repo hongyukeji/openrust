@@ -164,8 +164,19 @@ def main():
             assert supervisor_name in artisan('horizon:supervisors')
             restart_events = root / 'restart-events.jsonl'
             assert not restart_events.exists(), 'initial launch is not a restart'
-            def worker_restarts():
-                return [json.loads(line) for line in restart_events.read_text().splitlines()]
+            def restart_history(supervisor, pid):
+                if not restart_events.exists():
+                    return []
+                events = [json.loads(line) for line in restart_events.read_text().splitlines()]
+                return [event for event in events if event['supervisor'] == supervisor and event['pid'] == pid]
+            def expected_restart(supervisor, pid, code, *, expired):
+                events = ['WorkerProcessRestarting']
+                if expired:
+                    events.append('UnableToLaunchProcess')
+                return [
+                    {'name': name, 'supervisor': supervisor, 'queue': 'default', 'pid': pid, 'exit_code': code}
+                    for name in events
+                ]
             # Unexpected termination is detected, reaped and replaced.
             killed = initial['workers'][0]['pid']
             os.kill(killed, signal.SIGKILL)
@@ -174,13 +185,9 @@ def main():
                 and all(worker['pid'] != killed for worker in state['workers'])
             ))
             child_pids.update(w['pid'] for w in recovered['workers'])
-            assert [event for event in worker_restarts() if event['pid'] == killed] == [{
-                'name': 'WorkerProcessRestarting',
-                'supervisor': supervisor_name,
-                'queue': 'default',
-                'pid': killed,
-                'exit_code': 128 + signal.SIGKILL,
-            }]
+            assert restart_history(supervisor_name, killed) == expected_restart(
+                supervisor_name, killed, 128 + signal.SIGKILL, expired=True,
+            )
             # Backlog grows the pool within its cap; maxJobs also recycles workers.
             for _ in range(4):
                 dispatch(sleep_ms=1500)
@@ -325,6 +332,49 @@ def main():
             assert stats()['queues'][0]['backlog']['pending'] == 0
             artisan('horizon:purge')  # No orphaned processes remain after clean shutdown.
             artisan('horizon:purge', '--signal=invalid', code=1)
+            # Each logical slot retains its cooldown across successive PIDs.
+            master = subprocess.Popen(
+                [binary, 'artisan', 'horizon', '--environment=cooldown'],
+                env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            )
+            first = until_master(lambda state: state['workers'])
+            worker = first['workers'][0]
+            supervisor_name, first_pid = worker['supervisor'], worker['pid']
+            time.sleep(1.2)
+            cooldown_started_after = time.monotonic()
+            os.kill(first_pid, signal.SIGKILL)
+            second = until_master(lambda state: state['workers'] and state['workers'][0]['pid'] != first_pid)
+            second_pid = second['workers'][0]['pid']
+            assert restart_history(supervisor_name, first_pid) == expected_restart(
+                supervisor_name, first_pid, 128 + signal.SIGKILL, expired=True,
+            )
+            for _ in range(3):
+                dispatch()
+            third = until_master(lambda state: state['workers'] and state['workers'][0]['pid'] != second_pid)
+            assert restart_history(supervisor_name, second_pid) == expected_restart(
+                supervisor_name, second_pid, 0, expired=False,
+            )
+            third_pid = third['workers'][0]['pid']
+            os.kill(third_pid, signal.SIGKILL)
+            until_master(lambda state: state['unexpected_exits'] == 2 and not state['workers'])
+            time.sleep(2.2)
+            assert status()[0]['workers'] == []
+            assert restart_history(supervisor_name, third_pid) == []
+            assert all(gone(pid) for pid in (first_pid, second_pid, third_pid))
+            def replacement():
+                state = status()[0]
+                return state['workers'] and state['workers'][0]['pid']
+            fourth_pid = until(replacement, timeout=65)
+            assert time.monotonic() - cooldown_started_after >= 60
+            assert fourth_pid != third_pid
+            assert restart_history(supervisor_name, third_pid) == expected_restart(
+                supervisor_name, third_pid, 128 + signal.SIGKILL, expired=True,
+            )
+            master.send_signal(signal.SIGTERM)
+            stdout, stderr = master.communicate(timeout=15)
+            assert master.returncode == 0, (stdout, stderr)
+            assert status() == []
+            assert gone(fourth_pid)
             # Loss of metadata terminates the master and reaps its owned workers.
             master = subprocess.Popen([binary, 'artisan', 'horizon'], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             last_master = until_master(lambda state: state['workers'])
@@ -341,7 +391,7 @@ def main():
                 except ProcessLookupError:
                     continue
                 raise AssertionError(f'orphan after metadata failure: {pid}')
-            print('PASS: native processes, worker options/backoff/nice/maintenance force, replacement, pause/continue, retry/forget, graceful signals, terminate, HTTP authorization and redaction')
+            print('PASS: native processes, worker options/backoff/nice/maintenance force, replacement and one-minute cooldown, pause/continue, retry/forget, graceful signals, terminate, HTTP authorization and redaction')
         finally:
             for process in [master, server]:
                 if process is not None and process.poll() is None:

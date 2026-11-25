@@ -63,6 +63,8 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
 
 Horizon 在替補 Worker 啟動前派發 `WorkerProcessRestarting`，提供監督器、佇列、可用的原程序 PID 與結束碼。
 
+每個 Worker 席位首次啟動後，非零結束受一秒冷卻限制。冷卻到期後替補時，Horizon 在 `WorkerProcessRestarting` 之後派發 `UnableToLaunchProcess`，並開始一分鐘冷卻。正常結束可在冷卻期間替補。
+
 符合的環境部署計畫準備完成後，Horizon 派發 `MasterSupervisorDeployed`，提供 Master 名稱、環境與待啟動的監督器。
 
 Master 持久化心跳後也會派發 `MasterSupervisorLooped::NAME`，事件提供 Master 名稱和暫停狀態。Horizon 註冊 `ExpireSupervisors`，清理兩個程序索引中的過期項目。

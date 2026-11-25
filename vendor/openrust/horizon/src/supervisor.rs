@@ -4,12 +4,7 @@ use openrust::{
     process::{Factory, InvokedProcess},
     queue::QueueManager,
 };
-use std::{
-    collections::{BTreeMap, VecDeque},
-    path::PathBuf,
-    sync::Arc,
-    time::Duration,
-};
+use std::{collections::BTreeMap, path::PathBuf, sync::Arc, time::Duration};
 use tokio::sync::Mutex;
 use tokio::time::Instant;
 use tokio_util::sync::CancellationToken;
@@ -17,8 +12,10 @@ use tokio_util::sync::CancellationToken;
 pub struct WorkerProcess {
     supervisor: String,
     queue: String,
-    process: InvokedProcess,
+    process: Option<InvokedProcess>,
     pid: Option<u32>,
+    exit_code: i32,
+    restart_again_at: Instant,
     stopping: Option<Instant>,
     grace: Duration,
 }
@@ -37,6 +34,25 @@ impl WorkerProcessRestarting {
 }
 
 impl Event for WorkerProcessRestarting {
+    fn name(&self) -> &str {
+        Self::NAME
+    }
+}
+
+/// Worker 进入较长冷却前最近一次退出的快照。
+#[derive(Clone, Debug)]
+pub struct UnableToLaunchProcess {
+    pub supervisor: String,
+    pub queue: String,
+    pub pid: Option<u32>,
+    pub exit_code: i32,
+}
+
+impl UnableToLaunchProcess {
+    pub const NAME: &str = "UnableToLaunchProcess";
+}
+
+impl Event for UnableToLaunchProcess {
     fn name(&self) -> &str {
         Self::NAME
     }
@@ -124,9 +140,6 @@ impl Supervisor {
                     queue,
                     ProcessPool {
                         workers: Vec::new(),
-                        restarting: VecDeque::new(),
-                        desired: 0,
-                        restart_again_at: Instant::now(),
                     },
                 )
             })
@@ -241,20 +254,21 @@ impl Supervisor {
         for pool in self.pools.values_mut() {
             let mut index = 0;
             while index < pool.workers.len() {
-                if !pool.workers[index].process.running() {
-                    let worker = pool.workers.remove(index);
-                    let result = worker.process.wait().await.map_err(|_| Error::Process)?;
-                    if worker.stopping.is_none() {
-                        pool.restart_again_at = Instant::now() + Duration::from_secs(1);
-                        pool.restarting.push_back(WorkerProcessRestarting {
-                            supervisor: worker.supervisor,
-                            queue: worker.queue,
-                            pid: worker.pid,
-                            exit_code: result.exit_code(),
-                        });
-                        if result.failed() {
-                            self.failures = self.failures.saturating_add(1);
-                        }
+                let worker = &mut pool.workers[index];
+                if worker
+                    .process
+                    .as_ref()
+                    .is_some_and(|process| !process.running())
+                {
+                    let process = worker.process.take().expect("observed process");
+                    let result = process.wait().await.map_err(|_| Error::Process)?;
+                    if worker.stopping.is_some() {
+                        pool.workers.remove(index);
+                        continue;
+                    }
+                    worker.exit_code = result.exit_code();
+                    if result.failed() {
+                        self.failures = self.failures.saturating_add(1);
                     }
                 } else if pool.workers[index]
                     .stopping
@@ -263,34 +277,21 @@ impl Supervisor {
                     pool.workers
                         .remove(index)
                         .process
+                        .expect("terminating process")
                         .stop(Duration::ZERO)
                         .await
                         .map_err(|_| Error::Process)?;
-                } else {
-                    index += 1;
+                    continue;
                 }
+                index += 1;
             }
         }
         if !paused {
-            let option = self
-                .options
-                .values()
-                .next()
-                .cloned()
-                .ok_or(Error::InvalidConfiguration)?;
-            for queue in option.pools() {
-                let pool = &self.pools[&queue];
-                if pool.active_process_count() < pool.desired
-                    && Instant::now() >= pool.restart_again_at
-                {
-                    let target = pool.desired;
-                    self.resize(&queue, &option, target).await?;
-                }
-            }
-            for (name, options) in self.options.clone() {
+            let options = self.options.clone();
+            for (name, options) in &options {
                 if self
                     .balanced
-                    .get(&name)
+                    .get(name)
                     .is_some_and(|at| at.elapsed() < Duration::from_secs(options.balance_cooldown))
                 {
                     continue;
@@ -322,7 +323,7 @@ impl Supervisor {
                     sizes.push(size);
                     runtimes.push(if size == 0 { 0. } else { time / size as f64 });
                 }
-                let targets = AutoScaler::number_of_workers_per_queue(&options, &sizes, &runtimes)?;
+                let targets = AutoScaler::number_of_workers_per_queue(options, &sizes, &runtimes)?;
                 let mut pools: Vec<_> = options
                     .pools()
                     .into_iter()
@@ -337,11 +338,29 @@ impl Supervisor {
                         .collect(),
                 );
                 for (queue, target) in pools {
-                    self.scale_pool(&name, &queue, &options, target).await?;
+                    self.scale_pool(&queue, options, target).await?;
+                }
+            }
+            for option in options.values() {
+                for queue in option.pools() {
+                    self.restart_workers(&queue, option).await?;
                 }
             }
         }
-        let workers:Vec<_>=self.pools.values().flat_map(|pool| &pool.workers).map(|w|serde_json::json!({"supervisor":w.supervisor,"queue":w.queue,"pid":w.process.id(),"terminating":w.stopping.is_some()})).collect();
+        let workers: Vec<_> = self
+            .pools
+            .values()
+            .flat_map(|pool| &pool.workers)
+            .filter_map(|worker| {
+                let pid = worker.process.as_ref()?.id()?;
+                Some(serde_json::json!({
+                    "supervisor": worker.supervisor,
+                    "queue": worker.queue,
+                    "pid": pid,
+                    "terminating": worker.stopping.is_some(),
+                }))
+            })
+            .collect();
         self.repository.heartbeat_supervisor(&self.id,&serde_json::json!({"name":self.id,"master":self.id.rsplit_once(':').map(|(master,_)|master),"pid":std::process::id(),"status":if paused{"paused"}else{"running"},"workers":workers,"targets":self.targets,"unexpected_exits":self.failures,"options":self.options.values().next(),"processes":self.pools.iter().map(|(queue,pool)|(format!("{}:{queue}",self.options.values().next().expect("validated options").connection),pool.active_process_count())).collect::<BTreeMap<_,_>>() })).await?;
         let event = SupervisorLooped::new(self, paused);
         if let Err(error) = openrust::support::facades::Event::dispatch(event.clone()).await {
@@ -361,7 +380,6 @@ impl Supervisor {
     }
     async fn scale_pool(
         &mut self,
-        name: &str,
         queue: &str,
         options: &SupervisorOptions,
         workers: f64,
@@ -381,7 +399,6 @@ impl Supervisor {
         else {
             return Ok(());
         };
-        let _ = name;
         self.resize(queue, options, target).await
     }
     async fn resize(
@@ -390,58 +407,100 @@ impl Supervisor {
         options: &SupervisorOptions,
         target: usize,
     ) -> Result<()> {
-        let pool = self
-            .pools
-            .get_mut(queue)
-            .ok_or(Error::InvalidConfiguration)?;
-        pool.desired = target;
-        let active = pool.active_process_count();
-        pool.restarting.truncate(target.saturating_sub(active));
+        let active = self.pools[queue].active_process_count();
         if active > target {
+            let pool = self.pools.get_mut(queue).expect("configured pool");
             let mut remaining = active - target;
-            for worker in pool.workers.iter_mut().filter(|w| w.stopping.is_none()) {
-                if remaining == 0 {
-                    break;
+            let mut index = 0;
+            while remaining > 0 {
+                let worker = &mut pool.workers[index];
+                if worker.stopping.is_some() {
+                    index += 1;
+                    continue;
                 }
-                crate::signals::terminate(&worker.process).await?;
-                worker.stopping = Some(Instant::now());
+                if let Some(process) = &worker.process {
+                    crate::signals::terminate(process).await?;
+                    worker.stopping = Some(Instant::now());
+                    index += 1;
+                } else {
+                    pool.workers.remove(index);
+                }
                 remaining -= 1;
             }
         } else {
             for _ in 0..target - active {
-                let mut worker_options = options.with_queue(queue);
-                // The dedicated supervisor already applied nice; workers inherit it.
-                worker_options.nice = 0;
-                let args = worker_options.to_worker_command(&self.executable)?;
-                if let Some(event) = pool.restarting.pop_front()
-                    && let Err(error) = openrust::support::facades::Event::dispatch(event).await
-                {
-                    let _ = openrust::support::facades::Log::warning(
-                        &format!("Horizon Worker 重启监听器失败: {error}"),
-                        &Default::default(),
-                    );
-                }
-                let process = self
-                    .factory
-                    .command(args)
-                    .path(options.directory.as_deref().unwrap_or(&self.base))
-                    .env([
-                        ("APP_BASE_PATH", self.base.as_os_str().to_owned()),
-                        ("APP_ENV", self.environment.clone().into()),
-                    ])
-                    .forever()
-                    .quietly()
-                    .start()
-                    .map_err(|_| Error::Process)?;
-                pool.workers.push(WorkerProcess {
-                    supervisor: self.id.clone(),
-                    queue: queue.into(),
-                    pid: process.id(),
-                    process,
-                    stopping: None,
-                    grace: Duration::from_secs(u64::from(options.timeout) + 5),
-                });
+                let restart_again_at = Instant::now() + Duration::from_secs(1);
+                let process = self.launch_worker(queue, options)?;
+                self.pools
+                    .get_mut(queue)
+                    .expect("configured pool")
+                    .workers
+                    .push(WorkerProcess {
+                        supervisor: self.id.clone(),
+                        queue: queue.into(),
+                        pid: process.id(),
+                        process: Some(process),
+                        exit_code: 0,
+                        restart_again_at,
+                        stopping: None,
+                        grace: Duration::from_secs(u64::from(options.timeout) + 5),
+                    });
             }
+        }
+        Ok(())
+    }
+
+    fn launch_worker(&self, queue: &str, options: &SupervisorOptions) -> Result<InvokedProcess> {
+        let mut worker_options = options.with_queue(queue);
+        // Worker 继承专用监督器已应用的进程优先级。
+        worker_options.nice = 0;
+        let args = worker_options.to_worker_command(&self.executable)?;
+        self.factory
+            .command(args)
+            .path(options.directory.as_deref().unwrap_or(&self.base))
+            .env([
+                ("APP_BASE_PATH", self.base.as_os_str().to_owned()),
+                ("APP_ENV", self.environment.clone().into()),
+            ])
+            .forever()
+            .quietly()
+            .start()
+            .map_err(|_| Error::Process)
+    }
+
+    async fn restart_workers(&mut self, queue: &str, options: &SupervisorOptions) -> Result<()> {
+        for index in 0..self.pools[queue].workers.len() {
+            let worker = &self.pools[queue].workers[index];
+            if worker.process.is_some()
+                || worker.stopping.is_some()
+                || (worker.exit_code != 0 && Instant::now() < worker.restart_again_at)
+            {
+                continue;
+            }
+            dispatch_worker_event(WorkerProcessRestarting {
+                supervisor: worker.supervisor.clone(),
+                queue: worker.queue.clone(),
+                pid: worker.pid,
+                exit_code: worker.exit_code,
+            })
+            .await;
+            let mut restart_again_at = worker.restart_again_at;
+            let now = Instant::now();
+            if now >= restart_again_at {
+                restart_again_at = now + Duration::from_secs(60);
+                dispatch_worker_event(UnableToLaunchProcess {
+                    supervisor: worker.supervisor.clone(),
+                    queue: worker.queue.clone(),
+                    pid: worker.pid,
+                    exit_code: worker.exit_code,
+                })
+                .await;
+            }
+            let process = self.launch_worker(queue, options)?;
+            let worker = &mut self.pools.get_mut(queue).expect("configured pool").workers[index];
+            worker.restart_again_at = restart_again_at;
+            worker.pid = process.id();
+            worker.process = Some(process);
         }
         Ok(())
     }
@@ -456,21 +515,22 @@ impl Supervisor {
                 .unwrap_or_default();
         let mut failed = false;
         for worker in self.pools.values().flat_map(|pool| &pool.workers) {
-            failed |= crate::signals::terminate(&worker.process).await.is_err();
+            if let Some(process) = &worker.process {
+                failed |= crate::signals::terminate(process).await.is_err();
+            }
         }
         let wait = !self.fast_termination || self.repository.termination_wait().await?;
-        for worker in self
+        for process in self
             .pools
             .values_mut()
             .flat_map(|pool| pool.workers.drain(..))
+            .filter_map(|worker| worker.process)
         {
             if !wait {
-                failed |= worker.process.detach().await.is_err();
+                failed |= process.detach().await.is_err();
                 continue;
             }
-            failed |= crate::signals::drain(worker.process, deadline)
-                .await
-                .is_err();
+            failed |= crate::signals::drain(process, deadline).await.is_err();
         }
         if failed { Err(Error::Process) } else { Ok(()) }
     }
@@ -479,9 +539,6 @@ impl Supervisor {
 /// A queue pool keeps active and terminating workers in the scaling count.
 pub struct ProcessPool {
     workers: Vec<WorkerProcess>,
-    restarting: VecDeque<WorkerProcessRestarting>,
-    desired: usize,
-    restart_again_at: Instant,
 }
 impl ProcessPool {
     pub fn total_process_count(&self) -> usize {
@@ -492,6 +549,15 @@ impl ProcessPool {
             .iter()
             .filter(|worker| worker.stopping.is_none())
             .count()
+    }
+}
+
+async fn dispatch_worker_event(event: impl Event + 'static) {
+    if let Err(error) = openrust::support::facades::Event::dispatch(event).await {
+        let _ = openrust::support::facades::Log::warning(
+            &format!("Horizon Worker 监听器失败: {error}"),
+            &Default::default(),
+        );
     }
 }
 

@@ -331,7 +331,7 @@ Rust 1.94.0 单作业构建通过，实际运行于 Linux 7.0.14-linuxkit、Debi
 
 ### Horizon 待补齐的公开进程与队列事件
 
-固定 `UnableToLaunchProcess` 在进程启动异常达到条件时派发。Rust 具备启动错误路径，仍缺对应公开事件及实际派发验收。固定 `MasterSupervisorReviving` 和 `SupervisorProcessRestarting` 保留公开类型。当前固定源码只找到前者的定义和后者的定义与事件映射，移植前须保留该区别。已接入的 `WorkerProcessRestarting` 和 `MasterSupervisorDeployed` 见下文。 [固定进程代码](https://github.com/laravel/horizon/tree/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src) [固定 EventMap](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/EventMap.php)
+固定 `MasterSupervisorReviving` 和 `SupervisorProcessRestarting` 保留公开类型。当前固定源码只找到前者的定义和后者的定义与事件映射，移植前须保留该区别。已接入的 `WorkerProcessRestarting`、`MasterSupervisorDeployed` 和 `UnableToLaunchProcess` 见下文。 [固定进程代码](https://github.com/laravel/horizon/tree/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src) [固定 EventMap](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/EventMap.php)
 
 固定队列事件另有 `JobPending`、`JobPushed`、`JobReserved`、`JobReleased`、`JobDeleted`、`JobsMigrated` 与包内 `JobFailed`。Rust 的 Provider 当前经核心队列事件更新仓储。须逐项对照公开字段、Redis 运输边界、派发顺序和内置监听器，再决定原生核心事件桥接与包公开事件的对应关系。
 
@@ -347,6 +347,12 @@ Rust 1.94.0 单作业构建通过，实际运行于 Linux 7.0.14-linuxkit、Debi
 
 基于 `936c84133` 加本批文件的 macOS 隔离快照，真实 Artisan 与 Redis 8.10.3 验证四种计划及公开事件字段。应用监听器返回错误后，匹配计划仍进入主循环并可正常关停；有监督器的计划正常启动 Worker。Horizon 默认 24 项、Redis 专项 12 项、全目标严格 Clippy、全仓格式、三语文档及 12 组浏览器检查通过。本批未运行该事件的 Linux／Windows 或发布组合。证据位于 `target/tmp/observability-parity/horizon-master-deployed*.log`。
 
-### Horizon Worker 冷却与 UnableToLaunchProcess 的固定参考
+### Horizon Worker 冷却与 UnableToLaunchProcess
 
-固定 `WorkerProcess` 的 PHP 8.5.12 探针使用可控时钟和进程适配器，经真实事件派发确认两条分支：进程以 0 退出时，在首次启动后 500ms 监控可立即重启；以 1 退出时，500ms 不重启，满 1 秒后依次派发 `WorkerProcessRestarting`、`UnableToLaunchProcess` 并再次启动。Rust 当前采用池级补位延迟，仍须对齐每个 Worker 的初次启动、快速退出、分钟冷却及缩放取消。原始参考为 `target/tmp/observability-parity/horizon-worker-cooldown-upstream.log`。 [固定 WorkerProcess](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/WorkerProcess.php)
+固定 `WorkerProcess` 的 PHP 8.5.12 探针使用可控时钟和进程适配器，经真实事件派发确认两条分支：进程以 0 退出时，在首次启动后 500ms 监控可立即重启；以 1 退出时，500ms 不重启，满 1 秒后依次派发 `WorkerProcessRestarting`、`UnableToLaunchProcess` 并再次启动。固定进程池按原顺序缩容，先取消最旧的席位。原始参考为 `target/tmp/observability-parity/horizon-worker-cooldown-upstream.log`。 [固定 WorkerProcess](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/WorkerProcess.php) [固定 ProcessPool](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/ProcessPool.php)
+
+分钟冷却探针继续运行同一席位。正常退出仍可补位；随后再次异常退出，在原冷却期限前 1ms 仍未补位，恰好到期时依次派发两个事件并启动。证据为 `target/tmp/observability-parity/horizon-worker-cooldown-minute-upstream.log`。
+
+Rust 监督器按席位保存退出快照和冷却期限。冷却席位占用扩缩容预算，心跳的 Worker 列表仅发布存活的 PID。冷却到期后，公开的 `UnableToLaunchProcess` 在 `WorkerProcessRestarting` 之后、启动替代进程之前派发，携带监督器、队列、原 PID 与退出码。正常退出可在冷却期间补位并沿用原期限。缩容可直接取消等待补位的席位，仍存活的缩容进程走原有排空。监听器错误保留日志和补位。原生进程创建调用直接返回错误的重试语义、冷却期间的多队列缩容专项及目标平台组合仍待核对。
+
+基于 `53718e11c` 加本批文件的 macOS 隔离快照，真实 Artisan 和 Redis 8.10.3 验证 SIGKILL 后事件顺序与原 PID、`maxJobs` 正常退出在冷却内只派发重启事件、随后再被杀死时停止补位直至原冷却窗口满一分钟，到期后按序派发事件并补位。Horizon 默认 24 项、隔离 Redis 专项 12 项、快照全仓格式和包全目标严格 Clippy 通过。三语文档构建及 12 组浏览器检查通过。本次冷却改动的 Linux 优化构建与发布组合仍待验收。证据位于 `target/tmp/observability-parity/horizon-worker-cooldown-macos-final.log` 和 `horizon-worker-cooldown-docs.log`。
