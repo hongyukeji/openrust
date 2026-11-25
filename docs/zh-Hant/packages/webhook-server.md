@@ -190,6 +190,12 @@ pub async fn hold_invoice_delivery(
     store.set_retention_hold(openrust_webhook_server::RetentionRecord::Delivery, id, true).await
 }
 
+pub async fn preview_expiring_invoice_keys(
+    store: &openrust_webhook_server::DeliveryStore,
+) -> Result<openrust_webhook_server::IdempotencyPruneReport> {
+    store.prune_idempotency_keys(openrust_webhook_server::IdempotencyKind::Delivery, 30, 100, true).await
+}
+
 ```
 
 
@@ -289,6 +295,12 @@ Builder 的 `dispatch`、`dispatch_if` 和 `dispatch_unless` 登記投遞並入�
 使用 `./artisan webhook-server:hold <id> --scope=<scope>` 保留一筆投遞的快照和嘗試。加入 `--message` 可按發布訊息 ID 保留共享本文，加入 `--release` 可解除保留。訊息保留只保護共享本文，投遞保留也會保護其現存快照引用的共享本文。解除保留後仍須達到一般留存期限才會清理。
 
 已設定保留的記錄在診斷中顯示 `retention_hold_at`。保留只保護仍存在的資料。使用保留前先執行遷移，並升級所有執行清理的程序。應用程式授權範圍後可呼叫 `DeliveryStore::set_retention_hold`。Artisan 指令僅供可信維運人員使用。
+
+### 釋放到期冪等鍵 {#idempotency-expiry}
+
+使用 `./artisan webhook-server:prune --scope=<scope> --days=30 --idempotency=delivery --pretend` 預演直接投遞鍵到期。發布訊息使用 `--idempotency=publication`。期限從請求快照或共享本文清理時起算，業務保留會阻止到期。移除 `--pretend` 後釋放符合條件的鍵。啟用前先執行遷移，並升級所有寫入及清理程序。
+
+重用已釋放的鍵會產生新記錄和 ID，舊佇列任務仍指向舊投遞。歷史記錄保留原 ID，並在診斷中顯示 `idempotency_expired_at`。若接收方應將續用鍵的直接投遞視為新事件，應用程式需設定新的業務訊息 ID。
 
 ### 依訂閱發布 {#subscriptions}
 

@@ -9,6 +9,8 @@ mod console;
 mod delivery;
 #[path = "../database/migrations/2026_11_25_000000_mark_webhook_deliveries_retention_hold.rs"]
 mod delivery_hold_migration;
+#[path = "../database/migrations/2026_11_25_000000_mark_webhook_deliveries_idempotency_expiry.rs"]
+mod delivery_idempotency_expiry_migration;
 #[path = "../database/migrations/2026_11_25_000000_create_webhook_deliveries_table.rs"]
 mod delivery_migration;
 mod delivery_store;
@@ -22,11 +24,16 @@ mod error;
 pub mod events;
 mod extensions;
 mod idempotency;
+mod idempotency_expiry;
+#[path = "../database/migrations/2026_11_25_000000_index_webhook_idempotency_record.rs"]
+mod idempotency_index_migration;
 #[path = "../database/migrations/2026_11_25_000000_create_webhook_idempotency_keys_table.rs"]
 mod idempotency_migration;
 mod limits;
 #[path = "../database/migrations/2026_11_25_000000_mark_webhook_messages_retention_hold.rs"]
 mod message_hold_migration;
+#[path = "../database/migrations/2026_11_25_000000_mark_webhook_messages_idempotency_expiry.rs"]
+mod message_idempotency_expiry_migration;
 #[path = "../database/migrations/2026_11_25_000000_create_webhook_messages_table.rs"]
 mod message_migration;
 mod message_retention;
@@ -66,6 +73,8 @@ pub use dispatch::{QueuedDelivery, SynchronousDelivery};
 pub use endpoints::{Endpoint, EndpointState, EndpointStore};
 pub use error::{Error, Result};
 pub use extensions::{register_backoff_strategy, register_call_webhook_job, register_signer};
+pub use idempotency::IdempotencyKind;
+pub use idempotency_expiry::IdempotencyPruneReport;
 pub use limits::{DeliveryLimit, DeliveryLimits, register_delivery_limits};
 pub use message_retention::PublicationPruneReport;
 pub use publication::{EventType, PublishOptions, PublishedMessage};
@@ -163,6 +172,18 @@ impl WebhookServerServiceProvider {
             MigrationEntry::new(
                 "vendor/openrust/webhook-server/database/migrations/2026_11_25_000000_create_webhook_idempotency_keys_table.rs",
                 &idempotency_migration::MIGRATION,
+            ),
+            MigrationEntry::new(
+                "vendor/openrust/webhook-server/database/migrations/2026_11_25_000000_index_webhook_idempotency_record.rs",
+                &idempotency_index_migration::MIGRATION,
+            ),
+            MigrationEntry::new(
+                "vendor/openrust/webhook-server/database/migrations/2026_11_25_000000_mark_webhook_deliveries_idempotency_expiry.rs",
+                &delivery_idempotency_expiry_migration::MIGRATION,
+            ),
+            MigrationEntry::new(
+                "vendor/openrust/webhook-server/database/migrations/2026_11_25_000000_mark_webhook_messages_idempotency_expiry.rs",
+                &message_idempotency_expiry_migration::MIGRATION,
             ),
         ];
         ENTRIES

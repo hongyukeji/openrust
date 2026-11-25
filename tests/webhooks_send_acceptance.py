@@ -243,6 +243,112 @@ def exercise(binary, env, log, receiver, driver, sql):
         finally:
             connection.close()
 
+    if env.get("FIXTURE_SEND_KEY_EXPIRY"):
+        def db(statement):
+            routes["write_database"](driver, sql, statement)
+
+        def prune(*args, scope=SCOPE, success=True):
+            output = command("webhook-server:prune", "--scope", scope, *args, success=success)
+            return json.loads(output) if success else None
+
+        def hold(identifier, *args):
+            command("webhook-server:hold", identifier, "--scope", SCOPE, *args)
+
+        def finish(identifier):
+            enqueue(identifier)
+            command(*worker)
+            assert read(identifier) == "succeeded\t1"
+            update(identifier, "deadline=1")
+
+        scope_hash = hashlib.sha256(SCOPE.encode()).hexdigest()
+        pending = submit("expiry-pending")
+        old = submit("expiry-direct")
+        enqueue(old)
+        db("INSERT INTO jobs(queue,payload,attempts,available_at,created_at) "
+           "SELECT 'webhook-stale',payload,attempts,available_at,created_at FROM jobs WHERE queue='webhook-outgoing'")
+        command(*worker)
+        assert read(old) == "succeeded\t1"
+        update(old, "deadline=1")
+
+        legacy = submit("expiry-legacy")
+        db(f"DELETE FROM webhook_idempotency_keys WHERE record_id='{legacy}'")
+        old_legacy = hashlib.sha256(f"{scope_hash}:expiry-legacy".encode()).hexdigest()
+        db(f"UPDATE webhook_deliveries SET id='{old_legacy}' WHERE id='{legacy}'")
+        finish(old_legacy)
+        assert prune("--days=0", "--idempotency=delivery")["candidates"] == 0
+        assert prune("--days=0")["pruned"] == 2
+        assert prune("--days=1", "--idempotency=delivery")["candidates"] == 0
+        for identifier in (old, old_legacy):
+            update(identifier, "payload_pruned_at=1")
+        assert prune("--days=0", "--idempotency=delivery", "--pretend", "--limit=1") == {
+            "kind": "delivery", "candidates": 1, "expired": 0, "pretend": True
+        }
+        assert prune("--days=0", "--idempotency=delivery", scope="other-scope")["candidates"] == 0
+        assert prune("--days=0", "--idempotency=delivery", "--messages", success=False) is None
+        assert submit("expiry-direct") == old
+        hold(old)
+        assert prune("--days=0", "--idempotency=delivery")["expired"] == 1
+        assert submit("expiry-direct") == old
+        legacy_replacement = submit("expiry-legacy")
+        assert legacy_replacement != old_legacy and read(old_legacy) == "succeeded\t1"
+        hold(old, "--release")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            jobs = [pool.submit(prune, "--days=0", "--idempotency=delivery") for _ in range(2)]
+            assert sum(job.result()["expired"] for job in jobs) == 1
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
+            replacements = [job.result() for job in
+                            [pool.submit(submit, "expiry-direct", body=b"new body") for _ in range(3)]]
+        new = replacements[0]
+        assert replacements == [new] * 3 and new != old and new != pending
+        command("queue:work", "database", "--queue=webhook-stale", "--once", "--tries=7")
+        assert read(old) == "succeeded\t1" and read(new) == "pending\t0"
+        assert sql("SELECT count(*) FROM jobs WHERE queue='webhook-stale'") == "0"
+        captured("expiry-direct")
+        finish(new)
+        with receiver.mutex:
+            assert [entry[2] for entry in receiver.received["expiry-direct"]] == [BODY, b"new body"]
+        inspected = json.loads(command("webhook-server:inspect", old, "--scope", SCOPE))
+        assert inspected["idempotency_expired_at"] > 0 and inspected["attempts"] == 1
+
+        old_publish = publish("expiry-publish")
+        old_message = hashlib.sha256(f"webhook-publication:{scope_hash}:expiry-publish".encode()).hexdigest()
+        assert old_publish["delivery_ids"] == []
+        record = old_publish["message_id"]
+        db(f"DELETE FROM webhook_idempotency_keys WHERE record_id='{record}'")
+        db(f"UPDATE webhook_messages SET id='{old_message}', created_at=1 WHERE id='{record}'")
+        assert prune("--days=0", "--messages")["pruned"] == 1
+        assert prune("--days=1", "--idempotency=publication")["expired"] == 0
+        db(f"UPDATE webhook_messages SET body_pruned_at=1 WHERE id='{old_message}'")
+        prune("--days=0", "--idempotency=publication")
+        new_publish = publish("expiry-publish")
+        assert new_publish["message_id"] != old_message
+        assert publish("expiry-publish") == new_publish
+        old_summary = json.loads(command("webhook-server:inspect", old_message, "--scope", SCOPE, "--message"))
+        assert old_summary["idempotency_expired_at"] > 0 and old_summary["body_pruned_at"] > 0
+
+        admin("create", "primary")
+        admin("subscribe", "primary", "--topic=invoice.paid", "--schema=1")
+        fanout = publish("expiry-fanout")
+        finish(fanout["delivery_ids"][0])
+        assert prune("--days=0")["pruned"] >= 1
+        db(f"UPDATE webhook_messages SET created_at=1 WHERE id='{fanout['message_id']}'")
+        assert prune("--days=0", "--messages")["pruned"] >= 1
+        db(f"UPDATE webhook_messages SET body_pruned_at=1 WHERE id='{fanout['message_id']}'")
+        hold(fanout["message_id"], "--message")
+        assert prune("--days=1", "--idempotency=publication")["expired"] == 0
+        assert publish("expiry-fanout") == fanout
+        hold(fanout["message_id"], "--message", "--release")
+        assert prune("--days=1", "--idempotency=publication")["expired"] == 1
+        replacement = publish("expiry-fanout", {"new": True})
+        assert replacement["message_id"] != fanout["message_id"]
+        assert replacement["delivery_ids"][0] != fanout["delivery_ids"][0]
+        finish(replacement["delivery_ids"][0])
+        migration = ("--path=vendor/openrust/webhook-server/database/migrations/"
+                     "2026_11_25_000000_mark_webhook_deliveries_idempotency_expiry.rs")
+        command("migrate:rollback", migration, "--step=1000", "--force", success=False)
+        print(f"{driver}: 幂等期限、旧键回退、业务保留、并发及旧 Worker 隔离通过")
+        return
+
     if env.get("FIXTURE_SEND_KEY_BINDINGS"):
         legacy = json.loads(env["FIXTURE_SEND_LEGACY_RECEIPTS"])
         scope_hash = hashlib.sha256(SCOPE.encode()).hexdigest()
@@ -379,8 +485,13 @@ def exercise(binary, env, log, receiver, driver, sql):
 
         migration = ("--path=vendor/openrust/webhook-server/database/migrations/"
                      "2026_11_25_000000_extend_webhook_deliveries_for_retention.rs")
+        expiry_migration = ("--path=vendor/openrust/webhook-server/database/migrations/"
+                            "2026_11_25_000000_mark_webhook_deliveries_idempotency_expiry.rs")
+        command("migrate:rollback", migration, "--step=1000", "--force", success=False)
+        command("migrate:rollback", expiry_migration, "--step=1000", "--force")
         assert "extend_webhook_deliveries_for_retention" in command("migrate:rollback", migration, "--step=1000", "--force")
         assert "extend_webhook_deliveries_for_retention" in command("migrate", migration, "--force")
+        command("migrate", expiry_migration, "--force")
 
         saved = command(*replay_args(winner))
         child = json.loads(re.search(r"\{[^\n]+\}", saved)[0])["delivery_id"]
@@ -433,8 +544,13 @@ def exercise(binary, env, log, receiver, driver, sql):
         fanout = published["delivery_ids"][0]
         message_migration = ("--path=vendor/openrust/webhook-server/database/migrations/"
                              "2026_11_25_000000_extend_webhook_messages_for_retention.rs")
+        expiry_migration = ("--path=vendor/openrust/webhook-server/database/migrations/"
+                            "2026_11_25_000000_mark_webhook_messages_idempotency_expiry.rs")
+        command("migrate:rollback", message_migration, "--step=1000", "--force", success=False)
+        command("migrate:rollback", expiry_migration, "--step=1000", "--force")
         assert "extend_webhook_messages_for_retention" in command("migrate:rollback", message_migration, "--step=1000", "--force")
         assert "extend_webhook_messages_for_retention" in command("migrate", message_migration, "--force")
+        command("migrate", expiry_migration, "--force")
         for receipt in (empty, published):
             routes["write_database"](driver, sql,
                 f"UPDATE webhook_messages SET created_at=1 WHERE id='{receipt['message_id']}'")
@@ -1719,7 +1835,7 @@ def main():
                 or os.environ.get("FIXTURE_SEND_ENDPOINTS") or os.environ.get("FIXTURE_SEND_LIMITS")
                 or os.environ.get("FIXTURE_SEND_FANOUT") or os.environ.get("FIXTURE_SEND_TLS")
                 or os.environ.get("FIXTURE_SEND_DIAGNOSTICS") or os.environ.get("FIXTURE_SEND_RETENTION")
-                or os.environ.get("FIXTURE_SEND_KEY_BINDINGS")):
+                or os.environ.get("FIXTURE_SEND_KEY_BINDINGS") or os.environ.get("FIXTURE_SEND_KEY_EXPIRY")):
             print(f"{driver}: HTTP 签名和字节、事务回滚、重复领取、重试预算、撤销、超时、崩溃恢复、Builder 分支、投递事件与自定义 Job 通过")
     finally:
         if proxy_thread is not None:

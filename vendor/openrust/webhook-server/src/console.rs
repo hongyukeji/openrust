@@ -8,7 +8,7 @@ use openrust::{
 };
 
 use crate::{
-    DeliveryRetention, DeliveryService, DeliveryStore, Error, RetentionRecord,
+    DeliveryRetention, DeliveryService, DeliveryStore, Error, IdempotencyKind, RetentionRecord,
     delivery::RegisteredDeliveryPolicy,
 };
 
@@ -104,6 +104,12 @@ pub(super) fn register() -> Result<(), ConsoleError> {
                 .long("messages")
                 .conflicts_with("attempts")
                 .action(ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::new("idempotency")
+                .long("idempotency")
+                .conflicts_with_all(["messages", "attempts"])
+                .value_parser(["delivery", "publication"]),
         )
         .arg(Arg::new("after").long("after").requires("messages"))
         .arg(
@@ -335,7 +341,19 @@ impl Command for Prune {
             let days = *args.get_one::<u32>("days").expect("必填保留天数");
             let limit = *args.get_one::<u32>("limit").expect("默认批次大小");
             let pretend = args.get_flag("pretend");
-            let json = if args.get_flag("messages") {
+            let json = if let Some(kind) = args.get_one::<String>("idempotency") {
+                let kind = if kind == "delivery" {
+                    IdempotencyKind::Delivery
+                } else {
+                    IdempotencyKind::Publication
+                };
+                serde_json::to_string(
+                    &store
+                        .prune_idempotency_keys(kind, days, limit, pretend)
+                        .await
+                        .map_err(ConsoleError::from_source)?,
+                )
+            } else if args.get_flag("messages") {
                 let after = args.get_one::<String>("after").map(String::as_str);
                 serde_json::to_string(
                     &store

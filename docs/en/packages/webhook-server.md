@@ -190,6 +190,12 @@ pub async fn hold_invoice_delivery(
     store.set_retention_hold(openrust_webhook_server::RetentionRecord::Delivery, id, true).await
 }
 
+pub async fn preview_expiring_invoice_keys(
+    store: &openrust_webhook_server::DeliveryStore,
+) -> Result<openrust_webhook_server::IdempotencyPruneReport> {
+    store.prune_idempotency_keys(openrust_webhook_server::IdempotencyKind::Delivery, 30, 100, true).await
+}
+
 ```
 
 
@@ -289,6 +295,12 @@ Use `--messages` to prune shared publication bodies after the publication retent
 Run `./artisan webhook-server:hold <id> --scope=<scope>` to keep a delivery snapshot and its attempts. Add `--message` to hold the shared body by publication ID. Use `--release` to remove the hold. A publication hold applies only to the shared body. A delivery hold also keeps a shared body while that delivery's snapshot still refers to it. Releasing a hold leaves the ordinary age requirements in effect.
 
 `retention_hold_at` appears in diagnostics when set. A hold protects the data that still exists. Apply the migrations and upgrade all pruning processes before placing holds. Authorize the scope in the application before calling `DeliveryStore::set_retention_hold`, and give the Artisan command only to trusted operators.
+
+### Expire idempotency keys {#idempotency-expiry}
+
+Use `./artisan webhook-server:prune --scope=<scope> --days=30 --idempotency=delivery --pretend` to preview direct delivery key expiry. Use `--idempotency=publication` for publication keys. The period starts when the request snapshot or shared body was pruned. A hold prevents expiry. Remove `--pretend` to release the selected keys. Run migrations and upgrade all writers and pruners before enabling expiry.
+
+Reusing a released key creates a new record with a new ID. Old queue tasks still address the old delivery. Existing delivery and message history keeps its original IDs and exposes `idempotency_expired_at` in diagnostics. For direct submissions, choose a new application message ID if the receiver should treat the next delivery as a new event.
 
 ### Publish to subscriptions {#subscriptions}
 

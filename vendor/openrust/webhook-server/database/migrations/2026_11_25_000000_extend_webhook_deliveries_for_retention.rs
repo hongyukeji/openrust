@@ -31,6 +31,15 @@ impl Migration for ExtendWebhookDeliveriesForRetention {
         context: &'a mut MigrationContext,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
+            if context
+                .get_schema_builder()
+                .has_column("webhook_deliveries", "idempotency_expired_at")
+                .await?
+            {
+                return Err(DatabaseError::InvalidMigration(
+                    "请先回滚 Webhook 幂等键到期迁移",
+                ));
+            }
             if let Some(query) = context.query_table("webhook_deliveries")
                 && query.where_not_null("payload_pruned_at").exists().await?
             {

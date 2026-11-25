@@ -6,23 +6,28 @@ use crate::{
     publication::MESSAGES,
 };
 
-const KEYS: &str = "webhook_idempotency_keys";
+pub(crate) const KEYS: &str = "webhook_idempotency_keys";
 
-#[derive(Clone, Copy)]
-pub(crate) enum IdempotencyKind {
+#[derive(Clone, Copy, Debug, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum IdempotencyKind {
     Delivery,
     Publication,
 }
 
 impl IdempotencyKind {
-    fn name(self) -> &'static str {
+    pub(crate) fn name(self) -> &'static str {
         match self {
             Self::Delivery => "delivery",
             Self::Publication => "publication",
         }
     }
 
-    fn table(self) -> &'static str {
+    pub(crate) fn key_id(self, legacy_id: &str) -> String {
+        hash(format!("webhook-idempotency:{}:{legacy_id}", self.name()).as_bytes())
+    }
+
+    pub(crate) fn table(self) -> &'static str {
         match self {
             Self::Delivery => DELIVERIES,
             Self::Publication => MESSAGES,
@@ -44,7 +49,7 @@ impl DeliveryStore {
         legacy_id: &str,
     ) -> Result<KeyBinding> {
         let name = kind.name();
-        let key = hash(format!("webhook-idempotency:{name}:{legacy_id}").as_bytes());
+        let key = kind.key_id(legacy_id);
         let random = Str::uuid().map_err(|_| Error::InvalidRecord)?;
         let id = hash(format!("webhook-record:{name}:{random}").as_bytes());
         let inserted = tx
@@ -81,6 +86,7 @@ impl DeliveryStore {
             .table(kind.table())
             .r#where("scope_key", "=", self.scope_key.as_str())
             .r#where("id", "=", legacy_id)
+            .where_null("idempotency_expired_at")
             .select(["id"])
             .shared_lock()
             .first()
