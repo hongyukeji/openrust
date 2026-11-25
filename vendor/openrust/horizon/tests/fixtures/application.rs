@@ -1,6 +1,7 @@
 //! Dedicated process acceptance application; never registered in the default app.
 mod command_handlers;
 mod file_command_queue;
+mod wrapper_control;
 mod wrapper_output;
 
 use openrust::{
@@ -492,6 +493,37 @@ async fn run_output_probe(role: &str) {
 
 #[tokio::main]
 async fn main() -> std::process::ExitCode {
+    if let Ok(action) = std::env::var("HORIZON_PROBE_WRAPPER_CONTROL_CHILD") {
+        return std::process::ExitCode::from(wrapper_control::run_child(&action).await);
+    }
+    if std::env::var_os("HORIZON_PROBE_WRAPPER_CONTROL").is_some() {
+        wrapper_control::run().await;
+        return std::process::ExitCode::SUCCESS;
+    }
+    if let Ok(probe) = std::env::var("HORIZON_PROBE_WRAPPER_TERMINATE") {
+        use openrust::support::facades::{App, Facade as _};
+        let mut app = create().unwrap();
+        app.boot().await.unwrap();
+        let args: Value = serde_json::from_str(&probe).unwrap();
+        let supervisor = openrust_horizon::SupervisorProcess::new(
+            SupervisorOptions {
+                name: args["name"].as_str().unwrap().into(),
+                ..Default::default()
+            },
+            None,
+        );
+        let repository = app.make::<openrust_horizon::Repository>().await.unwrap();
+        App::set_facade_application(
+            Some(&app),
+            supervisor.terminate_with_status(
+                &repository,
+                u8::try_from(args["status"].as_u64().unwrap()).unwrap(),
+            ),
+        )
+        .await
+        .unwrap();
+        return std::process::ExitCode::SUCCESS;
+    }
     if let Ok(name) = std::env::var("HORIZON_PROBE_WRAPPER_CHILD") {
         wrapper_output::run_child(&name).await;
         return std::process::ExitCode::SUCCESS;

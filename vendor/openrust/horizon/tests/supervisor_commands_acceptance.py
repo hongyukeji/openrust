@@ -105,7 +105,9 @@ def main():
 
                         job = dispatch(2400)
                         until(lambda: recorded(started, job))
-                        push('Terminate', {'status': expected_exit})
+                        invoke(HORIZON_PROBE_WRAPPER_TERMINATE=json.dumps(
+                            {'name': name, 'status': expected_exit}
+                        ))
                     stdout, stderr = process.communicate(timeout=15)
                     assert process.returncode == expected_exit, (process.returncode, stdout, stderr)
                     if expected_exit:

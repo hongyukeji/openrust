@@ -65,7 +65,7 @@ type ProcessTask = JoinHandle<Result<Completion>>;
 
 pub(super) type OutputCallback = Box<dyn FnMut(OutputStream, &[u8]) + Send>;
 enum SignalRequest {
-    Signal(Signal, oneshot::Sender<io::Result<()>>),
+    Signal(Signal, bool, oneshot::Sender<io::Result<()>>),
     Detach(oneshot::Sender<io::Result<()>>),
 }
 
@@ -209,6 +209,15 @@ impl InvokedProcess {
     }
 
     pub async fn signal(&self, signal: Signal) -> Result<()> {
+        self.send_signal(signal, false).await
+    }
+
+    /// 向子进程本身发送信号。Windows 使用子进程的原生关停机制。
+    pub async fn signal_leader(&self, signal: Signal) -> Result<()> {
+        self.send_signal(signal, true).await
+    }
+
+    async fn send_signal(&self, signal: Signal, leader_only: bool) -> Result<()> {
         if let Some(mut fake) = self.playback() {
             fake.signals.push(signal);
             return Ok(());
@@ -217,7 +226,7 @@ impl InvokedProcess {
             let (acknowledge, result) = oneshot::channel();
             if self
                 .signals
-                .send(SignalRequest::Signal(signal, acknowledge))
+                .send(SignalRequest::Signal(signal, leader_only, acknowledge))
                 .is_ok()
             {
                 result.await.unwrap_or(Ok(()))?;
@@ -477,8 +486,14 @@ async fn drive_with_pipes(
             }
             Some(request) = signals.recv() => {
                 match request {
-                    SignalRequest::Signal(signal, acknowledge) => {
-                        let result = if status.is_none() { group.signal(signal) } else { Ok(()) };
+                    SignalRequest::Signal(signal, leader_only, acknowledge) => {
+                        let result = if status.is_some() {
+                            Ok(())
+                        } else if leader_only {
+                            group.signal_leader(signal)
+                        } else {
+                            group.signal(signal)
+                        };
                         let _ = acknowledge.send(result);
                     }
                     SignalRequest::Detach(acknowledge) => { let _ = acknowledge.send(group.detach()); }

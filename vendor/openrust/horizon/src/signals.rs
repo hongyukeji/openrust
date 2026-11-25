@@ -1,4 +1,7 @@
 use crate::{Error, Result};
+use openrust::process::InvokedProcess;
+use std::time::Duration;
+use tokio::time::Instant;
 
 #[cfg(windows)]
 pub(crate) async fn parent_closed(
@@ -43,34 +46,46 @@ impl ControlSignals {
 
 /// Graceful Horizon termination targets the supervisor or worker itself. Job
 /// subprocesses share its group and must finish before the group is reclaimed.
-pub(crate) async fn terminate(process: &openrust::process::InvokedProcess) -> Result<()> {
-    if !process.running() {
+pub(crate) async fn terminate(process: &InvokedProcess) -> Result<()> {
+    process
+        .signal_leader(openrust::process::Signal::Terminate)
+        .await
+        .map_err(|_| Error::Process)
+}
+
+pub(crate) async fn set_paused(process: Option<&InvokedProcess>, paused: bool) -> Result<()> {
+    let Some(process) = process.filter(|process| process.running()) else {
         return Ok(());
-    }
+    };
     #[cfg(unix)]
     {
-        let pid = process
-            .id()
-            .and_then(|pid| i32::try_from(pid).ok())
-            .and_then(rustix::process::Pid::from_raw)
-            .ok_or(Error::Process)?;
-        match rustix::process::kill_process(pid, rustix::process::Signal::TERM) {
-            Ok(()) | Err(rustix::io::Errno::SRCH) => Ok(()),
-            Err(_) => Err(Error::Process),
-        }
-    }
-    #[cfg(not(unix))]
-    {
+        use rustix::process::Signal;
+        let signal = if paused { Signal::USR2 } else { Signal::CONT };
         process
-            .signal(openrust::process::Signal::Terminate)
+            .signal_leader(openrust::process::Signal::Raw(signal.as_raw()))
             .await
             .map_err(|_| Error::Process)
     }
+    #[cfg(not(unix))]
+    {
+        let _ = (process, paused);
+        Err(Error::Unavailable)
+    }
 }
-pub(crate) async fn drain(
-    process: openrust::process::InvokedProcess,
-    deadline: tokio::time::Instant,
-) -> Result<()> {
+
+pub(crate) async fn stop_child(slot: &mut Option<InvokedProcess>, grace: Duration) -> Result<()> {
+    if let Some(process) = slot.as_ref() {
+        let deadline = Instant::now()
+            .checked_add(grace)
+            .ok_or(Error::InvalidConfiguration)?;
+        terminate(process).await?;
+        let process = slot.take().expect("owned child");
+        drain(process, deadline).await?;
+    }
+    Ok(())
+}
+
+pub(crate) async fn drain(process: InvokedProcess, deadline: Instant) -> Result<()> {
     while process.running() && tokio::time::Instant::now() < deadline {
         tokio::time::sleep(std::time::Duration::from_millis(25)).await;
     }

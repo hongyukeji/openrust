@@ -80,6 +80,13 @@ try {
 } finally {
     Remove-Item Env:HORIZON_PROBE_WRAPPER_OUTPUT
 }
+$env:HORIZON_PROBE_WRAPPER_CONTROL = '1'
+try {
+    & $Binary
+    if ($LASTEXITCODE -ne 0) { throw 'The native process wrapper control probe failed.' }
+} finally {
+    Remove-Item Env:HORIZON_PROBE_WRAPPER_CONTROL
+}
 
 foreach ($mode in @('idle', 'wait', 'fast', 'parent-exit', 'handlers', 'queue', 'file-queue')) {
     $customQueue = $mode -in @('queue', 'file-queue')

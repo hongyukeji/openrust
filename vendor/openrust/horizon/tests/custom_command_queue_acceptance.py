@@ -83,7 +83,7 @@ def run_case(binary, transport_type):
                                               accepted=(0, 1, 2)))
             assert standalone.poll() is None
             assert json.loads(queue('standalone', 'target'))['scope'] is None
-            queue('standalone', 'push', command=TERMINATE, options={'status': 23})
+            run(HORIZON_PROBE_WRAPPER_TERMINATE=json.dumps({'name': 'standalone', 'status': 23}))
             assert standalone.wait(timeout=15) == 23, standalone.stderr.read()
 
             master = start('horizon')

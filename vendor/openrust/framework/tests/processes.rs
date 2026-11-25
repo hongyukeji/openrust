@@ -205,7 +205,9 @@ async fn scripted_fakes_play_ordered_chunks_and_track_signals() {
     assert!(process.running());
     assert_eq!(process.latest_error_output(), b"diagnostic\n");
     process.signal(Signal::Raw(10)).await.unwrap();
+    process.signal_leader(Signal::Terminate).await.unwrap();
     assert!(process.has_received_signal(Signal::Raw(10)));
+    assert!(process.has_received_signal(Signal::Terminate));
     assert!(!process.has_received_signal(Signal::Kill));
     let mut staged = Vec::new();
     assert!(
@@ -601,6 +603,67 @@ mod unix {
         assert_eq!(result.exit_code(), 6);
         assert_eq!(result.output(), b"readycaught");
     }
+
+    #[tokio::test]
+    async fn leader_signal_preserves_the_rest_of_the_process_group() {
+        let directory = TestDirectory::new();
+        let mut child = Factory::new()
+            .command(
+                r#"
+trap 'printf leader' USR1
+(
+    trap 'printf follower > follower-signal' USR1
+    printf ready > follower-ready
+    while [ ! -e follower-check ]; do sleep 0.02; done
+    printf checked > follower-checked
+    while :; do sleep 0.02; done
+) &
+while [ ! -s follower-ready ]; do sleep 0.02; done
+printf ready
+while :; do sleep 0.02; done
+"#,
+            )
+            .path(&directory.0)
+            .timeout(Duration::from_secs(5))
+            .start()
+            .unwrap();
+        assert!(
+            child
+                .wait_until(|_, bytes| bytes == b"ready")
+                .await
+                .unwrap()
+        );
+        child
+            .signal_leader(Signal::Raw(libc::SIGUSR1))
+            .await
+            .unwrap();
+        assert!(
+            child
+                .wait_until(|_, bytes| bytes == b"leader")
+                .await
+                .unwrap()
+        );
+        let follower = directory.0.join("follower-signal");
+        std::fs::write(directory.0.join("follower-check"), b"check").unwrap();
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while !directory.0.join("follower-checked").exists() {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap();
+        assert!(!follower.exists());
+        child.signal(Signal::Raw(libc::SIGUSR1)).await.unwrap();
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while !follower.exists() {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap();
+        child.stop(Duration::ZERO).await.unwrap();
+    }
+
     #[test]
     fn detached_process_survives_its_runtime_and_finishes() {
         let directory = TestDirectory::new();

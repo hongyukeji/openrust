@@ -124,7 +124,17 @@ Rust 的两个包装器提供 `handle_output_using`、`start(PendingProcess)`、
 
 macOS、Linux ARM64 和 Windows ARM64 均运行实际子进程验证独立包装器连续启动、回调替换、重复启动保护和两路字节传输。macOS 复验真实 Worker SIGKILL 补位后的双流输出，Linux ARM64 核对 Master 重部署后真实任务继续输出，Windows ARM64 的完整进程树及两种自定义命令后端通过。Horizon 全目标严格 Clippy、格式和三语文档正文检查通过。证据为 `target/tmp/observability-parity/horizon-wrapper-output-{macos,linux,windows,docs}.log`。
 
-独立包装器的监控、冷却和进程控制入口仍待对齐。Linux 的固定 PHP 探针用系统信号编号和真实 shell 子进程核对 Worker 包装器的 `pause`、`continue`、`terminate`，观察到 USR2、CONT、TERM 的顺序及终止状态码，并确认首次 `start` 启动冷却。该探针对应启用 PCNTL 时由该扩展提供的信号常量。证据为 `target/tmp/observability-parity/horizon-wrapper-control-upstream.log`。
+### WorkerProcess 与 SupervisorProcess 控制
+
+Linux 的固定 PHP 探针用系统信号编号和真实 shell 子进程核对 Worker 包装器的 `pause`、`continue`、`terminate`，观察到 USR2、CONT、TERM 的顺序及终止状态码，并确认首次 `start` 启动冷却。该探针对应启用 PCNTL 时由该扩展提供的信号常量。证据为 `target/tmp/observability-parity/horizon-wrapper-control-upstream.log`。
+
+Rust 的 Worker 公开 `monitor` 及 `cooling_down`，和受管 Worker 共用退出检查、重启事件及冷却。首次尝试进入一秒冷却，失败退出时等候原截止时间，下一次补位采用一分钟冷却，正常退出可立即补位。两个包装器提供 `pause`、`continue_working`、`terminate` 和 `stop`。Unix 信号只发给子进程本身，`stop` 按宽限期等待排空。Windows 独立包装器的暂停和继续缺少 Unix 信号入口，受管进程继续由 Redis 状态控制，并通过实际关停管道排空。Supervisor 的 `terminate_with_status` 向当前应用绑定的队列发送带退出码的命令。
+
+框架进程驱动根据所持子进程句柄发送信号。直接子进程控制复用同一驱动的模拟信号记录和 Windows 关停管道。真实 Unix 组内进程测试分别验证单进程信号与全组信号。
+
+macOS 和 Linux ARM64 的原生子进程验证暂停、继续、终止、排空和冷却。真实 Redis 验证默认及替代队列的公开终止入口，独立 Supervisor 以状态码 23 退出。Windows ARM64 验证真实关停管道、冷却和完整受管进程树。macOS 框架进程测试 18 项、Horizon 原生进程矩阵、相关严格 Clippy、格式及三语正文检查通过。证据为 `target/tmp/observability-parity/horizon-wrapper-control-{owned-macos,owned-linux,owned-windows,framework-final,docs}.log`。
+
+独立 SupervisorProcess 自行监控及重部署的入口仍待接入。固定上游的真实 Symfony 子进程与 Redis 验证退出码 13 立即标为死亡，0／2 满冷却后标为死亡并结束，1 满冷却后删除旧心跳并按原选项发出 `AddSupervisor`。证据为 `target/tmp/observability-parity/horizon-supervisor-wrapper-monitor-upstream.log`。
 
 ### Windows 原生进程树
 

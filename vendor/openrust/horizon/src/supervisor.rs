@@ -59,8 +59,13 @@ impl WorkerProcess {
 
     /// 启动已配置的子进程，复用当前输出回调。
     pub fn start(&mut self, process: PendingProcess) -> openrust::process::Result<()> {
+        if self.process.is_none() {
+            self.restart_again_at
+                .get_or_insert_with(|| Instant::now() + Duration::from_secs(1));
+        }
         crate::process_output::start_child(&mut self.process, process, self.output.as_ref())?;
         self.pid = self.process.as_ref().and_then(InvokedProcess::id);
+        self.exit_code = None;
         Ok(())
     }
 
@@ -71,6 +76,89 @@ impl WorkerProcess {
     /// 将本次子进程交给调用方等待或关闭。
     pub fn take_process(&mut self) -> Option<InvokedProcess> {
         self.process.take()
+    }
+
+    pub async fn pause(&self) -> Result<()> {
+        crate::signals::set_paused(self.process(), true).await
+    }
+
+    pub async fn continue_working(&self) -> Result<()> {
+        crate::signals::set_paused(self.process(), false).await
+    }
+
+    pub async fn terminate(&self) -> Result<()> {
+        if let Some(process) = self.process() {
+            crate::signals::terminate(process).await?;
+        }
+        Ok(())
+    }
+
+    pub async fn stop(&mut self) -> Result<()> {
+        crate::signals::stop_child(&mut self.process, self.grace).await
+    }
+
+    pub fn cooling_down(&self) -> bool {
+        self.restart_again_at.is_some_and(|at| Instant::now() < at)
+    }
+
+    /// 观察退出并在冷却允许时启动下一次。返回是否已启动。
+    pub async fn monitor(&mut self, process: PendingProcess) -> openrust::process::Result<bool> {
+        self.collect_exit().await?;
+        if !self.needs_launch() {
+            return Ok(false);
+        }
+        self.launch(process).await?;
+        Ok(true)
+    }
+
+    async fn collect_exit(&mut self) -> openrust::process::Result<Option<i32>> {
+        if self
+            .process
+            .as_ref()
+            .is_some_and(|process| !process.running())
+        {
+            let result = self.take_process().expect("observed child").wait().await?;
+            let status = result.exit_code();
+            self.exit_code = Some(status);
+            return Ok(Some(status));
+        }
+        Ok(None)
+    }
+
+    fn needs_launch(&self) -> bool {
+        self.process.is_none()
+            && self.stopping.is_none()
+            && (self.exit_code == Some(0) || !self.cooling_down())
+    }
+
+    async fn launch(&mut self, process: PendingProcess) -> openrust::process::Result<()> {
+        if let Some(exit_code) = self.exit_code {
+            dispatch_worker_event(WorkerProcessRestarting {
+                supervisor: self.supervisor.clone(),
+                queue: self.queue.clone(),
+                pid: self.pid,
+                exit_code,
+            })
+            .await;
+        }
+        let now = Instant::now();
+        self.restart_again_at = Some(match self.restart_again_at {
+            None => now + Duration::from_secs(1),
+            Some(at) if now < at => at,
+            Some(_) => {
+                dispatch_worker_event(UnableToLaunchProcess {
+                    supervisor: self.supervisor.clone(),
+                    queue: self.queue.clone(),
+                    pid: self.pid,
+                    exit_code: self.exit_code,
+                })
+                .await;
+                now + Duration::from_secs(60)
+            }
+        });
+        self.exit_code = None;
+        self.pid = None;
+        self.start(process)
     }
 }
 
@@ -422,19 +510,12 @@ impl Supervisor {
             let mut index = 0;
             while index < pool.workers.len() {
                 let worker = &mut pool.workers[index];
-                if worker
-                    .process
-                    .as_ref()
-                    .is_some_and(|process| !process.running())
-                {
-                    let process = worker.process.take().expect("observed process");
-                    let result = process.wait().await.map_err(|_| Error::Process)?;
+                if let Some(status) = worker.collect_exit().await.map_err(|_| Error::Process)? {
                     if worker.stopping.is_some() {
                         pool.workers.remove(index);
                         continue;
                     }
-                    worker.exit_code = Some(result.exit_code());
-                    if result.failed() {
+                    if status != 0 {
                         self.failures = self.failures.saturating_add(1);
                     }
                 } else if pool.workers[index]
@@ -686,8 +767,8 @@ impl Supervisor {
                     index += 1;
                     continue;
                 }
-                if let Some(process) = &worker.process {
-                    crate::signals::terminate(process).await?;
+                if worker.process.is_some() {
+                    worker.terminate().await?;
                     worker.stopping = Some(Instant::now());
                     index += 1;
                 } else {
@@ -735,45 +816,12 @@ impl Supervisor {
     async fn monitor_workers(&mut self, queue: &str, options: &SupervisorOptions) -> Result<()> {
         for index in 0..self.pools[queue].workers.len() {
             let worker = &self.pools[queue].workers[index];
-            if worker.process.is_some()
-                || worker.stopping.is_some()
-                || (worker.exit_code != Some(0)
-                    && worker
-                        .restart_again_at
-                        .is_some_and(|at| Instant::now() < at))
-            {
+            if !worker.needs_launch() {
                 continue;
             }
-            if let Some(exit_code) = worker.exit_code {
-                dispatch_worker_event(WorkerProcessRestarting {
-                    supervisor: worker.supervisor.clone(),
-                    queue: worker.queue.clone(),
-                    pid: worker.pid,
-                    exit_code,
-                })
-                .await;
-            }
-            let now = Instant::now();
-            let restart_again_at = match worker.restart_again_at {
-                None => now + Duration::from_secs(1),
-                Some(at) if now < at => at,
-                Some(_) => {
-                    dispatch_worker_event(UnableToLaunchProcess {
-                        supervisor: worker.supervisor.clone(),
-                        queue: worker.queue.clone(),
-                        pid: worker.pid,
-                        exit_code: worker.exit_code,
-                    })
-                    .await;
-                    now + Duration::from_secs(60)
-                }
-            };
             let process = self.prepare_worker(queue, options)?;
             let worker = &mut self.pools.get_mut(queue).expect("configured pool").workers[index];
-            worker.restart_again_at = Some(restart_again_at);
-            worker.exit_code = None;
-            worker.pid = None;
-            match worker.start(process) {
+            match worker.launch(process).await {
                 Ok(()) => {}
                 Err(error) => {
                     let _ = openrust::support::facades::Log::warning(
@@ -799,9 +847,7 @@ impl Supervisor {
                 .unwrap_or_default();
         let mut failed = false;
         for worker in self.pools.values().flat_map(|pool| &pool.workers) {
-            if let Some(process) = &worker.process {
-                failed |= crate::signals::terminate(process).await.is_err();
-            }
+            failed |= worker.terminate().await.is_err();
         }
         let master = self.master_name();
         let wait = !self.fast_termination

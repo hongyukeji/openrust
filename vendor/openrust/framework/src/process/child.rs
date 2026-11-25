@@ -174,6 +174,23 @@ impl ChildGroup {
 
     #[cfg(unix)]
     pub(crate) fn signal(&mut self, signal: Signal) -> io::Result<()> {
+        self.signal_target(signal, self.group)
+    }
+
+    /// 仅向仍由框架持有的子进程发送信号。
+    pub(crate) fn signal_leader(&mut self, signal: Signal) -> io::Result<()> {
+        #[cfg(unix)]
+        {
+            self.signal_target(signal, None)
+        }
+        #[cfg(not(unix))]
+        {
+            self.signal(signal)
+        }
+    }
+
+    #[cfg(unix)]
+    fn signal_target(&mut self, signal: Signal, group: Option<Pid>) -> io::Result<()> {
         let raw = match signal {
             Signal::Interrupt => libc::SIGINT,
             Signal::Terminate => libc::SIGTERM,
@@ -186,7 +203,7 @@ impl ChildGroup {
                 "invalid process signal",
             ));
         }
-        let target = match self.group {
+        let target = match group {
             Some(group) => -group.as_raw_pid(),
             None => {
                 let Some(pid) = self

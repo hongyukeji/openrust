@@ -69,6 +69,41 @@ impl SupervisorProcess {
         crate::process_output::start_child(&mut self.process, process, self.output.as_ref())
     }
 
+    pub async fn pause(&self) -> Result<()> {
+        crate::signals::set_paused(self.process(), true).await
+    }
+
+    pub async fn continue_working(&self) -> Result<()> {
+        crate::signals::set_paused(self.process(), false).await
+    }
+
+    pub async fn terminate(&self) -> Result<()> {
+        if let Some(process) = self.process() {
+            crate::signals::terminate(process).await?;
+        }
+        Ok(())
+    }
+
+    pub async fn stop(&mut self) -> Result<()> {
+        let grace = Duration::from_secs(u64::from(self.options.timeout) + 10);
+        crate::signals::stop_child(&mut self.process, grace).await
+    }
+
+    /// 向监督器的结构化队列提交带退出码的终止命令。
+    pub async fn terminate_with_status(&self, repository: &Repository, status: u8) -> Result<()> {
+        let command = crate::supervisor_commands::TERMINATE;
+        let options = serde_json::json!({"status": status});
+        if let Some(queue) = crate::repository::command_queue::configured()? {
+            let target = repository.command_target(&self.name).await?;
+            queue.push(&target, command, options).await
+        } else {
+            repository
+                .command_queue()
+                .push(&self.name, command, options)
+                .await
+        }
+    }
+
     pub fn is_dead(&self) -> bool {
         self.dead
     }
@@ -658,9 +693,7 @@ impl MasterSupervisor {
             );
         let mut failed = false;
         for supervisor in &self.supervisors {
-            if let Some(process) = &supervisor.process {
-                failed |= crate::signals::terminate(process).await.is_err();
-            }
+            failed |= supervisor.terminate().await.is_err();
         }
         let wait = !self.fast_termination
             || self
