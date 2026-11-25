@@ -2,7 +2,7 @@
 
 Enable the `content-moderation` feature or register `ModerationServiceProvider` in an application that depends on `openrust-content-moderation`. Run `./artisan vendor:publish --tag=moderation-config` to publish the configuration template. In your application's Rust configuration, set `moderation.drivers.comments.driver` to `review-text` and set `MODERATION_DRIVER=comments` for the default profile.
 
-The package provides custom driver contracts, Alibaba Cloud text and stored-image moderation, Tencent Cloud text and image moderation, Sightengine text and image moderation, and Hive text moderation. The other provider operations and durable video orchestration are being implemented.
+The package provides custom driver contracts, Alibaba Cloud text and stored-image moderation, Tencent Cloud text and image moderation, Sightengine text and image moderation, and Hive text and visual moderation. The other provider operations and durable video orchestration are being implemented.
 
 ## Alibaba Cloud text {#aliyun-text}
 
@@ -47,6 +47,12 @@ Inline images are uploaded as multipart. Stored images use `media_disk` and `med
 For a Hive V2 Enterprise text project, set `driver: "hive"`, the numeric `text_project` ID, and `token_env` with the environment variable name for that project's token. Set `text_classes` to the categories your application requires and `text_review_severity` to 1, 2, or 3. To allow explicit language hints, list the project languages in `text_languages`. Requests without a hint use Hive's language detection.
 
 The adapter limits input to 1,024 UTF-16 code units. It checks the project, model type, and task ID in the response. A class with score -1 or a missing required class leaves coverage partial. The largest severity for each class is used across all returned sections. Pattern-match findings name the source category and omit matched words and personal data. [Hive V2 text API](https://docs.thehive.ai/docs/classification-text)
+
+## Hive images {#hive-image}
+
+Set `image_project` to the numeric ID of the V2 Enterprise visual project and `image_token_env` to the environment variable holding that project's token. Set `image_model_type` to the value reported by that project, `image_classes` to the positive classes to evaluate, and `image_review_score` to the review threshold from 0 to 1. A profile can enable visual and text moderation with separate project IDs and tokens.
+
+Inline images use multipart upload. For stored images, `media_disk` and `media_origin` provide a short-lived HTTPS URL pinned to a private S3 object version. Hive returns the highest score per configured class across the sampled results. Coverage remains partial when the service cannot establish that it processed the entire image sequence. This visual project reports visual findings. OCR uses a separate Hive model. [Hive visual moderation](https://docs.thehive.ai/docs/visual-content-moderation)
 
 ## Custom drivers {#custom-drivers}
 

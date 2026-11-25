@@ -2,7 +2,7 @@
 
 启用 `content-moderation` 功能，或在依赖 `openrust-content-moderation` 的应用中注册 `ModerationServiceProvider`。执行 `./artisan vendor:publish --tag=moderation-config` 发布配置模板。在应用的 Rust 配置中将 `moderation.drivers.comments.driver` 设为 `review-text`，并通过 `MODERATION_DRIVER=comments` 选择默认配置。
 
-当前包提供自定义驱动契约、阿里云文本和已存储图片审核，腾讯云文本和图片审核，Sightengine 文本和图片审核，以及 Hive 文本审核。其他供应商操作及持久化视频编排正在实施。
+当前包提供自定义驱动契约、阿里云文本和已存储图片审核，腾讯云文本和图片审核，Sightengine 文本和图片审核，以及 Hive 文本和视觉审核。其他供应商操作及持久化视频编排正在实施。
 
 ## 阿里云文本 {#aliyun-text}
 
@@ -47,6 +47,12 @@
 在具名配置设定 `driver: "hive"`、Hive V2 Enterprise 文本项目的数字 ID `text_project`，以及引用该项目令牌的环境变量名 `token_env`。用 `text_classes` 指定必检类别，`text_review_severity` 取 1、2 或 3。如需显式传入语言提示，在 `text_languages` 列出该项目开通的语言。未传提示时由 Hive 自动检测。
 
 请求上限为 1,024 个 UTF-16 码元。适配器核对响应项目、模型类型和任务 ID。类别分数为 -1 或必检类别缺失时，文本只计为部分覆盖。多段响应取类别的最高严重级别。模式匹配证据保留来源类别，省略命中原词及个人数据。 [Hive V2 文本 API](https://docs.thehive.ai/docs/classification-text)
+
+## Hive 图片 {#hive-image}
+
+将 `image_project` 设为 V2 Enterprise 视觉项目的数字 ID，`image_token_env` 设为保存该项目令牌的环境变量名。`image_model_type` 使用项目报告的模型类型，`image_classes` 列出需要检查的风险类别，`image_review_score` 是 0 至 1 的复审阈值。同一具名配置可启用文本和视觉，各自使用独立的项目 ID 与令牌。
+
+内联图片经 multipart 发送。存储图片根据 `media_disk`、`media_origin` 生成固定私有 S3 对象版本的短时 HTTPS 链接。适配器保留采样结果中每个已配置类别的最高分。供应商未证明整个图像序列已处理时，视觉覆盖保持部分。视觉项目给出视觉证据，OCR 对应 Hive 的独立模型。 [Hive 视觉审核](https://docs.thehive.ai/docs/visual-content-moderation)
 
 ## 自定义驱动 {#custom-drivers}
 

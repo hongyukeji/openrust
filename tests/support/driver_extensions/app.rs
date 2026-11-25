@@ -175,6 +175,10 @@ async fn main() -> ExitCode {
                                 moderation::sightengine_image_route,
                             )?;
                             Route::post("/drivers/moderation/hive", moderation::hive_route)?;
+                            Route::post(
+                                "/drivers/moderation/hive-image",
+                                moderation::hive_image_route,
+                            )?;
                         }
                         Ok(())
                     })

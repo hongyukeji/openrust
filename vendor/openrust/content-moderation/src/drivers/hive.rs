@@ -4,55 +4,160 @@ use std::{
 };
 
 use http::{HeaderMap, HeaderValue, header::AUTHORIZATION};
-use openrust::{config::Environment, http::client::Factory};
-use serde::Deserialize;
+use openrust::{
+    config::Environment,
+    filesystem::FilesystemManager,
+    http::client::{Factory, Part, Response},
+};
+use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::{Value, json};
 use zeroize::Zeroizing;
 
-use super::{Endpoint, http_status, secret};
+use super::{Endpoint, hive_image::ImageService, http_status, secret};
 use crate::{
-    Assessment, Confidence, Coverage, Decision, Finding, Modality, ModerationDriver,
+    Assessment, Confidence, Coverage, Decision, Finding, ImageInput, Modality, ModerationDriver,
     ModerationError, ModerationFuture, ModerationResult, Operation, TextInput,
 };
 
 pub(super) struct Hive {
-    endpoint: Endpoint,
-    authorization: HeaderValue,
-    project: u64,
-    classes: BTreeSet<String>,
-    languages: BTreeSet<String>,
-    review_severity: i8,
+    text: Option<TextService>,
+    image: Option<ImageService>,
 }
 
 impl Hive {
     pub(super) fn new(
         http: Arc<Factory>,
         env: &Environment,
+        storage: Arc<FilesystemManager>,
         profile: &Value,
+    ) -> ModerationResult<Self> {
+        let text = TextService::configured(http.clone(), env, profile)?;
+        let image = ImageService::configured(http, env, storage, profile)?;
+        if text.is_none() && image.is_none() {
+            return Err(ModerationError::InvalidConfiguration("hive services"));
+        }
+        Ok(Self { text, image })
+    }
+}
+
+pub(super) struct Model {
+    endpoint: Endpoint,
+    authorization: HeaderValue,
+    project: u64,
+    model_type: String,
+}
+
+impl Model {
+    pub(super) fn new(
+        http: Arc<Factory>,
+        env: &Environment,
+        profile: &Value,
+        token_key: &'static str,
+        project_key: &'static str,
+        model_type: &str,
     ) -> ModerationResult<Self> {
         let mut endpoint = Endpoint::new(http, profile, "https://api.thehive.ai")?;
         if endpoint.url.path() != "/" {
             return Err(ModerationError::InvalidConfiguration("base_url"));
         }
         endpoint.url.set_path("/api/v2/task/sync");
-        let token = secret(env, profile, "token_env")?
-            .ok_or(ModerationError::InvalidConfiguration("token_env"))?;
+        let token = secret(env, profile, token_key)?
+            .ok_or(ModerationError::InvalidConfiguration(token_key))?;
         let authorization = Zeroizing::new(format!("Token {}", token.as_str()));
         let mut authorization = HeaderValue::from_str(&authorization)
-            .map_err(|_| ModerationError::InvalidConfiguration("token_env"))?;
+            .map_err(|_| ModerationError::InvalidConfiguration(token_key))?;
         authorization.set_sensitive(true);
         let project = profile
-            .get("text_project")
+            .get(project_key)
             .and_then(Value::as_u64)
             .filter(|value| *value != 0)
-            .ok_or(ModerationError::InvalidConfiguration("text_project"))?;
-        let classes = configured_set(profile, "text_classes", |class| {
-            !class.is_empty()
-                && class.len() <= 64
-                && class
-                    .bytes()
-                    .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_')
-        })?;
+            .ok_or(ModerationError::InvalidConfiguration(project_key))?;
+        Ok(Self {
+            endpoint,
+            authorization,
+            project,
+            model_type: model_type.to_owned(),
+        })
+    }
+
+    fn headers(&self) -> HeaderMap {
+        HeaderMap::from_iter([(AUTHORIZATION, self.authorization.clone())])
+    }
+
+    pub(super) async fn submit<T: DeserializeOwned>(
+        &self,
+        body: String,
+    ) -> ModerationResult<(String, T)> {
+        let response = self
+            .endpoint
+            .post_encoded(self.headers(), body, "application/x-www-form-urlencoded")
+            .await?;
+        self.validate(response)
+    }
+
+    pub(super) async fn submit_parts<T: DeserializeOwned>(
+        &self,
+        parts: Vec<(&'static str, Part)>,
+    ) -> ModerationResult<(String, T)> {
+        let response = self.endpoint.post_parts(self.headers(), parts).await?;
+        self.validate(response)
+    }
+
+    fn validate<T: DeserializeOwned>(&self, response: Response) -> ModerationResult<(String, T)> {
+        http_status(response.status().as_u16())?;
+        let task: TaskOutput<T> = response.json().map_err(|_| ModerationError::Protocol)?;
+        http_status(task.code)?;
+        if task.project_id != self.project {
+            return Err(ModerationError::Protocol);
+        }
+        let job = match task.status {
+            Jobs::Single(job) => job,
+            Jobs::List(mut jobs) if jobs.len() == 1 => {
+                jobs.pop().ok_or(ModerationError::Protocol)?
+            }
+            Jobs::List(_) => return Err(ModerationError::Protocol),
+        };
+        if !matches!(&job.status.code, StatusCode::Text(code) if code == "0")
+            && !matches!(job.status.code, StatusCode::Number(0))
+        {
+            return Err(ModerationError::Rejected);
+        }
+        let output = job.response.ok_or(ModerationError::Protocol)?;
+        if output.input.model_type != self.model_type
+            || output.input.project_id != self.project
+            || output.input.id != task.id
+        {
+            return Err(ModerationError::Protocol);
+        }
+        Ok((task.id, output.result))
+    }
+}
+
+struct TextService {
+    model: Model,
+    classes: BTreeSet<String>,
+    languages: BTreeSet<String>,
+    review_severity: i8,
+}
+
+impl TextService {
+    fn configured(
+        http: Arc<Factory>,
+        env: &Environment,
+        profile: &Value,
+    ) -> ModerationResult<Option<Self>> {
+        if profile.get("text_project").is_none() {
+            return Ok(None);
+        }
+        let model = Model::new(
+            http,
+            env,
+            profile,
+            "token_env",
+            "text_project",
+            "TEXT_CLASSIFICATION",
+        )?;
+        let classes = configured_set(profile, "text_classes", provider_class)?;
         let languages = match profile.get("text_languages") {
             None => BTreeSet::new(),
             Some(_) => configured_set(profile, "text_languages", |language| {
@@ -69,14 +174,12 @@ impl Hive {
             .ok_or(ModerationError::InvalidConfiguration(
                 "text_review_severity",
             ))?;
-        Ok(Self {
-            endpoint,
-            authorization,
-            project,
+        Ok(Some(Self {
+            model,
             classes,
             languages,
             review_severity: review_severity as i8,
-        })
+        }))
     }
 
     async fn classify(&self, input: &TextInput) -> ModerationResult<Assessment> {
@@ -106,32 +209,8 @@ impl Hive {
             }
             form.finish()
         };
-        let response = self
-            .endpoint
-            .post_encoded(
-                HeaderMap::from_iter([(AUTHORIZATION, self.authorization.clone())]),
-                body,
-                "application/x-www-form-urlencoded",
-            )
-            .await?;
-        http_status(response.status().as_u16())?;
-        let mut task: TaskOutput = response.json().map_err(|_| ModerationError::Protocol)?;
-        http_status(task.code)?;
-        if task.project_id != self.project || task.status.len() != 1 {
-            return Err(ModerationError::Protocol);
-        }
-        let result = task.status.pop().ok_or(ModerationError::Protocol)?;
-        if result.status.code != "0" {
-            return Err(ModerationError::Rejected);
-        }
-        let output = result.response.ok_or(ModerationError::Protocol)?;
-        if output.input.model_type != "TEXT_CLASSIFICATION"
-            || output.input.project_id != self.project
-            || output.input.id != task.id
-        {
-            return Err(ModerationError::Protocol);
-        }
-        self.assessment(task.id, output, language)
+        let (id, result) = self.model.submit(body).await?;
+        self.assessment(id, result, language)
     }
 
     fn assessment(
@@ -223,36 +302,76 @@ impl Hive {
 
 impl ModerationDriver for Hive {
     fn supports(&self, operation: Operation) -> bool {
-        operation == Operation::Text
+        match operation {
+            Operation::Text => self.text.is_some(),
+            Operation::Image => self.image.is_some(),
+            _ => false,
+        }
     }
 
     fn text<'a>(&'a self, input: &'a TextInput) -> ModerationFuture<'a, Assessment> {
-        Box::pin(self.classify(input))
+        Box::pin(async move {
+            let text = self
+                .text
+                .as_ref()
+                .ok_or(ModerationError::Unsupported(Operation::Text))?;
+            text.classify(input).await
+        })
+    }
+
+    fn image<'a>(&'a self, input: &'a ImageInput) -> ModerationFuture<'a, Assessment> {
+        Box::pin(async move {
+            let image = self
+                .image
+                .as_ref()
+                .ok_or(ModerationError::Unsupported(Operation::Image))?;
+            image.assess(input).await
+        })
     }
 }
 
 #[derive(Deserialize)]
-struct TaskOutput {
+struct TaskOutput<T> {
     id: String,
     code: u16,
     project_id: u64,
-    status: Vec<JobOutput>,
+    status: Jobs<T>,
 }
 
 #[derive(Deserialize)]
-struct JobOutput {
+#[serde(untagged)]
+enum Jobs<T> {
+    List(Vec<JobOutput<T>>),
+    Single(JobOutput<T>),
+}
+
+#[derive(Deserialize)]
+struct JobOutput<T> {
     status: JobCode,
-    response: Option<TextOutput>,
+    response: Option<JobResponse<T>>,
 }
 
 #[derive(Deserialize)]
 struct JobCode {
-    code: String,
+    code: StatusCode,
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum StatusCode {
+    Text(String),
+    Number(u16),
+}
+
+#[derive(Deserialize)]
+struct JobResponse<T> {
+    input: JobInput,
+    #[serde(flatten)]
+    result: T,
 }
 
 #[derive(Deserialize)]
 struct TextOutput {
-    input: JobInput,
     language: String,
     moderated_classes: BTreeSet<String>,
     output: Vec<Section>,
@@ -279,7 +398,7 @@ struct ScoredClass {
     score: i8,
 }
 
-fn configured_set(
+pub(super) fn configured_set(
     profile: &Value,
     name: &'static str,
     valid: impl Fn(&str) -> bool,
@@ -300,6 +419,14 @@ fn configured_set(
         }
     }
     Ok(set)
+}
+
+pub(super) fn provider_class(class: &str) -> bool {
+    !class.is_empty()
+        && class.len() <= 64
+        && class
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
 }
 
 fn category(class: &str) -> &str {

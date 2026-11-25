@@ -2,7 +2,7 @@
 
 啟用 `content-moderation` 功能，或在依賴 `openrust-content-moderation` 的應用程式中註冊 `ModerationServiceProvider`。執行 `./artisan vendor:publish --tag=moderation-config` 發布設定範本。在應用程式的 Rust 設定中將 `moderation.drivers.comments.driver` 設為 `review-text`，並透過 `MODERATION_DRIVER=comments` 選擇預設設定。
 
-目前套件提供自訂驅動契約、阿里雲文字及已儲存圖片審核，騰訊雲文字及圖片審核，Sightengine 文字及圖片審核，以及 Hive 文字審核。其他供應商操作及持久化影片編排正在實作。
+目前套件提供自訂驅動契約、阿里雲文字及已儲存圖片審核，騰訊雲文字及圖片審核，Sightengine 文字及圖片審核，以及 Hive 文字和視覺審核。其他供應商操作及持久化影片編排正在實作。
 
 ## 阿里雲文字 {#aliyun-text}
 
@@ -47,6 +47,12 @@
 在具名設定指定 `driver: "hive"`、Hive V2 Enterprise 文字專案的數字 ID `text_project`，以及引用該專案權杖的環境變數名稱 `token_env`。用 `text_classes` 設定必查類別，`text_review_severity` 取 1、2 或 3。如需傳入明確的語言提示，在 `text_languages` 列出該專案已開通的語言。未傳提示時由 Hive 自動偵測。
 
 輸入上限為 1,024 個 UTF-16 碼元。介接器核對回應專案、模型類型及工作 ID。類別分數為 -1 或缺少必查類別時，文字只算部分涵蓋。多段回應採用每個類別的最高嚴重等級。樣式比對證據保留來源類別，省略命中原詞及個人資料。 [Hive V2 文字 API](https://docs.thehive.ai/docs/classification-text)
+
+## Hive 圖片 {#hive-image}
+
+將 `image_project` 設為 V2 Enterprise 視覺專案的數字 ID，`image_token_env` 設為保存該專案權杖的環境變數名稱。`image_model_type` 使用專案傳回的模型類型，`image_classes` 列出需要檢查的風險類別，`image_review_score` 是 0 至 1 的複審門檻。同一具名設定可啟用文字和視覺，各自使用獨立的專案 ID 與權杖。
+
+內嵌圖片經 multipart 上傳。已儲存圖片依 `media_disk`、`media_origin` 產生固定私人 S3 物件版本的短時 HTTPS 連結。介接器保留取樣結果中每個已設定類別的最高分。供應商未證明整個影像序列已處理時，視覺維持部分涵蓋。視覺專案提供視覺證據，OCR 對應 Hive 的獨立模型。 [Hive 視覺審核](https://docs.thehive.ai/docs/visual-content-moderation)
 
 ## 自訂驅動 {#custom-drivers}
 

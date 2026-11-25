@@ -88,3 +88,11 @@
 对返回的单图或采样帧提取风险标签及各标签最高 0–1 分。OCR 按类别给出证据，丢弃正文、邮箱和命中详情。响应不能证明原件的完整帧覆盖，已有视觉／OCR 结果标记为部分覆盖，未返回的模态保持缺失，已发现的风险仍可进入复审。
 
 基线 `7ff196e9c`，Rust 1.94.0。真实 HTTP 和 Artisan 向替身发出 7 个请求，替身解析 multipart 内联 PNG／双帧 GIF，另经固定 SeaweedFS 4.53 读取同一私有对象的两个版本并核对字节。确认匿名 403、拒绝跨盘／null 版本／越权来源、无效分数、缺模型、缓存及敏感数据脱敏。替身构造选定帧及其 OCR 响应以复核最高分及部分覆盖。初次构建夹具的借用声明不完整，且 Artisan 位置参数与自动 `--version` 重名，均修正后重测。Sightengine／Hive 文本和腾讯云／阿里云图片回归、3 个包契约、全工作区格式、包和验收应用严格 Clippy、三语文档检查通过。真实 Sightengine 项目、支持的模型与 OCR 语言、动画采样质量和实际费用仍待 CM-04 验收。
+
+## CM-02D Hive V2 视觉图片 {#hive-image}
+
+具名 profile 的 V2 Enterprise 视觉项目单独绑定项目 ID、令牌环境名和响应模型类型。复用文本驱动的 V2 认证和响应身份校验。分类参考示例使用对象及数字状态，文本示例使用列表及字符串状态，两种已文档化的形态均只接受一项结果。内联图片用 multipart 的 `media`，存储图通过限定来源和固定版本的 HTTPS `url` 发送。 [视觉概览](https://docs.thehive.ai/docs/visual-content-moderation) · [媒体字段](https://docs.thehive.ai/reference/submitting-via-task-api) · [分类响应](https://docs.thehive.ai/reference/classification)
+
+按配置的风险类别提取采样帧里最高 0–1 分，命中阈值时复审。缺少任何可用类别时视觉覆盖缺失，有采样证据时保持部分。OCR 的项目协议单独验收。省略临时 URL、源媒体 URI 和供应商错误说明。
+
+基线 `e3f6ebc78`，Rust 1.94.0。真实 HTTP／Artisan 的 V2 回环替身有 10 次视觉请求与 1 次同 profile 文本请求。对内联 PNG、双帧 GIF、真实 SeaweedFS 中两个私有 S3 版本分别核对授权、请求数据、过期时间和读取字节。覆盖具名项目令牌隔离、配置及路由缓存、403 匿名下载、拒绝不符的对象来源、跨盘、缺版本、分数和响应身份异常。首次夹具的请求助手名称遮蔽 Python HTTP 模块，改名后复测。 Hive 文本与 Sightengine 图片的 HTTP／Artisan 回归、3 个包契约、全工作区格式、审核包及验收应用严格 Clippy、三语内容检查同时通过。真实 Hive Enterprise 视觉项目、模型版本、区域授权、效果与费用仍待 CM-04 验收。

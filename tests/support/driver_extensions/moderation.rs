@@ -105,6 +105,20 @@ pub(super) fn configuration(env: &Environment) -> Result<Value, ConfigError> {
             "text_languages":["es"], "text_review_severity":2, "timeout_ms":350,
         });
     }
+    if let Some(endpoint) = env.get_utf8("MODERATION_FIXTURE_HIVE_IMAGE")? {
+        let mut profiles = json!({
+            "driver":"hive", "base_url":endpoint, "image_token_env":"FIXTURE_HIVE_IMAGE_TOKEN",
+            "image_project":48173, "image_model_type":"CATEGORIZATION",
+            "image_classes":["general_nsfw","gun_in_hand"], "image_review_score":0.9,
+            "token_env":"FIXTURE_HIVE_TOKEN", "text_project":48172, "text_classes":["hate","spam","violence"],
+            "text_review_severity":2, "timeout_ms":3000,
+        });
+        if let Some(origin) = env.get_utf8("MODERATION_FIXTURE_IMAGE_ORIGIN")? {
+            profiles["media_disk"] = json!("s3");
+            profiles["media_origin"] = json!(origin);
+        }
+        configuration["drivers"]["hive-images"] = profiles;
+    }
     Ok(configuration)
 }
 
@@ -322,6 +336,12 @@ pub(super) fn tencent_image_route(
     image_route(request, "tencent-images")
 }
 
+pub(super) fn hive_image_route(
+    request: &mut Request,
+) -> HttpFuture<'_, Result<Response, HttpError>> {
+    image_route(request, "hive-images")
+}
+
 fn image_route<'a>(
     request: &'a mut Request,
     profile: &'static str,
@@ -372,8 +392,9 @@ pub(super) fn hive_route(request: &mut Request) -> HttpFuture<'_, Result<Respons
     Box::pin(async move {
         let raw = request.body_bytes().await?;
         let text = std::str::from_utf8(&raw).map_err(|_| HttpError::InvalidRequest)?;
+        let profile = request.header("x-fixture-profile")?.unwrap_or("hive-text");
         provider_response(
-            configured_text(text, request.header("x-fixture-language")?, "hive-text").await,
+            configured_text(text, request.header("x-fixture-language")?, profile).await,
         )
     })
 }
@@ -496,10 +517,17 @@ pub(super) fn register_command(artisan: &mut Artisan) -> Result<(), ConsoleError
             profile,
         )))?;
     }
-    artisan.add_command(Box::new(SightengineImageProbe(CommandDefinition::new(
-        clap::Command::new("drivers:moderation-sightengine-image")
-            .arg(clap::Arg::new("object-version").required(true)),
-    ))))?;
+    for (name, profile) in [
+        ("drivers:moderation-sightengine-image", "sightengine-images"),
+        ("drivers:moderation-hive-image", "hive-images"),
+    ] {
+        artisan.add_command(Box::new(NamedImageProbe(
+            CommandDefinition::new(
+                clap::Command::new(name).arg(clap::Arg::new("object-version").required(true)),
+            ),
+            profile,
+        )))?;
+    }
     artisan.add_command(Box::new(TencentProbe(CommandDefinition::new(
         clap::Command::new("drivers:moderation-tencent")
             .arg(clap::Arg::new("text").required(true))
@@ -537,9 +565,9 @@ impl Command for NamedTextProbe {
     }
 }
 
-struct SightengineImageProbe(CommandDefinition);
+struct NamedImageProbe(CommandDefinition, &'static str);
 
-impl Command for SightengineImageProbe {
+impl Command for NamedImageProbe {
     fn definition(&self) -> &CommandDefinition {
         &self.0
     }
@@ -557,7 +585,7 @@ impl Command for SightengineImageProbe {
             let version = argument.as_str().expect("fixture image version");
             let source = StoredMedia::new("s3", "versions/image.png", version)
                 .map_err(ConsoleError::from_source)?;
-            let result = configured_image("sightengine-images", ImageInput::stored(source))
+            let result = configured_image(self.1, ImageInput::stored(source))
                 .await
                 .map_err(ConsoleError::from_source)?;
             output

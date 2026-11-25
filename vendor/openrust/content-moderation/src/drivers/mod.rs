@@ -1,5 +1,6 @@
 mod aliyun;
 mod hive;
+mod hive_image;
 mod media;
 mod sightengine;
 mod sightengine_image;
@@ -50,10 +51,12 @@ pub(crate) fn register(
     });
     let client = http.clone();
     let environment = env.clone();
+    let media = storage.clone();
     manager.extend("hive", move |profile| {
         Ok(Arc::new(hive::Hive::new(
             client.clone(),
             &environment,
+            media.clone(),
             profile,
         )?))
     });
