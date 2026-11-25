@@ -24,7 +24,7 @@ pub(crate) enum ProcessingOutcome {
 }
 
 impl DatabaseWebhookStore {
-    fn clock(&self) -> &'static str {
+    pub(super) fn clock(&self) -> &'static str {
         // 与原生数据库队列使用相同的数据库时钟。
         match self.connection.get_driver_name() {
             "sqlite" => "unixepoch()",

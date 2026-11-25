@@ -153,6 +153,12 @@ Provider 注册 `webhook_calls` 迁移，使用 `DatabaseWebhookStore` 前运行
 
 接收记录、去重键和原生队列任务在同一事务提交。相同 ID 和请求内容的重试返回配置的确认响应，只保存一条接收记录及一条任务。同一 scope 和 profile 内，已使用的 ID 携带不同的 HTTP 方法、原始路径和查询串、正文或 Content-Type 时返回 HTTP 409。签名时间戳、签名和凭据修订允许在重试时变化。去重键随接收记录保留，接收记录的保留期应覆盖供应商的重投递窗口。默认关闭。
 
+### 无稳定事件 ID 时按请求摘要去重 {#body-deduplication}
+
+在启用 `atomic_database_queue: true` 的 profile 中将 `deduplicate_body_seconds` 设为 1–3,600。运行时可同时调用 `with_body_deduplication(seconds)` 和 `with_atomic_database_queue(true)`。每个 profile 选择已验签事件 ID 去重或摘要窗口去重。接收方在通过验签和 Profile 筛选后应用窗口。
+
+窗口以首次接受请求时的数据库时间起算。摘要涵盖 HTTP 方法、原始路径和查询串、原始正文及 Content-Type。窗口内完全相同的请求共用一条接收记录及任务，过期后可创建新记录，早先的接收记录仍可读取。只有在业务允许把窗口内完全相同的合法请求视为重试时，才启用此模式。
+
 ### 延期处理尚未关联的通知 {#deferred-processing}
 
 通知可能早于业务记录到达时，用 `QueuedWebhookJob::register_with_database_deferred_processing` 注册 Worker。原生数据库队列须与接收存储共用同一数据库连接。设置 `DeferredProcessingPolicy { max_deferrals, max_age_seconds }`，并沿用上文的租约、任务超时和队列保留时间。最多可配置 1–1,000 次延期，有效期为 2 秒至 30 天，从首次延期开始计时。

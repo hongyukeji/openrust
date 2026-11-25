@@ -153,6 +153,12 @@ For a profile with `atomic_database_queue: true`, enable `deduplicate_verified_e
 
 The database receives the event, stores its deduplication key and enqueues its job in the same transaction. The same ID and request content return the configured acknowledgment without a second receipt or job. Reusing an ID within the same scope and profile with a changed method, raw path/query, body or Content-Type returns HTTP 409. Signing timestamps, signatures and credential revisions may change between retries. A key is retained with its receipt, so retain receipts at least as long as the provider can redeliver. The mode is off by default.
 
+### Deduplicate by request content when no stable ID is available {#body-deduplication}
+
+Set `deduplicate_body_seconds` to 1–3,600 on a profile with `atomic_database_queue: true`, or use `with_body_deduplication(seconds)` with `with_atomic_database_queue(true)`. Choose either this window or verified event ID deduplication for each profile. The receiver applies the window after signature verification and profile acceptance.
+
+The window starts with the first accepted request, using the database clock. The fingerprint covers the HTTP method, raw path and query, original body and Content-Type. Identical requests within the window share one receipt and task. The next request after expiry can create a new receipt while earlier receipts remain available. Enable this mode only when identical legitimate requests in that window should be treated as retries.
+
 ### Defer processing until a record can be matched {#deferred-processing}
 
 For jobs that can receive a notification before the matching business record exists, register the Worker with `QueuedWebhookJob::register_with_database_deferred_processing`. Use a native database queue on the same database connection as the receipt store. Set `DeferredProcessingPolicy { max_deferrals, max_age_seconds }` and keep the same lease, timeout and queue reservation settings described above. The policy accepts 1–1,000 deferrals and a maximum age of 2 seconds to 30 days, measured from the first deferral.

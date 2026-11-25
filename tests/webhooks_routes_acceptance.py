@@ -400,6 +400,79 @@ def check_deferred_processing(binary, env, root, port, driver, sql):
     print(f"{driver}: 待关联延期和唤醒 6 个真实 HTTP、12 次 Worker、5 次 Artisan 唤醒；预算、期限、竞争与回滚通过")
 
 
+def check_body_deduplication(binary, env, root, port, driver, sql):
+    from concurrent.futures import ThreadPoolExecutor
+
+    path = "/api/package/digest-window"
+    body = b'{"value":1}'
+    receipts_before = int(sql("SELECT COUNT(*) FROM webhook_calls"))
+
+    def send(target, value=body, method="POST", media="application/json", event="label",
+             signature_valid=True, expected=200):
+        signature = hmac.new(SECRET.encode(), value, hashlib.sha256).hexdigest()
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+        try:
+            conn.request(method, target, value, {
+                "Signature": signature if signature_valid else "0" * 64,
+                "Content-Type": media, "Accept": "application/json", "Webhook-Id": event,
+            })
+            response = conn.getresponse()
+            data = response.read()
+            assert response.status == expected, (method, target, response.status, data[:180])
+            if expected == 200:
+                assert json.loads(data) == {"message": "ok"}
+        finally:
+            conn.close()
+
+    def counts(receipts, keys, jobs):
+        assert int(sql("SELECT COUNT(*) FROM webhook_calls")) == receipts_before + receipts
+        assert int(sql("SELECT COUNT(*) FROM webhook_event_receipts")) == keys
+        assert int(sql("SELECT COUNT(*) FROM jobs")) == jobs
+
+    log_path = root / "digest-window.log"
+    with log_path.open("w+") as log:
+        server = http_helpers["serve"](binary, env, log)
+        try:
+            send("/api/package/digest-invalid", expected=500)
+            send(path + "?q=one", signature_valid=False, expected=500)
+            counts(0, 0, 0)
+            with ThreadPoolExecutor(max_workers=2) as clients:
+                first = clients.submit(send, path + "?q=one")
+                second = clients.submit(send, path + "?q=one", event="different-unsigned-header")
+                first.result()
+                second.result()
+            original_call = sql("SELECT call_id FROM webhook_event_receipts")
+            assert sql("SELECT COUNT(expires_at) FROM webhook_event_receipts") == "1"
+            counts(1, 1, 1)
+            send(path + "?q=two")
+            send(path + "?q=one", media="application/octet-stream")
+            send(path, value=b"", method="GET", media="application/octet-stream")
+            send(path, value=b"", method="POST", media="application/octet-stream")
+            counts(5, 5, 5)
+            time.sleep(5.2)
+            with ThreadPoolExecutor(max_workers=2) as clients:
+                results = [clients.submit(send, path + "?q=one") for _ in range(2)]
+                for result in results:
+                    result.result()
+            counts(6, 5, 6)
+            assert original_call not in sql("SELECT call_id FROM webhook_event_receipts").split()
+            assert original_call in sql("SELECT id FROM webhook_calls").split()
+
+            for index in range(6):
+                marker = root / f"digest-worker-{index}.json"
+                command(binary, env | {"WEBHOOK_TEST_RECEIPT_OUTPUT": str(marker)},
+                        "queue:work", "database", "--queue=webhook-receipts", "--once")
+                assert json.loads(marker.read_text())["name"] == "digest-window"
+            counts(6, 5, 0)
+        except BaseException:
+            log.flush()
+            print(log_path.read_text())
+            raise
+        finally:
+            http_helpers["stop"](server)
+    print(f"{driver}: 摘要去重 10 个真实 HTTP、6 次 Worker；窗口、并发换代、方法／查询／媒体类型与拒绝边界通过")
+
+
 def main():
  driver,url=helpers["database_settings"]();binary=args.binary.resolve();requests=workers=0
  with tempfile.TemporaryDirectory(dir=ROOT/"target/tmp",prefix="webhook-routes-") as tmp:
@@ -593,8 +666,9 @@ def main():
   check_processing_lease(binary,env,root,port,driver,sql)
   check_verified_event_identity(binary,env,root,port,driver,sql)
   check_deferred_processing(binary,env,root,port,driver,sql)
+  check_body_deduplication(binary,env,root,port,driver,sql)
   legacy_id=sql("SELECT id FROM webhook_calls WHERE name='default' ORDER BY id LIMIT 1")
-  assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate:rollback","--step=6","--force")
+  assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate:rollback","--step=7","--force")
   assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate","--force")
   legacy=json.loads(command(binary,env,"webhooks:record",legacy_id,"webhook-acceptance"))
   assert bytes(legacy["body"])==b"default" and legacy["payload"] is None and legacy["attachments"] is None

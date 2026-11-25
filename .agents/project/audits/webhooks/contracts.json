@@ -274,7 +274,7 @@
       "status": "partial_processor_runtime_verified",
       "parent_classes": [],
       "declared_public_properties": [],
-      "notes": "new／process 手动入口与公开 Controller 共用验签→Profile→模型委托保存→prepare→clear_exception→dispatch→响应；构造失败与异常顺序已验。类型化 Runtime 在所属 App 上下文构造及执行并恢复调用者；HTTP 同次请求借用支持请求依赖。载荷和数据库附件读取、原生 Job、同库原子入队、可选已验签事件 ID 去重与 Worker 领取已各自验收。无稳定 ID 的摘要去重、可靠恢复和完整生命周期仍待补，不据本入口关闭 WH-02 或 WH-03。",
+      "notes": "new／process 手动入口与公开 Controller 共用验签→Profile→模型委托保存→prepare→clear_exception→dispatch→响应；构造失败与异常顺序已验。类型化 Runtime 在所属 App 上下文构造及执行并恢复调用者；HTTP 同次请求借用支持请求依赖。载荷和数据库附件读取、原生 Job、同库原子入队、可选已验签事件 ID 去重与 Worker 领取已各自验收。可选有限摘要窗口覆盖无稳定 ID 的来源。可靠恢复和完整生命周期仍待补，不据本入口关闭 WH-02 或 WH-03。",
       "evidence": [
         "vendor/openrust/webhook-client/tests/processor.rs",
         "tests/webhooks_receiver_acceptance.py",

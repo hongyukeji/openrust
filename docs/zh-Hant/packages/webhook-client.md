@@ -153,6 +153,12 @@ Provider 註冊 `webhook_calls` 遷移，使用 `DatabaseWebhookStore` 前執行
 
 接收記錄、去重鍵及原生佇列任務在同一交易提交。相同 ID 與請求內容的重試回傳設定的確認回應，只儲存一筆接收記錄與一筆任務。同一 scope 與 profile 內，再次使用同一 ID 且 HTTP 方法、原始路徑與查詢字串、正文或 Content-Type 不同時，回傳 HTTP 409。簽名時間戳、簽名及憑證修訂可在重試時變更。去重鍵隨接收記錄保留，記錄的保留期應涵蓋供應商的重複投遞窗口。預設關閉。
 
+### 無穩定事件 ID 時依請求摘要去重 {#body-deduplication}
+
+在啟用 `atomic_database_queue: true` 的 profile 中，將 `deduplicate_body_seconds` 設為 1–3,600。執行時可同時呼叫 `with_body_deduplication(seconds)` 與 `with_atomic_database_queue(true)`。每個 profile 選擇已驗簽事件 ID 去重或摘要窗口去重。接收方在通過驗簽及 Profile 篩選後套用窗口。
+
+窗口從首次接受請求時的資料庫時間起算。摘要涵蓋 HTTP 方法、原始路徑與查詢字串、原始正文及 Content-Type。窗口內完全相同的請求共用一筆接收記錄與任務，過期後可建立新記錄，較早的接收記錄仍可讀取。只有在業務允許將窗口內完全相同的合法請求視為重試時，才啟用此模式。
+
 ### 延期處理尚未關聯的通知 {#deferred-processing}
 
 通知可能早於業務記錄抵達時，使用 `QueuedWebhookJob::register_with_database_deferred_processing` 註冊 Worker。原生資料庫佇列須與接收儲存共用同一資料庫連線。設定 `DeferredProcessingPolicy { max_deferrals, max_age_seconds }`，並沿用上文的租約、任務逾時與佇列保留時間。可設定 1–1,000 次延期，有效期為 2 秒至 30 天，從首次延期開始計時。

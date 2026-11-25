@@ -15,6 +15,7 @@ pub struct VerifiedWebhook<'a> {
     request: &'a WebhookRequest,
     config: &'a WebhookConfig,
     event_id: Option<&'a str>,
+    body_deduplication_window: Option<u32>,
 }
 impl VerifiedWebhook<'_> {
     pub fn request(&self) -> &WebhookRequest {
@@ -25,6 +26,9 @@ impl VerifiedWebhook<'_> {
     }
     pub fn event_id(&self) -> Option<&str> {
         self.event_id
+    }
+    pub fn body_deduplication_window(&self) -> Option<u32> {
+        self.body_deduplication_window
     }
 }
 
@@ -164,6 +168,7 @@ impl<'a> WebhookProcessor<'a> {
             request: self.request,
             config: self.config,
             event_id: event_id.as_deref(),
+            body_deduplication_window: self.config.body_deduplication_window()?,
         };
         if self.config.atomic_database_queue()? {
             self.runtime

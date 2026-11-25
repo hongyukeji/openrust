@@ -166,11 +166,10 @@ impl WebhookStore for DatabaseWebhookStore {
         dispatcher: &'a dyn crate::WebhookJobDispatcher,
     ) -> HttpFuture<'a, Result<()>> {
         Box::pin(async move {
-            let identity = webhook
-                .event_id()
-                .map(|id| identity::EventIdentity::new(&self.scope, id, webhook));
+            let identity = identity::EventIdentity::from_verified(&self.scope, webhook);
+            let clock = self.clock();
             if let Some(identity) = &identity
-                && identity.already_received(&self.connection).await?
+                && identity.already_received(&self.connection, clock).await?
             {
                 return Ok(());
             }
@@ -180,17 +179,23 @@ impl WebhookStore for DatabaseWebhookStore {
                 transaction.roll_back(None).await?;
                 return Err(error.into());
             }
-            if let Some(identity) = &identity
-                && let Err(error) = transaction
-                    .table("webhook_event_receipts")
-                    .insert(&[identity.record(call.id())])
-                    .await
-            {
-                transaction.roll_back(None).await?;
-                if identity.already_received(&self.connection).await? {
-                    return Ok(());
+            if let Some(identity) = &identity {
+                let persisted = async {
+                    let record = identity.record(&mut transaction, call.id(), clock).await?;
+                    transaction
+                        .table("webhook_event_receipts")
+                        .insert(&[record])
+                        .await?;
+                    Ok::<(), Error>(())
                 }
-                return Err(error.into());
+                .await;
+                if let Err(error) = persisted {
+                    transaction.roll_back(None).await?;
+                    if identity.already_received(&self.connection, clock).await? {
+                        return Ok(());
+                    }
+                    return Err(error);
+                }
             }
             let queued = async {
                 dispatcher.prepare(&call)?;

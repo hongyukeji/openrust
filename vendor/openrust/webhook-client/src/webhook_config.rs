@@ -106,6 +106,33 @@ impl WebhookConfig {
         self
     }
 
+    pub fn body_deduplication_window(&self) -> Result<Option<u32>> {
+        let value = &self.options["deduplicate_body_seconds"];
+        if value.is_null() {
+            return Ok(None);
+        }
+        if !self.atomic_database_queue()? || self.deduplicate_verified_events()? {
+            return Err(Error::InvalidConfig("deduplicate_body_seconds"));
+        }
+        value
+            .as_u64()
+            .filter(|seconds| (1..=3600).contains(seconds))
+            .and_then(|seconds| u32::try_from(seconds).ok())
+            .map(Some)
+            .ok_or(Error::InvalidConfig("deduplicate_body_seconds"))
+    }
+
+    pub fn with_body_deduplication(mut self, window_seconds: u32) -> Result<Self> {
+        if !(1..=3600).contains(&window_seconds) {
+            return Err(Error::InvalidConfig("deduplicate_body_seconds"));
+        }
+        if self.options.is_null() {
+            self.options = serde_json::json!({});
+        }
+        self.options["deduplicate_body_seconds"] = Value::from(window_seconds);
+        Ok(self)
+    }
+
     pub fn with_store_attachments(mut self, enabled: bool) -> Self {
         if self.options.is_null() {
             self.options = serde_json::json!({});
@@ -316,6 +343,7 @@ impl WebhookConfig {
         config.store_attachments()?;
         config.atomic_database_queue()?;
         config.deduplicate_verified_events()?;
+        config.body_deduplication_window()?;
         if let Some(names) = value.get("store_headers").filter(|names| !names.is_null()) {
             if names.as_str() == Some("*") {
                 config = config.with_store_headers(&["*"])?;
