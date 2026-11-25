@@ -5,6 +5,9 @@ use openrust_telescope::{
 };
 use serde_json::json;
 
+#[path = "../config/telescope.rs"]
+mod telescope_config;
+
 fn routes() -> Result<(), openrust::routing::RoutingError> {
     for path in ["/probe", "/ignore/probe"] {
         openrust::support::facades::Route::get(path, handler)?;
@@ -213,7 +216,11 @@ fn handler(
 }
 fn application() -> openrust::testing::TestApp {
     let app = openrust::testing::TestApp::create(|builder| builder
-        .with_config(|base, _| Ok(std::collections::BTreeMap::from([
+        .with_config(|base, env| {
+            let mut telescope = telescope_config::load(env)?;
+            telescope["ignore_paths"] = json!(["api/ignore/*"]);
+            telescope["watchers"]["QueryWatcher"]["ignore_packages"] = false.into();
+            Ok(std::collections::BTreeMap::from([
             ("app".into(), json!({"env":"testing","url":"http://localhost","debug":true,"key":"01234567890123456789012345678901","cipher":"AES-256-CBC"})),
             ("database".into(), json!({"default":"testing","connections":{"testing":database_config(base)},"redis":{"default":{"url":std::env::var("TELESCOPE_TEST_REDIS_URL").ok()},"options":{"prefix":"telescope-test:"}}})),
             ("cache".into(), json!({"default":std::env::var("TELESCOPE_TEST_CACHE_DRIVER").unwrap_or("file".into()),"stores":{"file":{"driver":"file","path":base.join("cache/data"),"lock_path":base.join("cache/data")},"database":{"driver":"database","connection":"testing","table":"cache","lock_table":"cache_locks"},"redis":{"driver":"redis","connection":"default","lock_connection":"default"}}})),
@@ -221,8 +228,8 @@ fn application() -> openrust::testing::TestApp {
             ("auth".into(),json!({"defaults":{"guard":"probe"},"guards":{"probe":{"driver":"cached"}}})),
             ("queue".into(),json!({"default":"sync","connections":{"sync":{"driver":"sync"},"async":{"driver":"database","connection":"testing","table":"jobs","queue":"default","retry_after":30}},"batching":{"database":"testing","table":"job_batches"}})),
             ("mail".into(),json!({"default":"array","mailers":{"array":{"transport":"array"}},"from":{"address":"sender@example.org","name":"Sender"}})),
-            ("telescope".into(), json!({"ignore_paths":["api/ignore/*"]})),
-        ])))
+            ("telescope".into(), telescope),
+        ])) })
         .with_providers(vec![Box::new(TelescopeServiceProvider)])
         .with_middleware(|middleware| {
             middleware.skip_trim_strings_when(|request|request.path().trim_start_matches('/')=="api/unread");
@@ -484,6 +491,16 @@ async fn native_event_gate_notification_model_view_and_dump_sources_are_observed
         .find(|entry| entry.content["action"] == "retrieved")
         .unwrap();
     assert_eq!(hydration.content["count"], 2);
+    let queries = repository
+        .get(Some(EntryType::Query), EntryQueryOptions::default())
+        .await
+        .unwrap();
+    assert!(queries.iter().any(|entry| {
+        entry.content["sql"].as_str().is_some_and(|sql| {
+            sql.to_ascii_lowercase().starts_with("select") && sql.contains("observed_models")
+        }) && entry.content["file"] == file!()
+            && entry.content["line"].as_u64().is_some_and(|line| line > 0)
+    }));
     assert!(
         models
             .iter()

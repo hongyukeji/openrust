@@ -460,12 +460,23 @@ impl NativeWatcher {
             if !self.enabled("QueryWatcher") {
                 return Ok(());
             }
+            let mut candidates = event
+                .callers
+                .iter()
+                .copied()
+                .filter(|caller| !Self::framework_caller(caller))
+                .peekable();
+            let has_candidate = candidates.peek().is_some();
+            let caller = candidates.find(|caller| self.caller_visible("QueryWatcher", caller));
+            if has_candidate && caller.is_none() {
+                return Ok(());
+            }
             let time = event.time.as_secs_f64() * 1000.0;
             let slow = self
                 .option("QueryWatcher", "slow")
                 .and_then(|v| v.as_f64())
                 .is_some_and(|limit| time >= limit);
-            let entry = IncomingEntry::make(json!({"connection":event.connection.get_name(),"driver":event.connection.get_driver_name(),"bindings":[],"sql":event.to_raw_sql()?,"time":format!("{time:.2}"),"slow":slow,"file":null,"line":null,"hash":format!("{:x}",md5::compute(&event.sql))}).as_object().unwrap().clone())?;
+            let entry = IncomingEntry::make(json!({"connection":event.connection.get_name(),"driver":event.connection.get_driver_name(),"bindings":[],"sql":event.to_raw_sql()?,"time":format!("{time:.2}"),"slow":slow,"file":caller.map(std::panic::Location::file),"line":caller.map(std::panic::Location::line),"hash":format!("{:x}",md5::compute(&event.sql))}).as_object().unwrap().clone())?;
             telescope.record_query(if slow { entry.tags(["slow"]) } else { entry });
         } else if let Some(event) = event.downcast_ref::<openrust::log::events::MessageLogged>() {
             if let Some(exception) = event.exception.as_ref().and_then(Value::as_object)
@@ -677,6 +688,9 @@ impl Listener for NativeWatcher {
         context: &'a mut EventContext<'_>,
     ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
         Box::pin(async move {
+            if Telescope::is_storing() {
+                return Ok(None);
+            }
             // 启动期事件没有可用于写入诊断数据的执行作用域。
             let Ok(telescope) = facades::Telescope::get_facade_root() else {
                 return Ok(None);

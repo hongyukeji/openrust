@@ -680,17 +680,23 @@ impl<'connection> Builder<'connection> {
         })
     }
 
-    pub async fn get(mut self) -> DatabaseResult<Vec<Row>> {
-        self.apply_before_query_callbacks()?;
-        let (sql, bindings) = self.compile(None)?;
-        let mut rows = self.execute(&sql, &bindings).await?;
-        self.remove_group_rank(&mut rows);
-        self.apply_after_query_callbacks(rows)
+    #[track_caller]
+    pub fn get(mut self) -> impl Future<Output = DatabaseResult<Vec<Row>>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            self.apply_before_query_callbacks()?;
+            let (sql, bindings) = self.compile(None)?;
+            let mut rows = self.execute(&sql, &bindings).await?;
+            self.remove_group_rank(&mut rows);
+            self.apply_after_query_callbacks(rows)
+        })
     }
 
     /// Streams the query results without collecting them into a vector.
+    #[track_caller]
     pub fn cursor(mut self) -> DatabaseCursor<'connection> {
-        Box::pin(async_stream::try_stream! {
+        Box::pin(crate::database::events::stream_with_query_caller(
+            std::panic::Location::caller(),
+            async_stream::try_stream! {
             self.apply_before_query_callbacks()?;
             let grouped = self.group_limit.is_some();
             let (sql, bindings) = self.compile(None)?;
@@ -709,7 +715,8 @@ impl<'connection> Builder<'connection> {
                 for callback in &callbacks { mapped = callback(mapped)?; }
                 if let Some(row) = mapped.into_iter().next() { yield row; }
             }
-        })
+            },
+        ))
     }
 
     fn remove_group_rank(&self, rows: &mut [Row]) {
@@ -771,28 +778,44 @@ impl<'connection> Builder<'connection> {
         }
     }
 
-    pub async fn first(self) -> DatabaseResult<Option<Row>> {
-        Ok(self.limit(1).get().await?.into_iter().next())
+    #[track_caller]
+    pub fn first(self) -> impl Future<Output = DatabaseResult<Option<Row>>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            Ok(self.limit(1).get().await?.into_iter().next())
+        })
     }
 
-    pub async fn find(self, id: impl Into<Value>) -> DatabaseResult<Option<Row>> {
-        self.r#where("id", "=", id).first().await
+    #[track_caller]
+    pub fn find(self, id: impl Into<Value>) -> impl Future<Output = DatabaseResult<Option<Row>>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            self.r#where("id", "=", id).first().await
+        })
     }
 
-    pub async fn value(self, column: &str) -> DatabaseResult<Value> {
-        self.select([column])
-            .first()
-            .await?
-            .map_or(Ok(Value::Null), Row::scalar)
+    #[track_caller]
+    pub fn value(self, column: &str) -> impl Future<Output = DatabaseResult<Value>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            self.select([column])
+                .first()
+                .await?
+                .map_or(Ok(Value::Null), Row::scalar)
+        })
     }
 
-    pub async fn raw_value(self, expression: &str, bindings: Vec<Value>) -> DatabaseResult<Value> {
-        Ok(self
-            .select_raw(expression, bindings)
-            .first()
-            .await?
-            .and_then(|row| row.get_at(0).cloned())
-            .unwrap_or(Value::Null))
+    #[track_caller]
+    pub fn raw_value(
+        self,
+        expression: &str,
+        bindings: Vec<Value>,
+    ) -> impl Future<Output = DatabaseResult<Value>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            Ok(self
+                .select_raw(expression, bindings)
+                .first()
+                .await?
+                .and_then(|row| row.get_at(0).cloned())
+                .unwrap_or(Value::Null))
+        })
     }
 
     pub async fn exists_or<T, Fut>(
@@ -823,17 +846,23 @@ impl<'connection> Builder<'connection> {
         }
     }
 
-    pub async fn pluck(self, column: &str) -> DatabaseResult<Vec<Value>> {
-        self.select([column])
-            .get()
-            .await?
-            .into_iter()
-            .map(Row::scalar)
-            .collect()
+    #[track_caller]
+    pub fn pluck(self, column: &str) -> impl Future<Output = DatabaseResult<Vec<Value>>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            self.select([column])
+                .get()
+                .await?
+                .into_iter()
+                .map(Row::scalar)
+                .collect()
+        })
     }
 
-    pub async fn exists(mut self) -> DatabaseResult<bool> {
-        self.exists_query().await
+    #[track_caller]
+    pub fn exists(mut self) -> impl Future<Output = DatabaseResult<bool>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            self.exists_query().await
+        })
     }
 
     async fn exists_query(&mut self) -> DatabaseResult<bool> {
@@ -850,42 +879,63 @@ impl<'connection> Builder<'connection> {
         }
     }
 
-    pub async fn doesnt_exist(self) -> DatabaseResult<bool> {
-        self.exists().await.map(|value| !value)
+    #[track_caller]
+    pub fn doesnt_exist(self) -> impl Future<Output = DatabaseResult<bool>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            self.exists().await.map(|value| !value)
+        })
     }
 
-    pub async fn count(self, column: &str) -> DatabaseResult<u64> {
-        match self.aggregate("count", column).await? {
-            Value::Null => Ok(0),
-            Value::Unsigned(count) => Ok(count),
-            Value::Integer(count) => {
-                u64::try_from(count).map_err(|_| DatabaseError::InvalidQuery("count result"))
+    #[track_caller]
+    pub fn count(self, column: &str) -> impl Future<Output = DatabaseResult<u64>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            match self.aggregate("count", column).await? {
+                Value::Null => Ok(0),
+                Value::Unsigned(count) => Ok(count),
+                Value::Integer(count) => {
+                    u64::try_from(count).map_err(|_| DatabaseError::InvalidQuery("count result"))
+                }
+                _ => Err(DatabaseError::InvalidQuery("count result")),
             }
-            _ => Err(DatabaseError::InvalidQuery("count result")),
-        }
+        })
     }
 
-    pub async fn min(self, column: &str) -> DatabaseResult<Value> {
-        self.aggregate("min", column).await
+    #[track_caller]
+    pub fn min(self, column: &str) -> impl Future<Output = DatabaseResult<Value>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            self.aggregate("min", column).await
+        })
     }
 
-    pub async fn max(self, column: &str) -> DatabaseResult<Value> {
-        self.aggregate("max", column).await
+    #[track_caller]
+    pub fn max(self, column: &str) -> impl Future<Output = DatabaseResult<Value>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            self.aggregate("max", column).await
+        })
     }
 
-    pub async fn sum(self, column: &str) -> DatabaseResult<Value> {
-        match self.aggregate("sum", column).await? {
-            Value::Null => Ok(0.into()),
-            value => Ok(value),
-        }
+    #[track_caller]
+    pub fn sum(self, column: &str) -> impl Future<Output = DatabaseResult<Value>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            match self.aggregate("sum", column).await? {
+                Value::Null => Ok(0.into()),
+                value => Ok(value),
+            }
+        })
     }
 
-    pub async fn avg(self, column: &str) -> DatabaseResult<Value> {
-        self.aggregate("avg", column).await
+    #[track_caller]
+    pub fn avg(self, column: &str) -> impl Future<Output = DatabaseResult<Value>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            self.aggregate("avg", column).await
+        })
     }
 
-    pub async fn average(self, column: &str) -> DatabaseResult<Value> {
-        self.avg(column).await
+    #[track_caller]
+    pub fn average(self, column: &str) -> impl Future<Output = DatabaseResult<Value>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            self.avg(column).await
+        })
     }
 
     async fn aggregate(mut self, function: &'static str, column: &str) -> DatabaseResult<Value> {

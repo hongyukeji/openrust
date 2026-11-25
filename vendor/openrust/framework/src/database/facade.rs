@@ -20,8 +20,11 @@ impl Facade for Db {
 
 macro_rules! statements {
     ($($method:ident -> $result:ty;)+) => {
-        $(pub async fn $method<'a>(sql: &str, bindings: impl Into<Bindings<'a>>) -> DatabaseResult<$result> {
-            Self::connection(None)?.$method(sql, bindings).await
+        $(#[track_caller]
+        pub fn $method<'a>(sql: &str, bindings: impl Into<Bindings<'a>>) -> impl Future<Output = DatabaseResult<$result>> {
+            super::events::with_query_caller(std::panic::Location::caller(), async move {
+                Self::connection(None)?.$method(sql, bindings).await
+            })
         })+
     };
 }
@@ -102,23 +105,29 @@ impl Db {
         Self::connection(None)?.get_raw_query_log()
     }
 
-    pub async fn select_from_write_connection<'a>(
+    #[track_caller]
+    pub fn select_from_write_connection<'a>(
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
-    ) -> DatabaseResult<Vec<Row>> {
-        Self::connection(None)?
-            .select_from_write_connection(sql, bindings)
-            .await
+    ) -> impl Future<Output = DatabaseResult<Vec<Row>>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            Self::connection(None)?
+                .select_from_write_connection(sql, bindings)
+                .await
+        })
     }
 
-    pub async fn select_result_sets<'a>(
+    #[track_caller]
+    pub fn select_result_sets<'a>(
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
         use_read: bool,
-    ) -> DatabaseResult<Vec<Vec<Row>>> {
-        Self::connection(None)?
-            .select_result_sets(sql, bindings, use_read)
-            .await
+    ) -> impl Future<Output = DatabaseResult<Vec<Vec<Row>>>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            Self::connection(None)?
+                .select_result_sets(sql, bindings, use_read)
+                .await
+        })
     }
 
     pub async fn pretend(
@@ -193,7 +202,10 @@ impl Db {
         affecting_statement -> u64;
     }
 
-    pub async fn unprepared(sql: &str) -> DatabaseResult<bool> {
-        Self::connection(None)?.unprepared(sql).await
+    #[track_caller]
+    pub fn unprepared(sql: &str) -> impl Future<Output = DatabaseResult<bool>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            Self::connection(None)?.unprepared(sql).await
+        })
     }
 }

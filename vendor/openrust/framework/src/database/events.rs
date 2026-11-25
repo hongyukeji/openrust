@@ -1,6 +1,8 @@
 //! Events emitted by database connections and transactions.
 
 use std::{
+    cell::RefCell,
+    panic::Location,
     sync::{
         Arc, Mutex, Weak,
         atomic::{AtomicU64, Ordering},
@@ -71,6 +73,49 @@ pub struct QueryExecuted {
     pub bindings: QueryBindings,
     pub time: Duration,
     pub read_write_type: QueryRole,
+    /// 已捕获的查询入口调用位置，最近的入口在前。
+    pub callers: Vec<&'static Location<'static>>,
+}
+
+thread_local! {
+    static QUERY_CALLERS: RefCell<Vec<&'static Location<'static>>> = const { RefCell::new(Vec::new()) };
+}
+
+pub(super) fn query_callers() -> Vec<&'static Location<'static>> {
+    QUERY_CALLERS.with_borrow(|callers| callers.iter().rev().copied().collect())
+}
+
+fn poll_query_caller<T>(caller: &'static Location<'static>, poll: impl FnOnce() -> T) -> T {
+    struct RestoreCaller;
+    impl Drop for RestoreCaller {
+        fn drop(&mut self) {
+            QUERY_CALLERS.with_borrow_mut(|callers| {
+                callers.pop();
+            });
+        }
+    }
+    // 只在 poll 期间登记，挂起、跨线程恢复和取消都不会留下位置。
+    QUERY_CALLERS.with_borrow_mut(|callers| callers.push(caller));
+    let _restore = RestoreCaller;
+    poll()
+}
+
+pub(in crate::database) fn with_query_caller<F: Future>(
+    caller: &'static Location<'static>,
+    future: F,
+) -> impl Future<Output = F::Output> {
+    let mut future = Box::pin(future);
+    std::future::poll_fn(move |context| poll_query_caller(caller, || future.as_mut().poll(context)))
+}
+
+pub(in crate::database) fn stream_with_query_caller<S: futures_util::Stream>(
+    caller: &'static Location<'static>,
+    stream: S,
+) -> impl futures_util::Stream<Item = S::Item> {
+    let mut stream = Box::pin(stream);
+    futures_util::stream::poll_fn(move |context| {
+        poll_query_caller(caller, || stream.as_mut().poll_next(context))
+    })
 }
 
 impl QueryExecuted {

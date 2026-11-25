@@ -8,26 +8,35 @@ use crate::database::query::{Record, UpdateValue, UpsertUpdate, ValueOperand, gr
 mod json;
 
 impl Builder<'_> {
-    pub async fn insert(mut self, rows: &[Record]) -> DatabaseResult<bool> {
-        if rows.is_empty() {
-            return Ok(true);
-        }
-        self.apply_before_query_callbacks()?;
-        let (sql, bindings) = self.compile_insert(rows, false)?;
-        match &mut self.executor {
-            Executor::Connection(connection) => connection.insert(&sql, &bindings).await,
-            Executor::Transaction(transaction) => transaction.insert(&sql, &bindings).await,
-            Executor::Detached(_) => Err(DatabaseError::InvalidQuery("detached subquery")),
-        }
+    #[track_caller]
+    pub fn insert(mut self, rows: &[Record]) -> impl Future<Output = DatabaseResult<bool>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            if rows.is_empty() {
+                return Ok(true);
+            }
+            self.apply_before_query_callbacks()?;
+            let (sql, bindings) = self.compile_insert(rows, false)?;
+            match &mut self.executor {
+                Executor::Connection(connection) => connection.insert(&sql, &bindings).await,
+                Executor::Transaction(transaction) => transaction.insert(&sql, &bindings).await,
+                Executor::Detached(_) => Err(DatabaseError::InvalidQuery("detached subquery")),
+            }
+        })
     }
 
-    pub async fn insert_or_ignore(mut self, rows: &[Record]) -> DatabaseResult<u64> {
-        if rows.is_empty() {
-            return Ok(0);
-        }
-        self.apply_before_query_callbacks()?;
-        let (sql, bindings) = self.compile_insert(rows, true)?;
-        self.affect(&sql, &bindings).await
+    #[track_caller]
+    pub fn insert_or_ignore(
+        mut self,
+        rows: &[Record],
+    ) -> impl Future<Output = DatabaseResult<u64>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            if rows.is_empty() {
+                return Ok(0);
+            }
+            self.apply_before_query_callbacks()?;
+            let (sql, bindings) = self.compile_insert(rows, true)?;
+            self.affect(&sql, &bindings).await
+        })
     }
 
     pub async fn insert_or_ignore_returning(
@@ -70,8 +79,11 @@ impl Builder<'_> {
         }
     }
 
-    pub async fn insert_get_id(self, values: Record) -> DatabaseResult<Value> {
-        self.insert_get_id_for(values, "id").await
+    #[track_caller]
+    pub fn insert_get_id(self, values: Record) -> impl Future<Output = DatabaseResult<Value>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            self.insert_get_id_for(values, "id").await
+        })
     }
 
     /// Uses a named PostgreSQL return column or the driver's native generated ID.
@@ -128,20 +140,23 @@ impl Builder<'_> {
         self.affect(&sql, &source.bindings).await
     }
 
-    pub async fn upsert(
+    #[track_caller]
+    pub fn upsert(
         self,
         rows: &[Record],
         unique_by: &[&str],
         update: Option<&[&str]>,
-    ) -> DatabaseResult<u64> {
-        let update = update.map(|columns| {
-            columns
-                .iter()
-                .map(|column| UpsertUpdate::FromInsert(column))
-                .collect::<Vec<_>>()
-        });
-        self.upsert_assignments(rows, unique_by, update.as_deref())
-            .await
+    ) -> impl Future<Output = DatabaseResult<u64>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            let update = update.map(|columns| {
+                columns
+                    .iter()
+                    .map(|column| UpsertUpdate::FromInsert(column))
+                    .collect::<Vec<_>>()
+            });
+            self.upsert_assignments(rows, unique_by, update.as_deref())
+                .await
+        })
     }
 
     /// Inserts rows or applies the supplied assignments to rows that conflict.
@@ -323,8 +338,11 @@ impl Builder<'_> {
         self.limit(1).update(values).await.map(|count| count > 0)
     }
 
-    pub async fn update(self, values: Record) -> DatabaseResult<u64> {
-        self.update_values(values, Record::new(), "+").await
+    #[track_caller]
+    pub fn update(self, values: Record) -> impl Future<Output = DatabaseResult<u64>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            self.update_values(values, Record::new(), "+").await
+        })
     }
 
     /// Updates column values using bound data, expressions, or scalar subqueries.
@@ -423,24 +441,30 @@ impl Builder<'_> {
         self.affect(&sql, &bindings).await
     }
 
-    pub async fn increment(
+    #[track_caller]
+    pub fn increment(
         self,
         column: &str,
         amount: impl Into<Value>,
         extra: Record,
-    ) -> DatabaseResult<u64> {
-        self.increment_each(Record::from([(column.into(), amount.into())]), extra)
-            .await
+    ) -> impl Future<Output = DatabaseResult<u64>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            self.increment_each(Record::from([(column.into(), amount.into())]), extra)
+                .await
+        })
     }
 
-    pub async fn decrement(
+    #[track_caller]
+    pub fn decrement(
         self,
         column: &str,
         amount: impl Into<Value>,
         extra: Record,
-    ) -> DatabaseResult<u64> {
-        self.decrement_each(Record::from([(column.into(), amount.into())]), extra)
-            .await
+    ) -> impl Future<Output = DatabaseResult<u64>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            self.decrement_each(Record::from([(column.into(), amount.into())]), extra)
+                .await
+        })
     }
 
     pub async fn increment_each(self, columns: Record, extra: Record) -> DatabaseResult<u64> {
@@ -501,83 +525,89 @@ impl Builder<'_> {
         self.affect(&sql, &bindings).await
     }
 
-    pub async fn delete(mut self) -> DatabaseResult<u64> {
-        self.apply_before_query_callbacks()?;
-        self.validate_write_query()?;
-        let table = self.source.table_name()?;
-        let mut bindings = Vec::new();
-        if self.grammar.is_sql_server() {
-            let sql = self.compile_sql_server_write(table, None, &mut bindings)?;
-            return self.affect(&sql, &bindings).await;
-        }
-        let target = self.grammar.table(table)?;
-        let mut sql = if self.grammar.is_mysql() && !self.joins.is_empty() {
-            let alias = self.grammar.table(table_reference(table))?;
-            let mut sql = format!("delete {alias} from {target}");
-            self.compile_joins(&mut sql, &mut bindings)?;
-            sql
-        } else {
-            format!("delete from {target}")
-        };
-        self.compile_write_tail(table, &mut sql, &mut bindings)?;
-        self.affect(&sql, &bindings).await
+    #[track_caller]
+    pub fn delete(mut self) -> impl Future<Output = DatabaseResult<u64>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            self.apply_before_query_callbacks()?;
+            self.validate_write_query()?;
+            let table = self.source.table_name()?;
+            let mut bindings = Vec::new();
+            if self.grammar.is_sql_server() {
+                let sql = self.compile_sql_server_write(table, None, &mut bindings)?;
+                return self.affect(&sql, &bindings).await;
+            }
+            let target = self.grammar.table(table)?;
+            let mut sql = if self.grammar.is_mysql() && !self.joins.is_empty() {
+                let alias = self.grammar.table(table_reference(table))?;
+                let mut sql = format!("delete {alias} from {target}");
+                self.compile_joins(&mut sql, &mut bindings)?;
+                sql
+            } else {
+                format!("delete from {target}")
+            };
+            self.compile_write_tail(table, &mut sql, &mut bindings)?;
+            self.affect(&sql, &bindings).await
+        })
     }
 
-    pub async fn truncate(mut self) -> DatabaseResult<()> {
-        self.apply_before_query_callbacks()?;
-        let table = self.source.table_name()?;
-        let target = self.grammar.table(table)?;
-        if table_alias(table).is_some() {
-            return Err(DatabaseError::InvalidQuery("truncate table alias"));
-        }
-        let native_sql = if self.grammar.is_postgres() {
-            Some(self.grammar.postgres_truncate(&target))
-        } else if self.grammar.is_mysql() || self.grammar.is_sql_server() {
-            Some(format!("truncate table {target}"))
-        } else {
-            None
-        };
-        if let Some(sql) = native_sql {
-            return match &mut self.executor {
+    #[track_caller]
+    pub fn truncate(mut self) -> impl Future<Output = DatabaseResult<()>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            self.apply_before_query_callbacks()?;
+            let table = self.source.table_name()?;
+            let target = self.grammar.table(table)?;
+            if table_alias(table).is_some() {
+                return Err(DatabaseError::InvalidQuery("truncate table alias"));
+            }
+            let native_sql = if self.grammar.is_postgres() {
+                Some(self.grammar.postgres_truncate(&target))
+            } else if self.grammar.is_mysql() || self.grammar.is_sql_server() {
+                Some(format!("truncate table {target}"))
+            } else {
+                None
+            };
+            if let Some(sql) = native_sql {
+                return match &mut self.executor {
+                    Executor::Connection(connection) => {
+                        connection.statement(&sql, &[]).await.map(|_| ())
+                    }
+                    Executor::Transaction(_) if self.grammar.is_mysql() => Err(
+                        DatabaseError::InvalidQuery("MySQL truncate implicitly commits"),
+                    ),
+                    Executor::Transaction(transaction) => {
+                        transaction.statement(&sql, &[]).await.map(|_| ())
+                    }
+                    Executor::Detached(_) => Err(DatabaseError::InvalidQuery("detached subquery")),
+                };
+            }
+
+            let (schema, name) = table
+                .rsplit_once('.')
+                .map_or((None, table), |(schema, name)| {
+                    (Some(schema.to_owned()), name)
+                });
+            let query = Arc::new(SqliteTruncate {
+                grammar: self.grammar.clone(),
+                schema,
+                name: format!("{}{name}", self.grammar.table_prefix()),
+            });
+            match &mut self.executor {
                 Executor::Connection(connection) => {
-                    connection.statement(&sql, &[]).await.map(|_| ())
+                    connection
+                        .transaction(
+                            |transaction| Box::pin(truncate_sqlite(transaction, query.clone())),
+                            1,
+                        )
+                        .await
                 }
-                Executor::Transaction(_) if self.grammar.is_mysql() => Err(
-                    DatabaseError::InvalidQuery("MySQL truncate implicitly commits"),
-                ),
                 Executor::Transaction(transaction) => {
-                    transaction.statement(&sql, &[]).await.map(|_| ())
+                    transaction
+                        .transaction(|transaction| Box::pin(truncate_sqlite(transaction, query)))
+                        .await
                 }
                 Executor::Detached(_) => Err(DatabaseError::InvalidQuery("detached subquery")),
-            };
-        }
-
-        let (schema, name) = table
-            .rsplit_once('.')
-            .map_or((None, table), |(schema, name)| {
-                (Some(schema.to_owned()), name)
-            });
-        let query = Arc::new(SqliteTruncate {
-            grammar: self.grammar.clone(),
-            schema,
-            name: format!("{}{name}", self.grammar.table_prefix()),
-        });
-        match &mut self.executor {
-            Executor::Connection(connection) => {
-                connection
-                    .transaction(
-                        |transaction| Box::pin(truncate_sqlite(transaction, query.clone())),
-                        1,
-                    )
-                    .await
             }
-            Executor::Transaction(transaction) => {
-                transaction
-                    .transaction(|transaction| Box::pin(truncate_sqlite(transaction, query)))
-                    .await
-            }
-            Executor::Detached(_) => Err(DatabaseError::InvalidQuery("detached subquery")),
-        }
+        })
     }
 
     fn validate_write_query(&self) -> DatabaseResult<()> {

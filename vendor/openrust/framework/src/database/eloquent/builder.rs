@@ -1826,8 +1826,11 @@ impl<M: Model> Builder<'static, M> {
         self
     }
 
-    pub async fn get(self) -> DatabaseResult<Collection<M>> {
-        self.get_with_transaction(None).await
+    #[track_caller]
+    pub fn get(self) -> impl Future<Output = DatabaseResult<Collection<M>>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            self.get_with_transaction(None).await
+        })
     }
 
     /// 从明确的同连接事务水合模型，保留Scope、retrieved事件与关系加载。
@@ -2184,8 +2187,12 @@ impl<M: Model> Builder<'static, M> {
     }
 
     /// Hydrates models as the query yields rows. Eager relations require a batched query.
+    #[track_caller]
     pub fn cursor(self) -> DatabaseCursor<'static, M> {
-        self.cursor_hydrated(|_, _| Ok(()))
+        Box::pin(crate::database::events::stream_with_query_caller(
+            std::panic::Location::caller(),
+            self.cursor_hydrated(|_, _| Ok(())),
+        ))
     }
 
     pub(super) fn cursor_hydrated<'a>(
@@ -2301,29 +2308,51 @@ impl<M: Model> Builder<'static, M> {
         }
     }
 
-    pub async fn first(self) -> DatabaseResult<Option<M>> {
-        Ok(self.limit(1).get().await?.into_iter().next())
+    #[track_caller]
+    pub fn first(self) -> impl Future<Output = DatabaseResult<Option<M>>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            Ok(self.limit(1).get().await?.into_iter().next())
+        })
     }
 
-    pub async fn first_or_fail(self) -> DatabaseResult<M> {
-        self.first()
-            .await?
-            .ok_or(DatabaseError::ModelNotFound(M::metadata().table))
+    #[track_caller]
+    pub fn first_or_fail(self) -> impl Future<Output = DatabaseResult<M>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            self.first()
+                .await?
+                .ok_or(DatabaseError::ModelNotFound(M::metadata().table))
+        })
     }
 
-    pub async fn find(mut self, key: impl Into<Value>) -> DatabaseResult<Option<M>> {
-        self.where_key(key);
-        self.first().await
+    #[track_caller]
+    pub fn find(
+        mut self,
+        key: impl Into<Value>,
+    ) -> impl Future<Output = DatabaseResult<Option<M>>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            self.where_key(key);
+            self.first().await
+        })
     }
 
-    pub async fn find_or_fail(mut self, key: impl Into<Value>) -> DatabaseResult<M> {
-        self.where_key(key);
-        self.first_or_fail().await
+    #[track_caller]
+    pub fn find_or_fail(
+        mut self,
+        key: impl Into<Value>,
+    ) -> impl Future<Output = DatabaseResult<M>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            self.where_key(key);
+            self.first_or_fail().await
+        })
     }
 
-    pub async fn update(self, mut attributes: Attributes) -> DatabaseResult<u64> {
-        self.add_updated_at(&mut attributes)?;
-        self.scoped()?.0.update(attributes).await
+    #[track_caller]
+    pub fn update(self, attributes: Attributes) -> impl Future<Output = DatabaseResult<u64>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            let mut attributes = attributes;
+            self.add_updated_at(&mut attributes)?;
+            self.scoped()?.0.update(attributes).await
+        })
     }
 
     /// Writes multiple rows without hydrating or saving individual models.

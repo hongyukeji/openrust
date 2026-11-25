@@ -12,6 +12,9 @@ use openrust_telescope::{
 };
 use serde_json::json;
 
+#[path = "support/query_caller.rs"]
+mod query_caller;
+
 struct Probe(&'static str);
 impl Event for Probe {
     fn name(&self) -> &str {
@@ -25,10 +28,49 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
     Route::get("/watchers", handler)?;
     Route::get("/client-error", client_error_handler)?;
     Route::get("/gate-callers", gate_callers)?;
+    Route::get("/query-callers", query_callers)?;
     for path in ["/json", "/plain", "/boundary", "/large", "/opaque"] {
         Route::get(path, response_handler)?;
     }
     Ok(())
+}
+
+fn query_callers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    use futures_util::TryStreamExt as _;
+    Box::pin(async {
+        let connection = Db::connection(None).unwrap();
+        query_caller::register_nested_query(&connection);
+        let facade = line!() + 1;
+        let facade_query = Db::select("SELECT 71 AS facade_caller", &[]);
+        let direct = line!() + 1;
+        let direct_query = connection.select("SELECT 72 AS direct_caller", &[]);
+        let (facade_rows, direct_rows) = tokio::join!(facade_query, direct_query);
+        facade_rows.unwrap();
+        direct_rows.unwrap();
+        let builder = connection
+            .table("telescope_entries")
+            .select_raw("73 AS builder_caller", vec![]);
+        let builder_line = line!() + 1;
+        builder.get().await.unwrap();
+        let cursor = line!() + 1;
+        let rows = connection.cursor("SELECT 74 AS cursor_caller", &[]);
+        rows.try_collect::<Vec<_>>().await.unwrap();
+        let mut transaction = Db::begin_transaction().await.unwrap();
+        let transactional = line!() + 1;
+        let rows = transaction.select("SELECT 75 AS transaction_caller", &[]);
+        rows.await.unwrap();
+        transaction.commit().await.unwrap();
+        let outer = line!() + 1;
+        let rows = connection.select("SELECT 77 AS outer_caller", &[]);
+        rows.await.unwrap();
+        Response::json(
+            http::StatusCode::OK,
+            json!({
+                "facade_caller":facade, "direct_caller":direct, "builder_caller":builder_line,
+                "cursor_caller":cursor, "transaction_caller":transactional, "outer_caller":outer,
+            }),
+        )
+    })
 }
 
 fn gate_callers(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
@@ -144,6 +186,87 @@ async fn gate_watcher_preserves_public_callers_and_clears_filtered_sources() {
     }
 }
 #[tokio::test]
+async fn query_watcher_uses_the_nearest_eligible_entry_across_nested_queries() {
+    for (ignore_packages, ignore_paths, inner_skipped) in [
+        (false, json!([]), false),
+        (false, json!(["support/query_caller.rs"]), true),
+        (true, json!([]), false),
+    ] {
+        let mut app = application();
+        app.artisan(["migrate", "--force"])
+            .await
+            .assert_successful();
+        QueryWatcher::new(
+            json!({
+                "ignore_packages":ignore_packages, "ignore_paths":ignore_paths, "slow":0,
+            })
+            .as_object()
+            .unwrap()
+            .clone(),
+        )
+        .register(app.app())
+        .await
+        .unwrap();
+        let response = app.get("/api/query-callers").await.unwrap();
+        response.assert_ok();
+        let expected = response.json::<serde_json::Value>().unwrap();
+        let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
+        let entries = repository
+            .get(Some(EntryType::Query), EntryQueryOptions::default())
+            .await
+            .unwrap();
+        let queries: Vec<_> = entries
+            .iter()
+            .filter(|entry| {
+                entry.content["sql"]
+                    .as_str()
+                    .is_some_and(|sql| sql.contains("_caller"))
+            })
+            .collect();
+        if ignore_packages {
+            assert!(queries.is_empty());
+        } else {
+            assert_eq!(
+                queries.len(),
+                7,
+                "{:?}",
+                queries
+                    .iter()
+                    .map(|entry| &entry.content)
+                    .collect::<Vec<_>>()
+            );
+            let expected = expected.as_object().unwrap();
+            for entry in queries {
+                let sql = entry.content["sql"].as_str().unwrap();
+                if sql.contains("inner_caller") && !inner_skipped {
+                    assert!(
+                        entry.content["file"]
+                            .as_str()
+                            .unwrap()
+                            .ends_with("support/query_caller.rs")
+                    );
+                    assert!(entry.content["line"].as_u64().unwrap() > 0);
+                } else {
+                    assert_eq!(entry.content["file"], file!());
+                    let line = if sql.contains("inner_caller") {
+                        &expected["outer_caller"]
+                    } else {
+                        expected
+                            .iter()
+                            .find(|(marker, _)| sql.contains(marker.as_str()))
+                            .unwrap()
+                            .1
+                    };
+                    assert_eq!(&entry.content["line"], line);
+                }
+                assert_eq!(entry.content["slow"], true);
+            }
+        }
+        repository.clear().await.unwrap();
+    }
+}
+
+#[tokio::test]
 async fn independent_watchers_use_own_options_and_framework_event_switch_is_application_local() {
     let mut app = application();
     app.artisan(["migrate", "--force"])
@@ -165,10 +288,15 @@ async fn independent_watchers_use_own_options_and_framework_event_switch_is_appl
             .unwrap()
             .is_empty()
     );
-    QueryWatcher::new(json!({"slow":0}).as_object().unwrap().clone())
-        .register(app.app())
-        .await
-        .unwrap();
+    QueryWatcher::new(
+        json!({"slow":0,"ignore_packages":false})
+            .as_object()
+            .unwrap()
+            .clone(),
+    )
+    .register(app.app())
+    .await
+    .unwrap();
     EventWatcher::new(
         json!({"ignore":"OpenRust\\Ignored"})
             .as_object()

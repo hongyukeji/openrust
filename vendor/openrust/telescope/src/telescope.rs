@@ -185,8 +185,13 @@ impl Telescope {
                 .response_parameters,
         )
     }
+    pub(crate) fn is_storing() -> bool {
+        STORING.try_with(|_| ()).is_ok()
+    }
     pub fn is_recording(&self) -> bool {
-        self.enabled.load(Ordering::Acquire) && self.suppressed.load(Ordering::Acquire) == 0
+        !Self::is_storing()
+            && self.enabled.load(Ordering::Acquire)
+            && self.suppressed.load(Ordering::Acquire) == 0
     }
     pub(crate) fn has_started(&self) -> bool {
         self.started.load(Ordering::Acquire)
@@ -427,19 +432,22 @@ impl Telescope {
                 .changes
                 .insert("updated_batch_id".into(), batch.to_string().into());
         }
-        let result = async {
-            self.repository.store(&pending.entries).await?;
-            let failed = self.repository.update(&pending.updates).await?;
-            for hook in hooks {
-                hook(self, &pending.entries);
-            }
-            Ok(failed)
-        }
-        .await;
+        // 数据库事件可能在另一个容器执行作用域中解析出 Telescope。
+        let result = STORING
+            .scope((), async {
+                self.repository.store(&pending.entries).await?;
+                let failed = self.repository.update(&pending.updates).await?;
+                for hook in hooks {
+                    hook(self, &pending.entries);
+                }
+                Ok(failed)
+            })
+            .await;
         self.repository.terminate();
         result
     }
 }
+tokio::task_local! { static STORING: (); }
 macro_rules! recorders {
     ($($method:ident => $kind:ident),* $(,)?) => { impl Telescope { $(pub fn $method(&self, entry: IncomingEntry) { self.record(EntryType::$kind, entry); })* } };
 }

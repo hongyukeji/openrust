@@ -58,7 +58,7 @@ Horizon包与其已验快照逐文件一致；当前核心的Worker／事件／A
 
 三库／缓存／Worker、实际服务器Chrome桌面手机、安装、发布保留定制、根配置缓存／骨架及全部扩展组合见包审计与[最终组合](extension-final.md)。先前公开Watcher、ignoreFrameworkEvents、缓冲响应／路由字段缺口已关闭。
 
-与PHP仍有明确差异：原生安全UI替代Vue／avatar，Query 调用来源过滤及 Gate 外层调用帧选择待实现，不透明 Body／流及原生 `Part` 仍有元数据边界，CLI 使用普通表格与时间戳。HTTP 客户端已支持构建器提供的 multipart 元数据，见[包审计](telescope/README.md#出站-multipart)。正式服务／其他OS需要独立验证。
+与PHP仍有明确差异：原生安全UI替代Vue／avatar，Query 部分入口和 Gate 外层调用帧选择仍待核对，不透明 Body／流及原生 `Part` 仍有元数据边界，CLI 使用普通表格与时间戳。HTTP 客户端已支持构建器提供的 multipart 元数据，见[包审计](telescope/README.md#出站-multipart)。正式服务／其他OS需要独立验证。
 
 ## O03–O06 与完成条件
 
@@ -77,7 +77,7 @@ O01 Activitylog、O02 Horizon、O03 Telescope原生范围、O04 Pennant、O05 Pu
 | Telescope `ClientRequestWatcher::duration` | 固定上游在有正计时时以毫秒向下取整，缺少计时时输出空值。Rust 从现有传输统计输出整数毫秒或 JSON 空值。测试由真实出站 HTTP 与 fake 消费者覆盖。 | 命令与面板展示随完整输出审计核对。 |
 | Telescope `ClientRequestWatcher::input` | 已捕获构建器提供的 multipart 普通字段及 `attach_body` 附件的文件名、长度、头部。普通字段先于附件发送，同名取最后一项，复用请求字段／头部脱敏。原生 `attach` 保留发送契约。 | 原生 reqwest `Part` 元数据和中间件替换流的边界见[包审计](telescope/README.md#出站-multipart)。 |
 | Telescope 非 multipart 出站载荷 | 诊断从原始 GET 地址或结构化正文选择载荷，并与线上 URL 分别记录。已核对 JSON／表单 POST、GET 查询覆盖、HEAD、原始正文、自定义媒体类型与表单标量快照。成功重定向保留原始输入，连接失败从实际缓冲正文解码。 | multipart 重定向、重试回调改写与其他中间件组合仍需对账。 |
-| Telescope `FetchesStackTrace`、`QueryWatcher`、`GateWatcher` | 固定上游按路径子串跳过被忽略的帧，再选第一处合格来源。找不到合格帧时 Query 不入库，Gate 仍入库且行号和文件为空。原生 `GateEvaluated` 已提供授权入口的调用位置。 | Gate 忽略首个来源时的外层候选、Query 原生调用来源仍待实现。Query 验证范围含 Facade、直接连接、查询构建器、模型和框架内部触发。 |
+| Telescope `FetchesStackTrace`、`QueryWatcher`、`GateWatcher` | 固定上游按路径子串跳过被忽略的帧，再选第一处合格来源。找不到合格帧时 Query 不入库，Gate 仍入库且行号和文件为空。Gate 已提供授权入口位置，Query 已从核心 SQL 入口收集候选并使用第一处可见位置。 | Gate 外层候选、Query 尚未接入的公开入口，以及发布构建路径重映射仍须逐项核对。 |
 | Pulse 默认 Recorder 清单 | 固定配置的十个 Recorder 均可映射到本地配置。核对了采样率 1、慢操作阈值 1000、异常和慢查询位置开关、默认存储及采集驱动；这一轮只读配置。 | 逐 Recorder 核对触发事件、筛选、采样、聚合、配置覆盖和扩展入口，再核对命令和面板。Servers 主机名上游在配置加载时求值，本地在记录时回退，配置缓存边界待裁决。 |
 | Horizon `horizon:listen` 的 `watch` | 上游发布配置提供默认监听列表。Rust 配置补充应用、启动、配置、数据库、路由、视图、公开目录及资源目录中的 Rust 文件和 Cargo 构建入口的对应监听路径。真实 Artisan 使用默认配置监控 `routes/web.rs`，文件更新后重建 Master 和 Worker，SIGTERM 后子树退出。 | 补 Linux／Windows 目标平台验收。 |
 | Horizon 其余配置 | 固定上游含 `name`、`waits`、`silenced`、`silenced_tags` 及 Supervisor `nice`。本地已读静默配置并具备 `nice` 运行时默认；配置形状、面板名称、等待时间入口仍须逐项核对。 | 对照发布配置及实际命令、Redis 和面板消费者，分别核对默认、覆盖及非法值。 |
@@ -258,3 +258,13 @@ Rust 复用 `Redirect::follow` 执行上述默认规则，仍要求 HTTP(S) 目�
 `ignore_paths` 使用路径子串，匹配时统一路径分隔符。`ignore_packages` 识别 vendor 与 Cargo 默认依赖路径，框架包源码始终排除。当前采集一处可确定的调用位置。被过滤或缺失时保留 Gate 结果，文件和行号为空。通过任意异步包装器寻找可用的外层调用帧、非标准依赖路径、Query 的来源传播继续核对。
 
 真实应用路由验证 Facade、直接调用、trait 对象和批量方法写入精确调用行号。三种 Watcher 配置分别验证来源可见、路径过滤、依赖过滤及 `ignore_abilities`。SQLite、PostgreSQL 18.7、MySQL 8.4.13 各通过。框架授权 5 项、Telescope 33 项、快照全仓格式、框架库及 Telescope 全目标严格 Clippy、三语文档构建和 12 组浏览器检查通过。快照沿用 `8041ae15a` 加前批及本批文件。独立 Redis 用例本批未跑。发布构建的路径重映射与目标平台仍需验收。
+
+### Telescope Query 数据库调用来源
+
+固定 [QueryWatcher](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Watchers/QueryWatcher.php) 选择第一处未过滤来源。Rust 用 `Location::caller()` 捕获连接与 Facade SQL、事务 SQL、游标、常用 Query Builder 终结操作和 Eloquent Builder 读取入口的编译位置。位置只在 Future 或 Stream 的当前 `poll` 期间加入候选，复用原有成功 SQL 事件和观测派发。旧版数据库连接示例使用 SeaORM，缺少对应的 OpenRust 查询事件来源。
+
+Telescope 从最近的已捕获候选开始应用 `ignore_packages` 与 `ignore_paths`。有应用候选且全部被过滤时省略该 Query 条目。因调用入口尚未覆盖而没有应用候选时，暂保留诊断条目并将文件与行号留空。这项兼容边界须在分页、关系、模型写入、schema、懒加载、任意异步包装器及发布构建入口复核后重新评估。查询失败处理、SQL 日志与 Gate 结果保留规则仍各自使用所属入口。
+
+真实回归首轮暴露仓储写入的内部 INSERT 被另一个容器执行作用域的 Telescope 实例采集。固定 `Telescope::store` 在 `withoutRecording` 内持久化。Rust 扩展同一异步任务的抑制范围，覆盖仓储写入、更新和存储回调，并在 Watcher 解析实例前跳过持久化期间的事件。
+
+基于 `c2ee09bec` 加本批文件的隔离快照验收。SQLite、PostgreSQL 18.7 与 MySQL 8.4.13 均通过真实应用路由的并发查询行号、内层过滤后回退到外层来源、依赖过滤、仓储 SQL 抑制和 Eloquent 查询来源回归。Telescope 默认 34 项通过，独立 Redis 8.10.3 的用例另行通过。框架 SQL 观测回归覆盖成功、失败、作用域与取消，三库实际回调验收覆盖一次性消费、结果转换和事务。快照全仓格式、框架库及 Telescope 全目标严格 Clippy、三语文档构建及 12 组浏览器检查通过。发布构建与其他目标平台未在本批验收。证据位于 `target/tmp/observability-parity/query-caller-*.log`。

@@ -1253,6 +1253,7 @@ impl Connection {
                         bindings: bindings.into(),
                         time,
                         read_write_type,
+                        callers: super::events::query_callers(),
                     }),
                 }));
             }
@@ -1489,12 +1490,16 @@ impl Connection {
     }
 
     /// Executes the select on first poll and decodes one row at a time.
+    #[track_caller]
     pub fn cursor<'a>(
         &'a self,
         sql: &'a str,
         bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseCursor<'a> {
-        self.cursor_with_mode(sql, bindings, false)
+        Box::pin(super::events::stream_with_query_caller(
+            std::panic::Location::caller(),
+            self.cursor_with_mode(sql, bindings, false),
+        ))
     }
 
     pub(super) fn cursor_with_mode<'a>(
@@ -1561,38 +1566,44 @@ impl Connection {
         ))
     }
 
-    pub async fn select<'a>(
+    #[track_caller]
+    pub fn select<'a>(
         &self,
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
-    ) -> DatabaseResult<Vec<Row>> {
-        observed_query!(
-            self,
-            sql,
-            bindings,
-            true,
-            |physical, values| physical.select(sql, values),
-            Vec::new(),
-            || (),
-            |_| ()
-        )
+    ) -> impl Future<Output = DatabaseResult<Vec<Row>>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            observed_query!(
+                self,
+                sql,
+                bindings,
+                true,
+                |physical, values| physical.select(sql, values),
+                Vec::new(),
+                || (),
+                |_| ()
+            )
+        })
     }
 
-    pub async fn select_from_write_connection<'a>(
+    #[track_caller]
+    pub fn select_from_write_connection<'a>(
         &self,
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
-    ) -> DatabaseResult<Vec<Row>> {
-        observed_query!(
-            self,
-            sql,
-            bindings,
-            false,
-            |physical, values| physical.select(sql, values),
-            Vec::new(),
-            || (),
-            |_| ()
-        )
+    ) -> impl Future<Output = DatabaseResult<Vec<Row>>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            observed_query!(
+                self,
+                sql,
+                bindings,
+                false,
+                |physical, values| physical.select(sql, values),
+                Vec::new(),
+                || (),
+                |_| ()
+            )
+        })
     }
 
     pub(super) async fn insert_returning(
@@ -1617,30 +1628,36 @@ impl Connection {
     }
 
     /// Returns the ordered rowsets of a prepared MySQL-family or SQL Server statement.
-    pub async fn select_result_sets<'a>(
+    #[track_caller]
+    pub fn select_result_sets<'a>(
         &self,
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
         use_read: bool,
-    ) -> DatabaseResult<Vec<Vec<Row>>> {
-        observed_query!(
-            self,
-            sql,
-            bindings,
-            use_read,
-            |physical, values| physical.select_result_sets(sql, values),
-            Vec::new(),
-            || (),
-            |_| ()
-        )
+    ) -> impl Future<Output = DatabaseResult<Vec<Vec<Row>>>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            observed_query!(
+                self,
+                sql,
+                bindings,
+                use_read,
+                |physical, values| physical.select_result_sets(sql, values),
+                Vec::new(),
+                || (),
+                |_| ()
+            )
+        })
     }
 
-    pub async fn select_one<'a>(
+    #[track_caller]
+    pub fn select_one<'a>(
         &self,
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
-    ) -> DatabaseResult<Option<Row>> {
-        self.select_one_with_role(sql, bindings, true).await
+    ) -> impl Future<Output = DatabaseResult<Option<Row>>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            self.select_one_with_role(sql, bindings, true).await
+        })
     }
 
     pub(super) async fn select_one_with_role<'a>(
@@ -1661,95 +1678,116 @@ impl Connection {
         )
     }
 
-    pub async fn scalar<'a>(
+    #[track_caller]
+    pub fn scalar<'a>(
         &self,
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
-    ) -> DatabaseResult<Value> {
-        self.select_one(sql, bindings)
-            .await?
-            .map_or(Ok(Value::Null), Row::scalar)
+    ) -> impl Future<Output = DatabaseResult<Value>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            self.select_one(sql, bindings)
+                .await?
+                .map_or(Ok(Value::Null), Row::scalar)
+        })
     }
 
-    pub async fn statement<'a>(
+    #[track_caller]
+    pub fn statement<'a>(
         &self,
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
-    ) -> DatabaseResult<bool> {
-        observed_query!(
-            self,
-            sql,
-            bindings,
-            false,
-            |physical, values| physical.affecting_statement(sql, values),
-            true,
-            || self.set_record_modification_state(true),
-            |_| ()
-        )
-        .map(|_| true)
+    ) -> impl Future<Output = DatabaseResult<bool>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            observed_query!(
+                self,
+                sql,
+                bindings,
+                false,
+                |physical, values| physical.affecting_statement(sql, values),
+                true,
+                || self.set_record_modification_state(true),
+                |_| ()
+            )
+            .map(|_| true)
+        })
     }
 
-    pub async fn insert<'a>(
+    #[track_caller]
+    pub fn insert<'a>(
         &self,
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
-    ) -> DatabaseResult<bool> {
-        self.statement(sql, bindings).await
+    ) -> impl Future<Output = DatabaseResult<bool>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            self.statement(sql, bindings).await
+        })
     }
 
-    pub async fn update<'a>(
+    #[track_caller]
+    pub fn update<'a>(
         &self,
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
-    ) -> DatabaseResult<u64> {
-        self.affecting_statement(sql, bindings).await
+    ) -> impl Future<Output = DatabaseResult<u64>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            self.affecting_statement(sql, bindings).await
+        })
     }
 
-    pub async fn delete<'a>(
+    #[track_caller]
+    pub fn delete<'a>(
         &self,
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
-    ) -> DatabaseResult<u64> {
-        self.affecting_statement(sql, bindings).await
+    ) -> impl Future<Output = DatabaseResult<u64>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            self.affecting_statement(sql, bindings).await
+        })
     }
 
-    pub async fn affecting_statement<'a>(
+    #[track_caller]
+    pub fn affecting_statement<'a>(
         &self,
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
-    ) -> DatabaseResult<u64> {
-        observed_query!(
-            self,
-            sql,
-            bindings,
-            false,
-            |physical, values| physical.affecting_statement(sql, values),
-            0,
-            || (),
-            |count: &u64| {
-                if *count > 0 {
-                    self.set_record_modification_state(true);
+    ) -> impl Future<Output = DatabaseResult<u64>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            observed_query!(
+                self,
+                sql,
+                bindings,
+                false,
+                |physical, values| physical.affecting_statement(sql, values),
+                0,
+                || (),
+                |count: &u64| {
+                    if *count > 0 {
+                        self.set_record_modification_state(true);
+                    }
                 }
-            }
-        )
+            )
+        })
     }
 
     /// Executes raw SQL without parameter binding. Use only application-controlled SQL.
-    pub async fn unprepared(&self, sql: &str) -> DatabaseResult<bool> {
-        if test_transaction::active(self) {
-            return Err(DatabaseError::UnsupportedOperation(
-                "test transaction requires a prepared transactional statement",
-            ));
-        }
-        observed_query!(
-            self,
-            sql,
-            &[],
-            false,
-            |physical, _bindings| physical.unprepared(sql),
-            true,
-            || (),
-            |_| self.set_record_modification_state(true)
-        )
+    #[track_caller]
+    pub fn unprepared(&self, sql: &str) -> impl Future<Output = DatabaseResult<bool>> {
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            if test_transaction::active(self) {
+                return Err(DatabaseError::UnsupportedOperation(
+                    "test transaction requires a prepared transactional statement",
+                ));
+            }
+            observed_query!(
+                self,
+                sql,
+                &[],
+                false,
+                |physical, _bindings| physical.unprepared(sql),
+                true,
+                || (),
+                |_| self.set_record_modification_state(true)
+            )
+        })
     }
 }
