@@ -46,7 +46,7 @@ pub(super) fn register() -> Result<(), ConsoleError> {
                 | "horizon:pause-supervisor"
                 | "horizon:continue-supervisor"
         ) {
-            syntax = syntax.arg(Arg::new("name").required(true));
+            syntax = syntax.arg(Arg::new("name").required(true).allow_hyphen_values(true));
         }
         if name == "horizon:purge" {
             syntax = syntax.arg(Arg::new("signal").long("signal").default_value("SIGTERM"));
@@ -188,14 +188,14 @@ impl Command for Management {
                 | "horizon:pause-supervisor"
                 | "horizon:continue-supervisor" => {
                     let suffix = input.matches().get_one::<String>("name").expect("required");
-                    let host = crate::supervisor::hostname().map_err(error)?;
+                    let identity = repository.master_names.local().map_err(error)?;
                     let selected = repository
                         .supervisors()
                         .await
                         .map_err(error)?
                         .into_iter()
                         .find(|value| {
-                            value["host"].as_str() == Some(host.as_str())
+                            identity.matches(value)
                                 && value["name"]
                                     .as_str()
                                     .is_some_and(|name| name.ends_with(suffix))

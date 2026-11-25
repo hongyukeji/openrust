@@ -2,6 +2,7 @@
 import json
 import os
 from pathlib import Path
+import re
 import signal
 import socket
 import sqlite3
@@ -111,6 +112,7 @@ def main():
                 )
                 state = until_master(lambda state: state['environment'] == environment)
                 assert state['supervisors'] == []
+                assert re.fullmatch(re.escape(state['basename']) + '-[A-Za-z0-9]{4}', state['name']), state
                 expected = [] if environment == 'unmatched' else [{
                     'name': 'MasterSupervisorDeployed',
                     'master': state['name'],
@@ -122,6 +124,7 @@ def main():
                 stdout, stderr = master.communicate(timeout=15)
                 assert master.returncode == 0, (stdout, stderr)
                 assert status() == []
+            env['HORIZON_PROBE_MASTER_BASENAME'] = '-probe.cluster_one'
             assert 'No processes to pause.' in artisan('horizon:pause')
             assert redis('SET', wait_lock, 'contender', 'EX', '30') == 'OK'
             master = subprocess.Popen([binary, 'artisan', 'horizon'], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -144,6 +147,8 @@ def main():
             if os.environ.get('HORIZON_TEST_BROWSER') == '1':
                 subprocess.run(['node', str(Path(__file__).with_name('dashboard_browser.mjs')), endpoint], env=env, check=True, timeout=35)
             initial = until_master(lambda state: state['workers'])
+            assert initial['basename'] == '-probe.cluster_one', initial
+            assert re.fullmatch(r'-probe\.cluster_one-[A-Za-z0-9]{4}', initial['name']), initial
             child_pids.update(w['pid'] for w in initial['workers'])
             worker_pid = initial['workers'][0]['pid']
             command = subprocess.check_output(['ps', '-p', str(worker_pid), '-o', 'command='], text=True)
@@ -268,14 +273,16 @@ def main():
             until(lambda: (root / 'completed.log').exists() and forced_id in (root / 'completed.log').read_text())
             artisan('up')
             until(lambda: stats()['queues'][0]['metrics']['completed'] == before + 3)
-            # A foreign heartbeat can even name a valid PID on this host.
-            peer_name = 'remote-master-probe'
+            # A heartbeat outside this master group can even name a valid local PID.
+            peers = [('remote-master-probe', 'other-' + socket.gethostname(), '-probe.cluster_one'),
+                     ('another-local-group', socket.gethostname(), '-probe.cluster_one_other')]
             prefix = f'{root.name}:horizon-probe:{{horizon}}:'
             peer = subprocess.Popen(['sleep', '60'])
             try:
-                remote = json.dumps({'name': peer_name, 'pid': peer.pid, 'host': 'other-' + socket.gethostname(), 'status': 'running'})
-                assert redis('SET', prefix + 'master:' + peer_name, remote, 'EX', '15') == 'OK'
-                redis('ZADD', prefix + 'masters', str(int(time.time() * 1000)), peer_name)
+                for name, host, basename in peers:
+                    heartbeat = json.dumps({'name': name, 'pid': peer.pid, 'host': host, 'basename': basename, 'status': 'running'})
+                    assert redis('SET', prefix + 'master:' + name, heartbeat, 'EX', '15') == 'OK'
+                    redis('ZADD', prefix + 'masters', str(int(time.time() * 1000)), name)
                 for action, expected in [('pause', 'paused'), ('continue', 'running')]:
                     response = artisan('horizon:' + action)
                     assert f'Process: {master.pid}' in response and f'Process: {peer.pid}' not in response, response
@@ -289,8 +296,8 @@ def main():
                 assert peer.poll() is None
                 assert redis('EXISTS', prefix + 'terminate') == '0'
             finally:
-                redis('ZREM', prefix + 'masters', peer_name)
-                redis('DEL', prefix + 'master:' + peer_name)
+                redis('ZREM', prefix + 'masters', *(name for name, _, _ in peers))
+                redis('DEL', *(prefix + 'master:' + name for name, _, _ in peers))
                 peer.terminate()
                 peer.wait(timeout=5)
             assert status() == []

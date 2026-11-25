@@ -26,14 +26,14 @@ impl Control {
             Self::Continue => ("continue", "CONT"),
             Self::Terminate { .. } => ("terminate", "TERM"),
         };
-        let host = crate::supervisor::hostname().map_err(error)?;
+        let identity = repository.master_names.local().map_err(error)?;
         let masters = repository.master_supervisors();
         let local: Vec<_> = masters
             .all()
             .await
             .map_err(error)?
             .into_iter()
-            .filter(|master| master["host"].as_str() == Some(host.as_str()))
+            .filter(|master| identity.matches(master))
             .collect();
         if local.is_empty() {
             output.info(&format!("No processes to {action}."));

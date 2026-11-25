@@ -51,6 +51,8 @@ impl ServiceProvider for HorizonServiceProvider {
                 })?;
             app.container()
                 .singleton::<Dashboard, _>(|_| Ok(Arc::new(Dashboard::default())))?;
+            app.container()
+                .singleton::<crate::master_names::MasterNames, _>(|_| Ok(Arc::default()))?;
             app.container().singleton::<Repository, _>(|container| {
                 let config =
                     container.get::<dyn openrust::contracts::config::Repository>("config")?;
@@ -78,11 +80,11 @@ impl ServiceProvider for HorizonServiceProvider {
                     .make::<openrust::redis::RedisManager>()?
                     .connection(Some(&name))
                     .map_err(|_| binding())?;
-                Ok(Arc::new(
-                    Repository::new(connection, prefix, retention)
-                        .and_then(|repository| repository.with_config(config.as_ref()))
-                        .map_err(|_| binding())?,
-                ))
+                let mut repository = Repository::new(connection, prefix, retention)
+                    .and_then(|repository| repository.with_config(config.as_ref()))
+                    .map_err(|_| binding())?;
+                repository.master_names = container.make::<crate::master_names::MasterNames>()?;
+                Ok(Arc::new(repository))
             })?;
             Ok(())
         })

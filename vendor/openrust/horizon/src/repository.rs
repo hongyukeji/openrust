@@ -45,6 +45,7 @@ impl Metrics {
 }
 #[derive(Clone)]
 pub struct Repository {
+    pub(crate) master_names: Arc<crate::master_names::MasterNames>,
     connection: Arc<Connection>,
     prefix: String,
     retention: u32,
@@ -98,6 +99,7 @@ impl Repository {
             return Err(Error::InvalidConfiguration);
         }
         Ok(Self {
+            master_names: Arc::default(),
             connection,
             prefix,
             retention,

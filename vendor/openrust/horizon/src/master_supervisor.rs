@@ -97,6 +97,7 @@ pub struct MasterSupervisor {
     base: PathBuf,
     environment: String,
     id: String,
+    basename: String,
     host: String,
     supervisors: Vec<SupervisorProcess>,
     failures: u64,
@@ -200,6 +201,8 @@ impl MasterSupervisor {
             }
             option.validate()?;
         }
+        let host = crate::supervisor::hostname()?;
+        let basename = repository.master_names.basename(&host)?;
         Ok(Self {
             repository,
             has_deployment_plan: !options.is_empty(),
@@ -207,8 +210,9 @@ impl MasterSupervisor {
             executable,
             base,
             environment,
-            id: uuid::Uuid::now_v7().to_string(),
-            host: crate::supervisor::hostname()?,
+            id: crate::master_names::process_name(&basename),
+            basename,
+            host,
             supervisors: Vec::new(),
             failures: 0,
             fast_termination: false,
@@ -228,6 +232,23 @@ impl MasterSupervisor {
     }
     pub fn name(&self) -> &str {
         &self.id
+    }
+
+    /// 返回当前应用解析的 Master 名称前缀。
+    pub fn basename() -> Result<String> {
+        crate::master_names::MasterNames::current_basename()
+    }
+
+    /// 使用当前应用的名称前缀和进程内固定的四字符令牌。
+    pub fn process_name() -> Result<String> {
+        Ok(crate::master_names::process_name(&Self::basename()?))
+    }
+
+    /// 在当前应用内设置 Master 名称前缀解析器。
+    pub fn determine_name_using(
+        resolve: impl Fn() -> String + Send + Sync + 'static,
+    ) -> Result<()> {
+        crate::master_names::MasterNames::determine_using(resolve)
     }
 
     pub async fn run(mut self, shutdown: &CancellationToken) -> Result<()> {
@@ -355,6 +376,7 @@ impl MasterSupervisor {
             .collect();
         let status = serde_json::json!({
             "name": self.id,
+            "basename": self.basename,
             "host": self.host,
             "pid": std::process::id(),
             "status": if paused { "paused" } else { "running" },

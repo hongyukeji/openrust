@@ -381,9 +381,11 @@ impl Supervisor {
                 )
             })
             .collect::<BTreeMap<_, _>>();
+        let master = self.id.split_once(':').map(|(master, _)| master);
         let status = serde_json::json!({
             "name": self.id,
-            "master": self.id.rsplit_once(':').map(|(master, _)| master),
+            "master": master,
+            "basename": master.and_then(crate::master_names::basename_from_name),
             "host": self.host,
             "pid": std::process::id(),
             "status": if paused { "paused" } else { "running" },

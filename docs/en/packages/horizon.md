@@ -130,6 +130,8 @@ Pause, continue, terminate, monitoring changes and retries require the authoriza
 
 If an earlier version left a shared pause in Redis, use **Continue** in the authorized dashboard to clear it for that metadata prefix.
 
+Master names use a slug of the hostname followed by a four-character process token. To set a fixed basename, call `openrust_horizon::MasterSupervisor::determine_name_using(|| "orders.primary".into())?` in the application provider's `boot` method. Use the same basename for Horizon and its Artisan control commands. A basename can contain ASCII letters, digits, hyphens, underscores and dots, up to 123 bytes.
+
 Horizon job IDs identify individual Redis deliveries and are returned by queue pushes and the dashboard. Use these IDs for `horizon:retry` and `horizon:forget`. A retry gets a new ID and preserves the original failed monitoring record with its retry result. Native `queue:retry` and failed-job storage use the payload UUID, which Horizon resolves internally; batch retries also resolve those UUIDs to the current failed delivery.
 
 Configure durable failed-job storage as described in [queues](../digging-deeper/queues.md). Retry uses its native claim and redispatch behavior. `horizon:forget` removes the monitoring failure and native failure; `--all` processes all Horizon failure pages. `horizon:clear` clears the selected queue and pending monitoring entries. `horizon:purge` handles orphaned processes. Run `horizon:snapshot` periodically through the [scheduler](../digging-deeper/scheduling.md) to retain metric history; `horizon:clear-metrics` clears metrics while preserving job records.

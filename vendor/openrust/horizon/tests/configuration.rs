@@ -1,8 +1,61 @@
 #[path = "../config/horizon.rs"]
 mod configuration;
 use openrust::{config::Environment, foundation::configuration::Routing, testing::TestApp};
-use openrust_horizon::{Horizon, HorizonServiceProvider};
+use openrust_horizon::{Horizon, HorizonServiceProvider, MasterSupervisor};
 use serde_json::json;
+
+#[tokio::test]
+async fn master_names_use_a_process_token_and_an_application_local_resolver() {
+    use openrust::{
+        http::{HttpError, HttpFuture, Request, Response},
+        support::{Str, facades::Route},
+    };
+
+    fn custom(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async {
+            MasterSupervisor::determine_name_using(|| "first.cluster".into()).unwrap();
+            assert_eq!(MasterSupervisor::basename().unwrap(), "first.cluster");
+            let first = MasterSupervisor::process_name().unwrap();
+            assert_eq!(MasterSupervisor::process_name().unwrap(), first);
+            MasterSupervisor::determine_name_using(|| "second_cluster".into()).unwrap();
+            let second = MasterSupervisor::process_name().unwrap();
+            Response::json(http::StatusCode::OK, json!([first, second]))
+        })
+    }
+    fn standard(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async {
+            let host = hostname::get().unwrap().into_string().unwrap();
+            assert_eq!(MasterSupervisor::basename().unwrap(), Str::slug(&host));
+            Response::json(
+                http::StatusCode::OK,
+                json!(MasterSupervisor::process_name().unwrap()),
+            )
+        })
+    }
+    let mut custom_app = TestApp::create(|builder| {
+        builder
+            .with_providers(vec![Box::new(HorizonServiceProvider)])
+            .with_routing(Routing::default().api(|| Route::get("/master-name", custom)))
+    })
+    .unwrap();
+    let mut default_app = TestApp::create(|builder| {
+        builder
+            .with_providers(vec![Box::new(HorizonServiceProvider)])
+            .with_routing(Routing::default().api(|| Route::get("/master-name", standard)))
+    })
+    .unwrap();
+
+    let custom = custom_app.get("/api/master-name").await.unwrap();
+    let [first, second]: [String; 2] = serde_json::from_slice(custom.body()).unwrap();
+    let token = first.strip_prefix("first.cluster-").unwrap();
+    assert_eq!(token.len(), 4);
+    assert!(token.bytes().all(|byte| byte.is_ascii_alphanumeric()));
+    assert_eq!(second, format!("second_cluster-{token}"));
+    let standard = default_app.get("/api/master-name").await.unwrap();
+    let standard: String = serde_json::from_slice(standard.body()).unwrap();
+    let host = hostname::get().unwrap().into_string().unwrap();
+    assert_eq!(standard, format!("{}-{token}", Str::slug(&host)));
+}
 
 #[tokio::test]
 async fn public_supervisor_events_deliver_explicit_payloads() {

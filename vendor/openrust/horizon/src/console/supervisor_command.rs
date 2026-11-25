@@ -20,7 +20,7 @@ impl SupervisorCommand {
         let mut syntax = Syntax::new("horizon:supervisor")
             .hide(true)
             .about("Start a new supervisor")
-            .arg(Arg::new("name").required(true))
+            .arg(Arg::new("name").required(true).allow_hyphen_values(true))
             .arg(Arg::new("connection").required(true));
         for (name, default) in [
             ("balance", "off"),

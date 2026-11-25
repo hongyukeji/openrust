@@ -8,6 +8,7 @@ mod dashboard;
 mod events;
 mod job_payload;
 mod job_trim;
+mod master_names;
 mod notifications;
 mod options;
 mod process_memory;

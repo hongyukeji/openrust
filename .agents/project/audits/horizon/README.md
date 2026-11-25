@@ -18,7 +18,17 @@ Linux 7.0.14 ARM64 与 Redis 8.10.3 上，两个有独立主机名和 PID 命名
 
 Windows 11 ARM64 与 Redis 8.10.3 使用最终源码运行原生 Artisan。真实 Master 在空部署计划下经过启动、暂停、继续、终止，以 0 退出且清除心跳。Windows 上带 Worker 的排空和快速终止仍待验证。macOS 最终源码通过严格 Clippy 和真实进程组合，覆盖 `horizon:work`、普通 `queue:work` 收到重启通知、外部信号、快速终止与 `--wait`。另经真实 HTTP 验证，本机继续不会清除旧全局暂停，未授权的面板请求返回 403，授权请求可清除该状态并使 Master 恢复。三语文档构建及 12 组桌面／移动浏览器检查通过。证据为 `target/tmp/observability-parity/horizon-master-control-{windows,macos,docs}-final.log` 与 `target/tmp/observability-parity/horizon-master-control-upgrade.log`。
 
-固定默认名称使用 `Str::slug(gethostname())` 和进程内四字符令牌，支持 `determineNameUsing`。PHP 8.5.12 探针确认同进程重复读名称以及更换解析器时共用四字符令牌，解析器返回的点号和下划线保留。证据为 `target/tmp/observability-parity/horizon-master-name-upstream.log`。Rust 当前 Master 名称仍使用 UUID，名称契约继续单独处理。 [固定 MasterSupervisor](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/MasterSupervisor.php)
+### Master 名称与解析器
+
+固定默认名称使用 `Str::slug(gethostname())` 和进程内四字符令牌，支持 `determineNameUsing`。PHP 8.5.12 探针确认同进程重复读名称以及更换解析器时共用四字符令牌，解析器返回的点号和下划线保留。证据为 `target/tmp/observability-parity/horizon-master-name-upstream.log`。 [固定 MasterSupervisor](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/MasterSupervisor.php)
+
+Rust 的 `MasterSupervisor::basename`、`process_name` 和 `determine_name_using` 接通应用作用域内的解析器。保留实例读取入口 `name(&self)`。Master 和 Supervisor 心跳均携带名称前缀，以完整主机名及完整前缀定位控制目标。未配置自定义解析器时，同主机的旧 UUID 心跳仍可控制。Rust 与固定上游的原始前缀匹配相比会区分名称只在末尾不同的主机及组，避免相近前缀误发信号。
+
+上游解析器接受空字符串、`North:東京 1`、`North:東京` 和 124 字节前缀。固定 RedisMasterSupervisorRepository 经 RESP 夹具连接独占 Redis 8.10.3，实际写入、查找及获取心跳列表时均保留原名。固定命令构造器、Symfony 子进程及固定 Artisan 签名共同复验，空前缀生成的交付名称被当作选项，带空格的名称被 shell 拆分，两者均无法通过上游解析。`North:東京` 和 124 字节前缀均已通过上游位置参数解析。Rust 当前要求前缀为 1 至 123 字节，只含 ASCII 字母、数字、点、下划线和连字符。Rust 使用原生参数列表并支持连字符开头的子进程名称。Unicode、冒号、长前缀及相应父标识和孤儿检测入口继续核对。证据为 `target/tmp/observability-parity/horizon-master-name-{boundaries,redis,child,cli}-upstream.log`。
+
+macOS 配置与公开 API 7 项通过，原按条件忽略的双应用 Redis 隔离专项另行通过。完整原生进程组合通过。真实 Artisan 在同机同一 Redis 前缀上启动名称相近的两组 Master 和 Worker，按全名执行监督器状态、暂停、继续及 Master 控制，另一组保持可用。旧 UUID 心跳在默认解析器下仍接收本机信号。Linux ARM64 两个 PID 1 Master 使用相同的自定义短名，共用 Redis 并通过本机控制和远端 Worker 重启复验。Windows ARM64 的实际空部署 Master 用连字符开头的自定义名通过启动、暂停、继续及终止。Horizon 严格 Clippy 和三语文档 12 组浏览器通过。证据为 `target/tmp/observability-parity/horizon-master-name-{macos-artisan,linux-artisan,windows-artisan,same-host,rolling,redis-configuration,docs}.log`。
+
+四字符令牌下还需处理同名启动。固定上游在 `HorizonCommand::handle` 发现同名记录时输出警告并停止启动，`MasterSupervisor::ensureNoOtherMasterSupervisors` 抛出同文异常，固定 PHP 探针已分别复现。Rust 当前心跳更新为无条件覆盖，两个同名实例可能写入同一记录。后续需让启动入口原子占用完整名称并保护心跳与清理的所有权，同时保留已获准运行实例的状态。Master 的 `commandQueue`、`commandQueueFor`、公开重启与输出回调也有独立契约待核对。证据为 `target/tmp/observability-parity/horizon-master-name-collision-upstream.log`。 [固定 HorizonCommand](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Console/HorizonCommand.php)
 
 ## 当前实现
 

@@ -11,9 +11,9 @@ use openrust::{
     support::{ProviderResult, ServiceProvider},
 };
 use openrust_horizon::{
-    Horizon, HorizonServiceProvider, MasterSupervisorDeployed, MasterSupervisorLooped,
-    MasterSupervisorOutOfMemory, SupervisorLooped, SupervisorOutOfMemory, UnableToLaunchProcess,
-    WorkerProcessRestarting,
+    Horizon, HorizonServiceProvider, MasterSupervisor, MasterSupervisorDeployed,
+    MasterSupervisorLooped, MasterSupervisorOutOfMemory, SupervisorLooped, SupervisorOutOfMemory,
+    UnableToLaunchProcess, WorkerProcessRestarting,
 };
 use serde_json::json;
 use std::{collections::BTreeMap, path::Path, sync::Arc, time::Duration};
@@ -213,6 +213,9 @@ impl Listener for MemoryEventRecorder {
 impl ServiceProvider for ProbeProvider {
     fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
+            if let Ok(basename) = std::env::var("HORIZON_PROBE_MASTER_BASENAME") {
+                MasterSupervisor::determine_name_using(move || basename.clone())?;
+            }
             app.make::<QueueManager>().await?.register(
                 "probe",
                 Arc::new(Probe(app.base_path().join("completed.log"))),

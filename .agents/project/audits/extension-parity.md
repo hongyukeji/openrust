@@ -123,7 +123,7 @@ Rust 利用锁定的 hostname 0.4.2 读取系统主机名，Master 和 Superviso
 
 macOS 初轮独占 Redis 8.10.3 的主机选择、状态类别和无跨主机写入用例、Horizon 严格 Clippy 以及原生进程矩阵均通过。矩阵覆盖监督器恢复、重试及忘记、暂停、继续、正常终止、面板授权与脱敏。三语文档构建及 12 组浏览器检查通过。初轮证据为 `target/tmp/observability-parity/horizon-local-supervisor-{macos,docs}.log`。包含 102 条心跳的 Mac Redis 回归和相同源码的 Horizon 库及运行时目标严格 Clippy 通过，证据为 `target/tmp/observability-parity/horizon-pulse-lifecycle-macos.log`。Linux ARM64 的初轮同样通过主机选择、Redis 原生模型标签与失败重试，以及 6 项标签／通知测试，4 项按条件忽略。精确快照重新编译 Horizon 后，Linux 7.0.14 ARM64 与 Redis 8.10.3 的 102 条心跳回归通过。Linux 证据为 `target/tmp/observability-parity/{horizon-local-supervisor-linux,horizon-master-heartbeats-linux}.log`。其他目标平台和最终部署组合仍待验证。
 
-固定上游 [Master 控制命令](horizon/README.md#master-控制命令的主机范围) 和 [Pulse 慢任务计时](pulse/README.md#slowjobs-任务尝试计时) 已保留真实消费者对照证据。Horizon 的本机控制通过 macOS 原生进程、Linux ARM64 双容器 PID 1 和 Windows ARM64 空部署计划验收。Pulse 已在原生 SQLite Worker 上修复并验收。Horizon 名称解析、Windows Worker 排空及两包正式部署组合继续核对。
+固定上游 [Master 控制命令](horizon/README.md#master-控制命令的主机范围) 和 [Pulse 慢任务计时](pulse/README.md#slowjobs-任务尝试计时) 已保留真实消费者对照证据。Horizon 的本机控制通过 macOS 原生进程、Linux ARM64 双容器 PID 1 和 Windows ARM64 空部署计划验收。默认 Master 命名及自定义前缀已接通同机多组与双容器的 Artisan 控制，剩余名称输入边界见[命名审计](horizon/README.md#master-名称与解析器)。Pulse 已在原生 SQLite Worker 上修复并验收。Windows Worker 排空及两包正式部署组合继续核对。
 
 ### Horizon 分组等待时间与 HTTP 排序
 
