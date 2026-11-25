@@ -24,6 +24,8 @@ pub enum Error {
     RateLimited { retry_at: i64 },
     #[error("Webhook 端点状态或版本冲突")]
     EndpointConflict,
+    #[error("Webhook 订阅端点数量超过单次发布上限")]
+    FanoutLimit,
     #[error("Webhook 端点已暂停")]
     EndpointPaused,
     #[error("Webhook 端点已撤销或配置版本已变更")]

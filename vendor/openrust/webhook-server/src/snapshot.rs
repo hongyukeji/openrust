@@ -44,6 +44,17 @@ pub(crate) struct Snapshot {
     pub replay: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub endpoint: Option<crate::endpoints::EndpointBinding>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub message_ref: Option<MessageReference>,
+    #[serde(skip)]
+    pub hydrated_body: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct MessageReference {
+    pub id: String,
+    pub digest: String,
 }
 
 impl Snapshot {
@@ -70,6 +81,19 @@ impl Snapshot {
         Ok(snapshot)
     }
 
+    pub(crate) fn body_bytes(&self) -> Result<Vec<u8>> {
+        let body = if self.message_ref.is_some() {
+            self.hydrated_body.as_ref().ok_or(Error::InvalidRecord)?
+        } else {
+            &self.body
+        };
+        let bytes = STANDARD.decode(body).map_err(|_| Error::InvalidRecord)?;
+        if bytes.len() > MAX_BODY_BYTES {
+            return Err(Error::InvalidPayload);
+        }
+        Ok(bytes)
+    }
+
     pub fn request_parts(
         &self,
         timestamp: i64,
@@ -80,12 +104,7 @@ impl Snapshot {
         if method == Method::CONNECT {
             return Err(Error::InvalidRecord);
         }
-        let bytes = STANDARD
-            .decode(&self.body)
-            .map_err(|_| Error::InvalidRecord)?;
-        if bytes.len() > MAX_BODY_BYTES {
-            return Err(Error::InvalidPayload);
-        }
+        let bytes = self.body_bytes()?;
         let mut headers = HeaderMap::new();
         for (name, value) in &self.headers {
             let name = HeaderName::from_bytes(name.as_bytes()).map_err(|_| Error::InvalidRecord)?;

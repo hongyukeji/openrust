@@ -13,6 +13,7 @@ use crate::{
     Error, PreparedWebhook, Result,
     endpoints::{EndpointPermission, EndpointStore},
     limits::{self, DeliveryLimits},
+    publication::MESSAGES,
     replay::ReplayRecord,
     snapshot::Snapshot,
 };
@@ -30,9 +31,9 @@ pub(crate) enum WakeClaim {
 
 #[derive(Clone)]
 pub struct DeliveryStore {
-    connection: Connection,
+    pub(crate) connection: Connection,
     scope: String,
-    scope_key: String,
+    pub(crate) scope_key: String,
 }
 
 pub(crate) struct Claim {
@@ -181,7 +182,7 @@ impl DeliveryStore {
         Ok(id)
     }
 
-    async fn insert_delivery(
+    pub(crate) async fn insert_delivery(
         &self,
         tx: &mut Transaction,
         id: &str,
@@ -221,7 +222,12 @@ impl DeliveryStore {
             .first()
             .await?
             .ok_or(Error::ReplayUnavailable)?;
-        let snapshot = decode(&row)?;
+        let snapshot = self
+            .hydrate_message(
+                decode(&row)?,
+                self.connection.table(MESSAGES).use_write_pdo(),
+            )
+            .await?;
         if snapshot.replay {
             return Err(Error::ReplayUnavailable);
         }
@@ -342,14 +348,20 @@ impl DeliveryStore {
 
     pub(crate) async fn snapshot(&self, id: &str) -> Result<Option<Snapshot>> {
         check_id(id)?;
-        self.owned_row(self.connection.table(DELIVERIES), id)
+        let row = self
+            .owned_row(self.connection.table(DELIVERIES), id)
             .use_write_pdo()
             .select(["snapshot", "digest"])
             .first()
-            .await?
-            .as_ref()
-            .map(decode)
-            .transpose()
+            .await?;
+        let Some(row) = row else { return Ok(None) };
+        let snapshot = self
+            .hydrate_message(
+                decode(&row)?,
+                self.connection.table(MESSAGES).use_write_pdo(),
+            )
+            .await?;
+        Ok(Some(snapshot))
     }
 
     pub(crate) async fn due_ids(&self, limit: u32) -> Result<Vec<String>> {
@@ -467,7 +479,9 @@ impl DeliveryStore {
                 .first()
                 .await?
                 .ok_or(Error::InvalidRecord)?;
-            let snapshot = decode(&row)?;
+            let snapshot = self
+                .hydrate_message(decode(&row)?, tx.table(MESSAGES))
+                .await?;
             if self.endpoints().permission_in(&snapshot, &mut tx).await?
                 == EndpointPermission::Paused
             {
@@ -785,7 +799,7 @@ impl DeliveryStore {
         }
     }
 
-    async fn time_in(&self, tx: &mut Transaction) -> Result<i64> {
+    pub(crate) async fn time_in(&self, tx: &mut Transaction) -> Result<i64> {
         let row = tx
             .select_one(&format!("select {} as now", self.clock()), &[])
             .await?
@@ -794,7 +808,7 @@ impl DeliveryStore {
     }
 }
 
-async fn settle<T>(mut tx: Transaction, result: Result<T>) -> Result<T> {
+pub(crate) async fn settle<T>(mut tx: Transaction, result: Result<T>) -> Result<T> {
     match result {
         Ok(value) => {
             tx.commit().await?;
@@ -854,7 +868,7 @@ pub(crate) fn hash(value: &[u8]) -> String {
     output
 }
 
-fn check_text(field: &'static str, text: &str) -> Result<()> {
+pub(crate) fn check_text(field: &'static str, text: &str) -> Result<()> {
     if text.trim().is_empty() || text.len() > 128 || text.chars().any(char::is_control) {
         return Err(Error::InvalidConfig(field));
     }

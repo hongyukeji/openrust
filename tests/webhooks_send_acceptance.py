@@ -36,6 +36,7 @@ class Receiver(http.server.BaseHTTPRequestHandler):
         owner = self.server
         with owner.mutex:
             deliveries = owner.received.setdefault(key, [])
+            path_attempt = 1 + sum(path == self.path for path, _, _ in deliveries)
             deliveries.append((self.path, self.headers, body))
             attempt = len(deliveries)
         if key in ("concurrent", "crash", "stale", "timeout", "endpoint-inflight") and attempt == 1:
@@ -48,6 +49,10 @@ class Receiver(http.server.BaseHTTPRequestHandler):
         if key.startswith("custom-stop") or key == "custom-continue" and attempt == 1:
             status = 503
         if (key.startswith("replay-failed-") or key == "endpoint-replay-source") and attempt == 1:
+            status = 503
+        if self.path == "/receiver?endpoint=backup" and path_attempt == 1 and b'"status":"retry"' in body:
+            status = 503
+        if self.path == "/receiver?endpoint=backup" and path_attempt <= 3 and b'"status":"fail-original"' in body:
             status = 503
         if key == "redirect":
             status = 302
@@ -134,6 +139,167 @@ def exercise(binary, env, log, receiver, driver, sql):
             )
 
     worker = ["queue:work", env.get("FIXTURE_SEND_QUEUE", "database"), "--queue=webhook-outgoing", "--once", "--tries=7"]
+
+    if env.get("FIXTURE_SEND_FANOUT"):
+        def admin(operation, name, *options):
+            return command("webhooks:fixture-endpoint", operation, name, *options)
+
+        def publish(key, payload=None, mode="publish", expected=202):
+            connection = http.client.HTTPConnection("127.0.0.1", int(env["APP_PORT"]), timeout=20)
+            try:
+                connection.request("POST", f"/api/outbound/{mode}/{key}",
+                    json.dumps(payload if payload is not None else {"status": "retry"}).encode(),
+                    {"Accept": "application/json", "Content-Type": "application/json"})
+                response = connection.getresponse()
+                result = json.loads(response.read())
+                assert response.status == expected, (response.status, result)
+                if expected == 202:
+                    assert re.fullmatch("[0-9a-f]{64}", result["message_id"])
+                    assert all(re.fullmatch("[0-9a-f]{64}", item) for item in result["delivery_ids"])
+                return result
+            finally:
+                connection.close()
+
+        def verify_requests(message, expected_paths, payload=None, schema=1, topic="invoice.paid"):
+            with receiver.mutex:
+                hits = list(receiver.received.get(message["message_id"], []))
+            assert sorted(path for path, _, _ in hits) == sorted(expected_paths)
+            for path, headers, body in hits:
+                assert headers["webhook-id"] == message["message_id"]
+                assert headers["Content-Type"] == "application/json"
+                assert json.loads(body) == {"schema_version": schema, "type": topic,
+                                          "data": payload if payload is not None else {"status": "retry"}}
+                secret = ROTATED if path.endswith("?endpoint=backup") else SECRET
+                assert hmac.compare_digest(headers["Signature"], hmac.new(secret, body, hashlib.sha256).hexdigest())
+            assert len({body for _, _, body in hits}) <= 1
+
+        admin("create", "primary")
+        admin("create", "backup", "--backup", "--rotated")
+        admin("create", "elsewhere", "--scope=wrong-scope")
+        admin("subscribe", "elsewhere", "--scope=wrong-scope")
+        admin("subscribe", "primary")
+        admin("subscribe", "primary")
+        admin("subscribe", "backup")
+        assert sql("SELECT COUNT(*) FROM webhook_subscriptions") == "3"
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            publications = list(executor.map(publish, ("same-message", "same-message")))
+        assert publications[0] == publications[1]
+        first = publications[0]
+        assert len(first["delivery_ids"]) == 2 and len(set(first["delivery_ids"])) == 2
+        assert sql("SELECT COUNT(*) FROM webhook_messages") == "1"
+        assert sql("SELECT COUNT(*) FROM webhook_deliveries") == "2"
+        for identifier in first["delivery_ids"]:
+            assert read(identifier) == "pending\t0"
+            snapshot = json.loads(sql(f"SELECT snapshot FROM webhook_deliveries WHERE id='{identifier}'"))
+            assert snapshot["body"] == "" and snapshot["message_ref"]["id"] == first["message_id"]
+        publish("same-message", {"status": "changed"}, expected=409)
+        admin("unsubscribe", "primary")
+        assert publish("same-message") == first
+        verify_requests(first, [])
+        command("webhook-server:recover", "--scope", SCOPE)
+        command(*worker)
+        command(*worker)
+        pending_id, = [identifier for identifier in first["delivery_ids"] if read(identifier) == "pending\t1"]
+        succeeded_id, = [identifier for identifier in first["delivery_ids"] if read(identifier) == "succeeded\t1"]
+        verify_requests(first, ["/receiver", "/receiver?endpoint=backup"])
+        update(pending_id, "available_at=0")
+        assert '"succeeded"' in send(pending_id)
+        assert attempts(succeeded_id) == "1\tsucceeded\t204"
+        assert attempts(pending_id) == "1\thttp_failure\t503\n2\tsucceeded\t204"
+        verify_requests(first, ["/receiver", "/receiver?endpoint=backup", "/receiver?endpoint=backup"])
+
+        later = publish("new-message", {"status": "paid"})
+        assert len(later["delivery_ids"]) == 1
+        assert '"succeeded"' in send(later["delivery_ids"][0])
+        verify_requests(later, ["/receiver?endpoint=backup"], {"status": "paid"})
+        empty = publish("version-two", mode="publish-schema-two")
+        assert not empty["delivery_ids"]
+        admin("subscribe", "primary", "--schema=2")
+        assert publish("version-two", mode="publish-schema-two") == empty
+        versioned = publish("new-version-two", {"status": "paid"}, mode="publish-schema-two")
+        assert len(versioned["delivery_ids"]) == 1
+        assert '"succeeded"' in send(versioned["delivery_ids"][0])
+        verify_requests(versioned, ["/receiver"], {"status": "paid"}, schema=2)
+
+        replay_body = {"status": "fail-original"}
+        original = publish("replay-source-message", replay_body)
+        original_id, = original["delivery_ids"]
+        for attempt in range(3):
+            update(original_id, "available_at=0")
+            assert ('"failed"' if attempt == 2 else '"pending"') in send(original_id)
+        result = command("webhook-server:replay", original_id, "--scope", SCOPE,
+                         "--actor=fixture-operator", "--reason=test-fanout")
+        replay_id = json.loads(re.search(r"\{[^\n]+\}", result)[0])["delivery_id"]
+        snapshot = json.loads(sql(f"SELECT snapshot FROM webhook_deliveries WHERE id='{replay_id}'"))
+        assert snapshot["body"] == "" and snapshot["message_ref"]["id"] == original["message_id"]
+        assert '"succeeded"' in send(replay_id) and read(original_id) == "failed\t3"
+        verify_requests(original, ["/receiver?endpoint=backup"] * 4, replay_body)
+
+        for endpoint in ("primary", "backup"):
+            admin("subscribe", endpoint, "--topic=invoice.concurrent")
+        root = Path(env["APP_BASE_PATH"])
+        ready = root / "publication-ready"
+        release = root / "publication-release"
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            pending = executor.submit(publish, "holding", {"status": "paid"}, "publish-hold")
+            try:
+                deadline = time.monotonic() + 8
+                while not ready.exists() and time.monotonic() < deadline and not pending.done():
+                    time.sleep(.02)
+                assert ready.exists()
+                unpublished = ready.read_text()
+                assert re.fullmatch("[0-9a-f]{64}", unpublished)
+                assert sql(f"SELECT COUNT(*) FROM webhook_messages WHERE id='{unpublished}'") == "0"
+                mutation = executor.submit(admin, "unsubscribe", "primary", "--topic=invoice.concurrent")
+                time.sleep(.1)
+            finally:
+                release.touch()
+            held = pending.result()
+            mutation.result()
+        assert held["message_id"] == unpublished and len(held["delivery_ids"]) == 2
+        assert publish("holding", {"status": "paid"}, "publish-concurrent") == held
+        second = publish("after-unsubscribe", {"status": "paid"}, "publish-concurrent")
+        assert len(second["delivery_ids"]) == 1
+        for identifier in held["delivery_ids"] + second["delivery_ids"]:
+            assert '"succeeded"' in send(identifier)
+        verify_requests(held, ["/receiver", "/receiver?endpoint=backup"], {"status": "paid"}, topic="invoice.concurrent")
+        verify_requests(second, ["/receiver?endpoint=backup"], {"status": "paid"}, topic="invoice.concurrent")
+
+        total = sql("SELECT COUNT(*) FROM webhook_deliveries")
+        aborted = publish("outer-rollback", mode="publish-rollback")
+        assert not any(read(identifier) for identifier in aborted["delivery_ids"])
+        assert sql("SELECT COUNT(*) FROM webhook_deliveries") == total
+        assert sql(f"SELECT COUNT(*) FROM webhook_messages WHERE id='{aborted['message_id']}'") == "0"
+
+        scope_hash = hashlib.sha256(SCOPE.encode()).hexdigest()
+        targets = sorted(("savepoint-first", "savepoint-second"), key=lambda name:
+            hashlib.sha256(f"webhook-endpoint:{scope_hash}:{name}".encode()).hexdigest())
+        admin("create", targets[0])
+        admin("create", targets[1], "--untrusted")
+        for name in targets:
+            admin("subscribe", name, "--topic=invoice.savepoint")
+        publish("partial-savepoint", mode="publish-savepoint", expected=422)
+        assert sql("SELECT COUNT(*) FROM webhook_messages WHERE topic='invoice.savepoint'") == "0"
+        assert sql("SELECT COUNT(*) FROM webhook_deliveries") == total
+
+        before_payload = sql("SELECT COUNT(*) FROM webhook_messages")
+        publish("oversized-envelope", {"value": "x" * (1024 * 1024)}, expected=422)
+        assert sql("SELECT COUNT(*) FROM webhook_messages") == before_payload
+        admin("bulk", "bound", "--topic=invoice.overflow")
+        publish("overflow", mode="publish-overflow", expected=422)
+        assert sql("SELECT COUNT(*) FROM webhook_messages WHERE topic='invoice.overflow'") == "0"
+        assert sql("SELECT COUNT(*) FROM webhook_deliveries") == total
+
+        missing = publish("damaged-message", {"status": "paid"})
+        delivery, = missing["delivery_ids"]
+        routes["write_database"](driver, sql,
+            f"UPDATE webhook_messages SET body='invalid' WHERE id='{missing['message_id']}'")
+        send(delivery, success=False)
+        assert read(delivery) == "pending\t0" and not attempts(delivery)
+        verify_requests(missing, [])
+
+        print(f"{driver}: 消息幂等、固定订阅集合、同事务回滚、扇出上限及共享正文通过", flush=True)
+        return
 
     if env.get("FIXTURE_SEND_LIMITS"):
         scope_hash = hashlib.sha256(SCOPE.encode()).hexdigest()
@@ -979,7 +1145,8 @@ def main():
                 finally:
                     http_helpers["stop"](app)
         if not (os.environ.get("FIXTURE_SEND_SCHEDULE") or os.environ.get("FIXTURE_SEND_REPLAY")
-                or os.environ.get("FIXTURE_SEND_ENDPOINTS") or os.environ.get("FIXTURE_SEND_LIMITS")):
+                or os.environ.get("FIXTURE_SEND_ENDPOINTS") or os.environ.get("FIXTURE_SEND_LIMITS")
+                or os.environ.get("FIXTURE_SEND_FANOUT")):
             print(f"{driver}: HTTP 签名和字节、事务回滚、重复领取、重试预算、撤销、超时、崩溃恢复、Builder 分支、投递事件与自定义 Job 通过")
     finally:
         receiver.shutdown()

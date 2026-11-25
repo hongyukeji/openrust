@@ -124,6 +124,20 @@ pub fn configure_webhook_limits(container: &openrust::container::Container) -> R
         replays_per_scope: Some(DeliveryLimit::new(5, 60)?),
     })
 }
+
+pub async fn publish_invoice(
+    store: &openrust_webhook_server::DeliveryStore,
+) -> Result<openrust_webhook_server::PublishedMessage> {
+    use openrust_webhook_server::{EventType, PublishOptions, TargetPolicy};
+
+    store.publish(
+        "invoice-paid-inv-123",
+        &EventType::new("invoice.paid", 1)?,
+        serde_json::json!({"invoice_id": "inv-123"}),
+        &PublishOptions::default(),
+        &TargetPolicy::default(),
+    ).await
+}
 ```
 
 
@@ -191,6 +205,12 @@ Builder 的 `dispatch`、`dispatch_if` 和 `dispatch_unless` 登记投递并入�
 在各节点的应用中注册 `DeliveryLimits`。范围发送限额覆盖直接 URL、队列投递、自动重试和人工重放发送。具名端点还有独立计数，同一端点各配置版本共用。人工重放登记可设独立的范围限额。窗口从首次保留额度开始，按数据库时钟计算。
 
 发送达到限额时，投递等待窗口恢复，保留原尝试额度及截止时间。重放登记达到限额时返回带下次可申请 Unix 时间戳的错误。共享投递数据库的所有节点应使用一致的限额配置。
+
+### 按订阅发布 {#subscriptions}
+
+用 `DeliveryStore::subscribe` 为具名端点订阅确切事件名和版本。用 `unsubscribe` 取消之后的订阅。发布时提交 JSON 负载，正文包含 `type`、`schema_version` 和 `data`。消息、共享正文和当次订阅端点的全部投递在同一事务提交。`publish_in_transaction` 可将发布纳入同库业务事务。
+
+单次发布支持至多 32 个匹配端点和 1 MiB 的消息正文。相同范围、键和输入重复提交时返回原收据，包括零投递的结果。同一键的输入发生变化时返回冲突。各端点和重放沿用同一共享正文与消息 ID。事务提交后由既有调度器恢复派发。
 
 ## 自定义签名与退避 {#customization}
 

@@ -482,6 +482,8 @@ impl PreparedWebhook {
             lifetime,
             replay: false,
             endpoint: self.endpoint.clone(),
+            message_ref: None,
+            hydrated_body: None,
         })
     }
 

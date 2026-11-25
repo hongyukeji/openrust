@@ -124,6 +124,20 @@ pub fn configure_webhook_limits(container: &openrust::container::Container) -> R
         replays_per_scope: Some(DeliveryLimit::new(5, 60)?),
     })
 }
+
+pub async fn publish_invoice(
+    store: &openrust_webhook_server::DeliveryStore,
+) -> Result<openrust_webhook_server::PublishedMessage> {
+    use openrust_webhook_server::{EventType, PublishOptions, TargetPolicy};
+
+    store.publish(
+        "invoice-paid-inv-123",
+        &EventType::new("invoice.paid", 1)?,
+        serde_json::json!({"invoice_id": "inv-123"}),
+        &PublishOptions::default(),
+        &TargetPolicy::default(),
+    ).await
+}
 ```
 
 
@@ -191,6 +205,12 @@ Builder 的 `dispatch`、`dispatch_if` 和 `dispatch_unless` 登記投遞並入�
 在各節點的應用中註冊 `DeliveryLimits`。範圍發送限額涵蓋直接 URL、佇列投遞、自動重試和人工重放發送。具名端點另外獨立計數，同一端點的各設定版本共用。人工重放登記可另設範圍限額。視窗自首次保留額度起，依資料庫時鐘計算。
 
 發送達到限額時，投遞等待視窗恢復，保留原嘗試額度及截止時間。重放登記達到限額時會回傳下一次可申請的 Unix 時間戳錯誤。共用投遞資料庫的所有節點應使用一致的限額設定。
+
+### 依訂閱發布 {#subscriptions}
+
+用 `DeliveryStore::subscribe` 為具名端點訂閱確切事件名與版本。用 `unsubscribe` 取消之後的訂閱。發布時提交 JSON 載荷，本文包含 `type`、`schema_version` 和 `data`。訊息、共用本文和當次訂閱端點的所有投遞在同一事務提交。`publish_in_transaction` 可將發布納入同庫業務事務。
+
+單次發布支援最多 32 個相符端點與 1 MiB 的訊息本文。相同範圍、鍵與輸入重複提交時回傳原收據，包括零投遞的結果。同一鍵的輸入發生變更時回傳衝突。各端點與重放沿用同一共用本文與訊息 ID。事務提交後由既有調度器恢復派發。
 
 ## 自訂簽名與退避 {#customization}
 

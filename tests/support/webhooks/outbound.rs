@@ -29,6 +29,7 @@ use openrust_webhook_server::{
     register_backoff_strategy, register_call_webhook_job, register_delivery_policy,
     register_replay_policy,
 };
+use openrust_webhook_server::{EventType, PublishOptions};
 use openrust_webhook_server::{ReplayLimits, ReplayPhase, ReplayPolicy, ReplayRequest};
 use serde_json::json;
 
@@ -73,7 +74,9 @@ impl DeliveryPolicy for FixturePolicy {
                 _ => return Ok(None),
             };
             let (url, policy) = target()?;
-            if context.url != url {
+            let fixture_backup = std::env::var_os("FIXTURE_SEND_FANOUT").is_some()
+                && context.url == format!("{url}?endpoint=backup");
+            if context.url != url && !fixture_backup {
                 return Ok(None);
             }
             Ok(Some(
@@ -92,7 +95,9 @@ impl ReplayPolicy for FixtureReplayPolicy {
     ) -> HttpFuture<'a, Result<Option<ReplayLimits>>> {
         Box::pin(async move {
             let allowed = request.scope == SCOPE
-                && request.original_credential == Some(REFERENCE)
+                && (request.original_credential == Some(REFERENCE)
+                    || request.original_credential == Some(ROTATED_REFERENCE)
+                        && std::env::var_os("FIXTURE_SEND_FANOUT").is_some())
                 && matches!(request.actor, "fixture-operator" | "fixture-supervisor")
                 && request.reason.starts_with("test-")
                 && std::env::var_os("FIXTURE_REPLAY_FORBIDDEN").is_none()
@@ -267,7 +272,8 @@ pub(super) async fn register(app: &Application) -> ProviderResult {
         }
         if (std::env::var_os("FIXTURE_SEND_REPLAY").is_some()
             || std::env::var_os("FIXTURE_SEND_ENDPOINTS").is_some()
-            || std::env::var_os("FIXTURE_SEND_LIMITS").is_some())
+            || std::env::var_os("FIXTURE_SEND_LIMITS").is_some()
+            || std::env::var_os("FIXTURE_SEND_FANOUT").is_some())
             && std::env::var_os("FIXTURE_REPLAY_UNREGISTERED").is_none()
         {
             register_replay_policy(app.container(), Arc::new(FixtureReplayPolicy))?;
@@ -314,9 +320,17 @@ pub(super) fn submit(
         let key = request.route("key").ok_or(HttpError::NotFound)?.to_owned();
         let mode = request.route("mode").ok_or(HttpError::NotFound)?.to_owned();
         let (url, policy) = target().map_err(super::internal)?;
-        let data = axum::body::to_bytes(request.take_body(), 1024)
+        let body_limit = if mode.starts_with("publish") {
+            1024 * 1024 + 1024
+        } else {
+            1024
+        };
+        let data = axum::body::to_bytes(request.take_body(), body_limit)
             .await
             .map_err(super::internal)?;
+        if mode.starts_with("publish") {
+            return publish(&key, &mode, &data, &policy).await;
+        }
         let mut call = WebhookCall::create()
             .map_err(super::internal)?
             .url(url)
@@ -403,6 +417,74 @@ pub(super) fn submit(
             Err(error) => Err(super::internal(error)),
         }
     })
+}
+
+async fn publish(
+    key: &str,
+    mode: &str,
+    data: &[u8],
+    policy: &TargetPolicy,
+) -> std::result::Result<Response, HttpError> {
+    let manager = super::Databases::get_facade_root().map_err(super::internal)?;
+    let connection = manager.connection(None).map_err(super::internal)?;
+    let store = DeliveryStore::new(connection.clone(), SCOPE).map_err(super::internal)?;
+    let (name, version) = match mode {
+        "publish-overflow" => ("invoice.overflow", 1),
+        "publish-savepoint" => ("invoice.savepoint", 1),
+        "publish-hold" | "publish-concurrent" => ("invoice.concurrent", 1),
+        "publish-schema-two" => ("invoice.paid", 2),
+        _ => ("invoice.paid", 1),
+    };
+    let topic = EventType::new(name, version).map_err(super::internal)?;
+    let payload = serde_json::from_slice(data).map_err(super::internal)?;
+    let options = PublishOptions {
+        lifetime_seconds: 120,
+        connection: Some("database".into()),
+        queue: Some("webhook-outgoing".into()),
+    };
+    let result = if matches!(
+        mode,
+        "publish-rollback" | "publish-savepoint" | "publish-hold"
+    ) {
+        let mut tx = connection
+            .begin_transaction()
+            .await
+            .map_err(super::internal)?;
+        let published = store
+            .publish_in_transaction(&mut tx, key, &topic, payload, &options, policy)
+            .await;
+        if mode == "publish-hold"
+            && let Ok(receipt) = &published
+        {
+            let root = std::path::PathBuf::from(std::env::var_os("APP_BASE_PATH").unwrap());
+            tokio::fs::write(root.join("publication-ready"), &receipt.message_id)
+                .await
+                .map_err(super::internal)?;
+            tokio::time::timeout(std::time::Duration::from_secs(12), async {
+                while !root.join("publication-release").exists() {
+                    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                }
+            })
+            .await
+            .map_err(super::internal)?;
+        }
+        if mode == "publish-rollback" {
+            tx.roll_back(None).await.map_err(super::internal)?;
+        } else {
+            tx.commit().await.map_err(super::internal)?;
+        }
+        published
+    } else {
+        store.publish(key, &topic, payload, &options, policy).await
+    };
+    match result {
+        Ok(receipt) => Response::json(StatusCode::ACCEPTED, receipt),
+        Err(Error::IdempotencyConflict) => Response::json(StatusCode::CONFLICT, json!({})),
+        Err(Error::FanoutLimit | Error::TargetDenied | Error::InvalidPayload) => {
+            Response::json(StatusCode::UNPROCESSABLE_ENTITY, json!({}))
+        }
+        Err(error) => Err(super::internal(error)),
+    }
 }
 
 async fn dispatch_builder(
@@ -511,6 +593,28 @@ pub(super) fn commands(artisan: &mut Artisan) -> std::result::Result<(), Console
                 .long("rotated")
                 .action(clap::ArgAction::SetTrue),
         );
+    let command = command
+        .arg(
+            clap::Arg::new("topic")
+                .long("topic")
+                .default_value("invoice.paid"),
+        )
+        .arg(
+            clap::Arg::new("schema")
+                .long("schema")
+                .default_value("1")
+                .value_parser(clap::value_parser!(u32)),
+        )
+        .arg(
+            clap::Arg::new("backup")
+                .long("backup")
+                .action(clap::ArgAction::SetTrue),
+        )
+        .arg(
+            clap::Arg::new("untrusted")
+                .long("untrusted")
+                .action(clap::ArgAction::SetTrue),
+        );
     artisan.add_command(Box::new(FixtureEndpointCommand(CommandDefinition::new(
         command,
     ))))
@@ -538,21 +642,64 @@ impl Command for FixtureEndpointCommand {
                 .make::<DatabaseManager>()
                 .await
                 .map_err(ConsoleError::from_source)?;
-            let store = DeliveryStore::new(
+            let deliveries = DeliveryStore::new(
                 manager
                     .connection(None)
                     .map_err(ConsoleError::from_source)?,
                 scope,
             )
-            .map_err(ConsoleError::from_source)?
-            .endpoints();
-            let (url, _) = target().map_err(ConsoleError::from_source)?;
+            .map_err(ConsoleError::from_source)?;
+            let store = deliveries.endpoints();
+            let (mut url, _) = target().map_err(ConsoleError::from_source)?;
+            if input.get_flag("backup") {
+                url.push_str("?endpoint=backup");
+            }
+            if input.get_flag("untrusted") {
+                url = url.replace("/receiver", "/denied");
+            }
             let credential = if input.get_flag("rotated") {
                 ROTATED_REFERENCE
             } else {
                 REFERENCE
             };
-            let result = match input.get_one::<String>("operation").unwrap().as_str() {
+            let operation = input.get_one::<String>("operation").unwrap();
+            let topic = EventType::new(
+                input.get_one::<String>("topic").unwrap(),
+                *input.get_one::<u32>("schema").unwrap(),
+            )
+            .map_err(ConsoleError::from_source)?;
+            let result = match operation.as_str() {
+                "subscribe" | "unsubscribe" => {
+                    let endpoint = store
+                        .find(name)
+                        .await
+                        .map_err(ConsoleError::from_source)?
+                        .ok_or_else(|| ConsoleError::from_source(Error::EndpointRevoked))?;
+                    if operation == "subscribe" {
+                        deliveries
+                            .subscribe(&topic, &endpoint)
+                            .await
+                            .map(|()| revision)
+                    } else {
+                        deliveries
+                            .unsubscribe(&topic, &endpoint)
+                            .await
+                            .map(|_| revision)
+                    }
+                }
+                "bulk" => {
+                    for index in 0..33 {
+                        let target = store
+                            .create(&format!("{name}-{index}"), &url, Some(credential))
+                            .await
+                            .map_err(ConsoleError::from_source)?;
+                        deliveries
+                            .subscribe(&topic, &target)
+                            .await
+                            .map_err(ConsoleError::from_source)?;
+                    }
+                    Ok(revision)
+                }
                 "create" => store
                     .create(name, &url, Some(credential))
                     .await

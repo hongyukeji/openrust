@@ -1,6 +1,5 @@
 use std::{sync::Arc, time::Duration};
 
-use base64::{Engine as _, engine::general_purpose::STANDARD};
 use openrust::{
     contracts::events::Event,
     support::facades::{Event as Events, Log},
@@ -45,9 +44,7 @@ impl WebhookCallEvent {
 
     /// 返回签名所覆盖的正文。GET 仍可通过此入口读取生成查询的原始 JSON。
     pub fn body(&self) -> Result<Vec<u8>> {
-        STANDARD
-            .decode(&self.snapshot.body)
-            .map_err(|_| Error::InvalidRecord)
+        self.snapshot.body_bytes()
     }
 
     /// 请求头仅提供准备阶段的名称，签名及其他请求头的值由传输自行处理。

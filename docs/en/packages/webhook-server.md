@@ -124,6 +124,20 @@ pub fn configure_webhook_limits(container: &openrust::container::Container) -> R
         replays_per_scope: Some(DeliveryLimit::new(5, 60)?),
     })
 }
+
+pub async fn publish_invoice(
+    store: &openrust_webhook_server::DeliveryStore,
+) -> Result<openrust_webhook_server::PublishedMessage> {
+    use openrust_webhook_server::{EventType, PublishOptions, TargetPolicy};
+
+    store.publish(
+        "invoice-paid-inv-123",
+        &EventType::new("invoice.paid", 1)?,
+        serde_json::json!({"invoice_id": "inv-123"}),
+        &PublishOptions::default(),
+        &TargetPolicy::default(),
+    ).await
+}
 ```
 
 
@@ -191,6 +205,12 @@ Pause retains pending deliveries and their original deadlines. Resume allows eli
 Register `DeliveryLimits` in the application on each node. A scope limit includes direct URL calls, queued deliveries, retries and replay sends. A named endpoint also uses its own bucket, shared across its configuration revisions. Replay registration has a separate optional scope limit. Each window starts with its first reservation and uses the database clock.
 
 When a send reaches a limit, the delivery waits until the bucket resets with its original attempt budget and deadline. A limited replay registration returns an error with the next eligible Unix timestamp. Keep the limit configuration consistent on all nodes sharing the delivery database.
+
+### Publish to subscriptions {#subscriptions}
+
+Subscribe a managed endpoint to an exact event name and schema version using `DeliveryStore::subscribe`. Use `unsubscribe` to remove it for future publications. Publish supplies a JSON payload and produces an envelope with `type`, `schema_version` and `data`. The original publication stores the subscriber set, message body and delivery records in one transaction. `publish_in_transaction` can include the publication in a business transaction on the same database.
+
+Publications accept up to 32 matching endpoints and a 1 MiB envelope. A repeat with the same scoped key and input returns the original receipt, including an empty delivery set. A changed input for the same key returns a conflict. Each delivery and replay uses the original shared body and message ID. The scheduler can recover publication delivery after commit.
 
 ## Custom signers and retry timing {#customization}
 

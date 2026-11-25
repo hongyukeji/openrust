@@ -9,7 +9,7 @@ use crate::{
     snapshot::Snapshot,
 };
 
-const ENDPOINTS: &str = "webhook_endpoints";
+pub(crate) const ENDPOINTS: &str = "webhook_endpoints";
 
 #[derive(Clone)]
 pub struct EndpointStore {
@@ -254,7 +254,7 @@ impl EndpointStore {
     }
 }
 
-fn endpoint(row: &Row) -> Result<Endpoint> {
+pub(crate) fn endpoint(row: &Row) -> Result<Endpoint> {
     let state = match text(row, "state")? {
         "active" => EndpointState::Active,
         "paused" => EndpointState::Paused,

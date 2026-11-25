@@ -1,8 +1,7 @@
-use base64::{Engine as _, engine::general_purpose::STANDARD};
 use openrust::http::client::Response;
 use serde_json::Value;
 
-use crate::{Error, Result, snapshot::Snapshot};
+use crate::{Result, snapshot::Snapshot};
 
 /// 应用代码在同一投递尝试中借用的数据，不进入事件队列或诊断序列化。
 pub struct WebhookJobAttempt<'a> {
@@ -22,9 +21,7 @@ impl WebhookJobAttempt<'_> {
         &self.snapshot.signing_url
     }
     pub fn get_body(&self) -> Result<Vec<u8>> {
-        STANDARD
-            .decode(&self.snapshot.body)
-            .map_err(|_| Error::InvalidRecord)
+        self.snapshot.body_bytes()
     }
     pub fn get_response(&self) -> Option<&Response> {
         self.response
