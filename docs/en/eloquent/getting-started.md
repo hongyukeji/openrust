@@ -234,6 +234,8 @@ Implement `openrust::database::eloquent::ModelPruner` in the service that owns t
 
 Run `./artisan model:prune --pretend` to preview models registered under `app/models`. Use `--model=<name>` to select a registered model explicitly, or `--path=<directory>` and `--except=<name>` to filter by source directory and name. Actual pruning emits `ModelPruningStarting`, cumulative `ModelsPruned` counts, and `ModelPruningFinished`.
 
+For per-record cleanup, implement `Prunable` on the model and register it with `ModelPruners::register_prunable::<Archive>(name, source_file)`. Supply the eligible query in `prunable()`. The optional `pruning()` hook runs before each model deletion. Soft-deletable models include trashed rows and are permanently deleted. A hook error stops deletion of that row. After the application reports a per-record error, the scan continues by primary key. Use `Archive::prune_all(app, chunk)` to run that scan directly or call `prune()` on a single loaded model. Per-record progress counts calls that finish without an error, including deletions canceled by a model observer.
+
 ## Replicating Models {#replicating-models}
 
 Call `replicate(&[]).await?` to create an unsaved copy. The primary key, configured timestamps, and internal through key are excluded. Pass additional column names to omit them. Loaded relations are available on the copy and can be removed independently. The copy keeps the source database connection and receives the `Replicating` lifecycle event. Use `replicate_quietly` to skip that event. Call `save` to insert the copy.

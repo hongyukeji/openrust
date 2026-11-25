@@ -13,6 +13,7 @@ mod model;
 mod named_relations;
 mod observer;
 mod persistence;
+mod prunable;
 mod pruning;
 mod queueable;
 mod related_batch;
@@ -69,5 +70,6 @@ pub use unique_ids::UniqueId;
 /// The raw attributes of a model, keyed by column name.
 pub type Attributes = BTreeMap<String, Value>;
 
+pub use prunable::Prunable;
 pub use pruning::{ModelPruner, ModelPruners};
 pub use searchable::{SearchBuilder, SearchColumn, Searchable};

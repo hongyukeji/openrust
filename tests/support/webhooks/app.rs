@@ -4,6 +4,7 @@ mod app;
 mod config;
 #[path = "../../../database/migrations/mod.rs"]
 mod migrations;
+mod model_pruning;
 mod outbound;
 #[path = "../../../bootstrap/packages.rs"]
 mod packages;
@@ -858,6 +859,7 @@ impl openrust::support::ServiceProvider for FixtureProvider {
     ) -> HttpFuture<'a, openrust::support::ProviderResult> {
         Box::pin(async move {
             outbound::register(app).await?;
+            model_pruning::register(app).await?;
             if let Some(path) = std::env::var_os("FIXTURE_MODEL_PRUNING_EVENTS") {
                 use openrust::contracts::events::Dispatcher as _;
                 use openrust::database::events::{
@@ -1390,6 +1392,7 @@ impl Command for Enqueue {
     }
 }
 fn commands(artisan: &mut Artisan) -> Result<(), ConsoleError> {
+    model_pruning::commands(artisan)?;
     outbound::commands(artisan)?;
     let syntax = |name| {
         clap::Command::new(name)

@@ -233,6 +233,8 @@ pub async fn count_visit_quietly<M: Model>(model: &mut M) -> DatabaseResult<u64>
 
 執行 `./artisan model:prune --pretend` 預演註冊在 `app/models` 下的模型。可使用 `--model=<name>` 精確選擇，也可使用 `--path=<directory>` 和 `--except=<name>` 依來源目錄及名稱篩選。實際清理會派發 `ModelPruningStarting`、包含累計數量的 `ModelsPruned` 和 `ModelPruningFinished`。
 
+需要逐筆清理時，在模型上實作 `Prunable`，並呼叫 `ModelPruners::register_prunable::<Archive>(name, source_file)` 註冊。以 `prunable()` 提供候選查詢，可選的 `pruning()` 鉤子在每筆模型刪除前執行。支援軟刪除的模型會包含已軟刪除的記錄，並永久刪除符合條件的記錄。鉤子回報錯誤會阻止該筆刪除。應用程式報告單筆錯誤後，掃描繼續處理後續主鍵。可直接呼叫 `Archive::prune_all(app, chunk)`，或對已載入的一筆模型呼叫 `prune()`。逐筆進度統計未回報錯誤的呼叫，也包含模型觀察者取消刪除的記錄。
+
 ## 複製模型 {#replicating-models}
 
 呼叫 `replicate(&[]).await?` 建立尚未儲存的副本。框架會排除主鍵、已設定的時間戳記和內部中介資料表鍵。可傳入其他要排除的欄位名稱。副本保留已載入的關聯，也可以單獨移除關聯。副本沿用來源模型的資料庫連線並觸發 `Replicating` 生命週期事件。使用 `replicate_quietly` 跳過該事件，呼叫 `save` 插入副本。

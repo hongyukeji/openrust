@@ -10,7 +10,7 @@ use crate::{
     contracts::{events::Dispatcher as _, foundation::Application as _},
     database::{
         eloquent::ModelPruners,
-        events::{ModelPruningFinished, ModelPruningStarting, ModelsPruned},
+        events::{ModelPruningFinished, ModelPruningStarting},
     },
     events::{Dispatcher, EventContext},
     foundation::Application,
@@ -86,7 +86,7 @@ impl Command for PruneCommand {
             }
             if matches.get_flag("pretend") {
                 for entry in selected {
-                    let count = entry.pruner.count(app).await?;
+                    let count = entry.count(app).await?;
                     output.info(&format!("[{}] 可清理 {count} 条记录", entry.name));
                 }
                 return Ok(0);
@@ -108,31 +108,7 @@ impl Command for PruneCommand {
                 .map_err(ConsoleError::from_source)?;
             let requested = *matches.get_one::<u32>("chunk").expect("有默认批次大小");
             for entry in selected {
-                let chunk = entry.pruner.chunk_size(requested);
-                if chunk == 0 {
-                    return Err(ConsoleError::new("模型清理批次大小必须大于零"));
-                }
-                let mut count = 0_u64;
-                loop {
-                    let removed = entry.pruner.prune_batch(app, chunk).await?;
-                    if removed == 0 {
-                        break;
-                    }
-                    count = count
-                        .checked_add(removed)
-                        .ok_or_else(|| ConsoleError::new("已清理记录计数溢出"))?;
-                    dispatcher
-                        .dispatch(
-                            Arc::new(ModelsPruned {
-                                model: entry.name,
-                                count,
-                            }),
-                            &mut context,
-                        )
-                        .await
-                        .map_err(ConsoleError::from_source)?;
-                    output.info(&format!("[{}] 已清理 {count} 条记录", entry.name));
-                }
+                let count = entry.run(app, requested, output).await?;
                 if count == 0 {
                     output.info(&format!("[{}] 无记录可清理", entry.name));
                 }

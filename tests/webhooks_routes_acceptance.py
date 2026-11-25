@@ -473,6 +473,40 @@ def check_body_deduplication(binary, env, root, port, driver, sql):
     print(f"{driver}: 摘要去重 10 个真实 HTTP、6 次 Worker；窗口、并发换代、方法／查询／媒体类型与拒绝边界通过")
 
 
+def check_instance_pruning(binary, env, root, driver, sql):
+    write_database(driver, sql, "CREATE TABLE fixture_cleanup_entries "
+                   "(id INTEGER PRIMARY KEY, eligible INTEGER NOT NULL, deleted_at VARCHAR(40))")
+    write_database(driver, sql, "INSERT INTO fixture_cleanup_entries (id,eligible,deleted_at) VALUES "
+                   "(1,1,NULL), (2,1,'2025-01-01 00:00:00'), (3,1,NULL), (4,0,NULL), (5,0,NULL), (6,1,NULL)")
+    model = "fixture::CleanupEntry"
+    event_log = root / "instance-pruning-events.jsonl"
+    hook_log = root / "instance-pruning-hook.log"
+    current = env | {"FIXTURE_MODEL_PRUNING_EVENTS": str(event_log),
+                     "FIXTURE_INSTANCE_PRUNE_LOG": str(hook_log)}
+    assert "可清理 4 条" in command(binary, current, "model:prune", "--pretend")
+    assert not hook_log.exists() and not event_log.exists()
+    assert "已处理 3 条" in command(binary, current, "model:prune", "--model=" + model, "--chunk=9")
+    assert hook_log.read_text().splitlines() == ["hook 1", "reported 1", "hook 2", "deleted 2",
+                                                "hook 3", "deleted 3", "hook 6", "veto 6"]
+    assert [json.loads(line) for line in event_log.read_text().splitlines()] == [
+        ["starting", [model]], ["pruned", model, 0], ["pruned", model, 1], ["pruned", model, 2],
+        ["pruned", model, 3], ["finished", [model]],
+    ]
+    assert sql("SELECT id FROM fixture_cleanup_entries ORDER BY id").split() == ["1", "4", "5", "6"]
+    command(binary, current, "webhooks:prune-instance")
+    assert hook_log.read_text().splitlines()[-2:] == ["hook 4", "deleted 4"]
+    command(binary, current, "webhooks:prune-instance", "--plain")
+    assert hook_log.read_text().splitlines()[-1] == "hook 5"
+    assert sql("SELECT id FROM fixture_cleanup_entries ORDER BY id").split() == ["1", "6"]
+    event_log.unlink()
+    assert "清理计数 1" in command(binary, current, "webhooks:prune-instances")
+    events = [json.loads(line) for line in event_log.read_text().splitlines()]
+    source = events[0][1]
+    assert "::model_pruning::CleanupEntry" in source
+    assert events == [["pruned", source, 0], ["pruned", source, 1]]
+    print(f"{driver}: 逐实例模型清理通过预演、失败报告、按主键继续、逐批事件与永久删除", flush=True)
+
+
 def check_retention(binary, env, root, port, driver, sql):
     current = env | {"DB_QUEUE_RETRY_AFTER": "90"}
     scope = "webhook-acceptance"
@@ -1380,6 +1414,7 @@ def main():
   else:env.pop("DB_URL",None)
   sql=lambda query:helpers["database_rows"](helpers["database_container"](),query).strip()
   command(binary,env,"migrate","--force")
+  check_instance_pruning(binary,env,root,driver,sql)
   for phase in ("plain","cached","unique"):
    current=env|{"FIXTURE_UNIQUE_ROUTES":"true" if phase=="unique" else "false"}
    if phase=="unique":command(binary,current,"config:clear");command(binary,current,"route:clear")
