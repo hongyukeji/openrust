@@ -1,0 +1,140 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "renderer_reference": {
+    "framework": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+    "termwind_version": "2.3.3",
+    "termwind_commit": "6fb2a640ff502caace8e05fd7be3b503a7e1c017",
+    "archive_sha256": "16f11245ceb6d7fbd5c00d67f62500577998e551654a464ff134b52ee2d349ae",
+    "production_dependency_added": false
+  },
+  "status": "verified_concrete_line_family_builtin_outputs",
+  "types": [
+    {
+      "source_type": "Line",
+      "native": "console::view::components::Line",
+      "constructor": {
+        "source": "Component::__construct (inherited)",
+        "native": "new",
+        "status": "verified_builtin_outputs"
+      },
+      "render": {
+        "native": [
+          "render",
+          "render_with"
+        ],
+        "status": "verified_actual_source_and_consumers"
+      }
+    },
+    {
+      "source_type": "Info",
+      "native": "console::view::components::Info",
+      "constructor": {
+        "source": "Component::__construct (inherited)",
+        "native": "new",
+        "status": "verified_builtin_outputs"
+      },
+      "render": {
+        "native": [
+          "render",
+          "render_with"
+        ],
+        "status": "verified_actual_source_and_consumers"
+      }
+    },
+    {
+      "source_type": "Success",
+      "native": "console::view::components::Success",
+      "constructor": {
+        "source": "Component::__construct (inherited)",
+        "native": "new",
+        "status": "verified_builtin_outputs"
+      },
+      "render": {
+        "native": [
+          "render",
+          "render_with"
+        ],
+        "status": "verified_actual_source_and_consumers"
+      }
+    },
+    {
+      "source_type": "Warn",
+      "native": "console::view::components::Warn",
+      "constructor": {
+        "source": "Component::__construct (inherited)",
+        "native": "new",
+        "status": "verified_builtin_outputs"
+      },
+      "render": {
+        "native": [
+          "render",
+          "render_with"
+        ],
+        "status": "verified_actual_source_and_consumers"
+      }
+    },
+    {
+      "source_type": "Error",
+      "native": "console::view::components::Error",
+      "constructor": {
+        "source": "Component::__construct (inherited)",
+        "native": "new",
+        "status": "verified_builtin_outputs"
+      },
+      "render": {
+        "native": [
+          "render",
+          "render_with"
+        ],
+        "status": "verified_actual_source_and_consumers"
+      }
+    }
+  ],
+  "source_scenes": {
+    "line-components-oracle.json": 354,
+    "line-console-oracle.json": 32,
+    "line-docs-oracle.json": 4,
+    "line-invalid-style-oracle.json": 2,
+    "line-custom-formatter-oracle.json": 1
+  },
+  "evidence": [
+    "console_line_components",
+    "line-components-{consumers,docs-consumers,rustdoc,clippy,fmt,docs,browser}.log"
+  ],
+  "invariants": [
+    "One selected output/formatter/newline state; no process-global renderer.",
+    "Newlines follow NewLineAware availability, including base-style boundaries and nested wrappers.",
+    "Highlight, punctuation and relative paths reuse existing mutators in source order.",
+    "HTML text-node whitespace/C0 behavior is reproduced for this fixed line template; no generic HTML/CSS renderer claim.",
+    "Long text is not automatically wrapped.",
+    "Normal/Raw/Plain and explicit normal flag preserve source formatter bytes and newline comparisons.",
+    "Live formatter mutation after constructing a component remains observable."
+  ],
+  "adaptations": [
+    "render/text default normal; render_with accepts native OutputOptions or verbosity.",
+    "Source inherited constructor maps to explicit new(AsOutput); mutable output borrow is exclusive (E0499 consumer).",
+    "Source invalid-style TypeError becomes ConsoleError; source invalid fixture suppresses PHP engine warning and tests error category plus partial bytes/state. Native HTTP500/Artisan1 and recovery verified.",
+    "Valid text uses UTF-8 &str rather than PHP arbitrary weak values."
+  ],
+  "compatibility": {
+    "Normal": 0,
+    "ExplicitNormal": 1,
+    "Raw": 2,
+    "Plain": 4,
+    "default_unchanged": true,
+    "new_variant_impact": "Downstream exhaustive Rust matches need ExplicitNormal. Existing values, default behavior, CLI, JSON/event/database formats unchanged."
+  },
+  "remaining": [
+    "Component base protected compile/render_view/mutate/using_question_helper and extensibility remain pending.",
+    "Alert/BulletList/TwoColumnDetail/Task, five question components and Factory/CommandIo wiring pending.",
+    "General arbitrary third-party output contracts and full Artisan chapter pending.",
+    "Windows/other platform release matrix not run."
+  ],
+  "pushed": false,
+  "tooling_followup": {
+    "unit": "guard-stop-eperm",
+    "status": "pending_controlled_reproduction",
+    "evidence": "line-components-pre-custom-gates-retry-1.log",
+    "component_gates": "final frozen source passed; no remaining owned gate processes"
+  }
+}

@@ -1601,4 +1601,36 @@ fn transform_component_text(value: &str) -> Result<String, ConsoleError> {
 }
 ```
 
-Highlighting wraps nonempty `[content]` in bold markup. Punctuation recognizes only final ASCII `.`, `?`, `!` and `:`; it does not trim whitespace or normalize Unicode punctuation. `EnsureNoPunctuation` removes exactly one final character. Relative paths remove every exact `base_path + "/"` occurrence inside the current application scope, without canonicalizing the path. Outside an application or without its `path.base` binding, text is unchanged. This is display formatting, not path validation. These types are available independently; the complete component factory is tracked separately.
+Highlighting wraps nonempty `[content]` in bold markup. Punctuation recognizes only final ASCII `.`, `?`, `!` and `:`; it does not trim whitespace or normalize Unicode punctuation. `EnsureNoPunctuation` removes exactly one final character. Relative paths remove every exact `base_path + "/"` occurrence inside the current application scope, without canonicalizing the path. Outside an application or without its `path.base` binding, text is unchanged. This is display formatting, not path validation. These types are available independently.
+
+## Line components {#line-components}
+
+`Info`, `Success`, `Warn` and `Error` add a badge, highlight bracketed dynamic content and ensure sentence punctuation. Each type accepts the selected output through `new(output)` and provides `render(text)` at normal verbosity or `render_with(text, verbosity)` for an explicit threshold. `render_with` also accepts `OutputOptions` to preserve raw or plain output modes alongside the verbosity threshold.
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, OutputStyle, OutputVerbosity,
+    view::components::{Error as ErrorComponent, Info, Line, Success, Warn}};
+use openrust::support::facades::Artisan;
+
+fn register_line_components() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:components", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut style = OutputStyle::new(input, output);
+            Info::new(&mut style).render("Creating [reports]")?;
+            Success::new(&mut style).render("Ready")?;
+            Warn::new(&mut style).render("Check [configuration]")?;
+            ErrorComponent::new(&mut style).render("Missing [field]")?;
+            Line::new(&mut style).render("info", "Custom [line]")?;
+            Line::new(&mut style).render_with("warn", "Verbose detail", OutputVerbosity::Verbose)?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+`Line` accepts the `info`, `success`, `warn` and `error` style keys; an unknown key returns `ConsoleError` without writing a line. Components borrow the same selected output, formatter and newline state. An `Error` component renders an ERROR badge on that output; use `get_error_style()` to select stderr when the underlying console exposes it.
+
+Component text collapses ASCII spaces, tabs and line endings. NUL becomes a space and other C0 controls are removed, including raw ANSI escape characters; nonbreaking spaces are retained. Use formatter tags for styled content. Long text is not automatically wrapped. Existing newline-aware styles determine the leading margin; base styles and raw captures use a one-line margin.
+
+`OutputFormat::Normal` retains the existing default value 0. `ExplicitNormal` represents the explicit normal flag 1, preserving newline counting when combined with verbosity. Exhaustive matches over `OutputFormat` need this additional variant.

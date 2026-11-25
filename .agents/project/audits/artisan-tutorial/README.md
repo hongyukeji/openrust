@@ -587,3 +587,15 @@ Source next只推进，而Rust Iterator.next返回元素；严格Clippy实际指
 首轮夹具误用Application.clone/底层Output.line及&String消息转换导致编译失败，修正为Arc/正式OutputStyle/&str。随后真实原生5项失败准确暴露path.base装配缺口，保留日志，修复后重跑；首次复制接线时未同步已提交的localization模块更名导致隔离快照6项编译错误，已用当前HEAD完整归档重组并只叠加本批源码；归档覆盖遗留旧translation-database快照目录使Cargo要求改锁，查明只多出这个废弃包后删除该独占快照目录并恢复提交版Cargo.lock，保持--locked验收，不把这次失败当产品缺陷或通过；失败与磁盘中断均不算通过。32GB时守卫等待其他构建安全退出后持锁清理，事件实际释放87,853,207,552字节，一次守卫收尾返回Operation not permitted，保留日志并重新核对进程/磁盘后重试正式守卫，未放宽归属或Cargo锁。随后严格Clippy再次触线，等待安全清理后实际再释放77,052,899,328字节；锁inode/源码/日志/下载/数据库保留，恢复后仅续未完成检查。共享缓存排队后刷新本快照一方Rust源码mtime（字节不变），确保实际检查；原始证据target/tmp/artisan-tutorial-20261125/component-mutators-*。旧版v0.x未找到对应变换器，复用当前Regex/Facade/容器/OutputStyle，无新依赖，原MIT版权许可原样随组件源码保留。
 
 完整Component、14种Factory入口、专用QuestionHelper切换/恢复、任意第三方输出接口及Artisan整章仍开放，不把本簇文本变换器当作这些入口已实现；下一簇继续上述依赖。只提交本批已验范围，不推送，不夹带其他在途改动。
+
+## 第四十簇：五种行组件、所选格式器与显式normal位（2026-11-26）
+
+Line/Info/Success/Warn/Error以真实公开类型、显式new和render/render_with接通；默认普通级别，render_with接受已有OutputOptions或OutputVerbosity。借用现有AsOutput/OutputReference保留原输出、格式器、分区、stdout/stderr、嵌套/底层样式及NewLineAware边界，不创建进程级全局渲染器。固定行模板按原生排版生成相同格式器输入，复用3个既有Mutator；已知模板内容的DOM空白/C0语义按固定源验证，不引入PHP执行或通用HTML/CSS引擎，也不宣称交付通用Termwind SDK或抽象Component编译能力。长文本按源不自动折行，无性能测量结论。
+
+固定PHP8.5.12、框架13.40.0与Symfony Console7.4.0、Termwind2.3.3真实类产生393场景：354种标签/模式/级别/换行/Unicode/控制字符、32个真实ConsoleOutput物理进程、4份正式示例序列、2个无效样式及1个构造后实时格式器变更。NUL为空格、其余C0中只保留ASCII空白语义、DEL/NBSP保留；既有格式器负责NFC/样式。原生实际Artisan32组stdout/stderr/meta及失败OS1，HTTP200/500/恢复200和12并发通过，Error组件写入所选输出，并不擅自选择stderr。三语正文直接提取123例，根Artisan入口/Facade回归通过；借用E0499负编译、完整workspace/all-targets严格Clippy、格式、三语构建与12浏览器检查通过。实际目标/父消费者/忽略驱动位见accepted-line-components.json，不把计数当作接口存在性证明。源输入/类型/入口/裁决详见line-components-contracts.json。
+
+深入格式器消费者复现原生蓝底默认标签未响应用户命名样式覆盖（line-components-custom-repro.log），源实际标签参数顺序为bg=blue;fg=white；修正同一原生标签顺序，并验证组件构造后通过原共享格式器句柄修改样式立即生效。附加位选项夹具最初误将normal位1当作Raw，核对源常量normal1/Raw2/Plain4后纠正；既有Normal=0保持默认，新增ExplicitNormal=1，完整表达显式normal位与verbosity组合时源writeln的数值换行判定。下游穷尽匹配OutputFormat须加入新分支；既有枚举值/默认行为、CLI、事件、JSON和数据库格式不变。此为新增原生表达能力，不用改默认值隐藏差异。源无效样式TypeError以ConsoleError返回，不复现PHP引擎warning；失败部分输出/换行、HTTP500、CLI1及后续恢复实测。
+
+首轮新增CLI夹具对Option<Value>误用借用方法指针编译失败，改闭包后通过，失败日志保留。扩展格式器场景后主动终止旧检查，守卫收尾返回Operation not permitted；保留pre-custom日志；最终复查本批无存活构建，冻结源码对应的完整验收均通过，不把中断当通过。守卫停止的EPERM另列工具诊断，未声称已查明原因。32GB按守卫持锁清理恢复，无删除源码/日志/下载/其他工作区；不在此重复计入其他批次释放量。最终源码SHA、原始PHP工具/输出及门禁日志在target/tmp/artisan-tutorial-20261125/line-*，原许可随组件源码保留，未增依赖。原生本批为macOS ARM64/Rust1.94，源为Linux；其他实机/Windows发布矩阵未计通过。
+
+当前只闭合五种具体行组件在所选内置输出上的构造/渲染，不以它们冒充完整Component、其余9种组件、Factory/CommandIo或任意第三方OutputInterface。下一簇继续显示组件/任务，再接专用QuestionHelper及Factory；整章仍开放。仅本簇本地提交，不推送，保留其他在途改动。

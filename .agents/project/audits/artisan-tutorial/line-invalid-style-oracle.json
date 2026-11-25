@@ -1,0 +1,34 @@
+[
+    {
+        "required": 32,
+        "component": "Line",
+        "style": "missing",
+        "text": "text",
+        "decorated": false,
+        "level": 32,
+        "prefix": "",
+        "surface": "derived",
+        "output": "",
+        "new_lines": 1,
+        "error": [
+            "TypeError",
+            "array_merge(): Argument #1 must be of type array, null given"
+        ]
+    },
+    {
+        "required": 32,
+        "component": "Line",
+        "style": "missing",
+        "text": "text",
+        "decorated": false,
+        "level": 32,
+        "prefix": "partial",
+        "surface": "derived",
+        "output": "partial",
+        "new_lines": 0,
+        "error": [
+            "TypeError",
+            "array_merge(): Argument #1 must be of type array, null given"
+        ]
+    }
+]

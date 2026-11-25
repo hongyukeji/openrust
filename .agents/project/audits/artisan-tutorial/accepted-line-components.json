@@ -1,0 +1,84 @@
+{
+  "source_base": "6a9ee4d0653ea703c62cf139030625ded2e99e68",
+  "source_hashes": {
+    "vendor/openrust/framework/src/console/view/components/line.rs": "7cb7db2701c62365143776ec3dcb141e5b2b6387eaab46c93ed4b1c72df90d57",
+    "vendor/openrust/framework/src/console/view/components/mod.rs": "3cf9c1d76ba711e242bd69cb3a98bdc52c4a7e9625caafb03e0587e9b689c9c2",
+    "vendor/openrust/framework/src/console/view/components/LICENSE.renderer": "90c8b018f3de7647f2584e2ffd5e5d5d6e14771b3d1091ffb59096968a904f71",
+    ".agents/project/audits/artisan-tutorial/line-components-oracle.json": "2160b14529d42d12810ac32dd912cbcf609c6eaf40e2413c502daef658273463",
+    "vendor/openrust/framework/tests/console_line_components.rs": "a0c18ff1b05151294d45bdf6969a8a6d5ac562ebb1be05a5c24f8ed03b9c6cc1",
+    ".agents/project/audits/artisan-tutorial/line-console-oracle.json": "2250e1b9466fcc994c1dbde2775d558819b89228da79b914d8c085ebf8903c9a",
+    "docs/en/digging-deeper/artisan.md": "339d7632862f94394add48ba66d6b686aa7471817fa71cb385511cf4e4b8f27a",
+    "docs/zh-Hans/digging-deeper/artisan.md": "9d7122834891989e282a9bd82ddb39a5b531045b7a5cfb4e7d33f8be256b91e3",
+    "docs/zh-Hant/digging-deeper/artisan.md": "4dc2d9da922a8d28328156cfd51111ef55c9ae9ac50d11a4981ffcaee35b539b",
+    "tests/artisan_tutorial_docs.py": "27bb33f28c0a1b5a2bee45de80e846499ac7f504cc29ebabda009e9420962c13",
+    "docs/tests/check_artisan_tutorial.mjs": "11e8dc982b3a43e0d55245d7a8ec0caf8c459ab042eb1fea5535700a6dcbdee1",
+    ".agents/project/audits/artisan-tutorial/line-docs-oracle.json": "2688d157186646175b3338995428af151f1afe2fd4026eb47fe0208a6529447a",
+    ".agents/project/audits/artisan-tutorial/line-custom-formatter-oracle.json": "850c3719cc673359fba584761f54d985035bc1292bf3818ac7dea6ffd2d6dd4c",
+    "vendor/openrust/framework/src/console/output_style.rs": "47c4e10151b82b0426bc08b4b1c99dcb121bcc2b2f87151c267c065f7f681e7e",
+    ".agents/project/audits/artisan-tutorial/line-invalid-style-oracle.json": "2162834136b879f7db9db114a5bd5f5bcd02e6b78d1e8b6713d958e28d19a6f9",
+    ".agents/project/audits/artisan-tutorial/line-components-contracts.json": "f2c5f85103158a09f74aa3a0fc908210af97b5c87608a0b78244e663efd1b785",
+    ".agents/project/audits/artisan-tutorial/component-factory-contracts.json": "98147b86c81106c06e0d4920ab4c54479afa12dab60b9c35be198bf918c31c0d",
+    ".agents/project/audits/artisan-tutorial/io-contracts.json": "f865e08855533131b1aaf521609281173172c04757d9db14b0e09ec5efe84410",
+    ".agents/project/audits/artisan-tutorial/section-map.json": "9dc49a6a1acbd5dc598b5fd5c86e55644a1d64f2d1edfe67f576647769840f64",
+    ".agents/project/audits/artisan-tutorial/README.md": "afa6e9082cdebf8b309fdaf0d8b95b0487f0b6ba74b4b41cc2edef5d59c4670d",
+    ".agents/project/current.md": "c934eab4e635f22ad746b796e63fd6c6575ebe5954743f7193545aa1e7605bca"
+  },
+  "gates": [
+    {
+      "name": "fmt",
+      "returncode": 0
+    },
+    {
+      "name": "consumers",
+      "returncode": 0
+    },
+    {
+      "name": "docs-consumers",
+      "returncode": 0
+    },
+    {
+      "name": "rustdoc",
+      "returncode": 0
+    },
+    {
+      "name": "clippy",
+      "returncode": 0
+    },
+    {
+      "name": "docs",
+      "returncode": 0
+    }
+  ],
+  "counts": {
+    "consumers": {
+      "targets": 5,
+      "passed": 38,
+      "ignored_driver_slots": 11
+    },
+    "docs-consumers": {
+      "targets": 3,
+      "passed": 132,
+      "ignored_driver_slots": 0
+    },
+    "rustdoc": {
+      "targets": 2,
+      "passed": 1,
+      "ignored_driver_slots": 0
+    }
+  },
+  "source_scenes": {
+    "line-components-oracle.json": 354,
+    "line-console-oracle.json": 32,
+    "line-docs-oracle.json": 4,
+    "line-invalid-style-oracle.json": 2,
+    "line-custom-formatter-oracle.json": 1
+  },
+  "scope": "verified_concrete_line_family_builtin_outputs",
+  "remaining": [
+    "Component base protected compile/render_view/mutate/using_question_helper and extensibility remain pending.",
+    "Alert/BulletList/TwoColumnDetail/Task, five question components and Factory/CommandIo wiring pending.",
+    "General arbitrary third-party output contracts and full Artisan chapter pending.",
+    "Windows/other platform release matrix not run."
+  ],
+  "pushed": false
+}

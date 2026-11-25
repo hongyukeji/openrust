@@ -6,6 +6,8 @@ Git 默认流程已于 2026-11-23 更新：已授权任务完成并通过相关�
 
 ## 正在推进与等待条件
 
+- 2026-11-26 Artisan第四十簇Line/Info/Success/Warn/Error已验：393固定源场景、真实Artisan流/HTTP恢复并发、三语123例及严格门禁通过。修复命名格式器标签顺序，新增ExplicitNormal=1并保留Normal=0默认；穷尽match需补分支。见[行组件契约](audits/artisan-tutorial/line-components-contracts.json)。完整基类/其余组件/Factory继续，不推送。
+
 - 2026-11-26 Artisan第三十九簇4种组件文本Mutator已验，并修复默认path.base绑定缺口：52固定源场景、两应用24并发作用域、实际HTTP/Artisan与三语直接示例及严格门禁通过。见[组件变换器记录](audits/artisan-tutorial/component-mutators-contracts.json)。完整Factory/QuestionHelper与整章余项继续；不推送。
 
 - 2026-11-26 Artisan第三十八簇内置输出TreeHelper/TreeStyle及双样式tree/create_tree已验：537实际源场景、72控制台进程、6真实TTY、HTTP恢复/并发及CLI0/1通过；三语117例、346父消费者及严格门禁通过。Source游标next映射原生advance，未加豁免。见[树助手记录](audits/artisan-tutorial/tree-helper-contracts.json)。继续完整组件Factory/通用输出及整章其他锚点，不推送。

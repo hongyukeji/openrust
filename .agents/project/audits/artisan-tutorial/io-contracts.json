@@ -1763,6 +1763,91 @@
           "component-mutators-{consumers,docs-consumers,clippy,fmt,docs,browser}.log"
         ]
       }
+    ],
+    "Line": [
+      {
+        "method": "__construct (inherited)",
+        "native": "console::view::components::Line::new",
+        "status": "verified_builtin_outputs",
+        "evidence": "line-components-contracts.json"
+      },
+      {
+        "method": "render",
+        "native": [
+          "console::view::components::Line::render",
+          "console::view::components::Line::render_with"
+        ],
+        "status": "verified_actual_source_and_consumers",
+        "evidence": "line-components-contracts.json"
+      }
+    ],
+    "Info": [
+      {
+        "method": "__construct (inherited)",
+        "native": "console::view::components::Info::new",
+        "status": "verified_builtin_outputs",
+        "evidence": "line-components-contracts.json"
+      },
+      {
+        "method": "render",
+        "native": [
+          "console::view::components::Info::render",
+          "console::view::components::Info::render_with"
+        ],
+        "status": "verified_actual_source_and_consumers",
+        "evidence": "line-components-contracts.json"
+      }
+    ],
+    "Success": [
+      {
+        "method": "__construct (inherited)",
+        "native": "console::view::components::Success::new",
+        "status": "verified_builtin_outputs",
+        "evidence": "line-components-contracts.json"
+      },
+      {
+        "method": "render",
+        "native": [
+          "console::view::components::Success::render",
+          "console::view::components::Success::render_with"
+        ],
+        "status": "verified_actual_source_and_consumers",
+        "evidence": "line-components-contracts.json"
+      }
+    ],
+    "Warn": [
+      {
+        "method": "__construct (inherited)",
+        "native": "console::view::components::Warn::new",
+        "status": "verified_builtin_outputs",
+        "evidence": "line-components-contracts.json"
+      },
+      {
+        "method": "render",
+        "native": [
+          "console::view::components::Warn::render",
+          "console::view::components::Warn::render_with"
+        ],
+        "status": "verified_actual_source_and_consumers",
+        "evidence": "line-components-contracts.json"
+      }
+    ],
+    "Error": [
+      {
+        "method": "__construct (inherited)",
+        "native": "console::view::components::Error::new",
+        "status": "verified_builtin_outputs",
+        "evidence": "line-components-contracts.json"
+      },
+      {
+        "method": "render",
+        "native": [
+          "console::view::components::Error::render",
+          "console::view::components::Error::render_with"
+        ],
+        "status": "verified_actual_source_and_consumers",
+        "evidence": "line-components-contracts.json"
+      }
     ]
   },
   "notes": [
@@ -2333,7 +2418,15 @@
     ]
   },
   "remaining_output_style_behaviors": [
-    "组件文本4变换器已验，完整Component/14种Factory入口及专用QuestionHelper仍待闭合，不以变换器或既有样式助手代替。",
+    "4种文本变换器及Line/Info/Success/Warn/Error已验；完整Component、其余9种具体组件、Factory/CommandIo与专用QuestionHelper仍开放。",
     "通用OutputInterface、ConsoleOutputInterface及任意自定义输出／Artisan.call第三参数仍待完整类型与消费者；当前所选内置stderr借用不冒充完整接口。"
-  ]
+  ],
+  "output_format_explicit_normal": {
+    "Normal": 0,
+    "ExplicitNormal": 1,
+    "Raw": 2,
+    "Plain": 4,
+    "default_unchanged": true,
+    "new_variant_impact": "Downstream exhaustive Rust matches need ExplicitNormal. Existing values, default behavior, CLI, JSON/event/database formats unchanged."
+  }
 }

@@ -72,7 +72,9 @@
         "render"
       ],
       "protected": [],
-      "status": "pending_native_type_and_actual_consumer"
+      "status": "verified_concrete_line_family_builtin_outputs",
+      "native": "console::view::components::Error",
+      "evidence": "line-components-contracts.json"
     },
     {
       "source_type": "Factory",
@@ -89,7 +91,9 @@
         "render"
       ],
       "protected": [],
-      "status": "pending_native_type_and_actual_consumer"
+      "status": "verified_concrete_line_family_builtin_outputs",
+      "native": "console::view::components::Info",
+      "evidence": "line-components-contracts.json"
     },
     {
       "source_type": "Line",
@@ -97,7 +101,9 @@
         "render"
       ],
       "protected": [],
-      "status": "pending_native_type_and_actual_consumer"
+      "status": "verified_concrete_line_family_builtin_outputs",
+      "native": "console::view::components::Line",
+      "evidence": "line-components-contracts.json"
     },
     {
       "source_type": "Secret",
@@ -113,7 +119,9 @@
         "render"
       ],
       "protected": [],
-      "status": "pending_native_type_and_actual_consumer"
+      "status": "verified_concrete_line_family_builtin_outputs",
+      "native": "console::view::components::Success",
+      "evidence": "line-components-contracts.json"
     },
     {
       "source_type": "Task",
@@ -137,9 +145,11 @@
         "render"
       ],
       "protected": [],
-      "status": "pending_native_type_and_actual_consumer"
+      "status": "verified_concrete_line_family_builtin_outputs",
+      "native": "console::view::components::Warn",
+      "evidence": "line-components-contracts.json"
     }
   ],
-  "inheritance": "Inherited Component constructor, output binding and helper lifecycle remain pending per concrete component; source protected methods are inventoried without claiming native exposure.",
+  "inheritance": "Line family constructors/render verified on selected built-in outputs; abstract Component protected extensibility/lifecycle and remaining concrete types/Factory remain open.",
   "mutators": "component-mutators-contracts.json"
 }

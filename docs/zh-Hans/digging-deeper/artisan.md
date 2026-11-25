@@ -1601,4 +1601,36 @@ fn transform_component_text(value: &str) -> Result<String, ConsoleError> {
 }
 ```
 
-动态内容变换将非空 `[内容]` 包入粗体标记。标点判断只识别末尾 ASCII `.`, `?`, `!`, `:`，不裁剪空白、不规范化全角标点。`EnsureNoPunctuation` 只移除一个末尾字符。相对路径变换在当前应用作用域中移除所有精确匹配的 `base_path + "/"`，不规范化路径；没有应用作用域或缺少 `path.base` 绑定时保持原文。这是展示格式处理，不是路径安全校验。上述类型可独立使用，完整组件工厂另行跟踪。
+动态内容变换将非空 `[内容]` 包入粗体标记。标点判断只识别末尾 ASCII `.`, `?`, `!`, `:`，不裁剪空白、不规范化全角标点。`EnsureNoPunctuation` 只移除一个末尾字符。相对路径变换在当前应用作用域中移除所有精确匹配的 `base_path + "/"`，不规范化路径；没有应用作用域或缺少 `path.base` 绑定时保持原文。这是展示格式处理，不是路径安全校验。
+
+## 行组件 {#line-components}
+
+`Info`、`Success`、`Warn` 和 `Error` 添加标签、高亮方括号内的动态内容，并补齐句末标点。各类型通过 `new(output)` 借用所选输出，`render(text)` 使用普通输出级别，`render_with(text, verbosity)` 指定级别门槛。`render_with` 也接受 `OutputOptions`，保留输出级别门槛以及 raw／plain 输出模式。
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, OutputStyle, OutputVerbosity,
+    view::components::{Error as ErrorComponent, Info, Line, Success, Warn}};
+use openrust::support::facades::Artisan;
+
+fn register_line_components() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:components", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut style = OutputStyle::new(input, output);
+            Info::new(&mut style).render("Creating [reports]")?;
+            Success::new(&mut style).render("Ready")?;
+            Warn::new(&mut style).render("Check [configuration]")?;
+            ErrorComponent::new(&mut style).render("Missing [field]")?;
+            Line::new(&mut style).render("info", "Custom [line]")?;
+            Line::new(&mut style).render_with("warn", "Verbose detail", OutputVerbosity::Verbose)?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+`Line` 接受 `info`、`success`、`warn`、`error` 样式键；未知键返回 `ConsoleError`，不写入新行。组件共用所选输出、格式器和换行状态。`Error` 在该输出上渲染 ERROR 标签；底层控制台支持时，通过 `get_error_style()` 选择 stderr。
+
+组件文字会合并 ASCII 空格、制表符和换行；NUL 转为空格，其他 C0 控制字符被移除，包括原始 ANSI 转义字符，不换行空格保留。需要样式时使用格式器标签。长文本不自动折行。支持换行统计的样式决定前置间距，底层样式和原始捕获使用一行前置间距。
+
+`OutputFormat::Normal` 保持原有默认值 0。`ExplicitNormal` 对应显式 normal 位 1，保留与输出级别组合时的换行计数。穷尽匹配 `OutputFormat` 的代码需要加入该分支。

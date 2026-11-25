@@ -45,6 +45,8 @@ impl OutputVerbosity {
 pub enum OutputFormat {
     #[default]
     Normal = 0,
+    /// 显式normal位；与详细级别组合时保留数值换行判定，默认仍为Normal。
+    ExplicitNormal = 1,
     Raw = 2,
     Plain = 4,
 }
