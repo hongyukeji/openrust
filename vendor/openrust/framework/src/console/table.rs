@@ -5,6 +5,7 @@ pub use error::ConsoleTableError;
 mod cell;
 pub use cell::TableCell;
 
+mod layout;
 mod style;
 use std::collections::BTreeMap;
 pub use style::{TablePadding, TableStyle};
@@ -16,6 +17,10 @@ pub struct Table<'a, 'o> {
     rows: Vec<Vec<String>>,
     style: TableStyle,
     column_styles: BTreeMap<usize, TableStyle>,
+    column_widths: BTreeMap<usize, i64>,
+    column_max_widths: BTreeMap<usize, i64>,
+    header_title: Option<String>,
+    footer_title: Option<String>,
 }
 impl<'a, 'o> Table<'a, 'o> {
     pub fn new(output: &'a mut OutputStyle<'o>) -> Self {
@@ -25,6 +30,10 @@ impl<'a, 'o> Table<'a, 'o> {
             rows: Vec::new(),
             style: TableStyle::default(),
             column_styles: BTreeMap::new(),
+            column_widths: BTreeMap::new(),
+            column_max_widths: BTreeMap::new(),
+            header_title: None,
+            footer_title: None,
         }
     }
     pub fn set_headers<I, T>(&mut self, headers: I) -> &mut Self
@@ -83,55 +92,72 @@ impl<'a, 'o> Table<'a, 'o> {
         self.column_styles.get(&column).unwrap_or(&self.style)
     }
     pub fn render(&mut self) -> Result<(), ConsoleError> {
-        let count = self
-            .headers
+        let prepared = self.prepare_layout()?;
+        let (headers, rows) = (&prepared.headers, &prepared.rows);
+        let count = headers
             .iter()
-            .chain(&self.rows)
+            .chain(rows)
             .map(Vec::len)
             .max()
             .unwrap_or_default();
         if count == 0 {
             return Ok(());
         }
-        let mut widths = vec![0; count];
-        for row in self.headers.iter().chain(&self.rows) {
-            for (column, cell) in row.iter().enumerate() {
-                for line in lines(cell) {
-                    let visible = super::formatting::unformatted_text(
-                        &mut self.output.get_output().formatter,
-                        line,
-                    )
-                    .map_err(ConsoleError::from_source)?;
-                    widths[column] = widths[column].max(width(&visible));
+        let mut widths = vec![0_i64; count];
+        for (group, masks) in [
+            (headers, &prepared.unsplit_headers),
+            (rows, &prepared.unsplit_rows),
+        ] {
+            for (row_index, row) in group.iter().enumerate() {
+                for (column, cell) in row.iter().enumerate() {
+                    let unsplit = masks
+                        .get(&row_index)
+                        .is_some_and(|columns| columns.contains(&column));
+                    for line in cell_lines(cell, unsplit) {
+                        let visible = super::formatting::unformatted_text(
+                            &mut self.output.get_output().formatter,
+                            line,
+                        )
+                        .map_err(ConsoleError::from_source)?;
+                        widths[column] = widths[column].max(
+                            i64::try_from(width(&visible)).map_err(ConsoleError::from_source)?,
+                        );
+                    }
                 }
             }
         }
-        let padding = width(&self.style.cell_row_content_format).saturating_sub(2);
-        for value in &mut widths {
-            *value += padding;
+        let padding = i64::try_from(width(&self.style.cell_row_content_format))
+            .map_err(ConsoleError::from_source)?
+            - 2;
+        for (column, value) in widths.iter_mut().enumerate() {
+            *value = (*value).max(self.column_widths.get(&column).copied().unwrap_or(0));
+            if let Some(maximum) = self.column_max_widths.get(&column) {
+                *value = (*value).min(*maximum);
+            }
+            *value = value.checked_add(padding).ok_or_else(|| {
+                ConsoleError::from_source(ConsoleTableError::InvalidColumnWidth(*value))
+            })?;
         }
-        let headers = self.headers.clone();
-        let rows = self.rows.clone();
         let has_headers = headers.iter().any(|row| !row.is_empty());
         let has_rows = rows.iter().any(|row| !row.is_empty());
         if has_headers && self.style.display_outside_border() {
             self.separator(&widths, 0)?;
         }
-        for row in &headers {
-            self.row(row, &widths, true)?;
+        for (index, row) in headers.iter().enumerate() {
+            self.row(row, &widths, true, prepared.unsplit_headers.get(&index))?;
         }
         if has_rows {
             self.separator(&widths, 1)?;
         }
-        for row in &rows {
-            self.row(row, &widths, false)?;
+        for (index, row) in rows.iter().enumerate() {
+            self.row(row, &widths, false, prepared.unsplit_rows.get(&index))?;
         }
         if self.style.display_outside_border() {
             self.separator(&widths, 2)?;
         }
         Ok(())
     }
-    fn separator(&mut self, widths: &[usize], position: usize) -> Result<(), ConsoleError> {
+    fn separator(&mut self, widths: &[i64], position: usize) -> Result<(), ConsoleError> {
         let b = &self.style.borders;
         let c = &self.style.crossings;
         if b[0].is_empty() && b[2].is_empty() && c[0].is_empty() {
@@ -144,24 +170,57 @@ impl<'a, 'o> Table<'a, 'o> {
         };
         let mut line = left.clone();
         for (column, width) in widths.iter().enumerate() {
-            line.push_str(&horizontal.repeat(*width));
+            line.push_str(&horizontal.repeat(usize::try_from(*width).map_err(|_| {
+                ConsoleError::from_source(ConsoleTableError::InvalidColumnWidth(*width))
+            })?));
             line.push_str(if column + 1 == widths.len() {
                 right
             } else {
                 mid
             });
         }
+        let title = if position == 2 {
+            self.footer_title
+                .clone()
+                .map(|title| (title, self.style.footer_title_format.clone()))
+        } else if position == 0
+            || self.headers.iter().all(Vec::is_empty)
+            || !self.style.display_outside_border()
+        {
+            self.header_title
+                .as_ref()
+                .filter(|title| !title.is_empty() && title.as_str() != "0")
+                .cloned()
+                .map(|title| (title, self.style.header_title_format.clone()))
+        } else {
+            None
+        };
+        if let Some((title, format)) = title {
+            line = self.with_title(&line, &title, &format)?;
+        }
         let line = template(&self.style.border_format, &line)?;
         self.output.writeln(line.as_str(), OutputVerbosity::Normal)
     }
-    fn row(&mut self, row: &[String], widths: &[usize], header: bool) -> Result<(), ConsoleError> {
+    fn row(
+        &mut self,
+        row: &[String],
+        widths: &[i64],
+        header: bool,
+        unsplit: Option<&std::collections::BTreeSet<usize>>,
+    ) -> Result<(), ConsoleError> {
         if row.is_empty() {
             return Ok(());
         }
         let parts: Vec<Vec<String>> = row
             .iter()
-            .map(|cell| {
-                let mut parts: Vec<_> = lines(cell).map(str::to_owned).collect();
+            .enumerate()
+            .map(|(column, cell)| {
+                let mut parts: Vec<_> = cell_lines(
+                    cell,
+                    unsplit.is_some_and(|columns| columns.contains(&column)),
+                )
+                .map(str::to_owned)
+                .collect();
                 let count = parts.len();
                 if count > 1 {
                     for (index, part) in parts.iter_mut().enumerate() {
@@ -192,10 +251,19 @@ impl<'a, 'o> Table<'a, 'o> {
                 .map_err(ConsoleError::from_source)?;
                 let style = self.get_column_style(column);
                 let content = template(&style.cell_row_content_format, cell)?;
-                let target = target + cell.len()
-                    - width(&visible)
-                    - cell.bytes().filter(|byte| *byte == 0).count();
-                let missing = target.saturating_sub(content.len());
+                let target = *target
+                    + i64::try_from(cell.len()).map_err(ConsoleError::from_source)?
+                    - i64::try_from(width(&visible)).map_err(ConsoleError::from_source)?
+                    - i64::try_from(cell.bytes().filter(|byte| *byte == 0).count())
+                        .map_err(ConsoleError::from_source)?;
+                let missing = usize::try_from(
+                    target
+                        .saturating_sub(
+                            i64::try_from(content.len()).map_err(ConsoleError::from_source)?,
+                        )
+                        .max(0),
+                )
+                .map_err(ConsoleError::from_source)?;
                 let (left, right) = match style.pad_type {
                     TablePadding::Left => (missing, 0),
                     TablePadding::Right => (0, missing),
@@ -230,6 +298,12 @@ impl<'a, 'o> Table<'a, 'o> {
 fn lines(value: &str) -> impl Iterator<Item = &str> {
     let separator = if value.contains("\r\n") { "\r\n" } else { "\n" };
     value.split(separator)
+}
+
+fn cell_lines(value: &str, unsplit: bool) -> impl Iterator<Item = &str> {
+    std::iter::once(value)
+        .take(usize::from(unsplit))
+        .chain(lines(value).take(if unsplit { 0 } else { usize::MAX }))
 }
 
 impl super::CommandIo<'_> {

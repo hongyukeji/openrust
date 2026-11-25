@@ -922,3 +922,37 @@ fn register_colors() -> Result<(), ConsoleError> {
 `AnsiColorMode::{Ansi4, Ansi8, Ansi24}` provides `convert_from_hex_to_ansi_color_code`. `Terminal::get_color_mode()` detects COLORTERM before TERM and caches the first result. The default is `Terminal::DEFAULT_COLOR_MODE` (Ansi4). `Terminal::set_color_mode(Some(mode))` forces a process-wide mode; `None` resets detection. Configure it during startup rather than per request. Existing Color objects keep their compiled sequences; future objects and rebuilt styles use the current mode.
 
 `Terminal::get_width` and `get_height` read COLUMNS and LINES on every call, including zero, negative and numeric-prefix values. Without overrides they cache native device dimensions, falling back to 80 columns and 50 rows. Unix reads the stdin terminal device directly, including when stdout and stderr are redirected; Windows uses ANSICON when configured and the native console otherwise. `has_stty_available()` separately caches the result of querying stty; ordinary dimension reads do not launch it. Windows execution remains part of platform release acceptance.
+
+## Table widths and titles {#table-layout-controls}
+
+Use `set_column_width` for one minimum or `set_column_widths` for a sequential list. The bulk setter replaces earlier minima. `set_column_widths_with_keys` accepts indexed pairs for sparse columns. `set_column_max_width` checks the active formatter’s wrapping capability immediately and returns an error if it is unavailable; the built-in formatter supports it. A maximum takes precedence over a minimum.
+
+```rust
+use openrust::{
+    console::{ConsoleError, Input, Output, Table},
+    support::facades::Artisan,
+};
+
+fn register_layout() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:layout", |input: &Input, output: &mut Output| {
+        let mut io = input.io(output);
+        let mut table = Table::new(io.get_output());
+        table.set_headers(["Name", "Count"])
+            .set_rows([["longer name", "42"]])
+            .set_column_widths([12, 8])
+            .set_header_title(Some("Report"))
+            .set_footer_title(Some("done"));
+        table.set_column_max_width(0, 8)?;
+        table.get_style_mut().set_header_title_format("[%s]");
+        table.render()?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
+Titles use `set_header_title` and `set_footer_title`; pass `None` to clear them. The header treats empty text and "0" as absent, while an explicitly empty footer still uses its title format. `get_style_mut` and `get_column_style_mut` provide mutable access without removing the existing read-only getters. An unconfigured column falls back to the table’s actual style.
+
+Widths remain signed: non-positive values follow their rendering rules rather than being silently replaced with defaults. A zero maximum does not wrap text; incompatible effective widths can fail during rendering after earlier output has already been written. Propagate `render` failures. Wrapping reuses the active `WrappableOutputFormatterInterface`, including custom implementations. Titles are centered and truncated using their visible width and configured formats. Named mutable registries, complex rows and merged cells are separate SDK entries.
+
+Table uses returned wrapping text for line expansion only when it contains LF. Otherwise it keeps the original cell; existing raw newlines remain raw rather than being expanded into table rows. Custom wrapping is not a general cell-content transformation hook.

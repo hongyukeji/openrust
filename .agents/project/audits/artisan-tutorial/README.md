@@ -290,3 +290,18 @@ Unix用已锁定rustix1.1.6原生tcgetwinsize读取stdin设备，启用termios�
 最终12框架目标90项＋根6目标101项，191个不同父消费者通过；含60份正式三语直接提取示例，12个ignore驱动夹具不计通过。另有两个实际PTY过程，不能把子过程数量当额外功能数。真实HTTP Color成功／类型化错误500／后续成功、实际main的/up/静态/HTML与JSON404/HEAD、Artisan inspire/list/pail帮助、Pail真实500过滤及timeout清理、Ctrl+C退出0通过。最终格式、workspace all-targets严格Clippy26.50s、main(pail)、三语构建、12组浏览器通过，accepted-colors-terminal.json固定SHA与命令；最后门禁color-terminal-gates7.log，前述失败不计通过。
 
 第六轮前全项目磁盘守卫触线，记录before31943688192、after112106188800、释放80162500608字节，保留源码／日志／下载／数据／锁，编译产物与文档dist安全清理；本批随后实际冷编译完成，再完成Unicode修复最终门禁，不因可恢复清理停工。运行夹具／专用PTY／临时PHP容器均结束，热缓存与日志按规则保留。Windows ANSICON／原生控制台实机、跨平台与发布验收明确未验，不用Darwin／Linux源对照冒充。仅核定范围本地提交不推送；继续其余Table／组件／命令注册生成／信号事件／Tinker等，整章和持续目标未关闭。
+
+
+## 第二十簇：表格宽度、标题与实际换行消费者（2026-11-25）
+
+第十八簇已提交c1a2f5f1438a50e24f1a4e18cb5cd688a5daf914，第十九簇6cb7cc2dbd351ad0528e64499636cb9f685637dd，均未推送。本簇从提交6cb隔离源码继续，保留后来认证／存储等提交与在途，不把自己的范围门禁算成全部活跃工作树验收。
+
+固定Table五入口setColumnWidth／setColumnWidths／setColumnMaxWidth／setHeaderTitle／setFooterTitle接通现有矩形渲染器。列最小／最大分离保存，批量最小重置并提供带索引对变体，最大优先、零不换行、负宽度按实际阶段处理；不静默回退默认。getStyle／getColumnStyle保留原只读借用，新增_mut安全可变访问；未配置列实际回退全表样式。列索引保持现有usize，宽度i64；没有重命名CLI／JSON／事件或替换渲染系统。标题按可见宽度与格式居中、截断，保留表头空/0与表尾显式空的区别。
+
+复用既有模板、字符／字素、格式化／错误管线，最大宽度实际调用当前WrappableOutputFormatterInterface。旧v0.x没有可直接移植的表格布局SDK，继续第十一至十九簇固定源研究。204个实际PHP源向量包括稀疏宽度、重置／覆盖、空／零／负／无表头／只有表头、多种边框、ANSI、Unicode、CRLF、标题格式、缺少wrappable且宽度为零时也立即失败。8项源失败逐一验证类型化错误与已经输出的前缀，不能提前抹掉Markdown表头。
+
+补做公开自定义Wrappable真实消费者后发现，固定源只采用含LF的返回值；返回空或X均保留原单元格，原单元格含LF时也不拆成表格行。6个源向量对照实际接口调用次数／参数与最终输出，已用私有PreparedLayout标记保留这一行为，不用默认格式器冒充回调，不把实现意图猜测当源行为。普通路径cell_lines使用静态迭代器，无每格装箱分配；未发布性能数字。初轮旧149源回归发现漏减反斜杠暂存NUL的宽度偏移，tests1保留失败，修复后149与新204均通过。严格Clippy最初要求消除复杂元组返回，改为真实具名布局数据而非lint豁免，first-final-clippy.log保留。
+
+新增4个父消费者通过，1个ignore仅实际Artisan驱动夹具不计通过；独立Artisan逐字验证标题、换行、部分stdout失败前缀与退出1，真实TCP HTTP成功／列宽失败500／后续成功。正式三语代码直接提取，并与固定源对应样例逐字对比四个CLI标志。最终13框架目标94项＋根6目标104项，198个不同父消费者，含63个三语正文例子；13个驱动夹具不叠加。格式／workspace all-targets严格Clippy65s／main(pail)／三语构建／12组浏览器、实际main的HTTP/up/静态/404/HEAD与Artisan/Pail/Ctrl+C通过。门禁table-layout-gates2、final-*、runtime、browser日志及accepted-table-layout.json保存源SHA、隔离基线与范围，不把并行新模块混算为通过。
+
+普通运行目录与临时PHP容器均清理；保留源码、原始证据和可复用缓存，未修改开发数据库／数据卷。继续命名样式共享注册、行操作／方向、复杂单元格／分隔符／ConsoleSection及其他组件、注册生成／信号事件／Tinker；只有本簇功能闭合，整章和持续目标仍未闭合。核定范围本地提交，不推送，其他在途完整保留。

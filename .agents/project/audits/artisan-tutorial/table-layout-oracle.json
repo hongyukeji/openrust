@@ -1,0 +1,5294 @@
+[
+    {
+        "style": "default",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": [],
+        "error": false,
+        "output": "+---------------+---+\n| A             | B |\n+---------------+---+\n| one two three | 9 |\n| 界abc         | x |\n+---------------+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "widths": {
+                "1": 9,
+                "0": 4
+            }
+        },
+        "error": false,
+        "output": "+---------------+-----------+\n| A             | B         |\n+---------------+-----------+\n| one two three | 9         |\n| 界abc         | x         |\n+---------------+-----------+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": null,
+            "footer": null
+        },
+        "error": false,
+        "output": "+---------------+---+\n| A             | B |\n+---------------+---+\n| one two three | 9 |\n| 界abc         | x |\n+---------------+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "Header",
+            "footer": "Foot",
+            "column_footer_format": "[%s]"
+        },
+        "error": false,
+        "output": "+----- Header --+---+\n| A             | B |\n+---------------+---+\n| one two three | 9 |\n| 界abc         | x |\n+------[Foot]---+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "minimum": [
+                [
+                    0,
+                    10
+                ]
+            ],
+            "reset_widths": []
+        },
+        "error": false,
+        "output": "+---------------+---+\n| A             | B |\n+---------------+---+\n| one two three | 9 |\n| 界abc         | x |\n+---------------+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    3
+                ]
+            ],
+            "reset_widths": [
+                20
+            ]
+        },
+        "error": false,
+        "output": "+-----+---+\n| A   | B |\n+-----+---+\n| one | 9 |\n| two |   |\n| thr |   |\n| ee  |   |\n| 界ab | x |\n| c   |   |\n+-----+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "minimum": [
+                [
+                    0,
+                    12
+                ],
+                [
+                    1,
+                    3
+                ]
+            ]
+        },
+        "error": false,
+        "output": "+---------------+-----+\n| A             | B   |\n+---------------+-----+\n| one two three | 9   |\n| 界abc         | x   |\n+---------------+-----+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "widths": [
+                8,
+                5
+            ]
+        },
+        "error": false,
+        "output": "+---------------+-------+\n| A             | B     |\n+---------------+-------+\n| one two three | 9     |\n| 界abc         | x     |\n+---------------+-------+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "minimum": [
+                [
+                    0,
+                    -5
+                ]
+            ]
+        },
+        "error": false,
+        "output": "+---------------+---+\n| A             | B |\n+---------------+---+\n| one two three | 9 |\n| 界abc         | x |\n+---------------+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    -4
+                ]
+            ]
+        },
+        "error": true,
+        "error_type": "ValueError",
+        "output": ""
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    -1
+                ]
+            ]
+        },
+        "error": false,
+        "output": "+-+---+\n|  | B |\n| A |   |\n+-+---+\n|  | 9 |\n| o |   |\n| n |   |\n| e |   |\n|  |   |\n| t |   |\n| w |   |\n| o |   |\n|  |   |\n| t |   |\n| h |   |\n| r |   |\n| e |   |\n| e |   |\n|  | x |\n| 界 |   |\n| a |   |\n| b |   |\n| c |   |\n+-+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    0
+                ]
+            ]
+        },
+        "error": false,
+        "output": "+--+---+\n| A | B |\n+--+---+\n| one two three | 9 |\n| 界abc | x |\n+--+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    1
+                ]
+            ]
+        },
+        "error": false,
+        "output": "+---+---+\n| A | B |\n+---+---+\n| o | 9 |\n| n |   |\n| e |   |\n| t |   |\n| w |   |\n| o |   |\n| t |   |\n| h |   |\n| r |   |\n| e |   |\n| e |   |\n| 界 | x |\n| a |   |\n| b |   |\n| c |   |\n+---+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    3
+                ]
+            ]
+        },
+        "error": false,
+        "output": "+-----+---+\n| A   | B |\n+-----+---+\n| one | 9 |\n| two |   |\n| thr |   |\n| ee  |   |\n| 界ab | x |\n| c   |   |\n+-----+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    8
+                ]
+            ]
+        },
+        "error": false,
+        "output": "+---------+---+\n| A       | B |\n+---------+---+\n| one two | 9 |\n| three   |   |\n| 界abc   | x |\n+---------+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "minimum": [
+                [
+                    0,
+                    8
+                ]
+            ],
+            "maximum": [
+                [
+                    0,
+                    3
+                ]
+            ]
+        },
+        "error": false,
+        "output": "+-----+---+\n| A   | B |\n+-----+---+\n| one | 9 |\n| two |   |\n| thr |   |\n| ee  |   |\n| 界ab | x |\n| c   |   |\n+-----+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "Report",
+            "footer": "done"
+        },
+        "error": false,
+        "output": "+----- Report --+---+\n| A             | B |\n+---------------+---+\n| one two three | 9 |\n| 界abc         | x |\n+------ done ---+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "a very long title",
+            "footer": "a very long footer"
+        },
+        "error": false,
+        "output": "+- a very long ... -+\n| A             | B |\n+---------------+---+\n| one two three | 9 |\n| 界abc         | x |\n+- a very long ... -+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "0",
+            "footer": "0"
+        },
+        "error": false,
+        "output": "+---------------+---+\n| A             | B |\n+---------------+---+\n| one two three | 9 |\n| 界abc         | x |\n+-------- 0 ----+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "",
+            "footer": ""
+        },
+        "error": false,
+        "output": "+---------------+---+\n| A             | B |\n+---------------+---+\n| one two three | 9 |\n| 界abc         | x |\n+--------  -----+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "測試 é",
+            "footer": "界"
+        },
+        "error": false,
+        "output": "+----- 測試 é --+---+\n| A             | B |\n+---------------+---+\n| one two three | 9 |\n| 界abc         | x |\n+------- 界 ----+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "Report",
+            "header_format": "[<info>%s<\/info>]",
+            "footer": "end",
+            "footer_format": "{%s}"
+        },
+        "error": false,
+        "output": "+-----[Report]--+---+\n| A             | B |\n+---------------+---+\n| one two three | 9 |\n| 界abc         | x |\n+-------{end}---+---+\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": [],
+        "error": false,
+        "output": "┌───────────────┬───┐\n│ A             │ B │\n├───────────────┼───┤\n│ one two three │ 9 │\n│ 界abc         │ x │\n└───────────────┴───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "widths": {
+                "1": 9,
+                "0": 4
+            }
+        },
+        "error": false,
+        "output": "┌───────────────┬───────────┐\n│ A             │ B         │\n├───────────────┼───────────┤\n│ one two three │ 9         │\n│ 界abc         │ x         │\n└───────────────┴───────────┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": null,
+            "footer": null
+        },
+        "error": false,
+        "output": "┌───────────────┬───┐\n│ A             │ B │\n├───────────────┼───┤\n│ one two three │ 9 │\n│ 界abc         │ x │\n└───────────────┴───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "Header",
+            "footer": "Foot",
+            "column_footer_format": "[%s]"
+        },
+        "error": false,
+        "output": "┌───── Header ──┬───┐\n│ A             │ B │\n├───────────────┼───┤\n│ one two three │ 9 │\n│ 界abc         │ x │\n└──────[Foot]───┴───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "minimum": [
+                [
+                    0,
+                    10
+                ]
+            ],
+            "reset_widths": []
+        },
+        "error": false,
+        "output": "┌───────────────┬───┐\n│ A             │ B │\n├───────────────┼───┤\n│ one two three │ 9 │\n│ 界abc         │ x │\n└───────────────┴───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    3
+                ]
+            ],
+            "reset_widths": [
+                20
+            ]
+        },
+        "error": false,
+        "output": "┌─────┬───┐\n│ A   │ B │\n├─────┼───┤\n│ one │ 9 │\n│ two │   │\n│ thr │   │\n│ ee  │   │\n│ 界ab │ x │\n│ c   │   │\n└─────┴───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "minimum": [
+                [
+                    0,
+                    12
+                ],
+                [
+                    1,
+                    3
+                ]
+            ]
+        },
+        "error": false,
+        "output": "┌───────────────┬─────┐\n│ A             │ B   │\n├───────────────┼─────┤\n│ one two three │ 9   │\n│ 界abc         │ x   │\n└───────────────┴─────┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "widths": [
+                8,
+                5
+            ]
+        },
+        "error": false,
+        "output": "┌───────────────┬───────┐\n│ A             │ B     │\n├───────────────┼───────┤\n│ one two three │ 9     │\n│ 界abc         │ x     │\n└───────────────┴───────┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "minimum": [
+                [
+                    0,
+                    -5
+                ]
+            ]
+        },
+        "error": false,
+        "output": "┌───────────────┬───┐\n│ A             │ B │\n├───────────────┼───┤\n│ one two three │ 9 │\n│ 界abc         │ x │\n└───────────────┴───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    -4
+                ]
+            ]
+        },
+        "error": true,
+        "error_type": "ValueError",
+        "output": ""
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    -1
+                ]
+            ]
+        },
+        "error": false,
+        "output": "┌─┬───┐\n│  │ B │\n│ A │   │\n├─┼───┤\n│  │ 9 │\n│ o │   │\n│ n │   │\n│ e │   │\n│  │   │\n│ t │   │\n│ w │   │\n│ o │   │\n│  │   │\n│ t │   │\n│ h │   │\n│ r │   │\n│ e │   │\n│ e │   │\n│  │ x │\n│ 界 │   │\n│ a │   │\n│ b │   │\n│ c │   │\n└─┴───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    0
+                ]
+            ]
+        },
+        "error": false,
+        "output": "┌──┬───┐\n│ A │ B │\n├──┼───┤\n│ one two three │ 9 │\n│ 界abc │ x │\n└──┴───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    1
+                ]
+            ]
+        },
+        "error": false,
+        "output": "┌───┬───┐\n│ A │ B │\n├───┼───┤\n│ o │ 9 │\n│ n │   │\n│ e │   │\n│ t │   │\n│ w │   │\n│ o │   │\n│ t │   │\n│ h │   │\n│ r │   │\n│ e │   │\n│ e │   │\n│ 界 │ x │\n│ a │   │\n│ b │   │\n│ c │   │\n└───┴───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    3
+                ]
+            ]
+        },
+        "error": false,
+        "output": "┌─────┬───┐\n│ A   │ B │\n├─────┼───┤\n│ one │ 9 │\n│ two │   │\n│ thr │   │\n│ ee  │   │\n│ 界ab │ x │\n│ c   │   │\n└─────┴───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    8
+                ]
+            ]
+        },
+        "error": false,
+        "output": "┌─────────┬───┐\n│ A       │ B │\n├─────────┼───┤\n│ one two │ 9 │\n│ three   │   │\n│ 界abc   │ x │\n└─────────┴───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "minimum": [
+                [
+                    0,
+                    8
+                ]
+            ],
+            "maximum": [
+                [
+                    0,
+                    3
+                ]
+            ]
+        },
+        "error": false,
+        "output": "┌─────┬───┐\n│ A   │ B │\n├─────┼───┤\n│ one │ 9 │\n│ two │   │\n│ thr │   │\n│ ee  │   │\n│ 界ab │ x │\n│ c   │   │\n└─────┴───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "Report",
+            "footer": "done"
+        },
+        "error": false,
+        "output": "┌───── Report ──┬───┐\n│ A             │ B │\n├───────────────┼───┤\n│ one two three │ 9 │\n│ 界abc         │ x │\n└────── done ───┴───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "a very long title",
+            "footer": "a very long footer"
+        },
+        "error": false,
+        "output": "┌─ a very long ... ─┐\n│ A             │ B │\n├───────────────┼───┤\n│ one two three │ 9 │\n│ 界abc         │ x │\n└─ a very long ... ─┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "0",
+            "footer": "0"
+        },
+        "error": false,
+        "output": "┌───────────────┬───┐\n│ A             │ B │\n├───────────────┼───┤\n│ one two three │ 9 │\n│ 界abc         │ x │\n└──────── 0 ────┴───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "",
+            "footer": ""
+        },
+        "error": false,
+        "output": "┌───────────────┬───┐\n│ A             │ B │\n├───────────────┼───┤\n│ one two three │ 9 │\n│ 界abc         │ x │\n└────────  ─────┴───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "測試 é",
+            "footer": "界"
+        },
+        "error": false,
+        "output": "┌───── 測試 é ──┬───┐\n│ A             │ B │\n├───────────────┼───┤\n│ one two three │ 9 │\n│ 界abc         │ x │\n└─────── 界 ────┴───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "Report",
+            "header_format": "[<info>%s<\/info>]",
+            "footer": "end",
+            "footer_format": "{%s}"
+        },
+        "error": false,
+        "output": "┌─────[Report]──┬───┐\n│ A             │ B │\n├───────────────┼───┤\n│ one two three │ 9 │\n│ 界abc         │ x │\n└───────{end}───┴───┘\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": [],
+        "error": false,
+        "output": "| A             | B |\n|---------------|---|\n| one two three | 9 |\n| 界abc         | x |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "widths": {
+                "1": 9,
+                "0": 4
+            }
+        },
+        "error": false,
+        "output": "| A             | B         |\n|---------------|-----------|\n| one two three | 9         |\n| 界abc         | x         |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": null,
+            "footer": null
+        },
+        "error": false,
+        "output": "| A             | B |\n|---------------|---|\n| one two three | 9 |\n| 界abc         | x |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "Header",
+            "footer": "Foot",
+            "column_footer_format": "[%s]"
+        },
+        "error": false,
+        "output": "| A             | B |\n|----- Header --|---|\n| one two three | 9 |\n| 界abc         | x |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "minimum": [
+                [
+                    0,
+                    10
+                ]
+            ],
+            "reset_widths": []
+        },
+        "error": false,
+        "output": "| A             | B |\n|---------------|---|\n| one two three | 9 |\n| 界abc         | x |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    3
+                ]
+            ],
+            "reset_widths": [
+                20
+            ]
+        },
+        "error": false,
+        "output": "| A   | B |\n|-----|---|\n| one | 9 |\n| two |   |\n| thr |   |\n| ee  |   |\n| 界ab | x |\n| c   |   |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "minimum": [
+                [
+                    0,
+                    12
+                ],
+                [
+                    1,
+                    3
+                ]
+            ]
+        },
+        "error": false,
+        "output": "| A             | B   |\n|---------------|-----|\n| one two three | 9   |\n| 界abc         | x   |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "widths": [
+                8,
+                5
+            ]
+        },
+        "error": false,
+        "output": "| A             | B     |\n|---------------|-------|\n| one two three | 9     |\n| 界abc         | x     |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "minimum": [
+                [
+                    0,
+                    -5
+                ]
+            ]
+        },
+        "error": false,
+        "output": "| A             | B |\n|---------------|---|\n| one two three | 9 |\n| 界abc         | x |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    -4
+                ]
+            ]
+        },
+        "error": true,
+        "error_type": "ValueError",
+        "output": "|  | B |\n| A |   |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    -1
+                ]
+            ]
+        },
+        "error": false,
+        "output": "|  | B |\n| A |   |\n|-|---|\n|  | 9 |\n| o |   |\n| n |   |\n| e |   |\n|  |   |\n| t |   |\n| w |   |\n| o |   |\n|  |   |\n| t |   |\n| h |   |\n| r |   |\n| e |   |\n| e |   |\n|  | x |\n| 界 |   |\n| a |   |\n| b |   |\n| c |   |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    0
+                ]
+            ]
+        },
+        "error": false,
+        "output": "| A | B |\n|--|---|\n| one two three | 9 |\n| 界abc | x |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    1
+                ]
+            ]
+        },
+        "error": false,
+        "output": "| A | B |\n|---|---|\n| o | 9 |\n| n |   |\n| e |   |\n| t |   |\n| w |   |\n| o |   |\n| t |   |\n| h |   |\n| r |   |\n| e |   |\n| e |   |\n| 界 | x |\n| a |   |\n| b |   |\n| c |   |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    3
+                ]
+            ]
+        },
+        "error": false,
+        "output": "| A   | B |\n|-----|---|\n| one | 9 |\n| two |   |\n| thr |   |\n| ee  |   |\n| 界ab | x |\n| c   |   |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    8
+                ]
+            ]
+        },
+        "error": false,
+        "output": "| A       | B |\n|---------|---|\n| one two | 9 |\n| three   |   |\n| 界abc   | x |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "minimum": [
+                [
+                    0,
+                    8
+                ]
+            ],
+            "maximum": [
+                [
+                    0,
+                    3
+                ]
+            ]
+        },
+        "error": false,
+        "output": "| A   | B |\n|-----|---|\n| one | 9 |\n| two |   |\n| thr |   |\n| ee  |   |\n| 界ab | x |\n| c   |   |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "Report",
+            "footer": "done"
+        },
+        "error": false,
+        "output": "| A             | B |\n|----- Report --|---|\n| one two three | 9 |\n| 界abc         | x |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "a very long title",
+            "footer": "a very long footer"
+        },
+        "error": false,
+        "output": "| A             | B |\n|- a very long ... -|\n| one two three | 9 |\n| 界abc         | x |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "0",
+            "footer": "0"
+        },
+        "error": false,
+        "output": "| A             | B |\n|---------------|---|\n| one two three | 9 |\n| 界abc         | x |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "",
+            "footer": ""
+        },
+        "error": false,
+        "output": "| A             | B |\n|---------------|---|\n| one two three | 9 |\n| 界abc         | x |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "測試 é",
+            "footer": "界"
+        },
+        "error": false,
+        "output": "| A             | B |\n|----- 測試 é --|---|\n| one two three | 9 |\n| 界abc         | x |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "Report",
+            "header_format": "[<info>%s<\/info>]",
+            "footer": "end",
+            "footer_format": "{%s}"
+        },
+        "error": false,
+        "output": "| A             | B |\n|-----[Report]--|---|\n| one two three | 9 |\n| 界abc         | x |\n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": [],
+        "error": false,
+        "output": "A             B \none two three 9 \n界abc         x \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "widths": {
+                "1": 9,
+                "0": 4
+            }
+        },
+        "error": false,
+        "output": "A             B         \none two three 9         \n界abc         x         \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": null,
+            "footer": null
+        },
+        "error": false,
+        "output": "A             B \none two three 9 \n界abc         x \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "Header",
+            "footer": "Foot",
+            "column_footer_format": "[%s]"
+        },
+        "error": false,
+        "output": "A             B \none two three 9 \n界abc         x \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "minimum": [
+                [
+                    0,
+                    10
+                ]
+            ],
+            "reset_widths": []
+        },
+        "error": false,
+        "output": "A             B \none two three 9 \n界abc         x \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    3
+                ]
+            ],
+            "reset_widths": [
+                20
+            ]
+        },
+        "error": false,
+        "output": "A   B \none 9 \ntwo   \nthr   \nee    \n界ab x \nc     \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "minimum": [
+                [
+                    0,
+                    12
+                ],
+                [
+                    1,
+                    3
+                ]
+            ]
+        },
+        "error": false,
+        "output": "A             B   \none two three 9   \n界abc         x   \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "widths": [
+                8,
+                5
+            ]
+        },
+        "error": false,
+        "output": "A             B     \none two three 9     \n界abc         x     \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "minimum": [
+                [
+                    0,
+                    -5
+                ]
+            ]
+        },
+        "error": false,
+        "output": "A             B \none two three 9 \n界abc         x \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    -4
+                ]
+            ]
+        },
+        "error": false,
+        "output": " B \nA   \n 9 \no   \nn   \ne   \n   \nt   \nw   \no   \n   \nt   \nh   \nr   \ne   \ne   \n x \n界   \na   \nb   \nc   \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    -1
+                ]
+            ]
+        },
+        "error": false,
+        "output": " B \nA   \n 9 \no   \nn   \ne   \n   \nt   \nw   \no   \n   \nt   \nh   \nr   \ne   \ne   \n x \n界   \na   \nb   \nc   \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    0
+                ]
+            ]
+        },
+        "error": false,
+        "output": "A B \none two three 9 \n界abc x \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    1
+                ]
+            ]
+        },
+        "error": false,
+        "output": "A B \no 9 \nn   \ne   \nt   \nw   \no   \nt   \nh   \nr   \ne   \ne   \n界 x \na   \nb   \nc   \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    3
+                ]
+            ]
+        },
+        "error": false,
+        "output": "A   B \none 9 \ntwo   \nthr   \nee    \n界ab x \nc     \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    8
+                ]
+            ]
+        },
+        "error": false,
+        "output": "A       B \none two 9 \nthree     \n界abc   x \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "minimum": [
+                [
+                    0,
+                    8
+                ]
+            ],
+            "maximum": [
+                [
+                    0,
+                    3
+                ]
+            ]
+        },
+        "error": false,
+        "output": "A   B \none 9 \ntwo   \nthr   \nee    \n界ab x \nc     \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "Report",
+            "footer": "done"
+        },
+        "error": false,
+        "output": "A             B \none two three 9 \n界abc         x \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "a very long title",
+            "footer": "a very long footer"
+        },
+        "error": false,
+        "output": "A             B \none two three 9 \n界abc         x \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "0",
+            "footer": "0"
+        },
+        "error": false,
+        "output": "A             B \none two three 9 \n界abc         x \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "",
+            "footer": ""
+        },
+        "error": false,
+        "output": "A             B \none two three 9 \n界abc         x \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "測試 é",
+            "footer": "界"
+        },
+        "error": false,
+        "output": "A             B \none two three 9 \n界abc         x \n"
+    },
+    {
+        "style": "compact",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "Report",
+            "header_format": "[<info>%s<\/info>]",
+            "footer": "end",
+            "footer_format": "{%s}"
+        },
+        "error": false,
+        "output": "A             B \none two three 9 \n界abc         x \n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "headers": [],
+        "rows": [
+            [
+                "hello world",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    3
+                ]
+            ],
+            "header": "Report",
+            "footer": "end"
+        },
+        "error": false,
+        "output": "+- Re... -+\n| hel | x |\n| lo  |   |\n| wor |   |\n| ld  |   |\n+-- end --+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "headers": [],
+        "rows": [
+            [
+                "hello world",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "long title",
+            "footer": "long footer"
+        },
+        "error": false,
+        "output": "+-- long title ---+\n| hello world | x |\n+-- long footer --+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "headers": [],
+        "rows": [
+            [
+                "hello world",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "",
+            "footer": ""
+        },
+        "error": false,
+        "output": "+-------------+---+\n| hello world | x |\n+-------  ----+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    3
+                ]
+            ],
+            "header": "Report",
+            "footer": "end"
+        },
+        "error": false,
+        "output": "+- ... -+\n| A | B |\n+- end -+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "config": {
+            "header": "long title",
+            "footer": "long footer"
+        },
+        "error": false,
+        "output": "+- ... -+\n| A | B |\n+- ... -+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "config": {
+            "header": "",
+            "footer": ""
+        },
+        "error": false,
+        "output": "+---+---+\n| A | B |\n+--  ---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "headers": [
+            "A"
+        ],
+        "rows": [
+            [
+                "<info>abcdef ghi<\/info>"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    3
+                ]
+            ],
+            "header": "Report",
+            "footer": "end"
+        },
+        "error": false,
+        "output": "+- Repo... -+\n| A   |\n+-----+\n| abc |\n| def |\n| ghi |\n+- e... -+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "headers": [
+            "A"
+        ],
+        "rows": [
+            [
+                "<info>abcdef ghi<\/info>"
+            ]
+        ],
+        "config": {
+            "header": "long title",
+            "footer": "long footer"
+        },
+        "error": false,
+        "output": "+- long ... -+\n| A          |\n+------------+\n| abcdef ghi |\n+- long ... -+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "headers": [
+            "A"
+        ],
+        "rows": [
+            [
+                "<info>abcdef ghi<\/info>"
+            ]
+        ],
+        "config": {
+            "header": "",
+            "footer": ""
+        },
+        "error": false,
+        "output": "+------------+\n| A          |\n+------------+\n| abcdef ghi |\n+-----  -----+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "headers": [
+            "A"
+        ],
+        "rows": [
+            [
+                "a\r\nb"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    3
+                ]
+            ],
+            "header": "Report",
+            "footer": "end"
+        },
+        "error": false,
+        "output": "+- Re... -+\n| A |\n+---+\n| a |\n| b |\n+- ... -+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "headers": [
+            "A"
+        ],
+        "rows": [
+            [
+                "a\r\nb"
+            ]
+        ],
+        "config": {
+            "header": "long title",
+            "footer": "long footer"
+        },
+        "error": false,
+        "output": "+- long t... -+\n| A |\n+---+\n| a |\n| b |\n+- long fo... -+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "headers": [
+            "A"
+        ],
+        "rows": [
+            [
+                "a\r\nb"
+            ]
+        ],
+        "config": {
+            "header": "",
+            "footer": ""
+        },
+        "error": false,
+        "output": "+---+\n| A |\n+---+\n| a |\n| b |\n+- ... -+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": [],
+        "error": false,
+        "output": "+---------------+---+\n|\u001b[32m A             \u001b[39m|\u001b[32m B \u001b[39m|\n+---------------+---+\n| one two three | 9 |\n| 界abc         | x |\n+---------------+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "widths": {
+                "1": 9,
+                "0": 4
+            }
+        },
+        "error": false,
+        "output": "+---------------+-----------+\n|\u001b[32m A             \u001b[39m|\u001b[32m B         \u001b[39m|\n+---------------+-----------+\n| one two three | 9         |\n| 界abc         | x         |\n+---------------+-----------+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": null,
+            "footer": null
+        },
+        "error": false,
+        "output": "+---------------+---+\n|\u001b[32m A             \u001b[39m|\u001b[32m B \u001b[39m|\n+---------------+---+\n| one two three | 9 |\n| 界abc         | x |\n+---------------+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "Header",
+            "footer": "Foot",
+            "column_footer_format": "[%s]"
+        },
+        "error": false,
+        "output": "+-----\u001b[30;47;1m Header \u001b[39;49;22m--+---+\n|\u001b[32m A             \u001b[39m|\u001b[32m B \u001b[39m|\n+---------------+---+\n| one two three | 9 |\n| 界abc         | x |\n+------[Foot]---+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "minimum": [
+                [
+                    0,
+                    10
+                ]
+            ],
+            "reset_widths": []
+        },
+        "error": false,
+        "output": "+---------------+---+\n|\u001b[32m A             \u001b[39m|\u001b[32m B \u001b[39m|\n+---------------+---+\n| one two three | 9 |\n| 界abc         | x |\n+---------------+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    3
+                ]
+            ],
+            "reset_widths": [
+                20
+            ]
+        },
+        "error": false,
+        "output": "+-----+---+\n|\u001b[32m A   \u001b[39m|\u001b[32m B \u001b[39m|\n+-----+---+\n| one | 9 |\n| two |   |\n| thr |   |\n| ee  |   |\n| 界ab | x |\n| c   |   |\n+-----+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "minimum": [
+                [
+                    0,
+                    12
+                ],
+                [
+                    1,
+                    3
+                ]
+            ]
+        },
+        "error": false,
+        "output": "+---------------+-----+\n|\u001b[32m A             \u001b[39m|\u001b[32m B   \u001b[39m|\n+---------------+-----+\n| one two three | 9   |\n| 界abc         | x   |\n+---------------+-----+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "widths": [
+                8,
+                5
+            ]
+        },
+        "error": false,
+        "output": "+---------------+-------+\n|\u001b[32m A             \u001b[39m|\u001b[32m B     \u001b[39m|\n+---------------+-------+\n| one two three | 9     |\n| 界abc         | x     |\n+---------------+-------+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "minimum": [
+                [
+                    0,
+                    -5
+                ]
+            ]
+        },
+        "error": false,
+        "output": "+---------------+---+\n|\u001b[32m A             \u001b[39m|\u001b[32m B \u001b[39m|\n+---------------+---+\n| one two three | 9 |\n| 界abc         | x |\n+---------------+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    -4
+                ]
+            ]
+        },
+        "error": true,
+        "error_type": "ValueError",
+        "output": ""
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    -1
+                ]
+            ]
+        },
+        "error": false,
+        "output": "+-+---+\n|\u001b[32m \u001b[39m\u001b[32m \u001b[39m|\u001b[32m B \u001b[39m|\n|\u001b[32m A \u001b[39m|\u001b[32m   \u001b[39m|\n+-+---+\n|  | 9 |\n| o |   |\n| n |   |\n| e |   |\n|  |   |\n| t |   |\n| w |   |\n| o |   |\n|  |   |\n| t |   |\n| h |   |\n| r |   |\n| e |   |\n| e |   |\n|  | x |\n| 界 |   |\n| a |   |\n| b |   |\n| c |   |\n+-+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    0
+                ]
+            ]
+        },
+        "error": false,
+        "output": "+--+---+\n|\u001b[32m A \u001b[39m|\u001b[32m B \u001b[39m|\n+--+---+\n| one two three | 9 |\n| 界abc | x |\n+--+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    1
+                ]
+            ]
+        },
+        "error": false,
+        "output": "+---+---+\n|\u001b[32m A \u001b[39m|\u001b[32m B \u001b[39m|\n+---+---+\n| o | 9 |\n| n |   |\n| e |   |\n| t |   |\n| w |   |\n| o |   |\n| t |   |\n| h |   |\n| r |   |\n| e |   |\n| e |   |\n| 界 | x |\n| a |   |\n| b |   |\n| c |   |\n+---+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    3
+                ]
+            ]
+        },
+        "error": false,
+        "output": "+-----+---+\n|\u001b[32m A   \u001b[39m|\u001b[32m B \u001b[39m|\n+-----+---+\n| one | 9 |\n| two |   |\n| thr |   |\n| ee  |   |\n| 界ab | x |\n| c   |   |\n+-----+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    8
+                ]
+            ]
+        },
+        "error": false,
+        "output": "+---------+---+\n|\u001b[32m A       \u001b[39m|\u001b[32m B \u001b[39m|\n+---------+---+\n| one two | 9 |\n| three   |   |\n| 界abc   | x |\n+---------+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "minimum": [
+                [
+                    0,
+                    8
+                ]
+            ],
+            "maximum": [
+                [
+                    0,
+                    3
+                ]
+            ]
+        },
+        "error": false,
+        "output": "+-----+---+\n|\u001b[32m A   \u001b[39m|\u001b[32m B \u001b[39m|\n+-----+---+\n| one | 9 |\n| two |   |\n| thr |   |\n| ee  |   |\n| 界ab | x |\n| c   |   |\n+-----+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "Report",
+            "footer": "done"
+        },
+        "error": false,
+        "output": "+-----\u001b[30;47;1m Report \u001b[39;49;22m--+---+\n|\u001b[32m A             \u001b[39m|\u001b[32m B \u001b[39m|\n+---------------+---+\n| one two three | 9 |\n| 界abc         | x |\n+------\u001b[30;47;1m done \u001b[39;49;22m---+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "a very long title",
+            "footer": "a very long footer"
+        },
+        "error": false,
+        "output": "+-\u001b[30;47;1m a very long ... \u001b[39;49;22m-+\n|\u001b[32m A             \u001b[39m|\u001b[32m B \u001b[39m|\n+---------------+---+\n| one two three | 9 |\n| 界abc         | x |\n+-\u001b[30;47;1m a very long ... \u001b[39;49;22m-+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "0",
+            "footer": "0"
+        },
+        "error": false,
+        "output": "+---------------+---+\n|\u001b[32m A             \u001b[39m|\u001b[32m B \u001b[39m|\n+---------------+---+\n| one two three | 9 |\n| 界abc         | x |\n+--------\u001b[30;47;1m 0 \u001b[39;49;22m----+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "",
+            "footer": ""
+        },
+        "error": false,
+        "output": "+---------------+---+\n|\u001b[32m A             \u001b[39m|\u001b[32m B \u001b[39m|\n+---------------+---+\n| one two three | 9 |\n| 界abc         | x |\n+--------\u001b[30;47;1m  \u001b[39;49;22m-----+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "測試 é",
+            "footer": "界"
+        },
+        "error": false,
+        "output": "+-----\u001b[30;47;1m 測試 é \u001b[39;49;22m--+---+\n|\u001b[32m A             \u001b[39m|\u001b[32m B \u001b[39m|\n+---------------+---+\n| one two three | 9 |\n| 界abc         | x |\n+-------\u001b[30;47;1m 界 \u001b[39;49;22m----+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "Report",
+            "header_format": "[<info>%s<\/info>]",
+            "footer": "end",
+            "footer_format": "{%s}"
+        },
+        "error": false,
+        "output": "+-----[\u001b[32mReport\u001b[39m]--+---+\n|\u001b[32m A             \u001b[39m|\u001b[32m B \u001b[39m|\n+---------------+---+\n| one two three | 9 |\n| 界abc         | x |\n+-------{end}---+---+\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": [],
+        "error": false,
+        "output": "┌───────────────┬───┐\n│\u001b[32m A             \u001b[39m│\u001b[32m B \u001b[39m│\n├───────────────┼───┤\n│ one two three │ 9 │\n│ 界abc         │ x │\n└───────────────┴───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "widths": {
+                "1": 9,
+                "0": 4
+            }
+        },
+        "error": false,
+        "output": "┌───────────────┬───────────┐\n│\u001b[32m A             \u001b[39m│\u001b[32m B         \u001b[39m│\n├───────────────┼───────────┤\n│ one two three │ 9         │\n│ 界abc         │ x         │\n└───────────────┴───────────┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": null,
+            "footer": null
+        },
+        "error": false,
+        "output": "┌───────────────┬───┐\n│\u001b[32m A             \u001b[39m│\u001b[32m B \u001b[39m│\n├───────────────┼───┤\n│ one two three │ 9 │\n│ 界abc         │ x │\n└───────────────┴───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "Header",
+            "footer": "Foot",
+            "column_footer_format": "[%s]"
+        },
+        "error": false,
+        "output": "┌─────\u001b[30;47;1m Header \u001b[39;49;22m──┬───┐\n│\u001b[32m A             \u001b[39m│\u001b[32m B \u001b[39m│\n├───────────────┼───┤\n│ one two three │ 9 │\n│ 界abc         │ x │\n└──────[Foot]───┴───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "minimum": [
+                [
+                    0,
+                    10
+                ]
+            ],
+            "reset_widths": []
+        },
+        "error": false,
+        "output": "┌───────────────┬───┐\n│\u001b[32m A             \u001b[39m│\u001b[32m B \u001b[39m│\n├───────────────┼───┤\n│ one two three │ 9 │\n│ 界abc         │ x │\n└───────────────┴───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    3
+                ]
+            ],
+            "reset_widths": [
+                20
+            ]
+        },
+        "error": false,
+        "output": "┌─────┬───┐\n│\u001b[32m A   \u001b[39m│\u001b[32m B \u001b[39m│\n├─────┼───┤\n│ one │ 9 │\n│ two │   │\n│ thr │   │\n│ ee  │   │\n│ 界ab │ x │\n│ c   │   │\n└─────┴───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "minimum": [
+                [
+                    0,
+                    12
+                ],
+                [
+                    1,
+                    3
+                ]
+            ]
+        },
+        "error": false,
+        "output": "┌───────────────┬─────┐\n│\u001b[32m A             \u001b[39m│\u001b[32m B   \u001b[39m│\n├───────────────┼─────┤\n│ one two three │ 9   │\n│ 界abc         │ x   │\n└───────────────┴─────┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "widths": [
+                8,
+                5
+            ]
+        },
+        "error": false,
+        "output": "┌───────────────┬───────┐\n│\u001b[32m A             \u001b[39m│\u001b[32m B     \u001b[39m│\n├───────────────┼───────┤\n│ one two three │ 9     │\n│ 界abc         │ x     │\n└───────────────┴───────┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "minimum": [
+                [
+                    0,
+                    -5
+                ]
+            ]
+        },
+        "error": false,
+        "output": "┌───────────────┬───┐\n│\u001b[32m A             \u001b[39m│\u001b[32m B \u001b[39m│\n├───────────────┼───┤\n│ one two three │ 9 │\n│ 界abc         │ x │\n└───────────────┴───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    -4
+                ]
+            ]
+        },
+        "error": true,
+        "error_type": "ValueError",
+        "output": ""
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    -1
+                ]
+            ]
+        },
+        "error": false,
+        "output": "┌─┬───┐\n│\u001b[32m \u001b[39m\u001b[32m \u001b[39m│\u001b[32m B \u001b[39m│\n│\u001b[32m A \u001b[39m│\u001b[32m   \u001b[39m│\n├─┼───┤\n│  │ 9 │\n│ o │   │\n│ n │   │\n│ e │   │\n│  │   │\n│ t │   │\n│ w │   │\n│ o │   │\n│  │   │\n│ t │   │\n│ h │   │\n│ r │   │\n│ e │   │\n│ e │   │\n│  │ x │\n│ 界 │   │\n│ a │   │\n│ b │   │\n│ c │   │\n└─┴───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    0
+                ]
+            ]
+        },
+        "error": false,
+        "output": "┌──┬───┐\n│\u001b[32m A \u001b[39m│\u001b[32m B \u001b[39m│\n├──┼───┤\n│ one two three │ 9 │\n│ 界abc │ x │\n└──┴───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    1
+                ]
+            ]
+        },
+        "error": false,
+        "output": "┌───┬───┐\n│\u001b[32m A \u001b[39m│\u001b[32m B \u001b[39m│\n├───┼───┤\n│ o │ 9 │\n│ n │   │\n│ e │   │\n│ t │   │\n│ w │   │\n│ o │   │\n│ t │   │\n│ h │   │\n│ r │   │\n│ e │   │\n│ e │   │\n│ 界 │ x │\n│ a │   │\n│ b │   │\n│ c │   │\n└───┴───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    3
+                ]
+            ]
+        },
+        "error": false,
+        "output": "┌─────┬───┐\n│\u001b[32m A   \u001b[39m│\u001b[32m B \u001b[39m│\n├─────┼───┤\n│ one │ 9 │\n│ two │   │\n│ thr │   │\n│ ee  │   │\n│ 界ab │ x │\n│ c   │   │\n└─────┴───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    8
+                ]
+            ]
+        },
+        "error": false,
+        "output": "┌─────────┬───┐\n│\u001b[32m A       \u001b[39m│\u001b[32m B \u001b[39m│\n├─────────┼───┤\n│ one two │ 9 │\n│ three   │   │\n│ 界abc   │ x │\n└─────────┴───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "minimum": [
+                [
+                    0,
+                    8
+                ]
+            ],
+            "maximum": [
+                [
+                    0,
+                    3
+                ]
+            ]
+        },
+        "error": false,
+        "output": "┌─────┬───┐\n│\u001b[32m A   \u001b[39m│\u001b[32m B \u001b[39m│\n├─────┼───┤\n│ one │ 9 │\n│ two │   │\n│ thr │   │\n│ ee  │   │\n│ 界ab │ x │\n│ c   │   │\n└─────┴───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "Report",
+            "footer": "done"
+        },
+        "error": false,
+        "output": "┌─────\u001b[30;47;1m Report \u001b[39;49;22m──┬───┐\n│\u001b[32m A             \u001b[39m│\u001b[32m B \u001b[39m│\n├───────────────┼───┤\n│ one two three │ 9 │\n│ 界abc         │ x │\n└──────\u001b[30;47;1m done \u001b[39;49;22m───┴───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "a very long title",
+            "footer": "a very long footer"
+        },
+        "error": false,
+        "output": "┌─\u001b[30;47;1m a very long ... \u001b[39;49;22m─┐\n│\u001b[32m A             \u001b[39m│\u001b[32m B \u001b[39m│\n├───────────────┼───┤\n│ one two three │ 9 │\n│ 界abc         │ x │\n└─\u001b[30;47;1m a very long ... \u001b[39;49;22m─┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "0",
+            "footer": "0"
+        },
+        "error": false,
+        "output": "┌───────────────┬───┐\n│\u001b[32m A             \u001b[39m│\u001b[32m B \u001b[39m│\n├───────────────┼───┤\n│ one two three │ 9 │\n│ 界abc         │ x │\n└────────\u001b[30;47;1m 0 \u001b[39;49;22m────┴───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "",
+            "footer": ""
+        },
+        "error": false,
+        "output": "┌───────────────┬───┐\n│\u001b[32m A             \u001b[39m│\u001b[32m B \u001b[39m│\n├───────────────┼───┤\n│ one two three │ 9 │\n│ 界abc         │ x │\n└────────\u001b[30;47;1m  \u001b[39;49;22m─────┴───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "測試 é",
+            "footer": "界"
+        },
+        "error": false,
+        "output": "┌─────\u001b[30;47;1m 測試 é \u001b[39;49;22m──┬───┐\n│\u001b[32m A             \u001b[39m│\u001b[32m B \u001b[39m│\n├───────────────┼───┤\n│ one two three │ 9 │\n│ 界abc         │ x │\n└───────\u001b[30;47;1m 界 \u001b[39;49;22m────┴───┘\n"
+    },
+    {
+        "style": "box",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "Report",
+            "header_format": "[<info>%s<\/info>]",
+            "footer": "end",
+            "footer_format": "{%s}"
+        },
+        "error": false,
+        "output": "┌─────[\u001b[32mReport\u001b[39m]──┬───┐\n│\u001b[32m A             \u001b[39m│\u001b[32m B \u001b[39m│\n├───────────────┼───┤\n│ one two three │ 9 │\n│ 界abc         │ x │\n└───────{end}───┴───┘\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": [],
+        "error": false,
+        "output": "|\u001b[32m A             \u001b[39m|\u001b[32m B \u001b[39m|\n|---------------|---|\n| one two three | 9 |\n| 界abc         | x |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "widths": {
+                "1": 9,
+                "0": 4
+            }
+        },
+        "error": false,
+        "output": "|\u001b[32m A             \u001b[39m|\u001b[32m B         \u001b[39m|\n|---------------|-----------|\n| one two three | 9         |\n| 界abc         | x         |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": null,
+            "footer": null
+        },
+        "error": false,
+        "output": "|\u001b[32m A             \u001b[39m|\u001b[32m B \u001b[39m|\n|---------------|---|\n| one two three | 9 |\n| 界abc         | x |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "Header",
+            "footer": "Foot",
+            "column_footer_format": "[%s]"
+        },
+        "error": false,
+        "output": "|\u001b[32m A             \u001b[39m|\u001b[32m B \u001b[39m|\n|-----\u001b[30;47;1m Header \u001b[39;49;22m--|---|\n| one two three | 9 |\n| 界abc         | x |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "minimum": [
+                [
+                    0,
+                    10
+                ]
+            ],
+            "reset_widths": []
+        },
+        "error": false,
+        "output": "|\u001b[32m A             \u001b[39m|\u001b[32m B \u001b[39m|\n|---------------|---|\n| one two three | 9 |\n| 界abc         | x |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    3
+                ]
+            ],
+            "reset_widths": [
+                20
+            ]
+        },
+        "error": false,
+        "output": "|\u001b[32m A   \u001b[39m|\u001b[32m B \u001b[39m|\n|-----|---|\n| one | 9 |\n| two |   |\n| thr |   |\n| ee  |   |\n| 界ab | x |\n| c   |   |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "minimum": [
+                [
+                    0,
+                    12
+                ],
+                [
+                    1,
+                    3
+                ]
+            ]
+        },
+        "error": false,
+        "output": "|\u001b[32m A             \u001b[39m|\u001b[32m B   \u001b[39m|\n|---------------|-----|\n| one two three | 9   |\n| 界abc         | x   |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "widths": [
+                8,
+                5
+            ]
+        },
+        "error": false,
+        "output": "|\u001b[32m A             \u001b[39m|\u001b[32m B     \u001b[39m|\n|---------------|-------|\n| one two three | 9     |\n| 界abc         | x     |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "minimum": [
+                [
+                    0,
+                    -5
+                ]
+            ]
+        },
+        "error": false,
+        "output": "|\u001b[32m A             \u001b[39m|\u001b[32m B \u001b[39m|\n|---------------|---|\n| one two three | 9 |\n| 界abc         | x |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    -4
+                ]
+            ]
+        },
+        "error": true,
+        "error_type": "ValueError",
+        "output": "|\u001b[32m \u001b[39m\u001b[32m \u001b[39m|\u001b[32m B \u001b[39m|\n|\u001b[32m A \u001b[39m|\u001b[32m   \u001b[39m|\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    -1
+                ]
+            ]
+        },
+        "error": false,
+        "output": "|\u001b[32m \u001b[39m\u001b[32m \u001b[39m|\u001b[32m B \u001b[39m|\n|\u001b[32m A \u001b[39m|\u001b[32m   \u001b[39m|\n|-|---|\n|  | 9 |\n| o |   |\n| n |   |\n| e |   |\n|  |   |\n| t |   |\n| w |   |\n| o |   |\n|  |   |\n| t |   |\n| h |   |\n| r |   |\n| e |   |\n| e |   |\n|  | x |\n| 界 |   |\n| a |   |\n| b |   |\n| c |   |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    0
+                ]
+            ]
+        },
+        "error": false,
+        "output": "|\u001b[32m A \u001b[39m|\u001b[32m B \u001b[39m|\n|--|---|\n| one two three | 9 |\n| 界abc | x |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    1
+                ]
+            ]
+        },
+        "error": false,
+        "output": "|\u001b[32m A \u001b[39m|\u001b[32m B \u001b[39m|\n|---|---|\n| o | 9 |\n| n |   |\n| e |   |\n| t |   |\n| w |   |\n| o |   |\n| t |   |\n| h |   |\n| r |   |\n| e |   |\n| e |   |\n| 界 | x |\n| a |   |\n| b |   |\n| c |   |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    3
+                ]
+            ]
+        },
+        "error": false,
+        "output": "|\u001b[32m A   \u001b[39m|\u001b[32m B \u001b[39m|\n|-----|---|\n| one | 9 |\n| two |   |\n| thr |   |\n| ee  |   |\n| 界ab | x |\n| c   |   |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    8
+                ]
+            ]
+        },
+        "error": false,
+        "output": "|\u001b[32m A       \u001b[39m|\u001b[32m B \u001b[39m|\n|---------|---|\n| one two | 9 |\n| three   |   |\n| 界abc   | x |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "minimum": [
+                [
+                    0,
+                    8
+                ]
+            ],
+            "maximum": [
+                [
+                    0,
+                    3
+                ]
+            ]
+        },
+        "error": false,
+        "output": "|\u001b[32m A   \u001b[39m|\u001b[32m B \u001b[39m|\n|-----|---|\n| one | 9 |\n| two |   |\n| thr |   |\n| ee  |   |\n| 界ab | x |\n| c   |   |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "Report",
+            "footer": "done"
+        },
+        "error": false,
+        "output": "|\u001b[32m A             \u001b[39m|\u001b[32m B \u001b[39m|\n|-----\u001b[30;47;1m Report \u001b[39;49;22m--|---|\n| one two three | 9 |\n| 界abc         | x |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "a very long title",
+            "footer": "a very long footer"
+        },
+        "error": false,
+        "output": "|\u001b[32m A             \u001b[39m|\u001b[32m B \u001b[39m|\n|-\u001b[30;47;1m a very long ... \u001b[39;49;22m-|\n| one two three | 9 |\n| 界abc         | x |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "0",
+            "footer": "0"
+        },
+        "error": false,
+        "output": "|\u001b[32m A             \u001b[39m|\u001b[32m B \u001b[39m|\n|---------------|---|\n| one two three | 9 |\n| 界abc         | x |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "",
+            "footer": ""
+        },
+        "error": false,
+        "output": "|\u001b[32m A             \u001b[39m|\u001b[32m B \u001b[39m|\n|---------------|---|\n| one two three | 9 |\n| 界abc         | x |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "測試 é",
+            "footer": "界"
+        },
+        "error": false,
+        "output": "|\u001b[32m A             \u001b[39m|\u001b[32m B \u001b[39m|\n|-----\u001b[30;47;1m 測試 é \u001b[39;49;22m--|---|\n| one two three | 9 |\n| 界abc         | x |\n"
+    },
+    {
+        "style": "markdown",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "Report",
+            "header_format": "[<info>%s<\/info>]",
+            "footer": "end",
+            "footer_format": "{%s}"
+        },
+        "error": false,
+        "output": "|\u001b[32m A             \u001b[39m|\u001b[32m B \u001b[39m|\n|-----[\u001b[32mReport\u001b[39m]--|---|\n| one two three | 9 |\n| 界abc         | x |\n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": [],
+        "error": false,
+        "output": "\u001b[32mA             \u001b[39m\u001b[32mB \u001b[39m\none two three 9 \n界abc         x \n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "widths": {
+                "1": 9,
+                "0": 4
+            }
+        },
+        "error": false,
+        "output": "\u001b[32mA             \u001b[39m\u001b[32mB         \u001b[39m\none two three 9         \n界abc         x         \n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": null,
+            "footer": null
+        },
+        "error": false,
+        "output": "\u001b[32mA             \u001b[39m\u001b[32mB \u001b[39m\none two three 9 \n界abc         x \n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "Header",
+            "footer": "Foot",
+            "column_footer_format": "[%s]"
+        },
+        "error": false,
+        "output": "\u001b[32mA             \u001b[39m\u001b[32mB \u001b[39m\none two three 9 \n界abc         x \n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "minimum": [
+                [
+                    0,
+                    10
+                ]
+            ],
+            "reset_widths": []
+        },
+        "error": false,
+        "output": "\u001b[32mA             \u001b[39m\u001b[32mB \u001b[39m\none two three 9 \n界abc         x \n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    3
+                ]
+            ],
+            "reset_widths": [
+                20
+            ]
+        },
+        "error": false,
+        "output": "\u001b[32mA   \u001b[39m\u001b[32mB \u001b[39m\none 9 \ntwo   \nthr   \nee    \n界ab x \nc     \n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "minimum": [
+                [
+                    0,
+                    12
+                ],
+                [
+                    1,
+                    3
+                ]
+            ]
+        },
+        "error": false,
+        "output": "\u001b[32mA             \u001b[39m\u001b[32mB   \u001b[39m\none two three 9   \n界abc         x   \n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "widths": [
+                8,
+                5
+            ]
+        },
+        "error": false,
+        "output": "\u001b[32mA             \u001b[39m\u001b[32mB     \u001b[39m\none two three 9     \n界abc         x     \n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "minimum": [
+                [
+                    0,
+                    -5
+                ]
+            ]
+        },
+        "error": false,
+        "output": "\u001b[32mA             \u001b[39m\u001b[32mB \u001b[39m\none two three 9 \n界abc         x \n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    -4
+                ]
+            ]
+        },
+        "error": false,
+        "output": "\u001b[32m \u001b[39m\u001b[32mB \u001b[39m\n\u001b[32mA \u001b[39m\u001b[32m  \u001b[39m\n 9 \no   \nn   \ne   \n   \nt   \nw   \no   \n   \nt   \nh   \nr   \ne   \ne   \n x \n界   \na   \nb   \nc   \n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    -1
+                ]
+            ]
+        },
+        "error": false,
+        "output": "\u001b[32m \u001b[39m\u001b[32mB \u001b[39m\n\u001b[32mA \u001b[39m\u001b[32m  \u001b[39m\n 9 \no   \nn   \ne   \n   \nt   \nw   \no   \n   \nt   \nh   \nr   \ne   \ne   \n x \n界   \na   \nb   \nc   \n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    0
+                ]
+            ]
+        },
+        "error": false,
+        "output": "\u001b[32mA \u001b[39m\u001b[32mB \u001b[39m\none two three 9 \n界abc x \n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    1
+                ]
+            ]
+        },
+        "error": false,
+        "output": "\u001b[32mA \u001b[39m\u001b[32mB \u001b[39m\no 9 \nn   \ne   \nt   \nw   \no   \nt   \nh   \nr   \ne   \ne   \n界 x \na   \nb   \nc   \n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    3
+                ]
+            ]
+        },
+        "error": false,
+        "output": "\u001b[32mA   \u001b[39m\u001b[32mB \u001b[39m\none 9 \ntwo   \nthr   \nee    \n界ab x \nc     \n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    8
+                ]
+            ]
+        },
+        "error": false,
+        "output": "\u001b[32mA       \u001b[39m\u001b[32mB \u001b[39m\none two 9 \nthree     \n界abc   x \n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "minimum": [
+                [
+                    0,
+                    8
+                ]
+            ],
+            "maximum": [
+                [
+                    0,
+                    3
+                ]
+            ]
+        },
+        "error": false,
+        "output": "\u001b[32mA   \u001b[39m\u001b[32mB \u001b[39m\none 9 \ntwo   \nthr   \nee    \n界ab x \nc     \n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "Report",
+            "footer": "done"
+        },
+        "error": false,
+        "output": "\u001b[32mA             \u001b[39m\u001b[32mB \u001b[39m\none two three 9 \n界abc         x \n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "a very long title",
+            "footer": "a very long footer"
+        },
+        "error": false,
+        "output": "\u001b[32mA             \u001b[39m\u001b[32mB \u001b[39m\none two three 9 \n界abc         x \n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "0",
+            "footer": "0"
+        },
+        "error": false,
+        "output": "\u001b[32mA             \u001b[39m\u001b[32mB \u001b[39m\none two three 9 \n界abc         x \n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "",
+            "footer": ""
+        },
+        "error": false,
+        "output": "\u001b[32mA             \u001b[39m\u001b[32mB \u001b[39m\none two three 9 \n界abc         x \n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "測試 é",
+            "footer": "界"
+        },
+        "error": false,
+        "output": "\u001b[32mA             \u001b[39m\u001b[32mB \u001b[39m\none two three 9 \n界abc         x \n"
+    },
+    {
+        "style": "compact",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one two three",
+                "9"
+            ],
+            [
+                "界abc",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "Report",
+            "header_format": "[<info>%s<\/info>]",
+            "footer": "end",
+            "footer_format": "{%s}"
+        },
+        "error": false,
+        "output": "\u001b[32mA             \u001b[39m\u001b[32mB \u001b[39m\none two three 9 \n界abc         x \n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "headers": [],
+        "rows": [
+            [
+                "hello world",
+                "x"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    3
+                ]
+            ],
+            "header": "Report",
+            "footer": "end"
+        },
+        "error": false,
+        "output": "+-\u001b[30;47;1m Re... \u001b[39;49;22m-+\n| hel | x |\n| lo  |   |\n| wor |   |\n| ld  |   |\n+--\u001b[30;47;1m end \u001b[39;49;22m--+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "headers": [],
+        "rows": [
+            [
+                "hello world",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "long title",
+            "footer": "long footer"
+        },
+        "error": false,
+        "output": "+--\u001b[30;47;1m long title \u001b[39;49;22m---+\n| hello world | x |\n+--\u001b[30;47;1m long footer \u001b[39;49;22m--+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "headers": [],
+        "rows": [
+            [
+                "hello world",
+                "x"
+            ]
+        ],
+        "config": {
+            "header": "",
+            "footer": ""
+        },
+        "error": false,
+        "output": "+-------------+---+\n| hello world | x |\n+-------\u001b[30;47;1m  \u001b[39;49;22m----+---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    3
+                ]
+            ],
+            "header": "Report",
+            "footer": "end"
+        },
+        "error": false,
+        "output": "+-\u001b[30;47;1m ... \u001b[39;49;22m-+\n|\u001b[32m A \u001b[39m|\u001b[32m B \u001b[39m|\n+-\u001b[30;47;1m end \u001b[39;49;22m-+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "config": {
+            "header": "long title",
+            "footer": "long footer"
+        },
+        "error": false,
+        "output": "+-\u001b[30;47;1m ... \u001b[39;49;22m-+\n|\u001b[32m A \u001b[39m|\u001b[32m B \u001b[39m|\n+-\u001b[30;47;1m ... \u001b[39;49;22m-+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [],
+        "config": {
+            "header": "",
+            "footer": ""
+        },
+        "error": false,
+        "output": "+---+---+\n|\u001b[32m A \u001b[39m|\u001b[32m B \u001b[39m|\n+--\u001b[30;47;1m  \u001b[39;49;22m---+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "headers": [
+            "A"
+        ],
+        "rows": [
+            [
+                "<info>abcdef ghi<\/info>"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    3
+                ]
+            ],
+            "header": "Report",
+            "footer": "end"
+        },
+        "error": false,
+        "output": "+-\u001b[30;47;1m Repo... \u001b[39;49;22m-+\n|\u001b[32m A   \u001b[39m|\n+-----+\n| \u001b[32mabc\u001b[39m |\n| \u001b[32mdef\u001b[39m |\n| \u001b[32mghi\u001b[39m |\n+-\u001b[30;47;1m e... \u001b[39;49;22m-+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "headers": [
+            "A"
+        ],
+        "rows": [
+            [
+                "<info>abcdef ghi<\/info>"
+            ]
+        ],
+        "config": {
+            "header": "long title",
+            "footer": "long footer"
+        },
+        "error": false,
+        "output": "+-\u001b[30;47;1m long ... \u001b[39;49;22m-+\n|\u001b[32m A          \u001b[39m|\n+------------+\n| \u001b[32mabcdef ghi\u001b[39m |\n+-\u001b[30;47;1m long ... \u001b[39;49;22m-+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "headers": [
+            "A"
+        ],
+        "rows": [
+            [
+                "<info>abcdef ghi<\/info>"
+            ]
+        ],
+        "config": {
+            "header": "",
+            "footer": ""
+        },
+        "error": false,
+        "output": "+------------+\n|\u001b[32m A          \u001b[39m|\n+------------+\n| \u001b[32mabcdef ghi\u001b[39m |\n+-----\u001b[30;47;1m  \u001b[39;49;22m-----+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "headers": [
+            "A"
+        ],
+        "rows": [
+            [
+                "a\r\nb"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    3
+                ]
+            ],
+            "header": "Report",
+            "footer": "end"
+        },
+        "error": false,
+        "output": "+-\u001b[30;47;1m Re... \u001b[39;49;22m-+\n|\u001b[32m A \u001b[39m|\n+---+\n| a |\n| b |\n+-\u001b[30;47;1m ... \u001b[39;49;22m-+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "headers": [
+            "A"
+        ],
+        "rows": [
+            [
+                "a\r\nb"
+            ]
+        ],
+        "config": {
+            "header": "long title",
+            "footer": "long footer"
+        },
+        "error": false,
+        "output": "+-\u001b[30;47;1m long t... \u001b[39;49;22m-+\n|\u001b[32m A \u001b[39m|\n+---+\n| a |\n| b |\n+-\u001b[30;47;1m long fo... \u001b[39;49;22m-+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "headers": [
+            "A"
+        ],
+        "rows": [
+            [
+                "a\r\nb"
+            ]
+        ],
+        "config": {
+            "header": "",
+            "footer": ""
+        },
+        "error": false,
+        "output": "+---+\n|\u001b[32m A \u001b[39m|\n+---+\n| a |\n| b |\n+-\u001b[30;47;1m ... \u001b[39;49;22m-+\n"
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "headers": [
+            "A"
+        ],
+        "rows": [
+            [
+                "long text"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    0
+                ]
+            ]
+        },
+        "non_wrappable": true,
+        "error": true,
+        "error_type": "LogicException",
+        "output": ""
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "headers": [
+            "A"
+        ],
+        "rows": [
+            [
+                "long text"
+            ]
+        ],
+        "config": {
+            "maximum": [
+                [
+                    0,
+                    3
+                ]
+            ]
+        },
+        "non_wrappable": true,
+        "error": true,
+        "error_type": "LogicException",
+        "output": ""
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "headers": [
+            "Name",
+            "Count"
+        ],
+        "rows": [
+            [
+                "longer name",
+                "42"
+            ]
+        ],
+        "config": {
+            "widths": [
+                12,
+                8
+            ],
+            "maximum": [
+                [
+                    0,
+                    8
+                ]
+            ],
+            "header": "Report",
+            "footer": "done",
+            "header_format": "[%s]"
+        },
+        "error": false,
+        "output": "+------[Report]-------+\n| Name     | Count    |\n+----------+----------+\n| longer   | 42       |\n| name     |          |\n+------- done --------+\n"
+    },
+    {
+        "style": "default",
+        "decorated": true,
+        "headers": [
+            "Name",
+            "Count"
+        ],
+        "rows": [
+            [
+                "longer name",
+                "42"
+            ]
+        ],
+        "config": {
+            "widths": [
+                12,
+                8
+            ],
+            "maximum": [
+                [
+                    0,
+                    8
+                ]
+            ],
+            "header": "Report",
+            "footer": "done",
+            "header_format": "[%s]"
+        },
+        "error": false,
+        "output": "+------[Report]-------+\n|\u001b[32m Name     \u001b[39m|\u001b[32m Count    \u001b[39m|\n+----------+----------+\n| longer   | 42       |\n| name     |          |\n+-------\u001b[30;47;1m done \u001b[39;49;22m--------+\n"
+    }
+]

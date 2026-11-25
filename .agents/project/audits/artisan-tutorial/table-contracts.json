@@ -1,6 +1,6 @@
 {
   "reference": "Symfony Console v7.4.0 and fixed framework 1449bf241017087fbd38c118ecaabef3f6797fdc",
-  "scope": "Rectangular table tutorial and directly exposed style/column-style variants; this inventory does not assert that the entire helper SDK is complete.",
+  "scope": "Rectangular tutorial, owned styles and title/minimum/maximum width SDK with actual custom wrapping dispatch; mutable named registries, orientation, complex rows/cells/sections remain open.",
   "classes": {
     "Table": [
       {
@@ -30,8 +30,13 @@
       {
         "method": "getStyle",
         "source_line": 100,
-        "status": "verified_rectangular_tutorial_scope",
-        "native": "console::Table::get_style"
+        "status": "verified_readonly_and_mutable_table_owned_style",
+        "native": "console::Table::get_style",
+        "native_mut": "console::Table::get_style_mut",
+        "evidence": [
+          "console_tables_tutorial",
+          "console_table_layout"
+        ]
       },
       {
         "method": "setColumnStyle",
@@ -42,26 +47,47 @@
       {
         "method": "getColumnStyle",
         "source_line": 124,
-        "status": "verified_rectangular_tutorial_scope",
-        "native": "console::Table::get_column_style"
+        "status": "verified_readonly_and_mutable_table_owned_style",
+        "native": "console::Table::get_column_style",
+        "native_mut": "console::Table::get_column_style_mut",
+        "evidence": [
+          "console_tables_tutorial",
+          "console_table_layout"
+        ]
       },
       {
         "method": "setColumnWidth",
         "source_line": 134,
-        "status": "pending_sdk_entry_and_consumer_review",
-        "native": null
+        "status": "verified_title_width_and_active_wrappable_formatter_contract",
+        "native": "console::Table::set_column_width",
+        "evidence": [
+          "console_table_layout",
+          "table-layout-oracle.json",
+          "table-wrappable-oracle.json"
+        ]
       },
       {
         "method": "setColumnWidths",
         "source_line": 146,
-        "status": "pending_sdk_entry_and_consumer_review",
-        "native": null
+        "status": "verified_title_width_and_active_wrappable_formatter_contract",
+        "native": "console::Table::set_column_widths",
+        "evidence": [
+          "console_table_layout",
+          "table-layout-oracle.json",
+          "table-wrappable-oracle.json"
+        ],
+        "native_indexed": "console::Table::set_column_widths_with_keys"
       },
       {
         "method": "setColumnMaxWidth",
         "source_line": 164,
-        "status": "pending_sdk_entry_and_consumer_review",
-        "native": null
+        "status": "verified_title_width_and_active_wrappable_formatter_contract",
+        "native": "console::Table::set_column_max_width",
+        "evidence": [
+          "console_table_layout",
+          "table-layout-oracle.json",
+          "table-wrappable-oracle.json"
+        ]
       },
       {
         "method": "setHeaders",
@@ -102,14 +128,24 @@
       {
         "method": "setHeaderTitle",
         "source_line": 262,
-        "status": "pending_sdk_entry_and_consumer_review",
-        "native": null
+        "status": "verified_title_width_and_active_wrappable_formatter_contract",
+        "native": "console::Table::set_header_title",
+        "evidence": [
+          "console_table_layout",
+          "table-layout-oracle.json",
+          "table-wrappable-oracle.json"
+        ]
       },
       {
         "method": "setFooterTitle",
         "source_line": 272,
-        "status": "pending_sdk_entry_and_consumer_review",
-        "native": null
+        "status": "verified_title_width_and_active_wrappable_formatter_contract",
+        "native": "console::Table::set_footer_title",
+        "evidence": [
+          "console_table_layout",
+          "table-layout-oracle.json",
+          "table-wrappable-oracle.json"
+        ]
       },
       {
         "method": "setHorizontal",
@@ -360,11 +396,16 @@
     "Owned JSON scalar conversions and explicit Display adapter preserve text without PHP runtime object identity.",
     "Native Result propagates typed configuration, formatting and invalid UTF-8 padding errors; invalid bytes cannot be returned as a Rust String.",
     "The public symfony-style-guide preset name is retained as a compatibility identifier.",
-    "PHP engine diagnostics such as NAN-to-string warnings are retained in reference evidence; the native typed scalar conversion returns NAN without emulating VM warnings."
+    "PHP engine diagnostics such as NAN-to-string warnings are retained in reference evidence; the native typed scalar conversion returns NAN without emulating VM warnings.",
+    "Keep existing read-only style getters and add _mut variants for safe mutable borrowing; no return-type break or dynamic mutable alias.",
+    "Column indices remain native usize like existing column-style methods; signed i64 widths retain zero/negative rendering behavior. Sequential and indexed bulk variants express source array shapes without changing CLI/data formats.",
+    "Propagate typed ConsoleTableError for unsupported wrapping or invalid effective widths, preserving source failure stage and already emitted output. Header Option<&str> clearing maps source nullable strings.",
+    "PreparedLayout is private derived data, not another renderer. Source Table only expands a formatter result containing LF; otherwise original text, including raw newlines, is retained. Actual custom interface calls and output compared to source."
   ],
   "remaining_sdk": [
-    "Named mutable style registry and SDK row/title/orientation/width operations",
+    "Named mutable style definitions and shared reference lifecycle",
+    "Row mutation/append, orientations and explicit sections",
     "Multiple header rows, explicit separators, colspan/rowspan and per-cell style",
-    "OutputStyle inherited table/create_table layout and counters remain separately reviewed in io-contracts"
+    "OutputStyle inherited table/create_table layout/counters and other component SDK remain separately reviewed in io-contracts"
   ]
 }

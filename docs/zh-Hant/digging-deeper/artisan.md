@@ -922,3 +922,37 @@ fn register_colors() -> Result<(), ConsoleError> {
 `AnsiColorMode::{Ansi4, Ansi8, Ansi24}` 提供 `convert_from_hex_to_ansi_color_code`。`Terminal::get_color_mode()` 優先辨識 COLORTERM，再辨識 TERM，並快取首次結果；預設 `Terminal::DEFAULT_COLOR_MODE` 為 Ansi4。`Terminal::set_color_mode(Some(mode))` 強制處理程序層級模式，傳 `None` 重設辨識。應在啟動時設定，不要按請求切換。已有 Color 物件保留已編譯序列，後續建立物件或重建樣式時使用目前模式。
 
 `Terminal::get_width`、`get_height` 每次讀取 COLUMNS、LINES，包括零、負數與數值前綴。沒有覆蓋值時快取原生裝置尺寸，缺失則分別回退至 80 欄、50 列。Unix 直接讀取標準輸入終端裝置，即使 stdout、stderr 被重新導向亦可取得；Windows 優先使用設定的 ANSICON，否則讀取原生主控台。`has_stty_available()` 單獨快取 stty 查詢結果，一般尺寸讀取不啟動外部命令。Windows 實際執行仍歸平台發行驗收。
+
+## 表格欄寬與標題 {#table-layout-controls}
+
+用 `set_column_width` 設定單欄最小寬度，`set_column_widths` 設定連續欄列表；批次設定會替換先前的最小寬度。稀疏欄可用 `set_column_widths_with_keys` 傳入索引對。`set_column_max_width` 會立即檢查目前格式器的換行能力，不支援時傳回錯誤；內建格式器已支援。最大寬度優先於最小寬度。
+
+```rust
+use openrust::{
+    console::{ConsoleError, Input, Output, Table},
+    support::facades::Artisan,
+};
+
+fn register_layout() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:layout", |input: &Input, output: &mut Output| {
+        let mut io = input.io(output);
+        let mut table = Table::new(io.get_output());
+        table.set_headers(["Name", "Count"])
+            .set_rows([["longer name", "42"]])
+            .set_column_widths([12, 8])
+            .set_header_title(Some("Report"))
+            .set_footer_title(Some("done"));
+        table.set_column_max_width(0, 8)?;
+        table.get_style_mut().set_header_title_format("[%s]");
+        table.render()?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
+表頭／表尾標題使用 `set_header_title`、`set_footer_title`，傳 `None` 清除。表頭將空文字與 "0" 視為無標題，明確空表尾仍使用標題格式。`get_style_mut`、`get_column_style_mut` 提供可變存取，同時保留原來的唯讀 getter。未設定的欄回退至表格本身的實際樣式。
+
+寬度保留帶符號值，非正數按繪製規則處理，不默默替換為預設值。最大寬度為零不換行；不相容的有效寬度可能在先前已有輸出後才於繪製時失敗，應傳播 `render` 錯誤。換行複用目前的 `WrappableOutputFormatterInterface`，亦支援自訂實作。標題按可見寬度與格式置中、截斷。具名可變註冊表、複雜列與合併儲存格仍為單獨的 SDK 入口。
+
+表格僅在換行結果含 LF 時採用它來拆列；否則保留原儲存格，原始換行亦保持原樣，不展開成表格列。自訂換行介面不是一般儲存格內容轉換掛鉤。

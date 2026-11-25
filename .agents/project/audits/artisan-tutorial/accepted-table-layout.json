@@ -1,0 +1,72 @@
+{
+  "scope": "Artisan phase20 table minimum/maximum widths, titles, mutable access and custom wrapping consumer",
+  "base_snapshot": {
+    "head": "6cb7cc2dbd351ad0528e64499636cb9f685637dd",
+    "scope": "Table advanced layout APIs; source reset to committed tree only, active root WIP excluded"
+  },
+  "source_sha256": {
+    "vendor/openrust/framework/src/console/table.rs": "12d4198f453fa7e1bfa07ff08d7c4fec594539131e168484db7ad3db31313f9e",
+    "vendor/openrust/framework/src/console/table/layout.rs": "6a643b59cbf7726123e7f78f3d407a48033a61d11da5726c2dd2ceb22ecaf2b4",
+    "vendor/openrust/framework/src/console/table/error.rs": "71874338bfb5c6c3cdb476ca98da811bdb8cf191523897177fc5b624dd47f6f3",
+    "vendor/openrust/framework/tests/console_table_layout.rs": "fd771d61f4590ab426490eeb190f4d415930d42b4807999a4f54081772f18b38",
+    "tests/artisan_tutorial_docs.py": "26074bc10e6f6be1e22f1b70d3e73ca1b2275cbf281293af9e0dd79a98755139",
+    "docs/tests/check_artisan_tutorial.mjs": "21871b6b255abf59ba2b6492e396f6e1e487bac08e294b88effb346660b97ab7",
+    "docs/en/digging-deeper/artisan.md": "0c730a8bfdaf885f9f0a08d14e7577259558ff49c0d2f015a8ae977cfc9b7153",
+    "docs/zh-Hans/digging-deeper/artisan.md": "644685bd23c77b4720927ce763faece18bf973f2efe8c6348cfca744c5b3d95b",
+    "docs/zh-Hant/digging-deeper/artisan.md": "6722d02becaf9cbed8668ac00505261bd7a91612493130952189cd1ac044d859",
+    ".agents/project/audits/artisan-tutorial/table-layout-oracle.json": "ade5e855bff10836304cfb6cd5e4629cb9e41597c3b296930c78c2720e8eee6e",
+    ".agents/project/audits/artisan-tutorial/table-wrappable-oracle.json": "f64fea9c87921368ee09922a55ea24253a82578adfbf14122313b86a4f54b5e4",
+    ".agents/project/audits/artisan-tutorial/table-contracts.json": "dadab227e92e76d5462d054313fb633821c6696bc84bbfe37581923e0c56cf96",
+    ".agents/project/audits/artisan-tutorial/section-map.json": "eb8274058718a88b0eaa5baa93dbff567b14fb79795cfb6f177099e6779f439c"
+  },
+  "gates": [
+    {
+      "name": "format",
+      "returncode": 0
+    },
+    {
+      "name": "final-framework",
+      "returncode": 0
+    },
+    {
+      "name": "final-root",
+      "returncode": 0
+    },
+    {
+      "name": "final-fmt",
+      "returncode": 0
+    },
+    {
+      "name": "final-clippy",
+      "returncode": 0
+    },
+    {
+      "name": "final-main",
+      "returncode": 0
+    },
+    {
+      "name": "final-docs",
+      "returncode": 0
+    }
+  ],
+  "final_gates_log": "target/tmp/artisan-tutorial-20261125/table-layout-gates2.log",
+  "passed": {
+    "framework": 94,
+    "root": 104
+  },
+  "unique_parent_tests": 198,
+  "ignored_driven_fixtures_excluded": 13,
+  "formal_trilingual_examples": 63,
+  "fixed_layout_source_cases": 204,
+  "fixed_custom_wrappable_source_cases": 6,
+  "prior_rectangular_source_cases": 149,
+  "strict_clippy_seconds": 65,
+  "browser_cases": 12,
+  "real_http": true,
+  "real_artisan": true,
+  "limitations": [
+    "Only the named scope is closed, not full Table/SymfonyStyle/Artisan",
+    "No platform release/Windows or new database-driver acceptance claimed",
+    "Other actors active WIP excluded; snapshot base and own SHA recorded, not a claim of entire current live worktree validation"
+  ]
+}

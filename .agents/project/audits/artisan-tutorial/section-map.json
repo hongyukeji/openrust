@@ -334,13 +334,16 @@
     },
     {
       "anchor": "tables",
-      "status": "verified_rectangular_tutorial_remaining_helper_contracts",
+      "status": "verified_rectangular_titles_widths_and_wrapping_remaining_complex_helper_sdk",
       "evidence": [
         "console_tables_tutorial",
         "table-oracle.json",
         "table-contracts.json",
         "table-final-cli-gates.log",
-        "formal_tables_example"
+        "formal_tables_example",
+        "table-layout-oracle.json",
+        "table-wrappable-oracle.json",
+        "accepted-table-layout.json"
       ],
       "native": "console::CommandIo::table",
       "remaining": [

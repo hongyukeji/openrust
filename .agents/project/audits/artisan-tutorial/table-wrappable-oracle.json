@@ -1,0 +1,68 @@
+[
+    {
+        "text": "long text",
+        "answer": "",
+        "output": "+----+\n| A  |\n+----+\n| long text |\n+----+\n",
+        "calls": [
+            [
+                "long text",
+                2
+            ]
+        ]
+    },
+    {
+        "text": "long text",
+        "answer": "X",
+        "output": "+----+\n| A  |\n+----+\n| long text |\n+----+\n",
+        "calls": [
+            [
+                "long text",
+                2
+            ]
+        ]
+    },
+    {
+        "text": "long text",
+        "answer": "X\nY",
+        "output": "+---+\n| A |\n+---+\n| X |\n| Y |\n+---+\n",
+        "calls": [
+            [
+                "long text",
+                2
+            ]
+        ]
+    },
+    {
+        "text": "aa\nbb",
+        "answer": "",
+        "output": "+----+\n| A  |\n+----+\n| aa\nbb |\n+----+\n",
+        "calls": [
+            [
+                "aa\nbb",
+                2
+            ]
+        ]
+    },
+    {
+        "text": "aa\nbb",
+        "answer": "X",
+        "output": "+----+\n| A  |\n+----+\n| aa\nbb |\n+----+\n",
+        "calls": [
+            [
+                "aa\nbb",
+                2
+            ]
+        ]
+    },
+    {
+        "text": "aa\nbb",
+        "answer": "X\nY",
+        "output": "+---+\n| A |\n+---+\n| X |\n| Y |\n+---+\n",
+        "calls": [
+            [
+                "aa\nbb",
+                2
+            ]
+        ]
+    }
+]

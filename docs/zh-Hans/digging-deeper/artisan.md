@@ -922,3 +922,37 @@ fn register_colors() -> Result<(), ConsoleError> {
 `AnsiColorMode::{Ansi4, Ansi8, Ansi24}` 提供 `convert_from_hex_to_ansi_color_code`。`Terminal::get_color_mode()` 优先识别 COLORTERM，再识别 TERM，并缓存首次结果；默认 `Terminal::DEFAULT_COLOR_MODE` 为 Ansi4。`Terminal::set_color_mode(Some(mode))` 强制进程级模式，传 `None` 重置识别。应在启动时配置，不要按请求切换。已有 Color 对象保留已编译序列，后续创建对象或重建样式时使用当前模式。
 
 `Terminal::get_width`、`get_height` 每次读取 COLUMNS、LINES，包括零、负数和数值前缀。没有覆盖值时缓存原生设备尺寸，缺失则分别回退到 80 列、50 行。Unix 直接读取标准输入终端设备，即使 stdout、stderr 被重定向也可获取；Windows 优先使用配置的 ANSICON，否则读取原生控制台。`has_stty_available()` 单独缓存 stty 查询结果，普通尺寸读取不启动外部命令。Windows 实际执行仍归平台发布验收。
+
+## 表格列宽与标题 {#table-layout-controls}
+
+用 `set_column_width` 设置单列最小宽度，`set_column_widths` 设置连续列列表；批量设置会替换此前的最小宽度。稀疏列可用 `set_column_widths_with_keys` 传入索引对。`set_column_max_width` 会立即检查当前格式器的换行能力，不支持时返回错误；内置格式器已支持。最大宽度优先于最小宽度。
+
+```rust
+use openrust::{
+    console::{ConsoleError, Input, Output, Table},
+    support::facades::Artisan,
+};
+
+fn register_layout() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:layout", |input: &Input, output: &mut Output| {
+        let mut io = input.io(output);
+        let mut table = Table::new(io.get_output());
+        table.set_headers(["Name", "Count"])
+            .set_rows([["longer name", "42"]])
+            .set_column_widths([12, 8])
+            .set_header_title(Some("Report"))
+            .set_footer_title(Some("done"));
+        table.set_column_max_width(0, 8)?;
+        table.get_style_mut().set_header_title_format("[%s]");
+        table.render()?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
+表头／表尾标题使用 `set_header_title`、`set_footer_title`，传 `None` 清除。表头将空文本和 "0" 视为无标题，显式空表尾仍使用标题格式。`get_style_mut`、`get_column_style_mut` 提供可变访问，同时保留原来的只读 getter。未配置的列回退到表格本身的实际样式。
+
+宽度保留有符号值，非正数按渲染规则处理，不静默替换为默认值。最大宽度为零不换行；不兼容的有效宽度可能在此前已有输出后才于渲染期失败，应传播 `render` 错误。换行复用当前 `WrappableOutputFormatterInterface`，也支持自定义实现。标题按可见宽度和格式居中、截断。命名可变注册表、复杂行与合并单元格仍为单独的 SDK 入口。
+
+表格仅在换行结果含 LF 时采用它来拆行；否则保留原单元格，原始换行也保持原样，不展开成表格行。自定义换行接口不是通用单元格内容转换钩子。
