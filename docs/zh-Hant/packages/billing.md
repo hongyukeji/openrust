@@ -21,6 +21,12 @@ Stripe API 固定為 `2026-11-18.endive`；Webhook 使用相同版本。正式�
 
 `Cashier::driver("stripe")`、`Cashier::default_driver()` 在應用作用域解析帳戶。`CashierManager::get_default_driver()` 回傳設定名稱；`forget_drivers()` 後新解析實例載入新設定，已持有實例保留原憑證快照。啟用設定快取時保留快取快照；變更環境後需按[設定文件](../getting-started/configuration.md)重建快取。
 
+## 具名帳戶 HTTP 中介軟體 {#account-http}
+
+在應用程式 Provider 解析 `CashierManager`，再呼叫 `set_http_factory(account, Some(factory))`，傳入該帳戶專用的 `Arc<openrust::http::client::Factory>`。用此 Factory 註冊可信請求中介軟體或測試替身。中介軟體可以讀取對外計費請求，須由伺服器控制，避免將憑據和本文寫入記錄。之後解析帳戶時使用新 Factory，已取得的 Client 保留原 Factory。`forget_drivers()` 重新讀取帳戶設定並保留覆寫，傳入 `None` 恢復應用程式預設 Factory。使用該帳戶的 HTTP、Artisan 和 Worker 程序都應註冊相同覆寫。
+
+這個擴充入口適用於 Stripe 和 Paddle 的 HTTP 傳輸。Cashier 繼續處理供應商版本、請求編碼、簽章驗證、歸屬、交易和冪等規則。
+
 ## 客戶與 Checkout {#customers-and-checkout}
 
 `Billable` 綁定已經應用驗證的身分，不透過通知參數、電子郵件或 Checkout 查詢字串推斷使用者。帳戶名稱與本地身分共同隔離客戶對應，同一遠端客戶只能關聯一次。

@@ -44,9 +44,7 @@ L01–L22本批实现和实际验收见[审计修复节](audits/laravel-code-aud
   - **处理范围：** 按拆分计划交付 DeepL、LibreTranslate、Azure、Google Cloud、腾讯云、阿里云及百度翻译开放平台，分批适配和逐家验收。提供异步文本翻译契约、具名服务商配置、默认驱动解析、外部crate可实现的驱动与应用Provider工厂注册；明确原文／译文、源／目标语言及供应商错误语义。支持同驱动多份配置、应用隔离和可预测的实例复用／配置刷新，复用现有HTTP Client、配置与容器机制；不预先引入复杂翻译平台，也不把网络翻译隐式接入Lang／__／Blade词条查询。
   - **验收：** 独立消费crate实现自定义驱动，经正式公开入口把文本翻译为指定语言；实测HTTP、独立Artisan和Worker装配及配置缓存前后。覆盖未知驱动、配置错误、空文本、Unicode、语言标签与不支持语言、服务商超时／限流／错误响应、工厂失败重试、同驱动具名隔离、替换／旧句柄和多应用隔离。对未实现的自动识别／批量等可选能力明确边界；模拟服务商验收记录协议与装配覆盖，真实供应商凭据就绪后另验实际译文和错误，不把模拟成功当成真实翻译效果。同步三语用法及验收记录，不改既有Lang公开契约。
 
-- [ ] **DRV-04 Cashier扩展范围核定（单列跟踪，不等同Pay实现）**
-  - **当前证据：** [CashierManager／Client](../../vendor/openrust/cashier/src/client.rs)使用固定Stripe／Paddle Provider，没有任意第三方后端的通用extend；不能把其具名账户配置说成开放式订阅驱动。
-  - **处理范围：** 先核对固定Cashier上游的产品专用契约，明确本轮开放的是后端适配、传输替换还是新增订阅供应商；形成可审阅的范围与兼容方案后再实现已核定部分。不因文件存储可扩展就合并Pay与Cashier、替换既有Provider枚举公开语义或重写计费引擎。任何新增供应商能力须另列真实账单／回调／状态机验收，不借用Stripe／Paddle旧记录计通过。
+- [x] **DRV-04 Cashier 具名账户 HTTP 扩展**：对照固定 Stripe／Paddle 上游后核定现有 HTTP Factory 为扩展入口，支持账户中间件与测试传输；Stripe／Paddle 的计费语义继续由现有契约处理。实际 HTTP、Artisan、账户隔离和客户端缓存回归通过。[范围与验收](audits/pay/cashier.md#account-http)
 
 - [x] **DRV-05 短信既有扩展消费者与三语示例补齐（2026-11-25 三语、HTTP／Artisan及三库双队列闭合）**
   - **已有能力：** [SmsDriver／SmsManager::extend](../../vendor/openrust/framework/src/notifications/sms/sms_manager.rs)及[自定义驱动测试](../../vendor/openrust/framework/tests/sms_manager.rs)已存在，覆盖实例复用、显式配置刷新、失败重试、工厂替换及应用隔离。此项不是新增短信驱动引擎，也不以Sms门面没有同名extend就判为无法扩展。

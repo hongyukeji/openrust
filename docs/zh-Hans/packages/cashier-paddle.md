@@ -15,6 +15,8 @@ PADDLE_WEBHOOK_SECRET=pdl_ntfset_...
 
 `PADDLE_SANDBOX` 按 Cashier Paddle 默认 `false`，沙箱凭据应显式设置 `true`；`PADDLE_AUTH_CODE` 优先于 `PADDLE_API_KEY`。显式设置的 `CASHIER_LIVE` 保留旧模式覆盖，具名账户直接配置 `live`。`create_as_customer(options, key)` 复用已绑定客户，新客户要求显式邮箱；返回供应商 JSON 并保存身份映射，不模拟 PHP morphOne，也不按邮箱自动关联已有客户。关联已有账户使用经过身份校验的 `attach_customer`。API 与 Webhook 密钥仅保存在服务端。
 
+Paddle 具名账户也支持[账户专用 HTTP 中间件](billing.md#account-http)。
+
 ## Checkout 与试用 {#checkout}
 
 ```rust

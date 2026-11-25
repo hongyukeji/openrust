@@ -61,3 +61,11 @@ Stripe customer.deleted 在锁下重新核对映射与远端删除状态，原�
 ## 扩展审计修复（2026-11-21）
 
 补原名 Stripe 客户／Portal／订阅入口及供应商边界，恢复已消费原生配置入口，具名覆盖／事务／认领不变；三库正反协议及配置缓存通过，新增许可材料。逐项 API／模型／配置差异见 ../cashier-api-mapping.md；仍不宣称完整 PHP SDK 类型或真实商户验收。 统一命令、环境、结果和边界见[全量扩展修复记录](../extension-design-review.md#修复验收与交付边界)。
+
+## DRV-04 具名账户 HTTP 扩展 {#account-http}
+
+固定 Cashier Stripe 16.11.0 的 `Cashier::stripe` 让容器按当前配置解析 Stripe SDK Client。固定 Cashier Paddle 2.8.1 的 `Cashier::api` 使用框架 HTTP Client，保持 Paddle Billing v1 认证和请求头。两份上游均围绕各自的客户、订阅及 Webhook 协议。以账户级 HTTP Factory 替换响应这次扩展需求，将支付供应商语义留在原 Stripe／Paddle 和 Pay 契约中。 [固定 Stripe 源码](https://github.com/laravel/cashier-stripe/blob/d5c015490ff77f2c138fe79b86d2a982787fe3ac/src/Cashier.php) · [固定 Paddle 源码](https://github.com/laravel/cashier-paddle/blob/82bfc68eb72c38e666a4900baeecca3621840259/src/Cashier.php)
+
+`CashierManager::set_http_factory` 由应用 Provider 为具名账户选择专用现有 HTTP Factory，可接入可信中间件或测试替身。仅刷新该账户随后解析的 Client，旧句柄继续使用原 Factory，`forget_drivers` 清理客户端缓存并保留指定 Factory，传入 `None` 恢复应用默认。每个应用实例持有自己的映射。请求编码、API 版本、重定向限制和超时、Stripe 幂等键及 Paddle 认领、Webhook 验签与事务仍走原入口。工厂中间件随应用代码运行，能看到出站请求，应纳入应用自身的凭据和数据保护。
+
+基线 `d31032e98`，Rust 1.94.0。三个应用实例分别运行真实 HTTP、Artisan 和隔离对照，向实际 loopback Stripe／Paddle 模拟服务发出请求。覆盖旧句柄、单账户替换、两次 HTTP 间清除缓存、跨账户和跨应用隔离、恢复默认、Stripe 版本和稳定请求键、Paddle 版本。包全目标 17 项通过，包含计费和回调在 SQLite 下的事务回归、独立 API 连接超时及脱敏。需重新生成固定官方 PHP SDK 签名的既有专项本轮跳过。修改范围格式、包全目标严格 Clippy、三语文档构建和 Chrome 两挂载点 24 个页面检查通过。定向测试使用实际 HTTP 和 Artisan，未加专门的 Worker 传输用例；真实商户权限、到账、Checkout/SCA 及公开回调继续按前述发布矩阵验收。

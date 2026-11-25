@@ -269,14 +269,21 @@ impl Client {
 pub struct CashierManager {
     config: Arc<dyn Repository>,
     http: Arc<Factory>,
-    drivers: Mutex<HashMap<String, Client>>,
+    accounts: Mutex<Accounts>,
 }
+
+#[derive(Default)]
+struct Accounts {
+    drivers: HashMap<String, Client>,
+    http_factories: HashMap<String, Arc<Factory>>,
+}
+
 impl CashierManager {
     pub fn new(config: Arc<dyn Repository>, http: Arc<Factory>) -> Self {
         Self {
             config,
             http,
-            drivers: Mutex::default(),
+            accounts: Mutex::default(),
         }
     }
     pub fn get_default_driver(&self) -> Result<String> {
@@ -288,8 +295,8 @@ impl CashierManager {
     }
     pub fn driver(&self, name: &str) -> Result<Client> {
         identifier(name)?;
-        let mut drivers = self.drivers.lock().expect("cashier manager");
-        if let Some(client) = drivers.get(name) {
+        let mut accounts = self.accounts.lock().expect("Cashier 账户锁中毒");
+        if let Some(client) = accounts.drivers.get(name) {
             return Ok(client.clone());
         }
         // Named accounts override the provider's canonical configuration as a whole.
@@ -298,12 +305,39 @@ impl CashierManager {
             "paddle" => Some(json!({"driver":"paddle", "secret":self.config.get("cashier.paddle.api_key"), "webhook_secret":self.config.get("cashier.paddle.webhook_secret"), "live":!self.config.get("cashier.paddle.sandbox").and_then(|v|v.as_bool()).unwrap_or(false)})),
             _ => None,
         }).ok_or(Error::Configuration("account"))?;
-        let client = Client::new(name, &profile, self.http.clone())?;
-        drivers.insert(name.into(), client.clone());
+        let http = accounts
+            .http_factories
+            .get(name)
+            .unwrap_or(&self.http)
+            .clone();
+        let client = Client::new(name, &profile, http)?;
+        accounts.drivers.insert(name.into(), client.clone());
         Ok(client)
     }
+
+    /// 由应用 Provider 为具名账户配置可信 HTTP Factory。传入 None 恢复应用默认 Factory。
+    /// 后续解析使用新 Factory，已取得的 Client 仍使用原 Factory。
+    pub fn set_http_factory(&self, name: &str, http: Option<Arc<Factory>>) -> Result<()> {
+        identifier(name)?;
+        let mut accounts = self.accounts.lock().expect("Cashier 账户锁中毒");
+        match http {
+            Some(http) => {
+                accounts.http_factories.insert(name.into(), http);
+            }
+            None => {
+                accounts.http_factories.remove(name);
+            }
+        }
+        accounts.drivers.remove(name);
+        Ok(())
+    }
+
     pub fn forget_drivers(&self) -> &Self {
-        self.drivers.lock().expect("cashier manager").clear();
+        self.accounts
+            .lock()
+            .expect("Cashier 账户锁中毒")
+            .drivers
+            .clear();
         self
     }
 }

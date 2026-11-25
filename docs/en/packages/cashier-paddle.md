@@ -15,6 +15,8 @@ PADDLE_WEBHOOK_SECRET=pdl_ntfset_...
 
 `PADDLE_SANDBOX` defaults to `false`, following Cashier Paddle; set it to `true` for sandbox credentials. `PADDLE_AUTH_CODE` takes precedence over `PADDLE_API_KEY`. An explicitly set `CASHIER_LIVE` retains the previous mode override. Named accounts specify `live` directly. `create_as_customer(options, key)` reuses an attached customer and otherwise requires an explicit email. It returns provider JSON with a stored owner mapping; it does not implement PHP morphOne or automatically attach an existing customer found by email. Use authenticated `attach_customer` when linking an existing account. Keep API keys and webhook secrets on the server. Paddle.js uses a public client-side token. Configure products, prices, a default payment link and a notification destination in Paddle.
 
+Paddle also supports [account-specific HTTP middleware](billing.md#account-http) for a named account.
+
 ## Checkout and trials {#checkout}
 
 ```rust
