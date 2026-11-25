@@ -84,6 +84,10 @@ Set `video_service` in a named `aliyun` profile. `videoDetection` supports Shang
 
 A finished task can still report partial visual, speech or OCR coverage. `Assessment::evidence_span()` locates sampled frames or audio findings in milliseconds from the start of the original video. Recognized text and temporary evidence links are omitted. [Alibaba Cloud video API](https://help.aliyun.com/en/document_detail/2505810.html)
 
+To accept a signed video notification, set `video_callback_url` to the fixed HTTPS endpoint and provide `video_callback_seed` in the credential mount. With environment credentials, use `video_callback_seed_env` to name the variable. The seed accepts 16–64 ASCII letters, digits or underscores. Configure the Webhook Client route with `moderation-aliyun`, the Alibaba Cloud account UID in `moderation_callback_account_uid`, and the revision in `moderation_callback_credential`. Bind `AliyunCallbackProcessor` to the same account alias and a dedicated inbox scope.
+
+The driver selects SHA-256 for this notification. The validator verifies the decoded form’s original `content` string against `checksum`. Terminal notifications can bring forward one authenticated query of the original task, including after an early notification is deferred. Apply the inbox retention policy to the form body. [Alibaba Cloud video notifications](https://www.alibabacloud.com/help/en/content-moderation/latest/video-moderation-enhanced-api)
+
 ## Tencent Cloud video {#tencent-video}
 
 Set `video_biz_type` to the standard on-demand policy for the named `tencent` profile, and configure `media_disk` and `media_origin` for private, versioned S3 media. This uses VM API `2021-09-22` with `Type=VIDEO`.

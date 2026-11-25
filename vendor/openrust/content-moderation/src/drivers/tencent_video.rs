@@ -48,14 +48,6 @@ impl VideoService {
         if !valid_biz_type(biz_type) {
             return Err(ModerationError::InvalidConfiguration("video_biz_type"));
         }
-        let callback = match (
-            super::video::callback_url(profile)?,
-            credentials.secret(profile, "video_callback_seed_env")?,
-        ) {
-            (None, None) => None,
-            (Some(url), Some(seed)) if valid_callback_seed(&seed) => Some((url, seed)),
-            _ => return Err(ModerationError::InvalidConfiguration("video callback seed")),
-        };
         let endpoint_profile = json!({
             "base_url": field(profile, "video_base_url")?,
             "timeout_ms": profile.get("timeout_ms").cloned().unwrap_or(json!(10_000)),
@@ -64,7 +56,7 @@ impl VideoService {
             endpoint: rpc_endpoint(http, &endpoint_profile, "https://vm.tencentcloudapi.com")?,
             biz_type: biz_type.to_owned(),
             storage: VersionedMediaLinks::new(storage, profile)?,
-            callback,
+            callback: super::video::signed_callback(profile, credentials, valid_callback_seed)?,
         }))
     }
 

@@ -82,7 +82,7 @@ pub(super) fn configuration(env: &Environment) -> Result<Value, ConfigError> {
     }
     if let Some(endpoint) = env.get_utf8("MODERATION_FIXTURE_ALIYUN_VIDEO")? {
         let media = env.get_utf8("MODERATION_FIXTURE_IMAGE_ORIGIN")?;
-        configuration["drivers"]["aliyun-videos"] = json!({
+        let mut profile = json!({
             "driver":"aliyun", "base_url":endpoint,
             "video_service":env.get_utf8("MODERATION_FIXTURE_VIDEO_SERVICE")?.unwrap_or("videoDetection"),
             "region":env.get_utf8("MODERATION_FIXTURE_VIDEO_REGION")?.unwrap_or("cn-shanghai"),
@@ -90,6 +90,28 @@ pub(super) fn configuration(env: &Environment) -> Result<Value, ConfigError> {
             "access_key_id_env":"FIXTURE_ALIYUN_ID", "access_key_secret_env":"FIXTURE_ALIYUN_SECRET",
             "security_token_env":"FIXTURE_ALIYUN_TOKEN", "timeout_ms":500,
         });
+        if let Some(callback) = env.get_utf8("MODERATION_FIXTURE_ALIYUN_CALLBACK_URL")? {
+            let fields = profile.as_object_mut().expect("阿里云点播验收配置对象");
+            for name in [
+                "access_key_id_env",
+                "access_key_secret_env",
+                "security_token_env",
+            ] {
+                fields.remove(name);
+            }
+            profile["video_callback_url"] = json!(callback);
+            profile["credential_ref"] = json!("aliyun-video");
+            profile["credential_revision"] = json!("r2");
+            profile["account"] = json!("original-account");
+            profile["policy_revision"] = json!("policy-1");
+            profile["required_modalities"] = json!(["visual", "speech", "ocr"]);
+            profile["query_interval_seconds"] = json!(300);
+            profile["timeout_ms"] = json!(18_000);
+            configuration["credential_directory"] =
+                json!(env.get_utf8("MODERATION_CREDENTIAL_DIRECTORY")?);
+            configuration["profile_revisions"]["aliyun-videos"]["original"] = profile.clone();
+        }
+        configuration["drivers"]["aliyun-videos"] = profile;
     }
     if let Some(endpoint) = env.get_utf8("MODERATION_FIXTURE_TENCENT")? {
         configuration["drivers"]["tencent-default"] = json!({

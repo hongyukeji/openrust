@@ -222,3 +222,11 @@ Hive V2 建立任务页面的异步例子指向 V1 路径，公开带认证查�
 隔离源码基线 `d31032e98`，叠加本轮审核改动，Rust 1.94.0。SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 各通过两次实际 TC3 提交、一次认证查单以及实际 HTTP、Artisan、独立 Worker 和私有 SeaweedFS 版本化 MP4。通过当前和上一版 Seed 检查提前终态、重复通知及延期唤醒。覆盖缺签名、重复头、正文变更、片段、其它账户／业务策略／直播类型、任务号歧义、迟到、样本敏感正文和配置缓存。查单返回部分覆盖，不产生放行。Sightengine 验签和关联、腾讯云仅轮询路径及 Hive 点播回归通过。修改范围格式、包及应用严格 Clippy、3 个契约和三语站点验收通过。验收脚本先修复导入时的参数解析冲突，再限定延期查询统计未处理记录，完成三库复验。
 
 生产腾讯云项目启用、公开 HTTPS 及真实样本回调仍待 CM-04。回调原文按接收包保留策略处理，测试不把已签通知本身视为审核结果。
+
+## CM-03P 阿里云增强版点播终态通知 {#aliyun-video-callback}
+
+阿里云 Green `2022-03-02` 点播提交可选固定 HTTPS 地址和版本化 Seed，发送原 ACS3 签名下的 `callback`、`seed` 和 `cryptType=SHA256`。Webhook Client 处理 UTF-8 表单的 `checksum`、`content`，按主账户 UID、Seed 和原始解码内容比较校验和。原任务查询仍使用已固定的审核配置。处理中或排队通知不提前查单，带任务 ID 的终态可延期关联并提前触发一次查询。相同表单正文复用摘要去重；轮换 Seed 产生不同校验和时会有独立收件记录，任务级确认仍只触发一次。 [增强版视频 API](https://www.alibabacloud.com/help/en/content-moderation/latest/video-moderation-enhanced-api) · [表单及校验和示例](https://www.alibabacloud.com/help/en/content-moderation/latest/enable-callback-notification)
+
+基线为 `d31032e98` 的隔离源码叠加至 `25a960a90` 的审核改动，Rust 1.94.0。SQLite、PostgreSQL 18.7、MySQL 8.4.13 各实发两次原版 MP4 的 ACS3 提交和一次认证查单。真实 HTTP、Artisan 和独立 Worker 回归提前回调、旧 Seed、新 Seed 重签、Unicode／加号和分隔符、缺值及重复值、错误主账户 UID、错媒体类型、拒绝篡改、不同账户、迟到和重复任务号。被截获的未经确认的通知未影响审核，认证流程仍判定部分覆盖。原仅查询路径、腾讯云与 Sightengine 回调、包 3 个契约与仅独立特性编译、两项严格 Clippy、修改范围格式及三语站点验收通过。
+
+生产账号的增强版服务、公开 HTTPS 通知和真实原文结构继续按 CM-04 验收。首轮修正了替身的 nonce 记录、媒体类型反例及轮换后的表单摘要预期。

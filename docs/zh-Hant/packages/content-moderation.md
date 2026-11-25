@@ -84,6 +84,10 @@
 
 完成的工作仍可能只有部分畫面、語音或 OCR 涵蓋。`Assessment::evidence_span()` 使用原影片起點後的毫秒表示取樣影格或語音證據。辨識原文及證據暫時連結均不出現在結果中。 [阿里雲隨選影片 API](https://help.aliyun.com/zh/document_detail/2505810.html)
 
+接收帶簽章的影片通知時，將 `video_callback_url` 設為固定 HTTPS 入口，並在憑據掛載提供 `video_callback_seed`。使用環境變數憑據時，透過 `video_callback_seed_env` 指定變數名稱。Seed 使用 16–64 個 ASCII 字母、數字或底線。在 Webhook Client 對應路由設定 `moderation-aliyun`、`moderation_callback_account_uid` 中的阿里雲主帳戶 UID，以及 `moderation_callback_credential` 中的憑據修訂。將 `AliyunCallbackProcessor` 綁定到同一帳戶別名和專用收件範圍。
+
+驅動選擇 SHA-256 回呼校驗。驗章器比對解碼後原始 `content` 字串和 `checksum`。終態通知可提前觸發一次帶認證的原工作查詢，提前到達時可延期關聯。表單本文適用收件保存策略。 [阿里雲影片回呼](https://www.alibabacloud.com/help/en/content-moderation/latest/video-moderation-enhanced-api)
+
 ## 騰訊雲隨選影片 {#tencent-video}
 
 為具名 `tencent` 設定指定標準隨選策略 `video_biz_type`，並設定私人版本化 S3 素材的 `media_disk` 和 `media_origin`。驅動呼叫 VM `2021-09-22` 介面並使用 `Type=VIDEO`。

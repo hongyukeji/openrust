@@ -84,6 +84,10 @@
 
 完成任务仍可能只有部分画面、语音或 OCR 覆盖。`Assessment::evidence_span()` 使用原视频起点后的毫秒表示抽帧或语音证据。识别原文和证据临时链接均不进入结果。 [阿里云点播视频 API](https://help.aliyun.com/zh/document_detail/2505810.html)
 
+接收带签名的视频通知时，将 `video_callback_url` 设为固定 HTTPS 入口，并在凭据挂载提供 `video_callback_seed`。使用环境变量凭据时，通过 `video_callback_seed_env` 指定变量名。Seed 使用 16–64 个 ASCII 字母、数字或下划线。在 Webhook Client 对应路由配置 `moderation-aliyun`、`moderation_callback_account_uid` 中的阿里云主账户 UID，以及 `moderation_callback_credential` 中的凭据修订。将 `AliyunCallbackProcessor` 绑定到同一账户别名和独立收件范围。
+
+驱动选择 SHA-256 回调校验。验签器比较解码后原始 `content` 字符串和 `checksum`。终态通知可提前触发一次带认证的原任务查单，提前到达时可延期关联。表单正文遵循收件保留策略。 [阿里云视频回调](https://www.alibabacloud.com/help/en/content-moderation/latest/video-moderation-enhanced-api)
+
 ## 腾讯云点播视频 {#tencent-video}
 
 为具名 `tencent` 配置设置标准点播策略 `video_biz_type`，并设定私有版本化 S3 素材的 `media_disk` 与 `media_origin`。驱动调用 VM `2021-09-22` 接口并使用 `Type=VIDEO`。

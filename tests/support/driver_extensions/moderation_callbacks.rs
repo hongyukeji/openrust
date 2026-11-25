@@ -11,7 +11,8 @@ use openrust::{
     support::{ProviderResult, ServiceProvider, facades::Route},
 };
 use openrust_content_moderation::{
-    ModerationStore, SightengineCallbackProcessor, TencentCallbackProcessor,
+    AliyunCallbackProcessor, ModerationStore, SightengineCallbackProcessor,
+    TencentCallbackProcessor,
 };
 use openrust_webhook_client::{
     DatabaseWebhookStore, Error, Result, WebhookRouteOptions, WebhookRoutes as _, WebhookRuntime,
@@ -25,6 +26,29 @@ const JOB: &str = "moderation-callback-fixture";
 const SCOPE: &str = "moderation-callback-scope";
 
 pub(super) fn configuration(env: &Environment) -> std::result::Result<Value, ConfigError> {
+    if env.get_utf8("MODERATION_CALLBACK_FIXTURE_ALIYUN")? == Some("1") {
+        return Ok(json!({
+            "configs": [
+                {
+                    "name": "aliyun-video", "revision": "callbacks-v1", "scope": SCOPE,
+                    "signature_validator": "moderation-aliyun", "webhook_profile": "process-everything",
+                    "process_webhook_job": JOB, "webhook_model": "database",
+                    "moderation_callback_account_uid": "1234500000000000",
+                    "moderation_callback_credential": {"name":"aliyun-video", "revision":"r2"},
+                    "moderation_previous_callback_credentials": [{"name":"aliyun-video", "revision":"r1"}],
+                    "atomic_database_queue": true, "deduplicate_body_seconds": 60, "max_body_bytes": 4096
+                },
+                {
+                    "name": "aliyun-other-account", "revision": "callbacks-v1", "scope": SCOPE,
+                    "signature_validator": "moderation-aliyun", "webhook_profile": "process-everything",
+                    "process_webhook_job": JOB, "webhook_model": "database",
+                    "moderation_callback_account_uid": "9999900000000000",
+                    "moderation_callback_credential": {"name":"aliyun-other", "revision":"r1"},
+                    "atomic_database_queue": true, "deduplicate_body_seconds": 60, "max_body_bytes": 4096
+                }
+            ]
+        }));
+    }
     if env.get_utf8("MODERATION_CALLBACK_FIXTURE_TENCENT")? == Some("1") {
         return Ok(json!({
             "configs": [
@@ -92,6 +116,14 @@ pub(super) fn routes() -> std::result::Result<(), openrust::routing::RoutingErro
         "/drivers/moderation/tencent-callback-other",
         WebhookRouteOptions::new().name("tencent-other-account"),
     )?;
+    Route::webhooks(
+        "/drivers/moderation/aliyun-callback",
+        WebhookRouteOptions::new().name("aliyun-video"),
+    )?;
+    Route::webhooks(
+        "/drivers/moderation/aliyun-callback-other",
+        WebhookRouteOptions::new().name("aliyun-other-account"),
+    )?;
     Ok(())
 }
 
@@ -124,6 +156,14 @@ impl ServiceProvider for CallbackFixtureProvider {
                             "video_profile",
                             SCOPE,
                             "tencent-video",
+                            "callbacks-v1",
+                        )?)
+                    } else if std::env::var_os("MODERATION_CALLBACK_FIXTURE_ALIYUN").is_some() {
+                        Arc::new(AliyunCallbackProcessor::new(
+                            reviews,
+                            "original-account",
+                            SCOPE,
+                            "aliyun-video",
                             "callbacks-v1",
                         )?)
                     } else {

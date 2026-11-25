@@ -32,6 +32,9 @@ class Supplier(ALIYUN["Supplier"]):
         parameters, access = self.verification(action, "videoDetection")
         assert access == next(iter(ALIYUN["CREDENTIALS"]))
         if action == "VideoModeration":
+            if expected := getattr(self.server, "expected_callback", None):
+                assert (parameters.pop("callback"), parameters.pop("seed")) == expected
+                assert parameters.pop("cryptType") == "SHA256"
             assert set(parameters) == {"url"}
             source = urlsplit(parameters["url"])
             assert f"{source.scheme}://{source.netloc}" == ORIGIN and source.path.endswith("/" + KEY)
@@ -50,6 +53,10 @@ class Supplier(ALIYUN["Supplier"]):
             with self.server.lock:
                 mode = self.server.submit_mode
                 self.server.submissions.append((version, payload))
+            if gate := getattr(self.server, "gate", None):
+                reached, release = gate
+                reached.set()
+                assert release.wait(12), "回调夹具未释放受理凭据"
             if mode == "lost-response":
                 time.sleep(.8)
             code = {"accepted": 200, "nearline": 288, "quota": 480, "lost-response": 200,

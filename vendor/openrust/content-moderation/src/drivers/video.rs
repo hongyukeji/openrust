@@ -2,10 +2,11 @@ use std::collections::BTreeMap;
 
 use serde_json::Value;
 use url::Url;
+use zeroize::Zeroizing;
 
 use crate::{
     Assessment, Confidence, Coverage, Decision, EvidenceSpan, Finding, Modality, ModerationError,
-    ModerationResult,
+    ModerationResult, credentials::DriverCredentials,
 };
 
 pub(super) struct VideoEvidence {
@@ -31,6 +32,21 @@ pub(super) fn callback_url(profile: &Value) -> ModerationResult<Option<Url>> {
                 .ok_or(ModerationError::InvalidConfiguration("video_callback_url"))
         })
         .transpose()
+}
+
+pub(super) fn signed_callback(
+    profile: &Value,
+    credentials: &DriverCredentials<'_>,
+    valid_seed: impl FnOnce(&str) -> bool,
+) -> ModerationResult<Option<(Url, Zeroizing<String>)>> {
+    match (
+        callback_url(profile)?,
+        credentials.secret(profile, "video_callback_seed_env")?,
+    ) {
+        (None, None) => Ok(None),
+        (Some(url), Some(seed)) if valid_seed(&seed) => Ok(Some((url, seed))),
+        _ => Err(ModerationError::InvalidConfiguration("video callback seed")),
+    }
 }
 
 pub(super) fn build_assessment(

@@ -6,6 +6,8 @@ use std::{
 use openrust::filesystem::FilesystemManager;
 use serde::Deserialize;
 use serde_json::{Value, json};
+use url::Url;
+use zeroize::Zeroizing;
 
 use super::{
     aliyun::{Aliyun, category, image_category},
@@ -15,16 +17,25 @@ use super::{
 };
 use crate::{
     Assessment, Confidence, Coverage, Decision, EvidenceSpan, Finding, Modality, ModerationError,
-    ModerationResult, TaskId, TaskStatus, VideoInput,
+    ModerationResult, TaskId, TaskStatus, VideoInput, credentials::DriverCredentials,
 };
 
 pub(super) struct VideoService {
     name: String,
     media: VersionedMediaLinks,
+    callback: Option<(Url, Zeroizing<String>)>,
+}
+
+pub(crate) fn valid_callback_seed(seed: &str) -> bool {
+    (16..=64).contains(&seed.len())
+        && seed
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
 }
 
 impl VideoService {
     pub(super) fn configured(
+        credentials: &DriverCredentials<'_>,
         storage: Arc<FilesystemManager>,
         profile: &Value,
         region: &str,
@@ -44,6 +55,7 @@ impl VideoService {
         Ok(Some(Self {
             name: name.to_owned(),
             media: VersionedMediaLinks::new(storage, profile)?,
+            callback: super::video::signed_callback(profile, credentials, valid_callback_seed)?,
         }))
     }
 
@@ -56,8 +68,14 @@ impl VideoService {
         if url.as_str().len() > 2048 {
             return Err(ModerationError::InvalidInput("aliyun video URL length"));
         }
+        let mut parameters = json!({"url":url.as_str()});
+        if let Some((url, seed)) = &self.callback {
+            parameters["callback"] = json!(url.as_str());
+            parameters["seed"] = json!(seed.as_str());
+            parameters["cryptType"] = json!("SHA256");
+        }
         let output: Output<Submission> = driver
-            .rpc("VideoModeration", &self.name, json!({"url":url.as_str()}))
+            .rpc("VideoModeration", &self.name, parameters)
             .await
             .map_err(unknown_submission)?;
         match output.code.number().map_err(unknown_submission)? {
@@ -122,13 +140,13 @@ struct Output<T> {
 
 #[derive(Deserialize)]
 #[serde(untagged)]
-enum Code {
+pub(crate) enum Code {
     Number(u16),
     Text(String),
 }
 
 impl Code {
-    fn number(self) -> ModerationResult<u16> {
+    pub(crate) fn number(self) -> ModerationResult<u16> {
         match self {
             Self::Number(code) => Ok(code),
             Self::Text(code)

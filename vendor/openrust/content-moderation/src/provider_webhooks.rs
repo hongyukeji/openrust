@@ -12,7 +12,9 @@ use sha2::{Digest, Sha256};
 use zeroize::Zeroizing;
 
 use crate::{
-    CredentialReference, ModerationCredentialProvider, drivers::valid_tencent_callback_seed,
+    CredentialReference, ModerationCredentialProvider,
+    aliyun_callback::CallbackForm,
+    drivers::{valid_aliyun_callback_seed, valid_tencent_callback_seed},
 };
 
 const HEADER: &str = "sightengine-signature";
@@ -118,6 +120,48 @@ const TENCENT_HEADER: &str = "x-signature";
 
 struct TencentSignature(Vec<Zeroizing<String>>);
 
+struct AliyunSignature {
+    account_uid: String,
+    seeds: Vec<Zeroizing<String>>,
+}
+
+impl SignatureValidator for AliyunSignature {
+    fn is_valid(&self, request: &WebhookRequest, config: &WebhookConfig) -> Result<bool> {
+        if request.body().len() > config.max_body_bytes() {
+            return Err(Error::PayloadTooLarge);
+        }
+        if request.headers().get("content-type").is_none_or(|value| {
+            value
+                .to_str()
+                .ok()
+                .and_then(|value| value.split(';').next())
+                .is_none_or(|value| {
+                    !value
+                        .trim()
+                        .eq_ignore_ascii_case("application/x-www-form-urlencoded")
+                })
+        }) {
+            return Ok(false);
+        }
+        let Some(form) = CallbackForm::parse(request.body()) else {
+            return Ok(false);
+        };
+        let Some(signature) = signature_bytes(&form.checksum) else {
+            return Ok(false);
+        };
+        Ok(sha256_matches(
+            self.account_uid.as_bytes(),
+            &self.seeds,
+            form.content.as_bytes(),
+            signature,
+        ))
+    }
+
+    fn has_signature(&self, request: &WebhookRequest, _: &WebhookConfig) -> bool {
+        CallbackForm::contains_checksum(request.body())
+    }
+}
+
 impl SignatureValidator for TencentSignature {
     fn is_valid(&self, request: &WebhookRequest, config: &WebhookConfig) -> Result<bool> {
         if request.body().len() > config.max_body_bytes() {
@@ -134,20 +178,30 @@ impl SignatureValidator for TencentSignature {
         if signatures.next().is_some() {
             return Ok(false);
         }
-        let received = CtOutput::<Sha256>::new(signature.into());
-        let mut valid = false;
-        for seed in &self.0 {
-            let mut digest = Sha256::new();
-            digest.update(seed.as_bytes());
-            digest.update(request.body());
-            valid |= CtOutput::<Sha256>::new(digest.finalize()) == received;
-        }
-        Ok(valid)
+        Ok(sha256_matches(b"", &self.0, request.body(), signature))
     }
 
     fn has_signature(&self, request: &WebhookRequest, _: &WebhookConfig) -> bool {
         request.headers().contains_key(TENCENT_HEADER)
     }
+}
+
+fn sha256_matches(
+    prefix: &[u8],
+    seeds: &[Zeroizing<String>],
+    body: &[u8],
+    signature: [u8; 32],
+) -> bool {
+    let received = CtOutput::<Sha256>::new(signature.into());
+    let mut valid = false;
+    for seed in seeds {
+        let mut digest = Sha256::new();
+        digest.update(prefix);
+        digest.update(seed.as_bytes());
+        digest.update(body);
+        valid |= CtOutput::<Sha256>::new(digest.finalize()) == received;
+    }
+    valid
 }
 
 fn callback_keys(
@@ -225,6 +279,26 @@ pub(crate) fn register(container: &Container) -> Result<()> {
                 valid_tencent_callback_seed,
             )?;
             Ok(Arc::new(TencentSignature(keys)))
+        },
+    )?;
+    WebhookRuntime::register_signature_validator(
+        container,
+        "moderation-aliyun",
+        |config, container| {
+            let account_uid = config.options()["moderation_callback_account_uid"]
+                .as_str()
+                .filter(|uid| {
+                    (1..=32).contains(&uid.len()) && uid.bytes().all(|byte| byte.is_ascii_digit())
+                })
+                .ok_or(Error::InvalidConfig("aliyun callback account UID"))?
+                .to_owned();
+            let seeds = callback_keys(
+                config,
+                container,
+                "video_callback_seed",
+                valid_aliyun_callback_seed,
+            )?;
+            Ok(Arc::new(AliyunSignature { account_uid, seeds }))
         },
     )
 }

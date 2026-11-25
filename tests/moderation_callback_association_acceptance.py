@@ -14,7 +14,7 @@ import sqlite3
 import subprocess
 import tempfile
 import threading
-from urllib.parse import urlsplit
+from urllib.parse import urlencode, urlsplit
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -25,31 +25,39 @@ VIDEO = SUBMISSION["VIDEO"]
 REVIEW = "drivers:moderation-review"
 JOB = CALLBACK["JOB"]
 TENCENT_SEEDS = ("vm-local-test-seed-01", "vm-local-test-seed-02", "vm-local-test-seed-other")
+ALIYUN_SEEDS = ("aliyun_video_seed_01", "aliyun_video_seed_02", "aliyun_video_seed_other")
+ALIYUN_UIDS = ("1234500000000000", "9999900000000000")
 
 
-def exercise(binary, driver, url, root, storage_env, storage, tencent):
+def exercise(binary, driver, url, root, storage_env, storage, mode):
     version, _, original, _ = VIDEO["versioned_clips"](root, storage)
-    vendor = runpy.run_path(str(ROOT / "tests/moderation_tencent_video_acceptance.py")) if tencent else None
+    tencent, aliyun = mode == "tencent", mode == "aliyun"
+    cloud = tencent or aliyun
+    vendor = runpy.run_path(str(ROOT / f"tests/moderation_{mode}_video_acceptance.py")) if cloud else None
     supplier = http.server.ThreadingHTTPServer(
-        ("127.0.0.1", 0), vendor["Supplier"] if tencent else SUBMISSION["PausedSupplier"])
+        ("127.0.0.1", 0), vendor["Supplier"] if cloud else SUBMISSION["PausedSupplier"])
     supplier.lock, supplier.mode = threading.Lock(), "accepted"
     supplier.expected_secret = VIDEO["SECRET"]
     supplier.gate, supplier.query_gate, supplier.query_mode = None, None, "finished"
     supplier.posted, supplier.queried, supplier.stops = [], [], []
     supplier.storage = urlsplit(storage_env["AWS_ENDPOINT"])
-    if tencent:
+    if cloud:
         supplier.posted = supplier.submissions = []
         supplier.references, supplier.cancelled = set(), set()
+        supplier.nonces = set()
         supplier.queries, supplier.cancellations, supplier.unexpected = [], [], []
         supplier.submit_mode = "accepted"
-        callback_url = "https://callback.example.test/api/drivers/moderation/tencent-callback"
-        supplier.expected_callback = (callback_url, TENCENT_SEEDS[1])
+        callback_url = f"https://callback.example.test/api/drivers/moderation/{mode}-callback"
+        seeds = TENCENT_SEEDS if tencent else ALIYUN_SEEDS
+        supplier.expected_callback = (callback_url, seeds[1])
         task = vendor["TASK"]
     else:
         task = VIDEO["TASK"]
 
     def queried():
-        return [value for value, show in supplier.queries if show] if tencent else supplier.queried
+        if tencent:
+            return [value for value, show in supplier.queries if show]
+        return supplier.queries if aliyun else supplier.queried
 
     serving = threading.Thread(target=supplier.serve_forever, daemon=True)
     serving.start()
@@ -68,7 +76,7 @@ def exercise(binary, driver, url, root, storage_env, storage, tencent):
         ("other-callback.r1.json", {"signing_secret": CALLBACK["OTHER"]}),
         ("sightengine.r1.json", {"api_user": "local-sightengine-account", "api_secret": VIDEO["SECRET"]}),
     ]
-    tencent_secret, tencent_token = ("", "")
+    protected = (*CALLBACK["SECRETS"], VIDEO["SECRET"])
     if tencent:
         identity = "fixture-tencent-id"
         tencent_secret, tencent_token = vendor["TC3"]["CREDENTIALS"][identity]
@@ -76,8 +84,14 @@ def exercise(binary, driver, url, root, storage_env, storage, tencent):
                                   TENCENT_SEEDS, strict=True):
             credentials.append((filename, {"secret_id": identity, "secret_key": tencent_secret,
                                             "security_token": tencent_token, "video_callback_seed": seed}))
-    protected = (*CALLBACK["SECRETS"], VIDEO["SECRET"]) + (
-        (*TENCENT_SEEDS, tencent_secret, tencent_token) if tencent else ())
+        protected += (*seeds, tencent_secret, tencent_token)
+    if aliyun:
+        identity, (secret, token) = next(iter(vendor["ALIYUN"]["CREDENTIALS"].items()))
+        for filename, seed in zip(("aliyun-video.r1.json", "aliyun-video.r2.json", "aliyun-other.r1.json"),
+                                  seeds, strict=True):
+            credentials.append((filename, {"access_key_id": identity, "access_key_secret": secret,
+                                            "security_token": token, "video_callback_seed": seed}))
+        protected += (*seeds, secret, token)
     for filename, contents in credentials:
         descriptor = os.open(mount / filename, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o400)
         with os.fdopen(descriptor, "w") as file:
@@ -98,12 +112,12 @@ def exercise(binary, driver, url, root, storage_env, storage, tencent):
         "MODERATION_FIXTURE_QUERY_INTERVAL": "300", "MODERATION_FIXTURE_RECOVERY_QUEUE": "database",
         "MODERATION_CALLBACK_FIXTURE_ASSOCIATE": "1",
     }
-    if tencent:
+    if cloud:
         env |= {
-            "MODERATION_FIXTURE_TENCENT_VIDEO": endpoint,
-            "MODERATION_FIXTURE_TENCENT_CALLBACK_URL": callback_url,
-            "MODERATION_FIXTURE_DURABLE_VIDEO_PROFILE": "tencent-videos",
-            "MODERATION_CALLBACK_FIXTURE_TENCENT": "1",
+            f"MODERATION_FIXTURE_{mode.upper()}_VIDEO": endpoint,
+            f"MODERATION_FIXTURE_{mode.upper()}_CALLBACK_URL": callback_url,
+            "MODERATION_FIXTURE_DURABLE_VIDEO_PROFILE": f"{mode}-videos",
+            f"MODERATION_CALLBACK_FIXTURE_{mode.upper()}": "1",
         }
     if url:
         env["DB_URL"] = url
@@ -132,6 +146,7 @@ def exercise(binary, driver, url, root, storage_env, storage, tencent):
 
     def callback(status, marker, *, other=False, previous=False, fault=None, policy="video_profile",
                  kind="VIDEO"):
+        content_type = "application/json"
         if tencent:
             data = {"TaskId": task, "Type": kind, "Status": status, "BizType": policy,
                     "AudioText": marker, "Suggestion": "Pass"}
@@ -140,29 +155,48 @@ def exercise(binary, driver, url, root, storage_env, storage, tencent):
             signature = hashlib.sha256(seed.encode() + body).hexdigest()
             header = "X-Signature"
             path = "/api/drivers/moderation/tencent-callback"
+        elif aliyun:
+            content_type = "application/x-www-form-urlencoded; charset=UTF-8"
+            content = json.dumps({"Data": {"TaskId": task, "RiskLevel": "none"},
+                                  "Code": status, "Message": f"{marker} 字幕 + & /"},
+                                 indent=1, ensure_ascii=False)
+            seed = seeds[2 if other else 0 if previous else 1]
+            uid = ALIYUN_UIDS[int(other)] if fault != "wrong-uid" else ALIYUN_UIDS[1]
+            checksum = hashlib.sha256((uid + seed + content).encode()).hexdigest()
+            params = [("content", content + (" " if fault == "changed" else ""))]
+            if fault != "missing":
+                params.append(("checksum", checksum))
+                if fault == "duplicate":
+                    params.append(("checksum", checksum))
+            body = urlencode(params).encode()
+            if fault == "wrong-type":
+                content_type = "text/plain"
+            path = "/api/drivers/moderation/aliyun-callback"
+            header, signature = None, None
         else:
             body = json.dumps({"media": {"id": task}, "data": {"status": status}, "marker": marker}).encode()
             secret = CALLBACK["OTHER"] if other else CALLBACK["CURRENT"]
             signature = CALLBACK["callback_header"](body, secret)
             header = "Sightengine-Signature"
             path = "/api/drivers/moderation/callback"
-        if fault == "changed":
+        if fault == "changed" and not aliyun:
             body += b" "
         path += "-other" if other else ""
         connection = http.client.HTTPConnection("127.0.0.1", port, timeout=12)
         try:
             connection.putrequest("POST", path)
-            connection.putheader("Content-Type", "application/json")
+            connection.putheader("Content-Type", content_type)
             connection.putheader("Accept", "application/json")
             connection.putheader("Content-Length", str(len(body)))
-            if fault != "missing":
+            if header and fault != "missing":
                 connection.putheader(header, signature)
                 if fault == "duplicate":
                     connection.putheader(header, signature)
             connection.endheaders(body)
             response = connection.getresponse()
             answer = response.read()
-            assert response.status == (500 if fault else 200), (response.status, answer[:300])
+            expected = 500 if fault else 200
+            assert response.status == expected, (fault, expected, response.status, answer[:300])
             assert all(secret.encode() not in answer for secret in protected)
         finally:
             connection.close()
@@ -172,7 +206,7 @@ def exercise(binary, driver, url, root, storage_env, storage, tencent):
         artisan("config:cache")
         artisan("route:cache")
         assert all(secret not in (root / "config.json").read_text() for secret in protected)
-        finish = "FINISH" if tencent else "finished"
+        finish = "FINISH" if tencent else "200" if aliyun else "finished"
         early = json.loads(artisan(REVIEW, "stage", "app", "tenant", "early-callback", version))
         with (root / "http.log").open("w+") as log:
             app = HTTP["serve"](binary, env, log)
@@ -182,22 +216,25 @@ def exercise(binary, driver, url, root, storage_env, storage, tencent):
                     submission = executor.submit(artisan, REVIEW, "submit", "app", "tenant", early["id"])
                     try:
                         assert reached.wait(8), "供应商未收到原素材"
-                        if tencent:
-                            for defect in ("changed", "missing", "duplicate"):
+                        if cloud:
+                            defects = ("changed", "missing", "duplicate")
+                            if aliyun:
+                                defects += ("wrong-uid", "wrong-type")
+                            for defect in defects:
                                 callback(finish, "tampered", fault=defect)
                             assert sql("SELECT COUNT(*) FROM webhook_calls") == "0"
-                            callback("RUNNING", "fragment")
+                            callback("RUNNING" if tencent else 280, "fragment")
                             consume()
                             assert queried() == [] and read(early)["callback_receipt"] is None
-                        callback(finish, "early", previous=tencent)
+                        callback(finish, "early", previous=cloud)
                         receipt = sql("SELECT id FROM webhook_calls WHERE processed_at IS NULL")
                         assert receipt and read(early)["callback_receipt"] is None
                         consume()
                         assert sql("SELECT processing_deferrals FROM webhook_calls WHERE processed_at IS NULL") == "1"
                         assert sql("SELECT COUNT(*) FROM webhook_calls WHERE processing_next_at IS NOT NULL") == "1"
-                        assert sql("SELECT COUNT(*) FROM webhook_calls WHERE processed_at IS NOT NULL") == str(int(tencent))
-                        callback(finish, "early")
-                        assert sql("SELECT COUNT(*) FROM webhook_calls") == str(1 + int(tencent))
+                        assert sql("SELECT COUNT(*) FROM webhook_calls WHERE processed_at IS NOT NULL") == str(int(cloud))
+                        callback(finish, "early", previous=aliyun)
+                        assert sql("SELECT COUNT(*) FROM webhook_calls") == str(1 + int(cloud))
                     finally:
                         release.set()
                     accepted = json.loads(submission.result(20))
@@ -212,12 +249,16 @@ def exercise(binary, driver, url, root, storage_env, storage, tencent):
                 assert associated["callback_receipt"] == receipt
                 assert associated["next_query_at"] < accepted["next_query_at"]
                 assert associated["query_attempts"] == 0 and associated["decision"] is None
-                assert sql("SELECT COUNT(*) FROM webhook_calls WHERE processed_at IS NOT NULL") == str(1 + int(tencent))
+                assert sql("SELECT COUNT(*) FROM webhook_calls WHERE processed_at IS NOT NULL") == str(1 + int(cloud))
                 # 即使队列仍保留旧的延时副本，重复消费也不会再次关联或查单。
                 sql(f"UPDATE jobs SET available_at = 1 WHERE queue = '{JOB}'")
                 if sql(f"SELECT COUNT(*) FROM jobs WHERE queue = '{JOB}'") != "0":
                     consume()
                 assert read(early) == associated and not queried()
+                if aliyun:
+                    callback(finish, "early")
+                    consume()
+                    assert read(early) == associated and not queried()
                 artisan("schedule:run")
                 consume("moderation-recovery")
                 checked = read(early)
@@ -238,6 +279,10 @@ def exercise(binary, driver, url, root, storage_env, storage, tencent):
                     callback(finish, "live", kind="LIVE_VIDEO")
                     consume()
                     assert read(early) == checked and queried() == [task]
+                if aliyun:
+                    callback(599, "unsupported-status")
+                    consume()
+                    assert read(early) == checked and queried() == [task]
 
                 duplicate = json.loads(artisan(REVIEW, "stage", "app", "tenant", "ambiguous-task", version))
                 accepted_duplicate = json.loads(artisan(REVIEW, "submit", "app", "tenant", duplicate["id"]))
@@ -248,7 +293,7 @@ def exercise(binary, driver, url, root, storage_env, storage, tencent):
             finally:
                 HTTP["stop"](app)
         assert supplier.posted == [(version, original), (version, original)]
-        assert sql("SELECT COUNT(*) FROM failed_jobs") == str(4 if tencent else 2)
+        assert sql("SELECT COUNT(*) FROM failed_jobs") == str(4 if tencent else 3 if aliyun else 2)
         assert sql("SELECT COUNT(*) FROM jobs") == "0"
     finally:
         supplier.shutdown()
@@ -261,9 +306,11 @@ if __name__ == "__main__":
     parser.add_argument("binary", type=Path)
     args = parser.parse_args()
     driver, url = DATABASE["database_settings"]()
-    tencent = os.environ.get("MODERATION_TEST_CALLBACK_TENCENT") == "1"
+    mode = os.environ.get("MODERATION_TEST_CALLBACK_PROVIDER", "sightengine")
+    if mode not in {"sightengine", "tencent", "aliyun"}:
+        parser.error("未知的回调供应商")
     with tempfile.TemporaryDirectory(dir=ROOT / "target/tmp", prefix="moderation-callback-association-") as root, \
             VIDEO["VIDEO"]["OBJECTS"]["TOPOLOGY"]["object_storage"](True) as (env, storage):
-        exercise(args.binary.resolve(), driver, url, Path(root), env, storage, tencent)
-    provider = "腾讯云" if tencent else "Sightengine"
+        exercise(args.binary.resolve(), driver, url, Path(root), env, storage, mode)
+    provider = {"tencent": "腾讯云", "aliyun": "阿里云", "sightengine": "Sightengine"}[mode]
     print(f"{driver}: {provider} 实际 HTTP、Artisan、Worker 提前回调、延期唤醒、范围、查单与覆盖通过")

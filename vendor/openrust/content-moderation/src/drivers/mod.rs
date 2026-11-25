@@ -15,6 +15,10 @@ mod tencent_image;
 mod tencent_video;
 mod video;
 #[cfg(feature = "webhooks")]
+pub(crate) use aliyun_video::{
+    Code as AliyunVideoCode, valid_callback_seed as valid_aliyun_callback_seed,
+};
+#[cfg(feature = "webhooks")]
 pub(crate) use sightengine_video::media_id as sightengine_media_id;
 #[cfg(feature = "webhooks")]
 pub(crate) use tencent_video::{

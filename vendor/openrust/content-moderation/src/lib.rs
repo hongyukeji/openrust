@@ -2,6 +2,8 @@
 
 #![forbid(unsafe_code)]
 
+#[cfg(feature = "webhooks")]
+mod aliyun_callback;
 #[path = "../config/moderation.rs"]
 mod configuration;
 mod contracts;
@@ -27,6 +29,8 @@ mod tencent_callback;
 mod video_callback;
 mod video_service;
 
+#[cfg(feature = "webhooks")]
+pub use aliyun_callback::AliyunCallbackProcessor;
 pub use contracts::{
     ModerationDriver, ModerationError, ModerationFuture, ModerationResult, Operation,
 };

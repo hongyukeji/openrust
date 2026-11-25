@@ -60,7 +60,7 @@ impl Aliyun {
                 })
             })
             .transpose()?;
-        let video = VideoService::configured(storage, profile, region)?;
+        let video = VideoService::configured(credentials, storage, profile, region)?;
         if text_service.is_none() && image.is_none() && video.is_none() {
             return Err(ModerationError::InvalidConfiguration("aliyun services"));
         }
