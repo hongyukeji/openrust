@@ -54,6 +54,19 @@ pub(super) fn configuration(env: &Environment) -> Result<Value, ConfigError> {
         english["english_text"] = json!(true);
         configuration["drivers"]["tencent-english"] = english;
     }
+    if let Some(endpoint) = env.get_utf8("MODERATION_FIXTURE_TENCENT_IMAGE")? {
+        let mut images = json!({
+            "driver":"tencent", "image_base_url":endpoint, "region":"ap-guangzhou",
+            "image_biz_type":"images", "secret_id_env":"FIXTURE_TENCENT_ID",
+            "secret_key_env":"FIXTURE_TENCENT_SECRET", "security_token_env":"FIXTURE_TENCENT_TOKEN",
+            "timeout_ms":3000,
+        });
+        if let Some(origin) = env.get_utf8("MODERATION_FIXTURE_IMAGE_ORIGIN")? {
+            images["media_disk"] = json!("s3");
+            images["media_origin"] = json!(origin);
+        }
+        configuration["drivers"]["tencent-images"] = images;
+    }
     Ok(configuration)
 }
 
@@ -247,6 +260,35 @@ pub(super) fn tencent_route(request: &mut Request) -> HttpFuture<'_, Result<Resp
     })
 }
 
+async fn tencent_image(input: ImageInput) -> ModerationResult<Value> {
+    let result = Moderation::driver("tencent-images")?.image(&input).await?;
+    let visual = format!("{:?}", result.coverage(Modality::Visual));
+    let ocr = format!("{:?}", result.coverage(Modality::Ocr));
+    let combined = result.decision(&[Modality::Visual, Modality::Ocr]);
+    let mut value = render_assessment(result, Modality::Visual);
+    value["visual"] = json!(visual);
+    value["ocr"] = json!(ocr);
+    value["combined"] = json!(combined.map(|decision| format!("{decision:?}")));
+    Ok(value)
+}
+
+pub(super) fn tencent_image_route(
+    request: &mut Request,
+) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let input = if let Some(version) = request.header("x-fixture-version")? {
+            let disk = request.header("x-fixture-disk")?.unwrap_or("s3");
+            StoredMedia::new(disk, "versions/image.png", version).map(ImageInput::stored)
+        } else {
+            ImageInput::inline(request.body_bytes().await?.to_vec())
+        };
+        provider_response(match input {
+            Ok(input) => tencent_image(input).await,
+            Err(error) => Err(error),
+        })
+    })
+}
+
 fn provider_response(result: ModerationResult<Value>) -> Result<Response, HttpError> {
     match result {
         Ok(value) => Response::json(StatusCode::OK, value),
@@ -355,7 +397,13 @@ pub(super) fn register_command(artisan: &mut Artisan) -> Result<(), ConsoleError
             ),
     ))))?;
     artisan.add_command(Box::new(TencentProbe(CommandDefinition::new(
-        clap::Command::new("drivers:moderation-tencent").arg(clap::Arg::new("text").required(true)),
+        clap::Command::new("drivers:moderation-tencent")
+            .arg(clap::Arg::new("text").required(true))
+            .arg(
+                clap::Arg::new("image")
+                    .long("image")
+                    .action(clap::ArgAction::SetTrue),
+            ),
     ))))
 }
 
@@ -374,12 +422,14 @@ impl Command for TencentProbe {
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
             let text = input.argument("text").expect("fixture command input");
-            let result = tencent(
-                text.as_str().expect("fixture text"),
-                None,
-                "tencent-default",
-            )
-            .await
+            let text = text.as_str().expect("fixture text");
+            let result = if input.option("image").and_then(|value| value.as_bool()) == Some(true) {
+                let source = StoredMedia::new("s3", "versions/image.png", text)
+                    .map_err(ConsoleError::from_source)?;
+                tencent_image(ImageInput::stored(source)).await
+            } else {
+                tencent(text, None, "tencent-default").await
+            }
             .map_err(ConsoleError::from_source)?;
             output
                 .write_raw(&format!("{result}\n"))

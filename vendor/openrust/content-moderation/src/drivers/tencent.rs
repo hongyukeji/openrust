@@ -3,27 +3,33 @@ use std::{collections::BTreeMap, sync::Arc};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use openrust::{
     config::Environment,
+    filesystem::FilesystemManager,
     http::client::{
         Factory,
         tencent_rpc::{CONTENT_TYPE, TencentRpcOperation, TencentRpcSigner},
     },
 };
-use serde::Deserialize;
+use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::{Value, json};
 use zeroize::Zeroizing;
 
-use super::{Endpoint, field, http_status, secret};
+use super::{Endpoint, field, http_status, secret, tencent_image::ImageService};
 use crate::{
-    Assessment, Confidence, Coverage, Decision, Finding, Modality, ModerationDriver,
+    Assessment, Confidence, Coverage, Decision, Finding, ImageInput, Modality, ModerationDriver,
     ModerationError, ModerationFuture, ModerationResult, Operation, TextInput,
 };
 
 pub(super) struct Tencent {
-    endpoint: Endpoint,
+    text: Option<TextService>,
+    image: Option<ImageService>,
     secret_id: Zeroizing<String>,
     secret_key: Zeroizing<String>,
     security_token: Option<Zeroizing<String>>,
     region: String,
+}
+
+struct TextService {
+    endpoint: Endpoint,
     biz_type: String,
     english_text: bool,
 }
@@ -32,36 +38,54 @@ impl Tencent {
     pub(super) fn new(
         http: Arc<Factory>,
         env: &Environment,
+        storage: Arc<FilesystemManager>,
         profile: &Value,
     ) -> ModerationResult<Self> {
         let region =
             field(profile, "region")?.ok_or(ModerationError::InvalidConfiguration("region"))?;
-        let biz_type =
-            field(profile, "biz_type")?.ok_or(ModerationError::InvalidConfiguration("biz_type"))?;
+        let biz_type = field(profile, "biz_type")?;
         let english_text = match profile.get("english_text") {
             None => false,
             Some(value) => value
                 .as_bool()
                 .ok_or(ModerationError::InvalidConfiguration("english_text"))?,
         };
-        let endpoint = Endpoint::new(http, profile, "https://tms.tencentcloudapi.com")?;
-        if endpoint.url.path() != "/" {
-            return Err(ModerationError::InvalidConfiguration("base_url"));
+        let text = biz_type
+            .map(|biz_type| {
+                Ok::<_, ModerationError>(TextService {
+                    endpoint: rpc_endpoint(
+                        http.clone(),
+                        profile,
+                        "https://tms.tencentcloudapi.com",
+                    )?,
+                    biz_type: biz_type.to_owned(),
+                    english_text,
+                })
+            })
+            .transpose()?;
+        let image = ImageService::configured(http, storage, profile)?;
+        if text.is_none() && image.is_none() {
+            return Err(ModerationError::InvalidConfiguration("tencent services"));
         }
         Ok(Self {
-            endpoint,
+            text,
+            image,
             secret_id: secret(env, profile, "secret_id_env")?
                 .ok_or(ModerationError::InvalidConfiguration("secret_id_env"))?,
             secret_key: secret(env, profile, "secret_key_env")?
                 .ok_or(ModerationError::InvalidConfiguration("secret_key_env"))?,
             security_token: secret(env, profile, "security_token_env")?,
             region: region.to_owned(),
-            biz_type: biz_type.to_owned(),
-            english_text,
         })
     }
 
-    async fn request(&self, parameters: Value) -> ModerationResult<Output> {
+    pub(super) async fn request<T: DeserializeOwned>(
+        &self,
+        endpoint: &Endpoint,
+        service: &'static str,
+        action: &'static str,
+        parameters: Value,
+    ) -> ModerationResult<T> {
         let body = parameters.to_string();
         let headers = TencentRpcSigner {
             secret_id: &self.secret_id,
@@ -69,28 +93,45 @@ impl Tencent {
             security_token: self.security_token.as_ref().map(|value| value.as_str()),
         }
         .sign_post(
-            &self.endpoint.url,
+            &endpoint.url,
             TencentRpcOperation {
-                service: "tms",
-                action: "TextModeration",
+                service,
+                action,
                 version: "2020-12-29",
                 region: &self.region,
             },
             body.as_bytes(),
         )
         .map_err(|_| ModerationError::InvalidConfiguration("tencent credentials"))?;
-        let response = self
-            .endpoint
-            .post_encoded(headers, body, CONTENT_TYPE)
-            .await?;
+        let response = endpoint.post_encoded(headers, body, CONTENT_TYPE).await?;
         http_status(response.status().as_u16())?;
-        let output: Envelope = response.json().map_err(|_| ModerationError::Protocol)?;
-        if let Some(error) = &output.response.error {
+        let envelope: Envelope = response.json().map_err(|_| ModerationError::Protocol)?;
+        if let Some(error) = envelope
+            .response
+            .get("Error")
+            .filter(|error| !error.is_null())
+        {
+            let error: ProviderError =
+                serde_json::from_value(error.clone()).map_err(|_| ModerationError::Protocol)?;
             return Err(service_error(&error.code));
         }
-        Ok(output.response)
+        serde_json::from_value(envelope.response).map_err(|_| ModerationError::Protocol)
     }
+}
 
+pub(super) fn rpc_endpoint(
+    http: Arc<Factory>,
+    profile: &Value,
+    default: &str,
+) -> ModerationResult<Endpoint> {
+    let endpoint = Endpoint::new(http, profile, default)?;
+    if endpoint.url.path() != "/" {
+        return Err(ModerationError::InvalidConfiguration("base_url"));
+    }
+    Ok(endpoint)
+}
+
+impl TextService {
     fn language(&self, hint: &str) -> ModerationResult<&'static str> {
         let hint = hint.to_ascii_lowercase();
         match hint.as_str() {
@@ -103,19 +144,40 @@ impl Tencent {
 
 impl ModerationDriver for Tencent {
     fn supports(&self, operation: Operation) -> bool {
-        operation == Operation::Text
+        match operation {
+            Operation::Text => self.text.is_some(),
+            Operation::Image => self.image.is_some(),
+            _ => false,
+        }
     }
 
     fn text<'a>(&'a self, input: &'a TextInput) -> ModerationFuture<'a, Assessment> {
         Box::pin(async move {
+            let text = self
+                .text
+                .as_ref()
+                .ok_or(ModerationError::Unsupported(Operation::Text))?;
             if input.text().chars().count() > 10_000 {
                 return Err(ModerationError::InvalidInput("tencent text length"));
             }
-            let mut body = json!({"Content":STANDARD.encode(input.text()),"Type":"TEXT","BizType":self.biz_type});
+            let mut body = json!({"Content":STANDARD.encode(input.text()),"Type":"TEXT","BizType":text.biz_type});
             if let Some(language) = input.language() {
-                body["SourceLanguage"] = json!(self.language(language)?);
+                body["SourceLanguage"] = json!(text.language(language)?);
             }
-            read_text(self.request(body).await?, &self.biz_type)
+            let output = self
+                .request(&text.endpoint, "tms", "TextModeration", body)
+                .await?;
+            read_text(output, &text.biz_type)
+        })
+    }
+
+    fn image<'a>(&'a self, input: &'a ImageInput) -> ModerationFuture<'a, Assessment> {
+        Box::pin(async move {
+            let image = self
+                .image
+                .as_ref()
+                .ok_or(ModerationError::Unsupported(Operation::Image))?;
+            image.assess(self, input).await
         })
     }
 }
@@ -123,13 +185,12 @@ impl ModerationDriver for Tencent {
 #[derive(Deserialize)]
 #[serde(rename_all = "PascalCase")]
 struct Envelope {
-    response: Output,
+    response: Value,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "PascalCase")]
 struct Output {
-    error: Option<ProviderError>,
     request_id: Option<String>,
     biz_type: Option<String>,
     #[serde(flatten)]
@@ -145,15 +206,15 @@ struct ProviderError {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "PascalCase")]
-struct Verdict {
+pub(super) struct Verdict {
     suggestion: String,
-    label: String,
+    pub(super) label: String,
     sub_label: Option<String>,
     score: Option<u8>,
 }
 
 impl Verdict {
-    fn decision(&self) -> ModerationResult<Decision> {
+    pub(super) fn decision(&self) -> ModerationResult<Decision> {
         if self.label.trim().is_empty() || self.score.is_some_and(|value| value > 100) {
             return Err(ModerationError::Protocol);
         }
@@ -165,7 +226,7 @@ impl Verdict {
         }
     }
 
-    fn finding(&self) -> (Finding, Option<f64>) {
+    pub(super) fn finding(&self, modality: Modality) -> (Finding, Option<f64>) {
         let category = match self.label.as_str() {
             "Porn" => "sexual",
             "Abuse" => "harassment",
@@ -181,7 +242,7 @@ impl Verdict {
         };
         (
             Finding {
-                modality: Modality::Text,
+                modality,
                 category: category.to_owned(),
                 provider_label,
             },
@@ -198,7 +259,7 @@ fn read_text(output: Output, biz_type: &str) -> ModerationResult<Assessment> {
     let mut decision = result.decision()?;
     let mut details = Vec::new();
     if decision != Decision::Allow || result.label != "Normal" {
-        details.push(result.finding());
+        details.push(result.finding(Modality::Text));
         if decision == Decision::Allow {
             decision = Decision::Review;
         }
@@ -210,7 +271,7 @@ fn read_text(output: Output, biz_type: &str) -> ModerationResult<Assessment> {
             Decision::Review if decision == Decision::Allow => decision = Decision::Review,
             Decision::Review => {}
         }
-        let detail = result.finding();
+        let detail = result.finding(Modality::Text);
         if details.first() != Some(&detail) {
             details.push(detail);
         }

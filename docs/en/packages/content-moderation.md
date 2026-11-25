@@ -2,7 +2,7 @@
 
 Enable the `content-moderation` feature or register `ModerationServiceProvider` in an application that depends on `openrust-content-moderation`. Run `./artisan vendor:publish --tag=moderation-config` to publish the configuration template. In your application's Rust configuration, set `moderation.drivers.comments.driver` to `review-text` and set `MODERATION_DRIVER=comments` for the default profile.
 
-The package provides custom driver contracts, Alibaba Cloud text and stored-image moderation, and Tencent Cloud text moderation. The other provider operations and durable video orchestration are being implemented.
+The package provides custom driver contracts, Alibaba Cloud text and stored-image moderation, and Tencent Cloud text and image moderation. The other provider operations and durable video orchestration are being implemented.
 
 ## Alibaba Cloud text {#aliyun-text}
 
@@ -23,6 +23,12 @@ This operation supplies visual coverage. Frame samples and ambiguous `nonLabel` 
 For a named profile, set `driver: "tencent"`, the `region` and `biz_type` configured in Tencent Cloud, and the environment variable names `secret_id_env` and `secret_key_env`. Add `security_token_env` for temporary credentials. The adapter calls standard `TextModeration` with UTF-8 Base64 text and accepts up to 10,000 Unicode characters.
 
 Chinese hints map to `zh`. Set `english_text: true` once Tencent Cloud has enabled the English option for your account. An English hint then uses `en` for pure English text. The adapter checks that the returned policy matches the configured `biz_type`. A detail can increase the severity of the overall recommendation, and an unrecognized label cannot lead to `Allow`. [Tencent Cloud TextModeration](https://cloud.tencent.com.cn/document/api/1124/51860)
+
+## Tencent Cloud images {#tencent-image}
+
+Add `image_biz_type` with the standard image policy configured in Tencent Cloud. A profile can use images alone or in combination with text. The standard `ImageModeration` adapter sends inline image bytes as Base64 (at least 16 bytes before encoding and under 10 MB after encoding), or a five-minute URL pinned to a private S3 object version. For stored images, set `media_disk` and `media_origin` to the authorized HTTPS storage origin.
+
+The adapter preserves risk findings from visual and OCR results with their original scores. Tencent Cloud may sample frames or split long images. Its synchronous response provides no proof of full coverage, so a provider `Pass` remains inconclusive. OCR text, matched keywords, and temporary links stay out of reported results. [Tencent Cloud ImageModeration](https://cloud.tencent.com/document/product/1125/53273)
 
 ## Custom drivers {#custom-drivers}
 

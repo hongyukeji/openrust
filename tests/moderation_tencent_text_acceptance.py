@@ -37,12 +37,12 @@ class Supplier(http.server.BaseHTTPRequestHandler):
         self.server.unexpected.append(self.path)
         self.send_error(405)
 
-    def do_POST(self):
+    def verify(self, action, service):
         assert self.path == "/"
         body = self.rfile.read(int(self.headers["Content-Length"]))
         media = "application/json; charset=utf-8"
         assert self.headers["Content-Type"] == media
-        assert self.headers["X-TC-Action"] == "TextModeration"
+        assert self.headers["X-TC-Action"] == action
         assert self.headers["X-TC-Version"] == "2020-12-29"
         assert self.headers["X-TC-Region"] == "ap-guangzhou"
         timestamp = int(self.headers["X-TC-Timestamp"])
@@ -55,16 +55,19 @@ class Supplier(http.server.BaseHTTPRequestHandler):
         access_id, scope, signature = auth.groups()
         secret, token = CREDENTIALS[access_id]
         assert self.headers["X-TC-Token"] == token
-        assert scope == f"{day}/tms/tc3_request"
+        assert scope == f"{day}/{service}/tc3_request"
         canonical = (f"POST\n/\n\ncontent-type:{media}\nhost:{self.headers['Host']}\n\ncontent-type;host\n"
                      + hashlib.sha256(body).hexdigest())
         to_sign = f"TC3-HMAC-SHA256\n{timestamp}\n{scope}\n" + hashlib.sha256(canonical.encode()).hexdigest()
         key_date = hmac.digest(("TC3" + secret).encode(), day.encode(), "sha256")
-        key_service = hmac.digest(key_date, b"tms", "sha256")
+        key_service = hmac.digest(key_date, service.encode(), "sha256")
         key_signing = hmac.digest(key_service, b"tc3_request", "sha256")
         assert hmac.compare_digest(signature, hmac.new(key_signing, to_sign.encode(), hashlib.sha256).hexdigest())
 
-        parameters = json.loads(body)
+        return json.loads(body), access_id
+
+    def do_POST(self):
+        parameters, access_id = self.verify("TextModeration", "tms")
         assert set(parameters) <= {"Content", "BizType", "Type", "SourceLanguage"}
         assert parameters["Type"] == "TEXT" and parameters["BizType"] == "comments"
         text = base64.b64decode(parameters["Content"], validate=True).decode()

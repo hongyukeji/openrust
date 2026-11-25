@@ -162,6 +162,10 @@ async fn main() -> ExitCode {
                                 moderation::aliyun_image_route,
                             )?;
                             Route::post("/drivers/moderation/tencent", moderation::tencent_route)?;
+                            Route::post(
+                                "/drivers/moderation/tencent-image",
+                                moderation::tencent_image_route,
+                            )?;
                         }
                         Ok(())
                     })

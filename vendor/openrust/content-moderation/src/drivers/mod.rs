@@ -1,6 +1,7 @@
 mod aliyun;
 mod media;
 mod tencent;
+mod tencent_image;
 
 use std::{net::IpAddr, sync::Arc, time::Duration};
 
@@ -24,11 +25,12 @@ pub(crate) fn register(
 ) {
     let client = http.clone();
     let environment = env.clone();
+    let media = storage.clone();
     manager.extend("aliyun", move |profile| {
         Ok(Arc::new(aliyun::Aliyun::new(
             client.clone(),
             &environment,
-            storage.clone(),
+            media.clone(),
             profile,
         )?))
     });
@@ -36,6 +38,7 @@ pub(crate) fn register(
         Ok(Arc::new(tencent::Tencent::new(
             http.clone(),
             &env,
+            storage.clone(),
             profile,
         )?))
     });
