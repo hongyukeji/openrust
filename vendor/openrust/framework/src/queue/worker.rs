@@ -27,8 +27,8 @@ use crate::{
 };
 
 use super::{
-    ChainUpdate, JobContext, JobPopCallback, JobPopper, Payload, QueueError, QueueFuture,
-    QueueManager, QueueResult, WorkerOptions, WorkerStopReason,
+    ChainUpdate, JobContext, JobPopCallback, JobPopper, Payload, QueueError, QueueManager,
+    QueueResult, WorkerOptions, WorkerStopReason,
     events::{
         JobAttempted, JobExceptionOccurred, JobFailed, JobInterrupted, JobPopped, JobPopping,
         JobProcessed, JobProcessing, JobReleased, JobReleasedAfterException, JobSnapshot,
@@ -36,6 +36,7 @@ use super::{
         WorkerStopping, attempt_duration, attempt_exception_message,
     },
     failed::{FailedJob, FailedJobProviderInterface},
+    job_popper::WorkerReservationGuard,
     worker_attempt_marker::AttemptMarker,
     worker_options::MEBIBYTE,
     worker_signals::WorkerSignalState,
@@ -90,9 +91,6 @@ pub struct Worker {
     reservation_guard: Option<WorkerReservationGuard>,
 }
 
-pub(super) type WorkerReservationGuard =
-    Arc<dyn Fn() -> QueueFuture<'static, QueueResult<bool>> + Send + Sync>;
-
 impl Worker {
     pub fn new(app: Arc<Container>) -> QueueResult<Self> {
         let failed = app.get::<dyn FailedJobProviderInterface>("queue.failer")?;
@@ -132,7 +130,7 @@ impl Worker {
             .await?;
         let job = if let Some(callback) = manager.pop_callback(&options.name) {
             scope(self.app.clone(), async {
-                callback(JobPopper::new(connection, false, None), queue_name).await
+                callback(JobPopper::new(connection, false, None, None), queue_name).await
             })
             .await?
         } else {
@@ -305,6 +303,7 @@ impl Worker {
                     connection,
                     options.stop_when_empty || queues.len() > 1,
                     idle_deadline,
+                    self.reservation_guard.as_ref(),
                 );
                 if let Some(callback) = manager.pop_callback(&options.name) {
                     let job = scope(self.app.clone(), async {

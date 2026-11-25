@@ -10,7 +10,8 @@ use crate::{
     foundation::Application,
     queue::{
         QueueFuture, QueueManager, QueueResult, Worker, WorkerOptions,
-        worker::{WorkerCadence, WorkerReservationGuard},
+        job_popper::WorkerReservationGuard,
+        worker::WorkerCadence,
         worker_options::MEBIBYTE,
         worker_signals::{WorkerSignalState, WorkerSignals},
     },
@@ -53,7 +54,7 @@ impl WorkCommand {
         ), None)
     }
 
-    /// 配置队列传输领取任务前执行的异步检查。
+    /// 配置领取任务前执行的异步检查。Redis 的阻塞等待结束后会再次检查。
     pub fn with_reservation_guard(
         mut self,
         guard: impl Fn() -> QueueFuture<'static, QueueResult<bool>> + Send + Sync + 'static,

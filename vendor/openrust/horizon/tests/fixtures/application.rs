@@ -40,7 +40,9 @@ fn config(base: &Path, _: &Environment) -> Result<BTreeMap<String, Value>, Confi
         ),
         (
             "queue".into(),
-            json!({"default":"redis","connections":{"redis":{"driver":"redis","connection":"default","queue":"default","retry_after":30}},"failed":{"driver":"database-uuids","database":"sqlite","table":"failed_jobs"}}),
+            json!({"default":"redis","connections":{"redis":{"driver":"redis","connection":"default","queue":"default","retry_after":30,
+                "block_for": std::env::var("HORIZON_PROBE_BLOCK_FOR").ok().map(|value| value.parse::<u32>().unwrap())
+            }},"failed":{"driver":"database-uuids","database":"sqlite","table":"failed_jobs"}}),
         ),
         (
             "horizon".into(),

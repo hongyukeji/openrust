@@ -40,9 +40,13 @@ macOS 的真实 Redis 8.10.3 回归覆盖同时竞争时仅一方获得名称、
 
 修复前，隔离 Redis 模拟接管后，真实旧 Supervisor 退出时删除了接管方的同名心跳。当前 Master 显式把名称及所有权交给受管子进程。Supervisor 的心跳、暂停状态、命令领取与清理在 Redis 内先比较所属 Master 的令牌。Master 启动受管 Supervisor 前，在同一所有权约束下清理该名称的旧元数据。未受 Master 管理的单独 Supervisor 保留原有调用方式。前态证据为 `target/tmp/observability-parity/horizon-master-lease-stale-child.log`。
 
-Horizon 通过框架 `WorkCommand::with_reservation_guard` 在实际领取任务前检查所有权，包含受管 `--once`。失去令牌的 Worker 在下一个检查点停止领取，已经运行的任务沿用原生排空。普通 `queue:work` 无需检查 Horizon 的进程信息。检查位于队列传输请求之前，跨 Redis 的检查与已经发出的阻塞请求仍属分别执行的操作。Redis 主从切换、正在传输的保留请求和正式部署组合继续验证。
+Horizon 通过框架 `WorkCommand::with_reservation_guard` 在实际领取任务前检查所有权，包含受管 `--once`。失去令牌的 Worker 在下一个检查点停止领取，已经运行的任务沿用原生排空。普通 `queue:work` 无需检查 Horizon 的进程信息。
 
 macOS 与 Linux ARM64 使用真实 Redis 8.10.3 与实际 Master、Supervisor 和 Worker。先确认旧 Worker 能处理任务，再暂停两个父进程模拟接管。旧 Worker 保留新任务并退出，旧 Supervisor 的退出清理保留接管方心跳和未处理命令。持新令牌的 `horizon:work --once` 处理同一任务，普通 `queue:work --once` 即使带有旧进程环境也能处理后续任务。macOS 完整进程及 Worker 回归、Horizon 和框架所涉严格 Clippy、同名 Master 与 102 条心跳回归通过。Linux 双 PID 1 Master 组合通过。Windows ARM64 的原生 `--once` 拒绝陈旧令牌，普通 Worker 正常执行，原生 Master 控制通过。Windows 带实际子树的排空矩阵仍待验。证据为 `target/tmp/observability-parity/horizon-child-ownership-{macos,macos-takeover-verified,linux,linux-takeover-native,windows,rust-targets,preflight}.log`。
+
+固定 Laravel `RedisQueue` 先用 `BLPOP` 等待通知，再单独发送领取请求。修复前，旧 Worker 在 Redis 已阻塞时失去所有权，仍会处理接管后入队的任务。现在通知返回或等待到期后，受管 Worker 会先重新检查所有权及暂停状态，再次确认可领取才向 Redis 发出请求。队列的 `block_for` 与空闲等待上限沿用原有配置。已经发出的领取请求和 Redis 主从切换仍需单独验收，所有权检查与跨连接或实例的领取命令独立执行。 [固定 Laravel RedisQueue](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/RedisQueue.php#L589-L607)
+
+阻塞接管用例确认 Redis 中的 Worker 处于 `BLPOP` 后，在同一条脚本内写入继任令牌、追加真实派发的任务并唤醒旧 Worker。旧 Worker 消费通知后退出，任务留在待处理列表，尝试次数仍为 0、保留集合为空。持新令牌的 `horizon:work --once` 处理同一任务。macOS 与 Linux ARM64 在 Redis 8.10.3 上通过阻塞与非阻塞回归，macOS 的普通 Redis 队列 HTTP 与阻塞领取回归、Horizon Worker 回归、所涉严格 Clippy 和格式检查通过。证据为 `target/tmp/observability-parity/horizon-blocking-ownership-{before,macos,linux,plain-queue,format}.log`。
 
 Master 的 `commandQueue`、`commandQueueFor`、公开重启与输出回调也有独立契约待核对。
 

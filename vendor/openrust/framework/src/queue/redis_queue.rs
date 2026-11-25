@@ -14,6 +14,7 @@ use crate::{
 use super::{
     Delay, JobContext, Payload, Queue, QueueError, QueueFuture, QueueManager, QueueResult, backend,
     events::{JobQueued, JobSnapshot, RedisJobQueueing, RedisJobReserved, RedisJobsMigrated},
+    job_popper::may_resume_reservation,
     jobs::{Reservation, ReservedJob},
     new_id, queue_name,
 };
@@ -381,6 +382,9 @@ impl RedisQueue {
             .await
             .map_err(backend)?
             .map_err(backend)?;
+            if !may_resume_reservation().await? {
+                return Ok(None);
+            }
             if let Some(job) = self.reserve(queue).await? {
                 return Ok(Some(job));
             }

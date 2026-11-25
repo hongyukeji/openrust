@@ -125,6 +125,8 @@ macOS 初轮独占 Redis 8.10.3 的主机选择、状态类别和无跨主机写
 
 固定上游 [Master 控制命令](horizon/README.md#master-控制命令的主机范围) 和 [Pulse 慢任务计时](pulse/README.md#slowjobs-任务尝试计时) 已保留真实消费者对照证据。Horizon 的本机控制通过 macOS 原生进程、Linux ARM64 双容器 PID 1 和 Windows ARM64 空部署计划验收。默认命名及自定义前缀已接通同机多组与双容器的 Artisan 控制，剩余名称输入边界见[命名审计](horizon/README.md#master-名称与解析器)。同名启动、接管与 Master 排空续期通过真实 Redis 验收。受管 Supervisor 元数据及 Worker 领取入口已加入所有权校验，并通过接管回归。 [所有权审计](horizon/README.md#supervisor-与-worker-接管) Pulse 已在原生 SQLite Worker 上修复并验收。Windows Worker 排空及两包正式部署组合继续核对。
 
+Redis 中已阻塞的 Horizon Worker 会在被唤醒后、再次请求领取前复核所有权。真实 Worker 接管回归确认任务留在待处理列表，尝试次数保持为零，并由新持有者通过 Artisan 执行。Redis 主从切换和可能已经发出的领取命令仍待验收。 [阻塞接管证据](horizon/README.md#supervisor-与-worker-接管)
+
 ### Horizon 分组等待时间与 HTTP 排序
 
 固定上游 [RedisWorkloadRepository::get](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Repositories/RedisWorkloadRepository.php) 与 [WaitTimeCalculator::calculateTimeToClear](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/WaitTimeCalculator.php) 分别确定各分队列先取整再累加、整组以原始总量独立取整的行为。[WorkloadController::index](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Http/Controllers/WorkloadController.php) 对 HTTP 结果按名称排序，仓储按等待时间降序供监控消费。Rust 已补齐两处规则。

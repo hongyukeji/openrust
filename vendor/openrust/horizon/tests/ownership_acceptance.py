@@ -15,6 +15,7 @@ import uuid
 def main():
     assert os.environ["HORIZON_REQUIRE_REDIS"] == "1"
     binary = str(Path(sys.argv[1]).resolve())
+    blocking = "--blocking" in sys.argv[2:]
     redis_url = urlsplit(os.environ["HORIZON_TEST_REDIS_URL"])
     redis_container = os.environ.get("HORIZON_ACCEPTANCE_REDIS_CONTAINER")
     if redis_container:
@@ -28,13 +29,15 @@ def main():
             database.execute("CREATE TABLE failed_jobs (id INTEGER PRIMARY KEY, uuid TEXT UNIQUE, connection TEXT, queue TEXT, payload TEXT, exception TEXT, failed_at TEXT)")
         env = dict(os.environ, APP_BASE_PATH=temporary, APP_ENV="testing", LOG_CHANNEL="null",
                    HORIZON_PREFIX="child-ownership:")
+        if blocking:
+            env["HORIZON_PROBE_BLOCK_FOR"] = "20"
         completed = root / "completed.log"
         master = subprocess.Popen([binary, "artisan", "horizon"], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stopped = []
 
         def redis(*arguments):
             return subprocess.check_output(
-                [*redis_command, *arguments],
+                [*redis_command, "-e", *arguments],
                 env=dict(os.environ, REDISCLI_AUTH=redis_url.password), text=True, timeout=10,
             ).strip()
 
@@ -57,8 +60,9 @@ def main():
                 time.sleep(.2)
             raise AssertionError("timed out in process ownership acceptance")
 
-        def dispatch():
+        def dispatch(queue="default"):
             return subprocess.check_output([binary], env=dict(env, HORIZON_PROBE_DISPATCH="{}",
+                                           HORIZON_PROBE_DISPATCH_QUEUE=queue,
                                            HORIZON_PROBE_DISPATCH_UUID="1"), text=True, timeout=10).strip()
 
         def process_state(pid):
@@ -90,17 +94,43 @@ def main():
                 stopped.append(pid)
                 until(lambda: process_state(pid).startswith("T"))
             replacement = dict(child, probe="replacement")
-            assert redis(
-                "EVAL",
-                "redis.call('SET',KEYS[1],ARGV[1],'EX',60);redis.call('SET',KEYS[2],ARGV[2],'EX',60);redis.call('SET',KEYS[3],ARGV[3],'EX',60);redis.call('RPUSH',KEYS[4],'continue');return 1",
-                "4", owner_key, master_key, child_key, commands_key, token,
-                json.dumps(dict(active, environment="replacement")), json.dumps(replacement),
-            ) == "1"
-            job = dispatch()
+            ready = f"{root.name}:queues:default"
+            keys = [owner_key, master_key, child_key, commands_key]
+            if blocking:
+                job = dispatch("takeover-staging")
+                keys += [f"{root.name}:queues:takeover-staging", ready, f"{ready}:notify"]
+                until(lambda: any("flags=b" in line and "cmd=blpop" in line
+                                  for line in redis("CLIENT", "LIST").splitlines()))
+
+            def take_over():
+                return redis(
+                    "EVAL",
+                    """
+                    redis.call('SET', KEYS[1], ARGV[1], 'EX', 60)
+                    redis.call('SET', KEYS[2], ARGV[2], 'EX', 60)
+                    redis.call('SET', KEYS[3], ARGV[3], 'EX', 60)
+                    redis.call('RPUSH', KEYS[4], 'continue')
+                    if #KEYS == 7 then
+                        redis.call('RPUSH', KEYS[6], redis.call('LPOP', KEYS[5]))
+                        redis.call('RPUSH', KEYS[7], 1)
+                    end
+                    return 1
+                    """,
+                    str(len(keys)), *keys, token, json.dumps(dict(active, environment="replacement")),
+                    json.dumps(replacement),
+                ) == "1"
+
+            assert take_over()
+            if not blocking:
+                job = dispatch()
             worker_pids = [worker["pid"] for worker in child["workers"]]
             assert worker_pids
             until(lambda: all(not process_state(pid) or process_state(pid).startswith("Z") for pid in worker_pids))
-            assert not completed_job(job)
+            assert not completed_job(job), "stale Worker processed a job published after takeover"
+            assert json.loads(redis("LINDEX", ready, "0"))["attempts"] == 0
+            assert redis("ZCARD", f"{ready}:reserved") == "0"
+            if blocking:
+                assert redis("LLEN", f"{ready}:notify") == "0", "BLPOP did not consume the wake-up"
 
             stale = dict(env, OPENRUST_HORIZON_MASTER_NAME=name, OPENRUST_HORIZON_MASTER_OWNER=old_token)
             current = dict(stale, OPENRUST_HORIZON_MASTER_OWNER=token)
@@ -124,7 +154,8 @@ def main():
             assert json.loads(redis("GET", master_key))["environment"] == "replacement"
             assert json.loads(redis("GET", child_key)) == replacement
             assert redis("LRANGE", commands_key, "0", "-1") == "continue"
-            print("PASS: stale Supervisor and Worker cannot mutate new records or reserve jobs after takeover")
+            mode = "with Redis BLPOP in flight" if blocking else "without blocking"
+            print(f"PASS: stale Supervisor and Worker cannot mutate new records or reserve jobs after takeover ({mode})")
         finally:
             for pid in reversed(stopped):
                 try:
