@@ -9,6 +9,22 @@ use super::FileStream;
 
 /// Reads and writes files relative to a disk root.
 pub trait Filesystem: Send + Sync {
+    /// 分别检查文件与目录；旧实现未声明该能力时显式返回不支持。
+    fn file_exists<'a>(&'a self, _path: &'a str) -> FilesystemFuture<'a, FilesystemResult<bool>> {
+        Box::pin(async { Err(crate::filesystem::FilesystemError::UnsupportedOperation) })
+    }
+    fn directory_exists<'a>(
+        &'a self,
+        _path: &'a str,
+    ) -> FilesystemFuture<'a, FilesystemResult<bool>> {
+        Box::pin(async { Err(crate::filesystem::FilesystemError::UnsupportedOperation) })
+    }
+    fn mime_type<'a>(
+        &'a self,
+        _path: &'a str,
+    ) -> FilesystemFuture<'a, FilesystemResult<Option<String>>> {
+        Box::pin(async { Err(crate::filesystem::FilesystemError::UnsupportedOperation) })
+    }
     fn path(&self, path: &str) -> FilesystemResult<String>;
     fn exists<'a>(&'a self, path: &'a str) -> FilesystemFuture<'a, FilesystemResult<bool>>;
     fn get<'a>(&'a self, path: &'a str) -> FilesystemFuture<'a, FilesystemResult<Option<Vec<u8>>>>;

@@ -325,3 +325,51 @@ fn write_if_missing(path: &Path) -> FileResult<()> {
 条件来自文件服务查询时使用 `when_test`／`unless_test`，解析器只执行一次，并把原结果交给所选回调。`when_condition(value)`／`unless_condition(value)` 返回具类型高阶代理，`.call(|files| ...)` 仅在条件满足时调用真实公开操作。先捕获查询时使用 `when_capture()?.capture(|files| ...)` 或 `unless_capture`；`try_capture` 接受会返回错误的查询。未捕获条件时返回 `MissingCondition`。代理方法返回真实操作值，因此操作返回 `None` 时仍为 `Value(None)`，不套用回调式的空值回退。
 
 门面代理持有原应用服务，移动到另一应用作用域不会重新解析为另一份服务。直接调用 `Filesystem` 提供相同方法，回退目标为原借用。Rust 用明确后缀与 `ConditionalResult` 表达不同参数数量、动态方法代理和目标／标量联合返回，条件、副作用选择及错误传播仍可直接验证。
+
+## 自定义文件系统 {#custom-filesystems}
+
+在文件系统 Provider 注册之后，于应用服务提供者中注册工厂。工厂原样接收所选磁盘配置。`FilesystemAdapter::custom` 接受外部实现的既有 `Cloud`／`Filesystem` 契约；没有公开 URL 的后端可在 `Cloud::url` 返回 `UnsupportedOperation`。适配器继续负责路径保护、流式操作与 `throw`／`report`。下面包装另一磁盘；接入独立服务时替换 `Cloud` 的实现。
+
+```rust
+use openrust::{
+    contracts::{container::Container as _, foundation::Application as _},
+    filesystem::{FilesystemAdapter, FilesystemManager},
+    foundation::Application,
+    http::HttpFuture,
+    support::{ProviderResult, ServiceProvider},
+};
+use std::sync::Arc;
+
+pub struct StorageServiceProvider;
+impl ServiceProvider for StorageServiceProvider {
+    fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            app.container().make::<FilesystemManager>()?.extend("example", |manager, profile| {
+                let backing = profile["backing"].as_str()
+                    .ok_or(openrust::filesystem::FilesystemError::InvalidConfiguration)?;
+                Ok(Arc::new(FilesystemAdapter::custom(
+                    manager.disk(Some(backing))?,
+                    profile["throw"].as_bool().unwrap_or(false),
+                    profile["report"].as_bool().unwrap_or(false),
+                    profile["url"].as_str().map(str::to_owned),
+                )))
+            });
+            Ok(())
+        })
+    }
+}
+```
+
+```rust
+use openrust::support::facades::Storage;
+use serde_json::json;
+
+let disk = Storage::build_from_config(json!({
+    "driver": "example", "backing": "local", "throw": true
+}))?;
+disk.put("reports/example.txt", b"ready").await?;
+```
+
+工厂属于当前应用，可解析其他磁盘，不得循环解析自身。并发解析同一具名磁盘只构造一次。替换工厂保留已解析句柄；用 `FilesystemManager::forget_disk` 重建指定磁盘。`Storage::build_from_config` 按配置构建不缓存的磁盘；原有强类型 `build` 和 `build_s3` 保留。HTTP、Artisan 和 Worker 进程均须注册 Provider。配置缓存保存配置，不保存工厂或后端对象。
+
+外部实现通过 `Filesystem` 对应方法声明文件／目录存在性和 MIME 检测能力，默认实现返回 `UnsupportedOperation`。临时 URL 使用既有 `build_temporary_urls_using`／`build_temporary_upload_urls_using` 回调。自定义驱动不会自动获得本地签名路由或 S3 专属 SDK 请求 Builder；不支持的能力显式报错。集群须使用共享存储，每个节点注册同一工厂；本地后端仍仅属于所在主机。

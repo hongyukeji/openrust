@@ -43,6 +43,7 @@ Sms::send_text("+85255550123", "Your order has shipped.").await?;
 Sms::driver("aliyun")?
     .send_template("+8613800138000", "login_code", [("code", "123456")])
     .await?;
+assert_eq!(receipt["accepted"], true);
 ```
 
 預設的 `log` 驅動程式記錄訊息類型和號碼末四碼。需要實際傳送時，將 `SMS_DRIVER` 設為對應的供應商或具名設定。
@@ -192,6 +193,7 @@ let sms = Sms::driver("twilio")?;
 sms.send_text("+12025550123", "您的訂單已出貨。").await?;
 sms.send_template("+12025550123", "order_shipped", [("1", "A1024")])
     .await?;
+assert_eq!(receipt["accepted"], true);
 ```
 
 ### Vonage 傳送純文字
@@ -251,3 +253,91 @@ Worker 在呼叫廠商前依佇列工作的 UUID 登記，並在觸發 `Notifica
 ## 註冊供應商 {#custom-sms-providers}
 
 在應用程式服務提供者的 `register` 中解析 `SmsManager`，呼叫 `extend` 註冊工廠。工廠接收選定的設定，回傳實作 `SmsDriver` 的驅動程式。多個具名設定可以共用同一個驅動程式。
+
+
+以下是使用共用 HTTP 用戶端的完整純文字驅動，註冊 `example` 工廠。放入應用 Provider 模組，在 `bootstrap/providers.rs` 加入 `ExampleSmsProvider`。接入實際供應商時替換端點協定與回執驗證；範例不發送供應商審核範本。
+
+```rust
+use openrust::{
+    contracts::{container::Container as _, foundation::Application as _},
+    foundation::Application,
+    http::HttpFuture,
+    notifications::{
+        NotificationError, NotificationFuture, NotificationResult,
+        sms::{SmsDriver, SmsManager, SmsMessage},
+    },
+    support::{ProviderResult, ServiceProvider, facades::Http},
+};
+use serde_json::{Value, json};
+use std::{sync::Arc, time::Duration};
+
+pub struct ExampleSmsProvider;
+impl ServiceProvider for ExampleSmsProvider {
+    fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            app.container()
+                .make::<SmsManager>()?
+                .extend("example", |profile| {
+                    let endpoint = profile["endpoint"]
+                        .as_str()
+                        .filter(|s| !s.is_empty())
+                        .ok_or_else(|| failure("短信端点未配置"))?;
+                    Ok(Arc::new(ExampleSms {
+                        endpoint: endpoint.into(),
+                    }))
+                });
+            Ok(())
+        })
+    }
+}
+
+struct ExampleSms {
+    endpoint: String,
+}
+impl SmsDriver for ExampleSms {
+    fn send(&self, message: SmsMessage) -> NotificationFuture<'_, NotificationResult<Value>> {
+        Box::pin(async move {
+            if message.approved_template().is_some() {
+                return Err(failure("示例驱动仅支持纯文本"));
+            }
+            let response = Http::accept_json()
+                .map_err(|_| failure("HTTP 客户端不可用"))?
+                .without_redirecting()
+                .timeout(Duration::from_secs(5))
+                .max_response_bytes(16 * 1024)
+                .post(
+                    &self.endpoint,
+                    &json!({"to":message.to(), "text":message.content()}),
+                )
+                .await
+                .map_err(|_| failure("短信供应商连接失败"))?;
+            if !response.successful() {
+                return Err(failure("短信供应商未接受请求"));
+            }
+            let receipt: Value = response.json().map_err(|_| failure("短信回执无效"))?;
+            if receipt["accepted"] != true {
+                return Err(failure("短信供应商拒绝请求"));
+            }
+            Ok(receipt)
+        })
+    }
+}
+fn failure(message: &'static str) -> NotificationError {
+    NotificationError::Delivery {
+        source: message.into(),
+    }
+}
+```
+
+在 `config/sms.rs` 的 `drivers` 中增加具名設定，例如 `"example_primary": {"driver":"example", "endpoint":"https://sms.example/api/messages"}`。金鑰由環境設定提供。依名稱發送：
+
+```rust
+use openrust::{notifications::sms::SmsMessage, support::facades::Sms};
+
+let receipt = Sms::driver("example_primary")?
+    .send(SmsMessage::new("+12025550123", "Hello")?)
+    .await?;
+assert_eq!(receipt["accepted"], true);
+```
+
+同一工廠可供多個具名設定使用，每個設定保留獨立快照。替換工廠只影響新解析的發送器；呼叫 `Sms::forget_drivers()` 重建快取，既有 `SmsSender` 句柄繼續保留舊快照。HTTP、Artisan 和 Worker 各程序均須註冊 Provider：佇列通知只序列化設定名和訊息，不序列化閉包、端點憑據或發送器物件。叢集各 Worker 部署相同 Provider 和具名設定，投遞記錄重用既有共用資料庫與佇列。測試端點回傳成功回執不代表電信商實際送達。

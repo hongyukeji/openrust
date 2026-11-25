@@ -325,3 +325,51 @@ The selected callback returns `FileResult<Option<T>>`. `Some(value)` becomes `Co
 Use `when_test` / `unless_test` when the condition is computed from the service: the resolver runs once and its original result is passed to the selected callback. `when_condition(value)` / `unless_condition(value)` produce a typed higher-order proxy: `.call(|files| ...)` executes the actual public operation only when selected. To capture a query first, use `when_capture()?.capture(|files| ...)` or `unless_capture`; `try_capture` accepts a fallible query. A missing captured condition returns `MissingCondition`. A proxy operation returns its actual value, so an operation returning `None` remains `Value(None)`; the callback-style null fallback does not apply to this form.
 
 A facade proxy owns the original application service, so moving it to another application scope does not resolve a different service. Direct `Filesystem` calls provide the same methods with a borrowed target. Rust uses these explicit suffixes and `ConditionalResult` instead of overloaded argument counts, dynamic method interception or a target/scalar union; actual conditions, selected side effects and error propagation remain observable.
+
+## Custom Filesystems {#custom-filesystems}
+
+Register a factory in an application service provider after the filesystem provider has been registered. The selected disk configuration is passed unchanged to the factory. `FilesystemAdapter::custom` accepts an external implementation of the existing `Cloud` / `Filesystem` contracts; a backend without public URLs can return `UnsupportedOperation` from `Cloud::url`. Path checks, streaming, and `throw` / `report` remain in the adapter. This example wraps another disk; replace the `Cloud` implementation to connect a separate service.
+
+```rust
+use openrust::{
+    contracts::{container::Container as _, foundation::Application as _},
+    filesystem::{FilesystemAdapter, FilesystemManager},
+    foundation::Application,
+    http::HttpFuture,
+    support::{ProviderResult, ServiceProvider},
+};
+use std::sync::Arc;
+
+pub struct StorageServiceProvider;
+impl ServiceProvider for StorageServiceProvider {
+    fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            app.container().make::<FilesystemManager>()?.extend("example", |manager, profile| {
+                let backing = profile["backing"].as_str()
+                    .ok_or(openrust::filesystem::FilesystemError::InvalidConfiguration)?;
+                Ok(Arc::new(FilesystemAdapter::custom(
+                    manager.disk(Some(backing))?,
+                    profile["throw"].as_bool().unwrap_or(false),
+                    profile["report"].as_bool().unwrap_or(false),
+                    profile["url"].as_str().map(str::to_owned),
+                )))
+            });
+            Ok(())
+        })
+    }
+}
+```
+
+```rust
+use openrust::support::facades::Storage;
+use serde_json::json;
+
+let disk = Storage::build_from_config(json!({
+    "driver": "example", "backing": "local", "throw": true
+}))?;
+disk.put("reports/example.txt", b"ready").await?;
+```
+
+Factories are scoped to the application, can resolve other disks, and must not recursively resolve themselves. Each named disk is constructed once under concurrent resolution. Replacing a factory keeps already resolved handles; call `FilesystemManager::forget_disk` to rebuild a named disk. `Storage::build_from_config` builds an uncached disk; the existing typed `build` and `build_s3` methods remain available. Register the provider in every HTTP, Artisan and Worker process. Configuration caching stores configuration, not factories or backend objects.
+
+External implementations expose file/directory existence and MIME detection through the corresponding `Filesystem` methods. Their default implementations return `UnsupportedOperation`. Temporary URLs use the existing `build_temporary_urls_using` / `build_temporary_upload_urls_using` callbacks. A custom driver does not automatically gain local signed routes or S3-specific SDK request builders; unsupported capabilities return errors. For clusters, use shared storage and register the same factory on each node; a local backend remains local to its host.

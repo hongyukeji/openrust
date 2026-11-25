@@ -1,6 +1,7 @@
 //! Named filesystem disks and file operations.
 
 mod aws_s3_v3_adapter;
+mod custom_filesystem;
 mod download;
 mod facade;
 mod file_facade;

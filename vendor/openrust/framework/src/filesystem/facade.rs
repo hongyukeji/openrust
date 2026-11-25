@@ -57,6 +57,27 @@ impl Storage {
         Self::get_facade_root()?.disk(name)
     }
 
+    /// 在当前应用作用域注册存储驱动。
+    pub fn extend(
+        driver: impl Into<String>,
+        factory: impl Fn(
+            &FilesystemManager,
+            &serde_json::Value,
+        ) -> FilesystemResult<Arc<FilesystemAdapter>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> FilesystemResult<()> {
+        Self::get_facade_root()?.extend(driver, factory);
+        Ok(())
+    }
+
+    pub fn build_from_config(
+        config: serde_json::Value,
+    ) -> FilesystemResult<Arc<FilesystemAdapter>> {
+        Self::get_facade_root()?.build_from_config(config)
+    }
+
     pub fn build(config: LocalDiskConfig) -> FilesystemResult<Arc<FilesystemAdapter>> {
         Self::get_facade_root()?.build(config)
     }

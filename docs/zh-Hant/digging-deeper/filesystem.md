@@ -325,3 +325,51 @@ fn write_if_missing(path: &Path) -> FileResult<()> {
 條件來自檔案服務查詢時使用 `when_test`／`unless_test`，解析器只執行一次，並把原結果交給選中的回呼。`when_condition(value)`／`unless_condition(value)` 回傳具型別高階代理，`.call(|files| ...)` 僅在條件符合時呼叫真實公開操作。先擷取查詢時使用 `when_capture()?.capture(|files| ...)` 或 `unless_capture`；`try_capture` 接受會回傳錯誤的查詢。未擷取條件時回傳 `MissingCondition`。代理方法回傳真實操作值，因此操作回傳 `None` 時仍為 `Value(None)`，不套用回呼式的空值後備。
 
 門面代理持有原應用服務，移動到另一應用作用域不會重新解析為另一份服務。直接呼叫 `Filesystem` 提供相同方法，後備目標為原借用。Rust 以明確後綴與 `ConditionalResult` 表達不同參數數量、動態方法代理和目標／純量聯合回傳，條件、副作用選擇及錯誤傳播仍可直接驗證。
+
+## 自訂檔案系統 {#custom-filesystems}
+
+在檔案系統 Provider 註冊之後，於應用服務提供者中註冊工廠。工廠原樣接收所選磁碟設定。`FilesystemAdapter::custom` 接受外部實作的既有 `Cloud`／`Filesystem` 契約；沒有公開 URL 的後端可在 `Cloud::url` 回傳 `UnsupportedOperation`。適配器繼續負責路徑保護、串流操作與 `throw`／`report`。下例包裝另一磁碟；接入獨立服務時替換 `Cloud` 的實作。
+
+```rust
+use openrust::{
+    contracts::{container::Container as _, foundation::Application as _},
+    filesystem::{FilesystemAdapter, FilesystemManager},
+    foundation::Application,
+    http::HttpFuture,
+    support::{ProviderResult, ServiceProvider},
+};
+use std::sync::Arc;
+
+pub struct StorageServiceProvider;
+impl ServiceProvider for StorageServiceProvider {
+    fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            app.container().make::<FilesystemManager>()?.extend("example", |manager, profile| {
+                let backing = profile["backing"].as_str()
+                    .ok_or(openrust::filesystem::FilesystemError::InvalidConfiguration)?;
+                Ok(Arc::new(FilesystemAdapter::custom(
+                    manager.disk(Some(backing))?,
+                    profile["throw"].as_bool().unwrap_or(false),
+                    profile["report"].as_bool().unwrap_or(false),
+                    profile["url"].as_str().map(str::to_owned),
+                )))
+            });
+            Ok(())
+        })
+    }
+}
+```
+
+```rust
+use openrust::support::facades::Storage;
+use serde_json::json;
+
+let disk = Storage::build_from_config(json!({
+    "driver": "example", "backing": "local", "throw": true
+}))?;
+disk.put("reports/example.txt", b"ready").await?;
+```
+
+工廠屬於目前應用，可解析其他磁碟，不得循環解析自身。並行解析同一具名磁碟只建構一次。替換工廠保留已解析句柄；用 `FilesystemManager::forget_disk` 重建指定磁碟。`Storage::build_from_config` 依設定建構不快取的磁碟；原有強型別 `build` 和 `build_s3` 保留。HTTP、Artisan 和 Worker 程序均須註冊 Provider。設定快取儲存設定，不儲存工廠或後端物件。
+
+外部實作透過 `Filesystem` 對應方法宣告檔案／目錄存在性和 MIME 偵測能力，預設實作回傳 `UnsupportedOperation`。暫時 URL 使用既有 `build_temporary_urls_using`／`build_temporary_upload_urls_using` 回呼。自訂驅動不會自動取得本機簽名路由或 S3 專屬 SDK 請求 Builder；不支援的能力明確報錯。叢集須使用共享儲存，每個節點註冊同一工廠；本機後端仍僅屬於所在主機。

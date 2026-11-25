@@ -110,3 +110,8 @@ harness = false
 name = "sms_worker_app"
 path = "tests/support/sms/worker_app.rs"
 harness = false
+
+[[test]]
+name = "driver_extensions_app"
+path = "tests/support/driver_extensions/app.rs"
+harness = false

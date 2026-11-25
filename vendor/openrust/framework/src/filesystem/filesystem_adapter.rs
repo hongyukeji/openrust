@@ -33,6 +33,7 @@ pub struct FilesystemAdapter {
 enum Driver {
     Local(LocalFilesystemAdapter),
     S3(Box<AwsS3V3Adapter>),
+    Custom(Arc<dyn crate::contracts::filesystem::Cloud>),
 }
 
 impl FilesystemAdapter {
@@ -61,6 +62,25 @@ impl FilesystemAdapter {
     ) -> Self {
         Self {
             driver: Driver::S3(Box::new(driver)),
+            url,
+            signed_route: None,
+            temporary_url_builder: RwLock::default(),
+            temporary_upload_url_builder: RwLock::default(),
+            throw,
+            report,
+        }
+    }
+
+    /// 用公开存储契约包装外部后端；路径校验与 throw／report 仍由此适配器执行。
+    /// 不提供公开 URL 的后端可令 Cloud::url 返回 UnsupportedOperation。
+    pub fn custom(
+        driver: Arc<dyn crate::contracts::filesystem::Cloud>,
+        throw: bool,
+        report: bool,
+        url: Option<String>,
+    ) -> Self {
+        Self {
+            driver: Driver::Custom(driver),
             url,
             signed_route: None,
             temporary_url_builder: RwLock::default(),
@@ -149,7 +169,7 @@ impl FilesystemAdapter {
     ) -> FilesystemResult<String> {
         validate_path(path)?;
         match &self.driver {
-            Driver::Local(_) => {
+            Driver::Local(_) | Driver::Custom(_) => {
                 let builder = self
                     .temporary_url_builder
                     .read()
@@ -181,7 +201,7 @@ impl FilesystemAdapter {
     ) -> FilesystemResult<TemporaryUploadUrl> {
         validate_path(path)?;
         match &self.driver {
-            Driver::Local(_) => {
+            Driver::Local(_) | Driver::Custom(_) => {
                 let builder = self
                     .temporary_upload_url_builder
                     .read()
@@ -212,7 +232,7 @@ impl FilesystemAdapter {
                 disk.temporary_download_request(path, expiration, configure)
                     .await
             }
-            Driver::Local(_) => Err(FilesystemError::UnsupportedOperation),
+            Driver::Local(_) | Driver::Custom(_) => Err(FilesystemError::UnsupportedOperation),
         }
     }
 
@@ -229,7 +249,7 @@ impl FilesystemAdapter {
                 disk.temporary_upload_request(path, expiration, configure)
                     .await
             }
-            Driver::Local(_) => Err(FilesystemError::UnsupportedOperation),
+            Driver::Local(_) | Driver::Custom(_) => Err(FilesystemError::UnsupportedOperation),
         }
     }
 
@@ -286,6 +306,7 @@ impl FilesystemAdapter {
         Ok(match &self.driver {
             Driver::Local(disk) => disk.root().join(path),
             Driver::S3(disk) => PathBuf::from(disk.key(path)),
+            Driver::Custom(disk) => PathBuf::from(disk.path(path)?),
         })
     }
 
@@ -310,6 +331,9 @@ impl FilesystemAdapter {
         let from = normalized_from.as_ref();
         let normalized_to = normalize_path(to)?;
         let to = normalized_to.as_ref();
+        if let Driver::Custom(disk) = &self.driver {
+            return self.or_default(disk.copy(from, to).await);
+        }
         if let Driver::S3(disk) = &self.driver {
             return self.or_default(disk.copy(from, to).await.map(|()| true));
         }
@@ -334,6 +358,9 @@ impl FilesystemAdapter {
         let to = normalized_to.as_ref();
         if from == to {
             return self.exists(from).await;
+        }
+        if let Driver::Custom(disk) = &self.driver {
+            return self.or_default(disk.r#move(from, to).await);
         }
         if self.copy(from, to).await? {
             self.delete(from).await
@@ -373,6 +400,9 @@ impl FilesystemAdapter {
     pub async fn size(&self, path: &str) -> FilesystemResult<u64> {
         let normalized_path = normalize_path(path)?;
         let path = normalized_path.as_ref();
+        if let Driver::Custom(disk) = &self.driver {
+            return disk.size(path).await;
+        }
         let Driver::Local(disk) = &self.driver else {
             return Err(FilesystemError::UnsupportedOperation);
         };
@@ -382,6 +412,9 @@ impl FilesystemAdapter {
     pub async fn last_modified(&self, path: &str) -> FilesystemResult<SystemTime> {
         let normalized_path = normalize_path(path)?;
         let path = normalized_path.as_ref();
+        if let Driver::Custom(disk) = &self.driver {
+            return disk.last_modified(path).await;
+        }
         let Driver::Local(disk) = &self.driver else {
             return Err(FilesystemError::UnsupportedOperation);
         };
@@ -391,6 +424,9 @@ impl FilesystemAdapter {
     pub async fn mime_type(&self, path: &str) -> FilesystemResult<Option<String>> {
         let normalized_path = normalize_path(path)?;
         let path = normalized_path.as_ref();
+        if let Driver::Custom(disk) = &self.driver {
+            return self.or_default(disk.mime_type(path).await);
+        }
         let Driver::Local(disk) = &self.driver else {
             return Err(FilesystemError::UnsupportedOperation);
         };
@@ -407,6 +443,30 @@ impl FilesystemAdapter {
     ) -> FilesystemResult<Option<String>> {
         let normalized_path = normalize_path(path)?;
         let path = normalized_path.as_ref();
+        if matches!(self.driver, Driver::Custom(_)) {
+            let Some(mut reader) = self.read_stream(path).await? else {
+                return Ok(None);
+            };
+            let mut digest = D::new();
+            let mut buffer = [0; 64 * 1024];
+            loop {
+                let count = match reader.read(&mut buffer).await {
+                    Ok(count) => count,
+                    Err(error) => return self.or_default(Err(error.into())),
+                };
+                if count == 0 {
+                    break;
+                }
+                digest.update(&buffer[..count]);
+            }
+            use std::fmt::Write as _;
+            let digest = digest.finalize();
+            let mut hex = String::with_capacity(digest.len() * 2);
+            for byte in digest {
+                write!(hex, "{byte:02x}").expect("写入字符串");
+            }
+            return Ok(Some(hex));
+        }
         let Driver::Local(disk) = &self.driver else {
             return Err(FilesystemError::UnsupportedOperation);
         };
@@ -422,6 +482,10 @@ impl FilesystemAdapter {
                 None => format!("/storage/{}", path.strip_prefix("public/").unwrap_or(path)),
             }),
             Driver::S3(disk) => disk.url(path, self.url.as_deref()),
+            Driver::Custom(disk) => match self.url.as_deref() {
+                Some(base) => Ok(format!("{}/{path}", base.trim_end_matches('/'))),
+                None => disk.url(path),
+            },
         }
     }
 
@@ -465,6 +529,15 @@ impl FilesystemAdapter {
                 }
             }
             Driver::S3(disk) => disk.open(path).await?,
+            Driver::Custom(disk) => OpenedFile {
+                reader: super::custom_filesystem::reader(
+                    disk.read_stream(path)
+                        .await?
+                        .ok_or(FilesystemError::NotFound)?,
+                ),
+                length: None,
+                content_type: None,
+            },
         };
         file.response(path, name, headers, disposition)
     }
@@ -491,6 +564,11 @@ impl FilesystemAdapter {
                 .open(path)
                 .await
                 .map(|file| (file.reader, file.content_type)),
+            Driver::Custom(disk) => match disk.read_stream(path).await {
+                Ok(Some(stream)) => Ok((super::custom_filesystem::reader(stream), None)),
+                Ok(None) => return Ok(None),
+                Err(error) => Err(error),
+            },
         };
         self.or_default(result.map(Some))
     }
@@ -554,7 +632,13 @@ impl FilesystemAdapter {
     ) -> FilesystemResult<bool> {
         let normalized_path = normalize_path(path)?;
         let path = normalized_path.as_ref();
+        if let Driver::Custom(disk) = &self.driver {
+            return self.or_default(
+                super::custom_filesystem::write(disk.as_ref(), path, reader, options).await,
+            );
+        }
         let result = match &self.driver {
+            Driver::Custom(_) => unreachable!("自定义驱动已处理"),
             Driver::Local(disk) => disk.write(path.into(), reader, options.visibility).await,
             Driver::S3(disk) => disk.write(path, reader, options.visibility).await,
         };
@@ -568,6 +652,7 @@ impl FilesystemAdapter {
             Driver::Local(disk) => disk.exists(path.into(), None).await,
             Driver::S3(disk) if disk.file_exists(path).await? => Ok(true),
             Driver::S3(disk) => disk.directory_exists(path).await,
+            Driver::Custom(disk) => disk.exists(path).await,
         }
     }
 
@@ -581,6 +666,7 @@ impl FilesystemAdapter {
         match &self.driver {
             Driver::Local(disk) => disk.exists(path.into(), Some(false)).await,
             Driver::S3(disk) => disk.file_exists(path).await,
+            Driver::Custom(disk) => disk.file_exists(path).await,
         }
     }
 
@@ -590,6 +676,7 @@ impl FilesystemAdapter {
         match &self.driver {
             Driver::Local(disk) => disk.exists(path.into(), Some(true)).await,
             Driver::S3(disk) => disk.directory_exists(path).await,
+            Driver::Custom(disk) => disk.directory_exists(path).await,
         }
     }
 
@@ -626,12 +713,17 @@ impl FilesystemAdapter {
             Driver::Local(disk) => disk.list(path.to_owned(), recursive, directories).await,
             Driver::S3(disk) if recursive && !directories => disk.all_files(path).await,
             Driver::S3(_) => Err(FilesystemError::UnsupportedOperation),
+            Driver::Custom(disk) if directories => disk.directories(Some(path), recursive).await,
+            Driver::Custom(disk) => disk.files(Some(path), recursive).await,
         }
     }
 
     pub async fn make_directory(&self, path: &str) -> FilesystemResult<bool> {
         let normalized_path = normalize_path(path)?;
         let path = normalized_path.as_ref();
+        if let Driver::Custom(disk) = &self.driver {
+            return self.or_default(disk.make_directory(path).await);
+        }
         let Driver::Local(disk) = &self.driver else {
             return Err(FilesystemError::UnsupportedOperation);
         };
@@ -641,6 +733,9 @@ impl FilesystemAdapter {
     pub async fn delete_directory(&self, path: &str) -> FilesystemResult<bool> {
         let normalized_path = normalize_path(path)?;
         let path = normalized_path.as_ref();
+        if let Driver::Custom(disk) = &self.driver {
+            return self.or_default(disk.delete_directory(path).await);
+        }
         let Driver::Local(disk) = &self.driver else {
             return Err(FilesystemError::UnsupportedOperation);
         };
@@ -650,7 +745,11 @@ impl FilesystemAdapter {
     pub async fn delete(&self, path: &str) -> FilesystemResult<bool> {
         let normalized_path = normalize_path(path)?;
         let path = normalized_path.as_ref();
+        if let Driver::Custom(disk) = &self.driver {
+            return self.or_default(disk.delete(&[path]).await);
+        }
         let result = match &self.driver {
+            Driver::Custom(_) => unreachable!("自定义驱动已处理"),
             Driver::Local(disk) => disk.delete(path.into()).await,
             Driver::S3(disk) => disk.delete(path).await,
         };
@@ -663,6 +762,7 @@ impl FilesystemAdapter {
         match &self.driver {
             Driver::Local(disk) => disk.get_visibility(path.into()).await,
             Driver::S3(disk) => disk.get_visibility(path).await,
+            Driver::Custom(disk) => disk.get_visibility(path).await,
         }
     }
 
@@ -673,7 +773,11 @@ impl FilesystemAdapter {
     ) -> FilesystemResult<bool> {
         let normalized_path = normalize_path(path)?;
         let path = normalized_path.as_ref();
+        if let Driver::Custom(disk) = &self.driver {
+            return self.or_default(disk.set_visibility(path, visibility).await);
+        }
         let result = match &self.driver {
+            Driver::Custom(_) => unreachable!("自定义驱动已处理"),
             Driver::Local(disk) => disk.set_visibility(path.into(), visibility).await,
             Driver::S3(disk) => disk.set_visibility(path, visibility).await,
         };

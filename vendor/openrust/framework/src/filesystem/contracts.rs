@@ -31,6 +31,15 @@ impl FileStream for Reader {
     }
 }
 impl Filesystem for Adapter {
+    fn file_exists<'a>(&'a self, path: &'a str) -> Future<'a, Result<bool>> {
+        Box::pin(Self::file_exists(self, path))
+    }
+    fn directory_exists<'a>(&'a self, path: &'a str) -> Future<'a, Result<bool>> {
+        Box::pin(Self::directory_exists(self, path))
+    }
+    fn mime_type<'a>(&'a self, path: &'a str) -> Future<'a, Result<Option<String>>> {
+        Box::pin(Self::mime_type(self, path))
+    }
     fn path(&self, path: &str) -> Result<String> {
         Self::path(self, path)?
             .into_os_string()

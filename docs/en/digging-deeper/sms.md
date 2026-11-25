@@ -43,6 +43,7 @@ Sms::send_text("+85255550123", "Your order has shipped.").await?;
 Sms::driver("aliyun")?
     .send_template("+8613800138000", "login_code", [("code", "123456")])
     .await?;
+assert_eq!(receipt["accepted"], true);
 ```
 
 The default `log` driver records message type and the last four digits in application logs. Set `SMS_DRIVER` to a provider or named profile for live delivery.
@@ -192,6 +193,7 @@ let sms = Sms::driver("twilio")?;
 sms.send_text("+12025550123", "Your order has shipped.").await?;
 sms.send_template("+12025550123", "order_shipped", [("1", "A1024")])
     .await?;
+assert_eq!(receipt["accepted"], true);
 ```
 
 ### Vonage text messages
@@ -251,3 +253,91 @@ Keep the delivery rows while their jobs can still be redelivered or retried. Bef
 ## Registering providers {#custom-sms-providers}
 
 In a service provider’s `register` hook, resolve `SmsManager` and call `extend` to register a driver factory. The factory receives the selected profile and returns a type that implements `SmsDriver`. Multiple named profiles can use the same driver.
+
+
+The following complete text-only driver uses the shared HTTP client and registers an `example` factory. Place it in an application provider module and add `ExampleSmsProvider` to `bootstrap/providers.rs`. Replace the endpoint protocol and receipt validation for your provider; this example does not send supplier-approved templates.
+
+```rust
+use openrust::{
+    contracts::{container::Container as _, foundation::Application as _},
+    foundation::Application,
+    http::HttpFuture,
+    notifications::{
+        NotificationError, NotificationFuture, NotificationResult,
+        sms::{SmsDriver, SmsManager, SmsMessage},
+    },
+    support::{ProviderResult, ServiceProvider, facades::Http},
+};
+use serde_json::{Value, json};
+use std::{sync::Arc, time::Duration};
+
+pub struct ExampleSmsProvider;
+impl ServiceProvider for ExampleSmsProvider {
+    fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            app.container()
+                .make::<SmsManager>()?
+                .extend("example", |profile| {
+                    let endpoint = profile["endpoint"]
+                        .as_str()
+                        .filter(|s| !s.is_empty())
+                        .ok_or_else(|| failure("短信端点未配置"))?;
+                    Ok(Arc::new(ExampleSms {
+                        endpoint: endpoint.into(),
+                    }))
+                });
+            Ok(())
+        })
+    }
+}
+
+struct ExampleSms {
+    endpoint: String,
+}
+impl SmsDriver for ExampleSms {
+    fn send(&self, message: SmsMessage) -> NotificationFuture<'_, NotificationResult<Value>> {
+        Box::pin(async move {
+            if message.approved_template().is_some() {
+                return Err(failure("示例驱动仅支持纯文本"));
+            }
+            let response = Http::accept_json()
+                .map_err(|_| failure("HTTP 客户端不可用"))?
+                .without_redirecting()
+                .timeout(Duration::from_secs(5))
+                .max_response_bytes(16 * 1024)
+                .post(
+                    &self.endpoint,
+                    &json!({"to":message.to(), "text":message.content()}),
+                )
+                .await
+                .map_err(|_| failure("短信供应商连接失败"))?;
+            if !response.successful() {
+                return Err(failure("短信供应商未接受请求"));
+            }
+            let receipt: Value = response.json().map_err(|_| failure("短信回执无效"))?;
+            if receipt["accepted"] != true {
+                return Err(failure("短信供应商拒绝请求"));
+            }
+            Ok(receipt)
+        })
+    }
+}
+fn failure(message: &'static str) -> NotificationError {
+    NotificationError::Delivery {
+        source: message.into(),
+    }
+}
+```
+
+Add a named profile to `drivers` in `config/sms.rs`, for example `"example_primary": {"driver":"example", "endpoint":"https://sms.example/api/messages"}`. Keep secrets in environment-backed configuration. Send with the named profile:
+
+```rust
+use openrust::{notifications::sms::SmsMessage, support::facades::Sms};
+
+let receipt = Sms::driver("example_primary")?
+    .send(SmsMessage::new("+12025550123", "Hello")?)
+    .await?;
+assert_eq!(receipt["accepted"], true);
+```
+
+The same factory may serve multiple profiles. Each profile keeps its own configuration snapshot. Replacing a factory affects newly resolved senders; call `Sms::forget_drivers()` to rebuild cached senders. Existing `SmsSender` handles keep their snapshots. Register the provider in each HTTP, Artisan and Worker process: queued notifications serialize the profile name and message, never closures, endpoint credentials or a sender object. In a cluster, deploy the same provider and named configuration on each worker; use the existing shared database/queue delivery records. A successful test endpoint receipt does not prove carrier delivery.

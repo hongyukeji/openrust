@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, RwLock},
 };
 
 use serde::Deserialize;
@@ -13,11 +13,18 @@ use super::{
     LocalPermissions, S3DiskConfig, Visibility,
 };
 
+type ResolvedDisk = Arc<Mutex<Option<Arc<FilesystemAdapter>>>>;
+
+type DriverFactory = dyn Fn(&FilesystemManager, &serde_json::Value) -> FilesystemResult<Arc<FilesystemAdapter>>
+    + Send
+    + Sync;
+
 /// Resolves and caches named filesystem disks for one application.
 pub struct FilesystemManager {
     config: Arc<dyn Repository>,
     base_path: PathBuf,
-    disks: Mutex<HashMap<String, Arc<FilesystemAdapter>>>,
+    disks: Mutex<HashMap<String, ResolvedDisk>>,
+    factories: RwLock<HashMap<String, Arc<DriverFactory>>>,
 }
 
 /// Configuration for an on-demand local disk.
@@ -39,6 +46,7 @@ impl FilesystemManager {
             config,
             base_path,
             disks: Mutex::default(),
+            factories: RwLock::default(),
         }
     }
 
@@ -51,18 +59,92 @@ impl FilesystemManager {
                 &default
             }
         };
-        let mut disks = self
+        let configured = || {
+            self.config
+                .get("filesystems.disks")
+                .and_then(|disks| disks.get(name).cloned())
+                .ok_or_else(|| FilesystemError::UnknownDisk { name: name.into() })
+        };
+        let existing = self
             .disks
             .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(name)
+            .cloned();
+        let (slot, config) = match existing {
+            Some(slot) => (slot, None),
+            None => {
+                // 不为未知名称创建永久空槽，保留原有错误与缓存边界。
+                let config = configured()?;
+                let slot = self
+                    .disks
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .entry(name.to_owned())
+                    .or_default()
+                    .clone();
+                (slot, Some(config))
+            }
+        };
+        let mut resolved = slot
+            .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        if let Some(disk) = disks.get(name) {
+        if let Some(disk) = resolved.as_ref() {
             return Ok(Arc::clone(disk));
         }
-        let config = self
-            .config
-            .get("filesystems.disks")
-            .and_then(|disks| disks.get(name).cloned())
-            .ok_or_else(|| FilesystemError::UnknownDisk { name: name.into() })?;
+        let config = match config {
+            Some(config) => config,
+            None => configured()?,
+        };
+        let disk = self.resolve(&config, name)?;
+        *resolved = Some(Arc::clone(&disk));
+        Ok(disk)
+    }
+
+    /// 注册当前应用的驱动工厂；已解析的磁盘保持不变，重建前调用 forget_disk。
+    /// 工厂在注册表和全局缓存锁之外执行，可解析其他具名磁盘；不得循环解析自身。
+    pub fn extend(
+        &self,
+        driver: impl Into<String>,
+        factory: impl Fn(&Self, &serde_json::Value) -> FilesystemResult<Arc<FilesystemAdapter>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> &Self {
+        self.factories
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(driver.into(), Arc::new(factory));
+        self
+    }
+
+    /// 按配置构建不缓存的磁盘，保留原有强类型 local／S3 构建入口。
+    pub fn build_from_config(
+        &self,
+        config: serde_json::Value,
+    ) -> FilesystemResult<Arc<FilesystemAdapter>> {
+        self.resolve(&config, "ondemand")
+    }
+
+    fn resolve(
+        &self,
+        config: &serde_json::Value,
+        name: &str,
+    ) -> FilesystemResult<Arc<FilesystemAdapter>> {
+        let driver = config
+            .get("driver")
+            .and_then(serde_json::Value::as_str)
+            .filter(|driver| !driver.is_empty())
+            .ok_or(FilesystemError::InvalidConfiguration)?;
+        let factory = self
+            .factories
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(driver)
+            .cloned();
+        if let Some(factory) = factory {
+            return factory(self, config);
+        }
         let url = match config.get("url") {
             Some(serde_json::Value::String(url)) if !url.is_empty() => Some(url.clone()),
             None | Some(serde_json::Value::Null) => None,
@@ -74,14 +156,14 @@ impl FilesystemManager {
                 let permissions =
                     LocalPermissions::from_config(config.get("permissions").cloned())?;
                 self.build_local(
-                    serde_json::from_value(config)
+                    serde_json::from_value(config.clone())
                         .map_err(|_| FilesystemError::InvalidConfiguration)?,
                     permissions,
                     url,
                 )?
             }
             Some("s3") => self.build_s3_adapter(
-                serde_json::from_value(config)
+                serde_json::from_value(config.clone())
                     .map_err(|_| FilesystemError::InvalidConfiguration)?,
                 url,
             )?,
@@ -90,14 +172,13 @@ impl FilesystemManager {
         };
         let disk = if serve {
             let mut disk = disk;
-            Arc::get_mut(&mut disk)
-                .expect("new disk is exclusively owned")
-                .serve_as(name);
+            if let Some(disk) = Arc::get_mut(&mut disk) {
+                disk.serve_as(name);
+            }
             disk
         } else {
             disk
         };
-        disks.insert(name.to_owned(), Arc::clone(&disk));
         Ok(disk)
     }
 
