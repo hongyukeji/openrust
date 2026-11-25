@@ -95,7 +95,7 @@ Git 默认流程已于 2026-11-23 更新：已授权任务完成并通过相关�
 
 - 2026-11-25 Artisan第十簇选择题／多选及关联问答契约通过：117选择、24格式器、540模板向量与真实公开入口／HTTP／Artisan／终端匹配；运行错误保留来源并按明确类型终止，普通错误可重试。148项父消费者含三语33例、16选择及15基础PTY、三语实跑／浏览器和严格门禁通过，见[第十簇](audits/artisan-tutorial/README.md)。原生JSON／Display文本快照、UTF-8及VM边界明确，不伪称对象身份或完整SDK。接着表格／进度及其余公开入口，整章未闭合、不推送。
 
-- 2026-11-25用户授权持续开发完整用户认证入门套件，遇到实现问题按固定基线自行裁决。按[API-A01计划](plans/user-auth-starter-kit.md)的A01-01至05实施，当前已验显式响应与安全资源、full／api双安装预设及基础Blade页面；34项直接消费者、三库各4项真实HTTP、双预设真实Artisan／HTTP与严格门禁通过。邮件链接与密码浏览器会话单元亦已通过三库、file／database／Redis及SPA回归；继续SMTP／队列、PAT／无密码及跨节点撤销、账户中心；进度和证据见[本批记录](audits/user-auth-starter/README.md)。全部批次未闭合，不以底层已有模块或部分验收代替完整交付。保留其他在途工作，按规范实测后分批本地提交；不推送、不发布。
+- 2026-11-26：API-A01用户认证入门套件A01-01至05的实现与本地组合验收已闭合，5／5阶段。网页／API、邮件与凭据生命周期、账户中心、可选认证及预检均有实际消费者证据；[最终结果与独立发布条件](audits/user-auth-starter/README.md#a01-final-closure)、[公开入口索引](audits/user-auth-starter/contracts.md)为接续依据。生产账号、实体认证器及完整发布矩阵单列，既存Fortify偶发Session观察项不因此关闭。代码分批本地提交，源码／记录／数据库／依赖保留，闲置编译产物已直接清理；未推送、未发布，其他代理工作保持原样。
 
 - 2026-11-24 固定Error Handling教程18节已逐项闭合：报告助手、异常类型行为／忽略标记、异步命名视图、419重定向与会话闪存、真实错误页对象、八专用回退及发布均经真实HTTP／Artisan验证；三语正文与[18节账本](audits/error-tutorial/section-map.json)同步，证据与原生差异见[最终核对](audits/error-tutorial/README.md)。保留URL14节、Validation179节及Settings既定范围已闭合状态，不扩张为全框架API或发布矩阵完成。本轮只本地提交，未推送。
 

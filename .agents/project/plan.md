@@ -279,13 +279,13 @@ Fortify、Socialite 的包源码固定版本与对应 JS／Passkey 依赖须在�
 
 ### 相关 API 扩展
 
-2026-11-24用户已确认完整版用户认证入门套件：网页、用户API、账户中心和可选认证配套按[正式执行计划](plans/user-auth-starter-kit.md)实施，原待讨论方案被替代。产品决策已确认，A01-01开发中，新增整体验收仍待开展；不因底层认证已有实现而计为套件完成。
+2026-11-24用户已确认完整版用户认证入门套件：网页、用户API、账户中心和可选认证配套按[正式执行计划](plans/user-auth-starter-kit.md)实施，原待讨论方案被替代。2026-11-26已完成A01-01至05实现与本地组合验收，5／5阶段；证据及独立发布条件见[最终记录](audits/user-auth-starter/README.md#a01-final-closure)，不等同整个框架发布完成。
 
 再次审计的4项P1、5项P2与安装预检边界已补为[S01至S10执行契约](plans/user-auth-starter-kit.md#审计补充执行契约)，包含逐项批次归属。书面补齐不代表实现／验收完成，相关安全前置门禁须在对应写路径开发前满足。
 
 | 单元 | 前置依赖 | 第一代交付与文档 | 验收与边界 |
 | --- | --- | --- | --- |
-| <a id="unit-api-a01"></a>API-A01 完整用户认证入门套件（已确认／开发中） | API-F01、既有Sanctum／认证／邮件、ApiResponse及init | 复用现有组件交付Blade完整网页、用户API、账户中心、邮件闭环及可选认证接线；[正式决策与批次](plans/user-auth-starter-kit.md) | 用户已确认按方案执行；按A01-01至05验证安装、网页／API、凭据生命周期及存储／邮件，未完成全部约定入口不标记整套闭合。 |
+| <a id="unit-api-a01"></a>API-A01 完整用户认证入门套件（本地契约已闭合） | API-F01、既有Sanctum／认证／邮件、ApiResponse及init | 复用现有组件交付Blade完整网页、用户API、账户中心、邮件闭环及可选认证接线；[正式决策与批次](plans/user-auth-starter-kit.md) | A01-01至05已逐项实现、实际验收并本地提交；真实供应商、实体设备和完整发布矩阵见验收记录，不推送／发布。 |
 | <a id="unit-api-f01"></a>API-F01 Fortify 无界面认证 | 04-04、04-05、04-07、05-08、06-07 | 固定 [Fortify 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/fortify.md)：按功能开关接注册、登录／登出、密码重置／确认、邮件验证、2FA／恢复码、认证流水线、动作和响应定制 | 复用已过的认证基础；真实 HTTP／MySQL、限流、JSON／Web、Session 轮换、挑战重放、邮件协议和关闭视图；源码包版本先固定 |
 | <a id="unit-api-f02"></a>API-F02 Fortify Passkeys | API-F01、固定 Passkey 依赖 | 同一固定文档的 passkeys 全生命周期；挑战、注册／列表／删除、认证与密码确认接口、JS 客户端对接 | 浏览器 WebAuthn／受控认证器、真实 HTTP／MySQL；challenge 单次消费、origin／RP ID、用户绑定、过期与并发；未验收前不得宣称已支持 |
 | <a id="unit-api-s01"></a>API-S01 Socialite | HTTP Client、Session、认证基础 | 固定 [Socialite 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/socialite.md) 的驱动、redirect／user、scope、可选参数、stateless、token／refresh 和用户映射；逐个核对官方 Facebook／X／LinkedIn／Google／GitHub／GitLab／Bitbucket／Slack 驱动，区分 OAuth／OIDC | 先固定包版本，逐驱动受控 HTTP 协议验收；state／错误回调／撤销／provider 定制／隔离；真实供应商授权需对应测试应用、凭据和回调域名，模拟不冒充实机 |
