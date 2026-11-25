@@ -399,11 +399,11 @@ async fn signal_supervisor(selected: &serde_json::Value, signal: &str) -> Result
             .map_err(error)?
             .throw()
             .map_err(error)?;
+        Ok(())
     }
     #[cfg(not(unix))]
     {
         let _ = (selected, signal);
-        return Err(ConsoleError::new("Horizon process signals require Unix."));
+        Err(ConsoleError::new("Horizon process signals require Unix."))
     }
-    Ok(())
 }

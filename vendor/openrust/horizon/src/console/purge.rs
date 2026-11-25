@@ -1,9 +1,9 @@
+#[cfg(unix)]
 use super::error;
 use crate::Repository;
-use openrust::{
-    console::{ConsoleError, Input, Output},
-    process::Factory,
-};
+use openrust::console::{ConsoleError, Input, Output};
+#[cfg(unix)]
+use openrust::process::Factory;
 
 pub(super) async fn purge(
     repository: &Repository,

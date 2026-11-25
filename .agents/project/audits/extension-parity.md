@@ -377,7 +377,15 @@ Rust 将进程创建错误保留在原席位的冷却周期，记日志后继续
 
 在新的独占 Redis 8.10.3 容器上，使用同一 macOS 二进制开启浏览器选项重跑真实进程矩阵。Chrome 桌面和移动视口验证授权、任务详情、监控标签写入、指标、CSP 刷新与布局，进程矩阵也通过。证据为 `target/tmp/observability-parity/horizon-worker-spawn-browser.log`。
 
-Linux ARM64 首轮优化构建触及 32 GB 停线，编译产物已按项目约定清理，重跑两批合并快照。Windows ARM64 虚机正在使用项目内独立 NTFS 验收盘验证包和应用装配，共享目录的编译产物写入因 Windows 错误 87 失败。两平台结果仍待记录。
+Linux ARM64 首轮优化构建触及 32 GB 停线，编译产物已按项目约定清理，重跑两批合并快照。Windows ARM64 结果见下节。
+
+### Horizon Windows ARM64 应用装配与条件编译
+
+Windows 11 ARM64 虚机的 Parallels 共享目录在 Rust 写归档时返回错误 87。构建切换到镜像位于项目临时目录的独立 NTFS 盘，并在本次命令的 PATH 中接入虚机已有的 ARM64 Clang 19.1.5 和 CMake。Rust 1.94.0 的原生目标为 `aarch64-pc-windows-msvc`。
+
+修复 Windows 编译发现的两个 Unix 专用导入和一处不可达表达式。同一虚机重跑 Horizon 默认 24 项、Horizon 实际 Artisan 配置入口一项与默认骨架两项，全部通过，Horizon 编译无告警。macOS 的实际孤儿清理、完整进程矩阵、全仓格式和包全目标严格 Clippy 通过。Windows 测试未运行 Redis 专项或 Unix 信号矩阵。证据为 `target/tmp/observability-windows/horizon-*-ntfs-clean.log` 和 `target/tmp/observability-parity/horizon-windows-cfg-macos.log`。
+
+验收结束后虚机已恢复挂起。Parallels 需关机才能拆除新增磁盘，本批保留原虚机挂起会话和项目内的验收盘。
 
 ### 三个扩展同时启用时的 Artisan 配置验收
 
