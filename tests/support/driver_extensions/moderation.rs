@@ -25,7 +25,7 @@ use openrust_content_moderation::{
     Assessment, Coverage, Decision, ImageInput, Modality, Moderation, ModerationDriver,
     ModerationError, ModerationFuture, ModerationManager, ModerationResult, ModerationStore,
     Operation, ProfileRevision, StoredMedia, TaskId, TaskStatus, TextInput, VideoInput,
-    VideoReview, VideoReviewRequest,
+    VideoReview, VideoReviewGroup, VideoReviewGroupRequest, VideoReviewRequest,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -65,6 +65,21 @@ pub(super) fn configuration(env: &Environment) -> Result<Value, ConfigError> {
         "comments":{"driver":"fixture-text"},
         "video":{"driver":"fixture-media","region":env.get_utf8("MODERATION_FIXTURE_REGION")?.unwrap_or("original")},
     }});
+    if env.get_utf8("MODERATION_FIXTURE_GROUP")? == Some("1") {
+        for (mode, modality) in [
+            ("visual", "visual"),
+            ("speech", "speech"),
+            ("partial", "speech"),
+            ("blocked", "speech"),
+            ("manual", "ocr"),
+        ] {
+            configuration["profile_revisions"][format!("group-{mode}")]["r1"] = json!({
+                "driver":"fixture-group", "mode":mode, "account":"fixture-group",
+                "policy_revision":"r1", "credential_ref":"fixture-group", "credential_revision":"r1",
+                "required_modalities":[modality], "query_interval_seconds":1,
+            });
+        }
+    }
     if let Some(endpoint) = env.get_utf8("MODERATION_FIXTURE_ALIYUN")? {
         configuration["drivers"]["aliyun-comments"] = json!({
             "driver":"aliyun", "base_url":endpoint, "text_service":"comment_detection", "text_languages":["zh-Hans"],
@@ -356,6 +371,21 @@ impl ServiceProvider for ExternalProvider {
                     .ok_or(ModerationError::InvalidConfiguration("region"))?;
                 Ok(Arc::new(Media(region.to_owned())))
             });
+            manager.extend("fixture-group", |profile| {
+                let (modality, coverage, decision) = match profile["mode"].as_str() {
+                    Some("visual") => (Modality::Visual, Coverage::Complete, Decision::Allow),
+                    Some("speech") => (Modality::Speech, Coverage::Complete, Decision::Allow),
+                    Some("partial") => (Modality::Speech, Coverage::Partial, Decision::Allow),
+                    Some("blocked") => (Modality::Speech, Coverage::Complete, Decision::Block),
+                    Some("manual") => (Modality::Ocr, Coverage::Complete, Decision::Review),
+                    _ => return Err(ModerationError::InvalidConfiguration("fixture group mode")),
+                };
+                Ok(Arc::new(GroupMedia(Assessment::new(
+                    decision,
+                    BTreeMap::from([(modality, coverage)]),
+                    vec![],
+                ))))
+            });
             Queue::register(JOB, Arc::new(Query))?;
             Queue::register(REVIEW_JOB, Arc::new(ReviewWorker::Lookup))?;
             Queue::register(SUBMIT_REVIEW_JOB, Arc::new(ReviewWorker::Submit))?;
@@ -482,6 +512,22 @@ impl ModerationDriver for Media {
                 vec![],
             )))
         })
+    }
+}
+
+struct GroupMedia(Assessment);
+
+impl ModerationDriver for GroupMedia {
+    fn supports(&self, operation: Operation) -> bool {
+        matches!(operation, Operation::SubmitVideo | Operation::QueryVideo)
+    }
+
+    fn submit_video<'a>(&'a self, input: &'a VideoInput) -> ModerationFuture<'a, TaskId> {
+        Box::pin(async move { TaskId::new(input.source().version()) })
+    }
+
+    fn query_video<'a>(&'a self, _: &'a TaskId) -> ModerationFuture<'a, TaskStatus> {
+        Box::pin(async move { Ok(TaskStatus::Succeeded(self.0.clone())) })
     }
 }
 
@@ -824,6 +870,59 @@ fn review_store(application: &str, tenant: &str) -> ModerationResult<ModerationS
     ModerationStore::new(connection, application, tenant)
 }
 
+pub(super) fn group_route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let tenant = request.header("x-fixture-tenant")?.unwrap_or("tenant");
+        let result = if let Some(id) = request.header("x-fixture-group-id")? {
+            find_group("app", tenant, id).await
+        } else {
+            let (intent, version, profiles) = {
+                let required = |name| request.header(name)?.ok_or(HttpError::InvalidRequest);
+                (
+                    required("x-fixture-review-intent")?,
+                    required("x-fixture-version")?,
+                    required("x-fixture-profiles")?,
+                )
+            };
+            stage_group("app", tenant, intent, version, profiles).await
+        };
+        provider_response(result)
+    })
+}
+
+async fn stage_group(
+    application: &str,
+    tenant: &str,
+    intent: &str,
+    version: &str,
+    profiles: &str,
+) -> ModerationResult<Value> {
+    let source = StoredMedia::new("s3", "versions/clip.mp4", version)?;
+    let profiles = profiles
+        .split(',')
+        .map(|name| Moderation::pin_profile(name, "r1"))
+        .collect::<ModerationResult<Vec<_>>>()?;
+    let request =
+        VideoReviewGroupRequest::new(intent, "影片/1", "content-v1", source, profiles, 300)?;
+    let store = review_store(application, tenant)?;
+    Ok(render_group(store.stage_video_group(&request).await?))
+}
+
+async fn find_group(application: &str, tenant: &str, id: &str) -> ModerationResult<Value> {
+    review_store(application, tenant)?
+        .find_video_group(id)
+        .await?
+        .map(render_group)
+        .ok_or(ModerationError::ReviewNotFound)
+}
+
+fn render_group(group: VideoReviewGroup) -> Value {
+    json!({
+        "id": group.id(), "state": format!("{:?}", group.state()), "decision": group.decision(),
+        "checks": group.checks().iter().cloned().map(render_review).collect::<Vec<_>>(),
+    })
+}
+
 async fn stage_review(
     application: &str,
     tenant: &str,
@@ -1048,11 +1147,14 @@ pub(super) fn register_command(artisan: &mut Artisan) -> Result<(), ConsoleError
                 "queue-submit",
                 "query",
                 "queue-query",
+                "stage-group",
+                "find-group",
             ]))
             .arg(clap::Arg::new("application").required(true))
             .arg(clap::Arg::new("tenant").required(true))
             .arg(clap::Arg::new("reference").required(true))
-            .arg(clap::Arg::new("object-version")),
+            .arg(clap::Arg::new("object-version"))
+            .arg(clap::Arg::new("profiles")),
     ))))?;
     artisan.add_command(Box::new(Probe(CommandDefinition::new(
         clap::Command::new("drivers:moderation").arg(
@@ -1180,6 +1282,20 @@ impl Command for ReviewProbe {
                 .await
                 .map_err(ConsoleError::from_source)?,
                 "find" => reference.read().await.map_err(ConsoleError::from_source)?,
+                "stage-group" => stage_group(
+                    &reference.application,
+                    &reference.tenant,
+                    &reference.id,
+                    &required("object-version"),
+                    &required("profiles"),
+                )
+                .await
+                .map_err(ConsoleError::from_source)?,
+                "find-group" => {
+                    find_group(&reference.application, &reference.tenant, &reference.id)
+                        .await
+                        .map_err(ConsoleError::from_source)?
+                }
                 "submit" => submit_review(&reference.application, &reference.tenant, &reference.id)
                     .await
                     .map_err(ConsoleError::from_source)?,

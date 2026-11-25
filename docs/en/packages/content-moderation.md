@@ -200,6 +200,12 @@ Call `VideoReviewService::query(review_id)` to advance a confirmed task. Set `qu
 
 Read the normalized evidence with `VideoReview::assessment()` and the policy decision with `VideoReview::decision()`. The decision is available after all required modalities have complete coverage. A remote task can finish with partial coverage, in which case the review stores the evidence and reports the coverage failure.
 
+### Reviews with multiple required checks {#video-review-groups}
+
+Use `VideoReviewGroupRequest::new` and `ModerationStore::stage_video_group` to save two to eight distinct, pinned profiles for one content revision and one media version. Explicitly select the profiles for each required modality. A repeat with the same intent and the same ordered profiles returns the original group. Changes to the order, profiles, content or media version on the same intent are rejected.
+
+Each child has its own submission and lookup state and can progress through the existing Worker and recovery commands. Read the aggregate with `find_video_group`. It yields a publication decision only after every required check succeeds with complete coverage. It uses the highest recommendation among complete checks, with Block taking priority over Review and Allow. Keep the application’s publication authorization bound to the current content revision.
+
 ## Recovering scheduled reviews {#review-recovery}
 
 Schedule `moderation:recover` to run every minute for each application and tenant you manage. Use a shared database and queue so schedulers and workers see the same review state. The command claims up to `--limit` due reviews (100 by default, 1–500), and queues their local IDs and versions.

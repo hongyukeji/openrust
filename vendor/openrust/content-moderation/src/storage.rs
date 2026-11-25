@@ -1,7 +1,7 @@
 use std::{fmt::Write as _, sync::Arc};
 
 use openrust::{
-    database::{Connection, DatabaseError, Row, Value, query::Builder},
+    database::{Connection, DatabaseError, Row, Transaction, Value, query::Builder},
     support::Str,
 };
 use sha2::{Digest as _, Sha256};
@@ -14,6 +14,7 @@ use crate::{
 mod assessment_record;
 #[cfg(feature = "webhooks")]
 mod callback;
+mod groups;
 #[cfg(feature = "webhooks")]
 pub(crate) use callback::ProviderTask;
 mod query;
@@ -47,16 +48,11 @@ impl ModerationStore {
         if let Some(review) = self.read("intent_key", &intent_key).await? {
             return existing(review, request);
         }
-        let id = Str::uuid()
-            .map_err(|_| ModerationError::ReviewStorage)?
-            .to_string();
-        let check_id = Str::uuid()
-            .map_err(|_| ModerationError::ReviewStorage)?
-            .to_string();
+        let ids = ReviewIds::generate()?;
+        let id = ids.review.clone();
         let record = Arc::new(request.clone());
         let scope_key = self.scope_key.clone();
         let saved_intent = intent_key.clone();
-        let saved_id = id.clone();
         let clock = database_clock_query(&self.connection);
         let transaction = self
             .connection
@@ -65,57 +61,19 @@ impl ModerationStore {
                     let request = record.clone();
                     let scope_key = scope_key.clone();
                     let intent_key = saved_intent.clone();
-                    let id = saved_id.clone();
-                    let check_id = check_id.clone();
+                    let ids = ids.clone();
                     let clock = clock.clone();
                     Box::pin(async move {
-                        let created_at = transaction
-                            .select_one(&clock, &[])
-                            .await?
-                            .and_then(|row| integer(&row, "created_at"))
-                            .ok_or(DatabaseError::InvalidQuery("无法读取审核存储时钟"))?;
-                        let deadline_at = created_at + i64::from(request.timeout_seconds);
-                        let profile = serde_json::to_string(&request.profile)
-                            .map_err(|_| DatabaseError::InvalidQuery("无法序列化审核配置修订"))?;
-                        let modalities =
-                            serde_json::to_string(request.profile.required_modalities())
-                                .map_err(|_| DatabaseError::InvalidQuery("无法序列化审核模态"))?;
-                        transaction
-                            .table(REVIEWS)
-                            .insert(&[[
-                                ("id".into(), id.as_str().into()),
-                                ("scope_key".into(), scope_key.into()),
-                                ("intent_key".into(), intent_key.into()),
-                                ("content_id".into(), request.content_id.as_str().into()),
-                                (
-                                    "content_revision".into(),
-                                    request.content_revision.as_str().into(),
-                                ),
-                                ("profile_revision".into(), profile.into()),
-                                ("disk".into(), request.source.disk().into()),
-                                ("object_key".into(), request.source.key().into()),
-                                ("object_version".into(), request.source.version().into()),
-                                ("state".into(), "Pending".into()),
-                                ("created_at".into(), created_at.into()),
-                                ("deadline_at".into(), deadline_at.into()),
-                                ("version".into(), 1_i64.into()),
-                            ]
-                            .into_iter()
-                            .collect()])
-                            .await?;
-                        transaction
-                            .table(CHECKS)
-                            .insert(&[[
-                                ("id".into(), check_id.into()),
-                                ("review_id".into(), id.into()),
-                                ("kind".into(), "video".into()),
-                                ("modalities".into(), modalities.into()),
-                                ("submission".into(), "Ready".into()),
-                                ("available_at".into(), created_at.into()),
-                            ]
-                            .into_iter()
-                            .collect()])
-                            .await
+                        let created_at = read_clock(transaction, &clock).await?;
+                        write_check(
+                            transaction,
+                            &ids,
+                            &scope_key,
+                            &intent_key,
+                            &request,
+                            created_at,
+                        )
+                        .await
                     })
                 },
                 3,
@@ -186,6 +144,87 @@ impl ModerationStore {
             .r#where("moderation_reviews.scope_key", "=", self.scope_key.as_str())
             .r#where("moderation_checks.kind", "=", "video")
     }
+}
+
+#[derive(Clone)]
+struct ReviewIds {
+    review: String,
+    check: String,
+}
+
+impl ReviewIds {
+    fn generate() -> ModerationResult<Self> {
+        Ok(Self {
+            review: new_id()?,
+            check: new_id()?,
+        })
+    }
+}
+
+fn new_id() -> ModerationResult<String> {
+    Str::uuid()
+        .map(|uuid| uuid.to_string())
+        .map_err(|_| ModerationError::ReviewStorage)
+}
+
+async fn read_clock(transaction: &mut Transaction, sql: &str) -> Result<i64, DatabaseError> {
+    transaction
+        .select_one(sql, &[])
+        .await?
+        .and_then(|row| integer(&row, "created_at"))
+        .ok_or(DatabaseError::InvalidQuery("无法读取审核存储时钟"))
+}
+
+async fn write_check(
+    transaction: &mut Transaction,
+    ids: &ReviewIds,
+    scope_key: &str,
+    intent_key: &str,
+    request: &VideoReviewRequest,
+    created_at: i64,
+) -> Result<(), DatabaseError> {
+    let deadline_at = created_at + i64::from(request.timeout_seconds);
+    let profile = serde_json::to_string(&request.profile)
+        .map_err(|_| DatabaseError::InvalidQuery("无法序列化审核配置修订"))?;
+    let modalities = serde_json::to_string(request.profile.required_modalities())
+        .map_err(|_| DatabaseError::InvalidQuery("无法序列化审核模态"))?;
+    transaction
+        .table(REVIEWS)
+        .insert(&[[
+            ("id".into(), ids.review.as_str().into()),
+            ("scope_key".into(), scope_key.into()),
+            ("intent_key".into(), intent_key.into()),
+            ("content_id".into(), request.content_id.as_str().into()),
+            (
+                "content_revision".into(),
+                request.content_revision.as_str().into(),
+            ),
+            ("profile_revision".into(), profile.into()),
+            ("disk".into(), request.source.disk().into()),
+            ("object_key".into(), request.source.key().into()),
+            ("object_version".into(), request.source.version().into()),
+            ("state".into(), "Pending".into()),
+            ("created_at".into(), created_at.into()),
+            ("deadline_at".into(), deadline_at.into()),
+            ("version".into(), 1_i64.into()),
+        ]
+        .into_iter()
+        .collect()])
+        .await?;
+    transaction
+        .table(CHECKS)
+        .insert(&[[
+            ("id".into(), ids.check.as_str().into()),
+            ("review_id".into(), ids.review.as_str().into()),
+            ("kind".into(), "video".into()),
+            ("modalities".into(), modalities.into()),
+            ("submission".into(), "Ready".into()),
+            ("available_at".into(), created_at.into()),
+        ]
+        .into_iter()
+        .collect()])
+        .await
+        .map(|_| ())
 }
 
 fn existing(review: VideoReview, request: &VideoReviewRequest) -> ModerationResult<VideoReview> {

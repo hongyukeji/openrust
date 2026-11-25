@@ -77,7 +77,7 @@ def exercise(binary, driver, database_url, root):
     artisan(env, "migrate", "--force")
     artisan(env, "vendor:publish", "--tag=moderation-migrations")
     migrations = sorted((root / "database/migrations").glob("*moderation*"))
-    assert len(migrations) == 6
+    assert len(migrations) == 8
     expected = migrations[0].read_text() + "\n// 自定义迁移保留\n"
     migrations[0].write_text(expected)
     artisan(env, "vendor:publish", "--tag=moderation-migrations")
@@ -135,7 +135,7 @@ def exercise(binary, driver, database_url, root):
     assert sql("SELECT COUNT(*) FROM jobs") == sql("SELECT COUNT(*) FROM failed_jobs") == "0"
     assert sql("SELECT COUNT(*) FROM moderation_reviews WHERE state = 'Pending' AND version = 1") == "3"
     assert sql("SELECT COUNT(*) FROM moderation_checks WHERE kind = 'video' AND submission = 'Ready'") == "3"
-    artisan(env, "migrate:rollback", "--step=1", "--force", successful=False)
+    artisan(env, "migrate:rollback", "--step=3", "--force", successful=False)
     assert sql("SELECT COUNT(*) FROM moderation_reviews") == sql("SELECT COUNT(*) FROM moderation_checks") == "3"
 
 

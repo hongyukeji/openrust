@@ -200,6 +200,12 @@ let recommendation = result.decision(&[Modality::Text]);
 
 通过 `VideoReview::assessment()` 读取归一化证据，通过 `VideoReview::decision()` 读取审核决定。全部必检模态覆盖完整后，审核才有决定。供应商完成但覆盖不足时，审核保留证据并报告覆盖失败。
 
+### 多项必检的审核 {#video-review-groups}
+
+通过 `VideoReviewGroupRequest::new` 和 `ModerationStore::stage_video_group` 为同一内容修订和媒体版本保存 2–8 个不同的固定配置修订，显式选择各必检模态对应的配置。同一意图及相同顺序的检查返回原审核组。同一意图下更改顺序、配置、内容或媒体版本时返回冲突。
+
+每个子检查独立提交和查单，可由原有 Worker 与恢复命令推进。用 `find_video_group` 读取汇总结果。每个必检项成功且覆盖完整后才生成决定，并采用最严格的建议，优先级依次为 Block、Review、Allow。应用仍应根据当前内容修订执行发布授权。
+
 ## 定时恢复视频审核 {#review-recovery}
 
 对每个需要托管的应用和租户，将 `moderation:recover` 加入每分钟调度。调度进程和 Worker 共用数据库与队列。命令领取不超过 `--limit` 条到期审核，默认 100，范围 1–500，只将本地审核 ID 和版本等定位信息入列。

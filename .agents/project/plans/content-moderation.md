@@ -324,7 +324,7 @@ D-01 的不可变配置定位符、缓存重建和独立 Worker 恢复已实测�
 - 复用Bus batch／chain调度可并行的本地工作；**Job处理成功、batch pending归零、finally执行均不等于远端审核结束**。审核完成由领域子检查集合与证据完整性决定；每个子检查可多次查询，但不能多次扣减父完成计数。
 - 不依靠固定“每个输入恰好一个结果”假设；按供应商约定映射混合输入、片段、分页及模型任务，检查所有必检覆盖。标准化标签保留unknown类别和原始值，未知类别不默认为安全。
 
-D-03 的父审核／点播子检查同库落单和幂等已通过三库验证，见[审核存储记录](../audits/content-moderation/README.md#review-storage)。状态流转、跨进程领取和多模态终态继续验收。
+D-03 的父审核／点播子检查同库落单和幂等已通过三库验证，见[审核存储记录](../audits/content-moderation/README.md#review-storage)。定期领取及[多项必检复合审核](../audits/content-moderation/README.md#review-groups)已在三库验证，继续核对父级取消、人工决定、迟到诊断和供应商完整覆盖。
 
 ### 8.5 D-04：逐家能力矩阵与闭合判据
 

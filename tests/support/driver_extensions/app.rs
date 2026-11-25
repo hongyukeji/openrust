@@ -171,6 +171,7 @@ async fn main() -> ExitCode {
                         #[cfg(feature = "content-moderation")]
                         {
                             Route::get("/drivers/moderation", moderation::route)?;
+                            Route::post("/drivers/moderation/group", moderation::group_route)?;
                             Route::post("/drivers/moderation/aliyun", moderation::aliyun_route)?;
                             Route::post(
                                 "/drivers/moderation/aliyun-image",

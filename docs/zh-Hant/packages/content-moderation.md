@@ -200,6 +200,12 @@ let recommendation = result.decision(&[Modality::Text]);
 
 透過 `VideoReview::assessment()` 讀取正規化證據，透過 `VideoReview::decision()` 讀取審核決定。所有必檢模態涵蓋完整後，審核才有決定。供應商完成但涵蓋不足時，審核保留證據並回報涵蓋失敗。
 
+### 多項必查的審核 {#video-review-groups}
+
+透過 `VideoReviewGroupRequest::new` 和 `ModerationStore::stage_video_group` 為同一內容修訂和媒體版本保存 2–8 個相異的固定設定修訂，明確選擇各必查模態對應的設定。同一意圖及相同順序的檢查會傳回原審核群組。同一意圖下變更順序、設定、內容或媒體版本時會傳回衝突。
+
+每個子檢查獨立提交和查詢，可由原有 Worker 與復原指令推進。用 `find_video_group` 讀取彙總結果。每個必查項成功且涵蓋完整後才產生決定，並採用最嚴格的建議，優先順序依次為 Block、Review、Allow。應用程式仍應根據目前內容修訂執行發布授權。
+
 ## 定時復原影片審核 {#review-recovery}
 
 對每個需要管理的應用程式和租戶，將 `moderation:recover` 加入每分鐘排程。排程程序和 Worker 共用資料庫與佇列。命令領取最多 `--limit` 筆到期審核，預設 100，範圍 1–500，只將本機審核 ID 和版本等定位資訊加入佇列。
