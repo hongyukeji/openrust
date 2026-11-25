@@ -353,6 +353,8 @@ Rust 1.94.0 单作业构建通过，实际运行于 Linux 7.0.14-linuxkit、Debi
 
 固定 `JobPayload::prepare` 在 Redis 写入前一次生成 `type`、`tags`、`silenced` 与 `pushedAt`，后续监听器读取事件载荷中的结果。Rust 目前在待处理、入队成功及后续生命周期分别解析标签，并在进入 Worker 状态投影时读取静默配置。待核对并补齐单次生成、后续读取、重试关联和既有记录兼容，另需核对任务类型分类以及投递 ID 与 UUID 的公开映射。 [固定 JobPayload](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/JobPayload.php)
 
+PHP 8.5.12 探针执行固定 `JobPayload::prepare`、`JobPushed` 与 `RetryFailedJob` 的重投递载荷构造。普通投递调用对象标签方法一次，原载荷标签与对象标签按顺序合并。公开 ID 优先使用 UUID，旧载荷用 `id` 回退。静默标签与 `Silenced` 标记均生效，`pushedAt` 为数字字符串。无任务对象的原始重投递沿用标签，重置尝试次数和 ID，写入 `retry_of` 并按原期限的相对时长重算截止时间，重新准备时静默为 `false`。证据为 `target/tmp/observability-parity/horizon-job-payload-upstream.log`。 [固定重投递](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Jobs/RetryFailedJob.php)
+
 ### Horizon Redis 原子任务链入队事件
 
 固定 Laravel 完成任务时先派发后继任务，再删除前一任务。固定 Horizon 分别在即时和延迟入队的 Redis 写入前后派发 `JobPending`、`JobPushed`。Rust 后继任务在同一 Redis 连接上推进时，两个事件复用普通入队的消息和同一个新投递 ID。`JobPending` 在 Redis 原子操作前派发。Lua 同时完成入队和删除前一保留，成功后先派发后继任务的 `JobPushed`，再派发前一任务的 `JobDeleted`。此时监听器读取 Redis 会看到原子变更已完成。 [固定任务链完成顺序](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/CallQueuedHandler.php) [固定 Redis 派发入口](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/RedisQueue.php)
@@ -360,6 +362,8 @@ Rust 1.94.0 单作业构建通过，实际运行于 Linux 7.0.14-linuxkit、Debi
 原子脚本继续核对旧保留和目标 Redis 键，保留失效时可能已有 `JobPending`，且不会派发 `JobPushed` 或 `JobDeleted`。入队前监听器报错时可以重试同一保留，入队后监听器报错时记录日志并完成旧任务的通知，避免重复推进。显式队列名复用 Redis 入队校验。
 
 基于 `eb189cfb1` 加失败事件与本批文件的 macOS 隔离快照，独占 Redis 8.10.3 经 HTTP `Bus::chain`、实际 `horizon:work` 命令和公开事件监听器验证延迟跨队列推进。队列名保留前置空格、Unicode 和冒号。直接调用 `Job::advance_chain_to` 验证即时入队、清除后失效的保留、无效队列名和前后监听器报错，后继任务载荷保留大整数且只能推进一次。三包默认 84 项与 Horizon Redis 18 项、快照全仓格式、Horizon 全目标严格 Clippy、三语站点和 12 组浏览器检查通过。证据为 `target/tmp/observability-parity/horizon-redis-chain-{focused,accepted,docs}.log`。本批 Windows 和发布组合仍待验。
+
+同一快照在 Linux 7.0.14 ARM64、Rust 1.94.0 下编译原生测试程序，独占 Redis 8.10.3 复验本节 `JobPending`／`JobPushed` 与下节 `JobFailed` 两个实际入口，均通过。使用编译后的同一程序执行测试，显式向夹具传入专用 Redis 容器标识。证据为 `target/tmp/observability-parity/horizon-redis-events-linux-{serial,verified}.log`。本次 Linux 证据覆盖这两个行为的定向测试，完整 Release 组合仍待验。
 
 ### Horizon Redis 释放与删除事件
 
@@ -391,7 +395,7 @@ Rust 1.94.0 单作业构建通过，实际运行于 Linux 7.0.14-linuxkit、Debi
 
 实时失败与重投递恢复共用文本异常契约，历史失败记录保存的也是文本。固定 PHP 监听器可检查异常对象类型，实时事件是否保留等价的原生类型信息仍须核对。
 
-基于 `eb189cfb1` 加本批文件的 macOS 隔离快照，独占 Redis 8.10.3 与 SQLite 验证实际 `horizon:work` 的终态失败回调、数据库记录、Redis 保留删除、失败详情与标签的可见顺序。同步队列仍派发核心失败事件，实际落到 Redis 的 failover 队列派发 Horizon 事件。验证手动失败、重复确认、保留失效以及历史失败记录恢复。Horizon、Pulse、Telescope 默认测试共 84 项，Horizon Redis 专项 17 项，无 Horizon 的核心 SQLite 和 Redis Worker、真实 Artisan 进程矩阵、快照全仓格式、Horizon 全目标严格 Clippy、三语站点与 12 组浏览器检查通过。证据为 `target/tmp/observability-parity/horizon-redis-failure-{accepted,core,docs}.log`。本批 Linux、Windows 和发布组合待验。
+基于 `eb189cfb1` 加本批文件的 macOS 隔离快照，独占 Redis 8.10.3 与 SQLite 验证实际 `horizon:work` 的终态失败回调、数据库记录、Redis 保留删除、失败详情与标签的可见顺序。同步队列仍派发核心失败事件，实际落到 Redis 的 failover 队列派发 Horizon 事件。验证手动失败、重复确认、保留失效以及历史失败记录恢复。Horizon、Pulse、Telescope 默认测试共 84 项，Horizon Redis 专项 17 项，无 Horizon 的核心 SQLite 和 Redis Worker、真实 Artisan 进程矩阵、快照全仓格式、Horizon 全目标严格 Clippy、三语站点与 12 组浏览器检查通过。证据为 `target/tmp/observability-parity/horizon-redis-failure-{accepted,core,docs}.log`。Linux ARM64 专项随上一节复验通过，Windows 和发布组合待验。
 
 ### Horizon WorkerProcessRestarting 公开事件
 

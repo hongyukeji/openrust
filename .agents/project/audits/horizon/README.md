@@ -16,11 +16,11 @@
 - `JobRepository`、`TagRepository`、`MetricsRepository`、`MasterSupervisorRepository`、`SupervisorRepository`、`ProcessRepository`、`WorkloadRepository` 分离职责。任务存储包括 pending／reserved／completed／failed／silenced、授权详情、显式标签、监控标签、重试引用、清理与到期；指标包括成功吞吐、运行时间、快照、快照锁、长等待锁与告警去重锁。保留原子 Lua 的重复／过时事件保护及兼容滚动统计。
 - 所有 Horizon Console 入口已实现，包括独立 supervisor、控制／状态／列表、purge、clear、snapshot、clear-metrics、install、publish、listen、forget；retry／failed 是额外保留的显式入口。安装器复用原生发布与 SourceInstallation，幂等登记编译型配置和应用 Provider，保留应用定制。
 - 面板提供任务分页／详情／重试、指标与快照、队列工作量、标签监控、失败任务、批次列表／详情／取消／重试。批次读取复用原生 DatabaseBatchRepository，按有序 UUID v7 分页；共享 SQL 行为按三库验收。
-- 标签及通知服务均作用域绑定到应用，未引入新的进程全局状态。原生 JobQueued 事件供推入时记录 pending，保留原生 worker 事件的职责。按固定 StoreJob／RedisQueue，观测所有 Redis 队列事件，不按当前部署计划过滤，避免 HTTP／调度进程与显式部署环境不同导致记录丢失。`horizon.env` 优先选择部署计划，Master 不改写子进程的 APP_ENV；选项已经通过命令参数传递。队列统计合并配置计划和活跃 Supervisor 队列并去重。
+- 标签及通知服务作用域绑定到应用。原生 Redis 入队、保留、迁移及结算桥接 Horizon 公开事件。`JobPending` 保存待处理详情，`JobPushed` 更新监控标签。同一连接上的任务链原子推进也派发后继任务的两个入队事件。Redis 失败确认后派发 `JobFailed`，供监听器读取失败详情和标签。按固定 StoreJob／RedisQueue，观测所有 Redis 队列事件，不按当前部署计划过滤，避免 HTTP／调度进程与显式部署环境不同导致记录丢失。`horizon.env` 优先选择部署计划，Master 不改写子进程的 APP_ENV；选项已经通过命令参数传递。队列统计合并配置计划和活跃 Supervisor 队列并去重。 [对齐账本](../extension-parity.md#horizon-redis-原子任务链入队事件)
 
 ## 必要 Rust 适配
 
-Rust 无 PHP 的任务对象运行时反射，模型标签通过 `Horizon::tag`／`Tags::forModel` 显式声明，不能称作 PHP 自动反射。队列使用 `Vec<String>`，配置兼容字符串／数组，序列化保留 Rust 类型表示。内存上限以原生进程的 resident memory（MiB）衡量，而非 PHP 堆分配量。
+Rust 无 PHP 的任务对象运行时反射，模型标签通过 `Horizon::tag`／`Tags::for_model` 显式声明，不能称作 PHP 自动反射。队列使用 `Vec<String>`，配置兼容字符串／数组，序列化保留 Rust 类型表示。内存上限以原生进程的 resident memory（MiB）衡量，而非 PHP 堆分配量。
 
 编译型应用的 `horizon:listen` 默认每 500ms 轮询配置路径，忽略符号链接；有 Cargo.toml 时重新运行 `cargo run -- artisan horizon`，继承外层工具链选择。部署后二进制监听使用当前可执行文件。`--poll` 保留显式选择入口，Rust 当前默认即轮询。
 
