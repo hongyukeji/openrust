@@ -6,6 +6,8 @@ Git 默认流程已于 2026-11-23 更新：已授权任务完成并通过相关�
 
 ## 正在推进与等待条件
 
+- 2026-11-26 守卫停止EPERM诊断：原有10项与24组父子/6组真实CLI取消均通过、74锁未复现权限错误；新增系统错误栈且保留停线/锁规则，12项回归与真实CLI143/无残留通过。原EPERM未宣称修复，见[诊断边界](audits/artisan-tutorial/guard-stop-eperm-2026-11-26.md)。继续独立组件，不推送。
+
 - 2026-11-26 Artisan第四十簇Line/Info/Success/Warn/Error已验：393固定源场景、真实Artisan流/HTTP恢复并发、三语123例及严格门禁通过。修复命名格式器标签顺序，新增ExplicitNormal=1并保留Normal=0默认；穷尽match需补分支。见[行组件契约](audits/artisan-tutorial/line-components-contracts.json)。完整基类/其余组件/Factory继续，不推送。
 
 - 2026-11-26 Artisan第三十九簇4种组件文本Mutator已验，并修复默认path.base绑定缺口：52固定源场景、两应用24并发作用域、实际HTTP/Artisan与三语直接示例及严格门禁通过。见[组件变换器记录](audits/artisan-tutorial/component-mutators-contracts.json)。完整Factory/QuestionHelper与整章余项继续；不推送。

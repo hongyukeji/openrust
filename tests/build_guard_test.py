@@ -1,6 +1,8 @@
 """使用项目内隔离目录验证停线、进程退出与锁保护；不清理真实构建缓存。"""
 
 import fcntl
+import contextlib
+import io
 import os
 from pathlib import Path
 import signal
@@ -10,7 +12,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from build_guard import Project, STOP_BYTES, run
+from build_guard import Project, STOP_BYTES, run, main
 
 
 class BuildGuardTest(unittest.TestCase):
@@ -132,6 +134,25 @@ class BuildGuardTest(unittest.TestCase):
                                  '--workflow', 'build-guard-tests', '--target-dir', str(target),
                                  '--tmp-dir', str(temporary), '--', *self.command(script)], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_cli_system_error_preserves_stop_code_and_origin(self):
+        args = ['build_guard.py', '--workflow', 'build-guard-tests', '--target-dir', str(self.profile.parent), '--tmp-dir', str(self.root / 'tmp'), '--', 'ignored']
+        output = io.StringIO()
+        with patch('sys.argv', args), patch('build_guard.signal.signal'), patch('build_guard.run', side_effect=PermissionError(1, '受控权限失败')), contextlib.redirect_stderr(output):
+            self.assertEqual(main(), 75)
+        self.assertIn('验收守卫停止', output.getvalue())
+        self.assertIn('PermissionError', output.getvalue())
+        self.assertIn('in main', output.getvalue())
+        self.assertTrue(self.artifact.exists())
+
+    def test_expected_stop_keeps_concise_diagnostic(self):
+        args = ['build_guard.py', '--workflow', 'build-guard-tests', '--target-dir', str(self.profile.parent), '--tmp-dir', str(self.root / 'tmp'), '--', 'ignored']
+        output = io.StringIO()
+        with patch('sys.argv', args), patch('build_guard.signal.signal'), patch('build_guard.run', side_effect=RuntimeError('仍有受控构建')), contextlib.redirect_stderr(output):
+            self.assertEqual(main(), 75)
+        self.assertIn('仍有受控构建', output.getvalue())
+        self.assertNotIn('Traceback', output.getvalue())
+        self.assertTrue(self.artifact.exists())
 
     def test_external_or_symlinked_targets_are_rejected(self):
         with self.assertRaises(ValueError):

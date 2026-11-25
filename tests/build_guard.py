@@ -11,6 +11,7 @@ import signal
 import subprocess
 import sys
 import time
+import traceback
 
 STOP_BYTES = 31_250_000 * 1024
 
@@ -204,6 +205,9 @@ def main():
         return run(project, command, env, lambda: received)
     except (OSError, ValueError, RuntimeError) as error:
         print(f'验收守卫停止：{error}', file=sys.stderr)
+        # 保留系统错误发生位置；不放宽停止、归属或锁检查。
+        if isinstance(error, OSError) and not isinstance(error, BlockingIOError):
+            traceback.print_exc()
         return 75
 
 
