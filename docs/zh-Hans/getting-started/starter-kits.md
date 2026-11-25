@@ -269,3 +269,18 @@ curl -i -X POST http://localhost:8000/api/auth/forgot-password \
 找回密码时，从原邮件链接取得重置凭据和邮箱，与 `password`、`password_confirmation` 一起提交至 `/api/auth/reset-password`。缺失、过期或已消费的凭据返回422；并发提交只有一个成功。重置使套件既有会话及个人访问令牌失效，须用新密码重新登录。消息跟随应用语言；验证签名和密码重置期限使用应用 Date 时钟。
 
 依赖邮件前先配置实际传输。同步发送失败返回错误，不会报告已发送；修复投递后可显式重发验证通知。这些路由不承诺队列自动补发或真实外部邮箱收信，应用通知回调仍可替换。
+
+## 应用用户资源 {#user-resource}
+
+两种预设都发布 `app/http/resources/user_resource.rs`。其中 `UserResource` 实现原生 `JsonResource`，开发者修改 `to_array` 即可选择公开字段；默认使用四字段安全投影，不要整体序列化用户模型。生成的 Provider 为所属应用选择该资源：
+
+```rust
+openrust_fortify::starter::UserResource::use_resource::<
+    crate::app::models::User,
+    crate::app::http::resources::user_resource::UserResource,
+>(app)?;
+```
+
+JSON 注册／登录、双因素完成、当前用户，以及个人令牌签发中的用户数据共用该资源。资源接收真实请求，先运行原生 `prepare_response`，再调用 `to_array`；返回值必须为 JSON 对象，准备或序列化错误向外传递。这是嵌入认证响应的数据，资源的 `wrap`、`with`、状态和 HTTP 响应钩子不会改变外层认证响应；要替换整个响应，继续绑定现有 Fortify 响应契约。网页账户与邮件页面保留内部安全字段，API 字段改名不会破坏页面。
+
+重复安装保留该文件，`--force` 会替换。已有独立文件模块会复用；内联或条件不匹配的资源模块会在套件写入前报错，提示手动接线。选择保存在所属应用中，不使用进程全局回调。

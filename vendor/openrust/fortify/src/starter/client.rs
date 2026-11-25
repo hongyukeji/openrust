@@ -294,11 +294,15 @@ where
                 .with_field("code","auth_challenge_required").with_message_key("user.challenge_required",Default::default()).into_response()?;
             return Ok(no_store(response));
         }
-        issue(&mut user, &fortify, &device, &chosen, &binding, None).await
+        issue(
+            request, &mut user, &fortify, &device, &chosen, &binding, None,
+        )
+        .await
     })
 }
 
 async fn issue<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
+    request: &mut Request,
     user: &mut M,
     fortify: &Arc<Fortify>,
     device: &str,
@@ -306,6 +310,7 @@ async fn issue<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
     binding: &str,
     deadline: Option<i64>,
 ) -> Result<Response, HttpError> {
+    let resource = UserResource::for_request(user, request).await?;
     let sanctum = App::make::<Sanctum>().await?;
     let database = App::make::<DatabaseManager>().await?;
     let borrowed = chosen.iter().map(String::as_str).collect::<Vec<_>>();
@@ -349,7 +354,7 @@ async fn issue<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
         },
     )
     .await?;
-    let response=ApiResponse::success(json!({"token_type":"Bearer","token":token.plain_text_token.as_str(),"expires_at":token.access_token.expires_at,"user":UserResource::make(user)?}))
+    let response=ApiResponse::success(json!({"token_type":"Bearer","token":token.plain_text_token.as_str(),"expires_at":token.access_token.expires_at,"user":resource}))
         .with_status(StatusCode::CREATED).into_response()?;
     Ok(no_store(response))
 }
@@ -528,6 +533,7 @@ where
         )
         .await?;
         let response = issue(
+            request,
             &mut user,
             &fortify,
             device,

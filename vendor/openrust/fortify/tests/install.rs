@@ -22,6 +22,10 @@ impl Root {
             ("Cargo.toml", include_str!("../../../../Cargo.toml")),
             ("app/mod.rs", include_str!("../../../../app/mod.rs")),
             (
+                "app/http/mod.rs",
+                include_str!("../../../../app/http/mod.rs"),
+            ),
+            (
                 "app/providers/mod.rs",
                 include_str!("../../../../app/providers/mod.rs"),
             ),
@@ -293,7 +297,32 @@ async fn user_web_preset_registers_optional_resources_and_preserves_edits() {
             1
         );
         assert!(providers.contains("#[cfg(feature = \"fortify\")]"));
+        assert_eq!(
+            root.read("app/http/mod.rs")
+                .matches("mod resources;")
+                .count(),
+            1
+        );
+        assert_eq!(
+            root.read("app/http/resources/mod.rs")
+                .matches("mod user_resource;")
+                .count(),
+            1
+        );
+        assert!(
+            root.read("app/providers/user_service_provider.rs")
+                .contains("UserResource::use_resource")
+        );
         if attempt == 0 {
+            let path = root.0.join("app/http/resources/user_resource.rs");
+            std::fs::write(
+                &path,
+                format!(
+                    "{}\n// 应用自定义字段保留",
+                    root.read("app/http/resources/user_resource.rs")
+                ),
+            )
+            .unwrap();
             std::fs::write(
                 root.0.join("resources/views/user/auth/login.blade.html"),
                 "custom-login",
@@ -304,6 +333,10 @@ async fn user_web_preset_registers_optional_resources_and_preserves_edits() {
     assert_eq!(
         root.read("resources/views/user/auth/login.blade.html"),
         "custom-login"
+    );
+    assert!(
+        root.read("app/http/resources/user_resource.rs")
+            .contains("应用自定义字段保留")
     );
     let original = root.read("config/user.rs");
     assert!(original.contains("USER_TOKEN_EXPIRATION_DAYS"));
@@ -582,4 +615,32 @@ async fn user_preset_upgrades_stock_password_and_registration_actions_without_ov
             .count(),
         1
     );
+}
+
+#[tokio::test]
+async fn user_resource_inline_module_is_rejected_before_user_files_are_modified() {
+    let root = Root::new();
+    std::fs::write(
+        root.0.join("app/http/mod.rs"),
+        "pub(crate) mod resources {}\n",
+    )
+    .unwrap();
+    let user = root.read("app/models/user.rs");
+    let mut output = Output::default();
+    assert_ne!(
+        root.user_kernel()
+            .handle(
+                &[
+                    "init:resources".into(),
+                    "--extensions=user-api,api,fortify".into()
+                ],
+                &mut output
+            )
+            .await,
+        0
+    );
+    assert!(output.stderr.contains("resources"), "{}", output.stderr);
+    assert_eq!(root.read("app/models/user.rs"), user);
+    assert!(!root.0.join("config/user.rs").exists());
+    assert!(!root.0.join("app/http/resources/user_resource.rs").exists());
 }

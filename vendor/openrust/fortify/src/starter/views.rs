@@ -138,7 +138,7 @@ fn account(
     request: &mut openrust::http::Request,
 ) -> openrust::http::HttpFuture<'_, Result<Response, openrust::http::HttpError>> {
     Box::pin(async move {
-        let user = super::UserResource::current(request).await?;
+        let user = super::UserResource::current_default(request).await?;
         let view = View::make("user.home", [("user".into(), user.into())].into())?;
         Response::view(StatusCode::OK, view, Default::default(), request).await
     })
@@ -148,7 +148,7 @@ fn email_receipt(
     request: &mut openrust::http::Request,
 ) -> openrust::http::HttpFuture<'_, Result<Response, openrust::http::HttpError>> {
     Box::pin(async move {
-        let user = super::UserResource::current(request).await?;
+        let user = super::UserResource::current_default(request).await?;
         let view = View::make(
             "user.auth.verify-email",
             [(

@@ -290,3 +290,17 @@ API路径跟随既有`api.prefix`；端点由显式套件Provider注册，不改
 `verification-key-docs-final.log`三语文档构建及两挂载／桌面手机12组浏览器通过。沿用既有本地SMTP标准User证据，本轮不宣称新增供应商投递、原生PostgreSQL uuid列或生成应用自定义模型全矩阵通过。收口范围仅此身份差异，完整账户中心、头像、设备枚举、注销、队列邮件和可选认证仍未闭合。
 
 过程中磁盘守卫安全持锁清理编译profile释放81,363,800,064字节，清理后可用113,389,518,848字节；保留源码、日志、下载和数据，仅恢复未完成命令。交付清单／SHA为`verification-key-files.json`／`verification-key-final-source-sha.json`，文档dist直接删除、正常增量缓存保留，实际空间见`verification-key-delivery-space.json`。
+
+## A01-01／05：应用级原生用户资源（本子单元验收通过）
+
+复核固定[JsonResource13.40.0](https://github.com/laravel/framework/blob/v13.40.0/src/Illuminate/Http/Resources/Json/JsonResource.php)的数据解析与外层响应职责，并保留固定Fortify的可替换响应契约。旧v0.x未找到可直接移植的同职责原生用户资源，不将旧JWT响应体系带回。
+
+- 两种预设发布`app/http/resources/user_resource.rs`，实现原生JsonResource；应用Provider以`UserResource::use_resource<M,R>`选择。注册、JSON登录／双因素完成、当前用户及令牌签发中的用户共用真实请求资源。注册信息存于所属应用容器，不使用全局回调；类型不匹配拒绝认证，不回退序列化其他模型。
+- 复用原生prepare_response与to_array，结果必须JSON对象；嵌入字段不套第二层Resource封装，不移植wrap、with、状态及HTTP响应钩子到外层认证响应。完整响应仍由Fortify响应绑定定制。默认四字段白名单保留；网页内部资料／邮箱字段与可改名的API资源分开。令牌签发前完成资源解析，失败不遗留调用方未收到的新令牌。
+- 安装复用发布器、源码锁和原生模块AST；新增source_edit::declare_module验证独立文件模块与条件。重入保留应用资源，force明确替换；原有Provider标准模板可升级，不能安全识别的内联／条件布局在套件写入前停止，不覆盖业务。此子单元不等于S10任意自定义项目矩阵完成。
+
+证据：`resource-tests-third.log`安装12、响应10（含两个应用9次TCP自定义／默认隔离、真实请求、异步准备、错误／非对象拒绝、状态及no-store）通过；完整回归`resource-final-gates-first.log`含Sanctum套件32、无Sanctum网页11／响应9／安装12通过，两组严格Clippy及fmt通过。新增资源失败不签发后的最终`resource-final-matrix.log`SQLite、独立MySQL8.4.13和PostgreSQL18.7各1项真实TCP通过，覆盖注册、Session登录、页面、PAT及本人管理签发、资源错误后令牌数量不变。临时容器退出。首次fixture把Request.path当作带前导斜杠，以及编译期Send／错误类型等夹具问题均已修正，失败日志保留。
+
+`resource-runtime-second.log`生成full应用用真实`main artisan init:resources --extensions=user-web,api,fortify --no-interaction`发布并注册资源、再构建通过；初轮main遗漏artisan子命令的usage退出不计通过。`resource-runtime-http.log`生成应用两进程file会话21次TCP回归通过，默认资源与全设备退出／凭据隔离保持；自定义字段以三库原生套件HTTP证据为准。`resource-docs-first.log`三语构建及正文两挂载／桌面手机12组浏览器通过。最终`resource-delivery-gates.log`切回冻结源码并触碰首方入口确认实际重检，Fortify+Sanctum及workspace严格Clippy、格式全部退出0。
+
+交付清单／SHA：`resource-files.json`／`resource-final-source-sha.json`。本批文档dist直接删除，保留正常增量缓存、数据和验收记录，实际空间`resource-delivery-space.json`。仅闭合资源装配；账户敏感更新、设备枚举、头像、注销／可靠清理、队列邮件、可选因素及最终安装矩阵继续开发。

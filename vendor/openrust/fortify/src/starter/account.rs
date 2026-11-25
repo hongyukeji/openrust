@@ -189,6 +189,7 @@ where
         let checked = chosen.clone();
         let checked_sanctum = sanctum.clone();
         let checked_database = database.clone();
+        let resource = UserResource::for_request(&user, request).await?;
         let refs = chosen.iter().map(String::as_str).collect::<Vec<_>>();
         let token = credentials::issue_checked(
             &mut user,
@@ -226,7 +227,7 @@ where
             },
         )
         .await?;
-        Ok(client::no_store(ApiResponse::success(json!({"token_type":"Bearer","token":token.plain_text_token.as_str(),"expires_at":token.access_token.expires_at,"user":UserResource::make(&user)?})).with_status(StatusCode::CREATED).into_response()?))
+        Ok(client::no_store(ApiResponse::success(json!({"token_type":"Bearer","token":token.plain_text_token.as_str(),"expires_at":token.access_token.expires_at,"user":resource})).with_status(StatusCode::CREATED).into_response()?))
     })
 }
 

@@ -14,6 +14,16 @@ mod user_credential_migration;
 #[path = "../stubs/starter/user_service_provider.rs"]
 mod user_provider;
 mod app {
+    pub(crate) mod http {
+        pub(crate) mod resources {
+            pub(crate) mod user_resource {
+                include!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/stubs/starter/user_resource.rs"
+                ));
+            }
+        }
+    }
     pub(crate) mod models {
         mod user {
             include!(concat!(
@@ -135,6 +145,26 @@ async fn start_security_catalog_mail(
     legacy: bool,
     mail: Option<Value>,
 ) -> Server {
+    start_custom_resource(
+        profile,
+        verification,
+        two_factor,
+        prefix,
+        legacy,
+        mail,
+        false,
+    )
+    .await
+}
+async fn start_custom_resource(
+    profile: &'static str,
+    verification: bool,
+    two_factor: bool,
+    prefix: &str,
+    legacy: bool,
+    mail: Option<Value>,
+    custom: bool,
+) -> Server {
     use axum::handler::Handler as _;
     static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let root = Root(std::env::temp_dir().join(format!(
@@ -211,6 +241,13 @@ async fn start_security_catalog_mail(
         }
     }
     app.boot().await.unwrap();
+    if custom {
+        openrust_fortify::starter::UserResource::use_resource::<app::models::User, CustomResource>(
+            &app,
+        )
+        .unwrap();
+    }
+
     let auth = app.make::<AuthManager>().await.unwrap();
     #[cfg(feature = "sanctum")]
     auth.register_sanctum_model::<app::models::User>("StarterUser");
@@ -3361,4 +3398,112 @@ async fn scope_invalid_configuration_never_silently_disables_credential_checks()
             .unwrap();
         assert_eq!(bearer_request(server.address, token).await, 200);
     }
+}
+
+struct CustomResource(app::models::User);
+impl From<app::models::User> for CustomResource {
+    fn from(user: app::models::User) -> Self {
+        Self(user)
+    }
+}
+impl openrust::http::resources::json::JsonResource for CustomResource {
+    fn to_array(
+        &self,
+        request: &openrust::http::Request,
+    ) -> Result<Value, openrust::http::HttpError> {
+        use openrust::contracts::auth::Authenticatable as _;
+        if request.parts().uri.query() == Some("resource_fail=1") {
+            return Err(openrust::http::HttpError::InvalidSignature);
+        }
+        Ok(json!({"identity":self.0.get_auth_identifier(),"endpoint":request.path()}))
+    }
+}
+#[cfg(feature = "sanctum")]
+#[tokio::test]
+async fn custom_native_resource_is_used_by_registration_login_and_pat_responses() {
+    let server = start_custom_resource("full", false, false, "api", false, None, true).await;
+    let mut browser = Client {
+        address: server.address,
+        cookies: BTreeMap::new(),
+        csrf: String::new(),
+    };
+    let (status, body) = browser.send("GET", "/login", "", false).await;
+    assert_eq!(status, 200, "{body}");
+    let(status,body)=browser.send("POST","/api/auth/register",r#"{"name":"资源用户","email":"resource@example.test","password":"long-password-123","password_confirmation":"long-password-123"}"#,true).await;
+    assert_eq!(status, 201, "{body}");
+    let value: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(value["data"]["endpoint"], "api/auth/register");
+    assert!(value["data"].get("email").is_none());
+    let (status, body) = browser
+        .send(
+            "POST",
+            "/login",
+            r#"{"email":"resource@example.test","password":"long-password-123"}"#,
+            true,
+        )
+        .await;
+    assert_eq!(status, 200, "{body}");
+    assert_eq!(
+        serde_json::from_str::<Value>(&body).unwrap()["data"]["endpoint"],
+        "login"
+    );
+    let (status, body) = browser.send("GET", "/user/profile", "", false).await;
+    assert_eq!(status, 200, "{body}");
+    assert!(
+        body.contains("资源用户"),
+        "自定义API资源不应破坏网页字段: {body}"
+    );
+    let(status,_,value)=token_client_request(server.address,"/api/auth/token",json!({"email":"resource@example.test","password":"long-password-123","device_name":"Resource phone","abilities":["account:read","tokens:manage"]})).await;
+    assert_eq!(status, 201, "{value}");
+    assert_eq!(value["data"]["user"]["endpoint"], "api/auth/token");
+    let token = value["data"]["token"].as_str().unwrap();
+    let (status,_,body) = token_client_request(server.address,"/api/auth/token?resource_fail=1",json!({"email":"resource@example.test","password":"long-password-123","device_name":"failed resource"})).await;
+    assert_eq!(status, 403, "{body}");
+    let (status, _, body) = account_request(
+        server.address,
+        token,
+        "GET",
+        "/api/user/tokens",
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status, 200, "{body}");
+    assert_eq!(
+        body["data"].as_array().unwrap().len(),
+        1,
+        "资源失败不应签发未知令牌"
+    );
+    let proof = confirmation(&server, token, "tokens").await;
+    let (status, _, body) = account_request_with_proof(
+        server.address,
+        token,
+        "POST",
+        "/api/user/tokens?resource_fail=1",
+        json!({"device_name":"failed resource"}),
+        Some(&proof),
+    )
+    .await;
+    assert_eq!(status, 403, "{body}");
+    let (status, _, body) = account_request(
+        server.address,
+        token,
+        "GET",
+        "/api/user/tokens",
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status, 200, "{body}");
+    assert_eq!(body["data"].as_array().unwrap().len(), 1);
+    let proof = confirmation(&server, token, "tokens").await;
+    let (status, _, value) = account_request_with_proof(
+        server.address,
+        token,
+        "POST",
+        "/api/user/tokens",
+        json!({"device_name":"Resource tablet","abilities":["account:read"]}),
+        Some(&proof),
+    )
+    .await;
+    assert_eq!(status, 201, "{value}");
+    assert_eq!(value["data"]["user"]["endpoint"], "api/user/tokens");
 }

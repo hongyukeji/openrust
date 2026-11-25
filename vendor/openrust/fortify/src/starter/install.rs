@@ -86,6 +86,14 @@ pub(crate) fn register(app: &Application) -> ProviderResult {
         ],
         "user-kit-web-views",
     )?;
+    provider.publishes(
+        app,
+        &[(
+            "app/http/resources/user_resource.rs",
+            include_bytes!("../../stubs/starter/user_resource.rs"),
+        )],
+        "user-kit-resource",
+    )?;
     provider.publishes_migrations(app, &[
         ("database/migrations/0001_01_01_000020_add_credential_version_to_users_table.rs", include_bytes!("../../stubs/starter/migrations/user-credentials.rs")),
         ("database/migrations/0001_01_01_000021_add_credential_stamp_to_personal_access_tokens_table.rs", include_bytes!("../../stubs/starter/migrations/token-credentials.rs")),
@@ -134,14 +142,41 @@ fn initialize<'a>(
                     "boot",
                 )
             };
+            let resource = r#"            openrust_fortify::starter::UserResource::use_resource::<
+                crate::app::models::User,
+                crate::app::http::resources::user_resource::UserResource,
+            >(app)?;
+"#;
+            let without_resource = template.replacen(resource, "", 1);
+            let oldest = legacy.replacen(resource, "", 1);
             if edit(template).is_ok() {
                 None
+            } else if let Ok(updated) = edit(&without_resource) {
+                Some((previous.clone(), updated))
             } else {
-                Some((previous.clone(), edit(&legacy)?))
+                Some((previous.clone(), edit(&oldest)?))
             }
         } else {
             None
         };
+        let http_path = root.join("app/http/mod.rs");
+        let http_previous = read(&http_path)?;
+        let http_updated = openrust::foundation::console::source_edit::declare_module(
+            &http_previous,
+            "resources",
+            None,
+        )?;
+        let resources_path = root.join("app/http/resources/mod.rs");
+        let resources_previous = if resources_path.exists() {
+            read(&resources_path)?
+        } else {
+            String::new()
+        };
+        let resources_updated = openrust::foundation::console::source_edit::declare_module(
+            &resources_previous,
+            "user_resource",
+            Some("fortify"),
+        )?;
         let model_path = root.join("app/models/user.rs");
         let model_previous = read(&model_path)?;
         let token_template = include_str!("../../stubs/starter/user-tokens.rs");
@@ -289,6 +324,7 @@ fn initialize<'a>(
         for tag in [
             "user-kit-config",
             "user-kit-support",
+            "user-kit-resource",
             "user-kit-mail-views",
             "user-kit-lang",
         ] {
@@ -317,6 +353,14 @@ fn initialize<'a>(
             }
             replace(&path, &previous, &updated)?;
         }
+        replace(&http_path, &http_previous, &http_updated)?;
+        if !resources_path.exists() {
+            std::fs::create_dir_all(resources_path.parent().expect("资源模块父目录"))
+                .map_err(|error| ConsoleError::new(format!("无法创建资源模块目录：{error}")))?;
+            std::fs::write(&resources_path, &resources_previous)
+                .map_err(|error| ConsoleError::new(format!("无法写入资源模块：{error}")))?;
+        }
+        replace(&resources_path, &resources_previous, &resources_updated)?;
         installation.register_configuration("user")?;
         let path = root.join("app/providers/mod.rs");
         let previous = read(&path)?;

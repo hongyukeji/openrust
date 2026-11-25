@@ -20,6 +20,7 @@ use openrust_fortify::{
 use serde_json::{Value as Json, json};
 use std::sync::Arc;
 
+#[derive(Clone)]
 struct Identity;
 impl Authenticatable for Identity {
     fn get_auth_identifier_name(&self) -> &str {
@@ -130,6 +131,9 @@ async fn application(kit: bool) -> Arc<Kernel> {
     application_with_locale(kit, "en").await
 }
 async fn application_with_locale(kit: bool, locale: &str) -> Arc<Kernel> {
+    application_with_resource(kit, locale, false).await
+}
+async fn application_with_resource(kit: bool, locale: &str, custom: bool) -> Arc<Kernel> {
     let mut providers: Vec<Box<dyn ServiceProvider>> =
         vec![Box::new(FortifyServiceProvider), Box::new(IgnoreRoutes)];
     if kit {
@@ -145,6 +149,9 @@ async fn application_with_locale(kit: bool, locale: &str) -> Arc<Kernel> {
         .with_routing(Routing::default().api(routes)).create().unwrap();
     app.boot().await.unwrap();
     app.set_locale(locale).await.unwrap();
+    if custom {
+        UserResource::use_resource::<Identity, PublicIdentity>(&app).unwrap();
+    }
     app.make::<AuthManager>()
         .await
         .unwrap()
@@ -366,4 +373,97 @@ async fn response_only_adapter_keeps_native_sanctum_model_and_authentication_pol
             .get("auth.session_credential_version_attribute")
             .is_none()
     );
+}
+
+struct PublicIdentity {
+    user: Identity,
+    prepared: bool,
+}
+impl From<Identity> for PublicIdentity {
+    fn from(user: Identity) -> Self {
+        Self {
+            user,
+            prepared: false,
+        }
+    }
+}
+impl openrust::http::resources::json::JsonResource for PublicIdentity {
+    fn prepare_response(
+        &mut self,
+        request: &Request,
+    ) -> Option<HttpFuture<'_, Result<(), HttpError>>> {
+        let fail = request.headers().contains_key("x-resource-fail");
+        Some(Box::pin(async move {
+            tokio::task::yield_now().await;
+            if fail {
+                return Err(HttpError::InvalidSignature);
+            }
+            self.prepared = true;
+            Ok(())
+        }))
+    }
+    fn to_array(&self, request: &Request) -> Result<Json, HttpError> {
+        assert!(self.prepared);
+        if request.headers().contains_key("x-resource-null") {
+            return Ok(Json::Null);
+        }
+        Ok(
+            json!({"identity":self.user.get_auth_identifier(),"label":"张三", "path":request.path(),
+            "locale":openrust::support::facades::Lang::get_locale()?}),
+        )
+    }
+}
+
+#[tokio::test]
+async fn application_resource_is_request_aware_and_isolated_over_real_http() {
+    use axum::handler::Handler as _;
+    use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+    let mut servers = Vec::new();
+    let mut addresses = Vec::new();
+    for custom in [true, false] {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        addresses.push(listener.local_addr().unwrap());
+        let service = transport
+            .with_state(application_with_resource(true, "zh-Hans", custom).await)
+            .into_make_service();
+        servers.push(tokio::spawn(async move {
+            axum::serve(listener, service).await.unwrap();
+        }));
+    }
+    for (index, path, header, status) in [
+        (0, "login", "", 200),
+        (1, "login", "", 200),
+        (0, "register", "", 201),
+        (0, "two-factor", "", 200),
+        (0, "login", "X-Resource-Fail: 1\r\n", 403),
+        (0, "login", "X-Resource-Null: 1\r\n", 500),
+        (0, "login", "X-Guest: 1\r\n", 401),
+        (0, "login", "", 200),
+        (1, "login", "", 200),
+    ] {
+        let address = addresses[index];
+        let mut socket = tokio::net::TcpStream::connect(address).await.unwrap();
+        socket.write_all(format!("GET /api/{path} HTTP/1.1\r\nHost: {address}\r\nAccept: application/json\r\n{header}Connection: close\r\n\r\n").as_bytes()).await.unwrap();
+        let mut wire = String::new();
+        socket.read_to_string(&mut wire).await.unwrap();
+        assert!(wire.starts_with(&format!("HTTP/1.1 {status} ")), "{wire}");
+        if status < 300 {
+            assert!(wire.contains("cache-control: no-store"));
+            let value: Json = serde_json::from_str(wire.split_once("\r\n\r\n").unwrap().1).unwrap();
+            let data = &value["data"];
+            if index == 0 {
+                assert_eq!(data["identity"], "user-001");
+                assert_eq!(data["locale"], "zh-Hans");
+                assert_eq!(data["path"], format!("api/{path}"));
+                assert!(data.get("id").is_none());
+            } else {
+                assert_eq!(data["id"], "user-001");
+                assert!(data.get("identity").is_none());
+            }
+            assert!(data.get("password").is_none());
+        }
+    }
+    for server in servers {
+        server.abort();
+    }
 }

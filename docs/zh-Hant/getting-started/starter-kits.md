@@ -269,3 +269,18 @@ curl -i -X POST http://localhost:8000/api/auth/forgot-password \
 找回密碼時，從原郵件連結取得重設憑據和信箱，與 `password`、`password_confirmation` 一起提交至 `/api/auth/reset-password`。缺失、過期或已消費的憑據回傳422；並行提交只有一個成功。重設使套件既有會話與個人存取權杖失效，須以新密碼重新登入。訊息依循應用語言；驗證簽章與密碼重設期限使用應用 Date 時鐘。
 
 依賴郵件前先設定實際傳輸。同步寄送失敗回傳錯誤，不會報告已寄送；修復投遞後可明確重寄驗證通知。這些路由不承諾佇列自動補寄或真實外部信箱收信，應用通知回呼仍可替換。
+
+## 應用使用者資源 {#user-resource}
+
+兩種預設都發佈 `app/http/resources/user_resource.rs`。其中 `UserResource` 實作原生 `JsonResource`，開發者修改 `to_array` 即可選擇公開欄位；預設使用四欄位安全投影，不要整體序列化使用者模型。產生的 Provider 為所屬應用選擇該資源：
+
+```rust
+openrust_fortify::starter::UserResource::use_resource::<
+    crate::app::models::User,
+    crate::app::http::resources::user_resource::UserResource,
+>(app)?;
+```
+
+JSON 註冊／登入、雙因素完成、目前使用者，以及個人權杖簽發中的使用者資料共用該資源。資源接收真實請求，先執行原生 `prepare_response`，再呼叫 `to_array`；回傳值必須為 JSON 物件，準備或序列化錯誤向外傳遞。這是嵌入認證回應的資料，資源的 `wrap`、`with`、狀態和 HTTP 回應掛鉤不會改變外層認證回應；要替換整個回應，繼續繫結現有 Fortify 回應契約。網頁帳戶與郵件頁面保留內部安全欄位，API 欄位改名不會破壞頁面。
+
+重複安裝保留該檔案，`--force` 會替換。已有獨立檔案模組會重用；行內或條件不相符的資源模組會在套件寫入前報錯，提示手動接線。選擇儲存在所屬應用中，不使用程序全域回呼。

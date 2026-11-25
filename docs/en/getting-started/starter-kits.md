@@ -269,3 +269,18 @@ After registration, explicitly complete [token login](#client-tokens). To verify
 For password recovery, extract the reset credential and email from the original mail link and POST them with `password` and `password_confirmation` to `/api/auth/reset-password`. A missing, expired or consumed credential returns 422. Concurrent submissions have one winner. Reset invalidates existing suite sessions and personal access tokens; log in again with the new password. Messages follow the selected application language. The application Date clock governs verification signatures and password reset expiry.
 
 Configure an actual mail transport before relying on email. Synchronous delivery failures return an error, not a sent acknowledgement; retry the verification notification explicitly after fixing delivery. This route does not promise queued retries or external inbox delivery. Application notification callbacks remain replaceable.
+
+## Application user resource {#user-resource}
+
+Both presets publish `app/http/resources/user_resource.rs`. Its `UserResource` implements the native `JsonResource` trait. Edit `to_array` to select public fields; the default delegates to the four-field safe projection. Do not serialize the entire user model. The generated Provider selects this resource for the owning application:
+
+```rust
+openrust_fortify::starter::UserResource::use_resource::<
+    crate::app::models::User,
+    crate::app::http::resources::user_resource::UserResource,
+>(app)?;
+```
+
+The same resource transforms JSON registration/login, two-factor completion, current-user responses and the user inside personal-token grants. It receives the real request and runs native `prepare_response` before `to_array`. It must return a JSON object; preparation/serialization errors propagate. This is nested resource data: resource `wrap`, `with`, status and HTTP response hooks do not change the surrounding authentication response. Replace the existing Fortify response contract to customize that entire response. HTML account and mail pages retain their internal safe fields, so renaming API fields does not break the pages.
+
+Repeat installation preserves this file; `--force` replaces it. Existing standalone file modules are reused. Inline or incompatible conditional resource modules stop installation before user-suite writes with a manual wiring error. Each application keeps its own selection; there is no process-global callback.

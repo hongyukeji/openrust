@@ -42,7 +42,7 @@ pub fn register(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
             }
         };
         let user = creator.create(&input).await?;
-        let resource = UserResource::make(user.as_ref())?;
+        let resource = UserResource::for_request(user.as_ref(), request).await?;
         let snapshot: Arc<dyn openrust::contracts::auth::Authenticatable> =
             user.clone_user().into();
         crate::actions::emit(Registered { user: snapshot }, &[]).await?;

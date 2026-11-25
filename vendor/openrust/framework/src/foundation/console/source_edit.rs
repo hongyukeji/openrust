@@ -112,3 +112,46 @@ pub fn read(path: &Path) -> Result<String, ConsoleError> {
 pub fn file_error(path: &Path, error: io::Error) -> ConsoleError {
     ConsoleError::new(format!("{}: {error}", path.display()))
 }
+
+/// 追加独立文件模块；遇到内联模块或条件不匹配时要求手动接线，避免覆盖已有代码。
+pub fn declare_module(
+    source: &str,
+    name: &str,
+    feature: Option<&str>,
+) -> Result<String, ConsoleError> {
+    let ident =
+        syn::parse_str::<syn::Ident>(name).map_err(|error| ConsoleError::new(error.to_string()))?;
+    let file = syn::parse_file(source).map_err(|error| ConsoleError::new(error.to_string()))?;
+    for item in file.items {
+        if let syn::Item::Mod(module) = item
+            && module.ident == ident
+        {
+            let attrs_ok = if let Some(feature) = feature {
+                module.attrs.len() == 1 && module.attrs[0].path().is_ident("cfg") &&
+                module.attrs[0].parse_args::<syn::Meta>().ok().is_some_and(|meta| {
+                    matches!(meta, syn::Meta::NameValue(value) if value.path.is_ident("feature") &&
+                        matches!(&value.value, syn::Expr::Lit(literal) if matches!(&literal.lit, syn::Lit::Str(text) if text.value() == feature)))
+                })
+            } else {
+                module.attrs.is_empty()
+            };
+            if module.content.is_some() || !attrs_ok {
+                return Err(ConsoleError::new(format!(
+                    "模块{name}使用内联或自定义条件；请先手动装配文件模块后重试"
+                )));
+            }
+            return Ok(source.to_owned());
+        }
+    }
+    let newline = if source.contains("\r\n") {
+        "\r\n"
+    } else {
+        "\n"
+    };
+    let condition = feature
+        .map(|value| format!("#[cfg(feature = {value:?})]{newline}"))
+        .unwrap_or_default();
+    Ok(format!(
+        "{source}{newline}{condition}pub(crate) mod {name};{newline}"
+    ))
+}
