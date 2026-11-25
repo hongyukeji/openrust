@@ -9,7 +9,7 @@
   "deployment": "Dağıtım kılavuzu",
   "changelog": "Değişiklikleri görüntüle",
   "language": "Dil",
-  "follow_browser": "Tarayıcı dilini kullan",
+  "follow_browser": "Otomatik algıla",
   "theme": "Görünüm",
   "theme_light": "Açık",
   "theme_dark": "Koyu",

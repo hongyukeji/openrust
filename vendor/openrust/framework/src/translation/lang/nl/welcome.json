@@ -9,7 +9,7 @@
   "deployment": "Implementatiehandleiding",
   "changelog": "Wijzigingen bekijken",
   "language": "Taal",
-  "follow_browser": "Browsertaal volgen",
+  "follow_browser": "Automatisch detecteren",
   "theme": "Weergave",
   "theme_light": "Licht",
   "theme_dark": "Donker",

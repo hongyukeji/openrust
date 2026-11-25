@@ -9,7 +9,7 @@
   "deployment": "배포 안내",
   "changelog": "변경 내역 보기",
   "language": "언어",
-  "follow_browser": "브라우저 설정 따르기",
+  "follow_browser": "자동 감지",
   "theme": "화면 모드",
   "theme_light": "밝게",
   "theme_dark": "어둡게",

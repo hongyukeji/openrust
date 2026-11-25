@@ -9,7 +9,7 @@
   "deployment": "دليل النشر",
   "changelog": "عرض سجل التغييرات",
   "language": "اللغة",
-  "follow_browser": "اتباع لغة المتصفح",
+  "follow_browser": "اكتشاف تلقائي",
   "theme": "المظهر",
   "theme_light": "فاتح",
   "theme_dark": "داكن",

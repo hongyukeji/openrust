@@ -9,7 +9,7 @@
   "deployment": "Bereitstellungsanleitung",
   "changelog": "Änderungsprotokoll ansehen",
   "language": "Sprache",
-  "follow_browser": "Browsereinstellung verwenden",
+  "follow_browser": "Automatisch erkennen",
   "theme": "Darstellung",
   "theme_light": "Hell",
   "theme_dark": "Dunkel",

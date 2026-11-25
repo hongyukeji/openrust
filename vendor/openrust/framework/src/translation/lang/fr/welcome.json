@@ -9,7 +9,7 @@
   "deployment": "Guide de déploiement",
   "changelog": "Voir les changements",
   "language": "Langue",
-  "follow_browser": "Suivre le navigateur",
+  "follow_browser": "Détection automatique",
   "theme": "Apparence",
   "theme_light": "Clair",
   "theme_dark": "Sombre",
