@@ -14,6 +14,8 @@ use tokio_util::sync::CancellationToken;
 
 /// A child supervisor owns its own worker pools and restarts independently.
 pub struct SupervisorProcess {
+    /// 冷却期结束后直接终止监控的退出码。退出码 13 始终立即终止。
+    pub dont_restart_on: Vec<i32>,
     name: String,
     options: SupervisorOptions,
     process: Option<InvokedProcess>,
@@ -28,6 +30,7 @@ pub struct SupervisorProcess {
 impl SupervisorProcess {
     pub fn new(options: SupervisorOptions, process: Option<InvokedProcess>) -> Self {
         Self {
+            dont_restart_on: vec![0, 2, 13],
             name: options.name.clone(),
             options,
             process,
@@ -98,7 +101,7 @@ impl SupervisorProcess {
             return Ok(());
         }
         if let Some(exit) = self.poll_exit().await? {
-            if !Self::terminal(exit.0)
+            if !self.terminal(exit.0)
                 && let Err(error) = self.reprovision(repository, master, exit.1).await
             {
                 self.exit = Some(exit);
@@ -131,8 +134,8 @@ impl SupervisorProcess {
         Ok(None)
     }
 
-    fn terminal(status: i32) -> bool {
-        matches!(status, 0 | 2 | 13)
+    fn terminal(&self, status: i32) -> bool {
+        status == 13 || self.dont_restart_on.contains(&status)
     }
 
     async fn reprovision(
@@ -589,7 +592,7 @@ impl MasterSupervisor {
         for supervisor in &mut self.supervisors {
             if let Some((exit, _)) = supervisor.poll_exit().await? {
                 let restarted = std::mem::take(&mut supervisor.restarting);
-                supervisor.dead = SupervisorProcess::terminal(exit);
+                supervisor.dead = supervisor.terminal(exit);
                 if !(supervisor.dead || restarted && exit == 1) {
                     self.failures = self.failures.saturating_add(1);
                 }

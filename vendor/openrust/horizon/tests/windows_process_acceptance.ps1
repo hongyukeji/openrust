@@ -253,10 +253,16 @@ foreach ($mode in @('idle', 'wait', 'fast', 'parent-exit', 'handlers', 'queue', 
                 Remove-Item Env:HORIZON_PROBE_SUPERVISOR_MONITOR
             }
             Wait-For 'supervisor reprovisioned by its independent monitor' {
-                $rebuilt = @((Status).workers | Where-Object {$_.supervisor -ceq ($active.name + ':monitor-reprovision')})
-                $rebuilt.Count -eq 1 -and $rebuilt[0].queue -eq 'wrapper-monitor'
+                $workers = (Status).workers
+                $defaults = @($workers | Where-Object {
+                    $_.supervisor -ceq ($active.name + ':monitor-reprovision') -and $_.queue -eq 'wrapper-monitor'
+                })
+                $override = @($workers | Where-Object {
+                    $_.supervisor -ceq ($active.name + ':monitor-terminal-override') -and $_.queue -eq 'wrapper-monitor-custom'
+                })
+                $defaults.Count -eq 1 -and $override.Count -eq 1
             } | Out-Null
-            'PASS: Windows native Supervisor monitor reprovisioned original options'
+            'PASS: Windows native Supervisor monitor reprovisioned original options under both exit policies'
         }
 
         if (!$emptyPlan) {

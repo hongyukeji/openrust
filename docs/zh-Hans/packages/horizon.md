@@ -152,7 +152,7 @@ Master 名称由主机名转换出的短名和进程内固定的四字符令牌�
 
 `WorkerProcess::monitor` 检查当前进程，并在冷却允许时启动传入的命令。两个包装器都提供 `terminate` 请求关停，以及 `stop` 在宽限期内等待退出。独立包装器的 `pause` 与 `continue_working` 使用 Unix 信号。Windows 受管 Horizon 命令通过共享进程状态暂停和继续。自定义 Windows 子进程需要监听关停管道才能正常排空。通过 `SupervisorProcess::terminate_with_status` 可向配置的命令队列发送带退出码的终止请求。
 
-独立管理包装器时，调用 `SupervisorProcess::monitor` 并传入目标 Master 的完整名称。退出码 13 立即结束监控，0 和 2 在冷却期结束后结束监控。其他退出码在冷却期结束后检查 Supervisor 心跳，确认没有替代进程后按原选项发送 `AddSupervisor` 命令。
+独立管理包装器时，调用 `SupervisorProcess::monitor` 并传入目标 Master 的完整名称。通过 `dont_restart_on` 可指定冷却期结束后终止监控的退出码。默认清单为 `[0, 2, 13]`，退出码 13 始终立即结束监控。其他退出码在冷却期结束后检查 Supervisor 心跳，心跳缺失或仍属于已退出进程时，按原选项发送 `AddSupervisor` 命令。
 
 Horizon 任务 ID 标识独立的 Redis 投递，由队列推送和面板返回。`horizon:retry` 与 `horizon:forget` 使用此 ID。重试获得新 ID，原失败监控记录保留并记录重试结果。原生 `queue:retry` 和失败任务存储使用载荷 UUID，由 Horizon 内部转换；批次重试也会将这些 UUID 解析为当前失败投递。
 

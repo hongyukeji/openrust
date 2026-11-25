@@ -144,7 +144,9 @@ macOS 与 Linux ARM64 的真实 Redis 8.10.3 验收覆盖默认及替代 Redis�
 
 Windows 11 ARM64 的默认 Redis 及文件命令队列均验证独立包装器的退出分类、同名替代心跳与实际重部署，并通过正常终止、排空、快速终止、父进程丢失、结构化命令和命名处理器回归。证据为 `target/tmp/observability-parity/horizon-supervisor-wrapper-monitor-{macos-final,linux-final,windows-final,framework,fmt,docs-final}.log`。
 
-上游的 `dontRestartOn` 可由调用方覆盖。固定 PHP 实测将 1 加入列表后保留心跳且不重部署，清空列表后退出码 2 可重部署，退出码 13 始终立即标为死亡。Rust 本批使用默认清单，自定义清单仍待接入。证据为 `target/tmp/observability-parity/horizon-supervisor-restart-codes-upstream.log`。
+上游的 `dontRestartOn` 可由调用方覆盖。固定 PHP 实测将 1 加入列表后保留心跳且不重部署，清空列表后退出码 2 可重部署，退出码 13 始终立即标为死亡。Rust 的 `dont_restart_on` 同样是包装器实例上的公开字段。按原选项重新部署时，新实例从默认清单开始。Master 对受管包装器的访问和配置入口另需逐项核对。上游证据为 `target/tmp/observability-parity/horizon-supervisor-restart-codes-upstream.log`。
+
+macOS、Linux ARM64、Windows 11 ARM64 复验自定义退出码和实际重部署。macOS 与 Linux 的默认队列验收派发任务至两组重部署的 Worker 并取得执行结果。三平台均覆盖文件命令队列，macOS 与 Linux 另覆盖独立 Redis 键空间的命令队列。Horizon 全目标严格 Clippy、快照全仓格式、三语文档及两种挂载路径的浏览器检查通过。证据为 `target/tmp/observability-parity/horizon-supervisor-restart-codes-{macos,linux,windows,docs}.log`。
 
 ### Windows 原生进程树
 

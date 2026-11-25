@@ -28,38 +28,44 @@ async fn until(mut check: impl FnMut() -> bool) {
 pub async fn run_supervisor_monitor(repository: &openrust_horizon::Repository, master: &str) {
     use serde_json::json;
 
-    for (mode, stale) in [
-        ("ok", false),
-        ("terminal", false),
-        ("duplicate", false),
-        ("reprovision", false),
-        ("reprovision", true),
+    let empty = &[][..];
+    for (suffix, action, terminal, stale) in [
+        ("ok", "ok", None, false),
+        ("terminal", "terminal", None, false),
+        ("duplicate", "duplicate", Some(empty), false),
+        ("reprovision", "reprovision", None, false),
+        ("stale", "reprovision", None, true),
+        ("blocked", "reprovision", Some(&[1][..]), false),
+        ("terminal-override", "terminal", Some(empty), false),
     ] {
-        let suffix = if stale {
-            "monitor-stale".into()
+        let queue = if suffix == "terminal-override" {
+            "wrapper-monitor-custom"
         } else {
-            format!("monitor-{mode}")
+            "wrapper-monitor"
         };
-        let name = format!("{master}:{suffix}");
+        let name = format!("{master}:monitor-{suffix}");
         let mut wrapper = SupervisorProcess::new(
             SupervisorOptions {
                 name: name.clone(),
-                queue: vec!["wrapper-monitor".into()],
+                queue: vec![queue.into()],
                 max_processes: 1,
                 timeout: 5,
                 ..Default::default()
             },
             None,
         );
+        if let Some(codes) = terminal {
+            wrapper.dont_restart_on = codes.to_vec();
+        }
         wrapper
-            .monitor(child(mode), repository, master)
+            .monitor(child(action), repository, master)
             .await
             .unwrap();
         let pid = wrapper.process().unwrap().spawned_id().unwrap();
         assert!(wrapper.cooling_down());
         until(|| !wrapper.process().unwrap().running()).await;
 
-        if mode == "reprovision" {
+        if action == "reprovision" || suffix == "terminal-override" {
             repository
                 .heartbeat_supervisor(
                     &name,
@@ -76,7 +82,7 @@ pub async fn run_supervisor_monitor(repository: &openrust_horizon::Repository, m
             .await
             .unwrap();
         assert!(wrapper.process().is_none());
-        assert_eq!(wrapper.is_dead(), mode == "duplicate");
+        assert_eq!(wrapper.is_dead(), action == "duplicate");
         if !wrapper.is_dead() {
             until(|| !wrapper.cooling_down()).await;
             wrapper
@@ -90,16 +96,16 @@ pub async fn run_supervisor_monitor(repository: &openrust_horizon::Repository, m
             .monitor(child("fail"), repository, master)
             .await
             .unwrap();
-        if stale {
+        if stale || suffix == "blocked" {
             assert_eq!(
                 repository.supervisor(&name).await.unwrap().unwrap()["pid"],
-                pid + 1
+                pid + u32::from(stale)
             );
             repository.forget_supervisor(&name).await.unwrap();
         }
     }
     println!(
-        "PASS: independent Supervisor monitor classifies exit codes and preserves a replacement heartbeat"
+        "PASS: independent Supervisor monitor applies default and custom exit codes and preserves a replacement heartbeat"
     );
 }
 

@@ -145,7 +145,7 @@ Master 和 Supervisor 已接通容器中可替换的命令队列。验收覆盖�
 
 WorkerProcess 与 SupervisorProcess 的公开控制接通原生信号、排空和终止状态。独立 Worker 的监控与受管路径共用冷却及补位逻辑。 [进程包装器控制审计](horizon/README.md#workerprocess-与-supervisorprocess-控制)
 
-独立 `SupervisorProcess::monitor` 已接通默认退出码判定、冷却、旧心跳清理及基于原选项的重部署。上游可覆盖的 `dontRestartOn` 已补实测对照，Rust 的覆盖入口仍待接入。 [独立监控审计](horizon/README.md#supervisorprocess-独立监控与重部署)
+独立 `SupervisorProcess::monitor` 已接通默认及自定义退出码判定、冷却、旧心跳清理及基于原选项的重部署。退出码 13 始终立即结束监控。 [独立监控审计](horizon/README.md#supervisorprocess-独立监控与重部署)
 
 ### Horizon 分组等待时间与 HTTP 排序
 

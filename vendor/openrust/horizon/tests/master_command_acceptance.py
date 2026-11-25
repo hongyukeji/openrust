@@ -139,16 +139,21 @@ def main():
             print('PASS: Master restart resumes a paused deployment, drains a real job and replaces both Supervisor and Worker trees')
 
             print(run(HORIZON_PROBE_SUPERVISOR_MONITOR=name))
-            rebuilt = name + ':monitor-reprovision'
-            until(lambda: any(
-                worker['supervisor'] == rebuilt and worker['queue'] == 'wrapper-monitor'
-                for row in statuses() for worker in row['workers']
-            ))
-            rebuilt_job = run(HORIZON_PROBE_DISPATCH='{}', HORIZON_PROBE_DISPATCH_UUID='1',
-                              HORIZON_PROBE_DISPATCH_QUEUE='wrapper-monitor')
-            until(lambda: rebuilt_job in completed.read_text())
-            assert statuses()[0]['supervisors'] == [child, planned, rebuilt], statuses()
-            print('PASS: independent monitor reprovisions the original options through the real Master queue')
+            rebuilt = []
+            for suffix, queue_name in [
+                ('reprovision', 'wrapper-monitor'), ('terminal-override', 'wrapper-monitor-custom'),
+            ]:
+                supervisor = f'{name}:monitor-{suffix}'
+                until(lambda: any(
+                    worker['supervisor'] == supervisor and worker['queue'] == queue_name
+                    for row in statuses() for worker in row['workers']
+                ))
+                rebuilt_job = run(HORIZON_PROBE_DISPATCH='{}', HORIZON_PROBE_DISPATCH_UUID='1',
+                                  HORIZON_PROBE_DISPATCH_QUEUE=queue_name)
+                until(lambda: rebuilt_job in completed.read_text())
+                rebuilt.append(supervisor)
+            assert statuses()[0]['supervisors'] == [child, planned, *rebuilt], statuses()
+            print('PASS: default and custom exit policies reprovision the original options through the real Master queue')
 
             run('artisan', 'horizon:terminate')
             stdout, stderr = master.communicate(timeout=15)
