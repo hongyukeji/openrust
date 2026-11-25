@@ -141,12 +141,22 @@ fn account(
         let can_manage_devices = super::devices::policy()?.is_some();
         #[cfg(not(feature = "sanctum"))]
         let can_manage_devices = false;
+        #[cfg(feature = "sanctum")]
+        let (can_manage_avatar, avatar_limits) = (
+            super::avatar::enabled(fortify.config.as_ref())?,
+            super::avatar::view_limits(fortify.config.as_ref())?,
+        );
+        #[cfg(not(feature = "sanctum"))]
+        let (can_manage_avatar, avatar_limits) = (false, (0usize, 0u32));
         let view = View::make(
             "user.home",
             [
                 ("user".into(), user.into()),
                 ("can_manage_devices".into(), can_manage_devices.into()),
                 ("can_manage_tokens".into(), cfg!(feature = "sanctum").into()),
+                ("can_manage_avatar".into(), can_manage_avatar.into()),
+                ("avatar_max_kilobytes".into(), avatar_limits.0.into()),
+                ("avatar_max_dimension".into(), avatar_limits.1.into()),
                 (
                     "can_update_profile".into(),
                     features

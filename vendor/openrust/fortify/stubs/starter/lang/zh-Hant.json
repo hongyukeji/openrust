@@ -55,5 +55,14 @@
   "tokens_empty": "暫無 API 權杖。",
   "token_revoked": "API 權杖已撤銷。",
   "tokens_creation_disabled": "目前沒有可授予的權杖能力，仍可撤銷已有權杖。",
-  "resources_pruned": "已清理 :count 筆已完成的使用者資源清理紀錄。"
+  "resources_pruned": "已清理 :count 筆已完成的使用者資源清理紀錄。",
+  "profile_photo": "頭像",
+  "upload_photo": "上傳頭像",
+  "remove_photo": "移除頭像",
+  "photo_limits": "JPEG、PNG 或 WebP，最多 :size KiB，每邊不超過 :dimension 像素。",
+  "photo_invalid": "請選擇有效的 JPEG、PNG 或 WebP 圖片。",
+  "photo_size_invalid": "圖片超過大小限制。",
+  "photo_dimensions_invalid": "圖片超過尺寸限制。",
+  "photo_updated": "頭像已更新。",
+  "photo_removed": "頭像已移除。"
 }

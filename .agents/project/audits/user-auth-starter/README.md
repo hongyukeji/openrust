@@ -7,8 +7,8 @@
 | 批次 | 状态 | 剩余工作 |
 | --- | --- | --- |
 | A01-01 安装与基础认证 | 开发中 | 显式安装预设、基础账户流程与响应适配、安装保护、真实Artisan／HTTP。 |
-| A01-02 邮件与生命周期 | 开发中 | 已验邮件落地、本地SMTP、无会话恢复及会话／PAT撤销；待可靠队列、无密码与跨驱动最终组合。 |
-| A01-03 账户中心 | 未闭合 | 已验Token登录、近期密码确认及本人令牌管理；资料敏感更新、头像、设备与注销待补齐。 |
+| A01-02 邮件与生命周期 | 开发中 | 已验邮件落地、本地SMTP、加密可靠队列、无会话恢复及会话／PAT撤销；待无密码与跨驱动最终组合。 |
+| A01-03 账户中心 | 未闭合 | 已验资料／密码、浏览器设备、个人令牌网页及头像生命周期；待注销与最后组合。 |
 | A01-04 网页与可选认证 | 未闭合 | 完整Blade页面、2FA／Passkeys／第三方登录接线及三语教程。 |
 | A01-05 组合验收 | 未闭合 | 两种预设、三库／缓存、常用系统与最终支持矩阵。 |
 
@@ -499,3 +499,31 @@ Native Worker删除幂等，完成后重复任务为no-op；文件失败由原�
 image-limits-second.log：4项公开Image值对象测试通过，覆盖分支隔离、缩放前拒绝、缓存重新校验、不能放宽全局／先前限制、保留具名驱动及流水线选择；既有reads_exif_orientation_and_checks_inputs_and_limits专项1项通过。workspace和Fortify+Sanctum严格Clippy通过，最终格式检查随冻结源码完成。未重跑未受影响的全部编码器矩阵，也未把此项当作头像HTTP操作验收。首轮测试Probe缺少Driver必需的dominant_color实现已补齐，仅测试夹具变化；首次失败不计通过。
 
 image-limits-docs.log三语构建及12组两挂载／桌面移动页面检查通过。应用可通过正式Image门面取得值对象后链式调用with_limits，示例区分HTTP请求体／类型校验和图片解码限制。头像控制器的门面消费、真实上传及故障补偿接续实现。清单／SHA和本批文档清理空间见target/tmp/user-starter/image-limits-files.json、image-limits-final-source-sha.json、image-limits-delivery-space.json；保留所有源码／验收证据及正常复用缓存，不推送。
+
+
+## S09 头像网页、API与持久化上传预留
+
+本单元沿用正式S09、既有Image／Validator／Storage／Url／原生事务数据库队列。旧版未发现同契约的头像附着／可靠回收流程，不将进程内ResourceCleanup移植为用户文件清理；不新建文件服务器、工作流、轮询器或第二套图片解码器。
+
+- 显式安装发布000025头像列迁移，跟随应用User连接；已有任一头像列时在DDL前拒绝，不修改原始users迁移。完整预设/home增加原生multipart与DELETE表单；两种预设提供按API前缀配置的POST／DELETE本人头像。需要account:update及近期确认，PAT使用avatar用途单次证明；Cookie保留原会话、CSRF及近期确认，不能误用凭据变更同步导致反复确认。
+- 实际解码JPEG／PNG／WebP，默认2048 KiB及每边4096像素，同时遵循Image更严格的全局限制。服务端随机64位名称，不信任原文件名、扩展或MIME。明确记录原磁盘和路径，默认仅公开磁盘；使用原生static_disk为同源本地URL服务，多节点／Worker共享FILESYSTEM_PUBLIC_ROOT或对象存储。默认资源增加可空avatar_url，不暴露路径／磁盘；关闭头像不解析历史元数据或解析存储服务。单独不含Sanctum的Fortify响应仍为原四字段。
+- 写入文件前独立提交15分钟延迟预留，附着引用与pending→completed在用户事务内原子提交。到期回收和附着竞争同一状态更新；已附着文件不被迟到任务删除。取消先尽快补偿，并保留processing状态的最终回收以覆盖迟到写入。失败／超时与模型事件拒绝保留旧引用。旧文件清理任务与新引用同事务入队，读取真正锁定后的旧引用；并发替换不删除最终头像。I/O使用120秒请求上限，非任意无限期自定义存储写入的完成保证。
+- 首次上传／无旧图移除返回200；有旧图待清理返回202及meta.cleanup收据。GET /api/auth/resource-cleanups/{operation}独立于Session／认证组，仅通过X-Operation-Receipt查询pending／failed／completed及文件数，不要求User存在。缺失／错误／过期收据404，query收据400；no-store／no-referrer。只使用IP命名限流，不在查询时启动Cookie会话。Telescope默认隐藏该标头和meta.cleanup.receipt，并验证实际请求／响应记录不留明文。其他认证字段的最终观测脱敏仍属S10安全组合复核，不据此声称所有自定义响应字段自动安全。
+
+### 实际证据与边界
+
+冻结组合基于15c9c1248c151d97269b265e3fa73a405cd7e366及本批覆盖，只吸收已提交主线122份实际变化，不拷入Webhooks／Horizon／Cargo.lock在途内容。源码清单／SHA为target/tmp/user-starter/avatar-files-draft.json、avatar-final-source-sha.json；应用安装产物SHA为avatar-installed-files-sha.json。后续独立主线提交不混入本单元验收结论。
+
+- avatar-delivery-consumers.log：starter_responses10项、starter_ui76项通过。avatar-install-checks.log：安装13项及配置6项通过。覆盖原生网页与Cookie／PAT、CSRF、近期确认、真实解码含有效签名但截断内容、伪造类型、尺寸超限、路径穿越文件名、模型取消、存储写入失败、并发替换、保持当前引用、空／多级API前缀下HTML Accept仍为JSON错误、关闭头像的旧元数据投影，以及预留提交／回滚／迟写补偿／到期竞争。
+- avatar-mysql-delivery.log／avatar-postgres-delivery.log：MySQL8.4.13与PostgreSQL18.7各12项真实HTTP／数据库／原生Artisan Worker通过，数据库会话；含正式迁移首次、重复、回滚及重建。SQLite覆盖同一12项并在76项组合中通过。Telescope公开请求观测专项在avatar-combination-observability.log通过，确认标头与响应收据被掩码且操作ID保留。
+- avatar-runtime-delivery.log：尚未安装用户套件的基线应用骨架经真实Artisan init full、重复安装与自动重建／迁移，通过双应用进程共享MySQL与磁盘、B节点读取A节点图片、202收据查询和真实新进程Worker。实际SIGKILL应用发生在写文件后、引用提交前，原用户引用不变，强制推进独立夹具的到期时间后由新Worker回收孤立图片。实际SIGKILL Worker发生在外部文件删除后、队列确认前，过期保留任务由新Worker重投并结算。SQL门闩只在独立MySQL夹具上使用；MySQL可继续完成客户端死亡前已受理的autocommit更新，实测账本completed而队列仍reserved，这是允许状态，新Worker只结算，不假装服务器已提交语句回滚或承诺外部I/O exactly-once。
+- avatar-app-browser.json：真实Chrome三语桌面／375px移动6组通过，原生上传／移除、图片实际加载2×2像素、无横向溢出。头像／清理三语教程在avatar-docs-final.log通过构建及24组双挂载浏览器检查；最后补充的资源字段文字／JSON经avatar-doc-json-check.json逐块解析，不将文字修订算新增运行行为。
+- avatar-delivery-workspace-clippy.log及avatar-delivery-feature-clippy.log：Rust1.94.0 workspace all-targets、Fortify+Sanctum严格Clippy通过；avatar-delivery-fmt.log为空且退出0。前次组合Clippy曾被32GB守卫中断、停止时报Operation not permitted，不计通过；空间恢复后重跑上述最终门禁通过，不用扩大栈或关闭警告规避。
+
+初期的测试夹具触发器语法、浏览器重定向目标以及冗余结构体更新等失败日志保留，均不计通过。生产对象存储ACL／CDN、真实云账号及Windows／Linux完整应用组合属于后续S10／发布环境验收；本单元不冒充其通过。S10还须把头像磁盘严格类型、权限／URL、同库队列和关闭开关纳入安装预检。
+
+avatar-delivery-space.json记录直接删除本批文档dist／cache及独占模拟图片，共77,800,029字节文件；观测可用空间由56,054,763,520增至56,136,200,192字节（并行磁盘活动不全部归为本批释放）。正常增量缓存、源码、全部日志、依赖下载、数据库和数据卷保留；独立MySQL／PostgreSQL临时容器已由夹具退出收回。A01五阶段仍未整簇闭合，继续S04注销、S03可选因素及S10完整安装组合，不停在本单元。
+
+### 后续S04参考固定
+
+注销Action分工另外固定参考[Jetstream v5.5.3](https://github.com/laravel/jetstream/tree/61cac5cde455311890f6981fb2da47acd298e4e2)，SHA61cac5cde455311890f6981fb2da47acd298e4e2；实际读取DeletesUsers、DeleteUser、CurrentUserController、HasProfilePhoto和composer.json，快照与SHA在target/tmp/user-starter/reference/jetstream-5.5.3/。仅借鉴可替换应用Action及近期确认；不把Jetstream的先删外部头像再删用户顺序直接照搬为事务保证，也不引入团队或Inertia依赖。固定Laravel／Fortify／Sanctum基线保持原版本。

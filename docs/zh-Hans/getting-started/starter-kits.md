@@ -2,7 +2,7 @@
 
 ## 支持状态 {#support-status}
 
-显式用户套件安装原生 Fortify Action、安全资源、Blade 认证及 Cookie／令牌 API。下文说明已经提供的操作；尚不提供头像、账户注销接口及可选因素管理页面。不生成 React、Vue 或 Livewire 前端。
+显式用户套件安装原生 Fortify Action、安全资源、Blade 认证及 Cookie／令牌 API。下文说明已经提供的操作；尚不提供账户注销接口及可选因素管理页面。不生成 React、Vue 或 Livewire 前端。
 
 ## 可用入口 {#available-entry-points}
 
@@ -34,7 +34,7 @@ Box::new(openrust_fortify::starter::StarterKitServiceProvider),
 
 HTML 保留原生重定向和闪存。JSON 登录、注册与双因素登录完成后，通过 `ApiResponse` 返回当前用户，注册使用201。更新省略空数据；退出和邮箱验证保留204空正文。消息跟随应用语言，认证成功响应使用 `Cache-Control: no-store`。
 
-`UserResource` 只读取 `id`、`name`、`email`、`email_verified_at`，保留字符串主键，不枚举属性或读取凭据。自定义资源可替换原有 Fortify 响应绑定。单独使用响应适配不会签发令牌或改变 Guard。
+`UserResource` 只读取 `id`、`name`、`email`、`email_verified_at` 及可空的 `avatar_url`，保留字符串主键，不枚举属性或读取凭据。自定义资源可替换原有 Fortify 响应绑定。单独使用响应适配不会签发令牌或改变 Guard。
 
 ## 邮件链接与密码会话 {#mail-and-sessions}
 
@@ -121,7 +121,8 @@ curl -X POST http://localhost:8000/api/auth/token \
       "id": 1,
       "name": "开发者",
       "email": "developer@example.test",
-      "email_verified_at": null
+      "email_verified_at": null,
+      "avatar_url": null
     }
   }
 }
@@ -221,7 +222,7 @@ Accept: application/json
 
 PAT 证明在应用数据库中只保存摘要，绑定用户、当前PAT、用途、凭据版本和有效的因素／邮箱状态。`auth.password_timeout` 为正整数秒，默认10800；不等清理任务就会到期。错误设备／用途、篡改或重放返回401。签发／撤销使用共同用户锁和令牌行锁，模型事件取消或提交前证明过期会回滚数据库变更。应用确认回调可支持自己的身份流程，没有本地密码不代表自动确认。无状态 Passkey 重新认证适配仍单独待补。
 
-密码错误422，一分钟内5次失败后429并带 `Retry-After`；缺少令牌能力403。消息跟随请求语言，证明、密码和令牌秘密不会进入旧输入；包含新证明／令牌的响应使用 `no-store`。设备管理见[浏览器设备](#browser-sessions)；尚不提供头像及账户注销接口。
+密码错误422，一分钟内5次失败后429并带 `Retry-After`；缺少令牌能力403。消息跟随请求语言，证明、密码和令牌秘密不会进入旧输入；包含新证明／令牌的响应使用 `no-store`。设备管理见[浏览器设备](#browser-sessions)；账户注销接口仍在开发。
 
 ### 退出全部设备
 
@@ -247,7 +248,7 @@ curl -i -X POST http://localhost:8000/api/auth/logout-all \
 
 | 方法 | 路径 | 成功行为 |
 | --- | --- | --- |
-| POST | `/api/auth/register` | 201，返回四字段用户资源；不自动登录或签发令牌。 |
+| POST | `/api/auth/register` | 201，返回安全用户资源；不自动登录或签发令牌。 |
 | POST | `/api/auth/forgot-password` | 200，本地化重置邮件状态。 |
 | POST | `/api/auth/reset-password` | 200，本地化重置状态；重置凭据仅能兑换一次。 |
 | POST | `/api/auth/email/verification-notification` | Bearer 或有状态 Cookie 认证；发送成功202，已验证204。 |
@@ -272,7 +273,7 @@ curl -i -X POST http://localhost:8000/api/auth/forgot-password \
 
 ## 应用用户资源 {#user-resource}
 
-两种预设都发布 `app/http/resources/user_resource.rs`。其中 `UserResource` 实现原生 `JsonResource`，开发者修改 `to_array` 即可选择公开字段；默认使用四字段安全投影，不要整体序列化用户模型。生成的 Provider 为所属应用选择该资源：
+两种预设都发布 `app/http/resources/user_resource.rs`。其中 `UserResource` 实现原生 `JsonResource`，开发者修改 `to_array` 即可选择公开字段；默认使用身份字段及头像的安全投影，不要整体序列化用户模型。生成的 Provider 为所属应用选择该资源：
 
 ```rust
 openrust_fortify::starter::UserResource::use_resource::<
@@ -432,7 +433,7 @@ curl -X DELETE "$APP_URL/api/user/sessions/<opaque-device-id>"   -H "Authorizati
 
 ## 可靠资源清理 {#resource-cleanup}
 
-安装的套件提供 `openrust_fortify::starter::resource_cleanup::ResourceCleanup`，供可信的应用 Action 使用。这是头像替换与账户注销共用的后端；对应 HTTP 操作仍按[支持状态](#support-status)继续开发，单独安装此服务不会增加那些操作。
+安装的套件提供 `openrust_fortify::starter::resource_cleanup::ResourceCleanup`，供可信的应用 Action 使用。这是头像替换与账户注销共用的后端；头像消费方式见[用户头像](#profile-photos)，账户注销仍按[支持状态](#support-status)继续开发。
 
 清理账本和原生数据库队列任务在本人事务中一起写入；回滚会保留原有资源。sync、Redis、被替换的 database 处理器或其他数据库连接无法提供该保证，该清理队列会明确拒绝，不修改应用默认队列，其他任务仍可使用 Redis。生成的 `config/user.rs` 默认选择 `USER_CLEANUP_CONNECTION=database`、`USER_CLEANUP_QUEUE=user-resources`。User 数据库须具有标准 jobs 表；自定义 User 连接时，配置专用的同库数据库队列连接。
 
@@ -447,4 +448,28 @@ Worker 命令须使用配置后的连接和队列名称。多个独立应用共�
 
 Action 先核对本人归属与近期认证，再在提供的用户事务内调用 `ResourceCleanup::enqueue`。仅接受套件 `profile-photos/` 目录中的独占随机文件名，不能把同一路径重新用于另一张图片。返回的收据明文只交付一次，数据库只保存摘要。`ResourceCleanup::status` 只返回 `pending`、`failed` 或 `completed` 等有限状态，不公开用户资料或内部文件路径，也不依赖 User 仍然存在。收据七天后过期。存储删除失败仍可追踪，可用原生 Worker 重试或 `queue:retry` 恢复；重复投递保持幂等，不假装 SQL 和对象存储拥有共同事务。
 
-记录清理命令只删除收据已过期的完成记录，保留待处理和失败任务、用户、令牌及外部文件。命令幂等，可由正常调度器定期执行。真正注销、文件存储故障恢复及 HTTP 收据交付，还会随消费此服务的 Action 单独验收。
+记录清理命令只删除收据已过期的完成记录，保留待处理和失败任务、用户、令牌及外部文件。命令幂等，可由正常调度器定期执行。账户注销还会随对应 Action 单独验收。
+
+## 用户头像 {#profile-photos}
+
+两种预设提供 `POST /api/user/profile-photo`（multipart 字段 `photo`）及 `DELETE /api/user/profile-photo`，前缀跟随 `api.prefix`。需要选中的用户和 `account:update` 能力。PAT 每次操作先从 `/api/auth/confirm` 获取 `avatar` 用途的证明，通过 `X-Auth-Confirmation` 发送；Cookie 客户端使用近期密码确认及 CSRF。完整预设在 `/home` 增加上传与移除表单；API 预设不增加账户页面。
+
+`user.avatar` 默认 `enabled=true`、磁盘 `public`、2048 KiB、每边4096像素。设置 `USER_AVATAR=false` 可关闭接口及表单。默认处理器要求明确公开的磁盘；私有头像须使用应用自定义处理器与资源。实际内容检测与解码只接受 JPEG／PNG／WebP，并取套件及 Image 上限中较严格者；客户端原文件名不会作为存储路径。
+
+```sh
+# TOKEN 为具有 account:update 能力的 PAT；PROOF 为新取得的 avatar 确认证明。
+curl -X POST "$APP_URL/api/user/profile-photo" \
+  -H "Authorization: Bearer $TOKEN" -H "X-Auth-Confirmation: $PROOF" \
+  -F 'photo=@avatar.png'
+```
+
+默认用户资源增加可空的 `avatar_url`，不公开路径或磁盘名。首次上传返回200；替换或移除已有图片返回202，`meta.cleanup` 包含 `id`、仅交付一次的 `receipt`、`expires_at`、`status_url` 和 `status=pending`。自定义资源自行决定头像输出。更新头像保留浏览器会话、CSRF 和近期确认。
+
+写入新文件前先提交持久化延迟预留，正式附着与完成预留在同一用户事务内提交。失败或中断的上传在15分钟宽限期后回收，取消的写入还有最终清理；已附着头像不受延迟或重复投递影响。旧头像删除任务与替换引用同事务入队。部署时须启动[资源清理 Worker](#resource-cleanup)，并配置重试。
+
+```sh
+# 收据不要放入 URL；有限状态查询不需要登录 Cookie。
+curl "$STATUS_URL" -H "X-Operation-Receipt: $RECEIPT"
+```
+
+查询只返回 pending／failed／completed 等状态和文件数量。缺失、错误或过期收据返回404；通过 query 传入收据返回400。响应使用 `no-store` 和 `no-referrer`，Telescope 隐藏收据标头及 `meta.cleanup.receipt`。收据应保密。公开本地磁盘 URL 与应用同源时使用原生静态磁盘路由提供文件；多节点与 Worker 须共享磁盘根目录或对象存储，本地共享挂载可设置 `FILESYSTEM_PUBLIC_ROOT`。CDN／对象存储 URL 由对应服务提供，生产存储 ACL／CDN 行为须在部署环境验收。

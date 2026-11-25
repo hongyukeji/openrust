@@ -48,7 +48,7 @@ impl Authenticatable for Identity {
         Ok(match name {
             "name" => Some("张三".into()),
             "email" => Some("user@example.test".into()),
-            "email_verified_at" => None,
+            "email_verified_at" | "profile_photo_path" | "profile_photo_disk" => None,
             _ => panic!("资源不能枚举其他属性: {name}"),
         })
     }
@@ -203,10 +203,12 @@ async fn call(
 }
 #[test]
 fn resource_only_reads_safe_fields_and_preserves_string_identity() {
-    assert_eq!(
-        UserResource::make(&Identity).unwrap(),
-        json!({"id":"user-001","name":"张三","email":"user@example.test","email_verified_at":null})
-    );
+    let mut expected =
+        json!({"id":"user-001","name":"张三","email":"user@example.test","email_verified_at":null});
+    if cfg!(feature = "sanctum") {
+        expected["avatar_url"] = serde_json::Value::Null;
+    }
+    assert_eq!(UserResource::make(&Identity).unwrap(), expected);
 }
 #[tokio::test]
 async fn opt_in_json_projection_statuses_empty_payloads_and_cache_protection() {
@@ -346,7 +348,10 @@ fn default_application_model_projects_casts_without_hidden_fields() {
     assert_eq!(value["id"], 42);
     assert_eq!(value["name"], "示例用户");
     assert!(value["email_verified_at"].is_string());
-    assert_eq!(value.as_object().unwrap().len(), 4);
+    assert_eq!(
+        value.as_object().unwrap().len(),
+        4 + usize::from(cfg!(feature = "sanctum"))
+    );
 }
 
 #[cfg(feature = "sanctum")]

@@ -28,6 +28,7 @@ pub(super) enum Purpose {
     Devices,
     Delete,
     Factors,
+    Avatar,
 }
 impl Purpose {
     fn parse(value: &str) -> Option<Self> {
@@ -38,6 +39,7 @@ impl Purpose {
             "devices" => Self::Devices,
             "delete" => Self::Delete,
             "factors" => Self::Factors,
+            "avatar" => Self::Avatar,
             _ => return None,
         })
     }
@@ -51,6 +53,7 @@ impl Purpose {
                 Self::Devices => "devices",
                 Self::Delete => "delete",
                 Self::Factors => "factors",
+                Self::Avatar => "avatar",
             }
         )
     }
@@ -109,7 +112,7 @@ where
             RuleSet::parse([
                 (
                     "purpose",
-                    "required|string|in:tokens,password,email,devices,delete,factors",
+                    "required|string|in:tokens,password,email,devices,delete,factors,avatar",
                 ),
                 ("password", "nullable|string"),
             ])?,

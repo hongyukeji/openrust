@@ -12,6 +12,10 @@ impl Middleware for NoStore {
         next: Next<'a>,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
+            request
+                .parts_mut()
+                .headers
+                .insert("accept", "application/json".parse().expect("静态头值"));
             let response = next.run(request).await;
             Ok(super::client::no_store(response).header(
                 "pragma".parse().expect("静态头名称"),

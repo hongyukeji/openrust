@@ -654,6 +654,7 @@ fn full_configuration(
         ("database".into(),database_configuration(base)),
         ("session".into(),session_configuration(base)),
         ("cache".into(),json!({"default":"array","stores":{"array":{"driver":"array"},"redis":{"driver":"redis","connection":"default","prefix":format!("{}:",base.file_name().unwrap().to_string_lossy())}}})),
+        ("filesystems".into(),json!({"default":"public","disks":{"public":{"driver":"local","root":base.join("public-photos"),"visibility":"public","throw":true,"url":format!("{}/storage",std::fs::read_to_string(base.join("app-url")).unwrap())}}})),
         ("hashing".into(),json!({"driver":"bcrypt","bcrypt":{"rounds":4}})),
         ("auth".into(),json!({"defaults":{"guard":"web","passwords":"users"},"guards":{"web":{"driver":"session","provider":"users"},"admin":{"driver":"session","provider":"admins"}},"providers":{"users":{"driver":"eloquent","model":"StarterUser"},"admins":{"driver":"database","table":"admins"}},"passwords":{"users":password_token_configuration()}})),
         ("fortify-options".into(),json!({"two-factor-authentication":{"confirm":true,"confirmPassword":true}})),
@@ -1335,7 +1336,7 @@ async fn stateless_password_token_login_keeps_sessions_separate_and_obeys_api_pr
     assert_eq!(body["message"], "成功");
     assert_eq!(body["data"]["token_type"], "Bearer");
     assert!(body["data"]["expires_at"].is_string());
-    assert_eq!(body["data"]["user"].as_object().unwrap().len(), 4);
+    assert_eq!(body["data"]["user"].as_object().unwrap().len(), 5);
     let token = body["data"]["token"].as_str().unwrap();
     assert_eq!(bearer_request(server.address, token).await, 200);
     App::set_facade_application(Some(server._kernel.get_application()), async {
@@ -2451,7 +2452,7 @@ async fn mail_api_register_verify_and_resend_work_without_browser_sessions() {
     assert_eq!(status, 201, "{body}");
     assert!(headers.to_ascii_lowercase().contains("no-store"));
     assert_eq!(body["data"]["email"], "native@example.test");
-    assert_eq!(body["data"].as_object().unwrap().len(), 4);
+    assert_eq!(body["data"].as_object().unwrap().len(), 5);
     let (status, _, _) =
         token_client_request(server.address, "/api/admin/auth/register", registration).await;
     assert_eq!(status, 422);
@@ -5244,3 +5245,10 @@ async fn form_request(client: &mut Client, path: &str, body: &str) -> (u16, Stri
 #[cfg(feature = "sanctum")]
 #[path = "starter_ui/resource_cleanup.rs"]
 mod resource_cleanup;
+
+#[cfg(feature = "sanctum")]
+#[path = "starter_ui/avatar.rs"]
+mod avatar;
+#[cfg(feature = "sanctum")]
+#[path = "../stubs/starter/migrations/profile-photo.rs"]
+mod profile_photo_migration;

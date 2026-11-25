@@ -5,8 +5,20 @@
 @if(config('user.email_verification', true))
 @if(!$user['email_verified_at'])<p><a href="{{ route('verification.notice') }}">{{ __('user.verify_email') }}</a></p>@endif
 @endif
-@if($can_update_profile || $can_update_password)
+@if($can_update_profile || $can_update_password || $can_manage_avatar)
 <p>{{ __('user.confirmation_required') }} <a href="{{ route('password.confirm') }}">{{ __('user.confirm_password') }}</a></p>
+@endif
+@if($can_manage_avatar)
+<fieldset><legend>{{ __('user.profile_photo') }}</legend>
+@if($user['avatar_url'])<img src="{{ $user['avatar_url'] }}" alt="{{ __('user.profile_photo') }}" width="96" height="96">@endif
+<p>{{ __('user.photo_limits', ['size' => $avatar_max_kilobytes, 'dimension' => $avatar_max_dimension]) }}</p>
+<form method="POST" enctype="multipart/form-data" action="{{ route('user.photo.store') }}">
+@csrf
+<label for="photo">{{ __('user.profile_photo') }}</label><input id="photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp" required>
+@error('photo')<p class="error" role="alert">{{ $message }}</p>@enderror
+<button type="submit">{{ __('user.upload_photo') }}</button></form>
+@if($user['avatar_url'])<form method="POST" action="{{ route('user.photo.destroy') }}">@csrf @method('DELETE')<button type="submit">{{ __('user.remove_photo') }}</button></form>@endif
+</fieldset>
 @endif
 @if($can_update_profile)
 <fieldset><legend>{{ __('user.profile') }}</legend>

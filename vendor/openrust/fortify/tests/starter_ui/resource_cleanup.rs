@@ -18,7 +18,7 @@ async fn server() -> Server {
     )
     .await
 }
-async fn schema_and_disk(server: &Server) {
+pub(super) async fn schema_and_disk(server: &Server) {
     use openrust::database::migrations::{MigrationEntry, MigrationRegistry, Migrator};
     const PATH: &str =
         "database/migrations/0001_01_01_000024_create_user_resource_cleanups_table.rs";
@@ -219,7 +219,7 @@ async fn resource_cleanup_rejects_nontransactional_queue_and_unowned_paths_witho
     .await;
 }
 
-async fn worker() -> i32 {
+pub(super) async fn worker() -> i32 {
     let mut output = openrust::console::Output::default();
     openrust::support::facades::Artisan::call(
         "queue:work",
@@ -351,6 +351,222 @@ async fn resource_cleanup_storage_failure_remains_trackable_and_redelivery_recov
             cleanup.prune_completed(Some("acceptance")).await.unwrap(),
             0
         );
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn avatar_reservation_attached_in_user_transaction_survives_cancellation_and_delayed_worker()
+{
+    let server = server().await;
+    schema_and_disk(&server).await;
+    register_token_user(&server).await;
+    let app = server._kernel.get_application();
+    App::set_facade_application(Some(app), async {
+        let db = app
+            .make::<openrust::database::DatabaseManager>()
+            .await
+            .unwrap()
+            .connection(None)
+            .unwrap();
+        let cleanup = app.make::<ResourceCleanup>().await.unwrap();
+        let queue = app.make::<QueueManager>().await.unwrap();
+        let user = app::models::User::query_on(&db)
+            .first()
+            .await
+            .unwrap()
+            .unwrap();
+        let disk = app
+            .make::<FilesystemManager>()
+            .await
+            .unwrap()
+            .disk(Some("public"))
+            .unwrap();
+        let path = format!("profile-photos/{}.png", "d".repeat(40));
+        let mut tx = db.begin_transaction().await.unwrap();
+        let upload = cleanup
+            .reserve_upload(
+                &user,
+                &mut tx,
+                &queue,
+                StoredResource {
+                    disk: "public".into(),
+                    path: path.clone(),
+                },
+            )
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+        assert!(disk.put(&path, b"attached fixture").await.unwrap());
+        let mut tx = db.begin_transaction().await.unwrap();
+        cleanup
+            .retain_upload(&user, &mut tx, &upload)
+            .await
+            .unwrap();
+        tx.table("users")
+            .r#where("id", "=", user.get_key().cloned().unwrap())
+            .update([("name".into(), "attached".into())].into())
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+        cleanup.cancel_upload(&upload).await.unwrap();
+        assert!(disk.exists(&path).await.unwrap());
+        db.table("jobs")
+            .r#where("queue", "=", "user-resources")
+            .update([("available_at".into(), 0.into())].into())
+            .await
+            .unwrap();
+        assert_eq!(worker().await, 0);
+        assert!(disk.exists(&path).await.unwrap());
+        assert_eq!(db.table("jobs").count("*").await.unwrap(), 0);
+    })
+    .await;
+}
+#[tokio::test]
+async fn avatar_reservation_rolled_back_attachment_and_late_write_are_reclaimed_after_cancel() {
+    let server = server().await;
+    schema_and_disk(&server).await;
+    register_token_user(&server).await;
+    let app = server._kernel.get_application();
+    App::set_facade_application(Some(app), async {
+        let db = app
+            .make::<openrust::database::DatabaseManager>()
+            .await
+            .unwrap()
+            .connection(None)
+            .unwrap();
+        let cleanup = app.make::<ResourceCleanup>().await.unwrap();
+        let queue = app.make::<QueueManager>().await.unwrap();
+        let user = app::models::User::query_on(&db)
+            .first()
+            .await
+            .unwrap()
+            .unwrap();
+        let disk = app
+            .make::<FilesystemManager>()
+            .await
+            .unwrap()
+            .disk(Some("public"))
+            .unwrap();
+        let path = format!("profile-photos/{}.jpg", "e".repeat(40));
+        let mut tx = db.begin_transaction().await.unwrap();
+        let upload = cleanup
+            .reserve_upload(
+                &user,
+                &mut tx,
+                &queue,
+                StoredResource {
+                    disk: "public".into(),
+                    path: path.clone(),
+                },
+            )
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+        assert!(disk.put(&path, b"unattached fixture").await.unwrap());
+        let mut tx = db.begin_transaction().await.unwrap();
+        cleanup
+            .retain_upload(&user, &mut tx, &upload)
+            .await
+            .unwrap();
+        tx.table("users")
+            .update([("name".into(), "not committed".into())].into())
+            .await
+            .unwrap();
+        tx.roll_back(None).await.unwrap();
+        cleanup.cancel_upload(&upload).await.unwrap();
+        assert!(!disk.exists(&path).await.unwrap());
+        let row = db
+            .table("user_resource_cleanups")
+            .r#where("id", "=", upload.id())
+            .first()
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            row.get("status"),
+            Some(&openrust::database::Value::Text("processing".into()))
+        );
+        // 被取消的异步写入稍后完成，原始延迟任务仍须做最终回收。
+        assert!(disk.put(&path, b"late write fixture").await.unwrap());
+        db.table("user_resource_cleanups")
+            .r#where("id", "=", upload.id())
+            .update([("created_at".into(), 0.into())].into())
+            .await
+            .unwrap();
+        db.table("jobs")
+            .r#where("queue", "=", "user-resources")
+            .update([("available_at".into(), 0.into())].into())
+            .await
+            .unwrap();
+        assert_eq!(worker().await, 0);
+        assert!(!disk.exists(&path).await.unwrap());
+        assert_eq!(db.table("jobs").count("*").await.unwrap(), 0);
+    })
+    .await;
+}
+#[tokio::test]
+async fn avatar_reservation_abandoned_upload_is_reclaimed_and_cannot_attach_after_expiry() {
+    let server = server().await;
+    schema_and_disk(&server).await;
+    register_token_user(&server).await;
+    let app = server._kernel.get_application();
+    App::set_facade_application(Some(app), async {
+        let db = app
+            .make::<openrust::database::DatabaseManager>()
+            .await
+            .unwrap()
+            .connection(None)
+            .unwrap();
+        let cleanup = app.make::<ResourceCleanup>().await.unwrap();
+        let queue = app.make::<QueueManager>().await.unwrap();
+        let user = app::models::User::query_on(&db)
+            .first()
+            .await
+            .unwrap()
+            .unwrap();
+        let disk = app
+            .make::<FilesystemManager>()
+            .await
+            .unwrap()
+            .disk(Some("public"))
+            .unwrap();
+        let path = format!("profile-photos/{}.webp", "f".repeat(40));
+        let mut tx = db.begin_transaction().await.unwrap();
+        let upload = cleanup
+            .reserve_upload(
+                &user,
+                &mut tx,
+                &queue,
+                StoredResource {
+                    disk: "public".into(),
+                    path: path.clone(),
+                },
+            )
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+        assert!(disk.put(&path, b"abandoned fixture").await.unwrap());
+        db.table("user_resource_cleanups")
+            .r#where("id", "=", upload.id())
+            .update([("created_at".into(), 0.into())].into())
+            .await
+            .unwrap();
+        let mut tx = db.begin_transaction().await.unwrap();
+        assert!(
+            cleanup
+                .retain_upload(&user, &mut tx, &upload)
+                .await
+                .is_err()
+        );
+        tx.roll_back(None).await.unwrap();
+        db.table("jobs")
+            .r#where("queue", "=", "user-resources")
+            .update([("available_at".into(), 0.into())].into())
+            .await
+            .unwrap();
+        assert_eq!(worker().await, 0);
+        assert!(!disk.exists(&path).await.unwrap());
     })
     .await;
 }

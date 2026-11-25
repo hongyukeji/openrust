@@ -1,6 +1,6 @@
+use super::env::get;
 use openrust::config::{ConfigError, Environment, Value};
 use serde_json::json;
-use super::env::get;
 
 pub(super) fn load(env: &Environment) -> Result<Value, ConfigError> {
     Ok(json!({
@@ -20,17 +20,32 @@ pub(super) fn load(env: &Environment) -> Result<Value, ConfigError> {
         "passkeys": get(env, "USER_PASSKEYS", false)?,
         /*
         |--------------------------------------------------------------------------
-        | 个人令牌与头像
+        | 个人令牌
         |--------------------------------------------------------------------------
         |
         | 令牌期限属于套件，不能修改原生 Sanctum 的默认契约。能力取自服务端
-        | 白名单；普通客户端不能自行申请未授予的能力。头像由应用存储磁盘管理。
+        | 白名单；普通客户端不能自行申请未授予的能力。
         |
         */
         "token_expiration_days": get(env, "USER_TOKEN_EXPIRATION_DAYS", 30)?,
         "token_abilities": ["account:read", "account:update", "tokens:manage"],
         "unverified_token_abilities": ["account:read","account:update","tokens:manage"],
-        "avatar": {"disk":"public","max_kilobytes":2048,"max_dimension":4096},
+        /*
+        |--------------------------------------------------------------------------
+        | 用户头像
+        |--------------------------------------------------------------------------
+        |
+        | USER_AVATAR默认开启。默认处理器使用明确公开的存储磁盘，按真实内容
+        | 校验JPEG、PNG与WebP；默认限制2048 KiB、每边4096像素。
+        | 旧图片及中断上传交给下方同库清理队列，不改变应用的默认队列。
+        |
+        */
+        "avatar": {
+            "enabled": get(env, "USER_AVATAR", true)?,
+            "disk": "public",
+            "max_kilobytes": 2048,
+            "max_dimension": 4096,
+        },
         /*
         |--------------------------------------------------------------------------
         | 浏览器设备

@@ -24,7 +24,7 @@ fn json_only(request: &mut Request) {
         .headers
         .insert("accept", "application/json".parse().expect("静态头值"));
 }
-async fn cookie_guard<M: HasApiTokens>(
+pub(super) async fn cookie_guard<M: HasApiTokens>(
     request: &mut Request,
     user: &M,
     cookie: bool,

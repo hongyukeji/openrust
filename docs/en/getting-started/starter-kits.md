@@ -2,7 +2,7 @@
 
 ## Support status {#support-status}
 
-The explicit user starter installs native Fortify actions, safe resources, Blade authentication and Cookie/token APIs. The sections below describe the available operations. Avatar and account-deletion endpoints and optional-factor management pages are not provided. React, Vue and Livewire frontends are not generated.
+The explicit user starter installs native Fortify actions, safe resources, Blade authentication and Cookie/token APIs. The sections below describe the available operations. Account-deletion endpoints and optional-factor management pages are not provided. React, Vue and Livewire frontends are not generated.
 
 ## Available entry points {#available-entry-points}
 
@@ -34,7 +34,7 @@ Box::new(openrust_fortify::starter::StarterKitServiceProvider),
 
 HTML requests retain native redirects and flash messages. JSON login, registration and completed two-factor login return the current user through `ApiResponse`; registration uses 201. Updates omit empty data; logout and verification retain empty 204 bodies. Messages follow the application locale. Successful authentication responses use `Cache-Control: no-store`.
 
-`UserResource` reads only `id`, `name`, `email` and `email_verified_at`, preserving string identifiers without enumerating attributes or credentials. Replace the existing Fortify response binding for a custom resource. The response adapter alone does not issue tokens or alter guards.
+`UserResource` reads only `id`, `name`, `email`, `email_verified_at` and nullable `avatar_url`, preserving string identifiers without enumerating attributes or credentials. Replace the existing Fortify response binding for a custom resource. The response adapter alone does not issue tokens or alter guards.
 
 ## Mail links and password-backed sessions {#mail-and-sessions}
 
@@ -121,7 +121,8 @@ curl -X POST http://localhost:8000/api/auth/token \
       "id": 1,
       "name": "Developer",
       "email": "developer@example.test",
-      "email_verified_at": null
+      "email_verified_at": null,
+      "avatar_url": null
     }
   }
 }
@@ -221,7 +222,7 @@ For first-party Cookie/SPA clients, retain the normal CSRF flow and send credent
 
 PAT proofs are hashed in the application's database, bound to the `user`, `current` PAT, purpose, credential version and effective factor/email state. `auth.password_timeout` is a positive number of seconds, default10800. Proofs expire without waiting for cleanup; wrong devices/purposes, tampering and replay return401. User and `token` row locks cover issuance/revocation. A late expiry or a cancelled model event rolls back the database mutation. Password callbacks may support an application-specific identity flow; an account without a local password is never automatically confirmed. Stateless Passkey reauthentication remains a separate pending adapter.
 
-Password errors return422; five failed confirmations within a minute cause429 with `Retry-After`. Missing `token` capabilities return403. All displayed messages use the request locale. Proofs, passwords and `token` secrets are excluded from old input. Responses containing a new proof/token use `no-store`. See [browser sessions](#browser-sessions) for device management. Avatar and account deletion endpoints are not provided.
+Password errors return422; five failed confirmations within a minute cause429 with `Retry-After`. Missing `token` capabilities return403. All displayed messages use the request locale. Proofs, passwords and `token` secrets are excluded from old input. Responses containing a new proof/token use `no-store`. See [browser sessions](#browser-sessions) for device management. The account deletion endpoint remains under development.
 
 ### Log out all devices
 
@@ -247,7 +248,7 @@ The explicitly installed suite registers these routes beneath `api.prefix` (defa
 
 | Method | Path | Success |
 | --- | --- | --- |
-| POST | `/api/auth/register` | 201, four-field user resource; no login or token issuance. |
+| POST | `/api/auth/register` | 201, safe user resource; no login or token issuance. |
 | POST | `/api/auth/forgot-password` | 200, localized reset-link status. |
 | POST | `/api/auth/reset-password` | 200, localized reset status; the reset credential is single-use. |
 | POST | `/api/auth/email/verification-notification` | Bearer or stateful Cookie authentication; 202 when sent, 204 when already verified. |
@@ -272,7 +273,7 @@ Configure an actual mail transport before relying on email. Synchronous delivery
 
 ## Application user resource {#user-resource}
 
-Both presets publish `app/http/resources/user_resource.rs`. Its `UserResource` implements the native `JsonResource` trait. Edit `to_array` to select public fields; the default delegates to the four-field safe projection. Do not serialize the entire user model. The generated Provider selects this resource for the owning application:
+Both presets publish `app/http/resources/user_resource.rs`. Its `UserResource` implements the native `JsonResource` trait. Edit `to_array` to select public fields; the default delegates to the safe identity and avatar projection. Do not serialize the entire user model. The generated Provider selects this resource for the owning application:
 
 ```rust
 openrust_fortify::starter::UserResource::use_resource::<
@@ -432,7 +433,7 @@ An empty server ability whitelist disables new token creation on the page while 
 
 ## Reliable resource cleanup {#resource-cleanup}
 
-The installed kit includes `openrust_fortify::starter::resource_cleanup::ResourceCleanup` for trusted application actions. This is the shared backend for profile-photo replacement and account deletion; their HTTP actions remain under development as described in [support status](#support-status). Installing this service alone does not add those operations.
+The installed kit includes `openrust_fortify::starter::resource_cleanup::ResourceCleanup` for trusted application actions. This is the shared backend for profile-photo replacement and account deletion; see [profile photos](#profile-photos) for the photo endpoints; account deletion remains under development as described in [support status](#support-status).
 
 The cleanup ledger and a native database queue job are written in the same user transaction. A rollback preserves the previous resources. Sync, Redis, a replaced database handler or a different database connection cannot provide this guarantee and are rejected for this queue. This does not change the application's default queue: other jobs may continue using Redis. Generated `config/user.rs` selects `USER_CLEANUP_CONNECTION=database` and `USER_CLEANUP_QUEUE=user-resources` by default; create the normal jobs table on the User database and use a dedicated same-database queue connection for custom User connections.
 
@@ -447,4 +448,28 @@ Use the configured connection and queue names in the Worker command. Separate ap
 
 An action calls `ResourceCleanup::enqueue` only after checking ownership and recent authentication, inside the supplied user transaction. Only independently named files in the kit's `profile-photos/` namespace are accepted; do not reuse their paths for another upload. The returned receipt is shown once, while only its hash is stored. `ResourceCleanup::status` returns limited `pending`, `failed` or `completed` state without personal information or file paths, and does not need a still-existing User. Receipts expire after seven days. A failed storage deletion remains trackable; native Worker retries or `queue:retry` can complete it. Duplicate delivery is safe because the operation and file deletion are idempotent. This is not a transaction across SQL and object storage.
 
-The prune command only removes completed records after receipt expiry; it keeps pending and failed work, users, tokens and external files. It is idempotent and may be scheduled through the normal scheduler. Actual account deletion, file-store failure recovery and HTTP receipt delivery are verified separately with the actions that consume this service.
+The prune command only removes completed records after receipt expiry; it keeps pending and failed work, users, tokens and external files. It is idempotent and may be scheduled through the normal scheduler. Account deletion will be verified separately with its consuming action.
+
+## Profile photos {#profile-photos}
+
+Both presets provide `POST /api/user/profile-photo` (multipart `photo`) and `DELETE /api/user/profile-photo`; the prefix follows `api.prefix`. They require the selected user and `account:update`. Obtain a fresh `avatar` proof from `/api/auth/confirm` for each PAT operation and send it in `X-Auth-Confirmation`. Cookie clients use recent password confirmation and CSRF. The full preset also adds upload/removal forms to `/home`; the API preset adds no account page.
+
+`user.avatar` defaults to `enabled=true`, disk `public`, 2048 KiB and 4096 pixels per side. Set `USER_AVATAR=false` to remove the endpoints and forms. The default handler requires an explicitly public disk. Private avatars require an application-specific handler and resource. Validation checks actual image bytes and decoding, accepts JPEG/PNG/WebP only, and enforces the tighter of kit and Image limits. Client filenames are never used as storage paths.
+
+```sh
+# TOKEN is an account:update PAT; PROOF is a fresh avatar confirmation proof.
+curl -X POST "$APP_URL/api/user/profile-photo" \
+  -H "Authorization: Bearer $TOKEN" -H "X-Auth-Confirmation: $PROOF" \
+  -F 'photo=@avatar.png'
+```
+
+The default user resource adds nullable `avatar_url`; it never exposes storage paths or disk names. A first upload returns200. Replacing/removing a stored image returns202 with `meta.cleanup` containing `id`, a one-time `receipt`, `expires_at`, `status_url` and `status=pending`. A custom user resource controls its own avatar projection. Photo changes keep the browser session, CSRF and recent confirmation intact.
+
+A delayed, durable reservation is committed before writing the new file. Attaching the image and completing that reservation share the user transaction. Failed or abandoned uploads are reclaimed after a 15-minute grace period; cancelled writes receive a final cleanup pass. An attached photo is protected from delayed/repeated delivery. The previous photo is queued for deletion in the same transaction as replacement. Run the [resource cleanup Worker](#resource-cleanup), including its retries, on every deployment.
+
+```sh
+# Do not put the receipt in a URL. No login cookie is needed for this limited lookup.
+curl "$STATUS_URL" -H "X-Operation-Receipt: $RECEIPT"
+```
+
+Lookup returns limited pending/failed/completed state and file count. A missing/wrong/expired receipt returns404; a receipt query parameter returns400. Responses use `no-store` and `no-referrer`; Telescope masks the receipt header and `meta.cleanup.receipt`. Keep this receipt private. The public local disk is served through the native static-disk route when its URL has the application origin. Nodes and Workers must share the same disk root or object store; use `FILESYSTEM_PUBLIC_ROOT` for a shared local mount. CDN/object-storage URLs use their own serving configuration. Production storage ACL/CDN behavior needs deployment acceptance.

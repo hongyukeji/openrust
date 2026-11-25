@@ -21,9 +21,9 @@ type Resolve = dyn for<'a> Fn(&'a dyn Authenticatable, &'a mut Request) -> HttpF
 struct Projection(Arc<Resolve>);
 
 /// 当前用户的默认安全投影；不枚举模型属性，也不访问密码或恢复码。
-/// 通过use_resource选择应用的原生JsonResource；未选择时使用四字段白名单。
+/// 通过use_resource选择应用的原生JsonResource；未选择时使用身份字段与可空头像URL白名单。
 /// 当前用户的默认安全投影；不枚举模型属性，也不访问密码或恢复码。
-/// 通过use_resource选择应用的原生JsonResource；未选择时使用四字段白名单。
+/// 通过use_resource选择应用的原生JsonResource；未选择时使用身份字段与可空头像URL白名单。
 pub struct UserResource;
 impl UserResource {
     /// 为所属应用选择原生资源；这里只解析用户数据，不改变外层响应状态、封装或响应头。
@@ -96,6 +96,13 @@ impl UserResource {
             };
             fields.insert(name.into(), value);
         }
+        #[cfg(feature = "sanctum")]
+        fields.insert(
+            "avatar_url".into(),
+            super::avatar::url(user)?
+                .map(Json::String)
+                .unwrap_or(Json::Null),
+        );
         Ok(Json::Object(fields))
     }
 

@@ -5,6 +5,8 @@ pub mod account;
 #[cfg(feature = "sanctum")]
 pub mod api;
 #[cfg(feature = "sanctum")]
+mod avatar;
+#[cfg(feature = "sanctum")]
 mod challenges;
 #[cfg(feature = "sanctum")]
 pub mod client;

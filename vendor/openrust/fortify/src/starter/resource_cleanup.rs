@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     any::{TypeId, type_name},
     sync::Arc,
+    time::Duration,
 };
 use subtle::ConstantTimeEq as _;
 use zeroize::Zeroizing;
@@ -67,6 +68,24 @@ pub struct CleanupStatus {
     pub status: String,
     pub total_files: usize,
 }
+/// 提交预留事务后才能写文件；仅由服务构造，不能从客户端数据反序列化。
+pub struct UploadReservation {
+    operation: String,
+    connection: String,
+    scope: String,
+    owner_hash: String,
+    resource: StoredResource,
+}
+impl UploadReservation {
+    pub fn id(&self) -> &str {
+        &self.operation
+    }
+    pub fn resource(&self) -> &StoredResource {
+        &self.resource
+    }
+}
+const UPLOAD_GRACE: i64 = 900;
+
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct JobData {
@@ -162,6 +181,22 @@ impl ResourceCleanup {
         kind: CleanupKind,
         resources: Vec<StoredResource>,
     ) -> AuthResult<CleanupTicket> {
+        let kind = match kind {
+            CleanupKind::Avatar => "avatar",
+            CleanupKind::AccountDeletion => "account-deletion",
+        };
+        self.enqueue_operation(user, transaction, queue, kind, resources, None)
+            .await
+    }
+    async fn enqueue_operation<M: Model>(
+        &self,
+        user: &M,
+        transaction: &mut Transaction,
+        queue: &QueueManager,
+        kind: &str,
+        resources: Vec<StoredResource>,
+        delay: Option<openrust::queue::Delay>,
+    ) -> AuthResult<CleanupTicket> {
         if !queue.has_handler(JOB) {
             return Err(AuthError::Configuration("用户资源清理任务尚未装配"));
         }
@@ -194,14 +229,7 @@ impl ResourceCleanup {
                 ("scope".into(), scope.clone().into()),
                 ("owner_hash".into(), owner_hash.into()),
                 ("receipt_hash".into(), hash(receipt.as_bytes()).into()),
-                (
-                    "kind".into(),
-                    match kind {
-                        CleanupKind::Avatar => "avatar",
-                        CleanupKind::AccountDeletion => "account-deletion",
-                    }
-                    .into(),
-                ),
+                ("kind".into(), kind.into()),
                 (
                     "resources".into(),
                     serde_json::to_string(&resources)?.into(),
@@ -228,6 +256,7 @@ impl ResourceCleanup {
                 DispatchOptions {
                     connection: Some(self.option("user.cleanup.connection", "database")?),
                     queue: Some(self.option("user.cleanup.queue", "user-resources")?),
+                    delay,
                     ..Default::default()
                 },
                 transaction,
@@ -242,6 +271,119 @@ impl ResourceCleanup {
             receipt,
             expires_at,
         })
+    }
+    /// 在独立用户事务中预留新头像回收任务；正常附着和回收通过同一记录互斥。
+    pub async fn reserve_upload<M: Model>(
+        &self,
+        user: &M,
+        transaction: &mut Transaction,
+        queue: &QueueManager,
+        resource: StoredResource,
+    ) -> AuthResult<UploadReservation> {
+        let connection = user.get_connection()?;
+        let scope = self.scope(&connection)?;
+        let owner = AuthIdentifier::try_from(user.get_key().ok_or(AuthError::InvalidIdentity)?)?;
+        let owner_hash = hash(&serde_json::to_vec(&(&scope, user.get_key_name(), owner))?);
+        let ticket = self
+            .enqueue_operation(
+                user,
+                transaction,
+                queue,
+                "avatar-upload",
+                vec![resource.clone()],
+                Some(openrust::queue::Delay::For(Duration::from_secs(
+                    UPLOAD_GRACE as u64,
+                ))),
+            )
+            .await?;
+        Ok(UploadReservation {
+            operation: ticket.id,
+            connection: connection.get_name().into(),
+            scope,
+            owner_hash,
+            resource,
+        })
+    }
+    /// 必须与头像引用更新一起提交；已被回收或到期的预留不能再次附着。
+    pub async fn retain_upload<M: Model>(
+        &self,
+        user: &M,
+        transaction: &mut Transaction,
+        reservation: &UploadReservation,
+    ) -> AuthResult<()> {
+        let connection = user.get_connection()?;
+        let scope = self.scope(&connection)?;
+        let owner = AuthIdentifier::try_from(user.get_key().ok_or(AuthError::InvalidIdentity)?)?;
+        let owner_hash = hash(&serde_json::to_vec(&(&scope, user.get_key_name(), owner))?);
+        if TypeId::of::<M>() != self.model
+            || user.get_table() != self.table
+            || !transaction.belongs_to(&connection)
+            || reservation.scope != scope
+            || reservation.owner_hash != owner_hash
+            || reservation.connection != connection.get_name()
+        {
+            return Err(AuthError::Configuration("头像上传预留不属于当前用户事务"));
+        }
+        let cutoff = now()?
+            .checked_sub(UPLOAD_GRACE)
+            .ok_or(AuthError::Configuration("头像上传预留时间溢出"))?;
+        let changed = transaction
+            .table(TABLE)
+            .r#where("id", "=", reservation.operation.clone())
+            .r#where("scope", "=", scope)
+            .r#where("owner_hash", "=", owner_hash)
+            .r#where("kind", "=", "avatar-upload")
+            .r#where("status", "=", "pending")
+            .r#where("created_at", ">", cutoff)
+            .update(
+                [
+                    ("status".into(), "completed".into()),
+                    ("updated_at".into(), now()?.into()),
+                ]
+                .into(),
+            )
+            .await?;
+        if changed != 1 {
+            return Err(AuthError::Configuration(
+                "头像上传预留已过期或正在回收，请重新上传",
+            ));
+        }
+        Ok(())
+    }
+    /// 请求失败时尽快补偿；已附着的新头像不会被取消，延迟任务仍可处理进程中断。
+    pub async fn cancel_upload(&self, reservation: &UploadReservation) -> AuthResult<()> {
+        let connection = self.database.connection(Some(&reservation.connection))?;
+        if reservation.scope != self.scope(&connection)? {
+            return Err(AuthError::Configuration("头像上传取消范围不匹配"));
+        }
+        connection
+            .table(TABLE)
+            .use_write_pdo()
+            .r#where("id", "=", reservation.operation.clone())
+            .r#where("scope", "=", reservation.scope.clone())
+            .r#where("owner_hash", "=", reservation.owner_hash.clone())
+            .r#where("kind", "=", "avatar-upload")
+            .r#where("status", "=", "pending")
+            .update(
+                [
+                    ("status".into(), "processing".into()),
+                    ("updated_at".into(), now()?.into()),
+                ]
+                .into(),
+            )
+            .await?;
+        let payload = Payload::new(
+            JOB,
+            JobData {
+                operation: reservation.operation.clone(),
+                connection: reservation.connection.clone(),
+                scope: reservation.scope.clone(),
+            },
+        )
+        .map_err(backend)?;
+        // 完成记录表示已附着或已清理，run会保持幂等，不删除当前引用。
+        self.run(&payload).await?;
+        Ok(())
     }
     /// 只返回有限状态，不返回用户资料、内部文件路径或异常详情。
     pub async fn status(
@@ -279,17 +421,20 @@ impl ResourceCleanup {
         }
         let resources: Vec<StoredResource> = serde_json::from_str(text(&row, "resources")?)?;
         let status = text(&row, "status")?;
-        if !matches!(status, "pending" | "failed" | "completed") {
+        if !matches!(status, "pending" | "processing" | "failed" | "completed") {
             return Err(AuthError::Configuration("用户资源清理状态损坏"));
         }
         Ok(Some(CleanupStatus {
             id: id.into(),
-            status: status.into(),
+            status: if status == "processing" {
+                "pending".into()
+            } else {
+                status.into()
+            },
             total_files: resources.len(),
         }))
     }
-    /// 仅清理收据已过期且文件清理完成的记录；失败和待处理任务继续保留。
-    pub async fn prune_completed(&self, database: Option<&str>) -> AuthResult<u64> {
+    fn configured_database(&self, database: Option<&str>) -> AuthResult<Connection> {
         let name = if let Some(name) = database {
             Some(name.to_owned())
         } else {
@@ -310,7 +455,19 @@ impl ResourceCleanup {
                 _ => return Err(AuthError::Configuration("用户清理数据库连接配置错误")),
             }
         };
-        let connection = self.database.connection(name.as_deref())?;
+        Ok(self.database.connection(name.as_deref())?)
+    }
+    pub async fn status_for_receipt(
+        &self,
+        id: &str,
+        receipt: &str,
+    ) -> AuthResult<Option<CleanupStatus>> {
+        self.status(&self.configured_database(None)?, id, receipt)
+            .await
+    }
+    /// 仅清理收据已过期且文件清理完成的记录；失败和待处理任务继续保留。
+    pub async fn prune_completed(&self, database: Option<&str>) -> AuthResult<u64> {
+        let connection = self.configured_database(database)?;
         Ok(connection
             .table(TABLE)
             .use_write_pdo()
@@ -320,7 +477,7 @@ impl ResourceCleanup {
             .delete()
             .await?)
     }
-    async fn run(&self, payload: &Payload) -> AuthResult<()> {
+    async fn run(&self, payload: &Payload) -> AuthResult<Option<Duration>> {
         let job: JobData = serde_json::from_value(payload.data().clone())?;
         let connection = self.database.connection(Some(&job.connection))?;
         if job.scope != self.scope(&connection)? {
@@ -338,10 +495,53 @@ impl ResourceCleanup {
         if text(&row, "scope")? != job.scope {
             return Err(AuthError::Configuration("用户资源清理任务范围不匹配"));
         }
-        match text(&row, "status")? {
-            "completed" => return Ok(()),
-            "pending" | "failed" => {}
+        let status = text(&row, "status")?;
+        match status {
+            "completed" => return Ok(None),
+            "pending" | "processing" | "failed" => {}
             _ => return Err(AuthError::Configuration("用户资源清理状态损坏")),
+        }
+        match text(&row, "kind")? {
+            "avatar-upload" if status == "pending" => {
+                let deadline = number(&row, "created_at")?
+                    .checked_add(UPLOAD_GRACE)
+                    .ok_or(AuthError::Configuration("头像上传预留时间溢出"))?;
+                let current = now()?;
+                if deadline > current {
+                    return Ok(Some(Duration::from_secs((deadline - current) as u64)));
+                }
+                let claimed = connection
+                    .table(TABLE)
+                    .use_write_pdo()
+                    .r#where("id", "=", job.operation.clone())
+                    .r#where("scope", "=", job.scope.clone())
+                    .r#where("status", "=", "pending")
+                    .update(
+                        [
+                            ("status".into(), "processing".into()),
+                            ("updated_at".into(), current.into()),
+                        ]
+                        .into(),
+                    )
+                    .await?;
+                if claimed == 0 {
+                    let latest = connection
+                        .table(TABLE)
+                        .use_write_pdo()
+                        .r#where("id", "=", job.operation.clone())
+                        .first()
+                        .await?
+                        .ok_or(AuthError::Configuration("头像上传预留记录已移除"))?;
+                    match text(&latest, "status")? {
+                        "completed" => return Ok(None),
+                        "processing" | "failed" => {}
+                        _ => return Err(AuthError::Configuration("头像上传预留未取得回收资格")),
+                    }
+                }
+            }
+            "avatar-upload" => {}
+            "avatar" | "account-deletion" if status != "processing" => {}
+            _ => return Err(AuthError::Configuration("用户资源清理类型损坏")),
         }
         let resources: Vec<StoredResource> = serde_json::from_str(text(&row, "resources")?)?;
         if resources.len() > 16 {
@@ -356,6 +556,15 @@ impl ResourceCleanup {
                 return Err(AuthError::Configuration("用户资源文件尚未删除，等待重试"));
             }
         }
+        if text(&row, "kind")? == "avatar-upload" {
+            let deadline = number(&row, "created_at")?
+                .checked_add(UPLOAD_GRACE)
+                .ok_or(AuthError::Configuration("头像上传预留时间溢出"))?;
+            let current = now()?;
+            if deadline > current {
+                return Ok(Some(Duration::from_secs((deadline - current) as u64)));
+            }
+        }
         connection
             .table(TABLE)
             .use_write_pdo()
@@ -368,7 +577,7 @@ impl ResourceCleanup {
                 .into(),
             )
             .await?;
-        Ok(())
+        Ok(None)
     }
     async fn mark_failed(&self, payload: &Payload) -> AuthResult<()> {
         let job: JobData = serde_json::from_value(payload.data().clone())?;
@@ -397,10 +606,15 @@ struct Handler(Arc<ResourceCleanup>);
 impl JobHandler for Handler {
     fn handle<'a>(
         &'a self,
-        _context: &'a mut JobContext<'_>,
+        context: &'a mut JobContext<'_>,
         payload: &'a Payload,
     ) -> QueueFuture<'a, QueueResult<()>> {
-        Box::pin(async move { self.0.run(payload).await.map_err(QueueError::execution) })
+        Box::pin(async move {
+            if let Some(delay) = self.0.run(payload).await.map_err(QueueError::execution)? {
+                context.release(delay);
+            }
+            Ok(())
+        })
     }
     fn failed<'a>(
         &'a self,
@@ -438,9 +652,72 @@ pub(super) fn configure<M: Model>(
         return Err(AuthError::Configuration("用户资源清理任务名称已被其他处理器占用").into());
     }
     queue.register(JOB, Arc::new(Handler(cleanup.clone())))?;
+    let limiter = container.make::<openrust::cache::RateLimiter>()?;
+    if limiter.limiter("user-resource-status").is_none()
+        && limiter.async_limiter("user-resource-status").is_none()
+    {
+        limiter.r#for("user-resource-status", |request| {
+            openrust::cache::rate_limiting::Limit::per_minute(60).by(request
+                .ip()
+                .map(|ip| ip.to_string())
+                .unwrap_or_else(|| "unknown".into()))
+        });
+    }
+
     container.instance(cleanup)?;
     container.instance(Arc::new(Registration(TypeId::of::<M>())))?;
     use openrust::support::ServiceProvider as _;
     super::StarterKitServiceProvider.commands(app, crate::console::prune_user_cleanups::register);
+    super::StarterKitServiceProvider.load_routes_from(app, status_routes)?;
     Ok(())
+}
+
+fn status_routes() -> Result<(), openrust::routing::RoutingError> {
+    use openrust::{
+        routing::RouteGroup,
+        support::facades::{Config, Route},
+    };
+    let prefix = Config::string_with_default("api.prefix", "api")
+        .map_err(|_| openrust::routing::RoutingError::InvalidAction)?;
+    // 收据是有限状态能力，不进入有Session/认证副作用的api组。
+    Route::group(
+        RouteGroup::new()
+            .prefix(prefix)
+            .middleware(Arc::new(super::client_middleware::NoStore)),
+        |router| {
+            router
+                .get("/auth/resource-cleanups/{operation}", show_status)?
+                .middleware_name("throttle:user-resource-status")
+                .name("user.resource-cleanups.show");
+            Ok(())
+        },
+    )
+}
+fn show_status(
+    request: &mut openrust::http::Request,
+) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {
+    Box::pin(async move {
+        use openrust::{
+            http::{ApiResponse, HttpError},
+            support::facades::App,
+        };
+        if request.query(Some("receipt"))?.is_some() {
+            return Err(HttpError::InvalidRequest);
+        }
+        let id = request.route("operation").ok_or(HttpError::NotFound)?;
+        let receipt = request
+            .header("x-operation-receipt")?
+            .ok_or(HttpError::NotFound)?;
+        let cleanup = App::make::<ResourceCleanup>().await?;
+        let status = cleanup
+            .status_for_receipt(id, receipt)
+            .await?
+            .ok_or(HttpError::NotFound)?;
+        Ok(
+            super::client::no_store(ApiResponse::success(status).into_response()?).header(
+                "referrer-policy".parse().expect("静态头名称"),
+                "no-referrer".parse().expect("静态头值"),
+            ),
+        )
+    })
 }

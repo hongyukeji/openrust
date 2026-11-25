@@ -108,6 +108,7 @@ pub(crate) fn register(app: &Application) -> ProviderResult {
         ("database/migrations/0001_01_01_000022_create_user_auth_challenges_table.rs", include_bytes!("../../stubs/starter/migrations/auth-challenges.rs")),
         ("database/migrations/0001_01_01_000023_create_user_browser_sessions_table.rs", include_bytes!("../../stubs/starter/migrations/browser-sessions.rs")),
         ("database/migrations/0001_01_01_000024_create_user_resource_cleanups_table.rs", include_bytes!("../../stubs/starter/migrations/resource-cleanups.rs")),
+        ("database/migrations/0001_01_01_000025_add_profile_photo_to_users_table.rs", include_bytes!("../../stubs/starter/migrations/profile-photo.rs")),
     ], "user-kit-migrations")?;
     // 使用已有路径发布器；应用自定义lang路径和旧resources/lang兼容遵循同一入口。
     for locale in ["en", "zh-Hans", "zh-Hant"] {

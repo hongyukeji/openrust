@@ -55,5 +55,14 @@
   "tokens_empty": "No API tokens.",
   "token_revoked": "API token revoked.",
   "tokens_creation_disabled": "No token abilities are available. You can still revoke existing tokens.",
-  "resources_pruned": "Pruned :count completed user resource cleanup records."
+  "resources_pruned": "Pruned :count completed user resource cleanup records.",
+  "profile_photo": "Profile photo",
+  "upload_photo": "Upload photo",
+  "remove_photo": "Remove photo",
+  "photo_limits": "JPEG, PNG or WebP; at most :size KiB and :dimension pixels on each side.",
+  "photo_invalid": "Choose a valid JPEG, PNG or WebP image.",
+  "photo_size_invalid": "The image exceeds the size limit.",
+  "photo_dimensions_invalid": "The image exceeds the dimension limit.",
+  "photo_updated": "Profile photo updated.",
+  "photo_removed": "Profile photo removed."
 }

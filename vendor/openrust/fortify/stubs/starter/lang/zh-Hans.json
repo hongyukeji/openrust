@@ -55,5 +55,14 @@
   "tokens_empty": "暂无 API 令牌。",
   "token_revoked": "API 令牌已撤销。",
   "tokens_creation_disabled": "当前没有可授予的令牌能力，仍可撤销已有令牌。",
-  "resources_pruned": "已清理 :count 条已完成的用户资源清理记录。"
+  "resources_pruned": "已清理 :count 条已完成的用户资源清理记录。",
+  "profile_photo": "头像",
+  "upload_photo": "上传头像",
+  "remove_photo": "移除头像",
+  "photo_limits": "JPEG、PNG 或 WebP，最多 :size KiB，每边不超过 :dimension 像素。",
+  "photo_invalid": "请选择有效的 JPEG、PNG 或 WebP 图片。",
+  "photo_size_invalid": "图片超过大小限制。",
+  "photo_dimensions_invalid": "图片超过尺寸限制。",
+  "photo_updated": "头像已更新。",
+  "photo_removed": "头像已移除。"
 }

@@ -571,8 +571,9 @@ where
     use openrust::support::ServiceProvider as _;
     super::configure_mail_queue::<M>(app)?;
     super::credentials::scope_for::<M>(app)?;
-    super::resource_cleanup::configure::<M>(app)?;
     super::devices::configure::<M>(app)?;
+    super::resource_cleanup::configure::<M>(app)?;
+    super::avatar::register::<M>(app)?;
     super::bind_password_tokens::<M>(app)?;
     super::web::register::<M>(app)?;
     super::StarterKitServiceProvider.load_routes_from(app, super::device_web::routes::<M>)?;
@@ -684,6 +685,22 @@ where
                 .middleware_name("auth:sanctum")
                 .middleware(Arc::new(super::client_middleware::UserModel::<M>::new()))
                 .name("user.api.password.update");
+            if super::avatar::enabled(fortify.config.as_ref())
+                .map_err(|_| RoutingError::InvalidAction)?
+            {
+                router
+                    .post("/user/profile-photo", super::avatar::store::<M>)?
+                    .middleware_name("throttle:10,1")
+                    .middleware_name("auth:sanctum")
+                    .middleware(Arc::new(super::client_middleware::UserModel::<M>::new()))
+                    .name("user.api.photo.store");
+                router
+                    .delete("/user/profile-photo", super::avatar::destroy::<M>)?
+                    .middleware_name("throttle:10,1")
+                    .middleware_name("auth:sanctum")
+                    .middleware(Arc::new(super::client_middleware::UserModel::<M>::new()))
+                    .name("user.api.photo.destroy");
+            }
             if super::devices::enabled(fortify.config.as_ref())
                 .map_err(|_| RoutingError::InvalidAction)?
             {

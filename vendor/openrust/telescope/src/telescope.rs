@@ -50,9 +50,13 @@ impl Default for Options {
 impl Default for Hidden {
     fn default() -> Self {
         Self {
-            request_headers: vec!["authorization".into(), "php-auth-pw".into()],
+            request_headers: vec![
+                "authorization".into(),
+                "php-auth-pw".into(),
+                "x-operation-receipt".into(),
+            ],
             request_parameters: vec!["password".into(), "password_confirmation".into()],
-            response_parameters: Vec::new(),
+            response_parameters: vec!["meta.cleanup.receipt".into()],
         }
     }
 }

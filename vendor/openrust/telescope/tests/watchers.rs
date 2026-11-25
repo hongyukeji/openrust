@@ -693,7 +693,7 @@ fn response_handler(request: &mut Request) -> HttpFuture<'_, Result<Response, Ht
         match request.path() {
             "api/json" => Response::json(
                 StatusCode::OK,
-                json!({"secret":"hidden","nested":{"password":"hidden"},"actual":true}),
+                json!({"secret":"hidden","nested":{"password":"hidden"},"actual":true,"meta":{"cleanup":{"receipt":"private-cleanup-receipt","id":"public-operation"}}}),
             ),
             "api/plain" => Ok(Response::from("好".repeat(999)).header(
                 HeaderName::from_static("content-type"),
@@ -723,7 +723,15 @@ async fn request_observes_buffered_content_redaction_character_limits_and_route_
         .unwrap()
         .hide_response_parameters(&["secret", "nested.password"]);
     for path in ["/json", "/plain", "/boundary", "/large", "/opaque"] {
-        app.get(&format!("/api{path}")).await.unwrap().assert_ok();
+        app.call(
+            http::Request::get(format!("/api{path}"))
+                .header("x-operation-receipt", "private-cleanup-receipt")
+                .body(openrust::http::Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+        .assert_ok();
     }
     let entries = app
         .app()
@@ -735,6 +743,13 @@ async fn request_observes_buffered_content_redaction_character_limits_and_route_
         .unwrap();
     assert_eq!(entries.len(), 5);
     for entry in entries {
+        assert_eq!(entry.content["headers"]["x-operation-receipt"], "********");
+        assert!(
+            !entry
+                .content
+                .to_string()
+                .contains("private-cleanup-receipt")
+        );
         assert!(
             entry.content["controller_action"]
                 .as_str()
@@ -745,7 +760,7 @@ async fn request_observes_buffered_content_redaction_character_limits_and_route_
         match entry.content["uri"].as_str().unwrap() {
             "/api/json" => assert_eq!(
                 entry.content["response"],
-                json!({"secret":"********","nested":{"password":"********"},"actual":true})
+                json!({"secret":"********","nested":{"password":"********"},"actual":true,"meta":{"cleanup":{"receipt":"********","id":"public-operation"}}})
             ),
             "/api/plain" => assert_eq!(entry.content["response"], "好".repeat(999)),
             "/api/boundary" => assert_eq!(entry.content["response"], "好".repeat(1000)),
