@@ -78,6 +78,20 @@ fn concurrency_error(error: &DatabaseError) -> bool {
         })
 }
 
+/// 为业务服务复用指定连接上的事务执行。实现者负责选择连接及业务规则。
+pub trait TransactionalService: Sync {
+    fn connection(&self) -> DatabaseResult<Connection>;
+
+    fn transaction<T: Send>(
+        &self,
+        callback: impl for<'a> FnMut(&'a mut Transaction) -> DatabaseFuture<'a, DatabaseResult<T>>
+        + Send,
+        attempts: u32,
+    ) -> impl std::future::Future<Output = DatabaseResult<T>> + Send {
+        async move { self.connection()?.transaction(callback, attempts).await }
+    }
+}
+
 impl Connection {
     /// Registers a hook before starting a transaction or savepoint.
     pub fn before_starting_transaction(

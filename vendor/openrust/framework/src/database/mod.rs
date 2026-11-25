@@ -32,6 +32,7 @@ mod value;
 
 pub(crate) use connection::{ConnectionScope, ReadRouting};
 pub use transaction::Transaction;
+pub use transaction::TransactionalService;
 
 use std::{future::Future, pin::Pin};
 

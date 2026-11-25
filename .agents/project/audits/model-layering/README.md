@@ -73,3 +73,14 @@ MySQL 和 PostgreSQL 分别由 `tests/mysql_acceptance.py`、`tests/postgres_acc
 [生成回归的语法与声明定位修复](syntax-regression-2026-11-24.md)承接字符／嵌套注释和 hidden 位置的两个测试缺口，记录 Rust 语法解析及敏感字段序列化的正反验收。
 
 [安装器语法接入修复](installer-syntax-2026-11-24.md)记录 Fortify 隐藏字段、Fortify／Passport 声明识别，以及真实安装与重复安装反例。
+
+## 应用基础入口验收
+
+应用模型、仓储、服务分别公开框架 `Model`、`Repository`／`EloquentRepository<M>`、`TransactionalService`。首版通过 Rust trait 默认方法与可覆写接口复用现有 Eloquent 和数据库事务。`UserRepository` 与 `UserService` 可直接用于应用，并由测试入口消费。相关接口边界见[实施方案](../../plans/application-data-services.md)。
+
+- 在 `fdb0b3e22` 的隔离源码与本批改动上使用 Rust 1.94.0。`application_data_services` 覆盖字符串主键、具名连接、表前缀、读取作用域覆写、分页、创建、更新、模型事件取消、软删除、缺失和数据库错误。还验证应用 `UserService` 事务更新、幂等及出错回滚。
+- SQLite、隔离 PostgreSQL 18.7 和 MySQL 8.4.13 执行同一测试函数。实际日志位于 `target/tmp/application-data-services/`，源码核对见 `source-sha256.txt`。
+- 隔离源码临时装配 API 路由和 Artisan 命令，使用真实回环 HTTP 与独立 Artisan 进程共享 SQLite 测试库。命令退出码 `0` 及重复提交、无效名称退出码 `1`、HTTP 可见提交结果及正常关停通过。复验脚本 `probe.py` 恢复了测试快照路由，独立进程证据见 `entry-probe-final.log`。
+- 三语文档构建通过，`/` 与 `/docs/` 下三种语言的桌面和移动浏览器检查共 12 组通过。见 `docs-build.log`、`docs-browser.log`。
+- Rust 1.94.0 的 `cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、默认骨架及密码重置 HTTP 目标通过。密码重置目标的条件式服务验证按其自身夹具区分，三库结论来自上方显式指定连接的分层测试。
+- 独立进程验收期间触及 32 GB 停线，守卫安全停止本批构建并持锁清理编译产物，释放约 95.32 GB（88.77 GiB），可用空间恢复到 127.19 GB（118.45 GiB）。保留源码、日志和数据，清理后完成实际进程复验。

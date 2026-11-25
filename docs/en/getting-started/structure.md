@@ -8,7 +8,11 @@ The framework lives in `vendor/openrust/framework/`. Views are in `resources/vie
 
 ## Models, persistence and services
 
-`app/models/` contains model mappings, casts, relationships and model behavior. Keep generated table and column constants near the top of each model; schema inspection and source generation belong to the framework. Place application-specific database queries in `app/repositories/` and business workflows in `app/services/` when needed. Models retain their Eloquent query and save APIs; repositories implement persistence, and services coordinate business rules and transactions.
+`app/models/model.rs` exposes the Eloquent `Model` trait for application models. Implement it as `User` does to define mappings, casts and relationships, and override its defaults where needed. Keep generated table and column constants near the top of the model.
+
+`app/repositories/repository.rs` exposes `EloquentRepository<M>` and `Repository`. Use `EloquentRepository::<M>::new()` for standard CRUD. For custom queries, implement `Repository` with `type Model = M` and override `query` or the individual operation. `UserRepository` shows how to add a named query. Pass a filtered builder to `paginate`. A query filter does not populate attributes on `create`. `update` and `delete` act on the model supplied by the caller, so first select it within the authorized scope.
+
+`app/services/service.rs` exposes `TransactionalService`. Implement `connection` to choose the connection for the workflow and call `transaction` to run related writes on that connection. `UserService` shows constructor injection and an update inside a transaction on the model's connection. A controller, command or job can call the same service after checking authorization and validating input.
 
 ## The Bootstrap Directory
 

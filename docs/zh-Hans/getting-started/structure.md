@@ -8,7 +8,11 @@
 
 ## 模型、持久化与服务
 
-`app/models/` 保存模型映射、属性转换、关系和模型自身行为。生成的表名与列名常量放在模型顶部附近，数据库结构读取与源码生成由框架负责。按业务需要，将应用专用查询放在 `app/repositories/`，业务流程放在 `app/services/`。模型保留 Eloquent 查询和保存接口；仓储实现持久化，服务协调业务规则与事务。
+`app/models/model.rs` 提供应用模型使用的 Eloquent `Model` trait。参照 `User` 实现字段映射、属性转换和关系，并按需覆写默认方法。生成的表名和列名常量放在模型顶部附近。
+
+`app/repositories/repository.rs` 提供 `EloquentRepository<M>` 和 `Repository`。用 `EloquentRepository::<M>::new()` 处理常用增删改查。定制时，实现 `Repository` 并声明 `type Model = M`，按需覆写 `query` 或单项操作。`UserRepository` 示范添加具名查询。分页时把已筛选的 Builder 传给 `paginate`。查询条件不会自动写入 `create` 的属性。`update` 和 `delete` 处理调用方传入的模型，调用前应在授权范围内选定记录。
+
+`app/services/service.rs` 提供 `TransactionalService`。实现 `connection` 选择业务使用的连接，再调用 `transaction` 将相关写入放进同一事务。`UserService` 示范构造注入，以及在模型使用的数据库连接上执行事务更新。控制器、命令和任务可以在授权和输入校验后调用同一服务。
 
 ## Bootstrap 目录
 
