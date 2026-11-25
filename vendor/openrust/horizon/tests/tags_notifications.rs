@@ -19,7 +19,7 @@ use openrust::{
 };
 use openrust_horizon::{
     Horizon, HorizonServiceProvider, LongWaitDetected, LongWaitDetectedNotification,
-    LongWaitNotificationFactory, MasterSupervisor, Repository, Tags,
+    LongWaitNotificationFactory, MasterSupervisor, Repository, Supervisor, SupervisorOptions, Tags,
 };
 use serde_json::json;
 use std::{collections::BTreeMap, sync::Arc};
@@ -276,7 +276,7 @@ async fn named_long_wait_notifications_reach_both_native_slack_transports() {
     app.get("/api/notification").await.unwrap().assert_ok();
 }
 
-fn master_webhook_response(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+fn supervisor_webhook_response(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
         let repository = App::make::<Repository>().await.unwrap();
         let queues = openrust::queue::QueueFacade::manager().unwrap();
@@ -306,8 +306,8 @@ fn master_webhook_response(_: &mut Request) -> HttpFuture<'_, Result<Response, H
         })
         .unwrap();
         let master = MasterSupervisor::new(
-            repository,
-            queues,
+            repository.clone(),
+            queues.clone(),
             BTreeMap::new(),
             std::env::current_exe().unwrap(),
             App::base_path("").unwrap(),
@@ -315,7 +315,41 @@ fn master_webhook_response(_: &mut Request) -> HttpFuture<'_, Result<Response, H
         )
         .unwrap();
         let shutdown = tokio_util::sync::CancellationToken::new();
-        let (result, seen) = tokio::join!(master.run(&shutdown), async {
+        let (result, heartbeat) = tokio::join!(master.run(&shutdown), async {
+            let heartbeat = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+                while repository.masters().await.unwrap().is_empty() {
+                    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                }
+            })
+            .await;
+            shutdown.cancel();
+            heartbeat
+        });
+        result.unwrap();
+        heartbeat.unwrap();
+        assert!(Http::recorded().unwrap().is_empty());
+
+        let supervisor = Supervisor::new(
+            repository,
+            queues,
+            BTreeMap::from([(
+                "probe-supervisor".into(),
+                SupervisorOptions {
+                    name: "probe-supervisor".into(),
+                    queue: vec!["alerts".into()],
+                    max_processes: 0,
+                    memory: 1024,
+                    ..SupervisorOptions::default()
+                },
+            )]),
+            std::env::current_exe().unwrap(),
+            App::base_path("").unwrap(),
+            "testing".into(),
+        )
+        .unwrap()
+        .paused(true);
+        let shutdown = tokio_util::sync::CancellationToken::new();
+        let (result, seen) = tokio::join!(supervisor.run(&shutdown), async {
             let seen = tokio::time::timeout(std::time::Duration::from_secs(5), async {
                 while Http::recorded().unwrap().is_empty() {
                     tokio::time::sleep(std::time::Duration::from_millis(10)).await;
@@ -369,12 +403,14 @@ fn wait_config(
 
 #[tokio::test]
 #[ignore = "requires dedicated Redis 8 acceptance wrapper"]
-async fn redis_master_delivers_the_registered_slack_webhook_channel_override() {
+async fn redis_supervisor_delivers_wait_alerts_and_master_only_persists_its_state() {
     let mut app = TestApp::create(|builder| {
         builder
             .with_config(wait_config)
             .with_providers(vec![Box::new(HorizonServiceProvider)])
-            .with_routing(Routing::default().api(|| Route::get("/alert", master_webhook_response)))
+            .with_routing(
+                Routing::default().api(|| Route::get("/alert", supervisor_webhook_response)),
+            )
     })
     .unwrap();
     app.get("/api/alert").await.unwrap().assert_ok();

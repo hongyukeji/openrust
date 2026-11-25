@@ -146,3 +146,9 @@ O01 Activitylog、O02 Horizon、O03 Telescope原生范围、O04 Pennant、O05 Pu
 默认通知签名保留现有 Rust 的 `connection:queue`，保障已有通知锁和 `Repository::notification_lock` 调用方兼容。固定 PHP 实现对连接名与队列名直接拼接再取 MD5。Rust 自定义通知可以提供自己的签名。已发现固定 [EventMap](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/EventMap.php) 将等待监控调度接在 Supervisor 循环。本地监控触发仍在 Master 循环，生命周期入口与故障切换须再对账。
 
 隔离 Redis 8.10.3 上标签与通知 9 项通过。应用 Provider 在默认 Horizon Provider 之前绑定自定义工厂，真实请求作用域中调用 `to_notification` 并派发两个不同队列的事件，原生通知 fake 只记录共享签名的第一条。默认工厂同时通过 Master 主循环到 Slack HTTP fake 的回归。快照全仓格式、Horizon 全目标严格 Clippy、三语构建及 12 组浏览器检查均通过。第三方实际收件仍未实测。
+
+### Horizon 等待监控的 Supervisor 生命周期
+
+固定 [Supervisor::loop](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Supervisor.php) 在持久化状态后派发 `SupervisorLooped`，由 `MonitorWaitTimes` 处理；暂停 Supervisor 仍走持久化与派发。本地将等待监控、成功取锁的进程内时钟以及监控失败后的日志移到 Supervisor 状态持久化之后。Master 不再尝试监控锁，Redis 锁继续协调不同 Supervisor。Rust 当前在 Supervisor 循环直接调用监控，公开 `SupervisorLooped` 事件及可注册的内置监听器仍待与其他进程生命周期事件一起实现。
+
+构建守卫内沿用隔离快照与 Redis 8.10.3。标签与通知 9 项、快照全仓格式、Horizon 全目标严格 Clippy 和独立 Artisan 进程验收通过。同一组超阈值数据下，先运行无子进程的 Master 并确认状态已持久化，HTTP fake 没有告警；随后运行暂停 Supervisor，实际取得锁并发出配置的 Slack Webhook 请求。独立进程回归覆盖锁竞争失败后的重试与抢锁成功后的冷却。第三方收件、其他平台和公开生命周期事件仍未验收。

@@ -93,7 +93,7 @@ def main():
             # A lost Redis lock does not start the local cooldown.
             until(lambda: redis('GET', wait_lock) == '1', timeout=8)
             assert redis('DEL', wait_lock) == '1'
-            # After a win the same Master must neither reacquire an early removal nor extend the interval.
+            # After a win the same Supervisor must neither reacquire an early removal nor extend the interval.
             time.sleep(2.2)
             assert redis('EXISTS', wait_lock) == '0'
             assert stats()['queues'][0]['backlog']['pending'] == 1

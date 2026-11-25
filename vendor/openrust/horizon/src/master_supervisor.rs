@@ -28,7 +28,6 @@ pub struct MasterSupervisor {
     supervisors: Vec<SupervisorProcess>,
     failures: u64,
     fast_termination: bool,
-    last_wait_monitor: Option<Instant>,
 }
 impl MasterSupervisor {
     pub fn new(
@@ -55,7 +54,6 @@ impl MasterSupervisor {
             supervisors: Vec::new(),
             failures: 0,
             fast_termination: false,
-            last_wait_monitor: None,
         })
     }
     pub fn fast_termination(mut self, enabled: bool) -> Self {
@@ -178,14 +176,6 @@ impl MasterSupervisor {
             })
             .collect();
         self.repository.heartbeat(&self.id, &serde_json::json!({"name":self.id,"pid":std::process::id(),"status":if paused {"paused"} else {"running"},"environment":self.environment,"supervisors":self.supervisors.iter().filter(|s| !s.dead).map(|s| &s.name).collect::<Vec<_>>(),"workers":workers,"targets":targets,"unexpected_exits":self.failures + states.iter().filter_map(|state| state["unexpected_exits"].as_u64()).sum::<u64>()})).await?;
-        if let Err(error) =
-            crate::notifications::monitor(&self.repository, &mut self.last_wait_monitor).await
-        {
-            let _ = openrust::support::facades::Log::warning(
-                &format!("Horizon wait time monitor failed: {error}"),
-                &Default::default(),
-            );
-        }
         Ok(true)
     }
     async fn stop(&mut self) -> Result<()> {
