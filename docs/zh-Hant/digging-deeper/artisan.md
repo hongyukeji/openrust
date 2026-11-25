@@ -1690,3 +1690,36 @@ fn register_task_results() -> Result<(), ConsoleError> {
 ```
 
 `TaskResult` 序列化為整數背值，而非 Rust 變體名稱。JSON 反序列化要求整數且屬於已知變體。請求的 `enum::<TaskResult>` 透過 `BackedEnum` 讀取同一型別，沿用既有請求純量轉換與預設值機制。例如查詢值 `2.0` 解析為 `Failure`，未知整數使用請求預設值。JSON 反序列化與請求輸入轉換是兩個不同入口。
+
+## 任務顯示 {#task-components}
+
+`Task` 借用所選輸出。`render` 不執行回呼、不顯示耗時，直接顯示任務完成。`render_task` 執行一次同步回呼，並安全借出同一輸出供回呼使用。對應的 `_with` 方法接受輸出選項；隱藏顯示不會略過回呼。
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, OutputStyle,
+    view::{TaskResult, components::Task}};
+use openrust::support::facades::Artisan;
+
+fn register_task_components() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:tasks", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut style = OutputStyle::new(input, output);
+            let mut task = Task::new(&mut style);
+            task.render("Ready")?;
+            task.render_task("Build [report].", |selected| {
+                selected.write("CSV ", false, openrust::console::OutputOptions::default())?;
+                Ok(TaskResult::Success)
+            })?;
+            task.render_task("Optional [CSV].", |_| Ok(TaskResult::Skipped))?;
+            task.render_task("Boolean [false].", |_| Ok(false))?;
+            task.render_task("Failed status.", |_| Ok(TaskResult::Failure))?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+任務回呼中的 `TaskResult` 轉換為整數背值。只有整數 `2` 顯示 FAIL、整數 `3` 顯示 SKIPPED；`false`、null（`()`）、浮點數及字串皆顯示 DONE。回傳值明確轉換為 `serde_json::Value`，不會隱含序列化任意物件。顯示 FAIL 本身不會改變命令結束代碼。回呼回傳 `Err(ConsoleError)` 時先顯示 FAIL，再傳播錯誤；Rust 展開堆疊時同樣先收尾顯示，再繼續 panic。
+
+耗時使用牆上時鐘。不超過一秒時顯示含千位分組、兩位小數及 half-up 捨入的毫秒；超過一秒後使用參考預設短單位（`yr`、`mo`、`w`、`d`、`h`、`m`、`s`），捨棄不足一秒的部分。此顯示中一個月按四週、一年按十二個這樣的月進位。`run_time_for_humans(start, Some(end))` 接受明確的 Unix 秒數用於格式化。`set_run_time_formatter(Some(Box::new(...)))` 透過組合替代耗時方法覆寫，傳入 `None` 恢復預設。格式器接受開始時間及可選結束時間，回傳 `Result<String, ConsoleError>`，可依應用需求自訂耗時措辭。此顯示入口不提供通用日期區間或語言工廠。

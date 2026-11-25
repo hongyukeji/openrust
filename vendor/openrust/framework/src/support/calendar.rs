@@ -309,6 +309,10 @@ pub(crate) fn modify_date_input(text: &str, date: &super::Date) -> Result<InputD
     )
 }
 
+pub(crate) fn format_decimal_number(value: f64, precision: usize) -> Result<String> {
+    timestamp::number_format_timestamp_precision(value, precision)
+}
+
 pub(crate) fn date_component_seconds(value: f64) -> Result<String> {
     timestamp::number_format_timestamp(value)
 }

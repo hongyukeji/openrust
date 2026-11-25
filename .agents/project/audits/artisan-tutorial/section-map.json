@@ -510,5 +510,10 @@
     "status": "verified_task_result_type_and_consumers",
     "contracts": "task-result-contracts.json",
     "task_rendering": "pending"
+  },
+  "task_component": {
+    "status": "verified_concrete_task_builtin_outputs_and_default_duration",
+    "contracts": "task-contracts.json",
+    "full_factory": "pending"
   }
 }

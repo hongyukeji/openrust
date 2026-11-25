@@ -50,3 +50,8 @@ impl<'de> Deserialize<'de> for TaskResult {
         Self::try_from(i64::deserialize(deserializer)?).map_err(serde::de::Error::custom)
     }
 }
+impl From<TaskResult> for serde_json::Value {
+    fn from(value: TaskResult) -> Self {
+        value.value().into()
+    }
+}

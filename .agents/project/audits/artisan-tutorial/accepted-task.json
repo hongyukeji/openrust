@@ -1,0 +1,90 @@
+{
+  "source_base": "e6f21605549a3d15d05c315092255cbce79d1546",
+  "source_hashes": {
+    "vendor/openrust/framework/src/console/view/components/task.rs": "cfd59ac567595ef34aacbb3a5d300f5477979c5735422c44e90346c1db2d2e4b",
+    "vendor/openrust/framework/src/console/view/components/mod.rs": "b9db9fa53c1780fc2057e88755f10d6a390c69710c594457faed14f04f7440de",
+    "vendor/openrust/framework/src/support/calendar.rs": "84cece6fc0cf11765e5bddefa882f8ec0daa52e4e6e65a95d28299fabda600b8",
+    "vendor/openrust/framework/src/support/calendar/timestamp.rs": "3448d88f620f7be83dde0ae65452f252fcf7d37308f15a54cc534fa1fd80e1ea",
+    "vendor/openrust/framework/src/console/view/task_result.rs": "8c6f223d575846a671f609e14c8d277bb4c7f76d2d3137d87af4f524666c909a",
+    "vendor/openrust/framework/tests/console_task_components.rs": "a63d2fe82e4aeddf0c6f0d1589ca63badc1869cde204727381fea134b6600ce9",
+    ".agents/project/audits/artisan-tutorial/task-layout-oracle.json": "1b44dcd8596dbf17716778a2f64d924343ac722ed314bdf7c02f09caf00a04fc",
+    ".agents/project/audits/artisan-tutorial/task-runtime-oracle.json": "fb103a5ed518561b1d99b06c452d59d8ba7315ec8218859d44bc8912482ee8ae",
+    "docs/en/digging-deeper/artisan.md": "6a1cb2c91ff3eebccbe21adc37c6c986035cbd642d5bdc5eedd138ae7cf162d9",
+    "docs/zh-Hans/digging-deeper/artisan.md": "58b95f58310ad4b2f70a630f12bc3b98176c9f774932da9db46c0214e7333af2",
+    "docs/zh-Hant/digging-deeper/artisan.md": "7594376ef3efab4d5f8ae85bc1be391e717dd01fc781a92fe6ddc957a76d0d4c",
+    "tests/artisan_tutorial_docs.py": "7aece655a8c5acf9114643cc987640a46cc7f190532dc7b84fb35b2be1fa710a",
+    "docs/tests/check_artisan_tutorial.mjs": "40b82a74d030350083628ac13b170e69e83c3bf923f4cd6ba077f3124c550168",
+    ".agents/project/audits/artisan-tutorial/task-contracts.json": "d26e01bbe22c126edc46d23643d55452f731e71afff2cf7c33d2844c8298170a",
+    ".agents/project/audits/artisan-tutorial/component-factory-contracts.json": "00da0a5532b3f3509fb5a391a2abb879418f04273ab25339ce242a2f58880432",
+    ".agents/project/audits/artisan-tutorial/io-contracts.json": "b6d477f14010b7ca46e6fb3352c87fb5dd2b28f9298a07b324482202eea4f2e0",
+    ".agents/project/audits/artisan-tutorial/section-map.json": "97751a4a85ad27a0a68ede883d88b875df084f7054cf203a9129a66e2b200fc9",
+    ".agents/project/audits/artisan-tutorial/README.md": "d4c034c9f296fd7d58762f80849c2b0bab29e103b3f3f3115b00971ece823cef",
+    ".agents/project/current.md": "c0574cba6dbad3b463d071ad08730628c5c1b170cc6a0b038c67b032a8114cdb"
+  },
+  "gates": [
+    {
+      "name": "fmt",
+      "returncode": 0
+    },
+    {
+      "name": "consumers",
+      "returncode": 0
+    },
+    {
+      "name": "docs-consumers",
+      "returncode": 0
+    },
+    {
+      "name": "rustdoc",
+      "returncode": 0
+    },
+    {
+      "name": "clippy",
+      "returncode": 0
+    },
+    {
+      "name": "docs",
+      "returncode": 0
+    }
+  ],
+  "counts": {
+    "consumers": {
+      "targets": 10,
+      "passed": 56,
+      "ignored_driver_slots": 17
+    },
+    "docs-consumers": {
+      "targets": 3,
+      "passed": 141,
+      "ignored_driver_slots": 0
+    },
+    "rustdoc": {
+      "targets": 2,
+      "passed": 1,
+      "ignored_driver_slots": 0
+    }
+  },
+  "scope": "verified_concrete_task_builtin_outputs_and_default_duration",
+  "source_scenes": {
+    "task-layout-oracle.json": 387,
+    "task-runtime-oracle.json": 32
+  },
+  "runtime": {
+    "artisan_processes": 10,
+    "failure_status_is_not_exit_error": true,
+    "callback_error_exit": 1,
+    "selected_physical_streams": true,
+    "http_requests": 18,
+    "http_error_status": 500,
+    "recovery": true,
+    "parallel_requests": 12,
+    "real_slow_callback": true
+  },
+  "remaining": [
+    "Remaining four InteractsWithTime delay/date protected methods and complete Carbon locale/custom cascade SDK are not claimed by concrete Task display.",
+    "Five question components and dedicated QuestionHelper swap/restore remain pending.",
+    "Abstract Component extension/compile/mutate lifecycle, Factory/CommandIo and general third-party output interfaces remain pending.",
+    "Full Artisan chapter and release platform matrix remain open."
+  ],
+  "pushed": false
+}

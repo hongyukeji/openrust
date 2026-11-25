@@ -87,6 +87,7 @@ pub(super) fn number_format_timestamp_precision(value: f64, precision: usize) ->
         return Err(range_error());
     }
     let exponent = match precision {
+        2 => 100.0,
         3 => 1000.0,
         6 => 1_000_000.0,
         _ => return Err(range_error()),

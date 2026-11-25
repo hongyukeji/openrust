@@ -1,0 +1,130 @@
+[
+  {
+    "seconds": 0,
+    "output": "0.00ms"
+  },
+  {
+    "seconds": 1e-06,
+    "output": "0.00ms"
+  },
+  {
+    "seconds": 4.9e-06,
+    "output": "0.00ms"
+  },
+  {
+    "seconds": 5e-06,
+    "output": "0.01ms"
+  },
+  {
+    "seconds": 1.5e-05,
+    "output": "0.02ms"
+  },
+  {
+    "seconds": 0.1,
+    "output": "100.00ms"
+  },
+  {
+    "seconds": 0.999999,
+    "output": "1,000.00ms"
+  },
+  {
+    "seconds": 1,
+    "output": "1,000.00ms"
+  },
+  {
+    "seconds": 1.000001,
+    "output": "1s"
+  },
+  {
+    "seconds": 1.001,
+    "output": "1s"
+  },
+  {
+    "seconds": 1.5,
+    "output": "1s"
+  },
+  {
+    "seconds": 1.999,
+    "output": "1s"
+  },
+  {
+    "seconds": 2,
+    "output": "2s"
+  },
+  {
+    "seconds": 59.9,
+    "output": "59s"
+  },
+  {
+    "seconds": 60,
+    "output": "1m"
+  },
+  {
+    "seconds": 61.5,
+    "output": "1m 1s"
+  },
+  {
+    "seconds": 3601,
+    "output": "1h 1s"
+  },
+  {
+    "seconds": 86400,
+    "output": "1d"
+  },
+  {
+    "seconds": 604800,
+    "output": "1w"
+  },
+  {
+    "seconds": 2419200,
+    "output": "1mo"
+  },
+  {
+    "seconds": 29030400,
+    "output": "1yr"
+  },
+  {
+    "seconds": 31536000,
+    "output": "1yr 1mo 1d"
+  },
+  {
+    "seconds": -0.1,
+    "output": "-100.00ms"
+  },
+  {
+    "seconds": -1.5,
+    "output": "-1,500.00ms"
+  },
+  {
+    "seconds": 1.9999999,
+    "output": "1s"
+  },
+  {
+    "seconds": 59.9999999,
+    "output": "59s"
+  },
+  {
+    "seconds": 60.9999999,
+    "output": "1m"
+  },
+  {
+    "seconds": 604799.9999999,
+    "output": "6d 23h 59m 59s"
+  },
+  {
+    "seconds": 99999999.9999999,
+    "output": "3yrs 5mos 1w 2d 9h 46m 39s"
+  },
+  {
+    "special": "nan",
+    "output": "nanms"
+  },
+  {
+    "special": "inf",
+    "output": "0s"
+  },
+  {
+    "special": "negative_inf",
+    "output": "infms"
+  }
+]

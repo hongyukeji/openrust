@@ -1690,3 +1690,36 @@ fn register_task_results() -> Result<(), ConsoleError> {
 ```
 
 `TaskResult` serializes as its integer backing, not its Rust case name. JSON deserialization requires an integer and a known case. Request `enum::<TaskResult>` reads the same type through `BackedEnum` and retains the existing request scalar conversion and default behavior. For example, a query value of `2.0` resolves to `Failure`, while an unrecognized integer uses the request default. Keep JSON deserialization and request input conversion distinct.
+
+## Tasks {#task-components}
+
+`Task` borrows the selected output. `render` displays a completed task without a callback or duration. `render_task` runs a synchronous callback once and supplies a safe mutable borrow of that same output. The `_with` variants accept output options; suppressing the display does not skip the callback.
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, OutputStyle,
+    view::{TaskResult, components::Task}};
+use openrust::support::facades::Artisan;
+
+fn register_task_components() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:tasks", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut style = OutputStyle::new(input, output);
+            let mut task = Task::new(&mut style);
+            task.render("Ready")?;
+            task.render_task("Build [report].", |selected| {
+                selected.write("CSV ", false, openrust::console::OutputOptions::default())?;
+                Ok(TaskResult::Success)
+            })?;
+            task.render_task("Optional [CSV].", |_| Ok(TaskResult::Skipped))?;
+            task.render_task("Boolean [false].", |_| Ok(false))?;
+            task.render_task("Failed status.", |_| Ok(TaskResult::Failure))?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+`TaskResult` converts to its integer backing for task callbacks. Only integer `2` displays FAIL and integer `3` displays SKIPPED; `false`, null (`()`), floats and strings display DONE. Callback return values use explicit `Into<serde_json::Value>` conversion, without implicit serialization of arbitrary objects. A displayed FAIL alone does not change the command exit status. Returning `Err(ConsoleError)` writes FAIL before propagating the error; Rust unwinding also finishes the display before resuming the panic.
+
+Duration uses wall time. Up to and including one second it uses grouped milliseconds with two decimals and half-up rounding; longer durations use the reference default short units (`yr`, `mo`, `w`, `d`, `h`, `m`, `s`) and discard fractional seconds. A month is four weeks and a year twelve such months for this display. `run_time_for_humans(start, Some(end))` accepts explicit epoch seconds for formatting. `set_run_time_formatter(Some(Box::new(...)))` replaces the duration method through composition; `None` restores the default. The callback accepts the start and optional end and returns `Result<String, ConsoleError>`, allowing application-specific duration wording. This display API does not provide a general date interval or locale factory.

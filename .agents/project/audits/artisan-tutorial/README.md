@@ -619,3 +619,15 @@ Line/Info/Success/Warn/Error以真实公开类型、显式new和render/render_wi
 真实TCP HTTP9请求含请求枚举、从HTTP调用Artisan、无效输入400及恢复；实际Artisan子进程退出0并逐行输出三个整数。三语正文新增正式注册示例，直接提取并执行129例；状态API、请求入口与CLI入口没有用内部函数替代。既有组件/输出/Artisan回归、借用负编译、全workspace/all-targets严格Clippy、格式、三语站点及12浏览器检查通过。首次专项编译发现测试夹具误用裸Output的writeln及闭包处理器类型，已改用现有AsOutput借用和正式函数处理器后复验；未修改产品输出/路由机制、默认值、事件或协议，无新增依赖和lint豁免。
 
 实际命令和计数见accepted-task-result.json，原始日志target/tmp/artisan-tutorial-20261125/task-result-*。本次保留其他工作区/索引，逐簇本地提交，不推送。Task本身、耗时及finally失败输出继续下一簇；五问答类型/QuestionHelper、Component/Factory/CommandIo及任意第三方输出仍按原账本开放，整章未闭合。
+
+## 第四十三簇：Task 回调、finally收尾与默认耗时（2026-11-26）
+
+Task以new/render/render_with/render_task/render_task_with接通。已核旧版，无对应Task/TaskResult可直接复用；默认两位毫秒复用现行Calendar从PHP移植的half-up实现，仅在既有内部函数增加精度2分支和crate内复用入口，日期精度3/6语义不变，日期构造/时间戳消费者回归通过。TaskResult到Value的显式转换保持整数背值，对应源->value，非PHP枚举对象身份。无新增依赖或lint豁免。
+
+387个固定Task真实源码场景覆盖五宽度、ANSI、四输出层、阈值/格式位、false/null/浮点/字符串/数组/对象/枚举背值、回调写入、异常及finally格式器异常、源字符宽度与路径变换、构造后共享样式修改。只有整数2/3对应FAIL/SKIPPED，false仍DONE；状态FAIL本身不改变命令退出码。原生回调显式Into<Value>，没有隐式序列化任意对象，也不以JSON快照冒充PHP对象身份。安全借出同一OutputReference替代$this的可变输出访问。Result错误先显示FAIL再返回；panic同样先收尾再展开；finally格式器错误覆盖回调错误。无回调时不调用耗时格式器，隐藏输出仍执行任务一次。
+
+默认耗时另外直接运行固定InteractsWithTime原方法与既有Carbon3.10.3（8e3643dcd149ae0fe1d2ff4f2c8e4bbfad7c165f，符合框架^3.8.4）得到32场景，未用重写格式器证明默认逻辑。包括1秒仍1,000.00ms、刚超过1秒切换、负数/half-up/千位、分钟/日/四周月/十二月年，以及nanms、0s、infms三种特殊返回；PHP自身警告不移植。原生精确start/end逐项匹配，真实慢回调另验短单位。Task布局另用子类重写固定耗时以去除调度抖动，覆盖范围与默认时间证据分别记录。wall time保持机制，Rust系统时间精度可高于PHP微秒，不伪称实际两次测量耗时逐字相同；Unix epoch两侧用标准SystemTime差值保留符号。显式超出可表示区间返回受检错误，完整Carbon语言/自定义进位工厂及Time其余四个继承延迟方法仍单列，不以此显示器宣称通用日期SDK完成。
+
+真实Artisan10进程验证stdout/stderr、DONE/FAIL/SKIPPED及回调错误OS1；HTTP18请求覆盖错误500后恢复及12并发。两个ignored测试是由父消费者实际启动的宽度/Artisan驱动，不计为额外父测试功能。三语正式示例直接提取132例，quiet/silent仍验证返回状态，正式CLI例中Failure只显示FAIL而正常退出0。全workspace/all-targets严格Clippy、格式、既有借用负编译、三语构建与12浏览器检查通过。原始命令和日志target/tmp/artisan-tutorial-20261125/task-*；首次测试夹具类型/所有权、应用绑定与正文生成器误用根包未声明regex的问题均保留失败日志，分别改用既有借用/函数处理器、真实应用作用域及直接状态断言后复验；没有为通过新增依赖或绕行产品契约。
+
+构造后格式器三例用源实际setStyle产生预期；返回浮点2.0的对照数据显式保留JSON浮点类型，未把数据集编码成整数而改变严格比较。单元核定SHA与最终隔离源码相符；其他协作WIP/索引保留。仅本地提交，不推送。下一簇按依赖接QuestionHelper及五种问答组件，随后Component/Factory/CommandIo/一般输出；整章仍未闭合。

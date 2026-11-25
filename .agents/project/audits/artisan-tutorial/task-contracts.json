@@ -1,0 +1,82 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "source": "Illuminate/Console/View/Components/Task.php",
+  "native": "console::view::components::Task",
+  "status": "verified_concrete_task_builtin_outputs_and_default_duration",
+  "time_reference": {
+    "package": "nesbot/carbon",
+    "version": "3.10.3",
+    "commit": "8e3643dcd149ae0fe1d2ff4f2c8e4bbfad7c165f",
+    "reason": "Existing fixed Calendar timestamp reference and compatible framework ^3.8.4 dependency; actual installed source used, not an assumed latest version.",
+    "locale": "Reference default en, not a claim that the complete Carbon locale/cascade SDK exists."
+  },
+  "entries": [
+    {
+      "source": "Component::__construct",
+      "native": "new",
+      "status": "verified_selected_builtin_outputs"
+    },
+    {
+      "source": "Task::render, optional callback and verbosity",
+      "native": [
+        "render",
+        "render_with",
+        "render_task",
+        "render_task_with"
+      ],
+      "status": "verified_fixed_source_and_real_consumers"
+    },
+    {
+      "source": "InteractsWithTime::runTimeForHumans",
+      "native": "run_time_for_humans",
+      "status": "verified_default_short_units_and_numeric_boundaries"
+    },
+    {
+      "source": "Protected duration override",
+      "native": "set_run_time_formatter",
+      "status": "verified_explicit_composition_restore_and_failure"
+    }
+  ],
+  "source_scenes": {
+    "task-layout-oracle.json": 387,
+    "task-runtime-oracle.json": 32
+  },
+  "invariants": [
+    "Only integer 2 means FAIL and integer 3 means SKIPPED; float/string 2 and false mean DONE.",
+    "No callback means no duration formatting. Callback executes once even when verbosity suppresses output.",
+    "Callback Result error writes FAIL before propagating; formatting failure during finally supersedes callback failure. Native panic is rendered and resumed.",
+    "Selected output identity, formatter, physical stderr/stdout and nested newline counts preserved; callback receives safe reborrow of same selected output.",
+    "Description strips one final punctuation and paths through existing mutators. Width counts Unicode scalar values before formatting, not terminal column width; regex intentionally excludes hyphens like fixed source.",
+    "Dots are individually styled, layout cap150 does not truncate content, COLUMNS0/8/40/80/200 run in separate real processes.",
+    "Default duration <=1000ms uses existing PHP half-up code extended to precision2, sign/zero and grouping preserved. Longer output uses fixed default cascades and whole seconds; nan/positive_inf/negative_inf use actual source strings."
+  ],
+  "adaptations": [
+    "Native method split expresses optional callback/verbosity without overloading. Return T uses explicit Into<Value>, not arbitrary implicit object serialization. Native TaskResult converts to its integer backing (source ->value); source enum object identity is not represented by this conversion.",
+    "Callback receives mutable OutputReference instead of implicit PHP $this alias. FnOnce prevents repeated execution and Rust borrow checking prevents stream aliasing.",
+    "Duration override uses per-component Send callback composition; default wording follows source default en, custom wording supplied explicitly. Full date/locale/cascade SDK is not delivered here.",
+    "SystemTime supplies wall epoch seconds and supports times on either side of epoch. Native OS resolution may exceed PHP microseconds; actual elapsed output is checked by units, deterministic explicit start/end by exact source bytes.",
+    "Unrepresentable explicit duration magnitudes return ConsoleError rather than unchecked integer conversion; ordinary system-time task ranges and measured fixed vectors verified. PHP engine diagnostics are not replayed."
+  ],
+  "runtime": {
+    "artisan_processes": 10,
+    "failure_status_is_not_exit_error": true,
+    "callback_error_exit": 1,
+    "selected_physical_streams": true,
+    "http_requests": 18,
+    "http_error_status": 500,
+    "recovery": true,
+    "parallel_requests": 12,
+    "real_slow_callback": true
+  },
+  "evidence": [
+    "console_task_components",
+    "task-{consumers,docs-consumers,rustdoc,clippy,fmt,docs,browser}.log"
+  ],
+  "remaining": [
+    "Remaining four InteractsWithTime delay/date protected methods and complete Carbon locale/custom cascade SDK are not claimed by concrete Task display.",
+    "Five question components and dedicated QuestionHelper swap/restore remain pending.",
+    "Abstract Component extension/compile/mutate lifecycle, Factory/CommandIo and general third-party output interfaces remain pending.",
+    "Full Artisan chapter and release platform matrix remain open."
+  ],
+  "pushed": false
+}

@@ -133,7 +133,9 @@
         "render"
       ],
       "protected": [],
-      "status": "pending_native_type_and_actual_consumer"
+      "status": "verified_concrete_task_builtin_outputs_and_default_duration",
+      "native": "console::view::components::Task",
+      "evidence": "task-contracts.json"
     },
     {
       "source_type": "TwoColumnDetail",
@@ -156,7 +158,7 @@
       "evidence": "line-components-contracts.json"
     }
   ],
-  "inheritance": "Eight concrete display constructors/render verified on selected built-in outputs; abstract Component protected extensibility/lifecycle, Task, question types and Factory remain open.",
+  "inheritance": "Eight concrete display components and Task rendering verified on built-in outputs; abstract Component extension/lifecycle, remaining InteractsWithTime inherited delay methods, question types/QuestionHelper and Factory remain open.",
   "mutators": "component-mutators-contracts.json",
   "task_result": {
     "status": "verified_task_result_type_and_consumers",
