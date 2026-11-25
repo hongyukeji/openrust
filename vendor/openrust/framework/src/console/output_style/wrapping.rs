@@ -1,6 +1,6 @@
 use super::super::ConsoleError;
 
-pub(super) fn wrap(text: &str, width: usize) -> Result<Vec<String>, ConsoleError> {
+pub(super) fn wrap(text: &str, width: i128) -> Result<Vec<String>, ConsoleError> {
     if width == 0 {
         return Ok(text.split('\n').map(str::to_owned).collect());
     }

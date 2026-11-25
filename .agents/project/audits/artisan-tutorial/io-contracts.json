@@ -662,7 +662,15 @@
       {
         "method": "block",
         "source_line": 66,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_actual_styled_block_entry_and_consumers",
+        "native": "console::OutputStyle::block",
+        "evidence": [
+          "console_style_blocks",
+          "style-block-contracts.json",
+          "style-block-oracle.json",
+          "style-block-question-oracle.json",
+          "artisan_docs_generated"
+        ]
       },
       {
         "method": "title",
@@ -715,37 +723,93 @@
       {
         "method": "comment",
         "source_line": 117,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_actual_styled_block_entry_and_consumers",
+        "native": "console::OutputStyle::comment",
+        "evidence": [
+          "console_style_blocks",
+          "style-block-contracts.json",
+          "style-block-oracle.json",
+          "style-block-question-oracle.json",
+          "artisan_docs_generated"
+        ]
       },
       {
         "method": "success",
         "source_line": 122,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_actual_styled_block_entry_and_consumers",
+        "native": "console::OutputStyle::success",
+        "evidence": [
+          "console_style_blocks",
+          "style-block-contracts.json",
+          "style-block-oracle.json",
+          "style-block-question-oracle.json",
+          "artisan_docs_generated"
+        ]
       },
       {
         "method": "error",
         "source_line": 127,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_actual_styled_block_entry_and_consumers",
+        "native": "console::OutputStyle::error",
+        "evidence": [
+          "console_style_blocks",
+          "style-block-contracts.json",
+          "style-block-oracle.json",
+          "style-block-question-oracle.json",
+          "artisan_docs_generated"
+        ]
       },
       {
         "method": "warning",
         "source_line": 132,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_actual_styled_block_entry_and_consumers",
+        "native": "console::OutputStyle::warning",
+        "evidence": [
+          "console_style_blocks",
+          "style-block-contracts.json",
+          "style-block-oracle.json",
+          "style-block-question-oracle.json",
+          "artisan_docs_generated"
+        ]
       },
       {
         "method": "note",
         "source_line": 137,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_actual_styled_block_entry_and_consumers",
+        "native": "console::OutputStyle::note",
+        "evidence": [
+          "console_style_blocks",
+          "style-block-contracts.json",
+          "style-block-oracle.json",
+          "style-block-question-oracle.json",
+          "artisan_docs_generated"
+        ]
       },
       {
         "method": "info",
         "source_line": 145,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_actual_styled_block_entry_and_consumers",
+        "native": "console::OutputStyle::info",
+        "evidence": [
+          "console_style_blocks",
+          "style-block-contracts.json",
+          "style-block-oracle.json",
+          "style-block-question-oracle.json",
+          "artisan_docs_generated"
+        ]
       },
       {
         "method": "caution",
         "source_line": 150,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_actual_styled_block_entry_and_consumers",
+        "native": "console::OutputStyle::caution",
+        "evidence": [
+          "console_style_blocks",
+          "style-block-contracts.json",
+          "style-block-oracle.json",
+          "style-block-question-oracle.json",
+          "artisan_docs_generated"
+        ]
       },
       {
         "method": "table",
@@ -881,8 +945,9 @@
     ]
   },
   "remaining_output_style_behaviors": [
-    "完整组件Factory与OutputStyle继承的样式块／树、table/create_table等布局助手仍逐项核对；title/section/text/listing已实际验收",
+    "完整组件Factory与OutputStyle继承的树、table/create_table/definition_list、get_error_style等继续逐项核对；标题／文本／列表／八种块助手已验",
     "OutputStyle继承的ask/ask_hidden/confirm/choice等便捷助手继续；Question/ChoiceQuestion/ConfirmationQuestion与ask_question已验，不重复开发",
-    "任意OutputInterface缓冲（包括Artisan.call第三参数）的专用消费者与类型仍待核对；现有原生入口不冒充完整接口"
+    "任意OutputInterface缓冲（包括Artisan.call第三参数）的专用消费者与类型仍待核对；现有原生入口不冒充完整接口",
+    "公开StyleInterface完整Trait契约随其余依赖方法核对，不能用已有inherent助手冒充完整Trait实现"
   ]
 }

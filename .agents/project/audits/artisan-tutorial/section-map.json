@@ -329,11 +329,13 @@
         "console_nested_styles",
         "nested-style-contracts.json",
         "console_style_text",
-        "style-text-contracts.json"
+        "style-text-contracts.json",
+        "console_style_blocks",
+        "style-block-contracts.json"
       ],
       "native": "console::CommandIo",
       "remaining": [
-        "嵌套样式／换行契约与标题／文本／列表已验；完整组件Factory、其余样式块／树、table/create_table和一般输出流接口继续，不关闭整章。"
+        "八种状态块与问答错误块共用渲染已验；完整组件Factory、StyleInterface、其余table/create_table／树／错误流样式与一般输出流继续，不关闭整章。"
       ]
     },
     {

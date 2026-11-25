@@ -1306,3 +1306,37 @@ fn register_text_layout() -> Result<(), ConsoleError> {
 `text` accepts a string or a borrowed string array. `listing` accepts a string iterator. Empty arrays retain each helper’s spacing behavior. Inline formatter tags remain active; title underlines ignore decoration, and trailing backslashes remain visible. Invalid formatting returns the existing typed console error and preserves output written before the failure.
 
 `OutputStyle::section("Part")` writes a heading. `Output::section()` creates a redrawable output region. These are separate APIs. All four helpers support selected sections and borrowed nested styles; they preserve the same formatter, verbosity and newline state.
+
+## Styled message blocks {#styled-message-blocks}
+
+Use `comment`, `success`, `error`, `warning`, `note`, `info` and `caution` for standard message blocks. `block` exposes their shared renderer with explicit `BlockOptions`.
+
+```rust
+use openrust::console::{AsyncCommandCallback, BlockOptions, ConsoleError, OutputStyle};
+use openrust::support::facades::Artisan;
+
+fn register_blocks() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:blocks", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut style = OutputStyle::new(input, output);
+            style.comment("Preparing report")?;
+            style.success("Report ready")?;
+            style.warning("Review the queue")?;
+            style.block(&["Build finished", "Ready to deploy"], BlockOptions {
+                kind: Some("BUILD"),
+                style: Some("fg=blue"),
+                padding: true,
+                ..BlockOptions::default()
+            })?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+`BlockOptions::default()` has no `kind` or `style`, a single-space `prefix`, `padding: false` and `escape: true`. `kind` is the optional bracketed label. Borrowed options represent optional arguments without copying application strings. All helpers accept the same borrowed string or string-array messages as `text`.
+
+Standard status blocks escape message tags; `comment` keeps inline formatting active. Set `escape: false` only when the message should use formatter markup. `padding` adds top and bottom rows only to decorated output. Blocks wrap at the width captured when the style is constructed, capped at 120 columns; a configured zero width uses 120 before the one-column Windows margin. Changing `COLUMNS` later does not change that style’s block width.
+
+`error` prints an error block; the command’s return value still controls its exit status. Invalid formatting or a zero-width section can return a typed console error after partial output. Question validation retries use this same error-block renderer, including its formatter, escaping and captured width.

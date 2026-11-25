@@ -4,7 +4,9 @@ use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
 };
+mod block;
 mod text;
+pub use block::BlockOptions;
 mod wrapping;
 
 /// 输出阈值；消息只有在当前输出的级别不低于它时才会写出。
@@ -114,6 +116,7 @@ pub struct OutputStyle<'a> {
     // 问答也使用构造时的输入；与 CommandIo::set_input 的读取对象独立。
     input: &'a Input,
     progress: Option<super::progress_bar::ProgressState>,
+    line_length: i64,
     pub(super) state: StyleState,
     output: super::OutputReference<'a>,
 }
@@ -230,11 +233,16 @@ impl<'a> OutputStyle<'a> {
         let history_formatter = output.formatter().clone();
         let section = output.direct_section();
         let history_verbosity = output.get_verbosity();
+        let width = super::Terminal::new().get_width();
+        let line_length = (if width == 0 { 120 } else { width })
+            .saturating_sub(i64::from(cfg!(windows)))
+            .min(120);
         history_formatter.set_decorated(false);
         Self {
             input,
             section,
             progress: None,
+            line_length,
             state: StyleState {
                 history: Vec::new(),
                 history_formatter,
@@ -372,38 +380,7 @@ impl<'a> OutputStyle<'a> {
     }
     pub(super) fn question_validation_error(&mut self, message: &str) -> Result<(), ConsoleError> {
         self.new_line(1)?;
-        self.prepare_question()?;
-        let width = std::env::var("COLUMNS")
-            .ok()
-            .and_then(|value| value.parse::<usize>().ok())
-            .filter(|value| *value > 0)
-            .unwrap_or_else(|| usize::from(::console::Term::stdout().size().1))
-            .min(120);
-        let width = width.saturating_sub(usize::from(cfg!(windows))).max(9);
-        let escaped = message.replace('<', "\\<");
-        let mut lines = wrapping::wrap(&escaped, width - 9)?;
-        let first = usize::from(self.is_decorated());
-        if first == 1 {
-            lines.insert(0, String::new());
-            lines.push(String::new());
-        }
-        for (index, line) in lines.iter().enumerate() {
-            let label = if index == first {
-                "[ERROR] "
-            } else {
-                "        "
-            };
-            let body = format!(" {label}{line}");
-            let visible = super::formatting::Formatter::default()
-                .format(&body, false)
-                .map_err(ConsoleError::from_source)?;
-            let padding = " ".repeat(width.saturating_sub(::console::measure_text_width(&visible)));
-            self.writeln(
-                format!("<fg=white;bg=red>{body}{padding}</>").as_str(),
-                OutputOptions::default(),
-            )?;
-        }
-        self.new_line(1)
+        self.error(message)
     }
     pub async fn ask_question(
         &mut self,

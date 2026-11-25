@@ -451,3 +451,18 @@ ProgressBar／ProgressOutput保留同一目标：分区进度按源计算旧消�
 三语正式示例直接提取93份运行，框架／根应用父消费者计数见accepted-style-text.json，ignored子驱动不重复计算。fmt、workspace all-targets严格Clippy、实际main(pail)、三语构建与12项手机／桌面／双挂载浏览器通过；33项终端编辑器回归、Ctrl+C130与完整termios恢复通过。实际main HTTP/up/静态/HTML与JSON404/HEAD、Artisan inspire/list/Pail过滤/-vv/timeout清理/Ctrl+C均通过。
 
 正式证据style-text-contracts.json、accepted-style-text.json和style-text-oracle.json；原始日志target/tmp/artisan-tutorial-20261125/style-text-*。临时应用、PTY、参考容器已回收，保留隔离源码／日志／可复用缓存与数据库／数据卷。完整组件Factory、块／状态样式、table/create_table／树、便捷问答及一般OutputInterface／程序化输出缓冲继续；不将本簇当整章或全项目闭合，Windows实机仍为发布待验。本地提交，不推送，其他在途保留。
+
+
+## 第三十一簇：状态块与共用问答错误渲染（2026-11-25）
+
+第三十簇已提交9116d0c8332663a91642a6ff4731d3da6e19db97，未推送。本簇逐项接通OutputStyle的block/comment/success/error/warning/note/info/caution，公开借用型BlockOptions表达可选kind/style/prefix/padding/escape，默认值与固定源一致。kind对应源type标签参数，不改变机制或数据格式。复用当前PCRE换行、格式器、输出借用与计数，无新依赖／生产unsafe／平行渲染器；旧版无完整对应SDK，已有console/LICENSE.symfony保留。
+
+576组固定源块序列覆盖两层样式、普通流／分区、两种装饰、两种级别、宽度0／1／8／20／80／200／-1、构造后宽度变化、空数组／多消息／标签转义／URL／反斜杠／Unicode、padding及自定义前缀与标签。16组实际自定义OutputFormatterInterface变更文本宽度，验证布局确实消费所选格式器。212个预期失败步骤（166格式错误、46零宽度分区）保持输出／计数及失败阶段，原生格式错误来源链明确断言ConsoleFormatError；零宽度分区用既有ConsoleError表示，错误消息按项目语言规则，不冒称PHP异常名或文本逐字相同。
+
+关联修复：样式构造时捕获块宽度，零宽度回退120、Windows预留一列、上限120；去掉问答错误的运行时重读／最小9列／默认格式器排版，直接复用new_line/error。96组真实问答失败重试／恢复与固定源一致，含16组自定义格式器、构造后改变COLUMNS、标签与尾部反斜杠、嵌套／分区及2个预期零宽度失败。源负宽度按实际PCRE行为保留，不凭推测改为警告或静默正数；固定HandleExceptions错误处理器在参考环境实际接线，参考stderr为空。
+
+真实HTTP200／JSON500／200恢复与12并发输出隔离通过。最终独立命令二进制通过std::process::exit返回实际0／1，父进程核对OS状态，未将测试驱动自身成功冒充命令失败退出。error状态助手本身只负责展示，正常返回仍是0；格式错误返回1。三语正式示例直接提取96份运行，父消费者计数见accepted-style-block.json，ignored驱动与最后定向复验不叠加。fmt、workspace all-targets严格Clippy、实际main(pail)、三语构建与12浏览器、33终端场景／Ctrl+C130及termios恢复通过。实际main HTTP/up/静态/HTML与JSON404/HEAD、Artisan inspire/list/Pail过滤/-vv/timeout回收/Ctrl+C通过。
+
+最终退出码复验前，32GB清理遇到旧Windows编译缓存root属主导致Permission denied，未启动的测试不计通过。核对归属与占用、持有协调锁和该Cargo锁后，仅修复868个root属主的生成缓存条目，原Cargo锁inode518139676保持，未删除源码／日志／数据或该缓存；cache-owner-repair.json保留证据。恢复后最终测试／Clippy／fmt通过，原失败日志保留，不修改全局构建守卫或其他任务源码。
+
+正式证据style-block-contracts.json、accepted-style-block.json及两份oracle；原始日志target/tmp/artisan-tutorial-20261125/style-block-*。运行目录／PTY／参考容器回收，保留源码／日志／可复用缓存与数据库／数据卷。完整StyleInterface、组件Factory、便捷问答、其余表格／树／错误流样式及一般OutputInterface仍继续，不把inherent方法冒充完整Trait或整章闭合，Windows实机属发布待验。仅本批本地提交，不推送，保留其他在途。

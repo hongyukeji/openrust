@@ -1,0 +1,1746 @@
+[
+    {
+        "width": 0,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "later_width": 0,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X <info>value<\/info>\\                                                                                \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 0,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X <info>value<\/info>\\                                                                                \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 0,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "later_width": 0,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\n\u001b[37;41m                                                                                                                        \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect X <info>value<\/info>\\                                                                                \u001b[39;49m\n\u001b[37;41m                                                                                                                        \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 0,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\n\u001b[37;41m                                                                                                                        \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect X <info>value<\/info>\\                                                                                \u001b[39;49m\n\u001b[37;41m                                                                                                                        \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 0,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "later_width": 0,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X <info>value<\/info>\\                                                                                \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 0,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X <info>value<\/info>\\                                                                                \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 0,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "later_width": 0,
+        "error": "DivisionByZeroError",
+        "value": null,
+        "output": "",
+        "counts": [
+            [
+                3,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 0,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\u001b[1A\u001b[0J > \n\n\u001b[37;41m                                                                                                                        \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect X <info>value<\/info>\\                                                                                \u001b[39;49m\n\u001b[37;41m                                                                                                                        \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 0,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "later_width": 0,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X <info>value<\/info>\\                                                                                \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 0,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X <info>value<\/info>\\                                                                                \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 0,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "later_width": 0,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\n\u001b[37;41m                                                                                                                        \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect X <info>value<\/info>\\                                                                                \u001b[39;49m\n\u001b[37;41m                                                                                                                        \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 0,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\n\u001b[37;41m                                                                                                                        \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect X <info>value<\/info>\\                                                                                \u001b[39;49m\n\u001b[37;41m                                                                                                                        \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 0,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "later_width": 0,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X <info>value<\/info>\\                                                                                \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 0,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X <info>value<\/info>\\                                                                                \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 0,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "later_width": 0,
+        "error": "DivisionByZeroError",
+        "value": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 0,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\u001b[1A\u001b[0J > \n\n\u001b[37;41m                                                                                                                        \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect X <info>value<\/info>\\                                                                                \u001b[39;49m\n\u001b[37;41m                                                                                                                        \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\u001b[1A\u001b[0J > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 8,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "later_width": 8,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X <info>value<\/info>\\\n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 8,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X <info>value<\/info>\\\n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 8,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "later_width": 8,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\n\u001b[37;41m         \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect X <info>value<\/info>\\\u001b[39;49m\n\u001b[37;41m         \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 8,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\n\u001b[37;41m         \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect X <info>value<\/info>\\\u001b[39;49m\n\u001b[37;41m         \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 8,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "later_width": 8,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X <info>value<\/info>\\\n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 8,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X <info>value<\/info>\\\n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 8,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "later_width": 8,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\u001b[1A\u001b[0J > \n\n\u001b[37;41m         \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect X <info>value<\/info>\\\u001b[39;49m\n\u001b[37;41m         \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 8,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\u001b[1A\u001b[0J > \n\n\u001b[37;41m         \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect X <info>value<\/info>\\\u001b[39;49m\n\u001b[37;41m         \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 8,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "later_width": 8,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X <info>value<\/info>\\\n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 8,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X <info>value<\/info>\\\n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 8,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "later_width": 8,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\n\u001b[37;41m         \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect X <info>value<\/info>\\\u001b[39;49m\n\u001b[37;41m         \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 8,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\n\u001b[37;41m         \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect X <info>value<\/info>\\\u001b[39;49m\n\u001b[37;41m         \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 8,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "later_width": 8,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X <info>value<\/info>\\\n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 8,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X <info>value<\/info>\\\n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 8,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "later_width": 8,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\u001b[1A\u001b[0J > \n\n\u001b[37;41m         \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect X <info>value<\/info>\\\u001b[39;49m\n\u001b[37;41m         \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\u001b[1A\u001b[0J > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 8,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\u001b[1A\u001b[0J > \n\n\u001b[37;41m         \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect X <info>value<\/info>\\\u001b[39;49m\n\u001b[37;41m         \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\u001b[1A\u001b[0J > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 20,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X\n         <info>val  \n         ue<\/info>\\ \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 20,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X\n         <info>val  \n         ue<\/info>\\ \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 20,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\n\u001b[37;41m                    \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect X\u001b[39;49m\n\u001b[37;41m         <info>val  \u001b[39;49m\n\u001b[37;41m         ue<\/info>\\ \u001b[39;49m\n\u001b[37;41m                    \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 20,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\n\u001b[37;41m                    \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect X\u001b[39;49m\n\u001b[37;41m         <info>val  \u001b[39;49m\n\u001b[37;41m         ue<\/info>\\ \u001b[39;49m\n\u001b[37;41m                    \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 20,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X\n         <info>val  \n         ue<\/info>\\ \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 20,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X\n         <info>val  \n         ue<\/info>\\ \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 20,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\u001b[1A\u001b[0J > \n\n\u001b[37;41m                    \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect X\u001b[39;49m\n\u001b[37;41m         <info>val  \u001b[39;49m\n\u001b[37;41m         ue<\/info>\\ \u001b[39;49m\n\u001b[37;41m                    \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 20,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\u001b[1A\u001b[0J > \n\n\u001b[37;41m                    \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect X\u001b[39;49m\n\u001b[37;41m         <info>val  \u001b[39;49m\n\u001b[37;41m         ue<\/info>\\ \u001b[39;49m\n\u001b[37;41m                    \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 20,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X\n         <info>val  \n         ue<\/info>\\ \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 20,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X\n         <info>val  \n         ue<\/info>\\ \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 20,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\n\u001b[37;41m                    \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect X\u001b[39;49m\n\u001b[37;41m         <info>val  \u001b[39;49m\n\u001b[37;41m         ue<\/info>\\ \u001b[39;49m\n\u001b[37;41m                    \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 20,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\n\u001b[37;41m                    \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect X\u001b[39;49m\n\u001b[37;41m         <info>val  \u001b[39;49m\n\u001b[37;41m         ue<\/info>\\ \u001b[39;49m\n\u001b[37;41m                    \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 20,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X\n         <info>val  \n         ue<\/info>\\ \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 20,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X\n         <info>val  \n         ue<\/info>\\ \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 20,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\u001b[1A\u001b[0J > \n\n\u001b[37;41m                    \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect X\u001b[39;49m\n\u001b[37;41m         <info>val  \u001b[39;49m\n\u001b[37;41m         ue<\/info>\\ \u001b[39;49m\n\u001b[37;41m                    \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\u001b[1A\u001b[0J > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 20,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\u001b[1A\u001b[0J > \n\n\u001b[37;41m                    \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect X\u001b[39;49m\n\u001b[37;41m         <info>val  \u001b[39;49m\n\u001b[37;41m         ue<\/info>\\ \u001b[39;49m\n\u001b[37;41m                    \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\u001b[1A\u001b[0J > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 80,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "later_width": 80,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X <info>value<\/info>\\                                        \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 80,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X <info>value<\/info>\\                                        \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 80,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "later_width": 80,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\n\u001b[37;41m                                                                                \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect X <info>value<\/info>\\                                        \u001b[39;49m\n\u001b[37;41m                                                                                \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 80,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\n\u001b[37;41m                                                                                \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect X <info>value<\/info>\\                                        \u001b[39;49m\n\u001b[37;41m                                                                                \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 80,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "later_width": 80,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X <info>value<\/info>\\                                        \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 80,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X <info>value<\/info>\\                                        \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 80,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "later_width": 80,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\u001b[1A\u001b[0J > \n\n\u001b[37;41m                                                                                \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect X <info>value<\/info>\\                                        \u001b[39;49m\n\u001b[37;41m                                                                                \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 80,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\u001b[1A\u001b[0J > \n\n\u001b[37;41m                                                                                \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect X <info>value<\/info>\\                                        \u001b[39;49m\n\u001b[37;41m                                                                                \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 80,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "later_width": 80,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X <info>value<\/info>\\                                        \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 80,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X <info>value<\/info>\\                                        \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 80,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "later_width": 80,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\n\u001b[37;41m                                                                                \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect X <info>value<\/info>\\                                        \u001b[39;49m\n\u001b[37;41m                                                                                \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 80,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\n\u001b[37;41m                                                                                \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect X <info>value<\/info>\\                                        \u001b[39;49m\n\u001b[37;41m                                                                                \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 80,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "later_width": 80,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X <info>value<\/info>\\                                        \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 80,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X <info>value<\/info>\\                                        \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 80,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "later_width": 80,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\u001b[1A\u001b[0J > \n\n\u001b[37;41m                                                                                \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect X <info>value<\/info>\\                                        \u001b[39;49m\n\u001b[37;41m                                                                                \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\u001b[1A\u001b[0J > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 80,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\u001b[1A\u001b[0J > \n\n\u001b[37;41m                                                                                \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect X <info>value<\/info>\\                                        \u001b[39;49m\n\u001b[37;41m                                                                                \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\u001b[1A\u001b[0J > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 200,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "later_width": 200,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X <info>value<\/info>\\                                                                                \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 200,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X <info>value<\/info>\\                                                                                \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 200,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "later_width": 200,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\n\u001b[37;41m                                                                                                                        \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect X <info>value<\/info>\\                                                                                \u001b[39;49m\n\u001b[37;41m                                                                                                                        \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 200,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\n\u001b[37;41m                                                                                                                        \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect X <info>value<\/info>\\                                                                                \u001b[39;49m\n\u001b[37;41m                                                                                                                        \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 200,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "later_width": 200,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X <info>value<\/info>\\                                                                                \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 200,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X <info>value<\/info>\\                                                                                \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 200,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "later_width": 200,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\u001b[1A\u001b[0J > \n\n\u001b[37;41m                                                                                                                        \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect X <info>value<\/info>\\                                                                                \u001b[39;49m\n\u001b[37;41m                                                                                                                        \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 200,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\u001b[1A\u001b[0J > \n\n\u001b[37;41m                                                                                                                        \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect X <info>value<\/info>\\                                                                                \u001b[39;49m\n\u001b[37;41m                                                                                                                        \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 200,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "later_width": 200,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X <info>value<\/info>\\                                                                                \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 200,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X <info>value<\/info>\\                                                                                \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 200,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "later_width": 200,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\n\u001b[37;41m                                                                                                                        \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect X <info>value<\/info>\\                                                                                \u001b[39;49m\n\u001b[37;41m                                                                                                                        \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 200,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\n\u001b[37;41m                                                                                                                        \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect X <info>value<\/info>\\                                                                                \u001b[39;49m\n\u001b[37;41m                                                                                                                        \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 200,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "later_width": 200,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X <info>value<\/info>\\                                                                                \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 200,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect X <info>value<\/info>\\                                                                                \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 200,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "later_width": 200,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\u001b[1A\u001b[0J > \n\n\u001b[37;41m                                                                                                                        \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect X <info>value<\/info>\\                                                                                \u001b[39;49m\n\u001b[37;41m                                                                                                                        \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\u001b[1A\u001b[0J > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 200,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "later_width": 20,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\u001b[1A\u001b[0J > \n\n\u001b[37;41m                                                                                                                        \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect X <info>value<\/info>\\                                                                                \u001b[39;49m\n\u001b[37;41m                                                                                                                        \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\u001b[1A\u001b[0J > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 20,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "later_width": 9,
+        "custom": true,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect XX\n         <info>val  \n         ue<\/info>\\ \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 20,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "later_width": 9,
+        "custom": true,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\n\u001b[37;41m                    \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect XX\u001b[39;49m\n\u001b[37;41m         <info>val  \u001b[39;49m\n\u001b[37;41m         ue<\/info>\\ \u001b[39;49m\n\u001b[37;41m                    \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 20,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "later_width": 9,
+        "custom": true,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect XX\n         <info>val  \n         ue<\/info>\\ \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 20,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "later_width": 9,
+        "custom": true,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\u001b[1A\u001b[0J > \n\n\u001b[37;41m                    \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect XX\u001b[39;49m\n\u001b[37;41m         <info>val  \u001b[39;49m\n\u001b[37;41m         ue<\/info>\\ \u001b[39;49m\n\u001b[37;41m                    \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 20,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "later_width": 9,
+        "custom": true,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect XX\n         <info>val  \n         ue<\/info>\\ \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 20,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "later_width": 9,
+        "custom": true,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\n\u001b[37;41m                    \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect XX\u001b[39;49m\n\u001b[37;41m         <info>val  \u001b[39;49m\n\u001b[37;41m         ue<\/info>\\ \u001b[39;49m\n\u001b[37;41m                    \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 20,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "later_width": 9,
+        "custom": true,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect XX\n         <info>val  \n         ue<\/info>\\ \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 20,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "later_width": 9,
+        "custom": true,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\u001b[1A\u001b[0J > \n\n\u001b[37;41m                    \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect XX\u001b[39;49m\n\u001b[37;41m         <info>val  \u001b[39;49m\n\u001b[37;41m         ue<\/info>\\ \u001b[39;49m\n\u001b[37;41m                    \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\u001b[1A\u001b[0J > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 80,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "later_width": 9,
+        "custom": true,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect XX <info>value<\/info>\\                                       \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 80,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "later_width": 9,
+        "custom": true,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\n\u001b[37;41m                                                                                \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect XX <info>value<\/info>\\                                       \u001b[39;49m\n\u001b[37;41m                                                                                \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 80,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "later_width": 9,
+        "custom": true,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect XX <info>value<\/info>\\                                       \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 80,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "later_width": 9,
+        "custom": true,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\u001b[1A\u001b[0J > \n\n\u001b[37;41m                                                                                \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect XX <info>value<\/info>\\                                       \u001b[39;49m\n\u001b[37;41m                                                                                \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 80,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "later_width": 9,
+        "custom": true,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect XX <info>value<\/info>\\                                       \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 80,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "later_width": 9,
+        "custom": true,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\n\u001b[37;41m                                                                                \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect XX <info>value<\/info>\\                                       \u001b[39;49m\n\u001b[37;41m                                                                                \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 80,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "later_width": 9,
+        "custom": true,
+        "error": null,
+        "value": "Ada",
+        "output": "\n Name [Guest]:\n > \n\n [ERROR] Incorrect XX <info>value<\/info>\\                                       \n\n Name [Guest]:\n > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "width": 80,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "later_width": 9,
+        "custom": true,
+        "error": null,
+        "value": "Ada",
+        "output": "\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\u001b[1A\u001b[0J > \n\n\u001b[37;41m                                                                                \u001b[39;49m\n\u001b[37;41m [ERROR] Incorrect XX <info>value<\/info>\\                                       \u001b[39;49m\n\u001b[37;41m                                                                                \u001b[39;49m\n\n \u001b[32mName\u001b[39m [\u001b[33mGuest\u001b[39m]:\n > \n\u001b[1A\u001b[0J > \n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    }
+]

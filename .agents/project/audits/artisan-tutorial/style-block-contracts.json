@@ -1,0 +1,57 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "console_reference": "Symfony Console7.4.0",
+  "status": "verified_inherent_helper_cluster_not_full_StyleInterface_or_chapter",
+  "public_entries": [
+    "OutputStyle::block",
+    "OutputStyle::comment",
+    "OutputStyle::success",
+    "OutputStyle::error",
+    "OutputStyle::warning",
+    "OutputStyle::note",
+    "OutputStyle::info",
+    "OutputStyle::caution"
+  ],
+  "public_options": {
+    "type": "console::BlockOptions",
+    "fields": {
+      "kind": null,
+      "style": null,
+      "prefix": " ",
+      "padding": false,
+      "escape": true
+    }
+  },
+  "native_adaptations": [
+    "Borrowed BlockOptions expresses optional PHP arguments explicitly; kind corresponds to source type label. No output behavior/default or protocol change.",
+    "Native typed ConsoleFormatError and existing zero-width ConsoleError replace PHP class names; partial output/counters and failure phase match, localized error message text is not asserted byte-identical.",
+    "Layout captures terminal width at style construction (zero fallback120, Windows margin1, cap120); signed wrapping retains fixed PCRE behavior instead of silently clamping.",
+    "Question validation errors call the same new_line/error renderer. Previous dynamic width/minimum9 and default-formatter padding paths removed.",
+    "Standard OK/ERROR/WARNING/NOTE/INFO/CAUTION markers are output contracts, not new brand strings."
+  ],
+  "source_sequences": {
+    "blocks": 576,
+    "question_retry": 96,
+    "custom_formatter_blocks": 16,
+    "custom_formatter_questions": 16
+  },
+  "expected_errors": {
+    "blocks": {
+      "Symfony\\Component\\Console\\Exception\\InvalidArgumentException": 166,
+      "DivisionByZeroError": 46
+    },
+    "questions": 2
+  },
+  "evidence": [
+    "console_style_blocks",
+    "style-block-oracle.json",
+    "style-block-question-oracle.json",
+    "artisan_docs_generated",
+    "accepted-style-block.json"
+  ],
+  "remaining": [
+    "Full StyleInterface/OutputInterface and arbitrary output sinks",
+    "Full component Factory, table/tree/error-style and convenience questions",
+    "Windows real terminal release checks"
+  ]
+}

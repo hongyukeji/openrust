@@ -62,7 +62,9 @@ pub use formatting::{ConsoleFormatError, ConsoleTemplateError};
 pub use generator_command::GeneratorCommand;
 pub(crate) use isolation::IsolatedCommand;
 pub(crate) use localization::text as localized_text;
-pub use output_style::{OutputFormat, OutputMessages, OutputOptions, OutputStyle, OutputVerbosity};
+pub use output_style::{
+    BlockOptions, OutputFormat, OutputMessages, OutputOptions, OutputStyle, OutputVerbosity,
+};
 pub(crate) use progress_bar::ProgressDefinitions;
 pub use progress_bar::{
     ConsoleProgressError, ProgressBar, ProgressFormatter, ProgressIterable, ProgressIterableMut,

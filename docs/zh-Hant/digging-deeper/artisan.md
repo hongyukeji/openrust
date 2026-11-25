@@ -1306,3 +1306,37 @@ fn register_text_layout() -> Result<(), ConsoleError> {
 `text` 接受字串或借用的字串陣列，`listing` 接受字串迭代器。空陣列保留各助手自身的間距規則。行內格式標籤繼續生效，標題底線忽略裝飾，尾端反斜線正常顯示。無效格式回傳既有的型別化主控台錯誤，保留失敗前已經寫出的內容。
 
 `OutputStyle::section("Part")` 輸出分節標題；`Output::section()` 建立可重繪輸出分區，兩者是獨立介面。這四個助手支援所選分區與借用的巢狀樣式，沿用同一格式器、詳細程度與換行狀態。
+
+## 狀態文字區塊 {#styled-message-blocks}
+
+使用 `comment`、`success`、`error`、`warning`、`note`、`info` 與 `caution` 輸出標準狀態區塊。`block` 透過明確的 `BlockOptions` 開放它們共用的渲染器。
+
+```rust
+use openrust::console::{AsyncCommandCallback, BlockOptions, ConsoleError, OutputStyle};
+use openrust::support::facades::Artisan;
+
+fn register_blocks() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:blocks", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut style = OutputStyle::new(input, output);
+            style.comment("Preparing report")?;
+            style.success("Report ready")?;
+            style.warning("Review the queue")?;
+            style.block(&["Build finished", "Ready to deploy"], BlockOptions {
+                kind: Some("BUILD"),
+                style: Some("fg=blue"),
+                padding: true,
+                ..BlockOptions::default()
+            })?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+`BlockOptions::default()` 的 `kind`、`style` 為 `None`，`prefix` 為一個空格，`padding: false`、`escape: true`。`kind` 是可選的方括號標籤；借用選項表達可選參數，不複製應用字串。所有助手接受與 `text` 相同的借用字串或字串陣列。
+
+標準狀態區塊轉義訊息標籤，`comment` 保留行內格式；只有需要依格式器標記解讀訊息時，才設定 `escape: false`。`padding` 僅在裝飾輸出中加入首尾空行。區塊寬度在樣式建構時確定，最多 120 欄；設定為零時使用 120，Windows 還會預留一欄。之後修改 `COLUMNS` 不改變該樣式的區塊寬度。
+
+`error` 輸出錯誤區塊，命令結束碼仍由回傳值控制。無效格式或零寬度分區可能在部分輸出後回傳型別化主控台錯誤。問答驗證重試重用同一錯誤區塊渲染器，包括格式器、轉義與建構時寬度。

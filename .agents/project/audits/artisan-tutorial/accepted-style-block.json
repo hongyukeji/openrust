@@ -1,0 +1,66 @@
+{
+  "source_base": "9116d0c8332663a91642a6ff4731d3da6e19db97",
+  "source_hashes": {
+    "vendor/openrust/framework/src/console/mod.rs": "3449ee2dfdfab99b9f8f15920ac6d52cc0bd44e11b78b2d963e8128adb145c43",
+    "vendor/openrust/framework/src/console/output_style.rs": "c20ba41145cda6ec88f4b5bbc7431f1f0f239bd129832efd7c785a4149ab9b9a",
+    "vendor/openrust/framework/src/console/output_style/block.rs": "b25edff2c7474ef1e3856292f6a6741f373405dd3e53b31162d720ea3c6efcf9",
+    "vendor/openrust/framework/src/console/output_style/wrapping.rs": "af0580c53385c175fc7e96280cd37a874d7450a02a26391468c751782f0cc95e",
+    "vendor/openrust/framework/tests/console_style_blocks.rs": "ec75485e1671ecf7d756de2f1fd0fd27446b7c111b940c5854095489668213e4",
+    "tests/artisan_tutorial_docs.py": "088e480fb33fc8c4db0b8298a94570c19726f607e252ef5d7368164748756407",
+    "docs/tests/check_artisan_tutorial.mjs": "ba0cec95ebc42c71566c0442f599fdeb2aa13ef28f4610a929ba56269250a20b",
+    ".agents/project/audits/artisan-tutorial/style-block-oracle.json": "68ddb2c1cd392a801c2b9cd9a398d2ff701d7bcd5f82292329b460c9e5446727",
+    ".agents/project/audits/artisan-tutorial/style-block-question-oracle.json": "9a5e3e179f7240bb0d76e4aff220fcec2123f02460adebebe2cad70546c595ab",
+    "docs/en/digging-deeper/artisan.md": "2b8c5b4c7091aca666821d76315202242a6fa6505b3aa04915dbc6db4b276ae3",
+    "docs/zh-Hans/digging-deeper/artisan.md": "cdf920b72114fee20293a3f1f9b7ced2c6291f794c984fbfc56e849a3cce9bf1",
+    "docs/zh-Hant/digging-deeper/artisan.md": "c1db1b7cf635e5a267ae7eadea758d4d7496bd93e6b67a716a24513a43c88887"
+  },
+  "parent_consumers": {
+    "framework": {
+      "targets": 24,
+      "passed": 143,
+      "ignored_drivers": 32
+    },
+    "root": {
+      "targets": 6,
+      "passed": 137,
+      "ignored_drivers": 0
+    }
+  },
+  "formal_examples": 96,
+  "source_sequences": 672,
+  "expected_error_steps": 214,
+  "actual_http": [
+    "200",
+    "JSON500",
+    "200 recovery",
+    "12 concurrent independent command outputs"
+  ],
+  "actual_cli_process_exit_codes": [
+    0,
+    1
+  ],
+  "terminal_regression_cases": 33,
+  "ctrl_c_exit": 130,
+  "terminal_restored": true,
+  "workspace_fmt": true,
+  "workspace_all_targets_clippy": true,
+  "browser_checks": 12,
+  "logs": "target/tmp/artisan-tutorial-20261125/style-block-*",
+  "gates": [
+    "style-block-gates-results.json",
+    "style-block-exits-last-gates-results.json"
+  ],
+  "cache_recovery": {
+    "initial_failure": "root-owned stale Windows debug fingerprint directory; no final-exit test started during that guard failure",
+    "repair_evidence": "cache-owner-repair.json",
+    "lock_inode_preserved": true,
+    "scoped_owner_changes": 868,
+    "source_data_deleted": false,
+    "resumed_final_exit_tests": true
+  },
+  "limits": [
+    "Not full StyleInterface/Artisan chapter or active worktree",
+    "Windows real terminal release matrix remains pending"
+  ],
+  "pushed": false
+}
