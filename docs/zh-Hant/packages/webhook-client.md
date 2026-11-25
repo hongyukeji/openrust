@@ -135,6 +135,8 @@ Provider 註冊 `webhook_calls` 遷移，使用 `DatabaseWebhookStore` 前執行
 
 預設不儲存請求頭。`with_store_headers(&["X-Source"])` 不區分頭名大小寫，`with_store_headers(&["*"])` 明確儲存全部頭，可能包含敏感值。設定檔的全選值使用字串 `"*"`，不能寫成包含 `"*"` 的陣列。異常 JSON 最多8192位元組，請求目標最多8192位元組，持久方法名最多32位元組；手動傳入的異常詳情須由應用脫敏。
 
+讀取可信的 Spatie 資料庫匯出時，可將解碼後的 JSON 欄位交給 `WebhookCall::restore_legacy_attachments(attachments, payload)`。非 null 的附件欄位優先，空陣列也優先。此方法最多還原 128 個上傳物件，解碼後總量上限 16 MiB，並忽略封存中的檔案路徑。此入口供移轉或封存讀取使用。即時 JSON 請求的 `attachments` 欄位仍是普通載荷資料。
+
 #### 將 multipart 附件保存在私有 Storage 磁碟 {#attachment-disk}
 
 將 `attachment_disk` 設為已設定的私有磁碟名稱，並執行 `./artisan migrate`。手動建構 profile 時可呼叫 `with_attachment_disk("local")`。啟用附件儲存後，接受的含檔案 multipart 請求會作為一個私有物件寫入。接收記錄保存磁碟、長度與 SHA-256 摘要。物件名稱由可信範圍與接收 ID 產生。Worker 核對長度與摘要後讀取原始正文並還原原生上傳檔案。各 Worker 必須能透過已保存的磁碟名稱讀取同一儲存。

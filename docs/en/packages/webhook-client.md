@@ -135,6 +135,8 @@ The provider registers the `webhook_calls` migration. Run `./artisan migrate` be
 
 No headers are stored by default. `with_store_headers(&["X-Source"])` selects names case-insensitively; `with_store_headers(&["*"])` explicitly stores all headers, including potentially sensitive values. The config-file equivalent is the string `"*"`, not an array containing `"*"`. Exception JSON is limited to 8192 bytes, request targets to 8192 bytes and stored methods to 32 bytes. Applications must redact manually supplied exception details.
 
+For trusted Spatie database exports, call `WebhookCall::restore_legacy_attachments(attachments, payload)` with the decoded JSON columns. A non-null attachment column takes precedence, even when it is empty. The method rebuilds up to 128 uploads with a combined decoded limit of 16 MiB, without opening archived filesystem paths. Use it in migration or archival readers. A live JSON request’s `attachments` field remains regular payload data.
+
 #### Keep multipart attachments on a private Storage disk {#attachment-disk}
 
 Set `attachment_disk` to a configured private disk name and run `./artisan migrate`. A manually constructed profile can use `with_attachment_disk("local")`. With attachment storage enabled, an accepted multipart request containing files is written as one private object. The receipt stores the disk, length and SHA-256 digest. The object name derives from the trusted scope and receipt ID. Workers verify length and digest when reading the original body and recreating native uploads. All workers must be able to read the same disk under the saved name.

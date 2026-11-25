@@ -47,7 +47,8 @@ impl UploadedFile {
         detect_type(content)
     }
 
-    pub(super) fn new(path: String, media_type: Option<String>, content: Bytes) -> Self {
+    /// 从已限制大小的字节构造上传对象，名称和媒体类型仍按客户端元数据处理。
+    pub fn from_bytes(path: String, media_type: Option<String>, content: Bytes) -> Self {
         Self {
             path,
             media_type,

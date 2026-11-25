@@ -2,6 +2,9 @@ use crate::{Error, Result, VerifiedWebhook};
 use http::{HeaderValue, Method, Uri, header::CONTENT_TYPE};
 use openrust::http::{Body, Request, UploadedFileValue};
 
+mod legacy_attachments;
+pub(crate) use legacy_attachments::restore_legacy_attachments;
+
 pub(crate) struct ReceiptPayload {
     pub input: serde_json::Value,
     pub attachment_media_type: Option<String>,

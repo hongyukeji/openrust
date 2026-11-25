@@ -876,7 +876,7 @@ async fn parse_multipart(bytes: Bytes, boundary: &str) -> Result<Payload, InputF
                 file_indices.insert(&name, String::new())?;
             } else {
                 file_indices.insert(&name, files.len().to_string())?;
-                files.push(UploadedFile::new(filename, media, bytes));
+                files.push(UploadedFile::from_bytes(filename, media, bytes));
             }
         } else {
             if bytes.len() > MAX_TEXT_FIELD_BYTES {

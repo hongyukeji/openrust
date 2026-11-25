@@ -1605,6 +1605,27 @@ def main():
      send("/api/package/post",b" post\0\xff\n",expected_name="spatie")
      record=send("/api/package/post?text=query&source=external",b' { "text": "  keep  ", "empty": "" }\n',content_type="application/json",expected_name="spatie")
      assert record["payload"]=={"text":"  keep  ","empty":"","source":"external"} and record["attachments"] is None
+     old_file={"originalName":"旧版.bin","mimeType":"application/octet-stream","size":3,
+               "path":"/fixture/opaque/path/to/old-upload","error":0,"content":"AP9h"}
+     exported={"payload":{"attachments":[old_file]}}
+     record=send("/api/package/post",json.dumps(exported["payload"]).encode(),
+                 content_type="application/json",expected_name="spatie")
+     assert record["payload"]==exported["payload"] and record["attachments"] is None
+     if phase == "unique":
+      file=root/"legacy-attachments.json"
+      for archived, expected in (
+          (exported,{"0":{"name":"旧版.bin","mime":"application/octet-stream","bytes":[0,255,97]}}),
+          ({"attachments":None}|exported,{"0":{"name":"旧版.bin","mime":"application/octet-stream","bytes":[0,255,97]}}),
+          ({"attachments":[]}|exported,{}),
+          ({"attachments":{"file":old_file}}|exported,{"file":{"name":"旧版.bin","mime":"application/octet-stream","bytes":[0,255,97]}}),
+      ):
+       file.write_text(json.dumps(archived))
+       assert json.loads(command(binary,current,"webhooks:fixture-restore-legacy-attachments",str(file))) == expected
+      file.write_text(json.dumps({"attachments":[old_file|{"content":"@bad!"}]}|exported))
+      invalid=subprocess.run([str(binary),"artisan","webhooks:fixture-restore-legacy-attachments",str(file)],
+                             env=current,capture_output=True,text=True,timeout=20)
+      assert invalid.returncode != 0 and "@bad!" not in invalid.stdout + invalid.stderr
+      assert "Webhook 存储记录无效" in invalid.stdout + invalid.stderr
      record=send("/api/package/post",b'a=1&a=2&message=%20keep%20',content_type="application/x-www-form-urlencoded",expected_name="spatie")
      assert record["payload"]=={"a":"2","message":" keep "} and record["attachments"] is None
      multipart=(

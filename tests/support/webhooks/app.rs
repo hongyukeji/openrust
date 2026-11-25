@@ -189,6 +189,38 @@ fn attachment_json(value: openrust::http::UploadedFileValue) -> serde_json::Valu
         ),
     }
 }
+
+struct RestoreLegacyAttachments(CommandDefinition);
+impl Command for RestoreLegacyAttachments {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+
+    fn handle<'a>(
+        &'a self,
+        _: &'a Application,
+        input: &'a Input,
+        output: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            let path = input.matches().get_one::<String>("export").unwrap();
+            let exported: serde_json::Value = serde_json::from_reader(
+                std::fs::File::open(path).map_err(ConsoleError::from_source)?,
+            )
+            .map_err(ConsoleError::from_source)?;
+            let files = openrust_webhook_client::models::WebhookCall::restore_legacy_attachments(
+                exported.get("attachments"),
+                exported.get("payload"),
+            )
+            .map_err(ConsoleError::from_source)?;
+            output
+                .write_raw(&format!("{}\n", attachment_json(files)))
+                .map_err(ConsoleError::from_source)?;
+            Ok(0)
+        })
+    }
+}
+
 struct Record(CommandDefinition);
 impl Command for Record {
     fn definition(&self) -> &CommandDefinition {
@@ -1411,6 +1443,10 @@ fn commands(artisan: &mut Artisan) -> Result<(), ConsoleError> {
     artisan.add_command(Box::new(Enqueue(CommandDefinition::new(syntax(
         "webhooks:enqueue",
     )))))?;
+    artisan.add_command(Box::new(RestoreLegacyAttachments(CommandDefinition::new(
+        clap::Command::new("webhooks:fixture-restore-legacy-attachments")
+            .arg(clap::Arg::new("export").required(true)),
+    ))))?;
     artisan.add_command(Box::new(WakeDeferred(CommandDefinition::new(
         clap::Command::new("webhooks:wake-fixture")
             .arg(clap::Arg::new("id").required(true))

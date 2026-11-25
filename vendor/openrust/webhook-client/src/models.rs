@@ -84,6 +84,14 @@ impl WebhookCall {
         store.get_attachments(self.id()).await
     }
 
+    /// 从可信的旧版持久记录恢复附件。独立的附件列优先，缺省时读取载荷的附件字段。
+    pub fn restore_legacy_attachments(
+        attachments: Option<&Value>,
+        payload: Option<&Value>,
+    ) -> Result<openrust::http::UploadedFileValue> {
+        crate::payload::restore_legacy_attachments(attachments, payload)
+    }
+
     pub async fn clear_exception(&mut self, store: &dyn WebhookStore) -> Result<&mut Self> {
         store.set_exception(self, None).await?;
         self.exception = None;
