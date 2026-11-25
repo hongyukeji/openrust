@@ -689,3 +689,11 @@ export async function completeProvider() {
 API 綁定先取得 `factors` 證明，再向 `/api/user/connected-accounts/{provider}` POST 該證明、`code_challenge` 和白名單內的 `redirect_uri`，在瀏覽器開啟回傳的握手 URL。使用同一 PAT 將 code／verifier POST 到 `/api/user/connected-accounts/exchange`，取得身分預覽及新的 `challenge`；明確將 `{challenge, confirm: true}` POST 到 `/api/user/connected-accounts/confirm` 才綁定，`false` 為拒絕。確認保留初始證明期限，重新核對發起權杖、帳戶及用於確認的通行密鑰，不要求再次輸入密碼。GET `/api/user/connected-accounts` 讀取啟用的供應商和關聯狀態；DELETE `/api/user/connected-accounts/{provider}` 需要 `account:update` 及新的 `factors` 證明，列表需要 `account:read`。
 
 可選遷移先建立身分表，再允許選定密碼欄為空。仍有無密碼使用者時拒絕回滾，保留身分記錄及遷移帳本。既有可空、預設值、產生欄或自訂約束須手動合併；預設遷移僅修改支援的 SQLite／MySQL／MariaDB／PostgreSQL 密碼欄，其他方言在改欄前明確失敗。解除本機關聯不會刪除遠端供應商帳戶。
+
+## 自訂使用者身分 {#custom-user-identities}
+
+Eloquent 模型主鍵可以使用整數、UUID 或 ULID，認證識別也可以使用信箱等不同欄位。兩者職責獨立：Sanctum 的 `tokenable` 關聯按已持久化模型主鍵解析歸屬，工作階段登入按設定的認證識別尋找使用者。不要為了修復權杖認證而修改登入識別；權杖表的 `tokenable_id` 型別必須與使用者主鍵相容。
+
+使用者採用具名連線時，個人存取權杖模型及資源清理的資料庫佇列也須明確選中同一連線。沿用產生 Provider 的呼叫註冊實際使用者型別，並按業務結構調整註冊、資料、重設和註銷 Action。安裝器保留自訂檔案，無法安全識別布局時停止並提示手動位置；發布預設遷移不代表自動轉換既有業務表結構。
+
+近期確認和待完成的因素挑戰綁定模型、真實主鍵、連線、表及憑據狀態。即使其他認證資料相同，把舊信箱分配給另一個使用者也不會轉移既有確認或挑戰。關閉 Passkeys 或某個供應商只關閉對應登入及管理選項；註銷帳戶仍清理該使用者之前已安裝的憑據。

@@ -76,7 +76,24 @@ pub(super) fn security<M: TwoFactorAuthenticatable>(
     user: &M,
     fortify: &Fortify,
 ) -> AuthResult<String> {
+    // 可变的认证标识不能替代模型主键，旧证明不得跨账号复用。
+    let key = user
+        .get_key()
+        .ok_or(openrust::auth::AuthError::InvalidIdentity)?;
+    let key = openrust::auth::AuthIdentifier::try_from(key)?;
+    let connection = user.get_connection()?;
     let payload = serde_json::to_vec(&json!({
+        "account": {
+            "model":std::any::type_name::<M>(),
+            "connection":connection.get_name(),
+            "database":connection.get_database_name(),
+            "prefix":connection.get_table_prefix(),
+            "schema":connection.get_config("search_path"),
+            "table":user.get_table(),
+            "owner":user.get_morph_class()?,
+            "key_name":user.get_key_name(),
+            "key":key,
+        },
         "credential":credentials::stamp(user)?,
         "email":attribute(user,"email")?,
         "verified":attribute(user,"email_verified_at")?,

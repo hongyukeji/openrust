@@ -702,3 +702,83 @@ async fn deletion_rechecks_proof_after_action_and_rolls_back_if_it_expired() {
     clock.set_test_now(None);
     assert_eq!(bearer_request(server.address, &token).await, 200);
 }
+
+#[tokio::test]
+async fn disabled_passkeys_still_purge_installed_credentials_on_account_deletion() {
+    let server = server().await;
+    let app = server._kernel.get_application();
+    App::set_facade_application(Some(app), async {
+        let config = app
+            .make::<dyn openrust::contracts::config::Repository>()
+            .await
+            .unwrap();
+        assert_eq!(config.get("user.passkeys"), Some(json!(false)));
+        let db = app
+            .make::<openrust::database::DatabaseManager>()
+            .await
+            .unwrap()
+            .connection(None)
+            .unwrap();
+        db.get_schema_builder()
+            .create("passkeys", |table| {
+                table.id();
+                table.unsigned_big_integer("user_id");
+                table.string("name", 255);
+                table.string("credential_id", 255).unique();
+                table.text("credential");
+                table.timestamp("last_used_at", 0).nullable();
+                table.timestamps();
+            })
+            .await
+            .unwrap();
+        for (user, id) in [(1_i64, "retained-first"), (2, "retained-other")] {
+            db.table("passkeys")
+                .insert(&[[
+                    ("user_id".into(), user.into()),
+                    ("name".into(), "已停用的既存凭据".into()),
+                    ("credential_id".into(), id.into()),
+                    ("credential".into(), "{}".into()),
+                ]
+                .into()])
+                .await
+                .unwrap();
+        }
+    })
+    .await;
+    let first = token(&server).await;
+    let proof = confirmation(&server, &first, "delete").await;
+    let result = account_request(
+        server.address,
+        &first,
+        "DELETE",
+        "/api/user",
+        json!({"proof":proof}),
+    )
+    .await;
+    assert_eq!(result.0, 204, "{}", result.1);
+    App::set_facade_application(Some(app), async {
+        let db = app
+            .make::<openrust::database::DatabaseManager>()
+            .await
+            .unwrap()
+            .connection(None)
+            .unwrap();
+        assert_eq!(
+            db.table("passkeys")
+                .r#where("user_id", "=", 1_i64)
+                .count("*")
+                .await
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            db.table("passkeys")
+                .r#where("user_id", "=", 2_i64)
+                .count("*")
+                .await
+                .unwrap(),
+            1
+        );
+    })
+    .await;
+}

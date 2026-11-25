@@ -34,6 +34,10 @@ type SessionValidator = dyn for<'a> Fn(
     ) -> AuthFuture<'a, AuthResult<bool>>
     + Send
     + Sync;
+#[cfg(feature = "sanctum")]
+type TokenOwnerResolver = dyn for<'a> Fn(&'a Container, &'a super::AuthIdentifier) -> AuthFutureConfigured<'a>
+    + Send
+    + Sync;
 type ModelMorphClass = fn(&dyn Authenticatable) -> AuthResult<&'static str>;
 type ModelSerializer = fn(&dyn Authenticatable) -> AuthResult<serde_json::Map<String, Value>>;
 
@@ -49,6 +53,8 @@ struct Extensions {
     configured_requests: HashMap<String, Arc<ConfiguredResolver>>,
     #[cfg(feature = "sanctum")]
     sanctum_models: std::collections::HashSet<std::any::TypeId>,
+    #[cfg(feature = "sanctum")]
+    sanctum_owners: HashMap<&'static str, Arc<TokenOwnerResolver>>,
 }
 
 /// Application-level guard definitions. Guard state lives in the HTTP request.
@@ -270,11 +276,25 @@ impl AuthManager {
     #[cfg(feature = "sanctum")]
     pub fn register_sanctum_model<M: crate::sanctum::HasApiTokens>(&self, name: impl Into<String>) {
         self.register_model::<M>(name);
-        self.extensions
-            .write()
-            .expect("auth extensions lock")
+        let mut extensions = self.extensions.write().expect("auth extensions lock");
+        extensions
             .sanctum_models
             .insert(std::any::TypeId::of::<M>());
+        extensions.sanctum_owners.insert(
+            std::any::type_name::<M>(),
+            Arc::new(|container, id| {
+                Box::pin(async move {
+                    let prototype = M::from_state(Default::default());
+                    let connection = container
+                        .make::<DatabaseManager>()?
+                        .connection(prototype.get_connection_name())?;
+                    let hasher = container.make::<dyn Hasher>()?;
+                    EloquentUserProvider::<M>::new(connection, hasher)
+                        .retrieve_by_model_key(id)
+                        .await
+                })
+            }),
+        );
     }
 
     #[cfg(feature = "sanctum")]
@@ -316,22 +336,24 @@ impl AuthManager {
         id: &super::AuthIdentifier,
     ) -> AuthResult<Option<Box<dyn Authenticatable>>> {
         self.load_model_class(model)?;
-        let factory = {
+        let resolver = {
             let extensions = self.extensions.read().expect("auth extensions lock");
-            extensions
+            let class = extensions
                 .models
                 .get(model)
-                .or_else(|| extensions.models.values().find(|(name, _)| *name == model))
-                .map(|(_, factory)| factory.clone())
+                .map(|(class, _)| *class)
+                .unwrap_or(model);
+            extensions.sanctum_owners.get(class).cloned()
         };
-        let Some(factory) = factory else {
+        let Some(resolve) = resolver else {
             return Ok(None);
         };
         let container = self
             .container
             .upgrade()
             .ok_or(AuthError::Configuration("application scope"))?;
-        factory(&container, &Value::Null)?.retrieve_by_id(id).await
+        // tokenable 是 Eloquent 多态关系，按模型主键读取，不按登录字段读取。
+        resolve(&container, id).await
     }
 
     /// Registers a compiled guard resolver with guard name and configuration.

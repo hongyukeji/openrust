@@ -257,9 +257,7 @@ fn remove<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
                         "=",
                         super::challenges::owner_key(
                             locked.get_morph_class()?,
-                            &openrust::auth::AuthIdentifier::try_from(
-                                locked.get_key().ok_or(AuthError::InvalidIdentity)?,
-                            )?,
+                            &locked.get_auth_identifier(),
                         )?,
                     )
                     .delete()

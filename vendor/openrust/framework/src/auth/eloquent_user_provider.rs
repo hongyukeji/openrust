@@ -38,6 +38,23 @@ impl<M: Model + Authenticatable> EloquentUserProvider<M> {
         )
     }
 
+    #[cfg(feature = "sanctum")]
+    pub(super) fn retrieve_by_model_key<'a>(
+        &'a self,
+        id: &'a AuthIdentifier,
+    ) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>> {
+        Box::pin(async move {
+            let user = self.query()?.find(Value::from(id.clone())).await?;
+            Ok(user
+                .filter(|user| {
+                    user.get_key()
+                        .and_then(|key| AuthIdentifier::try_from(key).ok())
+                        .is_some_and(|key| providers::same_identity(id, &key))
+                })
+                .map(erase))
+        })
+    }
+
     pub fn new(connection: Connection, hasher: Arc<dyn Hasher>) -> Self {
         let prototype = M::from_state(ModelState::default());
         Self {

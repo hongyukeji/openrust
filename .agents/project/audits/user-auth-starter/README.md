@@ -772,3 +772,26 @@ Telescope保留被允许采集的安全请求元数据，去除原始URI参数�
 本单元的供应商协议使用真实TCP模拟Google／GitHub端点，校验原生state、PKCE和授权请求；没有使用真实厂商账号，不宣称真实授权、手机设备、生产HTTPS或供应商邮件投递已通过。S10继续复核自定义用户（UUID／ULID及认证标识不同于主键）、关闭选项、驱动组合及最终支持矩阵；旧注销的Passkeys清理需确认包绑定与功能开关的实际区别，不能仅按扫描判断遗留。全部A01阶段仍待最终整簇裁决，未推送。
 
 交付补验socialite-feature-off-clippy.log：不启用Sanctum／Socialite的Fortify lib严格Clippy通过。socialite-delivery-sha.json核对正式代码与实际测试源码逐字一致；根Cargo.toml／Cargo.lock已按HEAD加本单元差异核定。交付清理socialite-cleanup.json持Cargo锁直接删除本批闲置测试／应用二进制及文档dist，净释放1,474,351,104字节、清后可用35,409,289,216字节；增量缓存、源码、日志、依赖、数据库和数据卷保留。
+
+
+## S10 自定义用户主键与关闭选项（本单元验收通过）
+
+固定Sanctum4.4.0的[PersonalAccessToken::tokenable](https://github.com/laravel/sanctum/blob/v4.4.0/src/PersonalAccessToken.php)使用Eloquent morphTo关系，[Guard](https://github.com/laravel/sanctum/blob/v4.4.0/src/Guard.php)消费真实tokenable。实际套件夹具发现默认归属解析错误地调用UserProvider::retrieve_by_id，即认证标识字段；在UUID／ULID主键、邮箱认证标识组合，新签发PAT访问返回401。现复用已注册Eloquent模型、查询作用域、主库读取策略和真实主键查找，不改变原生会话Provider的认证标识查询，也不向公共UserProvider契约塞入替代入口。
+
+同时实证旧待因素挑战可能在邮箱转移给另一个真实主键、认证材料保持相同时兑换201；custom-proof-baseline.log保留仅恢复旧client指纹的失败。套件安全摘要现纳入具体模型、真实主键名称／值、连接、数据库、表前缀、Schema及多态归属。修复后拒绝旧挑战而不消耗后继用户恢复码，新登录仍可使用同一码成功。近期证明继续使用相同摘要及原有客户端／用途／期限，不建立平行验证器或放宽二次因素。
+
+注销另发现挑战账本按认证标识建立owner_hash，清理却使用物理主键；两者不同会留下记录。现按原有账本身份删除，PAT和Passkeys的模型关系清理仍使用真实主键。新增完整消费覆盖UUID硬删除、ULID软删除、非默认accounts连接及同连接自定义令牌模型，默认连接故意指向独立空SQLite；包括令牌签发、真实Sanctum Guard认证、近期确认、子令牌、退出、注销、旧令牌拒绝、账本物理清理和其他用户保留。HTTP通过Kernel transport执行，不把这部分标成独立TCP；既有Sanctum TCP套件另补组合验收。
+
+关于前文Passkeys关闭疑点，复核确认注销原本依据包绑定而非功能开关，原生store还检查已安装表；deletion-crash-evidence中已实际验证关闭后的旧密钥清理。没有凭扫描重复“修复”。新增回归在关闭状态建立历史凭据，注销只清本人的行并保留另一用户记录；供应商关闭后真实绑定记录也随注销清理。空表／关闭功能、头像、设备、邮件及额外因素的既有失败保护同时回归。
+
+阶段证据位于target/tmp/user-starter/：
+
+- custom-complete-sqlite.log：最终UUID／ULID、非默认连接、软删除与账本清理通过。custom-complete-mysql.log和custom-complete-postgres.log分别在独立MySQL8.4.13／PostgreSQL18.7运行同一最终双主键流程及7项关闭开关测试，通过；均使用database Session的既有TCP套件。
+- custom-final-regression.log：安装16、配置7、用户UI／真实TCP105项各自报告通过；外层因32GB守卫中断退出75，不把整个脚本算通过。custom-native-resumed.log仅续跑未完成的最终自定义用户1项和原生Sanctum SQLite5项，全部通过；没有把过滤的MySQL／PostgreSQL项计数。custom-final-mysql.log另有实际原生MySQL TCP父用例1项通过，custom-complete-postgres.log另有实际原生PostgreSQL TCP父用例1项通过；覆盖原生模型事件／转换、自定义令牌主键、回调、权限、过期、清理、remember和显式SPA。
+- custom-docs.log、custom-docs-build.log、custom-docs-browser.log：三语自定义用户章节、全站构建、两种挂载前缀与桌面／移动12组实际DOM通过；移动仍是视口验收。
+
+本单元不闭合整个S10。后续继续安装预检中的头像磁盘／同库清理队列、默认与自定义应用的最终就绪检查及OS支持范围；生产账号、供应商投递、实体认证器和发布部署另列。
+
+最终核定：custom-current-source.json以01948881c703f3eca542c82fffe0e1aebd97ac88为组合，保留本单元明确文件，排除其他未提交代码及下一单元preflight草稿。custom-clippy-final.log的框架／Fortify lib及实际消费测试严格Clippy通过；custom-delivery-combination.log在此组合补跑最终自定义用户1项与用户UI／TCP105项，全部通过。范围Rustfmt、差异检查及源码字节核定通过，custom-delivery-sha.json记录最终交付哈希。
+
+交付清理custom-cleanup.json：持Cargo锁直接删除闲置原生Sanctum测试二进制和文档dist，净释放463,998,976字节，清后可用58,176,036,864字节；后续S10所需普通增量缓存、源码、全部记录、依赖下载、数据库和数据卷保留。

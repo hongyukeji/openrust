@@ -9,7 +9,7 @@ use openrust::{
     http::HttpFuture,
     support::{
         ProviderResult, ServiceProvider,
-        facades::{App, Facade as _},
+        facades::{App, Config, Facade as _},
     },
 };
 #[path = "../../stubs/starter/migrations/social-identities.rs"]
@@ -924,4 +924,59 @@ async fn socialite_handoff_respects_authentication_prefix_and_headless_disables_
             .0,
         404
     );
+}
+
+#[tokio::test]
+async fn disabled_providers_do_not_leave_installed_identity_rows_after_user_deletion() {
+    let protocol = mock().await;
+    let server = server(&protocol, "full", false).await;
+    register_local(&server).await;
+    let mut browser = password_browser(&server).await;
+    link_web(&server, &protocol, &mut browser, true).await;
+    resource_cleanup::schema_and_disk(&server).await;
+    App::set_facade_application(Some(server._kernel.get_application()), async {
+        Config::set("user.socialite.providers", json!([])).unwrap();
+        let db = App::make::<openrust::database::DatabaseManager>()
+            .await
+            .unwrap()
+            .connection(None)
+            .unwrap();
+        assert_eq!(
+            db.table("user_social_identities").count("*").await.unwrap(),
+            1
+        );
+    })
+    .await;
+    let token = token(&server).await;
+    let proof = account_request(
+        server.address,
+        &token,
+        "POST",
+        "/api/admin/auth/confirm",
+        json!({"purpose":"delete","password":"long-password-123"}),
+    )
+    .await;
+    assert_eq!(proof.0, 201, "{}", proof.2);
+    let deleted = account_request(
+        server.address,
+        &token,
+        "DELETE",
+        "/api/admin/user",
+        json!({"proof":proof.2["data"]["proof"]}),
+    )
+    .await;
+    assert_eq!(deleted.0, 204, "{}", deleted.2);
+    App::set_facade_application(Some(server._kernel.get_application()), async {
+        let db = App::make::<openrust::database::DatabaseManager>()
+            .await
+            .unwrap()
+            .connection(None)
+            .unwrap();
+        assert_eq!(
+            db.table("user_social_identities").count("*").await.unwrap(),
+            0
+        );
+        assert_eq!(db.table("users").count("*").await.unwrap(), 0);
+    })
+    .await;
 }

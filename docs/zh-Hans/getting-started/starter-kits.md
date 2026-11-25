@@ -689,3 +689,11 @@ export async function completeProvider() {
 API 绑定先取得 `factors` 证明，再向 `/api/user/connected-accounts/{provider}` POST 该证明、`code_challenge` 和白名单内的 `redirect_uri`，在浏览器打开返回的握手 URL。使用同一 PAT 将 code／verifier POST 到 `/api/user/connected-accounts/exchange`，取得身份预览及新的 `challenge`；明确将 `{challenge, confirm: true}` POST 到 `/api/user/connected-accounts/confirm` 才绑定，`false` 为拒绝。确认保留初始证明期限，重新核对发起令牌、账户及用于确认的通行密钥，不要求再次输入密码。GET `/api/user/connected-accounts` 读取启用的供应商和关联状态；DELETE `/api/user/connected-accounts/{provider}` 需要 `account:update` 及新的 `factors` 证明，列表需要 `account:read`。
 
 可选迁移先建立身份表，再允许所选密码列为空。仍有无密码用户时拒绝回滚，保留身份记录及迁移账本。已有可空、默认值、生成列或自定义约束须手动合并；默认迁移仅修改支持的 SQLite／MySQL／MariaDB／PostgreSQL 密码列，其他方言在改列前明确失败。解除本地关联不会删除远程供应商账户。
+
+## 自定义用户身份 {#custom-user-identities}
+
+Eloquent 模型主键可以使用整数、UUID 或 ULID，认证标识也可以使用邮箱等不同字段。两者职责独立：Sanctum 的 `tokenable` 关系按已持久化模型主键解析归属，会话登录按配置的认证标识查找用户。不要为了修复令牌认证而修改登录标识；令牌表的 `tokenable_id` 类型必须与用户主键兼容。
+
+用户使用具名连接时，个人访问令牌模型及资源清理的数据库队列也须明确选中同一连接。沿用生成 Provider 的调用注册实际用户类型，并按业务结构调整注册、资料、重置和注销 Action。安装器保留自定义文件，无法安全识别布局时停止并提示手工位置；发布默认迁移不代表自动转换已有业务表结构。
+
+近期确认和待完成的因素挑战绑定模型、真实主键、连接、表及凭据状态。即使其他认证材料相同，把旧邮箱分配给另一个用户也不会转移已有确认或挑战。关闭 Passkeys 或某个供应商只关闭对应登录及管理选项；注销账户仍清理该用户之前已安装的凭据。
