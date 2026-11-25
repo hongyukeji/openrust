@@ -76,7 +76,7 @@ O01 Activitylog、O02 Horizon、O03 Telescope原生范围、O04 Pennant、O05 Pu
 |---|---|---|
 | Telescope `ClientRequestWatcher::duration` | 固定上游在有正计时时以毫秒向下取整，缺少计时时输出空值。Rust 从现有传输统计输出整数毫秒或 JSON 空值。测试由真实出站 HTTP 与 fake 消费者覆盖。 | 命令与面板展示随完整输出审计核对。 |
 | Telescope `ClientRequestWatcher::input` | 已捕获构建器提供的 multipart 普通字段及 `attach_body` 附件的文件名、长度、头部。普通字段先于附件发送，同名取最后一项，复用请求字段／头部脱敏。原生 `attach` 保留发送契约。 | 原生 reqwest `Part` 元数据和中间件替换流的边界见[包审计](telescope/README.md#出站-multipart)。Query／Gate 来源过滤仍待实现。 |
-| Telescope 非 multipart 出站载荷 | 固定 Watcher 读取 Laravel HTTP Client 的 `Request::data()`，正文和 query 的优先级来自 `parseRequestData`。Rust 目前使用 `RecordedRequest::data()` 合并 JSON／表单正文与 URL query。 | 以真实 GET、JSON／表单 POST、原始正文及失败路径对账，将诊断兼容差异与框架现有 `data()` 消费者区分处理。 |
+| Telescope 非 multipart 出站载荷 | 诊断从原始 GET 地址或结构化正文选择载荷，并与线上 URL 分别记录。已核对 JSON／表单 POST、GET 查询覆盖、HEAD、原始正文与自定义媒体类型。框架 `RecordedRequest::data()` 仍提供既有合并视图。 | 表单原始标量类型、重复表单键、拦截器替换正文和重定向后的诊断选择仍需对账。 |
 | Telescope `FetchesStackTrace`、`QueryWatcher`、`GateWatcher` | 固定上游按路径子串跳过被忽略的帧，再选第一处合格来源。找不到合格帧时 Query 不入库，Gate 仍入库且行号和文件为空。当前原生 `QueryExecuted`、`GateEvaluated` 均没有来源字段。 | 实现并验证原生调用来源的传播，覆盖公开 Facade、直接连接、查询构建器、模型、Gate 入口及框架内部触发。验证筛掉帧后的候选与未知来源策略。 |
 | Pulse 默认 Recorder 清单 | 固定配置的十个 Recorder 均可映射到本地配置。核对了采样率 1、慢操作阈值 1000、异常和慢查询位置开关、默认存储及采集驱动；这一轮只读配置。 | 逐 Recorder 核对触发事件、筛选、采样、聚合、配置覆盖和扩展入口，再核对命令和面板。Servers 主机名上游在配置加载时求值，本地在记录时回退，配置缓存边界待裁决。 |
 | Horizon `horizon:listen` 的 `watch` | 上游发布配置提供默认监听列表。Rust 配置补充应用、启动、配置、数据库、路由、视图、公开目录及资源目录中的 Rust 文件和 Cargo 构建入口的对应监听路径。真实 Artisan 使用默认配置监控 `routes/web.rs`，文件更新后重建 Master 和 Worker，SIGTERM 后子树退出。 | 补 Linux／Windows 目标平台验收。 |
@@ -216,3 +216,11 @@ Provider 按固定 [ExpireSupervisors](https://github.com/laravel/horizon/blob/b
 ### Telescope 出站 multipart 构建器快照
 
 真实回环 HTTP 与 SQLite 应用仓储覆盖上传成功、连接被拒、脱敏、原生 `Part` 兼容及两种重复字段覆盖。服务端检查附件字节、文件名和上传顺序。框架回归验证未知长度流到发送阶段才被读取，正文流只执行一次，快照长度为空。验证使用 `8041ae15a` 加前批和本批文件的隔离快照。Telescope 32 项、框架 HTTP 客户端 20 项、快照全仓格式、框架库及 Telescope 全目标严格 Clippy、三语站点及 12 组浏览器检查通过。Telescope 独立 Redis 用例本批未执行；出站 multipart 未遍历部署数据库或目标平台。保留原生 `Part`、预格式化输入与中间件替换流的差异，见[包审计](telescope/README.md#出站-multipart)。
+
+### Telescope 非 multipart 出站诊断载荷
+
+在 PHP 8.5.12 容器里运行固定 [Laravel PendingRequest](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Client/PendingRequest.php) 和 [Request](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Client/Request.php)，用 Guzzle MockHandler 观察真实 `beforeSending` 回调。9 组用例确认 JSON／表单正文不会混入 URL 查询，普通 GET 使用传入地址的 query，`withQueryParameters` 修改线上地址，HEAD 及不透明原始正文的载荷为空，原始 JSON 可以解码，JSON 构建器覆盖媒体类型仍保留结构化正文。参考日志为 `target/tmp/observability-parity/diagnostic-payload-upstream.log`。
+
+Telescope 改用 `RecordedRequest::diagnostic_data()`，失败事件复用同一载荷选择，完全脱敏时清除诊断查询与正文。PHP 另行验证表单源数据 `{"flag":false,"count":2}` 原样保留，Rust 目前从线上缓冲表单解码得到字符串。表单原始类型、重定向和中间件修改行为仍需对账。公开结构体新增 `diagnostic_source`，完整字面量需补齐字段。
+
+隔离快照沿用 `8041ae15a` 加前批和本批文件。真实回环 HTTP 和 SQLite 仓储对照线上 URL、JSON／表单、HEAD、原始正文、媒体类型覆盖、连接被拒和完全脱敏。Telescope 32 项、框架 HTTP 客户端 20 项、快照全仓格式、框架库及 Telescope 全目标严格 Clippy、三语站点及 12 组浏览器检查通过。Telescope 独立 Redis 用例本批未执行。

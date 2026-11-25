@@ -763,7 +763,7 @@ fn client_content(
     use openrust::http::client::RecordedMultipartField;
 
     let payload = request.multipart.as_ref().map_or_else(
-        || request.data().unwrap_or(json!({})),
+        || request.diagnostic_data(),
         |fields| {
             Value::Object(
                 fields

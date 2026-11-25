@@ -1529,6 +1529,70 @@ fn client_handler(
         );
         let failed = request.headers()["x-failed-url"].to_str().unwrap();
         assert!(multipart().post(failed, &data).await.is_err());
+        assert!(Http::get(url).await.unwrap().ok());
+        assert!(
+            Http::pending_request()
+                .unwrap()
+                .with_body("opaque", http::HeaderValue::from_static("text/plain"))
+                .get(url)
+                .await
+                .unwrap()
+                .ok()
+        );
+        assert!(Http::post(failed, &json!({"failed": true})).await.is_err());
+        for url in [url, url.split('?').next().unwrap()] {
+            assert!(
+                Http::pending_request()
+                    .unwrap()
+                    .with_query_parameters([("override".into(), "yes".into())])
+                    .get(url)
+                    .await
+                    .unwrap()
+                    .ok()
+            );
+        }
+        assert!(
+            Http::pending_request()
+                .unwrap()
+                .head(url)
+                .await
+                .unwrap()
+                .ok()
+        );
+        assert!(
+            Http::pending_request()
+                .unwrap()
+                .with_body(
+                    r#"{"raw":true}"#,
+                    http::HeaderValue::from_static("application/json")
+                )
+                .send(http::Method::POST, url)
+                .await
+                .unwrap()
+                .ok()
+        );
+        assert!(
+            Http::pending_request()
+                .unwrap()
+                .with_headers(http::HeaderMap::from_iter([(
+                    http::header::CONTENT_TYPE,
+                    http::HeaderValue::from_static("text/plain"),
+                )]))
+                .post(url, &json!({"typed":true}))
+                .await
+                .unwrap()
+                .ok()
+        );
+        assert!(
+            Http::pending_request()
+                .unwrap()
+                .with_query_parameters([("override".into(), "yes".into())])
+                .redact_payload()
+                .get(url)
+                .await
+                .unwrap()
+                .ok()
+        );
         Ok(openrust::http::Response::from("observed"))
     })
 }
@@ -1539,7 +1603,7 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
     let origin = tokio::spawn(async move {
-        for index in 0..4 {
+        for index in 0..12 {
             let (mut socket, _) = listener.accept().await.unwrap();
             let mut bytes = Vec::new();
             loop {
@@ -1557,7 +1621,13 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
                         })
                         .unwrap_or(0);
                     if bytes.len() >= end + 4 + size {
-                        if index >= 2 {
+                        if (6..8).contains(&index) || index == 11 {
+                            assert!(headers.starts_with("get /outgoing?override=yes "));
+                        }
+                        if index == 10 {
+                            assert!(headers.contains("content-type: text/plain"));
+                        }
+                        if (2..4).contains(&index) {
                             let body = &bytes[end + 4..];
                             assert!(headers.contains("multipart/form-data; boundary="));
                             assert!(body.windows(1500).any(|bytes| bytes == [255_u8; 1500]));
@@ -1617,7 +1687,34 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
         .get(Some(EntryType::ClientRequest), EntryQueryOptions::default())
         .await
         .unwrap();
-    assert_eq!(entries.len(), 5);
+    assert_eq!(entries.len(), 14);
+    assert_eq!(entries[0].content["payload"], json!([]));
+    assert!(!entries[0].content["uri"].as_str().unwrap().contains('?'));
+    let entries = &entries[1..];
+    assert_eq!(entries[0].content["payload"], json!({"typed":true}));
+    assert_eq!(entries[1].content["payload"], json!({"raw":true}));
+    assert_eq!(entries[2].content["method"], "HEAD");
+    assert_eq!(entries[2].content["payload"], json!([]));
+    let entries = &entries[3..];
+    assert!(
+        entries[0].content["uri"]
+            .as_str()
+            .unwrap()
+            .ends_with("?override=yes")
+    );
+    assert_eq!(
+        entries[1].content["payload"],
+        json!({"same":"query","query":"value"})
+    );
+    assert!(entries[2].content["response_status"].is_null());
+    assert_eq!(entries[2].content["payload"], json!({"failed":true}));
+    assert_eq!(entries[3].content["method"], "GET");
+    assert_eq!(entries[3].content["payload"], json!([]));
+    assert_eq!(entries[4].content["method"], "GET");
+    assert_eq!(
+        entries[4].content["payload"],
+        json!({"same":"query","query":"value"})
+    );
     let multipart: Vec<_> = entries
         .iter()
         .filter(|entry| {
@@ -1635,7 +1732,7 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
     assert!(!multipart[1].content["uri"].as_str().unwrap().contains('?'));
     assert_eq!(multipart[2].content["payload"], payload);
     assert_eq!(multipart[2].content["response_status"], 200);
-    let entries = &entries[3..];
+    let entries = &entries[8..];
     assert!(entries.iter().all(|entry| {
         entry.content["response"] == json!({"token":"********","value":true})
             && entry.content["response_status"] == 200
@@ -1647,7 +1744,7 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
         entries
             .iter()
             .all(|entry| entry.content["payload"]["secret"] == "********"
-                && entry.content["payload"]["query"] == "value")
+                && entry.content["payload"].get("query").is_none())
     );
     assert_eq!(entries[0].content["payload"]["same"], "form");
     assert_eq!(entries[1].content["payload"]["same"], "body");

@@ -50,8 +50,17 @@ pub struct RecordedRequest {
     pub headers: HeaderMap,
     pub body: Option<Vec<u8>>,
     pub attributes: serde_json::Map<String, serde_json::Value>,
+    /// 诊断载荷的来源。
+    pub diagnostic_source: Option<RecordedRequestDataSource>,
     /// 构建器提供的 multipart 字段快照。不会读取正文流。
     pub multipart: Option<Arc<std::collections::BTreeMap<String, RecordedMultipartField>>>,
+}
+
+#[derive(Clone)]
+pub enum RecordedRequestDataSource {
+    Query(Arc<str>),
+    Form,
+    Json,
 }
 
 #[derive(Clone)]
@@ -70,29 +79,11 @@ impl RecordedRequest {
         use serde_json::Value;
         let query =
             crate::http::request::query::parse(self.url.query().unwrap_or_default()).ok()?;
-        let media = self
-            .headers
-            .get(http::header::CONTENT_TYPE)
-            .and_then(|value| value.to_str().ok())
-            .and_then(|value| value.split(';').next())
-            .unwrap_or_default()
-            .trim();
-        let body = self
-            .body
-            .as_deref()
-            .filter(|body| !body.is_empty())
-            .and_then(|body| {
-                if media.eq_ignore_ascii_case("application/x-www-form-urlencoded") {
-                    std::str::from_utf8(body)
-                        .ok()
-                        .and_then(|body| crate::http::request::query::parse_form(body).ok())
-                } else if media.eq_ignore_ascii_case("application/json") || media.ends_with("+json")
-                {
-                    serde_json::from_slice(body).ok()
-                } else {
-                    None
-                }
-            });
+        let media = self.media_type();
+        let body = self.decode_body_fields(
+            media.eq_ignore_ascii_case("application/x-www-form-urlencoded"),
+            media.eq_ignore_ascii_case("application/json") || media.ends_with("+json"),
+        );
         match (body, query) {
             (Some(Value::Object(mut body)), Value::Object(query)) => {
                 for (key, value) in query {
@@ -102,6 +93,54 @@ impl RecordedRequest {
             }
             (Some(body), _) => Some(body),
             (_, query) => Some(query),
+        }
+    }
+
+    /// 按出站诊断的规则读取 JSON、表单或 GET 参数，不读取正文流。
+    pub fn diagnostic_data(&self) -> serde_json::Value {
+        let content_types = self.headers.get_all(http::header::CONTENT_TYPE);
+        let is_form = content_types
+            .iter()
+            .any(|value| value == "application/x-www-form-urlencoded");
+        let is_json = content_types
+            .iter()
+            .next()
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|value| value.contains("json"));
+        let data = match &self.diagnostic_source {
+            Some(RecordedRequestDataSource::Query(query)) => {
+                crate::http::request::query::parse(query).ok()
+            }
+            Some(RecordedRequestDataSource::Form) => self.decode_body_fields(true, false),
+            Some(RecordedRequestDataSource::Json) => self.decode_body_fields(false, true),
+            None => self.decode_body_fields(is_form, is_json),
+        };
+        match data {
+            Some(serde_json::Value::Object(fields)) if fields.is_empty() => serde_json::json!([]),
+            Some(data) if !data.is_null() => data,
+            _ => serde_json::json!([]),
+        }
+    }
+
+    fn media_type(&self) -> &str {
+        self.headers
+            .get(http::header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.split(';').next())
+            .unwrap_or_default()
+            .trim()
+    }
+
+    fn decode_body_fields(&self, form: bool, json: bool) -> Option<serde_json::Value> {
+        let body = self.body.as_deref().filter(|body| !body.is_empty())?;
+        if form {
+            std::str::from_utf8(body)
+                .ok()
+                .and_then(|body| crate::http::request::query::parse_form(body).ok())
+        } else if json {
+            serde_json::from_slice(body).ok()
+        } else {
+            None
         }
     }
 }
@@ -165,6 +204,14 @@ impl From<&reqwest::Request> for RecordedRequest {
                 .and_then(reqwest::Body::as_bytes)
                 .map(<[u8]>::to_vec),
             attributes: Default::default(),
+            diagnostic_source: if request.method() == Method::GET && request.body().is_none() {
+                request
+                    .url()
+                    .query()
+                    .map(|query| RecordedRequestDataSource::Query(Arc::from(query)))
+            } else {
+                None
+            },
             multipart: None,
         }
     }

@@ -6,7 +6,8 @@ use serde_json::{Map, Value};
 use tokio::time::Instant;
 
 use super::{
-    Error, Factory, RecordedMultipartField, RecordedRequest, Response, Result,
+    Error, Factory, RecordedMultipartField, RecordedRequest, RecordedRequestDataSource, Response,
+    Result,
     digest::DigestCredentials,
     events::{ConnectionFailed, ConnectionFailure, RequestSending, ResponseReceived},
     pending_request::RequestMiddleware,
@@ -19,6 +20,8 @@ pub(super) struct Transport<'a> {
     pub before_sending: &'a [Box<RequestMiddleware>],
     pub attributes: &'a Map<String, Value>,
     pub multipart: Option<(Arc<BTreeMap<String, RecordedMultipartField>>, HeaderValue)>,
+    pub query_override: Option<(url::Url, Option<RecordedRequestDataSource>)>,
+    pub diagnostic_source: Option<RecordedRequestDataSource>,
     pub redact_payload: bool,
     pub redact_response: bool,
     pub digest: Option<&'a DigestCredentials>,
@@ -191,9 +194,21 @@ impl Transport<'_> {
 
     fn snapshot(&self, request: &Request) -> RecordedRequest {
         let mut snapshot = RecordedRequest::from(request);
+        if request.method() == Method::GET
+            && request.body().is_none()
+            && let Some((url, original_query)) = &self.query_override
+            && request.url() == url
+        {
+            snapshot.diagnostic_source.clone_from(original_query);
+        } else if snapshot.body.is_some() && request.url().origin() == self.digest_origin {
+            snapshot
+                .diagnostic_source
+                .clone_from(&self.diagnostic_source);
+        }
         snapshot.attributes.clone_from(self.attributes);
         if self.redact_payload {
             snapshot.url.set_query(None);
+            snapshot.diagnostic_source = None;
             snapshot.body = None;
             snapshot.headers.remove(header::AUTHORIZATION);
         } else if let Some((fields, content_type)) = &self.multipart

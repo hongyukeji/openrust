@@ -9,7 +9,10 @@ use super::factory::{
 };
 use super::transport::Transport;
 use super::uri_template;
-use super::{BatchResults, Error, Factory, Form, Pool, RecordedMultipartField, Response, Result};
+use super::{
+    BatchResults, Error, Factory, Form, Pool, RecordedMultipartField, RecordedRequestDataSource,
+    Response, Result,
+};
 
 pub(super) type RequestMiddleware = dyn Fn(&mut reqwest::Request) -> Result<()> + Send + Sync;
 type ResponseMiddleware = dyn Fn(Response) -> Result<Response> + Send + Sync;
@@ -555,7 +558,11 @@ impl PendingRequest {
         let target = uri_template::expand(self.base_url.as_deref(), url, &self.uri_parameters)?;
         let base = self.base_url.as_deref().map(uri_template::escape_braces);
         let mut url = parse_url(base.as_deref(), &target)?;
+        let mut query_override = None;
         if !self.query.is_empty() {
+            let original_query = url
+                .query()
+                .map(|query| RecordedRequestDataSource::Query(Arc::from(query)));
             let mut encoder = url::form_urlencoded::Serializer::new(String::new());
             encoder.extend_pairs(self.query);
             let query = encoder
@@ -564,12 +571,22 @@ impl PendingRequest {
                 .replace('*', "%2A")
                 .replace("%7E", "~");
             url.set_query(Some(&query));
+            if method == Method::GET {
+                query_override = Some((url.clone(), original_query));
+            }
         }
         let mut request = client.request(method, url).headers(self.headers);
         let mut multipart = None;
+        let mut diagnostic_source = None;
         request = match (self.payload, data) {
-            (Payload::Json, Some(data)) => request.json(data),
-            (Payload::Form, Some(data)) => request.form(data),
+            (Payload::Json, Some(data)) => {
+                diagnostic_source = Some(RecordedRequestDataSource::Json);
+                request.json(data)
+            }
+            (Payload::Form, Some(data)) => {
+                diagnostic_source = Some(RecordedRequestDataSource::Form);
+                request.form(data)
+            }
             (Payload::Raw(body), _) => request.body(body),
             (Payload::Multipart(parts), data) => {
                 let mut form = Form::new();
@@ -636,6 +653,8 @@ impl PendingRequest {
             before_sending: &self.before_sending,
             attributes: &self.attributes,
             multipart,
+            query_override,
+            diagnostic_source,
             redact_payload: self.redact_payload,
             redact_response: self.redact_response,
             digest: self.digest.as_ref(),

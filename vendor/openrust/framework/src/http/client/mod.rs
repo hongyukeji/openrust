@@ -17,7 +17,9 @@ mod uri_template;
 pub use batch::{Batch, BatchProgress, BatchResults};
 pub use body::ResponseResource;
 pub use facade::{Http, HttpClientServiceProvider};
-pub use factory::{Factory, RecordedMultipartField, RecordedRequest, ResponseSequence};
+pub use factory::{
+    Factory, RecordedMultipartField, RecordedRequest, RecordedRequestDataSource, ResponseSequence,
+};
 pub use middleware::{Middleware, Next};
 pub use pending_request::PendingRequest;
 pub use pool::Pool;
