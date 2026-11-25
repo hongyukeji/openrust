@@ -1,7 +1,0 @@
-# 业务服务
-
-把 HTTP、Artisan 或队列可以共同调用的业务流程放在这里，例如 `user_service.rs` 中的资料变更流程。服务协调模型、数据访问和通知等依赖，决定哪些写入需要放进同一事务，以及后续动作何时执行。
-
-用构造函数接收依赖。需要容器解析时，在应用 Provider 中装配。数据库筛选和持久化细节归[数据访问](../repositories/README.md)。
-
-从 [`service.rs`](service.rs) 导入 `TransactionalService`。参照 [`user_service.rs`](user_service.rs) 选择数据库连接，沿用默认事务执行，并将调用方的事务传给仓储与模型。
