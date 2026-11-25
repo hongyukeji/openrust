@@ -5,10 +5,14 @@ use serde::Deserialize;
 use serde_json::Value;
 use zeroize::Zeroizing;
 
-use super::{Endpoint, field, http_status, secret, sightengine_image::ImageService};
+use super::{
+    Endpoint, field, http_status, secret, sightengine_image::ImageService,
+    sightengine_video::VideoService,
+};
 use crate::{
     Assessment, Confidence, Coverage, Decision, Finding, ImageInput, Modality, ModerationDriver,
-    ModerationError, ModerationFuture, ModerationResult, Operation, TextInput,
+    ModerationError, ModerationFuture, ModerationResult, Operation, TaskId, TaskStatus, TextInput,
+    VideoInput,
 };
 
 const RULE_LANGUAGES: &[&str] = &[
@@ -38,6 +42,7 @@ pub(super) struct Sightengine {
     secret: Zeroizing<String>,
     text: Option<TextService>,
     image: Option<ImageService>,
+    video: Option<VideoService>,
 }
 
 struct TextService {
@@ -62,8 +67,9 @@ impl Sightengine {
         profile: &Value,
     ) -> ModerationResult<Self> {
         let text = TextService::configured(http.clone(), profile)?;
-        let image = ImageService::configured(http, storage, profile)?;
-        if text.is_none() && image.is_none() {
+        let image = ImageService::configured(http.clone(), storage.clone(), profile)?;
+        let video = VideoService::configured(http, storage, profile)?;
+        if text.is_none() && image.is_none() && video.is_none() {
             return Err(ModerationError::InvalidConfiguration(
                 "sightengine services",
             ));
@@ -75,6 +81,7 @@ impl Sightengine {
                 .ok_or(ModerationError::InvalidConfiguration("api_secret_env"))?,
             text,
             image,
+            video,
         })
     }
 }
@@ -151,7 +158,9 @@ impl ModerationDriver for Sightengine {
         match operation {
             Operation::Text => self.text.is_some(),
             Operation::Image => self.image.is_some(),
-            _ => false,
+            Operation::SubmitVideo | Operation::QueryVideo | Operation::CancelVideo => {
+                self.video.is_some()
+            }
         }
     }
 
@@ -209,6 +218,36 @@ impl ModerationDriver for Sightengine {
                 .as_ref()
                 .ok_or(ModerationError::Unsupported(Operation::Image))?;
             image.assess(&self.user, &self.secret, input).await
+        })
+    }
+
+    fn submit_video<'a>(&'a self, input: &'a VideoInput) -> ModerationFuture<'a, TaskId> {
+        Box::pin(async move {
+            self.video
+                .as_ref()
+                .ok_or(ModerationError::Unsupported(Operation::SubmitVideo))?
+                .submit(&self.user, &self.secret, input)
+                .await
+        })
+    }
+
+    fn query_video<'a>(&'a self, id: &'a TaskId) -> ModerationFuture<'a, TaskStatus> {
+        Box::pin(async move {
+            self.video
+                .as_ref()
+                .ok_or(ModerationError::Unsupported(Operation::QueryVideo))?
+                .query(&self.user, &self.secret, id)
+                .await
+        })
+    }
+
+    fn cancel_video<'a>(&'a self, id: &'a TaskId) -> ModerationFuture<'a, ()> {
+        Box::pin(async move {
+            self.video
+                .as_ref()
+                .ok_or(ModerationError::Unsupported(Operation::CancelVideo))?
+                .cancel(&self.user, &self.secret, id)
+                .await
         })
     }
 }

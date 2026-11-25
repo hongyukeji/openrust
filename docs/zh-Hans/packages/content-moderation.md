@@ -76,6 +76,12 @@
 
 驱动将响应中的画面、语音和 OCR 证据按原件时间轴转换为毫秒。没有完整覆盖证明时，仍按部分覆盖处理。 [提交](https://cloud.tencent.com/document/api/1265/80017) · [查单](https://cloud.tencent.com/document/product/1265/80016) · [取消](https://cloud.tencent.com/document/api/1265/80018)
 
+## Sightengine 点播视频 {#sightengine-video}
+
+在具名 `sightengine` 配置填写 `video_models` 和 `video_review_score`，启用 OCR 时另填 `video_text_categories`。`video_max_duration` 默认 1,800 秒，套餐允许时可设至 3,600 秒。用 `media_disk` 和 `media_origin` 指定版本化私有素材来源。
+
+`submit_video()` 返回媒体 ID，用原具名配置查询或停止任务。完成状态可能来自时长限制或对部分帧的采样。异步入口只报告已取得的画面和 OCR 证据，语音覆盖保持缺失。HTTP 客户端的诊断事件从查询串及停止请求正文中省略凭据。 [异步视频](https://sightengine.com/docs/moderate-stored-video-asynchronously) · [任务操作](https://sightengine.com/docs/interact-with-video-moderation-jobs)
+
 ## 自定义驱动 {#custom-drivers}
 
 以下示例将文本送人工复核。在包 Provider 之后注册示例 Provider，HTTP、Artisan 和 Worker 都可解析相同的具名配置。

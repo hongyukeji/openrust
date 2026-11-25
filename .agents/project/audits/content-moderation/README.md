@@ -122,3 +122,9 @@
 查单请求 `ShowAllSegments`。从回传结果提取画面、OCR、语音分数及原件时间轴，画面偏移按秒转换，音频分片时长和内部起止时间按毫秒叠加。总建议及明细只会提高风险，已收到的片段仍为部分覆盖。响应中的结果文件链接、原文及账号凭据均不进入结果或日志；远端片段明细文件与签名回调另行核对。 [数据结构](https://cloud.tencent.com/document/api/1265/80019)
 
 基线 `e6f216055`，Rust 1.94.0。真实 HTTP、Artisan 与独立 SQLite 数据库 Worker 触发 5 次提交、21 次查单及 2 次取消，回环替身逐次独立验证 TC3。SeaweedFS 4.53 真实读取同键有声／无声两个 MP4 版本并核对 bytes。验证配置／路由缓存、关联 UUID、待处理取消／重复取消／运行竞态、错任务和错策略、覆盖、毫秒证据、限流与脱敏。队列表消费完成，Worker 与 HTTP 输出一致。腾讯文本、图片和阿里云点播的消费者回归、3 个包契约、全工作区格式、应用与审核包严格 Clippy、三语文档检查均通过。真实腾讯云策略、下载行为、结果明细、回调、质量及费用继续按 CM-03／CM-04 验收。
+
+## CM-03C Sightengine 点播提交、查单与停止 {#sightengine-video}
+
+使用 `/1.0/video/check.json` 的表单 POST 送审私有 S3 版本，返回 `med_` 媒体 ID。查单用 `GET /1.0/video/byid.json`，停止使用 DELETE 的表单体，均按公开协议发送账号凭据。复用 HTTP Client 的出站快照脱敏，事件不含实际查询串或正文。结果核对媒体身份与进度。视频与图片共用视觉、OCR 模型契约；帧位置转换为原件毫秒，不输出 OCR 原文。异步响应可能因时长限制提前完成，也可能只覆盖抽样帧，画面和 OCR 保持部分，语音保持缺失。官方语音审核另有同步入口。 [异步点播](https://sightengine.com/docs/moderate-stored-video-asynchronously) · [查单和停止](https://sightengine.com/docs/interact-with-video-moderation-jobs) · [语音](https://sightengine.com/docs/audio-moderation-model)
+
+基线 `a8d0e2206`，Rust 1.94.0。本地协议替身通过真实 HTTP、Artisan、独立 SQLite Worker 收到 4 次提交、12 次查单、1 次停止。读取有声、无声两个真实 MP4 的私有版本，核对文件原文、模型和限时参数。覆盖了坏 ID、身份不符、未知进度／状态、限流、拒绝访问、跨版本及无完整覆盖时的门禁。真实 `RequestSending` 事件监听逐次验证 GET 查询串和 DELETE 请求体已脱敏。Sightengine 文本／图片、腾讯云点播消费者回归、3 个包契约、全工作区格式、包及验收应用严格 Clippy 与三语检查均通过。账号级回调密钥、真实视频语音路径、套餐和供应商效果继续按计划验收。

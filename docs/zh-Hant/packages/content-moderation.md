@@ -76,6 +76,12 @@
 
 驅動將回應中的畫面、語音和 OCR 證據依原件時間軸轉成毫秒。缺少完整涵蓋證明時仍保留部分涵蓋。 [提交](https://cloud.tencent.com/document/api/1265/80017) · [查詢](https://cloud.tencent.com/document/product/1265/80016) · [取消](https://cloud.tencent.com/document/api/1265/80018)
 
+## Sightengine 隨選影片 {#sightengine-video}
+
+在具名 `sightengine` 設定填寫 `video_models` 和 `video_review_score`，啟用 OCR 時另填 `video_text_categories`。`video_max_duration` 預設 1,800 秒，方案允許時可設至 3,600 秒。使用 `media_disk` 與 `media_origin` 指定版本化私人素材來源。
+
+`submit_video()` 傳回媒體 ID，用原具名設定查詢或停止工作。完成狀態可能來自時長限制或部分影格取樣。非同步入口只報告已取得的畫面和 OCR 證據，語音維持涵蓋缺失。HTTP 用戶端的診斷事件從查詢字串及停止請求正文中省略憑證。 [非同步影片](https://sightengine.com/docs/moderate-stored-video-asynchronously) · [工作操作](https://sightengine.com/docs/interact-with-video-moderation-jobs)
+
 ## 自訂驅動 {#custom-drivers}
 
 以下範例會將文字送人工複核。在套件 Provider 之後註冊範例 Provider，HTTP、Artisan 和 Worker 都可解析相同的具名設定。

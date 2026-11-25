@@ -7,10 +7,16 @@ use openrust::{
         Application as Artisan, Command, CommandDefinition, ConsoleError, ConsoleFuture, Input,
         Output,
     },
-    contracts::{container::Container as _, foundation::Application as _, queue::JobHandler},
+    contracts::{
+        container::Container as _,
+        events::{Event as EventPayload, Listener},
+        foundation::Application as _,
+        queue::JobHandler,
+    },
     database::migrations::MigrationEntry,
+    events::{Delivery, Dispatcher, EventContext, EventFuture, EventResult, ListenerResponse},
     foundation::Application,
-    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    http::{HttpError, HttpFuture, Request, Response, StatusCode, client::events::RequestSending},
     queue::{DispatchOptions, JobContext, Payload, QueueError, QueueFuture, QueueResult},
     support::{ProviderResult, ServiceProvider, facades::Queue},
 };
@@ -25,6 +31,7 @@ use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 const JOB: &str = "moderation.fixture.query";
 const ALIYUN_JOB: &str = "moderation.fixture.aliyun-query";
 const TENCENT_JOB: &str = "moderation.fixture.tencent-query";
+const SIGHTENGINE_JOB: &str = "moderation.fixture.sightengine-query";
 
 pub(super) fn configuration(env: &Environment) -> Result<Value, ConfigError> {
     let mut configuration = json!({"default":"comments","drivers":{
@@ -121,6 +128,15 @@ pub(super) fn configuration(env: &Environment) -> Result<Value, ConfigError> {
         }
         configuration["drivers"]["sightengine-images"] = image;
     }
+    if let Some(endpoint) = env.get_utf8("MODERATION_FIXTURE_SIGHTENGINE_VIDEO")? {
+        configuration["drivers"]["sightengine-videos"] = json!({
+            "driver":"sightengine", "base_url":endpoint, "api_user_env":"FIXTURE_SIGHTENGINE_USER",
+            "api_secret_env":"FIXTURE_SIGHTENGINE_SECRET", "timeout_ms":2500,
+            "media_disk":"s3", "media_origin":env.get_utf8("MODERATION_FIXTURE_IMAGE_ORIGIN")?,
+            "video_models":["violence","text-content-2.0"], "video_text_categories":["email"],
+            "video_review_score":0.8, "video_max_duration":900,
+        });
+    }
     if let Some(endpoint) = env.get_utf8("MODERATION_FIXTURE_HIVE")? {
         configuration["drivers"]["hive-text"] = json!({
             "driver":"hive", "base_url":endpoint, "token_env":"FIXTURE_HIVE_TOKEN",
@@ -175,6 +191,20 @@ impl ServiceProvider for ExternalProvider {
             Queue::register(JOB, Arc::new(Query))?;
             Queue::register(ALIYUN_JOB, Arc::new(ProviderVideoQuery("aliyun-videos")))?;
             Queue::register(TENCENT_JOB, Arc::new(ProviderVideoQuery("tencent-videos")))?;
+            Queue::register(
+                SIGHTENGINE_JOB,
+                Arc::new(ProviderVideoQuery("sightengine-videos")),
+            )?;
+            if let Some(path) = std::env::var_os("MODERATION_EVENT_OBSERVATIONS") {
+                app.container().make::<Dispatcher>()?.register(|registry| {
+                    registry.listen(
+                        r"OpenRust\Http\Client\Events\RequestSending",
+                        Arc::new(ObserveJobRequest(PathBuf::from(path))),
+                        Delivery::Sync,
+                    )?;
+                    Ok(())
+                })?;
+            }
             Ok(())
         })
     }
@@ -186,6 +216,36 @@ impl ServiceProvider for ExternalProvider {
                 &jobs::Definition,
             )];
             self.load_migrations_from(app, ENTRIES).await
+        })
+    }
+}
+
+struct ObserveJobRequest(PathBuf);
+
+impl Listener for ObserveJobRequest {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn EventPayload,
+        _: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            use std::io::Write as _;
+
+            let event = event
+                .downcast_ref::<RequestSending>()
+                .expect("fixture HTTP event");
+            if event.request.url.path() == "/1.0/video/byid.json" {
+                assert!(event.request.url.query().is_none());
+                assert!(event.request.body.is_none());
+                assert!(event.request.diagnostic_source.is_none());
+                let mut file = std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(&self.0)
+                    .expect("fixture event file");
+                writeln!(file, "{}", event.request.method).expect("fixture event record");
+            }
+            Ok(None)
         })
     }
 }
@@ -339,6 +399,12 @@ pub(super) fn tencent_video_route(
     request: &mut Request,
 ) -> HttpFuture<'_, Result<Response, HttpError>> {
     video_route(request, "tencent-videos")
+}
+
+pub(super) fn sightengine_video_route(
+    request: &mut Request,
+) -> HttpFuture<'_, Result<Response, HttpError>> {
+    video_route(request, "sightengine-videos")
 }
 
 fn video_route<'a>(
@@ -666,6 +732,11 @@ pub(super) fn register_command(artisan: &mut Artisan) -> Result<(), ConsoleError
             "drivers:moderation-tencent-video",
             "tencent-videos",
             TENCENT_JOB,
+        ),
+        (
+            "drivers:moderation-sightengine-video",
+            "sightengine-videos",
+            SIGHTENGINE_JOB,
         ),
     ] {
         artisan.add_command(Box::new(NamedVideoProbe(

@@ -6,6 +6,8 @@ mod hive_ocr;
 mod media;
 mod sightengine;
 mod sightengine_image;
+mod sightengine_models;
+mod sightengine_video;
 mod tencent;
 mod tencent_image;
 mod tencent_video;
@@ -119,8 +121,29 @@ impl Endpoint {
         body: String,
         media_type: &'static str,
     ) -> ModerationResult<Response> {
-        self.post(headers, |request| {
+        self.send_encoded(Method::POST, headers, body, media_type)
+            .await
+    }
+
+    async fn send_encoded(
+        &self,
+        method: Method,
+        headers: HeaderMap,
+        body: String,
+        media_type: &'static str,
+    ) -> ModerationResult<Response> {
+        self.send(method, headers, |request| {
             request.with_body(body, HeaderValue::from_static(media_type))
+        })
+        .await
+    }
+
+    async fn get_fields(
+        &self,
+        parameters: impl IntoIterator<Item = (String, String)>,
+    ) -> ModerationResult<Response> {
+        self.send(Method::GET, HeaderMap::new(), |request| {
+            request.with_query_parameters(parameters)
         })
         .await
     }
@@ -130,7 +153,7 @@ impl Endpoint {
         headers: HeaderMap,
         parts: Vec<(&'static str, Part)>,
     ) -> ModerationResult<Response> {
-        self.post(headers, |request| {
+        self.send(Method::POST, headers, |request| {
             parts
                 .into_iter()
                 .fold(request.as_multipart(), |request, (name, part)| {
@@ -140,8 +163,9 @@ impl Endpoint {
         .await
     }
 
-    async fn post(
+    async fn send(
         &self,
+        method: Method,
         headers: HeaderMap,
         payload: impl FnOnce(PendingRequest) -> PendingRequest,
     ) -> ModerationResult<Response> {
@@ -157,7 +181,7 @@ impl Endpoint {
                     .timeout(self.timeout)
                     .max_response_bytes(1024 * 1024)
                     .with_headers(headers);
-                payload(request).send(Method::POST, self.url.as_str()).await
+                payload(request).send(method, self.url.as_str()).await
             })
             .await
             .map_err(|error| match error {

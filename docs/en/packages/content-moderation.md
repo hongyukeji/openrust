@@ -76,6 +76,12 @@ Submit with `submit_video()` and query the returned task ID through the same pro
 
 The driver reports in-response frame, speech and OCR findings in milliseconds on the source timeline. The result retains partial coverage when the API cannot prove that the whole media and its required modalities were reviewed. [Create task](https://cloud.tencent.com/document/api/1265/80017) · [Query](https://cloud.tencent.com/document/product/1265/80016) · [Cancel](https://cloud.tencent.com/document/api/1265/80018)
 
+## Sightengine video {#sightengine-video}
+
+Set `video_models` and `video_review_score` for a named `sightengine` profile. Use `video_text_categories` when the OCR model is enabled. `video_max_duration` defaults to 1,800 seconds and accepts values up to 3,600 seconds where your plan permits. Configure `media_disk` and `media_origin` for the versioned private source.
+
+`submit_video()` returns a media ID. Use the same profile to query the job or stop it. A finished job can reflect a duration limit or sampled frames. The async path reports only the visual and OCR evidence it received, and speech coverage remains unavailable. The HTTP client's diagnostics redact the service credentials from the outgoing query and stop body. [Async video](https://sightengine.com/docs/moderate-stored-video-asynchronously) · [Job operations](https://sightengine.com/docs/interact-with-video-moderation-jobs)
+
 ## Custom drivers {#custom-drivers}
 
 This example sends every text assessment to manual review. Register its provider after the package provider so HTTP, Artisan, and Workers can resolve the same named profiles.
