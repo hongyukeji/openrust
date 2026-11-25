@@ -1515,6 +1515,7 @@ fn client_handler(
             ),
         ]);
         let multipart = || {
+            use openrust::http::client::Part;
             Http::pending_request()
                 .unwrap()
                 .attach_body(
@@ -1538,7 +1539,20 @@ fn client_handler(
                     Default::default(),
                     None,
                 )
-                .attach("opaque", openrust::http::client::Part::text("native"))
+                .attach("opaque", Part::text("native").file_name("label.txt"))
+                .attach("utf8-bytes", Part::bytes(b"native-bytes".as_slice()))
+                .attach("anonymous", Part::stream_with_length("native-stream", 13))
+                .attach(
+                    "binary",
+                    Part::bytes(vec![254, 255])
+                        .file_name("raw.bin")
+                        .mime_str("application/octet-stream")
+                        .unwrap()
+                        .headers(http::HeaderMap::from_iter([(
+                            http::HeaderName::from_static("x-secret"),
+                            http::HeaderValue::from_static("native-private"),
+                        )])),
+                )
         };
         let data = json!({"same":"multipart","secret":"private","enabled":true,"optional":null});
         assert_eq!(
@@ -1772,13 +1786,21 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
                             let body = &bytes[end + 4..];
                             assert!(headers.contains("multipart/form-data; boundary="));
                             assert!(body.windows(1500).any(|bytes| bytes == [255_u8; 1500]));
+                            assert!(body.windows(6).any(|bytes| bytes == b"\r\n\xfe\xff\r\n"));
                             let body = String::from_utf8_lossy(body);
                             assert!(body.contains("filename=\"file.bin\""));
                             if matches!(index, 20 | 21) {
                                 assert!(body.contains("filename=\"upload.txt\""));
                                 assert!(body.contains("file-source-bytes"));
                             }
-                            assert!(body.contains("name=\"opaque\"\r\n\r\nnative"));
+                            assert!(
+                                body.contains(
+                                    "name=\"opaque\"; filename=\"label.txt\"\r\n\r\nnative"
+                                )
+                            );
+                            assert!(body.contains("name=\"utf8-bytes\"\r\n\r\nnative-bytes"));
+                            assert!(body.contains("name=\"anonymous\"\r\n\r\nnative-stream"));
+                            assert!(body.contains("filename=\"raw.bin\""));
                             assert!(body.contains("name=\"same\"\r\n\r\nmultipart"));
                             assert!(
                                 body.find("name=\"same\"\r\n\r\nmultipart").unwrap()
@@ -1858,8 +1880,15 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
         .await
         .unwrap();
     assert_eq!(entries.len(), 22);
-    let payload = json!({"same":{"name":"replaced.txt","size":"0.008KB","headers":[]},"secret":"********","enabled":true,"optional":null,
-        "file":{"name":"file.bin","size":"1.5KB","headers":{"content-type":"application/octet-stream","x-secret":"********"}}});
+    let payload = json!({
+        "same":{"name":"replaced.txt","size":"0.008KB","headers":[]},
+        "secret":"********","enabled":true,"optional":null,
+        "file":{"name":"file.bin","size":"1.5KB","headers":{"content-type":"application/octet-stream","x-secret":"********"}},
+        "opaque":"native",
+        "utf8-bytes":"native-bytes",
+        "anonymous":{"name":null,"size":"0.013KB","headers":[]},
+        "binary":{"name":"raw.bin","size":"0.002KB","headers":{"content-type":"application/octet-stream","x-secret":"********"}}
+    });
     for (entry, (path, status)) in entries[..3].iter().zip([
         ("/retry?same=query&query=value", 200),
         ("/retry?same=query&query=value", 422),

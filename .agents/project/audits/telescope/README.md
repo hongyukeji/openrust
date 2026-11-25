@@ -89,6 +89,12 @@ Telescope.ignoreFrameworkEvents 使用应用共享 Arc<AtomicBool>，默认 true
 
 固定 `ClientRequestWatcher::input` 使用结构化字段，普通字段保留原值，文件或流使用文件名、十进制 KB 长度与部件头部，同名字段取请求中最后一项。Laravel `PendingRequest::parseHttpOptions` 先加入普通字段，再追加登记的附件。OpenRust 调整线上的字段顺序，通过 `RecordedRequest.multipart` 将原值和 `attach_body` 元数据传给 Watcher。未知流长度记为 `null`，流只由 HTTP 传输消费。字段、部件头部和整个载荷复用既有脱敏开关。
 
-`attach` 仍接受原生 reqwest `Part`。该类型没有元数据读取接口，最后一项为原生 `Part` 时省略对应字段。快照关联构建器生成的 multipart boundary 和请求 origin；中间件如保留原 boundary 却替换成其他流，记录仍是构建器提供的字段。Laravel 接受的预格式化 multipart 数据数组和 PHP 文件／资源类型仍须分别核对对应的 Rust 入口。`RecordedRequest` 增加公开字段，外部使用完整结构体字面量时需补齐该字段。
+`attach` 读取随仓 reqwest `Part` 的构造类型及配置。原生文本和可解码为 UTF-8 的缓冲字节保留字段值，流和其他字节记录文件名、已知长度及配置头部。流即便由缓冲字节构造，也只记录元数据。快照复用现有 `RecordedRequest.multipart`，同时保留部件的线上编码、原请求中的顺序、末项覆盖和脱敏。中间件保留原 multipart 边界但替换正文时，快照仍对应构建参数。
 
-固定 Laravel HTTP Client 与 Telescope 的 PHP 8.5.12 探针验证了预格式化数组。Guzzle 生成的正文包含文本、具名和无名流及非 UTF-8 字节。发送及响应诊断均保留普通文本，流与无法编码为 JSON 的字节字段只记录名称、十进制 KB 长度和部件头部。重复字段取末项，未提供头部时输出空数组。Rust 原生 `Part` 的文本、流和字节仍须按对应真实入口对照。证据为 `target/tmp/observability-parity/multipart-preformatted-upstream.log`。
+固定 Laravel HTTP Client 与 Telescope 的 PHP 8.5.12 探针验证了预格式化数组。Guzzle 生成的正文包含文本、具名和无名流及非 UTF-8 字节。发送及响应诊断均保留普通文本和有效 UTF-8 字节，即便文本配置了文件名。流与无法编码为 JSON 的字节字段只记录名称、十进制 KB 长度和部件头部。重复字段取末项，未提供头部时输出空数组。证据为 `target/tmp/observability-parity/multipart-native-equivalent-upstream.log`。Rust 通过原生 `Part` 对齐这些部件类型，`as_multipart` 的直接预格式化数组入口仍待对账。
+
+直接预格式化入口的固定探针确认，列表保留提交顺序及重复部件，普通对象中可嵌入 `name`／`contents` 描述项。有效的布尔与数字保留原诊断类型。普通字段允许空值，空值描述项及嵌套数组会被 Guzzle 拒绝。证据为 `target/tmp/observability-parity/multipart-descriptor-shapes-upstream.log`。
+
+macOS 的回环 HTTP 同时核对线上字节、重复字段、敏感部件头部、完全脱敏、302 后原始字段、307 重放及重试。未知长度的原生流在发送前未被轮询，传输中消费一次。SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 的专项入库通过。框架 HTTP 客户端 23 项、Telescope Provider 15 项及独立 Redis 8.10.3 的观察和 Redis 缓存用例通过。
+
+Linux 7.0.14 ARM64 同源码通过框架 HTTP 客户端 23 项、Telescope Provider 15 项，独立 Redis 用例按条件忽略。Windows 11 ARM64 通过两项 multipart 真实传输和一项 Telescope SQLite 入库。macOS 严格 Clippy、快照全仓格式、随仓 reqwest 模块格式、三语文档构建及浏览器检查通过。证据为 `target/tmp/observability-parity/multipart-native-part-{macos,macos-redis,linux,windows,fmt,docs}.log`。

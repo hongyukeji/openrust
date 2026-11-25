@@ -1768,13 +1768,7 @@ async fn multipart_redirect_limits_and_invalid_header_state_use_the_real_transpo
     let observed_before_sending = Arc::clone(&polls);
     let body: Value = factory
         .pending_request()
-        .attach_body(
-            "stream",
-            reqwest::Body::wrap_stream(stream),
-            None,
-            HeaderMap::new(),
-            None,
-        )
+        .attach("stream", Part::stream(reqwest::Body::wrap_stream(stream)))
         .before_sending(move |_| {
             assert_eq!(observed_before_sending.load(Ordering::Relaxed), 0);
             Ok(())

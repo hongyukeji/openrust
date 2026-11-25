@@ -84,7 +84,7 @@ enum Payload {
 struct Attachment {
     name: String,
     part: super::Part,
-    metadata: Option<RecordedMultipartField>,
+    metadata: RecordedMultipartField,
 }
 
 /// Builder for one outbound request.
@@ -330,7 +330,26 @@ impl PendingRequest {
     }
 
     pub fn attach(self, name: impl Into<String>, part: super::Part) -> Self {
-        self.add_multipart_part(name.into(), part, None)
+        let field = part
+            .buffered_field_bytes()
+            .and_then(|bytes| std::str::from_utf8(bytes).ok());
+        let metadata = if let Some(field) = field {
+            RecordedMultipartField::Value(field.into())
+        } else {
+            let mut headers = HeaderMap::new();
+            if let Some(mime) = part.mime_type().and_then(|mime| mime.parse().ok()) {
+                headers.insert(header::CONTENT_TYPE, mime);
+            }
+            for (name, value) in part.custom_headers() {
+                headers.append(name, value.clone());
+            }
+            RecordedMultipartField::Attachment {
+                filename: part.filename().map(str::to_owned),
+                length: part.content_length(),
+                headers,
+            }
+        };
+        self.add_multipart_part(name.into(), part, metadata)
     }
 
     /// 以串流发送常规文件。跳转或重试时从同一文件句柄开头重新读取。
@@ -389,11 +408,11 @@ impl PendingRequest {
         self.add_multipart_part(
             name.into(),
             part.headers(headers.clone()),
-            Some(RecordedMultipartField::Attachment {
+            RecordedMultipartField::Attachment {
                 filename,
                 length,
                 headers,
-            }),
+            },
         )
     }
 
@@ -401,7 +420,7 @@ impl PendingRequest {
         mut self,
         name: String,
         part: super::Part,
-        metadata: Option<RecordedMultipartField>,
+        metadata: RecordedMultipartField,
     ) -> Self {
         let mut parts = match self.payload {
             Payload::Multipart(parts) => parts,
@@ -729,11 +748,7 @@ impl PendingRequest {
                     metadata,
                 } in parts
                 {
-                    if let Some(metadata) = metadata {
-                        fields.insert(name.clone(), metadata);
-                    } else {
-                        fields.remove(&name);
-                    }
+                    fields.insert(name.clone(), metadata);
                     form = form.part(name, part);
                 }
                 let content_type = HeaderValue::from_str(&format!(

@@ -31,6 +31,7 @@ pub struct Part {
     meta: PartMetadata,
     value: Body,
     body_length: Option<u64>,
+    buffered_field: bool,
 }
 
 pub(crate) struct FormParts<P> {
@@ -162,6 +163,7 @@ impl Form {
                         meta: part.meta.clone(),
                         value: part.value.try_clone()?,
                         body_length: part.body_length,
+                        buffered_field: part.buffered_field,
                     },
                 ))
             })
@@ -265,7 +267,7 @@ impl Part {
             Cow::Borrowed(slice) => Body::from(slice),
             Cow::Owned(string) => Body::from(string),
         };
-        Part::new(body, None)
+        Part::new(body, None, true)
     }
 
     /// Makes a new parameter from arbitrary bytes.
@@ -277,19 +279,19 @@ impl Part {
             Cow::Borrowed(slice) => Body::from(slice),
             Cow::Owned(vec) => Body::from(vec),
         };
-        Part::new(body, None)
+        Part::new(body, None, true)
     }
 
     /// Makes a new parameter from an arbitrary stream.
     pub fn stream<T: Into<Body>>(value: T) -> Part {
-        Part::new(value.into(), None)
+        Part::new(value.into(), None, false)
     }
 
     /// Makes a new parameter from an arbitrary stream with a known length. This is particularly
     /// useful when adding something like file contents as a stream, where you can know the content
     /// length beforehand.
     pub fn stream_with_length<T: Into<Body>>(value: T, length: u64) -> Part {
-        Part::new(value.into(), Some(length))
+        Part::new(value.into(), Some(length), false)
     }
 
     /// Makes a file parameter.
@@ -324,12 +326,38 @@ impl Part {
         })
     }
 
-    fn new(value: Body, body_length: Option<u64>) -> Part {
+    fn new(value: Body, body_length: Option<u64>, buffered_field: bool) -> Part {
         Part {
             meta: PartMetadata::new(),
             value,
             body_length,
+            buffered_field,
         }
+    }
+
+    /// Borrows the value supplied to `Part::text` or `Part::bytes` without reading streams.
+    pub fn buffered_field_bytes(&self) -> Option<&[u8]> {
+        self.buffered_field.then(|| self.value.as_bytes()).flatten()
+    }
+
+    /// Returns the configured filename.
+    pub fn filename(&self) -> Option<&str> {
+        self.meta.file_name.as_deref()
+    }
+
+    /// Returns the MIME type set through `Part::mime_str`.
+    pub fn mime_type(&self) -> Option<&str> {
+        self.meta.mime.as_ref().map(Mime::as_ref)
+    }
+
+    /// Returns the explicitly configured headers.
+    pub fn custom_headers(&self) -> &HeaderMap {
+        &self.meta.headers
+    }
+
+    /// Returns the known length without consuming the part.
+    pub fn content_length(&self) -> Option<u64> {
+        self.value_len()
     }
 
     /// Tries to set the mime of this part.
