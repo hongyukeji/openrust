@@ -35,13 +35,19 @@
         "signingSecretNotSet",
         "invalidPrunable"
       ],
-      "status": "pending",
+      "status": "rust_error_adapter_verified",
       "parent_classes": [
         "Exception"
       ],
       "declared_public_properties": [],
-      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
-      "evidence": []
+      "notes": "七个异常工厂映射到 ConfigNotFound、InvalidImplementation 和 InvalidConfig 字段。按构造／验签／保留期入口核对顺序及错误链。Rust 保留正值上限与 null 停用。",
+      "evidence": [
+        "vendor/openrust/webhook-client/tests/factories.rs",
+        "vendor/openrust/webhook-client/tests/contracts.rs",
+        "tests/webhooks_routes_acceptance.py",
+        ".agents/project/audits/webhooks/errors.md"
+      ],
+      "rust_source": "vendor/openrust/webhook-client/src/error.rs"
     },
     {
       "package": "client",
@@ -51,13 +57,18 @@
       "public_methods": [
         "make"
       ],
-      "status": "pending",
+      "status": "rust_error_adapter_verified",
       "parent_classes": [
         "Exception"
       ],
       "declared_public_properties": [],
-      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
-      "evidence": []
+      "notes": "公开路由注册保留原非法方法名及 RoutingError 的绑定来源，方法表继续按固定源码。",
+      "evidence": [
+        "vendor/openrust/webhook-client/tests/factories.rs",
+        "tests/webhooks_routes_acceptance.py",
+        ".agents/project/audits/webhooks/errors.md"
+      ],
+      "rust_source": "vendor/openrust/webhook-client/src/routes.rs"
     },
     {
       "package": "client",
@@ -67,13 +78,18 @@
       "public_methods": [
         "make"
       ],
-      "status": "pending",
+      "status": "rust_error_adapter_verified",
       "parent_classes": [
         "Exception"
       ],
       "declared_public_properties": [],
-      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
-      "evidence": []
+      "notes": "签名校验返回 false 时先派发无效签名事件，再返回 InvalidSignature。验证器出错时保留原错误。",
+      "evidence": [
+        "vendor/openrust/webhook-client/tests/processor.rs",
+        "tests/webhooks_routes_acceptance.py",
+        ".agents/project/audits/webhooks/errors.md"
+      ],
+      "rust_source": "vendor/openrust/webhook-client/src/processor.rs"
     },
     {
       "package": "client",
@@ -462,11 +478,15 @@
         "__serialize",
         "__unserialize"
       ],
-      "status": "pending",
+      "status": "rust_snapshot_adapter_verified",
       "parent_classes": [],
       "declared_public_properties": [],
-      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
-      "evidence": []
+      "notes": "JSON 版本化快照保存稳定原始字节和凭据引用。Queue 仅持久化内部 ID，Worker 读回并生成实际 HTTP 请求。PHP 对象序列化钩子由 Rust 公开消费者替代。",
+      "evidence": [
+        "tests/webhooks_send_acceptance.py",
+        ".agents/project/audits/webhooks/errors.md"
+      ],
+      "rust_source": "vendor/openrust/webhook-server/src/snapshot.rs"
     },
     {
       "package": "server",
@@ -590,13 +610,17 @@
         "urlNotSet",
         "secretNotSet"
       ],
-      "status": "pending",
+      "status": "rust_error_adapter_verified",
       "parent_classes": [
         "LogicException"
       ],
       "declared_public_properties": [],
-      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
-      "evidence": []
+      "notes": "URL 缺失先报错。URL 通过目标验证后，签名所需的空／0 密钥在正文处理前报错。具名凭据在实际执行时解析。",
+      "evidence": [
+        "tests/webhooks_acceptance.py",
+        ".agents/project/audits/webhooks/errors.md"
+      ],
+      "rust_source": "vendor/openrust/webhook-server/src/webhook_call.rs"
     },
     {
       "package": "server",
@@ -606,13 +630,17 @@
       "public_methods": [
         "doesNotExtendBackoffStrategy"
       ],
-      "status": "pending",
+      "status": "rust_error_adapter_verified",
       "parent_classes": [
         "LogicException"
       ],
       "declared_public_properties": [],
-      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
-      "evidence": []
+      "notes": "Rust 使用容器内具名 BackoffStrategy，错误变体标识 backoff_strategy。原生链式 Setter 保持既有签名，解析在 prepare。",
+      "evidence": [
+        "tests/webhooks_acceptance.py",
+        ".agents/project/audits/webhooks/errors.md"
+      ],
+      "rust_source": "vendor/openrust/webhook-server/src/extensions.rs"
     },
     {
       "package": "server",
@@ -622,13 +650,17 @@
       "public_methods": [
         "doesNotImplementSigner"
       ],
-      "status": "pending",
+      "status": "rust_error_adapter_verified",
       "parent_classes": [
         "LogicException"
       ],
       "declared_public_properties": [],
-      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
-      "evidence": []
+      "notes": "Rust 使用容器内具名 Signer，错误变体标识 signer。原生链式 Setter 继续在 prepare 解析，禁用签名时无须解析。",
+      "evidence": [
+        "tests/webhooks_acceptance.py",
+        ".agents/project/audits/webhooks/errors.md"
+      ],
+      "rust_source": "vendor/openrust/webhook-server/src/extensions.rs"
     },
     {
       "package": "server",
@@ -638,13 +670,17 @@
       "public_methods": [
         "doesNotExtendCallWebhookJob"
       ],
-      "status": "pending",
+      "status": "rust_error_adapter_verified",
       "parent_classes": [
         "LogicException"
       ],
       "declared_public_properties": [],
-      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
-      "evidence": []
+      "notes": "冻结前要求非默认 Job 解析到同名 CallWebhookJob。同步、直接存储、队列没有钩子均拒绝。独立 Worker 缺少已冻结的自定义实现时保留状态和预算。",
+      "evidence": [
+        "tests/webhooks_send_acceptance.py",
+        ".agents/project/audits/webhooks/errors.md"
+      ],
+      "rust_source": "vendor/openrust/webhook-server/src/webhook_call.rs"
     },
     {
       "package": "server",

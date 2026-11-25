@@ -383,6 +383,7 @@ pub(super) async fn register(app: &Application) -> ProviderResult {
         let service = DeliveryService::new(store, policy);
         service.register_worker(&queue, "default")?;
         service.register_worker(&queue, "fixture-custom")?;
+        service.register_worker(&queue, "fixture-worker-only")?;
         if std::env::var_os("FIXTURE_HIDE_JOB_HOOK").is_none() {
             register_call_webhook_job(
                 app.container(),
@@ -468,6 +469,9 @@ pub(super) fn submit(
         }
         if mode == "exclude-503" {
             call = call.retry_on(Some(vec![StatusCode::TOO_MANY_REQUESTS]));
+        }
+        if mode == "store-unbound-job" {
+            call = call.use_job("fixture-worker-only");
         }
         let manager = super::Databases::get_facade_root().map_err(super::internal)?;
         let connection = manager.connection(None).map_err(super::internal)?;
@@ -654,6 +658,16 @@ async fn dispatch_builder(
         "async-missing" => call
             .use_job("fixture-unregistered")
             .dispatch(&service, &queue, target, key, lifetime)
+            .await
+            .map(|receipt| Some(receipt.delivery_id)),
+        "async-unbound" => call
+            .use_job("fixture-worker-only")
+            .dispatch(&service, &queue, target, key, lifetime)
+            .await
+            .map(|receipt| Some(receipt.delivery_id)),
+        "sync-missing" => call
+            .use_job("fixture-unregistered")
+            .dispatch_sync(&service, target, key, lifetime)
             .await
             .map(|receipt| Some(receipt.delivery_id)),
         _ => return Err(HttpError::NotFound),

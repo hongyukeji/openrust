@@ -292,7 +292,7 @@ Builder 的 `dispatch`、`dispatch_if` 和 `dispatch_unless` 登記投遞並入�
 
 實作 `CallWebhookJob`，在生產者、Scheduler 和 Worker 用 `register_call_webhook_job` 與 `DeliveryService::register_worker` 註冊同一名稱，再用 `.use_job("stop-on-gone")` 選用。`should_be_removed_from_queue` 可停止原投遞預算允許的重試。`failed` 在一次嘗試提交最終失敗並派發結果事件後執行。兩個鉤子都應快速同步回傳。
 
-鉤子可以讀取原始本文、URL、標籤、中繼資料及有大小上限的原生回應。傳輸、憑據解析、嘗試記錄與持久狀態由套件統一管理。已保存的自訂投遞在執行時要求存在同名鉤子，缺失時撤銷領取且不扣減嘗試額度。啟用這類投遞前，在所有消費者上完成註冊。
+鉤子可以讀取原始本文、URL、標籤、中繼資料及有大小上限的原生回應。傳輸、憑據解析、嘗試記錄與持久狀態由套件統一管理。已保存的自訂投遞在執行時要求存在同名鉤子，缺失時撤銷領取且不扣減嘗試額度。同步發送和佇列發送在保存使用非預設 Job 的新投遞前，都要求先註冊對應的 `CallWebhookJob`。佇列 Worker 路由和 Job 鉤子需要分別註冊。
 
 ### 人工重放投遞 {#replay}
 

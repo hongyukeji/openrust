@@ -1673,7 +1673,9 @@ def exercise(binary, env, log, receiver, driver, sql):
     for mode in ("async-if", "async-unless", "sync-if", "sync-unless"):
         submit(f"skip-{mode}", f"builder-{mode}-skip", expected=200)
         captured(f"skip-{mode}", 0)
-    submit("missing-job", "builder-async-missing", expected=422)
+    for mode in ("builder-async-missing", "builder-async-unbound", "builder-sync-missing", "store-unbound-job"):
+        submit(mode, mode, expected=422)
+        captured(mode, 0)
     assert sql("SELECT COUNT(*) FROM webhook_deliveries") == before
     assert sql("SELECT COUNT(*) FROM jobs WHERE queue='webhook-outgoing' AND reserved_at IS NULL") == "0"
 

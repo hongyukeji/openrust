@@ -1181,10 +1181,18 @@ impl Command for PrepareSend {
             let profile = input.matches().get_one::<String>("profile").unwrap();
             let call = WebhookCall::create()
                 .map_err(ConsoleError::from_source)?
-                .url("https://example.test/callback?old=1")
                 .uuid("outgoing-fixture")
-                .use_secret("outgoing-fixture-credential")
                 .use_timestamp(true);
+            let call = if profile == "missing-url" {
+                call
+            } else {
+                call.url("https://example.test/callback?old=1")
+            };
+            let call = match profile.as_str() {
+                "missing-url" | "missing-secret" => call,
+                "zero-secret" => call.use_secret("0"),
+                _ => call.use_secret("outgoing-fixture-credential"),
+            };
             let call = match profile.as_str() {
                 "json" => call.payload(json!({"z": "中/🙂", "a": 2})),
                 "raw" => call
@@ -1199,6 +1207,11 @@ impl Command for PrepareSend {
                     .sign_using("fixture-signer")
                     .use_backoff_strategy("fixture-backoff"),
                 "blocked" => call.url("https://127.0.0.1/callback"),
+                "missing-url" | "missing-secret" | "zero-secret" => call
+                    .use_http_verb(openrust::http::Method::GET)
+                    .send_raw_body(b"private-body-sentinel".to_vec()),
+                "bad-signer" => call.sign_using("unregistered-signer"),
+                "bad-backoff" => call.use_backoff_strategy("unregistered-backoff"),
                 _ => return Err(ConsoleError::new("未知 Webhook 发送夹具")),
             };
             let prepared = call

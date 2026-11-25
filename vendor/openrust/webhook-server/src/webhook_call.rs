@@ -292,6 +292,21 @@ impl WebhookCall {
     pub fn prepare(mut self, policy: &TargetPolicy) -> Result<PreparedWebhook> {
         let url = parse_target(self.target.as_deref().ok_or(Error::InvalidConfig("url"))?)?;
         policy.validate_target(&url)?;
+        let secret = if self.signing {
+            let secret = self
+                .secret
+                .take()
+                .ok_or(Error::InvalidConfig("signing_secret"))?;
+            match &secret {
+                Secret::Inline(value) => validate_secret(value)?,
+                Secret::Reference(name) => {
+                    extensions::validate_name("signing_secret_reference", name)?
+                }
+            }
+            Some(secret)
+        } else {
+            None
+        };
         validate_message_id(&self.uuid)?;
         let method = self.config.validate(&self.meta)?;
         if self.config.proxy.is_some() && (url.scheme() != "https" || !self.config.verify_ssl) {
@@ -317,14 +332,7 @@ impl WebhookCall {
             }
         }
         validate_headers(&self.headers)?;
-        let signing = if self.signing {
-            let secret = self.secret.ok_or(Error::InvalidConfig("signing_secret"))?;
-            match &secret {
-                Secret::Inline(value) => validate_secret(value)?,
-                Secret::Reference(name) => {
-                    extensions::validate_name("signing_secret_reference", name)?
-                }
-            }
+        let signing = if let Some(secret) = secret {
             let signer =
                 extensions::signer(&self.config.signer, &self.config.signature_header_name)?;
             Some((secret, signer))
@@ -467,6 +475,10 @@ impl PreparedWebhook {
         }) {
             return Err(Error::InvalidConfig("persistent_headers"));
         }
+        let custom_job = self.config.webhook_job != "default";
+        if custom_job {
+            extensions::call_webhook_job(&self.config.webhook_job)?;
+        }
         Ok(crate::snapshot::Snapshot {
             version: 1,
             uuid: self.uuid.clone(),
@@ -493,7 +505,7 @@ impl PreparedWebhook {
             queue: self.config.queue.clone(),
             connection: self.config.connection.clone(),
             job: self.config.webhook_job.clone(),
-            custom_job: extensions::has_call_webhook_job(&self.config.webhook_job),
+            custom_job,
             tags: self.config.tags.clone(),
             meta: self.meta.clone(),
             lifetime,

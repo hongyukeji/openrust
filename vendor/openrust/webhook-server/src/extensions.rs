@@ -56,16 +56,6 @@ pub fn register_call_webhook_job(
         .map_err(|_| Error::InvalidConfig("delivery.job"))
 }
 
-pub(super) fn has_call_webhook_job(name: &str) -> bool {
-    if name == "default" {
-        return false;
-    }
-    let Ok(binding) = key("job", name) else {
-        return false;
-    };
-    App::get_facade_root().is_ok_and(|app| app.container().has(binding))
-}
-
 pub(super) fn call_webhook_job(name: &str) -> Result<Arc<dyn CallWebhookJob>> {
     Ok(application_binding::<NamedJob>("job", name)
         .map_err(|_| Error::InvalidConfig("delivery.job"))?

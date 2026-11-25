@@ -326,6 +326,31 @@ async fn unknown_job_is_rejected_before_signature_but_missing_store_is_deferred(
         ["validator-created", "profile-created", "response-created"]
     );
 }
+#[tokio::test]
+async fn missing_profile_and_response_bindings_identify_the_config_field() {
+    let (_root, app) = application().await;
+    let trace = Trace::default();
+    register(&app, &trace, true, true, false);
+    for (field, expected_trace) in [
+        ("webhook_profile", &["validator-created"][..]),
+        (
+            "webhook_response",
+            &["validator-created", "profile-created"][..],
+        ),
+    ] {
+        let cfg = config(&app, json!({(field):"unregistered"})).await;
+        let Err(error) = WebhookRuntime::from_application(app.clone(), cfg).await else {
+            panic!("未注册的 {field} 应当阻止运行时装配");
+        };
+        assert!(std::error::Error::source(&error).is_some());
+        assert!(
+            matches!(error, Error::InvalidImplementation { field: actual, .. } if actual == field)
+        );
+        let mut actual = trace.lock().unwrap();
+        assert_eq!(actual.as_slice(), expected_trace);
+        actual.clear();
+    }
+}
 #[test]
 fn route_name_mapping_preserves_source_prefix_and_first_dot_rules() {
     let configs = WebhookConfigRepository::new();
@@ -602,6 +627,23 @@ async fn a_missing_provider_is_rejected_during_route_registration() {
         cursor = source.source();
     }
     assert!(found, "应当因缺少接收 Provider 而失败：{error}");
+}
+
+#[test]
+fn invalid_route_method_keeps_the_original_token_and_source() {
+    use openrust_webhook_client::{WebhookRouteOptions, WebhookRoutes};
+
+    for method in ["POST", "options", "head"] {
+        let error = openrust::support::facades::Route::webhooks(
+            "/callback",
+            WebhookRouteOptions::default().methods(["post", method]),
+        )
+        .unwrap_err();
+        assert!(matches!(
+            std::error::Error::source(&error).and_then(|source| source.downcast_ref::<Error>()),
+            Some(Error::InvalidMethod { method: actual }) if actual == method
+        ));
+    }
 }
 
 #[tokio::test]

@@ -139,6 +139,16 @@ def check_sender_builder(binary, env):
     blocked = subprocess.run([str(binary), "artisan", "webhooks:prepare-send", "blocked"],
                              env=env, capture_output=True, text=True, timeout=15)
     assert blocked.returncode != 0 and secret.decode() not in blocked.stdout + blocked.stderr
+    for profile, field in (
+        ("missing-url", "url"), ("missing-secret", "signing_secret"),
+        ("zero-secret", "signing_secret"), ("bad-signer", "signer"),
+        ("bad-backoff", "backoff_strategy"),
+    ):
+        result = subprocess.run([str(binary), "artisan", "webhooks:prepare-send", profile],
+                                env=env, capture_output=True, text=True, timeout=15)
+        output = result.stdout + result.stderr
+        assert result.returncode != 0 and f"Webhook 发送配置无效：{field}" in output, output
+        assert secret.decode() not in output and "private-body-sentinel" not in output
 
 
 def main():
