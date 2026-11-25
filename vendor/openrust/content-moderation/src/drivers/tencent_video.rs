@@ -14,7 +14,7 @@ use super::{
 };
 use crate::{
     Assessment, Confidence, Coverage, Decision, EvidenceSpan, Modality, ModerationError,
-    ModerationResult, TaskId, TaskStatus, VideoInput, credentials::DriverCredentials,
+    ModerationResult, RetryAfter, TaskId, TaskStatus, VideoInput, credentials::DriverCredentials,
 };
 
 pub(super) struct VideoService {
@@ -77,7 +77,7 @@ impl VideoService {
             parameters["Seed"] = json!(seed.as_str());
         }
         let result: Created = self
-            .call(driver, "CreateVideoModerationTask", parameters)
+            .call(driver, "CreateVideoModerationTask", parameters, &mut None)
             .await
             .map_err(unknown_submission)?;
         let [result] = result.results.as_slice() else {
@@ -97,8 +97,9 @@ impl VideoService {
         &self,
         driver: &Tencent,
         id: &TaskId,
+        retry_after: &mut Option<RetryAfter>,
     ) -> ModerationResult<TaskStatus> {
-        let details = self.details(driver, id, true).await?;
+        let details = self.details(driver, id, true, retry_after).await?;
         match details.status.as_str() {
             "PENDING" => Ok(TaskStatus::Pending),
             "RUNNING" => Ok(TaskStatus::Running),
@@ -110,7 +111,7 @@ impl VideoService {
     }
 
     pub(super) async fn cancel(&self, driver: &Tencent, id: &TaskId) -> ModerationResult<()> {
-        let details = self.details(driver, id, false).await?;
+        let details = self.details(driver, id, false, &mut None).await?;
         match details.status.as_str() {
             "CANCELLED" => return Ok(()),
             "PENDING" => {}
@@ -118,7 +119,12 @@ impl VideoService {
             _ => return Err(ModerationError::Protocol),
         }
         let result: Cancelled = self
-            .call(driver, "CancelTask", json!({"TaskId":id.as_str()}))
+            .call(
+                driver,
+                "CancelTask",
+                json!({"TaskId":id.as_str()}),
+                &mut None,
+            )
             .await?;
         if result
             .task_id
@@ -136,12 +142,14 @@ impl VideoService {
         driver: &Tencent,
         id: &TaskId,
         show_segments: bool,
+        retry_after: &mut Option<RetryAfter>,
     ) -> ModerationResult<Details> {
         let result: Details = self
             .call(
                 driver,
                 "DescribeTaskDetail",
                 json!({"TaskId":id.as_str(), "ShowAllSegments":show_segments}),
+                retry_after,
             )
             .await?;
         if result.task_id != id.as_str()
@@ -158,9 +166,17 @@ impl VideoService {
         driver: &Tencent,
         action: &'static str,
         parameters: Value,
+        retry_after: &mut Option<RetryAfter>,
     ) -> ModerationResult<T> {
         driver
-            .request(&self.endpoint, "vm", action, "2021-09-22", parameters)
+            .request(
+                &self.endpoint,
+                "vm",
+                action,
+                "2021-09-22",
+                parameters,
+                retry_after,
+            )
             .await
     }
 }

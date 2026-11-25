@@ -11,8 +11,8 @@ use super::{
 };
 use crate::{
     Assessment, Confidence, Coverage, Decision, Finding, ImageInput, Modality, ModerationDriver,
-    ModerationError, ModerationFuture, ModerationResult, Operation, TaskId, TaskStatus, TextInput,
-    VideoInput,
+    ModerationError, ModerationFuture, ModerationResult, Operation, RetryAfter, TaskId, TaskStatus,
+    TextInput, VideoInput,
 };
 
 const RULE_LANGUAGES: &[&str] = &[
@@ -234,11 +234,19 @@ impl ModerationDriver for Sightengine {
     }
 
     fn query_video<'a>(&'a self, id: &'a TaskId) -> ModerationFuture<'a, TaskStatus> {
+        Box::pin(async move { self.query_video_with_retry(id, &mut None).await })
+    }
+
+    fn query_video_with_retry<'a>(
+        &'a self,
+        id: &'a TaskId,
+        retry_after: &'a mut Option<RetryAfter>,
+    ) -> ModerationFuture<'a, TaskStatus> {
         Box::pin(async move {
             self.video
                 .as_ref()
                 .ok_or(ModerationError::Unsupported(Operation::QueryVideo))?
-                .query(&self.user, &self.secret, id)
+                .query(&self.user, &self.secret, id, retry_after)
                 .await
         })
     }

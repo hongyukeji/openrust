@@ -1,5 +1,5 @@
 use crate::{
-    Assessment, Coverage, Decision, ModerationError, ModerationResult, ProfileRevision,
+    Assessment, Coverage, Decision, ModerationError, ModerationResult, ProfileRevision, RetryAfter,
     StoredMedia, TaskId, credentials::valid_identifier,
 };
 
@@ -59,7 +59,7 @@ pub enum QueryFailure {
 
 pub(crate) enum QueryOutcome {
     Waiting,
-    Retry(QueryFailure),
+    Retry(QueryFailure, Option<RetryAfter>),
     Stop {
         state: ReviewState,
         failure: Option<QueryFailure>,
@@ -200,6 +200,7 @@ pub struct VideoReview {
     pub(crate) query_attempts: u16,
     pub(crate) query_lease_until: Option<i64>,
     pub(crate) query_failure: Option<QueryFailure>,
+    pub(crate) provider_retry_at: Option<i64>,
     pub(crate) assessment: Option<Assessment>,
     pub(crate) confirmation_callback_id: Option<String>,
     pub(crate) lookup_hint_id: Option<String>,

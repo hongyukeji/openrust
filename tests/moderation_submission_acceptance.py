@@ -2,6 +2,7 @@
 
 import argparse
 from concurrent.futures import ThreadPoolExecutor
+from email.utils import formatdate
 import http.client
 import http.server
 import json
@@ -13,6 +14,7 @@ import sqlite3
 import subprocess
 import tempfile
 import threading
+import time
 from urllib.parse import urlsplit
 
 
@@ -33,13 +35,21 @@ class PausedSupplier(VIDEO["Supplier"]):
         if self.command == "GET" and status == 200:
             if self.server.query_mode == "wait":
                 payload["output"]["data"]["status"] = "ongoing"
-            elif self.server.query_mode == "quota":
-                status, payload = 429, {"status": "failure", "error": {"message": VIDEO["PRIVATE"]}}
+            elif self.server.query_mode in ("quota", "unavailable"):
+                status = 429 if self.server.query_mode == "quota" else 503
+                payload = {"status": "failure", "error": {"message": VIDEO["PRIVATE"]}}
         try:
             super().respond(status, payload)
         except (BrokenPipeError, ConnectionResetError):
             if not gate:
                 raise
+
+
+    def end_headers(self):
+        if self.command == "GET":
+            for value in getattr(self.server, "retry_after_headers", ()):
+                self.send_header("Retry-After", value)
+        super().end_headers()
 
 
 def exercise(binary, driver, url, root, storage_env, storage):
@@ -282,6 +292,55 @@ def exercise(binary, driver, url, root, storage_env, storage):
         assert exhausted["state"] == "Failed" and exhausted["query_failure"] == "budget_exhausted"
         assert query(rate) == exhausted and exhausted["query_attempts"] == 2
 
+        retry_date = int(time.time()) + 160
+        cases = (
+            ("seconds", "quota", ("90",), "throttled"),
+            ("date", "unavailable", (formatdate(retry_date, usegmt=True),), "service_unavailable"),
+            ("malformed", "quota", ("-20",), "throttled"),
+            ("duplicates", "quota", ("900", "910"), "throttled"),
+            ("after-deadline", "quota", ("900",), "throttled"),
+        )
+        with (root / "retry-after-http.log").open("w+") as log:
+            app = HTTP["serve"](binary, env, log)
+            try:
+                for name, mode, headers, failure in cases:
+                    review = stage(f"retry-after-{name}")
+                    submitted = submit(review)
+                    due(review)
+                    supplier.query_mode = mode
+                    supplier.retry_after_headers = headers
+                    before = int(time.time())
+                    held = post(review, query=True)
+                    seen = len(supplier.queried)
+                    assert held["query_failure"] == failure and held["query_attempts"] == 1
+                    assert held["state"] == "Running" and held["decision"] is None
+                    hold = sql("SELECT COALESCE(provider_retry_at, 0) FROM moderation_checks "
+                               f"WHERE id = '{review['check_id']}'")
+                    if name == "seconds":
+                        assert before + 90 <= int(hold) <= int(time.time()) + 90
+                        assert held["next_query_at"] == int(hold)
+                    elif name == "date":
+                        assert held["next_query_at"] == int(hold) == retry_date
+                    elif name == "after-deadline":
+                        assert held["next_query_at"] == int(hold) == submitted["deadline_at"]
+                    else:
+                        assert hold == "0" and before + 40 <= held["next_query_at"] <= int(time.time()) + 44
+                    assert query(review) == held
+                    artisan(env, COMMAND, "queue-query", "app", "tenant", review["id"])
+                    artisan(env | {"MODERATION_FIXTURE_RESULT": str(output)}, "queue:work", "database", "--once")
+                    assert json.loads(output.read_text()) == held and len(supplier.queried) == seen
+                    if name == "after-deadline":
+                        sql("UPDATE moderation_reviews SET deadline_at = 1 "
+                            f"WHERE id = '{review['id']}'")
+                        assert query(review)["state"] == "Expired" and len(supplier.queried) == seen
+                        assert sql("SELECT COUNT(*) FROM moderation_checks "
+                                   f"WHERE id = '{review['check_id']}' AND provider_retry_at IS NULL") == "1"
+            finally:
+                supplier.retry_after_headers = ()
+                HTTP["stop"](app)
+            log.seek(0)
+            assert VIDEO["PRIVATE"] not in log.read()
+
         crashed_query = stage("crashed-query")
         submit(crashed_query)
         due(crashed_query)
@@ -329,7 +388,7 @@ def exercise(binary, driver, url, root, storage_env, storage):
         complete = query(first_party, external)
         assert complete["state"] == "Succeeded" and complete["decision"] == "allow"
         assert complete["assessment"]["coverage"]["Visual"] == "Complete"
-        assert len(supplier.queried) == 7
+        assert len(supplier.queried) == 12
         assert sql("SELECT COUNT(*) FROM jobs") == sql("SELECT COUNT(*) FROM failed_jobs") == "0"
     finally:
         supplier.shutdown()
@@ -345,4 +404,4 @@ if __name__ == "__main__":
     with tempfile.TemporaryDirectory(dir=ROOT / "target/tmp", prefix="moderation-submission-") as root, \
             VIDEO["VIDEO"]["OBJECTS"]["TOPOLOGY"]["object_storage"](True) as (env, storage):
         exercise(args.binary.resolve(), driver, url, Path(root), env, storage)
-    print(f"{driver}: 真实 HTTP／Artisan／Worker 送审、查单预算、失联、覆盖与过期通过")
+    print(f"{driver}: 真实 HTTP／Artisan／Worker 送审、查单预算与 Retry-After、失联、覆盖与过期通过")

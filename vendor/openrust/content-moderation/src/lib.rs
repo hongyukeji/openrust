@@ -44,6 +44,7 @@ pub use hive_lookup_hint::HiveLookupHint;
 pub use input::{ImageInput, StoredMedia, TaskId, TextInput, VideoInput};
 pub use manager::ModerationManager;
 pub use moderation::Moderation;
+pub use openrust::http::client::RetryAfter;
 pub use provider::{ModerationServiceProvider, openrust_providers};
 pub use result::{
     Assessment, Confidence, Coverage, Decision, EvidenceSpan, Finding, Modality, TaskStatus,

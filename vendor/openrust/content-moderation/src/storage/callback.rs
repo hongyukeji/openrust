@@ -1,3 +1,5 @@
+use openrust::database::query::{Expression, UpdateValue};
+
 use crate::{ModerationError, ModerationResult, ReviewState, TaskId, VideoReview, VideoSubmission};
 
 use super::{CHECKS, ModerationStore, REVIEWS, database_clock, decode, integer};
@@ -100,10 +102,16 @@ impl ModerationStore {
             .where_null(reference_column)
             .where_exists(&mut current)
             .map_err(|_| ModerationError::ReviewStorage)?
-            .update(
+            .update_with(
                 [
-                    (reference_column.into(), receipt.into()),
-                    ("available_at".into(), timestamp.into()),
+                    (reference_column.into(), UpdateValue::from(receipt)),
+                    (
+                        "available_at".into(),
+                        Expression::new(format!(
+                            "CASE WHEN provider_retry_at > {now} THEN available_at ELSE {now} END"
+                        ))
+                        .into(),
+                    ),
                 ]
                 .into_iter()
                 .collect(),

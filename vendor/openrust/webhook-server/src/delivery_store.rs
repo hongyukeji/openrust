@@ -5,6 +5,7 @@ use openrust::{
         Connection, Row, Transaction, Value,
         query::{Builder, Expression, UpdateValue, ValueOperand},
     },
+    http::client::RetryAfter,
     support::Str,
 };
 use std::fmt::Write as _;
@@ -66,20 +67,6 @@ pub(crate) struct AttemptResult {
     pub outcome: &'static str,
     pub status: Option<u16>,
     pub retry_after: Option<RetryAfter>,
-}
-
-pub(crate) enum RetryAfter {
-    Seconds(u64),
-    Timestamp(i64),
-}
-
-impl RetryAfter {
-    fn earliest(&self, now: i64) -> i64 {
-        match *self {
-            Self::Seconds(seconds) => future_time(now, seconds),
-            Self::Timestamp(timestamp) => timestamp,
-        }
-    }
 }
 
 impl AttemptResult {
@@ -685,7 +672,9 @@ impl DeliveryStore {
                 .retry_after
                 .zip(backoff)
                 .filter(|_| claim.number < claim.snapshot.tries)
-                .map(|(retry_after, delay)| retry_after.earliest(now).max(future_time(now, delay)))
+                .map(|(retry_after, delay)| {
+                    retry_after.earliest_at(now).max(future_time(now, delay))
+                })
                 .filter(|next| *next < claim.deadline);
             let revoked = self
                 .endpoints()

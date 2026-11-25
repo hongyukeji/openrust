@@ -1,7 +1,4 @@
-use std::{
-    sync::Arc,
-    time::{Duration, UNIX_EPOCH},
-};
+use std::{sync::Arc, time::Duration};
 
 use http::{
     HeaderMap, HeaderValue, Method,
@@ -12,7 +9,7 @@ use openrust::{
     contracts::container::Container as _,
     http::{
         HttpFuture,
-        client::{Factory, PinnedProxy, Response, TlsCertificate, TlsIdentity},
+        client::{Factory, PinnedProxy, Response, RetryAfter, TlsCertificate, TlsIdentity},
     },
     log::Log,
 };
@@ -21,7 +18,7 @@ use zeroize::Zeroizing;
 
 use crate::{
     DeliveryProgress, DeliveryStore, Error, Result, TargetPolicy, WebhookJobAttempt,
-    delivery_store::{AttemptResult, Claim, RetryAfter},
+    delivery_store::{AttemptResult, Claim},
     events::{self, WebhookAttempt, WebhookCallEvent},
     extensions, limits, replay,
     snapshot::Snapshot,
@@ -492,16 +489,5 @@ fn retry_delay(claim: &Claim) -> Option<u64> {
 }
 
 fn retry_after(headers: &HeaderMap) -> Option<RetryAfter> {
-    let value = headers.get(RETRY_AFTER)?.to_str().ok()?.trim();
-    if !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit()) {
-        return value
-            .parse::<i64>()
-            .ok()
-            .map(|seconds| RetryAfter::Seconds(seconds as u64));
-    }
-    let date = httpdate::parse_http_date(value)
-        .ok()?
-        .duration_since(UNIX_EPOCH)
-        .ok()?;
-    Some(RetryAfter::Timestamp(i64::try_from(date.as_secs()).ok()?))
+    RetryAfter::from_header(headers.get(RETRY_AFTER)?)
 }

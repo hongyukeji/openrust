@@ -140,6 +140,7 @@ impl ModerationStore {
                 "query_attempts",
                 "query_lease_until",
                 "query_failure",
+                "provider_retry_at",
                 "assessment",
                 "confirmation_callback_id",
                 "lookup_hint_id",
@@ -282,6 +283,7 @@ fn decode(row: Row) -> ModerationResult<VideoReview> {
         query_attempts: u16::try_from(number("query_attempts")?)
             .map_err(|_| ModerationError::ReviewStorage)?,
         query_lease_until: integer(&row, "query_lease_until"),
+        provider_retry_at: integer(&row, "provider_retry_at"),
         query_failure: optional_text("query_failure")?
             .map(|value| serde_json::from_value(serde_json::Value::String(value.into())))
             .transpose()

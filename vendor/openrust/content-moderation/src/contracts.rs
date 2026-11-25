@@ -1,6 +1,6 @@
 use openrust::http::HttpFuture;
 
-use crate::{Assessment, ImageInput, TaskId, TaskStatus, TextInput, VideoInput};
+use crate::{Assessment, ImageInput, RetryAfter, TaskId, TaskStatus, TextInput, VideoInput};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Operation {
@@ -79,6 +79,15 @@ pub trait ModerationDriver: Send + Sync + 'static {
 
     fn query_video<'a>(&'a self, _: &'a TaskId) -> ModerationFuture<'a, TaskStatus> {
         unsupported(Operation::QueryVideo)
+    }
+
+    /// 查询任务，允许驱动为限流或暂不可用的结果提供下次查询时间。
+    fn query_video_with_retry<'a>(
+        &'a self,
+        task: &'a TaskId,
+        _retry_after: &'a mut Option<RetryAfter>,
+    ) -> ModerationFuture<'a, TaskStatus> {
+        self.query_video(task)
     }
 
     fn cancel_video<'a>(&'a self, _: &'a TaskId) -> ModerationFuture<'a, ()> {

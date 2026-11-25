@@ -242,29 +242,51 @@ def exercise(binary, driver, url, root, storage_env, storage, mode):
                 assert accepted["submission"]["task"] == task and accepted["callback_receipt"] is None
                 assert not queried()
 
+                held = None
+                if not cloud:
+                    sql("UPDATE moderation_checks SET available_at = 1 "
+                        f"WHERE id = '{early['check_id']}'")
+                    supplier.query_mode = "quota"
+                    supplier.retry_after_headers = ("240",)
+                    held = json.loads(artisan(REVIEW, "query", "app", "tenant", early["id"]))
+                    assert held["query_attempts"] == 1 and held["query_failure"] == "throttled"
+                    assert held["callback_receipt"] is None and queried() == [task]
+                    supplier.query_mode = "finished"
+                    supplier.retry_after_headers = ()
+                early_lookups = [] if cloud else [task]
+
                 assert artisan("drivers:moderation-wake-callback", receipt).strip() == "true"
                 assert artisan("drivers:moderation-wake-callback", receipt).strip() == "false"
                 consume()
                 associated = read(early)
                 assert associated["callback_receipt"] == receipt
-                assert associated["next_query_at"] < accepted["next_query_at"]
-                assert associated["query_attempts"] == 0 and associated["decision"] is None
+                if held is None:
+                    assert associated["next_query_at"] < accepted["next_query_at"]
+                else:
+                    assert associated["next_query_at"] == held["next_query_at"]
+                    artisan("schedule:run")
+                    assert sql("SELECT COUNT(*) FROM jobs WHERE queue = 'moderation-recovery'") == "0"
+                assert associated["query_attempts"] == len(early_lookups) and associated["decision"] is None
                 assert sql("SELECT COUNT(*) FROM webhook_calls WHERE processed_at IS NOT NULL") == str(1 + int(cloud))
                 # 即使队列仍保留旧的延时副本，重复消费也不会再次关联或查单。
                 sql(f"UPDATE jobs SET available_at = 1 WHERE queue = '{JOB}'")
                 if sql(f"SELECT COUNT(*) FROM jobs WHERE queue = '{JOB}'") != "0":
                     consume()
-                assert read(early) == associated and not queried()
+                assert read(early) == associated and queried() == early_lookups
                 if aliyun:
                     callback(finish, "early")
                     consume()
-                    assert read(early) == associated and not queried()
+                    assert read(early) == associated and queried() == early_lookups
+                if held is not None:
+                    sql("UPDATE moderation_checks SET available_at = 1, provider_retry_at = 1 "
+                        f"WHERE id = '{early['check_id']}'")
                 artisan("schedule:run")
                 consume("moderation-recovery")
                 checked = read(early)
-                assert checked["query_attempts"] == 1 and checked["query_failure"] == "incomplete_coverage"
+                assert checked["query_attempts"] == len(early_lookups) + 1
+                assert checked["query_failure"] == "incomplete_coverage"
                 assert checked["decision"] is None and checked["callback_receipt"] == receipt
-                assert queried() == [task]
+                assert queried() == early_lookups + [task]
 
                 callback(finish, "late")
                 consume()
@@ -272,24 +294,24 @@ def exercise(binary, driver, url, root, storage_env, storage, mode):
                 callback(finish, "other", other=True)
                 consume()
                 assert read(early) == checked
-                assert queried() == [task]
+                assert queried() == early_lookups + [task]
                 if tencent:
                     callback(finish, "policy", policy="different_policy")
                     consume()
                     callback(finish, "live", kind="LIVE_VIDEO")
                     consume()
-                    assert read(early) == checked and queried() == [task]
+                    assert read(early) == checked and queried() == early_lookups + [task]
                 if aliyun:
                     callback(599, "unsupported-status")
                     consume()
-                    assert read(early) == checked and queried() == [task]
+                    assert read(early) == checked and queried() == early_lookups + [task]
 
                 duplicate = json.loads(artisan(REVIEW, "stage", "app", "tenant", "ambiguous-task", version))
                 accepted_duplicate = json.loads(artisan(REVIEW, "submit", "app", "tenant", duplicate["id"]))
                 assert accepted_duplicate["submission"]["task"] == task
                 callback(finish, "ambiguous")
                 consume()
-                assert read(duplicate)["callback_receipt"] is None and queried() == [task]
+                assert read(duplicate)["callback_receipt"] is None and queried() == early_lookups + [task]
             finally:
                 HTTP["stop"](app)
         assert supplier.posted == [(version, original), (version, original)]

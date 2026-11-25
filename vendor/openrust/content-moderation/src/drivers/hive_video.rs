@@ -22,7 +22,8 @@ use super::{
 };
 use crate::{
     Confidence, Coverage, Decision, EvidenceSpan, Finding, Modality, ModerationError,
-    ModerationResult, Operation, TaskId, TaskStatus, VideoInput, credentials::DriverCredentials,
+    ModerationResult, Operation, RetryAfter, TaskId, TaskStatus, VideoInput,
+    credentials::DriverCredentials,
 };
 
 const PAGE_SIZE: usize = 64;
@@ -114,7 +115,11 @@ impl VideoService {
         self.summary.is_some()
     }
 
-    pub(super) async fn query(&self, id: &TaskId) -> ModerationResult<TaskStatus> {
+    pub(super) async fn query(
+        &self,
+        id: &TaskId,
+        retry_after: &mut Option<RetryAfter>,
+    ) -> ModerationResult<TaskStatus> {
         let summary = self
             .summary
             .as_ref()
@@ -122,7 +127,7 @@ impl VideoService {
         if !valid_task(id.as_str()) {
             return Err(ModerationError::InvalidInput("hive video task"));
         }
-        summary.query(&self.model, id).await
+        summary.query(&self.model, id, retry_after).await
     }
 }
 
@@ -205,6 +210,7 @@ impl Summary {
         model: &Model,
         id: &TaskId,
         offset: usize,
+        retry_after: &mut Option<RetryAfter>,
     ) -> ModerationResult<Option<Vec<T>>> {
         let response = self
             .endpoint
@@ -216,7 +222,8 @@ impl Summary {
                 ])
             })
             .await?;
-        let result: Option<ModelResult<Output<T>>> = model.validate_summary(response, id)?;
+        let result: Option<ModelResult<Output<T>>> =
+            model.validate_summary(response, id, retry_after)?;
         Ok(result.map(|result| result.output.output))
     }
 
@@ -224,10 +231,14 @@ impl Summary {
         &self,
         model: &Model,
         id: &TaskId,
+        retry_after: &mut Option<RetryAfter>,
         mut read: impl FnMut(T) -> ModerationResult<()>,
     ) -> ModerationResult<bool> {
         for page in 0..MAX_PAGES {
-            let Some(frames) = self.page::<T>(model, id, page * PAGE_SIZE).await? else {
+            let Some(frames) = self
+                .page::<T>(model, id, page * PAGE_SIZE, retry_after)
+                .await?
+            else {
                 return if page == 0 {
                     Ok(false)
                 } else {
@@ -248,19 +259,30 @@ impl Summary {
         Ok(true)
     }
 
-    async fn query(&self, model: &Model, id: &TaskId) -> ModerationResult<TaskStatus> {
+    async fn query(
+        &self,
+        model: &Model,
+        id: &TaskId,
+        retry_after: &mut Option<RetryAfter>,
+    ) -> ModerationResult<TaskStatus> {
         let (threshold, modality) = match self.policy {
-            SummaryPolicy::Visual(score) => return self.visual(model, id, score).await,
+            SummaryPolicy::Visual(score) => {
+                return self.visual(model, id, score, retry_after).await;
+            }
             SummaryPolicy::Ocr(threshold) => (threshold, Modality::Ocr),
             SummaryPolicy::Speech(threshold) => (threshold, Modality::Speech),
         };
         let mut severity = SeverityEvidence::new(&self.classes, threshold, modality);
         let complete = if modality == Modality::Ocr {
-            self.read_pages(model, id, |frame: OcrFrame| severity.ocr(frame))
-                .await?
+            self.read_pages(model, id, retry_after, |frame: OcrFrame| {
+                severity.ocr(frame)
+            })
+            .await?
         } else {
-            self.read_pages(model, id, |chunk: SpeechChunk| severity.speech(chunk))
-                .await?
+            self.read_pages(model, id, retry_after, |chunk: SpeechChunk| {
+                severity.speech(chunk)
+            })
+            .await?
         };
         if complete {
             severity.finish(id)
@@ -274,11 +296,12 @@ impl Summary {
         model: &Model,
         id: &TaskId,
         review_score: f64,
+        retry_after: &mut Option<RetryAfter>,
     ) -> ModerationResult<TaskStatus> {
         let mut maximum = BTreeMap::new();
         let mut last_time = None;
         if !self
-            .read_pages(model, id, |frame: Frame| {
+            .read_pages(model, id, retry_after, |frame: Frame| {
                 self.read_frame(&frame, &mut last_time, &mut maximum)
             })
             .await?

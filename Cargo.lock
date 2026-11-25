@@ -4804,7 +4804,6 @@ dependencies = [
  "clap",
  "fastrand",
  "http 1.5.0",
- "httpdate",
  "openrust-framework",
  "serde",
  "serde_json",

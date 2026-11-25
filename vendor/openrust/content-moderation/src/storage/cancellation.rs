@@ -160,6 +160,7 @@ async fn freeze_check(
             [
                 ("provider_cancellation".into(), status),
                 ("query_lease_until".into(), Value::Null),
+                ("provider_retry_at".into(), Value::Null),
                 ("submit_lease_until".into(), Value::Null),
                 ("dispatch_lease_until".into(), Value::Null),
             ]

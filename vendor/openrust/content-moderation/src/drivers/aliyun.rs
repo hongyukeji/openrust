@@ -9,11 +9,13 @@ use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::{Value, json};
 use zeroize::Zeroizing;
 
-use super::{Endpoint, aliyun_video::VideoService, field, http_status, media::VersionedMediaLinks};
+use super::{
+    Endpoint, aliyun_video::VideoService, field, media::VersionedMediaLinks, query_http_status,
+};
 use crate::{
     Assessment, Confidence, Coverage, Decision, Finding, ImageInput, Modality, ModerationDriver,
-    ModerationError, ModerationFuture, ModerationResult, Operation, TaskId, TaskStatus, TextInput,
-    VideoInput, input::valid_language_hint,
+    ModerationError, ModerationFuture, ModerationResult, Operation, RetryAfter, TaskId, TaskStatus,
+    TextInput, VideoInput, input::valid_language_hint,
 };
 
 pub(super) struct Aliyun {
@@ -102,7 +104,7 @@ impl Aliyun {
         service: &str,
         parameters: Value,
     ) -> ModerationResult<Output> {
-        let output: Output = self.rpc(action, service, parameters).await?;
+        let output: Output = self.rpc(action, service, parameters, &mut None).await?;
         match output.code {
             200 => Ok(output),
             400 => Err(ModerationError::Rejected),
@@ -119,6 +121,7 @@ impl Aliyun {
         action: &str,
         service: &str,
         parameters: Value,
+        retry_after: &mut Option<RetryAfter>,
     ) -> ModerationResult<T> {
         const MEDIA_TYPE: &str = "application/x-www-form-urlencoded";
         let encoded = parameters.to_string();
@@ -142,7 +145,7 @@ impl Aliyun {
             .endpoint
             .post_encoded(headers, body, MEDIA_TYPE)
             .await?;
-        http_status(response.status().as_u16())?;
+        query_http_status(&response, retry_after)?;
         response.json().map_err(|_| ModerationError::Protocol)
     }
 }
@@ -240,12 +243,20 @@ impl ModerationDriver for Aliyun {
     }
 
     fn query_video<'a>(&'a self, id: &'a TaskId) -> ModerationFuture<'a, TaskStatus> {
+        Box::pin(async move { self.query_video_with_retry(id, &mut None).await })
+    }
+
+    fn query_video_with_retry<'a>(
+        &'a self,
+        id: &'a TaskId,
+        retry_after: &'a mut Option<RetryAfter>,
+    ) -> ModerationFuture<'a, TaskStatus> {
         Box::pin(async move {
             let service = self
                 .video
                 .as_ref()
                 .ok_or(ModerationError::Unsupported(Operation::QueryVideo))?;
-            service.query(self, id).await
+            service.query(self, id, retry_after).await
         })
     }
 }

@@ -30,7 +30,7 @@ pub(crate) use tencent_video::{
 
 use std::{net::IpAddr, sync::Arc, time::Duration};
 
-use http::{HeaderMap, HeaderValue, Method};
+use http::{HeaderMap, HeaderValue, Method, header::RETRY_AFTER};
 use openrust::{
     config::Environment,
     filesystem::FilesystemManager,
@@ -40,7 +40,7 @@ use serde_json::Value;
 use url::Url;
 
 use crate::{
-    ModerationCredentialProvider, ModerationError, ModerationManager, ModerationResult,
+    ModerationCredentialProvider, ModerationError, ModerationManager, ModerationResult, RetryAfter,
     credentials::DriverCredentials,
 };
 
@@ -227,6 +227,22 @@ pub(crate) fn field<'a>(
         Some(Value::String(value)) if !value.trim().is_empty() => Ok(Some(value)),
         _ => Err(ModerationError::InvalidConfiguration(name)),
     }
+}
+
+fn query_http_status(
+    response: &Response,
+    retry_after: &mut Option<RetryAfter>,
+) -> ModerationResult<()> {
+    let status = response.status().as_u16();
+    if matches!(status, 429 | 503) {
+        let mut values = response.headers().get_all(RETRY_AFTER).iter();
+        if let Some(header) = values.next()
+            && values.next().is_none()
+        {
+            *retry_after = RetryAfter::from_header(header);
+        }
+    }
+    http_status(status)
 }
 
 fn http_status(status: u16) -> ModerationResult<()> {

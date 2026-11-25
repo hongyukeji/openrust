@@ -8,12 +8,14 @@ use serde_json::Value;
 use super::{
     Endpoint, http_status,
     media::VersionedMediaLinks,
+    query_http_status,
     sightengine::endpoint,
     sightengine_models::{MediaFindings, MediaModels},
     video::{build_assessment, seconds_to_ms, unknown_submission},
 };
 use crate::{
-    Decision, EvidenceSpan, ModerationError, ModerationResult, TaskId, TaskStatus, VideoInput,
+    Decision, EvidenceSpan, ModerationError, ModerationResult, RetryAfter, TaskId, TaskStatus,
+    VideoInput,
 };
 
 const FORM: &str = "application/x-www-form-urlencoded";
@@ -92,6 +94,7 @@ impl VideoService {
         user: &str,
         secret: &str,
         id: &TaskId,
+        retry_after: &mut Option<RetryAfter>,
     ) -> ModerationResult<TaskStatus> {
         let fields = job_fields(user, secret, id)?;
         // GET 的 query 只在线路上传送。共享 Endpoint 会令事件快照省略整个查询串。
@@ -103,7 +106,7 @@ impl VideoService {
                     .map(|(key, value)| (key.to_owned(), value.to_owned())),
             )
             .await?;
-        http_status(response.status().as_u16())?;
+        query_http_status(&response, retry_after)?;
         let result: Query = response.json().map_err(|_| ModerationError::Protocol)?;
         if result.status != "success" || result.output.media.id != id.as_str() {
             return Err(ModerationError::Protocol);

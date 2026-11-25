@@ -265,7 +265,12 @@ def exercise(binary, driver, database_url, root):
             assert sql("SELECT COUNT(*) FROM jobs") == sql("SELECT COUNT(*) FROM failed_jobs") == "0"
         finally:
             HTTP["stop"](app)
-    artisan("migrate:rollback", "--step=2", "--force", successful=False)
+    artisan("migrate:rollback", "--force",
+            "--path=vendor/openrust/content-moderation/database/migrations/"
+            "2026_11_26_000010_create_moderation_review_decisions_table.rs", successful=False)
+    artisan("migrate:rollback", "--force",
+            "--path=vendor/openrust/content-moderation/database/migrations/"
+            "2026_11_26_000008_create_moderation_review_groups_table.rs", successful=False)
     assert sql("SELECT COUNT(*) FROM moderation_review_groups") == "6"
     assert sql("SELECT COUNT(*) FROM moderation_review_decisions") == "3"
 

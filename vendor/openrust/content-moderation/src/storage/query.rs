@@ -3,8 +3,8 @@ use std::sync::Arc;
 use openrust::database::{DatabaseError, Value};
 
 use crate::{
-    ModerationError, ModerationResult, QueryFailure, ReviewState, VideoReview, VideoSubmission,
-    review::QueryOutcome,
+    ModerationError, ModerationResult, QueryFailure, RetryAfter, ReviewState, VideoReview,
+    VideoSubmission, review::QueryOutcome,
 };
 
 use super::{
@@ -17,7 +17,7 @@ const QUERY_LEASE_SECONDS: i64 = 150;
 #[derive(Clone)]
 enum Action {
     Claim,
-    Wait(Option<QueryFailure>),
+    Wait(Option<QueryFailure>, Option<RetryAfter>),
     Stop(ReviewState, Option<QueryFailure>, Option<String>),
 }
 
@@ -35,8 +35,8 @@ impl ModerationStore {
         outcome: QueryOutcome,
     ) -> ModerationResult<()> {
         let action = match outcome {
-            QueryOutcome::Waiting => Action::Wait(None),
-            QueryOutcome::Retry(failure) => Action::Wait(Some(failure)),
+            QueryOutcome::Waiting => Action::Wait(None, None),
+            QueryOutcome::Retry(failure, retry_after) => Action::Wait(Some(failure), retry_after),
             QueryOutcome::Stop {
                 state,
                 failure,
@@ -132,7 +132,9 @@ impl ModerationStore {
                         if changed == 0 {
                             return Ok(None);
                         }
-                        if next.state == ReviewState::Expired && review.query_lease_until.is_none()
+                        if next.state == ReviewState::Expired
+                            && review.query_lease_until.is_none()
+                            && review.provider_retry_at.is_none()
                         {
                             return Ok(None);
                         }
@@ -160,6 +162,10 @@ impl ModerationStore {
                                         next.query_lease_until.map_or(Value::Null, Value::from),
                                     ),
                                     ("query_failure".into(), failure),
+                                    (
+                                        "provider_retry_at".into(),
+                                        next.provider_retry_at.map_or(Value::Null, Value::from),
+                                    ),
                                     ("dispatch_lease_until".into(), Value::Null),
                                     (
                                         "assessment".into(),
@@ -190,6 +196,7 @@ fn plan_query(
 ) -> Option<(VideoReview, Option<String>)> {
     let mut next = review.clone();
     next.version = review.version.checked_add(1)?;
+    next.provider_retry_at = None;
     if review.deadline_at <= now {
         next.state = ReviewState::Expired;
         next.query_lease_until = None;
@@ -218,7 +225,7 @@ fn plan_query(
                 next.query_lease_until = Some((now + QUERY_LEASE_SECONDS).min(review.deadline_at));
             }
         }
-        Action::Wait(failure) => {
+        Action::Wait(failure, retry_after) => {
             next.query_lease_until = None;
             if budget {
                 next.state = ReviewState::Failed;
@@ -229,7 +236,12 @@ fn plan_query(
                 } else {
                     policy.interval()
                 };
-                next.available_at = (now + delay).min(review.deadline_at);
+                next.provider_retry_at = retry_after
+                    .map(|retry| retry.earliest_at(now).min(review.deadline_at))
+                    .filter(|&timestamp| timestamp > now);
+                next.available_at = (now + delay)
+                    .max(next.provider_retry_at.unwrap_or(now))
+                    .min(review.deadline_at);
                 next.query_failure = failure;
             }
         }

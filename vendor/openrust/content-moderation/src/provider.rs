@@ -27,6 +27,8 @@ mod groups_migration;
 mod lookup_hint_migration;
 #[path = "../database/migrations/2026_11_26_000004_add_moderation_query_budget.rs"]
 mod query_budget_migration;
+#[path = "../database/migrations/2026_11_26_000011_add_moderation_query_retry_at.rs"]
+mod query_retry_migration;
 #[path = "../database/migrations/2026_11_26_000005_add_moderation_recovery_dispatch.rs"]
 mod recovery_dispatch_migration;
 #[path = "../database/migrations/2026_11_26_000001_create_moderation_reviews_table.rs"]
@@ -98,6 +100,7 @@ openrust::compiled_migration_assets!("content-moderation";
     "2026_11_26_000008_create_moderation_review_groups_table.rs" => groups_migration,
     "2026_11_26_000009_add_moderation_cancellation.rs" => cancellation_migration,
     "2026_11_26_000010_create_moderation_review_decisions_table.rs" => decisions_migration,
+    "2026_11_26_000011_add_moderation_query_retry_at.rs" => query_retry_migration,
 );
 
 impl ModerationServiceProvider {

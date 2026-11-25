@@ -16,12 +16,12 @@ use zeroize::Zeroizing;
 
 use super::{
     Endpoint, field, hive_image::ImageService, hive_ocr::OcrService, hive_video::VideoService,
-    http_status, media::VersionedMediaLinks,
+    http_status, media::VersionedMediaLinks, query_http_status,
 };
 use crate::{
     Assessment, Confidence, Coverage, Decision, Finding, ImageInput, Modality, ModerationDriver,
-    ModerationError, ModerationFuture, ModerationResult, Operation, TaskId, TaskStatus, TextInput,
-    VideoInput,
+    ModerationError, ModerationFuture, ModerationResult, Operation, RetryAfter, TaskId, TaskStatus,
+    TextInput, VideoInput,
 };
 
 pub(super) struct Hive {
@@ -150,8 +150,9 @@ impl Model {
         &self,
         response: Response,
         expected: &TaskId,
+        retry_after: &mut Option<RetryAfter>,
     ) -> ModerationResult<Option<ModelResult<T>>> {
-        http_status(response.status().as_u16())?;
+        query_http_status(&response, retry_after)?;
         if response.status().as_u16() == 202 {
             return Ok(None);
         }
@@ -394,11 +395,19 @@ impl ModerationDriver for Hive {
     }
 
     fn query_video<'a>(&'a self, id: &'a TaskId) -> ModerationFuture<'a, TaskStatus> {
+        Box::pin(async move { self.query_video_with_retry(id, &mut None).await })
+    }
+
+    fn query_video_with_retry<'a>(
+        &'a self,
+        id: &'a TaskId,
+        retry_after: &'a mut Option<RetryAfter>,
+    ) -> ModerationFuture<'a, TaskStatus> {
         Box::pin(async move {
             self.video
                 .as_ref()
                 .ok_or(ModerationError::Unsupported(Operation::QueryVideo))?
-                .query(id)
+                .query(id, retry_after)
                 .await
         })
     }

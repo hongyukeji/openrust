@@ -196,7 +196,7 @@ let recommendation = result.decision(&[Modality::Text]);
 
 落單後用儲存介面及目前應用程式的 `ModerationManager` 建立 `VideoReviewService`，透過 Worker 或應用程式呼叫 `submit(review_id)`。服務在資料庫領取子檢查，解析原憑證修訂，並提交原始物件版本。並行呼叫可能讀到 `Submitting`。供應商傳回可確認的回應時保存其任務 ID。回應不明確或領取後 Worker 中斷時，後續呼叫可在租約到期後將狀態記為 `Unknown`。先向供應商核對原任務，再決定是否建立新審核。達到截止時間的審核保持過期。
 
-呼叫 `VideoReviewService::query(review_id)` 推進已確認的任務。可在固定設定中設定 `query_interval_seconds` 和 `query_max_attempts`，預設 30 秒、120 次，兩者各可設 1–300。服務在資料庫中記錄下次查詢時間、租約和嘗試次數，重新啟動後仍使用相同預算。遠端結果正常待定時使用設定間隔，暫時故障採用有上限的退避。
+呼叫 `VideoReviewService::query(review_id)` 推進已確認的任務。可在固定設定中設定 `query_interval_seconds` 和 `query_max_attempts`，預設 30 秒、120 次，兩者各可設 1–300。服務在資料庫中記錄下次查詢時間、租約和嘗試次數，重新啟動後仍使用相同預算。遠端結果正常待定時使用設定間隔，暫時故障採用有上限的退避。HTTP 429 或 503 帶有有效的 `Retry-After` 時，可以延後下次查詢，支援等待秒數和 HTTP 日期。審核截止時間和嘗試次數仍有效。等待期間可記錄已驗簽回呼或未驗簽查詢提示，下一次查詢仍須等到供應商指定的時間。
 
 透過 `VideoReview::assessment()` 讀取正規化證據，透過 `VideoReview::decision()` 讀取審核決定。所有必檢模態涵蓋完整後，審核才有決定。供應商完成但涵蓋不足時，審核保留證據並回報涵蓋失敗。
 

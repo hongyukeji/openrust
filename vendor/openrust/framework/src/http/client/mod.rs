@@ -12,6 +12,7 @@ mod middleware;
 mod pending_request;
 mod pool;
 mod response;
+mod retry_after;
 mod sink;
 pub mod tencent_rpc;
 mod transport;
@@ -30,6 +31,7 @@ pub use pool::Pool;
 pub use reqwest::multipart::{Form, Part};
 pub use reqwest::{Certificate as TlsCertificate, Identity as TlsIdentity, Request};
 pub use response::{Response, TransferStats};
+pub use retry_after::RetryAfter;
 pub use sink::Sink;
 
 use std::fmt;

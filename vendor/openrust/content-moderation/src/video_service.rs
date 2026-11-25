@@ -272,7 +272,8 @@ impl VideoReviewService {
         task: &TaskId,
         review: &VideoReview,
     ) -> QueryOutcome {
-        match driver.query_video(task).await {
+        let mut retry_after = None;
+        match driver.query_video_with_retry(task, &mut retry_after).await {
             Ok(TaskStatus::Pending | TaskStatus::Running) => QueryOutcome::Waiting,
             Ok(TaskStatus::Succeeded(assessment)) => {
                 let complete = review
@@ -293,10 +294,12 @@ impl VideoReviewService {
             Ok(TaskStatus::Failed) => query_failed(QueryFailure::ProviderFailed),
             Ok(TaskStatus::Cancelled) => query_terminal(ReviewState::Cancelled),
             Ok(TaskStatus::Expired) => query_terminal(ReviewState::Expired),
-            Err(ModerationError::Throttled) => QueryOutcome::Retry(QueryFailure::Throttled),
-            Err(ModerationError::Timeout) => QueryOutcome::Retry(QueryFailure::Timeout),
+            Err(ModerationError::Throttled) => {
+                QueryOutcome::Retry(QueryFailure::Throttled, retry_after)
+            }
+            Err(ModerationError::Timeout) => QueryOutcome::Retry(QueryFailure::Timeout, None),
             Err(ModerationError::ServiceUnavailable) => {
-                QueryOutcome::Retry(QueryFailure::ServiceUnavailable)
+                QueryOutcome::Retry(QueryFailure::ServiceUnavailable, retry_after)
             }
             Err(ModerationError::Unauthorized) => query_failed(QueryFailure::Unauthorized),
             Err(ModerationError::Rejected) => query_failed(QueryFailure::Rejected),

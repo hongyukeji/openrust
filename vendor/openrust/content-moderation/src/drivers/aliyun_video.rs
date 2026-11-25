@@ -17,7 +17,7 @@ use super::{
 };
 use crate::{
     Assessment, Confidence, Coverage, Decision, EvidenceSpan, Finding, Modality, ModerationError,
-    ModerationResult, TaskId, TaskStatus, VideoInput, credentials::DriverCredentials,
+    ModerationResult, RetryAfter, TaskId, TaskStatus, VideoInput, credentials::DriverCredentials,
 };
 
 pub(super) struct VideoService {
@@ -75,7 +75,7 @@ impl VideoService {
             parameters["cryptType"] = json!("SHA256");
         }
         let output: Output<Submission> = driver
-            .rpc("VideoModeration", &self.name, parameters)
+            .rpc("VideoModeration", &self.name, parameters, &mut None)
             .await
             .map_err(unknown_submission)?;
         match output.code.number().map_err(unknown_submission)? {
@@ -87,12 +87,18 @@ impl VideoService {
         }
     }
 
-    pub(super) async fn query(&self, driver: &Aliyun, id: &TaskId) -> ModerationResult<TaskStatus> {
+    pub(super) async fn query(
+        &self,
+        driver: &Aliyun,
+        id: &TaskId,
+        retry_after: &mut Option<RetryAfter>,
+    ) -> ModerationResult<TaskStatus> {
         let output: Output<Query> = driver
             .rpc(
                 "VideoModerationResult",
                 &self.name,
                 json!({"taskId":id.as_str()}),
+                retry_after,
             )
             .await?;
         if output

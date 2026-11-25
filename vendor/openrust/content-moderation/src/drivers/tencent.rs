@@ -14,12 +14,12 @@ use serde_json::{Value, json};
 use zeroize::Zeroizing;
 
 use super::{
-    Endpoint, field, http_status, tencent_image::ImageService, tencent_video::VideoService,
+    Endpoint, field, query_http_status, tencent_image::ImageService, tencent_video::VideoService,
 };
 use crate::{
     Assessment, Confidence, Coverage, Decision, Finding, ImageInput, Modality, ModerationDriver,
-    ModerationError, ModerationFuture, ModerationResult, Operation, TaskId, TaskStatus, TextInput,
-    VideoInput,
+    ModerationError, ModerationFuture, ModerationResult, Operation, RetryAfter, TaskId, TaskStatus,
+    TextInput, VideoInput,
 };
 
 pub(super) struct Tencent {
@@ -94,6 +94,7 @@ impl Tencent {
         action: &'static str,
         version: &'static str,
         parameters: Value,
+        retry_after: &mut Option<RetryAfter>,
     ) -> ModerationResult<T> {
         let body = parameters.to_string();
         let headers = TencentRpcSigner {
@@ -113,7 +114,7 @@ impl Tencent {
         )
         .map_err(|_| ModerationError::InvalidConfiguration("tencent credentials"))?;
         let response = endpoint.post_encoded(headers, body, CONTENT_TYPE).await?;
-        http_status(response.status().as_u16())?;
+        query_http_status(&response, retry_after)?;
         let envelope: Envelope = response.json().map_err(|_| ModerationError::Protocol)?;
         if let Some(error) = envelope
             .response
@@ -176,7 +177,14 @@ impl ModerationDriver for Tencent {
                 body["SourceLanguage"] = json!(text.language(language)?);
             }
             let output = self
-                .request(&text.endpoint, "tms", "TextModeration", "2020-12-29", body)
+                .request(
+                    &text.endpoint,
+                    "tms",
+                    "TextModeration",
+                    "2020-12-29",
+                    body,
+                    &mut None,
+                )
                 .await?;
             read_text(output, &text.biz_type)
         })
@@ -203,11 +211,19 @@ impl ModerationDriver for Tencent {
     }
 
     fn query_video<'a>(&'a self, id: &'a TaskId) -> ModerationFuture<'a, TaskStatus> {
+        Box::pin(async move { self.query_video_with_retry(id, &mut None).await })
+    }
+
+    fn query_video_with_retry<'a>(
+        &'a self,
+        id: &'a TaskId,
+        retry_after: &'a mut Option<RetryAfter>,
+    ) -> ModerationFuture<'a, TaskStatus> {
         Box::pin(async move {
             self.video
                 .as_ref()
                 .ok_or(ModerationError::Unsupported(Operation::QueryVideo))?
-                .query(self, id)
+                .query(self, id, retry_after)
                 .await
         })
     }
