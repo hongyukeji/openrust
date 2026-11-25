@@ -48,7 +48,7 @@ Horizon包与其已验快照逐文件一致；当前核心的Worker／事件／A
 | 分仓储、任务、标签、指标与通知 | 七类仓储职责、任务终态与详情／重试引用、监控／静默标签、trim、指标快照／锁、长等待与去重已实现；原生database批次三库已验 |
 | 原生队列身份 | transport ID与payload UUID显式桥接，重复／过时事件保护、历史forget竞态、未部署队列观测均已实际验证，属明确原生队列适配 |
 | 授权面板 | 实际任务分页／详情／重试、指标／快照、标签写入、失败和批次操作；当前源码Chrome桌面手机、同源写保护、XSS／CSP及布局通过 |
-| Redis与平台 | Redis 8.10.3 隔离夹具通过；拒绝上游同样不支持的 Redis Cluster。macOS 和 Linux ARM64 容器均有真实进程与信号证据。Linux x86_64、Windows 应用装配、实际收件与部署组合仍待验收。 |
+| Redis与平台 | Redis 8.10.3 隔离夹具通过；拒绝上游同样不支持的 Redis Cluster。macOS 和 Linux ARM64 容器均有真实进程与信号证据。Windows ARM64 的 Horizon 包和 Artisan 应用装配已验。Linux x86_64、实际收件与部署组合仍待验收。 |
 
 上述关闭原来“Master直管Worker／命令与分仓储未实现／只读面板”等过时缺口。不宣称执行完整PHP PHPUnit，也不隐藏Rust显式标签、轮询listen与内存衡量方式等已记录适配。
 
@@ -377,7 +377,7 @@ Rust 将进程创建错误保留在原席位的冷却周期，记日志后继续
 
 在新的独占 Redis 8.10.3 容器上，使用同一 macOS 二进制开启浏览器选项重跑真实进程矩阵。Chrome 桌面和移动视口验证授权、任务详情、监控标签写入、指标、CSP 刷新与布局，进程矩阵也通过。证据为 `target/tmp/observability-parity/horizon-worker-spawn-browser.log`。
 
-Linux ARM64 首轮优化构建触及 32 GB 停线，编译产物已按项目约定清理，重跑两批合并快照。Windows ARM64 结果见下节。
+Linux ARM64 以 `3515bafe8` 的进程范围源码重新构建 Release。首轮因触及 32 GB 停线中断，清理后确认原构建容器退出，再用 Rust 1.94.0、单作业完成优化构建。Linux 7.0.14、Debian glibc 2.36、独占 Redis 8.10.3 上，原生 Worker、孤儿清理、完整进程及 HTTP 矩阵均通过。两条一分钟路径均实际等待到期，分别验证异常退出补位及缺失工作目录恢复，最后关闭 Redis 并验证进程回收。证据为 `target/tmp/horizon-linux/worker-spawn-release.log`。Windows ARM64 结果见下节。
 
 ### Horizon Windows ARM64 应用装配与条件编译
 
