@@ -77,7 +77,7 @@ O01 Activitylog、O02 Horizon、O03 Telescope原生范围、O04 Pennant、O05 Pu
 | Telescope `ClientRequestWatcher::duration` | 固定上游在有正计时时以毫秒向下取整，缺少计时时输出空值。Rust 从现有传输统计输出整数毫秒或 JSON 空值。测试由真实出站 HTTP 与 fake 消费者覆盖。 | 命令与面板展示随完整输出审计核对。 |
 | Telescope `ClientRequestWatcher::input` | 已捕获构建器提供的 multipart 普通字段及 `attach_body` 附件的文件名、长度、头部。普通字段先于附件发送，同名取最后一项，复用请求字段／头部脱敏。原生 `attach` 保留发送契约。 | 原生 reqwest `Part` 元数据和中间件替换流的边界见[包审计](telescope/README.md#出站-multipart)。 |
 | Telescope 非 multipart 出站载荷 | 诊断从原始 GET 地址或结构化正文选择载荷，并与线上 URL 分别记录。已核对 JSON／表单 POST、GET 查询覆盖、HEAD、原始正文、自定义媒体类型与表单标量快照。成功重定向保留原始输入，连接失败从实际缓冲正文解码。 | multipart 重定向、重试回调改写与其他中间件组合仍需对账。 |
-| Telescope `FetchesStackTrace`、`QueryWatcher`、`GateWatcher` | 固定上游按路径子串跳过被忽略的帧，再选第一处合格来源。找不到合格帧时 Query 不入库，Gate 仍入库且行号和文件为空。Gate 已提供授权入口位置。Query 已覆盖核心 SQL、分页、模型写入、直接关系读取、多对多中间表、关联写入和常规 Schema 入口。 | Gate 外层候选、关系变体逐类型验收、懒加载、驱动特有 Schema 操作和发布构建路径重映射仍待核对。 |
+| Telescope `FetchesStackTrace`、`QueryWatcher`、`GateWatcher` | 固定上游按路径子串跳过被忽略的帧，再选第一处合格来源。找不到合格帧时 Query 不入库，Gate 仍入库且行号和文件为空。Gate 已覆盖授权入口及同应用嵌套授权来源。Query 已覆盖核心 SQL、分页、模型写入、直接关系读取、多对多中间表、关联写入和常规 Schema 入口。 | 普通异步包装器的外层候选、关系变体逐类型验收、懒加载、驱动特有 Schema 操作和发布构建路径重映射仍待核对。 |
 | Pulse 默认 Recorder 清单 | 固定配置的十个 Recorder 均可映射到本地配置。已核对采样率 1、慢操作阈值 1000、异常和慢查询位置开关、默认存储及采集驱动。SlowQueries 现使用数据库事件的调用位置。Servers 默认主机名随配置加载求值。 | 逐 Recorder 核对触发事件、筛选、采样、聚合、配置覆盖和扩展入口，再核对命令和面板。 |
 | Horizon `horizon:listen` 的 `watch` | 上游发布配置提供默认监听列表。Rust 配置补充应用、启动、配置、数据库、路由、视图、公开目录及资源目录中的 Rust 文件和 Cargo 构建入口的对应监听路径。macOS 和 Linux ARM64 的真实 Artisan 使用默认配置监控 `routes/web.rs`，文件更新后重建 Master 和 Worker，SIGTERM 后子树退出。 | 发布组合与其余适用的 Unix 目标。 |
 | Horizon 其余配置 | 固定上游含 `name`、`waits`、`silenced`、`silenced_tags` 及 Supervisor `nice`。本地已读静默配置并具备 `nice` 运行时默认；配置形状、面板名称、等待时间入口仍须逐项核对。 | 对照发布配置及实际命令、Redis 和面板消费者，分别核对默认、覆盖及非法值。 |
@@ -277,9 +277,17 @@ Rust 复用 `Redirect::follow` 执行上述默认规则，仍要求 HTTP(S) 目�
 
 固定 [GateWatcher](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Watchers/GateWatcher.php) 与 [FetchesStackTrace](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Watchers/FetchesStackTrace.php) 按调用来源筛选，来源无效时仍写入授权结果。Rust 在公开授权入口的 Future 创建时通过 `Location::caller()` 捕获位置，直接 Gate、Facade、对象安全的 Gate trait 和批量授权共用事件字段。原生事件新增可选 `caller`，手工构造的事件可以传入 `None`。旧版的二次验证 `factor_gate` 不提供原生授权事件来源。
 
-`ignore_paths` 使用路径子串，匹配时统一路径分隔符。`ignore_packages` 识别 vendor 与 Cargo 默认依赖路径，框架包源码始终排除。当前采集一处可确定的调用位置。被过滤或缺失时保留 Gate 结果，文件和行号为空。通过任意异步包装器寻找可用的外层调用帧、非标准依赖路径、Query 的来源传播继续核对。
+`ignore_paths` 使用路径子串，匹配时统一路径分隔符。`ignore_packages` 识别 vendor 与 Cargo 默认依赖路径，框架包源码始终排除。初批采集授权入口的一处调用位置，过滤后无可用来源时保留 Gate 结果，文件和行号为空。同应用嵌套授权的后续处理见下文。
 
 真实应用路由验证 Facade、直接调用、trait 对象和批量方法写入精确调用行号。三种 Watcher 配置分别验证来源可见、路径过滤、依赖过滤及 `ignore_abilities`。SQLite、PostgreSQL 18.7、MySQL 8.4.13 各通过。框架授权 5 项、Telescope 33 项、快照全仓格式、框架库及 Telescope 全目标严格 Clippy、三语文档构建和 12 组浏览器检查通过。快照沿用 `8041ae15a` 加前批及本批文件。独立 Redis 用例本批未跑。发布构建的路径重映射与目标平台仍需验收。
+
+### Telescope Gate 嵌套授权来源
+
+PHP 8.5.12 使用固定 Gate 与固定 Telescope 复现四条授权记录。直接调用使用应用行，忽略路径中的普通包装函数与嵌套授权会向外查找。嵌套例中里外两条授权记录均指向应用的外层授权行。证据为 `target/tmp/observability-parity/gate-outer-caller-upstream.log`。 [固定 GateWatcher](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Watchers/GateWatcher.php)
+
+Rust 在授权 Future 中传播同一应用的外层授权位置，通过当前同步事件派发上下文提供给 Watcher，保留 `GateEvaluated.caller`。Watcher 先选最近的合格位置，内层被过滤时使用合格的外层位置。真实 HTTP 回归同时验证同一任务中交错轮询的兄弟授权无法取得无关外层位置，且来源为空时仍记录授权结果。普通异步包装器的外层应用位置、非标准依赖路径以及 Release 和实际部署组合仍待验收。
+
+SQLite、PostgreSQL 18.7、MySQL 8.4.13 的 Telescope Gate 专项及框架授权实测通过，框架事件默认 8 项、三个扩展默认 91 项、快照全仓格式、严格 Clippy、三语站点构建和 12 组浏览器检查通过。Linux 7.0.14 ARM64 和 Windows 11 ARM64 使用 Rust 1.94.0 通过同一源码快照的嵌套授权 HTTP 与 SQLite 专项。证据为 `target/tmp/observability-parity/gate-outer-caller-complete{,-linux,-docs}.log` 与 `target/tmp/observability-windows/gate-outer-caller-complete-arm64.log`。
 
 ### Telescope Query 数据库调用来源
 

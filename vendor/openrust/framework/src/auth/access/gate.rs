@@ -22,6 +22,15 @@ mod policies;
 
 pub use policies::PolicyHandle;
 
+tokio::task_local! {
+    static GATE_CALLERS: GateCallers;
+}
+
+struct GateCallers {
+    registry: Arc<GateRegistry>,
+    locations: Arc<[&'static Location<'static>]>,
+}
+
 type Decision = Option<Response>;
 type Ability = dyn for<'a> Fn(
         Option<&'a dyn Authenticatable>,
@@ -287,6 +296,29 @@ impl Gate {
         args: &[&Argument],
         caller: &'static Location<'static>,
     ) -> AuthResult<Response> {
+        // 授权回调可能继续授权。作用域只在当前 Future 的轮询期间有效。
+        let outer = GATE_CALLERS
+            .try_with(|outer| {
+                Arc::ptr_eq(&outer.registry, &self.registry).then(|| Arc::clone(&outer.locations))
+            })
+            .ok()
+            .flatten();
+        let locations = outer.as_deref().unwrap_or_default();
+        let callers = GateCallers {
+            registry: Arc::clone(&self.registry),
+            locations: locations.iter().copied().chain([caller]).collect(),
+        };
+        GATE_CALLERS
+            .scope(callers, self.evaluate(ability, args, caller))
+            .await
+    }
+
+    async fn evaluate(
+        &self,
+        ability: &str,
+        args: &[&Argument],
+        caller: &'static Location<'static>,
+    ) -> AuthResult<Response> {
         let (before, after, defined, default_denial) = {
             let definitions = self
                 .registry
@@ -356,7 +388,8 @@ impl Gate {
             argument_types: args.iter().map(|argument| (*argument).type_id()).collect(),
             caller: Some(caller),
         });
-        let mut context = EventContext::with_arguments(event.as_ref(), args);
+        let callers = GATE_CALLERS.with(|scope| Arc::clone(&scope.locations));
+        let mut context = EventContext::with_arguments_and_callers(event.as_ref(), args, &callers);
         dispatcher.dispatch(event.clone(), &mut context).await?;
         Ok(())
     }

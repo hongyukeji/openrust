@@ -6,7 +6,7 @@ mod event_fake;
 mod event_service_provider;
 mod listener_registry;
 
-use std::{any::Any, error::Error, future::Future, pin::Pin, time::Duration};
+use std::{any::Any, error::Error, future::Future, panic::Location, pin::Pin, time::Duration};
 
 pub use call_queued_listener::CallQueuedListener;
 pub use dispatcher::Dispatcher;
@@ -100,6 +100,7 @@ pub struct EventContext<'tx> {
 struct EventArguments<'a> {
     event: &'a dyn crate::contracts::events::Event,
     values: &'a [&'a (dyn Any + Send + Sync)],
+    callers: &'a [&'static Location<'static>],
 }
 
 impl<'tx> EventContext<'tx> {
@@ -120,8 +121,20 @@ impl<'tx> EventContext<'tx> {
         event: &'tx dyn crate::contracts::events::Event,
         values: &'tx [&'tx (dyn Any + Send + Sync)],
     ) -> Self {
+        Self::with_arguments_and_callers(event, values, &[])
+    }
+
+    pub(crate) fn with_arguments_and_callers(
+        event: &'tx dyn crate::contracts::events::Event,
+        values: &'tx [&'tx (dyn Any + Send + Sync)],
+        callers: &'tx [&'static Location<'static>],
+    ) -> Self {
         Self {
-            arguments: Some(EventArguments { event, values }),
+            arguments: Some(EventArguments {
+                event,
+                values,
+                callers,
+            }),
             ..Self::default()
         }
     }
@@ -136,6 +149,16 @@ impl<'tx> EventContext<'tx> {
             .as_ref()
             .filter(|arguments| std::ptr::addr_eq(arguments.event, event))
             .map(|arguments| arguments.values)
+    }
+
+    pub(crate) fn callers_for(
+        &self,
+        event: &dyn crate::contracts::events::Event,
+    ) -> Option<&'tx [&'static Location<'static>]> {
+        self.arguments
+            .as_ref()
+            .filter(|arguments| std::ptr::addr_eq(arguments.event, event))
+            .map(|arguments| arguments.callers)
     }
 
     /// Excludes the request's originating socket from this broadcast.

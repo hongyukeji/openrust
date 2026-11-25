@@ -234,9 +234,14 @@ impl NativeWatcher {
                 });
             let allowed = event.result.as_ref().is_some_and(|result| result.allowed());
             let message = event.result.as_ref().map(|result| result.message());
-            let caller = event
-                .caller
-                .filter(|caller| self.caller_visible("GateWatcher", caller));
+            let caller = context
+                .and_then(|context| event.callers(context))
+                .filter(|callers| !callers.is_empty())
+                .unwrap_or(event.caller.as_slice())
+                .iter()
+                .rev()
+                .copied()
+                .find(|caller| self.caller_visible("GateWatcher", caller));
             telescope.record_gate(IncomingEntry::make(json!({"ability":event.ability,"result":if allowed {"allowed"} else {"denied"},"message":message,"arguments":arguments,"file":caller.map(Location::file),"line":caller.map(Location::line)}).as_object().unwrap().clone())?);
         }
         Ok(())

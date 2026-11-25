@@ -25,6 +25,14 @@ impl GateEvaluated {
     pub fn arguments<'a>(&self, context: &EventContext<'a>) -> Option<&'a [&'a Argument]> {
         context.arguments_for(self)
     }
+
+    /// 返回本次同步事件派发中由外到内的授权调用位置。
+    pub fn callers<'a>(
+        &self,
+        context: &EventContext<'a>,
+    ) -> Option<&'a [&'static Location<'static>]> {
+        context.callers_for(self)
+    }
 }
 
 impl Event for GateEvaluated {

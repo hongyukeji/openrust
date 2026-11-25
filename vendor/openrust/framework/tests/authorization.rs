@@ -413,6 +413,7 @@ async fn gate_evaluated_delivers_original_arguments_and_raw_result_over_http() {
                 let caller = event.caller.unwrap();
                 assert_eq!(caller.file(), file!());
                 assert!(caller.line() > 0);
+                assert_eq!(event.callers(context).unwrap(), [caller]);
                 let arguments = event.arguments(context).unwrap();
                 assert_eq!(
                     event.argument_types,

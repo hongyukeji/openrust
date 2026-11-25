@@ -12,6 +12,8 @@ use openrust_telescope::{
 };
 use serde_json::json;
 
+#[path = "support/gate_caller.rs"]
+mod gate_caller;
 #[path = "support/query_caller.rs"]
 mod query_caller;
 
@@ -28,6 +30,7 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
     Route::get("/watchers", handler)?;
     Route::get("/client-error", client_error_handler)?;
     Route::get("/gate-callers", gate_callers)?;
+    Route::get("/gate-outer-callers", gate_outer_callers)?;
     Route::get("/query-callers", query_callers)?;
     Route::get("/page-callers", page_callers)?;
     Route::get("/model-write-callers", model_write_callers)?;
@@ -697,6 +700,28 @@ fn gate_callers(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpEr
         )
     })
 }
+
+fn gate_outer_callers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    use openrust::{auth::access::Response as Decision, support::facades::Gate};
+
+    Box::pin(async {
+        for ability in ["inner", "sibling"] {
+            Gate::define_guest(ability, |_, _| Box::pin(async { Ok(Decision::from(true)) }))?;
+        }
+        Gate::define_guest("outer", |_, _| {
+            Box::pin(async {
+                tokio::task::yield_now().await;
+                gate_caller::allows("inner").await.map(Decision::from)
+            })
+        })?;
+        let gate = Gate::for_user(None)?;
+        let caller = line!() + 1;
+        let outer = gate.allows("outer", &[]);
+        let (outer, sibling) = tokio::join!(outer, gate_caller::allows("sibling"));
+        assert!(outer? && sibling?);
+        Response::json(http::StatusCode::OK, caller)
+    })
+}
 fn handler(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
         Db::connection(None)
@@ -728,6 +753,71 @@ fn application() -> TestApp {
     ).unwrap();
     std::fs::write(app.root().join("watchers.sqlite"), []).unwrap();
     app
+}
+
+#[tokio::test]
+async fn gate_watcher_falls_back_to_the_outer_authorization_in_the_same_future() {
+    for ignore_wrapper in [false, true] {
+        let mut app = application();
+        app.artisan(["migrate", "--force"])
+            .await
+            .assert_successful();
+        let ignore_paths = if ignore_wrapper {
+            json!(["support/gate_caller.rs"])
+        } else {
+            json!([])
+        };
+        GateWatcher::new(
+            json!({"ignore_packages": false, "ignore_paths": ignore_paths})
+                .as_object()
+                .unwrap()
+                .clone(),
+        )
+        .register(app.app())
+        .await
+        .unwrap();
+        let response = app.get("/api/gate-outer-callers").await.unwrap();
+        response.assert_ok();
+        let outer_line = response.json::<u64>().unwrap();
+        let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
+        let entries = repository
+            .get(Some(EntryType::Gate), EntryQueryOptions::default())
+            .await
+            .unwrap();
+        assert_eq!(entries.len(), 3);
+        let mut abilities = std::collections::BTreeSet::new();
+        for entry in &entries {
+            assert_eq!(entry.content["result"], "allowed");
+            let ability = entry.content["ability"].as_str().unwrap();
+            assert!(abilities.insert(ability));
+            match ability {
+                "outer" => {
+                    assert_eq!(entry.content["file"], file!());
+                    assert_eq!(entry.content["line"], outer_line);
+                }
+                "inner" if ignore_wrapper => {
+                    assert_eq!(entry.content["file"], file!());
+                    assert_eq!(entry.content["line"], outer_line);
+                }
+                "sibling" if ignore_wrapper => {
+                    assert!(entry.content["file"].is_null());
+                    assert!(entry.content["line"].is_null());
+                }
+                "inner" | "sibling" => {
+                    assert!(
+                        entry.content["file"]
+                            .as_str()
+                            .unwrap()
+                            .replace('\\', "/")
+                            .ends_with("support/gate_caller.rs")
+                    );
+                    assert!(entry.content["line"].as_u64().unwrap() > 0);
+                }
+                ability => panic!("未预期的授权能力 {ability}"),
+            }
+        }
+        repository.clear().await.unwrap();
+    }
 }
 
 #[tokio::test]
