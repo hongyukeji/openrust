@@ -127,3 +127,11 @@ cargo run -- artisan vendor:publish --tag=passkeys-migrations
 PHP 憑證 JSON 無法直接作為 Rust 憑證儲存格式。
 
 安裝器支援預設模型使用 `User::PASSWORD`、`User::REMEMBER_TOKEN` 的隱藏欄位清單，也相容等價的字串寫法。未知自訂結構仍保留原檔並要求手動設定。
+
+## 交易內通行密鑰清理
+
+```rust
+passkeys.purge_user_in_transaction(transaction, user).await?;
+```
+
+先持有使用者資料列鎖，使用所屬連線的同一交易。此方法逐模型實體刪除本人憑證，包含 Scope 隱藏與軟刪除記錄，觸發模型實體刪除事件；任何錯誤須回復整個交易。已註冊使用者型別與已持久化、未改寫的真實主鍵必須相符。尚未安裝的選用資料表回傳零；已存在但位於其他連線的資料表明確拒絕。這是 Rust 交易擴充，一般密鑰管理介面保留原有行為。

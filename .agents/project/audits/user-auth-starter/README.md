@@ -537,3 +537,11 @@ AuthManager／Auth::forget_guards对应固定Laravel AuthManager::forgetGuards�
 实际证据位于target/tmp/user-starter：token-purge-mysql-final.log、token-purge-postgres-final.log分别通过真实MySQL8.4.13／PostgreSQL18.7的软删除自定义模型专项和既有Bearer／SPA矩阵；token-purge-sqlite-final.log通过SQLite既有矩阵。各矩阵包括整数／UUID／ULID、scope隐藏、精确归属、错误连接、事件与取消回滚。sanctum_purge每库验证105个本人凭据跨批处理、软删除、模型伪成功和取消全部回滚、他人及大小写归属保留、重复清理0。token-purge-cache-final.log的3个缓存与2个既有扩展测试通过，覆盖HTTP正式门面、同请求刷新、选定Guard、跨请求／应用隔离、会话不变及解析中重入保护。
 
 最终workspace all-targets及Fortify+Sanctum严格Clippy、fmt通过（token-purge-workspace-clippy.log／token-purge-feature-clippy.log／token-purge-fmt.log）；三语教程构建与24组双挂载桌面／移动页面检查在token-purge-docs-first.log通过。冻结源码沿用S09的15c9c1248基线与已验本批覆盖，其他在途Horizon／Webhook不混入。初期夹具失败均保留且不计通过。这是注销前置能力，未完成DeleteUser／Passkeys清理及最终安装组合，A01各阶段仍未整簇闭合。
+
+## S04前置：通行密钥事务清理
+
+Passkeys::purge_user_in_transaction复用当前注册的用户／密钥模型、原生Eloquent事务和force-delete事件，不另建凭据表或WebAuthn解码器。旧版无同契约事务清理；沿用本账本固定Passkeys／Fortify参考及前述凭据清理裁决。这是Rust注销事务扩展，不冒称PHP有同名接口。调用方持有用户锁，出错须回滚整个事务；注册类型、真实原始主键与用户连接严格匹配。可选表未安装返回0，已存在的跨连接表拒绝原子假设；包含Scope隐藏与软删除行，分批100处理，精确user_id、MySQL二进制比较，事件取消／物理删除伪成功均失败，不删除他人凭据。
+
+passkey-purge-sqlite.log／passkey-purge-final-test.log通过SQLite专项及4个既有公开模型契约测试；passkey-purge-mysql.log、passkey-purge-postgres.log分别在MySQL8.4.13／PostgreSQL18.7通过相同105条跨批次、ULID密钥、软删除、模型取消回滚、伪成功、他人／大小写邻居保留及重复清理0，另覆盖未注册模型、主键改写和未安装表。最后一次测试夹具async签名整理后SQLite专项复验通过；数据库逻辑未变化。当前已覆盖字符串用户主键；整数／UUID用户及跨连接明确拒绝会随注销组合继续补验，不将未运行用例计入本单元。
+
+workspace all-targets及Fortify+Sanctum严格Clippy、fmt在passkey-purge-*-delivery.log／passkey-purge-fmt.log通过。三语Fortify教程构建与12组双挂载桌面移动检查在passkey-purge-docs.log／passkey-purge-docs-browser.log通过。早期私有Builder误用及夹具主键、lint失败已修正，保留日志不计通过。源码组合沿用S09及已验覆盖，无其他协作者在途内容。仅完成注销前置，不宣称DeleteUser或A01整簇闭合。

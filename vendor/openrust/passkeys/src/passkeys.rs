@@ -4,7 +4,7 @@ use crate::{
 };
 use openrust::{
     contracts::{auth::Authenticatable, config::Repository},
-    database::Value,
+    database::{DatabaseError, DatabaseResult, Transaction, Value, eloquent::Model},
     http::{HttpError, HttpFuture, Request},
 };
 use std::{
@@ -106,6 +106,40 @@ impl Passkeys {
             .expect("Passkeys model lock")
             .clone()
     }
+    /*
+     * 调用方持有用户写锁并负责提交或回滚；仅清理已注册用户模型的真实主键。
+     * 包括隐藏及软删除凭据，逐模型执行物理删除事件，不跨连接假装原子清理。
+     */
+    pub async fn purge_user_in_transaction<M: Model + Authenticatable>(
+        &self,
+        transaction: &mut Transaction,
+        user: &M,
+    ) -> DatabaseResult<u64> {
+        let registered = self.user_model.read().expect("Passkeys model lock").clone();
+        if registered.is_none_or(|model| model.user_type_id() != std::any::TypeId::of::<M>()) {
+            return Err(DatabaseError::InvalidQuery(
+                "通行密钥用户模型与注销模型不一致",
+            ));
+        }
+        if !transaction.belongs_to(&user.get_connection()?) {
+            return Err(DatabaseError::InvalidQuery(
+                "通行密钥注销必须使用用户连接的事务",
+            ));
+        }
+        let key = user
+            .get_key()
+            .filter(|key| scalar(key).is_some())
+            .cloned()
+            .ok_or(DatabaseError::InvalidQuery("通行密钥用户缺少真实主键"))?;
+        if !user.state().exists() || user.get_raw_original(user.get_key_name()) != Some(&key) {
+            return Err(DatabaseError::InvalidQuery(
+                "通行密钥注销不能使用未持久化或改写主键的用户",
+            ));
+        }
+        self.passkey_store()
+            .purge_in_transaction(transaction, key)
+            .await
+    }
     pub fn user_model(&self) -> Result<&'static str, HttpError> {
         Ok(self.model()?.name())
     }
@@ -168,6 +202,7 @@ pub(crate) struct Account {
     pub display_name: String,
 }
 pub(crate) trait UserModel: Send + Sync {
+    fn user_type_id(&self) -> std::any::TypeId;
     fn name(&self) -> &'static str;
     fn clone_user(&self, user: &dyn Authenticatable) -> Option<Box<dyn Authenticatable>>;
     fn account(&self, user: &dyn Authenticatable, secret: &str) -> Result<Account, HttpError>;
@@ -178,6 +213,9 @@ pub(crate) trait UserModel: Send + Sync {
 }
 struct Adapter<T>(PhantomData<fn() -> T>);
 impl<T: PasskeyUser + Clone> UserModel for Adapter<T> {
+    fn user_type_id(&self) -> std::any::TypeId {
+        std::any::TypeId::of::<T>()
+    }
     fn name(&self) -> &'static str {
         std::any::type_name::<T>()
     }

@@ -127,3 +127,11 @@ Publishing preserves customized files and avoids duplicate migrations. Wire the 
 PHP credential JSON is not a portable Rust credential storage format.
 
 The installer supports the default model’s hidden-field list written with `User::PASSWORD` and `User::REMEMBER_TOKEN`, as well as the equivalent string literals. It preserves custom source and requests manual configuration for unrecognized layouts.
+
+## Transactional passkey cleanup
+
+```rust
+passkeys.purge_user_in_transaction(transaction, user).await?;
+```
+
+Hold the user row lock and use its connection transaction. This physically deletes the registered user’s credentials, including scoped or soft-deleted records, with model force-delete events. Roll back on any error. The persisted, unchanged primary key and registered user type must match. A missing optional table returns zero; an existing table on another connection is rejected. This Rust transaction extension leaves ordinary passkey APIs unchanged.

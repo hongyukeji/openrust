@@ -127,3 +127,11 @@ cargo run -- artisan vendor:publish --tag=passkeys-migrations
 PHP 凭据 JSON 不能直接作为 Rust 凭据存储格式。
 
 安装器支持默认模型使用 `User::PASSWORD`、`User::REMEMBER_TOKEN` 的隐藏字段列表，也兼容等价的字符串写法。未知自定义结构仍保留原文件并要求手动配置。
+
+## 事务内通行密钥清理
+
+```rust
+passkeys.purge_user_in_transaction(transaction, user).await?;
+```
+
+先持有用户行锁，使用用户连接的同一事务。该方法逐模型物理删除本人凭据，包含 Scope 隐藏与软删除记录，触发模型物理删除事件；任何错误须回滚整个事务。已注册用户类型和已持久化、未改写的真实主键必须匹配。尚未安装的可选表返回零；已存在但位于其他连接的表明确拒绝。这是 Rust 事务扩展，常规密钥管理接口保持原有行为。
