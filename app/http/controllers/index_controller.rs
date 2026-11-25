@@ -19,7 +19,7 @@ impl IndexController {
                     .get_routes()
                     .into_iter()
                     .find(|route| {
-                        !matches!(route.uri.as_str(), "/" | "up")
+                        route.uri != "/"
                             && !route.uri.contains('{')
                             && route
                                 .method

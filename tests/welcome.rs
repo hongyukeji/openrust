@@ -1353,7 +1353,6 @@ async fn automatic_homepage_uses_the_first_eligible_web_get_or_returns_not_found
 
     fn ineligible_routes() -> Result<(), RoutingError> {
         Route::get("/", IndexController::index)?;
-        Route::get("/up", || "Health")?;
         Route::post("/submit", || "POST")?;
         Route::get("/users/{id}", || "User")?;
         Route::get("/articles/{slug?}", || "Article")?;
@@ -1365,7 +1364,7 @@ async fn automatic_homepage_uses_the_first_eligible_web_get_or_returns_not_found
 
     fn eligible_routes() -> Result<(), RoutingError> {
         ineligible_routes()?;
-        Route::get("/z-first", || "First page")?;
+        Route::get("/up", || "Ordinary Web page")?;
         Route::get("/a-second", || "Second page")
     }
 
@@ -1381,6 +1380,7 @@ async fn automatic_homepage_uses_the_first_eligible_web_get_or_returns_not_found
             .with_routing(
                 Routing::default()
                     .api(|| Route::get("/fixed", || "API"))
+                    .health("/status/live")
                     .web(if has_page {
                         eligible_routes
                     } else {
@@ -1413,7 +1413,7 @@ async fn automatic_homepage_uses_the_first_eligible_web_get_or_returns_not_found
         if has_page {
             assert!(headers.starts_with("HTTP/1.1 302 "), "{headers}");
             assert!(
-                headers.contains("location: http://localhost/z-first?search=a%26b"),
+                headers.contains("location: http://localhost/up?search=a%26b"),
                 "{headers}"
             );
         } else {
