@@ -23,6 +23,12 @@ pub use jiff::Timestamp as TokenTimestamp;
 pub use password_tokens::bind_password_tokens;
 #[cfg(feature = "sanctum")]
 pub mod credentials;
+#[cfg(feature = "sanctum")]
+mod device_api;
+#[cfg(feature = "sanctum")]
+mod device_web;
+#[cfg(feature = "sanctum")]
+pub mod devices;
 pub(crate) mod install;
 mod responses;
 #[cfg(feature = "sanctum")]

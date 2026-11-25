@@ -137,10 +137,15 @@ fn account(
         let fortify = crate::resolver::Resolver::<Fortify>::get_facade_root()
             .map_err(crate::resolver::internal)?;
         let features = crate::Features::new(fortify.config.clone());
+        #[cfg(feature = "sanctum")]
+        let can_manage_devices = super::devices::policy()?.is_some();
+        #[cfg(not(feature = "sanctum"))]
+        let can_manage_devices = false;
         let view = View::make(
             "user.home",
             [
                 ("user".into(), user.into()),
+                ("can_manage_devices".into(), can_manage_devices.into()),
                 (
                     "can_update_profile".into(),
                     features

@@ -436,3 +436,24 @@ session-validator-final-gates.log实际通过明文／加密SQLite会话2项，�
 session-validator-final-matrix.log通过独立MySQL8.4.13和PostgreSQL18.7各2项明文／加密真实会话与原生Guard解析；不是模拟驱动，夹具各自移除本批容器。session-validator-docs.log三语站点构建与12组浏览器检查通过（两挂载、桌面／移动），新锚点session-identity-policies可见、公开方法文本完整、无页面异常及横向溢出。三语session正文说明原生条件、应用隔离、remember及低层构造边界。
 
 本项只是持久化设备撤销的原生接缝；HTTP测试的撤销集合属于测试内存状态，不冒充持久化设备API完成。事件上下文、设备索引与端点、头像、注销和其他A01缺口继续实现。源码SHA与清单见session-validator-final-source-sha.json／session-validator-files.json；空间和本批文档产物回收见session-validator-delivery-space.json。源码、日志、数据库、数据卷及可复用Cargo缓存保留。未推送。
+
+## A01-03 浏览器设备：持久化撤销、原生中间件及网页
+
+本单元沿S02／S03实现，仍不把A01-03或整个套件标为闭合。复核固定Framework的Router::pushMiddlewareToGroup职责与既有Jetstream数据库会话边界；旧openrust-v0.x的SessionGuard／guard_session测试提供remember、轮换与隔离参考，没有可直接移植的本人设备索引或持久化撤销端点。复用现有SessionManager／DatabaseSessionHandler、原生Guard、凭据事务锁、Sanctum及近期确认，不扫描缓存键或另建Session驱动。
+
+新增Route／Router::push_middleware_to_group正式注册入口，去重且保留默认组、优先级、排除和元数据。TrackBrowserSessions<User>在web／api的原生Session之后检查并登记最终响应ID，覆盖注册后再次regenerate和remember恢复。既有普通请求只条件更新未撤销索引，不能重新插入；轮换在共同用户锁内复核来源和共享remember token。索引按解析后的数据库、表、模型、真实主键、Guard隔离。原ID加密保存，公开ID为不透明哈希；列表加载实际会话并核对原生身份指纹，不能把sessions.user_id候选元数据当完整归属。
+
+GET／DELETE /api/user/sessions及DELETE单项接通权限、Cookie CSRF／Token用途证明和事务内复核。删除本人会话保留独立PAT；PAT没有当前浏览器，删除其他即删除全部浏览器。撤销共享remember token会使各浏览器旧remember失效，其他有效活动会话保留。自定义会话策略拒绝现只清除选中Guard，保留购物车及独立Guard；原生密码指纹失败仍沿既有全会话拒绝行为。已取得Cookie近期证明但尚未进入用户锁的PAT派发，在设备撤销后不得继续创建令牌。
+
+full预设新增/user/sessions及原生DELETE表单、近期确认／本地化闪存；api预设不发布该账户页。原生database能力缺失时明确拒绝；file、Redis、array和替换database处理器须显式关闭user.devices.enabled。新config/user.rs读取USER_DEVICES；保留的旧配置需手动合并，三语已说明。新增索引迁移模板000023，实际包发布按当前时间戳命名，保留原始users迁移。auth:prune-browser-sessions --hours=24（或0）只清理到期索引，幂等，不删除用户／PAT／外部会话数据。
+
+实际证据统一位于target/tmp/user-starter：
+
+- browser-devices-gates-second.log：完整57项UI、13安装、6配置通过；工作区及Fortify+Sanctum两组严格Clippy、格式通过。
+- browser-devices-capability-fourth.log：SQLite明文／加密各7项；browser-devices-final-matrix.log：MySQL8.4.13、PostgreSQL18.7明文／加密各7项，共28项。包含旧Session整行写回仍拒绝、remember拒绝、他人／独立Guard、已认领证明与撤销竞争、原生HTML／CSRF、到期清理和禁用能力预检。
+- browser-devices-runtime-browser-second.log及runtime.json：真实Artisan init full、已安装资源、MySQL加密Session，23项Artisan／HTTP检查，包含重复迁移、回滚重建、两个真实应用进程、重启、跨节点确认及撤销。六组三语桌面／移动真实浏览器完成注册、remember登录、原生表单撤销，目标401而当前浏览器继续有效。首轮路径断言错误（误用模板编号）及浏览器请求缺Origin已修正验收脚本；未修改运行时以放行。
+- browser-devices-docs.log：三语站构建、36组两挂载／桌面移动页面检查通过，无页面异常／横向溢出。迁移时间戳说明与旧配置合并指引补于相同章节。
+
+设备新功能没有冒充Laravel核心内置端点；属于已确认套件扩展。APP_KEY轮换的本单元跨节点运行尚未专项重跑（既有Session解密证据仅复用），自定义Provider／主键及安装全面矩阵继续由S10收口；头像、注销、个人令牌网页和可选因素仍待后续单元。真实外部供应商／物理设备／生产TLS仍独立发布验收。源码清单／SHA、最终兼容回归、空间清理结果另见browser-devices-files.json、browser-devices-final-source-sha.json、browser-devices-core-final.log及browser-devices-delivery-space.json；保留记录、源码、数据库和可复用Cargo缓存，不推送。
+
+最终兼容补充：browser-devices-core-final.log中的无Sanctum套件12项实际通过；其后追加的核心目标在编译阶段触32GB守卫中断，不能算本次追加回归通过。复用未再次修改的核心源码在browser-devices-ninth.log中的路由组1项、原生会话8项、会话设备2项，以及sixth.log的组排除证据；后续工作遵循守卫清理结果。最终文档新增迁移发布名称说明为事实修正，36组页面证据对应此前相同章节结构。

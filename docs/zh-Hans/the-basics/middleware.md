@@ -45,3 +45,13 @@
 第二个参数传入 `true` 时会调用 `throttle_with_redis()`，将 API 及其他路由的 `throttle` 别名统一切换为 Redis。后续传入 `false` 不会撤销该切换。
 
 默认 API 组依次执行 `stateful_api()` 启用的有状态会话中间件、限流中间件和 `SubstituteBindings`。通过 `group("api", ...)` 显式替换组时，以自定义组为准，不受 `throttle_api` 调用顺序影响。
+
+## 向现有组追加 {#append-existing-group}
+
+在路由注册阶段，包括 Provider 的 `load_routes_from` 回调中，使用 `Route::push_middleware_to_group` 向已有组追加，不替换原生 Cookie、Session 或优先级装配。不存在的组会创建；同名条目或同一实例不会重复追加。分组回调已持有路由器时使用 `Router::push_middleware_to_group`；注册错误正常返回。组排除和解析后的路由元数据也包含这些条目。
+
+```rust
+use openrust::{routing::MiddlewareEntry, support::facades::Route};
+
+Route::push_middleware_to_group("web", MiddlewareEntry::named("auth.session"))?;
+```

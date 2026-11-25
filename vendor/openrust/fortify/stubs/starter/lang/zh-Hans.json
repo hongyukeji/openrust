@@ -31,5 +31,16 @@
   "recovery-codes-generated": "新的恢复码已生成。",
   "two-factor-authentication-confirmed": "双因素认证已确认。",
   "two-factor-authentication-disabled": "双因素认证已关闭。",
-  "two-factor-authentication-enabled": "双因素认证设置已保存。"
+  "two-factor-authentication-enabled": "双因素认证设置已保存。",
+  "devices_pruned": "已清理 :count 条过期浏览器设备记录。",
+  "browser_sessions": "浏览器设备",
+  "device_remember_notice": "退出浏览器也会清除本账户所有旧的记住登录凭据，其他仍有效的活动会话不受影响。",
+  "current_device": "当前浏览器",
+  "ip_address": "IP 地址",
+  "last_active": "最近活动",
+  "unknown_device": "暂无信息",
+  "revoke_session": "退出此设备",
+  "revoke_other_sessions": "退出其他浏览器",
+  "sessions_empty": "暂无浏览器设备。",
+  "sessions_updated": "浏览器设备已更新。"
 }

@@ -144,7 +144,9 @@ where
         let policy = fortify.clone();
         credentials::with_locked(&mut user, move |locked, transaction| {
             Box::pin(async move {
-                proof.validate(locked, &policy)?;
+                proof
+                    .validate_in_transaction(locked, &policy, transaction)
+                    .await?;
                 account::check_actor(
                     locked,
                     transaction,
@@ -174,7 +176,9 @@ where
                     return Err(AuthError::Configuration("邮箱变更后必须清除验证状态"));
                 }
                 // 授权的邮箱变化会改变安全摘要；用锁定前快照复核期限，避免误拒合法变更。
-                proof.validate(&before, &policy)?;
+                proof
+                    .validate_in_transaction(&before, &policy, transaction)
+                    .await?;
                 *locked = updated;
                 Ok(())
             })
@@ -279,7 +283,9 @@ where
         let policy = fortify.clone();
         credentials::with_locked(&mut user, move |locked, transaction| {
             Box::pin(async move {
-                proof.validate(locked, &policy)?;
+                proof
+                    .validate_in_transaction(locked, &policy, transaction)
+                    .await?;
                 account::check_actor(
                     locked,
                     transaction,
@@ -306,7 +312,9 @@ where
                         "密码Action必须保存新密码、递增凭据版本并清空remember token",
                     ));
                 }
-                proof.validate(&before, &policy)?;
+                proof
+                    .validate_in_transaction(&before, &policy, transaction)
+                    .await?;
                 *locked = updated;
                 Ok(())
             })

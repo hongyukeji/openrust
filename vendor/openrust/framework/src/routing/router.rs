@@ -93,6 +93,7 @@ pub struct Router {
     has_domains: bool,
     route_cache: Option<super::route_cache::RouteCache>,
     locale_middleware: Vec<Arc<dyn crate::contracts::http::Middleware>>,
+    group_middleware: HashMap<String, Vec<MiddlewareEntry>>,
 }
 
 /// Metadata for the methods that still dispatch to a registered route.
@@ -112,6 +113,35 @@ pub struct RouteInfo {
 impl Router {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// 在现有组末尾追加中间件，保留应用装配的Cookie、会话及优先级。
+    pub fn push_middleware_to_group(
+        &mut self,
+        group: impl Into<String>,
+        middleware: MiddlewareEntry,
+    ) -> &mut Self {
+        let entries = self.group_middleware.entry(group.into()).or_default();
+        if !entries.iter().any(|entry| match (entry, &middleware) {
+            (MiddlewareEntry::Named(a), MiddlewareEntry::Named(b)) => a == b,
+            (MiddlewareEntry::Instance(a), MiddlewareEntry::Instance(b)) => Arc::ptr_eq(a, b),
+            _ => false,
+        }) {
+            entries.push(middleware);
+        }
+        self
+    }
+
+    fn middleware_registry(&self, registry: &MiddlewareRegistry) -> MiddlewareRegistry {
+        let mut registry = registry.clone();
+        for (group, entries) in &self.group_middleware {
+            registry
+                .groups
+                .entry(group.clone())
+                .or_default()
+                .extend(entries.iter().cloned());
+        }
+        registry
     }
 
     pub(crate) fn compile_cache(&self) -> Option<super::route_cache::RouteCache> {
@@ -161,6 +191,7 @@ impl Router {
         &self,
         registry: &MiddlewareRegistry,
     ) -> Result<Vec<RouteInfo>, RoutingError> {
+        let registry = self.middleware_registry(registry);
         let groups = registry.resolve_groups()?;
         self.routes_with_info()
             .map(|(route, mut info)| {
@@ -476,6 +507,7 @@ impl Router {
         locale: &crate::http::middleware::SetLocale,
     ) -> Result<(), RoutingError> {
         self.locale_middleware = vec![Arc::new(locale.clone())];
+        let registry = self.middleware_registry(registry);
         let groups = registry.resolve_groups()?;
         let active_routes: HashSet<_> = self.by_method.values().flatten().copied().collect();
         for index in active_routes {

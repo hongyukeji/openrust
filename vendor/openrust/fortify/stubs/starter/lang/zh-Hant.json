@@ -31,5 +31,16 @@
   "recovery-codes-generated": "新的復原碼已產生。",
   "two-factor-authentication-confirmed": "雙因素驗證已確認。",
   "two-factor-authentication-disabled": "雙因素驗證已關閉。",
-  "two-factor-authentication-enabled": "雙因素驗證設定已儲存。"
+  "two-factor-authentication-enabled": "雙因素驗證設定已儲存。",
+  "devices_pruned": "已清理 :count 筆過期瀏覽器裝置紀錄。",
+  "browser_sessions": "瀏覽器裝置",
+  "device_remember_notice": "登出瀏覽器也會清除本帳戶所有舊的記住登入憑據，其他仍有效的活動工作階段不受影響。",
+  "current_device": "目前瀏覽器",
+  "ip_address": "IP 位址",
+  "last_active": "最近活動",
+  "unknown_device": "暫無資訊",
+  "revoke_session": "登出此裝置",
+  "revoke_other_sessions": "登出其他瀏覽器",
+  "sessions_empty": "暫無瀏覽器裝置。",
+  "sessions_updated": "瀏覽器裝置已更新。"
 }

@@ -2,7 +2,7 @@
 
 ## 支持状态 {#support-status}
 
-显式用户套件预设可安装原生 Fortify Action、安全用户响应和基础 Blade 认证页面。完整账户中心、个人令牌登录协议和可选因素 UI 仍在开发，不能据此视为已完成。不会生成 React、Vue 或 Livewire 前端。
+显式用户套件安装原生 Fortify Action、安全资源、Blade 认证及 Cookie／令牌 API。下文说明已经提供的操作；尚不提供头像、账户注销接口及可选因素管理页面。不生成 React、Vue 或 Livewire 前端。
 
 ## 可用入口 {#available-entry-points}
 
@@ -172,7 +172,7 @@ curl -X POST http://localhost:8000/api/auth/token \
 
 消息遵循应用／请求语言及回退。已发布的 `lang/{locale}/user.json` 优先于套件编译默认值；升级补足英语、简体中文和繁体中文缺键，保留已有自定义翻译。
 
-本节覆盖设备登录和 TOTP／恢复码挑战。纯令牌客户端注册、邮件验证／找回及完整账户中心仍在接线，近期确认与令牌管理见下节，单独跟踪剩余工作。
+本节覆盖设备登录和 TOTP／恢复码挑战。其他账户操作见[无会话注册与找回](#client-mail)、[近期确认与个人令牌](#account-tokens)及[浏览器设备](#browser-sessions)。
 
 ## 近期确认与个人令牌管理 {#account-tokens}
 
@@ -221,7 +221,7 @@ Accept: application/json
 
 PAT 证明在应用数据库中只保存摘要，绑定用户、当前PAT、用途、凭据版本和有效的因素／邮箱状态。`auth.password_timeout` 为正整数秒，默认10800；不等清理任务就会到期。错误设备／用途、篡改或重放返回401。签发／撤销使用共同用户锁和令牌行锁，模型事件取消或提交前证明过期会回滚数据库变更。应用确认回调可支持自己的身份流程，没有本地密码不代表自动确认。无状态 Passkey 重新认证适配仍单独待补。
 
-密码错误422，一分钟内5次失败后429并带 `Retry-After`；缺少令牌能力403。消息跟随请求语言，证明、密码和令牌秘密不会进入旧输入；包含新证明／令牌的响应使用 `no-store`。完整账户中心、头像、设备列表和账户注销仍在开发。
+密码错误422，一分钟内5次失败后429并带 `Retry-After`；缺少令牌能力403。消息跟随请求语言，证明、密码和令牌秘密不会进入旧输入；包含新证明／令牌的响应使用 `no-store`。设备管理见[浏览器设备](#browser-sessions)；尚不提供头像及账户注销接口。
 
 ### 退出全部设备
 
@@ -239,7 +239,7 @@ curl -i -X POST http://localhost:8000/api/auth/logout-all \
 
 持久化凭据版本在与令牌签发共用的用户锁中变更，模型事件结束后、提交前再次核对证明期限。保存被取消或失败时撤销事务回滚；失败可消费证明，重试前重新确认。成功撤销不依赖删除全部会话文件或扫描 Redis 键，各节点后续认证读取会拒绝旧版本。旧令牌记录仍可显式管理或清理，但不能认证。已进入业务执行的请求不被追溯取消；重新登录才能建立新凭据。
 
-此操作与[设备列表](#scope)是两个能力，撤销可用不代表所有会话驱动都已提供设备枚举。
+此操作与[设备列表](#browser-sessions)是两个能力，撤销可用不代表所有会话驱动都已提供设备枚举。
 
 ## 无会话客户端注册与邮件恢复 {#client-mail}
 
@@ -380,3 +380,40 @@ MAIL_FROM_ADDRESS=hello@example.test
 ```
 
 浏览器访问 `http://127.0.0.1:8025` 预览邮件。以上地址用于应用运行在宿主机的情况；容器内应用应使用同一网络中的邮件服务名。已有 `MAIL_URL` 会覆盖单项设置，开发预览时须移除或设为 `null`。此实例关闭后预览数据丢失，不作为生产邮件服务；真实供应商凭据、生产 TLS、投递与最终收信仍需独立验收。
+
+## 浏览器设备 {#browser-sessions}
+
+完整预设同时发布 `GET /user/sessions` 页面。原生 HTML 表单支持撤销单个或其他设备，保留 CSRF 和近期密码确认，完成后重定向并显示本地化状态。仅 API 预设不发布此账户页面。
+
+升级保留的 `config/user.rs` 时，手动合并以下配置组；旧文件不会自动读取 `USER_DEVICES`。安装器保留应用已有配置。
+
+```rust
+"devices": {"enabled": get(env, "USER_DEVICES", true)?},
+```
+
+安装的套件默认开启 `user.devices.enabled`。使用原生 `SESSION_DRIVER=database`，并运行发布的 `0001_01_01_000023_create_user_browser_sessions_table.rs` 迁移。独立索引跟随 User 连接，按模型、数据库、表、真实主键和 Guard 隔离，不修改原始 users 迁移。未登记索引的旧会话须重新登录。file、Redis 或自定义 database 处理器须显式设置 `USER_DEVICES=false`，关闭相关路由，不假装提供安全枚举；按凭据版本退出全部设备的能力仍可使用。 安装器按正常包迁移规则，发布时使用当前时间戳命名。
+
+| 接口 | 结果 |
+| --- | --- |
+| `GET /api/user/sessions` | 200，`data` 为本人的浏览器设备摘要；PAT 需要 `account:read`。 |
+| `DELETE /api/user/sessions/{session}` | 204，撤销指定不透明设备 ID；不存在或其他用户的 ID 返回404。 |
+| `DELETE /api/user/sessions` | 204，撤销其他浏览器设备，保留当前 Cookie 会话；PAT 没有当前浏览器，因此撤销全部浏览器设备。 |
+
+删除操作要求 PAT 具备 `account:update`，并完成用途为 `devices` 的近期确认。Cookie 客户端通过 `POST /user/confirm-password` 确认，继续遵循 CSRF 机制；令牌客户端通过 `POST /api/auth/confirm` 领取单次证明，放入 `X-Auth-Confirmation`。Cookie 未确认返回423。授权有效时，重复撤销已有记录返回204。浏览器撤销不影响独立 PAT；需要撤销全部凭据时使用[全设备退出](#credential-lifecycle)。
+
+```sh
+curl "$APP_URL/api/user/sessions" -H "Authorization: Bearer <token>" -H "Accept: application/json"
+curl -X DELETE "$APP_URL/api/user/sessions/<opaque-device-id>"   -H "Authorization: Bearer <token>" -H "X-Auth-Confirmation: <proof>" -H "Accept: application/json"
+```
+
+摘要仅有 `id`、`ip_address`、`user_agent`、`last_active`（Unix 秒）及 `is_current_device`。PAT 请求的设备均不标为当前设备。ID 是服务端生成的小写摘要，不是认证凭据；不返回原始会话 ID、加密载荷、CSRF 或登录指纹。活动时间不代表在线状态。归属使用原生会话解码和 Guard 指纹核对，不能依赖只能表示一个 Guard 的 `sessions.user_id` 元数据。
+
+撤销记录与敏感账户操作使用共同用户锁。旧请求写回原会话、或在撤销后轮换 ID，都不能建立新的有效设备；已领取的 Cookie 确认也须在事务内复核，不能再签发 PAT。已执行的业务不会被追溯取消。原生 remember token 属于用户共享：撤销浏览器会清除该用户所有旧的记住登录凭据，但保留其他仍有效的活动会话。设备策略只退出实际 Guard，保留另一个 Guard 及无关会话数据。
+
+套件向现有 `web` 和 `api` 组追加 `TrackBrowserSessions<User>`，保留 Cookie、Session 及 CSRF 装配。自定义会话组可在 `StartSession` 之后加入 `openrust_fortify::starter::devices::TrackBrowserSessions::<User>::new()`。多个应用节点应共用 `APP_KEY`、旧密钥、数据库及会话配置；旧加密会话有效期间保留对应旧密钥。
+
+```sh
+./artisan auth:prune-browser-sessions --hours=24
+```
+
+命令按会话过期时间加保留期清理索引，包括已撤销记录；`--hours=0` 立即清理已经过期的记录。可重复执行，不删除活动记录、用户、PAT 或外部会话数据。通过原生调度器定期运行；过期及撤销不等待清理才生效。

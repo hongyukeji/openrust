@@ -2,7 +2,7 @@
 
 ## 支援狀態 {#support-status}
 
-明確選取的使用者套件預設可安裝原生 Fortify Action、安全使用者回應與基礎 Blade 認證頁面。完整帳戶中心、個人權杖登入協定與可選因素 UI 仍在開發，不能據此視為完成。不會產生 React、Vue 或 Livewire 前端。
+明確選取的使用者套件安裝原生 Fortify Action、安全資源、Blade 認證及 Cookie／權杖 API。下文說明已提供的操作；尚不提供頭像、帳戶註銷介面及可選因素管理頁面。不產生 React、Vue 或 Livewire 前端。
 
 ## 可用入口 {#available-entry-points}
 
@@ -172,7 +172,7 @@ curl -X POST http://localhost:8000/api/auth/token \
 
 訊息遵循應用／請求語言及回退。已發佈的 `lang/{locale}/user.json` 優先於套件編譯預設值；升級補足英語、簡體中文和繁體中文缺鍵，保留既有自訂翻譯。
 
-本節涵蓋裝置登入和 TOTP／恢復碼挑戰。純權杖客戶端註冊、郵件驗證／找回及完整帳戶中心仍在接線，近期確認與權杖管理見下節，另行追蹤剩餘工作。
+本節涵蓋裝置登入和 TOTP／恢復碼挑戰。其他帳戶操作見[無工作階段註冊與找回](#client-mail)、[近期確認與個人權杖](#account-tokens)及[瀏覽器裝置](#browser-sessions)。
 
 ## 近期確認與個人權杖管理 {#account-tokens}
 
@@ -221,7 +221,7 @@ Accept: application/json
 
 PAT 證明在應用資料庫中僅儲存雜湊，綁定使用者、目前PAT、用途、憑據版本及有效的因素／郵箱狀態。`auth.password_timeout` 為正整數秒，預設10800；不等清理工作就會到期。錯誤裝置／用途、竄改或重放回傳401。簽發／撤銷使用共同使用者鎖及權杖列鎖，模型事件取消或提交前證明過期會回滾資料庫變更。應用確認回呼可支援自己的身分流程，沒有本機密碼不代表自動確認。無狀態 Passkey 重新驗證適配仍另列待補。
 
-密碼錯誤422，一分鐘內5次失敗後429並帶 `Retry-After`；缺少權杖能力403。訊息跟隨請求語言，證明、密碼與權杖秘密不會進入舊輸入；包含新證明／權杖的回應使用 `no-store`。完整帳戶中心、頭像、裝置清單與帳戶註銷仍在開發。
+密碼錯誤422，一分鐘內5次失敗後429並帶 `Retry-After`；缺少權杖能力403。訊息跟隨請求語言，證明、密碼與權杖秘密不會進入舊輸入；包含新證明／權杖的回應使用 `no-store`。裝置管理見[瀏覽器裝置](#browser-sessions)；尚不提供頭像及帳戶註銷介面。
 
 ### 登出全部裝置
 
@@ -380,3 +380,40 @@ MAIL_FROM_ADDRESS=hello@example.test
 ```
 
 瀏覽器開啟 `http://127.0.0.1:8025`。以上假設應用在宿主機執行；容器內應用使用共用網路中的郵件服務名。既有 `MAIL_URL` 優先於單項設定，預覽時須移除或設為 `null`。此實例停止後預覽資料消失，不作正式郵件服務；真實供應商憑證、生產 TLS、投遞與最終收信須另行驗收。
+
+## 瀏覽器裝置 {#browser-sessions}
+
+完整預設同時發布 `GET /user/sessions` 頁面。原生 HTML 表單支援撤銷單個或其他裝置，保留 CSRF 和近期密碼確認，完成後重新導向並顯示本地化狀態。僅 API 預設不發布此帳戶頁面。
+
+升級保留的 `config/user.rs` 時，手動合併以下設定群組；舊檔案不會自動讀取 `USER_DEVICES`。安裝器保留應用已有設定。
+
+```rust
+"devices": {"enabled": get(env, "USER_DEVICES", true)?},
+```
+
+安裝的套件預設開啟 `user.devices.enabled`。使用原生 `SESSION_DRIVER=database`，並執行發布的 `0001_01_01_000023_create_user_browser_sessions_table.rs` 遷移。獨立索引跟隨 User 連線，依模型、資料庫、資料表、真實主鍵及 Guard 隔離，不修改原始 users 遷移。未登記索引的舊工作階段須重新登入。file、Redis 或自訂 database 處理器須明確設定 `USER_DEVICES=false`，關閉相關路由，不假裝提供安全列舉；依憑據版本登出全部裝置的能力仍可使用。 安裝器按正常套件遷移規則，發布時使用目前時間戳命名。
+
+| 介面 | 結果 |
+| --- | --- |
+| `GET /api/user/sessions` | 200，`data` 為本人的瀏覽器裝置摘要；PAT 需要 `account:read`。 |
+| `DELETE /api/user/sessions/{session}` | 204，撤銷指定不透明裝置 ID；不存在或其他使用者的 ID 回傳404。 |
+| `DELETE /api/user/sessions` | 204，撤銷其他瀏覽器裝置，保留目前 Cookie 工作階段；PAT 沒有目前瀏覽器，因此撤銷全部瀏覽器裝置。 |
+
+刪除操作要求 PAT 具備 `account:update`，並完成用途為 `devices` 的近期確認。Cookie 用戶端透過 `POST /user/confirm-password` 確認，繼續遵循 CSRF 機制；權杖用戶端透過 `POST /api/auth/confirm` 領取單次證明，放入 `X-Auth-Confirmation`。Cookie 未確認回傳423。授權有效時，重複撤銷已有紀錄回傳204。瀏覽器撤銷不影響獨立 PAT；需要撤銷全部憑據時使用[全裝置登出](#credential-lifecycle)。
+
+```sh
+curl "$APP_URL/api/user/sessions" -H "Authorization: Bearer <token>" -H "Accept: application/json"
+curl -X DELETE "$APP_URL/api/user/sessions/<opaque-device-id>"   -H "Authorization: Bearer <token>" -H "X-Auth-Confirmation: <proof>" -H "Accept: application/json"
+```
+
+摘要僅有 `id`、`ip_address`、`user_agent`、`last_active`（Unix 秒）及 `is_current_device`。PAT 請求的裝置均不標為目前裝置。ID 是伺服器產生的小寫摘要，不是認證憑據；不回傳原始工作階段 ID、加密載荷、CSRF 或登入指紋。活動時間不代表在線狀態。歸屬使用原生工作階段解碼與 Guard 指紋核對，不能依賴只能表示一個 Guard 的 `sessions.user_id` 中繼資料。
+
+撤銷紀錄與敏感帳戶操作使用共同使用者鎖。舊請求寫回原工作階段、或在撤銷後輪換 ID，都不能建立新的有效裝置；已領取的 Cookie 確認也須在交易內複核，不能再簽發 PAT。已執行的業務不會被追溯取消。原生 remember token 屬於使用者共用：撤銷瀏覽器會清除該使用者所有舊的記住登入憑據，但保留其他仍有效的活動工作階段。裝置策略只登出實際 Guard，保留另一個 Guard 及無關工作階段資料。
+
+套件向現有 `web` 與 `api` 群組追加 `TrackBrowserSessions<User>`，保留 Cookie、Session 及 CSRF 裝配。自訂工作階段群組可在 `StartSession` 之後加入 `openrust_fortify::starter::devices::TrackBrowserSessions::<User>::new()`。多個應用節點應共用 `APP_KEY`、舊金鑰、資料庫及工作階段設定；舊加密工作階段有效期間保留對應舊金鑰。
+
+```sh
+./artisan auth:prune-browser-sessions --hours=24
+```
+
+命令依工作階段過期時間加保留期清理索引，包括已撤銷紀錄；`--hours=0` 立即清理已經過期的紀錄。可重複執行，不刪除活動紀錄、使用者、PAT 或外部工作階段資料。透過原生排程器定期執行；過期與撤銷不等待清理才生效。

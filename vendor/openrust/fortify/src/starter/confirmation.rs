@@ -222,10 +222,29 @@ where
 
 #[derive(Clone)]
 pub(super) struct Proof {
+    session: Option<String>,
     deadline: i64,
     security: String,
 }
 impl Proof {
+    pub async fn validate_in_transaction<
+        M: TwoFactorAuthenticatable + openrust::database::eloquent::Model,
+    >(
+        &self,
+        user: &M,
+        fortify: &Fortify,
+        transaction: &mut openrust::database::Transaction,
+    ) -> AuthResult<()> {
+        self.validate(user, fortify)?;
+        if let Some(session) = &self.session
+            && let Some(policy) = super::devices::policy()?
+        {
+            policy
+                .check_in_transaction(user, transaction, session)
+                .await?;
+        }
+        Ok(())
+    }
     pub fn validate<M: TwoFactorAuthenticatable>(
         &self,
         user: &M,
@@ -291,6 +310,7 @@ where
         .await?
         .ok_or(HttpError::Unauthenticated)?;
     Ok(Proof {
+        session: None,
         deadline,
         security: pending.factor,
     })
@@ -331,6 +351,7 @@ pub(super) fn claim_session<M: TwoFactorAuthenticatable>(
         return Err(openrust::http::abort_response(client::no_store(response)));
     }
     Ok(Proof {
+        session: Some(request.session().map_err(internal)?.get_id().to_owned()),
         deadline: deadline.expect("已核对期限"),
         security: client::security(user, fortify)?,
     })

@@ -289,6 +289,23 @@ impl Facade for Route {
 }
 
 impl Route {
+    /// 向应用已有中间件组追加正式入口，保留该组的原生装配。
+    pub fn push_middleware_to_group(
+        group: impl Into<String>,
+        middleware: crate::routing::MiddlewareEntry,
+    ) -> Result<(), RoutingError> {
+        ROUTER
+            .try_with(|scope| {
+                scope
+                    .router
+                    .try_borrow_mut()
+                    .map_err(|_| RoutingError::RegistrationBorrowed)?
+                    .push_middleware_to_group(group, middleware);
+                Ok(())
+            })
+            .map_err(|_| RoutingError::NoRegistrationScope)?
+    }
+
     /// 读取路由器实际匹配的名称，不读取可覆写的请求解析器；处理器须先使用 with_container。
     pub fn current_route_name()
     -> Result<Option<String>, crate::contracts::container::BindingResolutionError> {

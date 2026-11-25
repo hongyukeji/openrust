@@ -406,9 +406,15 @@ impl<'a> SessionGuard<'a> {
             .await
     }
 
-    async fn reject_session(&mut self, user: Box<dyn Authenticatable>) -> AuthResult<()> {
+    async fn reject_session(
+        &mut self,
+        user: Box<dyn Authenticatable>,
+        flush: bool,
+    ) -> AuthResult<()> {
         self.clear_device()?;
-        self.session()?.flush();
+        if flush {
+            self.session()?.flush();
+        }
         AuthContext::set(self.request, &self.name, None, false);
         self.emit(
             CurrentDeviceLogout {
@@ -434,18 +440,20 @@ impl<'a> SessionGuard<'a> {
         if let Some(id) = id
             && let Some(user) = self.provider.retrieve_by_id(&id).await?
         {
-            if !self.login_fingerprint_matches(user.as_ref())?
-                || !self.additional_session_is_valid(user.as_ref()).await?
-            {
-                // 在Guard解析时拒绝已失效凭据，任何业务路由都不能绕过策略。
-                return self.reject_session(user).await;
+            if !self.login_fingerprint_matches(user.as_ref())? {
+                // 密码／凭据指纹失效保留既有的整份会话清理契约。
+                return self.reject_session(user, true).await;
+            }
+            if !self.additional_session_is_valid(user.as_ref()).await? {
+                // 具名设备策略只退出实际Guard，保留其他Guard及无关的会话数据。
+                return self.reject_session(user, false).await;
             }
             return self.set_user_async(user).await;
         }
         if let Some(user) = self.recall().await? {
             // 必须在remember恢复轮换ID前检查原会话，防止被撤销会话借恢复获得新ID。
             if !self.additional_session_is_valid(user.as_ref()).await? {
-                return self.reject_session(user).await;
+                return self.reject_session(user, false).await;
             }
             let user: Arc<dyn Authenticatable> = user.into();
             self.update_session(&user.get_auth_identifier()).await?;

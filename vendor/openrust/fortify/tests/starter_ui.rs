@@ -176,7 +176,7 @@ async fn start_custom_resource(
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
     std::fs::write(root.0.join("app-url"), format!("http://{address}")).unwrap();
-    let mut settings = json!({"profile":profile,"registration":true,"email_verification":verification,"two_factor":two_factor,"api_prefix":prefix});
+    let mut settings = json!({"profile":profile,"registration":true,"email_verification":verification,"two_factor":two_factor,"api_prefix":prefix,"devices":{"enabled":false}});
     if let Some(queue) = mail.as_ref().and_then(|mail| mail.get("__user_queue")) {
         settings["mail"] = queue.clone();
         if let Some(name) = queue.get("queue").and_then(Value::as_str) {
@@ -186,9 +186,13 @@ async fn start_custom_resource(
             ));
         }
     }
+    if let Some(devices) = mail.as_ref().and_then(|mail| mail.get("__user_devices")) {
+        settings["devices"] = devices.clone();
+    }
     std::fs::write(root.0.join("user-config.json"), settings.to_string()).unwrap();
     if let Some(mut mail) = mail {
         mail.as_object_mut().unwrap().remove("__user_queue");
+        mail.as_object_mut().unwrap().remove("__user_devices");
         std::fs::write(root.0.join("mail-config.json"), mail.to_string()).unwrap();
     }
     let mut app = Application::configure(root.0.clone())
@@ -213,6 +217,7 @@ async fn start_custom_resource(
     for relative in [
         "layout.blade.html",
         "home.blade.html",
+        "sessions.blade.html",
         "auth/login.blade.html",
         "auth/mail-login.blade.html",
         "auth/register.blade.html",
@@ -334,6 +339,28 @@ async fn start_custom_resource(
         })
         .await
         .unwrap();
+    #[cfg(feature = "sanctum")]
+    if app
+        .make::<dyn openrust::contracts::config::Repository>()
+        .await
+        .unwrap()
+        .get("user.devices.enabled")
+        == Some(json!(true))
+    {
+        schema
+            .create("user_browser_sessions", |table| {
+                table.string("id", 64).primary();
+                table.string("owner_hash", 64).index();
+                table.text("session_id");
+                table.string("ip_address", 45).nullable();
+                table.text("user_agent").nullable();
+                table.big_integer("last_seen");
+                table.big_integer("expires_at").index();
+                table.big_integer("revoked_at").nullable();
+            })
+            .await
+            .unwrap();
+    }
     schema
         .create(
             "password_reset_tokens",
@@ -628,6 +655,11 @@ fn full_configuration(
         ("fortify-options".into(),json!({"two-factor-authentication":{"confirm":true,"confirmPassword":true}})),
         ("mail".into(),std::fs::read(base.join("mail-config.json")).ok().map(|bytes|serde_json::from_slice::<Value>(&bytes).unwrap()).unwrap_or_else(||json!({"default":"array","mailers":{"array":{"transport":"array"}},"from":{"address":"admin@example.test","name":"用户套件测试"}}))),
     ].into();
+    if configuration["user"]["devices"]["enabled"] == true
+        && std::env::var("OPENRUST_USER_KIT_SESSION_DRIVER").is_err()
+    {
+        configuration.get_mut("session").unwrap()["driver"] = json!("database");
+    }
     if configuration["user"].get("mail").is_some() {
         configuration.insert("queue".into(),json!({"default":"database","connections":{"database":{"driver":"database","table":"jobs","queue":"default","retry_after":90},"redis":{"driver":"redis","connection":"default","queue":"default","retry_after":90}},"failed":{"driver":"null"}}));
     }
@@ -1050,7 +1082,10 @@ fn session_configuration(base: &std::path::Path) -> Value {
         std::env::var("OPENRUST_USER_KIT_REDIS_URL").expect("Redis会话验收必须明确提供独占实例URL");
     }
     eprintln!("用户套件实际会话驱动 {driver}");
-    json!({"driver":driver,"cookie":"user_session","lottery":[0,100],"table":"sessions","files":base.join("sessions"),"prefix":format!("{}:",base.file_name().unwrap().to_string_lossy())})
+    let encrypt = std::env::var("OPENRUST_USER_KIT_SESSION_ENCRYPT")
+        .map(|value| value == "true")
+        .unwrap_or(false);
+    json!({"driver":driver,"encrypt":encrypt,"cookie":"user_session","lottery":[0,100],"table":"sessions","files":base.join("sessions"),"prefix":format!("{}:",base.file_name().unwrap().to_string_lossy())})
 }
 
 #[tokio::test]
@@ -5179,3 +5214,7 @@ async fn verification_mail_policy_is_scoped_to_the_user_type_and_application() {
     })
     .await;
 }
+
+#[cfg(feature = "sanctum")]
+#[path = "starter_ui/browser_devices.rs"]
+mod browser_devices;

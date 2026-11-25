@@ -31,5 +31,8 @@
 <label for="password_confirmation">{{ __('user.password_confirmation') }}</label><input id="password_confirmation" name="password_confirmation" type="password" autocomplete="new-password" required>
 <button type="submit">{{ __('user.change_password') }}</button></form></fieldset>
 @endif
+@if($can_manage_devices)
+<p><a href="{{ route('user.sessions.page') }}">{{ __('user.browser_sessions') }}</a></p>
+@endif
 <form method="POST" action="{{ route('logout') }}">@csrf<button type="submit">{{ __('user.logout') }}</button></form>
 @endsection

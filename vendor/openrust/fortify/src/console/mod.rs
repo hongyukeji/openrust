@@ -6,3 +6,6 @@ pub(crate) fn register() -> Result<(), openrust::console::ConsoleError> {
 
 #[cfg(feature = "sanctum")]
 pub(crate) mod prune_auth_challenges;
+
+#[cfg(feature = "sanctum")]
+pub(crate) mod prune_browser_sessions;

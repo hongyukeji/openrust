@@ -31,5 +31,16 @@
   "recovery-codes-generated": "New recovery codes have been generated.",
   "two-factor-authentication-confirmed": "Two-factor authentication has been confirmed.",
   "two-factor-authentication-disabled": "Two-factor authentication has been disabled.",
-  "two-factor-authentication-enabled": "Your two-factor authentication settings have been saved."
+  "two-factor-authentication-enabled": "Your two-factor authentication settings have been saved.",
+  "devices_pruned": "Removed :count expired browser device records.",
+  "browser_sessions": "Browser sessions",
+  "device_remember_notice": "Signing out a browser also clears this account’s remembered sign-ins. Other active sessions remain signed in.",
+  "current_device": "This browser",
+  "ip_address": "IP address",
+  "last_active": "Last activity",
+  "unknown_device": "Not available",
+  "revoke_session": "Sign out this session",
+  "revoke_other_sessions": "Sign out other browsers",
+  "sessions_empty": "No browser sessions.",
+  "sessions_updated": "Browser sessions updated."
 }

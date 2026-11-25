@@ -45,3 +45,13 @@ Arguments are explicit: `Some("api")` selects the `api` policy and `false` keeps
 Passing `true` as the second argument calls `throttle_with_redis()`, switching the `throttle` alias to Redis for API and other routes. A subsequent call with `false` does not undo that switch.
 
 In the default API group, stateful session middleware enabled by `stateful_api()` runs first, followed by throttling and `SubstituteBindings`. Explicitly replacing the group with `group("api", ...)` takes precedence over `throttle_api`, regardless of call order.
+
+## Append to an existing group {#append-existing-group}
+
+During route registration, including a Provider's `load_routes_from` callback, use `Route::push_middleware_to_group` to append to an existing group without replacing its native Cookie, Session or priority configuration. A missing group is created; repeating the same named entry or the same instance does not add a duplicate. `Router::push_middleware_to_group` is also available when a group callback already holds the router. Registration errors are returned normally. Group exclusions and resolved route metadata include these entries.
+
+```rust
+use openrust::{routing::MiddlewareEntry, support::facades::Route};
+
+Route::push_middleware_to_group("web", MiddlewareEntry::named("auth.session"))?;
+```

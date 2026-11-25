@@ -2,7 +2,7 @@
 
 ## Support status {#support-status}
 
-The explicit user starter preset installs native Fortify actions, safe user responses and basic Blade authentication pages. The full account center, personal token login protocol and optional-factor UI are still under development; these are not part of the completed preset described here. React, Vue and Livewire frontends are not generated.
+The explicit user starter installs native Fortify actions, safe resources, Blade authentication and Cookie/token APIs. The sections below describe the available operations. Avatar and account-deletion endpoints and optional-factor management pages are not provided. React, Vue and Livewire frontends are not generated.
 
 ## Available entry points {#available-entry-points}
 
@@ -172,7 +172,7 @@ The command retains expired records for 24 hours by default; `--hours=0` removes
 
 Messages follow the application/request locale and fallback. Published `lang/{locale}/user.json` entries override compiled starter defaults. Upgrades fill missing English, Simplified Chinese and Traditional Chinese keys while preserving custom translations.
 
-This section covers device login and TOTP/recovery challenges. Token-client registration, mail verification/recovery and the complete account center remain in progress; recent confirmation and token management are described below.
+This section covers device login and TOTP/recovery challenges. See [stateless registration and recovery](#client-mail), [recent confirmation and personal tokens](#account-tokens), and [browser sessions](#browser-sessions) for the corresponding account operations.
 
 ## Recent confirmation and personal tokens {#account-tokens}
 
@@ -221,7 +221,7 @@ For first-party Cookie/SPA clients, retain the normal CSRF flow and send credent
 
 PAT proofs are hashed in the application's database, bound to the `user`, `current` PAT, purpose, credential version and effective factor/email state. `auth.password_timeout` is a positive number of seconds, default10800. Proofs expire without waiting for cleanup; wrong devices/purposes, tampering and replay return401. User and `token` row locks cover issuance/revocation. A late expiry or a cancelled model event rolls back the database mutation. Password callbacks may support an application-specific identity flow; an account without a local password is never automatically confirmed. Stateless Passkey reauthentication remains a separate pending adapter.
 
-Password errors return422; five failed confirmations within a minute cause429 with `Retry-After`. Missing `token` capabilities return403. All displayed messages use the request locale. Proofs, passwords and `token` secrets are excluded from old input. Responses containing a new proof/token use `no-store`. The complete account center, avatar, device list and account deletion remain in progress.
+Password errors return422; five failed confirmations within a minute cause429 with `Retry-After`. Missing `token` capabilities return403. All displayed messages use the request locale. Proofs, passwords and `token` secrets are excluded from old input. Responses containing a new proof/token use `no-store`. See [browser sessions](#browser-sessions) for device management. Avatar and account deletion endpoints are not provided.
 
 ### Log out all devices
 
@@ -239,7 +239,7 @@ curl -i -X POST http://localhost:8000/api/auth/logout-all \
 
 The durable credential version changes under the same user lock as token issuance; proof expiry is rechecked after model events and before commit. A cancelled or failed save rolls back the revocation. A failed attempt may consume the proof, so confirm again before retrying. Successful revocation does not delete all session files or scan Redis keys: subsequent authentication reads reject the old credential version on every node. Previously issued token rows remain available for explicit management or pruning, but cannot authenticate. Requests already executing are not retroactively cancelled. Sign in again to establish new credentials.
 
-This operation and [device enumeration](#scope) are separate capabilities; revocation does not claim that a device list is available for every session driver.
+This operation and [device enumeration](#browser-sessions) are separate capabilities; revocation does not claim that a device list is available for every session driver.
 
 ## Stateless registration and recovery {#client-mail}
 
@@ -380,3 +380,40 @@ MAIL_FROM_ADDRESS=hello@example.test
 ```
 
 Open `http://127.0.0.1:8025`. These addresses assume the app runs on the host; containerized apps use the mail service name on their shared network. Remove an existing `MAIL_URL` or set it to `null`, since it overrides individual settings. Preview data disappears when this instance stops. This is not a production mail service: real provider credentials, production TLS, delivery and final receipt require separate acceptance.
+
+## Browser sessions {#browser-sessions}
+
+The full preset also publishes `GET /user/sessions`. Its native HTML forms revoke one or other sessions, keep CSRF and recent-password confirmation, then redirect with a localized status message. The API-only preset does not publish this account page.
+
+When upgrading a preserved `config/user.rs`, merge the following group manually; an older file does not read `USER_DEVICES` automatically. Installers keep application configuration intact.
+
+```rust
+"devices": {"enabled": get(env, "USER_DEVICES", true)?},
+```
+
+The installed kit enables `user.devices.enabled` by default. Use native `SESSION_DRIVER=database` and run the published `0001_01_01_000023_create_user_browser_sessions_table.rs` migration. The separate index follows the User connection and isolates the model, database, table, real primary key and Guard; it does not change the original users migration. Existing sessions without an index must sign in again. File, Redis and replacement database handlers need an explicit `USER_DEVICES=false`; this removes these routes rather than pretending to enumerate those stores. The credential-version based all-device logout remains available. The installer assigns the current timestamp when publishing this migration, following the normal package migration rules.
+
+| Endpoint | Result |
+| --- | --- |
+| `GET /api/user/sessions` | 200; `data` contains the caller's browser session summaries. A PAT requires `account:read`. |
+| `DELETE /api/user/sessions/{session}` | 204; revoke the opaque device ID. Unknown or another user's IDs return404. |
+| `DELETE /api/user/sessions` | 204; revoke other browser sessions. Preserve the current Cookie session; a PAT has no current browser, so it revokes all browser sessions. |
+
+Deletion requires `account:update` for a PAT and recent confirmation for purpose `devices`. A Cookie client confirms through `POST /user/confirm-password` and retains CSRF protection. A token client obtains a single-use proof through `POST /api/auth/confirm`, then sends it in `X-Auth-Confirmation`. Missing Cookie confirmation returns423. With valid authorization, repeating an already recorded revocation returns204. These operations leave independent PATs valid; use [all-device logout](#credential-lifecycle) to revoke every credential.
+
+```sh
+curl "$APP_URL/api/user/sessions" -H "Authorization: Bearer <token>" -H "Accept: application/json"
+curl -X DELETE "$APP_URL/api/user/sessions/<opaque-device-id>"   -H "Authorization: Bearer <token>" -H "X-Auth-Confirmation: <proof>" -H "Accept: application/json"
+```
+
+A summary contains `id`, `ip_address`, `user_agent`, `last_active` (Unix seconds) and `is_current_device`. PAT responses mark every item as non-current. The ID is a server-generated lowercase hash, not a credential. Raw session IDs, encrypted payloads, CSRF values and login fingerprints are never returned. Activity is not an online-presence guarantee. Native session decoding and Guard fingerprints establish ownership; the single `sessions.user_id` metadata column cannot represent every Guard sharing one browser.
+
+Revocation is persisted under the same user lock as sensitive account operations. A stale request writing its old session back, or regenerating its ID after revocation, cannot create a new accepted device. Previously claimed Cookie confirmation is rechecked inside the transaction before issuing a PAT. Already executing work is not retroactively cancelled. Native remember tokens are shared by a user: revoking a browser clears that user's old remember tokens for all browsers while preserving other valid active sessions. A policy rejection clears only the affected Guard, preserving another Guard and unrelated session data.
+
+The kit attaches `TrackBrowserSessions<User>` to existing `web` and `api` groups without replacing their Cookie, Session or CSRF middleware. Custom session groups may add `openrust_fortify::starter::devices::TrackBrowserSessions::<User>::new()` after `StartSession`. Keep the same `APP_KEY`, previous keys, database and session configuration across application nodes; retain previous keys while old encrypted sessions remain valid.
+
+```sh
+./artisan auth:prune-browser-sessions --hours=24
+```
+
+This removes records whose session expiry is older than the selected retention, including revoked records; `--hours=0` removes already expired records immediately. It is idempotent and does not remove active records, users, PATs or external session data. Schedule it using the normal scheduler; expiry and revocation take effect before cleanup.

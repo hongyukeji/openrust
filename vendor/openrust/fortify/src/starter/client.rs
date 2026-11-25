@@ -557,8 +557,10 @@ where
     use openrust::support::ServiceProvider as _;
     super::configure_mail_queue::<M>(app)?;
     super::credentials::scope_for::<M>(app)?;
+    super::devices::configure::<M>(app)?;
     super::bind_password_tokens::<M>(app)?;
     super::web::register::<M>(app)?;
+    super::StarterKitServiceProvider.load_routes_from(app, super::device_web::routes::<M>)?;
     super::StarterKitServiceProvider
         .commands(app, crate::console::prune_auth_challenges::register::<M>);
     super::StarterKitServiceProvider.load_routes_from(app, routes::<M>)
@@ -666,6 +668,25 @@ where
                 .middleware_name("auth:sanctum")
                 .middleware(Arc::new(super::client_middleware::UserModel::<M>::new()))
                 .name("user.api.password.update");
+            if super::devices::enabled(fortify.config.as_ref())
+                .map_err(|_| RoutingError::InvalidAction)?
+            {
+                router
+                    .get("/user/sessions", super::device_api::index::<M>)?
+                    .middleware_name("auth:sanctum")
+                    .middleware(Arc::new(super::client_middleware::UserModel::<M>::new()))
+                    .name("user.sessions.index");
+                router
+                    .delete("/user/sessions", super::device_api::destroy_others::<M>)?
+                    .middleware_name("auth:sanctum")
+                    .middleware(Arc::new(super::client_middleware::UserModel::<M>::new()))
+                    .name("user.sessions.destroy-others");
+                router
+                    .delete("/user/sessions/{session}", super::device_api::destroy::<M>)?
+                    .middleware_name("auth:sanctum")
+                    .middleware(Arc::new(super::client_middleware::UserModel::<M>::new()))
+                    .name("user.sessions.destroy");
+            }
             router
                 .get("/user/tokens", super::account::tokens::<M>)?
                 .middleware_name("auth:sanctum")

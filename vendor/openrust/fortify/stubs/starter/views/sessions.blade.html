@@ -1,0 +1,23 @@
+@extends('user.layout')
+@section('title', __('user.browser_sessions'))
+@section('content')
+<p><a href="{{ route('user.profile') }}">{{ __('user.account') }}</a></p>
+<p>{{ __('user.device_remember_notice') }}</p>
+<p>{{ __('user.confirmation_required') }} <a href="{{ route('password.confirm') }}">{{ __('user.confirm_password') }}</a></p>
+@forelse($devices as $device)
+<fieldset class="device-meta"><legend>{{ $device['user_agent'] ?? __('user.unknown_device') }}</legend>
+@if($device['is_current_device'])<p>{{ __('user.current_device') }}</p>@endif
+<p>{{ __('user.ip_address') }}: {{ $device['ip_address'] ?? __('user.unknown_device') }}</p>
+<p>{{ __('user.last_active') }}: {{ $device['last_active_label'] }}</p>
+<form method="POST" action="{{ route('user.sessions.web-destroy', ['session' => $device['id']]) }}">
+@csrf
+@method('DELETE')
+<button type="submit">{{ __('user.revoke_session') }}</button></form></fieldset>
+@empty
+<p>{{ __('user.sessions_empty') }}</p>
+@endforelse
+<form method="POST" action="{{ route('user.sessions.web-destroy-others') }}">
+@csrf
+@method('DELETE')
+<button type="submit">{{ __('user.revoke_other_sessions') }}</button></form>
+@endsection

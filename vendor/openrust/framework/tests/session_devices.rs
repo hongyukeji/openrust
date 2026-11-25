@@ -193,6 +193,16 @@ async fn verify(encrypt: bool) {
         })
         .unwrap();
         let mut restored = restored_request(&id, &attributes).await;
+        restored
+            .session_mut()
+            .unwrap()
+            .put("cart", serde_json::json!(["keep"]))
+            .unwrap();
+        restored
+            .session_mut()
+            .unwrap()
+            .put("login_admin", serde_json::json!(99))
+            .unwrap();
         assert!(
             Auth::session_guard(&mut restored, Some("web"))
                 .unwrap()
@@ -200,6 +210,15 @@ async fn verify(encrypt: bool) {
                 .await
                 .is_err()
         );
+        assert_eq!(
+            restored.session().unwrap().get("cart"),
+            Some(&serde_json::json!(["keep"]))
+        );
+        assert_eq!(
+            restored.session().unwrap().get("login_admin"),
+            Some(&serde_json::json!(99))
+        );
+        assert!(restored.session().unwrap().get("login_web").is_none());
         assert_eq!(*order.lock().unwrap(), [1, 2]);
         assert!(!restored.session().unwrap().has("login_web"));
         let replacement_order = order.clone();

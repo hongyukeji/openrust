@@ -209,7 +209,9 @@ where
                 let checked_database = checked_database.clone();
                 let actor = actor.clone();
                 Box::pin(async move {
-                    proof.validate(locked, &policy)?;
+                    proof
+                        .validate_in_transaction(locked, &policy, transaction)
+                        .await?;
                     client::abilities(locked, &policy, Some(&json!(checked)))
                         .map_err(openrust::auth::AuthError::from)?;
                     check_actor(
@@ -222,7 +224,9 @@ where
                         &checked,
                     )
                     .await?;
-                    proof.validate(locked, &policy)
+                    proof
+                        .validate_in_transaction(locked, &policy, transaction)
+                        .await
                 })
             },
         )
@@ -248,7 +252,9 @@ where
         let database = App::make::<DatabaseManager>().await?;
         credentials::with_locked(&mut user, move |locked, transaction| {
             Box::pin(async move {
-                proof.validate(locked, &fortify)?;
+                proof
+                    .validate_in_transaction(locked, &fortify, transaction)
+                    .await?;
                 check_actor(
                     locked,
                     transaction,
@@ -272,7 +278,9 @@ where
                 {
                     return Err(HttpError::NotFound.into());
                 }
-                proof.validate(locked, &fortify)?;
+                proof
+                    .validate_in_transaction(locked, &fortify, transaction)
+                    .await?;
                 if !store
                     .revoke_token_in_transaction(
                         transaction,
@@ -284,7 +292,9 @@ where
                 {
                     return Err(HttpError::NotFound.into());
                 }
-                proof.validate(locked, &fortify)
+                proof
+                    .validate_in_transaction(locked, &fortify, transaction)
+                    .await
             })
         })
         .await?;
@@ -309,7 +319,9 @@ where
         let policy = fortify.clone();
         credentials::with_locked(&mut user, move |locked, transaction| {
             Box::pin(async move {
-                proof.validate(locked, &policy)?;
+                proof
+                    .validate_in_transaction(locked, &policy, transaction)
+                    .await?;
                 check_actor(
                     locked,
                     transaction,
@@ -323,7 +335,9 @@ where
                 let before = locked.clone();
                 credentials::rotate_locked(locked, transaction, None).await?;
                 // 自身变更有意使旧证明失效；提交前仍检查原证明的期限及配置。
-                proof.validate(&before, &policy)
+                proof
+                    .validate_in_transaction(&before, &policy, transaction)
+                    .await
             })
         })
         .await?;
