@@ -11,6 +11,8 @@ E07 当前已完成基线固定、生态调研、协议类型试编和功能分�
 
 ## 建议实施方案
 
+2026-11-26 用户确认采纳以下方案。固定 Laravel AI SDK 的公开契约作为验收依据，Rust 适配沿用项目规范。
+
 - 新增独立可选包 `openrust-ai`，复用包发现、容器与 HTTP。通过 `Ai`、`AiManager`、`agent()` 及按能力的 Provider／Gateway 保留 Laravel 的调用习惯。数据库查询侧的 Embeddings 通过适配器接入并保留现有缓存和查询行为。
 - 首批实现包发现、配置、非流式 `Agent::prompt` 及 Fake。OpenAI Responses 与 OpenAI Compatible Chat Completions 分开验收。优先采用已通过 Rust 1.94 试编的 `async-openai` 协议类型，HTTP 请求由 OpenRust 客户端发送。其余供应商和能力按下文批次补齐。
 - 每批从公开 API 编译调用，使用合成输入和本地 HTTP 协议服务实测，涉及 Artisan、Worker 或广播时覆盖相应入口。分别记录协议模拟和供应商实机结果。把已实现的用法与边界同步至简体中文、繁体中文和英文文档，更新 E07 账本并分批本地提交。
@@ -39,6 +41,15 @@ E07 当前已完成基线固定、生态调研、协议类型试编和功能分�
 - 发布 `config/ai.rs`。配置键采用 `ai.default`（openai）、`default_for_images`（gemini）、`default_for_audio`（openai）、`default_for_transcription`（openai）、`default_for_embeddings`（openai）、`default_for_reranking`（cohere）、`default_for_classification`（typesafe）、`caching.embeddings.{cache,store,individually}`（false、`CACHE_STORE` 默认 database、true）及 `ai.providers.<name>.driver`。以固定 `config/ai.php` 核对供应商变量、凭证优先级和默认模型。本地配置缓存和调试输出避免泄露原始密钥，应用及 Worker 从自己的运行时配置解析凭证。
 - `openai` 和 `openai-compatible` 分开验收。固定版的 `OpenAiGateway` 发 `responses`，`OpenAiCompatibleGateway` 发 `chat/completions`。兼容驱动以 `models.text.default` 或显式模型为准，其余模型默认及覆盖同样按各自 Provider 源码核对。
 - Artisan 验收 `make:agent`（含 `--structured`）、`make:agent-middleware`、`make:tool`、`vendor:publish` 的 `ai`、`ai-config`、`ai-stubs` 及迁移发布／执行，逐命令查明参数、stub 优先级、覆盖、退出码和副作用。固定 SDK 将 `ChatCommand` 的注册注释掉，`agent:chat` 保留在来源清单的未注册项。
+
+固定源码复核补充了以下验收点，接口实现和行为验证随所属批次推进。
+
+| 固定 Laravel 契约 | OpenRust 计划与验收 |
+|---|---|
+| `agent(instructions, messages, tools, schema)` 按 schema 是否存在构造普通或结构化匿名 Agent | 保留独立 `agent()`，通过 Rust 的参数类型或 Builder 表达可选参数。AI-01 验证普通 Agent，AI-02 验证 schema 分支与历史消息，AI-03 补工具参数的执行与失败用例。 |
+| `AiManager` 继承 `MultipleInstanceManager`，`Ai` 门面转发至容器中的同一个 Manager | AI-01 对照继承的公开实例解析、扩展、缓存清理接口与实际调用，后续按能力核对对应的 Provider 和 Fake 解析入口。门面和容器解析分别编译调用，验证共享状态。 |
+| `AiServiceProvider` 使用 `ai.conversations.connection` 构造 `DatabaseConversationStore`，在 `Looping` 和 Octane `OperationTerminated` 事件清理按需 Provider 状态 | AI-03 核对默认及显式会话数据库连接。AI-04 验证 OpenRust 常驻 Worker 和 HTTP 运行环境对应生命周期的清理时点，连续运行两个作业或请求验证隔离。具体 Hook 及等价依据记录在验收账本。 |
+| `Embeddings::for` | `for` 是 Rust 关键字，AI-05 用 `Embeddings::r#for` 保留方法名，编译验证公开入口及数据库查询桥接。 |
 
 ## 交付与验收账本
 
