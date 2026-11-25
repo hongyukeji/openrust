@@ -50,7 +50,7 @@ Slow request timing includes response termination middleware and deferred work, 
 
 Use ordered `[[pattern, value], ...]` arrays for `groups` and pattern-specific `threshold` values. For example, `[["/^orders:\\d+$/", "orders:*"]]` preserves first-match precedence; object forms follow JSON object key order. Job sampling uses UUIDs consistently across their lifecycle. Request keys use matched routes instead of individual dynamic IDs. Outgoing HTTP URLs omit usernames and passwords.
 
-Slow query `location` attempts to resolve application source locations; builds without debug symbols may return an empty location. `Exceptions` handles native typed exception logs, job failures and `Pulse::report`. Plain JSON log context is not treated as an exception. Rust errors do not necessarily contain a trace; provide an explicit location when needed.
+Slow query `location` uses call sites captured by the database event, including in release builds. An unavailable call site is recorded as an empty string, while disabling `location` records a null value. `Exceptions` handles native typed exception logs, job failures and `Pulse::report`. Plain JSON log context is not treated as an exception. Rust errors do not necessarily contain a trace; provide an explicit location when needed.
 
 `Servers` samples each instance at most once every 15 seconds, retaining CPU, memory and disk snapshots. `PULSE_SERVER_NAME` and `PULSE_SERVER_DIRECTORIES` customize the name and colon-separated directories. Override detectors with `Servers::detect_cpu_using` and `detect_memory_using`.
 

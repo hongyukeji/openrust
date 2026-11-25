@@ -15,7 +15,7 @@
 已接入原生三表迁移、四种bucket、Storage／Null／Redis ingest、HTTP／队列／缓存／异常／慢SQL／外部HTTP记录器、服务器采样、四条Artisan命令及授权面板。默认应用保持可选包发现，配置／迁移／视图归包；发布视图通过原生Factory覆盖，已解析路径缓存遵循原生ViewFinder语义。Facade提供常用静态入口，ResolvesUsers可替换；默认用户详情复用原生认证Provider，读取不到记录时显示ID。
 
 - 系统采样复用[sysinfo 0.38.4](https://github.com/GuillaumeGomez/sysinfo/tree/v0.38.4)，MIT，MSRV1.88；仅启用system／disk，原生OS调用替换上游shell管道。CPU／内存支持应用内替换检测器，SharedBeat按实例15秒节流，异步入口使用spawn_blocking。
-- 慢查询定位复用[backtrace 0.3.76](https://github.com/rust-lang/backtrace-rs/tree/775f6a1ba62e7d35a1fac76e64c61d9d4687b5f2)，MIT或Apache2，MSRV1.82；排除框架／Pulse／依赖内部帧。发布时未保留调试符号可能无法恢复源码位置，返回空字符串；Rust Error不保证携带调用栈，异常位置可显式通过report／ExceptionReported提供。
+- 慢查询早期实现使用 [backtrace 0.3.76](https://github.com/rust-lang/backtrace-rs/tree/775f6a1ba62e7d35a1fac76e64c61d9d4687b5f2)。当前使用数据库事件提供的编译期调用位置，Release 验收见[扩展对齐账本](../extension-parity.md#pulse-slowqueries-数据库调用来源)。Rust Error 不保证携带调用栈，异常位置可以经 report／ExceptionReported 显式提供。
 - Redis批量写入复用redis-rs原生Pipeline，核心Connection仅公开既有批处理执行入口与类型。流持久化成功后XDEL；存储失败／无效载荷保持条目便于恢复。不声称跨消费者或数据库成功后Redis删除失败的严格一次语义，上游同样不使用consumer group。
 - PG NUMERIC之前由f64按错误wire类型绑定，真实PG返回insufficient data left in message。核心复用已有BigDecimal依赖与SQLx NUMERIC编解码，保留精确十进制文本，拒绝无效数字。服务端允许保留尾零，测试按十进制值与长小数精度验收，不改变字段scale。
 - 原生RouteMetadata向诊断事件保留规范路由URI／domain／action；Kernel在请求入口清理旧匹配信息，避免提前拒绝的请求继承旧路由。
@@ -50,7 +50,7 @@ MySQL8.4.13别名模式最初因value列歧义失败，已按固定上游分别�
 
 证据位于tmp/openrust-pulse-20261121/：tests-final.log、storage-postgres-final.log、storage-mysql-alias.log、cache-*-final.log、configuration-final-combined.log、configuration-off.log、configuration-{postgres,mysql}.log、browser-final.log、clippy-final.log、fmt-final.log、core-regressions.log、docs-build-final.log及docs-*-final.log。Cargo.lock与隔离快照包集合和依赖内容一致，未替换其他协作者锁文件。
 
-O05单包验收关闭，接续O06。语言适配明确保留：原生HTML／JS替换PHP Livewire；显式Recorder注册替代反射；css重载用withCss；aggregateTotal切片统一返回按类型结果；带类型异常由class／location表达并异步派发；用户默认通用认证Provider逐ID查询，自定义ResolvesUsers可批量；legacy users用ID映射；应用作用域自动选择容器，无setContainer变更操作。无调试符号时不保证源码定位，错误与取消不保证持久入库。最终全扩展／API组合及Horizon／Telescope完整上游差异继续单列，不能计为整个路线图完成。
+O05单包验收关闭，接续O06。语言适配明确保留：原生HTML／JS替换PHP Livewire；显式Recorder注册替代反射；css重载用withCss；aggregateTotal切片统一返回按类型结果；带类型异常由class／location表达并异步派发；用户默认通用认证Provider逐ID查询，自定义ResolvesUsers可批量；legacy users用ID映射；应用作用域自动选择容器，无setContainer变更操作。错误与取消不保证持久入库。最终全扩展／API组合及完整上游差异继续单列，不能计为整个路线图完成。
 
 ## 扩展审计修复（2026-11-21）
 

@@ -41,7 +41,21 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
     Route::get("/items/{id}", item)?;
     Route::get("/observe", observed)?;
     Route::get("/metric-example", metric_example)?;
+    Route::get("/query-source", query_source)?;
     Ok(())
+}
+
+fn query_source(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        use openrust::support::facades::Db;
+
+        let line = line!() + 1;
+        Db::select("select 42 as pulse_source_probe", &[]).await?;
+        Response::json(
+            http::StatusCode::OK,
+            json!(format!("{}:{line}", file!().replace('\\', "/"))),
+        )
+    })
 }
 fn item(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async { Ok(Response::from("ok")) })
@@ -312,6 +326,76 @@ fn app() -> TestApp {
     })
     .unwrap()
 }
+
+#[tokio::test]
+async fn slow_queries_use_the_query_event_source_and_respect_the_location_switch() {
+    use openrust::contracts::foundation::Application as _;
+
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(|root, env| {
+                let mut values = config(root, env)?;
+                match std::env::var("PULSE_TEST_DRIVER").as_deref() {
+                    Ok("pgsql") => {
+                        assert_eq!(
+                            std::env::var("OPENRUST_REQUIRE_POSTGRES").as_deref(),
+                            Ok("1")
+                        );
+                        values.get_mut("database").unwrap()["connections"]["test"] =
+                            json!({"url":std::env::var("OPENRUST_TEST_POSTGRES_URL").unwrap()});
+                    }
+                    Ok("mysql") => {
+                        assert_eq!(std::env::var("OPENRUST_REQUIRE_MYSQL").as_deref(), Ok("1"));
+                        values.get_mut("database").unwrap()["connections"]["test"] =
+                            json!({"url":std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap()});
+                    }
+                    Ok("sqlite") | Err(std::env::VarError::NotPresent) => {}
+                    driver => panic!("unexpected Pulse test driver {driver:?}"),
+                }
+                values.get_mut("pulse").unwrap()["recorders"]["SlowQueries"] =
+                    json!({"threshold":0,"location":true});
+                Ok(values)
+            })
+            .with_providers(vec![Box::new(PulseServiceProvider)])
+            .with_routing(Routing::default().api(routes))
+    })
+    .unwrap();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    let response = app.get("/api/query-source").await.unwrap();
+    response.assert_ok();
+    let expected = response.json::<String>().unwrap();
+    app.app()
+        .config()
+        .unwrap()
+        .set("pulse.recorders.SlowQueries.location", false.into())
+        .unwrap();
+    app.get("/api/query-source").await.unwrap().assert_ok();
+
+    let storage = app.app().make::<DatabaseStorage>().await.unwrap();
+    let rows = storage
+        .connection()
+        .table("pulse_entries")
+        .r#where("type", "=", "slow_query")
+        .get()
+        .await
+        .unwrap();
+    let locations: Vec<_> = rows
+        .iter()
+        .filter_map(|row| {
+            let openrust::database::Value::Text(key) = row.get("key")? else {
+                return None;
+            };
+            let key: serde_json::Value = serde_json::from_str(key).unwrap();
+            (key[0] == "select 42 as pulse_source_probe").then(|| key[1].clone())
+        })
+        .collect();
+    assert_eq!(locations.len(), 2);
+    assert!(locations.contains(&json!(expected)));
+    assert!(locations.contains(&serde_json::Value::Null));
+}
+
 #[tokio::test]
 async fn provider_is_lazy_and_native_http_lifecycles_record_canonical_route_paths() {
     let mut app = app();

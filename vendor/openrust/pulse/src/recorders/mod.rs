@@ -11,7 +11,7 @@ use openrust::{
 };
 use serde_json::{Value, json};
 pub use servers::{Memory, Servers};
-use std::sync::Arc;
+use std::{panic::Location, path::Path, sync::Arc};
 
 #[derive(Clone)]
 pub struct Recorders {
@@ -31,39 +31,36 @@ impl Recorders {
         self.base_path = Some(path);
         self
     }
-    fn resolve_location(&self) -> String {
-        let mut location = String::new();
-        backtrace::trace(|frame| {
-            backtrace::resolve_frame(frame, |symbol| {
-                if !location.is_empty() {
-                    return;
-                }
-                let Some(path) = symbol.filename() else {
-                    return;
-                };
+    fn resolve_location(&self, callers: &[&Location<'_>]) -> String {
+        callers
+            .iter()
+            .find_map(|caller| {
+                let path = Path::new(caller.file());
+                let path = self
+                    .base_path
+                    .as_ref()
+                    .and_then(|base| path.strip_prefix(base).ok())
+                    .unwrap_or(path);
                 let normalized = path.to_string_lossy().replace('\\', "/");
-                if normalized.contains("/vendor/openrust/pulse/")
-                    || normalized.contains("/vendor/openrust/framework/")
-                    || normalized.contains("/.cargo/")
-                    || normalized.contains("/rustc/")
+                let rooted = format!("/{}", normalized.trim_start_matches('/'));
+                let framework = rooted.contains("/vendor/openrust/framework/src/")
+                    || rooted.contains("/vendor/openrust/pulse/src/")
+                    || (rooted.contains("/registry/src/")
+                        && rooted.split('/').any(|part| {
+                            part.starts_with("openrust-framework-")
+                                || part.starts_with("openrust-pulse-")
+                        }));
+                if framework
+                    || matches!(
+                        normalized.as_str(),
+                        "artisan" | "main.rs" | "public/index.php"
+                    )
                 {
-                    return;
+                    return None;
                 }
-                let path = match &self.base_path {
-                    Some(base) => match path.strip_prefix(base) {
-                        Ok(path) => path,
-                        Err(_) => return,
-                    },
-                    None => path,
-                };
-                location = path.display().to_string();
-                if let Some(line) = symbol.lineno() {
-                    location.push_str(&format!(":{line}"));
-                }
-            });
-            location.is_empty()
-        });
-        location
+                Some(format!("{normalized}:{}", caller.line()))
+            })
+            .unwrap_or_default()
     }
     fn options(&self, name: &str) -> Value {
         if self.only.is_some_and(|selected| selected != name) {
@@ -133,7 +130,7 @@ impl Recorders {
             {
                 Value::Null
             } else {
-                Value::String(self.resolve_location())
+                Value::String(self.resolve_location(&e.callers))
             };
             pulse
                 .lazy(move |pulse| {

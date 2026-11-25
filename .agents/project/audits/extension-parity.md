@@ -78,7 +78,7 @@ O01 Activitylog、O02 Horizon、O03 Telescope原生范围、O04 Pennant、O05 Pu
 | Telescope `ClientRequestWatcher::input` | 已捕获构建器提供的 multipart 普通字段及 `attach_body` 附件的文件名、长度、头部。普通字段先于附件发送，同名取最后一项，复用请求字段／头部脱敏。原生 `attach` 保留发送契约。 | 原生 reqwest `Part` 元数据和中间件替换流的边界见[包审计](telescope/README.md#出站-multipart)。 |
 | Telescope 非 multipart 出站载荷 | 诊断从原始 GET 地址或结构化正文选择载荷，并与线上 URL 分别记录。已核对 JSON／表单 POST、GET 查询覆盖、HEAD、原始正文、自定义媒体类型与表单标量快照。成功重定向保留原始输入，连接失败从实际缓冲正文解码。 | multipart 重定向、重试回调改写与其他中间件组合仍需对账。 |
 | Telescope `FetchesStackTrace`、`QueryWatcher`、`GateWatcher` | 固定上游按路径子串跳过被忽略的帧，再选第一处合格来源。找不到合格帧时 Query 不入库，Gate 仍入库且行号和文件为空。Gate 已提供授权入口位置，Query 已从核心 SQL、分页、模型写入、直接关系读取及多对多中间表入口收集候选。 | Gate 外层候选、关联模型写入和读取时创建的变体、schema、懒加载入口，以及发布构建路径重映射仍须逐项核对。 |
-| Pulse 默认 Recorder 清单 | 固定配置的十个 Recorder 均可映射到本地配置。核对了采样率 1、慢操作阈值 1000、异常和慢查询位置开关、默认存储及采集驱动；这一轮只读配置。 | 逐 Recorder 核对触发事件、筛选、采样、聚合、配置覆盖和扩展入口，再核对命令和面板。Servers 主机名上游在配置加载时求值，本地在记录时回退，配置缓存边界待裁决。 |
+| Pulse 默认 Recorder 清单 | 固定配置的十个 Recorder 均可映射到本地配置。已核对采样率 1、慢操作阈值 1000、异常和慢查询位置开关、默认存储及采集驱动。SlowQueries 现使用数据库事件的调用位置。 | 逐 Recorder 核对触发事件、筛选、采样、聚合、配置覆盖和扩展入口，再核对命令和面板。Servers 主机名上游在配置加载时求值，本地在记录时回退，配置缓存边界待裁决。 |
 | Horizon `horizon:listen` 的 `watch` | 上游发布配置提供默认监听列表。Rust 配置补充应用、启动、配置、数据库、路由、视图、公开目录及资源目录中的 Rust 文件和 Cargo 构建入口的对应监听路径。真实 Artisan 使用默认配置监控 `routes/web.rs`，文件更新后重建 Master 和 Worker，SIGTERM 后子树退出。 | 补 Linux／Windows 目标平台验收。 |
 | Horizon 其余配置 | 固定上游含 `name`、`waits`、`silenced`、`silenced_tags` 及 Supervisor `nice`。本地已读静默配置并具备 `nice` 运行时默认；配置形状、面板名称、等待时间入口仍须逐项核对。 | 对照发布配置及实际命令、Redis 和面板消费者，分别核对默认、覆盖及非法值。 |
 
@@ -304,3 +304,11 @@ Rust 为公开 `Relation::get_results`、批量匹配与事务匹配接入位置
 Rust 在 BelongsToMany 的中间表入口传播调用位置，覆盖带属性及事务变体，MorphToMany 沿用现有解引用入口。同步和切换中的读取、插入、删除经同一查询来源作用域传播。内部事务、查询锁和自定义中间表模型装配保持现有行为。关联模型自身的保存、创建、touch 与先读后写变体仍须核对。
 
 基于 `42bca1a84` 加本批文件的隔离快照，在 SQLite、PostgreSQL 18.7 与 MySQL 8.4.13 的真实应用路由验证五个入口的九条 SQL 与精确行号，同时检查更新行数、同步和切换的附加／移除集合及最终移除行数。Telescope 默认 38 项、框架关系 6 项、MySQL 两项显式连接原生回归、快照全仓格式、严格 Clippy、三语文档构建及 12 组浏览器检查通过。Release 与其他目标平台留在发布组合验收。证据位于 `target/tmp/observability-parity/query-pivot-*.log`。
+
+### Pulse SlowQueries 数据库调用来源
+
+固定 [SlowQueries](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Recorders/SlowQueries.php) 从查询调用栈选首个可用文件与行号，省略应用根路径并跳过框架、Pulse 和启动脚本。无可用位置写空字符串，关掉 `location` 写 `null`。在 PHP 8.5.12 中实际注册固定 Recorder，通过 SQLite 查询、Pulse 延迟队列和 Ingest 契约核对这两种配置的条目键。
+
+Rust 使用原生 `QueryExecuted.callers` 已捕获的位置，跳过框架、Pulse 及启动入口，无需解析本地调试符号。默认保留第三方包的候选，符合 Pulse 对内部来源较窄的排除范围。来源不可用时写空字符串，禁用时写 `null`。移除 Pulse 唯一的 `backtrace` 依赖及其孤立依赖。未接入调用来源的数据库入口和自定义路径重映射仍继续核对。
+
+基于 `d987d7fa9` 加本批文件的隔离快照，SQLite 真实路由验证有来源与关闭来源的条目键。Pulse 默认 21 项、独立 Redis 8.10.3 Stream 用例、Pulse 与 Telescope 的运行时组合、快照全仓格式、Pulse 全目标严格 Clippy、三语文档构建及 12 组浏览器检查通过。同一 macOS Release 二进制分别验证 SQLite、PostgreSQL 18.7、MySQL 8.4.13 的慢查询来源和关闭开关。Linux／Windows 与部署组合仍需验收。证据位于 `target/tmp/observability-parity/pulse-query-source-*.log`。
