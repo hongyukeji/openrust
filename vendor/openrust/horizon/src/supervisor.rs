@@ -335,18 +335,16 @@ impl Supervisor {
             .take_structured_supervisor_commands(&self.id, self.ownership.as_ref())
             .await?
         {
-            match Command::queued(command) {
-                Ok(command) => {
-                    if let Some(status) = self.apply_command(command).await? {
-                        return Ok(Some(status));
-                    }
-                }
-                Err(error) => {
+            match self.process_queued_command(command).await {
+                Ok(Some(status)) => return Ok(Some(status)),
+                Ok(None) => {}
+                Err(error @ (Error::InvalidRecord | Error::InvalidConfiguration)) => {
                     let _ = openrust::support::facades::Log::warning(
                         &format!("Horizon Supervisor 命令未执行: {error}"),
                         &Default::default(),
                     );
                 }
+                Err(error) => return Err(error),
             }
         }
         let paused = self
@@ -506,6 +504,18 @@ impl Supervisor {
             return Err(Error::MemoryLimitExceeded);
         }
         Ok(None)
+    }
+
+    async fn process_queued_command(&mut self, item: crate::QueuedCommand) -> Result<Option<i32>> {
+        if let Some(handler) =
+            crate::command_handler::resolve::<dyn crate::SupervisorCommandHandler>(&item.command)?
+        {
+            return handler
+                .process(self, item.options)
+                .await
+                .map(|status| status.map(i32::from));
+        }
+        self.apply_command(Command::queued(item)?).await
     }
 
     async fn apply_command(&mut self, command: Command) -> Result<Option<i32>> {

@@ -437,11 +437,7 @@ impl MasterSupervisor {
             return Ok(false);
         }
         for item in lease.pending_commands().await? {
-            let result = match item.command.as_str() {
-                AddSupervisor::NAME => AddSupervisor.process(self, item.options),
-                crate::supervisor_commands::RESTART => self.restart_supervisors(lease).await,
-                _ => Err(Error::InvalidRecord),
-            };
+            let result = self.process_queued_command(item, lease).await;
             if let Err(error) = result {
                 if !matches!(error, Error::InvalidRecord | Error::InvalidConfiguration) {
                     return Err(error);
@@ -550,6 +546,24 @@ impl MasterSupervisor {
             return Err(Error::MemoryLimitExceeded);
         }
         Ok(true)
+    }
+
+    async fn process_queued_command(
+        &mut self,
+        item: crate::QueuedCommand,
+        lease: &MasterLease,
+    ) -> Result<()> {
+        if let Some(handler) = crate::command_handler::resolve::<
+            dyn crate::MasterSupervisorCommandHandler,
+        >(&item.command)?
+        {
+            return handler.process(self, item.options).await;
+        }
+        match item.command.as_str() {
+            AddSupervisor::NAME => AddSupervisor.process(self, item.options),
+            crate::supervisor_commands::RESTART => self.restart_supervisors(lease).await,
+            _ => Err(Error::InvalidRecord),
+        }
     }
 
     async fn restart_supervisors(&mut self, lease: &MasterLease) -> Result<()> {

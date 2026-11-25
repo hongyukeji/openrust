@@ -70,7 +70,13 @@ Rust 的公开 `ProvisioningPlan` 可从应用配置取得，包含有序的环�
 
 macOS 的真实 Artisan 完整进程回归在部署监听器中检查 Redis 待办数量，覆盖未匹配、匹配空计划、全部停用、正常启动及目录恢复。macOS 与 Linux ARM64 使用公开 `deploy` 与真实 Master 验证首个通配环境、新 Worker 执行任务和相对工作目录。Windows ARM64 复验默认计划启动、排空、快速终止及父进程异常退出。配置测试 8 项、Horizon 全目标严格 Clippy、格式与三语正文检查通过。证据为 `target/tmp/observability-parity/horizon-provisioning-{macos-artisan,macos-process,linux-artisan,windows}.log`。
 
-固定 PHP 探针用应用容器替换 `HorizonCommandQueue`，Master 和 Supervisor 构造时都调用替代实现的 `flush`，之后用其 `pending` 领取。容器可解析应用自己的命令类，也可替换内置 `Pause`。两个监控循环把目标实例和原样选项传给命令的 `process`，按领取顺序执行。Rust 的可替换队列接口和运行时命令解析待实现，默认 Redis 队列的名称所有权及原子领取属于现有行为。证据为 `target/tmp/observability-parity/horizon-command-contract-upstream.log`。 [固定命令队列接口](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Contracts/HorizonCommandQueue.php)
+### 应用容器中的命令处理器
+
+固定 PHP 探针用应用容器替换 `HorizonCommandQueue`，Master 和 Supervisor 构造时都调用替代实现的 `flush`，之后用其 `pending` 领取。容器可解析应用自己的命令类，也可替换内置 `Pause`。两个监控循环把目标实例和原样选项传给命令的 `process`，按领取顺序执行。证据为 `target/tmp/observability-parity/horizon-command-contract-upstream.log`。 [固定命令队列接口](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Contracts/HorizonCommandQueue.php)
+
+Rust 以 `MasterSupervisorCommandHandler` 和 `SupervisorCommandHandler` 表达两个可借用的进程类型。结构化消息领取后，监控进程按命令名优先解析当前应用的绑定，向其传入运行中的实例和原始 JSON 选项。未绑定时运行内置命令。同名异类型绑定按无效配置处理，后续消息仍能执行。Supervisor 处理器可申请以给定状态码排空退出。默认 Redis 队列的原子领取和名称所有权继续用于两类处理器。可替换队列接口仍待接入。
+
+macOS 和 Linux ARM64 的真实 Artisan 与 Redis 测试覆盖自定义 Master 部署、同名 `Pause` 覆盖、嵌套选项、处理器退出状态 23，以及另一份应用配置仍执行内置命令。Windows ARM64 的原生进程验证自定义部署和覆盖后真实任务继续运行。原有命令组、Master 重启、窗口内接管及输出按所涉环境复验。Horizon 严格 Clippy、格式和三语文档正文检查通过。证据为 `target/tmp/observability-parity/horizon-command-handlers-{macos,linux,windows,docs}.log`。
 
 ### Supervisor 结构化命令
 

@@ -140,6 +140,8 @@ To add a supervisor to a running Master, resolve `RedisHorizonCommandQueue` from
 
 To control a running supervisor from application code, push a command from `openrust_horizon::supervisor_commands` to its full name through `RedisHorizonCommandQueue`. `SCALE` takes a `scale` option for the total worker count, `BALANCE` takes queue names mapped to counts, and `TERMINATE` accepts an optional `status` exit code. `RESTART` replaces the workers and resumes a paused supervisor.
 
+In an application provider, use `instance_named` to bind a `dyn MasterSupervisorCommandHandler` or `dyn SupervisorCommandHandler` under the command name used in the queue. The binding can handle a custom command or override a built-in command with the same name. The handler receives the active master or supervisor and the queued JSON options. A supervisor handler can return `Some(status)` to drain the supervisor and exit with that status.
+
 To replace a running Master's supervisors and their workers, send `RESTART` with empty options to `MasterSupervisor::command_queue_for(Some(master_name))`. `MasterSupervisor::restart().await` submits the same request for the instance's name. The Master resumes from a pause. By default, each supervisor waits for its active jobs to finish before it is replaced.
 
 `horizon` streams managed process output to Artisan as it arrives. When running a `MasterSupervisor` or `Supervisor` from application code, use `handle_output_using` to receive each child's output as an `openrust::process::OutputStream` and a byte slice. The callback receives stdout and stderr as separate stream types. The `horizon:supervisor` command writes both Worker streams to its own stdout, so the Master receives them together.

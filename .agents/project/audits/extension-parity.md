@@ -139,6 +139,8 @@ Horizon 增加 Master 公开重启。恢复暂停后，原 Master 按之前的�
 
 Horizon 的 Master 和 Supervisor 增加公开输出回调，Artisan 与文件监听命令接通子进程的实时输出和控制台标签格式。使用真实任务核对 stdout、stderr、静默模式和文件重启前后的输出。独立进程包装器回调及命令队列替换仍在对齐。 [输出回调审计](horizon/README.md#master-与-supervisor-输出回调)
 
+Horizon 的结构化命令可按名称解析应用容器中的 Master 或 Supervisor 处理器。真实 Artisan 进程验证自定义部署、同名命令覆盖、选项传递、排空退出码和应用隔离。 [命令处理器审计](horizon/README.md#应用容器中的命令处理器)
+
 ### Horizon 分组等待时间与 HTTP 排序
 
 固定上游 [RedisWorkloadRepository::get](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Repositories/RedisWorkloadRepository.php) 与 [WaitTimeCalculator::calculateTimeToClear](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/WaitTimeCalculator.php) 分别确定各分队列先取整再累加、整组以原始总量独立取整的行为。[WorkloadController::index](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Http/Controllers/WorkloadController.php) 对 HTTP 结果按名称排序，仓储按等待时间降序供监控消费。Rust 已补齐两处规则。

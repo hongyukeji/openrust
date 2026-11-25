@@ -1,4 +1,6 @@
 //! Dedicated process acceptance application; never registered in the default app.
+mod command_handlers;
+
 use openrust::{
     config::{ConfigError, Environment, Value},
     contracts::events::{Dispatcher as _, Event, Listener},
@@ -276,6 +278,9 @@ impl Listener for MemoryEventRecorder {
 impl ServiceProvider for ProbeProvider {
     fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
+            if std::env::var("HORIZON_PROBE_COMMAND_HANDLERS").as_deref() == Ok("1") {
+                command_handlers::register(app)?;
+            }
             if let Ok(basename) = std::env::var("HORIZON_PROBE_MASTER_BASENAME") {
                 MasterSupervisor::determine_name_using(move || basename.clone())?;
             }

@@ -1,6 +1,7 @@
 #![doc = include_str!("../README.md")]
 #![forbid(unsafe_code)]
 
+mod command_handler;
 #[path = "../config/horizon.rs"]
 mod configuration;
 pub mod console;
@@ -28,6 +29,9 @@ pub use notifications::{
 pub use tags::{ModelTagCallback, TagCallback, Tags};
 mod master_supervisor;
 
+pub use command_handler::{
+    CommandFuture, MasterSupervisorCommandHandler, SupervisorCommandHandler,
+};
 pub use dashboard::{Dashboard, Horizon};
 pub use events::{
     JobDeleted, JobFailed, JobPending, JobPushed, JobReleased, JobReserved, JobsMigrated,

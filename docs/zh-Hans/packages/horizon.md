@@ -140,6 +140,8 @@ Master 名称由主机名转换出的短名和进程内固定的四字符令牌�
 
 要从应用代码控制运行中的监督器，通过 `RedisHorizonCommandQueue` 将 `openrust_horizon::supervisor_commands` 中的命令发往监督器全名。`SCALE` 的 `scale` 参数指定 Worker 总数，`BALANCE` 接收各队列的 Worker 数，`TERMINATE` 可通过 `status` 指定退出码。`RESTART` 会更换 Worker 并恢复暂停的监督器。
 
+在应用 Provider 中，可用 `instance_named` 按队列中的命令名绑定 `dyn MasterSupervisorCommandHandler` 或 `dyn SupervisorCommandHandler`。绑定可处理自定义命令，也可覆盖同名内置命令。处理器接收当前进程的监控实例和队列传入的 JSON 选项。Supervisor 的处理器返回 `Some(status)` 时，当前监督器会排空并以该状态码退出。
+
 要更换运行中 Master 的所有监督器及其 Worker，把空选项的 `RESTART` 发送到 `MasterSupervisor::command_queue_for(Some(master_name))`。`MasterSupervisor::restart().await` 按实例名称提交同一请求。Master 从暂停中恢复。默认情况下，各监督器会等待正在执行的任务完成后再更换。
 
 `horizon` 实时将受管进程的输出写到 Artisan。从应用代码运行 `MasterSupervisor` 或 `Supervisor` 时，可用 `handle_output_using` 接收直接子进程的输出。回调接收 `openrust::process::OutputStream` 和字节片段，可区分该子进程的 stdout 与 stderr。`horizon:supervisor` 会把 Worker 的两个流都写入自己的 stdout，因此 Master 收到合并后的输出。
