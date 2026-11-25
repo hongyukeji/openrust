@@ -9,8 +9,9 @@ cargo +1.94.0 build --locked --release --features standalone
 mkdir -p release/resources/views release/public release/storage/app/public
 cp target/release/main release/main
 cp resources/views/welcome.blade.html release/resources/views/welcome.blade.html
-cp -R lang release/
 ```
+
+Default translations are compiled into the binary. If your application supplies custom translations in `lang/`, deploy those files with the application.
 
 Copy any website assets into `release/public` and public storage files into `release/storage/app/public`. The welcome page is read at runtime, so deploy it with the binary. Rust configuration and route declarations are compiled into `main`; changing their Rust source requires a rebuild. Runtime environment values and view files do not.
 

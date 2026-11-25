@@ -6,13 +6,13 @@ stage = root / 'target/tmp/localization-18-locales/docker'
 stage.mkdir(parents=True, exist_ok=True)
 base = os.environ.get('LOCALE_DOCKER_BASE', 'openrust:localization-18-final')
 tag = 'openrust:localization-18-resources'
-for name in ['resources', 'lang', 'public']:
+for name in ['resources', 'public']:
     if (stage / name).exists():
         shutil.rmtree(stage / name)
     shutil.copytree(root / name, stage / name, dirs_exist_ok=True)
 for name in ['LICENSE', 'THIRD_PARTY_NOTICES.md']:
     shutil.copy2(root / name, stage / name)
-(stage / 'Dockerfile').write_text(f'FROM {base}\nCOPY resources/ /app/resources/\nCOPY lang/ /app/lang/\nCOPY public/ /app/public/\nCOPY LICENSE THIRD_PARTY_NOTICES.md /app/\n')
+(stage / 'Dockerfile').write_text(f'FROM {base}\nCOPY resources/ /app/resources/\nCOPY public/ /app/public/\nCOPY LICENSE THIRD_PARTY_NOTICES.md /app/\n')
 subprocess.run(['docker', 'build', '--pull=false', '-t', tag, str(stage)], check=True)
 args = ['docker', 'run', '-d', '--rm', '-p', '127.0.0.1::8000']
 for key, value in dict(APP_BASE_PATH='/app', APP_DISABLED_RUNNERS='queue,schedule,reverb,grpc', APP_KEY='base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=', SESSION_DRIVER='array', CACHE_STORE='array', LOG_CHANNEL='stderr').items():
@@ -29,8 +29,8 @@ try:
             time.sleep(.1)
     else:
         raise AssertionError('容器HTTP启动超时')
-    # 容器没有应用日语词典；日语HTTP必须实际消费编入产物的默认值。
-    subprocess.run(['docker', 'exec', container, 'test', '!', '-e', '/app/lang/ja/welcome.json'], check=True)
+    # 容器不携带应用语言目录；HTTP 必须实际消费编入产物的默认翻译。
+    subprocess.run(['docker', 'exec', container, 'test', '!', '-e', '/app/lang'], check=True)
     locales = json.loads((root / '.agents/project/audits/03-07/localization-18-source.json').read_text())['standard_source']['locales']
     for locale in locales:
         request = urllib.request.Request(base_url, headers={'Accept-Language': locale})

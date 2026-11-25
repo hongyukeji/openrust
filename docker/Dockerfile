@@ -50,7 +50,6 @@ RUN sed -i 's|http://deb.debian.org/|https://deb.debian.org/|g' /etc/apt/sources
 WORKDIR /app
 COPY --from=build /out/main /app/main
 COPY resources/ /app/resources/
-COPY lang/ /app/lang/
 COPY public/ /app/public/
 COPY LICENSE THIRD_PARTY_NOTICES.md /app/
 ENV APP_HOST=0.0.0.0 APP_PORT=8000 APP_ENV=production APP_DEBUG=false LOG_CHANNEL=stderr
