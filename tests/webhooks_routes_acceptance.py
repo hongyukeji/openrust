@@ -1163,6 +1163,119 @@ def check_dispatch_recovery(binary, env, root, port, driver, sql):
     print(f"{driver}: 入列后丢失恢复经 {connection} 实测 1 个 HTTP、2 次 Worker；等待窗口、"
           "清除任务、崩溃租约、并发预算扣减、终态清理及迁移保护通过", flush=True)
 
+    def accept_deferred(profile, payload, tracked):
+        nonlocal body
+        body = payload
+        with (root / "durable-deferred-http.log").open("w+") as log:
+            server = http_helpers["serve"](binary, current, log)
+            try:
+                send(profile, 200)
+            finally:
+                http_helpers["stop"](server)
+        key = hashlib.sha256(body).hexdigest()
+        stored_id = sql(
+            f"SELECT id FROM webhook_calls WHERE scope='{scope}' AND name='{profile}' "
+            f"AND raw_body='{base64.b64encode(body).decode()}'"
+        )
+        assert re.fullmatch(r"[0-9a-f-]{36}", stored_id), key
+        if redis and not tracked and payload == b"recovery-deferred-wake":
+            # Redis 已入列，Worker 在原扫描器确认前完成延期。旧令牌不能删掉新意图。
+            barrier = root / "defer-before-old-dispatch-ack"
+            barrier.mkdir()
+            delayed_ack = current | {"FIXTURE_HOLD_AFTER_REDIS_ENQUEUE": str(barrier)}
+            with subprocess.Popen([str(binary), "artisan", *sweep], env=delayed_ack,
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as dispatcher:
+                try:
+                    deadline = time.monotonic() + 10
+                    while not (barrier / "entered").exists():
+                        assert dispatcher.poll() is None and time.monotonic() < deadline
+                        time.sleep(.02)
+                    assert pending_count() == 1
+                    command(binary, worker_env, *worker)
+                finally:
+                    (barrier / "release").touch()
+                    stdout, stderr = dispatcher.communicate(timeout=20)
+                assert dispatcher.returncode == 0 and "已派发 1 条" in stdout, stdout + stderr
+        else:
+            assert "已派发 1 条" in command(binary, current, *sweep)
+            retained = sql(f"SELECT COUNT(*) FROM webhook_dispatch_intents WHERE call_id='{stored_id}'")
+            assert int(retained) == int(tracked)
+            command(binary, worker_env, *worker)
+        assert pending_count() == 0
+        assert sql(f"SELECT processing_deferrals FROM webhook_calls WHERE id='{stored_id}'") == "1"
+        assert sql(f"SELECT COUNT(processed_at) FROM webhook_calls WHERE id='{stored_id}'") == "0"
+        next_at = sql(f"SELECT processing_next_at FROM webhook_calls WHERE id='{stored_id}'")
+        assert int(next_at) > 0
+        assert sql(f"SELECT available_at FROM webhook_dispatch_intents WHERE call_id='{stored_id}'") == next_at
+        route = json.loads(sql(f"SELECT route FROM webhook_dispatch_intents WHERE call_id='{stored_id}'"))
+        deferred_route = json.loads(sql(
+            f"SELECT processing_deferred_route FROM webhook_calls WHERE id='{stored_id}'"))
+        assert deferred_route.pop("recover_deferred") is True
+        assert route == deferred_route and route["options"]["max_tries"] == 1
+        assert "可派发 0 条" in command(binary, current, *sweep, "--pretend")
+        return stored_id
+
+    def without_broker(*tokens):
+        if redis:
+            with socket.socket() as unused:
+                unused.bind(("127.0.0.1", 0))
+                offline = current | {"REDIS_URL": f"redis://127.0.0.1:{unused.getsockname()[1]}"}
+                return subprocess.run([str(binary), "artisan", *tokens], env=offline,
+                                      capture_output=True, text=True, timeout=25)
+        offline = current | {"FIXTURE_FOREIGN_QUEUE_TABLE": "missing_webhook_recovery_jobs"}
+        return subprocess.run([str(binary), "artisan", *tokens], env=offline,
+                              capture_output=True, text=True, timeout=25)
+
+    def complete_deferred(id, expected):
+        marker = root / f"worker-resume-{id}.json"
+        command(binary, worker_env | {"FIXTURE_DEFERRED_READY": "1",
+               "WEBHOOK_TEST_RECEIPT_OUTPUT": str(marker)}, *worker)
+        assert bytes(json.loads(marker.read_text())["body"]) == expected
+        assert sql(f"SELECT COUNT(processed_at) FROM webhook_calls WHERE id='{id}'") == "1"
+        assert sql(f"SELECT processing_deferrals FROM webhook_calls WHERE id='{id}'") == "1"
+
+    receipt = accept_deferred("deferred-recovery", b"recovery-deferred-wake", False)
+    def wake():
+        result = without_broker("webhooks:wake-fixture", receipt, scope)
+        assert result.returncode == 0, result
+        return result.stdout.strip()
+    with ThreadPoolExecutor(max_workers=2) as runners:
+        awakenings = sorted(run.result() for run in (runners.submit(wake), runners.submit(wake)))
+    assert awakenings == ["false", "true"] and pending_count() == 0
+    failed = without_broker(*sweep)
+    assert failed.returncode != 0 and "1 条待重试" in failed.stdout, failed
+    assert sql(f"SELECT COUNT(processed_at) FROM webhook_calls WHERE id='{receipt}'") == "0"
+    expire_claim()
+    assert "已派发 1 条" in command(binary, current, *sweep)
+    complete_deferred(receipt, b"recovery-deferred-wake")
+
+    scheduled = accept_deferred("deferred-recovery-tracked", b"recovery-deferred-scheduled", True)
+    write_database(driver, sql, f"UPDATE webhook_calls SET processing_next_at=0 WHERE id='{scheduled}'")
+    write_database(driver, sql, f"UPDATE webhook_dispatch_intents SET available_at=0 WHERE call_id='{scheduled}'")
+    assert "已派发 1 条" in command(binary, current, *sweep)
+    assert sql(f"SELECT processing_requeues_left FROM webhook_dispatch_intents WHERE call_id='{scheduled}'") == "2"
+    complete_deferred(scheduled, b"recovery-deferred-scheduled")
+    command(binary, current, *sweep)
+
+    expired = accept_deferred("deferred-recovery", b"recovery-deferred-expire", False)
+    write_database(driver, sql, f"UPDATE webhook_calls SET processing_next_at=0 WHERE id='{expired}'")
+    write_database(driver, sql, f"UPDATE webhook_dispatch_intents SET available_at=0 WHERE call_id='{expired}'")
+    assert "已派发 1 条" in command(binary, current, *sweep)
+    assert pending_count() == 1
+    command(binary, current, *clear)
+    assert pending_count() == 0
+    assert sql(f"SELECT COUNT(enqueued_at) FROM webhook_dispatch_intents WHERE call_id='{expired}'") == "1"
+    write_database(driver, sql, f"UPDATE webhook_calls SET processing_deadline=0 WHERE id='{expired}'")
+    assert "可派发 0 条" in command(binary, current, *sweep, "--pretend")
+    assert sql(f"SELECT COUNT(processing_stopped_at) FROM webhook_calls WHERE id='{expired}'") == "0"
+    stopped = without_broker(*sweep)
+    assert stopped.returncode == 0 and "已派发 0 条" in stopped.stdout, stopped
+    assert sql(f"SELECT COUNT(processing_stopped_at) FROM webhook_calls WHERE id='{expired}'") == "1"
+    assert sql(f"SELECT COUNT(processed_at) FROM webhook_calls WHERE id='{expired}'") == "0"
+    assert sql("SELECT COUNT(*) FROM webhook_dispatch_intents") == "0" and pending_count() == 0
+    print(f"{driver}: 跨后端业务延期经 {connection} 实测 3 个 HTTP、5 次 Worker；定时恢复、"
+          "离线唤醒、失败补偿、到期终止与独立预算通过", flush=True)
+
 def main():
  driver,url=helpers["database_settings"]();binary=args.binary.resolve();requests=workers=0
  with tempfile.TemporaryDirectory(dir=ROOT/"target/tmp",prefix="webhook-routes-") as tmp:

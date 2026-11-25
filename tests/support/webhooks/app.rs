@@ -324,7 +324,13 @@ impl openrust_webhook_client::jobs::ProcessWebhookJob for FixtureJob {
         store: &'a dyn openrust_webhook_client::WebhookStore,
     ) -> HttpFuture<'a, openrust_webhook_client::Result<()>> {
         Box::pin(async move {
-            if matches!(call.name(), "recovery" | "processing-recovery") {
+            if matches!(
+                call.name(),
+                "recovery"
+                    | "processing-recovery"
+                    | "deferred-recovery"
+                    | "deferred-recovery-tracked"
+            ) {
                 let expected = std::env::var("FIXTURE_RECOVERY_QUEUE")
                     .unwrap_or_else(|_| "foreign-database".into());
                 assert_eq!(context.connection(), expected);
@@ -389,6 +395,13 @@ impl openrust_webhook_client::jobs::ProcessWebhookJob for FixtureJob {
         Box::pin(async move {
             use openrust_webhook_client::jobs::WebhookProcessingOutcome;
             match call.raw_body() {
+                b"recovery-deferred-wake"
+                | b"recovery-deferred-expire"
+                | b"recovery-deferred-scheduled"
+                    if std::env::var_os("FIXTURE_DEFERRED_READY").is_none() =>
+                {
+                    return Ok(WebhookProcessingOutcome::Deferred { delay_seconds: 60 });
+                }
                 b"deferred-wait" if std::env::var_os("FIXTURE_DEFERRED_READY").is_none() => {
                     return Ok(WebhookProcessingOutcome::Deferred { delay_seconds: 2 });
                 }
@@ -543,8 +556,8 @@ impl openrust::contracts::events::Listener for RejectAuditListener {
         })
     }
 }
-struct CrashAfterRedisEnqueue;
-impl openrust::contracts::events::Listener for CrashAfterRedisEnqueue {
+struct ControlAfterRedisEnqueue;
+impl openrust::contracts::events::Listener for ControlAfterRedisEnqueue {
     fn handle<'a>(
         &'a self,
         event: &'a dyn openrust::contracts::events::Event,
@@ -558,7 +571,20 @@ impl openrust::contracts::events::Listener for CrashAfterRedisEnqueue {
                 .downcast_ref::<openrust::queue::events::JobQueued>()
                 .is_some_and(|event| event.queue == "webhook-recovery")
             {
-                std::process::exit(79);
+                if std::env::var_os("FIXTURE_CRASH_AFTER_REDIS_ENQUEUE").is_some() {
+                    std::process::exit(79);
+                }
+                if let Some(directory) = std::env::var_os("FIXTURE_HOLD_AFTER_REDIS_ENQUEUE") {
+                    let path = std::path::PathBuf::from(directory);
+                    tokio::fs::write(path.join("entered"), b"queued")
+                        .await
+                        .map_err(|source| openrust::events::EventError::Listener {
+                            source: Box::new(source),
+                        })?;
+                    while !path.join("release").exists() {
+                        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                    }
+                }
             }
             Ok(None)
         })
@@ -676,12 +702,21 @@ impl openrust::support::ServiceProvider for FixtureProvider {
                             .map_err(runtime_error)?
                             .unwrap_or("foreign-database"),
                     };
+                    let deferred = matches!(
+                        config.name(),
+                        "deferred-recovery" | "deferred-recovery-tracked"
+                    );
+                    let job = if deferred {
+                        "recover-deferred"
+                    } else {
+                        "accepted"
+                    };
                     Ok(std::sync::Arc::new(
-                        openrust_webhook_client::jobs::QueuedWebhookJob::new("accepted")?
+                        openrust_webhook_client::jobs::QueuedWebhookJob::new(job)?
                             .on_connection(connection)
                             .on_queue("webhook-recovery")
                             .with_options(openrust::queue::JobOptions {
-                                max_tries: Some(2),
+                                max_tries: Some(if deferred { 1 } else { 2 }),
                                 timeout: Some(std::time::Duration::from_secs(4)),
                                 ..Default::default()
                             }),
@@ -762,7 +797,9 @@ impl openrust::support::ServiceProvider for FixtureProvider {
                         openrust::events::Delivery::Sync,
                     )?;
             }
-            if std::env::var_os("FIXTURE_CRASH_AFTER_REDIS_ENQUEUE").is_some() {
+            if std::env::var_os("FIXTURE_CRASH_AFTER_REDIS_ENQUEUE").is_some()
+                || std::env::var_os("FIXTURE_HOLD_AFTER_REDIS_ENQUEUE").is_some()
+            {
                 use openrust::contracts::{
                     container::Container as _, events::Dispatcher as _,
                     foundation::Application as _,
@@ -771,7 +808,7 @@ impl openrust::support::ServiceProvider for FixtureProvider {
                     .get::<openrust::events::Dispatcher>("events")?
                     .listen(
                         openrust::queue::events::JobQueued::NAME,
-                        std::sync::Arc::new(CrashAfterRedisEnqueue),
+                        std::sync::Arc::new(ControlAfterRedisEnqueue),
                         openrust::events::Delivery::Sync,
                     )?;
             }
@@ -805,6 +842,20 @@ impl openrust::support::ServiceProvider for FixtureProvider {
                 )?),
                 std::sync::Arc::new(FixtureJob),
                 6,
+            )?;
+            openrust_webhook_client::jobs::QueuedWebhookJob::register_with_database_recovery_and_deferred_processing(
+                &queue,
+                "recover-deferred",
+                std::sync::Arc::new(openrust_webhook_client::DatabaseWebhookStore::new(
+                    manager.connection(None)?,
+                    "webhook-recovery-scope",
+                )?),
+                std::sync::Arc::new(FixtureJob),
+                6,
+                openrust_webhook_client::jobs::DeferredProcessingPolicy {
+                    max_deferrals: 1,
+                    max_age_seconds: 120,
+                },
             )?;
             openrust_webhook_client::jobs::QueuedWebhookJob::register_with_database_lease(
                 &queue,
@@ -921,6 +972,8 @@ fn api_routes() -> Result<(), openrust::routing::RoutingError> {
         "atomic-foreign",
         "recovery",
         "processing-recovery",
+        "deferred-recovery",
+        "deferred-recovery-tracked",
         "recovery-null",
         "recovery-failover",
         "leased",
@@ -1185,6 +1238,8 @@ async fn main() -> ExitCode {
                 {"name":"event-other","signing_secret":{"env":"FIXTURE_STANDARD_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"standard","webhook_profile":"process-everything","webhook_model":"database","atomic_database_queue":true,"deduplicate_verified_events":true},
                 {"name":"recovery","revision":"recover-v1","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-recovery-scope","process_webhook_job":"recovery","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","recover_dispatch":true,"deduplicate_body_seconds":300,"webhook_response":"recovery-response"},
                 {"name":"processing-recovery","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-recovery-scope","process_webhook_job":"recovery","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","recover_dispatch":true,"recover_processing":{"after_seconds":60,"max_requeues":2}},
+                {"name":"deferred-recovery","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-recovery-scope","process_webhook_job":"recovery","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","recover_dispatch":true},
+                {"name":"deferred-recovery-tracked","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-recovery-scope","process_webhook_job":"recovery","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","recover_dispatch":true,"recover_processing":{"after_seconds":60,"max_requeues":2}},
                 {"name":"recovery-null","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-recovery-scope","process_webhook_job":"recovery","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","recover_dispatch":true},
                 {"name":"recovery-failover","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-recovery-scope","process_webhook_job":"recovery","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","recover_dispatch":true},
                 {"name":"attachment-disk","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","atomic_database_queue":true,"attachment_disk":"local","deduplicate_body_seconds":30},

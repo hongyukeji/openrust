@@ -1,4 +1,4 @@
-use super::{ProcessWebhookJob, QueueRoute, QueuedWebhookJob, Receipt};
+use super::{DeferredProcessingPolicy, ProcessWebhookJob, QueueRoute, QueuedWebhookJob, Receipt};
 use crate::{DatabaseWebhookStore, Error, Result, storage::text};
 use openrust::database::Value;
 use openrust::queue::{
@@ -6,7 +6,7 @@ use openrust::queue::{
 };
 use std::{sync::Arc, time::Duration};
 
-const RECOVERY_JOB_PREFIX: &str = "openrust_webhook_client::dispatch_recovery::";
+pub(super) const RECOVERY_JOB_PREFIX: &str = "openrust_webhook_client::dispatch_recovery::";
 const DISPATCH_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// 可持久化的具名队列路由。只保存连接、队列、Job 注册名及选项。
@@ -39,6 +39,25 @@ impl QueuedWebhookJob {
         )
     }
 
+    /// 延期时与业务状态同事务建立派发意图，可由独立队列后端消费。
+    pub fn register_with_database_recovery_and_deferred_processing(
+        queue: &QueueManager,
+        name: &str,
+        store: Arc<DatabaseWebhookStore>,
+        handler: Arc<dyn ProcessWebhookJob>,
+        lease_seconds: u32,
+        policy: DeferredProcessingPolicy,
+    ) -> Result<()> {
+        Self::register_leased(
+            queue,
+            recovery_job_name(name)?,
+            store,
+            handler,
+            lease_seconds,
+            Some(policy.validate()?),
+        )
+    }
+
     pub(super) fn snapshot_recovery_route(&self) -> Result<RecoveryDispatch> {
         let connection = self
             .dispatch
@@ -59,6 +78,7 @@ impl QueuedWebhookJob {
             queue: queue.into(),
             job: job.into(),
             options: self.options.clone(),
+            recover_deferred: false,
         });
         let manager = QueueFacade::manager()?;
         route.validate(&manager)?;
@@ -80,6 +100,7 @@ impl QueuedWebhookJob {
         if pretend {
             return Ok(report);
         }
+        store.expire_deferred_dispatches(limit).await?;
         store.prune_settled_dispatches(limit).await?;
         for row in rows {
             let id = text(&row, "call_id")?;
@@ -91,14 +112,14 @@ impl QueuedWebhookJob {
             let Some(token) = store.claim_dispatch(id).await? else {
                 continue;
             };
-            let Some((scope, profile, revision)) = store.dispatch_metadata(id).await? else {
+            let Some(metadata) = store.dispatch_metadata(id).await? else {
                 continue;
             };
             let receipt = Receipt {
                 id,
-                scope: &scope,
-                profile: &profile,
-                revision: &revision,
+                scope: &metadata.scope,
+                profile: &metadata.profile,
+                revision: &metadata.revision,
             };
             let queued = async {
                 let route = RecoveryDispatch(QueueRoute::decode(text(&row, "route")?)?);
@@ -109,7 +130,10 @@ impl QueuedWebhookJob {
                 report.failed += 1;
                 continue;
             }
-            report.dispatched += usize::from(store.finish_dispatch(id, &token, retry_after).await?);
+            store
+                .finish_dispatch(id, &token, retry_after, metadata.tracks_deadline)
+                .await?;
+            report.dispatched += 1;
         }
         Ok(report)
     }

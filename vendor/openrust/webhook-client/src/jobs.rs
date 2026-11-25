@@ -55,6 +55,17 @@ pub struct DeferredProcessingPolicy {
     pub max_age_seconds: u32,
 }
 
+impl DeferredProcessingPolicy {
+    fn validate(self) -> Result<Self> {
+        if !(1..=1000).contains(&self.max_deferrals)
+            || !(2..=2_592_000).contains(&self.max_age_seconds)
+        {
+            return Err(Error::InvalidConfig("deferred_processing_policy"));
+        }
+        Ok(self)
+    }
+}
+
 /// 一个具名处理器的派发设置，连接、队列和尝试预算由原生队列执行。
 pub struct QueuedWebhookJob {
     name: String,
@@ -125,18 +136,13 @@ impl QueuedWebhookJob {
         lease_seconds: u32,
         policy: DeferredProcessingPolicy,
     ) -> Result<()> {
-        if !(1..=1000).contains(&policy.max_deferrals)
-            || !(2..=2_592_000).contains(&policy.max_age_seconds)
-        {
-            return Err(Error::InvalidConfig("deferred_processing_policy"));
-        }
         Self::register_leased(
             queue,
             job_name(name)?,
             store,
             handler,
             lease_seconds,
-            Some(policy),
+            Some(policy.validate()?),
         )
     }
 
@@ -169,6 +175,7 @@ impl QueuedWebhookJob {
         queue: Arc<QueueManager>,
         receipt_id: &str,
     ) -> Result<bool> {
+        let recovery_store = store.clone();
         store
             .wake_deferred(receipt_id, move |transaction, wakeup| {
                 Box::pin(async move {
@@ -186,9 +193,18 @@ impl QueuedWebhookJob {
                         revision: &revision,
                     };
                     receipt.validate()?;
-                    let route = QueueRoute::decode(&route)?;
-                    let payload = route.payload(receipt)?;
-                    route.enqueue(&queue, payload, None, transaction).await
+                    let snapshot = QueueRoute::decode(&route)?;
+                    if snapshot.recover_deferred {
+                        return recovery_store
+                            .stage_deferred_dispatch(
+                                transaction,
+                                &id,
+                                snapshot.dispatch_encoding()?,
+                            )
+                            .await;
+                    }
+                    let payload = snapshot.payload(receipt)?;
+                    snapshot.enqueue(&queue, payload, None, transaction).await
                 })
             })
             .await
@@ -411,18 +427,42 @@ impl RegisteredJob {
         token: &str,
         (seconds, policy): (u32, DeferredProcessingPolicy),
     ) -> QueueResult<bool> {
-        let manager = QueueFacade::manager()?;
+        let name = payload.name();
+        let recovery_job = name.strip_prefix(recovery::RECOVERY_JOB_PREFIX);
+        let job = recovery_job
+            .or_else(|| name.strip_prefix(JOB_PREFIX))
+            .ok_or(QueueError::InvalidPayload)?;
         let route = QueueRoute {
             connection: context.connection().to_owned(),
             queue: context.queue().to_owned(),
-            job: payload
-                .name()
-                .strip_prefix(JOB_PREFIX)
-                .ok_or(QueueError::InvalidPayload)?
-                .to_owned(),
+            job: job.to_owned(),
             options: payload.options().clone(),
+            recover_deferred: recovery_job.is_some(),
         };
         let route_snapshot = route.encode().map_err(queue_error)?;
+        if route.recover_deferred {
+            let pending = route.dispatch_encoding().map_err(queue_error)?;
+            let recovery_store = store.clone();
+            let id = call.id().to_owned();
+            return store
+                .defer_processing(
+                    call,
+                    token,
+                    seconds,
+                    policy,
+                    route_snapshot,
+                    move |transaction| {
+                        Box::pin(async move {
+                            recovery_store
+                                .stage_deferred_dispatch(transaction, &id, pending)
+                                .await
+                        })
+                    },
+                )
+                .await
+                .map_err(queue_error);
+        }
+        let manager = QueueFacade::manager()?;
         let next = route
             .payload(Receipt::deserialize_from(payload)?)
             .map_err(queue_error)?;
@@ -454,6 +494,8 @@ struct QueueRoute {
     queue: String,
     job: String,
     options: JobOptions,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    recover_deferred: bool,
 }
 
 impl QueueRoute {
@@ -463,6 +505,11 @@ impl QueueRoute {
             return Err(Error::InvalidRecord);
         }
         Ok(value)
+    }
+
+    fn dispatch_encoding(mut self) -> Result<String> {
+        self.recover_deferred = false;
+        self.encode()
     }
 
     fn decode(value: &str) -> Result<Self> {

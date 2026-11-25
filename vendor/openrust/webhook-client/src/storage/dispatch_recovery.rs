@@ -1,4 +1,8 @@
-use super::{DatabaseWebhookStore, lease::assignment, scope_key, text};
+use super::{
+    DatabaseWebhookStore, attempts,
+    lease::{assignment, settle_transaction, stopped_assignments},
+    scope_key, text,
+};
 use crate::{Error, Result, webhook_config::ProcessingRecovery};
 use openrust::{
     database::{
@@ -10,6 +14,13 @@ use openrust::{
 
 const TABLE: &str = "webhook_dispatch_intents";
 const LEASE_SECONDS: u32 = 60;
+
+pub(crate) struct DispatchMetadata {
+    pub scope: String,
+    pub profile: String,
+    pub revision: String,
+    pub tracks_deadline: bool,
+}
 
 impl DatabaseWebhookStore {
     pub(super) async fn record_dispatch_intent(
@@ -45,6 +56,94 @@ impl DatabaseWebhookStore {
             .collect()])
             .await?;
         Ok(())
+    }
+
+    pub(crate) async fn stage_deferred_dispatch(
+        &self,
+        transaction: &mut Transaction,
+        id: &str,
+        route: String,
+    ) -> Result<()> {
+        let scope = scope_key(&self.scope);
+        let due = transaction
+            .table("webhook_calls")
+            .select(["processing_next_at"])
+            .r#where("id", "=", id)
+            .r#where("scope_key", "=", scope.as_str())
+            .where_exact_text("scope", &self.scope)
+            .first()
+            .await?
+            .and_then(|row| row.get("processing_next_at").cloned())
+            .filter(|value| matches!(value, Value::Integer(_) | Value::Unsigned(_)))
+            .ok_or(Error::InvalidRecord)?;
+        transaction
+            .table(TABLE)
+            .upsert(
+                &[[
+                    ("call_id".into(), id.into()),
+                    ("scope_key".into(), scope.into()),
+                    ("route".into(), route.into()),
+                    ("available_at".into(), due),
+                    ("enqueued_at".into(), Value::Null),
+                    ("claim_token".into(), Value::Null),
+                ]
+                .into_iter()
+                .collect()],
+                &["call_id"],
+                Some(&["route", "available_at", "enqueued_at", "claim_token"]),
+            )
+            .await?;
+        Ok(())
+    }
+
+    pub(crate) async fn expire_deferred_dispatches(&self, limit: u32) -> Result<()> {
+        let mut expired = self.expired_deferred(self.dispatch_receipt());
+        let ids = self
+            .dispatch_intents()
+            .where_exists(&mut expired)?
+            .use_write_pdo()
+            .select(["call_id"])
+            .order_by("available_at", "asc")
+            .order_by("call_id", "asc")
+            .limit(u64::from(limit))
+            .get()
+            .await?;
+
+        let clock = self.clock();
+        let scope = scope_key(&self.scope);
+        for row in ids {
+            let id = text(&row, "call_id")?;
+            let mut transaction = self.connection.begin_transaction().await?;
+            let result = async {
+                let changed = self
+                    .expired_deferred(transaction.table("webhook_calls"))
+                    .r#where("id", "=", id)
+                    .r#where("scope_key", "=", scope.as_str())
+                    .where_exact_text("scope", &self.scope)
+                    .update_with(stopped_assignments(clock))
+                    .await?;
+                if changed == 1 {
+                    attempts::expire(&mut transaction, id, clock).await?;
+                }
+                Ok(())
+            }
+            .await;
+            settle_transaction(transaction, result).await?;
+        }
+        Ok(())
+    }
+
+    fn expired_deferred<'a>(&self, builder: Builder<'a>) -> Builder<'a> {
+        let clock = self.clock();
+        builder
+            .where_null("processed_at")
+            .where_null("processing_stopped_at")
+            .where_raw(&format!("processing_deadline <= {clock}"), vec![])
+            .where_nested(|query| {
+                query
+                    .where_null("processing_until")
+                    .or_where_raw(&format!("processing_until <= {clock}"), vec![])
+            })
     }
 
     pub(crate) async fn due_dispatch_intents(&self, limit: u32) -> Result<Vec<Row>> {
@@ -87,16 +186,20 @@ impl DatabaseWebhookStore {
         id: &str,
         token: &str,
         retry_after: Option<i64>,
-    ) -> Result<bool> {
+        tracks_deadline: bool,
+    ) -> Result<()> {
         let builder =
             self.dispatch_intents()
                 .r#where("call_id", "=", id)
                 .r#where("claim_token", "=", token);
-        let Some(after) = retry_after else {
-            return Ok(builder.delete().await? == 1);
-        };
+        if retry_after.is_none() && !tracks_deadline {
+            builder.delete().await?;
+            return Ok(());
+        }
+        let after = retry_after.unwrap_or_default();
         let clock = self.clock();
-        let updated = builder
+        // Worker 可能已提交下一次延期，旧派发令牌不能覆盖新意图。
+        builder
             .update_with(
                 [
                     assignment("claim_token", Value::Null),
@@ -110,7 +213,7 @@ impl DatabaseWebhookStore {
                 .collect(),
             )
             .await?;
-        Ok(updated == 1)
+        Ok(())
     }
 
     pub(crate) async fn prune_settled_dispatches(&self, limit: u32) -> Result<()> {
@@ -137,18 +240,22 @@ impl DatabaseWebhookStore {
         Ok(())
     }
 
-    pub(crate) async fn dispatch_metadata(
-        &self,
-        id: &str,
-    ) -> Result<Option<(String, String, String)>> {
-        let Some(row) = self.row(id, &["scope", "name", "revision"]).await? else {
+    pub(crate) async fn dispatch_metadata(&self, id: &str) -> Result<Option<DispatchMetadata>> {
+        let Some(row) = self
+            .row(id, &["scope", "name", "revision", "processing_deadline"])
+            .await?
+        else {
             return Ok(None);
         };
-        Ok(Some((
-            self.scope.clone(),
-            text(&row, "name")?.to_owned(),
-            text(&row, "revision")?.to_owned(),
-        )))
+        Ok(Some(DispatchMetadata {
+            scope: self.scope.clone(),
+            profile: text(&row, "name")?.to_owned(),
+            revision: text(&row, "revision")?.to_owned(),
+            tracks_deadline: matches!(
+                row.get("processing_deadline"),
+                Some(Value::Integer(_) | Value::Unsigned(_))
+            ),
+        }))
     }
 
     fn dispatch_intents(&self) -> Builder<'static> {
@@ -172,6 +279,11 @@ impl DatabaseWebhookStore {
             .dispatch_receipt()
             .where_null("processed_at")
             .where_null("processing_stopped_at")
+            .where_nested(|query| {
+                query
+                    .where_null("processing_deadline")
+                    .or_where_raw(&format!("processing_deadline > {clock}"), vec![])
+            })
             .where_nested(|query| {
                 query
                     .where_null("processing_until")

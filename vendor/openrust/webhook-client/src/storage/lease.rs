@@ -360,7 +360,10 @@ pub(crate) struct DeferredWakeup {
     pub route: String,
 }
 
-async fn settle_transaction<T>(mut transaction: Transaction, result: Result<T>) -> Result<T> {
+pub(super) async fn settle_transaction<T>(
+    mut transaction: Transaction,
+    result: Result<T>,
+) -> Result<T> {
     match result {
         Ok(value) => {
             transaction.commit().await?;
@@ -373,7 +376,7 @@ async fn settle_transaction<T>(mut transaction: Transaction, result: Result<T>) 
     }
 }
 
-fn stopped_assignments(clock: &str) -> BTreeMap<String, UpdateValue<'static, 'static>> {
+pub(super) fn stopped_assignments(clock: &str) -> BTreeMap<String, UpdateValue<'static, 'static>> {
     [
         assignment("processing_token", Value::Null),
         assignment("processing_until", Value::Null),

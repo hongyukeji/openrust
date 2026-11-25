@@ -196,7 +196,9 @@ Provider 註冊 `webhook_calls` 遷移，使用 `DatabaseWebhookStore` 前執行
 
 覆寫 `ProcessWebhookJob::handle_outcome`，在業務記錄尚未就緒時回傳 `WebhookProcessingOutcome::Deferred { delay_seconds }`。延遲須為正數並處於剩餘期限內。業務處理成功回傳 `Completed`，依原生佇列策略重試回傳 `RetryableFailure`，立即停止回傳 `PermanentFailure`。延期時在同一交易儲存下次執行時間與入列，新任務使用獨立的佇列嘗試額度。記錄維持待處理，直至 Worker 完成處理或延期額度耗盡。回傳 `Deferred` 時請勿同時呼叫 `JobContext::release`。
 
-業務記錄就緒並完成關聯後，應用可呼叫 `QueuedWebhookJob::wake_deferred(&store, queue, receipt_id)` 提前喚醒。傳入可信範圍對應的儲存及應用的 `Arc<QueueManager>`。方法沿用延期時保存的處理器及佇列位置。建立喚醒任務回傳 `true`，記錄已到期可領取、已結案或不屬於該範圍時回傳 `false`。
+業務記錄就緒並完成關聯後，應用可呼叫 `QueuedWebhookJob::wake_deferred(&store, queue, receipt_id)` 提前喚醒。傳入可信範圍對應的儲存及應用的 `Arc<QueueManager>`。方法沿用延期時保存的處理器及佇列位置。成功安排提前喚醒回傳 `true`，記錄已到期可領取、已結案或不屬於該範圍時回傳 `false`。
+
+使用 `recover_dispatch: true` 和獨立佇列後端時，呼叫 `QueuedWebhookJob::register_with_database_recovery_and_deferred_processing` 註冊 Worker。接收記錄交易一併保存延期狀態與下次派發意圖，定時執行的 `webhook-client:recover` 到期後派發。佇列後端離線時仍可登記提前喚醒。即使已確認入列的喚醒任務遺失且未啟用遺失補派，復原指令仍能在總期限到期後直接終止記錄。到期或提前喚醒接續的佇列任務有獨立的試行次數，保留接收記錄的延期預算及已設定的遺失補派預算。
 
 ### 清理過期接收記錄 {#retention}
 
