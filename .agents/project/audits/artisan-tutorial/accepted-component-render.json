@@ -1,0 +1,43 @@
+{
+  "source_base": "3d22157a19365da026644ac8815a1be9b2c6c9a5",
+  "contract": "component-render-contracts.json",
+  "gates": {
+    "rust": "target/tmp/artisan-tutorial-20261125/component-render-gates-final4.log",
+    "site": "target/tmp/artisan-tutorial-20261125/component-render-site.log",
+    "pty": "target/tmp/artisan-tutorial-20261125/component-render-pty-final.log"
+  },
+  "test_summaries": [
+    "test result: ok. 5 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.23s",
+    "test result: ok. 8 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.20s",
+    "test result: ok. 6 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.21s",
+    "test result: ok. 3 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 1.50s",
+    "test result: ok. 156 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.47s"
+  ],
+  "runtime": {
+    "real_artisan_processes": 5,
+    "real_http_requests": 18,
+    "real_pty_widths": [
+      20,
+      80,
+      160
+    ],
+    "formal_document_consumers": 156,
+    "browser_checks": 12
+  },
+  "source_vectors": {
+    "component-render-oracle.json": 600,
+    "component-render-markup-oracle.json": 312,
+    "component-render-section-oracle.json": 2
+  },
+  "cleanup": {
+    "released_bytes": 65077530624,
+    "free_after_cleanup_bytes": 96785072128,
+    "profile_locks_preserved": true
+  },
+  "failed_attempts_preserved": "component-render-{first,markup-first,composed-first,width-final,gates-first,gates-second,gates-resumed,gates-final,gates-final2,gates-final3}.log; all failures/misfixtures corrected, none counted passed",
+  "remaining": [
+    "通用终端布局SDK尚未闭合：table/code/pre/list/dl/hr、颜色变体、响应式样式、分数宽度、分布对齐、自定义样式仓库及其余Styles入口；HTML4/HTML5任意畸形恢复和实体差异仍需逐项核对，不能由四模板和当前子集测试关闭。",
+    "Factory的Command容器构造/覆盖生命周期、Helper/HelperSet/Time其余SDK及Artisan其他锚点继续；不宣称整章完成。"
+  ],
+  "pushed": false
+}

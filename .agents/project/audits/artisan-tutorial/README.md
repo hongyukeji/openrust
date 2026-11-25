@@ -724,3 +724,20 @@ Component::compile/set_view_compiler、正式ComponentViewCompiler/BuiltinCompon
 真实Artisan3进程默认/未知/自定义分别0/1/0；HTTP17请求包含四默认视图、500以及12并发自定义钩子，每个请求新编译器实例index1。组件Core/Registry/变换外围共29框架父消费者通过，正式三语直接提取153消费者全部执行；workspace/all-targets严格Clippy、格式、三语构建和12浏览器通过。代码/命令/边界见accepted-component-compile.json，证据target/tmp/artisan-tutorial-20261125/component-compile-*；本批无独立发布二进制/数据库/容器/持久服务，保留日志、源码和复用缓存。
 
 下一步renderView不能用compile返回HTML冒充终端渲染。已补调研：官方[html2text](https://github.com/jugglerchris/rust-html2text)及[0.17.4着色源码](https://docs.rs/crate/html2text/0.17.4/source/src/ansi_colours.rs)提供HTML到文本/注解和部分CSS支持，但尚未证明固定布局的margin/padding/flex/content-repeat可直接等价，不能贸然替换。另见[hypercmd](https://github.com/fusor-rs/hypercmd)反应式HTML CLI候选，未完成源码/消费者验证，不作为已选方案。继续优先复用现有OutputReference、格式器、已验布局及固定Termwind源码，禁止用纯文本去标签当作完整renderView。Factory容器构造/覆盖及其余继承SDK保持开放；仅本地提交，不推送。
+
+
+## 51. Component渲染链路、默认视图布局与实例渲染钩子（2026-11-26）
+
+正式接通render_view/render_view_with/set_view_renderer与ComponentViewRenderer/BuiltinComponentViewRenderer：先调用当前实例的compile，再传实际HTML、原输出Ctx及选项，不按视图名替换HTML，不建全局renderer。自定义renderer可保留实例状态、写原输出、委托默认和返回错误，None恢复默认；编译失败不进入渲染，渲染失败保留既有写入。新增后端复用现有格式器、可见宽/样式截断和Str，不建第二套输出。旧版无可提取的同名完整后端；既有具体组件的专用快路径及14类公开行为不改，通用布局服务新增基类入口，不以重构名义引入默认路径性能回退。
+
+按既有调研，采用[html5ever官方实现](https://github.com/servo/html5ever)的0.38.0及TreeSink API，已核对缓存源码和已有css-inline消费者。项目已有该确切解析版本，锁文件只增加框架直接依赖边，无新增包或版本。自有小型DOM适配保存每次节点/属性，解析器不解释脚本；布局逐步移植固定Termwind2.3.3，不用纯文本strip_tags当作布局。原资源MIT许可继续随分发保留。HTML5与源libxml HTML4对任意畸形恢复/实体的全部等价仍未确认，三语明确边界，不作全量证明。
+
+固定源renderView实际四模板600组（三宽×ANSI开关）、自定义编译HTML312组和2个分区/错误样式场景，共914个来源场景。四模板均保持无二次数据变换；自定义场景覆盖Raw字节、实体、仅首顶层输出且后续无效样式也报错、空主体失败、继承颜色/有序原始标签、链接、strong/i/u/s直接ANSI、布局/空白、宽度/边距/填充与重复flex。关联实修包括标签修饰器顺序、多行宽度、w-full/min-w字符串比较、固定父宽与边距、零宽清空内层样式、负可用宽度及超界错误、repeat按真实终端宽度而非父宽度展开。Source怪异但可表达的边界没有悄悄合理化。1,000,000单元和256深度是明确原生资源界限，超出报错。
+
+实际Artisan5子进程覆盖默认、自定义、编译失败、渲染失败和真正stderr；多线程真实HTTP18请求覆盖默认四视图、编译/渲染500、失败后恢复和12并发实例计数1。直接组件验证原输出/状态、quiet过滤、装饰分区和Buffered错误样式回退。真实PTY20/80/160列逐字包含固定源同数据输出，未复制第二份二进制。四框架目标22父消费者及三语正式示例156消费者通过；workspace/all-targets严格Clippy、全workspace格式、三语构建和12个手机/桌面浏览器组合通过。忽略项是父测试调用的子驱动，不计为独立通过；没有用替代API降低正式入口验收。
+
+失败均保留：最初测试适配误拼方法名、首版渲染原型在ANSI/颜色顺序/链接和组合宽度的反例，经源对照修复；文档提取器首次从快照内调用被安全路径校验拒绝，按已有根入口重跑；严格Clippy的let链问题修正且不加allow。分区未装饰时不保存内容、Plain仍保留ANSI及Buffered错误样式回原流均通过真实源核定，修正的是错误夹具预期，未改既有输出语义；补真Artisan stderr验证另一消费者。分区PHP探测首次漏传必需formatter导致无有效JSON，修正后强制检查子进程状态和JSON再收证据，不计首次通过。
+
+本批曾触32GB停线，首次守卫因瞬时进程归属未知保持产物；该进程结束后重新取得锁，安全清理释放65,077,530,624字节，可用恢复96,785,072,128字节，随后继续原验收，停线退出75不计通过。保留源码/WIP/日志/下载/数据库/锁inode，临时Source容器均--rm，无服务/数据库变更，无新增独立二进制；热缓存按规则保留。命令和日志见accepted-component-render.json与target/tmp/artisan-tutorial-20261125/component-render-*。
+
+本簇不是完整终端HTML/CSS SDK闭合。专用表格/代码/预格式/列表/dl/hr、颜色变体、响应式与分数宽、分布对齐、样式仓库及其余Styles继续逐项实现和消费者验收；Factory容器构造/覆盖、Helper/HelperSet/Time其余继承和Artisan其他锚点仍开放。只本地提交，不推送，保留全部其他在途改动。

@@ -1,0 +1,48 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "renderer": {
+    "name": "Termwind",
+    "version": "2.3.3",
+    "commit": "6fb2a640ff502caace8e05fd7be3b503a7e1c017",
+    "license": "console/view/components/LICENSE.renderer"
+  },
+  "status": "partial_render_view_dispatch_default_catalog_and_listed_markup_styles_verified_terminal_sdk_pending",
+  "native": [
+    "Component::render_view/render_view_with/set_view_renderer",
+    "ComponentViewRenderer::render",
+    "BuiltinComponentViewRenderer::new/default/render"
+  ],
+  "source_oracles": {
+    "component-render-oracle.json": 600,
+    "component-render-markup-oracle.json": 312,
+    "component-render-section-oracle.json": 2
+  },
+  "runtime": {
+    "real_artisan_processes": 5,
+    "real_http_requests": 18,
+    "real_pty_widths": [
+      20,
+      80,
+      160
+    ],
+    "formal_document_consumers": 156,
+    "browser_checks": 12
+  },
+  "implemented": [
+    "当前实例compile结果实际进入renderer，保留原ComponentContext、OutputOptions和同步错误传播；默认普通级别。编译失败不进入renderer；实例钩子可写原流、保留状态、失败后再用、委托内置及None恢复默认。",
+    "四个默认模板及记录的span/div/p/strong/b/em/i/u/s/a/br布局；空白/实体、仅首顶层输出但全部兄弟构造校验、空HTML失败、块换行/边距/内距、固定/完整/min/max宽度、对齐/有序大小写、具名基本色/继承、ANSI修饰器、有序颜色原始标签、链接、flex/repeat与截断。",
+    "格式与详细级别沿既有OutputReference；ConsoleSection装饰状态、Plain仍保留已生成ANSI、BufferedOutput错误样式回退与实际ConsoleOutput stderr分别核实。"
+  ],
+  "adaptations": [
+    "使用固定html5ever0.38.0解析HTML5，复用现有解析依赖版本；Cargo.lock只新增框架直接依赖边，不引入另一版本或新增包。自有TreeSink适配存每次DOM，不执行PHP/JS、不使用全局可变renderer。官方项目https://github.com/servo/html5ever；本地缓存TreeSink API和css-inline现有调用已核对。",
+    "复用既有visible_width/trim_text、Str和OutputReference/格式器。既有具体组件的已验专用快路径不改，通用HTML后端用于新增基类入口；未为消除结构差异降低已有默认路径性能，不宣称性能收益。",
+    "原生组合与实例renderer trait替代继承覆盖；Box拥有可变实例。未知样式/未实现专用标签明确报错，不用去标签或视图名分支冒充通用渲染。",
+    "宽度/填充最多1,000,000单元、深度256，超出报错；这是明确原生资源边界，不复制无限str_repeat/递归。",
+    "保留源特性：strong等直接生成ANSI，关闭装饰/Raw仍保留；font-bold走Formatter；w-full与min-w的字符串/数值比较、多行宽度、负可用宽度/零宽清样式、固定父宽外边距等均有真实源码反例和回归。",
+    "HTML5后端不是libxml HTML4对任意畸形标记的等价证明，边界保持开放并在三语说明。"
+  ],
+  "remaining": [
+    "通用终端布局SDK尚未闭合：table/code/pre/list/dl/hr、颜色变体、响应式样式、分数宽度、分布对齐、自定义样式仓库及其余Styles入口；HTML4/HTML5任意畸形恢复和实体差异仍需逐项核对，不能由四模板和当前子集测试关闭。",
+    "Factory的Command容器构造/覆盖生命周期、Helper/HelperSet/Time其余SDK及Artisan其他锚点继续；不宣称整章完成。"
+  ]
+}

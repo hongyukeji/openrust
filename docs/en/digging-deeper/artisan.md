@@ -2008,3 +2008,33 @@ fn register_component_compilation() -> Result<(), ConsoleError> {
 A `ComponentViewCompiler` is owned by its component and receives the original output context. It may retain instance state, return errors or delegate to `BuiltinComponentViewCompiler`. `set_view_compiler(None)` restores the default compiler. Compilation is synchronous; prepare asynchronous data before compiling markup.
 
 The view selector is separate from template data. A data key named `view` cannot redirect compilation, and data cannot replace compiler-local variables. Custom view sources belong in a custom compiler rather than a path passed to the built-in catalog.
+
+### Rendering component markup {#component-markup-rendering}
+
+`render_view` compiles with the component's current compiler, then renders that HTML into its original output. `render_view_with` passes verbosity and formatting options to the same output. Data is already prepared at this level: this method does not run the concrete components' punctuation or highlighting mutators again.
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, OutputFormat, view::components::Component};
+use openrust::support::facades::Artisan;
+use serde_json::json;
+fn register_component_rendering() -> Result<(), ConsoleError> {
+    Artisan::command_with("components:render", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let mut component = Component::new(output);
+            component.render_view("line", json!({
+                "marginTop": 1, "bgColor": "blue", "fgColor": "white",
+                "title": "info", "content": "Rendered <report>"
+            }))?;
+            component.render_view_with("bullet-list", json!({"elements": ["First", "Second"]}), OutputFormat::Plain)?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+The default renderer uses an HTML parser and the existing output formatter. It supports the four built-in templates, inline/block/flex layout, margins, padding, fixed/full width, minimum/maximum width, text alignment and case, basic named colors, bold/italic/underline/strikethrough, links and repeated flex content. This is not a complete terminal HTML/CSS engine: table/code/pre/list renderers, color variants, responsive classes, fractional widths, justification and custom style repositories remain unsupported. Unsupported styles return errors rather than silently dropping layout. Width and padding are bounded, and nesting is limited to 256 levels.
+
+A `ComponentViewRenderer` receives the actual compiled HTML, `OutputOptions` and the original `ComponentContext`. Install an owned renderer with `set_view_renderer(Some(Box::new(renderer)))`; it may maintain per-instance state, delegate to `BuiltinComponentViewRenderer`, or return errors. `set_view_renderer(None)` restores the default. A custom compiler's markup follows this same path; it is not replaced by a lookup of the built-in view name. Rendering does not change a global terminal output. Compile failures do not invoke the renderer; rendering failures preserve writes already performed and propagate to the caller.
+
+The backend parses HTML5. General malformed-markup recovery and HTML4-only compatibility have not been closed by the built-in template tests. Explicit `strong`, `italic`, `underline`, `line-through` and `invisible` styles emit terminal escape sequences, including with Raw output or decoration disabled; `font-bold` uses the output formatter instead.

@@ -76,6 +76,7 @@ impl QuestionStyle for QuestionStyleReference<'_> {
 pub struct Component<'a> {
     output: ComponentContext<'a>,
     view_compiler: Box<dyn ComponentViewCompiler>,
+    view_renderer: Box<dyn super::ComponentViewRenderer>,
 }
 impl<'a> Component<'a> {
     pub fn new(output: &'a mut (impl ComponentOutput + ?Sized)) -> Self {
@@ -85,6 +86,7 @@ impl<'a> Component<'a> {
         Self {
             output,
             view_compiler: Box::new(BuiltinComponentViewCompiler::new()),
+            view_renderer: Box::new(super::BuiltinComponentViewRenderer::new()),
         }
     }
     pub fn compile(&mut self, view: &str, data: Value) -> Result<String, ConsoleError> {
@@ -93,6 +95,23 @@ impl<'a> Component<'a> {
     pub fn set_view_compiler(&mut self, compiler: Option<Box<dyn ComponentViewCompiler>>) {
         self.view_compiler =
             compiler.unwrap_or_else(|| Box::new(BuiltinComponentViewCompiler::new()));
+    }
+    pub fn render_view(&mut self, view: &str, data: Value) -> Result<(), ConsoleError> {
+        self.render_view_with(view, data, crate::console::OutputVerbosity::Normal)
+    }
+    pub fn render_view_with(
+        &mut self,
+        view: &str,
+        data: Value,
+        options: impl Into<crate::console::OutputOptions>,
+    ) -> Result<(), ConsoleError> {
+        let html = self.compile(view, data)?;
+        self.view_renderer
+            .render(&html, options.into(), &mut self.output)
+    }
+    pub fn set_view_renderer(&mut self, renderer: Option<Box<dyn super::ComponentViewRenderer>>) {
+        self.view_renderer =
+            renderer.unwrap_or_else(|| Box::new(super::BuiltinComponentViewRenderer::new()));
     }
     pub fn get_output(&mut self) -> OutputReference<'_> {
         self.output.as_output()

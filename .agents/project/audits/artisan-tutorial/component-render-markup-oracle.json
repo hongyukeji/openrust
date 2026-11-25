@@ -1,0 +1,2498 @@
+[
+    {
+        "html": "Plain &amp; raw",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "Plain &amp; raw\n",
+        "error": null
+    },
+    {
+        "html": "Plain &amp; raw",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "Plain &amp; raw\n",
+        "error": null
+    },
+    {
+        "html": "Plain &amp; raw",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "Plain &amp; raw\n",
+        "error": null
+    },
+    {
+        "html": "Plain &amp; raw",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "Plain &amp; raw\n",
+        "error": null
+    },
+    {
+        "html": "A\nB",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "A\nB\n",
+        "error": null
+    },
+    {
+        "html": "A\nB",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "A\nB\n",
+        "error": null
+    },
+    {
+        "html": "A\nB",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "A\nB\n",
+        "error": null
+    },
+    {
+        "html": "A\nB",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "A\nB\n",
+        "error": null
+    },
+    {
+        "html": "<span>Text &amp; 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "Text & 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span>Text &amp; 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "Text & 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span>Text &amp; 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "Text & 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span>Text &amp; 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "Text & 猫\n",
+        "error": null
+    },
+    {
+        "html": "<strong>Strong<\/strong>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "\u001b[1mStrong\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<strong>Strong<\/strong>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "\u001b[1mStrong\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<strong>Strong<\/strong>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "\u001b[1mStrong\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<strong>Strong<\/strong>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "\u001b[1mStrong\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<b>Bold<\/b>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "Bold\n",
+        "error": null
+    },
+    {
+        "html": "<b>Bold<\/b>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "<options=bold>Bold<\/>\n",
+        "error": null
+    },
+    {
+        "html": "<b>Bold<\/b>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "\u001b[1mBold\u001b[22m\n",
+        "error": null
+    },
+    {
+        "html": "<b>Bold<\/b>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "<options=bold>Bold<\/>\n",
+        "error": null
+    },
+    {
+        "html": "<i>Italic<\/i>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "\u001b[3mItalic\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<i>Italic<\/i>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "\u001b[3mItalic\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<i>Italic<\/i>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "\u001b[3mItalic\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<i>Italic<\/i>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "\u001b[3mItalic\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<u>Underline<\/u>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "\u001b[4mUnderline\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<u>Underline<\/u>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "\u001b[4mUnderline\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<u>Underline<\/u>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "\u001b[4mUnderline\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<u>Underline<\/u>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "\u001b[4mUnderline\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<s>Strike<\/s>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "\u001b[9mStrike\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<s>Strike<\/s>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "\u001b[9mStrike\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<s>Strike<\/s>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "\u001b[9mStrike\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<s>Strike<\/s>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "\u001b[9mStrike\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<a href='https:\/\/example.test\/a%20b'>Link<\/a>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "Link\n",
+        "error": null
+    },
+    {
+        "html": "<a href='https:\/\/example.test\/a%20b'>Link<\/a>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "<href=https:\/\/example.test\/a%20b>Link<\/>\n",
+        "error": null
+    },
+    {
+        "html": "<a href='https:\/\/example.test\/a%20b'>Link<\/a>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "\u001b]8;;https:\/\/example.test\/a%20b\u001b\\Link\u001b]8;;\u001b\\\n",
+        "error": null
+    },
+    {
+        "html": "<a href='https:\/\/example.test\/a%20b'>Link<\/a>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "<href=https:\/\/example.test\/a%20b>Link<\/>\n",
+        "error": null
+    },
+    {
+        "html": "<div>One<span> Two <\/span>Three<\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "OneTwoThree\n",
+        "error": null
+    },
+    {
+        "html": "<div>One<span> Two <\/span>Three<\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "OneTwoThree\n",
+        "error": null
+    },
+    {
+        "html": "<div>One<span> Two <\/span>Three<\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "OneTwoThree\n",
+        "error": null
+    },
+    {
+        "html": "<div>One<span> Two <\/span>Three<\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "OneTwoThree\n",
+        "error": null
+    },
+    {
+        "html": "<div><span>A<\/span><span>B<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "AB\n",
+        "error": null
+    },
+    {
+        "html": "<div><span>A<\/span><span>B<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "AB\n",
+        "error": null
+    },
+    {
+        "html": "<div><span>A<\/span><span>B<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "AB\n",
+        "error": null
+    },
+    {
+        "html": "<div><span>A<\/span><span>B<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "AB\n",
+        "error": null
+    },
+    {
+        "html": "<div>A<br>B<\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "A\nB\n",
+        "error": null
+    },
+    {
+        "html": "<div>A<br>B<\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "A\nB\n",
+        "error": null
+    },
+    {
+        "html": "<div>A<br>B<\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "A\nB\n",
+        "error": null
+    },
+    {
+        "html": "<div>A<br>B<\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "A\nB\n",
+        "error": null
+    },
+    {
+        "html": "<div><!--hidden-->A<\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "A\n",
+        "error": null
+    },
+    {
+        "html": "<div><!--hidden-->A<\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "A\n",
+        "error": null
+    },
+    {
+        "html": "<div><!--hidden-->A<\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "A\n",
+        "error": null
+    },
+    {
+        "html": "<div><!--hidden-->A<\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "A\n",
+        "error": null
+    },
+    {
+        "html": "<div>A<\/div><div>B<\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "A\n",
+        "error": null
+    },
+    {
+        "html": "<div>A<\/div><div>B<\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "A\n",
+        "error": null
+    },
+    {
+        "html": "<div>A<\/div><div>B<\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "A\n",
+        "error": null
+    },
+    {
+        "html": "<div>A<\/div><div>B<\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "A\n",
+        "error": null
+    },
+    {
+        "html": "<p>Paragraph<\/p>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "\nParagraph\n\n",
+        "error": null
+    },
+    {
+        "html": "<p>Paragraph<\/p>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "\nParagraph\n\n",
+        "error": null
+    },
+    {
+        "html": "<p>Paragraph<\/p>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "\nParagraph\n\n",
+        "error": null
+    },
+    {
+        "html": "<p>Paragraph<\/p>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "\nParagraph\n\n",
+        "error": null
+    },
+    {
+        "html": "<div><div>First<\/div><div>Second<\/div><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "First\nSecond\n",
+        "error": null
+    },
+    {
+        "html": "<div><div>First<\/div><div>Second<\/div><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "First\nSecond\n",
+        "error": null
+    },
+    {
+        "html": "<div><div>First<\/div><div>Second<\/div><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "First\nSecond\n",
+        "error": null
+    },
+    {
+        "html": "<div><div>First<\/div><div>Second<\/div><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "First\nSecond\n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"text-red\"><span>Red<\/span><span class=\"text-blue\">Blue<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "RedBlue\n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"text-red\"><span>Red<\/span><span class=\"text-blue\">Blue<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "<fg=red><fg=red>Red<\/><fg=blue>Blue<\/><\/>\n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"text-red\"><span>Red<\/span><span class=\"text-blue\">Blue<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "\u001b[31mRed\u001b[39m\u001b[34mBlue\u001b[39m\n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"text-red\"><span>Red<\/span><span class=\"text-blue\">Blue<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "<fg=red><fg=red>Red<\/><fg=blue>Blue<\/><\/>\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"m-1\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "\n MiXeD 猫 \n\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"m-1\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "\n MiXeD 猫 \n\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"m-1\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "\n MiXeD 猫 \n\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"m-1\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "\n MiXeD 猫 \n\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"mx-2 my-1\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "\n  MiXeD 猫  \n\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"mx-2 my-1\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "\n  MiXeD 猫  \n\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"mx-2 my-1\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "\n  MiXeD 猫  \n\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"mx-2 my-1\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "\n  MiXeD 猫  \n\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"mt-2 mr-3 mb-1 ml-2\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "\n\n  MiXeD 猫   \n\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"mt-2 mr-3 mb-1 ml-2\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "\n\n  MiXeD 猫   \n\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"mt-2 mr-3 mb-1 ml-2\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "\n\n  MiXeD 猫   \n\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"mt-2 mr-3 mb-1 ml-2\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "\n\n  MiXeD 猫   \n\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"p-2\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "            \n  MiXeD 猫  \n            \n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"p-2\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "            \n  MiXeD 猫  \n            \n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"p-2\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "            \n  MiXeD 猫  \n            \n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"p-2\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "            \n  MiXeD 猫  \n            \n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"px-2 py-3\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "            \n  MiXeD 猫  \n            \n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"px-2 py-3\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "            \n  MiXeD 猫  \n            \n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"px-2 py-3\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "            \n  MiXeD 猫  \n            \n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"px-2 py-3\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "            \n  MiXeD 猫  \n            \n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"pt-2 pr-3 pb-1 pl-2\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "             \n  MiXeD 猫   \n             \n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"pt-2 pr-3 pb-1 pl-2\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "             \n  MiXeD 猫   \n             \n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"pt-2 pr-3 pb-1 pl-2\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "             \n  MiXeD 猫   \n             \n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"pt-2 pr-3 pb-1 pl-2\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "             \n  MiXeD 猫   \n             \n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-10 text-center\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": " MiXeD 猫 \n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-10 text-center\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": " MiXeD 猫 \n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-10 text-center\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": " MiXeD 猫 \n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-10 text-center\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": " MiXeD 猫 \n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-10 text-right\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "  MiXeD 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-10 text-right\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "  MiXeD 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-10 text-right\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "  MiXeD 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-10 text-right\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "  MiXeD 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-10 text-left\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "MiXeD 猫  \n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-10 text-left\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "MiXeD 猫  \n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-10 text-left\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "MiXeD 猫  \n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-10 text-left\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "MiXeD 猫  \n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-4\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "MiXe\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-4\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "MiXe\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-4\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "MiXe\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-4\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "MiXe\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"min-w-10\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "MiXeD 猫  \n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"min-w-10\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "MiXeD 猫  \n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"min-w-10\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "MiXeD 猫  \n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"min-w-10\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "MiXeD 猫  \n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-20 max-w-12\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "MiXeD 猫    \n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-20 max-w-12\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "MiXeD 猫    \n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-20 max-w-12\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "MiXeD 猫    \n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-20 max-w-12\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "MiXeD 猫    \n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-full mx-2\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "  MiXeD 猫                                                                      \n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-full mx-2\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "  MiXeD 猫                                                                      \n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-full mx-2\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "  MiXeD 猫                                                                      \n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-full mx-2\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "  MiXeD 猫                                                                      \n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"hidden\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"hidden\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"hidden\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"hidden\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"uppercase\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "MIXED 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"uppercase\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "MIXED 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"uppercase\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "MIXED 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"uppercase\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "MIXED 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"lowercase\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "mixed 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"lowercase\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "mixed 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"lowercase\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "mixed 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"lowercase\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "mixed 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"capitalize\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "Mixed 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"capitalize\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "Mixed 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"capitalize\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "Mixed 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"capitalize\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "Mixed 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"font-bold\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "MiXeD 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"font-bold\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "<options=bold>MiXeD 猫<\/>\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"font-bold\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "\u001b[1mMiXeD 猫\u001b[22m\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"font-bold\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "<options=bold>MiXeD 猫<\/>\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"strong\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "\u001b[1mMiXeD 猫\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"strong\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "\u001b[1mMiXeD 猫\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"strong\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "\u001b[1mMiXeD 猫\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"strong\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "\u001b[1mMiXeD 猫\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"italic\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "\u001b[3mMiXeD 猫\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"italic\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "\u001b[3mMiXeD 猫\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"italic\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "\u001b[3mMiXeD 猫\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"italic\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "\u001b[3mMiXeD 猫\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"underline\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "\u001b[4mMiXeD 猫\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"underline\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "\u001b[4mMiXeD 猫\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"underline\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "\u001b[4mMiXeD 猫\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"underline\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "\u001b[4mMiXeD 猫\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"line-through\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "\u001b[9mMiXeD 猫\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"line-through\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "\u001b[9mMiXeD 猫\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"line-through\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "\u001b[9mMiXeD 猫\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"line-through\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "\u001b[9mMiXeD 猫\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"invisible\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "\u001b[8mMiXeD 猫\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"invisible\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "\u001b[8mMiXeD 猫\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"invisible\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "\u001b[8mMiXeD 猫\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"invisible\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "\u001b[8mMiXeD 猫\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"text-red bg-blue\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "MiXeD 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"text-red bg-blue\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "<fg=red;bg=blue>MiXeD 猫<\/>\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"text-red bg-blue\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "\u001b[31;44mMiXeD 猫\u001b[39;49m\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"text-red bg-blue\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "<fg=red;bg=blue>MiXeD 猫<\/>\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"bg-blue text-white\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "MiXeD 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"bg-blue text-white\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "<bg=blue;fg=white>MiXeD 猫<\/>\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"bg-blue text-white\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "\u001b[37;44mMiXeD 猫\u001b[39;49m\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"bg-blue text-white\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "<bg=blue;fg=white>MiXeD 猫<\/>\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-auto\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "MiXeD 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-auto\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "MiXeD 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-auto\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "MiXeD 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-auto\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "MiXeD 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"flex\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "MiXeD 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"flex\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "MiXeD 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"flex\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "MiXeD 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"flex\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "MiXeD 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"block\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "MiXeD 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"block\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "MiXeD 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"block\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "MiXeD 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"block\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "MiXeD 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"inline\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "",
+        "error": "Termwind\\Exceptions\\StyleNotFound:Style [inline] not found."
+    },
+    {
+        "html": "<span class=\"inline\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "",
+        "error": "Termwind\\Exceptions\\StyleNotFound:Style [inline] not found."
+    },
+    {
+        "html": "<span class=\"inline\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "",
+        "error": "Termwind\\Exceptions\\StyleNotFound:Style [inline] not found."
+    },
+    {
+        "html": "<span class=\"inline\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "",
+        "error": "Termwind\\Exceptions\\StyleNotFound:Style [inline] not found."
+    },
+    {
+        "html": "<span class=\"space-x-2\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "MiXeD 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"space-x-2\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "MiXeD 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"space-x-2\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "MiXeD 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"space-x-2\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "MiXeD 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"space-y-1\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "MiXeD 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"space-y-1\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "MiXeD 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"space-y-1\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "MiXeD 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"space-y-1\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "MiXeD 猫\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-15 content-repeat-[.]\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "...............\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-15 content-repeat-[.]\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "...............\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-15 content-repeat-[.]\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "...............\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-15 content-repeat-[.]\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "...............\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-15 content-repeat-[ab]\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "abababababababa\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-15 content-repeat-[ab]\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "abababababababa\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-15 content-repeat-[ab]\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "abababababababa\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-15 content-repeat-[ab]\">MiXeD 猫<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "abababababababa\n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"space-x-2\"><span>A<\/span><span>B<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "A  B\n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"space-x-2\"><span>A<\/span><span>B<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "A  B\n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"space-x-2\"><span>A<\/span><span>B<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "A  B\n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"space-x-2\"><span>A<\/span><span>B<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "A  B\n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"space-y-1\"><div>A<\/div><div>B<\/div><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "A\n\nB\n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"space-y-1\"><div>A<\/div><div>B<\/div><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "A\n\nB\n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"space-y-1\"><div>A<\/div><div>B<\/div><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "A\n\nB\n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"space-y-1\"><div>A<\/div><div>B<\/div><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "A\n\nB\n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20 px-1\"><div class=\"w-full\">Inner<\/div><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": " Inner              \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20 px-1\"><div class=\"w-full\">Inner<\/div><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": " Inner              \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20 px-1\"><div class=\"w-full\">Inner<\/div><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": " Inner              \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20 px-1\"><div class=\"w-full\">Inner<\/div><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": " Inner              \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"flex w-20\"><span>A<\/span><span class=\"flex-1 content-repeat-[.]\"><\/span><span>Z<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "A..................Z\n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"flex w-20\"><span>A<\/span><span class=\"flex-1 content-repeat-[.]\"><\/span><span>Z<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "A..................Z\n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"flex w-20\"><span>A<\/span><span class=\"flex-1 content-repeat-[.]\"><\/span><span>Z<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "A..................Z\n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"flex w-20\"><span>A<\/span><span class=\"flex-1 content-repeat-[.]\"><\/span><span>Z<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "A..................Z\n",
+        "error": null
+    },
+    {
+        "html": "<strong class=\"italic\">Strong italic<\/strong>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "\u001b[1m\u001b[3mStrong italic\u001b[0m\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<strong class=\"italic\">Strong italic<\/strong>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "\u001b[1m\u001b[3mStrong italic\u001b[0m\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<strong class=\"italic\">Strong italic<\/strong>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "\u001b[1m\u001b[3mStrong italic\u001b[0m\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<strong class=\"italic\">Strong italic<\/strong>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "\u001b[1m\u001b[3mStrong italic\u001b[0m\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"uppercase lowercase\">MiXeD<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "mixed\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"uppercase lowercase\">MiXeD<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "mixed\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"uppercase lowercase\">MiXeD<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "mixed\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"uppercase lowercase\">MiXeD<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "mixed\n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-10\"><div>A<\/div><div>B<\/div><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "A\nB                  \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-10\"><div>A<\/div><div>B<\/div><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "A\nB                  \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-10\"><div>A<\/div><div>B<\/div><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "A\nB                  \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-10\"><div>A<\/div><div>B<\/div><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "A\nB                  \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"text-red bg-blue font-bold\"><span>One<\/span><span>Two<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "OneTwo\n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"text-red bg-blue font-bold\"><span>One<\/span><span>Two<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "<fg=red;bg=blue;options=bold><bg=blue;fg=red;options=bold>One<\/><bg=blue;fg=red;options=bold>Two<\/><\/>\n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"text-red bg-blue font-bold\"><span>One<\/span><span>Two<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "\u001b[31;44;1mOne\u001b[39;49;22m\u001b[31;44;1mTwo\u001b[39;49;22m\n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"text-red bg-blue font-bold\"><span>One<\/span><span>Two<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "<fg=red;bg=blue;options=bold><bg=blue;fg=red;options=bold>One<\/><bg=blue;fg=red;options=bold>Two<\/><\/>\n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"flex mx-2\"><span class=\"flex-1 content-repeat-[.]\"><\/span><span class=\"flex-1 content-repeat-[-]\"><\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "  ......................................--------------------------------------  \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"flex mx-2\"><span class=\"flex-1 content-repeat-[.]\"><\/span><span class=\"flex-1 content-repeat-[-]\"><\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "  ......................................--------------------------------------  \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"flex mx-2\"><span class=\"flex-1 content-repeat-[.]\"><\/span><span class=\"flex-1 content-repeat-[-]\"><\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "  ......................................--------------------------------------  \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"flex mx-2\"><span class=\"flex-1 content-repeat-[.]\"><\/span><span class=\"flex-1 content-repeat-[-]\"><\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "  ......................................--------------------------------------  \n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"uppercase lowercase\">straße<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "strasse\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"uppercase lowercase\">straße<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "strasse\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"uppercase lowercase\">straße<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "strasse\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"uppercase lowercase\">straße<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "strasse\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"uppercase content-repeat-[ab] w-10\">Text<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "ababababab\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"uppercase content-repeat-[ab] w-10\">Text<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "ababababab\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"uppercase content-repeat-[ab] w-10\">Text<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "ababababab\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"uppercase content-repeat-[ab] w-10\">Text<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "ababababab\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"content-repeat-[ab] uppercase w-10\">Text<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "ABABABABAB\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"content-repeat-[ab] uppercase w-10\">Text<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "ABABABABAB\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"content-repeat-[ab] uppercase w-10\">Text<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "ABABABABAB\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"content-repeat-[ab] uppercase w-10\">Text<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "ABABABABAB\n",
+        "error": null
+    },
+    {
+        "html": "<strong class=\"underline italic\">Text<\/strong>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "\u001b[1m\u001b[3m\u001b[4mText\u001b[0m\u001b[0m\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<strong class=\"underline italic\">Text<\/strong>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "\u001b[1m\u001b[3m\u001b[4mText\u001b[0m\u001b[0m\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<strong class=\"underline italic\">Text<\/strong>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "\u001b[1m\u001b[3m\u001b[4mText\u001b[0m\u001b[0m\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "<strong class=\"underline italic\">Text<\/strong>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "\u001b[1m\u001b[3m\u001b[4mText\u001b[0m\u001b[0m\u001b[0m\n",
+        "error": null
+    },
+    {
+        "html": "Text <span>ignored<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "Text \n",
+        "error": null
+    },
+    {
+        "html": "Text <span>ignored<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "Text \n",
+        "error": null
+    },
+    {
+        "html": "Text <span>ignored<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "Text \n",
+        "error": null
+    },
+    {
+        "html": "Text <span>ignored<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "Text \n",
+        "error": null
+    },
+    {
+        "html": "<span>First<\/span><div class=\"not-a-style\">Second<\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "",
+        "error": "Termwind\\Exceptions\\StyleNotFound:Style [not-a-style] not found."
+    },
+    {
+        "html": "<span>First<\/span><div class=\"not-a-style\">Second<\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "",
+        "error": "Termwind\\Exceptions\\StyleNotFound:Style [not-a-style] not found."
+    },
+    {
+        "html": "<span>First<\/span><div class=\"not-a-style\">Second<\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "",
+        "error": "Termwind\\Exceptions\\StyleNotFound:Style [not-a-style] not found."
+    },
+    {
+        "html": "<span>First<\/span><div class=\"not-a-style\">Second<\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "",
+        "error": "Termwind\\Exceptions\\StyleNotFound:Style [not-a-style] not found."
+    },
+    {
+        "html": "<!-- empty -->",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "",
+        "error": "TypeError:Termwind\\HtmlRenderer::toElement(): Return value must be of type Termwind\\Components\\Element|string, null returned"
+    },
+    {
+        "html": "<!-- empty -->",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "",
+        "error": "TypeError:Termwind\\HtmlRenderer::toElement(): Return value must be of type Termwind\\Components\\Element|string, null returned"
+    },
+    {
+        "html": "<!-- empty -->",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "",
+        "error": "TypeError:Termwind\\HtmlRenderer::toElement(): Return value must be of type Termwind\\Components\\Element|string, null returned"
+    },
+    {
+        "html": "<!-- empty -->",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "",
+        "error": "TypeError:Termwind\\HtmlRenderer::toElement(): Return value must be of type Termwind\\Components\\Element|string, null returned"
+    },
+    {
+        "html": "<div><span class=\"w-0\">Zero<\/span><span>After<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "After\n",
+        "error": null
+    },
+    {
+        "html": "<div><span class=\"w-0\">Zero<\/span><span>After<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "After\n",
+        "error": null
+    },
+    {
+        "html": "<div><span class=\"w-0\">Zero<\/span><span>After<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "After\n",
+        "error": null
+    },
+    {
+        "html": "<div><span class=\"w-0\">Zero<\/span><span>After<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "After\n",
+        "error": null
+    },
+    {
+        "html": "<div>First<br><br>Last<\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "First\n\nLast\n",
+        "error": null
+    },
+    {
+        "html": "<div>First<br><br>Last<\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "First\n\nLast\n",
+        "error": null
+    },
+    {
+        "html": "<div>First<br><br>Last<\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "First\n\nLast\n",
+        "error": null
+    },
+    {
+        "html": "<div>First<br><br>Last<\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "First\n\nLast\n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20 mx-2\"><span class=\"w-full\">Inner<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "  Inner                 \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20 mx-2\"><span class=\"w-full\">Inner<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "  Inner                 \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20 mx-2\"><span class=\"w-full\">Inner<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "  Inner                 \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20 mx-2\"><span class=\"w-full\">Inner<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "  Inner                 \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-full min-w-10\">Full<\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "Full      \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-full min-w-10\">Full<\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "Full      \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-full min-w-10\">Full<\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "Full      \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-full min-w-10\">Full<\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "Full      \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20 mx-2 max-w-21\"><span class=\"w-full\">Inner<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "  Inner                 \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20 mx-2 max-w-21\"><span class=\"w-full\">Inner<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "  Inner                 \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20 mx-2 max-w-21\"><span class=\"w-full\">Inner<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "  Inner                 \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20 mx-2 max-w-21\"><span class=\"w-full\">Inner<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "  Inner                 \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20 mx-2 px-1\"><span class=\"w-full\">Inner<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "   Inner                \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20 mx-2 px-1\"><span class=\"w-full\">Inner<\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "   Inner                \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20 mx-2 px-1\"><span class=\"w-full\">Inner<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "   Inner                \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-20 mx-2 px-1\"><span class=\"w-full\">Inner<\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "   Inner                \n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-0\"><span class=\"text-red\">Zero<\/span><\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-0\"><span class=\"text-red\">Zero<\/span><\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-0\"><span class=\"text-red\">Zero<\/span><\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-0\"><span class=\"text-red\">Zero<\/span><\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-2 px-3\">Example<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "   Exa   \n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-2 px-3\">Example<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "   Exa   \n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-2 px-3\">Example<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "   Exa   \n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-2 px-3\">Example<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "   Exa   \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"max-w-20\"><span class=\"content-repeat-[x]\"><\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"max-w-20\"><span class=\"content-repeat-[x]\"><\/span><\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"max-w-20\"><span class=\"content-repeat-[x]\"><\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"max-w-20\"><span class=\"content-repeat-[x]\"><\/span><\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-full min-w-1\">One<\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "One                                                                             \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-full min-w-1\">One<\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "One                                                                             \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-full min-w-1\">One<\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "One                                                                             \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-full min-w-1\">One<\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "One                                                                             \n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-full min-w-2\">Two<\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "Tw\n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-full min-w-2\">Two<\/div>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "Tw\n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-full min-w-2\">Two<\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "Tw\n",
+        "error": null
+    },
+    {
+        "html": "<div class=\"w-full min-w-2\">Two<\/div>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "Tw\n",
+        "error": null
+    },
+    {
+        "html": "<span class=\"w-1 px-3\">Hi<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": false,
+        "output": "",
+        "error": "ValueError:mb_strimwidth(): Argument #3 ($width) is out of range"
+    },
+    {
+        "html": "<span class=\"w-1 px-3\">Hi<\/span>",
+        "width": 80,
+        "ansi": false,
+        "raw": true,
+        "output": "",
+        "error": "ValueError:mb_strimwidth(): Argument #3 ($width) is out of range"
+    },
+    {
+        "html": "<span class=\"w-1 px-3\">Hi<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": false,
+        "output": "",
+        "error": "ValueError:mb_strimwidth(): Argument #3 ($width) is out of range"
+    },
+    {
+        "html": "<span class=\"w-1 px-3\">Hi<\/span>",
+        "width": 80,
+        "ansi": true,
+        "raw": true,
+        "output": "",
+        "error": "ValueError:mb_strimwidth(): Argument #3 ($width) is out of range"
+    }
+]

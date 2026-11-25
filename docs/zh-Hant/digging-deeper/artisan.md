@@ -2008,3 +2008,33 @@ fn register_component_compilation() -> Result<(), ConsoleError> {
 `ComponentViewCompiler` 由元件持有，接收原輸出上下文，可以保留實例狀態、傳回錯誤或委派 `BuiltinComponentViewCompiler`。`set_view_compiler(None)` 還原預設編譯器。編譯為同步操作；非同步資料應先準備好再編譯標記。
 
 視圖選擇參數與範本資料分開，資料鍵 `view` 不會重新導向編譯，也不能覆寫編譯器區域變數。自訂視圖來源透過自訂編譯器接入，不作為路徑傳給內建範本目錄。
+
+### 渲染元件標記 {#component-markup-rendering}
+
+`render_view` 先使用元件目前編譯器，再把實際 HTML 佈局寫入原輸出。`render_view_with` 將詳細級別和格式選項傳給同一個輸出。此層資料已經準備完成，不會再次執行具體元件的標點或醒目提示變換。
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, OutputFormat, view::components::Component};
+use openrust::support::facades::Artisan;
+use serde_json::json;
+fn register_component_rendering() -> Result<(), ConsoleError> {
+    Artisan::command_with("components:render", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let mut component = Component::new(output);
+            component.render_view("line", json!({
+                "marginTop": 1, "bgColor": "blue", "fgColor": "white",
+                "title": "info", "content": "Rendered <report>"
+            }))?;
+            component.render_view_with("bullet-list", json!({"elements": ["First", "Second"]}), OutputFormat::Plain)?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+預設渲染器複用 HTML 解析器和現有輸出格式器，支援四個內建範本、行內／區塊／彈性佈局、邊距、內距、固定／完整寬度、最小／最大寬度、對齊與大小寫、基本具名顏色、粗體／斜體／底線／刪除線、連結及彈性重複填充。它還不是完整的終端 HTML/CSS 引擎：表格／程式碼／預格式／清單渲染、顏色變體、響應式類別、分數寬度、分佈對齊和自訂樣式倉庫仍未支援。未支援的樣式回傳錯誤，不會靜默丟棄佈局。寬度和填充有安全上限，巢狀上限為 256 層。
+
+`ComponentViewRenderer` 收到實際編譯結果、`OutputOptions` 和原 `ComponentContext`。透過 `set_view_renderer(Some(Box::new(renderer)))` 安裝元件擁有的渲染器，可保留實例狀態、委託 `BuiltinComponentViewRenderer` 或回傳錯誤；`set_view_renderer(None)` 恢復預設。自訂編譯結果也沿同一路徑，不按內建視圖名稱替換 HTML，不切換全域終端輸出。編譯失敗不會呼叫渲染器；渲染失敗保留已經發生的寫入並向呼叫者傳播。
+
+後端按 HTML5 解析。任意畸形標記的恢復行為及 HTML4 特有相容性尚未因內建範本測試而閉合。明確的 `strong`、`italic`、`underline`、`line-through` 和 `invisible` 樣式直接產生終端跳脫序列，在 Raw 輸出或關閉裝飾時也會保留；`font-bold` 則使用輸出格式器。

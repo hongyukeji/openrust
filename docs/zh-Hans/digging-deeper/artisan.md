@@ -2008,3 +2008,33 @@ fn register_component_compilation() -> Result<(), ConsoleError> {
 `ComponentViewCompiler` 由组件持有，接收原输出上下文，可以保存实例状态、返回错误或委托 `BuiltinComponentViewCompiler`。`set_view_compiler(None)` 恢复默认编译器。编译为同步操作；异步数据应先准备好再编译标记。
 
 视图选择参数与模板数据分开，数据键 `view` 不会重定向编译，也不能覆盖编译器局部变量。自定义视图来源通过自定义编译器接入，不作为路径传给内置模板目录。
+
+### 渲染组件标记 {#component-markup-rendering}
+
+`render_view` 先使用组件当前编译器，再把实际 HTML 布局写入原输出。`render_view_with` 将详细级别和格式选项传给同一个输出。此层数据已经准备完成，不会再次执行具体组件的标点或高亮变换。
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, OutputFormat, view::components::Component};
+use openrust::support::facades::Artisan;
+use serde_json::json;
+fn register_component_rendering() -> Result<(), ConsoleError> {
+    Artisan::command_with("components:render", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let mut component = Component::new(output);
+            component.render_view("line", json!({
+                "marginTop": 1, "bgColor": "blue", "fgColor": "white",
+                "title": "info", "content": "Rendered <report>"
+            }))?;
+            component.render_view_with("bullet-list", json!({"elements": ["First", "Second"]}), OutputFormat::Plain)?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+默认渲染器复用 HTML 解析器和现有输出格式器，支持四个内置模板、行内／块级／弹性布局、边距、内距、固定／完整宽度、最小／最大宽度、对齐与大小写、基本具名颜色、粗体／斜体／下划线／删除线、链接及弹性重复填充。它还不是完整的终端 HTML/CSS 引擎：表格／代码／预格式／列表渲染、颜色变体、响应式类、分数宽度、分布对齐和自定义样式仓库仍未支持。未支持的样式返回错误，不会静默丢弃布局。宽度和填充有安全上限，嵌套上限为 256 层。
+
+`ComponentViewRenderer` 收到实际编译结果、`OutputOptions` 和原 `ComponentContext`。通过 `set_view_renderer(Some(Box::new(renderer)))` 安装组件拥有的渲染器，可保留实例状态、委托 `BuiltinComponentViewRenderer` 或返回错误；`set_view_renderer(None)` 恢复默认。自定义编译结果也沿同一路径，不按内置视图名称替换 HTML，不切换全局终端输出。编译失败不会调用渲染器；渲染失败保留已经发生的写入并向调用者传播。
+
+后端按 HTML5 解析。任意畸形标记的恢复行为及 HTML4 特有兼容性尚未因内置模板测试而闭合。显式 `strong`、`italic`、`underline`、`line-through` 和 `invisible` 样式直接生成终端转义序列，在 Raw 输出或关闭装饰时也会保留；`font-bold` 则使用输出格式器。

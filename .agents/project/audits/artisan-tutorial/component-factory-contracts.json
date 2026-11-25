@@ -70,18 +70,19 @@
         "mutate",
         "usingQuestionHelper"
       ],
-      "status": "partial_owned_constructor_compile_mutate_question_verified_render_view_pending",
+      "status": "partial_owned_bindings_verified_render_view_terminal_sdk_pending",
       "native": "console::view::components::Component",
       "evidence": [
         "component-core-contracts.json",
-        "component-compile-contracts.json"
+        "component-compile-contracts.json",
+        "component-render-contracts.json"
       ],
       "owned_bindings": {
         "__construct": "verified_new/from_context",
         "mutate": "verified_named_constructors_and_value_pipeline",
         "usingQuestionHelper": "verified_lending_scope_original_identity_and_finally",
         "compile": "verified_embedded_blade_templates_and_owned_compiler_override",
-        "renderView": "pending"
+        "renderView": "partial_render_view_dispatch_default_catalog_and_listed_markup_styles_verified_terminal_sdk_pending"
       }
     },
     {
@@ -119,8 +120,8 @@
         "factory-registry-contracts.json"
       ],
       "remaining": [
-        "Command容器解析/覆盖Factory本身及其构造时机仍需专用服务类型和实际消费者，不能由ComponentRegistry注册代替。",
-        "抽象Component的compile/renderView/mutate/usingQuestionHelper及继承SDK仍开放；不宣称Factory类或Artisan整章已闭合。"
+        "通用终端布局SDK尚未闭合：table/code/pre/list/dl/hr、颜色变体、响应式样式、分数宽度、分布对齐、自定义样式仓库及其余Styles入口；HTML4/HTML5任意畸形恢复和实体差异仍需逐项核对，不能由四模板和当前子集测试关闭。",
+        "Factory的Command容器构造/覆盖生命周期、Helper/HelperSet/Time其余SDK及Artisan其他锚点继续；不宣称整章完成。"
       ]
     },
     {
@@ -194,7 +195,7 @@
       "evidence": "line-components-contracts.json"
     }
   ],
-  "inheritance": "All fourteen concrete components, typed/dynamic/custom construction and Component owned compilation/mutation/question scope verified within recorded native scope; renderView/default terminal layout, container Factory override and general inherited SDK remain open.",
+  "inheritance": "Fourteen concrete components, typed/dynamic/custom factories and owned Component bindings verified within recorded scope; render_view default catalog and listed markup subset verified, full terminal layout SDK, container Factory override and other inherited SDK remain open.",
   "mutators": "component-mutators-contracts.json",
   "task_result": {
     "status": "verified_task_result_type_and_consumers",
@@ -233,5 +234,9 @@
   "component_compile": {
     "status": "verified_owned_component_compile_four_embedded_templates_and_per_instance_override",
     "evidence": "component-compile-contracts.json"
+  },
+  "component_render": {
+    "status": "partial_render_view_dispatch_default_catalog_and_listed_markup_styles_verified_terminal_sdk_pending",
+    "evidence": "component-render-contracts.json"
   }
 }

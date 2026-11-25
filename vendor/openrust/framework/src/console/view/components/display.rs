@@ -41,11 +41,11 @@ fn styling() -> &'static Regex {
     });
     &STYLING
 }
-fn visible_width(text: &str) -> usize {
+pub(super) fn visible_width(text: &str) -> usize {
     Str::width(&styling().replace_all(text, ""))
 }
 // 截断后仍在原字节位置插回样式标记，保留模板渲染的边界行为。
-fn trim_text(text: &str, width: i64) -> Result<String, ConsoleError> {
+pub(super) fn trim_text(text: &str, width: i64) -> Result<String, ConsoleError> {
     let plain = styling().replace_all(text, "");
     let width = if width < 0 {
         i128::from(width) + Str::width(&plain) as i128

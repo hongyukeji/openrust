@@ -322,8 +322,8 @@
           "factory-registry-contracts.json"
         ],
         "remaining": [
-          "Component::renderView以及默认终端HTML/CSS布局和可覆盖渲染策略仍待实现/实际消费者，compile返回HTML不能代替终端渲染。",
-          "Command容器Factory构造/覆盖生命周期、Helper/HelperSet/Time其余继承SDK和Artisan其他锚点继续，整章未闭合。"
+          "通用终端布局SDK尚未闭合：table/code/pre/list/dl/hr、颜色变体、响应式样式、分数宽度、分布对齐、自定义样式仓库及其余Styles入口；HTML4/HTML5任意畸形恢复和实体差异仍需逐项核对，不能由四模板和当前子集测试关闭。",
+          "Factory的Command容器构造/覆盖生命周期、Helper/HelperSet/Time其余SDK及Artisan其他锚点继续；不宣称整章完成。"
         ]
       }
     ],
