@@ -1472,7 +1472,7 @@ fn retry_config(base: &Path, env: &Environment) -> Result<BTreeMap<String, Value
 
 #[tokio::test]
 #[ignore = "requires dedicated Redis 8 acceptance wrapper"]
-async fn redis_job_types_follow_native_producers_and_raw_retry() {
+async fn redis_job_types_and_silencing_follow_native_producers_and_raw_retry() {
     use openrust::{
         broadcasting::{BroadcastChannel, Channel},
         contracts::{
@@ -1495,10 +1495,11 @@ async fn redis_job_types_follow_native_producers_and_raw_retry() {
         queue::{DispatchOptions, JobType, Payload, QueueManager},
         support::facades::{Event as EventFacade, Mail, Notification, Queue, Route},
     };
-    use openrust_horizon::JobPayload;
+    use openrust_horizon::{JobPayload, Silenced};
 
     #[derive(serde::Serialize, serde::Deserialize)]
     struct Published;
+    impl Silenced for Published {}
     impl Event for Published {
         fn name(&self) -> &str {
             "payload.published"
@@ -1516,7 +1517,12 @@ async fn redis_job_types_follow_native_producers_and_raw_retry() {
     }
 
     struct AuditListener;
+    impl Silenced for AuditListener {}
     impl Listener for AuditListener {
+        fn name(&self) -> &'static str {
+            "custom.audit-label"
+        }
+
         fn handle<'a>(
             &'a self,
             _: &'a dyn Event,
@@ -1541,6 +1547,10 @@ async fn redis_job_types_follow_native_producers_and_raw_retry() {
 
     struct Receipt;
     impl Mailable for Receipt {
+        fn kind(&self) -> &str {
+            "custom.receipt"
+        }
+
         fn envelope(&self) -> MailResult<Envelope> {
             Ok(Envelope {
                 to: vec!["to@example.org".into()],
@@ -1583,6 +1593,19 @@ async fn redis_job_types_follow_native_producers_and_raw_retry() {
             self.0.then_some("audit")
         }
     }
+
+    struct QuietJob;
+    impl Silenced for QuietJob {}
+    impl openrust::contracts::queue::JobHandler for QuietJob {
+        fn handle<'a>(
+            &'a self,
+            _: &'a mut openrust::queue::JobContext<'_>,
+            _: &'a Payload,
+        ) -> openrust::queue::QueueFuture<'a, openrust::queue::QueueResult<()>> {
+            Box::pin(async { Ok(()) })
+        }
+    }
+
     fn dispatch(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         Box::pin(async {
             EventFacade::dispatch(Published).await.unwrap();
@@ -1618,6 +1641,16 @@ async fn redis_job_types_follow_native_producers_and_raw_retry() {
             )
             .await
             .unwrap();
+            Queue::dispatch(
+                Payload::new("quiet.job", json!({})).unwrap(),
+                DispatchOptions {
+                    queue: Some("quiet".into()),
+                    ..Default::default()
+                },
+                None,
+            )
+            .await
+            .unwrap();
             Ok(Response::from("queued"))
         })
     }
@@ -1627,6 +1660,11 @@ async fn redis_job_types_follow_native_producers_and_raw_retry() {
     ) -> Result<BTreeMap<String, Value>, ConfigError> {
         let mut config = retry_config(base, env)?;
         config.get_mut("app").unwrap()["key"] = json!("01234567890123456789012345678901");
+        config.get_mut("horizon").unwrap()["silenced"] = json!([
+            std::any::type_name::<Receipt>(),
+            "notifications.send_queued_notifications",
+            "notifications.send_queued_notifications.audit",
+        ]);
         config.insert(
             "mail".into(),
             json!({
@@ -1640,7 +1678,12 @@ async fn redis_job_types_follow_native_producers_and_raw_retry() {
         builder
             .with_config(fixture_config)
             .with_providers(vec![Box::new(HorizonServiceProvider)])
-            .with_routing(Routing::default().api(|| Route::get("/classify", dispatch)))
+            .with_routing(Routing::default().api(|| {
+                Horizon::silence::<Published>().unwrap();
+                Horizon::silence::<AuditListener>().unwrap();
+                Horizon::silence::<QuietJob>().unwrap();
+                Route::get("/classify", dispatch)
+            }))
     })
     .unwrap();
     app.boot().await.unwrap();
@@ -1648,6 +1691,7 @@ async fn redis_job_types_follow_native_producers_and_raw_retry() {
     dispatcher.register_broadcast::<Published>();
     dispatcher.register(listeners).unwrap();
     let manager = app.app().make::<QueueManager>().await.unwrap();
+    manager.register("quiet.job", Arc::new(QuietJob)).unwrap();
     SendQueuedNotifications::register_middleware(&manager, "audit", vec![]).unwrap();
     app.app()
         .make::<openrust::database::DatabaseManager>()
@@ -1672,24 +1716,33 @@ async fn redis_job_types_follow_native_producers_and_raw_retry() {
     let transport = manager.connection(Some("redis")).unwrap();
     let repository = app.app().make::<Repository>().await.unwrap();
     let jobs = repository.jobs();
-    for (queue, kind, label) in [
-        ("broadcasts", JobType::Broadcast, "broadcast"),
-        ("mail", JobType::Mail, "mail"),
-        ("notices", JobType::Notification, "notification"),
-        ("encrypted-notices", JobType::Notification, "notification"),
-        ("ordinary", JobType::Job, "job"),
+    for (queue, kind, label, silenced) in [
+        ("broadcasts", JobType::Broadcast, "broadcast", true),
+        ("mail", JobType::Mail, "mail", true),
+        ("notices", JobType::Notification, "notification", false),
+        (
+            "encrypted-notices",
+            JobType::Notification,
+            "notification",
+            false,
+        ),
+        ("ordinary", JobType::Job, "job", false),
+        ("quiet", JobType::Job, "job", true),
     ] {
         let mut job = transport.pop_now(Some(queue)).await.unwrap().unwrap();
         assert_eq!(job.payload().job_type(), kind);
-        assert_eq!(
-            JobPayload::from_payload(job.payload())
-                .unwrap()
-                .unwrap()
-                .job_type(),
-            kind
-        );
+        let snapshot = JobPayload::from_payload(job.payload()).unwrap().unwrap();
+        assert_eq!(snapshot.job_type(), kind);
+        assert_eq!(snapshot.is_silenced(), silenced);
         let details = jobs.find(job.get_job_id()).await.unwrap().unwrap();
+        assert_eq!(details.silenced, silenced);
         assert_eq!(details.payload["redis_metadata"]["horizon"]["type"], label);
+        if kind == JobType::Notification {
+            assert_eq!(
+                job.payload().subject_type(),
+                Some(std::any::type_name::<Notice>())
+            );
+        }
         if queue == "encrypted-notices" {
             assert!(job.payload().data()["encrypted_delivery"].is_string());
             assert_eq!(
@@ -1700,12 +1753,14 @@ async fn redis_job_types_follow_native_producers_and_raw_retry() {
         if queue == "mail" {
             let mut old = details.payload;
             old.as_object_mut().unwrap().remove("job_type");
+            old.as_object_mut().unwrap().remove("subject_type");
             old["redis_metadata"]["horizon"]
                 .as_object_mut()
                 .unwrap()
                 .remove("type");
             let old: Payload = serde_json::from_value(old).unwrap();
             assert_eq!(old.job_type(), JobType::Job);
+            assert!(old.subject_type().is_none());
             assert_eq!(
                 JobPayload::from_payload(&old).unwrap().unwrap().job_type(),
                 JobType::Job
@@ -1726,6 +1781,7 @@ async fn redis_job_types_follow_native_producers_and_raw_retry() {
     .assert_successful();
     let failed = jobs.get_failed(None).await.unwrap();
     assert_eq!(failed.len(), 1);
+    assert!(failed[0].silenced);
     assert_eq!(
         failed[0].payload["redis_metadata"]["horizon"]["type"],
         "event"
@@ -1740,7 +1796,26 @@ async fn redis_job_types_follow_native_producers_and_raw_retry() {
         .unwrap()
         .unwrap();
     assert_eq!(metadata.job_type(), JobType::Job);
+    assert!(!metadata.is_silenced());
     assert_eq!(metadata.retry_of(), Some(original.as_str()));
+
+    let mut isolated = TestApp::create(|builder| {
+        builder
+            .with_config(fixture_config)
+            .with_providers(vec![Box::new(HorizonServiceProvider)])
+    })
+    .unwrap();
+    isolated.boot().await.unwrap();
+    let manager = isolated.app().make::<QueueManager>().await.unwrap();
+    manager.register("quiet.job", Arc::new(QuietJob)).unwrap();
+    let redis = manager.connection(Some("redis")).unwrap();
+    let id = redis
+        .push(&Payload::new("quiet.job", json!({})).unwrap(), None)
+        .await
+        .unwrap()
+        .unwrap();
+    let repository = isolated.app().make::<Repository>().await.unwrap();
+    assert!(!repository.jobs().find(&id).await.unwrap().unwrap().silenced);
 }
 
 #[tokio::test]

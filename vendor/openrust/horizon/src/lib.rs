@@ -14,6 +14,7 @@ mod process_memory;
 mod provider;
 mod repository;
 mod signals;
+mod silenced;
 mod supervisor;
 mod tags;
 pub use notifications::{
@@ -43,6 +44,7 @@ pub use repository::{
     JobDetails, JobRecord, JobRepository, MasterSupervisorRepository, Metrics, MetricsRepository,
     ProcessRepository, Repository, SupervisorRepository, TagRepository, WorkloadRepository,
 };
+pub use silenced::Silenced;
 pub use supervisor::{
     ProcessPool, Supervisor, SupervisorLooped, UnableToLaunchProcess, WorkerProcess,
     WorkerProcessRestarting,

@@ -4,6 +4,11 @@ use super::Event;
 
 /// Handles an event in the current execution scope.
 pub trait Listener: Send + Sync {
+    /// 返回监听器的具体类型，用于队列观测。
+    fn queue_subject_type(&self) -> &'static str {
+        std::any::type_name::<Self>()
+    }
+
     fn name(&self) -> &'static str {
         std::any::type_name::<Self>()
     }

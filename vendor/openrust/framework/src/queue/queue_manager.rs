@@ -245,11 +245,18 @@ impl QueueManager {
             .ok_or(QueueError::InvalidConfiguration)?;
         application_scope(owner, async move {
             let mut prepared = payload.clone();
-            let metadata =
-                Arc::make_mut(prepared.redis_metadata.get_or_insert_with(Default::default));
-            for (key, callback) in callbacks {
-                metadata.insert(key.into(), callback(payload)?);
+            if prepared.subject_type.is_none()
+                && prepared.job_type() == super::JobType::Job
+                && let Some(handler) = self.registry.handler(payload.name())
+            {
+                prepared.subject_type = Some(handler.queue_subject_type().into());
             }
+            let mut metadata = prepared.redis_metadata.clone().unwrap_or_default();
+            let entries = Arc::make_mut(&mut metadata);
+            for (key, callback) in callbacks {
+                entries.insert(key.into(), callback(&prepared)?);
+            }
+            prepared.redis_metadata = Some(metadata);
             Ok(Cow::Owned(prepared))
         })
         .await

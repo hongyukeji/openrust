@@ -369,7 +369,11 @@ PHP 8.5.12 探针使用固定上游的四个实际包装类型并调用 `JobPayl
 
 Linux 7.0.14 ARM64 用与 `52848e62b` 可观测性代码一致的快照，Rust 1.94.0 和独占 Redis 8.10.3 冷构建后通过全部 14 项 Horizon Redis Runtime，含类型与上一批载荷重试元数据。日志为 `target/tmp/observability-parity/horizon-job-types-linux.log`。
 
-PHP 8.5.12 探针按固定源码给四类包装设置对应底层对象。广播取事件对象，监听器取监听器类名，邮件取 Mailable，通知取 Notification。实现 `Silenced`、配置命中底层类型或标签任一条件成立时静默；只配置包装类名不命中。无任务对象的原始重试即使保留静默标签也会清除静默状态。Rust 当前已保存配置名称与标签求值结果，包装任务的底层名称与显式静默标记仍须接入实际 Redis 生产者。对照证据为 `target/tmp/observability-parity/horizon-wrapper-silence-upstream.log`。显式预置标签合并与公开载荷的值、解码、名称、ID 回退和可变字段操作仍需逐项核对。
+PHP 8.5.12 探针按固定源码给四类包装设置对应底层对象。广播取事件对象，监听器取监听器类名，邮件取 Mailable，通知取 Notification。实现 `Silenced`、配置命中底层类型或标签任一条件成立时静默；只配置包装类名不命中。无任务对象的原始重试即使保留静默标签也会清除静默状态。Rust 在真实包装生产者记录底层类型，在 `horizon.silenced` 匹配完整类型名，普通任务兼容其注册名称。旧载荷缺少底层类型时沿用任务名称。Rust 在对象擦除后无法自动检查标记 trait，由应用显式调用 `Horizon::silence::<T>()` 注册实现 `Silenced` 的类型。注册与已保存的静默状态均按应用隔离。对照证据为 `target/tmp/observability-parity/horizon-wrapper-silence-upstream.log`。显式预置标签合并与公开载荷的值、解码、名称、ID 回退和可变字段操作仍需逐项核对。
+
+macOS 冷构建在真实 Redis 8.10.3 验证广播、带自定义名称的监听器、邮件、加密通知及普通任务。覆盖配置底层类、配置只有包装名称、应用间显式注册隔离以及真实 `horizon:retry` 重置静默结果。Horizon Redis 20 项、三包默认 84 项、严格 Clippy、全仓格式、三语文档和 12 组浏览器检查通过。Windows 11 ARM64 用同一源码、专用 NTFS 构建卷和独占 Redis 8.10.3，通过 15 项 Redis Runtime。证据为 `target/tmp/observability-parity/horizon-silenced-{accepted,docs}.log` 及 `target/tmp/observability-windows/horizon-silenced-arm64.log`。完整发布组合待验。
+
+固定 Laravel `FailoverQueue::later` 在调用目标、登记事务回调时处理 failover。PHP 8.5.12 探针使用两个固定 Horizon RedisQueue 子类和受控事务回调验证，首个准备成功的连接在提交前确定并只生成一次标签。只有登记前的同步失败才会选择下一连接，已登记回调在提交后写入失败时异常交回事务，第二连接不会被调用。Rust 当前仍在提交回调中执行 failover。后续须核对提交前的目标选择、准备或注册错误时的回退以及提交后错误传播，避免提前运行候选连接的标签钩子。对照日志为 `target/tmp/observability-parity/horizon-failover-commit-upstream.log`。 [固定 FailoverQueue](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/FailoverQueue.php)
 
 基于 `eb189cfb1` 加已提交 Redis 事件与本批文件的 macOS 隔离快照，独占 Redis 8.10.3 和 SQLite 验证 `JobPending`、`JobPushed`、保留和结算读取相同的标签及静默结果。原生 Artisan 验证标签回调仅在入队执行一次、成功完成后保留原静默结果、Horizon 重试保留标签及原投递引用并重算截止时间。授权 HTTP 验证旧失败任务的重投递和标签回退。Horizon Redis 18 项与三包默认 84 项、无 Horizon 的框架 Redis Worker、真实 Artisan 进程矩阵、全仓格式、Horizon 全目标严格 Clippy、三语站点和 12 组浏览器检查通过。新载荷行为的 Linux、Windows 和完整发布组合待验。验证日志位于 `target/tmp/observability-parity/horizon-payload-{verified,core,process,docs}.log`。
 

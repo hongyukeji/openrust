@@ -148,7 +148,11 @@ impl JobPayload {
                 })
                 .unwrap_or(false)
         };
-        let silenced = matches("horizon.silenced", &|name| name == payload.name())
+        let subject = payload.subject_type().unwrap_or(payload.name());
+        let silenced = matches("horizon.silenced", &|name| {
+            name == subject || (payload.job_type() == JobType::Job && name == payload.name())
+        }) || crate::silenced::SilencedTypes::contains(subject)
+            .map_err(|_| Error::Unavailable)?
             || matches("horizon.silenced_tags", &|tag| {
                 tags.iter().any(|value| value == tag)
             });

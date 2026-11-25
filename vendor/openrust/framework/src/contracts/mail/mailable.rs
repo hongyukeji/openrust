@@ -7,6 +7,11 @@ use super::assertions::{Rendered, Rule, address_assertions, assert_body};
 
 /// Describes an application email for a selected mailer.
 pub trait Mailable: Send + Sync {
+    /// 返回邮件的具体类型，用于队列观测。
+    fn queue_subject_type(&self) -> &'static str {
+        std::any::type_name::<Self>()
+    }
+
     fn kind(&self) -> &str {
         std::any::type_name::<Self>()
     }

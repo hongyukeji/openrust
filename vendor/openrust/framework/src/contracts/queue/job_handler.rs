@@ -6,6 +6,11 @@ use super::Interruptible;
 
 /// Executes a registered application job.
 pub trait JobHandler: Send + Sync {
+    /// 返回入队任务处理器的具体类型。
+    fn queue_subject_type(&self) -> &'static str {
+        std::any::type_name::<Self>()
+    }
+
     fn interruptible(&self) -> Option<&dyn Interruptible> {
         None
     }

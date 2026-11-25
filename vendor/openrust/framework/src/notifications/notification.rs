@@ -20,6 +20,11 @@ pub struct NotificationQueueGuard {
 
 /// Describes the channels and content for a recipient.
 pub trait Notification: Send + Sync {
+    /// 返回通知的具体类型，用于队列观测。
+    fn queue_subject_type(&self) -> &'static str {
+        std::any::type_name::<Self>()
+    }
+
     fn via(&self, recipient: &dyn Notifiable) -> NotificationResult<Vec<String>>;
 
     fn to_mail(&self, _recipient: &dyn Notifiable) -> NotificationResult<Option<MailDelivery>> {

@@ -35,6 +35,7 @@ pub(super) enum ListenerSource {
 
 pub(super) struct QueuedRegistration {
     pub name: String,
+    pub subject_type: &'static str,
     pub options: QueuedListenerOptions,
     pub encode: fn(&dyn Event) -> EventResult<serde_json::Value>,
     handler: Arc<dyn JobHandler>,
@@ -141,6 +142,7 @@ impl ListenerRegistry {
         }
         let queued = QueuedRegistration {
             name: format!("events.listener:{}", options.listener_id),
+            subject_type: listener.queue_subject_type(),
             options,
             encode: |event| {
                 let event = event

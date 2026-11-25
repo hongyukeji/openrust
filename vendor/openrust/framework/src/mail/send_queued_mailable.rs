@@ -119,7 +119,7 @@ impl SendQueuedMailable {
         let message = PreparedMail::prepare(mailer, mailable, recipients).await?;
         let payload = Payload::new(Self::NAME, message)
             .map_err(MailError::Queue)?
-            .with_job_type(crate::queue::JobType::Mail);
+            .with_job_subject(crate::queue::JobType::Mail, mailable.queue_subject_type());
         match Queue::dispatch(payload, options, transaction)
             .await
             .map_err(MailError::Queue)?

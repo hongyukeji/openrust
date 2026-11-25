@@ -68,6 +68,7 @@ impl SendQueuedNotifications {
     )]
     pub(super) async fn dispatch(
         delivery: &Delivery,
+        subject_type: &str,
         payload: Value,
         options: DispatchOptions,
         job_options: JobOptions,
@@ -100,7 +101,7 @@ impl SendQueuedNotifications {
             Payload::new(name.as_deref().unwrap_or(Self::NAME), job)
         }
         .map_err(NotificationError::Queue)?
-        .with_job_type(crate::queue::JobType::Notification)
+        .with_job_subject(crate::queue::JobType::Notification, subject_type)
         .with_options(job_options);
         Queue::dispatch(payload, options, transaction)
             .await

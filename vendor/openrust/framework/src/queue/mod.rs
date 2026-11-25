@@ -219,6 +219,8 @@ pub struct Payload {
     #[serde(default, skip_serializing_if = "JobType::is_job")]
     job_type: JobType,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    subject_type: Option<Box<str>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     display_name: Option<String>,
     data: serde_json::Value,
     options: JobOptions,
@@ -278,6 +280,7 @@ impl Payload {
             uuid: new_id()?,
             name,
             job_type: JobType::Job,
+            subject_type: None,
             display_name: None,
             data: serde_json::to_value(data).map_err(|_| QueueError::InvalidPayload)?,
             options: JobOptions::default(),
@@ -339,8 +342,14 @@ impl Payload {
     pub fn job_type(&self) -> JobType {
         self.job_type
     }
-    pub(crate) fn with_job_type(mut self, job_type: JobType) -> Self {
+    /// 返回投递的底层应用类型，例如排队邮件的 Mailable 类型。
+    pub fn subject_type(&self) -> Option<&str> {
+        self.subject_type.as_deref()
+    }
+
+    pub(crate) fn with_job_subject(mut self, job_type: JobType, subject_type: &str) -> Self {
         self.job_type = job_type;
+        self.subject_type = Some(subject_type.into());
         self
     }
     pub(crate) fn with_display_name(mut self, name: String) -> Self {

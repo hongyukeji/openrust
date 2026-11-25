@@ -46,6 +46,10 @@ impl ServiceProvider for HorizonServiceProvider {
                     Ok(Arc::new(crate::tags::TagManager::default()))
                 })?;
             app.container()
+                .singleton::<crate::silenced::SilencedTypes, _>(|_| {
+                    Ok(Arc::new(crate::silenced::SilencedTypes::default()))
+                })?;
+            app.container()
                 .singleton::<Dashboard, _>(|_| Ok(Arc::new(Dashboard::default())))?;
             app.container().singleton::<Repository, _>(|container| {
                 let config =

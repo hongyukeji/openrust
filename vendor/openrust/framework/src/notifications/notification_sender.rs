@@ -323,6 +323,7 @@ impl<'a> NotificationSender<'a> {
                     if let Some(payload) = driver.queue_payload(recipient, notification).await? {
                         SendQueuedNotifications::dispatch(
                             &delivery,
+                            notification.inner.queue_subject_type(),
                             payload,
                             options,
                             notification.inner.queue_job_options(recipient, channel),
