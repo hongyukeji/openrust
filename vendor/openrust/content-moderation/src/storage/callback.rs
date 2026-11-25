@@ -48,6 +48,25 @@ impl ModerationStore {
         review: &VideoReview,
         receipt: &str,
     ) -> ModerationResult<bool> {
+        self.prioritize_lookup(review, "confirmation_callback_id", receipt)
+            .await
+    }
+
+    pub(crate) async fn request_lookup_hint(
+        &self,
+        review: &VideoReview,
+        receipt: &str,
+    ) -> ModerationResult<bool> {
+        self.prioritize_lookup(review, "lookup_hint_id", receipt)
+            .await
+    }
+
+    async fn prioritize_lookup(
+        &self,
+        review: &VideoReview,
+        reference_column: &'static str,
+        receipt: &str,
+    ) -> ModerationResult<bool> {
         let now = database_clock(&self.connection);
         let timestamp = self
             .connection
@@ -78,12 +97,12 @@ impl ModerationStore {
             .r#where("id", "=", review.check_id())
             .r#where("review_id", "=", review.id())
             .r#where("submission", "=", "Submitted")
-            .where_null("confirmation_callback_id")
+            .where_null(reference_column)
             .where_exists(&mut current)
             .map_err(|_| ModerationError::ReviewStorage)?
             .update(
                 [
-                    ("confirmation_callback_id".into(), receipt.into()),
+                    (reference_column.into(), receipt.into()),
                     ("available_at".into(), timestamp.into()),
                 ]
                 .into_iter()

@@ -1,9 +1,10 @@
 use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use openrust::{
+    cache::RateLimiter,
     config::{ConfigError, Environment},
     console::{Application as Artisan, AsyncCommandCallback, ConsoleError},
-    contracts::foundation::Application as _,
+    contracts::{container::Container as _, foundation::Application as _},
     database::DatabaseManager,
     foundation::Application,
     http::HttpFuture,
@@ -11,12 +12,13 @@ use openrust::{
     support::{ProviderResult, ServiceProvider, facades::Route},
 };
 use openrust_content_moderation::{
-    AliyunCallbackProcessor, ModerationStore, SightengineCallbackProcessor,
-    TencentCallbackProcessor,
+    AliyunCallbackProcessor, HiveLookupHint, ModerationManager, ModerationStore,
+    SightengineCallbackProcessor, TencentCallbackProcessor,
 };
 use openrust_webhook_client::{
     DatabaseWebhookStore, Error, Result, WebhookRouteOptions, WebhookRoutes as _, WebhookRuntime,
     WebhookStore,
+    hints::QueuedWebhookHint,
     jobs::{DeferredProcessingPolicy, ProcessWebhookJob, QueuedWebhookJob},
     models::WebhookCall,
 };
@@ -24,8 +26,20 @@ use serde_json::{Value, json};
 
 const JOB: &str = "moderation-callback-fixture";
 const SCOPE: &str = "moderation-callback-scope";
+const HIVE_HINT: &str = "moderation-hive-fixture";
+const HIVE_ROUTE: &str = "hive-video-hint";
 
 pub(super) fn configuration(env: &Environment) -> std::result::Result<Value, ConfigError> {
+    if env.get_utf8("MODERATION_CALLBACK_FIXTURE_HIVE")? == Some("1") {
+        return Ok(json!({
+            "configs": [{
+                "name": HIVE_ROUTE, "revision": "callbacks-v1", "scope": SCOPE,
+                "signature_validator": "moderation-hive-hint", "webhook_profile": "process-everything",
+                "process_webhook_job": JOB, "webhook_model": "database",
+                "unverified_hint_receiver": HIVE_HINT, "verification_audit": true, "max_body_bytes": 4096
+            }]
+        }));
+    }
     if env.get_utf8("MODERATION_CALLBACK_FIXTURE_ALIYUN")? == Some("1") {
         return Ok(json!({
             "configs": [
@@ -124,6 +138,10 @@ pub(super) fn routes() -> std::result::Result<(), openrust::routing::RoutingErro
         "/drivers/moderation/aliyun-callback-other",
         WebhookRouteOptions::new().name("aliyun-other-account"),
     )?;
+    Route::webhooks(
+        "/drivers/moderation/hive-video-hint",
+        WebhookRouteOptions::new().name(HIVE_ROUTE),
+    )?;
     Ok(())
 }
 
@@ -146,6 +164,47 @@ impl ServiceProvider for CallbackFixtureProvider {
             let connection = app.make::<DatabaseManager>().await?.connection(None)?;
             let store = Arc::new(DatabaseWebhookStore::new(connection.clone(), SCOPE)?);
             let queue = app.make::<QueueManager>().await?;
+            if std::env::var_os("MODERATION_CALLBACK_FIXTURE_HIVE").is_some() {
+                let manager = app.make::<ModerationManager>().await?;
+                let profile = manager.pin_profile("hive-videos", "original")?;
+                let reviews = ModerationStore::new(connection.clone(), "app", "tenant")?;
+                let hint = Arc::new(HiveLookupHint::new(
+                    reviews,
+                    &manager,
+                    profile,
+                    SCOPE,
+                    HIVE_ROUTE,
+                    "callbacks-v1",
+                )?);
+                QueuedWebhookHint::new(
+                    connection.clone(),
+                    SCOPE,
+                    HIVE_ROUTE,
+                    HIVE_HINT,
+                    "database",
+                    HIVE_HINT,
+                )?
+                .register(&queue, hint.clone())?;
+                WebhookRuntime::register_unverified_hint_receiver(
+                    app.container(),
+                    HIVE_HINT,
+                    move |config, container| {
+                        let database = container.make::<DatabaseManager>()?.connection(None)?;
+                        let limiter = container.make::<RateLimiter>()?;
+                        Ok(Arc::new(
+                            QueuedWebhookHint::new(
+                                database,
+                                SCOPE,
+                                config.name(),
+                                HIVE_HINT,
+                                "database",
+                                HIVE_HINT,
+                            )?
+                            .receiver(limiter, 15, hint.clone())?,
+                        ))
+                    },
+                )?;
+            }
             if std::env::var_os("MODERATION_CALLBACK_FIXTURE_ASSOCIATE").is_some() {
                 let reviews = ModerationStore::new(connection, "app", "tenant")?;
                 let processor: Arc<dyn ProcessWebhookJob> =

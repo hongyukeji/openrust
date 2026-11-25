@@ -9,3 +9,5 @@
 仍须补齐可信及拒绝记录的有限验证依据、提示记录留存及超时终态回收、共享缓存的跨主机、真实审核方查单和通用跨队列恢复。WD-01 与 WH-03 整体保持开放。
 
 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 各通过本批 12 个真实 HTTP、5 次独立 Artisan Worker。最终每库复验 186 个真实 HTTP、125 次 Worker，另执行唤醒及保留期 Artisan。三库迁移回滚再迁移、旧签名／接收回归、许可、全仓格式、两 Webhook feature 的 workspace/all-targets 严格 Clippy、三语示例和站点浏览器均通过。限流重启使用同一隔离应用目录内的文件缓存；共享远端缓存和跨主机拓扑待相应门禁。验收应用、隔离数据库和本批站点输出已清理。
+
+已补 [Hive 真实领域消费者](../content-moderation/README.md#hive-lookup-hint)。SQLite、PostgreSQL 和 MySQL 均通过 HTTP、原生定时任务及独立 Worker。审核领域只对已登记、项目与固定配置相符的任务请求提前查单，独立验证供应商结果，并保留提示与已验签收件的类型边界。

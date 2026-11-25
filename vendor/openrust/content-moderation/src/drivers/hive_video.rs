@@ -138,7 +138,7 @@ fn submission_status(code: u16) -> ModerationResult<()> {
     http_status(code).map_err(unknown_submission)
 }
 
-fn valid_task(id: &str) -> bool {
+pub(crate) fn valid_task(id: &str) -> bool {
     Str::is_uuid(id, None) && !Str::is_uuid(id, Some(0))
 }
 

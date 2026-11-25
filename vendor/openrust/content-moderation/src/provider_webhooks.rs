@@ -120,6 +120,14 @@ const TENCENT_HEADER: &str = "x-signature";
 
 struct TencentSignature(Vec<Zeroizing<String>>);
 
+struct HiveLookupOnly;
+
+impl SignatureValidator for HiveLookupOnly {
+    fn is_valid(&self, _: &WebhookRequest, _: &WebhookConfig) -> Result<bool> {
+        Ok(false)
+    }
+}
+
 struct AliyunSignature {
     account_uid: String,
     seeds: Vec<Zeroizing<String>>,
@@ -300,5 +308,8 @@ pub(crate) fn register(container: &Container) -> Result<()> {
             )?;
             Ok(Arc::new(AliyunSignature { account_uid, seeds }))
         },
-    )
+    )?;
+    WebhookRuntime::register_signature_validator(container, "moderation-hive-hint", |_, _| {
+        Ok(Arc::new(HiveLookupOnly))
+    })
 }

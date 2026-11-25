@@ -181,6 +181,7 @@ impl ModerationStore {
                 "query_failure",
                 "assessment",
                 "confirmation_callback_id",
+                "lookup_hint_id",
             ])
             .r#where("moderation_reviews.scope_key", "=", self.scope_key.as_str())
             .r#where("moderation_checks.kind", "=", "video")
@@ -246,6 +247,7 @@ fn decode(row: Row) -> ModerationResult<VideoReview> {
             .map(assessment_record::decode)
             .transpose()?,
         confirmation_callback_id: optional_text("confirmation_callback_id")?.map(str::to_owned),
+        lookup_hint_id: optional_text("lookup_hint_id")?.map(str::to_owned),
     })
 }
 

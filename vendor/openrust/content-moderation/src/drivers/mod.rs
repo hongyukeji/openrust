@@ -19,6 +19,8 @@ pub(crate) use aliyun_video::{
     Code as AliyunVideoCode, valid_callback_seed as valid_aliyun_callback_seed,
 };
 #[cfg(feature = "webhooks")]
+pub(crate) use hive_video::valid_task as valid_hive_task;
+#[cfg(feature = "webhooks")]
 pub(crate) use sightengine_video::media_id as sightengine_media_id;
 #[cfg(feature = "webhooks")]
 pub(crate) use tencent_video::{

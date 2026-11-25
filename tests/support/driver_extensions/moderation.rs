@@ -333,6 +333,9 @@ pub(super) fn configuration(env: &Environment) -> Result<Value, ConfigError> {
         } else {
             json!([modality])
         };
+        if env.get_utf8("MODERATION_CALLBACK_FIXTURE_HIVE")? == Some("1") {
+            video["query_interval_seconds"] = json!(300);
+        }
         configuration["profile_revisions"]["hive-videos"]["original"] = video;
     }
     Ok(configuration)
@@ -863,7 +866,7 @@ fn render_review(review: VideoReview) -> Value {
         "version":review.version(), "state":format!("{:?}",review.state()), "submission":submission,
         "query_attempts":review.query_attempts(), "query_failure":review.query_failure(),
         "next_query_at":review.next_query_at(), "assessment":assessment, "decision":review.decision(),
-        "callback_receipt":review.confirmation_callback_id(),
+        "callback_receipt":review.confirmation_callback_id(), "lookup_hint":review.lookup_hint_id(),
     })
 }
 

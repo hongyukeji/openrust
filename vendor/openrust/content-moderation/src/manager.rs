@@ -103,6 +103,11 @@ impl ModerationManager {
         &self,
         pinned: &ProfileRevision,
     ) -> ModerationResult<Arc<dyn ModerationDriver>> {
+        let profile = self.config_for_revision(pinned)?;
+        self.factory(&profile)?(&profile)
+    }
+
+    pub(crate) fn config_for_revision(&self, pinned: &ProfileRevision) -> ModerationResult<Value> {
         if !pinned.supported() {
             return Err(ModerationError::ProfileRevisionChanged);
         }
@@ -112,7 +117,7 @@ impl ModerationManager {
         if &configured != pinned {
             return Err(ModerationError::ProfileRevisionChanged);
         }
-        self.factory(&profile)?(&profile)
+        Ok(profile)
     }
 
     pub fn driver(&self, name: &str) -> ModerationResult<Arc<dyn ModerationDriver>> {

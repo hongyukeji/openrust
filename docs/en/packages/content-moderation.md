@@ -76,6 +76,10 @@ For a project that Hive has enabled for the V1 Task Summary API, set `video_quer
 
 Use a separate project and credential for each video check. Set `video_model_type` to `OCR_MODERATION` for on-screen text or `TRANSCRIPTION` for speech. In either case set `video_review_severity` to 1, 2 or 3. OCR findings retain their frame time. Speech findings retain their classification severity. Transcripts and detected text stay out of the normalized assessment. [Hive OCR](https://docs.thehive.ai/reference/ocr-moderation) · [Hive speech moderation](https://docs.thehive.ai/reference/speech-moderation)
 
+Hive callback notifications can use the Webhook Client as lookup hints. Bind `HiveLookupHint` to the exact pinned Hive profile and configure the route with the `moderation-hive-hint` validator. Register it as the policy for the named `unverified_hint_receiver` and as the handler for `QueuedWebhookHint`. Use the same database for the hint queue and the inbox. With multiple instances, configure a shared cache for the route limit.
+
+Use the hint route only when the Hive project can query tasks with `video_query_api = "v1-task-summary"`. Only known task IDs from the configured project and profile can advance the scheduled lookup once. The original notification body stays out of the inbox. The Worker queries Hive with the original project credentials and applies the configured coverage rules. [Hive task callbacks](https://docs.thehive.ai/reference/submit-a-task-asynchronously)
+
 ## Alibaba Cloud video {#aliyun-video}
 
 Set `video_service` in a named `aliyun` profile. `videoDetection` supports Shanghai, Beijing and Hangzhou, and `videoDetectionByVL` supports Shanghai and Beijing. Set `media_disk` and `media_origin` for a versioned private S3 object. The driver signs a five-minute HTTPS download URL for the requested version.

@@ -9,6 +9,8 @@ mod configuration;
 mod contracts;
 mod credentials;
 mod drivers;
+#[cfg(feature = "webhooks")]
+mod hive_lookup_hint;
 mod input;
 mod manager;
 mod moderation;
@@ -35,6 +37,8 @@ pub use contracts::{
     ModerationDriver, ModerationError, ModerationFuture, ModerationResult, Operation,
 };
 pub use credentials::{CredentialReference, ModerationCredentialProvider, ModerationCredentials};
+#[cfg(feature = "webhooks")]
+pub use hive_lookup_hint::HiveLookupHint;
 pub use input::{ImageInput, StoredMedia, TaskId, TextInput, VideoInput};
 pub use manager::ModerationManager;
 pub use moderation::Moderation;

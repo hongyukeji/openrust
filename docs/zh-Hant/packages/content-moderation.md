@@ -76,6 +76,10 @@
 
 各項影片檢查使用獨立專案與憑證。畫面文字將 `video_model_type` 設為 `OCR_MODERATION`，語音設為 `TRANSCRIPTION`，兩者都用 `video_review_severity` 設定 1、2 或 3 級複核門檻。OCR 證據保存對應幀時間，語音證據保存分類嚴重度。正規化結果僅提供類別證據，原始轉錄和比對文字留在供應商回應。 [Hive OCR](https://docs.thehive.ai/reference/ocr-moderation) · [Hive 語音審核](https://docs.thehive.ai/reference/speech-moderation)
 
+Hive 回呼可以透過 Webhook Client 接收查詢提示。將 `HiveLookupHint` 綁定到固定的 Hive 設定修訂，在路由設定 `moderation-hive-hint` 驗章器，將該實例分別註冊為具名 `unverified_hint_receiver` 的策略及 `QueuedWebhookHint` 的處理器。提示佇列和收件資料庫使用同一資料庫，多實例部署使用共用快取執行入口限流。
+
+僅在 Hive 專案已開通 `video_query_api = "v1-task-summary"` 查詢時啟用此入口。已登記工作須與固定專案和設定修訂相符，最多提前一次排程查詢。回呼本文不寫入收件資料庫。Worker 用原專案憑據向 Hive 查詢並套用原有涵蓋規則。 [Hive 工作回呼](https://docs.thehive.ai/reference/submit-a-task-asynchronously)
+
 ## 阿里雲隨選影片 {#aliyun-video}
 
 在具名 `aliyun` 設定指定 `video_service`。上海、北京、杭州支援 `videoDetection`，上海和北京支援 `videoDetectionByVL`。私人版本化 S3 物件使用 `media_disk`、`media_origin`，驅動會為指定版本產生五分鐘有效的 HTTPS 簽名下載連結。

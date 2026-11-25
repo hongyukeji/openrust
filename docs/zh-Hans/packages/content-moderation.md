@@ -76,6 +76,10 @@
 
 各项视频检查使用独立项目和凭据。画面文字将 `video_model_type` 设为 `OCR_MODERATION`，语音设为 `TRANSCRIPTION`，两者都用 `video_review_severity` 设置 1、2 或 3 级复核门槛。OCR 证据保留对应帧时间，语音证据保留分类严重度。归一化结果仅提供类别证据，原始转写和匹配文字留在供应商响应。 [Hive OCR](https://docs.thehive.ai/reference/ocr-moderation) · [Hive 语音审核](https://docs.thehive.ai/reference/speech-moderation)
 
+Hive 回调可以通过 Webhook Client 接收查单提示。将 `HiveLookupHint` 绑定到固定的 Hive 配置修订，在路由设置 `moderation-hive-hint` 验签器，将该实例分别注册为具名 `unverified_hint_receiver` 的策略及 `QueuedWebhookHint` 的处理器。提示队列和收件库使用同一数据库，多实例部署使用共享缓存执行入口限流。
+
+仅在 Hive 项目已开通 `video_query_api = "v1-task-summary"` 查单时启用此入口。已登记任务必须与固定项目和配置修订相符，最多提前一次计划查单。回调原文不写入收件库。Worker 用原项目凭据向 Hive 查询并应用原有覆盖规则。 [Hive 任务回调](https://docs.thehive.ai/reference/submit-a-task-asynchronously)
+
 ## 阿里云点播视频 {#aliyun-video}
 
 在具名 `aliyun` 配置设置 `video_service`。上海、北京和杭州支持 `videoDetection`，上海和北京支持 `videoDetectionByVL`。私有版本化 S3 对象使用 `media_disk`、`media_origin`，驱动为指定版本生成五分钟有效的 HTTPS 签名下载链接。

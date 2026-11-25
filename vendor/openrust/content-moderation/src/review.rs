@@ -174,6 +174,7 @@ pub struct VideoReview {
     pub(crate) query_failure: Option<QueryFailure>,
     pub(crate) assessment: Option<Assessment>,
     pub(crate) confirmation_callback_id: Option<String>,
+    pub(crate) lookup_hint_id: Option<String>,
 }
 
 impl VideoReview {
@@ -239,6 +240,11 @@ impl VideoReview {
 
     pub fn confirmation_callback_id(&self) -> Option<&str> {
         self.confirmation_callback_id.as_deref()
+    }
+
+    /// 未认证查单提示的记录 ID。其出现仅表示请求提前查单。
+    pub fn lookup_hint_id(&self) -> Option<&str> {
+        self.lookup_hint_id.as_deref()
     }
 
     /// 成功审核的必检覆盖可交给应用继续作发布决定。

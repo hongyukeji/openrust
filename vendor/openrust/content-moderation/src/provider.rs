@@ -17,6 +17,8 @@ use crate::{
 mod callback_reference_migration;
 #[path = "../database/migrations/2026_11_26_000002_create_moderation_checks_table.rs"]
 mod checks_migration;
+#[path = "../database/migrations/2026_11_26_000007_add_moderation_lookup_hint.rs"]
+mod lookup_hint_migration;
 #[path = "../database/migrations/2026_11_26_000004_add_moderation_query_budget.rs"]
 mod query_budget_migration;
 #[path = "../database/migrations/2026_11_26_000005_add_moderation_recovery_dispatch.rs"]
@@ -86,6 +88,7 @@ openrust::compiled_migration_assets!("content-moderation";
     "2026_11_26_000004_add_moderation_query_budget.rs" => query_budget_migration,
     "2026_11_26_000005_add_moderation_recovery_dispatch.rs" => recovery_dispatch_migration,
     "2026_11_26_000006_add_moderation_callback_reference.rs" => callback_reference_migration,
+    "2026_11_26_000007_add_moderation_lookup_hint.rs" => lookup_hint_migration,
 );
 
 impl ModerationServiceProvider {

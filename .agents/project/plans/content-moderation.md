@@ -339,7 +339,7 @@ D-03 的父审核／点播子检查同库落单和幂等已通过三库验证，
 
 [腾讯云标准 VM 回调](../audits/content-moderation/README.md#tencent-video-callback)及[阿里云增强版回调](../audits/content-moderation/README.md#aliyun-video-callback)已通过三库本地协议验收，真实回调和公开 HTTPS 继续按 CM-04 核对。
 
-[Hive V2 点播提交](../audits/content-moderation/README.md#hive-video-submission)及[显式 V1 查单](../audits/content-moderation/README.md#hive-video-summary)以及[点播 OCR 与语音](../audits/content-moderation/README.md#hive-video-modalities)均已通过三库本地协议验收；跨版本账号授权、回调和父审核多模态完整性继续验收。
+[Hive V2 点播提交](../audits/content-moderation/README.md#hive-video-submission)及[显式 V1 查单](../audits/content-moderation/README.md#hive-video-summary)以及[点播 OCR 与语音](../audits/content-moderation/README.md#hive-video-modalities)均已通过三库本地协议验收。[Hive 回调的无签名查单提示](../audits/content-moderation/README.md#hive-lookup-hint)已通过真实消费者验收。跨版本账号授权、公开回调和父审核多模态完整性继续验收。
 
 闭合规则：
 
