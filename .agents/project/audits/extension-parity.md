@@ -379,6 +379,8 @@ Rust 公开 `JobPayload::new`、`value`、`decoded`、ID 与名称访问器、`t
 
 macOS 快照通过两个公开 `JobPayload` 测试，实际应用作用域验证 `prepare` 合并标签及静默，独占 Redis 8.10.3 和 SQLite 验证待处理载荷、仓储、原生 Worker 失败及 Artisan 重试。Horizon Redis 套件 21 项、三包默认 86 项、全仓格式、Horizon 全目标严格 Clippy、三语站点构建及 Horizon 页面 12 组浏览器检查通过。浏览器显式使用项目已有 Chromium 1243。证据为 `target/tmp/observability-parity/horizon-job-payload-public-{verified,docs-verified}.log`。Windows 11 ARM64 同源码通过两个公开测试和真实 Redis／SQLite 重试专项，证据为 `target/tmp/observability-windows/horizon-job-payload-public-arm64.log`。
 
+Linux 7.0.14 ARM64 用 `09ef75a91` 的变更源码和 Rust 1.94.0 通过两个公开测试及独占 Redis 8.10.3／SQLite 重试专项。Linux 夹具首次缺少 Redis 容器身份变量，补传后以同一源码复验通过。证据为 `target/tmp/observability-parity/horizon-job-payload-public-linux-verified.log`。
+
 兼容边界继续追踪。固定 PHP 的 `value` 与 `decoded` 支持独立直接写入，`set` 会重新编号数字键，空 JSON 数组可经 `set` 补入命名字段。当前 Rust 公开命名 JSON 对象的逐键修改。批量直接替换及 PHP 数字键和数组形状的对应裁决仍待完成。证据为 `target/tmp/observability-parity/horizon-job-payload-public-fields-upstream.log`。
 
 紧接着核对固定 `Tags`。PHP 8.5.12 实跑确认 `extractExplicitTags` 有标签时优先于 `modelsFor`，空结果回退到模型属性和 Eloquent 集合并去重。`targetsFor` 读取四种包装的底层对象。排队监听器先求监听器标签再求事件标签并去重，两者均收到实际事件，后续普通任务读不到该事件。Rust 当前公开 `Tags::for_payload` 调用应用级回调，`Tags::for_model` 生成单模型标签。显式优先及模型回退、各包装的标签目标、监听器和事件的组合仍须逐项补齐或记录语言适配并验证。证据为 `target/tmp/observability-parity/horizon-tags-contract-upstream.log`。 [固定 Tags](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Tags.php)
