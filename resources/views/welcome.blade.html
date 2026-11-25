@@ -388,16 +388,16 @@ THE SOFTWARE.
                         @endif
                             @csrf
                             <input type="hidden" name="redirect" value="{{ request()->getPathInfo() }}">
+                            <button type="submit" name="{{ config('app.locale_form_field') }}" value="" @if(!(request()->localeSelection()['preference'] ?? null))aria-current="true"@endif lang="{{ app()->currentLocale() }}">{{ __('welcome.follow_browser') }}</button>
                             @foreach(request()->localeSelection()['supported'] as $choice)
                             <button type="submit" name="{{ config('app.locale_form_field') }}" value="{{ $choice }}" @if((request()->localeSelection()['preference'] ?? null) === $choice)aria-current="true"@endif @if(app()->currentLocale() === $choice)data-current-language="true"@endif lang="{{ $choice }}" dir="auto">@if(Lang::hasForLocale('languages.name', $choice)){{ __('languages.name', [], $choice) }}@else{{ $choice }}@endif</button>
                             @endforeach
-                            <button type="submit" name="{{ config('app.locale_form_field') }}" value="" @if(!(request()->localeSelection()['preference'] ?? null))aria-current="true"@endif lang="{{ app()->currentLocale() }}">{{ __('welcome.follow_browser') }}</button>
                         </form>
                         @else
+                        <a href="{{ request()->getBaseUrl() }}/@if(Arr::query(Arr::except(request()->query(), [request()->localeSelection()['query_parameter']])))?{{ Arr::query(Arr::except(request()->query(), [request()->localeSelection()['query_parameter']])) }}@endif" @if(!request()->localeSelection()['from_query'])aria-current="true"@endif lang="{{ app()->currentLocale() }}">{{ __('welcome.follow_browser') }}</a>
                         @foreach(request()->localeSelection()['supported'] as $choice)
                         <a href="{{ request()->getBaseUrl() }}/?{{ Arr::query([request()->localeSelection()['query_parameter'] => $choice] + request()->query()) }}" @if(request()->localeSelection()['from_query'] && app()->currentLocale() === $choice)aria-current="true"@endif @if(app()->currentLocale() === $choice)data-current-language="true"@endif lang="{{ $choice }}" dir="auto">@if(Lang::hasForLocale('languages.name', $choice)){{ __('languages.name', [], $choice) }}@else{{ $choice }}@endif</a>
                         @endforeach
-                        <a href="{{ request()->getBaseUrl() }}/@if(Arr::query(Arr::except(request()->query(), [request()->localeSelection()['query_parameter']])))?{{ Arr::query(Arr::except(request()->query(), [request()->localeSelection()['query_parameter']])) }}@endif" @if(!request()->localeSelection()['from_query'])aria-current="true"@endif lang="{{ app()->currentLocale() }}">{{ __('welcome.follow_browser') }}</a>
                         @endif
                     </nav>
                 </details>
