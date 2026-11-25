@@ -103,22 +103,34 @@ impl Model for Order {
     }
 }
 #[test]
-fn model_tags_require_a_supported_identifier_and_include_the_rust_model_type() {
+fn model_tags_convert_scalar_keys_and_include_the_rust_model_type() {
     let mut order = Order::from_state(ModelState::default());
-    assert!(Tags::for_model(&order).is_err());
+    let model_type = std::any::type_name::<Order>();
+    assert_eq!(Tags::for_model(&order).unwrap(), format!("{model_type}:"));
     for (value, key) in [
+        (Value::Null, ""),
+        (Value::Bool(false), ""),
+        (Value::Bool(true), "1"),
         (Value::Integer(42), "42"),
         (Value::Unsigned(43), "43"),
+        (Value::Real(1.5), "1.5"),
+        (Value::Real(1.23e30), "1.23E+30"),
         (Value::Text("order-44".into()), "order-44"),
+        (Value::Bytes(b"order-45".to_vec()), "order-45"),
     ] {
         order.state_mut().set_attribute("id", value);
         assert_eq!(
             Tags::for_model(&order).unwrap(),
-            format!("{}:{key}", std::any::type_name::<Order>())
+            format!("{model_type}:{key}")
         );
     }
-    order.state_mut().set_attribute("id", Value::Bool(true));
-    assert!(Tags::for_model(&order).is_err());
+    for value in [
+        Value::Bytes(vec![0xff]),
+        Value::Json(serde_json::json!({"id": 46})),
+    ] {
+        order.state_mut().set_attribute("id", value);
+        assert!(Tags::for_model(&order).is_err());
+    }
 }
 
 fn notification() -> LongWaitDetected {

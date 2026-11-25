@@ -1627,13 +1627,24 @@ async fn redis_job_types_and_silencing_follow_native_producers_and_raw_retry() {
     }
 
     fn item_tags(payload: &Payload) -> openrust_horizon::Result<Vec<String>> {
+        use openrust::database::Value as Key;
+
         let items = payload.data()["items"].as_array().unwrap();
         let models = Collection::new(
             items
                 .iter()
                 .map(|item| {
                     let mut model = TaggedItem(ModelState::default());
-                    model.set_attribute("id", item.as_i64().unwrap());
+                    let key = match item {
+                        Value::Null => Key::Null,
+                        Value::Bool(value) => Key::Bool(*value),
+                        Value::Number(value) if value.is_i64() => {
+                            Key::Integer(value.as_i64().unwrap())
+                        }
+                        Value::Number(value) => Key::Real(value.as_f64().unwrap()),
+                        _ => panic!("unexpected fixture key {item}"),
+                    };
+                    model.set_attribute("id", key);
                     model
                 })
                 .collect(),
@@ -1690,8 +1701,11 @@ async fn redis_job_types_and_silencing_follow_native_producers_and_raw_retry() {
 
     fn dispatch(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         Box::pin(async {
-            let quiet =
-                Payload::new(std::any::type_name::<QuietJob>(), json!({"items":[4,4,9]})).unwrap();
+            let quiet = Payload::new(
+                std::any::type_name::<QuietJob>(),
+                json!({"items":[4,4,9,null,false,true,1.5]}),
+            )
+            .unwrap();
             assert!(Tags::extract_explicit_tags(&quiet).unwrap().is_empty());
             assert_eq!(
                 Tags::model_tags_for(&quiet).unwrap(),
@@ -1731,7 +1745,7 @@ async fn redis_job_types_and_silencing_follow_native_producers_and_raw_retry() {
             .await
             .unwrap();
             Queue::dispatch(
-                Payload::new("quiet.job", json!({"items":[4,4,9]})).unwrap(),
+                Payload::new("quiet.job", json!({"items":[4,4,9,null,false,true,1.5]})).unwrap(),
                 DispatchOptions {
                     queue: Some("quiet".into()),
                     ..Default::default()
@@ -1827,12 +1841,20 @@ async fn redis_job_types_and_silencing_follow_native_producers_and_raw_retry() {
         let details = jobs.find(job.get_job_id()).await.unwrap().unwrap();
         assert_eq!(details.silenced, silenced);
         assert_eq!(details.payload["redis_metadata"]["horizon"]["type"], label);
-        let model_tags = [4, 9].map(|id| format!("{}:{id}", std::any::type_name::<TaggedItem>()));
+        let model_tags = ["4", "9", "", "1", "1.5"]
+            .map(|id| format!("{}:{id}", std::any::type_name::<TaggedItem>()));
         let expected: &[&str] = match queue {
             "broadcasts" => &["event", "common", "global"],
             "mail" => &["mail", "global"],
             "notices" | "encrypted-notices" => &["notification", "global"],
-            "quiet" => &[&model_tags[0], &model_tags[1], "global"],
+            "quiet" => &[
+                &model_tags[0],
+                &model_tags[1],
+                &model_tags[2],
+                &model_tags[3],
+                &model_tags[4],
+                "global",
+            ],
             _ => &["global"],
         };
         assert_eq!(snapshot.tags(), expected);

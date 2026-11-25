@@ -2,11 +2,11 @@ use crate::{Error, Result};
 use openrust::{
     container::ServiceKey,
     contracts::container::BindingResolutionError,
-    database::eloquent::Model,
+    database::{Value, eloquent::Model},
     queue::{JobType, Payload},
     support::facades::Facade,
 };
-use std::{collections::HashMap, sync::RwLock};
+use std::{borrow::Cow, collections::HashMap, sync::RwLock};
 
 pub type TagCallback = fn(&Payload) -> Vec<String>;
 pub type ModelTagCallback = fn(&Payload) -> Result<Vec<String>>;
@@ -132,10 +132,16 @@ impl Tags {
     }
 
     pub fn for_model<M: Model>(model: &M) -> Result<String> {
-        let key = match model.get_key().ok_or(Error::InvalidRecord)? {
-            openrust::database::Value::Text(value) => value.clone(),
-            openrust::database::Value::Integer(value) => value.to_string(),
-            openrust::database::Value::Unsigned(value) => value.to_string(),
+        let key: Cow<'_, str> = match model.get_key() {
+            None | Some(Value::Null | Value::Bool(false)) => "".into(),
+            Some(Value::Bool(true)) => "1".into(),
+            Some(Value::Text(value)) => value.as_str().into(),
+            Some(Value::Integer(value)) => value.to_string().into(),
+            Some(Value::Unsigned(value)) => value.to_string().into(),
+            Some(Value::Real(value)) => openrust::support::php_float_string(*value).into(),
+            Some(Value::Bytes(value)) => std::str::from_utf8(value)
+                .map_err(|_| Error::InvalidRecord)?
+                .into(),
             _ => return Err(Error::InvalidRecord),
         };
         Ok(format!("{}:{}", std::any::type_name::<M>(), key))

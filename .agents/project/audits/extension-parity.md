@@ -527,6 +527,12 @@ Rust 复用原生载荷的底层类型和应用作用域。排队监听器额外
 
 Rust 的类型检查可确认具体类型，模型字段仍由应用回调显式声明。回调接收原生队列载荷，监听器与事件能读取同一份序列化事件。邮件原对象中未进入发送载荷的字段、旧监听器载荷缺少的事件类型，以及加密通知应用回调的解密方式仍作为载荷边界。验收夹具用现有 Crypt 读取已加密通知的发送内容并仅保存返回的标签。 [Rust Any](https://doc.rust-lang.org/std/any/trait.Any.html) [Laravel Horizon 标签](https://laravel.com/framework/docs/13.x/horizon#tags)
 
+固定 Horizon `Tags::for` 拼接实际模型类型和主键。PHP 8.5.12 用非自增模型执行固定方法，验证缺失、null、false 得到空后缀，true 得到 `1`，浮点值及普通字符串保留相应标量文本。Rust 补齐 `Tags::for_model` 的标量转换，浮点数沿用框架的 PHP 精度格式化；结构化值和无效 UTF-8 字节仍返回错误。有序标签集合维持首次出现去重。回归通过实际 HTTP 派发和 Redis 任务详情检查空后缀、布尔与浮点标签。PHP 证据为 `target/tmp/observability-parity/horizon-tags-model-keys-upstream.log`。
+
+集合去重另有差异。PHP 8.5.12 用实际 Eloquent Collection 验证，相同实例或全部状态相同的实例在 `modelsFor` 去重。同一主键但当前属性、原始属性快照或自定义属性不同的模型各自保留。false 与 null 主键也可产生两个相同标签。固定 `JobPayload::prepare` 将重复标签原样附在预置标签后。Rust 当前按标签文本去重，须继续对齐模型等价判定及载荷保留。科学计数法 `1.23E+30` 同一探针亦已确认。证据为 `target/tmp/observability-parity/horizon-tags-model-collection-upstream.log`。
+
+macOS 隔离快照的标签及通知套件 5 项通过、4 项按环境条件忽略。真实 Redis 8.10.3 上的 HTTP 派发、任务仓储和 Artisan 重试专项通过，覆盖本批空后缀、布尔和浮点主键。三语站点构建通过，Telescope 与 Horizon 各通过 12 组浏览器检查，生成页面包含文件附件入口和新主键规则。证据为 `target/tmp/observability-parity/{horizon-model-keys-macos,file-and-model-tags-docs}.log`。Horizon 所涉严格 Clippy 通过，目标平台复验继续执行。
+
 真实 HTTP 生产、Redis 8.10.3、SQLite 与 Artisan 验证普通任务、四个包装入口、应用间隔离和原始重试保留标签。macOS 通过 Horizon Redis 21 项、全仓格式、Horizon 全目标严格 Clippy 和三语页面 12 组浏览器检查。三包组合遇 32 GB 停线后由构建守卫持锁清理，同源码冷构建通过三包默认 87 项。Windows 11 ARM64 通过同源码真实 Redis 专项。证据为 `target/tmp/observability-parity/horizon-tags-target-{focused,verified,packages,docs}.log` 和 `target/tmp/observability-windows/horizon-tags-target-arm64.log`。
 
 Linux 7.0.14 ARM64 用 `5e92024f0` 的变更源码、Rust 1.94.0 和独占 Redis 8.10.3 冷构建，通过真实 HTTP 生产、SQLite／Worker 失败与 Artisan 重试的标签专项。证据为 `target/tmp/observability-parity/horizon-tags-target-linux.log`。
