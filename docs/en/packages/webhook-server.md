@@ -277,7 +277,7 @@ Register synchronous listeners for these events under `openrust_webhook_server::
 
 Register `webhook-server:recover` with the application's scheduler and run `./artisan schedule:run` on each minute tick. The command uses the delivery's Worker route and returns counts for candidates, enqueued jobs, expired or exhausted deliveries, skipped claims and dispatch failures. `--pretend` lists the count without taking a claim. Use `--database` when the delivery store selects a named connection.
 
-Recovery reserves a 60-second wake-up window before pushing to the queue. A later scan can recover an unsent or lost job after that window. A Worker claim or a committed retry outcome clears the window, so the delivery's existing lease and retry schedule control the next attempt. Each scan selects at most `--limit` records and allows up to 30 seconds for dispatch. Multiple schedulers coordinate through the shared database. Keep the configured Worker route available on each node.
+Recovery reserves a 60-second wake-up window before pushing to the queue. A later scan can recover an unsent or lost job after that window. A Worker claim or a committed retry outcome clears the window, so the delivery's existing lease and retry schedule control the next attempt. Each scan selects at most `--limit` records and allows up to 30 seconds for dispatch. Multiple schedulers coordinate through the shared database. Keep the configured Worker route available on each node. If a scheduler exits after reserving a delivery, another scheduler can recover it on a later tick once the reservation expires.
 
 ```sh
 ./artisan webhook-server:recover --scope=billing --limit=100
@@ -304,7 +304,7 @@ Replay creates an audited delivery with its own attempts and deadline. It reuses
 
 Use `DeliveryStore::endpoints()` from an authorized application operation. Create an endpoint with a name, URL and optional credential reference. Bind a call with `.use_endpoint(&endpoint)`. `replace`, `pause`, `resume` and `delete` take an expected revision so stale administrative changes are rejected.
 
-Pause retains pending deliveries and their original deadlines. Resume allows eligible deliveries to proceed. Replacing the URL or credential creates a new revision for new deliveries. Old revisions and deleted endpoints are cancelled on execution. A request already sent may still complete at the receiver, and the attempt records the observed response. Replay also checks the current endpoint approval. Existing URL calls use the application's delivery policy.
+Pause retains pending deliveries and their original deadlines. Resume allows eligible deliveries to proceed. Replacing the URL or credential creates a new revision for new deliveries. Old revisions and deleted endpoints are cancelled on execution. A request already sent may still complete at the receiver, and the attempt records the observed response. Replay also checks the current endpoint approval. Existing URL calls use the application's delivery policy. A Worker without the credential for the approved revision rejects the attempt before sending.
 
 ### Share delivery limits {#limits}
 

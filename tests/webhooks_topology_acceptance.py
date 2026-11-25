@@ -250,7 +250,7 @@ def object_storage(enabled):
         docker_command("rm", "-f", name)
 
 
-def exercise(binary, driver, url, redis, redis_url, interruption, storage_env, object_request):
+def exercise(binary, driver, url, redis, redis_url, interruption, storage_env, object_request, ownership):
     count = 1 if driver == "sqlite" else 2
     queue = "redis" if redis else "database"
     with ExitStack() as stack:
@@ -345,8 +345,11 @@ def exercise(binary, driver, url, redis, redis_url, interruption, storage_env, o
             extra = {} if marker is None else {"WEBHOOK_TEST_RECEIPT_OUTPUT": str(marker)}
             artisan(node, "queue:work", connection, f"--queue={name}", "--once", "--tries=1", **extra)
 
-        def receipt(profile):
-            identifier = sql(f"SELECT id FROM webhook_calls WHERE name='{profile}'")
+        def receipt(profile, body=None):
+            query = f"SELECT id FROM webhook_calls WHERE name='{profile}'"
+            if body is not None:
+                query += f" AND raw_body='{base64.b64encode(body).decode()}'"
+            identifier = sql(query)
             assert re.fullmatch("[0-9a-f-]{36}", identifier), identifier
             return identifier
 
@@ -522,6 +525,149 @@ def exercise(binary, driver, url, redis, redis_url, interruption, storage_env, o
             assert body == send["BODY"]
             assert hmac.compare_digest(headers["Signature"], hmac.new(send["SECRET"], body, hashlib.sha256).hexdigest())
 
+        def check_ownership():
+            if not ownership:
+                return
+            send_scope = "--scope=" + send["SCOPE"]
+            outgoing = ("queue:work", queue, "--queue=webhook-outgoing", "--once")
+            incoming = ("queue:work", "database", "--queue=webhook-receipts", "--once")
+            first_root = Path(nodes[0]["APP_BASE_PATH"])
+            second_root = Path(nodes[1]["APP_BASE_PATH"])
+
+            def identifier(key, mode="normal"):
+                _, result = post(f"outbound/{mode}/{key}", send["BODY"], 202)
+                value = result["id"]
+                assert re.fullmatch("[0-9a-f]{64}", value)
+                return value
+
+            def state(value):
+                return sql(f"SELECT state,attempts FROM webhook_deliveries WHERE id='{value}'")
+
+            @contextmanager
+            def worker(*tokens, **extra):
+                process = subprocess.Popen([str(binary), "artisan", *tokens], env=nodes[0] | extra,
+                                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                try:
+                    yield process
+                finally:
+                    if process.poll() is None:
+                        process.kill()
+                        process.wait(timeout=5)
+                    process.stdout.close()
+
+            def entered(marker, process):
+                deadline = time.monotonic() + 8
+                while not marker.exists() and process.poll() is None and time.monotonic() < deadline:
+                    time.sleep(.02)
+                assert marker.exists() and process.poll() is None, marker.name
+
+            crashed_id = identifier("scheduler-crash")
+            scheduled = {"FIXTURE_SEND_SCHEDULER_SINGLE_ITEM": "1"}
+            remaining = 60 - time.time() % 60
+            if remaining < 9:
+                time.sleep(remaining + .15)
+            crash = subprocess.run(
+                [str(binary), "artisan", "schedule:run"],
+                env=nodes[0] | scheduled | {"FIXTURE_CRASH_OUTBOUND_WAKE": "1",
+                                           "FIXTURE_SEND_EVENTS": str(first_root / "events.jsonl")},
+                capture_output=True, text=True, timeout=20,
+            )
+            assert crash.returncode == 82, (crash.returncode, crash.stdout, crash.stderr)
+            wake_at = int(sql(f"SELECT next_wake_at FROM webhook_deliveries WHERE id='{crashed_id}'"))
+            assert 0 < wake_at - time.time() <= 61
+            assert state(crashed_id) == "pending\t0" and ready_jobs(queue, "webhook-outgoing") == 0
+            assert '"candidates":' not in artisan(1, "schedule:run", **scheduled)
+            assert '"candidates":0' in artisan(1, "webhook-server:recover", send_scope, "--pretend")
+
+            artisan(1, "webhooks:fixture-endpoint", "create", "cluster-permit")
+            obsolete = identifier("endpoint-late-pause", "endpoint-cluster-permit")
+            artisan(1, "webhook-server:send", obsolete, send_scope, "--queue")
+            assert ready_jobs(queue, "webhook-outgoing") == 1
+            marker = first_root / "endpoint-policy-entered"
+            release = first_root / "endpoint-policy-release"
+            with worker(*outgoing, FIXTURE_ENDPOINT_WAIT_FOR_PERMISSION="1") as active:
+                entered(marker, active)
+                assert state(obsolete) == "running\t1"
+                replacement = artisan(1, "webhooks:fixture-endpoint", "replace", "cluster-permit", "--rotated")
+                assert "revision 2" in replacement
+                release.touch()
+                output, _ = active.communicate(timeout=12)
+                assert active.returncode == 0, output
+            assert state(obsolete) == "cancelled\t1" and "endpoint-late-pause" not in receiver.received
+            assert ready_jobs(queue, "webhook-outgoing") == 0
+            fresh_key = "topology-current-endpoint"
+            current = identifier(fresh_key, "endpoint-cluster-permit")
+            artisan(0, "webhook-server:send", current, send_scope, "--queue")
+            artisan(1, *outgoing)
+            assert state(current) == "succeeded\t1"
+            (_, headers, body), = receiver.received[fresh_key]
+            assert body == send["BODY"]
+            assert hmac.compare_digest(headers["Signature"], hmac.new(send["ROTATED"], body, hashlib.sha256).hexdigest())
+
+            missing_key = "topology-missing-endpoint-credential"
+            missing = identifier(missing_key, "endpoint-cluster-permit")
+            artisan(0, "webhook-server:send", missing, send_scope, "--queue")
+            artisan(1, *outgoing, FIXTURE_REPLAY_REVOKE_CREDENTIAL="1")
+            assert state(missing) == "failed\t1" and missing_key not in receiver.received
+            assert sql("SELECT number,outcome FROM webhook_delivery_attempts "
+                       f"WHERE delivery_id='{missing}'") == "1\trejected"
+            assert ready_jobs(queue, "webhook-outgoing") == 0
+
+            post("package/leased", b"leased-stale", 200)
+            receipt_id = receipt("leased")
+            sql("INSERT INTO jobs (queue,payload,attempts,reserved_at,available_at,created_at) "
+                "SELECT queue,payload,0,NULL,available_at,created_at FROM jobs WHERE queue='webhook-receipts'")
+            old_marker = first_root / "old-owner.json"
+            replacement_marker = second_root / "replacement-owner.json"
+            gated, old_release = first_root / "old-owner-ready", first_root / "old-owner-release"
+
+            def generations():
+                return sql("SELECT generation,outcome FROM webhook_processing_attempts "
+                           f"WHERE call_id='{receipt_id}' ORDER BY generation")
+
+            with worker(*incoming, FIXTURE_OLD_ENTERED=str(gated), FIXTURE_OLD_GATE=str(old_release),
+                        WEBHOOK_TEST_RECEIPT_OUTPUT=str(old_marker)) as old:
+                entered(gated, old)
+                assert generations() == "1\trunning"
+                # 保持旧处理函数等待，在数据库中模拟其领取过期。
+                sql(f"UPDATE webhook_calls SET processing_until=0 WHERE id='{receipt_id}'")
+                work(1, "webhook-receipts", "database", replacement_marker)
+                assert old.poll() is None and generations() == "1\texpired\n2\tcompleted"
+                old_release.touch()
+                output, _ = old.communicate(timeout=10)
+                assert old.returncode == 0, output
+            assert generations() == "1\texpired\n2\tcompleted" and not old_marker.exists()
+            assert json.loads(replacement_marker.read_text())["id"] == receipt_id
+            record = json.loads(artisan(1, "webhooks:record", receipt_id, ATTACHMENT_SCOPE))
+            assert record["exception"] is None, record["exception"]
+            remaining_job = sql("SELECT available_at,coalesce(reserved_at,0) FROM jobs "
+                                "WHERE queue='webhook-receipts'")
+            if remaining_job:
+                available_at, reserved_at = map(int, remaining_job.split("\t"))
+                wait = max(available_at, reserved_at + 8) - time.time()
+                assert wait <= 9
+                if wait > 0:
+                    time.sleep(wait + .25)
+                acknowledged = second_root / "duplicate-ack.json"
+                work(1, "webhook-receipts", "database", acknowledged)
+                assert not acknowledged.exists() and generations() == "1\texpired\n2\tcompleted"
+            assert ready_jobs("database", "webhook-receipts") == 0
+
+            wait = wake_at - time.time()
+            if wait > 0:
+                time.sleep(wait + .25)
+            output = artisan(1, "schedule:run", **scheduled)
+            assert '"candidates":1,"queued":1' in output, output
+            assert ready_jobs(queue, "webhook-outgoing") == 1
+            artisan(1, *outgoing)
+            assert state(crashed_id) == "succeeded\t1" and ready_jobs(queue, "webhook-outgoing") == 0
+            (_, headers, body), = receiver.received["scheduler-crash"]
+            assert body == send["BODY"]
+            assert hmac.compare_digest(headers["Signature"], hmac.new(send["SECRET"], body, hashlib.sha256).hexdigest())
+            print(f"{driver}/{queue}: Scheduler 退出后跨节点恢复、端点与凭据失效保护、旧领取回归隔离通过", flush=True)
+
+        check_ownership()
+
         def check_interruption():
             if database_gate is None:
                 return
@@ -640,7 +786,7 @@ def exercise(binary, driver, url, redis, redis_url, interruption, storage_env, o
         assert not receiver.unexpected
 
         post("package/leased", b"leased-crash", 200)
-        leased = receipt("leased")
+        leased = receipt("leased", b"leased-crash")
         assert ready_jobs("database", "webhook-receipts") == 1
         crashed = subprocess.run(
             [str(binary), "artisan", "queue:work", "database", "--queue=webhook-receipts", "--once"],
@@ -667,10 +813,11 @@ if __name__ == "__main__":
     use_redis = os.environ.get("OPENRUST_TEST_WEBHOOK_TOPOLOGY_REDIS") == "1"
     interruption = os.environ.get("OPENRUST_TEST_WEBHOOK_TOPOLOGY_OUTAGE") == "1"
     use_storage = os.environ.get("OPENRUST_TEST_WEBHOOK_TOPOLOGY_S3") == "1"
-    assert database != "sqlite" or not (use_redis or interruption or use_storage)
+    ownership = os.environ.get("OPENRUST_TEST_WEBHOOK_TOPOLOGY_OWNERSHIP") == "1"
+    assert database != "sqlite" or not (use_redis or interruption or use_storage or ownership)
     with redis_backend(use_redis) as (container, endpoint, version), \
             object_storage(use_storage) as (storage_env, object_request):
         if version:
             print(version, flush=True)
         exercise(routes["args"].binary.resolve(), database, database_url, container, endpoint,
-                 interruption, storage_env, object_request)
+                 interruption, storage_env, object_request, ownership)

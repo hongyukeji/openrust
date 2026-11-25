@@ -178,7 +178,7 @@ Run `./artisan migrate` and register the handler with `QueuedWebhookJob::registe
 
 An active lease permits one Worker to enter the handler. A completed receipt is acknowledged on redelivery without another handler call. A handler can explicitly release its job for another attempt. After process exit, a reserved task can be reclaimed when both the queue reservation and the receipt lease expire. Make external effects idempotent using the receipt ID because a process can exit after an effect has occurred and before marking the receipt complete.
 
-The database records each lease attempt by receipt and generation. A completed, released, deferred, failed or stopped attempt records its outcome with the corresponding receipt change. If another Worker reclaims an expired lease after a crash, the previous attempt is marked expired. Attempt records contain timestamps and status and are retained with the receipt.
+The database records each lease attempt by receipt and generation. A completed, released, deferred, failed or stopped attempt records its outcome with the corresponding receipt change. If another Worker reclaims an expired lease after a crash, the previous attempt is marked expired. Attempt records contain timestamps and status and are retained with the receipt. Only the current lease holder can store the result. A delayed Worker from an earlier generation cannot replace a later completion or its diagnostic state.
 
 ### Deduplicate a verified event {#verified-event-deduplication}
 
