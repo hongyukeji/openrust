@@ -66,7 +66,6 @@ struct ConfiguredQueue {
     after_commit: bool,
     capture_context_on_dispatch: bool,
     synchronous: bool,
-    failover: bool,
     default_queue: String,
     batch_backend: BatchBackend,
 }
@@ -74,6 +73,7 @@ struct ConfiguredQueue {
 enum BatchBackend {
     Database(Connection),
     Redis(Arc<RedisQueue>),
+    Failover(Arc<super::failover_queue::FailoverQueue>),
     Beanstalkd,
     Sqs(Arc<super::sqs_queue::SqsQueue>),
     Unsupported,
@@ -381,7 +381,8 @@ impl QueueManager {
     /// 判断具名连接是否直接交付给 Worker。内建 failover 可能转入仅进程内的连接。
     pub fn connection_is_direct_worker_queue(&self, name: &str) -> QueueResult<bool> {
         let connection = self.resolve(Some(name))?;
-        Ok(!connection.synchronous && !connection.failover)
+        Ok(!connection.synchronous
+            && !matches!(&connection.batch_backend, BatchBackend::Failover(_)))
     }
 
     pub fn without_interruption_polling(&self) {
@@ -592,7 +593,7 @@ impl QueueManager {
         &self,
         mut payload: Payload,
         options: DispatchOptions,
-        transaction: Option<&mut Transaction>,
+        mut transaction: Option<&mut Transaction>,
         require_database_transaction: bool,
     ) -> QueueResult<DispatchResult> {
         let configured = self.resolve(options.connection.as_deref())?;
@@ -604,6 +605,19 @@ impl QueueManager {
             )
         {
             return Err(QueueError::InvalidConfiguration);
+        }
+        if let BatchBackend::Failover(failover) = &configured.batch_backend
+            && let Some(transaction) = transaction.as_deref_mut()
+            && transaction.transaction_level() != 0
+        {
+            // 由实际候选连接处理事务提交登记。登记成功后的写入错误交回事务。
+            let mut options = options;
+            if configured.after_commit {
+                options.after_commit.get_or_insert(true);
+            }
+            return failover
+                .dispatch_in_transaction(&payload, &options, transaction)
+                .await;
         }
         if configured.capture_context_on_dispatch {
             self.capture_context(&mut payload)?;
@@ -1268,7 +1282,6 @@ impl QueueManager {
                 after_commit: settings.after_commit,
                 capture_context_on_dispatch: true,
                 synchronous: settings.driver == "sync",
-                failover: false,
                 batch_backend: BatchBackend::Unsupported,
             });
             let mut connections = self
@@ -1294,7 +1307,6 @@ impl QueueManager {
                 settings.driver.as_str(),
                 "sync" | "null" | "deferred" | "background"
             ),
-            failover: settings.driver == "failover",
             default_queue: settings.queue.clone().unwrap_or_else(|| "default".into()),
             batch_backend,
         });
@@ -1375,15 +1387,15 @@ impl QueueManager {
                     BatchBackend::Unsupported,
                 )
             }
-            "failover" => (
-                Arc::new(super::failover_queue::FailoverQueue::new(
+            "failover" => {
+                let failover = Arc::new(super::failover_queue::FailoverQueue::new(
                     name,
                     queue,
                     settings.connections.clone().unwrap_or_default(),
                     registry,
-                )?),
-                BatchBackend::Unsupported,
-            ),
+                )?);
+                (failover.clone(), BatchBackend::Failover(failover))
+            }
             "sync" => (
                 Arc::new(SyncQueue {
                     name: name.into(),
@@ -1576,6 +1588,6 @@ async fn dispatch_unique(
     result
 }
 
-fn dispatch_result(id: Option<String>) -> DispatchResult {
+pub(super) fn dispatch_result(id: Option<String>) -> DispatchResult {
     id.map_or(DispatchResult::Completed, DispatchResult::Queued)
 }

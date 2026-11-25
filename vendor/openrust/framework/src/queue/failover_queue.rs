@@ -9,7 +9,10 @@ use crate::{
     database::Transaction,
 };
 
-use super::{Delay, Payload, Queue, QueueError, QueueFuture, QueueResult, events::QueueFailedOver};
+use super::{
+    Delay, DispatchOptions, DispatchResult, Payload, Queue, QueueError, QueueFuture, QueueResult,
+    events::QueueFailedOver, queue_manager::dispatch_result,
+};
 
 tokio::task_local! {
     static ACTIVE: Vec<String>;
@@ -21,6 +24,14 @@ pub(super) struct FailoverQueue {
     connections: Vec<String>,
     registry: Arc<Queue>,
     failing: Mutex<HashSet<String>>,
+}
+
+enum Attempt<'a> {
+    Transport {
+        queue: Option<&'a str>,
+        delay: Option<Delay>,
+    },
+    Dispatch(&'a DispatchOptions),
 }
 
 impl FailoverQueue {
@@ -61,26 +72,62 @@ impl FailoverQueue {
         payload: &Payload,
         queue: Option<&str>,
         delay: Option<Delay>,
-        mut transaction: Option<&mut Transaction>,
+        transaction: Option<&mut Transaction>,
     ) -> QueueResult<Option<String>> {
+        match self
+            .attempt(payload, Attempt::Transport { queue, delay }, transaction)
+            .await?
+        {
+            DispatchResult::Queued(id) => Ok(Some(id)),
+            _ => Ok(None),
+        }
+    }
+
+    pub(super) fn dispatch_in_transaction<'a>(
+        &'a self,
+        payload: &'a Payload,
+        options: &'a DispatchOptions,
+        transaction: &'a mut Transaction,
+    ) -> QueueFuture<'a, QueueResult<DispatchResult>> {
+        Box::pin(self.attempt(payload, Attempt::Dispatch(options), Some(transaction)))
+    }
+
+    async fn attempt(
+        &self,
+        payload: &Payload,
+        action: Attempt<'_>,
+        mut transaction: Option<&mut Transaction>,
+    ) -> QueueResult<DispatchResult> {
         self.scoped(async {
             let manager = self.registry.manager()?;
             let mut failed = HashSet::new();
             let mut result = Err(QueueError::InvalidConfiguration);
             for connection in &self.connections {
-                result = match manager.connection(Some(connection)) {
-                    Ok(target) => {
-                        if let Some(transaction) = transaction.as_deref_mut() {
-                            target
-                                .push_in_transaction(payload, queue, delay, transaction)
-                                .await
-                        } else if let Some(delay) = delay {
-                            target.later(delay, payload, queue).await
-                        } else {
-                            target.push(payload, queue).await
+                result = match action {
+                    Attempt::Dispatch(options) => {
+                        let mut options = options.clone();
+                        options.connection = Some(connection.clone());
+                        manager
+                            .dispatch(payload.clone(), options, transaction.as_deref_mut())
+                            .await
+                    }
+                    Attempt::Transport { queue, delay } => {
+                        match manager.connection(Some(connection)) {
+                            Ok(target) => {
+                                let result = if let Some(transaction) = transaction.as_deref_mut() {
+                                    target
+                                        .push_in_transaction(payload, queue, delay, transaction)
+                                        .await
+                                } else if let Some(delay) = delay {
+                                    target.later(delay, payload, queue).await
+                                } else {
+                                    target.push(payload, queue).await
+                                };
+                                result.map(dispatch_result)
+                            }
+                            Err(error) => Err(error),
                         }
                     }
-                    Err(error) => Err(error),
                 };
                 let Err(error) = &result else { break };
                 failed.insert(connection.clone());

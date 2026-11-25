@@ -359,7 +359,7 @@ Rust Horizon 在应用自己的 Redis 写入入口生成观测元数据。即时
 
 固定 Horizon 的 `later` 在交给事务延后逻辑之前生成载荷。PHP 8.5.12 探针执行公开 `push`、`later`，经固定核心 `enqueueUsing` 登记到受控事务回调，确认等待提交时即时投递标签调用为零，延迟投递已调用一次，延迟回调捕获写入前的标签和 `pushedAt`。旧失败载荷缺少保存的标签元数据时，Rust 在重投递时使用应用登记的标签回调生成一次。对照证据为 `target/tmp/observability-parity/horizon-delayed-commit-upstream.log`。 [固定延迟入队路径](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/RedisQueue.php)
 
-Rust 原生 Redis 在事务中登记延迟投递时先保存观测元数据，提交回调消费这一份数据。即时投递在提交回调中求值。两种方式都在该回调内写入 Redis 和派发公开入队事件。SQLite 回滚测试确认延迟标签回调已执行，但 Redis 和任务仓储均无新增投递；提交测试改变静默配置，延迟任务仍使用先前的判定，即时任务使用提交时的判定。延迟提交路径已在 macOS 通过真实 Redis 测试，Horizon Redis 20 项、三包默认 84 项、严格 Clippy、全仓格式、三语内容构建和 12 组文档浏览器检查通过。证据为 `target/tmp/observability-parity/horizon-delayed-commit-{verified,docs}.log`。包装后的 Redis（例如 failover）及其他提交驱动的同类组合仍待核对。
+Rust 原生 Redis 在事务中登记延迟投递时先保存观测元数据，提交回调消费这一份数据。即时投递在提交回调中求值。两种方式都在该回调内写入 Redis 和派发公开入队事件。SQLite 回滚测试确认延迟标签回调已执行，但 Redis 和任务仓储均无新增投递；提交测试改变静默配置，延迟任务仍使用先前的判定，即时任务使用提交时的判定。延迟提交路径已在 macOS 通过真实 Redis 测试，Horizon Redis 20 项、三包默认 84 项、严格 Clippy、全仓格式、三语内容构建和 12 组文档浏览器检查通过。证据为 `target/tmp/observability-parity/horizon-delayed-commit-{verified,docs}.log`。其他事务驱动的同类组合仍待核对。
 
 Linux ARM64 与 Windows 11 ARM64 用同一事务时机代码和 Rust 1.94.0，分别在独占 Redis 8.10.3 上通过该真实 SQLite 提交／回滚专项。证据为 `target/tmp/observability-parity/horizon-delayed-commit-linux.log` 与 `target/tmp/observability-windows/horizon-delayed-commit-arm64.log`。
 
@@ -375,7 +375,11 @@ macOS 冷构建在真实 Redis 8.10.3 验证广播、带自定义名称的监听
 
 Linux 7.0.14 ARM64 用同一源码快照、Rust 1.94.0 和独占 Redis 8.10.3 冷构建后通过 15 项 Horizon Redis Runtime。证据为 `target/tmp/observability-parity/horizon-silenced-linux.log`。
 
-固定 Laravel `FailoverQueue::later` 在调用目标、登记事务回调时处理 failover。PHP 8.5.12 探针使用两个固定 Horizon RedisQueue 子类和受控事务回调验证，首个准备成功的连接在提交前确定并只生成一次标签。只有登记前的同步失败才会选择下一连接，已登记回调在提交后写入失败时异常交回事务，第二连接不会被调用。Rust 当前仍在提交回调中执行 failover。后续须核对提交前的目标选择、准备或注册错误时的回退以及提交后错误传播，避免提前运行候选连接的标签钩子。对照日志为 `target/tmp/observability-parity/horizon-failover-commit-upstream.log`。 [固定 FailoverQueue](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/FailoverQueue.php)
+固定 Laravel `FailoverQueue::later` 在调用目标、登记事务回调时处理 failover。PHP 8.5.12 探针使用两个固定 Horizon RedisQueue 子类和受控事务回调验证，首个准备成功的连接在提交前确定并只生成一次标签。只有登记前的同步失败才会选择下一连接，已登记回调在提交后写入失败时异常交回事务，第二连接不会被调用。对照日志为 `target/tmp/observability-parity/horizon-failover-commit-upstream.log`。 [固定 FailoverQueue](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/FailoverQueue.php)
+
+Rust 的活跃事务派发由 failover 逐个委派给实际候选连接。首个接收任务的连接使用现有事务机制，同时保留派发级和包装连接的提交设置。连接解析及提交回调登记期间发生的错误沿用现有 failover 事件和后续尝试。已选连接的写入在提交回调中执行，错误返回 `DatabaseError::AfterCommit`。以独占 Redis 8.10.3 的两个逻辑库与 SQLite 验证回滚、选定后失败、首连接解析失败并使用备用连接的 `after_commit` 默认值、标签计数和实际连接名。
+
+macOS 快照通过 Horizon Redis 21 项、三包默认 84 项、严格 Clippy、全仓格式、三语文档与 12 组浏览器检查。Windows 11 ARM64 用同一源码快照和独占 Redis 8.10.3 通过 failover 专项。证据为 `target/tmp/observability-parity/horizon-failover-commit-{verified,docs}.log` 与 `target/tmp/observability-windows/horizon-failover-commit-arm64.log`。
 
 基于 `eb189cfb1` 加已提交 Redis 事件与本批文件的 macOS 隔离快照，独占 Redis 8.10.3 和 SQLite 验证 `JobPending`、`JobPushed`、保留和结算读取相同的标签及静默结果。原生 Artisan 验证标签回调仅在入队执行一次、成功完成后保留原静默结果、Horizon 重试保留标签及原投递引用并重算截止时间。授权 HTTP 验证旧失败任务的重投递和标签回退。Horizon Redis 18 项与三包默认 84 项、无 Horizon 的框架 Redis Worker、真实 Artisan 进程矩阵、全仓格式、Horizon 全目标严格 Clippy、三语站点和 12 组浏览器检查通过。新载荷行为的 Linux、Windows 和完整发布组合待验。验证日志位于 `target/tmp/observability-parity/horizon-payload-{verified,core,process,docs}.log`。
 

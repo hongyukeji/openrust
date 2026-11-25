@@ -3009,3 +3009,160 @@ async fn redis_chain_publishes_successor_events_at_atomic_queue_boundary() {
     assert_eq!(rows[before].name, "JobPending");
     assert_eq!(rows[before].queue, "lost");
 }
+
+#[tokio::test]
+#[ignore = "requires dedicated Redis 8 acceptance wrapper"]
+async fn failover_selects_deferred_target_before_commit_and_surfaces_its_write_error() {
+    use openrust::{
+        events::Dispatcher,
+        queue::{
+            Delay, DispatchOptions, DispatchResult, Payload, QueueManager, events::QueueFailedOver,
+        },
+    };
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    static CALLS: AtomicUsize = AtomicUsize::new(0);
+
+    fn fixture_config(
+        base: &Path,
+        env: &Environment,
+    ) -> Result<BTreeMap<String, Value>, ConfigError> {
+        let mut settings = transport_config(base, env)?;
+        let endpoint = url();
+        let server = endpoint.strip_suffix("/0").unwrap();
+        settings.get_mut("database").unwrap()["redis"]["secondary"] =
+            json!({"url": format!("{server}/1")});
+        let connections = &mut settings.get_mut("queue").unwrap()["connections"];
+        connections["backup"] = json!({
+            "driver":"redis", "connection":"secondary", "queue":"default", "retry_after":90, "after_commit":true
+        });
+        connections["fallback"] = json!({
+            "driver":"failover", "connections":["redis", "backup"]
+        });
+        connections["missing-primary"] = json!({
+            "driver":"failover", "connections":["absent", "backup"]
+        });
+        Ok(settings)
+    }
+
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(fixture_config)
+            .with_providers(vec![Box::new(HorizonServiceProvider)])
+            .with_routing(Routing::default().api(|| {
+                Horizon::tag(|_| {
+                    vec![format!("snapshot-{}", CALLS.fetch_add(1, Ordering::SeqCst))]
+                })
+                .unwrap();
+                Ok(())
+            }))
+    })
+    .unwrap();
+    app.boot().await.unwrap();
+
+    let manager = app.app().make::<QueueManager>().await.unwrap();
+    let redis = app
+        .app()
+        .make::<openrust::redis::RedisManager>()
+        .await
+        .unwrap();
+    let primary = redis.connection(None).unwrap();
+    let backup = manager.connection(Some("backup")).unwrap();
+    let database = app
+        .app()
+        .make::<openrust::database::DatabaseManager>()
+        .await
+        .unwrap()
+        .connection(None)
+        .unwrap();
+    let repository = app.app().make::<Repository>().await.unwrap();
+    let jobs = repository.jobs();
+    let dispatcher = app.app().make::<Dispatcher>().await.unwrap();
+    let events = dispatcher.fake(&[QueueFailedOver::NAME]);
+    let payload = Payload::new("failover-commit-probe", json!({})).unwrap();
+    let options = DispatchOptions {
+        connection: Some("fallback".into()),
+        queue: Some("commit-failover".into()),
+        delay: Some(Delay::For(Duration::from_secs(90))),
+        after_commit: Some(true),
+    };
+
+    let mut transaction = database.begin_transaction().await.unwrap();
+    assert_eq!(
+        manager
+            .dispatch(payload.clone(), options.clone(), Some(&mut transaction))
+            .await
+            .unwrap(),
+        DispatchResult::Deferred,
+    );
+    assert_eq!(CALLS.load(Ordering::SeqCst), 1);
+    assert!(jobs.get_pending(None).await.unwrap().is_empty());
+    transaction.roll_back(None).await.unwrap();
+    assert_eq!(CALLS.load(Ordering::SeqCst), 1);
+
+    primary
+        .set("queues:commit-failover:delayed", b"wrong redis key type")
+        .await
+        .unwrap();
+    let mut transaction = database.begin_transaction().await.unwrap();
+    assert_eq!(
+        manager
+            .dispatch(payload.clone(), options.clone(), Some(&mut transaction))
+            .await
+            .unwrap(),
+        DispatchResult::Deferred,
+    );
+    assert_eq!(CALLS.load(Ordering::SeqCst), 2);
+    assert!(jobs.get_pending(None).await.unwrap().is_empty());
+    assert!(matches!(
+        transaction.commit().await.unwrap_err(),
+        openrust::database::DatabaseError::AfterCommit { .. },
+    ));
+    assert_eq!(CALLS.load(Ordering::SeqCst), 2);
+    assert_eq!(
+        backup
+            .metrics(Some("commit-failover"))
+            .await
+            .unwrap()
+            .delayed,
+        Some(0)
+    );
+    assert!(events.dispatched(QueueFailedOver::NAME).is_empty());
+
+    let mut transaction = database.begin_transaction().await.unwrap();
+    assert_eq!(
+        manager
+            .dispatch(
+                payload,
+                DispatchOptions {
+                    connection: Some("missing-primary".into()),
+                    queue: Some("second-choice".into()),
+                    after_commit: None,
+                    ..options
+                },
+                Some(&mut transaction)
+            )
+            .await
+            .unwrap(),
+        DispatchResult::Deferred,
+    );
+    assert_eq!(CALLS.load(Ordering::SeqCst), 3);
+    assert_eq!(events.dispatched(QueueFailedOver::NAME).len(), 1);
+    assert_eq!(
+        backup.metrics(Some("second-choice")).await.unwrap().delayed,
+        Some(0)
+    );
+    transaction.commit().await.unwrap();
+    assert_eq!(CALLS.load(Ordering::SeqCst), 3);
+    assert_eq!(
+        backup.metrics(Some("second-choice")).await.unwrap().delayed,
+        Some(1)
+    );
+    let rows = jobs.get_pending(None).await.unwrap();
+    let retried = rows
+        .iter()
+        .find(|job| job.record.queue == "second-choice")
+        .unwrap();
+    assert_eq!(retried.record.connection, "backup");
+    assert_eq!(retried.tags, ["snapshot-2"]);
+}

@@ -65,6 +65,8 @@ Redis 將保留工作放回延遲佇列後派發 `JobReleased::NAME`。`delay` �
 
 原生 Redis 投遞延後至資料庫交易提交時，具有延遲的工作會在發起投遞時產生 Horizon 中繼資料，即時工作則在提交回呼中產生。兩者的 `JobPending` 和 `JobPushed` 均在提交回呼中於寫入 Redis 的前後派發。交易復原時，佇列和面板都不會出現新投遞。
 
+在交易內透過 failover 投遞時，由首個接受工作的連線處理其交易設定。接受前發生錯誤時可以嘗試下一個連線。一旦所選連線登記了提交回呼，該回呼的錯誤就交給交易呼叫端處理。
+
 透過 `JobPayload::from_payload` 讀取 Redis 工作上的 Horizon 中繼資料。Horizon 在寫入前計算標籤和靜默狀態，將結果、以十進位秒表示的投遞時間，以及加入佇列時確定的 `job_type()` 一併儲存。類型序列化為 `job`、`broadcast`、`event`、`mail` 或 `notification`。Horizon 重試沿用已儲存的標籤，清除靜默標誌，透過 `retry_of()` 提供原投遞 ID，新投遞的觀測類型為 `job`。原投遞包含重試截止時間和投遞時間時，新投遞沿用相同的重試時長。舊承載資料可能缺少 Horizon 中繼資料，也可能傳回預設類型 `job`。
 
 在 `horizon.silenced` 中設定廣播事件、監聽器、郵件或通知的底層 Rust 完整類型名稱。一般工作也可使用已註冊的佇列工作名稱。透過程式碼設定靜默時，為類型實作 `openrust_horizon::Silenced`，並在應用程式啟動時呼叫 `Horizon::silence::<YourType>()`。註冊只在目前的應用程式生效。
