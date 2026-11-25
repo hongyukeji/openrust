@@ -30,6 +30,7 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
     Route::get("/gate-callers", gate_callers)?;
     Route::get("/query-callers", query_callers)?;
     Route::get("/page-callers", page_callers)?;
+    Route::get("/model-write-callers", model_write_callers)?;
     for path in ["/json", "/plain", "/boundary", "/large", "/opaque"] {
         Route::get(path, response_handler)?;
     }
@@ -41,7 +42,9 @@ struct PageProbe(openrust::database::eloquent::ModelState);
 impl openrust::database::eloquent::Model for PageProbe {
     fn metadata() -> &'static openrust::database::eloquent::ModelMetadata {
         use openrust::database::eloquent::ModelMetadata;
-        static META: ModelMetadata = ModelMetadata::new("query_page_probe").timestamps(None, None);
+        static META: ModelMetadata = ModelMetadata::new("query_page_probe")
+            .timestamps(None, None)
+            .fillable(&["owner_id"]);
         &META
     }
 
@@ -118,6 +121,51 @@ fn page_callers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
     })
 }
 
+fn model_write_callers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    use openrust::database::eloquent::{Attributes, Model as _};
+
+    Box::pin(async {
+        let connection = Db::connection(None).unwrap();
+        connection
+            .get_schema_builder()
+            .create("query_page_probe", |table| {
+                table.id();
+                table.string("owner_id", None);
+            })
+            .await
+            .unwrap();
+        let attributes = |owner: &str| Attributes::from([("owner_id".into(), owner.into())]);
+        let first = attributes("first");
+        let create = line!() + 1;
+        let mut model = PageProbe::create(first).await.unwrap();
+        let second = attributes("second");
+        let quiet = line!() + 1;
+        assert!(model.update_quietly(second).await.unwrap());
+        let third = attributes("third");
+        let mut tx = Db::begin_transaction().await.unwrap();
+        let transaction = line!() + 1;
+        assert!(model.update_in_transaction(third, &mut tx).await.unwrap());
+        tx.commit().await.unwrap();
+        let query = PageProbe::query().unwrap();
+        let fourth = attributes("fourth");
+        let builder = line!() + 1;
+        let builder_record = query.create(fourth).await.unwrap();
+        assert!(builder_record.get_key().is_some());
+        let deleted = line!() + 1;
+        assert!(model.delete().await.unwrap());
+        Response::json(
+            http::StatusCode::OK,
+            json!([
+                [create, 1],
+                [quiet, 1],
+                [transaction, 1],
+                [builder, 1],
+                [deleted, 1]
+            ]),
+        )
+    })
+}
+
 fn query_callers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     use futures_util::TryStreamExt as _;
     Box::pin(async {
@@ -158,6 +206,19 @@ fn query_callers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
 
 #[tokio::test]
 async fn query_watcher_attributes_pagination_queries_to_the_public_entry() {
+    assert_query_source_lines("/api/page-callers", &["select "]).await;
+}
+
+#[tokio::test]
+async fn query_watcher_attributes_model_writes_to_the_public_entry() {
+    assert_query_source_lines(
+        "/api/model-write-callers",
+        &["insert ", "update ", "delete "],
+    )
+    .await;
+}
+
+async fn assert_query_source_lines(path: &str, statements: &[&str]) {
     let mut app = application();
     app.artisan(["migrate", "--force"])
         .await
@@ -172,7 +233,7 @@ async fn query_watcher_attributes_pagination_queries_to_the_public_entry() {
     .await
     .unwrap();
 
-    let response = app.get("/api/page-callers").await.unwrap();
+    let response = app.get(path).await.unwrap();
     response.assert_ok();
     let expected = response.json::<Vec<(u64, usize)>>().unwrap();
     let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
@@ -183,7 +244,7 @@ async fn query_watcher_attributes_pagination_queries_to_the_public_entry() {
     let mut actual = std::collections::BTreeMap::new();
     for entry in entries.iter().filter(|entry| {
         let sql = entry.content["sql"].as_str().unwrap();
-        sql.starts_with("select ") && sql.contains("query_page_probe")
+        statements.iter().any(|verb| sql.starts_with(verb)) && sql.contains("query_page_probe")
     }) {
         assert_eq!(entry.content["file"], file!());
         *actual

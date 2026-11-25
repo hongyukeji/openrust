@@ -1,7 +1,7 @@
 use std::{borrow::Cow, future::Future};
 
 use crate::{
-    database::{Connection, DatabaseError, DatabaseResult, Db, Value},
+    database::{Connection, DatabaseError, DatabaseResult, Db, Value, events::with_query_caller},
     http::{
         HttpError, HttpFuture,
         resources::json::{JsonResource, UseResource},
@@ -444,8 +444,11 @@ pub trait Model: Sized + Send + Sync + 'static {
         persistence::refresh(self, Some(transaction))
     }
 
+    #[track_caller]
     fn create(attributes: Attributes) -> impl Future<Output = DatabaseResult<Self>> + Send {
-        async { Self::query()?.create(attributes).await }
+        with_query_caller(std::panic::Location::caller(), async move {
+            Self::query()?.create(attributes).await
+        })
     }
 
     fn new_instance(attributes: Attributes) -> DatabaseResult<Self> {
@@ -1600,10 +1603,14 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     /// Saves this model and its already loaded relationship graph.
+    #[track_caller]
     fn push(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
-        async { super::relations::PushContext::default().push(self).await }
+        with_query_caller(std::panic::Location::caller(), async move {
+            super::relations::PushContext::default().push(self).await
+        })
     }
 
+    #[track_caller]
     fn push_quietly(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
         Self::without_events(self.push())
     }
@@ -1615,22 +1622,27 @@ pub trait Model: Sized + Send + Sync + 'static {
         });
     }
 
+    #[track_caller]
     fn save_quietly(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
         Self::without_events(self.save())
     }
 
+    #[track_caller]
     fn delete_quietly(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
         Self::without_events(self.delete())
     }
 
+    #[track_caller]
     fn force_delete_quietly(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
         Self::without_events(self.force_delete())
     }
 
+    #[track_caller]
     fn restore_quietly(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
         Self::without_events(self.restore())
     }
 
+    #[track_caller]
     fn increment(
         &mut self,
         column: &str,
@@ -1640,14 +1652,19 @@ pub trait Model: Sized + Send + Sync + 'static {
         self.increment_each(Attributes::from([(column.into(), amount.into())]), extra)
     }
 
+    #[track_caller]
     fn increment_each(
         &mut self,
         columns: Attributes,
         extra: Attributes,
     ) -> impl Future<Output = DatabaseResult<u64>> + Send {
-        persistence::change_counters(self, columns, extra, false)
+        with_query_caller(
+            std::panic::Location::caller(),
+            persistence::change_counters(self, columns, extra, false),
+        )
     }
 
+    #[track_caller]
     fn decrement(
         &mut self,
         column: &str,
@@ -1657,14 +1674,19 @@ pub trait Model: Sized + Send + Sync + 'static {
         self.decrement_each(Attributes::from([(column.into(), amount.into())]), extra)
     }
 
+    #[track_caller]
     fn decrement_each(
         &mut self,
         columns: Attributes,
         extra: Attributes,
     ) -> impl Future<Output = DatabaseResult<u64>> + Send {
-        persistence::change_counters(self, columns, extra, true)
+        with_query_caller(
+            std::panic::Location::caller(),
+            persistence::change_counters(self, columns, extra, true),
+        )
     }
 
+    #[track_caller]
     fn increment_quietly(
         &mut self,
         column: &str,
@@ -1674,6 +1696,7 @@ pub trait Model: Sized + Send + Sync + 'static {
         Self::without_events(self.increment(column, amount, extra))
     }
 
+    #[track_caller]
     fn increment_each_quietly(
         &mut self,
         columns: Attributes,
@@ -1682,6 +1705,7 @@ pub trait Model: Sized + Send + Sync + 'static {
         Self::without_events(self.increment_each(columns, extra))
     }
 
+    #[track_caller]
     fn decrement_quietly(
         &mut self,
         column: &str,
@@ -1691,6 +1715,7 @@ pub trait Model: Sized + Send + Sync + 'static {
         Self::without_events(self.decrement(column, amount, extra))
     }
 
+    #[track_caller]
     fn decrement_each_quietly(
         &mut self,
         columns: Attributes,
@@ -1699,106 +1724,160 @@ pub trait Model: Sized + Send + Sync + 'static {
         Self::without_events(self.decrement_each(columns, extra))
     }
 
+    #[track_caller]
     fn save(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
-        persistence::save(self, None)
+        with_query_caller(
+            std::panic::Location::caller(),
+            persistence::save(self, None),
+        )
     }
 
+    #[track_caller]
     fn update(
         &mut self,
         attributes: Attributes,
     ) -> impl Future<Output = DatabaseResult<bool>> + Send {
-        persistence::update(self, attributes, None)
+        with_query_caller(
+            std::panic::Location::caller(),
+            persistence::update(self, attributes, None),
+        )
     }
 
     /// 在事务内保存；事件取消返回 false，错误或取消时回滚数据库写入。
+    #[track_caller]
     fn save_or_fail(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
-        persistence::save_or_fail(self)
+        with_query_caller(
+            std::panic::Location::caller(),
+            persistence::save_or_fail(self),
+        )
     }
 
+    #[track_caller]
     fn update_or_fail(
         &mut self,
         attributes: Attributes,
     ) -> impl Future<Output = DatabaseResult<bool>> + Send {
-        async move {
+        with_query_caller(std::panic::Location::caller(), async move {
             if !self.state().exists {
                 return Ok(false);
             }
             self.fill_async(attributes).await?;
             self.save_or_fail().await
-        }
+        })
     }
 
+    #[track_caller]
     fn update_quietly(
         &mut self,
         attributes: Attributes,
     ) -> impl Future<Output = DatabaseResult<bool>> + Send {
-        async move {
+        with_query_caller(std::panic::Location::caller(), async move {
             if !self.state().exists {
                 return Ok(false);
             }
             self.fill_async(attributes).await?;
             self.save_quietly().await
-        }
+        })
     }
 
+    #[track_caller]
     fn delete_or_fail(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
-        persistence::delete_or_fail(self)
+        with_query_caller(
+            std::panic::Location::caller(),
+            persistence::delete_or_fail(self),
+        )
     }
 
     /// 插入新模型并忽略指定唯一约束冲突，支持范围沿用驱动的 RETURNING 能力。
+    #[track_caller]
     fn save_or_ignore<'a>(
         &'a mut self,
         unique_by: Option<&'a [&'a str]>,
     ) -> impl Future<Output = DatabaseResult<bool>> + Send + 'a {
-        persistence::save_or_ignore(self, unique_by)
+        with_query_caller(
+            std::panic::Location::caller(),
+            persistence::save_or_ignore(self, unique_by),
+        )
     }
 
+    #[track_caller]
     fn delete(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
-        persistence::delete(self, false, None)
+        with_query_caller(
+            std::panic::Location::caller(),
+            persistence::delete(self, false, None),
+        )
     }
 
+    #[track_caller]
     fn force_delete(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
-        persistence::delete(self, true, None)
+        with_query_caller(
+            std::panic::Location::caller(),
+            persistence::delete(self, true, None),
+        )
     }
 
+    #[track_caller]
     fn restore(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
-        persistence::restore(self, None)
+        with_query_caller(
+            std::panic::Location::caller(),
+            persistence::restore(self, None),
+        )
     }
 
+    #[track_caller]
     fn save_in_transaction<'a>(
         &'a mut self,
         transaction: &'a mut crate::database::Transaction,
     ) -> impl Future<Output = DatabaseResult<bool>> + Send + 'a {
-        persistence::save(self, Some(transaction))
+        with_query_caller(
+            std::panic::Location::caller(),
+            persistence::save(self, Some(transaction)),
+        )
     }
 
+    #[track_caller]
     fn update_in_transaction<'a>(
         &'a mut self,
         attributes: Attributes,
         transaction: &'a mut crate::database::Transaction,
     ) -> impl Future<Output = DatabaseResult<bool>> + Send + 'a {
-        persistence::update(self, attributes, Some(transaction))
+        with_query_caller(
+            std::panic::Location::caller(),
+            persistence::update(self, attributes, Some(transaction)),
+        )
     }
 
+    #[track_caller]
     fn delete_in_transaction<'a>(
         &'a mut self,
         transaction: &'a mut crate::database::Transaction,
     ) -> impl Future<Output = DatabaseResult<bool>> + Send + 'a {
-        persistence::delete(self, false, Some(transaction))
+        with_query_caller(
+            std::panic::Location::caller(),
+            persistence::delete(self, false, Some(transaction)),
+        )
     }
 
+    #[track_caller]
     fn force_delete_in_transaction<'a>(
         &'a mut self,
         transaction: &'a mut crate::database::Transaction,
     ) -> impl Future<Output = DatabaseResult<bool>> + Send + 'a {
-        persistence::delete(self, true, Some(transaction))
+        with_query_caller(
+            std::panic::Location::caller(),
+            persistence::delete(self, true, Some(transaction)),
+        )
     }
 
+    #[track_caller]
     fn restore_in_transaction<'a>(
         &'a mut self,
         transaction: &'a mut crate::database::Transaction,
     ) -> impl Future<Output = DatabaseResult<bool>> + Send + 'a {
-        persistence::restore(self, Some(transaction))
+        with_query_caller(
+            std::panic::Location::caller(),
+            persistence::restore(self, Some(transaction)),
+        )
     }
 
     fn trashed(&self) -> bool {

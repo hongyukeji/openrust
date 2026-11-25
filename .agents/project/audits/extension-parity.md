@@ -77,7 +77,7 @@ O01 Activitylog、O02 Horizon、O03 Telescope原生范围、O04 Pennant、O05 Pu
 | Telescope `ClientRequestWatcher::duration` | 固定上游在有正计时时以毫秒向下取整，缺少计时时输出空值。Rust 从现有传输统计输出整数毫秒或 JSON 空值。测试由真实出站 HTTP 与 fake 消费者覆盖。 | 命令与面板展示随完整输出审计核对。 |
 | Telescope `ClientRequestWatcher::input` | 已捕获构建器提供的 multipart 普通字段及 `attach_body` 附件的文件名、长度、头部。普通字段先于附件发送，同名取最后一项，复用请求字段／头部脱敏。原生 `attach` 保留发送契约。 | 原生 reqwest `Part` 元数据和中间件替换流的边界见[包审计](telescope/README.md#出站-multipart)。 |
 | Telescope 非 multipart 出站载荷 | 诊断从原始 GET 地址或结构化正文选择载荷，并与线上 URL 分别记录。已核对 JSON／表单 POST、GET 查询覆盖、HEAD、原始正文、自定义媒体类型与表单标量快照。成功重定向保留原始输入，连接失败从实际缓冲正文解码。 | multipart 重定向、重试回调改写与其他中间件组合仍需对账。 |
-| Telescope `FetchesStackTrace`、`QueryWatcher`、`GateWatcher` | 固定上游按路径子串跳过被忽略的帧，再选第一处合格来源。找不到合格帧时 Query 不入库，Gate 仍入库且行号和文件为空。Gate 已提供授权入口位置，Query 已从核心 SQL 和公开分页入口收集候选并使用第一处可见位置。 | Gate 外层候选、Query 尚未接入的模型写入、关系直接读取、schema、懒加载入口，以及发布构建路径重映射仍须逐项核对。 |
+| Telescope `FetchesStackTrace`、`QueryWatcher`、`GateWatcher` | 固定上游按路径子串跳过被忽略的帧，再选第一处合格来源。找不到合格帧时 Query 不入库，Gate 仍入库且行号和文件为空。Gate 已提供授权入口位置，Query 已从核心 SQL、公开分页和模型写入入口收集候选并使用第一处可见位置。 | Gate 外层候选、Query 尚未接入的直接关系读写、schema、懒加载入口，以及发布构建路径重映射仍须逐项核对。 |
 | Pulse 默认 Recorder 清单 | 固定配置的十个 Recorder 均可映射到本地配置。核对了采样率 1、慢操作阈值 1000、异常和慢查询位置开关、默认存储及采集驱动；这一轮只读配置。 | 逐 Recorder 核对触发事件、筛选、采样、聚合、配置覆盖和扩展入口，再核对命令和面板。Servers 主机名上游在配置加载时求值，本地在记录时回退，配置缓存边界待裁决。 |
 | Horizon `horizon:listen` 的 `watch` | 上游发布配置提供默认监听列表。Rust 配置补充应用、启动、配置、数据库、路由、视图、公开目录及资源目录中的 Rust 文件和 Cargo 构建入口的对应监听路径。真实 Artisan 使用默认配置监控 `routes/web.rs`，文件更新后重建 Master 和 Worker，SIGTERM 后子树退出。 | 补 Linux／Windows 目标平台验收。 |
 | Horizon 其余配置 | 固定上游含 `name`、`waits`、`silenced`、`silenced_tags` 及 Supervisor `nice`。本地已读静默配置并具备 `nice` 运行时默认；配置形状、面板名称、等待时间入口仍须逐项核对。 | 对照发布配置及实际命令、Redis 和面板消费者，分别核对默认、覆盖及非法值。 |
@@ -275,4 +275,14 @@ Telescope 从最近的已捕获候选开始应用 `ignore_packages` 与 `ignore_
 
 Rust 复用查询来源作用域，接入 Query Builder、Eloquent、SearchBuilder 的分页方法，以及 HasMany、HasOne、BelongsTo、MorphOne、MorphMany、MorphTo、HasManyThrough、HasOneThrough、BelongsToMany 关系入口。MorphToMany 经现有解引用转发到 BelongsToMany。普通页、简单页、游标页及带选项变体均保留异步执行；只转发参数的同类入口直接传递编译器调用位置。旧版对应 SeaORM 分页无此观测入口。
 
-基于 `4f19d7c29` 加本批文件的隔离快照，通过 SQLite、PostgreSQL 18.7、MySQL 8.4.13 的真实应用路由验证与 PHP 探针对应的 7 条 SQL 和精确行号。Telescope 默认 35 项、框架分页 14 项及 SQL 观测回归通过。另显式启用 PostgreSQL 的分页解析器、MySQL 的分页解析器和完整 HTTP 分页用例，确认均连接相应数据库。快照全仓格式、框架库及 Telescope 全目标严格 Clippy、三语文档构建和 12 组浏览器检查通过。Redis 专项本批未重复运行。模型写入、关系直接读取、schema、懒加载和任意异步包装器继续核对。原始输出位于 `target/tmp/observability-parity/query-pagination-*.log`。
+基于 `4f19d7c29` 加本批文件的隔离快照，通过 SQLite、PostgreSQL 18.7、MySQL 8.4.13 的真实应用路由验证与 PHP 探针对应的 7 条 SQL 和精确行号。Telescope 默认 35 项、框架分页 14 项及 SQL 观测回归通过。另显式启用 PostgreSQL 的分页解析器、MySQL 的分页解析器和完整 HTTP 分页用例，确认均连接相应数据库。快照全仓格式、框架库及 Telescope 全目标严格 Clippy、三语文档构建和 12 组浏览器检查通过。模型写入、关系直接读取、schema、懒加载和任意异步包装器继续核对。原始输出位于 `target/tmp/observability-parity/query-pagination-*.log`。
+
+同一快照的 macOS 默认 Release 构建中，SQLite Provider 15 项及 Watcher 7 项通过。用相同 Release 二进制分别验证 PostgreSQL 18.7 与 MySQL 8.4.13 的分页来源，并在隔离 Redis 8.10.3 上验证原生命令采集。自定义源码路径重映射、Linux／Windows 及生产组合仍需实测。
+
+### Telescope Query 模型写入调用来源
+
+固定 [Model](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Model.php) 与 [Eloquent Builder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Builder.php) 让模型持久化经过同一个数据库事件。PHP 8.5.12 的 SQLite 参考探针注册固定 QueryWatcher，确认模型创建、静默更新、事务更新、构建器创建和删除各写入一条带实际调用行的记录。旧版 SeaORM ActiveModel 写入缺少该事件契约。
+
+Rust 在 `Model` 的保存、更新、删除、恢复、计数器、已加载关系图保存及其静默、错误和显式事务变体传播调用位置。Eloquent Builder 补齐创建、填充插入、upsert、计数器、删除与恢复。默认方法继续返回惰性 Future，并复用原有事务及模型事件逻辑。直接关系类型的读写入口和单独的 schema／惰性读取入口继续核对。
+
+基于 `19b34ff61` 加本批文件的隔离快照，在 SQLite、PostgreSQL 18.7、MySQL 8.4.13 的真实应用路由验证上述五条写入的精确源码位置。三库均验证写入变体的事务、取消、模型事件与冲突处理，MySQL 另显式运行模型事件和持久化测试。Telescope 默认 36 项、框架模型／事件／写入变体测试、快照全仓格式、框架库及 Telescope 全目标严格 Clippy、三语文档构建和 12 组浏览器检查通过。模型写入的 Release 与目标平台验收留在发布组合。原始输出位于 `target/tmp/observability-parity/query-model-write-*.log`。

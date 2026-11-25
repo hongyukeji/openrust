@@ -1720,10 +1720,13 @@ impl<M: Model> Builder<'static, M> {
         Ok(model)
     }
 
-    pub async fn create(self, attributes: Attributes) -> DatabaseResult<M> {
-        let mut model = self.make_async(attributes).await?;
-        model.save().await?;
-        Ok(model)
+    #[track_caller]
+    pub fn create(self, attributes: Attributes) -> impl Future<Output = DatabaseResult<M>> {
+        with_query_caller(std::panic::Location::caller(), async move {
+            let mut model = self.make_async(attributes).await?;
+            model.save().await?;
+            Ok(model)
+        })
     }
 
     /// Prepares insert rows with model defaults, casts, unique IDs and timestamps.
@@ -1780,26 +1783,44 @@ impl<M: Model> Builder<'static, M> {
     }
 
     /// Inserts prepared rows without dispatching model persistence events.
-    pub async fn fill_and_insert(self, rows: Vec<Attributes>) -> DatabaseResult<bool> {
-        let rows = self.fill_for_insert(rows).await?;
-        self.scoped()?.0.insert(&rows).await
+    #[track_caller]
+    pub fn fill_and_insert(
+        self,
+        rows: Vec<Attributes>,
+    ) -> impl Future<Output = DatabaseResult<bool>> {
+        with_query_caller(std::panic::Location::caller(), async move {
+            let rows = self.fill_for_insert(rows).await?;
+            self.scoped()?.0.insert(&rows).await
+        })
     }
 
-    pub async fn fill_and_insert_or_ignore(self, rows: Vec<Attributes>) -> DatabaseResult<u64> {
-        let rows = self.fill_for_insert(rows).await?;
-        self.scoped()?.0.insert_or_ignore(&rows).await
+    #[track_caller]
+    pub fn fill_and_insert_or_ignore(
+        self,
+        rows: Vec<Attributes>,
+    ) -> impl Future<Output = DatabaseResult<u64>> {
+        with_query_caller(std::panic::Location::caller(), async move {
+            let rows = self.fill_for_insert(rows).await?;
+            self.scoped()?.0.insert_or_ignore(&rows).await
+        })
     }
 
-    pub async fn fill_and_insert_get_id(self, row: Attributes) -> DatabaseResult<Value> {
-        let row = self
-            .fill_for_insert(vec![row])
-            .await?
-            .pop()
-            .expect("one prepared insert row");
-        self.scoped()?
-            .0
-            .insert_get_id_for(row, M::metadata().primary_key)
-            .await
+    #[track_caller]
+    pub fn fill_and_insert_get_id(
+        self,
+        row: Attributes,
+    ) -> impl Future<Output = DatabaseResult<Value>> {
+        with_query_caller(std::panic::Location::caller(), async move {
+            let row = self
+                .fill_for_insert(vec![row])
+                .await?
+                .pop()
+                .expect("one prepared insert row");
+            self.scoped()?
+                .0
+                .insert_get_id_for(row, M::metadata().primary_key)
+                .await
+        })
     }
 
     pub async fn make_async(&self, attributes: Attributes) -> DatabaseResult<M> {
@@ -2377,98 +2398,113 @@ impl<M: Model> Builder<'static, M> {
     }
 
     /// Writes multiple rows without hydrating or saving individual models.
-    pub async fn upsert(
+    #[track_caller]
+    pub fn upsert(
         self,
         mut rows: Vec<Attributes>,
         unique_by: &[&str],
         update: Option<&[&str]>,
-    ) -> DatabaseResult<u64> {
-        let Some(first) = rows.first() else {
-            return Ok(0);
-        };
-        let mut columns: Vec<String> = update.map_or_else(
-            || first.keys().cloned().collect(),
-            |columns| columns.iter().map(|column| (*column).into()).collect(),
-        );
-        let metadata = M::metadata();
-        let timestamp = if metadata.created_at.is_some() || metadata.updated_at.is_some() {
-            Some(timestamp(&self.connection, metadata.date_format)?)
-        } else {
-            None
-        };
-        if let Some(column) = metadata.updated_at
-            && !columns.iter().any(|candidate| candidate == column)
-        {
-            columns.push(column.into());
-        }
-        let ids = M::unique_ids();
-        let needs_ids = ids
-            .iter()
-            .any(|&column| rows.iter().any(|row| !row.contains_key(column)));
-        let model = needs_ids
-            .then(|| M::new_instance_on(&self.connection, Attributes::new()))
-            .transpose()?;
-        for row in &mut rows {
-            if let Some(model) = &model {
-                for &column in ids {
-                    if !row.contains_key(column) {
-                        let id = model.new_unique_id()?;
-                        row.insert(column.into(), id.map_or(Value::Null, Value::Text));
+    ) -> impl Future<Output = DatabaseResult<u64>> {
+        with_query_caller(std::panic::Location::caller(), async move {
+            let Some(first) = rows.first() else {
+                return Ok(0);
+            };
+            let mut columns: Vec<String> = update.map_or_else(
+                || first.keys().cloned().collect(),
+                |columns| columns.iter().map(|column| (*column).into()).collect(),
+            );
+            let metadata = M::metadata();
+            let timestamp = if metadata.created_at.is_some() || metadata.updated_at.is_some() {
+                Some(timestamp(&self.connection, metadata.date_format)?)
+            } else {
+                None
+            };
+            if let Some(column) = metadata.updated_at
+                && !columns.iter().any(|candidate| candidate == column)
+            {
+                columns.push(column.into());
+            }
+            let ids = M::unique_ids();
+            let needs_ids = ids
+                .iter()
+                .any(|&column| rows.iter().any(|row| !row.contains_key(column)));
+            let model = needs_ids
+                .then(|| M::new_instance_on(&self.connection, Attributes::new()))
+                .transpose()?;
+            for row in &mut rows {
+                if let Some(model) = &model {
+                    for &column in ids {
+                        if !row.contains_key(column) {
+                            let id = model.new_unique_id()?;
+                            row.insert(column.into(), id.map_or(Value::Null, Value::Text));
+                        }
+                    }
+                }
+                if let Some(time) = &timestamp {
+                    for column in [metadata.created_at, metadata.updated_at]
+                        .into_iter()
+                        .flatten()
+                    {
+                        row.entry(column.into()).or_insert_with(|| time.clone());
                     }
                 }
             }
-            if let Some(time) = &timestamp {
-                for column in [metadata.created_at, metadata.updated_at]
-                    .into_iter()
-                    .flatten()
-                {
-                    row.entry(column.into()).or_insert_with(|| time.clone());
-                }
-            }
-        }
-        let columns: Vec<&str> = columns.iter().map(String::as_str).collect();
-        self.scoped()?
-            .0
-            .upsert(&rows, unique_by, Some(&columns))
-            .await
+            let columns: Vec<&str> = columns.iter().map(String::as_str).collect();
+            self.scoped()?
+                .0
+                .upsert(&rows, unique_by, Some(&columns))
+                .await
+        })
     }
 
-    pub async fn increment(
+    #[track_caller]
+    pub fn increment(
         self,
         column: &str,
         amount: impl Into<Value>,
         extra: Attributes,
-    ) -> DatabaseResult<u64> {
-        self.increment_each(Attributes::from([(column.into(), amount.into())]), extra)
-            .await
+    ) -> impl Future<Output = DatabaseResult<u64>> {
+        with_query_caller(std::panic::Location::caller(), async move {
+            self.increment_each(Attributes::from([(column.into(), amount.into())]), extra)
+                .await
+        })
     }
 
-    pub async fn increment_each(
+    #[track_caller]
+    pub fn increment_each(
         self,
         columns: Attributes,
         mut extra: Attributes,
-    ) -> DatabaseResult<u64> {
-        self.add_updated_at(&mut extra)?;
-        self.scoped()?.0.increment_each(columns, extra).await
+    ) -> impl Future<Output = DatabaseResult<u64>> {
+        with_query_caller(std::panic::Location::caller(), async move {
+            self.add_updated_at(&mut extra)?;
+            self.scoped()?.0.increment_each(columns, extra).await
+        })
     }
 
-    pub async fn decrement(
+    #[track_caller]
+    pub fn decrement(
         self,
         column: &str,
         amount: impl Into<Value>,
         extra: Attributes,
-    ) -> DatabaseResult<u64> {
-        self.decrement_each(Attributes::from([(column.into(), amount.into())]), extra)
-            .await
+    ) -> impl Future<Output = DatabaseResult<u64>> {
+        with_query_caller(std::panic::Location::caller(), async move {
+            self.decrement_each(Attributes::from([(column.into(), amount.into())]), extra)
+                .await
+        })
     }
 
-    pub async fn decrement_each(
+    #[track_caller]
+    pub fn decrement_each(
         self,
         columns: Attributes,
         mut extra: Attributes,
-    ) -> DatabaseResult<u64> {
-        self.add_updated_at(&mut extra)?;
-        self.scoped()?.0.decrement_each(columns, extra).await
+    ) -> impl Future<Output = DatabaseResult<u64>> {
+        with_query_caller(std::panic::Location::caller(), async move {
+            self.add_updated_at(&mut extra)?;
+            self.scoped()?.0.decrement_each(columns, extra).await
+        })
     }
 
     fn add_updated_at(&self, attributes: &mut Attributes) -> DatabaseResult<()> {
@@ -2483,32 +2519,41 @@ impl<M: Model> Builder<'static, M> {
         Ok(())
     }
 
-    pub async fn delete(self) -> DatabaseResult<u64> {
-        if let Some(column) = M::metadata().deleted_at {
-            let attributes =
-                soft_deletes::deletion_attributes(M::metadata(), column, &self.connection)?;
-            return self.scoped()?.0.update(attributes).await;
-        }
-        self.scoped()?.0.delete().await
+    #[track_caller]
+    pub fn delete(self) -> impl Future<Output = DatabaseResult<u64>> {
+        with_query_caller(std::panic::Location::caller(), async move {
+            if let Some(column) = M::metadata().deleted_at {
+                let attributes =
+                    soft_deletes::deletion_attributes(M::metadata(), column, &self.connection)?;
+                return self.scoped()?.0.update(attributes).await;
+            }
+            self.scoped()?.0.delete().await
+        })
     }
 
-    pub async fn restore(mut self) -> DatabaseResult<u64> {
-        let column = M::metadata()
-            .deleted_at
-            .ok_or_else(soft_deletes::unsupported)?;
-        if matches!(self.trashed, Trashed::Exclude) {
-            self = self.with_trashed();
-        }
-        self.update(Attributes::from([(column.into(), Value::Null)]))
-            .await
+    #[track_caller]
+    pub fn restore(mut self) -> impl Future<Output = DatabaseResult<u64>> {
+        with_query_caller(std::panic::Location::caller(), async move {
+            let column = M::metadata()
+                .deleted_at
+                .ok_or_else(soft_deletes::unsupported)?;
+            if matches!(self.trashed, Trashed::Exclude) {
+                self = self.with_trashed();
+            }
+            self.update(Attributes::from([(column.into(), Value::Null)]))
+                .await
+        })
     }
 
-    pub async fn force_delete(mut self) -> DatabaseResult<u64> {
-        self.scopes.clear();
-        if matches!(self.trashed, Trashed::Exclude) {
-            self = self.with_trashed();
-        }
-        self.scoped()?.0.delete().await
+    #[track_caller]
+    pub fn force_delete(mut self) -> impl Future<Output = DatabaseResult<u64>> {
+        with_query_caller(std::panic::Location::caller(), async move {
+            self.scopes.clear();
+            if matches!(self.trashed, Trashed::Exclude) {
+                self = self.with_trashed();
+            }
+            self.scoped()?.0.delete().await
+        })
     }
 }
 
