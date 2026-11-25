@@ -2,7 +2,7 @@
 
 ## 支持状态 {#support-status}
 
-可选包 `openrust-webhook-server` 提供请求快照、目的地校验、具名签名器、退避策略及持久投递尝试。自动调度、重放与端点管理仍在开发。
+可选包 `openrust-webhook-server` 提供请求快照、目的地校验、具名签名器、退避策略及持久投递尝试。重放与端点管理仍在开发。
 
 ## 启用与配置 {#configuration}
 
@@ -70,6 +70,12 @@ pub async fn queue_invoice(
         "invoice-issued-inv-123", 3600,
     ).await
 }
+
+pub fn schedule_webhook_recovery(schedule: &mut openrust::console::scheduling::Schedule) {
+    schedule
+        .command("webhook-server:recover", ["--scope=billing".into()])
+        .every_minute();
+}
 ```
 
 
@@ -97,6 +103,17 @@ Builder 的 `dispatch`、`dispatch_if` 和 `dispatch_unless` 登记投递并入�
 ./artisan webhook-server:send <delivery-id> --scope=billing
 ./artisan webhook-server:send <delivery-id> --scope=billing --queue
 ./artisan webhook-server:send --scope=billing --limit=100
+```
+
+### 定时恢复 {#recovery}
+
+在应用调度器中注册 `webhook-server:recover`，并每分钟运行 `./artisan schedule:run`。命令按投递记录的 Worker 路由入队，报告候选、成功入队、过期或耗尽、跳过与派发失败的数量。`--pretend` 仅统计候选。投递存储使用具名连接时，在命令里指定 `--database`。
+
+恢复进程在入队前预留 60 秒唤醒窗口。未入队或丢失的任务可在窗口到期后补派。Worker 领取或提交重试结果时会清除窗口，下一次尝试继续受投递租约与退避控制。单批选择不超过 `--limit` 条，派发预算为 30 秒。多个调度进程通过共享数据库协调，各节点需提供记录对应的 Worker 路由。
+
+```sh
+./artisan webhook-server:recover --scope=billing --limit=100
+./artisan webhook-server:recover --scope=billing --pretend
 ```
 
 ## 自定义签名与退避 {#customization}

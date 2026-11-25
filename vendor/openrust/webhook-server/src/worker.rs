@@ -23,6 +23,15 @@ impl DeliveryService {
 
     /// 已持久提交的投递可加入具名 Worker 队列。队列仅收到内部投递 ID。
     pub async fn dispatch(&self, queue: &QueueManager, id: &str) -> Result<DispatchResult> {
+        self.enqueue_delivery(queue, id, true).await
+    }
+
+    pub(crate) async fn enqueue_delivery(
+        &self,
+        queue: &QueueManager,
+        id: &str,
+        explicit: bool,
+    ) -> Result<DispatchResult> {
         let snapshot = self.store.snapshot(id).await?.ok_or(Error::InvalidRecord)?;
         let (name, connection) =
             self.queue_route(queue, &snapshot.job, snapshot.connection.as_deref())?;
@@ -33,6 +42,9 @@ impl DeliveryService {
             timeout: Some(Duration::from_secs(u64::from(snapshot.timeout) + 3)),
             ..Default::default()
         });
+        if explicit {
+            self.store.defer_recovery(id).await?;
+        }
         events::dispatching(self.store.scope(), id, snapshot).await?;
         Ok(queue
             .dispatch(

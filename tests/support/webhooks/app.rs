@@ -1403,6 +1403,7 @@ async fn main() -> ExitCode {
             Ok(config)
         }).with_packages(packages::manifest()).with_providers(vec![Box::new(FixtureProvider)]).with_commands(commands).with_migrations(migrations::entries())
         .with_middleware(|middleware| { middleware.prevent_request_forgery(["webhook-web/except"],false,false); })
+        .with_schedule(outbound::schedule)
         .with_routing(Routing::default().api(api_routes).web(web_routes))
         .create().map_err(Into::into)
     }).await

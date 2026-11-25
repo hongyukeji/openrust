@@ -14,6 +14,9 @@ mod dispatch;
 mod error;
 pub mod events;
 mod extensions;
+mod recovery;
+#[path = "../database/migrations/2026_11_25_000000_extend_webhook_deliveries_for_recovery.rs"]
+mod recovery_migration;
 mod signer;
 mod snapshot;
 mod webhook_call;
@@ -28,6 +31,7 @@ pub use destination::{BoundTarget, TargetPolicy};
 pub use dispatch::{QueuedDelivery, SynchronousDelivery};
 pub use error::{Error, Result};
 pub use extensions::{register_backoff_strategy, register_signer};
+pub use recovery::RecoveryReport;
 pub use signer::{DefaultSigner, Signer, SigningContext, StandardWebhookSigner};
 pub use webhook_call::{PreparedWebhook, WebhookCall};
 
@@ -68,10 +72,16 @@ impl WebhookServerServiceProvider {
     pub fn migrations() -> &'static [openrust::database::migrations::MigrationEntry] {
         use openrust::database::migrations::MigrationEntry;
 
-        static ENTRIES: &[MigrationEntry] = &[MigrationEntry::new(
-            "vendor/openrust/webhook-server/database/migrations/2026_11_25_000000_create_webhook_deliveries_table.rs",
-            &delivery_migration::MIGRATION,
-        )];
+        static ENTRIES: &[MigrationEntry] = &[
+            MigrationEntry::new(
+                "vendor/openrust/webhook-server/database/migrations/2026_11_25_000000_create_webhook_deliveries_table.rs",
+                &delivery_migration::MIGRATION,
+            ),
+            MigrationEntry::new(
+                "vendor/openrust/webhook-server/database/migrations/2026_11_25_000000_extend_webhook_deliveries_for_recovery.rs",
+                &recovery_migration::MIGRATION,
+            ),
+        ];
         ENTRIES
     }
 }

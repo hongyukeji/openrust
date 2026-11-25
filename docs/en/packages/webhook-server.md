@@ -2,7 +2,7 @@
 
 ## Support status {#support-status}
 
-The optional `openrust-webhook-server` package provides request preparation, target validation, named signers, backoff strategies and durable delivery attempts. Scheduling, replay and endpoint management are still in development.
+The optional `openrust-webhook-server` package provides request preparation, target validation, named signers, backoff strategies and durable delivery attempts. Replay and endpoint management are still in development.
 
 ## Enable and configure {#configuration}
 
@@ -70,6 +70,12 @@ pub async fn queue_invoice(
         "invoice-issued-inv-123", 3600,
     ).await
 }
+
+pub fn schedule_webhook_recovery(schedule: &mut openrust::console::scheduling::Schedule) {
+    schedule
+        .command("webhook-server:recover", ["--scope=billing".into()])
+        .every_minute();
+}
 ```
 
 
@@ -97,6 +103,17 @@ Register synchronous listeners for these events under `openrust_webhook_server::
 ./artisan webhook-server:send <delivery-id> --scope=billing
 ./artisan webhook-server:send <delivery-id> --scope=billing --queue
 ./artisan webhook-server:send --scope=billing --limit=100
+```
+
+### Schedule recovery {#recovery}
+
+Register `webhook-server:recover` with the application's scheduler and run `./artisan schedule:run` on each minute tick. The command uses the delivery's Worker route and returns counts for candidates, enqueued jobs, expired or exhausted deliveries, skipped claims and dispatch failures. `--pretend` lists the count without taking a claim. Use `--database` when the delivery store selects a named connection.
+
+Recovery reserves a 60-second wake-up window before pushing to the queue. A later scan can recover an unsent or lost job after that window. A Worker claim or a committed retry outcome clears the window, so the delivery's existing lease and retry schedule control the next attempt. Each scan selects at most `--limit` records and allows up to 30 seconds for dispatch. Multiple schedulers coordinate through the shared database. Keep the configured Worker route available on each node.
+
+```sh
+./artisan webhook-server:recover --scope=billing --limit=100
+./artisan webhook-server:recover --scope=billing --pretend
 ```
 
 ## Custom signers and retry timing {#customization}

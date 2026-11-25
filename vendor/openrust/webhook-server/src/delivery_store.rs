@@ -13,6 +13,13 @@ use crate::{Error, PreparedWebhook, Result, snapshot::Snapshot};
 
 const DELIVERIES: &str = "webhook_deliveries";
 const ATTEMPTS: &str = "webhook_delivery_attempts";
+const WAKE_COOLDOWN_SECONDS: u32 = 60;
+
+pub(crate) enum WakeClaim {
+    Ready,
+    Retired,
+    Unavailable,
+}
 
 #[derive(Clone)]
 pub struct DeliveryStore {
@@ -180,11 +187,29 @@ impl DeliveryStore {
     }
 
     pub(crate) async fn due_ids(&self, limit: u32) -> Result<Vec<String>> {
+        self.bounded_ids(self.reclaimable(self.connection.table(DELIVERIES)), limit)
+            .await
+    }
+
+    pub(crate) async fn wake_ids(&self, limit: u32) -> Result<Vec<String>> {
+        let clock = self.clock();
+        let candidates = self
+            .reclaimable(self.connection.table(DELIVERIES))
+            .where_nested(|query| {
+                query
+                    .where_null("next_wake_at")
+                    .or_where_raw(&format!("next_wake_at <= {clock}"), vec![])
+                    .or_where_raw(&format!("deadline <= {clock}"), vec![])
+                    .or_where_raw("attempts >= maximum_tries", vec![])
+            });
+        self.bounded_ids(candidates, limit).await
+    }
+
+    async fn bounded_ids(&self, candidates: Builder<'_>, limit: u32) -> Result<Vec<String>> {
         if !(1..=500).contains(&limit) {
             return Err(Error::InvalidConfig("delivery.limit"));
         }
-        let rows = self
-            .reclaimable(self.connection.table(DELIVERIES))
+        let rows = candidates
             .r#where("scope_key", "=", self.scope_key.as_str())
             .use_write_pdo()
             .select(["id"])
@@ -196,6 +221,45 @@ impl DeliveryStore {
         rows.iter()
             .map(|row| Ok(text(row, "id")?.to_owned()))
             .collect()
+    }
+
+    pub(crate) async fn claim_wake(&self, id: &str) -> Result<WakeClaim> {
+        check_id(id)?;
+        let clock = self.clock();
+        let candidates = self
+            .reclaimable(self.owned_row(self.connection.table(DELIVERIES), id))
+            .where_nested(|query| {
+                query
+                    .where_null("next_wake_at")
+                    .or_where_raw(&format!("next_wake_at <= {clock}"), vec![])
+            })
+            .where_raw(&format!("deadline > {clock}"), vec![])
+            .where_column("attempts", "<", "maximum_tries");
+        if self.mark_wake(candidates).await? {
+            return Ok(WakeClaim::Ready);
+        }
+        let mut tx = self.connection.begin_transaction().await?;
+        let result = self.retire_unavailable(&mut tx, id).await;
+        Ok(if settle(tx, result).await? {
+            WakeClaim::Retired
+        } else {
+            WakeClaim::Unavailable
+        })
+    }
+
+    pub(crate) async fn defer_recovery(&self, id: &str) -> Result<()> {
+        let candidates = self.reclaimable(self.owned_row(self.connection.table(DELIVERIES), id));
+        self.mark_wake(candidates).await?;
+        Ok(())
+    }
+
+    async fn mark_wake(&self, candidates: Builder<'_>) -> Result<bool> {
+        let clock = self.clock();
+        let value = Expression::new(format!("{clock} + {WAKE_COOLDOWN_SECONDS}"));
+        let changed = candidates
+            .update_with([assignment("next_wake_at", value)].into_iter().collect())
+            .await?;
+        Ok(changed == 1)
     }
 
     pub(crate) async fn claim(&self, id: &str) -> Result<Option<Claim>> {
@@ -213,6 +277,7 @@ impl DeliveryStore {
                         assignment("state", Value::from("running")),
                         assignment("owner", Value::from(token.clone())),
                         assignment("attempts", Expression::new("attempts + 1")),
+                        assignment("next_wake_at", Value::Null),
                         assignment(
                             "lease_until",
                             Expression::new(format!("{clock} + timeout_seconds + 5")),
@@ -295,6 +360,7 @@ impl DeliveryStore {
                         assignment("owner", Value::Null),
                         assignment("lease_until", Value::Null),
                         assignment("available_at", Value::from(next.unwrap_or(now))),
+                        assignment("next_wake_at", Value::Null),
                     ]
                     .into_iter()
                     .collect(),
@@ -331,7 +397,7 @@ impl DeliveryStore {
         settle(tx, result).await
     }
 
-    async fn retire_unavailable(&self, tx: &mut Transaction, id: &str) -> Result<()> {
+    async fn retire_unavailable(&self, tx: &mut Transaction, id: &str) -> Result<bool> {
         let clock = self.clock();
         let updated = self
             .reclaimable(self.owned_row(tx.table(DELIVERIES), id))
@@ -358,7 +424,7 @@ impl DeliveryStore {
         if updated == 1 {
             self.mark_unknown(tx, id).await?;
         }
-        Ok(())
+        Ok(updated == 1)
     }
 
     async fn mark_unknown(&self, tx: &mut Transaction, id: &str) -> Result<()> {

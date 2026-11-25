@@ -125,7 +125,156 @@ def exercise(binary, env, log, receiver, driver, sql):
                 headers["Signature"], hmac.new(SECRET, BODY, hashlib.sha256).hexdigest()
             )
 
-    worker = ["queue:work", "database", "--queue=webhook-outgoing", "--once", "--tries=7"]
+    worker = ["queue:work", env.get("FIXTURE_SEND_QUEUE", "database"), "--queue=webhook-outgoing", "--once", "--tries=7"]
+
+    if env.get("FIXTURE_SEND_SCHEDULE"):
+        def recover(*options, scope=SCOPE, current=env, success=True):
+            result = command("webhook-server:recover", "--scope", scope, *options,
+                             current=current, success=success)
+            return json.loads(re.search(r"\{[^\n]+\}", result)[0])
+
+        redis_container = env.get("OPENRUST_TEST_WEBHOOK_REDIS_CONTAINER")
+        redis_key = env.get("REDIS_PREFIX", "") + "queues:webhook-outgoing"
+
+        def redis_cli(*tokens):
+            return subprocess.check_output(
+                ["docker", "exec", redis_container, "redis-cli", "--raw", *tokens],
+                text=True, timeout=10,
+            ).strip()
+
+        def redis_items(identifier):
+            return [wire for wire in redis_cli("LRANGE", redis_key, "0", "-1").splitlines()
+                    if json.loads(json.loads(wire)["payload"])["data"] == identifier]
+
+        def queued_for(identifier):
+            if redis_container:
+                return len(redis_items(identifier))
+            return int(sql(
+                "SELECT COUNT(*) FROM jobs WHERE queue='webhook-outgoing' "
+                f"AND payload LIKE '%{identifier}%' AND reserved_at IS NULL"
+            ))
+
+        def marker(identifier):
+            return sql(f"SELECT coalesce(next_wake_at,0) FROM webhook_deliveries WHERE id='{identifier}'")
+
+        assert "webhook-server:recover" in command("schedule:list")
+        registered = submit("recover-unenqueued")
+        assert marker(registered) == "0" and queued_for(registered) == 0
+        assert recover("--pretend") == {"candidates": 1, "queued": 0, "retired": 0, "skipped": 0, "failed": 0}
+        assert recover(scope="wrong-scope")["candidates"] == 0
+        assert marker(registered) == "0" and queued_for(registered) == 0
+        second_root = Path(env["APP_BASE_PATH"]) / "scheduler-peer"
+        second_root.mkdir()
+        peer = env | {
+            "APP_BASE_PATH": str(second_root),
+            "APP_CONFIG_CACHE": str(second_root / "config.json"),
+            "APP_ROUTES_CACHE": str(second_root / "routes.json"),
+        }
+        command("config:cache", current=peer)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            results = [executor.submit(command, "schedule:run", current=node) for node in (env, peer)]
+            for result in results:
+                result.result()
+        assert marker(registered) != "0" and queued_for(registered) == 1
+        assert recover()["candidates"] == 0 and read(registered) == "pending\t0"
+        captured("recover-unenqueued", 0)
+        command(*worker)
+        assert read(registered) == "succeeded\t1"
+        captured("recover-unenqueued")
+
+        lost = submit("recover-lost", "builder-async-if")
+        assert queued_for(lost) == 1 and marker(lost) != "0"
+        if redis_container:
+            wire, = redis_items(lost)
+            assert redis_cli("LREM", redis_key, "1", wire) == "1"
+        else:
+            routes["write_database"](
+                driver, sql, f"DELETE FROM jobs WHERE queue='webhook-outgoing' AND payload LIKE '%{lost}%'"
+            )
+        assert queued_for(lost) == 0 and recover()["candidates"] == 0
+        update(lost, "next_wake_at=0")
+        assert recover()["queued"] == 1 and queued_for(lost) == 1
+        command(*worker)
+        assert read(lost) == "succeeded\t1"
+        captured("recover-lost")
+
+        retry = submit("retry")
+        assert recover()["queued"] == 1
+        command(*worker)
+        assert read(retry) == "pending\t1" and marker(retry) == "0"
+        assert recover()["candidates"] == 0
+        update(retry, "available_at=0")
+        command("schedule:run")
+        assert queued_for(retry) == 1
+        command(*worker)
+        assert attempts(retry) == "1\thttp_failure\t503\n2\tsucceeded\t204"
+        captured("retry", 2)
+
+        scheduler_crash = submit("scheduler-crash")
+        result = subprocess.run(
+            [str(binary), "artisan", "webhook-server:recover", f"--scope={SCOPE}"],
+            env=env | {"FIXTURE_CRASH_OUTBOUND_WAKE": "1"}, capture_output=True, text=True, timeout=20,
+        )
+        assert result.returncode == 82, result
+        assert queued_for(scheduler_crash) == 0 and read(scheduler_crash) == "pending\t0"
+        assert marker(scheduler_crash) != "0" and recover()["candidates"] == 0
+        update(scheduler_crash, "next_wake_at=0")
+        assert recover()["queued"] == 1
+        command(*worker)
+        captured("scheduler-crash")
+
+        failed_dispatch = submit("dispatch-listener-error")
+        report = recover(success=False)
+        assert report["failed"] == 1 and report["queued"] == 0
+        assert marker(failed_dispatch) != "0" and queued_for(failed_dispatch) == 0
+        assert recover()["candidates"] == 0 and read(failed_dispatch) == "pending\t0"
+        update(failed_dispatch, "deadline=0")
+        assert recover()["retired"] == 1 and read(failed_dispatch) == "expired\t0"
+        captured("dispatch-listener-error", 0)
+
+        broker = submit("broker-unavailable")
+        unavailable = env | {
+            "APP_CONFIG_CACHE": str(Path(env["APP_BASE_PATH"]) / "missing-broker-config.json"),
+            "DB_QUEUE_TABLE": "outbound_acceptance_missing_queue",
+        }
+        if redis_container:
+            unavailable["REDIS_URL"] = "redis://127.0.0.1:1"
+        assert recover(current=unavailable, success=False)["failed"] == 1
+        assert queued_for(broker) == 0 and read(broker) == "pending\t0"
+        assert recover()["candidates"] == 0
+        update(broker, "next_wake_at=0")
+        assert recover()["queued"] == 1
+        command(*worker)
+        captured("broker-unavailable")
+
+        crash = submit("crash")
+        assert recover()["queued"] == 1
+        process = subprocess.Popen([str(binary), "artisan", *worker], env=env, stdout=log, stderr=log)
+        try:
+            assert receiver.entered["crash"].wait(timeout=10)
+            assert marker(crash) == "0" and recover()["candidates"] == 0
+            process.kill()
+            process.wait(timeout=10)
+            update(crash, "lease_until=0")
+            assert recover()["queued"] == 1
+            assert read(crash) == "running\t1"
+            command(*worker)
+            assert attempts(crash) == "1\tunknown\t0\n2\tsucceeded\t204"
+            captured("crash", 2)
+        finally:
+            receiver.release["crash"].set()
+            if process.poll() is None:
+                process.kill()
+                process.wait(timeout=10)
+
+        migration = ("--path=vendor/openrust/webhook-server/database/migrations/"
+                     "2026_11_25_000000_extend_webhook_deliveries_for_recovery.rs")
+        assert "extend_webhook_deliveries_for_recovery" in command("migrate:rollback", migration, "--force")
+        assert attempts(crash) == "1\tunknown\t0\n2\tsucceeded\t204"
+        assert "extend_webhook_deliveries_for_recovery" in command("migrate", migration, "--force")
+        assert recover()["candidates"] == 0
+        print(f"{driver}/{worker[1]}: 并发 Scheduler、丢失任务、到期退避、崩溃补派、范围隔离及迁移通过", flush=True)
+        return
 
     rolled_back = submit("rolled-back", "rollback")
     assert read(rolled_back) == ""
@@ -380,6 +529,12 @@ def main():
                 env["DB_URL"] = url
             else:
                 env.pop("DB_URL", None)
+            if redis_url := env.get("OPENRUST_TEST_WEBHOOK_REDIS_URL"):
+                assert env.get("FIXTURE_SEND_SCHEDULE") and env.get("OPENRUST_TEST_WEBHOOK_REDIS_CONTAINER")
+                env |= {"FIXTURE_SEND_QUEUE": "redis", "REDIS_URL": redis_url,
+                        "REDIS_PREFIX": Path(root).name + ":"}
+                env.pop("REDIS_USERNAME", None)
+                env.pop("REDIS_PASSWORD", None)
 
             def sql(query):
                 return helpers["database_rows"](helpers["database_container"](), query).strip()
@@ -398,7 +553,8 @@ def main():
                     raise
                 finally:
                     http_helpers["stop"](app)
-        print(f"{driver}: HTTP 签名和字节、事务回滚、重复领取、重试预算、撤销、超时、崩溃恢复、Builder 分支与投递事件通过")
+        if not os.environ.get("FIXTURE_SEND_SCHEDULE"):
+            print(f"{driver}: HTTP 签名和字节、事务回滚、重复领取、重试预算、撤销、超时、崩溃恢复、Builder 分支与投递事件通过")
     finally:
         receiver.shutdown()
         receiver.server_close()

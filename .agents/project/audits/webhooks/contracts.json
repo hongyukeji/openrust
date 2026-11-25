@@ -445,7 +445,7 @@
         "uuid",
         "outputType"
       ],
-      "notes": "首次 HTTP、状态码、独立重试预算、Retry-After、数据库领取、旧令牌隔离、Worker 路由与结果事件已接入。响应访问器、任务定制、自动调度、完整失败钩子及双拓扑仍开放。",
+      "notes": "首次 HTTP、状态码、独立重试预算、Retry-After、数据库领取、旧令牌隔离、Worker 路由、结果事件与定时补派已接入。响应访问器、任务定制、完整失败钩子及双拓扑仍开放。",
       "evidence": [
         "tests/webhooks_send_acceptance.py"
       ],

@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use openrust::{
+    console::{ConsoleError, scheduling::Schedule},
     contracts::{
         events::{Event, Listener},
         foundation::Application as _,
@@ -113,6 +114,12 @@ impl Listener for RecordDeliveryEvent {
                     "progress": attempt.progress,
                 })),
             });
+            if payload.message_id() == "scheduler-crash"
+                && payload.attempt.is_none()
+                && std::env::var_os("FIXTURE_CRASH_OUTBOUND_WAKE").is_some()
+            {
+                std::process::exit(82);
+            }
             let line = format!("{row}\n");
             let mut file = tokio::fs::OpenOptions::new()
                 .create(true)
@@ -196,7 +203,9 @@ pub(super) fn submit(
             .use_timestamp(true)
             .use_backoff_strategy("fixture-rapid")
             .respect_retry_after(true)
-            .on_connection(Some("database".into()))
+            .on_connection(Some(
+                std::env::var("FIXTURE_SEND_QUEUE").unwrap_or_else(|_| "database".into()),
+            ))
             .on_queue(Some("webhook-outgoing".into()))
             .timeout_in_seconds(if mode == "timeout" { 1 } else { 4 })
             .maximum_tries(2);
@@ -304,4 +313,16 @@ async fn dispatch_builder(
         Err(Error::InvalidConfig(_)) => Response::json(StatusCode::UNPROCESSABLE_ENTITY, json!({})),
         Err(error) => Err(super::internal(error)),
     }
+}
+
+pub(super) fn schedule(schedule: &mut Schedule) -> std::result::Result<(), ConsoleError> {
+    if std::env::var_os("FIXTURE_SEND_SCHEDULE").is_some() {
+        schedule
+            .command(
+                "webhook-server:recover",
+                ["--scope=webhook-outbound-test".into(), "--limit=20".into()],
+            )
+            .every_minute();
+    }
+    Ok(())
 }
