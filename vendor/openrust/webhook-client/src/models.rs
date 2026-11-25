@@ -67,6 +67,10 @@ impl WebhookCall {
     pub async fn find(store: &dyn WebhookStore, id: &str) -> Result<Option<Self>> {
         store.find(id).await
     }
+    /// 返回当前存储范围内一个有限批次的可清理记录 ID。
+    pub async fn prunable(store: &dyn WebhookStore, days: u32, limit: u32) -> Result<Vec<String>> {
+        store.prunable(days, limit).await
+    }
     /// 已保存的输入；升级前的原文记录没有解析快照。
     pub async fn payload(&self, store: &dyn WebhookStore) -> Result<Option<Value>> {
         store.payload(self.id()).await

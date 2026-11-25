@@ -473,6 +473,102 @@ def check_body_deduplication(binary, env, root, port, driver, sql):
     print(f"{driver}: 摘要去重 10 个真实 HTTP、6 次 Worker；窗口、并发换代、方法／查询／媒体类型与拒绝边界通过")
 
 
+def check_retention(binary, env, root, port, driver, sql):
+    current = env | {"DB_QUEUE_RETRY_AFTER": "90"}
+    scope = "webhook-acceptance"
+
+    def intake(body):
+        before = set(sql("SELECT id FROM webhook_calls").split())
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+        try:
+            signature = hmac.new(SECRET.encode(), body, hashlib.sha256).hexdigest()
+            conn.request("POST", "/api/package/retention-digest", body, {
+                "Signature": signature, "Content-Type": "application/octet-stream",
+            })
+            response = conn.getresponse()
+            assert response.status == 200, response.read()
+        finally:
+            conn.close()
+        rows = set(sql("SELECT id FROM webhook_calls").split()) - before
+        assert len(rows) == 1
+        return rows.pop()
+
+    def worker(receipt, crash=False):
+        run_env = current | {"WEBHOOK_TEST_RECEIPT_OUTPUT": str(root / f"prune-{receipt}.json")}
+        if crash:
+            run_env["FIXTURE_LEASE_CRASH"] = "1"
+        result = subprocess.run(
+            [str(binary), "artisan", "queue:work", "database", "--queue=webhook-receipts", "--once"],
+            env=run_env, capture_output=True, text=True, timeout=20,
+        )
+        assert result.returncode == (79 if crash else 0), result.stdout + result.stderr
+
+    def edit(receipt, assignments):
+        assert re.fullmatch(r"[0-9a-f-]{36}", receipt)
+        write_database(driver, sql, f"UPDATE webhook_calls SET {assignments} WHERE id='{receipt}'")
+
+    def bad_prune(*args, **extra):
+        result = subprocess.run(
+            [str(binary), "artisan", "webhook-client:prune", *args],
+            env=current | extra, capture_output=True, text=True, timeout=15,
+        )
+        assert result.returncode != 0, result.stdout + result.stderr
+
+    log_path = root / "retention-http.log"
+    with log_path.open("w+") as log:
+        server = http_helpers["serve"](binary, current, log)
+        try:
+            oldest = intake(b"retention-first")
+            worker(oldest)
+            edit(oldest, "created_at=1, processed_at=1")
+            older = intake(b"retention-second")
+            worker(older)
+            edit(older, "created_at=2, processed_at=2")
+            recently_completed = intake(b"retention-recent")
+            worker(recently_completed)
+            edit(recently_completed, "created_at=1")
+            active = intake(b"leased-crash")
+            worker(active, crash=True)
+            edit(active, "created_at=1")
+            pending = intake(b"retention-pending")
+            edit(pending, "created_at=1")
+            stopped = sql("SELECT id FROM webhook_calls WHERE name='deferred' AND processing_stopped_at IS NOT NULL ORDER BY id LIMIT 1")
+            edit(stopped, "created_at=3, processing_stopped_at=3")
+            legacy = sql("SELECT id FROM webhook_calls WHERE name='spatie' ORDER BY id LIMIT 1")
+            edit(legacy, "created_at=1")
+            peer = sql("SELECT id FROM webhook_calls WHERE scope='webhook-custom' ORDER BY id LIMIT 1")
+            edit(peer, "created_at=1, processed_at=1")
+
+            preserved = {recently_completed, active, pending, legacy, peer}
+            eligible = {oldest, older, stopped}
+            ids = lambda: set(sql("SELECT id FROM webhook_calls").split())
+            assert (preserved | eligible) <= ids()
+            bad_prune()
+            bad_prune("--scope=" + scope, "--limit=501")
+            bad_prune("--scope=" + scope, FIXTURE_PRUNE_POLICY='"30"')
+            assert "已停用" in command(binary, current | {"FIXTURE_PRUNE_POLICY": "null"},
+                                       "webhook-client:prune", "--scope=" + scope)
+            assert "可清理 1 条" in command(binary, current, "webhook-client:prune",
+                                          "--scope=" + scope, "--limit=1", "--pretend")
+            assert eligible <= ids()
+            assert "已清理 1 条" in command(binary, current, "webhook-client:prune",
+                                          "--scope=" + scope, "--limit=1")
+            assert oldest not in ids() and (preserved | {older, stopped}) <= ids()
+            assert "已清理 2 条" in command(binary, current, "webhook-client:prune",
+                                          "--scope=" + scope, "--database=" + driver, "--limit=2")
+            assert not (eligible & ids()) and preserved <= ids()
+            assert not (eligible & set(sql("SELECT call_id FROM webhook_event_receipts").split()))
+            assert not (eligible & set(sql("SELECT call_id FROM webhook_processing_attempts").split()))
+            assert sql("SELECT COUNT(*) FROM jobs") == "2"
+        except BaseException:
+            log.flush()
+            print(log_path.read_text())
+            raise
+        finally:
+            http_helpers["stop"](server)
+    print(f"{driver}: 保留期清理 5 个真实 HTTP、4 次 Worker、7 次 Artisan；范围、终态、待处理、预演和联动清理通过")
+
+
 def main():
  driver,url=helpers["database_settings"]();binary=args.binary.resolve();requests=workers=0
  with tempfile.TemporaryDirectory(dir=ROOT/"target/tmp",prefix="webhook-routes-") as tmp:
@@ -667,6 +763,7 @@ def main():
   check_verified_event_identity(binary,env,root,port,driver,sql)
   check_deferred_processing(binary,env,root,port,driver,sql)
   check_body_deduplication(binary,env,root,port,driver,sql)
+  check_retention(binary,env,root,port,driver,sql)
   legacy_id=sql("SELECT id FROM webhook_calls WHERE name='default' ORDER BY id LIMIT 1")
   assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate:rollback","--step=7","--force")
   assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate","--force")

@@ -20,6 +20,7 @@ http = "1.4"
 zeroize = "1.9"
 thiserror = "2"
 base64 = "0.22"
+clap = "4.6.1"
 
 [dev-dependencies]
 tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread", "net", "time"] }

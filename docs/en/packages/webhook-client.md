@@ -167,6 +167,17 @@ Override `ProcessWebhookJob::handle_outcome` to return `WebhookProcessingOutcome
 
 When the application associates the business record, it can call `QueuedWebhookJob::wake_deferred(&store, queue, receipt_id)` to make a pending receipt eligible immediately. Pass the store for the trusted scope and the application’s `Arc<QueueManager>`. The method uses the destination and handler saved with the deferral. It returns `true` when it creates a wake-up job, or `false` when the receipt is already due, settled, or outside that scope.
 
+### Prune old receipts {#retention}
+
+The package’s `delete_after_days` defaults to 30. Set it to `null` to disable retention cleanup. The application chooses when to run the Artisan command, for example from its scheduler. Use the trusted receipt scope and optionally select a named database connection with `--database`.
+
+```sh
+./artisan webhook-client:prune --scope=billing/site-a --pretend
+./artisan webhook-client:prune --scope=billing/site-a --limit=100
+```
+
+The database store prunes receipts whose creation and terminal timestamps are both outside the retention window. Pending receipts, active leases and receipts without a terminal marker are retained. Receipt deletion also removes the associated event keys and processing attempts. Each command processes up to 500 records. `WebhookCall::prunable` previews candidate IDs through the storage adapter.
+
 ## Scope {#scope}
 
 Use the existing [HTTP client](../digging-deeper/http-client.md) and [queues](../digging-deeper/queues.md) for application networking and jobs. Persistent recovery and a complete delivery state machine remain outside the current implementation.

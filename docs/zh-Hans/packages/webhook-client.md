@@ -167,6 +167,17 @@ Provider 注册 `webhook_calls` 迁移，使用 `DatabaseWebhookStore` 前运行
 
 业务记录就绪并完成关联后，应用可调用 `QueuedWebhookJob::wake_deferred(&store, queue, receipt_id)` 提前唤醒。传入可信范围对应的存储及应用的 `Arc<QueueManager>`。方法沿用延期时保存的处理器和队列地址。创建唤醒任务返回 `true`，记录已到期可领取、已终结或不属于该范围时返回 `false`。
 
+### 清理过期接收记录 {#retention}
+
+包级 `delete_after_days` 默认 30 天，设为 `null` 可停用保留期清理。应用可通过调度器定时运行 Artisan 命令。传入接收记录的可信 scope，可用 `--database` 选择具名连接。
+
+```sh
+./artisan webhook-client:prune --scope=billing/site-a --pretend
+./artisan webhook-client:prune --scope=billing/site-a --limit=100
+```
+
+数据库存储只清理创建时间和终态时间都超过保留期的记录。待处理记录、仍持有租约的记录及缺少终态标记的记录会保留。删除接收记录会一并删除关联去重键和处理尝试。每条命令最多处理 500 条。`WebhookCall::prunable` 通过存储适配器预览候选记录 ID。
+
 ## 使用边界 {#scope}
 
 应用网络与任务执行复用现有 [HTTP 客户端](../digging-deeper/http-client.md)和[队列](../digging-deeper/queues.md)。持久恢复、完整投递状态机仍未实现。

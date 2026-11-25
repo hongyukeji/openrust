@@ -1,0 +1,89 @@
+use crate::{DatabaseWebhookStore, Error, models::WebhookCall};
+use clap::{Arg, ArgAction, Command as Syntax, value_parser};
+use openrust::{
+    console::{Command, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output},
+    database::DatabaseManager,
+    foundation::Application,
+    support::facades::{Artisan, Config},
+};
+
+pub(crate) fn register() -> Result<(), ConsoleError> {
+    let syntax = Syntax::new("webhook-client:prune")
+        .about("清理当前范围内超过保留期的已终结 Webhook 接收记录")
+        .arg(Arg::new("scope").long("scope").required(true))
+        .arg(Arg::new("database").long("database"))
+        .arg(
+            Arg::new("limit")
+                .long("limit")
+                .default_value("100")
+                .value_parser(value_parser!(u32).range(1..=500)),
+        )
+        .arg(
+            Arg::new("pretend")
+                .long("pretend")
+                .action(ArgAction::SetTrue),
+        );
+    Artisan::add(Box::new(Prune(CommandDefinition::new(syntax))))
+}
+
+struct Prune(CommandDefinition);
+
+impl Command for Prune {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+
+    fn handle<'a>(
+        &'a self,
+        app: &'a Application,
+        input: &'a Input,
+        output: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            let value = Config::get("webhook-client.delete_after_days")
+                .map_err(ConsoleError::from_source)?;
+            let days = match value {
+                None => 30,
+                Some(serde_json::Value::Null) => {
+                    output.info("Webhook 接收记录保留期清理已停用");
+                    return Ok(0);
+                }
+                Some(value) => value
+                    .as_u64()
+                    .filter(|days| *days <= 36_500)
+                    .and_then(|days| u32::try_from(days).ok())
+                    .ok_or_else(|| {
+                        ConsoleError::from_source(Error::InvalidConfig("delete_after_days"))
+                    })?,
+            };
+            let matches = input.matches();
+            let scope = matches.get_one::<String>("scope").expect("必填范围");
+            let connection = matches.get_one::<String>("database").map(String::as_str);
+            let limit = *matches.get_one::<u32>("limit").expect("默认批次上限");
+            let manager = app
+                .make::<DatabaseManager>()
+                .await
+                .map_err(ConsoleError::from_source)?;
+            let store = DatabaseWebhookStore::new(
+                manager
+                    .connection(connection)
+                    .map_err(ConsoleError::from_source)?,
+                scope,
+            )
+            .map_err(ConsoleError::from_source)?;
+            if matches.get_flag("pretend") {
+                let ids = WebhookCall::prunable(&store, days, limit)
+                    .await
+                    .map_err(ConsoleError::from_source)?;
+                output.info(&format!("可清理 {} 条 Webhook 接收记录", ids.len()));
+                return Ok(0);
+            }
+            let removed = store
+                .prune(days, limit)
+                .await
+                .map_err(ConsoleError::from_source)?;
+            output.info(&format!("已清理 {removed} 条 Webhook 接收记录"));
+            Ok(0)
+        })
+    }
+}

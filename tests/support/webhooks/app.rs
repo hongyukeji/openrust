@@ -518,15 +518,24 @@ impl openrust::support::ServiceProvider for FixtureProvider {
                         "atomic-foreign" => "foreign-database",
                         _ => "database",
                     };
+                    let leased = config.name() == "retention-digest";
                     Ok(std::sync::Arc::new(AtomicFixtureDispatcher {
-                        inner: openrust_webhook_client::jobs::QueuedWebhookJob::new("fixture")?
-                            .on_connection(connection)
-                            .on_queue("webhook-receipts")
-                            .with_options(openrust::queue::JobOptions {
-                                max_tries: Some(2),
-                                timeout: Some(std::time::Duration::from_secs(12)),
-                                ..Default::default()
-                            }),
+                        inner: openrust_webhook_client::jobs::QueuedWebhookJob::new(if leased {
+                            "leased"
+                        } else {
+                            "fixture"
+                        })?
+                        .on_connection(connection)
+                        .on_queue("webhook-receipts")
+                        .with_options(openrust::queue::JobOptions {
+                            max_tries: Some(2),
+                            timeout: Some(std::time::Duration::from_secs(if leased {
+                                4
+                            } else {
+                                12
+                            })),
+                            ..Default::default()
+                        }),
                         crash: env
                             .get_utf8("FIXTURE_ATOMIC_CRASH")
                             .map_err(runtime_error)?
@@ -725,6 +734,10 @@ fn api_routes() -> Result<(), openrust::routing::RoutingError> {
     Route::webhooks(
         "/package/digest-invalid",
         Options::new().name("digest-invalid"),
+    )?;
+    Route::webhooks(
+        "/package/retention-digest",
+        Options::new().name("retention-digest"),
     )?;
     Route::webhooks("/package/default", Options::default())?;
     Route::webhooks("/package/unregistered", Options::new().name("unregistered"))?;
@@ -954,6 +967,7 @@ async fn main() -> ExitCode {
                 {"name":"unregistered","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"unregistered","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database"},
                 {"name":"event-dedup","signing_secret":{"env":"FIXTURE_STANDARD_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"standard","webhook_profile":"process-everything","webhook_model":"database","atomic_database_queue":true,"deduplicate_verified_events":true},
                 {"name":"event-other","signing_secret":{"env":"FIXTURE_STANDARD_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"standard","webhook_profile":"process-everything","webhook_model":"database","atomic_database_queue":true,"deduplicate_verified_events":true},
+                {"name":"retention-digest","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","atomic_database_queue":true,"deduplicate_body_seconds":5},
                 {"name":"digest-window","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","atomic_database_queue":true,"deduplicate_body_seconds":5},
                 {"name":"digest-invalid","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","deduplicate_body_seconds":5},
                 {"name":"event-custom","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"signed-body","webhook_profile":"process-everything","webhook_model":"database","atomic_database_queue":true,"deduplicate_verified_events":true},
@@ -965,6 +979,9 @@ async fn main() -> ExitCode {
                 {"name":"atomic-foreign","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","atomic_database_queue":true},
                 {"name":"factory-fails","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"factory-fails","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database"}
             ]}));
+            if let Some(value) = env.get_utf8("FIXTURE_PRUNE_POLICY")? {
+                config.get_mut("webhook-client").unwrap()["delete_after_days"] = serde_json::from_str(value).expect("夹具配置必须是有效 JSON");
+            }
             Ok(config)
         }).with_packages(packages::manifest()).with_providers(vec![Box::new(FixtureProvider)]).with_commands(commands).with_migrations(migrations::entries())
         .with_middleware(|middleware| { middleware.prevent_request_forgery(["webhook-web/except"],false,false); })

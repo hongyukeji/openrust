@@ -42,6 +42,8 @@ pub enum Error {
     RecordNotFound,
     #[error("Webhook 存储适配未实现载荷读取")]
     PayloadUnsupported,
+    #[error("Webhook 存储适配未实现保留期查询")]
+    RetentionUnsupported,
     #[error("Webhook 运行操作失败")]
     Runtime {
         #[source]

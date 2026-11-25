@@ -1,6 +1,7 @@
 mod attempts;
 mod identity;
 mod lease;
+mod retention;
 use crate::{Error, Result, VerifiedWebhook, models::WebhookCall};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use http::{
@@ -36,6 +37,9 @@ pub trait WebhookStore: Send + Sync {
         _id: &'a str,
     ) -> HttpFuture<'a, Result<openrust::http::UploadedFileValue>> {
         Box::pin(async { Err(Error::PayloadUnsupported) })
+    }
+    fn prunable(&self, _days: u32, _limit: u32) -> HttpFuture<'_, Result<Vec<String>>> {
+        Box::pin(async { Err(Error::RetentionUnsupported) })
     }
     fn find<'a>(&'a self, id: &'a str) -> HttpFuture<'a, Result<Option<WebhookCall>>>;
     fn set_exception<'a>(
@@ -213,6 +217,10 @@ impl WebhookStore for DatabaseWebhookStore {
             }
         })
     }
+    fn prunable(&self, days: u32, limit: u32) -> HttpFuture<'_, Result<Vec<String>>> {
+        Box::pin(self.prunable_ids(days, limit))
+    }
+
     fn find<'a>(&'a self, id: &'a str) -> HttpFuture<'a, Result<Option<WebhookCall>>> {
         Box::pin(async move { self.row(id, &["*"]).await?.map(decode).transpose() })
     }

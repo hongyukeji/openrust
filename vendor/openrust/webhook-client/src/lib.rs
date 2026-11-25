@@ -4,6 +4,7 @@
 mod attempt_migration;
 #[path = "../config/webhook_client.rs"]
 mod configuration;
+mod console;
 mod contracts;
 #[path = "../database/migrations/2026_11_25_000005_add_deferred_processing_to_webhook_calls_table.rs"]
 mod deferred_migration;
@@ -109,6 +110,7 @@ impl ServiceProvider for WebhookClientServiceProvider {
     fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
             self.load_migrations_from(app, Self::migrations()).await?;
+            self.commands(app, console::register);
             self.publishes(
                 app,
                 &[(
