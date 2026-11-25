@@ -8,6 +8,7 @@ use http::{HeaderMap, HeaderValue, header::AUTHORIZATION};
 use openrust::{
     filesystem::FilesystemManager,
     http::client::{Factory, Part, Response},
+    support::Str,
 };
 use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::{Value, json};
@@ -19,7 +20,8 @@ use super::{
 };
 use crate::{
     Assessment, Confidence, Coverage, Decision, Finding, ImageInput, Modality, ModerationDriver,
-    ModerationError, ModerationFuture, ModerationResult, Operation, TaskId, TextInput, VideoInput,
+    ModerationError, ModerationFuture, ModerationResult, Operation, TaskId, TaskStatus, TextInput,
+    VideoInput,
 };
 
 pub(super) struct Hive {
@@ -141,7 +143,41 @@ impl Model {
         if task.project_id != self.project {
             return Err(ModerationError::Protocol);
         }
-        let job = match task.status {
+        self.checked_output(task.id, task.status, false)
+    }
+
+    pub(super) fn validate_summary<T: DeserializeOwned>(
+        &self,
+        response: Response,
+        expected: &TaskId,
+    ) -> ModerationResult<Option<ModelResult<T>>> {
+        http_status(response.status().as_u16())?;
+        if response.status().as_u16() == 202 {
+            return Ok(None);
+        }
+        let task: TaskSummary<T> = response.json().map_err(|_| ModerationError::Protocol)?;
+        if let Some(code) = task.code {
+            http_status(code)?;
+        }
+        if task.id != expected.as_str() || task.project_id != self.project {
+            return Err(ModerationError::Protocol);
+        }
+        match task.status {
+            None => Ok(None),
+            Some(Jobs::List(jobs)) if jobs.is_empty() => Ok(None),
+            Some(status) => self
+                .checked_output(task.id, status, task.from_cache)
+                .map(Some),
+        }
+    }
+
+    fn checked_output<T>(
+        &self,
+        id: String,
+        status: Jobs<T>,
+        from_cache: bool,
+    ) -> ModerationResult<ModelResult<T>> {
+        let job = match status {
             Jobs::Single(job) => job,
             Jobs::List(mut jobs) if jobs.len() == 1 => {
                 jobs.pop().ok_or(ModerationError::Protocol)?
@@ -156,12 +192,15 @@ impl Model {
         let output = job.response.ok_or(ModerationError::Protocol)?;
         if output.input.model_type != self.model_type
             || output.input.project_id != self.project
-            || output.input.id != task.id
+            || !(output.input.id == id
+                || from_cache
+                    && Str::is_uuid(&output.input.id, None)
+                    && !Str::is_uuid(&output.input.id, Some(0)))
         {
             return Err(ModerationError::Protocol);
         }
         Ok(ModelResult {
-            id: task.id,
+            id,
             output: output.result,
             media: output.input.media,
         })
@@ -315,6 +354,7 @@ impl ModerationDriver for Hive {
             Operation::Text => self.text.is_some(),
             Operation::Image => self.image.is_some() || self.ocr.is_some(),
             Operation::SubmitVideo => self.video.is_some(),
+            Operation::QueryVideo => self.video.as_ref().is_some_and(VideoService::can_query),
             _ => false,
         }
     }
@@ -352,6 +392,16 @@ impl ModerationDriver for Hive {
                 .await
         })
     }
+
+    fn query_video<'a>(&'a self, id: &'a TaskId) -> ModerationFuture<'a, TaskStatus> {
+        Box::pin(async move {
+            self.video
+                .as_ref()
+                .ok_or(ModerationError::Unsupported(Operation::QueryVideo))?
+                .query(id)
+                .await
+        })
+    }
 }
 
 #[derive(Deserialize)]
@@ -360,6 +410,16 @@ struct TaskOutput<T> {
     code: u16,
     project_id: u64,
     status: Jobs<T>,
+}
+
+#[derive(Deserialize)]
+struct TaskSummary<T> {
+    id: String,
+    project_id: u64,
+    code: Option<u16>,
+    status: Option<Jobs<T>>,
+    #[serde(default)]
+    from_cache: bool,
 }
 
 #[derive(Deserialize)]

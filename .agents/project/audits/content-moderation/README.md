@@ -200,3 +200,11 @@
 基线 `18c566c8e`，Rust 1.94.0。SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 各由真实 HTTP、Artisan 和独立数据库 Worker 触发 12 次 V2 协议请求。替身验证精确方法／路径、Token、回调地址和版本签名，并从真实 SeaweedFS 读取同一键的两个不同 MP4。测试覆盖配置缓存后原地址、作用域匹配、空回执、无效 UUID、回调地址错配、拒绝、限流、超时、故障、原对象版本和外部凭据哨兵。按固定配置提交的独立 Worker 保存原任务 ID，审核保持 Running。文本、图片、OCR 和定时恢复回归、3 个包契约、修改范围格式、包及应用严格 Clippy 通过。三语文档构建和 Chrome 双挂载点验收通过。
 
 Hive V2 建立任务页面的异步例子指向 V1 路径，公开带认证查单页也声明 `GET /api/v1/task`。本批未验证 V2 项目凭据和任务 ID 是否获准使用该查询契约，也未验证正式回调、音轨／OCR 项目、配额和真实覆盖。继续按 CM-03／CM-04 独立验收。 [官方例子](https://docs.thehive.ai/reference/submit-a-task-asynchronously) · [公开查单](https://docs.thehive.ai/reference/get-task-summary)
+
+## CM-03M Hive 账户显式启用的 V1 查单 {#hive-video-summary}
+
+在已有 V2 送审基础上增加显式 `video_query_api = "v1-task-summary"`。公开 V1 Task Summary 使用原项目凭据、任务 ID、frame_offset 和 frame_limit。核对外层 ID、项目、内层模型和项目。明确标记来自缓存时，允许同项目的合法原推理 UUID，主任务身份仍按外层匹配。每次最多四页、每页 64 帧，各页最多 30 秒。按类别保留峰值及原件毫秒，采样覆盖为部分，空结果为无覆盖。配置不启用查单时保留已有 V2 提交通道。 [公开查单](https://docs.thehive.ai/reference/get-task-summary) · [缓存响应示例](https://docs.thehive.ai/reference/submit-a-task-asynchronously) · [视频输出](https://docs.thehive.ai/reference/video)
+
+基线 `501fc1c21`，Rust 1.94.0。SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 上，真实 HTTP、Artisan 和独立 Worker 经替身各发出 23 次查单 HTTP 请求。验证空任务列表和 HTTP 202、双页与四页上限、原项目外层身份、缓存／非缓存内层身份、模型/项目错配、数学边界、限流和禁用情况下的拦截。认证查询跨进程保留原配置和任务，第二页峰值出现在 64500 毫秒，部分覆盖保留证据且无 Allow。现有 V2 送审和私有媒体、Hive 文本／图片／OCR 回归，包及应用严格 Clippy、修改范围格式和 3 个契约通过。三语文档构建和 Chrome 双挂载点验收通过。
+
+该选项的本地协议模拟已验收。Hive 正式项目开通 V1 查询、实际等待／缓存响应的形状、视频 OCR／语音及供应商回调继续独立核对。

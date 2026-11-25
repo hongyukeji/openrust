@@ -337,7 +337,7 @@ D-03 的父审核／点播子检查同库落单和幂等已通过三库验证，
 | Sightengine | [text/check.json](https://sightengine.com/docs/text-moderation-introduction)，明确rules／ML与语言 | check.json，按选择的视觉／OCR模型及实际动图采样限制 | video/check.json／video/byid.json、账号级回调与状态映射 | [语音模型](https://www1.sightengine.com/docs/audio-moderation-model)文档例子使用同步视频接口；长视频异步音轨与分段支持必须落实，未验证不能计全模态完成 |
 | Hive | [Text Moderation项目](https://docs.thehive.ai/docs/text-moderation-api)，独立项目／模型对应task/sync或async | Visual Moderation项目对应模型API及真实project | [模型Task API](https://docs.thehive.ai/reference/submitting-via-task-api)的sync／async选择及任务查询；不混入hivemoderation Dashboard端点 | 文本／视觉／音频项目可能不同凭据，均纳入profile快照；完成结果按项目与任务归属关联，合同开通和官方查询／鉴权细节留真实验证 |
 
-[Hive V2 点播提交](../audits/content-moderation/README.md#hive-video-submission)已通过三库；官方查单入口的跨版本账号授权、回调和必检音轨／OCR继续验收。
+[Hive V2 点播提交](../audits/content-moderation/README.md#hive-video-submission)及[显式 V1 查单](../audits/content-moderation/README.md#hive-video-summary)均已通过三库本地协议验收；跨版本账号授权、回调和必检音轨／OCR继续验收。
 
 闭合规则：
 

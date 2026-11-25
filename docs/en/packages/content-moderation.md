@@ -72,6 +72,8 @@ Use a named `hive` profile with the numeric `video_project` ID of your Hive V2 E
 
 `submit_video()` sends the selected object version to the V2 asynchronous endpoint. It returns the provider task ID after checking the project and any callback URL echoed by Hive. If the acknowledgement is ambiguous, reconcile the original task before deciding whether to submit again. Treat the returned ID as a receipt and confirm the moderation result through your project's integration before using it for publication. [Hive task creation](https://docs.thehive.ai/reference/submitting-via-task-api)
 
+For a project that Hive has enabled for the V1 Task Summary API, set `video_query_api: "v1-task-summary"`, list the classes in `video_classes` and set `video_review_score` from 0 to 1. This enables `query_video()` for tasks from that profile. It reads at most four pages of 64 frames and retains the peak class scores with their times. Visual sampling or capped pages produce partial coverage. [Hive Task Summary](https://docs.thehive.ai/reference/get-task-summary)
+
 ## Alibaba Cloud video {#aliyun-video}
 
 Set `video_service` in a named `aliyun` profile. `videoDetection` supports Shanghai, Beijing and Hangzhou, and `videoDetectionByVL` supports Shanghai and Beijing. Set `media_disk` and `media_origin` for a versioned private S3 object. The driver signs a five-minute HTTPS download URL for the requested version.

@@ -72,6 +72,8 @@
 
 `submit_video()` 将指定版本的对象交给 V2 异步接口。Hive 应答通过项目和实际回显的回调地址核对后，返回供应商任务 ID。回执不明确时先核对原任务，再决定是否重提。将返回 ID 用于跟踪任务，发布前应通过项目接入的通道确认审核结果。 [Hive 创建任务](https://docs.thehive.ai/reference/submitting-via-task-api)
 
+如果 Hive 已为该项目开通 V1 Task Summary 接口，可设置 `video_query_api: "v1-task-summary"`，在 `video_classes` 中列出类别，并将 `video_review_score` 设为 0 至 1。该配置的任务可调用 `query_video()`。每次最多读取四页，每页 64 帧，并保留类别的最高分和对应时间。画面采样或分页受限时，覆盖保持部分。 [Hive 查单接口](https://docs.thehive.ai/reference/get-task-summary)
+
 ## 阿里云点播视频 {#aliyun-video}
 
 在具名 `aliyun` 配置设置 `video_service`。上海、北京和杭州支持 `videoDetection`，上海和北京支持 `videoDetectionByVL`。私有版本化 S3 对象使用 `media_disk`、`media_origin`，驱动为指定版本生成五分钟有效的 HTTPS 签名下载链接。

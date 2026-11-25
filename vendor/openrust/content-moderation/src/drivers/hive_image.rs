@@ -126,23 +126,23 @@ impl ImageService {
 }
 
 #[derive(Deserialize)]
-struct ImageOutput {
-    output: Vec<Frame>,
+pub(super) struct ImageOutput {
+    pub(super) output: Vec<Frame>,
 }
 
 #[derive(Deserialize)]
-struct Frame {
-    time: Option<f64>,
-    classes: Vec<Prediction>,
+pub(super) struct Frame {
+    pub(super) time: Option<f64>,
+    pub(super) classes: Vec<Prediction>,
 }
 
 #[derive(Deserialize)]
-struct Prediction {
-    class: String,
-    score: f64,
+pub(super) struct Prediction {
+    pub(super) class: String,
+    pub(super) score: f64,
 }
 
-fn category(class: &str) -> &'static str {
+pub(super) fn category(class: &str) -> &'static str {
     match class {
         "general_nsfw" | "general_suggestive" => "sexual",
         "gun_in_hand" | "gun_not_in_hand" | "animated_gun" => "violence",

@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import runpy
 import socket
+import sqlite3
 import subprocess
 import tempfile
 import threading
@@ -22,6 +23,7 @@ HTTP = VIDEO["HTTP"]
 PROJECT = 48175
 TASK = "dd52c0d0-9ec7-11ea-98a3-4b92424b8366"
 TOKEN = "fixture-hive-video-project-token"
+PRIVATE = "hidden-hive-frame-reference"
 CALLBACK = "https://moderation-callback.fixture.invalid/api/hive"
 COMMAND = "drivers:moderation-hive-video"
 
@@ -73,6 +75,9 @@ class Supplier(http.server.BaseHTTPRequestHandler):
         elif mode == "timeout":
             time.sleep(1.3)
         body = b"{" if mode == "malformed" else json.dumps(response).encode()
+        self.respond(status, body, allow_disconnect=(mode == "timeout"))
+
+    def respond(self, status, body, *, allow_disconnect=False):
         try:
             self.send_response(status)
             self.send_header("Content-Type", "application/json")
@@ -80,7 +85,57 @@ class Supplier(http.server.BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
         except (BrokenPipeError, ConnectionResetError):
-            assert mode == "timeout"
+            assert allow_disconnect
+
+    def do_GET(self):
+        target = urlsplit(self.path)
+        assert target.path == "/api/v1/task" and self.headers["Authorization"] == f"Token {TOKEN}"
+        parameters = parse_qs(target.query, strict_parsing=True)
+        offset, = parameters.pop("frame_offset")
+        offset = int(offset)
+        assert parameters == {"task_id": [TASK], "frame_limit": ["64"]}
+        with self.server.lock:
+            self.server.summary_calls.append(offset)
+            mode = self.server.query_mode
+        status = 200
+        task = {"id": TASK, "project_id": PROJECT}
+        frames = []
+        if mode in ("paged", "capped") and (offset == 0 or mode == "capped"):
+            frames = [{"time": offset + index, "classes": [{"class": "general_nsfw", "score": .1}]}
+                      for index in range(64)]
+        elif mode == "too-many":
+            frames = [{"time": index, "classes": []} for index in range(65)]
+        elif mode != "empty":
+            frames = [{"time": 64.5 if offset == 64 else 2.25,
+                       "media_link": "https://restricted.fixture.invalid/" + PRIVATE,
+                       "classes": [{"class": "gun_in_hand", "score": .97}]}]
+        input_id = TASK if mode not in ("cached", "wrong-input") else "b9388470-a078-11ea-a390-db89c3c0393a"
+        task["status"] = [{
+            "status": {"code": "0"},
+            "response": {"input": {"id": input_id, "project_id": PROJECT, "model_type": "CATEGORIZATION"},
+                         "output": frames},
+        }]
+        if mode == "cached":
+            task["from_cache"] = True
+        elif mode == "pending":
+            task["status"] = []
+        elif mode == "accepted":
+            status, task = 202, {}
+        elif mode == "wrong-task":
+            task["id"] = "b9388470-a078-11ea-a390-db89c3c0393a"
+        elif mode == "wrong-project":
+            task["project_id"] += 1
+        elif mode == "wrong-model":
+            task["status"][0]["response"]["input"]["model_type"] = "OCR_MODERATION"
+        elif mode == "bad-time":
+            frames[0]["time"] = -1
+        elif mode == "bad-score":
+            frames[0]["classes"][0]["score"] = 1.5
+        elif mode == "rate":
+            status = 429
+        elif mode == "duplicate-class":
+            frames[0]["classes"].append(frames[0]["classes"][0])
+        self.respond(status, json.dumps(task).encode())
 
 
 def exercise(binary, driver, url, root, storage_env, storage):
@@ -88,6 +143,7 @@ def exercise(binary, driver, url, root, storage_env, storage):
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Supplier)
     server.storage = urlsplit(storage_env["AWS_ENDPOINT"])
     server.calls, server.mode, server.lock = [], "accepted", threading.Lock()
+    server.summary_calls, server.query_mode = [], "paged"
     worker = threading.Thread(target=server.serve_forever, daemon=True)
     worker.start()
     with socket.socket() as listener:
@@ -138,7 +194,7 @@ def exercise(binary, driver, url, root, storage_env, storage):
             response = connection.getresponse()
             data = response.read()
             assert response.status == status, (status, response.status, data[:250])
-            assert TOKEN.encode() not in data
+            assert TOKEN.encode() not in data and PRIVATE.encode() not in data
             return json.loads(data)
         finally:
             connection.close()
@@ -185,6 +241,68 @@ def exercise(binary, driver, url, root, storage_env, storage):
         assert submitted["profile"]["name"] == "hive-videos" and submitted["object_version"] == first
         assert submitted["state"] == "Running" and submitted["decision"] is None
         assert server.calls == [(first, original), (last, changed)] + [(first, original)] * 10
+
+        summary = env | {"MODERATION_FIXTURE_HIVE_VIDEO_QUERY": "v1-task-summary"}
+        artisan(summary, "config:clear")
+        artisan(summary, "config:cache")
+        assert not server.summary_calls
+        with (root / "summary-http.log").open("w+") as log:
+            application = HTTP["serve"](binary, summary, log)
+            try:
+                assert post(400, task="invalid-summary-id")["error"].startswith("InvalidInput")
+                server.query_mode = "pending"
+                assert post(task=TASK) == {"status": "Running"}
+                server.query_mode = "accepted"
+                assert post(task=TASK) == {"status": "Running"}
+                server.query_mode = "paged"
+                checked = post(task=TASK)
+                assert checked["status"] == "Succeeded"
+                assessment = checked["assessment"]
+                assert assessment["decision"] == "Review"
+                assert assessment["coverage"] == {"Ocr": "Unavailable", "Speech": "Unavailable", "Visual": "Partial"}
+                label, = assessment["labels"]
+                assert label["span_ms"] == [64500, 64500] and label["confidence"] == {"value": .97, "maximum": 1.0}
+                assert server.summary_calls == [0, 0, 0, 64]
+                server.query_mode = "capped"
+                assert post(task=TASK)["assessment"]["decision"] is None
+                assert server.summary_calls[-4:] == [0, 64, 128, 192]
+                server.query_mode = "empty"
+                assert post(task=TASK)["assessment"]["coverage"]["Visual"] == "Unavailable"
+                server.query_mode = "cached"
+                assert post(task=TASK)["assessment"]["labels"][0]["span_ms"] == [2250, 2250]
+                for mode in ("wrong-task", "wrong-project", "wrong-model", "wrong-input",
+                             "bad-time", "bad-score", "too-many", "duplicate-class"):
+                    server.query_mode = mode
+                    assert post(502, task=TASK) == {"error": "Protocol"}
+                server.query_mode = "rate"
+                assert post(429, task=TASK) == {"error": "Throttled"}
+            finally:
+                HTTP["stop"](application)
+            log.seek(0)
+            trace = log.read()
+            assert TOKEN not in trace and PRIVATE not in trace
+        server.query_mode = "paged"
+        assert json.loads(artisan(summary, COMMAND, "query", TASK)) == checked
+        # 更新了同名配置时，原未配置查单的审核仍绑定自己的修订。
+        stale = json.loads(artisan(summary, "drivers:moderation-review", "find", "app", "tenant", review["id"]))
+        assert stale["profile"] == submitted["profile"]
+        next_review = json.loads(artisan(summary, "drivers:moderation-review", "stage", "app", "tenant",
+                                         "hive-summary-intent", first))
+        artisan(summary, "drivers:moderation-review", "submit", "app", "tenant", next_review["id"])
+        change = f"UPDATE moderation_checks SET available_at = 1 WHERE id = '{next_review['check_id']}'"
+        if driver == "sqlite":
+            with sqlite3.connect(sqlite) as connection:
+                connection.execute(change)
+        else:
+            DATABASE["database_rows"](DATABASE["database_container"](), change)
+        artisan(summary, "drivers:moderation-review", "queue-query", "app", "tenant", next_review["id"])
+        output.unlink()
+        artisan(summary | {"MODERATION_FIXTURE_RESULT": str(output)}, "queue:work", "database", "--once")
+        confirmed = json.loads(output.read_text())
+        assert confirmed["state"] == "Failed" and confirmed["query_failure"] == "incomplete_coverage"
+        assert confirmed["query_attempts"] == 1 and confirmed["decision"] is None
+        assert confirmed["assessment"]["labels"] == checked["assessment"]["labels"]
+        assert len(server.summary_calls) == 23
     finally:
         server.shutdown()
         server.server_close()
@@ -199,4 +317,4 @@ if __name__ == "__main__":
     with tempfile.TemporaryDirectory(dir=ROOT / "target/tmp", prefix="moderation-hive-video-") as root, \
             VIDEO["VIDEO"]["OBJECTS"]["TOPOLOGY"]["object_storage"](True) as (env, storage):
         exercise(args.binary.resolve(), driver, url, Path(root), env, storage)
-    print(f"{driver}: Hive V2 HTTP／Artisan／Worker、私有 MP4、项目匹配和未知提交通过")
+    print(f"{driver}: Hive V2 送审与显式 V1 查单、分页、覆盖及独立 Worker 通过")

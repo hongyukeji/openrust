@@ -72,6 +72,8 @@
 
 `submit_video()` 將指定版本的物件交給 V2 非同步介面。Hive 回應通過專案和實際回傳的回呼位址核對後，回傳供應商任務 ID。回執不明確時先核對原始任務，再決定是否重新提交。將回傳 ID 用於追蹤任務，發布前應透過專案接入的管道確認審核結果。 [Hive 建立任務](https://docs.thehive.ai/reference/submitting-via-task-api)
 
+如果 Hive 已為該專案啟用 V1 Task Summary 介面，可設定 `video_query_api: "v1-task-summary"`，在 `video_classes` 列出類別，並將 `video_review_score` 設為 0 至 1。該設定的任務可呼叫 `query_video()`。每次最多讀取四頁，每頁 64 幀，並保留類別的最高分和對應時間。畫面取樣或分頁受限時，涵蓋範圍維持部分。 [Hive 查詢介面](https://docs.thehive.ai/reference/get-task-summary)
+
 ## 阿里雲隨選影片 {#aliyun-video}
 
 在具名 `aliyun` 設定指定 `video_service`。上海、北京、杭州支援 `videoDetection`，上海和北京支援 `videoDetectionByVL`。私人版本化 S3 物件使用 `media_disk`、`media_origin`，驅動會為指定版本產生五分鐘有效的 HTTPS 簽名下載連結。

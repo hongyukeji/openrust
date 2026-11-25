@@ -89,6 +89,7 @@ pub(crate) fn register(
     });
 }
 
+#[derive(Clone)]
 struct Endpoint {
     http: Arc<Factory>,
     url: Url,

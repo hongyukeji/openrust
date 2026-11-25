@@ -259,6 +259,11 @@ pub(super) fn configuration(env: &Environment) -> Result<Value, ConfigError> {
             "media_disk":"s3", "media_origin":env.get_utf8("MODERATION_FIXTURE_IMAGE_ORIGIN")?,
             "credential_ref":"hive-video", "credential_revision":"r1", "timeout_ms":1000,
         });
+        if let Some(api) = env.get_utf8("MODERATION_FIXTURE_HIVE_VIDEO_QUERY")? {
+            video["video_query_api"] = json!(api);
+            video["video_classes"] = json!(["general_nsfw", "gun_in_hand"]);
+            video["video_review_score"] = json!(0.9);
+        }
         configuration["credential_directory"] =
             json!(env.get_utf8("MODERATION_CREDENTIAL_DIRECTORY")?);
         configuration["drivers"]["hive-videos"] = video.clone();
