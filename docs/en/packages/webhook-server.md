@@ -183,6 +183,13 @@ pub async fn preview_shared_body_pruning(
     store.prune_publication_bodies(30, 100, after, true).await
 }
 
+pub async fn hold_invoice_delivery(
+    store: &openrust_webhook_server::DeliveryStore,
+    id: &str,
+) -> Result<bool> {
+    store.set_retention_hold(openrust_webhook_server::RetentionRecord::Delivery, id, true).await
+}
+
 ```
 
 
@@ -276,6 +283,12 @@ Run `./artisan webhook-server:prune --scope=<scope> --days=30 --pretend` to prev
 Apply migrations and upgrade all processes that can register replays before enabling pruning. Only terminal deliveries qualify. A pruned original can no longer be used to register a replay. Replays already registered can still send their own stored request. Diagnostics expose `payload_pruned_at` in Unix seconds after pruning.
 
 Use `--messages` to prune shared publication bodies after the publication retention period. A message qualifies once every original and replay delivery has had its request snapshot pruned. Supply the returned `next_after` to `--after` to scan the next page. Start again without a cursor to recheck previously blocked messages. The message ID, original delivery IDs and idempotency digest remain available. `webhook-server:inspect --message` shows `body_pruned_at` after cleanup.
+
+### Hold outgoing records {#retention-hold}
+
+Run `./artisan webhook-server:hold <id> --scope=<scope>` to keep a delivery snapshot and its attempts. Add `--message` to hold the shared body by publication ID. Use `--release` to remove the hold. A publication hold applies only to the shared body. A delivery hold also keeps a shared body while that delivery's snapshot still refers to it. Releasing a hold leaves the ordinary age requirements in effect.
+
+`retention_hold_at` appears in diagnostics when set. A hold protects the data that still exists. Apply the migrations and upgrade all pruning processes before placing holds. Authorize the scope in the application before calling `DeliveryStore::set_retention_hold`, and give the Artisan command only to trusted operators.
 
 ### Publish to subscriptions {#subscriptions}
 

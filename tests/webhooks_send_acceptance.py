@@ -248,6 +248,10 @@ def exercise(binary, env, log, receiver, driver, sql):
             output = command("webhook-server:prune", "--scope", scope, *args, success=success)
             return json.loads(output) if success else None
 
+        def hold(identifier, *args, scope=SCOPE, success=True):
+            output = command("webhook-server:hold", identifier, "--scope", scope, *args, success=success)
+            return json.loads(output)["changed"] if success else None
+
         def replay_args(identifier):
             return ("webhook-server:replay", identifier, "--scope", SCOPE,
                     "--actor=fixture-operator", "--reason=test-retention")
@@ -272,6 +276,51 @@ def exercise(binary, env, log, receiver, driver, sql):
         for identifier in (winner, loser, pending):
             age(identifier)
 
+        assert not hold(winner, scope="different-scope")
+        assert hold("invalid", success=False) is None
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            changes = [pool.submit(hold, winner) for _ in range(2)]
+            assert sum(change.result() for change in changes) == 1
+        held = json.loads(command("webhook-server:inspect", winner, "--scope", SCOPE))
+        assert held["retention_hold_at"] > 0
+        assert prune("--days=0", "--attempts", "--pretend")["candidates"] == 1
+        assert hold(loser)
+        assert prune("--days=0", "--attempts")["pruned"] == 0
+        assert prune("--days=0")["pruned"] == 0
+        assert hold(loser, "--release")
+        marker = Path(env["APP_BASE_PATH"])
+        holder = subprocess.Popen(
+            [str(binary), "artisan", "webhooks:fixture-endpoint", "hold-before-prune", loser],
+            env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        )
+        cleaner = None
+        try:
+            deadline = time.monotonic() + 6
+            while not (marker / "prune-hold-ready").exists():
+                assert holder.poll() is None and time.monotonic() < deadline
+                time.sleep(0.01)
+            cleaner = subprocess.Popen(
+                [str(binary), "artisan", "webhook-server:prune", "--scope", SCOPE, "--days=0", "--attempts"],
+                env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            )
+            time.sleep(0.2)
+            assert cleaner.poll() is None
+            (marker / "prune-hold-release").touch()
+            _, error = holder.communicate(timeout=10)
+            assert holder.returncode == 0, error
+            output, error = cleaner.communicate(timeout=10)
+            assert cleaner.returncode == 0 and json.loads(output)["pruned"] == 0, error
+            assert bool(attempts(loser))
+        finally:
+            for process in (holder, cleaner):
+                if process is not None and process.poll() is None:
+                    process.kill()
+                    process.wait(timeout=5)
+        assert hold(loser, "--release")
+        hold_migration = ("--path=vendor/openrust/webhook-server/database/migrations/"
+                          "2026_11_25_000000_mark_webhook_deliveries_retention_hold.rs")
+        command("migrate:rollback", hold_migration, "--step=1000", "--force", success=False)
+        assert hold(winner, "--release") and not hold(winner, "--release")
         assert prune("--days=0", "--limit=1", "--pretend") == {
             "artifact": "payloads", "pretend": True, "candidates": 1, "pruned": 0
         }
@@ -350,6 +399,15 @@ def exercise(binary, env, log, receiver, driver, sql):
         assert first["scanned"] == second["scanned"] == 1
         assert first["pruned"] == second["pruned"] == 0
         assert first["candidates"] + second["candidates"] == 1
+        assert hold(empty["message_id"], "--message")
+        message_hold_migration = ("--path=vendor/openrust/webhook-server/database/migrations/"
+                                  "2026_11_25_000000_mark_webhook_messages_retention_hold.rs")
+        command("migrate:rollback", message_hold_migration, "--step=1000", "--force", success=False)
+        assert prune("--days=0", "--messages")["pruned"] == 0
+        held = json.loads(command("webhook-server:inspect", empty["message_id"],
+                                  "--scope", SCOPE, "--message"))
+        assert held["retention_hold_at"] > 0
+        assert hold(empty["message_id"], "--message", "--release")
         assert prune("--days=0", "--messages")["pruned"] == 1
         assert publish("retention-empty") == empty
         assert sql(f"SELECT count(*) FROM webhook_messages WHERE id='{message_id}' AND body<>''") == "1"
@@ -375,7 +433,15 @@ def exercise(binary, env, log, receiver, driver, sql):
         assert replayed[1]["Signature"] == hmac.new(SECRET, original[2], hashlib.sha256).hexdigest()
         assert prune("--days=0", "--messages")["candidates"] == 0
         age(replayed_fanout)
+        assert hold(replayed_fanout)
+        report = prune("--days=0")
+        assert report["candidates"] == report["pruned"] == 0
+        assert prune("--days=0", "--messages")["candidates"] == 0
+        assert hold(replayed_fanout, "--release")
         assert prune("--days=0")["pruned"] == 1
+        assert hold(message_id, "--message")
+        assert prune("--days=0", "--messages")["pruned"] == 0
+        assert hold(message_id, "--message", "--release")
         with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
             tasks = [pool.submit(prune, "--days=0", "--messages") for _ in range(2)]
             receipt = pool.submit(publish, "retention-fanout")
@@ -392,7 +458,7 @@ def exercise(binary, env, log, receiver, driver, sql):
         command("migrate:rollback", message_migration, "--step=1000", "--force", success=False)
         assert prune("--days=0")["pruned"] == 0
         assert prune("--days=0", "--messages")["scanned"] == 0
-        print(f"{driver}: 出站留存、共享正文引用、游标分页、并发回收和墓碑去重通过")
+        print(f"{driver}: 出站留存、共享正文、业务保留、并发回收和墓碑去重通过")
         return
 
     if env.get("FIXTURE_SEND_DIAGNOSTICS"):

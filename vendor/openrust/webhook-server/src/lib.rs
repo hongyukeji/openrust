@@ -7,6 +7,8 @@ mod call_webhook_job;
 mod configuration;
 mod console;
 mod delivery;
+#[path = "../database/migrations/2026_11_25_000000_mark_webhook_deliveries_retention_hold.rs"]
+mod delivery_hold_migration;
 #[path = "../database/migrations/2026_11_25_000000_create_webhook_deliveries_table.rs"]
 mod delivery_migration;
 mod delivery_store;
@@ -20,6 +22,8 @@ mod error;
 pub mod events;
 mod extensions;
 mod limits;
+#[path = "../database/migrations/2026_11_25_000000_mark_webhook_messages_retention_hold.rs"]
+mod message_hold_migration;
 #[path = "../database/migrations/2026_11_25_000000_create_webhook_messages_table.rs"]
 mod message_migration;
 mod message_retention;
@@ -35,6 +39,7 @@ mod replay;
 #[path = "../database/migrations/2026_11_25_000000_extend_webhook_deliveries_for_replay.rs"]
 mod replay_migration;
 mod retention;
+mod retention_hold;
 #[path = "../database/migrations/2026_11_25_000000_extend_webhook_deliveries_for_retention.rs"]
 mod retention_migration;
 mod signer;
@@ -66,6 +71,7 @@ pub use replay::{
     ReplayDelivery, ReplayLimits, ReplayPhase, ReplayPolicy, ReplayRequest, register_replay_policy,
 };
 pub use retention::{DeliveryPruneReport, DeliveryRetention};
+pub use retention_hold::RetentionRecord;
 pub use signer::{DefaultSigner, Signer, SigningContext, StandardWebhookSigner};
 pub use webhook_call::{PreparedWebhook, WebhookCall};
 
@@ -142,6 +148,14 @@ impl WebhookServerServiceProvider {
             MigrationEntry::new(
                 "vendor/openrust/webhook-server/database/migrations/2026_11_25_000000_extend_webhook_messages_for_retention.rs",
                 &message_retention_migration::MIGRATION,
+            ),
+            MigrationEntry::new(
+                "vendor/openrust/webhook-server/database/migrations/2026_11_25_000000_mark_webhook_deliveries_retention_hold.rs",
+                &delivery_hold_migration::MIGRATION,
+            ),
+            MigrationEntry::new(
+                "vendor/openrust/webhook-server/database/migrations/2026_11_25_000000_mark_webhook_messages_retention_hold.rs",
+                &message_hold_migration::MIGRATION,
             ),
         ];
         ENTRIES

@@ -17,6 +17,8 @@ pub struct DeliveryDiagnostics {
     pub lease_until: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub payload_pruned_at: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retention_hold_at: Option<i64>,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -28,6 +30,8 @@ pub struct MessageDiagnostics {
     pub delivery_ids: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub body_pruned_at: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retention_hold_at: Option<i64>,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -61,6 +65,7 @@ impl DeliveryStore {
                 "deadline",
                 "lease_until",
                 "payload_pruned_at",
+                "retention_hold_at",
             ])
             .first()
             .await?
@@ -83,6 +88,7 @@ impl DeliveryStore {
                     deadline: number(&row, "deadline")?,
                     lease_until: optional_number(&row, "lease_until")?,
                     payload_pruned_at: optional_number(&row, "payload_pruned_at")?,
+                    retention_hold_at: optional_number(&row, "retention_hold_at")?,
                 })
             })
             .transpose()
@@ -101,6 +107,7 @@ impl DeliveryStore {
                 "created_at",
                 "delivery_ids",
                 "body_pruned_at",
+                "retention_hold_at",
             ])
             .first()
             .await?
@@ -116,6 +123,7 @@ impl DeliveryStore {
                     created_at: number(&row, "created_at")?,
                     delivery_ids,
                     body_pruned_at: optional_number(&row, "body_pruned_at")?,
+                    retention_hold_at: optional_number(&row, "retention_hold_at")?,
                 })
             })
             .transpose()

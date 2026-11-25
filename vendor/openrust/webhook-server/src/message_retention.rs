@@ -91,6 +91,7 @@ impl DeliveryStore {
             .table(MESSAGES)
             .r#where("scope_key", "=", self.scope_key.as_str())
             .where_null("body_pruned_at")
+            .where_null("retention_hold_at")
             .where_raw(
                 &format!("created_at < {} - ?", self.clock()),
                 vec![seconds.into()],

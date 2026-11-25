@@ -719,13 +719,44 @@ impl Command for FixtureEndpointCommand {
                 .make::<DatabaseManager>()
                 .await
                 .map_err(ConsoleError::from_source)?;
-            let deliveries = DeliveryStore::new(
-                manager
-                    .connection(None)
-                    .map_err(ConsoleError::from_source)?,
-                scope,
-            )
-            .map_err(ConsoleError::from_source)?;
+            let connection = manager
+                .connection(None)
+                .map_err(ConsoleError::from_source)?;
+            let operation = input.get_one::<String>("operation").unwrap();
+            if operation == "hold-before-prune" {
+                let root = std::path::PathBuf::from(std::env::var_os("APP_BASE_PATH").unwrap());
+                let mut tx = connection
+                    .begin_transaction()
+                    .await
+                    .map_err(ConsoleError::from_source)?;
+                let count = tx
+                    .table("webhook_deliveries")
+                    .r#where("id", "=", name.as_str())
+                    .update(
+                        [("retention_hold_at".into(), 1_i64.into())]
+                            .into_iter()
+                            .collect(),
+                    )
+                    .await
+                    .map_err(ConsoleError::from_source)?;
+                if count != 1 {
+                    return Err(ConsoleError::from_source(Error::InvalidRecord));
+                }
+                tokio::fs::write(root.join("prune-hold-ready"), b"ready")
+                    .await
+                    .map_err(ConsoleError::from_source)?;
+                tokio::time::timeout(std::time::Duration::from_secs(10), async {
+                    while !root.join("prune-hold-release").exists() {
+                        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                    }
+                })
+                .await
+                .map_err(ConsoleError::from_source)?;
+                tx.commit().await.map_err(ConsoleError::from_source)?;
+                return Ok(0);
+            }
+            let deliveries =
+                DeliveryStore::new(connection, scope).map_err(ConsoleError::from_source)?;
             let store = deliveries.endpoints();
             let (mut url, _) = target().map_err(ConsoleError::from_source)?;
             if input.get_flag("backup") {
@@ -739,7 +770,6 @@ impl Command for FixtureEndpointCommand {
             } else {
                 REFERENCE
             };
-            let operation = input.get_one::<String>("operation").unwrap();
             let topic = EventType::new(
                 input.get_one::<String>("topic").unwrap(),
                 *input.get_one::<u32>("schema").unwrap(),

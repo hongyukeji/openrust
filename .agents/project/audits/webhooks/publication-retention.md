@@ -6,7 +6,7 @@
 
 固定 Svix 消息实现提供独立消息与正文的存储边界，OpenRust 沿用本项目已固定的发布回执和重放关系作为回收依赖。新迁移拒绝在已出现正文墓碑时回滚。启用清理前，先升级所有可登记重放的进程。[Svix 固定消息源码](https://github.com/svix/svix-webhooks/blob/931467b95a1bbcc520c47bcb96f4e436782abcd2/server/svix-server/src/v1/endpoints/message.rs)
 
-幂等墓碑期限、业务保留策略、普通 CONNECT 代理与跨主机部署尚待独立验收。
+[出站业务保留](retention-hold.md)已在后续批次接入。幂等墓碑期限、普通 CONNECT 代理与跨主机部署尚待独立验收。
 
 ## 验收
 

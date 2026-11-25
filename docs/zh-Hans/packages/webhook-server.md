@@ -183,6 +183,13 @@ pub async fn preview_shared_body_pruning(
     store.prune_publication_bodies(30, 100, after, true).await
 }
 
+pub async fn hold_invoice_delivery(
+    store: &openrust_webhook_server::DeliveryStore,
+    id: &str,
+) -> Result<bool> {
+    store.set_retention_hold(openrust_webhook_server::RetentionRecord::Delivery, id, true).await
+}
+
 ```
 
 
@@ -276,6 +283,12 @@ Builder 的 `dispatch`、`dispatch_if` 和 `dispatch_unless` 登记投递并入�
 启用清理前先执行迁移，并升级所有可登记重放的进程。仅清理终态投递。清理后，原始记录无法再登记新重放，已有重放仍可使用自身保存的请求。诊断结果以 Unix 秒返回 `payload_pruned_at`。
 
 使用 `--messages` 回收达到发布留存期限的共享正文。首次投递及所有已登记重放的请求快照都已清理后，该正文才可回收。下一页通过 `--after` 传入返回的 `next_after`，下一轮从头检查此前未满足回收条件的消息。消息 ID、原始投递 ID 和幂等摘要继续保留。`webhook-server:inspect --message` 在清理后显示 `body_pruned_at`。
+
+### 设置出站业务保留 {#retention-hold}
+
+使用 `./artisan webhook-server:hold <id> --scope=<scope>` 保留一条投递的快照和尝试。添加 `--message` 可按发布消息 ID 保留共享正文，添加 `--release` 可解除保留。消息保留仅保护共享正文；投递保留也会保护其现存快照引用的共享正文。解除保留后仍须达到正常留存期限才会清理。
+
+已设置保留的记录在诊断中显示 `retention_hold_at`。保留只保护仍存在的数据。使用保留前先执行迁移，并升级所有运行清理的进程。应用授权范围后可调用 `DeliveryStore::set_retention_hold`。Artisan 命令仅交给可信运维人员。
 
 ### 按订阅发布 {#subscriptions}
 

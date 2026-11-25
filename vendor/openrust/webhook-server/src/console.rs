@@ -8,7 +8,8 @@ use openrust::{
 };
 
 use crate::{
-    DeliveryRetention, DeliveryService, DeliveryStore, Error, delivery::RegisteredDeliveryPolicy,
+    DeliveryRetention, DeliveryService, DeliveryStore, Error, RetentionRecord,
+    delivery::RegisteredDeliveryPolicy,
 };
 
 pub(super) fn register() -> Result<(), ConsoleError> {
@@ -122,7 +123,23 @@ pub(super) fn register() -> Result<(), ConsoleError> {
                 .default_value("100")
                 .value_parser(value_parser!(u32).range(1..=500)),
         );
-    Artisan::add(Box::new(Prune(CommandDefinition::new(prune))))
+    Artisan::add(Box::new(Prune(CommandDefinition::new(prune))))?;
+    let hold = Syntax::new("webhook-server:hold")
+        .about("设置或解除出站记录的保留标记")
+        .arg(Arg::new("id").required(true))
+        .arg(Arg::new("scope").long("scope").required(true))
+        .arg(Arg::new("database").long("database"))
+        .arg(
+            Arg::new("message")
+                .long("message")
+                .action(ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::new("release")
+                .long("release")
+                .action(ArgAction::SetTrue),
+        );
+    Artisan::add(Box::new(Hold(CommandDefinition::new(hold))))
 }
 
 struct Send(CommandDefinition);
@@ -337,6 +354,40 @@ impl Command for Prune {
             .map_err(ConsoleError::from_source)?;
             output
                 .write_raw(&format!("{json}\n"))
+                .map_err(ConsoleError::from_source)?;
+            Ok(0)
+        })
+    }
+}
+
+struct Hold(CommandDefinition);
+
+impl Command for Hold {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+
+    fn handle<'a>(
+        &'a self,
+        app: &'a Application,
+        input: &'a Input,
+        output: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            let store = delivery_store(app, input).await?;
+            let args = input.matches();
+            let id = args.get_one::<String>("id").expect("必填记录 ID");
+            let record = if args.get_flag("message") {
+                RetentionRecord::Publication
+            } else {
+                RetentionRecord::Delivery
+            };
+            let changed = store
+                .set_retention_hold(record, id, !args.get_flag("release"))
+                .await
+                .map_err(ConsoleError::from_source)?;
+            output
+                .write_raw(&format!("{}\n", serde_json::json!({ "changed": changed })))
                 .map_err(ConsoleError::from_source)?;
             Ok(0)
         })
