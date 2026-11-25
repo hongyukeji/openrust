@@ -31,6 +31,12 @@ For a fresh SQLite deployment, create the configured database file before runnin
 
 For MySQL or PostgreSQL, confirm the server version against the [release matrix](../prologue/releases.md). OpenRust requires TLS for MySQL connections. The application starts a database queue worker by default. Keep the queue tables migrated when using that worker.
 
+### Complete setup with existing MySQL and Redis
+
+For a new application, supply MySQL and Redis connection settings and run `./artisan init:full` once from the source directory. On Windows use `artisan.bat init:full`. The command builds the application, runs isolated migrations and checks HTTP, Artisan and a Redis worker. See [installation](installation.md#complete-initialization) for the configuration and preview commands.
+
+Use the resulting application for a single instance or for multiple replicas. All processes in a deployment must share MySQL, Redis, the Redis key prefixes and `APP_KEY`. Configure shared storage for files that replicas must access. Coordinate migrations and scheduling when rolling out replicas, and configure load balancing and TLS at the deployment layer.
+
 ## Start HTTP and Artisan
 
 Start the application with the following command after preparing the environment and running any required migrations. HTTP and Artisan can run without pre-generated caches.

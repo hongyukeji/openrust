@@ -31,6 +31,12 @@ cp resources/views/welcome.blade.html release/resources/views/welcome.blade.html
 
 使用 MySQL 或 PostgreSQL 時，先在[發佈矩陣](../prologue/releases.md)核對伺服器版本。OpenRust 的 MySQL 連線需要 TLS。應用程式預設啟動資料庫佇列 Worker，使用時須先完成佇列表遷移。
 
+### 使用現有 MySQL 和 Redis 完整初始化
+
+新應用程式設定 MySQL 和 Redis 連線後，在原始碼目錄執行一次 `./artisan init:full`。Windows 使用 `artisan.bat init:full`。命令建置應用程式，以互斥方式執行遷移，並驗證 HTTP、Artisan 和 Redis Worker。連線設定與唯讀預覽見[安裝指南](installation.md#complete-initialization)。
+
+單機和多副本使用同一份應用程式產物。同一部署的各個程序共用 MySQL、Redis、Redis 鍵前綴和 `APP_KEY`。需要跨副本存取的檔案使用共用儲存空間。發行多個副本時應協調遷移和排程，由部署層設定負載平衡與 TLS。
+
 ## 啟動 HTTP 與 Artisan
 
 準備好執行環境並完成必要的遷移後，直接啟動應用程式。HTTP 和 Artisan 都可以在沒有預先產生的快取時執行。

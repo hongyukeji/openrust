@@ -4,6 +4,20 @@
 
 Install Rust 1.94.0 or newer with Cargo. OpenRust uses the Rust 2024 edition. The application and the framework crate under `vendor/openrust/framework/` are built together. The first build downloads the dependencies recorded in `Cargo.lock`.
 
+## Full initialization {#complete-initialization}
+
+With an existing MySQL database and Redis service, export the connection settings or put them in the application environment file. Supply `DB_URL` or `DB_DATABASE` and `DB_USERNAME`, plus `REDIS_URL` or `REDIS_HOST`. Set host, port, password and TLS configuration as required by your services.
+
+```sh
+./artisan init:full --dry-run
+./artisan init:full
+cargo run --locked
+```
+
+`init:full` is non-interactive and checks configuration before writing files. It enables the complete preset with the web and API starter kit, installs package resources, builds the application and runs migrations and HTTP, Artisan and Redis worker checks. It uses Redis for cache, sessions and queues. Docker Compose and provisioning are independent of this command. Process-injected credentials stay in the process environment, so supply them to the application as well. Existing conflicting driver settings require explicit adjustment. `--force` on `init:full` authorizes production migration while preserving existing source customizations. Use `./artisan init` for interactive selection.
+
+Single hosts and replicas use the same application configuration. All roles in one deployment share the configured MySQL and Redis services and application key. Deployment tooling coordinates process roles, migrations and shared files.
+
 ## Starting the application
 
 Run these commands from the application root. Copy the environment template when creating a new local environment.

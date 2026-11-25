@@ -425,7 +425,7 @@ MAIL_FROM_ADDRESS=hello@example.test
 "devices": {"enabled": get(env, "USER_DEVICES", true)?},
 ```
 
-安装的套件默认开启 `user.devices.enabled`。使用原生 `SESSION_DRIVER=database`，并运行发布的 `0001_01_01_000023_create_user_browser_sessions_table.rs` 迁移。独立索引跟随 User 连接，按模型、数据库、表、真实主键和 Guard 隔离，不修改原始 users 迁移。未登记索引的旧会话须重新登录。file、Redis 或自定义 database 处理器须显式设置 `USER_DEVICES=false`，关闭相关路由，不假装提供安全枚举；按凭据版本退出全部设备的能力仍可使用。 安装器按正常包迁移规则，发布时使用当前时间戳命名。
+安装的套件默认开启 `user.devices.enabled`。使用原生 `SESSION_DRIVER=database` 或 `SESSION_DRIVER=redis`，并运行发布的 `0001_01_01_000023_create_user_browser_sessions_table.rs` 迁移。独立索引跟随 User 连接，按模型、数据库、表、真实主键和 Guard 隔离，不修改原始 users 迁移。未登记索引的旧会话须重新登录。file 或自定义处理器须显式设置 `USER_DEVICES=false`，关闭相关路由，不假装提供安全枚举；按凭据版本退出全部设备的能力仍可使用。 安装器按正常包迁移规则，发布时使用当前时间戳命名。
 
 | 接口 | 结果 |
 | --- | --- |

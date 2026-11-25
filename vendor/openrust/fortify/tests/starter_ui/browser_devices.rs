@@ -645,12 +645,12 @@ async fn browser_devices_html_forms_keep_csrf_recent_confirmation_redirects_and_
 }
 
 #[tokio::test]
-async fn browser_devices_require_native_database_capability_and_disabled_routes_are_absent() {
+async fn browser_devices_reject_unsupported_or_custom_handlers_and_disabled_routes_are_absent() {
     for (driver, replacement) in [
         ("array", false),
         ("file", false),
-        ("redis", false),
         ("database", true),
+        ("redis", true),
     ] {
         let root = Root(
             std::env::temp_dir().join(format!("device-capability-{}-{driver}", std::process::id())),
@@ -667,7 +667,8 @@ async fn browser_devices_require_native_database_capability_and_disabled_routes_
             ("app".into(),json!({"key":"p".repeat(32),"url":"http://localhost","name":"Capability acceptance"})),
             ("user".into(),json!({"profile":"full","devices":{"enabled":true},"email_verification":false})),
             ("auth".into(),json!({"defaults":{"guard":"web"},"guards":{"web":{"driver":"session","provider":"users"}},"providers":{"users":{"driver":"eloquent","model":"StarterUser"}}})),
-            ("database".into(),json!({"default":"capability","connections":{"capability":{"driver":"sqlite","database":":memory:"}}})),
+            ("database".into(),json!({"default":"capability","connections":{"capability":{"driver":"sqlite","database":":memory:"}},"redis":{"default":{"host":"127.0.0.1","port":6379,"database":0}}})),
+            ("cache".into(),json!({"default":"array","stores":{"array":{"driver":"array"},"redis":{"driver":"redis","connection":"default"}}})),
             ("session".into(),json!({"driver":driver,"lottery":[0,100]})),
         ].into())}).with_providers(vec![Box::new(openrust_fortify::FortifyServiceProvider)]).create().unwrap();
         app.boot().await.unwrap();
@@ -686,7 +687,7 @@ async fn browser_devices_require_native_database_capability_and_disabled_routes_
             app.make::<openrust::session::SessionManager>()
                 .await
                 .unwrap()
-                .extend("database", |_, _| {
+                .extend(driver, |_, _| {
                     Ok(openrust::session::ArraySessionHandler::new(
                         std::time::Duration::from_secs(120),
                     ))

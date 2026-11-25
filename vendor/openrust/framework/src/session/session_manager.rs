@@ -160,7 +160,48 @@ impl SessionManager {
         if !super::store::valid_id(id) {
             return Err(SessionError::InvalidValue);
         }
-        let handler: Box<dyn SessionHandler> = Box::new(self.database_handler()?);
+        self.read_stored_session(id, Box::new(self.database_handler()?))
+            .await
+    }
+
+    /// 校验设备索引所需的原生会话能力，不读取会话或连接数据库。
+    pub fn validate_device_session_driver(&self) -> SessionResult<()> {
+        self.device_session_handler().map(drop)
+    }
+
+    /// 从原生数据库或 Redis 读取设备会话，复用各驱动的过期和解密语义。
+    pub async fn read_device_session(
+        &self,
+        id: &str,
+    ) -> SessionResult<std::collections::BTreeMap<String, Value>> {
+        if !super::store::valid_id(id) {
+            return Err(SessionError::InvalidValue);
+        }
+        self.read_stored_session(id, self.device_session_handler()?)
+            .await
+    }
+
+    fn device_session_handler(&self) -> SessionResult<Box<dyn SessionHandler>> {
+        match self.settings.driver.as_deref() {
+            Some("database") => Ok(Box::new(self.database_handler()?)),
+            Some("redis")
+                if !self
+                    .factories
+                    .read()
+                    .map_err(|_| SessionError::Storage)?
+                    .contains_key("redis") =>
+            {
+                Ok(Box::new(self.cache_handler("redis")?))
+            }
+            _ => Err(SessionError::Configuration),
+        }
+    }
+
+    async fn read_stored_session(
+        &self,
+        id: &str,
+        handler: Box<dyn SessionHandler>,
+    ) -> SessionResult<std::collections::BTreeMap<String, Value>> {
         let handler = if self.settings.encrypt {
             let encrypter = facades::current_container()
                 .ok_or(SessionError::Configuration)?

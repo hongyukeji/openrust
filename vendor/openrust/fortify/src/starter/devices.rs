@@ -297,7 +297,7 @@ impl Policy {
                 return Err(AuthError::Configuration("设备记录身份不一致"));
             }
             let attributes = manager
-                .read_database_session(&raw)
+                .read_device_session(&raw)
                 .await
                 .map_err(|error| AuthError::Backend(Box::new(error)))?;
             if !openrust::auth::SessionGuard::session_belongs_to_user(
@@ -426,8 +426,8 @@ where
         }
         return Ok(());
     }
-    app.container().make::<SessionManager>()?.database_handler().map_err(|error| match error {
-        openrust::session::SessionError::Configuration=>AuthError::Configuration("浏览器设备管理需要有效的原生database会话；file、Redis或自定义处理器须显式关闭user.devices.enabled"),
+    app.container().make::<SessionManager>()?.validate_device_session_driver().map_err(|error| match error {
+        openrust::session::SessionError::Configuration=>AuthError::Configuration("浏览器设备管理需要有效的原生 database 或 Redis 会话；其他处理器须显式关闭 user.devices.enabled"),
         error=>AuthError::Backend(Box::new(error)),
     })?;
     let guard = config

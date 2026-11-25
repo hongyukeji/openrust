@@ -425,7 +425,7 @@ MAIL_FROM_ADDRESS=hello@example.test
 "devices": {"enabled": get(env, "USER_DEVICES", true)?},
 ```
 
-安裝的套件預設開啟 `user.devices.enabled`。使用原生 `SESSION_DRIVER=database`，並執行發布的 `0001_01_01_000023_create_user_browser_sessions_table.rs` 遷移。獨立索引跟隨 User 連線，依模型、資料庫、資料表、真實主鍵及 Guard 隔離，不修改原始 users 遷移。未登記索引的舊工作階段須重新登入。file、Redis 或自訂 database 處理器須明確設定 `USER_DEVICES=false`，關閉相關路由，不假裝提供安全列舉；依憑據版本登出全部裝置的能力仍可使用。 安裝器按正常套件遷移規則，發布時使用目前時間戳命名。
+安裝的套件預設開啟 `user.devices.enabled`。使用原生 `SESSION_DRIVER=database` 或 `SESSION_DRIVER=redis`，並執行發布的 `0001_01_01_000023_create_user_browser_sessions_table.rs` 遷移。獨立索引跟隨 User 連線，依模型、資料庫、資料表、真實主鍵及 Guard 隔離，不修改原始 users 遷移。未登記索引的舊工作階段須重新登入。file 或自訂處理器須明確設定 `USER_DEVICES=false`，關閉相關路由，不假裝提供安全列舉；依憑據版本登出全部裝置的能力仍可使用。 安裝器按正常套件遷移規則，發布時使用目前時間戳命名。
 
 | 介面 | 結果 |
 | --- | --- |

@@ -4169,6 +4169,7 @@ dependencies = [
  "openrust-fortify",
  "openrust-framework",
  "openrust-horizon",
+ "openrust-localization-database",
  "openrust-new-relic",
  "openrust-oidc",
  "openrust-package-discovery",
@@ -4381,6 +4382,17 @@ dependencies = [
  "tokio",
  "tokio-util",
  "uuid",
+]
+
+[[package]]
+name = "openrust-localization-database"
+version = "0.0.0"
+dependencies = [
+ "axum",
+ "openrust-framework",
+ "serde_json",
+ "tempfile",
+ "tokio",
 ]
 
 [[package]]
@@ -4628,17 +4640,6 @@ dependencies = [
  "tempfile",
  "tokio",
  "uuid",
-]
-
-[[package]]
-name = "openrust-translation-database"
-version = "0.0.0"
-dependencies = [
- "axum",
- "openrust-framework",
- "serde_json",
- "tempfile",
- "tokio",
 ]
 
 [[package]]

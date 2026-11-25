@@ -425,7 +425,7 @@ When upgrading a preserved `config/user.rs`, merge the following group manually;
 "devices": {"enabled": get(env, "USER_DEVICES", true)?},
 ```
 
-The installed kit enables `user.devices.enabled` by default. Use native `SESSION_DRIVER=database` and run the published `0001_01_01_000023_create_user_browser_sessions_table.rs` migration. The separate index follows the User connection and isolates the model, database, table, real primary key and Guard; it does not change the original users migration. Existing sessions without an index must sign in again. File, Redis and replacement database handlers need an explicit `USER_DEVICES=false`; this removes these routes rather than pretending to enumerate those stores. The credential-version based all-device logout remains available. The installer assigns the current timestamp when publishing this migration, following the normal package migration rules.
+The installed kit enables `user.devices.enabled` by default. Use native `SESSION_DRIVER=database` or `SESSION_DRIVER=redis` and run the published `0001_01_01_000023_create_user_browser_sessions_table.rs` migration. The separate index follows the User connection and isolates the model, database, table, real primary key and Guard; it does not change the original users migration. Existing sessions without an index must sign in again. File and custom handlers need an explicit `USER_DEVICES=false`; this removes these routes rather than pretending to enumerate those stores. The credential-version based all-device logout remains available. The installer assigns the current timestamp when publishing this migration, following the normal package migration rules.
 
 | Endpoint | Result |
 | --- | --- |

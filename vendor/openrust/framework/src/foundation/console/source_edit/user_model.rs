@@ -80,13 +80,27 @@ impl<'a> UserModelSource<'a> {
                     .segments
                     .last()
                     .is_some_and(|segment| segment.ident == short_name)
-                && !path
+            {
+                let actual = path
                     .segments
                     .iter()
                     .map(|segment| segment.ident.to_string())
-                    .eq(trait_name.split("::").map(str::to_owned))
-            {
-                return Err(unsupported());
+                    .collect::<Vec<_>>()
+                    .join("::");
+                // 两个官方令牌契约使用同名 trait，完整安装可同时接入。
+                let separate_token_contract = matches!(
+                    (trait_name, actual.as_str()),
+                    (
+                        "openrust::sanctum::HasApiTokens",
+                        "openrust_passport::HasApiTokens"
+                    ) | (
+                        "openrust_passport::HasApiTokens",
+                        "openrust::sanctum::HasApiTokens"
+                    )
+                );
+                if actual != trait_name && !separate_token_contract {
+                    return Err(unsupported());
+                }
             }
         }
         let implementations: Vec<_> = self

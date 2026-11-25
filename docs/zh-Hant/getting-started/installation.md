@@ -4,6 +4,20 @@
 
 安裝 Rust 1.94.0 或更新版本及 Cargo。OpenRust 使用 Rust 2024 edition，根應用程式和 `vendor/openrust/framework/` 中的框架 crate 一起建置。首次建置會下載 `Cargo.lock` 記錄的相依套件。
 
+## 完整初始化 {#complete-initialization}
+
+先準備 MySQL 資料庫和 Redis 服務，再透過程序環境或應用程式環境檔提供連線。MySQL 使用 `DB_URL`，或提供 `DB_DATABASE` 和 `DB_USERNAME`。Redis 使用 `REDIS_URL` 或 `REDIS_HOST`。依實際服務補充主機、連接埠、密碼和 TLS 設定。
+
+```sh
+./artisan init:full --dry-run
+./artisan init:full
+cargo run --locked
+```
+
+`init:full` 全程非互動，寫入檔案前檢查設定。它啟用完整預設及網頁和 API 使用者套件，安裝套件資源，建置應用程式，執行遷移與 HTTP、Artisan 和 Redis Worker 自我檢查。快取、工作階段和佇列使用 Redis。MySQL、Redis 和 Docker Compose 由命令外的環境管理。透過程序環境注入的憑證仍由程序環境提供，啟動應用程式時也需要提供。既有驅動設定發生衝突時須先明確調整。`init:full --force` 用於明確授權生產遷移，並保留既有原始碼客製內容。需要互動選配時請使用 `./artisan init`。
+
+單機和多副本使用同一套應用程式設定。同一部署內各執行角色共用 MySQL、Redis 和應用程式密鑰。執行角色、遷移協調和檔案共享由部署工具管理。
+
 ## 啟動應用程式
 
 在應用程式根目錄執行下列命令。建立新的本機環境時複製環境範本。

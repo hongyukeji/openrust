@@ -56,6 +56,7 @@ fortify = ["dep:openrust-fortify"]
 socialite = ["dep:openrust-socialite"]
 oidc = ["dep:openrust-oidc"]
 settings = ["dep:openrust-settings"]
+localization-database = ["dep:openrust-localization-database"]
 pay = ["dep:openrust-pay"]
 new-relic = ["dep:openrust-new-relic"]
 webhook-client = ["dep:openrust-webhook-client"]
@@ -79,6 +80,7 @@ openrust-fortify = { path = "vendor/openrust/fortify", optional = true }
 openrust-socialite = { path = "vendor/openrust/socialite", optional = true }
 openrust-oidc = { path = "vendor/openrust/oidc", optional = true }
 openrust-settings = { path = "vendor/openrust/settings", optional = true }
+openrust-localization-database = { path = "vendor/openrust/localization-database", optional = true }
 openrust-pay = { path = "vendor/openrust/pay", optional = true }
 openrust-new-relic = { path = "vendor/openrust/new-relic", optional = true }
 openrust-webhook-client = { path = "vendor/openrust/webhook-client", optional = true }

@@ -1,5 +1,8 @@
 //! Application initialization through the existing installation and migration services.
 
+#[path = "init_full.rs"]
+mod full;
+
 use super::{
     install_routes_command::{build_application, initialize_routes},
     source_edit::{lock_manifest, read, replace},
@@ -56,7 +59,23 @@ pub(super) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
             .value_parser(["full", "api"])
             .help("安装用户套件：full 完整网页与用户 API，api 仅用户 API 和必要邮件落地页"),
     );
-    artisan.add_command(Box::new(InitCommand(CommandDefinition::new(syntax))))?;
+    artisan.add_command(Box::new(InitCommand(CommandDefinition::new(syntax), false)))?;
+    let full = clap::Command::new("init:full")
+        .about("使用已有 MySQL 和 Redis 非交互式初始化完整应用")
+        .arg(
+            clap::Arg::new("dry-run")
+                .long("dry-run")
+                .action(clap::ArgAction::SetTrue)
+                .help("只读查看安装计划"),
+        )
+        .arg(
+            clap::Arg::new("force")
+                .long("force")
+                .action(clap::ArgAction::SetTrue)
+                .help("明确授权生产迁移，保留现有文件和数据"),
+        );
+    artisan.add_command(Box::new(InitCommand(CommandDefinition::new(full), true)))?;
+    full::register(artisan)?;
     artisan.add_command(Box::new(ResourcesCommand(CommandDefinition::new(
         clap::Command::new("init:resources")
             .hide(true)
@@ -72,7 +91,7 @@ pub(super) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
             ),
     ))))
 }
-struct InitCommand(CommandDefinition);
+struct InitCommand(CommandDefinition, bool);
 impl Command for InitCommand {
     fn definition(&self) -> &CommandDefinition {
         &self.0
@@ -86,15 +105,25 @@ impl Command for InitCommand {
         Box::pin(async move {
             let root = app.base_path().to_owned();
             let matches = input.matches();
-            let force = matches.get_flag("force");
+            let full = self.1;
+            let authorize_migration = matches.get_flag("force");
+            let force = !full && authorize_migration;
             let dry = matches.get_flag("dry-run");
-            let without_migration = matches.get_flag("without-migration");
-            let starter = matches.get_one::<String>("starter-kit").map(String::as_str);
-            let selection = matches
-                .get_one::<String>("extensions")
-                .map(String::as_str)
-                .or_else(|| starter.map(|_| "api,fortify"));
-            let mut extensions = Extensions::parse(selection)?;
+            let without_migration = !full && matches.get_flag("without-migration");
+            let starter = if full {
+                None
+            } else {
+                matches.get_one::<String>("starter-kit").map(String::as_str)
+            };
+            let mut extensions = if full {
+                Extensions::complete()?
+            } else {
+                let selection = matches
+                    .get_one::<String>("extensions")
+                    .map(String::as_str)
+                    .or_else(|| starter.map(|_| "api,fortify"));
+                Extensions::parse(selection)?
+            };
             if let Some(starter) = starter {
                 extensions.names.push(
                     if starter == "full" {
@@ -107,7 +136,7 @@ impl Command for InitCommand {
                 extensions = Extensions::parse(Some(&extensions.names.join(",")))?;
             }
             let interactive =
-                !matches.get_flag("no-interaction") && io::stdin().is_terminal() && !dry;
+                !full && !matches.get_flag("no-interaction") && io::stdin().is_terminal() && !dry;
             for file in [
                 "Cargo.toml",
                 "bootstrap/app.rs",
@@ -131,12 +160,19 @@ impl Command for InitCommand {
             }) {
                 return Err(ConsoleError::new("Invalid environment file suffix."));
             }
-            let env_path = root.join(
+            let mut env_path = root.join(
                 environment
                     .as_ref()
                     .map(|name| format!(".env.{name}"))
                     .unwrap_or_else(|| ".env".to_owned()),
             );
+            if full && environment.is_none() {
+                env_path = crate::foundation::bootstrap::LoadEnvironmentVariables::snapshot(
+                    &root, None, false,
+                )
+                .map_err(|_| ConsoleError::new("无法选择初始化环境文件，请检查 APP_ENV"))?
+                .file;
+            }
             if env_path.is_symlink() {
                 return Err(ConsoleError::new(
                     "Refusing to replace a symlinked .env file.",
@@ -148,6 +184,11 @@ impl Command for InitCommand {
                 read(&root.join(".env.example"))?
             };
             let mut values = parse_environment(&source)?;
+            let overrides = if full {
+                full::configure(&mut values, env_path.exists())?
+            } else {
+                Default::default()
+            };
             if interactive && matches.get_one::<String>("extensions").is_none() && starter.is_none()
             {
                 output.comment("用户套件：user-web 为完整网页与用户 API，user-api 为仅用户 API；也可输入其他扩展名称组成自定义配置，all 保留现有扩展组合。\n");
@@ -197,6 +238,16 @@ impl Command for InitCommand {
                 output.info("Reverb: install package; listener follows REVERB_ENABLED.\n");
             }
             extensions.report(output);
+            if full {
+                output.info("完整用户套件：应用 Provider、注册登录和账户页面及相关迁移。\n");
+                output.info("官方包默认配置及编译迁移随包发现加载，外部支付、邮件、短信、APM 和身份服务按需提供凭据；无需再次安装。\n");
+                if let Err(error) = full::require_connections(&values) {
+                    if !dry {
+                        return Err(error);
+                    }
+                    output.comment(&format!("待配置：{error}\n"));
+                }
+            }
             let manifest = read(&root.join("Cargo.toml"))?;
             for feature in extensions.features() {
                 super::install_routes_command::enable_feature(&manifest, feature)?;
@@ -251,6 +302,16 @@ impl Command for InitCommand {
                     "app/models/user.rs",
                 ]);
             }
+            if full {
+                paths.extend([
+                    "config/user.rs",
+                    "app/providers/user_service_provider.rs",
+                    "app/http/resources/user_resource.rs",
+                    "app/actions/fortify/delete_user.rs",
+                    "resources/views/user",
+                    "database/migrations",
+                ]);
+            }
             if extensions.has("passport") || extensions.has("fortify") {
                 output.info("Package migrations: publish missing migration identities; preserve every historical migration. Existing APP_KEY and Passport key pairs are always preserved.\n");
             }
@@ -275,16 +336,25 @@ impl Command for InitCommand {
                 output.info(&format!("  {path}: {action}\n"));
             }
             if dry {
+                if full {
+                    output.info(
+                        "迁移计划：正式构建后核对 MySQL 迁移账本；按原安装器发布缺失的资源。\n",
+                    );
+                }
                 output.info("Dry run: no files, keys, database connections, builds or migrations were changed.\n");
                 return Ok(0);
             }
             let production = value(&values, "APP_ENV", "production") == "production";
-            if !without_migration && !crate::console::confirm_production(production, matches)? {
+            if (full && production && !authorize_migration)
+                || (!full
+                    && !without_migration
+                    && !crate::console::confirm_production(production, matches)?)
+            {
                 return Err(ConsoleError::new(
                     "Initialization cancelled: production migrations require confirmation or --force. No changes were made.",
                 ));
             }
-            let migration_force = force || production;
+            let migration_force = authorize_migration || production;
             if interactive
                 && !confirm(
                     "Apply this configuration and initialize the application?",
@@ -296,9 +366,9 @@ impl Command for InitCommand {
                 ));
             }
             let mut source_lock = lock_manifest(&root)?;
-            loop {
-                match verify_connections(&root, &values).await {
-                    Ok(()) => break,
+            let database = loop {
+                match verify_connections(&root, &values, full).await {
+                    Ok(database) => break database,
                     Err(error) if interactive => {
                         eprintln!("{error}");
                         if !confirm("Edit connection settings and retry?", true)? {
@@ -311,7 +381,7 @@ impl Command for InitCommand {
                     }
                     Err(error) => return Err(error),
                 }
-            }
+            };
             if extensions.has("reverb") {
                 prepare_reverb(&mut values)?;
             }
@@ -321,6 +391,14 @@ impl Command for InitCommand {
             }
             if key_missing(&values) {
                 values.insert("APP_KEY".to_owned(), String::new());
+            }
+            let generate_key = key_missing(&values);
+            for (key, previous) in overrides {
+                if let Some(previous) = previous {
+                    values.insert(key, previous);
+                } else {
+                    values.remove(&key);
+                }
             }
             let updated = update_environment(&source, &values)?;
             if env_path.exists() {
@@ -363,7 +441,7 @@ impl Command for InitCommand {
                 &["config:clear", "--no-interaction"],
                 environment.as_deref(),
             )?;
-            if key_missing(&values) {
+            if generate_key {
                 run(
                     &current,
                     &root,
@@ -391,7 +469,11 @@ impl Command for InitCommand {
                             .map_err(|error| ConsoleError::new(error.to_string()))??;
                     // The new process acquires the same fail-fast lock; no nested installer locks.
                     drop(source_lock);
-                    let selection = extensions.names.join(",");
+                    let selection = if full {
+                        "full".into()
+                    } else {
+                        extensions.names.join(",")
+                    };
                     let mut args = vec![
                         "init:resources",
                         "--extensions",
@@ -412,7 +494,7 @@ impl Command for InitCommand {
                 .await
                 .map_err(|e| ConsoleError::new(e.to_string()))??;
             let command_root = root.clone();
-            tokio::task::spawn_blocking(move || {
+            let (executable, command_root, environment) = tokio::task::spawn_blocking(move || {
                 // Cached configuration must not hide settings just confirmed by the developer.
                 run(
                     &executable,
@@ -420,6 +502,14 @@ impl Command for InitCommand {
                     &["config:clear", "--no-interaction"],
                     environment.as_deref(),
                 )?;
+                if let Some(database) = database {
+                    run(
+                        &executable,
+                        &command_root,
+                        &[full::PROBE, "configuration", &database, "--no-interaction"],
+                        environment.as_deref(),
+                    )?;
+                }
                 if !without_migration {
                     let mut args = vec!["migrate"];
                     if migration_force {
@@ -428,15 +518,22 @@ impl Command for InitCommand {
                     if !interactive {
                         args.push("--no-interaction");
                     }
+                    if full {
+                        args.push("--isolated=12");
+                    }
                     run(&executable, &command_root, &args, environment.as_deref())?;
                 }
-                Ok::<_, ConsoleError>(())
+                Ok::<_, ConsoleError>((executable, command_root, environment))
             })
             .await
             .map_err(|e| ConsoleError::new(e.to_string()))??;
+            if full {
+                full::verify(&executable, &command_root, environment.as_deref()).await?;
+                output.info("完整初始化通过 HTTP、Artisan 和 Redis Worker 自检。可用 cargo run 启动应用。\n");
+            }
             if without_migration {
                 output.comment("Configuration and installation prepared; migrations are pending. Initialization is not yet complete.\n");
-            } else {
+            } else if !full {
                 output.info(
                     "Application initialized for the selected profile. Start it with cargo run.\n",
                 );
@@ -459,6 +556,18 @@ struct Extensions {
 }
 
 impl Extensions {
+    fn complete() -> Result<Self, ConsoleError> {
+        let mut extensions = Self::parse(Some("all"))?;
+        extensions.names.push("user-web".into());
+        extensions
+            .names
+            .extend(WEBHOOK_EXTENSIONS.split(',').map(str::to_owned));
+        extensions
+            .names
+            .extend(full::PACKAGES.iter().map(|name| (*name).to_owned()));
+        Ok(extensions)
+    }
+
     fn parse(selection: Option<&str>) -> Result<Self, ConsoleError> {
         let selection = selection.unwrap_or("all");
         let mut names = Vec::new();
@@ -623,6 +732,7 @@ impl Extensions {
         .into_iter()
         .filter(|(extension, _)| self.has(extension))
         .map(|(_, feature)| feature)
+        .chain(full::PACKAGES.iter().copied().filter(|name| self.has(name)))
         .collect()
     }
     fn services(&self) -> Vec<&str> {
@@ -997,10 +1107,12 @@ fn uses_redis(env: &BTreeMap<String, String>) -> bool {
 async fn verify_connections(
     root: &Path,
     env: &BTreeMap<String, String>,
-) -> Result<(), ConsoleError> {
+    full: bool,
+) -> Result<Option<String>, ConsoleError> {
     use sqlx::Connection as _;
     let driver = value(env, "DB_CONNECTION", "sqlite");
     let query = async {
+        let mut selected_database = None;
         match driver {
             "mysql" | "mariadb" => {
                 let port = value(env, "DB_PORT", "3306")
@@ -1024,10 +1136,18 @@ async fn verify_connections(
                 let mut c = sqlx::MySqlConnection::connect_with(&opts)
                     .await
                     .map_err(|_| ())?;
-                sqlx::query("SELECT 1")
-                    .execute(&mut c)
-                    .await
-                    .map_err(|_| ())?;
+                if full {
+                    let database = sqlx::query_scalar::<_, Option<String>>("SELECT DATABASE()")
+                        .fetch_one(&mut c)
+                        .await
+                        .map_err(|_| ())?;
+                    selected_database = Some(database.ok_or(())?);
+                } else {
+                    sqlx::query("SELECT 1")
+                        .execute(&mut c)
+                        .await
+                        .map_err(|_| ())?;
+                }
                 c.close().await.map_err(|_| ())?;
             }
             "pgsql" => {
@@ -1079,9 +1199,9 @@ async fn verify_connections(
                 c.close().await.map_err(|_| ())?;
             }
         }
-        Ok::<(), ()>(())
+        Ok::<_, ()>(selected_database)
     };
-    tokio::time::timeout(std::time::Duration::from_secs(10),query).await.map_err(|_| ConsoleError::new("Database connection timed out; check DB_* and retry."))?.map_err(|()| ConsoleError::new("Database connection check failed; verify DB_CONNECTION, DB_HOST, DB_PORT, DB_DATABASE, DB_USERNAME, DB_PASSWORD and server TLS requirements."))?;
+    let database = tokio::time::timeout(std::time::Duration::from_secs(10),query).await.map_err(|_| ConsoleError::new("Database connection timed out; check DB_* and retry."))?.map_err(|()| ConsoleError::new("Database connection check failed; verify DB_CONNECTION, DB_HOST, DB_PORT, DB_DATABASE, DB_USERNAME, DB_PASSWORD and server TLS requirements."))?;
     if value(env, "MAIL_MAILER", "log") == "smtp" {
         let optional = |name: &str| {
             env.get(name)
@@ -1118,7 +1238,7 @@ async fn verify_connections(
         cache["database"] = serde_json::json!(cache_db);
         let repository = crate::config::Repository::new(BTreeMap::from([(
             "database".to_owned(),
-            serde_json::json!({"redis":{"default":default.take(),"cache":cache}}),
+            serde_json::json!({"redis":{"options":{"prefix":value(env,"REDIS_PREFIX", "")},"default":default.take(),"cache":cache}}),
         )]));
         let manager = crate::redis::RedisManager::new(std::sync::Arc::new(repository));
         let mut names = Vec::new();
@@ -1141,10 +1261,13 @@ async fn verify_connections(
         }
         for name in names {
             let connection=manager.connection(Some(name)).map_err(|_| ConsoleError::new("Unsupported Redis connection configuration; check selected connection names and REDIS_* settings."))?;
-            tokio::time::timeout(
-                std::time::Duration::from_secs(10),
-                connection.command("PING", &[]),
-            )
+            tokio::time::timeout(std::time::Duration::from_secs(10), async {
+                connection.command("PING", &[]).await?;
+                if full {
+                    full::probe_redis(&connection).await?;
+                }
+                Ok::<(), crate::redis::RedisError>(())
+            })
             .await
             .map_err(|_| ConsoleError::new("Redis connection timed out."))?
             .map_err(|_| {
@@ -1152,7 +1275,7 @@ async fn verify_connections(
             })?;
         }
     }
-    Ok(())
+    Ok(database)
 }
 fn run(
     executable: &Path,
@@ -1170,7 +1293,7 @@ fn run(
         .map_err(|e| ConsoleError::new(format!("Could not start {}: {e}", args[0])))?;
     if !status.success() {
         return Err(ConsoleError::new(format!(
-            "{} failed ({status}); correct the issue and run artisan init again. Completed files were preserved.",
+            "{} failed ({status}); correct the issue and retry initialization. Completed files were preserved.",
             args[0]
         )));
     }
@@ -1189,12 +1312,15 @@ impl Command for ResourcesCommand {
         output: &'a mut Output,
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
-            let extensions = Extensions::parse(
-                input
-                    .matches()
-                    .get_one::<String>("extensions")
-                    .map(String::as_str),
-            )?;
+            let selection = input
+                .matches()
+                .get_one::<String>("extensions")
+                .map(String::as_str);
+            let extensions = if selection == Some("full") {
+                Extensions::complete()?
+            } else {
+                Extensions::parse(selection)?
+            };
             let installation = super::installation::SourceInstallation::new(app)?;
             install_resources(
                 &installation,

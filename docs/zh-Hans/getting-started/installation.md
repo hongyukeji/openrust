@@ -4,6 +4,20 @@
 
 安装 Rust 1.94.0 或更高版本及 Cargo。OpenRust 使用 Rust 2024 edition，根应用和 `vendor/openrust/framework/` 中的框架 crate 一起构建。首次构建会下载 `Cargo.lock` 中记录的依赖。
 
+## 完整初始化 {#complete-initialization}
+
+先准备 MySQL 数据库和 Redis 服务，再通过进程环境或应用环境文件提供连接。MySQL 使用 `DB_URL`，或提供 `DB_DATABASE` 和 `DB_USERNAME`。Redis 使用 `REDIS_URL` 或 `REDIS_HOST`。按实际服务补充主机、端口、密码和 TLS 设置。
+
+```sh
+./artisan init:full --dry-run
+./artisan init:full
+cargo run --locked
+```
+
+`init:full` 全程非交互，写入文件前检查配置。它启用完整预设及网页和 API 用户套件，安装包资源，构建应用，执行迁移及 HTTP、Artisan 和 Redis Worker 自检。缓存、会话和队列使用 Redis。MySQL、Redis 和 Docker Compose 由命令外的环境管理。通过进程环境注入的凭据仍由进程环境提供，启动应用时也需要提供。已有驱动设置发生冲突时须先显式调整。`init:full --force` 用于明确授权生产迁移，并保留已有源码定制。需要交互选配时使用 `./artisan init`。
+
+单机和多副本使用同一套应用配置。同一部署内各运行角色共用 MySQL、Redis 和应用密钥。运行角色、迁移协调和文件共享由部署工具管理。
+
 ## 启动应用
 
 在应用根目录执行以下命令。创建新的本地环境时复制环境模板。
