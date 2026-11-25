@@ -1,5 +1,5 @@
 use crate::{
-    Dashboard, Error, JobDeleted, JobFailed, JobPayload, JobPending, JobPushed, JobRecord,
+    Dashboard, Error, JobDeleted, JobFailed, JobPayloadMetadata, JobPending, JobPushed, JobRecord,
     JobReleased, JobReserved, JobsMigrated, Repository,
 };
 use openrust::support::facades::Facade;
@@ -104,7 +104,9 @@ impl ServiceProvider for HorizonServiceProvider {
             )?;
             self.commands(app, crate::console::register);
             self.load_routes_from(app, crate::dashboard::configured_routes)?;
-            JobPayload::register(app.make::<openrust::queue::QueueManager>().await?.as_ref());
+            JobPayloadMetadata::register(
+                app.make::<openrust::queue::QueueManager>().await?.as_ref(),
+            );
             let dispatcher = app.make::<openrust::events::Dispatcher>().await?;
             for listener in [
                 Arc::new(crate::TrimRecentJobs) as Arc<dyn Listener>,
@@ -264,11 +266,9 @@ impl Listener for JobListener {
             }
             if let Some(event) = event.downcast_ref::<JobPending>() {
                 let repository = crate::dashboard::Store::get_facade_root()?;
-                let (tags, silenced) =
-                    JobPayload::tags_and_silence(&event.payload).map_err(|source| {
-                        EventError::Listener {
-                            source: Box::new(source),
-                        }
+                let (tags, silenced) = JobPayloadMetadata::tags_and_silence(&event.payload)
+                    .map_err(|source| EventError::Listener {
+                        source: Box::new(source),
                     })?;
                 repository
                     .jobs()
@@ -288,11 +288,12 @@ impl Listener for JobListener {
             }
             if let Some(event) = event.downcast_ref::<JobPushed>() {
                 let repository = crate::dashboard::Store::get_facade_root()?;
-                let (tags, _) = JobPayload::tags_and_silence(&event.payload).map_err(|source| {
-                    EventError::Listener {
-                        source: Box::new(source),
-                    }
-                })?;
+                let (tags, _) =
+                    JobPayloadMetadata::tags_and_silence(&event.payload).map_err(|source| {
+                        EventError::Listener {
+                            source: Box::new(source),
+                        }
+                    })?;
                 repository
                     .jobs()
                     .monitor_pushed(&event.id, &tags)
@@ -361,7 +362,7 @@ impl Listener for JobListener {
             }
             let repository = crate::dashboard::Store::get_facade_root()?;
             let (tags, silenced) =
-                JobPayload::tags_and_silence(&job.payload).map_err(|source| {
+                JobPayloadMetadata::tags_and_silence(&job.payload).map_err(|source| {
                     EventError::Listener {
                         source: Box::new(source),
                     }

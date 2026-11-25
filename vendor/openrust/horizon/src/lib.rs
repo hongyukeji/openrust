@@ -28,7 +28,7 @@ pub use dashboard::{Dashboard, Horizon};
 pub use events::{
     JobDeleted, JobFailed, JobPending, JobPushed, JobReleased, JobReserved, JobsMigrated,
 };
-pub use job_payload::JobPayload;
+pub use job_payload::{JobPayload, JobPayloadMetadata};
 pub use job_trim::{TrimFailedJobs, TrimMonitoredJobs, TrimRecentJobs};
 pub use master_supervisor::{
     ExpireSupervisors, MasterSupervisor, MasterSupervisorDeployed, MasterSupervisorLooped,

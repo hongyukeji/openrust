@@ -463,7 +463,7 @@ fn api(request: &mut Request) -> HttpFuture<'_, std::result::Result<Response, Ht
                                 uuid,
                                 &job,
                                 &monitored.record.id,
-                                crate::JobPayload::retry_deadline(&job.payload)?,
+                                crate::JobPayloadMetadata::retry_deadline(&job.payload)?,
                             )
                             .await
                             .map_err(|_| HttpError::from(Error::Queue))?

@@ -248,6 +248,9 @@ pub struct Payload {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     retry_of: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    redis_metadata_inputs:
+        Option<std::sync::Arc<std::collections::BTreeMap<String, serde_json::Value>>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     redis_metadata: Option<std::sync::Arc<std::collections::BTreeMap<String, serde_json::Value>>>,
     #[serde(skip)]
     redis_metadata_prepared: bool,
@@ -292,6 +295,7 @@ impl Payload {
             trace_context: None,
             delivery_id: None,
             retry_of: None,
+            redis_metadata_inputs: None,
             redis_metadata: None,
             redis_metadata_prepared: false,
             batch_id: None,
@@ -379,6 +383,24 @@ impl Payload {
     /// 读取 Redis 入队时由应用扩展生成并随任务保存的元数据。
     pub fn redis_metadata(&self, key: &str) -> Option<&serde_json::Value> {
         self.redis_metadata.as_ref()?.get(key)
+    }
+
+    /// 设置扩展在生成 Redis 投递元数据时读取的应用输入。
+    pub fn with_redis_metadata_input(
+        mut self,
+        key: impl Into<String>,
+        value: serde_json::Value,
+    ) -> Self {
+        let inputs = self
+            .redis_metadata_inputs
+            .get_or_insert_with(Default::default);
+        std::sync::Arc::make_mut(inputs).insert(key.into(), value);
+        self
+    }
+
+    /// 读取应用为 Redis 投递元数据生成器提供的输入。
+    pub fn redis_metadata_input(&self, key: &str) -> Option<&serde_json::Value> {
+        self.redis_metadata_inputs.as_ref()?.get(key)
     }
 
     pub(crate) fn for_scheduled_dispatch(&self) -> QueueResult<Self> {

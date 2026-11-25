@@ -2127,7 +2127,7 @@ async fn native_retries_keep_transport_ids_separate_from_the_failed_payload_uuid
         settings.get_mut("horizon").unwrap()["silenced_tags"] = json!(["quiet"]);
         Ok(settings)
     }
-    fn snapshot(details: &openrust_horizon::JobDetails) -> JobPayload {
+    fn snapshot(details: &openrust_horizon::JobDetails) -> openrust_horizon::JobPayloadMetadata {
         let payload: Payload = serde_json::from_value(details.payload.clone()).unwrap();
         JobPayload::from_payload(&payload).unwrap().unwrap()
     }
@@ -2138,11 +2138,22 @@ async fn native_retries_keep_transport_ids_separate_from_the_failed_payload_uuid
             .with_providers(vec![Box::new(HorizonServiceProvider)])
             .with_routing(Routing::default().api(|| {
                 Horizon::tag(tags).unwrap();
+                let task = Payload::new("prepare", json!({})).unwrap();
+                let mut raw = JobPayload::new(r#"{"tags":["quiet","manual"]}"#).unwrap();
+                raw.prepare(Some(&task)).unwrap();
+                assert_eq!(raw.tags(), &json!(["quiet", "manual", "quiet", "call-0"]));
+                assert!(raw.is_silenced());
                 authorized_routes()
             }))
     })
     .unwrap();
     app.boot().await.unwrap();
+    assert_eq!(TAG_CALLS.swap(0, Ordering::SeqCst), 1);
+    app.app()
+        .config()
+        .unwrap()
+        .set("horizon.silenced_tags", json!(["preset"]))
+        .unwrap();
     let database = app
         .app()
         .make::<openrust::database::DatabaseManager>()
@@ -2177,6 +2188,10 @@ async fn native_retries_keep_transport_ids_separate_from_the_failed_payload_uuid
             max_exceptions: Some(1),
             ..JobOptions::default()
         });
+    let payload = JobPayload::with_tags(
+        payload,
+        vec!["preset".into(), "quiet".into(), "preset".into()],
+    );
     let id = manager
         .connection(Some("redis"))
         .unwrap()
@@ -2189,7 +2204,16 @@ async fn native_retries_keep_transport_ids_separate_from_the_failed_payload_uuid
     let jobs = repository.jobs();
     let pending = jobs.find(&id).await.unwrap().unwrap();
     let queued_snapshot = snapshot(&pending);
-    assert_eq!(queued_snapshot.tags(), ["quiet", "call-0"]);
+    assert_eq!(
+        queued_snapshot.tags(),
+        ["preset", "quiet", "preset", "quiet", "call-0"]
+    );
+    let raw = JobPayload::new(pending.payload.to_string()).unwrap();
+    assert_eq!(raw.id(), Some(payload.uuid()));
+    assert_eq!(raw.command_name(), Some("fail"));
+    assert_eq!(raw.display_name(), Some("fail"));
+    assert_eq!(raw.tags(), &json!(queued_snapshot.tags()));
+    assert!(raw.is_silenced());
     assert!(queued_snapshot.is_silenced());
     assert!(queued_snapshot.pushed_at().parse::<f64>().unwrap() > 0.0);
     assert!(!queued_snapshot.is_retry());
@@ -2275,6 +2299,11 @@ async fn native_retries_keep_transport_ids_separate_from_the_failed_payload_uuid
     assert_eq!(jobs.count_failed().await.unwrap(), 0);
     assert!(repository.recent(100).await.unwrap().is_empty());
 
+    app.app()
+        .config()
+        .unwrap()
+        .set("horizon.silenced_tags", json!(["quiet"]))
+        .unwrap();
     manager
         .register("success", Arc::new(Handler("success")))
         .unwrap();

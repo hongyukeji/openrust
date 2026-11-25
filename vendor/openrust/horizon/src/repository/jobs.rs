@@ -457,7 +457,7 @@ impl JobRepository {
                 text(&stored)?
             };
             let mut details = if stored.is_empty() {
-                let metadata = crate::JobPayload::from_payload(payload)?;
+                let metadata = crate::JobPayloadMetadata::from_payload(payload)?;
                 JobDetails {
                     record: JobRecord {
                         id: id.into(),

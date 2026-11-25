@@ -69,6 +69,8 @@ Redis 将保留任务放回延迟队列后派发 `JobReleased::NAME`。`delay` �
 
 通过 `JobPayload::from_payload` 读取 Redis 任务上的 Horizon 元数据。Horizon 在写入前计算标签和静默状态，将结果、以十进制秒表示的投递时间和入队入口确定的 `job_type()` 一并保存。类型序列化为 `job`、`broadcast`、`event`、`mail` 或 `notification`。Horizon 重试沿用已保存的标签，清除静默标志，通过 `retry_of()` 提供原投递 ID，新投递的观测类型为 `job`。原投递保存了重试截止时间和投递时间时，新投递沿用相同的重试时长。旧载荷可能没有 Horizon 元数据，也可能返回默认类型 `job`。
 
+入队前可用 `JobPayload::with_tags(payload, tags)` 设置预置标签。Horizon 将应用回调生成的标签追加到预置标签之后，保留预置标签内部和两组标签之间的重复项。需要读取或编辑原始任务 JSON 时使用 `JobPayload::new`。`offset_set` 和 `offset_unset` 只修改 `decoded()`，`set` 合并字段并更新 `value()` 中的完整 JSON。`JobPayload::from_payload` 返回原生 Redis 的类型化快照 `JobPayloadMetadata`。
+
 在 `horizon.silenced` 中配置广播事件、监听器、邮件或通知的底层 Rust 完整类型名。普通任务也可使用已注册的队列任务名称。通过代码进行静默时，为类型实现 `openrust_horizon::Silenced`，并在应用启动时调用 `Horizon::silence::<YourType>()`。注册只在当前应用内生效。
 
 监督器队列名称遵循原生 Redis 传输的 255 字节上限，保留空格、Unicode 字符和冒号。监督器队列列表以逗号分隔。以 `:delayed`、`:reserved` 或 `:notify` 结尾的名称由传输保留。

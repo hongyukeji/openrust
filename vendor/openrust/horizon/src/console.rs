@@ -254,7 +254,8 @@ impl Command for HorizonCommand {
                             failure_id,
                             &record,
                             &id,
-                            crate::JobPayload::retry_deadline(&record.payload).map_err(error)?,
+                            crate::JobPayloadMetadata::retry_deadline(&record.payload)
+                                .map_err(error)?,
                         )
                         .await
                         .map_err(error)?

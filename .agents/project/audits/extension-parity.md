@@ -96,7 +96,7 @@ O01 Activitylog、O02 Horizon、O03 Telescope原生范围、O04 Pennant、O05 Pu
 |---|---|
 | Telescope | 继续 Query／Gate 来源过滤与出站 multipart 剩余边界。逐类型核对 Watcher、Entry／过滤与脱敏、关联和仓储、生命周期、配置发布、命令输出及授权面板。原生界面和来源传递须验证同等使用结果。 |
 | Pulse | 按固定配置的十个 Recorder 逐一核对订阅事件、默认参数、过滤、采样和聚合。继续核对自定义 Recorder、存储和 ingest 契约、Worker 与命令、面板授权及卡片数据。 |
-| Horizon | 继续补齐 `JobPayload` 的公开读取、变更和预置标签合并，核对 Redis 入队、重试和仓储消费者。其余管理命令、监督器与 Worker、进程恢复、仓储、指标和面板操作逐项复验。Redis Cluster 沿用固定上游支持边界。 |
+| Horizon | 继续核对 `Tags`、其余管理命令、监督器与 Worker、进程恢复、仓储、指标和面板操作。Redis Cluster 沿用固定上游支持边界。 |
 | 发布验收 | 跟踪 Fortify 三个测试目标编译深度溢出，复验最终交付快照的全仓门禁。锁定提交、依赖、目标平台和实际数据库／Redis／Worker 组合，验收迁移、正常关停、故障恢复、业务端到端及容量。平台与供应商所需真实条件按[发布待办](../todo.md#平台与发布条件)记录。 |
 
 ### Horizon 面板名称与配置默认值
@@ -371,7 +371,17 @@ Linux 7.0.14 ARM64 用与 `52848e62b` 可观测性代码一致的快照，Rust 1
 
 PHP 8.5.12 探针按固定源码给四类包装设置对应底层对象。广播取事件对象，监听器取监听器类名，邮件取 Mailable，通知取 Notification。实现 `Silenced`、配置命中底层类型或标签任一条件成立时静默；只配置包装类名不命中。无任务对象的原始重试即使保留静默标签也会清除静默状态。Rust 在真实包装生产者记录底层类型，在 `horizon.silenced` 匹配完整类型名，普通任务兼容其注册名称。旧载荷缺少底层类型时沿用任务名称。Rust 在对象擦除后无法自动检查标记 trait，由应用显式调用 `Horizon::silence::<T>()` 注册实现 `Silenced` 的类型。注册与已保存的静默状态均按应用隔离。对照证据为 `target/tmp/observability-parity/horizon-wrapper-silence-upstream.log`。
 
-固定上游 `JobPayload` 的 PHP 8.5.12 探针已确认，ID 优先读取 UUID，缺失或为 `null` 时回退到旧 ID，空字符串仍作为值返回。命令名来自 `data.commandName`，显示名来自顶层 `displayName`。`tags` 缺失时返回空数组，显式 `null` 原样返回。重试字段把缺失和 `null` 视为无值，空字符串视为存在。下标写入和删除只影响解码值，`set` 会合并字段并重新序列化全部解码值。探针也验证了预置标签与任务标签的合并顺序及重复项保留。Rust 对应公开契约仍待实现与验收。证据为 `target/tmp/observability-parity/horizon-job-payload-accessors-upstream.log`。
+固定上游 `JobPayload` 的 PHP 8.5.12 探针已确认，ID 优先读取 UUID，缺失或为 `null` 时回退到旧 ID，空字符串仍作为值返回。命令名来自 `data.commandName`，显示名来自顶层 `displayName`。`tags` 缺失时返回空数组，显式 `null` 原样返回。重试字段把缺失和 `null` 视为无值，空字符串视为存在。下标写入和删除只影响解码值，`set` 会合并字段并重新序列化全部解码值。探针也验证了预置标签与任务标签的合并顺序及重复项保留。证据为 `target/tmp/observability-parity/horizon-job-payload-accessors-upstream.log`。
+
+Rust 公开 `JobPayload::new`、`value`、`decoded`、ID 与名称访问器、`tags`、重试与静默检查、`offset_*`、`set` 及 `prepare`。类型化适配将无效 JSON 对象返回为 `Error::InvalidRecord`，标签输入用字符串数组，准备任务时显式接收原生 `Payload`。原生 Redis 记录映射任务注册名、显示名及已持久化的 Horizon 元数据。原有 `JobPayload::from_payload` 函数保留，返回 `JobPayloadMetadata`，保留原快照的方法及序列化形状。显式声明原返回类型的调用方须更新类型名。
+
+原生 `JobPayload::with_tags` 把预置标签交给现有 Redis 载荷生成器，标签回调结果按顺序追加。预置输入独立于每次投递生成的结果。Redis 仓储保留重复项，静默配置也匹配预置标签，Artisan 重试继续使用已保存结果。
+
+macOS 快照通过两个公开 `JobPayload` 测试，实际应用作用域验证 `prepare` 合并标签及静默，独占 Redis 8.10.3 和 SQLite 验证待处理载荷、仓储、原生 Worker 失败及 Artisan 重试。Horizon Redis 套件 21 项、三包默认 86 项、全仓格式、Horizon 全目标严格 Clippy、三语站点构建及 Horizon 页面 12 组浏览器检查通过。浏览器显式使用项目已有 Chromium 1243。证据为 `target/tmp/observability-parity/horizon-job-payload-public-{verified,docs-verified}.log`。Windows 11 ARM64 同源码通过两个公开测试和真实 Redis／SQLite 重试专项，证据为 `target/tmp/observability-windows/horizon-job-payload-public-arm64.log`。
+
+兼容边界继续追踪。固定 PHP 的 `value` 与 `decoded` 支持独立直接写入，`set` 会重新编号数字键，空 JSON 数组可经 `set` 补入命名字段。当前 Rust 公开命名 JSON 对象的逐键修改。批量直接替换及 PHP 数字键和数组形状的对应裁决仍待完成。证据为 `target/tmp/observability-parity/horizon-job-payload-public-fields-upstream.log`。
+
+紧接着核对固定 `Tags`。PHP 8.5.12 实跑确认 `extractExplicitTags` 有标签时优先于 `modelsFor`，空结果回退到模型属性和 Eloquent 集合并去重。`targetsFor` 读取四种包装的底层对象。排队监听器先求监听器标签再求事件标签并去重，两者均收到实际事件，后续普通任务读不到该事件。Rust 当前公开 `Tags::for_payload` 调用应用级回调，`Tags::for_model` 生成单模型标签。显式优先及模型回退、各包装的标签目标、监听器和事件的组合仍须逐项补齐或记录语言适配并验证。证据为 `target/tmp/observability-parity/horizon-tags-contract-upstream.log`。 [固定 Tags](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Tags.php)
 
 macOS 冷构建在真实 Redis 8.10.3 验证广播、带自定义名称的监听器、邮件、加密通知及普通任务。覆盖配置底层类、配置只有包装名称、应用间显式注册隔离以及真实 `horizon:retry` 重置静默结果。Horizon Redis 20 项、三包默认 84 项、严格 Clippy、全仓格式、三语文档和 12 组浏览器检查通过。Windows 11 ARM64 用同一源码、专用 NTFS 构建卷和独占 Redis 8.10.3，通过 15 项 Redis Runtime。证据为 `target/tmp/observability-parity/horizon-silenced-{accepted,docs}.log` 及 `target/tmp/observability-windows/horizon-silenced-arm64.log`。完整发布组合待验。
 
