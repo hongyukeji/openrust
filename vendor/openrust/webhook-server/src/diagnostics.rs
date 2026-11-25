@@ -1,8 +1,9 @@
-use openrust::database::{Row, Value};
+use openrust::database::{Row, Value, query::Builder};
 
 use crate::{
     DeliveryStore, Error, EventType, Result,
     delivery_store::{ATTEMPTS, DELIVERIES, check_id, number, text},
+    events::WebhookTransportFailure,
     publication::{MESSAGES, read_delivery_manifest},
 };
 
@@ -51,6 +52,12 @@ pub struct DeliveryAttemptDiagnostics {
 pub struct DeliveryAttemptsPage {
     pub data: Vec<DeliveryAttemptDiagnostics>,
     pub next_after: Option<u32>,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct DeliveryAttemptTransport {
+    pub transfer_time_micros: Option<u64>,
+    pub transport_failure: Option<WebhookTransportFailure>,
 }
 
 impl DeliveryStore {
@@ -155,16 +162,7 @@ impl DeliveryStore {
             });
         }
         let mut data = self
-            .connection
-            .table(ATTEMPTS)
-            .join(
-                DELIVERIES,
-                "webhook_delivery_attempts.delivery_id",
-                "=",
-                "webhook_deliveries.id",
-            )
-            .r#where("webhook_deliveries.scope_key", "=", self.scope_key.as_str())
-            .r#where("webhook_delivery_attempts.delivery_id", "=", id)
+            .attempts_query(id)
             .r#where("webhook_delivery_attempts.number", ">", i64::from(after))
             .select([
                 "webhook_delivery_attempts.number",
@@ -187,6 +185,48 @@ impl DeliveryStore {
             None
         };
         Ok(DeliveryAttemptsPage { data, next_after })
+    }
+
+    /// 读取同范围单次尝试的传输诊断。旧记录和未知写回可没有实测值。
+    pub async fn inspect_attempt_transport(
+        &self,
+        id: &str,
+        attempt: u32,
+    ) -> Result<Option<DeliveryAttemptTransport>> {
+        check_id(id)?;
+        if !(1..=i32::MAX as u32).contains(&attempt) {
+            return Err(Error::InvalidConfig("attempt.number"));
+        }
+        self.attempts_query(id)
+            .r#where("webhook_delivery_attempts.number", "=", i64::from(attempt))
+            .select(["transfer_time_micros", "transport_failure"])
+            .first()
+            .await?
+            .map(|row| {
+                let elapsed = optional_number(&row, "transfer_time_micros")?
+                    .map(u64::try_from)
+                    .transpose()
+                    .map_err(|_| Error::InvalidRecord)?;
+                let failure = optional_number(&row, "transport_failure")?;
+                Ok(DeliveryAttemptTransport {
+                    transfer_time_micros: elapsed,
+                    transport_failure: failure.map(WebhookTransportFailure::from_code),
+                })
+            })
+            .transpose()
+    }
+
+    fn attempts_query(&self, id: &str) -> Builder<'_> {
+        self.connection
+            .table(ATTEMPTS)
+            .join(
+                DELIVERIES,
+                "webhook_delivery_attempts.delivery_id",
+                "=",
+                "webhook_deliveries.id",
+            )
+            .r#where("webhook_deliveries.scope_key", "=", self.scope_key.as_str())
+            .r#where("webhook_delivery_attempts.delivery_id", "=", id)
     }
 }
 

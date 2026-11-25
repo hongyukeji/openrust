@@ -21,15 +21,30 @@ pub struct WebhookCallEvent {
 }
 
 /// 进程内可观察的失败类别，诊断不携带底层错误或凭据。
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 #[non_exhaustive]
+#[repr(i64)]
+#[serde(rename_all = "snake_case")]
 pub enum WebhookTransportFailure {
-    DeadlineExceeded,
-    Timeout,
-    Connection,
-    ResponseBody,
-    ResponseTooLarge,
-    Other,
+    DeadlineExceeded = 1,
+    Timeout = 2,
+    Connection = 3,
+    ResponseBody = 4,
+    ResponseTooLarge = 5,
+    Other = 6,
+}
+
+impl WebhookTransportFailure {
+    pub(crate) fn from_code(code: i64) -> Self {
+        match code {
+            1 => Self::DeadlineExceeded,
+            2 => Self::Timeout,
+            3 => Self::Connection,
+            4 => Self::ResponseBody,
+            5 => Self::ResponseTooLarge,
+            _ => Self::Other,
+        }
+    }
 }
 
 pub struct WebhookAttempt {

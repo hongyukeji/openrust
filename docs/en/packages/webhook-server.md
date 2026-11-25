@@ -342,6 +342,8 @@ Run `./artisan webhook-server:hold <id> --scope=<scope>` to keep a delivery snap
 
 `retention_hold_at` appears in diagnostics when set. A hold protects the data that still exists. Apply the migrations and upgrade all pruning processes before placing holds. Authorize the scope in the application before calling `DeliveryStore::set_retention_hold`, and give the Artisan command only to trusted operators.
 
+For one attempt, run `./artisan webhook-server:inspect <delivery-id> --scope=billing --transport=1` or call `DeliveryStore::inspect_attempt_transport`. It returns the measured network time in microseconds or the redacted transport failure category. An attempt can have both values unset, for example when an expired lease was reclaimed after the Worker exited.
+
 ### Expire idempotency keys {#idempotency-expiry}
 
 Use `./artisan webhook-server:prune --scope=<scope> --days=30 --idempotency=delivery --pretend` to preview direct delivery key expiry. Use `--idempotency=publication` for publication keys. The period starts when the request snapshot or shared body was pruned. A hold prevents expiry. Remove `--pretend` to release the selected keys. Run migrations and upgrade all writers and pruners before enabling expiry.

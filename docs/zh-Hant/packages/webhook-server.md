@@ -342,6 +342,8 @@ Builder 的 `dispatch`、`dispatch_if` 和 `dispatch_unless` 登記投遞並入�
 
 已設定保留的記錄在診斷中顯示 `retention_hold_at`。保留只保護仍存在的資料。使用保留前先執行遷移，並升級所有執行清理的程序。應用程式授權範圍後可呼叫 `DeliveryStore::set_retention_hold`。Artisan 指令僅供可信維運人員使用。
 
+查看單次嘗試時，執行 `./artisan webhook-server:inspect <delivery-id> --scope=billing --transport=1`，或呼叫 `DeliveryStore::inspect_attempt_transport`。結果回傳以微秒計的實測網路耗時或去識別化傳輸失敗類別。Worker 結束後由租約回收標記的嘗試等記錄，兩項可以都是空值。
+
 ### 釋放到期冪等鍵 {#idempotency-expiry}
 
 使用 `./artisan webhook-server:prune --scope=<scope> --days=30 --idempotency=delivery --pretend` 預演直接投遞鍵到期。發布訊息使用 `--idempotency=publication`。期限從請求快照或共享本文清理時起算，業務保留會阻止到期。移除 `--pretend` 後釋放符合條件的鍵。啟用前先執行遷移，並升級所有寫入及清理程序。

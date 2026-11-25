@@ -60,6 +60,8 @@ mod signer;
 mod snapshot;
 #[path = "../database/migrations/2026_11_25_000000_create_webhook_subscriptions_table.rs"]
 mod subscription_migration;
+#[path = "../database/migrations/2026_11_25_000001_add_transport_to_webhook_delivery_attempts.rs"]
+mod transport_migration;
 mod webhook_call;
 mod worker;
 
@@ -71,7 +73,8 @@ pub use delivery::{
 pub use delivery_store::{DeliveryProgress, DeliveryStore};
 pub use destination::{BoundTarget, TargetPolicy};
 pub use diagnostics::{
-    DeliveryAttemptDiagnostics, DeliveryAttemptsPage, DeliveryDiagnostics, MessageDiagnostics,
+    DeliveryAttemptDiagnostics, DeliveryAttemptTransport, DeliveryAttemptsPage,
+    DeliveryDiagnostics, MessageDiagnostics,
 };
 pub use dispatch::{QueuedDelivery, SynchronousDelivery};
 pub use endpoints::{Endpoint, EndpointState, EndpointStore};
@@ -144,6 +147,7 @@ openrust::compiled_migration_assets!("webhook-server";
     "2026_11_25_000000_index_webhook_idempotency_record.rs" => idempotency_index_migration,
     "2026_11_25_000000_mark_webhook_deliveries_idempotency_expiry.rs" => delivery_idempotency_expiry_migration,
     "2026_11_25_000000_mark_webhook_messages_idempotency_expiry.rs" => message_idempotency_expiry_migration,
+    "2026_11_25_000001_add_transport_to_webhook_delivery_attempts.rs" => transport_migration,
 );
 
 impl WebhookServerServiceProvider {

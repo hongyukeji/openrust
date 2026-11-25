@@ -342,6 +342,8 @@ Builder 的 `dispatch`、`dispatch_if` 和 `dispatch_unless` 登记投递并入�
 
 已设置保留的记录在诊断中显示 `retention_hold_at`。保留只保护仍存在的数据。使用保留前先执行迁移，并升级所有运行清理的进程。应用授权范围后可调用 `DeliveryStore::set_retention_hold`。Artisan 命令仅交给可信运维人员。
 
+查看单次尝试时，运行 `./artisan webhook-server:inspect <delivery-id> --scope=billing --transport=1`，或调用 `DeliveryStore::inspect_attempt_transport`。结果返回以微秒计的实测网络耗时或脱敏传输失败类别。Worker 退出后由租约回收标记的尝试等记录，两项可以都是空值。
+
 ### 释放到期幂等键 {#idempotency-expiry}
 
 使用 `./artisan webhook-server:prune --scope=<scope> --days=30 --idempotency=delivery --pretend` 预演直接投递键到期。发布消息使用 `--idempotency=publication`。期限从请求快照或共享正文清理时起算，业务保留会阻止到期。移除 `--pretend` 后释放符合条件的键。启用前先执行迁移，并升级所有写入及清理进程。

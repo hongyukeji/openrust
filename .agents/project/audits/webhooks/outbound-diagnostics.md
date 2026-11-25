@@ -2,7 +2,7 @@
 
 `DeliveryStore::inspect_delivery` 查询投递状态、已用与最大尝试次数、下次可领时间、截止时间及租约。`inspect_message` 使用 `publish` 回执中的内部消息 ID 查询事件类型、schema 版本、登记时间及首次投递 ID。`inspect_attempts` 按固定投递 ID 及递增尝试序号分页，每页 1 至 100 条，返回下一页游标。查询只取指定字段。尝试依投递表关联的范围约束，跨范围或不存在的投递返回空页。消息和投递详情不存在时返回空值。
 
-`webhook-server:inspect` 将相同契约写成单行 JSON。Artisan 由可信运维操作，支持指定数据库和范围。扩展未注册对公网的诊断路由。应用按自身授权规则开放范围后可重用公开服务。输出不含请求或响应正文、URL、密钥、Header、幂等键或完整快照。借鉴 Svix 分开查询消息与尝试、按已授权应用隔离并有界分页的职责。 [Svix 投递诊断说明](https://www.svix.com/webhook-monitoring/)
+`webhook-server:inspect` 将相同契约写成单行 JSON。Artisan 由可信运维操作，支持指定数据库和范围。[单次传输诊断](transport-diagnostics.md)通过独立选项返回有界网络观测。扩展未注册对公网的诊断路由。应用按自身授权规则开放范围后可重用公开服务。输出不含请求或响应正文、URL、密钥、Header、幂等键或完整快照。借鉴 Svix 分开查询消息与尝试、按已授权应用隔离并有界分页的职责。 [Svix 投递诊断说明](https://www.svix.com/webhook-monitoring/)
 
 直接 Builder 提交目前以投递 ID 查询；按任意 Builder 指定的外部消息 UUID 聚合、端点维度列表、批量重放、墓碑回收和多主机验收仍跟踪。[共享发布正文回收](publication-retention.md)已接入。[出站快照与尝试留存](outbound-retention.md)已接入。普通 CONNECT 代理仍在 WS-08。
 

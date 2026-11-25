@@ -78,6 +78,12 @@ pub(super) fn register() -> Result<(), ConsoleError> {
                 .action(ArgAction::SetTrue),
         )
         .arg(
+            Arg::new("transport")
+                .long("transport")
+                .conflicts_with_all(["attempts", "message"])
+                .value_parser(value_parser!(u32).range(1..=i64::from(i32::MAX))),
+        )
+        .arg(
             Arg::new("after")
                 .long("after")
                 .requires("attempts")
@@ -301,7 +307,14 @@ impl Command for Inspect {
             let store = delivery_store(app, input).await?;
             let args = input.matches();
             let id = args.get_one::<String>("id").expect("必填 ID");
-            let json = if args.get_flag("message") {
+            let json = if let Some(attempt) = args.get_one::<u32>("transport") {
+                serde_json::to_string(
+                    &store
+                        .inspect_attempt_transport(id, *attempt)
+                        .await
+                        .map_err(ConsoleError::from_source)?,
+                )
+            } else if args.get_flag("message") {
                 serde_json::to_string(
                     &store
                         .inspect_message(id)

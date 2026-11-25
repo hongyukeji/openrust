@@ -13,6 +13,7 @@ use std::fmt::Write as _;
 use crate::{
     Error, PreparedWebhook, Result,
     endpoints::{EndpointPermission, EndpointStore},
+    events::WebhookTransportFailure,
     idempotency::IdempotencyKind,
     limits::{self, DeliveryLimits},
     publication::MESSAGES,
@@ -67,6 +68,8 @@ pub(crate) struct AttemptResult {
     pub outcome: &'static str,
     pub status: Option<u16>,
     pub retry_after: Option<RetryAfter>,
+    pub transfer_time_micros: Option<i64>,
+    pub transport_failure: Option<WebhookTransportFailure>,
 }
 
 impl AttemptResult {
@@ -75,6 +78,8 @@ impl AttemptResult {
             outcome,
             status: None,
             retry_after: Some(RetryAfter::Seconds(0)),
+            transfer_time_micros: None,
+            transport_failure: None,
         }
     }
 
@@ -83,6 +88,8 @@ impl AttemptResult {
             outcome,
             status: None,
             retry_after: None,
+            transfer_time_micros: None,
+            transport_failure: None,
         }
     }
 }
@@ -723,6 +730,18 @@ impl DeliveryStore {
                                 .map_or(Value::Null, |code| i64::from(code).into()),
                         ),
                         assignment("finished_at", Value::from(now)),
+                        assignment(
+                            "transfer_time_micros",
+                            attempt
+                                .transfer_time_micros
+                                .map_or(Value::Null, Value::from),
+                        ),
+                        assignment(
+                            "transport_failure",
+                            attempt
+                                .transport_failure
+                                .map_or(Value::Null, |failure| (failure as i64).into()),
+                        ),
                     ]
                     .into_iter()
                     .collect(),

@@ -2,7 +2,7 @@
 
 固定 Spatie `CallWebhookJob` 使用 Guzzle `on_stats` 取得传输统计，并把统计和异常信息交给结果事件。在 OpenRust 中复用核心 HTTP Client 的 `TransferStats`。`WebhookCallEvent::transfer_stats()` 提供已经取得的 HTTP 传输耗时，与 `WebhookAttempt::elapsed` 表达的整次领域尝试耗时分别读取。HTTP 2xx 与 503 等实际响应均可带测量结果。未取得响应时，结果事件和自定义 Job 钩子都能通过 `transport_failure()` 取得脱敏类别。投递期限、HTTP 超时、连接、响应读取和正文超过预算可以分别处理。 [固定 Job](https://github.com/spatie/laravel-webhook-server/blob/6da6be3a721190bcdedcdef32d31d5980b77eb0e/src/CallWebhookJob.php) · [固定基础事件](https://github.com/spatie/laravel-webhook-server/blob/6da6be3a721190bcdedcdef32d31d5980b77eb0e/src/Events/WebhookCallEvent.php)
 
-入队前事件和本地策略拒绝没有传输统计或失败类别。分类在结果完成事务及租约校验后随原同步事件分发。观察字段只在进程内提供，持久记录、队列、重试次数与错误文本沿用原契约。完整响应继续通过自定义 Job 的受限 `get_response()` 提供。Guzzle 响应序列化、底层错误及细分网络阶段耗时没有直接对应。进程崩溃后，补记的 Unknown 没有在途响应或本次进程内统计。
+入队前事件和本地策略拒绝没有传输统计或失败类别。分类在结果完成事务及租约校验后随原同步事件分发。本批观察字段只在进程内提供。[后续持久化验收](transport-diagnostics.md)已补齐单次尝试的耗时和脱敏类别查询。完整响应继续通过自定义 Job 的受限 `get_response()` 提供。Guzzle 响应序列化、底层错误及细分网络阶段耗时没有直接对应。进程崩溃后，补记的 Unknown 没有在途响应或本次进程内统计。
 
 ## 验收
 

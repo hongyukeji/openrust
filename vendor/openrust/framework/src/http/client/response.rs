@@ -10,6 +10,11 @@ pub struct TransferStats {
     pub(super) network: bool,
 }
 impl TransferStats {
+    /// 实际网络跳的耗时。模拟响应没有网络测量值。
+    pub fn network_duration(&self) -> Option<std::time::Duration> {
+        self.network.then_some(self.duration)
+    }
+
     pub fn get_transfer_time(&self) -> f64 {
         self.duration.as_secs_f64()
     }

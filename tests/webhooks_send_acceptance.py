@@ -134,6 +134,10 @@ def exercise(binary, env, log, receiver, driver, sql):
             f"WHERE delivery_id='{identifier}' ORDER BY number"
         )
 
+    def inspect_transport(identifier, number, scope=SCOPE):
+        return json.loads(command("webhook-server:inspect", identifier, "--scope", scope,
+                                  f"--transport={number}"))
+
     def update(identifier, values):
         routes["write_database"](
             driver, sql, f"UPDATE webhook_deliveries SET {values} WHERE id='{identifier}'"
@@ -1553,6 +1557,13 @@ def exercise(binary, env, log, receiver, driver, sql):
         print(f"{driver}/{worker[1]}: 并发 Scheduler、丢失任务、到期退避、崩溃补派、范围隔离及迁移通过", flush=True)
         return
 
+    transport_migration = ("--path=vendor/openrust/webhook-server/database/migrations/"
+                           "2026_11_25_000001_add_transport_to_webhook_delivery_attempts.rs")
+    assert "add_transport_to_webhook_delivery_attempts" in command(
+        "migrate:rollback", transport_migration, "--step=1000", "--force"
+    )
+    assert "add_transport_to_webhook_delivery_attempts" in command("migrate", transport_migration, "--force")
+
     rolled_back = submit("rolled-back", "rollback")
     assert read(rolled_back) == ""
     assert '"unavailable"' in send(rolled_back)
@@ -1606,7 +1617,20 @@ def exercise(binary, env, log, receiver, driver, sql):
     update(retry, "available_at=0")
     assert f'{retry} "succeeded"' in send("--limit=1")
     assert attempts(retry) == "1\thttp_failure\t503\n2\tsucceeded\t204"
+    for number in (1, 2):
+        recorded_transport = inspect_transport(retry, number)
+        assert recorded_transport["transfer_time_micros"] > 0
+        assert recorded_transport["transport_failure"] is None
     captured("retry", 2)
+
+    if legacy_binary := env.get("FIXTURE_SEND_TRANSPORT_LEGACY_BINARY"):
+        prior = submit("transport-legacy-worker")
+        enqueue(prior)
+        routes["command"](Path(legacy_binary).resolve(), env, *worker)
+        assert attempts(prior) == "1\tsucceeded\t204"
+        assert inspect_transport(prior, 1) == {"transfer_time_micros": None, "transport_failure": None}
+        captured("transport-legacy-worker")
+        print(f"{driver}: 前版 Worker 读取新版本作业并完成投递，传输诊断保留为空", flush=True)
 
     receiver.retry_at = int(time.time()) + 30
     retry_date = submit("retry-date")
@@ -1629,6 +1653,7 @@ def exercise(binary, env, log, receiver, driver, sql):
     revoked = submit("revoked")
     assert '"failed"' in send(revoked, current=env | {"FIXTURE_SEND_REVOKED": "1"})
     assert attempts(revoked) == "1\trejected\t0"
+    assert inspect_transport(revoked, 1) == {"transfer_time_micros": None, "transport_failure": None}
     captured("revoked", 0)
 
     expired = submit("expired", "expired")
@@ -1651,7 +1676,9 @@ def exercise(binary, env, log, receiver, driver, sql):
         captured("timeout")
     finally:
         receiver.release["timeout"].set()
+    assert inspect_transport(timeout, 1)["transport_failure"] in {"deadline_exceeded", "timeout"}
 
+    failed_transports = {}
     for key in ("transport-disconnected", "transport-large-response"):
         if key == "transport-disconnected":
             identifier = submit(key, "builder-custom-async")
@@ -1661,6 +1688,32 @@ def exercise(binary, env, log, receiver, driver, sql):
         command(*worker)
         assert attempts(identifier) == "1\tunknown\t0"
         captured(key)
+        failed_transports[key] = identifier
+    disconnected = failed_transports["transport-disconnected"]
+    oversized_response = failed_transports["transport-large-response"]
+    assert inspect_transport(disconnected, 1) == {
+        "transfer_time_micros": None, "transport_failure": "connection",
+    }
+    assert inspect_transport(oversized_response, 1) == {
+        "transfer_time_micros": None, "transport_failure": "response_too_large",
+    }
+    assert inspect_transport(disconnected, 2) is None
+    assert inspect_transport(disconnected, 1, "different-scope") is None
+    command("webhook-server:inspect", disconnected, "--scope", SCOPE, "--transport=0", success=False)
+    command("webhook-server:inspect", disconnected, "--scope", SCOPE, "--transport=1", "--attempts", success=False)
+    command("migrate:rollback", transport_migration, "--step=1000", "--force", success=False)
+
+    for scope, auth, status in ((SCOPE, True, 200), (SCOPE, False, 403), ("other-scope", True, 403)):
+        connection = http.client.HTTPConnection("127.0.0.1", int(env["APP_PORT"]), timeout=20)
+        try:
+            headers = {"x-fixture-inspector": "fixture-operator"} if auth else {}
+            connection.request("GET", f"/api/outbound-inspect/{scope}/transport/{disconnected}", headers=headers)
+            response = connection.getresponse()
+            assert response.status == status, response.status
+            body = json.loads(response.read())
+            assert body == (inspect_transport(disconnected, 1) if status == 200 else {})
+        finally:
+            connection.close()
 
     stale = submit("stale")
     process = subprocess.Popen(
@@ -1674,6 +1727,8 @@ def exercise(binary, env, log, receiver, driver, sql):
         receiver.release["stale"].set()
         assert process.wait(timeout=10) != 0
         assert attempts(stale) == "1\tunknown\t0\n2\tsucceeded\t204"
+        assert inspect_transport(stale, 1) == {"transfer_time_micros": None, "transport_failure": None}
+        assert inspect_transport(stale, 2)["transfer_time_micros"] > 0
         captured("stale", 2)
     finally:
         receiver.release["stale"].set()

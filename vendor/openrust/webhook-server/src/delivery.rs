@@ -212,7 +212,6 @@ impl DeliveryService {
             result: attempt,
             response,
             retry_at,
-            failure,
         } = match tokio::time::timeout_at(deadline, self.attempt(id, &claim, deadline)).await {
             Ok(outcome) => outcome,
             Err(_) => TransportAttempt::failed(WebhookTransportFailure::DeadlineExceeded),
@@ -223,6 +222,7 @@ impl DeliveryService {
         }
         let status = attempt.status;
         let outcome = attempt.outcome;
+        let failure = attempt.transport_failure;
         let observed = WebhookJobAttempt {
             scope: self.store.scope(),
             delivery_id: id,
@@ -413,7 +413,6 @@ impl DeliveryService {
                         result: AttemptResult::failure("rate_limited"),
                         response: None,
                         retry_at: Some(retry_at),
-                        failure: None,
                     };
                 }
                 Err(_) => return AttemptResult::transient("unresolved").into(),
@@ -458,12 +457,17 @@ impl DeliveryService {
                     },
                     status: Some(status.as_u16()),
                     retry_after,
+                    transfer_time_micros: response
+                        .transfer_stats
+                        .as_ref()
+                        .and_then(|stats| stats.network_duration())
+                        .and_then(|duration| i64::try_from(duration.as_micros()).ok()),
+                    transport_failure: None,
                 };
                 TransportAttempt {
                     result,
                     response: Some(response),
                     retry_at: None,
-                    failure: None,
                 }
             }
             Err(HttpClientError::Configuration) => AttemptResult::failure("rejected").into(),
@@ -482,15 +486,15 @@ struct TransportAttempt {
     result: AttemptResult,
     response: Option<Response>,
     retry_at: Option<i64>,
-    failure: Option<WebhookTransportFailure>,
 }
 
 impl TransportAttempt {
     fn failed(failure: WebhookTransportFailure) -> Self {
-        Self {
-            failure: Some(failure),
-            ..AttemptResult::transient("unknown").into()
+        AttemptResult {
+            transport_failure: Some(failure),
+            ..AttemptResult::transient("unknown")
         }
+        .into()
     }
 }
 
@@ -500,7 +504,6 @@ impl From<AttemptResult> for TransportAttempt {
             result,
             response: None,
             retry_at: None,
-            failure: None,
         }
     }
 }

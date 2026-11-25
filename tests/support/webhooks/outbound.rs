@@ -955,6 +955,11 @@ pub(super) fn inspect(
                         )
                         .await?,
                 ),
+                "transport" => serde_json::to_value(
+                    store
+                        .inspect_attempt_transport(id, options("x-fixture-attempt", 1)?)
+                        .await?,
+                ),
                 _ => return Err(Error::InvalidConfig("fixture")),
             };
             result.map_err(|_| Error::InvalidRecord)
