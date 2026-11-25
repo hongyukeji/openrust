@@ -11,7 +11,8 @@ use openrust::{
     support::{ProviderResult, ServiceProvider},
 };
 use openrust_horizon::{
-    Horizon, HorizonServiceProvider, MasterSupervisorOutOfMemory, SupervisorOutOfMemory,
+    Horizon, HorizonServiceProvider, MasterSupervisorLooped, MasterSupervisorOutOfMemory,
+    SupervisorLooped, SupervisorOutOfMemory,
 };
 use serde_json::json;
 use std::{collections::BTreeMap, path::Path, sync::Arc, time::Duration};
@@ -72,6 +73,31 @@ struct ProbeProvider;
 
 struct MemoryEventRecorder(std::path::PathBuf);
 
+struct LoopDispatchFailure(std::path::PathBuf);
+
+impl Listener for LoopDispatchFailure {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn Event,
+        _: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            use std::io::Write as _;
+            writeln!(
+                std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(&self.0)
+                    .unwrap(),
+                "{}",
+                event.name()
+            )
+            .unwrap();
+            Err(EventError::InvalidPayload)
+        })
+    }
+}
+
 impl Listener for MemoryEventRecorder {
     fn handle<'a>(
         &'a self,
@@ -121,6 +147,16 @@ impl ServiceProvider for ProbeProvider {
                 Delivery::Sync,
             )?;
             dispatcher.listen(SupervisorOutOfMemory::NAME, recorder, Delivery::Sync)?;
+            if std::env::var("HORIZON_PROBE_FAIL_LOOP_DISPATCH").as_deref() == Ok("1") {
+                let listener =
+                    Arc::new(LoopDispatchFailure(app.base_path().join("loop-errors.log")));
+                dispatcher.listen(
+                    MasterSupervisorLooped::NAME,
+                    listener.clone(),
+                    Delivery::Sync,
+                )?;
+                dispatcher.listen(SupervisorLooped::NAME, listener, Delivery::Sync)?;
+            }
             Ok(())
         })
     }
@@ -138,12 +174,14 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
 }
 fn create() -> Result<Application, Box<dyn std::error::Error + Send + Sync>> {
     let base = std::env::var("APP_BASE_PATH")?;
+    let mut providers: Vec<Box<dyn ServiceProvider>> =
+        vec![Box::new(HorizonServiceProvider), Box::new(ProbeProvider)];
+    if std::env::var("HORIZON_PROBE_FAIL_LOOP_DISPATCH").as_deref() == Ok("1") {
+        providers.swap(0, 1);
+    }
     Ok(Application::configure(base.into())
         .with_config(config)
-        .with_providers(vec![
-            Box::new(HorizonServiceProvider),
-            Box::new(ProbeProvider),
-        ])
+        .with_providers(providers)
         .with_routing(Routing::default().web(routes))
         .create()?)
 }

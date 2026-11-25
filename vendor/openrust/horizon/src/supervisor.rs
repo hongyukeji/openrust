@@ -37,7 +37,10 @@ pub struct Supervisor {
 }
 
 /// Supervisor state observed after its heartbeat has been persisted.
+#[derive(Clone)]
 pub struct SupervisorLooped {
+    pub(crate) memory_limit: u64,
+    pub(crate) memory_check: Arc<crate::process_memory::MemoryCheck>,
     pub name: String,
     pub paused: bool,
     pub(crate) repository: Arc<Repository>,
@@ -51,6 +54,14 @@ impl SupervisorLooped {
         Self {
             name: supervisor.id.clone(),
             paused,
+            memory_check: Arc::default(),
+            memory_limit: supervisor
+                .options
+                .values()
+                .next()
+                .expect("validated options")
+                .memory
+                .into(),
             repository: supervisor.repository.clone(),
             last_wait_monitor: supervisor.last_wait_monitor.clone(),
         }
@@ -122,7 +133,7 @@ impl Supervisor {
         self
     }
     pub fn memory_usage(&self) -> f64 {
-        memory_stats::memory_stats().map_or(0., |usage| usage.physical_mem as f64 / 1024. / 1024.)
+        crate::process_memory::memory_usage()
     }
     pub fn name(&self) -> &str {
         &self.id
@@ -299,28 +310,18 @@ impl Supervisor {
         }
         let workers:Vec<_>=self.pools.values().flat_map(|pool| &pool.workers).map(|w|serde_json::json!({"supervisor":w.supervisor,"queue":w.queue,"pid":w.process.id(),"terminating":w.stopping.is_some()})).collect();
         self.repository.heartbeat_supervisor(&self.id,&serde_json::json!({"name":self.id,"master":self.id.rsplit_once(':').map(|(master,_)|master),"pid":std::process::id(),"status":if paused{"paused"}else{"running"},"workers":workers,"targets":self.targets,"unexpected_exits":self.failures,"options":self.options.values().next(),"processes":self.pools.iter().map(|(queue,pool)|(format!("{}:{queue}",self.options.values().next().expect("validated options").connection),pool.active_process_count())).collect::<BTreeMap<_,_>>() })).await?;
-        if let Err(error) =
-            openrust::support::facades::Event::dispatch(SupervisorLooped::new(self, paused)).await
-        {
+        let event = SupervisorLooped::new(self, paused);
+        if let Err(error) = openrust::support::facades::Event::dispatch(event.clone()).await {
             let _ = openrust::support::facades::Log::warning(
                 &format!("Horizon supervisor loop listener failed: {error}"),
                 &Default::default(),
             );
         }
-        let memory_limit = self
-            .options
-            .values()
-            .next()
-            .ok_or(Error::InvalidConfiguration)?
-            .memory as u64;
-        let memory_usage = self.memory_usage();
-        if memory_usage > memory_limit as f64 {
-            crate::process_memory::dispatch(crate::SupervisorOutOfMemory {
-                name: self.id.clone(),
-                memory_usage,
-                memory_limit,
-            })
-            .await;
+        // 自定义监听器可能提前终止派发，进程仍须检查内存。
+        crate::MonitorSupervisorMemory::check(&event)
+            .await
+            .map_err(|_| Error::Unavailable)?;
+        if event.memory_check.exceeded() {
             return Err(Error::MemoryLimitExceeded);
         }
         Ok(true)

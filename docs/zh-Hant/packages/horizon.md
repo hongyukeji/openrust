@@ -65,6 +65,8 @@ Master 持久化心跳後也會派發 `MasterSupervisorLooped::NAME`，事件提
 
 程序超過記憶體上限時，會在以結束碼 `12` 關閉前派發 `MasterSupervisorOutOfMemory` 或 `SupervisorOutOfMemory`。事件提供程序名稱、實測常駐記憶體及上限，記憶體單位為 MiB。
 
+Horizon 在對應循環事件上註冊 `MonitorMasterSupervisorMemory` 和 `MonitorSupervisorMemory`。每輪共用一次檢查，即使其他同步監聽器提前終止派發，記憶體保護仍會執行。
+
 Master 也會清理過期的工作索引。最近、待處理、已完成、靜默和最近失敗索引每分鐘檢查一次。失敗和監控索引各自按設定的保留分鐘數除以 12 後向下取整，最短間隔為一分鐘。
 
 暫停、繼續、終止、監控變更和重試均須逐次通過授權回調。瀏覽器對寫入操作傳送 `X-Horizon-Request: 1`，直接呼叫介面也須攜帶該標頭；拒絕跨站瀏覽器寫入操作。為整個路由群組套用既有的認證與中間件。面板授權包含檢視工作資料和執行維運控制的權限。

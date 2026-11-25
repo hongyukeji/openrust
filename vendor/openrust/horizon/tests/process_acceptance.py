@@ -223,15 +223,20 @@ def main():
             env.pop('HORIZON_PROBE_FAST_TERMINATION')
             # Both supervisor and master memory limits stop with the upstream
             # exit code and leave no live process registrations.
-            artisan('horizon:supervisor', 'memory-probe', 'redis', '--memory=1', code=12)
-            env['HORIZON_PROBE_MEMORY_LIMIT'] = '1'
-            artisan('horizon', code=12)
-            env.pop('HORIZON_PROBE_MEMORY_LIMIT')
+            for fail_loop in [False, True]:
+                if fail_loop:
+                    env['HORIZON_PROBE_FAIL_LOOP_DISPATCH'] = '1'
+                artisan('horizon:supervisor', 'memory-probe', 'redis', '--memory=1', code=12)
+                env['HORIZON_PROBE_MEMORY_LIMIT'] = '1'
+                artisan('horizon', code=12)
+                env.pop('HORIZON_PROBE_MEMORY_LIMIT')
+            env.pop('HORIZON_PROBE_FAIL_LOOP_DISPATCH')
             assert status() == []
             memory_events = [json.loads(line) for line in (root / 'memory-events.jsonl').read_text().splitlines()]
-            assert [event['event'] for event in memory_events] == ['SupervisorOutOfMemory', 'MasterSupervisorOutOfMemory']
-            assert memory_events[0]['name'] == 'memory-probe'
+            assert [event['event'] for event in memory_events] == ['SupervisorOutOfMemory', 'MasterSupervisorOutOfMemory'] * 2
+            assert all(event['name'] == 'memory-probe' for event in memory_events[::2])
             assert all(event['name'] and event['usage'] > event['limit'] == 1 for event in memory_events)
+            assert {'SupervisorLooped', 'MasterSupervisorLooped'} <= set((root / 'loop-errors.log').read_text().splitlines())
             # File watching is live, responds to a change once, and cleans up
             # its child tree when interrupted.
             watched = root / 'routes' / 'web.rs'

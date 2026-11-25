@@ -27,7 +27,10 @@ pub use master_supervisor::{
     ExpireSupervisors, MasterSupervisor, MasterSupervisorLooped, SupervisorProcess,
 };
 pub use options::{AutoScaler, SupervisorOptions};
-pub use process_memory::{MasterSupervisorOutOfMemory, SupervisorOutOfMemory};
+pub use process_memory::{
+    MasterSupervisorOutOfMemory, MonitorMasterSupervisorMemory, MonitorSupervisorMemory,
+    SupervisorOutOfMemory,
+};
 pub use provider::HorizonServiceProvider;
 pub use repository::{
     JobDetails, JobRecord, JobRepository, MasterSupervisorRepository, Metrics, MetricsRepository,

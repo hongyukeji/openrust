@@ -116,6 +116,16 @@ impl ServiceProvider for HorizonServiceProvider {
             )?;
             dispatcher.listen(
                 crate::SupervisorLooped::NAME,
+                Arc::new(crate::MonitorSupervisorMemory),
+                Delivery::Sync,
+            )?;
+            dispatcher.listen(
+                crate::MasterSupervisorLooped::NAME,
+                Arc::new(crate::MonitorMasterSupervisorMemory),
+                Delivery::Sync,
+            )?;
+            dispatcher.listen(
+                crate::SupervisorLooped::NAME,
                 Arc::new(crate::MonitorWaitTimes),
                 Delivery::Sync,
             )?;
