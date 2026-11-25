@@ -12,6 +12,9 @@ mod delivery_migration;
 mod delivery_store;
 mod destination;
 mod dispatch;
+#[path = "../database/migrations/2026_11_25_000000_create_webhook_endpoints_table.rs"]
+mod endpoint_migration;
+mod endpoints;
 mod error;
 pub mod events;
 mod extensions;
@@ -34,6 +37,7 @@ pub use delivery::{
 pub use delivery_store::{DeliveryProgress, DeliveryStore};
 pub use destination::{BoundTarget, TargetPolicy};
 pub use dispatch::{QueuedDelivery, SynchronousDelivery};
+pub use endpoints::{Endpoint, EndpointState, EndpointStore};
 pub use error::{Error, Result};
 pub use extensions::{register_backoff_strategy, register_call_webhook_job, register_signer};
 pub use recovery::RecoveryReport;
@@ -84,6 +88,10 @@ impl WebhookServerServiceProvider {
             MigrationEntry::new(
                 "vendor/openrust/webhook-server/database/migrations/2026_11_25_000000_create_webhook_deliveries_table.rs",
                 &delivery_migration::MIGRATION,
+            ),
+            MigrationEntry::new(
+                "vendor/openrust/webhook-server/database/migrations/2026_11_25_000000_create_webhook_endpoints_table.rs",
+                &endpoint_migration::MIGRATION,
             ),
             MigrationEntry::new(
                 "vendor/openrust/webhook-server/database/migrations/2026_11_25_000000_extend_webhook_deliveries_for_recovery.rs",

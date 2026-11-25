@@ -38,7 +38,7 @@ class Receiver(http.server.BaseHTTPRequestHandler):
             deliveries = owner.received.setdefault(key, [])
             deliveries.append((self.path, self.headers, body))
             attempt = len(deliveries)
-        if key in ("concurrent", "crash", "stale", "timeout") and attempt == 1:
+        if key in ("concurrent", "crash", "stale", "timeout", "endpoint-inflight") and attempt == 1:
             owner.entered[key].set()
             if not owner.release[key].wait(timeout=12):
                 return
@@ -47,7 +47,7 @@ class Receiver(http.server.BaseHTTPRequestHandler):
             status = 503
         if key.startswith("custom-stop") or key == "custom-continue" and attempt == 1:
             status = 503
-        if key.startswith("replay-failed-") and attempt == 1:
+        if (key.startswith("replay-failed-") or key == "endpoint-replay-source") and attempt == 1:
             status = 503
         if key == "redirect":
             status = 302
@@ -134,6 +134,127 @@ def exercise(binary, env, log, receiver, driver, sql):
             )
 
     worker = ["queue:work", env.get("FIXTURE_SEND_QUEUE", "database"), "--queue=webhook-outgoing", "--once", "--tries=7"]
+
+    if env.get("FIXTURE_SEND_ENDPOINTS"):
+        def endpoint(operation, name, *options, success=True):
+            return command("webhooks:fixture-endpoint", operation, name, *options, success=success)
+
+        endpoint("create", "paused")
+        endpoint("create", "paused", success=False)
+        waiting = submit("endpoint-paused-worker", "endpoint-paused")
+        expiring = submit("endpoint-pause-expiry", "endpoint-paused")
+        enqueue(waiting)
+        endpoint("pause", "paused")
+        command(*worker)
+        assert read(waiting) == "pending\t0" and not attempts(waiting)
+        assert '"unavailable"' in send(waiting)
+        report = command("webhook-server:recover", "--scope", SCOPE)
+        assert json.loads(re.search(r"\{[^\n]+\}", report)[0])["skipped"] >= 1
+        captured("endpoint-paused-worker", 0)
+        update(expiring, "deadline=0")
+        send(expiring)
+        assert read(expiring) == "expired\t0"
+        endpoint("resume", "paused")
+        assert '"succeeded"' in send(waiting) and read(waiting) == "succeeded\t1"
+        captured("endpoint-paused-worker")
+        assert '"unavailable"' in send(expiring)
+        captured("endpoint-pause-expiry", 0)
+
+        endpoint("create", "rotate")
+        stale = submit("endpoint-old-revision", "endpoint-rotate")
+        assert "revision 2" in endpoint("replace", "rotate", "--rotated")
+        endpoint("pause", "rotate", success=False)
+        assert '"cancelled"' in send(stale)
+        assert read(stale) == "cancelled\t1"
+        captured("endpoint-old-revision", 0)
+        fresh = submit("endpoint-new-revision", "endpoint-rotate")
+        assert '"succeeded"' in send(fresh)
+        captured("endpoint-new-revision", rotated=(0,))
+
+        endpoint("create", "cross-scope", "--scope=other-endpoint-scope")
+        submit("endpoint-scope-denied", "endpoint-cross-scope", expected=409)
+        endpoint("create", "override")
+        submit("endpoint-reference-denied", "endpoint-override", expected=409)
+        captured("endpoint-reference-denied", 0)
+
+        endpoint("create", "race")
+        late = submit("endpoint-late-pause", "endpoint-race")
+        root = Path(env["APP_BASE_PATH"])
+        entered = root / "endpoint-policy-entered"
+        release = root / "endpoint-policy-release"
+        process = subprocess.Popen(
+            [str(binary), "artisan", "webhook-server:send", late, "--scope", SCOPE],
+            env=env | {"FIXTURE_ENDPOINT_WAIT_FOR_PERMISSION": "1"},
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+        )
+        try:
+            deadline = time.monotonic() + 8
+            while not entered.exists() and time.monotonic() < deadline and process.poll() is None:
+                time.sleep(.02)
+            assert entered.exists() and read(late) == "running\t1"
+            endpoint("pause", "race")
+            release.touch()
+            result, _ = process.communicate(timeout=12)
+            assert process.returncode == 0 and '"pending"' in result, result
+            assert read(late) == "pending\t0" and not attempts(late)
+            captured("endpoint-late-pause", 0)
+        finally:
+            release.touch()
+            if process.poll() is None:
+                process.kill()
+                process.wait(timeout=10)
+        endpoint("resume", "race")
+        assert '"succeeded"' in send(late)
+        captured("endpoint-late-pause")
+
+        inflight = submit("endpoint-inflight", "endpoint-race")
+        process = subprocess.Popen(
+            [str(binary), "artisan", "webhook-server:send", inflight, "--scope", SCOPE],
+            env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+        )
+        try:
+            assert receiver.entered["endpoint-inflight"].wait(timeout=8)
+            assert read(inflight) == "running\t1"
+            endpoint("delete", "race")
+            receiver.release["endpoint-inflight"].set()
+            result, _ = process.communicate(timeout=12)
+            assert process.returncode == 0 and '"cancelled"' in result, result
+            assert read(inflight) == "cancelled\t1" and attempts(inflight) == "1\tsucceeded\t204"
+            captured("endpoint-inflight")
+        finally:
+            receiver.release["endpoint-inflight"].set()
+            if process.poll() is None:
+                process.kill()
+                process.wait(timeout=10)
+        endpoint("resume", "race", success=False)
+        endpoint("create", "race", success=False)
+        assert '"unavailable"' in send(inflight)
+        captured("endpoint-inflight")
+
+        endpoint("create", "replay")
+        original = submit("endpoint-replay-source", "endpoint-replay")
+        assert '"failed"' in send(original)
+        replay = ("webhook-server:replay", original, "--scope", SCOPE,
+                  "--actor=fixture-operator", "--reason=test-endpoint")
+        endpoint("pause", "replay")
+        command(*replay, success=False)
+        endpoint("resume", "replay")
+        result = command(*replay)
+        replayed_id = json.loads(re.search(r"\{[^\n]+\}", result)[0])["delivery_id"]
+        enqueue(replayed_id)
+        endpoint("pause", "replay")
+        command(*worker)
+        assert read(replayed_id) == "pending\t0"
+        endpoint("resume", "replay")
+        assert '"succeeded"' in send(replayed_id)
+        captured("endpoint-replay-source", 2)
+        endpoint("delete", "replay")
+        command(*replay, success=False)
+
+        command("migrate:rollback", "--path=vendor/openrust/webhook-server/database/migrations/"
+                "2026_11_25_000000_create_webhook_endpoints_table.rs", "--force", success=False)
+        print(f"{driver}: 端点暂停恢复、版本变化、跨范围、删除竞态及重放当前许可通过", flush=True)
+        return
 
     if env.get("FIXTURE_SEND_REPLAY"):
         def replay(identifier, *options, scope=SCOPE, actor="fixture-operator", current=env, success=True):
@@ -660,7 +781,7 @@ def main():
     receiver.mutex = threading.Lock()
     receiver.received = {}
     receiver.unexpected = []
-    receiver.entered = {name: threading.Event() for name in ("crash", "concurrent", "stale", "timeout")}
+    receiver.entered = {name: threading.Event() for name in ("crash", "concurrent", "stale", "timeout", "endpoint-inflight")}
     receiver.release = {name: threading.Event() for name in receiver.entered}
     peer = threading.Thread(target=receiver.serve_forever, daemon=True)
     peer.start()
@@ -716,7 +837,8 @@ def main():
                     raise
                 finally:
                     http_helpers["stop"](app)
-        if not (os.environ.get("FIXTURE_SEND_SCHEDULE") or os.environ.get("FIXTURE_SEND_REPLAY")):
+        if not (os.environ.get("FIXTURE_SEND_SCHEDULE") or os.environ.get("FIXTURE_SEND_REPLAY")
+                or os.environ.get("FIXTURE_SEND_ENDPOINTS")):
             print(f"{driver}: HTTP 签名和字节、事务回滚、重复领取、重试预算、撤销、超时、崩溃恢复、Builder 分支、投递事件与自定义 Job 通过")
     finally:
         receiver.shutdown()

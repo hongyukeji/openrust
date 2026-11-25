@@ -12,6 +12,7 @@ use crate::{
     body::{Payload, encode_json},
     configuration,
     destination::{MAX_URL_BYTES, parse_target},
+    endpoints::{Endpoint, EndpointBinding},
     extensions,
 };
 
@@ -26,6 +27,7 @@ pub struct WebhookCall {
     use_timestamp: bool,
     signing: bool,
     secret: Option<Secret>,
+    endpoint: Option<EndpointBinding>,
 }
 
 enum Secret {
@@ -76,6 +78,7 @@ pub struct PreparedWebhook {
     signing: Option<(Secret, Arc<dyn Signer>)>,
     backoff: Arc<dyn BackoffStrategy>,
     config: CallConfig,
+    endpoint: Option<EndpointBinding>,
 }
 
 impl WebhookCall {
@@ -127,7 +130,17 @@ impl WebhookCall {
             use_timestamp: false,
             signing: true,
             secret: None,
+            endpoint: None,
         })
+    }
+
+    /// 采用数据库端点当前的目标、签名凭据引用及配置版本。
+    pub fn use_endpoint(mut self, endpoint: &Endpoint) -> Self {
+        self.target = Some(endpoint.url.clone());
+        self.secret = endpoint.credential.clone().map(Secret::Reference);
+        self.signing = self.secret.is_some();
+        self.endpoint = Some(endpoint.binding.clone());
+        self
     }
 
     pub fn url(mut self, url: impl Into<String>) -> Self {
@@ -320,6 +333,7 @@ impl WebhookCall {
             signing,
             backoff,
             config: self.config,
+            endpoint: self.endpoint,
         })
     }
 }
@@ -467,6 +481,7 @@ impl PreparedWebhook {
             meta: self.meta.clone(),
             lifetime,
             replay: false,
+            endpoint: self.endpoint.clone(),
         })
     }
 

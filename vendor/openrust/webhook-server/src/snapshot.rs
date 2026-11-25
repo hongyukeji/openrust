@@ -42,6 +42,8 @@ pub(crate) struct Snapshot {
     pub lifetime: u32,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub replay: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub endpoint: Option<crate::endpoints::EndpointBinding>,
 }
 
 impl Snapshot {

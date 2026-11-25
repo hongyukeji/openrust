@@ -1,7 +1,10 @@
 use std::sync::Arc;
 
 use openrust::{
-    console::{ConsoleError, scheduling::Schedule},
+    console::{
+        Application as Artisan, Command, CommandDefinition, ConsoleError, ConsoleFuture, Input,
+        Output, scheduling::Schedule,
+    },
     contracts::{
         events::{Event, Listener},
         foundation::Application as _,
@@ -44,6 +47,17 @@ impl DeliveryPolicy for FixturePolicy {
         Box::pin(async move {
             if context.scope != SCOPE || std::env::var_os("FIXTURE_SEND_REVOKED").is_some() {
                 return Ok(None);
+            }
+            if context.message_id == "endpoint-late-pause"
+                && std::env::var_os("FIXTURE_ENDPOINT_WAIT_FOR_PERMISSION").is_some()
+            {
+                let root = std::path::PathBuf::from(std::env::var_os("APP_BASE_PATH").unwrap());
+                tokio::fs::write(root.join("endpoint-policy-entered"), b"entered")
+                    .await
+                    .map_err(|_| Error::InvalidRecord)?;
+                while !root.join("endpoint-policy-release").exists() {
+                    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                }
             }
             let secret = match context.credential {
                 Some(REFERENCE) => SECRET,
@@ -234,7 +248,8 @@ pub(super) async fn register(app: &Application) -> ProviderResult {
     if std::env::var_os("FIXTURE_SEND_TARGET").is_some() {
         let policy = Arc::new(FixturePolicy);
         register_delivery_policy(app.container(), policy.clone())?;
-        if std::env::var_os("FIXTURE_SEND_REPLAY").is_some()
+        if (std::env::var_os("FIXTURE_SEND_REPLAY").is_some()
+            || std::env::var_os("FIXTURE_SEND_ENDPOINTS").is_some())
             && std::env::var_os("FIXTURE_REPLAY_UNREGISTERED").is_none()
         {
             register_replay_policy(app.container(), Arc::new(FixtureReplayPolicy))?;
@@ -297,8 +312,18 @@ pub(super) fn submit(
                 std::env::var("FIXTURE_SEND_QUEUE").unwrap_or_else(|_| "database".into()),
             ))
             .on_queue(Some("webhook-outgoing".into()))
-            .timeout_in_seconds(if mode == "timeout" { 1 } else { 4 })
-            .maximum_tries(if mode == "fail-once" { 1 } else { 2 });
+            .timeout_in_seconds(if mode == "timeout" {
+                1
+            } else if key == "endpoint-late-pause" || key == "endpoint-inflight" {
+                10
+            } else {
+                4
+            })
+            .maximum_tries(if mode == "fail-once" || key == "endpoint-replay-source" {
+                1
+            } else {
+                2
+            });
         if mode == "inline" {
             call = call.use_secret(SECRET);
         }
@@ -308,6 +333,24 @@ pub(super) fn submit(
         let manager = super::Databases::get_facade_root().map_err(super::internal)?;
         let connection = manager.connection(None).map_err(super::internal)?;
         let store = DeliveryStore::new(connection.clone(), SCOPE).map_err(super::internal)?;
+        if let Some(name) = mode.strip_prefix("endpoint-") {
+            let endpoint_store = if name == "cross-scope" {
+                DeliveryStore::new(connection.clone(), "other-endpoint-scope")
+                    .map_err(super::internal)?
+                    .endpoints()
+            } else {
+                store.endpoints()
+            };
+            let endpoint = endpoint_store
+                .find(name)
+                .await
+                .map_err(super::internal)?
+                .ok_or(HttpError::NotFound)?;
+            call = call.use_endpoint(&endpoint);
+            if name == "override" {
+                call = call.use_secret_reference(ROTATED_REFERENCE);
+            }
+        }
         let lifetime = if mode == "expired" { 1 } else { 120 };
         if let Some(operation) = mode.strip_prefix("builder-") {
             return dispatch_builder(operation, &key, call, store, &policy, lifetime).await;
@@ -330,6 +373,7 @@ pub(super) fn submit(
         match id {
             Ok(id) => Response::json(StatusCode::ACCEPTED, json!({"id":id})),
             Err(Error::IdempotencyConflict) => Response::json(StatusCode::CONFLICT, json!({})),
+            Err(Error::EndpointRevoked) => Response::json(StatusCode::CONFLICT, json!({})),
             Err(Error::InvalidConfig(_)) => {
                 Response::json(StatusCode::UNPROCESSABLE_ENTITY, json!({}))
             }
@@ -426,4 +470,79 @@ pub(super) fn schedule(schedule: &mut Schedule) -> std::result::Result<(), Conso
             .every_minute();
     }
     Ok(())
+}
+
+pub(super) fn commands(artisan: &mut Artisan) -> std::result::Result<(), ConsoleError> {
+    let command = clap::Command::new("webhooks:fixture-endpoint")
+        .arg(clap::Arg::new("operation").required(true))
+        .arg(clap::Arg::new("name").required(true))
+        .arg(
+            clap::Arg::new("revision")
+                .long("revision")
+                .default_value("1")
+                .value_parser(clap::value_parser!(u32)),
+        )
+        .arg(clap::Arg::new("scope").long("scope").default_value(SCOPE))
+        .arg(
+            clap::Arg::new("rotated")
+                .long("rotated")
+                .action(clap::ArgAction::SetTrue),
+        );
+    artisan.add_command(Box::new(FixtureEndpointCommand(CommandDefinition::new(
+        command,
+    ))))
+}
+
+struct FixtureEndpointCommand(CommandDefinition);
+
+impl Command for FixtureEndpointCommand {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+
+    fn handle<'a>(
+        &'a self,
+        app: &'a Application,
+        input: &'a Input,
+        output: &'a mut Output,
+    ) -> ConsoleFuture<'a, std::result::Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            let input = input.matches();
+            let name = input.get_one::<String>("name").unwrap();
+            let scope = input.get_one::<String>("scope").unwrap();
+            let revision = *input.get_one::<u32>("revision").unwrap();
+            let manager = app
+                .make::<DatabaseManager>()
+                .await
+                .map_err(ConsoleError::from_source)?;
+            let store = DeliveryStore::new(
+                manager
+                    .connection(None)
+                    .map_err(ConsoleError::from_source)?,
+                scope,
+            )
+            .map_err(ConsoleError::from_source)?
+            .endpoints();
+            let (url, _) = target().map_err(ConsoleError::from_source)?;
+            let credential = if input.get_flag("rotated") {
+                ROTATED_REFERENCE
+            } else {
+                REFERENCE
+            };
+            let result = match input.get_one::<String>("operation").unwrap().as_str() {
+                "create" => store
+                    .create(name, &url, Some(credential))
+                    .await
+                    .map(|endpoint| endpoint.revision()),
+                "replace" => store.replace(name, revision, &url, Some(credential)).await,
+                "pause" => store.pause(name, revision).await.map(|()| revision),
+                "resume" => store.resume(name, revision).await.map(|()| revision),
+                "delete" => store.delete(name, revision).await.map(|()| revision),
+                _ => Err(Error::InvalidConfig("fixture.endpoint.operation")),
+            };
+            let revision = result.map_err(ConsoleError::from_source)?;
+            output.info(&format!("revision {revision}"));
+            Ok(0)
+        })
+    }
 }

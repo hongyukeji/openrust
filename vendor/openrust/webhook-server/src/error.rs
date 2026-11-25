@@ -20,6 +20,12 @@ pub enum Error {
     LeaseLost,
     #[error("Webhook 投递已结束且未成功")]
     DeliveryFailed,
+    #[error("Webhook 端点状态或版本冲突")]
+    EndpointConflict,
+    #[error("Webhook 端点已暂停")]
+    EndpointPaused,
+    #[error("Webhook 端点已撤销或配置版本已变更")]
+    EndpointRevoked,
     #[error("Webhook 重放未获授权")]
     ReplayDenied,
     #[error("Webhook 投递暂不能重放")]

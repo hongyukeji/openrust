@@ -2,7 +2,7 @@
 
 ## Support status {#support-status}
 
-The optional `openrust-webhook-server` package provides request preparation, target validation, named signers, backoff strategies and durable delivery attempts. Endpoint management is still in development.
+The optional `openrust-webhook-server` package provides request preparation, target validation, named signers, backoff strategies and durable delivery attempts. The package also supports versioned endpoints.
 
 ## Enable and configure {#configuration}
 
@@ -105,6 +105,15 @@ pub fn register_application_replay_policy(
 ) -> Result<()> {
     openrust_webhook_server::register_replay_policy(container, policy)
 }
+
+pub async fn prepare_endpoint_invoice(
+    store: &openrust_webhook_server::DeliveryStore,
+) -> Result<openrust_webhook_server::PreparedWebhook> {
+    let endpoint = store.endpoints().find("billing").await?
+        .ok_or(openrust_webhook_server::Error::EndpointRevoked)?;
+    invoice_call()?.use_endpoint(&endpoint)
+        .prepare(&openrust_webhook_server::TargetPolicy::default())
+}
 ```
 
 
@@ -160,6 +169,12 @@ Replay creates an audited delivery with its own attempts and deadline. It reuses
 ```sh
 ./artisan webhook-server:replay <delivery-id> --scope=billing --actor=operator-42 --reason="confirmed receiver recovery"
 ```
+
+### Manage endpoint versions {#endpoints}
+
+Use `DeliveryStore::endpoints()` from an authorized application operation. Create an endpoint with a name, URL and optional credential reference. Bind a call with `.use_endpoint(&endpoint)`. `replace`, `pause`, `resume` and `delete` take an expected revision so stale administrative changes are rejected.
+
+Pause retains pending deliveries and their original deadlines. Resume allows eligible deliveries to proceed. Replacing the URL or credential creates a new revision for new deliveries. Old revisions and deleted endpoints are cancelled on execution. A request already sent may still complete at the receiver, and the attempt records the observed response. Replay also checks the current endpoint approval. Existing URL calls use the application's delivery policy.
 
 ## Custom signers and retry timing {#customization}
 

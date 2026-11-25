@@ -9,7 +9,12 @@ use openrust::{
 };
 use std::fmt::Write as _;
 
-use crate::{Error, PreparedWebhook, Result, replay::ReplayRecord, snapshot::Snapshot};
+use crate::{
+    Error, PreparedWebhook, Result,
+    endpoints::{EndpointPermission, EndpointStore},
+    replay::ReplayRecord,
+    snapshot::Snapshot,
+};
 
 const DELIVERIES: &str = "webhook_deliveries";
 const ATTEMPTS: &str = "webhook_delivery_attempts";
@@ -45,6 +50,7 @@ pub enum DeliveryProgress {
     Succeeded,
     Failed,
     Expired,
+    Cancelled,
 }
 
 impl DeliveryProgress {
@@ -105,6 +111,19 @@ impl DeliveryStore {
         &self.scope
     }
 
+    pub fn endpoints(&self) -> EndpointStore {
+        EndpointStore::new(self.connection.clone(), &self.scope_key)
+    }
+
+    /// 已绑定的历史记录在登记时需与此范围的当前版本一致。
+    pub(crate) async fn check_endpoint(&self, snapshot: &Snapshot) -> Result<()> {
+        match self.endpoints().permission(snapshot).await? {
+            EndpointPermission::Active => Ok(()),
+            EndpointPermission::Paused => Err(Error::EndpointPaused),
+            EndpointPermission::Revoked => Err(Error::EndpointRevoked),
+        }
+    }
+
     pub(super) fn worker_key(&self) -> String {
         let identity = (
             self.connection.get_driver_name(),
@@ -144,6 +163,9 @@ impl DeliveryStore {
             return Err(Error::InvalidConfig("delivery.lifetime"));
         }
         let snapshot = webhook.freeze(lifetime)?;
+        if self.endpoints().permission_in(&snapshot, tx).await? == EndpointPermission::Revoked {
+            return Err(Error::EndpointRevoked);
+        }
         let id = hash(format!("{}:{key}", self.scope_key).as_bytes());
         let (_, fingerprint) = self.insert_delivery(tx, &id, &snapshot).await?;
         let row = self
@@ -442,6 +464,11 @@ impl DeliveryStore {
                 .await?
                 .ok_or(Error::InvalidRecord)?;
             let snapshot = decode(&row)?;
+            if self.endpoints().permission_in(&snapshot, &mut tx).await?
+                == EndpointPermission::Paused
+            {
+                return Err(Error::EndpointPaused);
+            }
             let handler = resolve(&snapshot)?;
             let attempt_number = number(&row, "attempts")?;
             let timestamp = self.time_in(&mut tx).await?;
@@ -471,6 +498,46 @@ impl DeliveryStore {
         settle(tx, result).await
     }
 
+    /// 已领取但尚未开始网络传输时，归还暂停端点的尝试额度。
+    pub(crate) async fn release_paused(&self, id: &str, claim: &Claim) -> Result<()> {
+        let clock = self.clock();
+        let mut tx = self.connection.begin_transaction().await?;
+        let result = async {
+            let changed = self
+                .owned_row(tx.table(DELIVERIES), id)
+                .r#where("state", "=", "running")
+                .r#where("owner", "=", claim.token.as_str())
+                .where_raw(&format!("lease_until > {clock}"), vec![])
+                .update_with(
+                    [
+                        assignment("state", Value::from("pending")),
+                        assignment("owner", Value::Null),
+                        assignment("lease_until", Value::Null),
+                        assignment("next_wake_at", Value::Null),
+                        assignment("attempts", Value::from(i64::from(claim.number - 1))),
+                    ]
+                    .into_iter()
+                    .collect(),
+                )
+                .await?;
+            if changed != 1 {
+                return Err(Error::LeaseLost);
+            }
+            let deleted = tx
+                .table(ATTEMPTS)
+                .r#where("id", "=", claim.token.as_str())
+                .where_null("finished_at")
+                .delete()
+                .await?;
+            if deleted != 1 {
+                return Err(Error::LeaseLost);
+            }
+            Ok(())
+        }
+        .await;
+        settle(tx, result).await
+    }
+
     pub(crate) async fn finish(
         &self,
         id: &str,
@@ -488,7 +555,14 @@ impl DeliveryStore {
                 .filter(|_| claim.number < claim.snapshot.tries)
                 .map(|(retry_after, delay)| retry_after.earliest(now).max(future_time(now, delay)))
                 .filter(|next| *next < claim.deadline);
-            let (state, progress) = if now >= claim.deadline {
+            let revoked = self
+                .endpoints()
+                .permission_for_finish(&claim.snapshot, &mut tx)
+                .await?
+                == EndpointPermission::Revoked;
+            let (state, progress) = if attempt.outcome == "cancelled" || revoked {
+                ("cancelled", DeliveryProgress::Cancelled)
+            } else if now >= claim.deadline {
                 ("expired", DeliveryProgress::Expired)
             } else if attempt.outcome == "succeeded" {
                 ("succeeded", DeliveryProgress::Succeeded)
@@ -666,7 +740,7 @@ fn future_time(now: i64, seconds: u64) -> i64 {
     now.saturating_add(i64::try_from(seconds).unwrap_or(i64::MAX))
 }
 
-fn number(row: &Row, key: &str) -> Result<i64> {
+pub(crate) fn number(row: &Row, key: &str) -> Result<i64> {
     match row.get(key) {
         Some(Value::Integer(value)) => Ok(*value),
         Some(Value::Unsigned(value)) => i64::try_from(*value).map_err(|_| Error::InvalidRecord),
@@ -674,7 +748,7 @@ fn number(row: &Row, key: &str) -> Result<i64> {
     }
 }
 
-fn text<'a>(row: &'a Row, key: &str) -> Result<&'a str> {
+pub(crate) fn text<'a>(row: &'a Row, key: &str) -> Result<&'a str> {
     match row.get(key) {
         Some(Value::Text(value)) => Ok(value),
         _ => Err(Error::InvalidRecord),
@@ -685,7 +759,7 @@ pub(crate) fn replay_id(original: &str, generation: u32) -> String {
     hash(format!("outbound-replay:{original}:{generation}").as_bytes())
 }
 
-fn hash(value: &[u8]) -> String {
+pub(crate) fn hash(value: &[u8]) -> String {
     let mut output = String::with_capacity(64);
     for byte in digest(&SHA256, value).as_ref() {
         write!(output, "{byte:02x}").expect("写入字符串");

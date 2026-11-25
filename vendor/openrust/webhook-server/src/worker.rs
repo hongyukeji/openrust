@@ -36,6 +36,14 @@ impl DeliveryService {
         explicit: bool,
     ) -> Result<DispatchResult> {
         let snapshot = self.store.snapshot(id).await?.ok_or(Error::InvalidRecord)?;
+        if !explicit
+            && matches!(
+                self.store.check_endpoint(&snapshot).await,
+                Err(Error::EndpointPaused)
+            )
+        {
+            return Err(Error::EndpointPaused);
+        }
         if snapshot.custom_job {
             extensions::call_webhook_job(&snapshot.job)?;
         }

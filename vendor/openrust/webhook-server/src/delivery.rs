@@ -108,9 +108,13 @@ impl DeliveryService {
                     .then(|| extensions::call_webhook_job(&snapshot.job))
                     .transpose()
             })
-            .await?;
-        let Some((claim, handler)) = claimed else {
-            return Ok((DeliveryProgress::Unavailable, false));
+            .await;
+        let (claim, handler) = match claimed {
+            Ok(Some(claim)) => claim,
+            Ok(None) | Err(Error::EndpointPaused) => {
+                return Ok((DeliveryProgress::Unavailable, false));
+            }
+            Err(error) => return Err(error),
         };
         let remaining = u64::try_from(claim.deadline - claim.timestamp).unwrap_or(0);
         let duration = Duration::from_secs(remaining.min(u64::from(claim.snapshot.timeout)));
@@ -122,6 +126,10 @@ impl DeliveryService {
             Ok(outcome) => outcome,
             Err(_) => AttemptResult::transient("unknown").into(),
         };
+        if attempt.outcome == "paused" {
+            self.store.release_paused(id, &claim).await?;
+            return Ok((DeliveryProgress::Pending, false));
+        }
         let status = attempt.status;
         let outcome = attempt.outcome;
         let observed = WebhookJobAttempt {
@@ -181,6 +189,7 @@ impl DeliveryService {
         id: &str,
         snapshot: &Snapshot,
     ) -> Result<()> {
+        self.store.check_endpoint(snapshot).await?;
         let permission = self
             .policy
             .authorize(DeliveryContext {
@@ -205,8 +214,20 @@ impl DeliveryService {
         Ok(())
     }
 
+    async fn endpoint_stop(&self, snapshot: &Snapshot) -> Option<AttemptResult> {
+        match self.store.check_endpoint(snapshot).await {
+            Ok(()) => None,
+            Err(Error::EndpointPaused) => Some(AttemptResult::failure("paused")),
+            Err(Error::EndpointRevoked) => Some(AttemptResult::failure("cancelled")),
+            Err(_) => Some(AttemptResult::transient("unresolved")),
+        }
+    }
+
     async fn attempt(&self, id: &str, claim: &Claim, deadline: Instant) -> TransportAttempt {
         let snapshot = &claim.snapshot;
+        if let Some(result) = self.endpoint_stop(snapshot).await {
+            return result.into();
+        }
         if snapshot.replay {
             let record = match self.store.replay_record(id).await {
                 Ok(record) => record,
@@ -254,6 +275,9 @@ impl DeliveryService {
         else {
             return AttemptResult::failure("rejected").into();
         };
+        if let Some(result) = self.endpoint_stop(snapshot).await {
+            return result.into();
+        }
         let duration = deadline.saturating_duration_since(Instant::now());
         if duration.is_zero() {
             return AttemptResult::transient("stopped").into();

@@ -1312,6 +1312,7 @@ impl Command for Enqueue {
     }
 }
 fn commands(artisan: &mut Artisan) -> Result<(), ConsoleError> {
+    outbound::commands(artisan)?;
     let syntax = |name| {
         clap::Command::new(name)
             .arg(clap::Arg::new("profile").required(true))

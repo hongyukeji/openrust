@@ -3,7 +3,7 @@ use std::time::Duration;
 use openrust::queue::{DispatchResult, QueueManager};
 use tokio::time::{Instant, timeout_at};
 
-use crate::{DeliveryService, Result, delivery_store::WakeClaim};
+use crate::{DeliveryService, Error, Result, delivery_store::WakeClaim};
 
 const BATCH_TIME: Duration = Duration::from_secs(30);
 const WAKE_TIMEOUT: Duration = Duration::from_secs(15);
@@ -46,6 +46,7 @@ impl DeliveryService {
                     let until = stop_at.min(Instant::now() + WAKE_TIMEOUT);
                     match timeout_at(until, self.enqueue_delivery(queue, &id, false)).await {
                         Ok(Ok(DispatchResult::Queued(_))) => report.queued += 1,
+                        Ok(Err(Error::EndpointPaused)) => report.skipped += 1,
                         _ => report.failed += 1,
                     }
                 }

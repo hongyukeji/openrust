@@ -2,7 +2,7 @@
 
 ## 支持状态 {#support-status}
 
-可选包 `openrust-webhook-server` 提供请求快照、目的地校验、具名签名器、退避策略及持久投递尝试。端点管理仍在开发。
+可选包 `openrust-webhook-server` 提供请求快照、目的地校验、具名签名器、退避策略及持久投递尝试。支持具名版本化端点。
 
 ## 启用与配置 {#configuration}
 
@@ -105,6 +105,15 @@ pub fn register_application_replay_policy(
 ) -> Result<()> {
     openrust_webhook_server::register_replay_policy(container, policy)
 }
+
+pub async fn prepare_endpoint_invoice(
+    store: &openrust_webhook_server::DeliveryStore,
+) -> Result<openrust_webhook_server::PreparedWebhook> {
+    let endpoint = store.endpoints().find("billing").await?
+        .ok_or(openrust_webhook_server::Error::EndpointRevoked)?;
+    invoice_call()?.use_endpoint(&endpoint)
+        .prepare(&openrust_webhook_server::TargetPolicy::default())
+}
 ```
 
 
@@ -160,6 +169,12 @@ Builder 的 `dispatch`、`dispatch_if` 和 `dispatch_unless` 登记投递并入�
 ```sh
 ./artisan webhook-server:replay <delivery-id> --scope=billing --actor=operator-42 --reason="confirmed receiver recovery"
 ```
+
+### 管理端点版本 {#endpoints}
+
+在应用授权的操作中使用 `DeliveryStore::endpoints()`，按名称、URL 和可选凭据引用登记端点。使用 `.use_endpoint(&endpoint)` 绑定发送。`replace`、`pause`、`resume`、`delete` 需要传入预期版本，以拒绝过期的管理操作。
+
+暂停期间待处理投递保留原截止时间，恢复后符合条件的投递继续。修改 URL 或凭据创建新版本，供新投递使用。旧版本及已删除端点的投递会在执行时取消。已发出的请求仍可能在对端完成，尝试历史保留实际响应。人工重放也检查端点当前许可。直接指定 URL 的发送沿用应用投递策略。
 
 ## 自定义签名与退避 {#customization}
 
