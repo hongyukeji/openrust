@@ -10,6 +10,7 @@ import sys
 import tempfile
 import time
 import urllib.error
+from urllib.parse import urlsplit
 import urllib.request
 
 
@@ -20,7 +21,14 @@ def main():
         root = Path(base)
         with sqlite3.connect(root / 'database.sqlite') as db:
             db.execute('CREATE TABLE failed_jobs (id INTEGER PRIMARY KEY AUTOINCREMENT, uuid TEXT UNIQUE, connection TEXT, queue TEXT, payload TEXT, exception TEXT, failed_at TEXT)')
-        env = dict(os.environ, APP_BASE_PATH=base, APP_ENV='testing', LOG_CHANNEL='null')
+        env = dict(os.environ, APP_BASE_PATH=base, APP_ENV='testing', LOG_CHANNEL='null', HORIZON_PREFIX='horizon-probe:')
+        redis_auth = dict(os.environ, REDISCLI_AUTH=urlsplit(env['HORIZON_TEST_REDIS_URL']).password)
+        wait_lock = f'{root.name}:horizon-probe:{{horizon}}:wait_time_monitor'
+        def redis(*args):
+            return subprocess.check_output(
+                ['docker', 'exec', '-e', 'REDISCLI_AUTH', env['HORIZON_ACCEPTANCE_REDIS_CONTAINER'], 'redis-cli', *args],
+                env=redis_auth, text=True, timeout=10,
+            ).strip()
         def artisan(*args, code=0):
             result = subprocess.run([binary, 'artisan', *args], env=env, capture_output=True, text=True, timeout=30)
             assert result.returncode == code, (args, result.stdout, result.stderr)
@@ -76,9 +84,18 @@ def main():
             # Pause before startup: no child may reserve queued work.
             artisan('horizon:pause')
             dispatch(password='secret-never-exported')
+            assert redis('SET', wait_lock, 'contender', 'EX', '30') == 'OK'
             master = subprocess.Popen([binary, 'artisan', 'horizon'], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             until(lambda: status() and status()[0]['status'] == 'paused')
             time.sleep(1.2)
+            assert redis('GET', wait_lock) == 'contender'
+            assert redis('DEL', wait_lock) == '1'
+            # A lost Redis lock does not start the local cooldown.
+            until(lambda: redis('GET', wait_lock) == '1', timeout=8)
+            assert redis('DEL', wait_lock) == '1'
+            # After a win the same Master must neither reacquire an early removal nor extend the interval.
+            time.sleep(2.2)
+            assert redis('EXISTS', wait_lock) == '0'
             assert stats()['queues'][0]['backlog']['pending'] == 1
             artisan('horizon:continue')
             until(lambda: stats()['queues'][0]['metrics']['completed'] == 1)

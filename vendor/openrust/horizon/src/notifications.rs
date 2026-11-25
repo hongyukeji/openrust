@@ -9,7 +9,8 @@ use openrust::{
     },
     support::facades::{Facade, Notification as Notifications},
 };
-use std::{collections::BTreeMap, sync::RwLock};
+use std::{collections::BTreeMap, sync::RwLock, time::Duration};
+use tokio::time::Instant;
 
 #[derive(Default)]
 pub(crate) struct NotificationRoutes(RwLock<BTreeMap<String, NotificationRoute>>);
@@ -110,14 +111,19 @@ impl crate::Horizon {
         Ok(())
     }
 }
-pub(crate) async fn monitor(repository: &Repository) -> Result<()> {
-    if !repository
-        .metrics_repository()
-        .acquire_wait_time_monitor_lock()
-        .await?
+pub(crate) async fn monitor(
+    repository: &Repository,
+    last_monitored: &mut Option<Instant>,
+) -> Result<()> {
+    if last_monitored.is_some_and(|last| last.elapsed() < Duration::from_secs(60))
+        || !repository
+            .metrics_repository()
+            .acquire_wait_time_monitor_lock()
+            .await?
     {
         return Ok(());
     }
+    *last_monitored = Some(Instant::now());
     let config =
         openrust::support::facades::Config::get_facade_root().map_err(|_| Error::Unavailable)?;
     for workload in repository.workload().get().await? {

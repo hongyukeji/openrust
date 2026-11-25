@@ -116,3 +116,13 @@ O01 Activitylog、O02 Horizon、O03 Telescope原生范围、O04 Pennant、O05 Pu
 沿用隔离快照及 Redis 8.10.3。真实 HTTP 测试覆盖数字与文本键、有序分项、重复后仅一项的分组、独立单队列、Ready／延迟边界、两 Supervisor 的进程数及整组等待时间。Horizon `runtime` 9 项、全仓格式、Horizon 全目标严格 Clippy 和三语文档构建及 12 组浏览器检查均通过。
 
 原生面板仍需补上分组负载展示。另需核对独立数字队列名的 HTTP 排序、同等等待时间的仓储次序，以及等待通知的进程内节流与跨进程锁。三个扩展完整对齐与发布验收继续开放。
+
+### Horizon 等待监控的本地冷却与 Redis 锁
+
+固定 [MonitorWaitTimes](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Listeners/MonitorWaitTimes.php) 先检查上一次成功抢锁的时间，满一分钟才重新尝试。未取得锁不启动本地冷却，成功抢锁后在收集负载或派发事件前更新时间。Rust 在每个 Master 实例内使用单调时钟记录成功时间，保留跨 Master 共享的原子 Redis 锁和 60 秒有效期。这样 Redis 锁提前消失时，同一 Master 仍遵守本地间隔。
+
+构建守卫在前置检查持锁清理后正常恢复构建。可用空间从 32.108 GB（29.90 GiB）增至 150.403 GB（140.07 GiB），净释放 118.295 GB（110.17 GiB）。源码快照、验收记录与数据库数据保留。
+
+隔离 Redis 8.10.3 和真实 Artisan Master 进程验收通过。先让另一个持有者占锁，移除该锁后 Master 在 8 秒内获取。随后提前移除 Master 自己取得的锁，跨过两个循环仍无重新加锁。完整进程验收、快照全仓格式、Horizon 全目标严格 Clippy 均通过。60 秒届满后的真正重新取锁未单独等待实测，本批覆盖冷却期间与抢锁失败两条回归路径。
+
+下一项通知对账已定位到 [LongWaitDetected 事件](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Events/LongWaitDetected.php) 与 [通知实现](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Notifications/LongWaitDetected.php)。上游经容器创建可替换的通知；邮件主题、短信正文和 Slack 附件会读取 `horizon.name`，Slack 有 webhook 与频道 ID 两种路径。本地事件和通知目前共用类型，文案尚未读取配置名称，Slack 使用简化 webhook 路径。待核对原生通知契约及实际消费者。
