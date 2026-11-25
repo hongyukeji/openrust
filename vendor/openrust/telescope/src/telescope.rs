@@ -68,6 +68,7 @@ pub struct Telescope {
     pub(crate) repository: Arc<dyn EntriesRepository>,
     enabled: AtomicBool,
     started: AtomicBool,
+    sensitive_seen: AtomicBool,
     pub(crate) automatic_recording: AtomicBool,
     suppressed: AtomicUsize,
     pending: Mutex<Pending>,
@@ -96,6 +97,7 @@ impl Telescope {
             ignore_framework_events: options.ignore_framework_events.clone(),
             enabled: AtomicBool::new(enabled),
             started: AtomicBool::new(false),
+            sensitive_seen: AtomicBool::new(false),
             automatic_recording: AtomicBool::new(false),
             suppressed: AtomicUsize::new(0),
             pending: Mutex::default(),
@@ -290,12 +292,51 @@ impl Telescope {
             .push(Arc::new(callback));
         self
     }
+    pub(crate) fn protect_sensitive_request(&self) -> Option<String> {
+        let path = openrust::http::middleware::ProtectSensitiveData::current_path()?;
+        if !self.sensitive_seen.swap(true, Ordering::AcqRel) {
+            self.flush_entries();
+        }
+        Some(path)
+    }
+
     pub fn record(&self, kind: EntryType, mut entry: IncomingEntry) {
+        let sensitive_path = self.protect_sensitive_request();
+        let sensitive = sensitive_path.is_some();
+        if let Some(path) = sensitive_path {
+            if kind != EntryType::Request {
+                return;
+            }
+            entry.content.retain(|key, _| {
+                matches!(
+                    key.as_str(),
+                    "method"
+                        | "response_status"
+                        | "duration"
+                        | "controller_action"
+                        | "route_name"
+                        | "middleware"
+                )
+            });
+            entry.content.insert("uri".into(), path.into());
+            entry.content.insert("sensitive".into(), true.into());
+            entry.content.insert("payload".into(), "[redacted]".into());
+            entry.content.insert("response".into(), "[redacted]".into());
+            entry
+                .content
+                .insert("headers".into(), serde_json::json!({}));
+            entry
+                .content
+                .insert("response_headers".into(), serde_json::json!({}));
+            entry.tags.clear();
+            entry.family_hash = None;
+        }
         if !self.is_recording() {
             return;
         }
         entry.r#type = Some(kind);
-        if let Ok(auth) = openrust::auth::Auth::manager()
+        if !sensitive
+            && let Ok(auth) = openrust::auth::Auth::manager()
             && let Some(user) = auth.resolved_user(None)
             && let (Ok(id), Ok(attributes)) = (
                 serde_json::to_value(user.get_auth_identifier()),
@@ -316,9 +357,11 @@ impl Telescope {
                 callbacks.after_recording.clone(),
             )
         };
-        for callback in tags {
-            let extra = callback(&entry);
-            entry = entry.tags(extra);
+        if !sensitive {
+            for callback in tags {
+                let extra = callback(&entry);
+                entry = entry.tags(extra);
+            }
         }
         entry.monitored = self.repository.has_monitored_tag(&entry.tags);
         let _guard = self.suppress();
@@ -334,6 +377,9 @@ impl Telescope {
         }
     }
     pub fn record_update(&self, update: EntryUpdate) {
+        if self.protect_sensitive_request().is_some() {
+            return;
+        }
         if self.enabled.load(Ordering::Acquire) {
             self.pending
                 .lock()
@@ -346,6 +392,9 @@ impl Telescope {
         self.record(EntryType::Dump, entry.into());
     }
     pub(crate) fn record_hydration(&self, model: &str) -> crate::Result<()> {
+        if self.protect_sensitive_request().is_some() {
+            return Ok(());
+        }
         {
             let mut pending = self
                 .pending

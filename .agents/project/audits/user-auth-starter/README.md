@@ -694,3 +694,21 @@ A01-04和整个A01仍不闭合：Socialite、S10最终自定义模型／驱动�
 - passkey-api-localization-cleanup.json：再次持本批Cargo锁直接删除闲置文档dist及核定哈希的隔离发布资源，删除逻辑80,853,811字节、分配83,644,416字节，磁盘净增加83,980,288字节，清后可用38,104,809,472字节；保留下一单元需要的正常增量缓存与全部验收记录。
 
 本批只交付上述API／本地化接线，不闭合A01；Socialite和S10继续按主计划执行。新起草的socialite/identity.rs尚未接线／验收，不纳入本次提交。
+
+
+## HTTP敏感诊断前置单元（已验收，A01继续开发）
+
+为套件的认证及账户路由接入ProtectSensitiveData和sensitive别名。Kernel在RequestReceived与全局中间件之前按已有路由匹配和已解析中间件识别，保守覆盖方法覆写与405；Router在直接分发及转发时兜底，标记在同一请求内只增强。复用请求时清除旧标记，离开任务作用域后不可读取。HTTP输入、响应、认证、CSRF及状态码不变；这是Rust诊断保护扩展，不声称上游有同名中间件。
+
+Telescope保留被允许采集的安全请求元数据，去除原始URI参数、正文、请求／响应头、标签及用户姓名邮箱；原生Query、Mail、Model、Event、客户端和日志等诊断入口在组装敏感条目前跳过。公开record和record_update及内部水合计数共同遵循边界，首次识别时清除先前待写入数据。日志Origin使用路由模板。普通路由及既有过滤／暂停策略继续生效。没有改动Pulse的占位SQL或路由模板记录，也不将Telescope原本仅保存“HTML Response”的行为误报为HTML原文泄漏。
+
+证据位于target/tmp/user-starter/：
+
+- privacy-final-source.json：以c774e1e270b97c14dd4fe6dc76c457929d38d2a9为已提交组合，3058份其他Rust／清单文件与该提交一致，排除其他代理未提交改动；privacy-source-sha.json核对本批正式文件和实际测试源码一致。后续至提交父版本的受影响框架／Fortify／Passkeys／Telescope生产Rust未改变；不把该局部组合当作全仓所有功能已通过。
+- privacy-final-regression.log及privacy-regression-excluding-baseline-stack.log：不重复计数，共148项通过（Fortify Provider 3、配置7、账户UI 97；框架敏感请求1；Telescope条目3、存储7、Watcher 15、敏感存储1、Provider 14）。Redis的1项既有外部用例忽略；另1项已确认的基线栈溢出明确过滤，不算通过。新增用例覆盖全局中间件前置识别、405、复用请求清标记、异步子任务隔离，以及包含密码、Bearer、Cookie、近期证明、路径／查询秘密、原始SQL和手工条目更新的实际持久化。普通记录正向对照通过。
+- privacy-final-clippy.log：同一组合的框架／Fortify／Telescope及上述测试目标严格Clippy通过；范围Rustfmt与Git差异检查通过。
+- privacy-http-runtime-fourth.log及privacy-http-build.log：在独立源码临时登记user-starter-sensitive-http二进制（指向tests/fixtures/sensitive_application.rs），真实Artisan migrate与serve、TCP HTTP、SQLite、array邮件发送均通过。200与403只存安全请求摘要；原始HTTP成功正文保持完整；普通请求仍实际保存SQL和邮件内容。运行器为vendor/openrust/telescope/tests/sensitive_http.py；退出后停止服务器并删除独立数据库，服务器日志保留在target/tmp/telescope-sensitive-http/。不使用真实SMTP或供应商账号。
+- privacy-docs-build.log与privacy-docs-browser.log：三语Fortify正文构建及两种挂载前缀、桌面／手机共12组实际DOM检查通过。
+- 首轮夹具的公开API调用、Watcher完整配置及异步延后写入等待问题已修正，失败日志保留；磁盘中断不计通过。privacy-cleanup-stop.log记录停线后持锁释放77,292,556,288字节、可用109,274,398,720字节。交付清理privacy-cleanup.json直接删除本批闲置测试／HTTP二进制与文档dist，磁盘净释放635,699,200字节、清后可用41,443,205,120字节；保留正常增量缓存、源码、日志、依赖、数据库和数据卷。
+
+未闭合边界：此单元只保护HTTP作用域。后台认证邮件没有HTTP标记，须继续复用现有Context作用域与加密通知投递接线并用真实Worker验收。扩大回归发现native_event_gate_notification_model_view_and_dump_sources_are_observed在同步队列通知阶段发生默认测试栈溢出；privacy-baseline-provider.log/json已将本批正式改动逐项恢复为上述已提交基线后复现，privacy-provider-progress.log进一步定位到queued通知调用。该问题不是本批新增，不加大测试栈掩盖，纳入紧接的后台通知保护及S10收口；未将相关Provider整个测试组标成全过。Socialite、最终组合及其他A01缺口继续按主计划执行。

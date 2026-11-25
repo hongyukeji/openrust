@@ -100,7 +100,12 @@ pub async fn configure(app: &Application) -> ProviderResult {
             features.push(json!(feature));
         }
     }
-    for name in ["web", "auth.session", "cache.headers:no_store;private"] {
+    for name in [
+        "web",
+        "sensitive",
+        "auth.session",
+        "cache.headers:no_store;private",
+    ] {
         if !middleware.iter().any(|value| value.as_str() == Some(name)) {
             middleware.push(json!(name));
         }

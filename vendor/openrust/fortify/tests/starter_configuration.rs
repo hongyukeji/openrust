@@ -40,6 +40,7 @@ async fn profiles_control_views_and_features_without_changing_guard_or_prefix() 
             Some(json!([
                 "web",
                 "custom-middleware",
+                "sensitive",
                 "auth.session",
                 "cache.headers:no_store;private"
             ]))
@@ -50,6 +51,7 @@ async fn profiles_control_views_and_features_without_changing_guard_or_prefix() 
             Some(json!([
                 "web",
                 "custom-middleware",
+                "sensitive",
                 "auth.session",
                 "cache.headers:no_store;private"
             ]))

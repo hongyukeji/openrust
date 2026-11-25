@@ -692,6 +692,34 @@ impl Router {
         self.run_route(request, route, parameters).await
     }
 
+    // 在全局中间件和 RequestReceived 之前识别保护路由；覆盖方法覆写及 405。
+    pub(crate) fn protect_sensitive_request(&self, request: &Request) {
+        let raw = request.uri().path().trim_end_matches('/');
+        let Ok(path) = percent_decode_str(if raw.is_empty() { "/" } else { raw }).decode_utf8()
+        else {
+            return;
+        };
+        let authority = request
+            .headers()
+            .get(::http::header::HOST)
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.parse::<::http::uri::Authority>().ok());
+        let host = request
+            .uri()
+            .host()
+            .or_else(|| authority.as_ref().map(::http::uri::Authority::host))
+            .unwrap_or_default();
+        for verb in VERBS {
+            if let Ok(method) = Method::from_bytes(verb.as_bytes())
+                && let Some(route) = self.matched(&method, host, &path)
+                && route.resolved_middleware.as_ref().is_some_and(|stack| stack.iter().any(|item| item.middleware_type_id() == std::any::TypeId::of::<crate::http::middleware::ProtectSensitiveData>()))
+            {
+                crate::http::middleware::ProtectSensitiveData::mark(request, &route.uri);
+                return;
+            }
+        }
+    }
+
     async fn run_route(
         &self,
         request: &mut Request,
@@ -741,6 +769,12 @@ impl Router {
                 })?;
             &resolved
         };
+        if middleware.iter().any(|item| {
+            item.middleware_type_id()
+                == std::any::TypeId::of::<crate::http::middleware::ProtectSensitiveData>()
+        }) {
+            crate::http::middleware::ProtectSensitiveData::mark(request, &route.uri);
+        }
         if let Some(metadata) = request
             .parts_mut()
             .extensions

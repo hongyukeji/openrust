@@ -90,6 +90,10 @@ impl Default for Middleware {
             TypeId::of::<crate::auth::middleware::Authorize>(),
         ]);
         middleware.alias(
+            "sensitive",
+            Arc::new(crate::http::middleware::ProtectSensitiveData),
+        );
+        middleware.alias(
             "auth",
             Arc::new(crate::auth::middleware::Authenticate::default()),
         );

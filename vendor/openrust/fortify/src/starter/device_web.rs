@@ -26,6 +26,7 @@ pub(super) fn routes<M: HasApiTokens + TwoFactorAuthenticatable + Clone>()
     let guard = guard.ok_or(RoutingError::InvalidAction)?.guard.clone();
     let group = RouteGroup::new()
         .middleware_name("web")
+        .middleware_name("sensitive")
         .middleware_name("auth.session")
         .middleware_name(format!("auth:{guard}"));
     Route::group(group, |router| {

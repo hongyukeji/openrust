@@ -63,7 +63,18 @@ impl Origin {
 
     pub fn current() -> Option<Self> {
         CURRENT
-            .try_with(|frame| Self::matches(frame).then(|| frame.origin.borrow().clone()))
+            .try_with(|frame| {
+                Self::matches(frame).then(|| {
+                    let mut origin = frame.origin.borrow().clone();
+                    if let Self::Http(http) = &mut origin
+                        && let Some(path) =
+                            crate::http::middleware::ProtectSensitiveData::path(&http.attributes)
+                    {
+                        http.path = path;
+                    }
+                    origin
+                })
+            })
             .ok()
             .flatten()
     }

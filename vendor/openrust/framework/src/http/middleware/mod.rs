@@ -17,3 +17,6 @@ pub use validate_post_size::ValidatePostSize;
 
 mod prefers_json_responses;
 pub use prefers_json_responses::PrefersJsonResponses;
+
+mod protect_sensitive_data;
+pub use protect_sensitive_data::ProtectSensitiveData;

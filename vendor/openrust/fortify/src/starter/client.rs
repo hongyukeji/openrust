@@ -672,7 +672,8 @@ where
             .prefix(prefix)
             .middleware(Arc::new(super::client_middleware::NoStore))
             .middleware(Arc::new(super::client_middleware::BodyCredentials))
-            .middleware_name("api"),
+            .middleware_name("api")
+            .middleware_name("sensitive"),
         |router| {
             let login = router.post("/auth/token", login::<M>)?;
             login.name("user.tokens.login");

@@ -20,6 +20,7 @@ pub(super) fn routes<M: HasApiTokens + TwoFactorAuthenticatable + Clone>()
     }
     let group = RouteGroup::new()
         .middleware_name("web")
+        .middleware_name("sensitive")
         .middleware_name("auth.session")
         .middleware_name(format!(
             "auth:{}",

@@ -165,3 +165,9 @@ openrust_fortify::actions::EnableTwoFactorAuthentication::new(provider, fortify)
 ```
 
 EnableTwoFactorAuthentication, ConfirmTwoFactorAuthentication, DisableTwoFactorAuthentication and GenerateNewRecoveryCodes also provide `call_in_transaction`. Reuse an existing user lock and pass the user connection transaction. The example assumes that lock is already held. The caller must roll back the whole operation on error and discard or reload its in-memory model after rollback. A cancelled save is an error; even a no-op rejects the wrong connection. Ordinary `call` behavior remains unchanged. Generation, encryption, verification and events use the same implementation. Events fire after saving and before the caller commits; listeners with external effects must use the existing after-commit facilities. A provider may already have consumed a verification code when a later database operation fails, so retry with a fresh code.
+
+### Sensitive authentication diagnostics
+
+The user starter kit marks its authentication and account routes with the `sensitive` middleware. Telescope retains only the HTTP method, status, duration and route metadata for these requests. It omits request and response bodies, headers, query strings and diagnostic entries such as SQL bindings, mail contents and model attributes. Request-origin log metadata uses the route template instead of a reset token in the URL. Ordinary routes retain their existing recording behavior.
+
+For a custom authentication route, add `.middleware_name("sensitive")` to the route or its `RouteGroup`. The kernel identifies prepared protected routes before global middleware and request events; custom diagnostic integrations must honor `ProtectSensitiveData::current_path()` or the marker in `RequestAttributes`. This does not redact a secret that application code explicitly sends to an unrelated external logger.

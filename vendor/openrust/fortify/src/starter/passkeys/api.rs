@@ -581,6 +581,7 @@ pub(super) fn routes<M: HasApiTokens + TwoFactorAuthenticatable + Clone>()
         RouteGroup::new()
             .prefix(prefix)
             .middleware_name("api")
+            .middleware_name("sensitive")
             .middleware(Arc::new(crate::starter::client_middleware::NoStore))
             .middleware(Arc::new(crate::starter::client_middleware::BodyCredentials)),
         |router| {

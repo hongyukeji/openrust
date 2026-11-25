@@ -71,7 +71,8 @@ fn fallback_routes() -> Result<(), openrust::routing::RoutingError> {
         .map_err(|source| openrust::routing::RoutingError::ContainerFailed { source })?;
     let mut group = RouteGroup::new()
         .prefix(fortify.string("fortify.prefix", ""))
-        .middleware_name("web");
+        .middleware_name("web")
+        .middleware_name("sensitive");
     if let Some(domain) = fortify
         .config
         .get("fortify.domain")
@@ -125,6 +126,7 @@ fn account_routes() -> Result<(), openrust::routing::RoutingError> {
         .map_err(|source| openrust::routing::RoutingError::ContainerFailed { source })?;
     let group = RouteGroup::new()
         .middleware_name("web")
+        .middleware_name("sensitive")
         .middleware_name("auth.session")
         .middleware_name(format!(
             "auth:{}",

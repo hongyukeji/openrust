@@ -350,6 +350,10 @@ impl http::Kernel for Kernel {
                 if !self.ready {
                     return Response::empty(StatusCode::SERVICE_UNAVAILABLE);
                 }
+                crate::http::middleware::ProtectSensitiveData::clear(request);
+                if let Some(router) = &self.routes {
+                    router.protect_sensitive_request(request);
+                }
                 let started_at = std::time::Instant::now();
                 let request_started_at = jiff::Timestamp::now().as_millisecond();
                 request

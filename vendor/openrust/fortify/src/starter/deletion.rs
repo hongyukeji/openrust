@@ -97,6 +97,7 @@ fn routes<M: HasApiTokens + TwoFactorAuthenticatable + Clone>() -> Result<(), Ro
     Route::group(
         RouteGroup::new()
             .middleware_name("web")
+            .middleware_name("sensitive")
             .middleware_name("auth.session")
             .middleware_name(format!(
                 "auth:{}",

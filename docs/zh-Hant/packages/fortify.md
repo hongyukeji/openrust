@@ -165,3 +165,9 @@ openrust_fortify::actions::EnableTwoFactorAuthentication::new(provider, fortify)
 ```
 
 EnableTwoFactorAuthentication、ConfirmTwoFactorAuthentication、DisableTwoFactorAuthentication 與 GenerateNewRecoveryCodes 均提供 `call_in_transaction`。重用已持有的使用者寫入鎖，傳入使用者連線的交易；下例假定已取得此鎖。發生錯誤時呼叫方須回復整個操作，回復後捨棄或重新載入記憶體模型。模型取消儲存視為失敗，即使沒有狀態變更也拒絕錯誤連線。一般 `call` 保留原有行為；產生、加密、驗證與事件重用同一實作。事件仍在儲存後、呼叫方提交前派發，具有外部副作用的監聽器應使用既有提交後機制。提供者可能已消費驗證碼，後續資料庫失敗時應使用新驗證碼重試。
+
+### 敏感認證診斷
+
+使用者入門套件為認證和帳戶路由加入 `sensitive` 中介軟體。Telescope 對這些請求只保留 HTTP 方法、狀態、耗時及路由中繼資料，不記錄請求與回應本文、標頭、查詢字串，以及可能攜帶憑證的 SQL 綁定、郵件本文和模型屬性等診斷記錄。日誌來源使用路由範本，避免把密碼重設權杖保留在路徑中。一般路由繼續沿用原有記錄行為。
+
+自訂認證路由可在路由或 `RouteGroup` 上新增 `.middleware_name("sensitive")`。核心在全域中介軟體和請求事件之前識別已準備的保護路由；自訂診斷整合應遵循 `ProtectSensitiveData::current_path()` 或 `RequestAttributes` 中的標記。這不會自動清除業務程式碼主動傳送給其他外部日誌服務的秘密。

@@ -63,6 +63,9 @@ impl Listener for EventListener {
             if !telescope.is_recording() {
                 return Ok(None);
             }
+            if telescope.protect_sensitive_request().is_some() {
+                return Ok(None);
+            }
             let dispatcher = openrust::support::facades::Event::get_facade_root()
                 .map_err(openrust::events::EventError::Unavailable)?;
             let listeners = dispatcher
@@ -310,6 +313,13 @@ impl NativeWatcher {
         telescope: &Telescope,
         context: Option<&EventContext<'_>>,
     ) -> crate::Result<()> {
+        if telescope.protect_sensitive_request().is_some()
+            && event
+                .downcast_ref::<openrust::foundation::http::events::RequestHandled>()
+                .is_none()
+        {
+            return Ok(());
+        }
         if let Some(event) =
             event.downcast_ref::<openrust::foundation::http::events::RequestReceived>()
         {
