@@ -66,6 +66,8 @@
   },
   "arguments": "तर्क:",
   "question": {
-    "multiline": "जारी रखने के लिए :keys दबाएँ"
+    "multiline": "जारी रखने के लिए :keys दबाएँ",
+    "choice_invalid": "मान \"%s\" अमान्य है",
+    "choice_ambiguous": "उत्तर अस्पष्ट है। :choices में से कोई एक मान चुनें।"
   }
 }

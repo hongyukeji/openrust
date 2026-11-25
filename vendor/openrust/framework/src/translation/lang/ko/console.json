@@ -66,6 +66,8 @@
   },
   "arguments": "인수:",
   "question": {
-    "multiline": "계속하려면 :keys 키를 누르세요"
+    "multiline": "계속하려면 :keys 키를 누르세요",
+    "choice_invalid": "값 \"%s\"이(가) 올바르지 않습니다",
+    "choice_ambiguous": "응답이 모호합니다. :choices 중 하나를 지정하세요."
   }
 }

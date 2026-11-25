@@ -66,6 +66,8 @@
   },
   "arguments": "引数:",
   "question": {
-    "multiline": "続行するには :keys を押してください"
+    "multiline": "続行するには :keys を押してください",
+    "choice_invalid": "値「%s」は無効です",
+    "choice_ambiguous": "回答が曖昧です。:choices のいずれかを指定してください。"
   }
 }

@@ -1,0 +1,4322 @@
+[
+    {
+        "template": "Bad %s",
+        "input": "bad",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIGJhZA==",
+        "output": "Bad bad"
+    },
+    {
+        "template": "Bad %s",
+        "input": "123bad",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDEyM2JhZA==",
+        "output": "Bad 123bad"
+    },
+    {
+        "template": "Bad %s",
+        "input": "-12.25",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIC0xMi4yNQ==",
+        "output": "Bad -12.25"
+    },
+    {
+        "template": "Bad %s",
+        "input": "0",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDA=",
+        "output": "Bad 0"
+    },
+    {
+        "template": "Bad %s",
+        "input": "猫😀",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIOeMq\/CfmIA=",
+        "output": "Bad 猫😀"
+    },
+    {
+        "template": "Bad %s",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDEyMw==",
+        "output": "Bad 123"
+    },
+    {
+        "template": "Bad %s",
+        "input": -9223372036854775808,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIC05MjIzMzcyMDM2ODU0Nzc1ODA4",
+        "output": "Bad -9223372036854775808"
+    },
+    {
+        "template": "Bad %s",
+        "input": -0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIC0w",
+        "output": "Bad -0"
+    },
+    {
+        "template": "Bad %s",
+        "input": 0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDA=",
+        "output": "Bad 0"
+    },
+    {
+        "template": "Bad %s",
+        "input": 1.005,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDEuMDA1",
+        "output": "Bad 1.005"
+    },
+    {
+        "template": "Bad %s",
+        "input": 1.0e+20,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDEuMEUrMjA=",
+        "output": "Bad 1.0E+20"
+    },
+    {
+        "template": "Bad %s",
+        "input": "1e309",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDFlMzA5",
+        "output": "Bad 1e309"
+    },
+    {
+        "template": "Bad %1$s",
+        "input": "bad",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIGJhZA==",
+        "output": "Bad bad"
+    },
+    {
+        "template": "Bad %1$s",
+        "input": "123bad",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDEyM2JhZA==",
+        "output": "Bad 123bad"
+    },
+    {
+        "template": "Bad %1$s",
+        "input": "-12.25",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIC0xMi4yNQ==",
+        "output": "Bad -12.25"
+    },
+    {
+        "template": "Bad %1$s",
+        "input": "0",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDA=",
+        "output": "Bad 0"
+    },
+    {
+        "template": "Bad %1$s",
+        "input": "猫😀",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIOeMq\/CfmIA=",
+        "output": "Bad 猫😀"
+    },
+    {
+        "template": "Bad %1$s",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDEyMw==",
+        "output": "Bad 123"
+    },
+    {
+        "template": "Bad %1$s",
+        "input": -9223372036854775808,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIC05MjIzMzcyMDM2ODU0Nzc1ODA4",
+        "output": "Bad -9223372036854775808"
+    },
+    {
+        "template": "Bad %1$s",
+        "input": -0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIC0w",
+        "output": "Bad -0"
+    },
+    {
+        "template": "Bad %1$s",
+        "input": 0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDA=",
+        "output": "Bad 0"
+    },
+    {
+        "template": "Bad %1$s",
+        "input": 1.005,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDEuMDA1",
+        "output": "Bad 1.005"
+    },
+    {
+        "template": "Bad %1$s",
+        "input": 1.0e+20,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDEuMEUrMjA=",
+        "output": "Bad 1.0E+20"
+    },
+    {
+        "template": "Bad %1$s",
+        "input": "1e309",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDFlMzA5",
+        "output": "Bad 1e309"
+    },
+    {
+        "template": "Bad [%10s]",
+        "input": "bad",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFsgICAgICAgYmFkXQ==",
+        "output": "Bad [       bad]"
+    },
+    {
+        "template": "Bad [%10s]",
+        "input": "123bad",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFsgICAgMTIzYmFkXQ==",
+        "output": "Bad [    123bad]"
+    },
+    {
+        "template": "Bad [%10s]",
+        "input": "-12.25",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFsgICAgLTEyLjI1XQ==",
+        "output": "Bad [    -12.25]"
+    },
+    {
+        "template": "Bad [%10s]",
+        "input": "0",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFsgICAgICAgICAwXQ==",
+        "output": "Bad [         0]"
+    },
+    {
+        "template": "Bad [%10s]",
+        "input": "猫😀",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFsgICDnjKvwn5iAXQ==",
+        "output": "Bad [   猫😀]"
+    },
+    {
+        "template": "Bad [%10s]",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFsgICAgICAgMTIzXQ==",
+        "output": "Bad [       123]"
+    },
+    {
+        "template": "Bad [%10s]",
+        "input": -9223372036854775808,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFstOTIyMzM3MjAzNjg1NDc3NTgwOF0=",
+        "output": "Bad [-9223372036854775808]"
+    },
+    {
+        "template": "Bad [%10s]",
+        "input": -0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFsgICAgICAgIC0wXQ==",
+        "output": "Bad [        -0]"
+    },
+    {
+        "template": "Bad [%10s]",
+        "input": 0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFsgICAgICAgICAwXQ==",
+        "output": "Bad [         0]"
+    },
+    {
+        "template": "Bad [%10s]",
+        "input": 1.005,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFsgICAgIDEuMDA1XQ==",
+        "output": "Bad [     1.005]"
+    },
+    {
+        "template": "Bad [%10s]",
+        "input": 1.0e+20,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFsgICAxLjBFKzIwXQ==",
+        "output": "Bad [   1.0E+20]"
+    },
+    {
+        "template": "Bad [%10s]",
+        "input": "1e309",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFsgICAgIDFlMzA5XQ==",
+        "output": "Bad [     1e309]"
+    },
+    {
+        "template": "Bad [%-10s]",
+        "input": "bad",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFtiYWQgICAgICAgXQ==",
+        "output": "Bad [bad       ]"
+    },
+    {
+        "template": "Bad [%-10s]",
+        "input": "123bad",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFsxMjNiYWQgICAgXQ==",
+        "output": "Bad [123bad    ]"
+    },
+    {
+        "template": "Bad [%-10s]",
+        "input": "-12.25",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFstMTIuMjUgICAgXQ==",
+        "output": "Bad [-12.25    ]"
+    },
+    {
+        "template": "Bad [%-10s]",
+        "input": "0",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFswICAgICAgICAgXQ==",
+        "output": "Bad [0         ]"
+    },
+    {
+        "template": "Bad [%-10s]",
+        "input": "猫😀",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFvnjKvwn5iAICAgXQ==",
+        "output": "Bad [猫😀   ]"
+    },
+    {
+        "template": "Bad [%-10s]",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFsxMjMgICAgICAgXQ==",
+        "output": "Bad [123       ]"
+    },
+    {
+        "template": "Bad [%-10s]",
+        "input": -9223372036854775808,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFstOTIyMzM3MjAzNjg1NDc3NTgwOF0=",
+        "output": "Bad [-9223372036854775808]"
+    },
+    {
+        "template": "Bad [%-10s]",
+        "input": -0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFstMCAgICAgICAgXQ==",
+        "output": "Bad [-0        ]"
+    },
+    {
+        "template": "Bad [%-10s]",
+        "input": 0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFswICAgICAgICAgXQ==",
+        "output": "Bad [0         ]"
+    },
+    {
+        "template": "Bad [%-10s]",
+        "input": 1.005,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFsxLjAwNSAgICAgXQ==",
+        "output": "Bad [1.005     ]"
+    },
+    {
+        "template": "Bad [%-10s]",
+        "input": 1.0e+20,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFsxLjBFKzIwICAgXQ==",
+        "output": "Bad [1.0E+20   ]"
+    },
+    {
+        "template": "Bad [%-10s]",
+        "input": "1e309",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFsxZTMwOSAgICAgXQ==",
+        "output": "Bad [1e309     ]"
+    },
+    {
+        "template": "Bad [%010s]",
+        "input": "bad",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFswMDAwMDAwYmFkXQ==",
+        "output": "Bad [0000000bad]"
+    },
+    {
+        "template": "Bad [%010s]",
+        "input": "123bad",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFswMDAwMTIzYmFkXQ==",
+        "output": "Bad [0000123bad]"
+    },
+    {
+        "template": "Bad [%010s]",
+        "input": "-12.25",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFswMDAwLTEyLjI1XQ==",
+        "output": "Bad [0000-12.25]"
+    },
+    {
+        "template": "Bad [%010s]",
+        "input": "0",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFswMDAwMDAwMDAwXQ==",
+        "output": "Bad [0000000000]"
+    },
+    {
+        "template": "Bad [%010s]",
+        "input": "猫😀",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFswMDDnjKvwn5iAXQ==",
+        "output": "Bad [000猫😀]"
+    },
+    {
+        "template": "Bad [%010s]",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFswMDAwMDAwMTIzXQ==",
+        "output": "Bad [0000000123]"
+    },
+    {
+        "template": "Bad [%010s]",
+        "input": -9223372036854775808,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFstOTIyMzM3MjAzNjg1NDc3NTgwOF0=",
+        "output": "Bad [-9223372036854775808]"
+    },
+    {
+        "template": "Bad [%010s]",
+        "input": -0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFswMDAwMDAwMC0wXQ==",
+        "output": "Bad [00000000-0]"
+    },
+    {
+        "template": "Bad [%010s]",
+        "input": 0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFswMDAwMDAwMDAwXQ==",
+        "output": "Bad [0000000000]"
+    },
+    {
+        "template": "Bad [%010s]",
+        "input": 1.005,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFswMDAwMDEuMDA1XQ==",
+        "output": "Bad [000001.005]"
+    },
+    {
+        "template": "Bad [%010s]",
+        "input": 1.0e+20,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFswMDAxLjBFKzIwXQ==",
+        "output": "Bad [0001.0E+20]"
+    },
+    {
+        "template": "Bad [%010s]",
+        "input": "1e309",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFswMDAwMDFlMzA5XQ==",
+        "output": "Bad [000001e309]"
+    },
+    {
+        "template": "Bad [%-010s]",
+        "input": "bad",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFtiYWQwMDAwMDAwXQ==",
+        "output": "Bad [bad0000000]"
+    },
+    {
+        "template": "Bad [%-010s]",
+        "input": "123bad",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFsxMjNiYWQwMDAwXQ==",
+        "output": "Bad [123bad0000]"
+    },
+    {
+        "template": "Bad [%-010s]",
+        "input": "-12.25",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFstMTIuMjUwMDAwXQ==",
+        "output": "Bad [-12.250000]"
+    },
+    {
+        "template": "Bad [%-010s]",
+        "input": "0",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFswMDAwMDAwMDAwXQ==",
+        "output": "Bad [0000000000]"
+    },
+    {
+        "template": "Bad [%-010s]",
+        "input": "猫😀",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFvnjKvwn5iAMDAwXQ==",
+        "output": "Bad [猫😀000]"
+    },
+    {
+        "template": "Bad [%-010s]",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFsxMjMwMDAwMDAwXQ==",
+        "output": "Bad [1230000000]"
+    },
+    {
+        "template": "Bad [%-010s]",
+        "input": -9223372036854775808,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFstOTIyMzM3MjAzNjg1NDc3NTgwOF0=",
+        "output": "Bad [-9223372036854775808]"
+    },
+    {
+        "template": "Bad [%-010s]",
+        "input": -0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFstMDAwMDAwMDAwXQ==",
+        "output": "Bad [-000000000]"
+    },
+    {
+        "template": "Bad [%-010s]",
+        "input": 0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFswMDAwMDAwMDAwXQ==",
+        "output": "Bad [0000000000]"
+    },
+    {
+        "template": "Bad [%-010s]",
+        "input": 1.005,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFsxLjAwNTAwMDAwXQ==",
+        "output": "Bad [1.00500000]"
+    },
+    {
+        "template": "Bad [%-010s]",
+        "input": 1.0e+20,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFsxLjBFKzIwMDAwXQ==",
+        "output": "Bad [1.0E+20000]"
+    },
+    {
+        "template": "Bad [%-010s]",
+        "input": "1e309",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFsxZTMwOTAwMDAwXQ==",
+        "output": "Bad [1e30900000]"
+    },
+    {
+        "template": "Bad [%'_10s]",
+        "input": "bad",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFtfX19fX19fYmFkXQ==",
+        "output": "Bad [_______bad]"
+    },
+    {
+        "template": "Bad [%'_10s]",
+        "input": "123bad",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFtfX19fMTIzYmFkXQ==",
+        "output": "Bad [____123bad]"
+    },
+    {
+        "template": "Bad [%'_10s]",
+        "input": "-12.25",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFtfX19fLTEyLjI1XQ==",
+        "output": "Bad [____-12.25]"
+    },
+    {
+        "template": "Bad [%'_10s]",
+        "input": "0",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFtfX19fX19fX18wXQ==",
+        "output": "Bad [_________0]"
+    },
+    {
+        "template": "Bad [%'_10s]",
+        "input": "猫😀",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFtfX1\/njKvwn5iAXQ==",
+        "output": "Bad [___猫😀]"
+    },
+    {
+        "template": "Bad [%'_10s]",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFtfX19fX19fMTIzXQ==",
+        "output": "Bad [_______123]"
+    },
+    {
+        "template": "Bad [%'_10s]",
+        "input": -9223372036854775808,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFstOTIyMzM3MjAzNjg1NDc3NTgwOF0=",
+        "output": "Bad [-9223372036854775808]"
+    },
+    {
+        "template": "Bad [%'_10s]",
+        "input": -0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFtfX19fX19fXy0wXQ==",
+        "output": "Bad [________-0]"
+    },
+    {
+        "template": "Bad [%'_10s]",
+        "input": 0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFtfX19fX19fX18wXQ==",
+        "output": "Bad [_________0]"
+    },
+    {
+        "template": "Bad [%'_10s]",
+        "input": 1.005,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFtfX19fXzEuMDA1XQ==",
+        "output": "Bad [_____1.005]"
+    },
+    {
+        "template": "Bad [%'_10s]",
+        "input": 1.0e+20,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFtfX18xLjBFKzIwXQ==",
+        "output": "Bad [___1.0E+20]"
+    },
+    {
+        "template": "Bad [%'_10s]",
+        "input": "1e309",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFtfX19fXzFlMzA5XQ==",
+        "output": "Bad [_____1e309]"
+    },
+    {
+        "template": "Bad [%.2s]",
+        "input": "bad",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFtiYV0=",
+        "output": "Bad [ba]"
+    },
+    {
+        "template": "Bad [%.2s]",
+        "input": "123bad",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFsxMl0=",
+        "output": "Bad [12]"
+    },
+    {
+        "template": "Bad [%.2s]",
+        "input": "-12.25",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFstMV0=",
+        "output": "Bad [-1]"
+    },
+    {
+        "template": "Bad [%.2s]",
+        "input": "0",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFswXQ==",
+        "output": "Bad [0]"
+    },
+    {
+        "template": "Bad [%.2s]",
+        "input": "猫😀",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFvnjF0=",
+        "output": null
+    },
+    {
+        "template": "Bad [%.2s]",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFsxMl0=",
+        "output": "Bad [12]"
+    },
+    {
+        "template": "Bad [%.2s]",
+        "input": -9223372036854775808,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFstOV0=",
+        "output": "Bad [-9]"
+    },
+    {
+        "template": "Bad [%.2s]",
+        "input": -0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFstMF0=",
+        "output": "Bad [-0]"
+    },
+    {
+        "template": "Bad [%.2s]",
+        "input": 0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFswXQ==",
+        "output": "Bad [0]"
+    },
+    {
+        "template": "Bad [%.2s]",
+        "input": 1.005,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFsxLl0=",
+        "output": "Bad [1.]"
+    },
+    {
+        "template": "Bad [%.2s]",
+        "input": 1.0e+20,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFsxLl0=",
+        "output": "Bad [1.]"
+    },
+    {
+        "template": "Bad [%.2s]",
+        "input": "1e309",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIFsxZV0=",
+        "output": "Bad [1e]"
+    },
+    {
+        "template": "Bad %d",
+        "input": "bad",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDA=",
+        "output": "Bad 0"
+    },
+    {
+        "template": "Bad %d",
+        "input": "123bad",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDEyMw==",
+        "output": "Bad 123"
+    },
+    {
+        "template": "Bad %d",
+        "input": "-12.25",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIC0xMg==",
+        "output": "Bad -12"
+    },
+    {
+        "template": "Bad %d",
+        "input": "0",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDA=",
+        "output": "Bad 0"
+    },
+    {
+        "template": "Bad %d",
+        "input": "猫😀",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDA=",
+        "output": "Bad 0"
+    },
+    {
+        "template": "Bad %d",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDEyMw==",
+        "output": "Bad 123"
+    },
+    {
+        "template": "Bad %d",
+        "input": -9223372036854775808,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIC05MjIzMzcyMDM2ODU0Nzc1ODA4",
+        "output": "Bad -9223372036854775808"
+    },
+    {
+        "template": "Bad %d",
+        "input": -0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDA=",
+        "output": "Bad 0"
+    },
+    {
+        "template": "Bad %d",
+        "input": 0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDA=",
+        "output": "Bad 0"
+    },
+    {
+        "template": "Bad %d",
+        "input": 1.005,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDE=",
+        "output": "Bad 1"
+    },
+    {
+        "template": "Bad %d",
+        "input": 1.0e+20,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDc3NjYyNzk2MzE0NTIyNDE5MjA=",
+        "output": "Bad 7766279631452241920"
+    },
+    {
+        "template": "Bad %d",
+        "input": "1e309",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDA=",
+        "output": "Bad 0"
+    },
+    {
+        "template": "Bad %x",
+        "input": "bad",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDA=",
+        "output": "Bad 0"
+    },
+    {
+        "template": "Bad %x",
+        "input": "123bad",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDdi",
+        "output": "Bad 7b"
+    },
+    {
+        "template": "Bad %x",
+        "input": "-12.25",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIGZmZmZmZmZmZmZmZmZmZjQ=",
+        "output": "Bad fffffffffffffff4"
+    },
+    {
+        "template": "Bad %x",
+        "input": "0",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDA=",
+        "output": "Bad 0"
+    },
+    {
+        "template": "Bad %x",
+        "input": "猫😀",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDA=",
+        "output": "Bad 0"
+    },
+    {
+        "template": "Bad %x",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDdi",
+        "output": "Bad 7b"
+    },
+    {
+        "template": "Bad %x",
+        "input": -9223372036854775808,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDgwMDAwMDAwMDAwMDAwMDA=",
+        "output": "Bad 8000000000000000"
+    },
+    {
+        "template": "Bad %x",
+        "input": -0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDA=",
+        "output": "Bad 0"
+    },
+    {
+        "template": "Bad %x",
+        "input": 0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDA=",
+        "output": "Bad 0"
+    },
+    {
+        "template": "Bad %x",
+        "input": 1.005,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDE=",
+        "output": "Bad 1"
+    },
+    {
+        "template": "Bad %x",
+        "input": 1.0e+20,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDZiYzc1ZTJkNjMxMDAwMDA=",
+        "output": "Bad 6bc75e2d63100000"
+    },
+    {
+        "template": "Bad %x",
+        "input": "1e309",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDA=",
+        "output": "Bad 0"
+    },
+    {
+        "template": "Bad %u",
+        "input": "bad",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDA=",
+        "output": "Bad 0"
+    },
+    {
+        "template": "Bad %u",
+        "input": "123bad",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDEyMw==",
+        "output": "Bad 123"
+    },
+    {
+        "template": "Bad %u",
+        "input": "-12.25",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDE4NDQ2NzQ0MDczNzA5NTUxNjA0",
+        "output": "Bad 18446744073709551604"
+    },
+    {
+        "template": "Bad %u",
+        "input": "0",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDA=",
+        "output": "Bad 0"
+    },
+    {
+        "template": "Bad %u",
+        "input": "猫😀",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDA=",
+        "output": "Bad 0"
+    },
+    {
+        "template": "Bad %u",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDEyMw==",
+        "output": "Bad 123"
+    },
+    {
+        "template": "Bad %u",
+        "input": -9223372036854775808,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDkyMjMzNzIwMzY4NTQ3NzU4MDg=",
+        "output": "Bad 9223372036854775808"
+    },
+    {
+        "template": "Bad %u",
+        "input": -0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDA=",
+        "output": "Bad 0"
+    },
+    {
+        "template": "Bad %u",
+        "input": 0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDA=",
+        "output": "Bad 0"
+    },
+    {
+        "template": "Bad %u",
+        "input": 1.005,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDE=",
+        "output": "Bad 1"
+    },
+    {
+        "template": "Bad %u",
+        "input": 1.0e+20,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDc3NjYyNzk2MzE0NTIyNDE5MjA=",
+        "output": "Bad 7766279631452241920"
+    },
+    {
+        "template": "Bad %u",
+        "input": "1e309",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDA=",
+        "output": "Bad 0"
+    },
+    {
+        "template": "Bad %b",
+        "input": "bad",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDA=",
+        "output": "Bad 0"
+    },
+    {
+        "template": "Bad %b",
+        "input": "123bad",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDExMTEwMTE=",
+        "output": "Bad 1111011"
+    },
+    {
+        "template": "Bad %b",
+        "input": "-12.25",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTAxMDA=",
+        "output": "Bad 1111111111111111111111111111111111111111111111111111111111110100"
+    },
+    {
+        "template": "Bad %b",
+        "input": "0",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDA=",
+        "output": "Bad 0"
+    },
+    {
+        "template": "Bad %b",
+        "input": "猫😀",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDA=",
+        "output": "Bad 0"
+    },
+    {
+        "template": "Bad %b",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDExMTEwMTE=",
+        "output": "Bad 1111011"
+    },
+    {
+        "template": "Bad %b",
+        "input": -9223372036854775808,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDEwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=",
+        "output": "Bad 1000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+        "template": "Bad %b",
+        "input": -0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDA=",
+        "output": "Bad 0"
+    },
+    {
+        "template": "Bad %b",
+        "input": 0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDA=",
+        "output": "Bad 0"
+    },
+    {
+        "template": "Bad %b",
+        "input": 1.005,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDE=",
+        "output": "Bad 1"
+    },
+    {
+        "template": "Bad %b",
+        "input": 1.0e+20,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDExMDEwMTExMTAwMDExMTAxMDExMTEwMDAxMDExMDEwMTEwMDAxMTAwMDEwMDAwMDAwMDAwMDAwMDAwMDAwMA==",
+        "output": "Bad 110101111000111010111100010110101100011000100000000000000000000"
+    },
+    {
+        "template": "Bad %b",
+        "input": "1e309",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDA=",
+        "output": "Bad 0"
+    },
+    {
+        "template": "Bad %o",
+        "input": "bad",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDA=",
+        "output": "Bad 0"
+    },
+    {
+        "template": "Bad %o",
+        "input": "123bad",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDE3Mw==",
+        "output": "Bad 173"
+    },
+    {
+        "template": "Bad %o",
+        "input": "-12.25",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDE3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3NjQ=",
+        "output": "Bad 1777777777777777777764"
+    },
+    {
+        "template": "Bad %o",
+        "input": "0",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDA=",
+        "output": "Bad 0"
+    },
+    {
+        "template": "Bad %o",
+        "input": "猫😀",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDA=",
+        "output": "Bad 0"
+    },
+    {
+        "template": "Bad %o",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDE3Mw==",
+        "output": "Bad 173"
+    },
+    {
+        "template": "Bad %o",
+        "input": -9223372036854775808,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDEwMDAwMDAwMDAwMDAwMDAwMDAwMDA=",
+        "output": "Bad 1000000000000000000000"
+    },
+    {
+        "template": "Bad %o",
+        "input": -0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDA=",
+        "output": "Bad 0"
+    },
+    {
+        "template": "Bad %o",
+        "input": 0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDA=",
+        "output": "Bad 0"
+    },
+    {
+        "template": "Bad %o",
+        "input": 1.005,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDE=",
+        "output": "Bad 1"
+    },
+    {
+        "template": "Bad %o",
+        "input": 1.0e+20,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDY1NzA3Mjc0MjY1NDMwNDAwMDAwMA==",
+        "output": "Bad 657072742654304000000"
+    },
+    {
+        "template": "Bad %o",
+        "input": "1e309",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDA=",
+        "output": "Bad 0"
+    },
+    {
+        "template": "Bad %c",
+        "input": "bad",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIAA=",
+        "output": "Bad \u0000"
+    },
+    {
+        "template": "Bad %c",
+        "input": "123bad",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIHs=",
+        "output": "Bad {"
+    },
+    {
+        "template": "Bad %c",
+        "input": "-12.25",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIPQ=",
+        "output": null
+    },
+    {
+        "template": "Bad %c",
+        "input": "0",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIAA=",
+        "output": "Bad \u0000"
+    },
+    {
+        "template": "Bad %c",
+        "input": "猫😀",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIAA=",
+        "output": "Bad \u0000"
+    },
+    {
+        "template": "Bad %c",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIHs=",
+        "output": "Bad {"
+    },
+    {
+        "template": "Bad %c",
+        "input": -9223372036854775808,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIAA=",
+        "output": "Bad \u0000"
+    },
+    {
+        "template": "Bad %c",
+        "input": -0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIAA=",
+        "output": "Bad \u0000"
+    },
+    {
+        "template": "Bad %c",
+        "input": 0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIAA=",
+        "output": "Bad \u0000"
+    },
+    {
+        "template": "Bad %c",
+        "input": 1.005,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIAE=",
+        "output": "Bad \u0001"
+    },
+    {
+        "template": "Bad %c",
+        "input": 1.0e+20,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIAA=",
+        "output": "Bad \u0000"
+    },
+    {
+        "template": "Bad %c",
+        "input": "1e309",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIAA=",
+        "output": "Bad \u0000"
+    },
+    {
+        "template": "Bad %e",
+        "input": "bad",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDAuMDAwMDAwZSsw",
+        "output": "Bad 0.000000e+0"
+    },
+    {
+        "template": "Bad %e",
+        "input": "123bad",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDEuMjMwMDAwZSsy",
+        "output": "Bad 1.230000e+2"
+    },
+    {
+        "template": "Bad %e",
+        "input": "-12.25",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIC0xLjIyNTAwMGUrMQ==",
+        "output": "Bad -1.225000e+1"
+    },
+    {
+        "template": "Bad %e",
+        "input": "0",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDAuMDAwMDAwZSsw",
+        "output": "Bad 0.000000e+0"
+    },
+    {
+        "template": "Bad %e",
+        "input": "猫😀",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDAuMDAwMDAwZSsw",
+        "output": "Bad 0.000000e+0"
+    },
+    {
+        "template": "Bad %e",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDEuMjMwMDAwZSsy",
+        "output": "Bad 1.230000e+2"
+    },
+    {
+        "template": "Bad %e",
+        "input": -9223372036854775808,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIC05LjIyMzM3MmUrMTg=",
+        "output": "Bad -9.223372e+18"
+    },
+    {
+        "template": "Bad %e",
+        "input": -0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDAuMDAwMDAwZSsw",
+        "output": "Bad 0.000000e+0"
+    },
+    {
+        "template": "Bad %e",
+        "input": 0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDAuMDAwMDAwZSsw",
+        "output": "Bad 0.000000e+0"
+    },
+    {
+        "template": "Bad %e",
+        "input": 1.005,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDEuMDA1MDAwZSsw",
+        "output": "Bad 1.005000e+0"
+    },
+    {
+        "template": "Bad %e",
+        "input": 1.0e+20,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDEuMDAwMDAwZSsyMA==",
+        "output": "Bad 1.000000e+20"
+    },
+    {
+        "template": "Bad %e",
+        "input": "1e309",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIElORg==",
+        "output": "Bad INF"
+    },
+    {
+        "template": "Bad %.2f",
+        "input": "bad",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDAuMDA=",
+        "output": "Bad 0.00"
+    },
+    {
+        "template": "Bad %.2f",
+        "input": "123bad",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDEyMy4wMA==",
+        "output": "Bad 123.00"
+    },
+    {
+        "template": "Bad %.2f",
+        "input": "-12.25",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIC0xMi4yNQ==",
+        "output": "Bad -12.25"
+    },
+    {
+        "template": "Bad %.2f",
+        "input": "0",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDAuMDA=",
+        "output": "Bad 0.00"
+    },
+    {
+        "template": "Bad %.2f",
+        "input": "猫😀",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDAuMDA=",
+        "output": "Bad 0.00"
+    },
+    {
+        "template": "Bad %.2f",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDEyMy4wMA==",
+        "output": "Bad 123.00"
+    },
+    {
+        "template": "Bad %.2f",
+        "input": -9223372036854775808,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIC05MjIzMzcyMDM2ODU0Nzc1ODA4LjAw",
+        "output": "Bad -9223372036854775808.00"
+    },
+    {
+        "template": "Bad %.2f",
+        "input": -0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDAuMDA=",
+        "output": "Bad 0.00"
+    },
+    {
+        "template": "Bad %.2f",
+        "input": 0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDAuMDA=",
+        "output": "Bad 0.00"
+    },
+    {
+        "template": "Bad %.2f",
+        "input": 1.005,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDEuMDA=",
+        "output": "Bad 1.00"
+    },
+    {
+        "template": "Bad %.2f",
+        "input": 1.0e+20,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDEwMDAwMDAwMDAwMDAwMDAwMDAwMC4wMA==",
+        "output": "Bad 100000000000000000000.00"
+    },
+    {
+        "template": "Bad %.2f",
+        "input": "1e309",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIElORg==",
+        "output": "Bad INF"
+    },
+    {
+        "template": "Bad %g",
+        "input": "bad",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDA=",
+        "output": "Bad 0"
+    },
+    {
+        "template": "Bad %g",
+        "input": "123bad",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDEyMw==",
+        "output": "Bad 123"
+    },
+    {
+        "template": "Bad %g",
+        "input": "-12.25",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIC0xMi4yNQ==",
+        "output": "Bad -12.25"
+    },
+    {
+        "template": "Bad %g",
+        "input": "0",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDA=",
+        "output": "Bad 0"
+    },
+    {
+        "template": "Bad %g",
+        "input": "猫😀",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDA=",
+        "output": "Bad 0"
+    },
+    {
+        "template": "Bad %g",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDEyMw==",
+        "output": "Bad 123"
+    },
+    {
+        "template": "Bad %g",
+        "input": -9223372036854775808,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIC05LjIyMzM3ZSsxOA==",
+        "output": "Bad -9.22337e+18"
+    },
+    {
+        "template": "Bad %g",
+        "input": -0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIC0w",
+        "output": "Bad -0"
+    },
+    {
+        "template": "Bad %g",
+        "input": 0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDA=",
+        "output": "Bad 0"
+    },
+    {
+        "template": "Bad %g",
+        "input": 1.005,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDEuMDA1",
+        "output": "Bad 1.005"
+    },
+    {
+        "template": "Bad %g",
+        "input": 1.0e+20,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDEuMGUrMjA=",
+        "output": "Bad 1.0e+20"
+    },
+    {
+        "template": "Bad %g",
+        "input": "1e309",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIElORg==",
+        "output": "Bad INF"
+    },
+    {
+        "template": "Bad %1$s \/ %1$s",
+        "input": "bad",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIGJhZCAvIGJhZA==",
+        "output": "Bad bad \/ bad"
+    },
+    {
+        "template": "Bad %1$s \/ %1$s",
+        "input": "123bad",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDEyM2JhZCAvIDEyM2JhZA==",
+        "output": "Bad 123bad \/ 123bad"
+    },
+    {
+        "template": "Bad %1$s \/ %1$s",
+        "input": "-12.25",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIC0xMi4yNSAvIC0xMi4yNQ==",
+        "output": "Bad -12.25 \/ -12.25"
+    },
+    {
+        "template": "Bad %1$s \/ %1$s",
+        "input": "0",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDAgLyAw",
+        "output": "Bad 0 \/ 0"
+    },
+    {
+        "template": "Bad %1$s \/ %1$s",
+        "input": "猫😀",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIOeMq\/CfmIAgLyDnjKvwn5iA",
+        "output": "Bad 猫😀 \/ 猫😀"
+    },
+    {
+        "template": "Bad %1$s \/ %1$s",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDEyMyAvIDEyMw==",
+        "output": "Bad 123 \/ 123"
+    },
+    {
+        "template": "Bad %1$s \/ %1$s",
+        "input": -9223372036854775808,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIC05MjIzMzcyMDM2ODU0Nzc1ODA4IC8gLTkyMjMzNzIwMzY4NTQ3NzU4MDg=",
+        "output": "Bad -9223372036854775808 \/ -9223372036854775808"
+    },
+    {
+        "template": "Bad %1$s \/ %1$s",
+        "input": -0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIC0wIC8gLTA=",
+        "output": "Bad -0 \/ -0"
+    },
+    {
+        "template": "Bad %1$s \/ %1$s",
+        "input": 0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDAgLyAw",
+        "output": "Bad 0 \/ 0"
+    },
+    {
+        "template": "Bad %1$s \/ %1$s",
+        "input": 1.005,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDEuMDA1IC8gMS4wMDU=",
+        "output": "Bad 1.005 \/ 1.005"
+    },
+    {
+        "template": "Bad %1$s \/ %1$s",
+        "input": 1.0e+20,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDEuMEUrMjAgLyAxLjBFKzIw",
+        "output": "Bad 1.0E+20 \/ 1.0E+20"
+    },
+    {
+        "template": "Bad %1$s \/ %1$s",
+        "input": "1e309",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDFlMzA5IC8gMWUzMDk=",
+        "output": "Bad 1e309 \/ 1e309"
+    },
+    {
+        "template": "Bad %2$s",
+        "input": "bad",
+        "error": "ArgumentCountError",
+        "message": "3 arguments are required, 2 given",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %2$s",
+        "input": "123bad",
+        "error": "ArgumentCountError",
+        "message": "3 arguments are required, 2 given",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %2$s",
+        "input": "-12.25",
+        "error": "ArgumentCountError",
+        "message": "3 arguments are required, 2 given",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %2$s",
+        "input": "0",
+        "error": "ArgumentCountError",
+        "message": "3 arguments are required, 2 given",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %2$s",
+        "input": "猫😀",
+        "error": "ArgumentCountError",
+        "message": "3 arguments are required, 2 given",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %2$s",
+        "input": 123,
+        "error": "ArgumentCountError",
+        "message": "3 arguments are required, 2 given",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %2$s",
+        "input": -9223372036854775808,
+        "error": "ArgumentCountError",
+        "message": "3 arguments are required, 2 given",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %2$s",
+        "input": -0.0,
+        "error": "ArgumentCountError",
+        "message": "3 arguments are required, 2 given",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %2$s",
+        "input": 0.0,
+        "error": "ArgumentCountError",
+        "message": "3 arguments are required, 2 given",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %2$s",
+        "input": 1.005,
+        "error": "ArgumentCountError",
+        "message": "3 arguments are required, 2 given",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %2$s",
+        "input": 1.0e+20,
+        "error": "ArgumentCountError",
+        "message": "3 arguments are required, 2 given",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %2$s",
+        "input": "1e309",
+        "error": "ArgumentCountError",
+        "message": "3 arguments are required, 2 given",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %s %s",
+        "input": "bad",
+        "error": "ArgumentCountError",
+        "message": "3 arguments are required, 2 given",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %s %s",
+        "input": "123bad",
+        "error": "ArgumentCountError",
+        "message": "3 arguments are required, 2 given",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %s %s",
+        "input": "-12.25",
+        "error": "ArgumentCountError",
+        "message": "3 arguments are required, 2 given",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %s %s",
+        "input": "0",
+        "error": "ArgumentCountError",
+        "message": "3 arguments are required, 2 given",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %s %s",
+        "input": "猫😀",
+        "error": "ArgumentCountError",
+        "message": "3 arguments are required, 2 given",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %s %s",
+        "input": 123,
+        "error": "ArgumentCountError",
+        "message": "3 arguments are required, 2 given",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %s %s",
+        "input": -9223372036854775808,
+        "error": "ArgumentCountError",
+        "message": "3 arguments are required, 2 given",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %s %s",
+        "input": -0.0,
+        "error": "ArgumentCountError",
+        "message": "3 arguments are required, 2 given",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %s %s",
+        "input": 0.0,
+        "error": "ArgumentCountError",
+        "message": "3 arguments are required, 2 given",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %s %s",
+        "input": 1.005,
+        "error": "ArgumentCountError",
+        "message": "3 arguments are required, 2 given",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %s %s",
+        "input": 1.0e+20,
+        "error": "ArgumentCountError",
+        "message": "3 arguments are required, 2 given",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %s %s",
+        "input": "1e309",
+        "error": "ArgumentCountError",
+        "message": "3 arguments are required, 2 given",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %q",
+        "input": "bad",
+        "error": "ValueError",
+        "message": "Unknown format specifier \"q\"",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %q",
+        "input": "123bad",
+        "error": "ValueError",
+        "message": "Unknown format specifier \"q\"",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %q",
+        "input": "-12.25",
+        "error": "ValueError",
+        "message": "Unknown format specifier \"q\"",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %q",
+        "input": "0",
+        "error": "ValueError",
+        "message": "Unknown format specifier \"q\"",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %q",
+        "input": "猫😀",
+        "error": "ValueError",
+        "message": "Unknown format specifier \"q\"",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %q",
+        "input": 123,
+        "error": "ValueError",
+        "message": "Unknown format specifier \"q\"",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %q",
+        "input": -9223372036854775808,
+        "error": "ValueError",
+        "message": "Unknown format specifier \"q\"",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %q",
+        "input": -0.0,
+        "error": "ValueError",
+        "message": "Unknown format specifier \"q\"",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %q",
+        "input": 0.0,
+        "error": "ValueError",
+        "message": "Unknown format specifier \"q\"",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %q",
+        "input": 1.005,
+        "error": "ValueError",
+        "message": "Unknown format specifier \"q\"",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %q",
+        "input": 1.0e+20,
+        "error": "ValueError",
+        "message": "Unknown format specifier \"q\"",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %q",
+        "input": "1e309",
+        "error": "ValueError",
+        "message": "Unknown format specifier \"q\"",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %",
+        "input": "bad",
+        "error": "ValueError",
+        "message": "Missing format specifier at end of string",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %",
+        "input": "123bad",
+        "error": "ValueError",
+        "message": "Missing format specifier at end of string",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %",
+        "input": "-12.25",
+        "error": "ValueError",
+        "message": "Missing format specifier at end of string",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %",
+        "input": "0",
+        "error": "ValueError",
+        "message": "Missing format specifier at end of string",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %",
+        "input": "猫😀",
+        "error": "ValueError",
+        "message": "Missing format specifier at end of string",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %",
+        "input": 123,
+        "error": "ValueError",
+        "message": "Missing format specifier at end of string",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %",
+        "input": -9223372036854775808,
+        "error": "ValueError",
+        "message": "Missing format specifier at end of string",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %",
+        "input": -0.0,
+        "error": "ValueError",
+        "message": "Missing format specifier at end of string",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %",
+        "input": 0.0,
+        "error": "ValueError",
+        "message": "Missing format specifier at end of string",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %",
+        "input": 1.005,
+        "error": "ValueError",
+        "message": "Missing format specifier at end of string",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %",
+        "input": 1.0e+20,
+        "error": "ValueError",
+        "message": "Missing format specifier at end of string",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %",
+        "input": "1e309",
+        "error": "ValueError",
+        "message": "Missing format specifier at end of string",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %*s",
+        "input": "bad",
+        "error": "ValueError",
+        "message": "Width must be an integer",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %*s",
+        "input": "123bad",
+        "error": "ValueError",
+        "message": "Width must be an integer",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %*s",
+        "input": "-12.25",
+        "error": "ValueError",
+        "message": "Width must be an integer",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %*s",
+        "input": "0",
+        "error": "ValueError",
+        "message": "Width must be an integer",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %*s",
+        "input": "猫😀",
+        "error": "ValueError",
+        "message": "Width must be an integer",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %*s",
+        "input": 123,
+        "error": "ArgumentCountError",
+        "message": "3 arguments are required, 2 given",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %*s",
+        "input": -9223372036854775808,
+        "error": "ValueError",
+        "message": "Width must be between 0 and 2147483647",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %*s",
+        "input": -0.0,
+        "error": "ValueError",
+        "message": "Width must be an integer",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %*s",
+        "input": 0.0,
+        "error": "ValueError",
+        "message": "Width must be an integer",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %*s",
+        "input": 1.005,
+        "error": "ValueError",
+        "message": "Width must be an integer",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %*s",
+        "input": 1.0e+20,
+        "error": "ValueError",
+        "message": "Width must be an integer",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %*s",
+        "input": "1e309",
+        "error": "ValueError",
+        "message": "Width must be an integer",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %1$*1$s",
+        "input": "bad",
+        "error": "ValueError",
+        "message": "Width must be an integer",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %1$*1$s",
+        "input": "123bad",
+        "error": "ValueError",
+        "message": "Width must be an integer",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %1$*1$s",
+        "input": "-12.25",
+        "error": "ValueError",
+        "message": "Width must be an integer",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %1$*1$s",
+        "input": "0",
+        "error": "ValueError",
+        "message": "Width must be an integer",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %1$*1$s",
+        "input": "猫😀",
+        "error": "ValueError",
+        "message": "Width must be an integer",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %1$*1$s",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIDEyMw==",
+        "output": "Bad                                                                                                                         123"
+    },
+    {
+        "template": "Bad %1$*1$s",
+        "input": -9223372036854775808,
+        "error": "ValueError",
+        "message": "Width must be between 0 and 2147483647",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %1$*1$s",
+        "input": -0.0,
+        "error": "ValueError",
+        "message": "Width must be an integer",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %1$*1$s",
+        "input": 0.0,
+        "error": "ValueError",
+        "message": "Width must be an integer",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %1$*1$s",
+        "input": 1.005,
+        "error": "ValueError",
+        "message": "Width must be an integer",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %1$*1$s",
+        "input": 1.0e+20,
+        "error": "ValueError",
+        "message": "Width must be an integer",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %1$*1$s",
+        "input": "1e309",
+        "error": "ValueError",
+        "message": "Width must be an integer",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %1$.*1$s",
+        "input": "bad",
+        "error": "ValueError",
+        "message": "Precision must be an integer",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %1$.*1$s",
+        "input": "123bad",
+        "error": "ValueError",
+        "message": "Precision must be an integer",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %1$.*1$s",
+        "input": "-12.25",
+        "error": "ValueError",
+        "message": "Precision must be an integer",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %1$.*1$s",
+        "input": "0",
+        "error": "ValueError",
+        "message": "Precision must be an integer",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %1$.*1$s",
+        "input": "猫😀",
+        "error": "ValueError",
+        "message": "Precision must be an integer",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %1$.*1$s",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkIDEyMw==",
+        "output": "Bad 123"
+    },
+    {
+        "template": "Bad %1$.*1$s",
+        "input": -9223372036854775808,
+        "error": "ValueError",
+        "message": "Precision must be between -1 and 2147483647",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %1$.*1$s",
+        "input": -0.0,
+        "error": "ValueError",
+        "message": "Precision must be an integer",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %1$.*1$s",
+        "input": 0.0,
+        "error": "ValueError",
+        "message": "Precision must be an integer",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %1$.*1$s",
+        "input": 1.005,
+        "error": "ValueError",
+        "message": "Precision must be an integer",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %1$.*1$s",
+        "input": 1.0e+20,
+        "error": "ValueError",
+        "message": "Precision must be an integer",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %1$.*1$s",
+        "input": "1e309",
+        "error": "ValueError",
+        "message": "Precision must be an integer",
+        "output": null,
+        "output_base64": null
+    },
+    {
+        "template": "Bad %%s %s",
+        "input": "bad",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkICVzIGJhZA==",
+        "output": "Bad %s bad"
+    },
+    {
+        "template": "Bad %%s %s",
+        "input": "123bad",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkICVzIDEyM2JhZA==",
+        "output": "Bad %s 123bad"
+    },
+    {
+        "template": "Bad %%s %s",
+        "input": "-12.25",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkICVzIC0xMi4yNQ==",
+        "output": "Bad %s -12.25"
+    },
+    {
+        "template": "Bad %%s %s",
+        "input": "0",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkICVzIDA=",
+        "output": "Bad %s 0"
+    },
+    {
+        "template": "Bad %%s %s",
+        "input": "猫😀",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkICVzIOeMq\/CfmIA=",
+        "output": "Bad %s 猫😀"
+    },
+    {
+        "template": "Bad %%s %s",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkICVzIDEyMw==",
+        "output": "Bad %s 123"
+    },
+    {
+        "template": "Bad %%s %s",
+        "input": -9223372036854775808,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkICVzIC05MjIzMzcyMDM2ODU0Nzc1ODA4",
+        "output": "Bad %s -9223372036854775808"
+    },
+    {
+        "template": "Bad %%s %s",
+        "input": -0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkICVzIC0w",
+        "output": "Bad %s -0"
+    },
+    {
+        "template": "Bad %%s %s",
+        "input": 0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkICVzIDA=",
+        "output": "Bad %s 0"
+    },
+    {
+        "template": "Bad %%s %s",
+        "input": 1.005,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkICVzIDEuMDA1",
+        "output": "Bad %s 1.005"
+    },
+    {
+        "template": "Bad %%s %s",
+        "input": 1.0e+20,
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkICVzIDEuMEUrMjA=",
+        "output": "Bad %s 1.0E+20"
+    },
+    {
+        "template": "Bad %%s %s",
+        "input": "1e309",
+        "error": null,
+        "message": null,
+        "output_base64": "QmFkICVzIDFlMzA5",
+        "output": "Bad %s 1e309"
+    },
+    {
+        "template": "% d",
+        "input": "bad",
+        "error": null,
+        "message": null,
+        "output_base64": "MA==",
+        "output": "0"
+    },
+    {
+        "template": "% d",
+        "input": "123bad",
+        "error": null,
+        "message": null,
+        "output_base64": "MTIz",
+        "output": "123"
+    },
+    {
+        "template": "% d",
+        "input": "-12.25",
+        "error": null,
+        "message": null,
+        "output_base64": "LTEy",
+        "output": "-12"
+    },
+    {
+        "template": "% d",
+        "input": "0",
+        "error": null,
+        "message": null,
+        "output_base64": "MA==",
+        "output": "0"
+    },
+    {
+        "template": "% d",
+        "input": "猫😀",
+        "error": null,
+        "message": null,
+        "output_base64": "MA==",
+        "output": "0"
+    },
+    {
+        "template": "% d",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "MTIz",
+        "output": "123"
+    },
+    {
+        "template": "% d",
+        "input": -9223372036854775808,
+        "error": null,
+        "message": null,
+        "output_base64": "LTkyMjMzNzIwMzY4NTQ3NzU4MDg=",
+        "output": "-9223372036854775808"
+    },
+    {
+        "template": "% d",
+        "input": -0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "MA==",
+        "output": "0"
+    },
+    {
+        "template": "% d",
+        "input": 0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "MA==",
+        "output": "0"
+    },
+    {
+        "template": "% d",
+        "input": 1.005,
+        "error": null,
+        "message": null,
+        "output_base64": "MQ==",
+        "output": "1"
+    },
+    {
+        "template": "% d",
+        "input": 1.0e+20,
+        "error": null,
+        "message": null,
+        "output_base64": "Nzc2NjI3OTYzMTQ1MjI0MTkyMA==",
+        "output": "7766279631452241920"
+    },
+    {
+        "template": "% d",
+        "input": "1e309",
+        "error": null,
+        "message": null,
+        "output_base64": "MA==",
+        "output": "0"
+    },
+    {
+        "template": "%+d",
+        "input": "bad",
+        "error": null,
+        "message": null,
+        "output_base64": "KzA=",
+        "output": "+0"
+    },
+    {
+        "template": "%+d",
+        "input": "123bad",
+        "error": null,
+        "message": null,
+        "output_base64": "KzEyMw==",
+        "output": "+123"
+    },
+    {
+        "template": "%+d",
+        "input": "-12.25",
+        "error": null,
+        "message": null,
+        "output_base64": "LTEy",
+        "output": "-12"
+    },
+    {
+        "template": "%+d",
+        "input": "0",
+        "error": null,
+        "message": null,
+        "output_base64": "KzA=",
+        "output": "+0"
+    },
+    {
+        "template": "%+d",
+        "input": "猫😀",
+        "error": null,
+        "message": null,
+        "output_base64": "KzA=",
+        "output": "+0"
+    },
+    {
+        "template": "%+d",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "KzEyMw==",
+        "output": "+123"
+    },
+    {
+        "template": "%+d",
+        "input": -9223372036854775808,
+        "error": null,
+        "message": null,
+        "output_base64": "LTkyMjMzNzIwMzY4NTQ3NzU4MDg=",
+        "output": "-9223372036854775808"
+    },
+    {
+        "template": "%+d",
+        "input": -0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "KzA=",
+        "output": "+0"
+    },
+    {
+        "template": "%+d",
+        "input": 0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "KzA=",
+        "output": "+0"
+    },
+    {
+        "template": "%+d",
+        "input": 1.005,
+        "error": null,
+        "message": null,
+        "output_base64": "KzE=",
+        "output": "+1"
+    },
+    {
+        "template": "%+d",
+        "input": 1.0e+20,
+        "error": null,
+        "message": null,
+        "output_base64": "Kzc3NjYyNzk2MzE0NTIyNDE5MjA=",
+        "output": "+7766279631452241920"
+    },
+    {
+        "template": "%+d",
+        "input": "1e309",
+        "error": null,
+        "message": null,
+        "output_base64": "KzA=",
+        "output": "+0"
+    },
+    {
+        "template": "%-07d",
+        "input": "bad",
+        "error": null,
+        "message": null,
+        "output_base64": "MCAgICAgIA==",
+        "output": "0      "
+    },
+    {
+        "template": "%-07d",
+        "input": "123bad",
+        "error": null,
+        "message": null,
+        "output_base64": "MTIzICAgIA==",
+        "output": "123    "
+    },
+    {
+        "template": "%-07d",
+        "input": "-12.25",
+        "error": null,
+        "message": null,
+        "output_base64": "LTEyICAgIA==",
+        "output": "-12    "
+    },
+    {
+        "template": "%-07d",
+        "input": "0",
+        "error": null,
+        "message": null,
+        "output_base64": "MCAgICAgIA==",
+        "output": "0      "
+    },
+    {
+        "template": "%-07d",
+        "input": "猫😀",
+        "error": null,
+        "message": null,
+        "output_base64": "MCAgICAgIA==",
+        "output": "0      "
+    },
+    {
+        "template": "%-07d",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "MTIzICAgIA==",
+        "output": "123    "
+    },
+    {
+        "template": "%-07d",
+        "input": -9223372036854775808,
+        "error": null,
+        "message": null,
+        "output_base64": "LTkyMjMzNzIwMzY4NTQ3NzU4MDg=",
+        "output": "-9223372036854775808"
+    },
+    {
+        "template": "%-07d",
+        "input": -0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "MCAgICAgIA==",
+        "output": "0      "
+    },
+    {
+        "template": "%-07d",
+        "input": 0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "MCAgICAgIA==",
+        "output": "0      "
+    },
+    {
+        "template": "%-07d",
+        "input": 1.005,
+        "error": null,
+        "message": null,
+        "output_base64": "MSAgICAgIA==",
+        "output": "1      "
+    },
+    {
+        "template": "%-07d",
+        "input": 1.0e+20,
+        "error": null,
+        "message": null,
+        "output_base64": "Nzc2NjI3OTYzMTQ1MjI0MTkyMA==",
+        "output": "7766279631452241920"
+    },
+    {
+        "template": "%-07d",
+        "input": "1e309",
+        "error": null,
+        "message": null,
+        "output_base64": "MCAgICAgIA==",
+        "output": "0      "
+    },
+    {
+        "template": "%07d",
+        "input": "bad",
+        "error": null,
+        "message": null,
+        "output_base64": "MDAwMDAwMA==",
+        "output": "0000000"
+    },
+    {
+        "template": "%07d",
+        "input": "123bad",
+        "error": null,
+        "message": null,
+        "output_base64": "MDAwMDEyMw==",
+        "output": "0000123"
+    },
+    {
+        "template": "%07d",
+        "input": "-12.25",
+        "error": null,
+        "message": null,
+        "output_base64": "LTAwMDAxMg==",
+        "output": "-000012"
+    },
+    {
+        "template": "%07d",
+        "input": "0",
+        "error": null,
+        "message": null,
+        "output_base64": "MDAwMDAwMA==",
+        "output": "0000000"
+    },
+    {
+        "template": "%07d",
+        "input": "猫😀",
+        "error": null,
+        "message": null,
+        "output_base64": "MDAwMDAwMA==",
+        "output": "0000000"
+    },
+    {
+        "template": "%07d",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "MDAwMDEyMw==",
+        "output": "0000123"
+    },
+    {
+        "template": "%07d",
+        "input": -9223372036854775808,
+        "error": null,
+        "message": null,
+        "output_base64": "LTkyMjMzNzIwMzY4NTQ3NzU4MDg=",
+        "output": "-9223372036854775808"
+    },
+    {
+        "template": "%07d",
+        "input": -0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "MDAwMDAwMA==",
+        "output": "0000000"
+    },
+    {
+        "template": "%07d",
+        "input": 0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "MDAwMDAwMA==",
+        "output": "0000000"
+    },
+    {
+        "template": "%07d",
+        "input": 1.005,
+        "error": null,
+        "message": null,
+        "output_base64": "MDAwMDAwMQ==",
+        "output": "0000001"
+    },
+    {
+        "template": "%07d",
+        "input": 1.0e+20,
+        "error": null,
+        "message": null,
+        "output_base64": "Nzc2NjI3OTYzMTQ1MjI0MTkyMA==",
+        "output": "7766279631452241920"
+    },
+    {
+        "template": "%07d",
+        "input": "1e309",
+        "error": null,
+        "message": null,
+        "output_base64": "MDAwMDAwMA==",
+        "output": "0000000"
+    },
+    {
+        "template": "%'_7d",
+        "input": "bad",
+        "error": null,
+        "message": null,
+        "output_base64": "X19fX19fMA==",
+        "output": "______0"
+    },
+    {
+        "template": "%'_7d",
+        "input": "123bad",
+        "error": null,
+        "message": null,
+        "output_base64": "X19fXzEyMw==",
+        "output": "____123"
+    },
+    {
+        "template": "%'_7d",
+        "input": "-12.25",
+        "error": null,
+        "message": null,
+        "output_base64": "X19fXy0xMg==",
+        "output": "____-12"
+    },
+    {
+        "template": "%'_7d",
+        "input": "0",
+        "error": null,
+        "message": null,
+        "output_base64": "X19fX19fMA==",
+        "output": "______0"
+    },
+    {
+        "template": "%'_7d",
+        "input": "猫😀",
+        "error": null,
+        "message": null,
+        "output_base64": "X19fX19fMA==",
+        "output": "______0"
+    },
+    {
+        "template": "%'_7d",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "X19fXzEyMw==",
+        "output": "____123"
+    },
+    {
+        "template": "%'_7d",
+        "input": -9223372036854775808,
+        "error": null,
+        "message": null,
+        "output_base64": "LTkyMjMzNzIwMzY4NTQ3NzU4MDg=",
+        "output": "-9223372036854775808"
+    },
+    {
+        "template": "%'_7d",
+        "input": -0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "X19fX19fMA==",
+        "output": "______0"
+    },
+    {
+        "template": "%'_7d",
+        "input": 0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "X19fX19fMA==",
+        "output": "______0"
+    },
+    {
+        "template": "%'_7d",
+        "input": 1.005,
+        "error": null,
+        "message": null,
+        "output_base64": "X19fX19fMQ==",
+        "output": "______1"
+    },
+    {
+        "template": "%'_7d",
+        "input": 1.0e+20,
+        "error": null,
+        "message": null,
+        "output_base64": "Nzc2NjI3OTYzMTQ1MjI0MTkyMA==",
+        "output": "7766279631452241920"
+    },
+    {
+        "template": "%'_7d",
+        "input": "1e309",
+        "error": null,
+        "message": null,
+        "output_base64": "X19fX19fMA==",
+        "output": "______0"
+    },
+    {
+        "template": "%+e",
+        "input": "bad",
+        "error": null,
+        "message": null,
+        "output_base64": "KzAuMDAwMDAwZSsw",
+        "output": "+0.000000e+0"
+    },
+    {
+        "template": "%+e",
+        "input": "123bad",
+        "error": null,
+        "message": null,
+        "output_base64": "KzEuMjMwMDAwZSsy",
+        "output": "+1.230000e+2"
+    },
+    {
+        "template": "%+e",
+        "input": "-12.25",
+        "error": null,
+        "message": null,
+        "output_base64": "LTEuMjI1MDAwZSsx",
+        "output": "-1.225000e+1"
+    },
+    {
+        "template": "%+e",
+        "input": "0",
+        "error": null,
+        "message": null,
+        "output_base64": "KzAuMDAwMDAwZSsw",
+        "output": "+0.000000e+0"
+    },
+    {
+        "template": "%+e",
+        "input": "猫😀",
+        "error": null,
+        "message": null,
+        "output_base64": "KzAuMDAwMDAwZSsw",
+        "output": "+0.000000e+0"
+    },
+    {
+        "template": "%+e",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "KzEuMjMwMDAwZSsy",
+        "output": "+1.230000e+2"
+    },
+    {
+        "template": "%+e",
+        "input": -9223372036854775808,
+        "error": null,
+        "message": null,
+        "output_base64": "LTkuMjIzMzcyZSsxOA==",
+        "output": "-9.223372e+18"
+    },
+    {
+        "template": "%+e",
+        "input": -0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "KzAuMDAwMDAwZSsw",
+        "output": "+0.000000e+0"
+    },
+    {
+        "template": "%+e",
+        "input": 0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "KzAuMDAwMDAwZSsw",
+        "output": "+0.000000e+0"
+    },
+    {
+        "template": "%+e",
+        "input": 1.005,
+        "error": null,
+        "message": null,
+        "output_base64": "KzEuMDA1MDAwZSsw",
+        "output": "+1.005000e+0"
+    },
+    {
+        "template": "%+e",
+        "input": 1.0e+20,
+        "error": null,
+        "message": null,
+        "output_base64": "KzEuMDAwMDAwZSsyMA==",
+        "output": "+1.000000e+20"
+    },
+    {
+        "template": "%+e",
+        "input": "1e309",
+        "error": null,
+        "message": null,
+        "output_base64": "SU5G",
+        "output": "INF"
+    },
+    {
+        "template": "%.0e",
+        "input": "bad",
+        "error": null,
+        "message": null,
+        "output_base64": "MGUrMA==",
+        "output": "0e+0"
+    },
+    {
+        "template": "%.0e",
+        "input": "123bad",
+        "error": null,
+        "message": null,
+        "output_base64": "MWUrMg==",
+        "output": "1e+2"
+    },
+    {
+        "template": "%.0e",
+        "input": "-12.25",
+        "error": null,
+        "message": null,
+        "output_base64": "LTFlKzE=",
+        "output": "-1e+1"
+    },
+    {
+        "template": "%.0e",
+        "input": "0",
+        "error": null,
+        "message": null,
+        "output_base64": "MGUrMA==",
+        "output": "0e+0"
+    },
+    {
+        "template": "%.0e",
+        "input": "猫😀",
+        "error": null,
+        "message": null,
+        "output_base64": "MGUrMA==",
+        "output": "0e+0"
+    },
+    {
+        "template": "%.0e",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "MWUrMg==",
+        "output": "1e+2"
+    },
+    {
+        "template": "%.0e",
+        "input": -9223372036854775808,
+        "error": null,
+        "message": null,
+        "output_base64": "LTllKzE4",
+        "output": "-9e+18"
+    },
+    {
+        "template": "%.0e",
+        "input": -0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "MGUrMA==",
+        "output": "0e+0"
+    },
+    {
+        "template": "%.0e",
+        "input": 0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "MGUrMA==",
+        "output": "0e+0"
+    },
+    {
+        "template": "%.0e",
+        "input": 1.005,
+        "error": null,
+        "message": null,
+        "output_base64": "MWUrMA==",
+        "output": "1e+0"
+    },
+    {
+        "template": "%.0e",
+        "input": 1.0e+20,
+        "error": null,
+        "message": null,
+        "output_base64": "MWUrMjA=",
+        "output": "1e+20"
+    },
+    {
+        "template": "%.0e",
+        "input": "1e309",
+        "error": null,
+        "message": null,
+        "output_base64": "SU5G",
+        "output": "INF"
+    },
+    {
+        "template": "%.0g",
+        "input": "bad",
+        "error": null,
+        "message": null,
+        "output_base64": "MA==",
+        "output": "0"
+    },
+    {
+        "template": "%.0g",
+        "input": "123bad",
+        "error": null,
+        "message": null,
+        "output_base64": "MS4wZSsy",
+        "output": "1.0e+2"
+    },
+    {
+        "template": "%.0g",
+        "input": "-12.25",
+        "error": null,
+        "message": null,
+        "output_base64": "LTEuMGUrMQ==",
+        "output": "-1.0e+1"
+    },
+    {
+        "template": "%.0g",
+        "input": "0",
+        "error": null,
+        "message": null,
+        "output_base64": "MA==",
+        "output": "0"
+    },
+    {
+        "template": "%.0g",
+        "input": "猫😀",
+        "error": null,
+        "message": null,
+        "output_base64": "MA==",
+        "output": "0"
+    },
+    {
+        "template": "%.0g",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "MS4wZSsy",
+        "output": "1.0e+2"
+    },
+    {
+        "template": "%.0g",
+        "input": -9223372036854775808,
+        "error": null,
+        "message": null,
+        "output_base64": "LTkuMGUrMTg=",
+        "output": "-9.0e+18"
+    },
+    {
+        "template": "%.0g",
+        "input": -0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "LTA=",
+        "output": "-0"
+    },
+    {
+        "template": "%.0g",
+        "input": 0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "MA==",
+        "output": "0"
+    },
+    {
+        "template": "%.0g",
+        "input": 1.005,
+        "error": null,
+        "message": null,
+        "output_base64": "MQ==",
+        "output": "1"
+    },
+    {
+        "template": "%.0g",
+        "input": 1.0e+20,
+        "error": null,
+        "message": null,
+        "output_base64": "MS4wZSsyMA==",
+        "output": "1.0e+20"
+    },
+    {
+        "template": "%.0g",
+        "input": "1e309",
+        "error": null,
+        "message": null,
+        "output_base64": "SU5G",
+        "output": "INF"
+    },
+    {
+        "template": "%f",
+        "input": "bad",
+        "error": null,
+        "message": null,
+        "output_base64": "MC4wMDAwMDA=",
+        "output": "0.000000"
+    },
+    {
+        "template": "%f",
+        "input": "123bad",
+        "error": null,
+        "message": null,
+        "output_base64": "MTIzLjAwMDAwMA==",
+        "output": "123.000000"
+    },
+    {
+        "template": "%f",
+        "input": "-12.25",
+        "error": null,
+        "message": null,
+        "output_base64": "LTEyLjI1MDAwMA==",
+        "output": "-12.250000"
+    },
+    {
+        "template": "%f",
+        "input": "0",
+        "error": null,
+        "message": null,
+        "output_base64": "MC4wMDAwMDA=",
+        "output": "0.000000"
+    },
+    {
+        "template": "%f",
+        "input": "猫😀",
+        "error": null,
+        "message": null,
+        "output_base64": "MC4wMDAwMDA=",
+        "output": "0.000000"
+    },
+    {
+        "template": "%f",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "MTIzLjAwMDAwMA==",
+        "output": "123.000000"
+    },
+    {
+        "template": "%f",
+        "input": -9223372036854775808,
+        "error": null,
+        "message": null,
+        "output_base64": "LTkyMjMzNzIwMzY4NTQ3NzU4MDguMDAwMDAw",
+        "output": "-9223372036854775808.000000"
+    },
+    {
+        "template": "%f",
+        "input": -0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "MC4wMDAwMDA=",
+        "output": "0.000000"
+    },
+    {
+        "template": "%f",
+        "input": 0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "MC4wMDAwMDA=",
+        "output": "0.000000"
+    },
+    {
+        "template": "%f",
+        "input": 1.005,
+        "error": null,
+        "message": null,
+        "output_base64": "MS4wMDUwMDA=",
+        "output": "1.005000"
+    },
+    {
+        "template": "%f",
+        "input": 1.0e+20,
+        "error": null,
+        "message": null,
+        "output_base64": "MTAwMDAwMDAwMDAwMDAwMDAwMDAwLjAwMDAwMA==",
+        "output": "100000000000000000000.000000"
+    },
+    {
+        "template": "%f",
+        "input": "1e309",
+        "error": null,
+        "message": null,
+        "output_base64": "SU5G",
+        "output": "INF"
+    },
+    {
+        "template": "%F",
+        "input": "bad",
+        "error": null,
+        "message": null,
+        "output_base64": "MC4wMDAwMDA=",
+        "output": "0.000000"
+    },
+    {
+        "template": "%F",
+        "input": "123bad",
+        "error": null,
+        "message": null,
+        "output_base64": "MTIzLjAwMDAwMA==",
+        "output": "123.000000"
+    },
+    {
+        "template": "%F",
+        "input": "-12.25",
+        "error": null,
+        "message": null,
+        "output_base64": "LTEyLjI1MDAwMA==",
+        "output": "-12.250000"
+    },
+    {
+        "template": "%F",
+        "input": "0",
+        "error": null,
+        "message": null,
+        "output_base64": "MC4wMDAwMDA=",
+        "output": "0.000000"
+    },
+    {
+        "template": "%F",
+        "input": "猫😀",
+        "error": null,
+        "message": null,
+        "output_base64": "MC4wMDAwMDA=",
+        "output": "0.000000"
+    },
+    {
+        "template": "%F",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "MTIzLjAwMDAwMA==",
+        "output": "123.000000"
+    },
+    {
+        "template": "%F",
+        "input": -9223372036854775808,
+        "error": null,
+        "message": null,
+        "output_base64": "LTkyMjMzNzIwMzY4NTQ3NzU4MDguMDAwMDAw",
+        "output": "-9223372036854775808.000000"
+    },
+    {
+        "template": "%F",
+        "input": -0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "MC4wMDAwMDA=",
+        "output": "0.000000"
+    },
+    {
+        "template": "%F",
+        "input": 0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "MC4wMDAwMDA=",
+        "output": "0.000000"
+    },
+    {
+        "template": "%F",
+        "input": 1.005,
+        "error": null,
+        "message": null,
+        "output_base64": "MS4wMDUwMDA=",
+        "output": "1.005000"
+    },
+    {
+        "template": "%F",
+        "input": 1.0e+20,
+        "error": null,
+        "message": null,
+        "output_base64": "MTAwMDAwMDAwMDAwMDAwMDAwMDAwLjAwMDAwMA==",
+        "output": "100000000000000000000.000000"
+    },
+    {
+        "template": "%F",
+        "input": "1e309",
+        "error": null,
+        "message": null,
+        "output_base64": "SU5G",
+        "output": "INF"
+    },
+    {
+        "template": "%G",
+        "input": "bad",
+        "error": null,
+        "message": null,
+        "output_base64": "MA==",
+        "output": "0"
+    },
+    {
+        "template": "%G",
+        "input": "123bad",
+        "error": null,
+        "message": null,
+        "output_base64": "MTIz",
+        "output": "123"
+    },
+    {
+        "template": "%G",
+        "input": "-12.25",
+        "error": null,
+        "message": null,
+        "output_base64": "LTEyLjI1",
+        "output": "-12.25"
+    },
+    {
+        "template": "%G",
+        "input": "0",
+        "error": null,
+        "message": null,
+        "output_base64": "MA==",
+        "output": "0"
+    },
+    {
+        "template": "%G",
+        "input": "猫😀",
+        "error": null,
+        "message": null,
+        "output_base64": "MA==",
+        "output": "0"
+    },
+    {
+        "template": "%G",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "MTIz",
+        "output": "123"
+    },
+    {
+        "template": "%G",
+        "input": -9223372036854775808,
+        "error": null,
+        "message": null,
+        "output_base64": "LTkuMjIzMzdFKzE4",
+        "output": "-9.22337E+18"
+    },
+    {
+        "template": "%G",
+        "input": -0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "LTA=",
+        "output": "-0"
+    },
+    {
+        "template": "%G",
+        "input": 0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "MA==",
+        "output": "0"
+    },
+    {
+        "template": "%G",
+        "input": 1.005,
+        "error": null,
+        "message": null,
+        "output_base64": "MS4wMDU=",
+        "output": "1.005"
+    },
+    {
+        "template": "%G",
+        "input": 1.0e+20,
+        "error": null,
+        "message": null,
+        "output_base64": "MS4wRSsyMA==",
+        "output": "1.0E+20"
+    },
+    {
+        "template": "%G",
+        "input": "1e309",
+        "error": null,
+        "message": null,
+        "output_base64": "SU5G",
+        "output": "INF"
+    },
+    {
+        "template": "%h",
+        "input": "bad",
+        "error": null,
+        "message": null,
+        "output_base64": "MA==",
+        "output": "0"
+    },
+    {
+        "template": "%h",
+        "input": "123bad",
+        "error": null,
+        "message": null,
+        "output_base64": "MTIz",
+        "output": "123"
+    },
+    {
+        "template": "%h",
+        "input": "-12.25",
+        "error": null,
+        "message": null,
+        "output_base64": "LTEyLjI1",
+        "output": "-12.25"
+    },
+    {
+        "template": "%h",
+        "input": "0",
+        "error": null,
+        "message": null,
+        "output_base64": "MA==",
+        "output": "0"
+    },
+    {
+        "template": "%h",
+        "input": "猫😀",
+        "error": null,
+        "message": null,
+        "output_base64": "MA==",
+        "output": "0"
+    },
+    {
+        "template": "%h",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "MTIz",
+        "output": "123"
+    },
+    {
+        "template": "%h",
+        "input": -9223372036854775808,
+        "error": null,
+        "message": null,
+        "output_base64": "LTkuMjIzMzdlKzE4",
+        "output": "-9.22337e+18"
+    },
+    {
+        "template": "%h",
+        "input": -0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "LTA=",
+        "output": "-0"
+    },
+    {
+        "template": "%h",
+        "input": 0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "MA==",
+        "output": "0"
+    },
+    {
+        "template": "%h",
+        "input": 1.005,
+        "error": null,
+        "message": null,
+        "output_base64": "MS4wMDU=",
+        "output": "1.005"
+    },
+    {
+        "template": "%h",
+        "input": 1.0e+20,
+        "error": null,
+        "message": null,
+        "output_base64": "MS4wZSsyMA==",
+        "output": "1.0e+20"
+    },
+    {
+        "template": "%h",
+        "input": "1e309",
+        "error": null,
+        "message": null,
+        "output_base64": "SU5G",
+        "output": "INF"
+    },
+    {
+        "template": "%H",
+        "input": "bad",
+        "error": null,
+        "message": null,
+        "output_base64": "MA==",
+        "output": "0"
+    },
+    {
+        "template": "%H",
+        "input": "123bad",
+        "error": null,
+        "message": null,
+        "output_base64": "MTIz",
+        "output": "123"
+    },
+    {
+        "template": "%H",
+        "input": "-12.25",
+        "error": null,
+        "message": null,
+        "output_base64": "LTEyLjI1",
+        "output": "-12.25"
+    },
+    {
+        "template": "%H",
+        "input": "0",
+        "error": null,
+        "message": null,
+        "output_base64": "MA==",
+        "output": "0"
+    },
+    {
+        "template": "%H",
+        "input": "猫😀",
+        "error": null,
+        "message": null,
+        "output_base64": "MA==",
+        "output": "0"
+    },
+    {
+        "template": "%H",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "MTIz",
+        "output": "123"
+    },
+    {
+        "template": "%H",
+        "input": -9223372036854775808,
+        "error": null,
+        "message": null,
+        "output_base64": "LTkuMjIzMzdFKzE4",
+        "output": "-9.22337E+18"
+    },
+    {
+        "template": "%H",
+        "input": -0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "LTA=",
+        "output": "-0"
+    },
+    {
+        "template": "%H",
+        "input": 0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "MA==",
+        "output": "0"
+    },
+    {
+        "template": "%H",
+        "input": 1.005,
+        "error": null,
+        "message": null,
+        "output_base64": "MS4wMDU=",
+        "output": "1.005"
+    },
+    {
+        "template": "%H",
+        "input": 1.0e+20,
+        "error": null,
+        "message": null,
+        "output_base64": "MS4wRSsyMA==",
+        "output": "1.0E+20"
+    },
+    {
+        "template": "%H",
+        "input": "1e309",
+        "error": null,
+        "message": null,
+        "output_base64": "SU5G",
+        "output": "INF"
+    },
+    {
+        "template": "%X",
+        "input": "bad",
+        "error": null,
+        "message": null,
+        "output_base64": "MA==",
+        "output": "0"
+    },
+    {
+        "template": "%X",
+        "input": "123bad",
+        "error": null,
+        "message": null,
+        "output_base64": "N0I=",
+        "output": "7B"
+    },
+    {
+        "template": "%X",
+        "input": "-12.25",
+        "error": null,
+        "message": null,
+        "output_base64": "RkZGRkZGRkZGRkZGRkZGNA==",
+        "output": "FFFFFFFFFFFFFFF4"
+    },
+    {
+        "template": "%X",
+        "input": "0",
+        "error": null,
+        "message": null,
+        "output_base64": "MA==",
+        "output": "0"
+    },
+    {
+        "template": "%X",
+        "input": "猫😀",
+        "error": null,
+        "message": null,
+        "output_base64": "MA==",
+        "output": "0"
+    },
+    {
+        "template": "%X",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "N0I=",
+        "output": "7B"
+    },
+    {
+        "template": "%X",
+        "input": -9223372036854775808,
+        "error": null,
+        "message": null,
+        "output_base64": "ODAwMDAwMDAwMDAwMDAwMA==",
+        "output": "8000000000000000"
+    },
+    {
+        "template": "%X",
+        "input": -0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "MA==",
+        "output": "0"
+    },
+    {
+        "template": "%X",
+        "input": 0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "MA==",
+        "output": "0"
+    },
+    {
+        "template": "%X",
+        "input": 1.005,
+        "error": null,
+        "message": null,
+        "output_base64": "MQ==",
+        "output": "1"
+    },
+    {
+        "template": "%X",
+        "input": 1.0e+20,
+        "error": null,
+        "message": null,
+        "output_base64": "NkJDNzVFMkQ2MzEwMDAwMA==",
+        "output": "6BC75E2D63100000"
+    },
+    {
+        "template": "%X",
+        "input": "1e309",
+        "error": null,
+        "message": null,
+        "output_base64": "MA==",
+        "output": "0"
+    },
+    {
+        "template": "%.0s",
+        "input": "bad",
+        "error": null,
+        "message": null,
+        "output_base64": "",
+        "output": ""
+    },
+    {
+        "template": "%.0s",
+        "input": "123bad",
+        "error": null,
+        "message": null,
+        "output_base64": "",
+        "output": ""
+    },
+    {
+        "template": "%.0s",
+        "input": "-12.25",
+        "error": null,
+        "message": null,
+        "output_base64": "",
+        "output": ""
+    },
+    {
+        "template": "%.0s",
+        "input": "0",
+        "error": null,
+        "message": null,
+        "output_base64": "",
+        "output": ""
+    },
+    {
+        "template": "%.0s",
+        "input": "猫😀",
+        "error": null,
+        "message": null,
+        "output_base64": "",
+        "output": ""
+    },
+    {
+        "template": "%.0s",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "",
+        "output": ""
+    },
+    {
+        "template": "%.0s",
+        "input": -9223372036854775808,
+        "error": null,
+        "message": null,
+        "output_base64": "",
+        "output": ""
+    },
+    {
+        "template": "%.0s",
+        "input": -0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "",
+        "output": ""
+    },
+    {
+        "template": "%.0s",
+        "input": 0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "",
+        "output": ""
+    },
+    {
+        "template": "%.0s",
+        "input": 1.005,
+        "error": null,
+        "message": null,
+        "output_base64": "",
+        "output": ""
+    },
+    {
+        "template": "%.0s",
+        "input": 1.0e+20,
+        "error": null,
+        "message": null,
+        "output_base64": "",
+        "output": ""
+    },
+    {
+        "template": "%.0s",
+        "input": "1e309",
+        "error": null,
+        "message": null,
+        "output_base64": "",
+        "output": ""
+    },
+    {
+        "template": "%.s",
+        "input": "bad",
+        "error": null,
+        "message": null,
+        "output_base64": "YmFk",
+        "output": "bad"
+    },
+    {
+        "template": "%.s",
+        "input": "123bad",
+        "error": null,
+        "message": null,
+        "output_base64": "MTIzYmFk",
+        "output": "123bad"
+    },
+    {
+        "template": "%.s",
+        "input": "-12.25",
+        "error": null,
+        "message": null,
+        "output_base64": "LTEyLjI1",
+        "output": "-12.25"
+    },
+    {
+        "template": "%.s",
+        "input": "0",
+        "error": null,
+        "message": null,
+        "output_base64": "MA==",
+        "output": "0"
+    },
+    {
+        "template": "%.s",
+        "input": "猫😀",
+        "error": null,
+        "message": null,
+        "output_base64": "54yr8J+YgA==",
+        "output": "猫😀"
+    },
+    {
+        "template": "%.s",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "MTIz",
+        "output": "123"
+    },
+    {
+        "template": "%.s",
+        "input": -9223372036854775808,
+        "error": null,
+        "message": null,
+        "output_base64": "LTkyMjMzNzIwMzY4NTQ3NzU4MDg=",
+        "output": "-9223372036854775808"
+    },
+    {
+        "template": "%.s",
+        "input": -0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "LTA=",
+        "output": "-0"
+    },
+    {
+        "template": "%.s",
+        "input": 0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "MA==",
+        "output": "0"
+    },
+    {
+        "template": "%.s",
+        "input": 1.005,
+        "error": null,
+        "message": null,
+        "output_base64": "MS4wMDU=",
+        "output": "1.005"
+    },
+    {
+        "template": "%.s",
+        "input": 1.0e+20,
+        "error": null,
+        "message": null,
+        "output_base64": "MS4wRSsyMA==",
+        "output": "1.0E+20"
+    },
+    {
+        "template": "%.s",
+        "input": "1e309",
+        "error": null,
+        "message": null,
+        "output_base64": "MWUzMDk=",
+        "output": "1e309"
+    },
+    {
+        "template": "%1$3.2s",
+        "input": "bad",
+        "error": null,
+        "message": null,
+        "output_base64": "IGJh",
+        "output": " ba"
+    },
+    {
+        "template": "%1$3.2s",
+        "input": "123bad",
+        "error": null,
+        "message": null,
+        "output_base64": "IDEy",
+        "output": " 12"
+    },
+    {
+        "template": "%1$3.2s",
+        "input": "-12.25",
+        "error": null,
+        "message": null,
+        "output_base64": "IC0x",
+        "output": " -1"
+    },
+    {
+        "template": "%1$3.2s",
+        "input": "0",
+        "error": null,
+        "message": null,
+        "output_base64": "ICAw",
+        "output": "  0"
+    },
+    {
+        "template": "%1$3.2s",
+        "input": "猫😀",
+        "error": null,
+        "message": null,
+        "output_base64": "IOeM",
+        "output": null
+    },
+    {
+        "template": "%1$3.2s",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "IDEy",
+        "output": " 12"
+    },
+    {
+        "template": "%1$3.2s",
+        "input": -9223372036854775808,
+        "error": null,
+        "message": null,
+        "output_base64": "IC05",
+        "output": " -9"
+    },
+    {
+        "template": "%1$3.2s",
+        "input": -0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "IC0w",
+        "output": " -0"
+    },
+    {
+        "template": "%1$3.2s",
+        "input": 0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "ICAw",
+        "output": "  0"
+    },
+    {
+        "template": "%1$3.2s",
+        "input": 1.005,
+        "error": null,
+        "message": null,
+        "output_base64": "IDEu",
+        "output": " 1."
+    },
+    {
+        "template": "%1$3.2s",
+        "input": 1.0e+20,
+        "error": null,
+        "message": null,
+        "output_base64": "IDEu",
+        "output": " 1."
+    },
+    {
+        "template": "%1$3.2s",
+        "input": "1e309",
+        "error": null,
+        "message": null,
+        "output_base64": "IDFl",
+        "output": " 1e"
+    },
+    {
+        "template": "%1$s:%s",
+        "input": "bad",
+        "error": null,
+        "message": null,
+        "output_base64": "YmFkOmJhZA==",
+        "output": "bad:bad"
+    },
+    {
+        "template": "%1$s:%s",
+        "input": "123bad",
+        "error": null,
+        "message": null,
+        "output_base64": "MTIzYmFkOjEyM2JhZA==",
+        "output": "123bad:123bad"
+    },
+    {
+        "template": "%1$s:%s",
+        "input": "-12.25",
+        "error": null,
+        "message": null,
+        "output_base64": "LTEyLjI1Oi0xMi4yNQ==",
+        "output": "-12.25:-12.25"
+    },
+    {
+        "template": "%1$s:%s",
+        "input": "0",
+        "error": null,
+        "message": null,
+        "output_base64": "MDow",
+        "output": "0:0"
+    },
+    {
+        "template": "%1$s:%s",
+        "input": "猫😀",
+        "error": null,
+        "message": null,
+        "output_base64": "54yr8J+YgDrnjKvwn5iA",
+        "output": "猫😀:猫😀"
+    },
+    {
+        "template": "%1$s:%s",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "MTIzOjEyMw==",
+        "output": "123:123"
+    },
+    {
+        "template": "%1$s:%s",
+        "input": -9223372036854775808,
+        "error": null,
+        "message": null,
+        "output_base64": "LTkyMjMzNzIwMzY4NTQ3NzU4MDg6LTkyMjMzNzIwMzY4NTQ3NzU4MDg=",
+        "output": "-9223372036854775808:-9223372036854775808"
+    },
+    {
+        "template": "%1$s:%s",
+        "input": -0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "LTA6LTA=",
+        "output": "-0:-0"
+    },
+    {
+        "template": "%1$s:%s",
+        "input": 0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "MDow",
+        "output": "0:0"
+    },
+    {
+        "template": "%1$s:%s",
+        "input": 1.005,
+        "error": null,
+        "message": null,
+        "output_base64": "MS4wMDU6MS4wMDU=",
+        "output": "1.005:1.005"
+    },
+    {
+        "template": "%1$s:%s",
+        "input": 1.0e+20,
+        "error": null,
+        "message": null,
+        "output_base64": "MS4wRSsyMDoxLjBFKzIw",
+        "output": "1.0E+20:1.0E+20"
+    },
+    {
+        "template": "%1$s:%s",
+        "input": "1e309",
+        "error": null,
+        "message": null,
+        "output_base64": "MWUzMDk6MWUzMDk=",
+        "output": "1e309:1e309"
+    },
+    {
+        "template": "%s:%1$s",
+        "input": "bad",
+        "error": null,
+        "message": null,
+        "output_base64": "YmFkOmJhZA==",
+        "output": "bad:bad"
+    },
+    {
+        "template": "%s:%1$s",
+        "input": "123bad",
+        "error": null,
+        "message": null,
+        "output_base64": "MTIzYmFkOjEyM2JhZA==",
+        "output": "123bad:123bad"
+    },
+    {
+        "template": "%s:%1$s",
+        "input": "-12.25",
+        "error": null,
+        "message": null,
+        "output_base64": "LTEyLjI1Oi0xMi4yNQ==",
+        "output": "-12.25:-12.25"
+    },
+    {
+        "template": "%s:%1$s",
+        "input": "0",
+        "error": null,
+        "message": null,
+        "output_base64": "MDow",
+        "output": "0:0"
+    },
+    {
+        "template": "%s:%1$s",
+        "input": "猫😀",
+        "error": null,
+        "message": null,
+        "output_base64": "54yr8J+YgDrnjKvwn5iA",
+        "output": "猫😀:猫😀"
+    },
+    {
+        "template": "%s:%1$s",
+        "input": 123,
+        "error": null,
+        "message": null,
+        "output_base64": "MTIzOjEyMw==",
+        "output": "123:123"
+    },
+    {
+        "template": "%s:%1$s",
+        "input": -9223372036854775808,
+        "error": null,
+        "message": null,
+        "output_base64": "LTkyMjMzNzIwMzY4NTQ3NzU4MDg6LTkyMjMzNzIwMzY4NTQ3NzU4MDg=",
+        "output": "-9223372036854775808:-9223372036854775808"
+    },
+    {
+        "template": "%s:%1$s",
+        "input": -0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "LTA6LTA=",
+        "output": "-0:-0"
+    },
+    {
+        "template": "%s:%1$s",
+        "input": 0.0,
+        "error": null,
+        "message": null,
+        "output_base64": "MDow",
+        "output": "0:0"
+    },
+    {
+        "template": "%s:%1$s",
+        "input": 1.005,
+        "error": null,
+        "message": null,
+        "output_base64": "MS4wMDU6MS4wMDU=",
+        "output": "1.005:1.005"
+    },
+    {
+        "template": "%s:%1$s",
+        "input": 1.0e+20,
+        "error": null,
+        "message": null,
+        "output_base64": "MS4wRSsyMDoxLjBFKzIw",
+        "output": "1.0E+20:1.0E+20"
+    },
+    {
+        "template": "%s:%1$s",
+        "input": "1e309",
+        "error": null,
+        "message": null,
+        "output_base64": "MWUzMDk6MWUzMDk=",
+        "output": "1e309:1e309"
+    }
+]

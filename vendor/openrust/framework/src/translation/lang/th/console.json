@@ -66,6 +66,8 @@
   },
   "arguments": "ข้อโต้แย้ง:",
   "question": {
-    "multiline": "กด :keys เพื่อดำเนินการต่อ"
+    "multiline": "กด :keys เพื่อดำเนินการต่อ",
+    "choice_invalid": "ค่า \"%s\" ไม่ถูกต้อง",
+    "choice_ambiguous": "คำตอบไม่ชัดเจน โปรดเลือกค่าใดค่าหนึ่งจาก :choices"
   }
 }

@@ -66,6 +66,8 @@
     },
     "arguments": "Arguments:",
     "question": {
-        "multiline": "press :keys to continue"
+        "multiline": "press :keys to continue",
+        "choice_invalid": "Value \"%s\" is invalid",
+        "choice_ambiguous": "The provided answer is ambiguous. Value should be one of :choices."
     }
 }

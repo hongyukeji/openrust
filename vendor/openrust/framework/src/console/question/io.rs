@@ -1,5 +1,7 @@
 use super::super::{CommandIo, ConsoleError, OutputStyle};
-use super::{CompletionCallback, ConfirmationQuestion, Question, QuestionCallback};
+use super::{
+    ChoiceKey, ChoiceQuestion, CompletionCallback, ConfirmationQuestion, Question, QuestionCallback,
+};
 use serde_json::Value;
 
 impl OutputStyle<'_> {
@@ -110,5 +112,74 @@ impl CommandIo<'_> {
         default: Option<&str>,
     ) -> Result<Option<String>, ConsoleError> {
         self.ask_with_completion(label, choices, default).await
+    }
+}
+
+impl OutputStyle<'_> {
+    pub async fn choice<T: Into<Value>>(
+        &mut self,
+        label: &str,
+        choices: impl IntoIterator<Item = T>,
+    ) -> Result<Value, ConsoleError> {
+        self.choice_with(label, choices, None, false).await
+    }
+    pub async fn choice_with<T: Into<Value>>(
+        &mut self,
+        label: &str,
+        choices: impl IntoIterator<Item = T>,
+        default: Option<Value>,
+        multiple: bool,
+    ) -> Result<Value, ConsoleError> {
+        let mut question = ChoiceQuestion::new(label, choices, default)?;
+        question.remap_default_value();
+        question.set_multiselect(multiple);
+        self.ask_question(question.as_question()).await
+    }
+    pub async fn choice_pairs_with<K: Into<ChoiceKey>, V: Into<Value>>(
+        &mut self,
+        label: &str,
+        choices: impl IntoIterator<Item = (K, V)>,
+        default: Option<Value>,
+        multiple: bool,
+    ) -> Result<Value, ConsoleError> {
+        let mut question = ChoiceQuestion::from_pairs(label, choices, default)?;
+        question.remap_default_value();
+        question.set_multiselect(multiple);
+        self.ask_question(question.as_question()).await
+    }
+}
+impl CommandIo<'_> {
+    pub async fn choice<T: Into<Value>>(
+        &mut self,
+        label: &str,
+        choices: impl IntoIterator<Item = T>,
+    ) -> Result<Value, ConsoleError> {
+        self.choice_with(label, choices, None, None, false).await
+    }
+    pub async fn choice_with<T: Into<Value>>(
+        &mut self,
+        label: &str,
+        choices: impl IntoIterator<Item = T>,
+        default: Option<Value>,
+        attempts: Option<usize>,
+        multiple: bool,
+    ) -> Result<Value, ConsoleError> {
+        let mut question = ChoiceQuestion::new(label, choices, default)?;
+        question.set_multiselect(multiple);
+        question.set_max_attempts(attempts)?;
+        self.get_output().ask_question(question.as_question()).await
+    }
+    pub async fn choice_pairs_with<K: Into<ChoiceKey>, V: Into<Value>>(
+        &mut self,
+        label: &str,
+        choices: impl IntoIterator<Item = (K, V)>,
+        default: Option<Value>,
+        attempts: Option<usize>,
+        multiple: bool,
+    ) -> Result<Value, ConsoleError> {
+        let mut question = ChoiceQuestion::from_pairs(label, choices, default)?;
+        question.set_multiselect(multiple);
+        question.set_max_attempts(attempts)?;
+        self.get_output().ask_question(question.as_question()).await
     }
 }

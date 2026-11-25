@@ -109,5 +109,29 @@ async fn formal_questions_example() {
 }
 """
     parts.append('mod '+locale.replace('-','_').lower()+'_questions{\n'+question_code+question_checks+'}\n')
+    choices_code=re.search(r'```rust\n(.*?)```',text.split('{#choice-questions}',1)[1],re.S).group(1)
+    choices_checks=r"""
+use openrust::{console::Output, support::facades::{App, Facade as _}};
+#[tokio::test]
+async fn formal_choices_example() {
+    let root=std::env::temp_dir().join(format!("artisan-choices-{}-{}",std::process::id(),module_path!()));
+    std::fs::create_dir_all(&root).unwrap();
+    let mut app=openrust::foundation::Application::configure(root.clone()).with_routing(openrust::foundation::configuration::Routing::default().commands(register_choices)).create().unwrap();
+    app.boot().await.unwrap();
+    if std::env::var_os("FORMAL_CHOICES_TTY").is_some() { assert_eq!(app.handle_command(&["reports:choices".into()]).await.unwrap(),0); return; }
+    App::set_facade_application(Some(&app),async {
+        let mut output=Output::default();
+        assert_eq!(Artisan::call("reports:choices", &["--no-interaction".into()], &mut output).await.unwrap(),0);
+        assert_eq!(serde_json::from_str::<serde_json::Value>(output.stdout.trim()).unwrap(),serde_json::json!({"channel":"email","formats":["csv","json"],"priority":"normal"}));
+        for flag in ["--quiet", "--silent"] {
+            let mut output=Output::default();
+            assert_eq!(Artisan::call("reports:choices", &[flag.into()], &mut output).await.unwrap(),0);
+            assert!(output.stdout.is_empty());
+        }
+    }).await;
+    std::fs::remove_dir_all(root).unwrap();
+}
+"""
+    parts.append('mod '+locale.replace('-','_').lower()+'_choices{\n'+choices_code+choices_checks+'}\n')
 target=source/'tests/artisan_docs_generated.rs';target.write_text('\n'.join(parts));subprocess.run(['rustfmt','+1.94.0','--edition','2024',str(target)],check=True)
 print('generated',len(parts),'direct formal consumers')

@@ -66,6 +66,8 @@
   },
   "arguments": "الحجج:",
   "question": {
-    "multiline": "اضغط :keys للمتابعة"
+    "multiline": "اضغط :keys للمتابعة",
+    "choice_invalid": "القيمة \"%s\" غير صالحة",
+    "choice_ambiguous": "الإجابة غير محددة. اختر إحدى القيم :choices."
   }
 }

@@ -66,6 +66,8 @@
   },
   "arguments": "Argumente:",
   "question": {
-    "multiline": "zum Fortfahren :keys drücken"
+    "multiline": "zum Fortfahren :keys drücken",
+    "choice_invalid": "Der Wert „%s“ ist ungültig",
+    "choice_ambiguous": "Die Antwort ist mehrdeutig. Wählen Sie einen der Werte :choices."
   }
 }

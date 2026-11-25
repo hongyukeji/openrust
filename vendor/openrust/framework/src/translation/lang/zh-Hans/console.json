@@ -66,6 +66,8 @@
     },
     "arguments": "参数：",
     "question": {
-        "multiline": "按 :keys 继续"
+        "multiline": "按 :keys 继续",
+        "choice_invalid": "选项“%s”无效",
+        "choice_ambiguous": "答案不唯一，请使用以下键之一：:choices"
     }
 }

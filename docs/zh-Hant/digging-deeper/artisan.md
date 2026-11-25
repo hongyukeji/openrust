@@ -557,3 +557,36 @@ fn register_questions() -> Result<(), ConsoleError> {
 需要自訂驗證時，建立 `Question`，透過 `set_normalizer`、`set_validator` 設定 `QuestionCallback`，再呼叫 `get_output().ask_question(&question).await`。驗證器可回傳結構化 JSON；`ask_with_validator` 和 `ask_hidden_with` 保留該回傳值。非互動預設值只執行驗證器，不執行正規化器。`set_max_attempts`、`set_trimmable`、`set_multiline` 和 `set_timeout` 控制重試和讀取。
 
 `Input::set_stream` 接收包裝非同步緩衝讀取器的 `ConsoleInputStream`。輸入複製共用串流位置，但獨立保存互動開關；向 Kernel 明確傳入 Input 時共用本次呼叫狀態。補全回呼在目前應用程式作用域執行，支援 await。`CompletionCallback::iter` 延遲快取單次迭代器，`pairs` 按順序提供字串鍵及值。Ctrl+C 回傳 130；取消、逾時和驗證失敗均還原終端模式。Windows 終端實測仍歸發布矩陣。
+
+## 選擇題與多選 {#choice-questions}
+
+`choice` 接收選項清單，不設定預設值。使用 `choice_with` 指定預設值、最大嘗試次數及多選開關。多選輸入用逗號分隔索引或選項值，結果為陣列。`choice_pairs_with` 保留宣告順序並回傳關聯鍵；規範的整數字串按數字鍵處理，其他字串保持原寫法。
+
+```rust
+use openrust::{
+    console::{AsyncCommandCallback, ConsoleError},
+    support::facades::Artisan,
+};
+
+fn register_choices() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:choices", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut io = input.io(output);
+            let channel = io.choice_with("Channel", ["email", "sms"], Some(serde_json::json!(0)), Some(2), false).await?;
+            let formats = io.choice_with("Formats", ["csv", "json"], Some(serde_json::json!("0,1")), Some(2), true).await?;
+            let priority = io.choice_pairs_with("Priority", [("normal", "Normal"), ("urgent", "Urgent")], Some(serde_json::json!("normal")), Some(2), false).await?;
+            io.line(&serde_json::json!({"channel": channel, "formats": formats, "priority": priority}).to_string())?;
+            Ok(0)
+        })
+    }))?.purpose("Collect report choices")
+}
+```
+
+文字、數字和布林選項重用既有純量比較規則。重複且有歧義的標籤需要改用鍵選擇。無預設值的問題在非互動模式回傳 null；非法預設值仍驗證失敗。`OutputStyle::choice_with` 額外將預設選項值解析為鍵；命令 I/O 直接使用傳入的預設值。
+
+自訂提示或錯誤文案時，建立 `ChoiceQuestion::new` 或 `from_pairs`，使用 `set_prompt`、`set_error_message`（只有一個回答參數，支援 `%s`、可重複的 `%1$s`、寬度／精度及字面值 `%%`）、`set_multiselect`，再將 `as_question()` 傳給 `ask_question`。`get_choices`、`get_prompt` 和 `is_multiselect` 讀取實際定義。修改去空白開關後，已取出的預設驗證器也跟隨更新。原生 Question 複本獨立保存設定；明確回呼及補全快取控制代碼仍共用。樣式標籤應圍繞完整字素；格式化可見文字按 NFC 和字素邊界處理，Raw 輸出、超連結目標及回傳鍵保持原資料。
+
+
+回呼中的執行錯誤使用 `ConsoleError::from_runtime_source`：立即終止重試，同時保留原錯誤型別與來源鏈。一般驗證錯誤仍可重試；輸入缺失使用已驗證的預設值並關閉後續互動。終端在執行正規化器或驗證器之前還原。範本產生非 UTF-8 位元組時回傳含原始來源的 `ConsoleQuestionError::InvalidEncoding`，不將任意 PHP 二進位字串當作 Rust 文字回傳。
+
+應用程式標籤型別實作 `Display` 後，可用 `ChoiceLabel(value)` 傳入選項。原生 JSON 回答模型保存標籤文字快照，不攜帶 PHP 物件身分；關聯選擇仍回傳原宣告鍵，應用程式物件保留在呼叫端集合中。

@@ -97,6 +97,7 @@ pub(super) async fn read(
     style: &mut OutputStyle<'_>,
     question: &Question,
     session: &mut Session,
+    prompt: &str,
 ) -> Result<Option<String>, ConsoleError> {
     match session {
         Session::Injected(stream) => {
@@ -105,13 +106,14 @@ pub(super) async fn read(
                 .await
         }
         Session::Captured => Ok(None),
-        Session::Terminal(_lease) => terminal(style, question).await,
+        Session::Terminal(_lease) => terminal(style, question, prompt).await,
         Session::Pipe(_lease) => pipe(question.multiline && !question.hidden).await,
     }
 }
 async fn terminal(
     style: &mut OutputStyle<'_>,
     question: &Question,
+    prompt: &str,
 ) -> Result<Option<String>, ConsoleError> {
     let mut text = String::new();
     let mut suggestions = if let Some(callback) = &question.completion {
@@ -238,14 +240,14 @@ async fn terminal(
             let visible = text.rsplit('\n').next().unwrap_or(&text);
             if style.get_output().is_decorated() {
                 style.write(
-                    format!("\r\x1b[2K > {visible}\x1b[s\x1b[30;47m{ghost}\x1b[39;49m\x1b[u")
+                    format!("\r\x1b[2K{prompt}{visible}\x1b[s\x1b[30;47m{ghost}\x1b[39;49m\x1b[u")
                         .as_str(),
                     false,
                     OutputFormat::Raw,
                 )?;
             } else {
                 style.write(
-                    format!("\r > {visible}{ghost}").as_str(),
+                    format!("\r{prompt}{visible}{ghost}").as_str(),
                     false,
                     OutputFormat::Raw,
                 )?;

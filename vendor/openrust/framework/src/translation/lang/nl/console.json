@@ -66,6 +66,8 @@
   },
   "arguments": "Argumenten:",
   "question": {
-    "multiline": "druk op :keys om door te gaan"
+    "multiline": "druk op :keys om door te gaan",
+    "choice_invalid": "De waarde \"%s\" is ongeldig",
+    "choice_ambiguous": "Het antwoord is dubbelzinnig. Kies een van de waarden :choices."
   }
 }

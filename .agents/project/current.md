@@ -21,6 +21,8 @@ Git 默认流程已于 2026-11-23 更新：已授权任务完成并通过相关�
 
 - 2026-11-25 Artisan第九簇原生问答通过：Question／ConfirmationQuestion、异步回调／注入流、默认回退／重试／取消与终端恢复，关联quiet／silent缺参提示修正。135项父消费者含三语30例、15真实PTY场景、三语连续问答、实际HTTP／Artisan／浏览器和严格门禁通过，见[第九簇](audits/artisan-tutorial/README.md)。ChoiceQuestion、表格／进度、组件／生成／事件等继续，整章未闭合，不推送。
 
+- 2026-11-25 Artisan第十簇选择题／多选及关联问答契约通过：117选择、24格式器、540模板向量与真实公开入口／HTTP／Artisan／终端匹配；运行错误保留来源并按明确类型终止，普通错误可重试。148项父消费者含三语33例、16选择及15基础PTY、三语实跑／浏览器和严格门禁通过，见[第十簇](audits/artisan-tutorial/README.md)。原生JSON／Display文本快照、UTF-8及VM边界明确，不伪称对象身份或完整SDK。接着表格／进度及其余公开入口，整章未闭合、不推送。
+
 - 2026-11-25用户授权持续开发完整用户认证入门套件，遇到实现问题按固定基线自行裁决。按[API-A01计划](plans/user-auth-starter-kit.md)的A01-01至05实施，当前已验显式响应与安全资源、full／api双安装预设及基础Blade页面；34项直接消费者、三库各4项真实HTTP、双预设真实Artisan／HTTP与严格门禁通过。邮件链接与密码浏览器会话单元亦已通过三库、file／database／Redis及SPA回归；继续SMTP／队列、PAT／无密码及跨节点撤销、账户中心；进度和证据见[本批记录](audits/user-auth-starter/README.md)。全部批次未闭合，不以底层已有模块或部分验收代替完整交付。保留其他在途工作，按规范实测后分批本地提交；不推送、不发布。
 
 - 2026-11-24 固定Error Handling教程18节已逐项闭合：报告助手、异常类型行为／忽略标记、异步命名视图、419重定向与会话闪存、真实错误页对象、八专用回退及发布均经真实HTTP／Artisan验证；三语正文与[18节账本](audits/error-tutorial/section-map.json)同步，证据与原生差异见[最终核对](audits/error-tutorial/README.md)。保留URL14节、Validation179节及Settings既定范围已闭合状态，不扩张为全框架API或发布矩阵完成。本轮只本地提交，未推送。

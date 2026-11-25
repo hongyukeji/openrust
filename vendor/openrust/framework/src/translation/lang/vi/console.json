@@ -66,6 +66,8 @@
   },
   "arguments": "Lập luận:",
   "question": {
-    "multiline": "nhấn :keys để tiếp tục"
+    "multiline": "nhấn :keys để tiếp tục",
+    "choice_invalid": "Giá trị \"%s\" không hợp lệ",
+    "choice_ambiguous": "Câu trả lời không rõ ràng. Hãy chọn một trong các giá trị :choices."
   }
 }

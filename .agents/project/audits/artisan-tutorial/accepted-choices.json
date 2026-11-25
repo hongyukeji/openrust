@@ -1,0 +1,79 @@
+{
+  "base": "cf774d781e190fd3810dd9b3f2e293922c681376",
+  "source": "target/tmp/logging-tutorial-20261124/source",
+  "source_sha256": {
+    "vendor/openrust/framework/src/console/formatting.rs": "9f11027a4f07aefa0a33b7c0033a524cfd8d64101250c983b0f0781ee10ad460",
+    "vendor/openrust/framework/src/console/mod.rs": "b0f08ceb094ffdb307ada0e12ae99f1cb67a907babcb9440d693397562486cc1",
+    "vendor/openrust/framework/src/console/question/error_format.rs": "505a5ef610202535783c67369ba6eafa4b8f5bd3e272364619e8731e61305043",
+    "vendor/openrust/framework/src/console/question/choice.rs": "2f3eb7d7f974e88d5e1493e85a3141f9852789339f8db68b936b3302f6976f9d",
+    "vendor/openrust/framework/src/console/question/io.rs": "bcbcb7661fe441d07db91eba138de3624143f609309febcc94a506759e95c6cf",
+    "vendor/openrust/framework/src/console/question/mod.rs": "3984da71cf684dd3cc9b775683891574de668a83ffb114e92a9fc4102d0edbff",
+    "vendor/openrust/framework/src/console/question/reader.rs": "407e6957aad374252e8ab91bc958ee2232089a98e89b87abde363d97cf89583e",
+    "vendor/openrust/framework/src/console/formatting/unicode.rs": "e72a3b6d13de6eb60d5d0b070ad8f2e82cf2d0b1fdac8095c175ae1c787eb4a3",
+    "vendor/openrust/framework/src/translation/lang/zh-Hans/console.json": "89e186dd0fa7a80dd894c9f6b0049c015a290d26e20f04ef336997e7a5210373",
+    "vendor/openrust/framework/src/translation/lang/zh-Hant/console.json": "27c34c02ee6e363856437426e069c74b3c1139bbd9bf1c3f1bb0b193c22fdd35",
+    "vendor/openrust/framework/src/translation/lang/vi/console.json": "ebe2b21ddefe06ea7642dd46abf726afe177af8d9e2ff1e4c74d2438f79d8a02",
+    "vendor/openrust/framework/src/translation/lang/ja/console.json": "bba2d408e156eeb0d8091b77dacd4a398a85ee1a2c320692d914afc9486639bf",
+    "vendor/openrust/framework/src/translation/lang/it/console.json": "930f50f1531a3e382d8c1c5332598bdc773eb229fcbad5202c25ab69ff014f04",
+    "vendor/openrust/framework/src/translation/lang/ru/console.json": "007518e2d22f103d3363ff1af52e4fc6ea139116bd6e0e75105cacba7a8cdfb5",
+    "vendor/openrust/framework/src/translation/lang/pt/console.json": "9ffd49034b8a673c478e9fe52a8ce8a1284036d07a1411a6dfda01c02716a8d0",
+    "vendor/openrust/framework/src/translation/lang/ar/console.json": "18c3e0d0084a271285c0199bdbf31d4fbe9264c198c980dfdda8729cf3812341",
+    "vendor/openrust/framework/src/translation/lang/nl/console.json": "a6ef8b544e37efee267ce351727125698958846d283f5a0bda0583db900536f9",
+    "vendor/openrust/framework/src/translation/lang/hi/console.json": "f506436a2fa1d1f62921caec0cab2aeb8f982f26c9440915ae61d4d19d07dc0b",
+    "vendor/openrust/framework/src/translation/lang/de/console.json": "4dc7099074093621586ef84ac113ea02e6b53595b766366d9e99b49e48ec1f5c",
+    "vendor/openrust/framework/src/translation/lang/ko/console.json": "61f03a588bf196e22d01c82d3a1c21cb52440c9bf108e45828b71d50c4e112fc",
+    "vendor/openrust/framework/src/translation/lang/id/console.json": "9f213ea869a316f7b45c936bb49a48649dcf20f87414bd8b4e07cda418df0598",
+    "vendor/openrust/framework/src/translation/lang/fr/console.json": "3eb5d6990fb018f59acbb1b98c40cff764b3a794ef95a3228e080d83c34a1a37",
+    "vendor/openrust/framework/src/translation/lang/es/console.json": "f6aacaf29ad17678d6dcb499888381785c78ee3e743c7f952fa17cf377c53e6b",
+    "vendor/openrust/framework/src/translation/lang/en/console.json": "f8b62cc91fe0e17652aa0e72daed41eebba0b36e4fe9e150d894a5469857da45",
+    "vendor/openrust/framework/src/translation/lang/th/console.json": "e847691e1f00c713cdb9733924809e738ad2f6f281bdd8692fdae03bfa989f45",
+    "vendor/openrust/framework/src/translation/lang/tr/console.json": "785f148cf7e256815582fd28fdf4ba59828656cb7512dac980f1880d9281fdc0",
+    "vendor/openrust/framework/tests/console_choices_tutorial.rs": "4bc88e3ad0d75a2199ff0657f8d35f25db66ee7ac7cf22b78e16df6ad9206393",
+    "docs/en/digging-deeper/artisan.md": "8ef0026363fc6c4441e487ce9cd00e9e27b6d306773854705d4f96365b6c5b4e",
+    "docs/zh-Hans/digging-deeper/artisan.md": "e7a93c1623f308ccae1c144a0692875b2015ffb86ac0f96e99c37a09157bca0f",
+    "docs/zh-Hant/digging-deeper/artisan.md": "bfe5c4544ebf7b4719fc033de745d84929fbb3ecaeb8e416d7c008859723c01e",
+    "docs/tests/check_artisan_tutorial.mjs": "bda9117c73d9e74900b8d3255ce68eeb1e5de2130fe8bac1a3aa1d2d2b031e0c",
+    "tests/artisan_tutorial_docs.py": "6e4566b4b21bc7d7e8c5ae62c6338290e7d9b7787ed3e7680b91c456723c4fd4"
+  },
+  "parent_consumers": {
+    "framework_before_display_label": 73,
+    "application": 74,
+    "additional_display_consumer": 1,
+    "distinct_total": 148
+  },
+  "ignored_fixtures": 4,
+  "source_vectors": {
+    "choices": 117,
+    "formatter": 24,
+    "templates": 540,
+    "warning_boundary": "PHP VM float/int conversion warnings are retained in raw source stderr, not emulated by native typed conversion"
+  },
+  "terminal_scenarios": {
+    "choices": 16,
+    "base_questions": 15,
+    "formal_choices_languages": 3,
+    "formal_base_questions_languages": 3
+  },
+  "browser_groups": 12,
+  "native_boundaries": [
+    "established JSON answer model and explicit Display text snapshots instead of PHP object identity",
+    "invalid UTF-8 template output becomes sourced InvalidEncoding",
+    "no process-global PHP LC_NUMERIC or VM warning emulation; fixed reference default C numeric formatting",
+    "Rust Question clones own settings; retained native callback handles retain shared closure/cache semantics"
+  ],
+  "evidence": [
+    "choice-final-framework2.log",
+    "choice-label-tests.log",
+    "choice-final-root.log",
+    "choice-label-clippy.log",
+    "choice-label-main.log",
+    "choice-label-docs.log",
+    "choice-label-runtime.log",
+    "choice-final-browser.log",
+    "choice-final-tty.log",
+    "choice-base-question-tty.log",
+    "choice-final-formal-tty.log",
+    "choice-base-formal-tty.log"
+  ],
+  "chapter_closed": false
+}

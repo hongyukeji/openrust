@@ -267,12 +267,17 @@
     },
     {
       "anchor": "prompting-for-input",
-      "status": "partial_questions_verified_choices_pending",
+      "status": "verified_tutorial_scope",
       "evidence": [
         "console_questions_tutorial",
+        "console_choices_tutorial",
         "question-contracts.json",
-        "README.md#第九簇原生问答与输入状态2026-11-25"
-      ]
+        "choice-final-framework2.log",
+        "choice-label-tests.log",
+        "choice-final-formal-tty.log",
+        "choice-final-tty.log"
+      ],
+      "contract": "文本／确认／隐藏／动态补全／选择与多选的真实公开入口，既定JSON回答模型及显式Display标签适配；非交互、默认值、重试及运行错误已核对。继承SDK及整个Artisan章不因此关闭。"
     },
     {
       "anchor": "asking-for-confirmation",

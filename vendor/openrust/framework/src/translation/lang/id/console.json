@@ -66,6 +66,8 @@
   },
   "arguments": "Argumen:",
   "question": {
-    "multiline": "tekan :keys untuk melanjutkan"
+    "multiline": "tekan :keys untuk melanjutkan",
+    "choice_invalid": "Nilai \"%s\" tidak valid",
+    "choice_ambiguous": "Jawaban ambigu. Pilih salah satu nilai :choices."
   }
 }

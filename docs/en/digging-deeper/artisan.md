@@ -557,3 +557,36 @@ fn register_questions() -> Result<(), ConsoleError> {
 For custom validation, create `Question`, set `QuestionCallback` with `set_normalizer` or `set_validator`, then call `get_output().ask_question(&question).await`. Validators may return structured JSON; `ask_with_validator` and `ask_hidden_with` retain that result. Noninteractive defaults run the validator without the normalizer. `set_max_attempts`, `set_trimmable`, `set_multiline`, and `set_timeout` configure retries and reading.
 
 `Input::set_stream` accepts a `ConsoleInputStream` wrapping an asynchronous buffered reader. Input clones share the stream position but snapshot the interaction setting; supplying Input to the Kernel shares that invocation state. Completion callbacks run in the command application scope, including across await. `CompletionCallback::iter` lazily caches a single-pass iterator, and `pairs` provides string keys followed by values. Ctrl+C returns 130; cancellation, timeout, and validation failure restore terminal mode. Windows terminal acceptance remains part of the release matrix.
+
+## Choices and multiple selections {#choice-questions}
+
+`choice` accepts a list with no default. Use `choice_with` to provide a default, maximum attempts, and the multiple-selection flag. In multiple mode, enter comma-separated indices or values; the result is an array. `choice_pairs_with` preserves declared order and returns association keys. Canonical integer strings are treated as numeric keys; other strings retain their exact spelling.
+
+```rust
+use openrust::{
+    console::{AsyncCommandCallback, ConsoleError},
+    support::facades::Artisan,
+};
+
+fn register_choices() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:choices", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut io = input.io(output);
+            let channel = io.choice_with("Channel", ["email", "sms"], Some(serde_json::json!(0)), Some(2), false).await?;
+            let formats = io.choice_with("Formats", ["csv", "json"], Some(serde_json::json!("0,1")), Some(2), true).await?;
+            let priority = io.choice_pairs_with("Priority", [("normal", "Normal"), ("urgent", "Urgent")], Some(serde_json::json!("normal")), Some(2), false).await?;
+            io.line(&serde_json::json!({"channel": channel, "formats": formats, "priority": priority}).to_string())?;
+            Ok(0)
+        })
+    }))?.purpose("Collect report choices")
+}
+```
+
+Text, number and boolean choices use the existing scalar comparison rules. Ambiguous duplicate labels require a key instead. A question without a default returns null in noninteractive mode; an invalid default fails validation. `OutputStyle::choice_with` additionally resolves a default value to its key; command I/O uses the supplied default directly.
+
+For custom prompts or error text, create `ChoiceQuestion::new` or `from_pairs`, use `set_prompt`, `set_error_message` (one answer argument: `%s`, repeatable `%1$s`, width/precision, and `%%` for a percent sign), `set_multiselect`, then pass `as_question()` to `ask_question`. `get_choices`, `get_prompt` and `is_multiselect` read the actual definition. Changing the trim setting updates retained default validators. Native Question clones own their settings; explicit callback and completion cache handles remain shared. Format tags should surround complete graphemes. Formatted visible text follows NFC and grapheme boundaries; Raw output, hyperlink targets and returned keys keep their original data.
+
+
+Use `ConsoleError::from_runtime_source` for operational callback failures: they stop retries and retain the original error type and cause. Ordinary validation errors remain retryable. Missing-input failures use the validated default and disable further interaction. The terminal is restored before a normalizer or validator runs. A template that produces invalid UTF-8 returns `ConsoleQuestionError::InvalidEncoding` with its original source; arbitrary PHP binary strings are not returned as Rust text.
+
+Wrap a type implementing `Display` in `ChoiceLabel(value)` when using application label objects. Labels are captured as text in the native JSON answer model; PHP object identity is not carried through answers. Associative helpers retain the original key, so application objects can remain in the caller’s collection.

@@ -557,3 +557,36 @@ fn register_questions() -> Result<(), ConsoleError> {
 需要自定义校验时，创建 `Question`，通过 `set_normalizer`、`set_validator` 设置 `QuestionCallback`，再调用 `get_output().ask_question(&question).await`。校验器可返回结构化 JSON；`ask_with_validator` 和 `ask_hidden_with` 保留该返回值。非交互默认值只执行校验器，不执行规范化器。`set_max_attempts`、`set_trimmable`、`set_multiline` 和 `set_timeout` 控制重试和读取。
 
 `Input::set_stream` 接收包装异步缓冲读取器的 `ConsoleInputStream`。输入克隆共享流位置，但独立保存交互开关；向 Kernel 显式传入 Input 时共享本次调用状态。补全回调在当前应用作用域运行，支持 await。`CompletionCallback::iter` 惰性缓存单次迭代器，`pairs` 按顺序提供字符串键及值。Ctrl+C 返回 130；取消、超时和校验失败均恢复终端模式。Windows 终端实测仍归发布矩阵。
+
+## 选择题与多选 {#choice-questions}
+
+`choice` 接收选项列表，不设置默认值。使用 `choice_with` 指定默认值、最大尝试次数及多选开关。多选输入用逗号分隔索引或选项值，结果为数组。`choice_pairs_with` 保留声明顺序并返回关联键；规范的整数字符串按数字键处理，其他字符串保持原写法。
+
+```rust
+use openrust::{
+    console::{AsyncCommandCallback, ConsoleError},
+    support::facades::Artisan,
+};
+
+fn register_choices() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:choices", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut io = input.io(output);
+            let channel = io.choice_with("Channel", ["email", "sms"], Some(serde_json::json!(0)), Some(2), false).await?;
+            let formats = io.choice_with("Formats", ["csv", "json"], Some(serde_json::json!("0,1")), Some(2), true).await?;
+            let priority = io.choice_pairs_with("Priority", [("normal", "Normal"), ("urgent", "Urgent")], Some(serde_json::json!("normal")), Some(2), false).await?;
+            io.line(&serde_json::json!({"channel": channel, "formats": formats, "priority": priority}).to_string())?;
+            Ok(0)
+        })
+    }))?.purpose("Collect report choices")
+}
+```
+
+文本、数字和布尔选项复用既有标量比较规则。重复且歧义的标签需要改用键选择。无默认值的问题在非交互模式返回 null；非法默认值仍校验失败。`OutputStyle::choice_with` 额外将默认选项值解析为键；命令 I/O 直接使用传入的默认值。
+
+自定义提示或错误文案时，创建 `ChoiceQuestion::new` 或 `from_pairs`，使用 `set_prompt`、`set_error_message`（只有一个回答参数，支持 `%s`、可重复的 `%1$s`、宽度／精度及字面量 `%%`）、`set_multiselect`，再将 `as_question()` 传给 `ask_question`。`get_choices`、`get_prompt` 和 `is_multiselect` 读取实际定义。修改去空白开关后，已取出的默认校验器也跟随更新。原生 Question 克隆独立保存设置；显式回调及补全缓存句柄仍共享。样式标签应围绕完整字素；格式化可见文本按 NFC 和字素边界处理，Raw 输出、超链接目标及返回键保持原数据。
+
+
+回调中的运行错误使用 `ConsoleError::from_runtime_source`：立即终止重试，同时保留原错误类型与来源链。普通校验错误仍可重试；输入缺失走已校验的默认值并关闭后续交互。终端在运行规范化器或校验器之前恢复。模板生成非 UTF-8 字节时返回带原始来源的 `ConsoleQuestionError::InvalidEncoding`，不将任意 PHP 二进制串当作 Rust 文本返回。
+
+应用标签类型实现 `Display` 后，可用 `ChoiceLabel(value)` 传入选项。原生 JSON 回答模型保存标签文本快照，不携带 PHP 对象身份；关联选择仍返回原声明键，应用对象保留在调用方集合中。

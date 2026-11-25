@@ -2,7 +2,10 @@ use super::{ConsoleError, ConsoleFuture};
 use serde_json::Value;
 use std::{fmt, sync::Arc, time::Duration};
 
+mod choice;
+mod error_format;
 mod input;
+pub use choice::{ChoiceKey, ChoiceLabel, ChoiceQuestion};
 mod io;
 mod reader;
 pub(super) use input::Interaction;
@@ -113,6 +116,7 @@ pub enum ConsoleQuestionError {
     HiddenUnavailable,
     InvalidConfiguration(String),
     InvalidAnswer(String),
+    InvalidEncoding(std::string::FromUtf8Error),
 }
 impl fmt::Display for ConsoleQuestionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -121,13 +125,21 @@ impl fmt::Display for ConsoleQuestionError {
             Self::Interrupted => f.write_str("输入已中断"),
             Self::TimedOut => f.write_str("等待输入超时"),
             Self::HiddenUnavailable => f.write_str("当前输入无法隐藏，且已禁止明文回退"),
+            Self::InvalidEncoding(error) => write!(f, "错误模板生成了非 UTF-8 文本：{error}"),
             Self::InvalidConfiguration(message) | Self::InvalidAnswer(message) => {
                 f.write_str(message)
             }
         }
     }
 }
-impl std::error::Error for ConsoleQuestionError {}
+impl std::error::Error for ConsoleQuestionError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::InvalidEncoding(error) => Some(error),
+            _ => None,
+        }
+    }
+}
 fn configuration(message: &str) -> ConsoleError {
     ConsoleError::from_source(ConsoleQuestionError::InvalidConfiguration(
         message.to_owned(),
@@ -135,7 +147,6 @@ fn configuration(message: &str) -> ConsoleError {
 }
 
 /// 一次问答的定义；输入流由 Input 持有，回调和显示不建立第二套命令容器。
-#[derive(Clone)]
 pub struct Question {
     label: String,
     default: Option<Value>,
@@ -149,6 +160,37 @@ pub struct Question {
     timeout: Option<Duration>,
     attempts: Option<usize>,
     confirmation: bool,
+    choice: Option<choice::ChoiceState>,
+}
+impl Clone for Question {
+    fn clone(&self) -> Self {
+        let mut question = Self {
+            label: self.label.clone(),
+            default: self.default.clone(),
+            hidden: self.hidden,
+            hidden_fallback: self.hidden_fallback,
+            completion: self.completion.clone(),
+            validator: self.validator.clone(),
+            normalizer: self.normalizer.clone(),
+            trimmable: self.trimmable,
+            multiline: self.multiline,
+            timeout: self.timeout,
+            attempts: self.attempts,
+            confirmation: self.confirmation,
+            choice: self
+                .choice
+                .as_ref()
+                .map(choice::ChoiceState::clone_for_question),
+        };
+        if question
+            .choice
+            .as_ref()
+            .is_some_and(|choice| choice.default_validator)
+        {
+            question.install_choice_validator();
+        }
+        question
+    }
 }
 impl Question {
     pub fn new(label: impl Into<String>, default: Option<Value>) -> Result<Self, ConsoleError> {
@@ -171,6 +213,7 @@ impl Question {
             timeout: None,
             attempts: None,
             confirmation: false,
+            choice: None,
         })
     }
     pub fn get_question(&self) -> &str {
@@ -249,6 +292,9 @@ impl Question {
         Ok(self)
     }
     pub fn set_validator(&mut self, callback: Option<QuestionCallback>) -> &mut Self {
+        if let Some(choice) = &mut self.choice {
+            choice.default_validator = false;
+        }
         self.validator = callback;
         self
     }
@@ -277,6 +323,11 @@ impl Question {
     }
     pub fn set_trimmable(&mut self, value: bool) -> &mut Self {
         self.trimmable = value;
+        if let Some(choice) = &self.choice {
+            choice
+                .trimmable
+                .store(value, std::sync::atomic::Ordering::Relaxed);
+        }
         self
     }
     async fn default_answer(&self) -> Result<Value, ConsoleError> {
@@ -286,6 +337,8 @@ impl Question {
         }
         if let Some(validator) = &self.validator {
             validator.call(default).await
+        } else if let Some(choice) = &self.choice {
+            Ok(choice.unchecked_default(default, self.trimmable))
         } else {
             Ok(default)
         }
@@ -342,9 +395,9 @@ pub(super) async fn ask(
         return question.default_answer().await;
     }
     let mut attempt = 0;
-    let mut session = reader::prepare(style, question).await?;
     loop {
         tokio::task::yield_now().await;
+        let mut session = reader::prepare(style, question).await?;
         style.prepare_question()?;
         let label = super::formatting::Formatter::escape_trailing_backslash(&question.label);
         let label = if question.multiline {
@@ -374,7 +427,7 @@ pub(super) async fn ask(
                 }
             )
         } else if let Some(value) = question.default.as_ref().filter(|value| !value.is_null()) {
-            let value = crate::support::input_scalars::string(value.clone());
+            let value = question_default_label(question, value);
             format!(
                 " <info>{label}</info> [<comment>{}</comment>]:",
                 super::formatting::Formatter::escape(&value)
@@ -383,7 +436,37 @@ pub(super) async fn ask(
             format!(" <info>{label}</info>:")
         };
         style.writeln(label.as_str(), super::OutputOptions::default())?;
-        style.write(" > ", false, super::OutputOptions::default())?;
+        if let Some(choice) = &question.choice {
+            let width = choice
+                .entries
+                .iter()
+                .map(|(key, _)| choice_key_width(&key.to_string()))
+                .max()
+                .unwrap_or(0);
+            for (key, value) in choice.entries.iter() {
+                let key = key.to_string();
+                let padding = " ".repeat(width.saturating_sub(choice_key_width(&key)));
+                style.writeln(
+                    format!(
+                        "  [<comment>{key}{padding}</comment>] {}",
+                        crate::support::input_scalars::string(value.clone())
+                    )
+                    .as_str(),
+                    super::OutputOptions::default(),
+                )?;
+            }
+        }
+        let prompt = question
+            .choice
+            .as_ref()
+            .map_or(" > ", |choice| choice.prompt.as_str());
+        let output = style.get_output();
+        let rendered_prompt = output
+            .formatter
+            .clone()
+            .format(prompt, output.is_decorated())
+            .map_err(ConsoleError::from_source)?;
+        style.write(prompt, false, super::OutputOptions::default())?;
         let shutdown = style.question_input().shutdown().cloned();
         let timeout = question
             .timeout
@@ -394,13 +477,14 @@ pub(super) async fn ask(
             })
             .transpose()?;
         let result = {
-            let read = reader::read(style, question, &mut session);
+            let read = reader::read(style, question, &mut session, &rendered_prompt);
             tokio::select! {
                 result=read => result,
                 ()=async { match timeout { Some(deadline)=>tokio::time::sleep_until(deadline).await, None=>std::future::pending().await } } => Err(ConsoleError::from_source(ConsoleQuestionError::TimedOut)),
                 ()=async { match shutdown { Some(shutdown)=>shutdown.cancelled().await, None=>std::future::pending().await } } => Err(ConsoleError::from_source(ConsoleQuestionError::Interrupted)),
             }
         };
+        drop(session);
         let mut answer = match result {
             Ok(Some(answer)) => answer,
             Ok(None) => {
@@ -457,7 +541,29 @@ pub(super) async fn ask(
                 return Ok(answer);
             }
             Err(error) => {
-                if error.command_exit_code() == 130 {
+                if error.is_runtime() || error.dump_output().is_some() {
+                    return Err(error);
+                }
+                if std::error::Error::source(&error).is_some_and(|source| {
+                    matches!(
+                        source.downcast_ref::<ConsoleQuestionError>(),
+                        Some(ConsoleQuestionError::MissingInput | ConsoleQuestionError::TimedOut)
+                    )
+                }) {
+                    return exhausted(style, question, error).await;
+                }
+                if error.command_exit_code() == 130
+                    || std::error::Error::source(&error).is_some_and(|source| {
+                        matches!(
+                            source.downcast_ref::<ConsoleQuestionError>(),
+                            Some(
+                                ConsoleQuestionError::InvalidConfiguration(_)
+                                    | ConsoleQuestionError::InvalidEncoding(_)
+                                    | ConsoleQuestionError::HiddenUnavailable
+                            )
+                        )
+                    })
+                {
                     return Err(error);
                 }
                 attempt += 1;
@@ -495,4 +601,25 @@ impl std::ops::DerefMut for ConfirmationQuestion {
     fn deref_mut(&mut self) -> &mut Question {
         &mut self.0
     }
+}
+
+fn question_default_label(question: &Question, value: &Value) -> String {
+    question.choice.as_ref().map_or_else(
+        || crate::support::input_scalars::string(value.clone()),
+        |choice| choice.default_label(value),
+    )
+}
+
+fn choice_key_width(value: &str) -> usize {
+    value
+        .chars()
+        .map(|character| {
+            if character.is_control() {
+                1
+            } else {
+                let mut bytes = [0; 4];
+                ::console::measure_text_width(character.encode_utf8(&mut bytes))
+            }
+        })
+        .sum()
 }

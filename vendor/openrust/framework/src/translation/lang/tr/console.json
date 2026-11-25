@@ -66,6 +66,8 @@
   },
   "arguments": "Argümanlar:",
   "question": {
-    "multiline": "devam etmek için :keys tuşuna basın"
+    "multiline": "devam etmek için :keys tuşuna basın",
+    "choice_invalid": "\"%s\" değeri geçersiz",
+    "choice_ambiguous": "Yanıt belirsiz. :choices değerlerinden birini seçin."
   }
 }

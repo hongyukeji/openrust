@@ -1,11 +1,13 @@
 use regex::Regex;
+mod unicode;
 use std::{fmt, sync::LazyLock};
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum ConsoleFormatError {
     InvalidColor(String),
     InvalidOption(String),
     IncorrectlyNestedTag,
+    UnicodeSegmentation(pcre2::Error),
 }
 impl fmt::Display for ConsoleFormatError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -13,10 +15,34 @@ impl fmt::Display for ConsoleFormatError {
             Self::InvalidColor(value) => write!(f, "控制台颜色无效：{value}"),
             Self::InvalidOption(value) => write!(f, "控制台样式选项无效：{value}"),
             Self::IncorrectlyNestedTag => f.write_str("控制台样式标签嵌套不匹配"),
+            Self::UnicodeSegmentation(error) => write!(f, "控制台文本字素解析失败：{error}"),
         }
     }
 }
-impl std::error::Error for ConsoleFormatError {}
+impl PartialEq for ConsoleFormatError {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::InvalidColor(left), Self::InvalidColor(right))
+            | (Self::InvalidOption(left), Self::InvalidOption(right)) => left == right,
+            (Self::IncorrectlyNestedTag, Self::IncorrectlyNestedTag) => true,
+            (Self::UnicodeSegmentation(left), Self::UnicodeSegmentation(right)) => {
+                left.code() == right.code()
+                    && left.offset() == right.offset()
+                    && std::mem::discriminant(left.kind()) == std::mem::discriminant(right.kind())
+            }
+            _ => false,
+        }
+    }
+}
+impl Eq for ConsoleFormatError {}
+impl std::error::Error for ConsoleFormatError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::UnicodeSegmentation(error) => Some(error),
+            _ => None,
+        }
+    }
+}
 
 #[derive(Clone, Default, Eq, PartialEq)]
 struct Style {
@@ -103,6 +129,8 @@ impl Formatter {
             Regex::new(r"(?is)<([a-z](?:[^\\<>]|\\.)*|/[a-z][^<>]*|/)>")
                 .expect("合法控制台标签表达式")
         });
+        let non_ascii = !text.is_ascii();
+        let mut unicode = None;
         let mut output = String::new();
         let mut offset = 0;
         for token in TAGS.captures_iter(text) {
@@ -110,8 +138,22 @@ impl Formatter {
             if span.start() > 0 && text.as_bytes()[span.start() - 1] == b'\\' {
                 continue;
             }
-            self.append(&text[offset..span.start()], decorated, &mut output);
-            offset = span.end();
+            if non_ascii && unicode.is_none() {
+                unicode = Some(unicode::Slices::new(text)?);
+            }
+            let position = unicode
+                .as_ref()
+                .map_or(span.start(), |slices| slices.prefix_length(span.start()));
+            let visible = unicode.as_ref().map_or_else(
+                || &text[offset..span.start()],
+                |slices| slices.slice(offset, Some(position)),
+            );
+            self.append(visible, decorated, &mut output);
+            offset = if unicode.is_some() {
+                position + unicode::length(span.as_str())?
+            } else {
+                span.end()
+            };
             let tag = &token[1];
             if tag == "/" {
                 self.stack.pop();
@@ -135,7 +177,12 @@ impl Formatter {
                 self.stack.truncate(index);
             }
         }
-        self.append(&text[offset..], decorated, &mut output);
+        let visible = match unicode.as_ref() {
+            Some(slices) => std::borrow::Cow::Borrowed(slices.slice(offset, None)),
+            None if non_ascii => icu_normalizer::ComposingNormalizer::new_nfc().normalize(text),
+            None => std::borrow::Cow::Borrowed(&text[offset..]),
+        };
+        self.append(visible.as_ref(), decorated, &mut output);
         Ok(output
             .replace('\0', "\\")
             .replace("\\<", "<")

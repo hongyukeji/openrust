@@ -137,3 +137,27 @@ root首次门禁触及32GB停线，守卫安全停止并持锁清理编译及站
 最终11框架目标64＋根6目标71，共135项父消费者通过；包括三语30个直接正式教程消费者、16项初始化、Runner与日志／隔离回归。三个被标ignore的二进制／终端辅助入口不计通过，其实际父调用与上列PTY另记。workspace fmt、all-targets严格Clippy52.48s、main(pail)与三语构建15.61s退出0。实际主程序HTTP/up／静态／HTML与JSON404／HEAD、Artisan inspire/list/Pail帮助及真实错误捕获／超时清理／Ctrl+C通过；12组三语双前缀／两宽度浏览器检查包含interactive-questions。门禁前一轮Clippy类型复杂性已提取私有回调类型解决，未加allow；文档初轮错误借用／注册返回值及缺tempfile夹具均修复，错误npm脚本名改为项目正式build后通过；失败日志未计通过。
 
 证据question-accepted-framework.log、question-final-{root,clippy,main,runtime,browser,formal-tty,required-tty}.log、question-final-docs2.log及question-accepted-tty.log，源码SHA见accepted-questions.json。JSON资源最后仅恢复原文件缩进，逐份解析值与已验快照严格相等；生成的测试只保留在隔离源码，正式提交提取器，不提交生成副本。保留项目内源码／热缓存／日志，回收本批单份临时交付二进制和夹具目录，无测试服务器或容器存活。ChoiceQuestion七声明、表格、进度、组件、生成／注册、信号／事件等仍继续逐项核对；Windows终端归发布实机矩阵，Artisan整章未闭合。本地提交、不推送。
+
+## 第十簇：选择题、多选及关联问答契约（2026-11-25）
+
+第九簇f55b5f4c0之后，按纯提交cf774d781吸收28条认证路径，未复制认证／Sanctum在途。新增真正的ChoiceQuestion，七条声明及继承Question状态逐项核对；CommandIo与OutputStyle均有choice／choice_with／choice_pairs_with实际入口。选项按声明顺序保存，规范整数字符串转数字键，重复键原位置覆盖，关联选择返回键；普通列表返回选项值。严格重复值歧义、随后宽松搜索、索引回退、多选逗号校验及重复选项保留均沿固定源码处理，复用既有标量比较桥，不另造简化比较器。样式输出额外把默认值映射成键，命令I/O保留原默认参数；清除默认校验器时保留上游专用默认值回退。
+
+运行固定PHP8.5.12＋框架1449bf2410／Symfony7.4获得117条选择数据，实际Facade注册命令逐条比较返回值、错误、提示字节及换行状态；覆盖普通／关联／稀疏数字键、布尔与浮点选项、默认值、空／多选／无效／歧义、关闭校验、自定义提示和错误、两类helper默认映射。源码数据choice-answers-oracle.json，原始source5.json及stderr保留；浮点结果专用JSON_PRESERVE_ZERO_FRACTION保存实际数字类型，不把测试记录的编码选项混入产品数据格式。ChoiceLabel让只有Display而无Serialize的应用类型直接进入同一个关联命令helper，真实入口与固定Stringable关联选择均返回g；这是文本快照适配，不宣称保存PHP对象身份。
+
+公开getter及setter另有消费者：保留的默认校验器必须跟随原问题的去空白开关，不能捕获旧布尔值；set_multiselect与set_error_message重建默认校验器并覆盖用户替身，按源码保留。选项记录用不可变Arc共享；原问题的去空白状态用原子标记供保留回调读取，Rust Question克隆独立保存设置和本身默认校验器，显式用户回调及补全缓存仍共享。PHP clone所保留的原$this闭包绑定不冒充Rust所有权语义，三语明确原生边界。
+
+真实连续问答还核对了终端租约：在显示提示前取得原始模式，读取后立即恢复并释放，再运行异步规范化／校验；重试重新取得租约。第九簇为EventStream重试而延长的租约不可泄漏进回调，现已纠正，16个PTY场景包含回调内实际检查原始模式已经恢复。自定义带样式prompt在重画输入时使用正确格式化前缀，不打印原始标签。输入／默认值／EOF、键值补全、多选补全、验证耗尽1与Ctrl+C130、Unicode索引均实际二进制通过；基础问答15个PTY及两类三语正式示例各3语亦重新通过。完整termios及可变fd标志检查延续第九簇Darwin历史位处理，不另放宽标准。
+
+错误模板不能只替换%s。固定实际sprintf共540条数据经公开ChoiceQuestion默认校验器验证，覆盖位置复用、宽度／精度／动态字段、填充、百分号及标准标量转换；使用既有整数／浮点／字符串转换和Rust标准数值格式，不增加运行依赖。科学计数g的整数尾数必须保留.0、无数字的精度点按实际固定引擎处理，初轮反例修复后整组通过。候选sprintf0.4.3实际源码消费者在%g零值及i64::MIN两个Debug场景均触发panic，未引入；原始归档checksum、许可证、官方文档和实跑日志sprintf-evaluation.log保留，不能把候选当已支持。研究依据https://docs.rs/sprintf/0.4.3/sprintf/ 与https://www.php.net/manual/en/function.sprintf.php ，取舍以固定实际向量为准。
+
+模板配置错误不进入回答重试；非法UTF-8输出返回ConsoleQuestionError::InvalidEncoding并保留FromUtf8Error来源。PHP能返回任意二进制串，原生公开回答／错误采用既定UTF-8与JSON模型，二进制截断结果不伪装成相同字符串；源base64仍在choice-error-format-oracle.json。对照使用默认C数值格式，不读取PHP进程级LC_NUMERIC，也不模拟PHP VM浮点转整数告警；这些告警原始stderr实际保留，不报告源码零警告。普通有效数字、字节保留及异常分类分别验证，不以这些语言边界掩盖未实现接口。
+
+回调异常须区分普通异常与Console特定RuntimeException。源消费者choice-callbacks-source2.json实际确认：普通全局RuntimeException重试至EOF再走默认值，共2次且关闭交互；Console特定RuntimeException只调用1次、保留交互；MissingInput调用默认校验，共2次返回Guest。原生ConsoleError::from_runtime_source显式保留具体类型／来源并标记立即终止；普通from_source保持可重试，不按std::io::Error猜测层级。IO运行失败、配置错误、dd终止、EOF回退与保留具体来源均经开放管道消费者验证，错误路径不能等待不存在的第二个回答。早先源脚本抛全局RuntimeException的记录保留，未把它误算为Console类型的1次调用。
+
+Unicode键暴露公共格式器关联缺口，已补固定NFC和字素切片行为：用已有ICU及PCRE2的字素索引处理可见片段，原始标签仍独立解析，未知标签及href目标不被改写。24条实际Formatter数据验证普通／着色／Raw、组合字符、跨标签组合、未知标签及原始超链接；返回键仍是原字节。ASCII走原路径，无标签Unicode只规范化，不建立多余字素索引；不声称未经测量的性能提升。UnicodeSegmentation保留实际PCRE错误来源，未用字符串擦掉原因或增加lint豁免。
+
+最终12框架目标73＋根6目标74，共147个父消费者；另新增Display-only标签直接helper补验1项，共148个不同父消费者。含三语33个正式Markdown直接编译／运行示例、16项初始化、Runner及前序I/O／锁／日志回归。四个辅助fixture的ignore不计通过，实际调用及PTY另外记录。Display适配为最后纯新增接口，由完整Choice目标10项补验；随后workspace格式、all-targets严格Clippy50.85s、main(pail)重建及实际HTTP／Artisan／Pail／Ctrl+C、三语构建及12组浏览器均通过最终源。三语选择题示例分别在真实PTY完成三次选择，基础问答示例也分别复验。Source SHA和最终范围见accepted-choices.json，不把函数向量数量当功能数。
+
+证据choice-final-framework2.log、choice-label-tests.log、choice-final-root.log、choice-label-{clippy,main,docs,runtime}.log、choice-final-browser.log、choice-final-tty.log、choice-base-question-tty.log、choice-final-formal-tty.log及choice-base-formal-tty.log。旧配置夹具、JSON字段撞名、NFC／科学尾数／精度反例及首次Clippy多余生命周期失败均保留，未计通过。标准PHP脚本与归档只在target/tmp，正式提交必要JSON数据及提取器，生成测试副本不提交。
+
+本轮期间项目共享守卫曾清理profile及站点编译物，最后相关事件before=31,949,533,184、after=113,779,240,960、released=81,829,707,776字节，保留锁inode／源码／日志／依赖及数据；本簇从保留快照继续冷构建完成，不把其他触发者的清理冒称自己的75验收。回收本批两份独立PTY二进制和运行夹具，保留热缓存及原始证据。prompting-for-input按约定原生教程范围闭合；表格／进度／完整组件、注册生成、事件／信号、Tinker及继承SDK其余入口继续，Artisan整章仍未闭合。Windows终端仍属发布实机矩阵，其他对话在途完整保留。本地提交，不推送。

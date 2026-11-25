@@ -273,37 +273,86 @@
       {
         "method": "__construct",
         "source_line": 32,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_native_choice_contract",
+        "native": "console::ChoiceQuestion::new / from_pairs",
+        "evidence": [
+          "console_choices_tutorial",
+          "choice-final-framework2.log",
+          "choice-label-tests.log",
+          "choice-final-tty.log"
+        ]
       },
       {
         "method": "getChoices",
         "source_line": 50,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_native_choice_contract",
+        "native": "console::ChoiceQuestion::get_choices",
+        "evidence": [
+          "console_choices_tutorial",
+          "choice-final-framework2.log",
+          "choice-label-tests.log",
+          "choice-final-tty.log"
+        ]
       },
       {
         "method": "setMultiselect",
         "source_line": 62,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_native_choice_contract",
+        "native": "console::ChoiceQuestion::set_multiselect",
+        "evidence": [
+          "console_choices_tutorial",
+          "choice-final-framework2.log",
+          "choice-label-tests.log",
+          "choice-final-tty.log"
+        ]
       },
       {
         "method": "isMultiselect",
         "source_line": 73,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_native_choice_contract",
+        "native": "console::ChoiceQuestion::is_multiselect",
+        "evidence": [
+          "console_choices_tutorial",
+          "choice-final-framework2.log",
+          "choice-label-tests.log",
+          "choice-final-tty.log"
+        ]
       },
       {
         "method": "getPrompt",
         "source_line": 81,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_native_choice_contract",
+        "native": "console::ChoiceQuestion::get_prompt",
+        "evidence": [
+          "console_choices_tutorial",
+          "choice-final-framework2.log",
+          "choice-label-tests.log",
+          "choice-final-tty.log"
+        ]
       },
       {
         "method": "setPrompt",
         "source_line": 91,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_native_choice_contract",
+        "native": "console::ChoiceQuestion::set_prompt",
+        "evidence": [
+          "console_choices_tutorial",
+          "choice-final-framework2.log",
+          "choice-label-tests.log",
+          "choice-final-tty.log"
+        ]
       },
       {
         "method": "setErrorMessage",
         "source_line": 105,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_native_choice_contract",
+        "native": "console::ChoiceQuestion::set_error_message",
+        "evidence": [
+          "console_choices_tutorial",
+          "choice-final-framework2.log",
+          "choice-label-tests.log",
+          "choice-final-tty.log"
+        ]
       }
     ]
   },
@@ -311,5 +360,5 @@
     "声明只用于盘点，不算实现；实际输入、默认、校验、隐藏、补全及取消须由正式入口验收。",
     "复用既有CommandIo／OutputStyle／输入元数据与容器作用域，不新增平行命令派发器。"
   ],
-  "scope": "Question 23 declarations and ConfirmationQuestion constructor; ChoiceQuestion 7 declarations remain pending. Inherited optional SDK APIs do not become verified by this inventory."
+  "scope": "Question 23 public declarations, ConfirmationQuestion constructor and ChoiceQuestion 7 declarations reviewed through native JSON/text answers. ChoiceLabel is an explicit Display-text adapter; PHP object identity/binary strings/global VM warnings are not represented by this native API. Inherited optional SDK APIs remain independently inventoried."
 }

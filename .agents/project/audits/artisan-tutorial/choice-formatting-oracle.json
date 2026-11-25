@@ -1,0 +1,146 @@
+[
+    {
+        "text": "é",
+        "decorated": false,
+        "raw": false,
+        "output": "é"
+    },
+    {
+        "text": "é",
+        "decorated": true,
+        "raw": false,
+        "output": "é"
+    },
+    {
+        "text": "é",
+        "decorated": false,
+        "raw": true,
+        "output": "é"
+    },
+    {
+        "text": "<info>é<\/info>",
+        "decorated": false,
+        "raw": false,
+        "output": "é"
+    },
+    {
+        "text": "<info>é<\/info>",
+        "decorated": true,
+        "raw": false,
+        "output": "\u001b[32mé\u001b[39m"
+    },
+    {
+        "text": "<info>é<\/info>",
+        "decorated": false,
+        "raw": true,
+        "output": "<info>é<\/info>"
+    },
+    {
+        "text": "a<info>é<\/info> é",
+        "decorated": false,
+        "raw": false,
+        "output": "aé é"
+    },
+    {
+        "text": "a<info>é<\/info> é",
+        "decorated": true,
+        "raw": false,
+        "output": "a\u001b[32mé\u001b[39m é"
+    },
+    {
+        "text": "a<info>é<\/info> é",
+        "decorated": false,
+        "raw": true,
+        "output": "a<info>é<\/info> é"
+    },
+    {
+        "text": "<custom=é>é<\/custom>",
+        "decorated": false,
+        "raw": false,
+        "output": "<custom=é>é<\/custom>"
+    },
+    {
+        "text": "<custom=é>é<\/custom>",
+        "decorated": true,
+        "raw": false,
+        "output": "<custom=é>é<\/custom>"
+    },
+    {
+        "text": "<custom=é>é<\/custom>",
+        "decorated": false,
+        "raw": true,
+        "output": "<custom=é>é<\/custom>"
+    },
+    {
+        "text": "<href=https:\/\/example.test\/é>é<\/>",
+        "decorated": false,
+        "raw": false,
+        "output": "é"
+    },
+    {
+        "text": "<href=https:\/\/example.test\/é>é<\/>",
+        "decorated": true,
+        "raw": false,
+        "output": "\u001b]8;;https:\/\/example.test\/é\u001b\\é\u001b]8;;\u001b\\"
+    },
+    {
+        "text": "<href=https:\/\/example.test\/é>é<\/>",
+        "decorated": false,
+        "raw": true,
+        "output": "<href=https:\/\/example.test\/é>é<\/>"
+    },
+    {
+        "text": "\\<info>é\\<\/info>",
+        "decorated": false,
+        "raw": false,
+        "output": "<info>é<\/info>"
+    },
+    {
+        "text": "\\<info>é\\<\/info>",
+        "decorated": true,
+        "raw": false,
+        "output": "<info>é<\/info>"
+    },
+    {
+        "text": "\\<info>é\\<\/info>",
+        "decorated": false,
+        "raw": true,
+        "output": "\\<info>é\\<\/info>"
+    },
+    {
+        "text": "👩‍👩‍👦 é",
+        "decorated": false,
+        "raw": false,
+        "output": "👩‍👩‍👦 é"
+    },
+    {
+        "text": "👩‍👩‍👦 é",
+        "decorated": true,
+        "raw": false,
+        "output": "👩‍👩‍👦 é"
+    },
+    {
+        "text": "👩‍👩‍👦 é",
+        "decorated": false,
+        "raw": true,
+        "output": "👩‍👩‍👦 é"
+    },
+    {
+        "text": "e<info>́<\/info>",
+        "decorated": false,
+        "raw": false,
+        "output": "e"
+    },
+    {
+        "text": "e<info>́<\/info>",
+        "decorated": true,
+        "raw": false,
+        "output": "e"
+    },
+    {
+        "text": "e<info>́<\/info>",
+        "decorated": false,
+        "raw": true,
+        "output": "e<info>́<\/info>"
+    }
+]

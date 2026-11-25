@@ -48,8 +48,8 @@ pub(crate) use localization::text as localized_text;
 pub use output_style::{OutputFormat, OutputMessages, OutputOptions, OutputStyle, OutputVerbosity};
 pub use prompting::{CommandRegistration, MissingInputPrompt};
 pub use question::{
-    CompletionCallback, ConfirmationQuestion, ConsoleInputStream, ConsoleQuestionError,
-    ConsoleReader, Question, QuestionCallback,
+    ChoiceKey, ChoiceLabel, ChoiceQuestion, CompletionCallback, ConfirmationQuestion,
+    ConsoleInputStream, ConsoleQuestionError, ConsoleReader, Question, QuestionCallback,
 };
 
 /// A future for a console command or lifecycle hook.
@@ -314,6 +314,7 @@ enum ConsoleFailure {
     Message(String),
     Dump(String),
     Source(Arc<dyn Error + Send + Sync>),
+    Runtime(Arc<dyn Error + Send + Sync>),
 }
 
 impl ConsoleError {
@@ -324,6 +325,14 @@ impl ConsoleError {
     /// 保留下游错误类型与来源链，同时沿用控制台渲染流程。
     pub fn from_source(error: impl Error + Send + Sync + 'static) -> Self {
         Self(ConsoleFailure::Source(Arc::new(error)))
+    }
+
+    /// 标记应立即终止问答的运行错误，同时保留具体错误与来源链。
+    pub fn from_runtime_source(error: impl Error + Send + Sync + 'static) -> Self {
+        Self(ConsoleFailure::Runtime(Arc::new(error)))
+    }
+    pub fn is_runtime(&self) -> bool {
+        matches!(self.0, ConsoleFailure::Runtime(_))
     }
 
     pub(crate) fn command_exit_code(&self) -> i32 {
@@ -341,7 +350,9 @@ impl ConsoleError {
 
     pub(crate) fn dump_output(&self) -> Option<&str> {
         match &self.0 {
-            ConsoleFailure::Message(_) | ConsoleFailure::Source(_) => None,
+            ConsoleFailure::Message(_) | ConsoleFailure::Source(_) | ConsoleFailure::Runtime(_) => {
+                None
+            }
             ConsoleFailure::Dump(output) => Some(output),
         }
     }
@@ -362,7 +373,7 @@ impl fmt::Display for ConsoleError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.0 {
             ConsoleFailure::Message(message) => f.write_str(message),
-            ConsoleFailure::Source(error) => error.fmt(f),
+            ConsoleFailure::Source(error) | ConsoleFailure::Runtime(error) => error.fmt(f),
             ConsoleFailure::Dump(_) => f.write_str("collection debugging stopped execution"),
         }
     }
@@ -371,7 +382,7 @@ impl fmt::Display for ConsoleError {
 impl Error for ConsoleError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match &self.0 {
-            ConsoleFailure::Source(error) => Some(error.as_ref()),
+            ConsoleFailure::Source(error) | ConsoleFailure::Runtime(error) => Some(error.as_ref()),
             _ => None,
         }
     }

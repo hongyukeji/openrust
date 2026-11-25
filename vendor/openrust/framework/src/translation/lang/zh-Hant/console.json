@@ -66,6 +66,8 @@
     },
     "arguments": "參數：",
     "question": {
-        "multiline": "按 :keys 繼續"
+        "multiline": "按 :keys 繼續",
+        "choice_invalid": "選項「%s」無效",
+        "choice_ambiguous": "答案不唯一，請使用以下鍵之一：:choices"
     }
 }

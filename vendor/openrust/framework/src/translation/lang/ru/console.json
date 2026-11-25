@@ -66,6 +66,8 @@
   },
   "arguments": "Аргументы:",
   "question": {
-    "multiline": "нажмите :keys для продолжения"
+    "multiline": "нажмите :keys для продолжения",
+    "choice_invalid": "Недопустимое значение «%s»",
+    "choice_ambiguous": "Ответ неоднозначен. Выберите одно из значений :choices."
   }
 }

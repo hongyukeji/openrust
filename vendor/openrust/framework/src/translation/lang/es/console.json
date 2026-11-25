@@ -66,6 +66,8 @@
   },
   "arguments": "Argumentos:",
   "question": {
-    "multiline": "pulsa :keys para continuar"
+    "multiline": "pulsa :keys para continuar",
+    "choice_invalid": "El valor «%s» no es válido",
+    "choice_ambiguous": "La respuesta es ambigua. Elige uno de los valores :choices."
   }
 }

@@ -150,9 +150,13 @@
         "method": "choice",
         "source_line": 228,
         "signature": "public function choice($question, array $choices, $default = null, $attempts = null, $multiple = false)",
-        "status": "pending_entry_and_behavior_review",
-        "native": null,
-        "evidence": []
+        "status": "verified_native_choice_contract",
+        "native": "console::CommandIo::{choice,choice_with,choice_pairs_with}",
+        "evidence": [
+          "console_choices_tutorial",
+          "formal_choices_example",
+          "choice-final-tty.log"
+        ]
       },
       {
         "method": "table",
@@ -485,7 +489,8 @@
         "console_io_tutorial::command_io_can_replace_its_input_and_its_real_output_style"
       ]
     },
-    "Question uses owned async callbacks and JSON scalar/structured validator results, optional parameter variants, injected AsyncBufRead, UTF-8 full lines and Duration timeouts; real terminal lease restores modes. Choice, tables, progress and other inherited APIs remain separately open."
+    "Question uses owned async callbacks and JSON scalar/structured validator results, optional parameter variants, injected AsyncBufRead, UTF-8 full lines and Duration timeouts; real terminal lease restores modes. Choice, tables, progress and other inherited APIs remain separately open.",
+    "Choice answers use the established JSON/text model and canonical ordered keys. Display labels are explicit text snapshots through ChoiceLabel, not PHP object identities. Templates accept one answer argument with positions/flags/width/precision and scalar conversion; invalid UTF-8 becomes a sourced InvalidEncoding error. Explicit ConsoleError::from_runtime_source marks console runtime failures while ordinary sources remain retryable. Raw data and href targets retain original bytes."
   ],
   "inherited_output_style_inventory": {
     "OutputStyle": [
@@ -669,7 +674,13 @@
       {
         "method": "choice",
         "source_line": 237,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_native_choice_contract",
+        "native": "console::OutputStyle::{choice,choice_with,choice_pairs_with}",
+        "evidence": [
+          "console_choices_tutorial",
+          "choice-final-framework2.log",
+          "choice-final-tty.log"
+        ]
       },
       {
         "method": "progressStart",

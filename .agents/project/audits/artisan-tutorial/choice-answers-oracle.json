@@ -1,0 +1,2652 @@
+[
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "0",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": "red",
+        "error": null,
+        "output": "\n Color:\n  [0] red\n  [1] green\n  [2] blue\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "1",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": "green",
+        "error": null,
+        "output": "\n Color:\n  [0] red\n  [1] green\n  [2] blue\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "2",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": "blue",
+        "error": null,
+        "output": "\n Color:\n  [0] red\n  [1] green\n  [2] blue\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "green",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": "green",
+        "error": null,
+        "output": "\n Color:\n  [0] red\n  [1] green\n  [2] blue\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "01",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \"01\" is invalid",
+        "output": "\n Color:\n  [0] red\n  [1] green\n  [2] blue\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": " 2 ",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": "blue",
+        "error": null,
+        "output": "\n Color:\n  [0] red\n  [1] green\n  [2] blue\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "bad",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \"bad\" is invalid",
+        "output": "\n Color:\n  [0] red\n  [1] green\n  [2] blue\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \"\" is invalid",
+        "output": "\n Color:\n  [0] red\n  [1] green\n  [2] blue\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": ",",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \",\" is invalid",
+        "output": "\n Color:\n  [0] red\n  [1] green\n  [2] blue\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "0,2",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \"0,2\" is invalid",
+        "output": "\n Color:\n  [0] red\n  [1] green\n  [2] blue\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "0,,2",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \"0,,2\" is invalid",
+        "output": "\n Color:\n  [0] red\n  [1] green\n  [2] blue\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": 0,
+        "answer": "1",
+        "multiple": false,
+        "interactive": false,
+        "trim": true,
+        "value": "red",
+        "error": null,
+        "output": "",
+        "new_lines": 2,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": 0,
+        "answer": "1",
+        "multiple": true,
+        "interactive": false,
+        "trim": true,
+        "value": [
+            "red"
+        ],
+        "error": null,
+        "output": "",
+        "new_lines": 2,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": 1,
+        "answer": "1",
+        "multiple": false,
+        "interactive": false,
+        "trim": true,
+        "value": "green",
+        "error": null,
+        "output": "",
+        "new_lines": 2,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": 1,
+        "answer": "1",
+        "multiple": true,
+        "interactive": false,
+        "trim": true,
+        "value": [
+            "green"
+        ],
+        "error": null,
+        "output": "",
+        "new_lines": 2,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": "green",
+        "answer": "1",
+        "multiple": false,
+        "interactive": false,
+        "trim": true,
+        "value": "green",
+        "error": null,
+        "output": "",
+        "new_lines": 2,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": "green",
+        "answer": "1",
+        "multiple": true,
+        "interactive": false,
+        "trim": true,
+        "value": [
+            "green"
+        ],
+        "error": null,
+        "output": "",
+        "new_lines": 2,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": "0,2",
+        "answer": "1",
+        "multiple": false,
+        "interactive": false,
+        "trim": true,
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \"0,2\" is invalid",
+        "output": "",
+        "new_lines": 2,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": "0,2",
+        "answer": "1",
+        "multiple": true,
+        "interactive": false,
+        "trim": true,
+        "value": [
+            "red",
+            "blue"
+        ],
+        "error": null,
+        "output": "",
+        "new_lines": 2,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "1",
+        "multiple": false,
+        "interactive": false,
+        "trim": true,
+        "value": null,
+        "error": null,
+        "output": "",
+        "new_lines": 2,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "1",
+        "multiple": true,
+        "interactive": false,
+        "trim": true,
+        "value": null,
+        "error": null,
+        "output": "",
+        "new_lines": 2,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "0,2",
+        "multiple": true,
+        "interactive": true,
+        "trim": true,
+        "value": [
+            "red",
+            "blue"
+        ],
+        "error": null,
+        "output": "\n Color:\n  [0] red\n  [1] green\n  [2] blue\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "red,blue",
+        "multiple": true,
+        "interactive": true,
+        "trim": true,
+        "value": [
+            "red",
+            "blue"
+        ],
+        "error": null,
+        "output": "\n Color:\n  [0] red\n  [1] green\n  [2] blue\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": " 0 , 2 ",
+        "multiple": true,
+        "interactive": true,
+        "trim": true,
+        "value": [
+            "red",
+            "blue"
+        ],
+        "error": null,
+        "output": "\n Color:\n  [0] red\n  [1] green\n  [2] blue\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "0,0",
+        "multiple": true,
+        "interactive": true,
+        "trim": true,
+        "value": [
+            "red",
+            "red"
+        ],
+        "error": null,
+        "output": "\n Color:\n  [0] red\n  [1] green\n  [2] blue\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "1,",
+        "multiple": true,
+        "interactive": true,
+        "trim": true,
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \"1,\" is invalid",
+        "output": "\n Color:\n  [0] red\n  [1] green\n  [2] blue\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": " , ",
+        "multiple": true,
+        "interactive": true,
+        "trim": true,
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \",\" is invalid",
+        "output": "\n Color:\n  [0] red\n  [1] green\n  [2] blue\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "",
+        "multiple": true,
+        "interactive": true,
+        "trim": true,
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \"\" is invalid",
+        "output": "\n Color:\n  [0] red\n  [1] green\n  [2] blue\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "0,,2",
+        "multiple": true,
+        "interactive": true,
+        "trim": true,
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \"0,,2\" is invalid",
+        "output": "\n Color:\n  [0] red\n  [1] green\n  [2] blue\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "same",
+            "same"
+        ],
+        "default": null,
+        "answer": "0",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": "same",
+        "error": null,
+        "output": "\n Color:\n  [0] same\n  [1] same\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "same",
+            "same"
+        ],
+        "default": null,
+        "answer": "1",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": "same",
+        "error": null,
+        "output": "\n Color:\n  [0] same\n  [1] same\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "same",
+            "same"
+        ],
+        "default": null,
+        "answer": "same",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "The provided answer is ambiguous. Value should be one of \"0\" or \"1\".",
+        "output": "\n Color:\n  [0] same\n  [1] same\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "same",
+            "same"
+        ],
+        "default": null,
+        "answer": "01",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \"01\" is invalid",
+        "output": "\n Color:\n  [0] same\n  [1] same\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "1",
+            "other"
+        ],
+        "default": null,
+        "answer": "0",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": "1",
+        "error": null,
+        "output": "\n Color:\n  [0] 1\n  [1] other\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "1",
+            "other"
+        ],
+        "default": null,
+        "answer": "1",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": "1",
+        "error": null,
+        "output": "\n Color:\n  [0] 1\n  [1] other\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "1",
+            "other"
+        ],
+        "default": null,
+        "answer": "same",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \"same\" is invalid",
+        "output": "\n Color:\n  [0] 1\n  [1] other\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "1",
+            "other"
+        ],
+        "default": null,
+        "answer": "01",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": "1",
+        "error": null,
+        "output": "\n Color:\n  [0] 1\n  [1] other\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            10,
+            20
+        ],
+        "default": null,
+        "answer": "0",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": 10,
+        "error": null,
+        "output": "\n Color:\n  [0] 10\n  [1] 20\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            10,
+            20
+        ],
+        "default": null,
+        "answer": "1",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": 20,
+        "error": null,
+        "output": "\n Color:\n  [0] 10\n  [1] 20\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            10,
+            20
+        ],
+        "default": null,
+        "answer": "same",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \"same\" is invalid",
+        "output": "\n Color:\n  [0] 10\n  [1] 20\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            10,
+            20
+        ],
+        "default": null,
+        "answer": "01",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \"01\" is invalid",
+        "output": "\n Color:\n  [0] 10\n  [1] 20\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            false,
+            true
+        ],
+        "default": null,
+        "answer": "0",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \"0\" is invalid",
+        "output": "\n Color:\n  [0] \n  [1] 1\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            false,
+            true
+        ],
+        "default": null,
+        "answer": "1",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": true,
+        "error": null,
+        "output": "\n Color:\n  [0] \n  [1] 1\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            false,
+            true
+        ],
+        "default": null,
+        "answer": "same",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": true,
+        "error": null,
+        "output": "\n Color:\n  [0] \n  [1] 1\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            false,
+            true
+        ],
+        "default": null,
+        "answer": "01",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": true,
+        "error": null,
+        "output": "\n Color:\n  [0] \n  [1] 1\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "01",
+            "1"
+        ],
+        "default": null,
+        "answer": "0",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": "01",
+        "error": null,
+        "output": "\n Color:\n  [0] 01\n  [1] 1\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "01",
+            "1"
+        ],
+        "default": null,
+        "answer": "1",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": "01",
+        "error": null,
+        "output": "\n Color:\n  [0] 01\n  [1] 1\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "01",
+            "1"
+        ],
+        "default": null,
+        "answer": "same",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \"same\" is invalid",
+        "output": "\n Color:\n  [0] 01\n  [1] 1\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "01",
+            "1"
+        ],
+        "default": null,
+        "answer": "01",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": "01",
+        "error": null,
+        "output": "\n Color:\n  [0] 01\n  [1] 1\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "01",
+            "blue"
+        ],
+        "default": null,
+        "answer": "0",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": "red",
+        "error": null,
+        "output": "\n Color:\n  [0] red\n  [1] 01\n  [2] blue\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "01",
+            "blue"
+        ],
+        "default": null,
+        "answer": "1",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": "01",
+        "error": null,
+        "output": "\n Color:\n  [0] red\n  [1] 01\n  [2] blue\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "01",
+            "blue"
+        ],
+        "default": null,
+        "answer": "same",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \"same\" is invalid",
+        "output": "\n Color:\n  [0] red\n  [1] 01\n  [2] blue\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "01",
+            "blue"
+        ],
+        "default": null,
+        "answer": "01",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": "01",
+        "error": null,
+        "output": "\n Color:\n  [0] red\n  [1] 01\n  [2] blue\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "0",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "r",
+                "red"
+            ],
+            [
+                "g",
+                "green"
+            ]
+        ],
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \"0\" is invalid",
+        "output": "\n Color:\n  [r] red\n  [g] green\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "1",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "r",
+                "red"
+            ],
+            [
+                "g",
+                "green"
+            ]
+        ],
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \"1\" is invalid",
+        "output": "\n Color:\n  [r] red\n  [g] green\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "r",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "r",
+                "red"
+            ],
+            [
+                "g",
+                "green"
+            ]
+        ],
+        "value": "r",
+        "error": null,
+        "output": "\n Color:\n  [r] red\n  [g] green\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "green",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "r",
+                "red"
+            ],
+            [
+                "g",
+                "green"
+            ]
+        ],
+        "value": "g",
+        "error": null,
+        "output": "\n Color:\n  [r] red\n  [g] green\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "red",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "r",
+                "red"
+            ],
+            [
+                "g",
+                "green"
+            ]
+        ],
+        "value": "r",
+        "error": null,
+        "output": "\n Color:\n  [r] red\n  [g] green\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "same",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "r",
+                "red"
+            ],
+            [
+                "g",
+                "green"
+            ]
+        ],
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \"same\" is invalid",
+        "output": "\n Color:\n  [r] red\n  [g] green\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "0",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "2",
+                "red"
+            ],
+            [
+                "7",
+                "green"
+            ]
+        ],
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \"0\" is invalid",
+        "output": "\n Color:\n  [2] red\n  [7] green\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "1",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "2",
+                "red"
+            ],
+            [
+                "7",
+                "green"
+            ]
+        ],
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \"1\" is invalid",
+        "output": "\n Color:\n  [2] red\n  [7] green\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "r",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "2",
+                "red"
+            ],
+            [
+                "7",
+                "green"
+            ]
+        ],
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \"r\" is invalid",
+        "output": "\n Color:\n  [2] red\n  [7] green\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "green",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "2",
+                "red"
+            ],
+            [
+                "7",
+                "green"
+            ]
+        ],
+        "value": "green",
+        "error": null,
+        "output": "\n Color:\n  [2] red\n  [7] green\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "red",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "2",
+                "red"
+            ],
+            [
+                "7",
+                "green"
+            ]
+        ],
+        "value": "red",
+        "error": null,
+        "output": "\n Color:\n  [2] red\n  [7] green\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "same",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "2",
+                "red"
+            ],
+            [
+                "7",
+                "green"
+            ]
+        ],
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \"same\" is invalid",
+        "output": "\n Color:\n  [2] red\n  [7] green\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "0",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "01",
+                "red"
+            ],
+            [
+                "1",
+                "green"
+            ]
+        ],
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \"0\" is invalid",
+        "output": "\n Color:\n  [01] red\n  [1 ] green\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "1",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "01",
+                "red"
+            ],
+            [
+                "1",
+                "green"
+            ]
+        ],
+        "value": "1",
+        "error": null,
+        "output": "\n Color:\n  [01] red\n  [1 ] green\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "r",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "01",
+                "red"
+            ],
+            [
+                "1",
+                "green"
+            ]
+        ],
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \"r\" is invalid",
+        "output": "\n Color:\n  [01] red\n  [1 ] green\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "green",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "01",
+                "red"
+            ],
+            [
+                "1",
+                "green"
+            ]
+        ],
+        "value": "1",
+        "error": null,
+        "output": "\n Color:\n  [01] red\n  [1 ] green\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "red",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "01",
+                "red"
+            ],
+            [
+                "1",
+                "green"
+            ]
+        ],
+        "value": "01",
+        "error": null,
+        "output": "\n Color:\n  [01] red\n  [1 ] green\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "same",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "01",
+                "red"
+            ],
+            [
+                "1",
+                "green"
+            ]
+        ],
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \"same\" is invalid",
+        "output": "\n Color:\n  [01] red\n  [1 ] green\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "0",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "a",
+                "same"
+            ],
+            [
+                "b",
+                "same"
+            ]
+        ],
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \"0\" is invalid",
+        "output": "\n Color:\n  [a] same\n  [b] same\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "1",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "a",
+                "same"
+            ],
+            [
+                "b",
+                "same"
+            ]
+        ],
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \"1\" is invalid",
+        "output": "\n Color:\n  [a] same\n  [b] same\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "r",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "a",
+                "same"
+            ],
+            [
+                "b",
+                "same"
+            ]
+        ],
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \"r\" is invalid",
+        "output": "\n Color:\n  [a] same\n  [b] same\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "green",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "a",
+                "same"
+            ],
+            [
+                "b",
+                "same"
+            ]
+        ],
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \"green\" is invalid",
+        "output": "\n Color:\n  [a] same\n  [b] same\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "red",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "a",
+                "same"
+            ],
+            [
+                "b",
+                "same"
+            ]
+        ],
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \"red\" is invalid",
+        "output": "\n Color:\n  [a] same\n  [b] same\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "same",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "a",
+                "same"
+            ],
+            [
+                "b",
+                "same"
+            ]
+        ],
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "The provided answer is ambiguous. Value should be one of \"a\" or \"b\".",
+        "output": "\n Color:\n  [a] same\n  [b] same\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "0",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "x",
+                false
+            ],
+            [
+                "y",
+                true
+            ]
+        ],
+        "value": "x",
+        "error": null,
+        "output": "\n Color:\n  [x] \n  [y] 1\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "1",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "x",
+                false
+            ],
+            [
+                "y",
+                true
+            ]
+        ],
+        "value": "y",
+        "error": null,
+        "output": "\n Color:\n  [x] \n  [y] 1\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "r",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "x",
+                false
+            ],
+            [
+                "y",
+                true
+            ]
+        ],
+        "value": "y",
+        "error": null,
+        "output": "\n Color:\n  [x] \n  [y] 1\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "green",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "x",
+                false
+            ],
+            [
+                "y",
+                true
+            ]
+        ],
+        "value": "y",
+        "error": null,
+        "output": "\n Color:\n  [x] \n  [y] 1\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "red",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "x",
+                false
+            ],
+            [
+                "y",
+                true
+            ]
+        ],
+        "value": "y",
+        "error": null,
+        "output": "\n Color:\n  [x] \n  [y] 1\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "same",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "x",
+                false
+            ],
+            [
+                "y",
+                true
+            ]
+        ],
+        "value": "y",
+        "error": null,
+        "output": "\n Color:\n  [x] \n  [y] 1\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "0",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "a",
+                "red"
+            ],
+            [
+                "a",
+                "green"
+            ],
+            [
+                "b",
+                "blue"
+            ]
+        ],
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \"0\" is invalid",
+        "output": "\n Color:\n  [a] green\n  [b] blue\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "1",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "a",
+                "red"
+            ],
+            [
+                "a",
+                "green"
+            ],
+            [
+                "b",
+                "blue"
+            ]
+        ],
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \"1\" is invalid",
+        "output": "\n Color:\n  [a] green\n  [b] blue\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "r",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "a",
+                "red"
+            ],
+            [
+                "a",
+                "green"
+            ],
+            [
+                "b",
+                "blue"
+            ]
+        ],
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \"r\" is invalid",
+        "output": "\n Color:\n  [a] green\n  [b] blue\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "green",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "a",
+                "red"
+            ],
+            [
+                "a",
+                "green"
+            ],
+            [
+                "b",
+                "blue"
+            ]
+        ],
+        "value": "a",
+        "error": null,
+        "output": "\n Color:\n  [a] green\n  [b] blue\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "red",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "a",
+                "red"
+            ],
+            [
+                "a",
+                "green"
+            ],
+            [
+                "b",
+                "blue"
+            ]
+        ],
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \"red\" is invalid",
+        "output": "\n Color:\n  [a] green\n  [b] blue\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "same",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "a",
+                "red"
+            ],
+            [
+                "a",
+                "green"
+            ],
+            [
+                "b",
+                "blue"
+            ]
+        ],
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \"same\" is invalid",
+        "output": "\n Color:\n  [a] green\n  [b] blue\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": " green ",
+        "multiple": false,
+        "interactive": true,
+        "trim": false,
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Value \" green \n\" is invalid",
+        "output": "\n Color:\n  [0] red\n  [1] green\n  [2] blue\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": 1,
+        "answer": "1",
+        "multiple": false,
+        "interactive": false,
+        "trim": true,
+        "validator": "none",
+        "value": "green",
+        "error": null,
+        "output": "",
+        "new_lines": 2,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": "0,2",
+        "answer": "1",
+        "multiple": true,
+        "interactive": false,
+        "trim": true,
+        "validator": "none",
+        "value": [
+            "red",
+            "blue"
+        ],
+        "error": null,
+        "output": "",
+        "new_lines": 2,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": 0,
+        "answer": "1",
+        "multiple": false,
+        "interactive": false,
+        "trim": true,
+        "validator": "custom",
+        "value": {
+            "custom": 0
+        },
+        "error": null,
+        "output": "",
+        "new_lines": 2,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "bad",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "custom_error": "Bad value: %s; %%s",
+        "value": null,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "message": "Bad value: bad; %s",
+        "output": "\n Color:\n  [0] red\n  [1] green\n  [2] blue\n > ",
+        "new_lines": 1,
+        "new_line": false
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "1",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "prompt": "Pick: ",
+        "value": "green",
+        "error": null,
+        "output": "\n Color:\n  [0] red\n  [1] green\n  [2] blue\nPick: \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "command",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": 0,
+        "answer": "",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": "red",
+        "error": null,
+        "output": "\n Color [red]:\n  [0] red\n  [1] green\n  [2] blue\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "command",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": "green",
+        "answer": "",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": "green",
+        "error": null,
+        "output": "\n Color [green]:\n  [0] red\n  [1] green\n  [2] blue\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "command",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": 2,
+        "answer": "",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": "blue",
+        "error": null,
+        "output": "\n Color [blue]:\n  [0] red\n  [1] green\n  [2] blue\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "style",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": 0,
+        "answer": "",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": "red",
+        "error": null,
+        "output": "\n Color [red]:\n  [0] red\n  [1] green\n  [2] blue\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "style",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": "green",
+        "answer": "",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": "green",
+        "error": null,
+        "output": "\n Color [green]:\n  [0] red\n  [1] green\n  [2] blue\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "style",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": 2,
+        "answer": "",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": "blue",
+        "error": null,
+        "output": "\n Color [blue]:\n  [0] red\n  [1] green\n  [2] blue\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "green",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "猫",
+                "red"
+            ],
+            [
+                "😀😀",
+                "green"
+            ]
+        ],
+        "value": "😀😀",
+        "error": null,
+        "output": "\n Color:\n  [猫  ] red\n  [😀😀] green\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "green",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "é",
+                "red"
+            ],
+            [
+                "👩‍👩‍👦",
+                "green"
+            ]
+        ],
+        "value": "👩‍👩‍👦",
+        "error": null,
+        "output": "\n Color:\n  [é     ] red\n  [👩‍👩‍👦] green\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "green",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "a\t",
+                "red"
+            ],
+            [
+                "long",
+                "green"
+            ]
+        ],
+        "value": "long",
+        "error": null,
+        "output": "\n Color:\n  [a\t  ] red\n  [long] green\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "green",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "零",
+                "<info>red<\/info>"
+            ],
+            [
+                "一",
+                "green"
+            ]
+        ],
+        "value": "一",
+        "error": null,
+        "output": "\n Color:\n  [零] red\n  [一] green\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "1",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "prompt": "<info>Pick<\/info>: ",
+        "value": "green",
+        "error": null,
+        "output": "\n Color:\n  [0] red\n  [1] green\n  [2] blue\nPick: \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": null,
+        "answer": "red",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "é",
+                "red"
+            ],
+            [
+                "👩‍👩‍👦",
+                "green"
+            ]
+        ],
+        "value": "é",
+        "error": null,
+        "output": "\n Color:\n  [é     ] red\n  [👩‍👩‍👦] green\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            1.5,
+            2.0
+        ],
+        "default": null,
+        "answer": "0",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": 1.5,
+        "error": null,
+        "output": "\n Color:\n  [0] 1.5\n  [1] 2\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            1.5,
+            2.0
+        ],
+        "default": null,
+        "answer": "1",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": 2.0,
+        "error": null,
+        "output": "\n Color:\n  [0] 1.5\n  [1] 2\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            1.5,
+            2.0
+        ],
+        "default": null,
+        "answer": "1.5",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": 1.5,
+        "error": null,
+        "output": "\n Color:\n  [0] 1.5\n  [1] 2\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "question",
+        "choices": [
+            1.5,
+            2.0
+        ],
+        "default": null,
+        "answer": "2",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "value": 2.0,
+        "error": null,
+        "output": "\n Color:\n  [0] 1.5\n  [1] 2\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "command",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": "red",
+        "answer": "",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "r",
+                "red"
+            ],
+            [
+                "g",
+                "green"
+            ]
+        ],
+        "value": "r",
+        "error": null,
+        "output": "\n Color [red]:\n  [r] red\n  [g] green\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "command",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": "green",
+        "answer": "",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "r",
+                "red"
+            ],
+            [
+                "g",
+                "green"
+            ]
+        ],
+        "value": "g",
+        "error": null,
+        "output": "\n Color [green]:\n  [r] red\n  [g] green\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "command",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": "g",
+        "answer": "",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "r",
+                "red"
+            ],
+            [
+                "g",
+                "green"
+            ]
+        ],
+        "value": "g",
+        "error": null,
+        "output": "\n Color [green]:\n  [r] red\n  [g] green\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "style",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": "red",
+        "answer": "",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "r",
+                "red"
+            ],
+            [
+                "g",
+                "green"
+            ]
+        ],
+        "value": "r",
+        "error": null,
+        "output": "\n Color [red]:\n  [r] red\n  [g] green\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "style",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": "green",
+        "answer": "",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "r",
+                "red"
+            ],
+            [
+                "g",
+                "green"
+            ]
+        ],
+        "value": "g",
+        "error": null,
+        "output": "\n Color [green]:\n  [r] red\n  [g] green\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    },
+    {
+        "mode": "style",
+        "choices": [
+            "red",
+            "green",
+            "blue"
+        ],
+        "default": "g",
+        "answer": "",
+        "multiple": false,
+        "interactive": true,
+        "trim": true,
+        "pairs": [
+            [
+                "r",
+                "red"
+            ],
+            [
+                "g",
+                "green"
+            ]
+        ],
+        "value": "g",
+        "error": null,
+        "output": "\n Color [green]:\n  [r] red\n  [g] green\n > \n",
+        "new_lines": 2,
+        "new_line": true
+    }
+]
