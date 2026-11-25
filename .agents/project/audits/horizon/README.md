@@ -8,6 +8,12 @@
 
 此前“Master 直接启动 queue:work、只读面板、只存监控投影”的实现是历史子集，不能作为完整上游对齐证据。当前已替换该结构，Horizon本地定向验收已完成，O02的统一状态见[对齐账本](../extension-parity.md)。
 
+## Master 控制命令的主机范围
+
+PHP 8.5.12 在 Linux 隔离容器里使用固定 Horizon 命令、真实子进程与 POSIX 信号对照 `horizon:pause`、`horizon:continue` 和 `horizon:terminate`。三条命令只向本机 Master 名称前缀匹配的 PID 分别发送 USR2、CONT 和 TERM。夹具覆盖空暂停／继续集合，并保留模拟其他主机的进程。快速终止下 `--wait` 写入 `horizon:terminate:wait`。终止还向 Laravel Cache 写入 `illuminate:queue:restart`，供原生 Worker 使用。证据为 `target/tmp/observability-parity/horizon-master-local-control-upstream.log`。 [固定 PauseCommand](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Console/PauseCommand.php) [固定 ContinueCommand](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Console/ContinueCommand.php) [固定 TerminateCommand](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Console/TerminateCommand.php)
+
+当前 Rust 三条命令更新共享 Redis 的全局暂停或终止状态。Master 接收外部 USR2／CONT 后也更新全局暂停。下一批需让真实 Artisan 命令从已登记的主机选择本机 Master，核对本机信号传播给其子 Supervisor、不同主机的 Master 存活及 `--wait` 的行为，并复用框架 Worker 读取的原生重启标记。Windows 需单独验证没有 POSIX 信号时的控制入口。当前仓储公开的全局控制方法亦有调用方，验收应同时覆盖这些调用方。固定默认名称使用 `Str::slug(gethostname())` 和进程内四字符令牌，支持 `determineNameUsing`，名称契约继续单独核对。 [固定 MasterSupervisor](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/MasterSupervisor.php)
+
 ## 当前实现
 
 - 可选 `HorizonServiceProvider` 通过包发现装配，懒绑定应用内服务、默认配置及发布模板。默认应用不预装扩展 Provider、配置或业务示例。面板必须显式注册路由、显式授权，默认拒绝；每次读写重新授权，写操作校验同源请求标识。

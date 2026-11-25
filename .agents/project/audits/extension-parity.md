@@ -121,7 +121,9 @@ Rust 利用锁定的 hostname 0.4.2 读取系统主机名，Master 和 Superviso
 
 固定 `RedisMasterSupervisorRepository::names` 读取 14 秒窗口内全部 Master，并以最近心跳为先。`horizon:status` 与 `horizon:list` 均使用该仓储契约，Rust 修复也改走已有的无条数上限的 Master 仓储。新增用例登记 102 条心跳，确认唯一暂停节点仍影响退出码，JSON 和文本列表均可见。 [固定 Master 仓储](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Repositories/RedisMasterSupervisorRepository.php)
 
-macOS 初轮独占 Redis 8.10.3 的主机选择、状态类别和无跨主机写入用例、Horizon 严格 Clippy 以及原生进程矩阵均通过。矩阵覆盖监督器恢复、重试及忘记、暂停、继续、正常终止、面板授权与脱敏。三语文档构建及 12 组浏览器检查通过。初轮证据为 `target/tmp/observability-parity/horizon-local-supervisor-{macos,docs}.log`。包含 102 条心跳的 Mac Redis 回归和相同源码的 Horizon 库及运行时目标严格 Clippy 通过，证据为 `target/tmp/observability-parity/horizon-pulse-lifecycle-macos.log`。Linux 初轮源码和目标平台的最终快照继续独立复验。
+macOS 初轮独占 Redis 8.10.3 的主机选择、状态类别和无跨主机写入用例、Horizon 严格 Clippy 以及原生进程矩阵均通过。矩阵覆盖监督器恢复、重试及忘记、暂停、继续、正常终止、面板授权与脱敏。三语文档构建及 12 组浏览器检查通过。初轮证据为 `target/tmp/observability-parity/horizon-local-supervisor-{macos,docs}.log`。包含 102 条心跳的 Mac Redis 回归和相同源码的 Horizon 库及运行时目标严格 Clippy 通过，证据为 `target/tmp/observability-parity/horizon-pulse-lifecycle-macos.log`。Linux ARM64 的初轮同样通过主机选择、Redis 原生模型标签与失败重试，以及 6 项标签／通知测试，4 项按条件忽略。精确快照重新编译 Horizon 后，Linux 7.0.14 ARM64 与 Redis 8.10.3 的 102 条心跳回归通过。Linux 证据为 `target/tmp/observability-parity/{horizon-local-supervisor-linux,horizon-master-heartbeats-linux}.log`。其他目标平台和最终部署组合仍待验证。
+
+固定上游 [Master 控制命令](horizon/README.md#master-控制命令的主机范围) 和 [Pulse 慢任务计时](pulse/README.md#slowjobs-任务尝试计时) 已保留真实消费者对照证据。前者的 Rust 本机控制仍待实现，后者已在原生 SQLite Worker 上修复并验收。
 
 ### Horizon 分组等待时间与 HTTP 排序
 
