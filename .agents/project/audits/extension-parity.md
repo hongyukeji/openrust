@@ -249,7 +249,9 @@ PHP 8.5.12 运行固定 Laravel HTTP Client 和 Telescope `ClientRequestWatcher:
 
 固定 reqwest 0.13.5 将所有非空 multipart 编码成不可复制的正文流，即使每个部件都已缓冲。Rust 复用现有本地 reqwest 副本及请求复制路径，保存可复制的部件、原 boundary 和编码方式，每次传输独立生成流，缓冲附件共享字节。一次性部件沿用原行为。旧版直接使用 reqwest 表单，未提供这类重放。真实回环用例覆盖 307、308、422 重试与头部改写，并逐字节比较两次正文；仍需验收可重开的文件和自定义流。初次验收在 32 GB 停线终止；第二次编译发现测试引用了框架未直接声明的 bytes crate，改用 Axum 已导出的同一类型后通过。 [固定 reqwest 请求复制契约](https://docs.rs/reqwest/0.13.5/reqwest/struct.Request.html#method.try_clone)
 
-固定 PHP 组合的实际回环服务器确认，302 后目标收到 `GET` 及原 multipart 媒体类型，正文长度为零，未发送原 Content-Length 或 Transfer-Encoding；307、308 后收到 `POST` 和完整附件。正文清空后的媒体类型差异保留为下一项实现缺口。另用不可回卷的 Guzzle 流确认，422 后上游仍尝试发送，但第二次请求的附件内容已丢失。Rust 对一次性流保留明确的不可重放错误；可回卷文件对应的 Rust 入口继续处理。证据为 `target/tmp/observability-parity/multipart-{redirect-wire-upstream,combinations-extended-upstream}.log`。
+固定 PHP 组合的实际回环服务器确认，302 后目标收到 `GET` 及原 multipart 媒体类型，正文长度为零，未发送原 Content-Length 或 Transfer-Encoding；307、308 后收到 `POST` 和完整附件。原 Rust 响应事件随空正文丢弃媒体类型，修复和验收见下段。另用不可回卷的 Guzzle 流确认，422 后上游仍尝试发送，但第二次请求的附件内容已丢失。Rust 对一次性流保留明确的不可重放错误；可回卷文件对应的 Rust 入口继续处理。证据为 `target/tmp/observability-parity/multipart-{redirect-wire-upstream,combinations-extended-upstream}.log`。
+
+媒体类型专项在固定 PHP 组合的 63 组方法与状态中确认 `text/plain` 均保留。Rust 清空正文时移除旧的 Content-Length 与 Transfer-Encoding，保留 Content-Type。锚定测试扩充 63 组真实回环和 Telescope 在 302 后的表单、multipart 和脱敏条目。macOS 隔离快照的框架客户端 23 项、Telescope Provider 15 项、SQLite／PostgreSQL 18.7／MySQL 8.4.13 定向回归与严格 Clippy 均通过。独立 Redis 用例按环境条件跳过。证据为 `target/tmp/observability-parity/{redirect-media-upstream,multipart-redirect-media-macos}.log`。
 
 在基于 `177b24933` 的 macOS 隔离快照上，框架 HTTP 客户端 23 项、Telescope Provider 15 项和所涉严格 Clippy 均通过。一个需要独占 Redis 的 Provider 用例未执行。真实回环与 Telescope 仓储验证跨源 302 原始表单参数与完全脱敏、307 重放、422 后重试头和两次条目，在 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 各通过。核心另验证 308、原生 Part 与一次性流拒绝重试。三语内容检查通过。证据为 `target/tmp/observability-parity/multipart-replay-macos-retry.log`。目标平台复验及生产部署组合仍待补齐。
 

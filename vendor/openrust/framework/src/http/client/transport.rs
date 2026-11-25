@@ -325,11 +325,7 @@ impl Redirect {
                 *request.method_mut() = Method::GET;
             }
             *request.body_mut() = None;
-            for name in [
-                header::CONTENT_LENGTH,
-                header::CONTENT_TYPE,
-                header::TRANSFER_ENCODING,
-            ] {
+            for name in [header::CONTENT_LENGTH, header::TRANSFER_ENCODING] {
                 request.headers_mut().remove(name);
             }
         } else if !self.replayable {

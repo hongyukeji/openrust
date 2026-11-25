@@ -978,6 +978,7 @@ async fn redirects_select_methods_and_bodies_like_the_fixed_guzzle_client() {
                 any(
                     |Path(code): Path<u16>, request: axum::extract::Request| async move {
                         assert!(request.headers().contains_key(header::REFERER));
+                        assert_eq!(request.headers()[header::CONTENT_TYPE], "text/plain");
                         let body = axum::body::to_bytes(request.into_body(), 512)
                             .await
                             .unwrap();
@@ -993,9 +994,17 @@ async fn redirects_select_methods_and_bodies_like_the_fixed_guzzle_client() {
                 "/target",
                 any(|request: axum::extract::Request| async {
                     assert!(!request.headers().contains_key(header::REFERER));
+                    assert_eq!(request.headers()[header::CONTENT_TYPE], "text/plain");
                     let (parts, body) = request.into_parts();
                     let body = axum::body::to_bytes(body, 512).await.unwrap();
                     let body = if body.is_empty() {
+                        assert!(!parts.headers.contains_key(header::TRANSFER_ENCODING));
+                        assert!(
+                            parts
+                                .headers
+                                .get(header::CONTENT_LENGTH)
+                                .is_none_or(|value| value == "0")
+                        );
                         "empty"
                     } else {
                         assert_eq!(&body[..], b"payload");

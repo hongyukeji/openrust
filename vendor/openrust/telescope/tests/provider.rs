@@ -1708,7 +1708,19 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
                         if matches!(index, 13 | 17 | 19) {
                             assert!(headers.starts_with("get /final?destination=value "));
                             assert_eq!(size, 0);
-                            assert!(!headers.contains("content-type:"));
+                            assert!(!headers.contains("transfer-encoding:"));
+                            if index == 13 {
+                                assert!(
+                                    headers.contains(
+                                        "content-type: application/x-www-form-urlencoded"
+                                    )
+                                );
+                            } else {
+                                assert!(
+                                    headers
+                                        .contains("content-type: multipart/form-data; boundary=")
+                                );
+                            }
                         }
                         if index == 14 {
                             assert!(headers.starts_with("options /redirect?"));
@@ -1845,6 +1857,14 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
     );
     assert_eq!(entries[1].content["method"], "GET");
     assert_eq!(entries[1].content["payload"], payload);
+    for entry in &entries[..2] {
+        assert!(
+            entry.content["headers"]["content-type"]
+                .as_str()
+                .unwrap()
+                .starts_with("multipart/form-data; boundary=")
+        );
+    }
     let entries = &entries[2..];
     assert_eq!(entries[0].content["method"], "OPTIONS");
     assert!(
