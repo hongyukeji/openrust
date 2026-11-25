@@ -12,6 +12,7 @@ mod manager;
 mod moderation;
 mod provider;
 mod query_policy;
+mod recovery;
 mod result;
 mod review;
 mod revision;

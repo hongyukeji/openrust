@@ -20,29 +20,47 @@ impl VideoReviewService {
     /// 领取待提交检查。提交结果不明确或进程中断时保留未知状态供补偿。
     pub async fn submit(&self, id: &str) -> ModerationResult<VideoReview> {
         let review = self.find(id).await?;
-        if let Some(claim) = self.store.claim_submission(&review).await? {
+        self.submit_review(&review).await?;
+        self.find(id).await
+    }
+
+    async fn submit_review(&self, review: &VideoReview) -> ModerationResult<()> {
+        if let Some(claim) = self.store.claim_submission(review).await? {
             let outcome = match self.driver(&claim) {
                 Ok(driver) if self.store.submission_is_live(&claim).await? => {
                     Self::send(driver.as_ref(), claim.source().clone()).await
                 }
                 Ok(_) => {
                     self.store.recover_submission(&claim).await?;
-                    return self.find(id).await;
+                    return Ok(());
                 }
                 Err(failure) => VideoSubmission::Failed(failure),
             };
             self.store.finish_submission(&claim, outcome).await?;
         } else {
-            self.store.recover_submission(&review).await?;
+            self.store.recover_submission(review).await?;
         }
-        self.find(id).await
+        Ok(())
     }
 
     /// 对已确认的供应商任务执行有限预算内的一次查单，或返回目前已持久化的状态。
     pub async fn query(&self, id: &str) -> ModerationResult<VideoReview> {
         let review = self.find(id).await?;
-        let Some(claim) = self.store.claim_query(&review).await? else {
-            return self.find(id).await;
+        self.query_review(&review).await?;
+        self.find(id).await
+    }
+
+    pub(crate) async fn advance(&self, review: &VideoReview) -> ModerationResult<()> {
+        if matches!(review.submission(), VideoSubmission::Submitted(_)) {
+            self.query_review(review).await
+        } else {
+            self.submit_review(review).await
+        }
+    }
+
+    async fn query_review(&self, review: &VideoReview) -> ModerationResult<()> {
+        let Some(claim) = self.store.claim_query(review).await? else {
+            return Ok(());
         };
         let VideoSubmission::Submitted(task) = claim.submission() else {
             return Err(ModerationError::ReviewStorage);
@@ -50,7 +68,7 @@ impl VideoReviewService {
         let outcome = match self.manager.driver_for_revision(claim.profile()) {
             Ok(driver) if driver.supports(Operation::QueryVideo) => {
                 if !self.store.query_is_live(&claim).await? {
-                    return self.find(id).await;
+                    return Ok(());
                 }
                 Self::read_provider(driver.as_ref(), task, &claim).await
             }
@@ -64,7 +82,7 @@ impl VideoReviewService {
             Err(_) => query_failed(QueryFailure::Configuration),
         };
         self.store.finish_query(&claim, outcome).await?;
-        self.find(id).await
+        Ok(())
     }
 
     async fn find(&self, id: &str) -> ModerationResult<VideoReview> {

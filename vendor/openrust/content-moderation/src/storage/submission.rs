@@ -140,6 +140,7 @@ impl ModerationStore {
                                     ("remote_task_id".into(), remote_id),
                                     ("submit_failure".into(), failure),
                                     ("available_at".into(), next.available_at.into()),
+                                    ("dispatch_lease_until".into(), Value::Null),
                                 ]
                                 .into_iter()
                                 .collect(),

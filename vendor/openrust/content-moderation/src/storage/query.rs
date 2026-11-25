@@ -160,6 +160,7 @@ impl ModerationStore {
                                         next.query_lease_until.map_or(Value::Null, Value::from),
                                     ),
                                     ("query_failure".into(), failure),
+                                    ("dispatch_lease_until".into(), Value::Null),
                                     (
                                         "assessment".into(),
                                         assessment.map_or(Value::Null, Value::from),

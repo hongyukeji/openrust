@@ -30,6 +30,8 @@ pub enum ModerationError {
     ReviewNotFound,
     #[error("内容审核记录读写失败")]
     ReviewStorage,
+    #[error("内容审核恢复任务派发失败")]
+    RecoveryDispatch,
     #[error("内容审核默认配置未指定")]
     DefaultNotConfigured,
     #[error("内容审核驱动未注册")]

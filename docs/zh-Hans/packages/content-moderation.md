@@ -167,3 +167,14 @@ let recommendation = result.decision(&[Modality::Text]);
 调用 `VideoReviewService::query(review_id)` 推进已确认的任务。可以在固定配置中设置 `query_interval_seconds` 和 `query_max_attempts`，默认 30 秒、120 次，两者各可设 1–300。服务在数据库中记录下次查单时间、租约和尝试次数，重启后仍使用同一预算。远端结果正常待定时使用配置间隔，暂时故障采用有上限的退避。
 
 通过 `VideoReview::assessment()` 读取归一化证据，通过 `VideoReview::decision()` 读取审核决定。全部必检模态覆盖完整后，审核才有决定。供应商完成但覆盖不足时，审核保留证据并报告覆盖失败。
+
+## 定时恢复视频审核 {#review-recovery}
+
+对每个需要托管的应用和租户，将 `moderation:recover` 加入每分钟调度。调度进程和 Worker 共用数据库与队列。命令领取不超过 `--limit` 条到期审核，默认 100，范围 1–500，只将本地审核 ID 和版本等定位信息入列。
+
+```sh
+./artisan moderation:recover app tenant --connection=database --queue=moderation
+./artisan queue:work database --queue=moderation
+```
+
+通过 `--database` 选择具名审核数据库。将 Worker 队列的保留或可见性超时设为长于恢复 Job 的 125 秒超时。数据库保存下次恢复的时间，消息丢失后可在 60 秒派发租约到期时再次入列。收到旧审核版本的消息时保持当前状态。

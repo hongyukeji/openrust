@@ -167,3 +167,14 @@ After staging, build a `VideoReviewService` from the store and the application�
 Call `VideoReviewService::query(review_id)` to advance a confirmed task. Set `query_interval_seconds` and `query_max_attempts` on the pinned profile to control polling. They default to 30 seconds and 120 attempts, with each value limited to 1–300. The service stores the next query time, lease and attempt count in the database, so these limits apply across restarts. Normal pending responses use the configured interval. Temporary errors use bounded backoff.
 
 Read the normalized evidence with `VideoReview::assessment()` and the policy decision with `VideoReview::decision()`. The decision is available after all required modalities have complete coverage. A remote task can finish with partial coverage, in which case the review stores the evidence and reports the coverage failure.
+
+## Recovering scheduled reviews {#review-recovery}
+
+Schedule `moderation:recover` to run every minute for each application and tenant you manage. Use a shared database and queue so schedulers and workers see the same review state. The command claims up to `--limit` due reviews (100 by default, 1–500), and queues their local IDs and versions.
+
+```sh
+./artisan moderation:recover app tenant --connection=database --queue=moderation
+./artisan queue:work database --queue=moderation
+```
+
+Use `--database` to select a named review database. Give the worker's queue a reservation or visibility timeout longer than the recovery job’s 125-second timeout. The database keeps the next recovery time. A lost message may be queued again after its 60-second dispatch lease expires. A delivery for an earlier review version leaves the current review unchanged.

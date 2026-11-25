@@ -13,6 +13,7 @@ use crate::{
 
 mod assessment_record;
 mod query;
+mod recovery;
 mod submission;
 
 const REVIEWS: &str = "moderation_reviews";

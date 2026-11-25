@@ -39,6 +39,26 @@ const REVIEW_JOB: &str = "moderation.fixture.read-review";
 const SUBMIT_REVIEW_JOB: &str = "moderation.fixture.submit-review";
 const QUERY_REVIEW_JOB: &str = "moderation.fixture.query-review";
 
+pub(super) fn schedule(
+    schedule: &mut openrust::console::scheduling::Schedule,
+) -> Result<(), ConsoleError> {
+    if let Ok(connection) = std::env::var("MODERATION_FIXTURE_RECOVERY_QUEUE") {
+        schedule
+            .command(
+                "moderation:recover",
+                [
+                    "app".into(),
+                    "tenant".into(),
+                    format!("--connection={connection}").into(),
+                    "--queue=moderation-recovery".into(),
+                    "--limit=1".into(),
+                ],
+            )
+            .every_minute();
+    }
+    Ok(())
+}
+
 pub(super) fn configuration(env: &Environment) -> Result<Value, ConfigError> {
     let mut configuration = json!({"default":"comments","drivers":{
         "comments":{"driver":"fixture-text"},

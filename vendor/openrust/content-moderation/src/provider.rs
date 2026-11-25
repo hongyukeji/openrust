@@ -3,6 +3,7 @@ use openrust::{
     contracts::{container::Container as _, foundation::Application as _},
     foundation::Application,
     http::HttpFuture,
+    queue::QueueManager,
     support::{ProviderResult, ServiceProvider},
 };
 use std::sync::Arc;
@@ -16,6 +17,8 @@ use crate::{
 mod checks_migration;
 #[path = "../database/migrations/2026_11_26_000004_add_moderation_query_budget.rs"]
 mod query_budget_migration;
+#[path = "../database/migrations/2026_11_26_000005_add_moderation_recovery_dispatch.rs"]
+mod recovery_dispatch_migration;
 #[path = "../database/migrations/2026_11_26_000001_create_moderation_reviews_table.rs"]
 mod reviews_migration;
 #[path = "../database/migrations/2026_11_26_000003_add_moderation_submission_lease.rs"]
@@ -55,6 +58,11 @@ impl ServiceProvider for ModerationServiceProvider {
             self.load_migrations_with_application_overrides(app, Self::migrations())
                 .await?;
             self.publishes(app, MIGRATION_SOURCES, "moderation-migrations")?;
+            app.make::<QueueManager>().await?.register(
+                crate::recovery::JOB_NAME,
+                Arc::new(crate::recovery::RecoverVideoReview),
+            )?;
+            self.commands(app, crate::recovery::register_command);
             self.publishes(
                 app,
                 &[(
@@ -72,6 +80,7 @@ openrust::compiled_migration_assets!("content-moderation";
     "2026_11_26_000002_create_moderation_checks_table.rs" => checks_migration,
     "2026_11_26_000003_add_moderation_submission_lease.rs" => submission_lease_migration,
     "2026_11_26_000004_add_moderation_query_budget.rs" => query_budget_migration,
+    "2026_11_26_000005_add_moderation_recovery_dispatch.rs" => recovery_dispatch_migration,
 );
 
 impl ModerationServiceProvider {

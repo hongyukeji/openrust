@@ -167,3 +167,14 @@ let recommendation = result.decision(&[Modality::Text]);
 呼叫 `VideoReviewService::query(review_id)` 推進已確認的任務。可在固定設定中設定 `query_interval_seconds` 和 `query_max_attempts`，預設 30 秒、120 次，兩者各可設 1–300。服務在資料庫中記錄下次查詢時間、租約和嘗試次數，重新啟動後仍使用相同預算。遠端結果正常待定時使用設定間隔，暫時故障採用有上限的退避。
 
 透過 `VideoReview::assessment()` 讀取正規化證據，透過 `VideoReview::decision()` 讀取審核決定。所有必檢模態涵蓋完整後，審核才有決定。供應商完成但涵蓋不足時，審核保留證據並回報涵蓋失敗。
+
+## 定時復原影片審核 {#review-recovery}
+
+對每個需要管理的應用程式和租戶，將 `moderation:recover` 加入每分鐘排程。排程程序和 Worker 共用資料庫與佇列。命令領取最多 `--limit` 筆到期審核，預設 100，範圍 1–500，只將本機審核 ID 和版本等定位資訊加入佇列。
+
+```sh
+./artisan moderation:recover app tenant --connection=database --queue=moderation
+./artisan queue:work database --queue=moderation
+```
+
+透過 `--database` 選擇具名審核資料庫。將 Worker 佇列的保留或可見性逾時設為長於復原 Job 的 125 秒逾時。資料庫保存下次復原時間，訊息遺失後可在 60 秒派送租約到期時重新加入佇列。收到舊審核版本的訊息時保留目前狀態。

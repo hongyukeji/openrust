@@ -202,6 +202,8 @@ async fn main() -> ExitCode {
             );
         #[cfg(feature = "pay")]
         let builder = builder.with_migrations(pay::MIGRATIONS);
+        #[cfg(feature = "content-moderation")]
+        let builder = builder.with_schedule(moderation::schedule);
         builder.create().map_err(Into::into)
     })
     .await
