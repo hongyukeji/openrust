@@ -20,6 +20,11 @@ try {
                         for(const anchor of ["support-status","available-entry-points","scope"])
                             assert.equal(await page.locator(`h2#${anchor}`).count(),1);
                         assert.ok((await page.locator(".vp-doc").innerText()).includes(type));
+                        if(kind==="client") {
+                            assert.equal(await page.locator("h3#receipts").count(),1);
+                            for(const entry of ["WebhookProcessor","DatabaseWebhookStore","WebhookJobDispatcher"])
+                                assert.ok((await page.locator(".vp-doc").innerText()).includes(entry));
+                        }
                         assert.ok((await page.locator(".vp-doc").innerText()).includes("vendor:publish"));
                         console.log(`${base}${locale}/webhook-${kind}: 范围与公开示例 PASS`);
                     }

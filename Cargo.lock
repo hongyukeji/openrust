@@ -4679,6 +4679,7 @@ name = "openrust-webhook-client"
 version = "0.0.0"
 dependencies = [
  "aws-lc-rs",
+ "base64 0.22.1",
  "http 1.5.0",
  "openrust-framework",
  "serde_json",

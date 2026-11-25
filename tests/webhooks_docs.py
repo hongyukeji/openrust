@@ -12,7 +12,7 @@ for locale in ["en","zh-Hans","zh-Hant"]:
         blocks=re.findall(r"```rust\n(.*?)\n```",text,re.S)
         assert len(blocks)==1,(locale,kind)
         name=f"{locale}_{kind}".lower().replace("-","_")
-        uses="let _ = verify_signature;" if kind=="client" else "let _ = spatie_signature; let _ = standard_headers;"
+        uses="let _ = verify_signature; let _ = receive;" if kind=="client" else "let _ = spatie_signature; let _ = standard_headers;"
         parts.append(f"mod {name} {{\n{blocks[0]}\n#[test] fn examples_compile() {{ {uses} }}\n}}")
 (source/"tests/webhooks_docs_generated.rs").write_text("\n\n".join(parts)+"\n")
 print("已提取三语六段 Webhook 契约示例")

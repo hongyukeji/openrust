@@ -81,6 +81,23 @@ async fn provider_is_lazy_scoped_and_keeps_credential_references_out_of_configur
         })
         .await;
     let env = first.make::<openrust::config::Environment>().await.unwrap();
+    for policy in [
+        json!(["*"]),
+        json!(true),
+        json!(["bad\nheader"]),
+        json!(vec!["x"; 129]),
+    ] {
+        assert!(
+            WebhookConfig::from_config(&json!({"name":"headers","store_headers":policy}), &env)
+                .is_err()
+        );
+    }
+    for policy in [json!("*"), json!(["X-Source"]), json!([])] {
+        assert!(
+            WebhookConfig::from_config(&json!({"name":"headers","store_headers":policy}), &env)
+                .is_ok()
+        );
+    }
     assert!(
         WebhookConfig::from_config(
             &json!({"name":"bad","signing_secret":"unsafe-inline"}),

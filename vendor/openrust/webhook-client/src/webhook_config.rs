@@ -69,6 +69,49 @@ impl WebhookConfig {
     pub fn options(&self) -> &Value {
         &self.options
     }
+    /// 空列表不保存请求头；单独的 `*` 显式保存所有头，应用须考虑凭据与隐私。
+    pub fn with_store_headers(mut self, names: &[&str]) -> Result<Self> {
+        if names.len() > 128 || (names.contains(&"*") && names.len() != 1) {
+            return Err(Error::InvalidConfig("store_headers"));
+        }
+        for name in names {
+            if *name != "*" {
+                HeaderName::from_bytes(name.as_bytes())
+                    .map_err(|_| Error::InvalidConfig("store_headers"))?;
+            }
+        }
+        if self.options.is_null() {
+            self.options = serde_json::json!({});
+        }
+        self.options["store_headers"] = if names == ["*"] {
+            Value::String("*".into())
+        } else {
+            serde_json::json!(names)
+        };
+        Ok(self)
+    }
+    pub fn headers_to_store(&self, headers: &http::HeaderMap) -> Result<http::HeaderMap> {
+        let names = &self.options["store_headers"];
+        if names.as_str() == Some("*") {
+            return Ok(headers.clone());
+        }
+        let mut result = http::HeaderMap::new();
+        if names.is_null() {
+            return Ok(result);
+        }
+        let names = names
+            .as_array()
+            .ok_or(Error::InvalidConfig("store_headers"))?;
+        for (name, value) in headers {
+            if names.iter().any(|n| {
+                n.as_str()
+                    .is_some_and(|n| n.eq_ignore_ascii_case(name.as_str()))
+            }) {
+                result.append(name.clone(), value.clone());
+            }
+        }
+        Ok(result)
+    }
     pub fn with_signature_header(mut self, name: &str) -> Result<Self> {
         self.signature_header = HeaderName::from_bytes(name.as_bytes())
             .map_err(|_| Error::InvalidConfig("signature_header_name"))?;
@@ -174,6 +217,23 @@ impl WebhookConfig {
             )?;
         }
         config.options = value.clone();
+        if let Some(names) = value.get("store_headers") {
+            if names.as_str() == Some("*") {
+                config = config.with_store_headers(&["*"])?;
+            } else {
+                let names = names
+                    .as_array()
+                    .ok_or(Error::InvalidConfig("store_headers"))?;
+                let names = names
+                    .iter()
+                    .map(|name| name.as_str().ok_or(Error::InvalidConfig("store_headers")))
+                    .collect::<Result<Vec<_>>>()?;
+                if names.contains(&"*") {
+                    return Err(Error::InvalidConfig("store_headers：全选使用字符串 *"));
+                }
+                config = config.with_store_headers(&names)?;
+            }
+        }
         Ok(config)
     }
 }

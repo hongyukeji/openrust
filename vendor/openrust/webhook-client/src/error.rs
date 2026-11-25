@@ -10,6 +10,12 @@ pub enum Error {
     HeadersTooLarge,
     #[error("Webhook 签名无效")]
     InvalidSignature,
+    #[error("Webhook 存储操作失败")]
+    Database(#[from] openrust::database::DatabaseError),
+    #[error("Webhook 存储记录无效")]
+    InvalidRecord,
+    #[error("Webhook 存储记录不存在或不属于当前范围")]
+    RecordNotFound,
     #[error("Webhook 运行操作失败")]
     Runtime {
         #[source]

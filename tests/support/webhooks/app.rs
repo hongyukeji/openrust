@@ -66,6 +66,175 @@ fn verify(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
             .map_err(internal)
     })
 }
+struct Databases;
+impl Facade for Databases {
+    type Service = openrust::database::DatabaseManager;
+    fn get_facade_accessor() -> ServiceKey {
+        ServiceKey::typed::<openrust::database::DatabaseManager>()
+    }
+}
+struct ReceiveJob {
+    fail: bool,
+}
+impl openrust_webhook_client::WebhookJobDispatcher for ReceiveJob {
+    fn dispatch<'a>(
+        &'a self,
+        call: &'a openrust_webhook_client::models::WebhookCall,
+    ) -> HttpFuture<'a, openrust_webhook_client::Result<()>> {
+        Box::pin(async move {
+            if self.fail {
+                return Err(openrust_webhook_client::Error::InvalidConfig(
+                    "fixture dispatch failure",
+                ));
+            }
+            openrust::support::facades::Artisan::queue(
+                "webhooks:record",
+                &[call.id().into(), call.scope().into()],
+            )
+            .on_connection("database")
+            .on_queue("webhook-receipts")
+            .dispatch()
+            .await
+            .map_err(|source| openrust_webhook_client::Error::Runtime {
+                source: Box::new(source),
+            })?;
+            Ok(())
+        })
+    }
+}
+struct Ignore;
+impl openrust_webhook_client::WebhookProfile for Ignore {
+    fn should_process(
+        &self,
+        _: &WebhookRequest,
+        _: &openrust_webhook_client::WebhookConfig,
+    ) -> openrust_webhook_client::Result<bool> {
+        Ok(false)
+    }
+}
+fn receive(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let name = request.route("profile").unwrap_or_default().to_owned();
+        let config = Configs::get_facade_root()
+            .map_err(internal)?
+            .get_config(&name)
+            .map_err(internal)?
+            .ok_or(HttpError::NotFound)?;
+        let uri = request.uri().clone();
+        let method = request.method().clone();
+        let headers = request.headers().clone();
+        let bytes = axum::body::to_bytes(request.take_body(), config.max_body_bytes())
+            .await
+            .map_err(|_| HttpError::PayloadTooLarge)?;
+        let snapshot = WebhookRequest::new(method, headers, bytes.to_vec())
+            .map_err(internal)?
+            .with_uri(uri);
+        let store = std::sync::Arc::new(
+            openrust_webhook_client::DatabaseWebhookStore::new(
+                Databases::get_facade_root()
+                    .map_err(internal)?
+                    .connection(None)
+                    .map_err(internal)?,
+                "webhook-acceptance",
+            )
+            .map_err(internal)?,
+        );
+        let mut runtime = openrust_webhook_client::WebhookRuntime::new(
+            store,
+            std::sync::Arc::new(ReceiveJob {
+                fail: name == "dispatch-fails",
+            }),
+            openrust::support::facades::Event::dispatcher().map_err(internal)?,
+        );
+        if name == "standard" {
+            runtime =
+                runtime.with_signature_validator(std::sync::Arc::new(StandardSignatureValidator));
+        }
+        if name == "ignored" {
+            runtime = runtime.with_webhook_profile(std::sync::Arc::new(Ignore));
+        }
+        let config = config
+            .as_ref()
+            .clone()
+            .with_store_headers(&["X-Source", "X-Duplicate", "X-Opaque"])
+            .map_err(internal)?;
+        match openrust_webhook_client::WebhookProcessor::new(&snapshot, &config, &runtime)
+            .process()
+            .await
+        {
+            Err(openrust_webhook_client::Error::InvalidSignature) => {
+                Response::json(StatusCode::FORBIDDEN, json!({"verified":false}))
+            }
+            other => other.map_err(internal),
+        }
+    })
+}
+struct Record(CommandDefinition);
+impl Command for Record {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+    fn handle<'a>(
+        &'a self,
+        application: &'a Application,
+        input: &'a Input,
+        output: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            let id = input.matches().get_one::<String>("id").unwrap();
+            let scope = input.matches().get_one::<String>("scope").unwrap();
+            let store = openrust_webhook_client::DatabaseWebhookStore::new(
+                Databases::get_facade_root()
+                    .map_err(ConsoleError::from_source)?
+                    .connection(None)
+                    .map_err(ConsoleError::from_source)?,
+                scope,
+            )
+            .map_err(ConsoleError::from_source)?;
+            let mut call = openrust_webhook_client::models::WebhookCall::find(&store, id)
+                .await
+                .map_err(ConsoleError::from_source)?
+                .ok_or_else(|| ConsoleError::new("未找到当前范围的接收记录"))?;
+            if let Some(value) = input.matches().get_one::<String>("save-exception") {
+                call.save_exception(
+                    &store,
+                    serde_json::from_str(value).map_err(ConsoleError::from_source)?,
+                )
+                .await
+                .map_err(ConsoleError::from_source)?;
+            }
+            if input.matches().get_flag("clear-exception") {
+                call.clear_exception(&store)
+                    .await
+                    .map_err(ConsoleError::from_source)?;
+            }
+            let headers: Vec<_> = call
+                .headers()
+                .iter()
+                .map(|(name, value)| json!([name.as_str(), value.as_bytes()]))
+                .collect();
+            let value = json!({"id":call.id(),"scope":call.scope(),"name":call.name(),"revision":call.revision(),"url":call.url(),"method":call.method().as_str(),"body":call.raw_body(),"headers":headers,"exception":call.exception()});
+            let env = application
+                .make::<openrust::config::Environment>()
+                .await
+                .map_err(ConsoleError::from_source)?;
+            if let Some(path) = env
+                .get_utf8("WEBHOOK_TEST_RECEIPT_OUTPUT")
+                .map_err(ConsoleError::from_source)?
+            {
+                std::fs::write(
+                    path,
+                    serde_json::to_vec(&value).map_err(ConsoleError::from_source)?,
+                )
+                .map_err(ConsoleError::from_source)?;
+            }
+            output
+                .write_raw(&format!("{value}\n"))
+                .map_err(ConsoleError::from_source)?;
+            Ok(0)
+        })
+    }
+}
 struct Sign(CommandDefinition);
 impl Command for Sign {
     fn definition(&self) -> &CommandDefinition {
@@ -166,7 +335,18 @@ fn commands(artisan: &mut Artisan) -> Result<(), ConsoleError> {
     )))))?;
     artisan.add_command(Box::new(Enqueue(CommandDefinition::new(syntax(
         "webhooks:enqueue",
-    )))))
+    )))))?;
+    artisan.add_command(Box::new(Record(CommandDefinition::new(
+        clap::Command::new("webhooks:record")
+            .arg(clap::Arg::new("id").required(true))
+            .arg(clap::Arg::new("scope").required(true))
+            .arg(clap::Arg::new("save-exception").long("save-exception"))
+            .arg(
+                clap::Arg::new("clear-exception")
+                    .long("clear-exception")
+                    .action(clap::ArgAction::SetTrue),
+            ),
+    ))))
 }
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> ExitCode {
@@ -179,11 +359,13 @@ async fn main() -> ExitCode {
             let mut config=config::load(root,env)?;
             config.insert("webhook-client".into(),json!({"configs":[
                 {"name":"spatie","revision":"one","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"}},
-                {"name":"standard","revision":"one","signing_secret":{"env":"FIXTURE_STANDARD_SECRET"}}
+                {"name":"standard","revision":"one","signing_secret":{"env":"FIXTURE_STANDARD_SECRET"}},
+                {"name":"ignored","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"}},
+                {"name":"dispatch-fails","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"}}
             ]}));
             Ok(config)
         }).with_packages(packages::manifest()).with_commands(commands).with_migrations(migrations::entries())
-        .with_routing(Routing::default().api(||Route::post("/webhooks/{profile}",verify)))
+        .with_routing(Routing::default().api(||{Route::post("/webhooks/{profile}",verify)?;Route::post("/received/{profile}",receive)}))
         .create().map_err(Into::into)
     }).await
 }

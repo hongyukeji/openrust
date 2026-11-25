@@ -9,14 +9,17 @@
       "public_methods": [
         "__construct"
       ],
-      "status": "pending",
+      "status": "event_payload_verified",
       "parent_classes": [],
       "declared_public_properties": [
         "request",
         "config"
       ],
-      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
-      "evidence": []
+      "notes": "请求与配置为只供应用内监听器使用的 Arc 快照；不提供自动可序列化属性。Processor 在验证返回 false 时先派发，再返回 InvalidSignature；验证器报错不派发此事件。",
+      "evidence": [
+        "vendor/openrust/webhook-client/tests/processor.rs"
+      ],
+      "rust_source": "vendor/openrust/webhook-client/src/events.rs"
     },
     {
       "package": "client",
@@ -94,13 +97,16 @@
       "public_methods": [
         "__construct"
       ],
-      "status": "pending",
+      "status": "pending_queueable_job_adapter",
       "parent_classes": [],
       "declared_public_properties": [
         "webhookCall"
       ],
-      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
-      "evidence": []
+      "notes": "Rust WebhookJobDispatcher 只表达派发接缝，名称与上游 ProcessWebhookJob 分开，不能证明上游 ShouldQueue／Dispatchable／Queueable／InteractsWithQueue／SerializesModels 抽象处理 Job 已实现。已有 Artisan Queue 消费者验证仅 ID／可信范围入队及独立 Worker 读取；正式可注册业务处理 Job 与继承契约仍待补齐。",
+      "evidence": [
+        "tests/support/webhooks/app.rs",
+        "tests/webhooks_receiver_acceptance.py"
+      ]
     },
     {
       "package": "client",
@@ -117,15 +123,19 @@
         "prunable",
         "getAttachments"
       ],
-      "status": "pending",
+      "status": "partial_receipt_model_verified",
       "parent_classes": [
         "Model"
       ],
       "declared_public_properties": [
         "guarded"
       ],
-      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
-      "evidence": []
+      "notes": "store_webhook／headers_to_store／header_bag／headers／save_exception／clear_exception 已有模型公开入口，具体 SQL 独立 storage；find 为 Rust 消费者入口。当前只保存 raw bytes／URI／method／revision／选定原始头，不实现父 Eloquent Model、解析 payload／附件、getAttachments／prunable 或可恢复状态。UUID／unix seconds／base64 持久字节及受限通用异常是明确适配；不持久化任意第三方异常堆栈／文本。",
+      "evidence": [
+        "vendor/openrust/webhook-client/tests/processor.rs",
+        "tests/webhooks_receiver_acceptance.py"
+      ],
+      "rust_source": "vendor/openrust/webhook-client/src/models.rs"
     },
     {
       "package": "client",
@@ -182,10 +192,11 @@
         "PackageServiceProvider"
       ],
       "declared_public_properties": [],
-      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。 包发现、配置、发布已验；完整路由／迁移／任务装配待实现。",
+      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。 包发现、配置、发布已验；内置接收表迁移已按实际三库 Artisan 验证，完整路由／发布迁移／任务装配仍待实现。",
       "evidence": [
         "tests/webhooks_features.py",
-        "tests/webhooks_acceptance.py"
+        "tests/webhooks_acceptance.py",
+        "tests/webhooks_receiver_acceptance.py"
       ]
     },
     {
@@ -206,13 +217,16 @@
         "webhookProfile",
         "webhookResponse",
         "webhookModel",
+        "storeHeaders",
         "storeAttachments",
         "processWebhookJobClass"
       ],
-      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。 基本字段／凭据引用／快照已验，Validator／Profile／Response／Model／Job工厂与完整字段契约未闭合。",
+      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。 基本字段／凭据引用／快照已验，Validator／Profile／Response／Model／Job工厂与完整字段契约未闭合。 逐源码复查补入带空格 union 声明 storeHeaders，不能依赖初始扫描遗漏。store_headers 选择／空默认／显式字符串 * 及边界已验；拒绝数组含 *，不把它错误扩大为全头保存。",
       "evidence": [
         "vendor/openrust/webhook-client/tests/contracts.rs",
-        "vendor/openrust/webhook-client/tests/provider.rs"
+        "vendor/openrust/webhook-client/tests/provider.rs",
+        "vendor/openrust/webhook-client/tests/processor.rs",
+        "tests/webhooks_receiver_acceptance.py"
       ],
       "rust_source": "vendor/openrust/webhook-client/src/webhook_config.rs"
     },
@@ -246,11 +260,15 @@
         "__construct",
         "process"
       ],
-      "status": "pending",
+      "status": "partial_manual_processor_verified",
       "parent_classes": [],
       "declared_public_properties": [],
-      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
-      "evidence": []
+      "notes": "new／process 手动消费者已验签→Profile→模型委托保存→clearException→任务派发→响应；异常与原始字节已验。Runtime 显式注入依赖；配置类名工厂、Controller／路由装配、附件／解析载荷、受控处理 Job 及恢复仍待完成。不得据手动 Processor 关闭 WH-02。",
+      "evidence": [
+        "vendor/openrust/webhook-client/tests/processor.rs",
+        "tests/webhooks_receiver_acceptance.py"
+      ],
+      "rust_source": "vendor/openrust/webhook-client/src/processor.rs"
     },
     {
       "package": "client",

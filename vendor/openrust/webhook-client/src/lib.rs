@@ -4,8 +4,18 @@
 mod configuration;
 mod contracts;
 mod error;
+pub mod events;
+#[path = "../database/migrations/2026_11_25_000001_create_webhook_calls_table.rs"]
+mod migration;
+pub mod models;
+mod processor;
 mod signature_validator;
+mod storage;
 mod webhook_config;
+
+pub use migration::CreateWebhookCallsTable;
+pub use processor::{VerifiedWebhook, WebhookJobDispatcher, WebhookProcessor, WebhookRuntime};
+pub use storage::{DatabaseWebhookStore, WebhookStore};
 
 pub use contracts::{
     DefaultRespondsTo, ProcessEverythingWebhookProfile, RespondsToWebhook, SignatureValidator,
@@ -56,6 +66,7 @@ impl ServiceProvider for WebhookClientServiceProvider {
     }
     fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
+            self.load_migrations_from(app, Self::migrations()).await?;
             self.publishes(
                 app,
                 &[(
@@ -66,6 +77,17 @@ impl ServiceProvider for WebhookClientServiceProvider {
             )?;
             Ok(())
         })
+    }
+}
+impl WebhookClientServiceProvider {
+    pub fn migrations() -> &'static [openrust::database::migrations::MigrationEntry] {
+        static ENTRIES: &[openrust::database::migrations::MigrationEntry] = &[
+            openrust::database::migrations::MigrationEntry::new(
+                "vendor/openrust/webhook-client/database/migrations/2026_11_25_000001_create_webhook_calls_table.rs",
+                &migration::MIGRATION,
+            ),
+        ];
+        ENTRIES
     }
 }
 pub fn openrust_providers() -> Vec<Box<dyn ServiceProvider>> {

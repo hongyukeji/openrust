@@ -3,6 +3,7 @@ use http::{HeaderMap, Method, Uri};
 use openrust::http::{Response, StatusCode};
 
 /// 未重新编码的请求快照。创建快照前由 HTTP 入口执行流读取预算。
+#[derive(Clone)]
 pub struct WebhookRequest {
     uri: Uri,
     method: Method,
