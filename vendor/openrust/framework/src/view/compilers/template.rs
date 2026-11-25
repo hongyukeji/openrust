@@ -1626,8 +1626,80 @@ fn render_nodes(
             continue;
         }
         let data = scope.as_ref();
-        match node {
+        // 按节点职责分开递归帧，避免所有指令的调试临时值累积到每层调用栈。
+        let jump = match node {
             Node::Native(_) => unreachable!(),
+            Node::Text(..)
+            | Node::TranslationBlock(..)
+            | Node::Echo(..)
+            | Node::EscapedSectionValue(..)
+            | Node::Attributes(..)
+            | Node::ComponentValue(..) => {
+                render_output_nodes(std::slice::from_ref(node), data, bindings, output, context)
+            }
+            Node::Each { .. }
+            | Node::For(..)
+            | Node::While(..)
+            | Node::Jump(..)
+            | Node::Switch(..) => {
+                render_flow_nodes(std::slice::from_ref(node), data, bindings, output, context)
+            }
+            Node::Parent
+            | Node::Extends(..)
+            | Node::ExtendsFirst(..)
+            | Node::Section(..)
+            | Node::Yield(..)
+            | Node::Stack(..)
+            | Node::StackCapture(..)
+            | Node::Once(..) => {
+                render_layout_nodes(std::slice::from_ref(node), data, bindings, output, context)
+            }
+            Node::Csrf
+            | Node::Method(..)
+            | Node::Error(..)
+            | Node::Fragment(..)
+            | Node::BooleanAttribute(..)
+            | Node::BooleanText(..)
+            | Node::JavaScript(..)
+            | Node::Fonts(..)
+            | Node::ConditionalAttribute(..) => {
+                render_form_nodes(std::slice::from_ref(node), data, bindings, output, context)
+            }
+            Node::Conditional(..)
+            | Node::CustomDirective(..)
+            | Node::CustomCondition(..)
+            | Node::Environment(..)
+            | Node::Auth(..)
+            | Node::Authorization(..)
+            | Node::RequestValue(..) => {
+                render_condition_nodes(std::slice::from_ref(node), data, bindings, output, context)
+            }
+            Node::Include(..)
+            | Node::IncludeWhen(..)
+            | Node::IncludeFirst(..)
+            | Node::IncludeIsolated(..)
+            | Node::RenderEach(..)
+            | Node::Component { .. }
+            | Node::Slot(..) => {
+                render_component_nodes(std::slice::from_ref(node), data, bindings, output, context)
+            }
+        }?;
+        if jump.is_some() {
+            return Ok(jump);
+        }
+    }
+    Ok(None)
+}
+
+fn render_output_nodes(
+    nodes: &[Node],
+    data: &ViewData,
+    bindings: &[(&str, &ViewValue)],
+    output: &mut String,
+    context: &mut RenderContext<'_>,
+) -> ViewResult<Option<Jump>> {
+    for node in nodes {
+        match node {
             Node::Text(text) => output.push_str(text),
             Node::TranslationBlock(replacements, nodes) => {
                 let replacements = replacements
@@ -1709,50 +1781,21 @@ fn render_nodes(
                     echo(output, &resolved, *escape)?;
                 }
             }
-            Node::Conditional(expression, predicate, yes, no) => {
-                let evaluated = match expression {
-                    ConditionalValue::Expression(expression) => condition_value(
-                        expression,
-                        data,
-                        bindings,
-                        matches!(predicate, Predicate::Isset | Predicate::Empty),
-                    )?,
-                    ConditionalValue::Component(query) => {
-                        Cow::Owned(query.resolve(context, data, bindings)?)
-                    }
-                    ConditionalValue::Section(expression, default) => {
-                        let name = evaluated_name(expression, data, bindings)?;
-                        let mut section = String::new();
-                        yield_section(
-                            context,
-                            &name,
-                            &mut section,
-                            default
-                                .as_ref()
-                                .map(|default| value(default, data, bindings))
-                                .transpose()?
-                                .as_deref(),
-                        )?;
-                        Cow::Owned(ViewValue::String(section))
-                    }
-                };
-                let value = evaluated.as_ref();
-                let matches = match predicate {
-                    Predicate::Truthy => truthy(value),
-                    Predicate::Empty => !truthy(value),
-                    Predicate::Isset => !value.is_null(),
-                    Predicate::HasStack => context.has_stack(name_value(value)?),
-                    Predicate::HasSection => section_present(value),
-                    Predicate::SectionMissing => !section_present(value),
-                };
-                render_block!(
-                    if matches { yes } else { no },
-                    data,
-                    bindings,
-                    output,
-                    context,
-                );
-            }
+            _ => unreachable!("节点分类与渲染分派不一致"),
+        }
+    }
+    Ok(None)
+}
+
+fn render_flow_nodes(
+    nodes: &[Node],
+    data: &ViewData,
+    bindings: &[(&str, &ViewValue)],
+    output: &mut String,
+    context: &mut RenderContext<'_>,
+) -> ViewResult<Option<Jump>> {
+    for node in nodes {
+        match node {
             Node::Each {
                 expression,
                 key,
@@ -1916,6 +1959,21 @@ fn render_nodes(
                     }
                 }
             }
+            _ => unreachable!("节点分类与渲染分派不一致"),
+        }
+    }
+    Ok(None)
+}
+
+fn render_layout_nodes(
+    nodes: &[Node],
+    data: &ViewData,
+    bindings: &[(&str, &ViewValue)],
+    output: &mut String,
+    context: &mut RenderContext<'_>,
+) -> ViewResult<Option<Jump>> {
+    for node in nodes {
+        match node {
             Node::Parent => output.push_str(context.parent()),
             Node::Extends(include) => {
                 let name = include.name(data, bindings)?.into_owned();
@@ -1977,6 +2035,21 @@ fn render_nodes(
                     render_block!(nodes, data, bindings, output, context);
                 }
             }
+            _ => unreachable!("节点分类与渲染分派不一致"),
+        }
+    }
+    Ok(None)
+}
+
+fn render_form_nodes(
+    nodes: &[Node],
+    data: &ViewData,
+    bindings: &[(&str, &ViewValue)],
+    output: &mut String,
+    context: &mut RenderContext<'_>,
+) -> ViewResult<Option<Jump>> {
+    for node in nodes {
+        match node {
             Node::Csrf => {
                 let token = context.request.csrf_token().ok_or_else(|| {
                     render_error("The Blade CSRF field requires an active session.")
@@ -2040,6 +2113,65 @@ fn render_nodes(
                 write!(output, "{name}=\"").unwrap();
                 escape_html(output, &text);
                 output.push('"');
+            }
+            _ => unreachable!("节点分类与渲染分派不一致"),
+        }
+    }
+    Ok(None)
+}
+
+fn render_condition_nodes(
+    nodes: &[Node],
+    data: &ViewData,
+    bindings: &[(&str, &ViewValue)],
+    output: &mut String,
+    context: &mut RenderContext<'_>,
+) -> ViewResult<Option<Jump>> {
+    for node in nodes {
+        match node {
+            Node::Conditional(expression, predicate, yes, no) => {
+                let evaluated = match expression {
+                    ConditionalValue::Expression(expression) => condition_value(
+                        expression,
+                        data,
+                        bindings,
+                        matches!(predicate, Predicate::Isset | Predicate::Empty),
+                    )?,
+                    ConditionalValue::Component(query) => {
+                        Cow::Owned(query.resolve(context, data, bindings)?)
+                    }
+                    ConditionalValue::Section(expression, default) => {
+                        let name = evaluated_name(expression, data, bindings)?;
+                        let mut section = String::new();
+                        yield_section(
+                            context,
+                            &name,
+                            &mut section,
+                            default
+                                .as_ref()
+                                .map(|default| value(default, data, bindings))
+                                .transpose()?
+                                .as_deref(),
+                        )?;
+                        Cow::Owned(ViewValue::String(section))
+                    }
+                };
+                let value = evaluated.as_ref();
+                let matches = match predicate {
+                    Predicate::Truthy => truthy(value),
+                    Predicate::Empty => !truthy(value),
+                    Predicate::Isset => !value.is_null(),
+                    Predicate::HasStack => context.has_stack(name_value(value)?),
+                    Predicate::HasSection => section_present(value),
+                    Predicate::SectionMissing => !section_present(value),
+                };
+                render_block!(
+                    if matches { yes } else { no },
+                    data,
+                    bindings,
+                    output,
+                    context,
+                );
             }
             Node::CustomDirective(name, arguments) => {
                 let callback = context
@@ -2133,6 +2265,21 @@ fn render_nodes(
                     render_block!(nodes, data, &local, output, context);
                 }
             }
+            _ => unreachable!("节点分类与渲染分派不一致"),
+        }
+    }
+    Ok(None)
+}
+
+fn render_component_nodes(
+    nodes: &[Node],
+    data: &ViewData,
+    bindings: &[(&str, &ViewValue)],
+    output: &mut String,
+    context: &mut RenderContext<'_>,
+) -> ViewResult<Option<Jump>> {
+    for node in nodes {
+        match node {
             Node::Include(include, optional) => {
                 let name = include.name(data, bindings)?;
                 if !optional || context.exists(&name)? {
@@ -2237,6 +2384,7 @@ fn render_nodes(
                 );
             }
             Node::Slot(_) => return Err(render_error("Blade named slots require a component.")),
+            _ => unreachable!("节点分类与渲染分派不一致"),
         }
     }
     Ok(None)

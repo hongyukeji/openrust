@@ -418,3 +418,11 @@ scope-sql-boundary-gates.log：Rust1.94工作区严格Clippy1分00秒、Fortify+
 scope-sql-observer-final.log进一步通过真实SQLite查询的观察者用例1：成功、失败、in_scope实际poll，及独占事务耗尽单连接池时取消待执行查询，只收尾一次Cancelled；事务随后正常回滚。追加测试后workspace严格Clippy1.79秒、feature0.24秒及fmt再次通过。既有成功／错误消息与数据库行为沿用原机制，无需新增开发者配置或迁移。
 
 源码清单／SHA／组合头为scope-stack-files.json、scope-stack-final-source-sha.json、scope-stack-combination-head.txt；只交付已验代码。独立Blade深层渲染仍有默认栈问题，新增Guard校验、持久化设备功能及其他A01剩余项继续处理，未混入本项或计为闭合。空间记录scope-stack-delivery-space.json；本批没有需废弃的专用构建profile，按当前规范保留可复用增量缓存、源码、日志、数据库及数据卷。未推送。
+
+## A01前置复核：Blade递归渲染栈占用（本子单元验收通过）
+
+原始渲染器将全部42种节点的临时值集中在同一递归帧；ARM64调试构建的序言分配约65,344字节，40层合法条件模板在默认测试线程栈上SIGABRT，证据view-stack-baseline-resumed.log／view-stack-baseline-crash-frames.json／view-render-stack-prologue-before.txt。没有增大RUST_MIN_STACK或放宽原生64层解析限制。按原节点职责拆分输出、控制流、布局、表单、条件及组件的私有执行函数，保留Native节点的Cow作用域、循环跳转、绑定与错误传播；不改变公开模板契约。
+
+view-stack-renderers.log实际通过37项：新增深度测试覆盖1／16／40／64层与65层编译拒绝，及既有Blade应用、语句、表达式、翻译、原生值消费者。view-stack-final.log曾发现邮件夹具仍断言旧的单层错误文本，而已提交Worker使用attempt_exception_message完整原因链；只更新该旧断言，继续明确验证收件地址不泄露，没有修改运行时错误。view-stack-gates-resumed.log实际通过邮件33项（原2项外部测试仍ignore，不计通过）、完整用户套件50项、工作区严格Clippy及Fortify+Sanctum严格Clippy、fmt。没有重复宣称数据库矩阵或真实SMTP厂商验收。
+
+首次后续门禁因32GB磁盘守卫安全中断，view-stack-gates.log记载清理锁繁忙E35，不计通过；空间回升后重新执行成功。本批交付空间记录view-stack-delivery-space.json，没有另删共享／活跃编译缓存，源码、日志、数据库及数据卷保留。清单与最终SHA见view-stack-files.json和view-stack-final-source-sha.json；新Guard策略、事件上下文及设备管理仍在途，不计入本提交或整簇完成。未推送。

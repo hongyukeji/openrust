@@ -4948,7 +4948,10 @@ async fn artisan_worker_records_a_failed_smtp_delivery_after_retry() {
     let Value::Text(failure) = failure else {
         panic!("missing failed job");
     };
-    assert_eq!(failure, "queue job execution failed");
+    assert_eq!(
+        failure,
+        "queue job execution failed: Mail transport failed: SMTP connection or protocol failed.: SMTP connection or protocol failed."
+    );
     assert!(!failure.contains("failure@example.test"));
     if mysql.is_some() {
         drop_delivery_tables(&db).await;
