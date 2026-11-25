@@ -247,6 +247,8 @@ pub struct Payload {
     retry_of: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     redis_metadata: Option<std::sync::Arc<std::collections::BTreeMap<String, serde_json::Value>>>,
+    #[serde(skip)]
+    redis_metadata_prepared: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) batch_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -288,6 +290,7 @@ impl Payload {
             delivery_id: None,
             retry_of: None,
             redis_metadata: None,
+            redis_metadata_prepared: false,
             batch_id: None,
             chain: None,
             chained_batch: None,
@@ -375,6 +378,7 @@ impl Payload {
             delivery_id: None,
             retry_of: None,
             redis_metadata: None,
+            redis_metadata_prepared: false,
             context: Default::default(),
             ..self.clone()
         })

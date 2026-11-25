@@ -226,6 +226,11 @@ impl QueueManager {
         &self,
         payload: &'a Payload,
     ) -> QueueResult<Cow<'a, Payload>> {
+        if payload.redis_metadata_prepared {
+            let mut prepared = payload.clone();
+            prepared.redis_metadata_prepared = false;
+            return Ok(Cow::Owned(prepared));
+        }
         let callbacks = self
             .redis_payload_metadata
             .read()
@@ -634,6 +639,16 @@ impl QueueManager {
                         if unique.is_some()
                             || options.after_commit.unwrap_or(configured.after_commit)
                         {
+                            // Redis 延迟投递在登记提交回调前准备观测元数据。
+                            if options.delay.is_some()
+                                && matches!(&configured.batch_backend, BatchBackend::Redis(_))
+                                && configured.queue_name(selected).is_ok()
+                                && let Cow::Owned(prepared) =
+                                    self.prepare_redis_payload(&payload).await?
+                            {
+                                payload = prepared;
+                                payload.redis_metadata_prepared = true;
+                            }
                             transaction
                                 .after_commit(move || {
                                     Box::pin(async move {
@@ -1470,6 +1485,7 @@ fn prepare_batch_jobs(jobs: &mut [BatchJob], renew: bool) -> QueueResult<u32> {
                 job.delivery_id = None;
                 job.retry_of = None;
                 job.redis_metadata = None;
+                job.redis_metadata_prepared = false;
                 job.context = Default::default();
             } else if !ids.insert(job.uuid()) {
                 return Err(QueueError::InvalidPayload);

@@ -387,6 +387,116 @@ fn transport_routes() -> Result<(), openrust::routing::RoutingError> {
 
 #[tokio::test]
 #[ignore = "requires dedicated Redis 8 acceptance wrapper"]
+async fn delayed_transaction_prepares_horizon_metadata_before_commit() {
+    use openrust::{
+        contracts::foundation::Application as _,
+        queue::{Delay, DispatchOptions, DispatchResult, Payload, QueueManager},
+    };
+    use openrust_horizon::JobPayload;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    static TAG_CALLS: AtomicUsize = AtomicUsize::new(0);
+    fn tags(_: &Payload) -> Vec<String> {
+        vec![format!("seen-{}", TAG_CALLS.fetch_add(1, Ordering::SeqCst))]
+    }
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(transport_config)
+            .with_providers(vec![Box::new(HorizonServiceProvider)])
+            .with_routing(Routing::default().api(|| {
+                Horizon::tag(tags).unwrap();
+                Ok(())
+            }))
+    })
+    .unwrap();
+    app.boot().await.unwrap();
+    let manager = app.app().make::<QueueManager>().await.unwrap();
+    let redis = manager.connection(Some("redis")).unwrap();
+    let repository = app.app().make::<Repository>().await.unwrap();
+    let jobs = repository.jobs();
+    let database = app
+        .app()
+        .make::<openrust::database::DatabaseManager>()
+        .await
+        .unwrap()
+        .connection(None)
+        .unwrap();
+    let config = app.app().config().unwrap();
+    config
+        .set("horizon.silenced_tags", json!(["seen-1"]))
+        .unwrap();
+
+    let payload = Payload::new("transaction-probe", json!({})).unwrap();
+    let delayed = DispatchOptions {
+        queue: Some("delayed".into()),
+        delay: Some(Delay::For(Duration::from_secs(90))),
+        after_commit: Some(true),
+        ..Default::default()
+    };
+    let immediate = DispatchOptions {
+        queue: Some("immediate".into()),
+        delay: None,
+        ..delayed.clone()
+    };
+    let mut rollback = database.begin_transaction().await.unwrap();
+    for options in [&delayed, &immediate] {
+        assert_eq!(
+            manager
+                .dispatch(payload.clone(), options.clone(), Some(&mut rollback))
+                .await
+                .unwrap(),
+            DispatchResult::Deferred
+        );
+    }
+    assert_eq!(TAG_CALLS.load(Ordering::SeqCst), 1);
+    rollback.roll_back(None).await.unwrap();
+    assert_eq!(TAG_CALLS.load(Ordering::SeqCst), 1);
+    assert!(jobs.get_pending(None).await.unwrap().is_empty());
+
+    let mut commit = database.begin_transaction().await.unwrap();
+    for options in [&delayed, &immediate] {
+        assert_eq!(
+            manager
+                .dispatch(payload.clone(), options.clone(), Some(&mut commit))
+                .await
+                .unwrap(),
+            DispatchResult::Deferred
+        );
+    }
+    assert_eq!(TAG_CALLS.load(Ordering::SeqCst), 2);
+    assert!(jobs.get_pending(None).await.unwrap().is_empty());
+    assert_eq!(
+        redis.metrics(Some("delayed")).await.unwrap().delayed,
+        Some(0)
+    );
+    config
+        .set("horizon.silenced_tags", json!(["seen-2"]))
+        .unwrap();
+    commit.commit().await.unwrap();
+    assert_eq!(TAG_CALLS.load(Ordering::SeqCst), 3);
+    assert_eq!(
+        redis.metrics(Some("delayed")).await.unwrap().delayed,
+        Some(1)
+    );
+    assert_eq!(
+        redis.metrics(Some("immediate")).await.unwrap().pending,
+        Some(1)
+    );
+    let rows = jobs.get_pending(None).await.unwrap();
+    assert_eq!(rows.len(), 2);
+    for (queue, tag) in [("delayed", "seen-1"), ("immediate", "seen-2")] {
+        let details = rows.iter().find(|item| item.record.queue == queue).unwrap();
+        assert_eq!(details.tags, [tag]);
+        assert!(details.silenced);
+        let payload: Payload = serde_json::from_value(details.payload.clone()).unwrap();
+        let metadata = JobPayload::from_payload(&payload).unwrap().unwrap();
+        assert_eq!(metadata.tags(), [tag]);
+        assert!(metadata.is_silenced());
+    }
+}
+
+#[tokio::test]
+#[ignore = "requires dedicated Redis 8 acceptance wrapper"]
 async fn redis_public_transport_events_follow_writes_reservations_and_commit() {
     use openrust::{
         contracts::events::Dispatcher as _,

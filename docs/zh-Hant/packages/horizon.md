@@ -63,6 +63,8 @@ Redis 將保留工作放回延遲佇列後派發 `JobReleased::NAME`。`delay` �
 
 `JobFailed::NAME` 提供失敗 Redis 投遞的連線、保留快照和例外文字。Worker 失敗時，事件在 Redis 確認和失敗回呼執行後派發，監聽器可讀取失敗工作詳情和標籤。直接呼叫 `Job::fail` 時，也會在 Redis 確認後派發。
 
+原生 Redis 投遞延後至資料庫交易提交時，具有延遲的工作會在發起投遞時產生 Horizon 中繼資料，即時工作則在提交回呼中產生。兩者的 `JobPending` 和 `JobPushed` 均在提交回呼中於寫入 Redis 的前後派發。交易復原時，佇列和面板都不會出現新投遞。
+
 透過 `JobPayload::from_payload` 讀取 Redis 工作上的 Horizon 中繼資料。Horizon 在寫入前計算標籤和靜默狀態，將結果、以十進位秒表示的投遞時間，以及加入佇列時確定的 `job_type()` 一併儲存。類型序列化為 `job`、`broadcast`、`event`、`mail` 或 `notification`。Horizon 重試沿用已儲存的標籤，清除靜默標誌，透過 `retry_of()` 提供原投遞 ID，新投遞的觀測類型為 `job`。原投遞包含重試截止時間和投遞時間時，新投遞沿用相同的重試時長。舊承載資料可能缺少 Horizon 中繼資料，也可能傳回預設類型 `job`。
 
 監督器佇列名稱遵循原生 Redis 傳輸的 255 位元組上限，保留空格、Unicode 字元和冒號。監督器佇列清單以逗號分隔。以 `:delayed`、`:reserved` 或 `:notify` 結尾的名稱由傳輸保留。

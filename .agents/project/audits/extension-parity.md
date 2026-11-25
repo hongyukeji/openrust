@@ -357,7 +357,9 @@ PHP 8.5.12 探针执行固定 `JobPayload::prepare`、`JobPushed` 与 `RetryFail
 
 Rust Horizon 在应用自己的 Redis 写入入口生成观测元数据。即时、延迟与同一连接上的原子任务链均在写入前计算一次标签与静默标志，保存十进制投递时间，后续公开事件和仓储读取同一份载荷。旧任务无该字段时保留原有读取路径。Artisan 与 HTTP 的 Horizon 重试在新投递中保留标签、清除静默、携带原监控投递 ID，并按截止时间相对于原投递时刻的间隔重算。没有投递时刻的旧记录继续使用已保存的绝对期限。Rust 保留各次 Redis 投递 ID 和核心任务 UUID 的既有职责，详见[专项审计](horizon/README.md#必要-rust-适配)。
 
-固定 Horizon 的 `later` 在交给事务延后逻辑之前生成载荷。PHP 8.5.12 探针执行公开 `push`、`later`，经固定核心 `enqueueUsing` 登记到受控事务回调，确认等待提交时即时投递标签调用为零，延迟投递已调用一次，延迟回调捕获写入前的标签和 `pushedAt`。Rust 的延迟投递随实际 Redis 写入准备，延迟投递同时使用 `after_commit` 时的求值与观察时机仍待实现等价行为。旧失败载荷缺少保存的标签元数据时，Rust 在重投递时使用应用登记的标签回调生成一次。对照证据为 `target/tmp/observability-parity/horizon-delayed-commit-upstream.log`。 [固定延迟入队路径](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/RedisQueue.php)
+固定 Horizon 的 `later` 在交给事务延后逻辑之前生成载荷。PHP 8.5.12 探针执行公开 `push`、`later`，经固定核心 `enqueueUsing` 登记到受控事务回调，确认等待提交时即时投递标签调用为零，延迟投递已调用一次，延迟回调捕获写入前的标签和 `pushedAt`。旧失败载荷缺少保存的标签元数据时，Rust 在重投递时使用应用登记的标签回调生成一次。对照证据为 `target/tmp/observability-parity/horizon-delayed-commit-upstream.log`。 [固定延迟入队路径](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/RedisQueue.php)
+
+Rust 原生 Redis 在事务中登记延迟投递时先保存观测元数据，提交回调消费这一份数据。即时投递在提交回调中求值。两种方式都在该回调内写入 Redis 和派发公开入队事件。SQLite 回滚测试确认延迟标签回调已执行，但 Redis 和任务仓储均无新增投递；提交测试改变静默配置，延迟任务仍使用先前的判定，即时任务使用提交时的判定。延迟提交路径已在 macOS 通过真实 Redis 测试，Horizon Redis 20 项、三包默认 84 项、严格 Clippy、全仓格式、三语内容构建和 12 组文档浏览器检查通过。证据为 `target/tmp/observability-parity/horizon-delayed-commit-{verified,docs}.log`。包装后的 Redis（例如 failover）及其他提交驱动的同类组合仍待核对。
 
 PHP 8.5.12 探针使用固定上游的四个实际包装类型并调用 `JobPayload::determineType`，验证广播 `broadcast`、监听器 `event`、邮件 `mail`、通知 `notification` 和普通对象 `job`，另通过公开的 `prepare(null)` 验证原始重试回到 `job`。Rust 类型由原生包装入口在创建任务时写入。应用自定义的监听器名称、通知中间件和加密正文均沿用对应入口的类型。Horizon 原始重试的观测类型为 `job`，原生处理器和运输类型随核心载荷保存。旧数据缺少类型时反序列化为 `job`。上游对照证据为 `target/tmp/observability-parity/horizon-job-types-upstream.log`。
 

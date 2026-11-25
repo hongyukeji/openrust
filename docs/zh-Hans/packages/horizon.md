@@ -63,6 +63,8 @@ Redis 将保留任务放回延迟队列后派发 `JobReleased::NAME`。`delay` �
 
 `JobFailed::NAME` 提供失败 Redis 投递的连接、保留快照和异常文本。Worker 失败时，事件在 Redis 确认和失败回调执行后派发，监听器可读取失败任务详情和标签。直接调用 `Job::fail` 时，也会在 Redis 确认后派发。
 
+原生 Redis 投递延后到数据库事务提交时，带延迟的任务会在发起投递时计算 Horizon 元数据，即时任务会在提交回调中计算。两者的 `JobPending` 和 `JobPushed` 都在提交回调中围绕 Redis 写入派发。事务回滚时，队列和面板都不会出现新投递。
+
 通过 `JobPayload::from_payload` 读取 Redis 任务上的 Horizon 元数据。Horizon 在写入前计算标签和静默状态，将结果、以十进制秒表示的投递时间和入队入口确定的 `job_type()` 一并保存。类型序列化为 `job`、`broadcast`、`event`、`mail` 或 `notification`。Horizon 重试沿用已保存的标签，清除静默标志，通过 `retry_of()` 提供原投递 ID，新投递的观测类型为 `job`。原投递保存了重试截止时间和投递时间时，新投递沿用相同的重试时长。旧载荷可能没有 Horizon 元数据，也可能返回默认类型 `job`。
 
 监督器队列名称遵循原生 Redis 传输的 255 字节上限，保留空格、Unicode 字符和冒号。监督器队列列表以逗号分隔。以 `:delayed`、`:reserved` 或 `:notify` 结尾的名称由传输保留。
