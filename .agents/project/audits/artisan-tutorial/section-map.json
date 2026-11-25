@@ -509,7 +509,8 @@
   "task_result": {
     "status": "verified_task_result_type_and_consumers",
     "contracts": "task-result-contracts.json",
-    "task_rendering": "pending"
+    "task_rendering": "verified_concrete_task_builtin_outputs_and_default_duration",
+    "task_rendering_evidence": "task-contracts.json"
   },
   "task_component": {
     "status": "verified_concrete_task_builtin_outputs_and_default_duration",
@@ -519,8 +520,9 @@
   "question_helper": {
     "status": "verified_core_question_helpers_and_temporary_scopes_builtin_outputs",
     "contracts": "question-helper-contracts.json",
-    "question_components": "pending",
-    "common_helper_sdk": "pending"
+    "question_components": "verified_concrete_question_components_builtin_styles",
+    "common_helper_sdk": "pending",
+    "question_components_evidence": "question-components-contracts.json"
   },
   "question_components": {
     "status": "verified_concrete_question_components_builtin_styles",

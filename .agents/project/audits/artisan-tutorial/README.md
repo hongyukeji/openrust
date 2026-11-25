@@ -659,3 +659,7 @@ Choice源的isAssoc实际属于getChoiceQuestion返回的匿名ChoiceQuestion，
 10真实PTY场景包含数组/回调补全（查询串和候选真实触发）、普通/基础/嵌套/错误样式、确认默认、隐藏不回显、禁止回退、Unicode、多行、补全失败OS1及Ctrl+C130。全部termios与可变fd恢复、外部stty探针未触发；Darwin沿既定FWASWRITTEN历史位例外，其余逐位核对。三语正式源码直接提取138例并实跑，完整workspace/all-targets严格Clippy、格式、借用负编译、三语构建与12浏览器通过；源/命令/计数/冻结SHA见accepted-question-components.json与question-components-contracts.json，原日志target/tmp/artisan-tutorial-20261125/question-components-*。技术验收范围macOS ARM64/Rust1.94，参考Linux/PHP8.5.12，不计Windows发布矩阵。
 
 当前14个具体组件的正式构造和render均在约定原生适配范围通过；这不等于抽象Component、通用HTML/CSS编译器或Factory/CommandIo已实现。抽象基类所属compile/renderView/mutate/usingQuestionHelper与扩展、Factory装配/错误分发、公共Helper/HelperSet、Time延迟继承与一般输出继续逐项核对。Artisan整章仍未闭合，按依赖进入Component与Factory。保留所有其他WIP/索引，只本地提交，不推送；临时单份PTY程序验后回收，日志/源码/热缓存保留。
+
+### 当前组件索引状态复核（2026-11-26）
+
+修正两份实时索引的旧子状态：TaskResult下的task_rendering和QuestionHelper下的组件render此前仍是pending；现在分别关联已验Task（e5d83cf87）和五问答组件（818811e8f）的正式契约与状态。对应源码、HTTP/Artisan/TTY、三语与门禁证据既已入库，本次不重复开发或重新计测试。仅更新实时component-factory-contracts.json/section-map.json，历史accepted文件保留原组合。JSON解析、每项引用存在、目标状态一致及基类/Factory/HelperSet原待办仍开放逐项检查通过。无产品代码或运行时改动，本地提交、不推送。
