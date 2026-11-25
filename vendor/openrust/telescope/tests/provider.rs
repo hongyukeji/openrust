@@ -1693,9 +1693,16 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
+    let redirect_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let redirect_address = redirect_listener.local_addr().unwrap();
     let origin = tokio::spawn(async move {
         for index in 0..24 {
-            let (mut socket, _) = listener.accept().await.unwrap();
+            let target = if matches!(index, 17 | 19) {
+                &redirect_listener
+            } else {
+                &listener
+            };
+            let (mut socket, _) = target.accept().await.unwrap();
             let mut bytes = Vec::new();
             loop {
                 let mut buffer = [0_u8; 4096];
@@ -1788,8 +1795,7 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
             }
             if matches!(index, 16 | 18) {
                 let response = format!(
-                    "HTTP/1.1 302 Found\r\nLocation: http://localhost:{}/final?destination=value\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
-                    address.port()
+                    "HTTP/1.1 302 Found\r\nLocation: http://{redirect_address}/final?destination=value\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
                 );
                 socket.write_all(response.as_bytes()).await.unwrap();
                 continue;
@@ -1821,29 +1827,31 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
     let upload_dir = tempfile::tempdir().unwrap();
     let upload_path = upload_dir.path().join("upload.txt");
     std::fs::write(&upload_path, b"file-source-bytes").unwrap();
-    tokio::time::timeout(
-        std::time::Duration::from_secs(5),
-        app.call(
-            http::Request::builder()
-                .uri("/api/client")
-                .header(
-                    "x-origin-url",
-                    format!("http://{address}/outgoing?same=query&query=value"),
-                )
-                .header(
-                    "x-failed-url",
-                    format!("http://{failed_address}/failed?query=value"),
-                )
-                .header("x-upload-path", upload_path.to_str().unwrap())
-                .body(openrust::http::Body::empty())
-                .unwrap(),
-        ),
-    )
+    let request = http::Request::builder()
+        .uri("/api/client")
+        .header(
+            "x-origin-url",
+            format!("http://{address}/outgoing?same=query&query=value"),
+        )
+        .header(
+            "x-failed-url",
+            format!("http://{failed_address}/failed?query=value"),
+        )
+        .header("x-upload-path", upload_path.to_str().unwrap())
+        .body(openrust::http::Body::empty())
+        .unwrap();
+    // Windows 会为每次关闭端口的连接保留约两秒的拒绝等待。
+    let (response, ()) = tokio::time::timeout(std::time::Duration::from_secs(15), async {
+        tokio::try_join!(app.call(request), async {
+            origin
+                .await
+                .map_err(|error| Box::new(error) as Box<dyn std::error::Error + Send + Sync>)
+        })
+    })
     .await
     .unwrap()
-    .unwrap()
-    .assert_ok();
-    origin.await.unwrap();
+    .unwrap();
+    response.assert_ok();
     let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
     let entries = repository
         .get(Some(EntryType::ClientRequest), EntryQueryOptions::default())
@@ -1873,7 +1881,7 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
     assert_eq!(entries[0].content["headers"]["x-retry"], "yes");
     assert!(entries[1].content["headers"].get("x-retry").is_none());
     let entries = &entries[3..];
-    let final_url = format!("http://localhost:{}/final", address.port());
+    let final_url = format!("http://{redirect_address}/final");
     assert_eq!(entries[0].content["uri"], final_url);
     assert_eq!(entries[0].content["method"], "GET");
     assert_eq!(entries[0].content["payload"], json!([]));

@@ -101,7 +101,7 @@ O01 Activitylog、O02 Horizon、O03 Telescope原生范围、O04 Pennant、O05 Pu
 
 Pulse 命令复核发现独立的调度差异。固定 `CheckCommand::handle` 以本轮采样时刻加一秒为下一次采样时间，`WorkCommand::handle` 则在完成 digest、清理和 Telescope 收集后固定等待一秒。修复前，Rust `commands.rs` 两条路径都从等待时间扣除本轮处理耗时，慢 digest 可能结束后立即再读。 [固定 CheckCommand](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Commands/CheckCommand.php) [固定 WorkCommand](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Commands/WorkCommand.php)
 
-Rust 修复在检查命令内以采样时的单调时钟为准，在工作命令内把一秒等待放到本轮全部处理之后。新增的真实 Artisan 回归以 Tokio 可控时钟模拟耗时两秒的 Ingest 和耗时 400 毫秒的检查监听器，并通过共享缓存重启信号自然结束两条命令。修正用例先在应用启动前登记自定义 Ingest，再通过命令自身作用域解析缓存。macOS 的 cache 2 项、Telescope 命令联动 1 项、Pulse 所涉严格 Clippy 和三语内容检查通过。证据为 `target/tmp/observability-parity/pulse-work-cadence-macos-rebound.log`。跨平台、Redis 实例上长期运行及完整发布组合继续验收。
+Rust 修复在检查命令内以采样时的单调时钟为准，在工作命令内把一秒等待放到本轮全部处理之后。新增的真实 Artisan 回归以 Tokio 可控时钟模拟耗时两秒的 Ingest 和耗时 400 毫秒的检查监听器，并通过共享缓存重启信号自然结束两条命令。修正用例先在应用启动前登记自定义 Ingest，再通过命令自身作用域解析缓存。macOS 的 cache 2 项、Telescope 命令联动 1 项、Pulse 所涉严格 Clippy 和三语内容检查通过。证据为 `target/tmp/observability-parity/pulse-work-cadence-macos-rebound.log`。Linux ARM64 的同一 Artisan 间隔回归和 Telescope 联动也通过，证据见文件重放组合。Windows、Redis 实例上长期运行及完整发布组合继续验收。
 
 2026-11-26 阶段组合包含 Telescope 关联写入、关系加载和 Gate 回退，Pulse 异常报告入口，以及 Horizon 显式监督器事件。三个扩展的同一隔离源码快照默认 94 项通过、23 项按环境条件跳过，仓库格式通过。证据为 `target/tmp/observability-parity/observability-combined-verified.log`。Release、各扩展剩余公开契约和实际部署组合继续验收。
 
@@ -259,7 +259,11 @@ PHP 8.5.12 运行固定 Laravel HTTP Client 和 Telescope `ClientRequestWatcher:
 
 常规文件补充专项。固定 PHP 与真实回环服务器使用已打开的 84,000 字节常规文件，302 清空正文，307 和 308 仍传输完整文件，见 `target/tmp/observability-parity/multipart-file-redirect-wire-upstream.log`。Rust 新增 `PendingRequest::attach_file`，采用同一已打开文件句柄及每个尝试独立的逻辑偏移，分块读至登记长度。原生 reqwest `Part::file` 复用该路径。框架回归按字节核对混合缓冲和文件部件，测试 422 后替换原路径时仍使用原句柄，并检查缺失路径与目录失败。Telescope HTTP 回归核对 307 两跳文件内容以及仓储中的文件名、长度和部件媒体类型。macOS 在隔离快照上通过框架 HTTP 客户端 23 项、Telescope Provider 15 项、三个数据库上的定向入库与脱敏回归，以及所涉严格 Clippy。Provider 的真实 Redis 用例另行验收。三语内容检查通过。 [Tokio AsyncSeekExt](https://docs.rs/tokio/1.54.1/tokio/io/trait.AsyncSeekExt.html)
 
-首次 Rust 编译触及 32 GB 停线，守卫退出并持锁释放 82,869,366,784 字节。在同一隔离源码重新编译并验收通过，证据分别为 `target/tmp/observability-parity/multipart-file-macos.log` 和 `target/tmp/observability-parity/multipart-file-macos-retry.log`。Linux ARM64 和 Windows ARM64 定向复验已启动。
+首次 Rust 编译触及 32 GB 停线，守卫退出并持锁释放 82,869,366,784 字节。在同一隔离源码重新编译并验收通过，证据分别为 `target/tmp/observability-parity/multipart-file-macos.log` 和 `target/tmp/observability-parity/multipart-file-macos-retry.log`。Linux ARM64 与 Windows 11 ARM64 的定向复验已通过。
+
+Linux 7.0.14 ARM64 在 Rust 1.94.0 的隔离容器中通过原生组合 82 项，5 项按环境条件忽略。实跑包含框架 HTTP 客户端、文件重放与 SQLite 入库、Telescope 分块及逐次消费来源、Pulse Artisan 调度及原生显式报告、Horizon 标量模型标签。首次离线解析缺少翻译包的锁定依赖，取回对应目标依赖后以离线方式完成编译与测试。证据为 `target/tmp/observability-parity/observability-file-linux-retry.log`。
+
+Windows 11 ARM64 用 MSVC 工具链实测文件重放和真实 Telescope SQLite 入库均通过。入库夹具用两个明确的回环端口构成跨源跳转，并等待应用和线上服务同时完成。原五秒限时不足以容纳三次真实关闭端口连接，Windows 独立探针测得 2,064、2,025、2,025 毫秒，均返回 ConnectionRefused。修正总限时为 15 秒，定向用例实际 6.64 秒通过，保留所有失败与脱敏断言。证据为 `target/tmp/observability-windows/{refused-socket-timing,multipart-file-refused-timing-arm64}.log`。
 
 ### Telescope 非 multipart 出站诊断载荷
 
@@ -361,7 +365,7 @@ macOS 隔离快照通过框架分页／关系／惰性集合回归、Telescope W
 
 逐次消费由 `DatabaseCursorExt::try_next_with_source` 捕获调用位置。它在本次轮询作用域内登记消费位置，并跳过该消费位置内部的流创建帧。已经捕获的独立数据库操作、外层作用域和 Telescope 的路径过滤继续生效。普通 `TryStreamExt` 产物仍使用公开创建位置。
 
-在隔离快照上，macOS 的 SQLite、PostgreSQL 18.7、MySQL 8.4.13，以及 Windows 11 ARM64 的 SQLite 均通过 Telescope 真实 HTTP 路由验证两次读取、末次空查询及中间独立查询的精确源码行。普通消费者的流创建位置也随同复验。macOS 的框架惰性集合、关系和多态聚合回归通过，三个扩展的默认组合 100 项通过、23 项按环境条件跳过。快照全仓格式、所涉框架与扩展目标严格 Clippy、三语站点构建和 12 组浏览器检查通过。证据为 `target/tmp/observability-parity/query-consumer-{macos-verified,windows,docs}.log`。Linux ARM64 同源码组合在框架编译阶段触及 32 GB 停线，容器已退出，继续补验。证据为 `target/tmp/observability-parity/query-consumer-linux.log`。
+在隔离快照上，macOS 的 SQLite、PostgreSQL 18.7、MySQL 8.4.13，以及 Windows 11 ARM64 的 SQLite 均通过 Telescope 真实 HTTP 路由验证两次读取、末次空查询及中间独立查询的精确源码行。普通消费者的流创建位置也随同复验。macOS 的框架惰性集合、关系和多态聚合回归通过，三个扩展的默认组合 100 项通过、23 项按环境条件跳过。快照全仓格式、所涉框架与扩展目标严格 Clippy、三语站点构建和 12 组浏览器检查通过。证据为 `target/tmp/observability-parity/query-consumer-{macos-verified,windows,docs}.log`。Linux ARM64 首次触及 32 GB 停线，后在文件重放组合通过同一来源专项。证据为 `target/tmp/observability-parity/{query-consumer-linux,observability-file-linux-retry}.log`。
 
 ### Telescope Query 多对多中间表调用来源
 
@@ -453,7 +457,7 @@ macOS 真实 HTTP 通过 Manager 与 Facade 报告，验证事件可读取同一
 
 Linux ARM64 首次构建在 Provider 链接阶段收到信号 9，未取得该次运行的测试结果。已用单作业重跑。证据为 `target/tmp/observability-parity/pulse-native-report-linux{,-serial}.log`。
 
-单作业重跑在编译阶段触及 32 GB 停线，独占容器已退出，尚未进入测试。本机项目产物随后按守卫协议持锁清理。证据为 `target/tmp/observability-parity/query-consumer-cleanup.log`。Pulse 原生报告及 Telescope 分块的 Linux 最终源码验收仍待补齐。
+单作业重跑在编译阶段触及 32 GB 停线，独占容器已退出，尚未进入测试。本机项目产物随后按守卫协议持锁清理。证据为 `target/tmp/observability-parity/query-consumer-cleanup.log`。Pulse 原生报告及 Telescope 分块随后通过 Linux ARM64 文件重放组合。
 
 ### Horizon Linux ARM64 Release 进程矩阵
 
@@ -531,7 +535,7 @@ Rust 的类型检查可确认具体类型，模型字段仍由应用回调显式
 
 集合去重另有差异。PHP 8.5.12 用实际 Eloquent Collection 验证，相同实例或全部状态相同的实例在 `modelsFor` 去重。同一主键但当前属性、原始属性快照或自定义属性不同的模型各自保留。false 与 null 主键也可产生两个相同标签。固定 `JobPayload::prepare` 将重复标签原样附在预置标签后。Rust 当前按标签文本去重，须继续对齐模型等价判定及载荷保留。科学计数法 `1.23E+30` 同一探针亦已确认。证据为 `target/tmp/observability-parity/horizon-tags-model-collection-upstream.log`。
 
-macOS 隔离快照的标签及通知套件 5 项通过、4 项按环境条件忽略。真实 Redis 8.10.3 上的 HTTP 派发、任务仓储和 Artisan 重试专项通过，覆盖本批空后缀、布尔和浮点主键。三语站点构建通过，Telescope 与 Horizon 各通过 12 组浏览器检查，生成页面包含文件附件入口和新主键规则。证据为 `target/tmp/observability-parity/{horizon-model-keys-macos,file-and-model-tags-docs}.log`。Horizon 所涉严格 Clippy 通过，目标平台复验继续执行。
+macOS 隔离快照的标签及通知套件 5 项通过、4 项按环境条件忽略。真实 Redis 8.10.3 上的 HTTP 派发、任务仓储和 Artisan 重试专项通过，覆盖本批空后缀、布尔和浮点主键。三语站点构建通过，Telescope 与 Horizon 各通过 12 组浏览器检查，生成页面包含文件附件入口和新主键规则。证据为 `target/tmp/observability-parity/{horizon-model-keys-macos,file-and-model-tags-docs}.log`。Horizon 所涉严格 Clippy 通过，Linux ARM64 通过标量主键测试。真实 Redis 的其他平台复验继续执行。
 
 真实 HTTP 生产、Redis 8.10.3、SQLite 与 Artisan 验证普通任务、四个包装入口、应用间隔离和原始重试保留标签。macOS 通过 Horizon Redis 21 项、全仓格式、Horizon 全目标严格 Clippy 和三语页面 12 组浏览器检查。三包组合遇 32 GB 停线后由构建守卫持锁清理，同源码冷构建通过三包默认 87 项。Windows 11 ARM64 通过同源码真实 Redis 专项。证据为 `target/tmp/observability-parity/horizon-tags-target-{focused,verified,packages,docs}.log` 和 `target/tmp/observability-windows/horizon-tags-target-arm64.log`。
 
