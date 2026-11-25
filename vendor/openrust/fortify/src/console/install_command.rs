@@ -180,6 +180,7 @@ async fn install_resources(
         };
         replace(&path, &previous, &updated)?;
     }
+    crate::starter::install::wire_deletion_module(root)?;
     if configure_headless {
         let path = root.join("config/fortify.rs");
         let previous = read(&path)?;

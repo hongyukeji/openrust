@@ -68,7 +68,7 @@ fn text(user: &dyn Authenticatable, key: &str) -> AuthResult<Option<String>> {
         )),
     }
 }
-fn stored(user: &dyn Authenticatable) -> AuthResult<Option<StoredResource>> {
+pub(super) fn stored(user: &dyn Authenticatable) -> AuthResult<Option<StoredResource>> {
     let Some(path) = text(user, PATH)? else {
         return Ok(None);
     };
@@ -484,7 +484,7 @@ fn change<M: HasApiTokens + TwoFactorAuthenticatable + Clone>(
         ))
     })
 }
-fn ticket_data(ticket: CleanupTicket) -> Result<serde_json::Value, HttpError> {
+pub(super) fn ticket_data(ticket: CleanupTicket) -> Result<serde_json::Value, HttpError> {
     let url = Url::route(
         "user.resource-cleanups.show",
         &[openrust::routing::RouteParameter::named(

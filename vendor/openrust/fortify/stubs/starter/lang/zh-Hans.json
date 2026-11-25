@@ -64,5 +64,13 @@
   "photo_size_invalid": "图片超过大小限制。",
   "photo_dimensions_invalid": "图片超过尺寸限制。",
   "photo_updated": "头像已更新。",
-  "photo_removed": "头像已移除。"
+  "photo_removed": "头像已移除。",
+  "delete_account": "注销账户",
+  "delete_warning": "账户及本地认证凭据将被删除，此操作无法撤销。请先确认密码。",
+  "account_deleted": "账户已注销",
+  "deletion_pending": "账户已注销，剩余文件正在等待清理。",
+  "deletion_completed": "剩余文件已清理完成。",
+  "deletion_failed": "文件清理将重试，账户已注销。",
+  "deletion_status_error": "暂时无法读取清理状态，请保留此页稍后重试。",
+  "refresh_status": "刷新状态"
 }

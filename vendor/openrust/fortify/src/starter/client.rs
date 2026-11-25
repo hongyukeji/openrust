@@ -574,6 +574,7 @@ where
     super::devices::configure::<M>(app)?;
     super::resource_cleanup::configure::<M>(app)?;
     super::avatar::register::<M>(app)?;
+    super::deletion::register::<M>(app)?;
     super::bind_password_tokens::<M>(app)?;
     super::web::register::<M>(app)?;
     super::StarterKitServiceProvider.load_routes_from(app, super::device_web::routes::<M>)?;
@@ -675,6 +676,12 @@ where
                 .middleware_name("auth:sanctum")
                 .middleware(Arc::new(super::client_middleware::UserModel::<M>::new()))
                 .name("user.devices.logout-all");
+            router
+                .delete("/user", super::deletion::destroy::<M>)?
+                .middleware_name("auth:sanctum")
+                .middleware(Arc::new(super::client_middleware::UserModel::<M>::new()))
+                .middleware_name("throttle:6,1")
+                .name("user.api.destroy");
             router
                 .put("/user/profile-information", super::updates::profile::<M>)?
                 .middleware_name("auth:sanctum")

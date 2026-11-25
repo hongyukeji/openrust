@@ -2,7 +2,7 @@
 
 ## Support status {#support-status}
 
-The explicit user starter installs native Fortify actions, safe resources, Blade authentication and Cookie/token APIs. The sections below describe the available operations. Account-deletion endpoints and optional-factor management pages are not provided. React, Vue and Livewire frontends are not generated.
+The explicit user starter installs native Fortify actions, safe resources, Blade authentication and Cookie/token APIs. The sections below describe the available operations. Account deletion is available; optional-factor management pages are not provided. React, Vue and Livewire frontends are not generated.
 
 ## Available entry points {#available-entry-points}
 
@@ -222,7 +222,7 @@ For first-party Cookie/SPA clients, retain the normal CSRF flow and send credent
 
 PAT proofs are hashed in the application's database, bound to the `user`, `current` PAT, purpose, credential version and effective factor/email state. `auth.password_timeout` is a positive number of seconds, default10800. Proofs expire without waiting for cleanup; wrong devices/purposes, tampering and replay return401. User and `token` row locks cover issuance/revocation. A late expiry or a cancelled model event rolls back the database mutation. Password callbacks may support an application-specific identity flow; an account without a local password is never automatically confirmed. Stateless Passkey reauthentication remains a separate pending adapter.
 
-Password errors return422; five failed confirmations within a minute cause429 with `Retry-After`. Missing `token` capabilities return403. All displayed messages use the request locale. Proofs, passwords and `token` secrets are excluded from old input. Responses containing a new proof/token use `no-store`. See [browser sessions](#browser-sessions) for device management. The account deletion endpoint remains under development.
+Password errors return422; five failed confirmations within a minute cause429 with `Retry-After`. Missing `token` capabilities return403. All displayed messages use the request locale. Proofs, passwords and `token` secrets are excluded from old input. Responses containing a new proof/token use `no-store`. See [browser sessions](#browser-sessions) for device management. See [account deletion](#account-deletion).
 
 ### Log out all devices
 
@@ -433,7 +433,7 @@ An empty server ability whitelist disables new token creation on the page while 
 
 ## Reliable resource cleanup {#resource-cleanup}
 
-The installed kit includes `openrust_fortify::starter::resource_cleanup::ResourceCleanup` for trusted application actions. This is the shared backend for profile-photo replacement and account deletion; see [profile photos](#profile-photos) for the photo endpoints; account deletion remains under development as described in [support status](#support-status).
+The installed kit includes `openrust_fortify::starter::resource_cleanup::ResourceCleanup` for trusted application actions. This is the shared backend for profile-photo replacement and account deletion; see [profile photos](#profile-photos) for the photo endpoints; see [account deletion](#account-deletion) for its application action and endpoints.
 
 The cleanup ledger and a native database queue job are written in the same user transaction. A rollback preserves the previous resources. Sync, Redis, a replaced database handler or a different database connection cannot provide this guarantee and are rejected for this queue. This does not change the application's default queue: other jobs may continue using Redis. Generated `config/user.rs` selects `USER_CLEANUP_CONNECTION=database` and `USER_CLEANUP_QUEUE=user-resources` by default; create the normal jobs table on the User database and use a dedicated same-database queue connection for custom User connections.
 
@@ -448,7 +448,7 @@ Use the configured connection and queue names in the Worker command. Separate ap
 
 An action calls `ResourceCleanup::enqueue` only after checking ownership and recent authentication, inside the supplied user transaction. Only independently named files in the kit's `profile-photos/` namespace are accepted; do not reuse their paths for another upload. The returned receipt is shown once, while only its hash is stored. `ResourceCleanup::status` returns limited `pending`, `failed` or `completed` state without personal information or file paths, and does not need a still-existing User. Receipts expire after seven days. A failed storage deletion remains trackable; native Worker retries or `queue:retry` can complete it. Duplicate delivery is safe because the operation and file deletion are idempotent. This is not a transaction across SQL and object storage.
 
-The prune command only removes completed records after receipt expiry; it keeps pending and failed work, users, tokens and external files. It is idempotent and may be scheduled through the normal scheduler. Account deletion will be verified separately with its consuming action.
+The prune command only removes completed records after receipt expiry; it keeps pending and failed work, users, tokens and external files. It is idempotent and may be scheduled through the normal scheduler. Account deletion uses the same cleanup lifecycle.
 
 ## Profile photos {#profile-photos}
 
@@ -473,3 +473,33 @@ curl "$STATUS_URL" -H "X-Operation-Receipt: $RECEIPT"
 ```
 
 Lookup returns limited pending/failed/completed state and file count. A missing/wrong/expired receipt returns404; a receipt query parameter returns400. Responses use `no-store` and `no-referrer`; Telescope masks the receipt header and `meta.cleanup.receipt`. Keep this receipt private. The public local disk is served through the native static-disk route when its URL has the application origin. Nodes and Workers must share the same disk root or object store; use `FILESYSTEM_PUBLIC_ROOT` for a shared local mount. CDN/object-storage URLs use their own serving configuration. Production storage ACL/CDN behavior needs deployment acceptance.
+
+## Account deletion {#account-deletion}
+
+Both presets provide `DELETE /api/user` with the configured API prefix. A PAT needs `account:update` and a fresh, single-use `delete` confirmation. Cookie clients use recent password confirmation and CSRF. The full preset adds a native deletion form to `/home`, submitting `DELETE /user`; it redirects to password confirmation when needed.
+
+```sh
+curl -X POST "$APP_URL/api/auth/confirm" \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"purpose":"delete","password":"your-current-password"}'
+# Read data.proof into PROOF, then submit it once:
+curl -i -X DELETE "$APP_URL/api/user" \
+  -H "Authorization: Bearer $TOKEN" -H "X-Auth-Confirmation: $PROOF"
+```
+
+Installation publishes `app/actions/fortify/delete_user.rs` and selects it in the application UserServiceProvider. Edit this `DeleteUser`, implementing `starter::deletion::DeletesUsers<User>`, to define business dependencies and deletion policy. Its optional `preflight` runs before credential revocation; `delete` must use the supplied user transaction. The default delegates to the native model deletion. Business rows and remote identity-provider accounts are not automatically deleted. A soft-delete policy requires the application's actual soft-delete model and schema; returning success without deleting is rejected.
+
+To replace the action explicitly during provider boot:
+
+```rust
+openrust_fortify::starter::deletion::delete_users_using::<crate::app::models::User>(
+    app,
+    std::sync::Arc::new(crate::app::actions::fortify::delete_user::DeleteUser),
+)?;
+```
+
+The user lock serializes deletion with token issuance and account changes. The same transaction revokes the credential version, physically removes all owned PATs and installed passkeys through their registered model events, removes outstanding kit challenges, revokes the browser-device index, queues the previous photo, and deletes the user. The selected credential stores must use the user connection; unsupported cross-connection cleanup fails. Model cancellation, dependency constraints or enqueue failure roll back database changes and leave the existing photo untouched. Reset links are bound to the original identity and become unusable; repository expiry/cleanup continues to manage old reset-token records.
+
+After commit, all current-browser guards for that same user are logged out and the session/CSRF are rotated. An unrelated administrator identity and cart data remain. This does not cancel business requests already executing. Application model hooks must defer external side effects until commit.
+
+Without external files, the API returns204 and the HTML form redirects to login. With a photo, both return202: JSON contains `meta.cleanup`; HTML shows a private status page with a refresh button. The account is already removed, while file cleanup is pending. Keep the receipt privately; use [the existing public receipt lookup and Worker](#resource-cleanup). The lookup needs no deleted user session. A storage failure stays failed/retryable, never becomes an implicit rollback of the committed account deletion. Do not put the receipt in URLs or logs.

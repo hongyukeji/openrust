@@ -2,7 +2,7 @@
 
 ## 支援狀態 {#support-status}
 
-明確選取的使用者套件安裝原生 Fortify Action、安全資源、Blade 認證及 Cookie／權杖 API。下文說明已提供的操作；尚不提供帳戶註銷介面及可選因素管理頁面。不產生 React、Vue 或 Livewire 前端。
+明確選取的使用者套件安裝原生 Fortify Action、安全資源、Blade 認證及 Cookie／權杖 API。下文說明已提供的操作；已提供帳戶註銷介面，可選因素管理頁面尚未提供。不產生 React、Vue 或 Livewire 前端。
 
 ## 可用入口 {#available-entry-points}
 
@@ -222,7 +222,7 @@ Accept: application/json
 
 PAT 證明在應用資料庫中僅儲存雜湊，綁定使用者、目前PAT、用途、憑據版本及有效的因素／郵箱狀態。`auth.password_timeout` 為正整數秒，預設10800；不等清理工作就會到期。錯誤裝置／用途、竄改或重放回傳401。簽發／撤銷使用共同使用者鎖及權杖列鎖，模型事件取消或提交前證明過期會回滾資料庫變更。應用確認回呼可支援自己的身分流程，沒有本機密碼不代表自動確認。無狀態 Passkey 重新驗證適配仍另列待補。
 
-密碼錯誤422，一分鐘內5次失敗後429並帶 `Retry-After`；缺少權杖能力403。訊息跟隨請求語言，證明、密碼與權杖秘密不會進入舊輸入；包含新證明／權杖的回應使用 `no-store`。裝置管理見[瀏覽器裝置](#browser-sessions)；帳戶註銷介面仍在開發。
+密碼錯誤422，一分鐘內5次失敗後429並帶 `Retry-After`；缺少權杖能力403。訊息跟隨請求語言，證明、密碼與權杖秘密不會進入舊輸入；包含新證明／權杖的回應使用 `no-store`。裝置管理見[瀏覽器裝置](#browser-sessions)；帳戶註銷見[對應章節](#account-deletion)。
 
 ### 登出全部裝置
 
@@ -433,7 +433,7 @@ curl -X DELETE "$APP_URL/api/user/sessions/<opaque-device-id>"   -H "Authorizati
 
 ## 可靠資源清理 {#resource-cleanup}
 
-安裝的套件提供 `openrust_fortify::starter::resource_cleanup::ResourceCleanup`，供可信的應用 Action 使用。這是頭像替換與帳戶註銷共用的後端；頭像消費方式見[使用者頭像](#profile-photos)，帳戶註銷仍按[支援狀態](#support-status)繼續開發。
+安裝的套件提供 `openrust_fortify::starter::resource_cleanup::ResourceCleanup`，供可信的應用 Action 使用。這是頭像替換與帳戶註銷共用的後端；頭像消費方式見[使用者頭像](#profile-photos)，帳戶註銷的應用 Action 與入口見[對應章節](#account-deletion)。
 
 清理帳本和原生資料庫佇列任務在本人交易中一起寫入；回滾會保留原有資源。sync、Redis、被替換的 database 處理器或其他資料庫連線無法提供該保證，該清理佇列會明確拒絕，不修改應用預設佇列，其他任務仍可使用 Redis。產生的 `config/user.rs` 預設選擇 `USER_CLEANUP_CONNECTION=database`、`USER_CLEANUP_QUEUE=user-resources`。User 資料庫須具有標準 jobs 資料表；自訂 User 連線時，設定專用的同庫資料庫佇列連線。
 
@@ -448,7 +448,7 @@ Worker 命令須使用設定後的連線和佇列名稱。多個獨立應用共�
 
 Action 先核對本人歸屬與近期認證，再在提供的使用者交易內呼叫 `ResourceCleanup::enqueue`。僅接受套件 `profile-photos/` 目錄中的獨占隨機檔名，不能把同一路徑重新用於另一張圖片。回傳的收據明文只交付一次，資料庫只保存摘要。`ResourceCleanup::status` 只回傳 `pending`、`failed` 或 `completed` 等有限狀態，不公開使用者資料或內部檔案路徑，也不依賴 User 仍然存在。收據七天後過期。儲存刪除失敗仍可追蹤，可用原生 Worker 重試或 `queue:retry` 恢復；重複投遞保持冪等，不假裝 SQL 和物件儲存擁有共同交易。
 
-紀錄清理命令只刪除收據已過期的完成紀錄，保留待處理和失敗任務、使用者、權杖及外部檔案。命令冪等，可由正常排程器定期執行。帳戶註銷還會隨對應 Action 單獨驗收。
+紀錄清理命令只刪除收據已過期的完成紀錄，保留待處理和失敗任務、使用者、權杖及外部檔案。命令冪等，可由正常排程器定期執行。帳戶註銷使用同一清理生命週期。
 
 ## 使用者頭像 {#profile-photos}
 
@@ -473,3 +473,33 @@ curl "$STATUS_URL" -H "X-Operation-Receipt: $RECEIPT"
 ```
 
 查詢只回傳 pending／failed／completed 等狀態和檔案數量。缺少、錯誤或過期收據回傳404；透過 query 傳入收據回傳400。回應使用 `no-store` 和 `no-referrer`，Telescope 隱藏收據標頭及 `meta.cleanup.receipt`。收據應保密。公開本地磁碟 URL 與應用同源時使用原生靜態磁碟路由提供檔案；多節點與 Worker 須共用磁碟根目錄或物件儲存，本地共用掛載可設定 `FILESYSTEM_PUBLIC_ROOT`。CDN／物件儲存 URL 由對應服務提供，正式儲存 ACL／CDN 行為須在部署環境驗收。
+
+## 帳戶註銷 {#account-deletion}
+
+兩種預設提供 `DELETE /api/user`，遵循 API 前綴設定。PAT 需要 `account:update` 與用途為 `delete` 的新單次證明；Cookie 用戶端使用近期密碼確認與 CSRF。完整預設在 `/home` 提供原生註銷表單，提交至 `DELETE /user`，未確認時導向密碼確認頁。
+
+```sh
+curl -X POST "$APP_URL/api/auth/confirm" \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"purpose":"delete","password":"your-current-password"}'
+# 將 data.proof 讀入 PROOF，隨後僅使用一次：
+curl -i -X DELETE "$APP_URL/api/user" \
+  -H "Authorization: Bearer $TOKEN" -H "X-Auth-Confirmation: $PROOF"
+```
+
+安裝發布 `app/actions/fortify/delete_user.rs`，由應用 UserServiceProvider 選擇。修改其中實作 `starter::deletion::DeletesUsers<User>` 的 `DeleteUser`，定義業務依賴與刪除策略。選用 `preflight` 在撤銷憑證前執行；`delete` 必須使用傳入的使用者交易。預設轉發原生模型刪除，不自動刪除業務關聯資料或遠端身分供應商帳戶。軟刪除策略需要應用實際設定軟刪除模型與欄位；僅回報成功卻未刪除會被拒絕。
+
+需要在 Provider 啟動時明確替換 Action，可使用：
+
+```rust
+openrust_fortify::starter::deletion::delete_users_using::<crate::app::models::User>(
+    app,
+    std::sync::Arc::new(crate::app::actions::fortify::delete_user::DeleteUser),
+)?;
+```
+
+使用者鎖與權杖簽發、帳戶變更串行。同一交易內撤銷憑證版本，透過已註冊模型事件實體清理全部本人 PAT 與已安裝通行密鑰，刪除套件待用證明、撤銷瀏覽器裝置索引、持久化舊頭像清理任務，最後刪除使用者。憑證儲存須與使用者同連線，無法原子處理的跨連線設定明確失敗。模型取消、依賴約束或入列失敗會回復資料庫變更，保留舊頭像。密碼重設連結綁定原身分，註銷後無法使用；舊重設記錄仍由對應倉儲的到期與清理機制管理。
+
+提交後登出目前瀏覽器中屬於同一使用者的全部 Guard，並輪換工作階段與 CSRF；獨立管理員身分、購物車資料保留。已進入執行的業務請求不會追溯取消。應用模型掛鉤的外部副作用應延後至提交後。
+
+沒有外部檔案時 API 回傳204，HTML 表單導向登入；存在頭像時回傳202。JSON 帶有 `meta.cleanup`，HTML 提供私密狀態頁與重新整理按鈕。此時帳戶已刪除，檔案尚待清理。妥善保管收據，使用[既有公開收據查詢與 Worker](#resource-cleanup)，無需已刪除使用者的工作階段。儲存失敗保留失敗與重試狀態，不將已提交的註銷冒充回復；不要把收據放進 URL 或記錄。

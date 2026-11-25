@@ -38,6 +38,13 @@ mod app {
     }
     pub(crate) mod actions {
         pub(crate) mod fortify {
+            #[cfg(feature = "sanctum")]
+            pub(crate) mod delete_user {
+                include!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/stubs/starter/delete_user.rs"
+                ));
+            }
             pub(crate) use crate::installed::*;
         }
     }
@@ -220,6 +227,7 @@ async fn start_custom_resource(
     for relative in [
         "layout.blade.html",
         "home.blade.html",
+        "deleted.blade.html",
         "sessions.blade.html",
         "api-tokens.blade.html",
         "auth/login.blade.html",
@@ -520,6 +528,14 @@ async fn installed_blade_forms_and_real_database_registration_login_and_logout()
 }
 
 fn fixture_routes() -> Result<(), openrust::routing::RoutingError> {
+    #[cfg(feature = "sanctum")]
+    {
+        openrust::support::facades::Route::post(
+            "/fixture-other-guard",
+            deletion::login_other_guard,
+        )?;
+        openrust::support::facades::Route::get("/fixture-guard-state", deletion::guard_state)?;
+    }
     openrust::support::facades::Route::post("/admin-fixture-login", admin_fixture_login)?;
     openrust::support::facades::Route::get_with(
         "/admin-fixture-user",
@@ -5252,3 +5268,7 @@ mod avatar;
 #[cfg(feature = "sanctum")]
 #[path = "../stubs/starter/migrations/profile-photo.rs"]
 mod profile_photo_migration;
+
+#[cfg(feature = "sanctum")]
+#[path = "starter_ui/deletion.rs"]
+mod deletion;

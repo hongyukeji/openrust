@@ -3,7 +3,7 @@ use openrust::{
     database::eloquent::Model,
     support::facades::{App, Config, Facade as _},
 };
-async fn server() -> Server {
+pub(super) async fn server() -> Server {
     let server = start_security_catalog_mail(
         "full",
         false,
@@ -187,7 +187,7 @@ async fn avatar_rejects_forged_content_and_excess_dimensions_without_persisting_
     assert_eq!(status, 422, "{body}");
     assert!(body.to_string().contains("尺寸"));
 }
-async fn receipt(
+pub(super) async fn receipt(
     server: &Server,
     id: &str,
     secret: Option<&str>,

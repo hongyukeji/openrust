@@ -712,3 +712,40 @@ fn transactional_action_upgrade_preserves_comments_and_rejects_custom_legacy_act
         customized
     );
 }
+
+#[tokio::test]
+async fn deletion_action_wiring_survives_first_repeat_and_forced_resource_installation() {
+    let root = Root::new();
+    let mut kernel = root.user_kernel();
+    for force in [false, false, true] {
+        let mut args = vec![
+            "init:resources".into(),
+            "--extensions=user-web,api,fortify".into(),
+            "--no-interaction".into(),
+        ];
+        if force {
+            args.push("--force".into());
+        }
+        let mut out = Output::default();
+        assert_eq!(kernel.handle(&args, &mut out).await, 0, "{}", out.stderr);
+        assert_eq!(
+            root.read("app/actions/fortify/mod.rs")
+                .matches("pub(crate) mod delete_user;")
+                .count(),
+            1
+        );
+        assert!(
+            root.read("app/actions/fortify/delete_user.rs")
+                .contains("DeletesUsers<User>")
+        );
+        assert!(
+            root.read("app/providers/user_service_provider.rs")
+                .contains("deletion::delete_users_using")
+        );
+        assert!(
+            root.0
+                .join("resources/views/user/deleted.blade.html")
+                .exists()
+        );
+    }
+}

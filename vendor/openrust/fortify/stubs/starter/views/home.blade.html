@@ -49,5 +49,9 @@
 @if($can_manage_devices)
 <p><a href="{{ route('user.sessions.page') }}">{{ __('user.browser_sessions') }}</a></p>
 @endif
+@if($can_delete_account)
+<fieldset><legend>{{ __('user.delete_account') }}</legend><p>{{ __('user.delete_warning') }}</p>
+<form method="POST" action="{{ route('current-user.destroy') }}">@csrf @method('DELETE')<button type="submit">{{ __('user.delete_account') }}</button></form></fieldset>
+@endif
 <form method="POST" action="{{ route('logout') }}">@csrf<button type="submit">{{ __('user.logout') }}</button></form>
 @endsection

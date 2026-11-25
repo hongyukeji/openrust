@@ -8,8 +8,8 @@
 | --- | --- | --- |
 | A01-01 安装与基础认证 | 开发中 | 显式安装预设、基础账户流程与响应适配、安装保护、真实Artisan／HTTP。 |
 | A01-02 邮件与生命周期 | 开发中 | 已验邮件落地、本地SMTP、加密可靠队列、无会话恢复及会话／PAT撤销；待无密码与跨驱动最终组合。 |
-| A01-03 账户中心 | 未闭合 | 已验资料／密码、浏览器设备、个人令牌网页及头像生命周期；待注销与最后组合。 |
-| A01-04 网页与可选认证 | 未闭合 | 完整Blade页面、2FA／Passkeys／第三方登录接线及三语教程。 |
+| A01-03 账户中心 | 未闭合 | 已验资料／密码、浏览器设备、个人令牌、头像及注销／资源恢复；待自定义模型／驱动和最后组合。 |
+| A01-04 网页与可选认证 | 未闭合 | 基础认证、设备、令牌、头像和注销网页已验；待2FA／Passkeys／第三方登录管理、无密码确认及三语组合。 |
 | A01-05 组合验收 | 未闭合 | 两种预设、三库／缓存、常用系统与最终支持矩阵。 |
 
 ## 首个实现单元：响应与安全资源
@@ -545,3 +545,25 @@ Passkeys::purge_user_in_transaction复用当前注册的用户／密钥模型、
 passkey-purge-sqlite.log／passkey-purge-final-test.log通过SQLite专项及4个既有公开模型契约测试；passkey-purge-mysql.log、passkey-purge-postgres.log分别在MySQL8.4.13／PostgreSQL18.7通过相同105条跨批次、ULID密钥、软删除、模型取消回滚、伪成功、他人／大小写邻居保留及重复清理0，另覆盖未注册模型、主键改写和未安装表。最后一次测试夹具async签名整理后SQLite专项复验通过；数据库逻辑未变化。当前已覆盖字符串用户主键；整数／UUID用户及跨连接明确拒绝会随注销组合继续补验，不将未运行用例计入本单元。
 
 workspace all-targets及Fortify+Sanctum严格Clippy、fmt在passkey-purge-*-delivery.log／passkey-purge-fmt.log通过。三语Fortify教程构建与12组双挂载桌面移动检查在passkey-purge-docs.log／passkey-purge-docs-browser.log通过。早期私有Builder误用及夹具主键、lint失败已修正，保留日志不计通过。源码组合沿用S09及已验覆盖，无其他协作者在途内容。仅完成注销前置，不宣称DeleteUser或A01整簇闭合。
+
+## S04 本人注销、应用Action及独立进程恢复
+
+沿用前述固定Jetstream5.5.3的DeletesUsers／DeleteUser分工，以及Laravel／Fortify／Sanctum、原生用户行锁、模型事务和资源队列。旧版没有同契约的可靠注销实现；不迁移其进程内回调或先删外部文件的顺序。公开starter::deletion::{DeletesUsers<M>,DeleteUser,delete_users_using}；安装发布app/actions/fortify/delete_user.rs及Provider选择。Action可预检业务依赖并在传入事务内删除；不擅自级联业务数据或远端身份。套件直接收集原头像，不另暴露无人使用的resources钩子，避免替换Action时意外绕过默认文件清理。
+
+两预设提供DELETE /api/user，遵循api.prefix，需要account:update及delete用途近期证明；Cookie仍用CSRF和近期确认。完整预设提供DELETE /user／current-user.destroy与首页原生表单。用户写锁内重新核验身份和证明、预检、旋转版本／remember、物理清理全部PAT及已安装密钥、移除套件待用挑战、撤销设备索引，并将头像清理与用户删除原子提交。自定义Action伪成功且用户未删除即失败。最后再次检查原证明期限，不能用已经自行撤销的PAT／设备记录当作提交后的再次授权而误报失败。重置链接的原身份绑定阻止后续使用，旧重置记录继续由其仓储过期清理。
+
+提交后逐个退出当前浏览器中同模型／主键／连接的原生Session Guard，清当前请求Guard缓存、轮换Session／CSRF，保留独立管理员与购物车；不按sessions.user_id删除整行。无文件API204／网页跳登录；有文件202和meta.cleanup，网页为no-store／no-referrer状态页。收据仅在响应／页面中交付，不写入URL、闪存或Cookie；刷新使用X-Operation-Receipt、credentials:omit、no-store和no-referrer，不依赖已删除User。既有RequestWatcher对HTML只记HTML Response、ViewWatcher仅记录数据键名，JSON收据沿用已验默认掩码。其他证明／令牌观测脱敏仍归S10，不能据此宣称全部已收口。
+
+### 实际验收
+
+- deletion-mysql-second.log与deletion-postgres-second.log：MySQL8.4.13／PostgreSQL18.7各10项真实HTTP／数据库测试通过。覆盖缺失／跨用途证明、全部令牌失效、Action拒绝／伪成功回滚、真实外键阻止删除且队列／账本／旧头像不变、并发证明仅一赢家、Action结束时过期回滚、多Guard／管理员／购物车保留、设备索引撤销、原生HTML与Cookie／CSRF、202收据及原生Artisan Worker。MySQL首轮夹具外键使用有符号列与users.id不匹配，改为unsigned_big_integer后两库通过；早期失败不计通过。
+- deletion-ui-delivery.log：SQLite86项用户套件组合全部通过，包括上述10项。deletion-install-final.log：14项安装通过，含首次／重复／强制资源安装保留正式注销模块、原有API信息路由、自定义文件保护。初始Hook在Fortify模块发布前读取路径的实际缺陷已修复：用正式模块模板建立，普通Fortify不装套件不增声明，Fortify强制发布后幂等接回；真实应用安装与自动重建也验证通过。
+- deletion-crash-evidence/deletion-runtime.json及deletion-runtime-third.log：真实新应用init full（含安装但明确关闭的Passkeys）、重复安装、自动重建／MySQL迁移，双独立应用共享加密数据库会话和磁盘。MySQL独立触发器＋连接GET_LOCK仅作为可观察门闩，实际SIGKILL应用发生在用户删除提交前；旧用户、两个PAT、密钥记录及照片保留，另一节点仍可认证。重新提交后两节点均拒绝旧PAT，关闭因素的历史密钥也已物理删除。实际SIGKILL Worker发生在删文件后、队列确认前；MySQL可能完成已受理的autocommit账本更新，实测completed且任务仍reserved，新Worker重投只结算并完成，未承诺SQL和文件exactly-once。原生存储失败／重试／幂等路径复用ResourceCleanup既有三库证据，不重跑未改变路径。
+- 上述进程场景已通过后，Chrome脚本因未传Playwright环境变量退出；不把整次脚本退出计通过。保留其独立进程证据，修正环境后仅跑缺少部分，deletion-runtime-browser.log和deletion-app-browser.json：三语桌面／375px移动六组真实Chrome通过，原生注册、近期确认、上传、注销202、收据状态刷新、无Cookie／Referer、返回登录及无脚本错误／横向溢出。新进程Worker清理六个浏览器账户的照片，所有注销任务completed。初始HTTP IP地址被原生Passkeys安装预检拒绝，测试改为HTTP localhost后符合既有开发规则，不修改生产HTTPS要求。
+- deletion-docs.log／deletion-docs-browser.log：三语教程构建和12组双挂载／桌面移动章节检查通过。deletion-workspace-clippy-final.log、deletion-feature-clippy-final.log及deletion-fmt.log：workspace all-targets、Fortify+Sanctum严格Clippy与格式通过。最后去掉无消费者resources钩子，直接收集同一头像，并合并嵌套条件，不改变上述默认Action可观察路径；86项HTTP组合已按最终源码重新通过。实际进程与浏览器结果复用对应未受影响路径，不将其扩大为所有自定义Action的运行证明。
+
+冻结源码沿用15c9c1248及本工作流已验覆盖，不拷入Horizon／Webhooks等在途变化；清单／SHA见target/tmp/user-starter/deletion-files.json和deletion-final-source-sha.json。安装测试中一次32GB守卫中断不计通过，已持锁清理97,070,284,800字节，守卫当时可用129,130,803,200字节；后续重跑通过。最终文档dist／cache、独占模拟照片及已退出的通行密钥夹具残留清理计量另见deletion-delivery-space.json，保留源码、全部日志、下载、正常复用缓存及数据卷。
+
+### 仍归后续组合的边界
+
+不把该单元当作A01全部闭合。S10继续验证自定义User／字符串主键／连接和软删除应用策略、因素启停历史数据、严格头像磁盘配置与同库队列预检、完整与仅API安装及系统矩阵。完整网页预设的空API前缀可能与既有Fortify网页路径冲突，需要在安装预检明确裁决，不能把仅API空前缀测试当作完整预设通过。S03／A01-04继续无密码近期认证、可选因素管理及第三方绑定；真实供应商／设备／生产SMTP／TLS／存储ACL仍单列外部验收。

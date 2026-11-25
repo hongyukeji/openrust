@@ -1,0 +1,37 @@
+@extends('user.layout')
+@section('title', __('user.account_deleted'))
+@section('content')
+<p>{{ __('user.deletion_pending') }}</p>
+<div id="cleanup" data-url="{{ $cleanup['status_url'] }}" data-receipt="{{ $cleanup['receipt'] }}" data-completed="{{ __('user.deletion_completed') }}" data-failed="{{ __('user.deletion_failed') }}" data-error="{{ __('user.deletion_status_error') }}">
+<p id="cleanup-status" role="status">{{ __('user.deletion_pending') }}</p>
+<button id="cleanup-refresh" type="button">{{ __('user.refresh_status') }}</button>
+</div>
+<p><a href="{{ route('login') }}">{{ __('user.login') }}</a></p>
+<script>
+{
+    const panel = document.getElementById('cleanup');
+    const button = document.getElementById('cleanup-refresh');
+    const status = document.getElementById('cleanup-status');
+    button.addEventListener('click', async () => {
+        button.disabled = true;
+        try {
+            const response = await fetch(panel.dataset.url, {
+                headers: {'Accept': 'application/json', 'X-Operation-Receipt': panel.dataset.receipt},
+                credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer'
+            });
+            if (!response.ok) throw new Error('status');
+            const body = await response.json();
+            if (body.data.status === 'completed') {
+                status.textContent = panel.dataset.completed;
+                panel.removeAttribute('data-receipt');
+                return;
+            }
+            if (body.data.status === 'failed') status.textContent = panel.dataset.failed;
+        } catch {
+            status.textContent = panel.dataset.error;
+        }
+        button.disabled = false;
+    });
+}
+</script>
+@endsection

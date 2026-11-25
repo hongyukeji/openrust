@@ -2,7 +2,7 @@
 
 ## 支持状态 {#support-status}
 
-显式用户套件安装原生 Fortify Action、安全资源、Blade 认证及 Cookie／令牌 API。下文说明已经提供的操作；尚不提供账户注销接口及可选因素管理页面。不生成 React、Vue 或 Livewire 前端。
+显式用户套件安装原生 Fortify Action、安全资源、Blade 认证及 Cookie／令牌 API。下文说明已经提供的操作；已提供账户注销接口，可选因素管理页面尚未提供。不生成 React、Vue 或 Livewire 前端。
 
 ## 可用入口 {#available-entry-points}
 
@@ -222,7 +222,7 @@ Accept: application/json
 
 PAT 证明在应用数据库中只保存摘要，绑定用户、当前PAT、用途、凭据版本和有效的因素／邮箱状态。`auth.password_timeout` 为正整数秒，默认10800；不等清理任务就会到期。错误设备／用途、篡改或重放返回401。签发／撤销使用共同用户锁和令牌行锁，模型事件取消或提交前证明过期会回滚数据库变更。应用确认回调可支持自己的身份流程，没有本地密码不代表自动确认。无状态 Passkey 重新认证适配仍单独待补。
 
-密码错误422，一分钟内5次失败后429并带 `Retry-After`；缺少令牌能力403。消息跟随请求语言，证明、密码和令牌秘密不会进入旧输入；包含新证明／令牌的响应使用 `no-store`。设备管理见[浏览器设备](#browser-sessions)；账户注销接口仍在开发。
+密码错误422，一分钟内5次失败后429并带 `Retry-After`；缺少令牌能力403。消息跟随请求语言，证明、密码和令牌秘密不会进入旧输入；包含新证明／令牌的响应使用 `no-store`。设备管理见[浏览器设备](#browser-sessions)；账户注销见[对应章节](#account-deletion)。
 
 ### 退出全部设备
 
@@ -433,7 +433,7 @@ curl -X DELETE "$APP_URL/api/user/sessions/<opaque-device-id>"   -H "Authorizati
 
 ## 可靠资源清理 {#resource-cleanup}
 
-安装的套件提供 `openrust_fortify::starter::resource_cleanup::ResourceCleanup`，供可信的应用 Action 使用。这是头像替换与账户注销共用的后端；头像消费方式见[用户头像](#profile-photos)，账户注销仍按[支持状态](#support-status)继续开发。
+安装的套件提供 `openrust_fortify::starter::resource_cleanup::ResourceCleanup`，供可信的应用 Action 使用。这是头像替换与账户注销共用的后端；头像消费方式见[用户头像](#profile-photos)，账户注销的应用 Action 与入口见[对应章节](#account-deletion)。
 
 清理账本和原生数据库队列任务在本人事务中一起写入；回滚会保留原有资源。sync、Redis、被替换的 database 处理器或其他数据库连接无法提供该保证，该清理队列会明确拒绝，不修改应用默认队列，其他任务仍可使用 Redis。生成的 `config/user.rs` 默认选择 `USER_CLEANUP_CONNECTION=database`、`USER_CLEANUP_QUEUE=user-resources`。User 数据库须具有标准 jobs 表；自定义 User 连接时，配置专用的同库数据库队列连接。
 
@@ -448,7 +448,7 @@ Worker 命令须使用配置后的连接和队列名称。多个独立应用共�
 
 Action 先核对本人归属与近期认证，再在提供的用户事务内调用 `ResourceCleanup::enqueue`。仅接受套件 `profile-photos/` 目录中的独占随机文件名，不能把同一路径重新用于另一张图片。返回的收据明文只交付一次，数据库只保存摘要。`ResourceCleanup::status` 只返回 `pending`、`failed` 或 `completed` 等有限状态，不公开用户资料或内部文件路径，也不依赖 User 仍然存在。收据七天后过期。存储删除失败仍可追踪，可用原生 Worker 重试或 `queue:retry` 恢复；重复投递保持幂等，不假装 SQL 和对象存储拥有共同事务。
 
-记录清理命令只删除收据已过期的完成记录，保留待处理和失败任务、用户、令牌及外部文件。命令幂等，可由正常调度器定期执行。账户注销还会随对应 Action 单独验收。
+记录清理命令只删除收据已过期的完成记录，保留待处理和失败任务、用户、令牌及外部文件。命令幂等，可由正常调度器定期执行。账户注销使用同一清理生命周期。
 
 ## 用户头像 {#profile-photos}
 
@@ -473,3 +473,33 @@ curl "$STATUS_URL" -H "X-Operation-Receipt: $RECEIPT"
 ```
 
 查询只返回 pending／failed／completed 等状态和文件数量。缺失、错误或过期收据返回404；通过 query 传入收据返回400。响应使用 `no-store` 和 `no-referrer`，Telescope 隐藏收据标头及 `meta.cleanup.receipt`。收据应保密。公开本地磁盘 URL 与应用同源时使用原生静态磁盘路由提供文件；多节点与 Worker 须共享磁盘根目录或对象存储，本地共享挂载可设置 `FILESYSTEM_PUBLIC_ROOT`。CDN／对象存储 URL 由对应服务提供，生产存储 ACL／CDN 行为须在部署环境验收。
+
+## 账户注销 {#account-deletion}
+
+两种预设提供 `DELETE /api/user`，遵循 API 前缀配置。PAT 需要 `account:update` 和用途为 `delete` 的新单次证明；Cookie 客户端使用近期密码确认和 CSRF。完整预设在 `/home` 提供原生注销表单，提交到 `DELETE /user`，未确认时跳转密码确认页。
+
+```sh
+curl -X POST "$APP_URL/api/auth/confirm" \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"purpose":"delete","password":"your-current-password"}'
+# 将 data.proof 读入 PROOF，随后仅使用一次：
+curl -i -X DELETE "$APP_URL/api/user" \
+  -H "Authorization: Bearer $TOKEN" -H "X-Auth-Confirmation: $PROOF"
+```
+
+安装发布 `app/actions/fortify/delete_user.rs`，由应用 UserServiceProvider 选择。修改其中实现 `starter::deletion::DeletesUsers<User>` 的 `DeleteUser`，定义业务依赖及删除策略。可选 `preflight` 在撤销凭据前运行；`delete` 必须使用传入的用户事务。默认转发原生模型删除，不自动删除业务关联行或远端身份供应商账户。软删除策略需要应用实际配置软删除模型及列；只返回成功却未删除会被拒绝。
+
+需要在 Provider 启动时显式替换 Action，可使用：
+
+```rust
+openrust_fortify::starter::deletion::delete_users_using::<crate::app::models::User>(
+    app,
+    std::sync::Arc::new(crate::app::actions::fortify::delete_user::DeleteUser),
+)?;
+```
+
+用户锁与令牌签发、账户变更串行。同一事务内撤销凭据版本，通过已注册模型事件物理清理全部本人 PAT 及已安装通行密钥，删除套件待用证明、撤销浏览器设备索引、持久化旧头像清理任务，最后删除用户。凭据存储须与用户同连接，不能原子处理的跨连接配置明确失败。模型取消、依赖约束或入队失败会回滚数据库更改，保留旧头像。密码重置链接绑定原身份，注销后不能使用；旧重置记录仍由对应仓储的过期与清理机制管理。
+
+提交后退出当前浏览器中属于同一用户的全部 Guard，并轮换会话及 CSRF；独立管理员身份、购物车数据保留。已经进入执行的业务请求不被追溯取消。应用模型钩子的外部副作用应推迟到提交后。
+
+没有外部文件时 API 返回204，HTML 表单跳转登录；存在头像时返回202。JSON 带 `meta.cleanup`，HTML 提供私密状态页及刷新按钮。此时账户已删除，文件尚待清理。妥善保管收据，使用[已有公开收据查询与 Worker](#resource-cleanup)，无需已删除用户的会话。存储失败保留失败及重试状态，不把已提交的注销冒充回滚；不要将收据放进 URL 或日志。

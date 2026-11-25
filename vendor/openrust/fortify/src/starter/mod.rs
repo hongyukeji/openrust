@@ -15,6 +15,8 @@ mod client_middleware;
 mod configuration;
 #[cfg(feature = "sanctum")]
 pub mod confirmation;
+#[cfg(feature = "sanctum")]
+pub mod deletion;
 mod mail_queue;
 mod messages;
 #[cfg(feature = "sanctum")]

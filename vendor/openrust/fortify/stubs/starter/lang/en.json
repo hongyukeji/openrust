@@ -64,5 +64,13 @@
   "photo_size_invalid": "The image exceeds the size limit.",
   "photo_dimensions_invalid": "The image exceeds the dimension limit.",
   "photo_updated": "Profile photo updated.",
-  "photo_removed": "Profile photo removed."
+  "photo_removed": "Profile photo removed.",
+  "delete_account": "Delete account",
+  "delete_warning": "Your account and local authentication credentials will be removed. This cannot be undone. Confirm your password before continuing.",
+  "account_deleted": "Account deleted",
+  "deletion_pending": "Your account has been deleted. Remaining files are waiting for cleanup.",
+  "deletion_completed": "The remaining files have been removed.",
+  "deletion_failed": "File cleanup will be retried. Your account has already been deleted.",
+  "deletion_status_error": "Unable to read the cleanup status. Keep this page and try again.",
+  "refresh_status": "Refresh status"
 }

@@ -64,5 +64,13 @@
   "photo_size_invalid": "圖片超過大小限制。",
   "photo_dimensions_invalid": "圖片超過尺寸限制。",
   "photo_updated": "頭像已更新。",
-  "photo_removed": "頭像已移除。"
+  "photo_removed": "頭像已移除。",
+  "delete_account": "註銷帳戶",
+  "delete_warning": "帳戶與本機認證憑證將被刪除，此操作無法復原。請先確認密碼。",
+  "account_deleted": "帳戶已註銷",
+  "deletion_pending": "帳戶已註銷，其餘檔案正在等候清理。",
+  "deletion_completed": "其餘檔案已清理完成。",
+  "deletion_failed": "檔案清理將重試，帳戶已註銷。",
+  "deletion_status_error": "暫時無法讀取清理狀態，請保留此頁稍後重試。",
+  "refresh_status": "重新整理狀態"
 }

@@ -155,6 +155,10 @@ fn account(
                 ("can_manage_devices".into(), can_manage_devices.into()),
                 ("can_manage_tokens".into(), cfg!(feature = "sanctum").into()),
                 ("can_manage_avatar".into(), can_manage_avatar.into()),
+                (
+                    "can_delete_account".into(),
+                    cfg!(feature = "sanctum").into(),
+                ),
                 ("avatar_max_kilobytes".into(), avatar_limits.0.into()),
                 ("avatar_max_dimension".into(), avatar_limits.1.into()),
                 (

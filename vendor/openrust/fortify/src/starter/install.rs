@@ -60,6 +60,10 @@ pub(crate) fn register(app: &Application) -> ProviderResult {
         app,
         &[
             (
+                "resources/views/user/deleted.blade.html",
+                include_bytes!("../../stubs/starter/views/deleted.blade.html"),
+            ),
+            (
                 "resources/views/user/home.blade.html",
                 include_bytes!("../../stubs/starter/views/home.blade.html"),
             ),
@@ -101,6 +105,14 @@ pub(crate) fn register(app: &Application) -> ProviderResult {
             include_bytes!("../../stubs/starter/user_resource.rs"),
         )],
         "user-kit-resource",
+    )?;
+    provider.publishes(
+        app,
+        &[(
+            "app/actions/fortify/delete_user.rs",
+            include_bytes!("../../stubs/starter/delete_user.rs"),
+        )],
+        "user-kit-support",
     )?;
     provider.publishes_migrations(app, &[
         ("database/migrations/0001_01_01_000020_add_credential_version_to_users_table.rs", include_bytes!("../../stubs/starter/migrations/user-credentials.rs")),
@@ -160,7 +172,9 @@ fn initialize<'a>(
 "#;
             let binding = "            openrust_fortify::starter::bind_password_tokens::<crate::app::models::User>(app)?;\n";
             let mail = "            openrust_fortify::starter::configure_mail_queue::<crate::app::models::User>(app)?;\n";
-            let without_mail = template.replacen(mail, "", 1);
+            let deletion = "            #[cfg(feature = \"sanctum\")]\n            openrust_fortify::starter::deletion::delete_users_using::<crate::app::models::User>(app, std::sync::Arc::new(crate::app::actions::fortify::delete_user::DeleteUser))?;\n";
+            let without_deletion = template.replacen(deletion, "", 1);
+            let without_mail = without_deletion.replacen(mail, "", 1);
             if without_mail == template {
                 return Err(ConsoleError::new("用户套件邮件队列模板不一致"));
             }
@@ -174,7 +188,7 @@ fn initialize<'a>(
             if edit(template).is_ok() {
                 None
             } else {
-                let updated=[without_mail,without_binding,without_resource,oldest,without_client].iter().find_map(|expected|edit(expected).ok())
+                let updated=[without_deletion,without_mail,without_binding,without_resource,oldest,without_client].iter().find_map(|expected|edit(expected).ok())
                     .ok_or_else(||ConsoleError::new("用户套件Provider已自定义，请手动接入configure_mail_queue、bind_password_tokens和用户资源；不会覆盖业务代码"))?;
                 Some((previous.clone(), updated))
             }
@@ -446,6 +460,7 @@ fn initialize<'a>(
         if let Some((previous, updated)) = action_edit {
             replace(&action_path, &previous, &updated)?;
         }
+        wire_deletion_module(root)?;
         if let Some((previous, updated)) = api_edit {
             replace(&api, &previous, &updated)?;
         }
@@ -459,4 +474,37 @@ fn initialize<'a>(
         output.info("已发布用户套件配置与视图；继续装配 Fortify，重建后执行迁移。生产邮件与身份供应商配置不在此步骤自动完成。");
         Ok(())
     })
+}
+
+/*
+ * 用户套件Hook可能先于Fortify资源发布；缺失时采用正式Action模块模板。
+ * Fortify强制发布后再次调用，保持注销模块接线，不改变普通Fortify骨架。
+ */
+pub(crate) fn wire_deletion_module(root: &std::path::Path) -> Result<(), ConsoleError> {
+    if !root.join("config/user.rs").is_file()
+        || !root.join("app/actions/fortify/delete_user.rs").is_file()
+    {
+        return Ok(());
+    }
+    let path = root.join("app/actions/fortify/mod.rs");
+    let previous = if path.exists() {
+        read(&path)?
+    } else {
+        String::new()
+    };
+    let source = if path.exists() {
+        previous.as_str()
+    } else {
+        include_str!("../../stubs/mod.rs")
+    };
+    let updated = openrust::foundation::console::source_edit::declare_module(
+        source,
+        "delete_user",
+        Some("sanctum"),
+    )?;
+    if !path.exists() {
+        std::fs::write(&path, &previous)
+            .map_err(|error| ConsoleError::new(format!("无法建立Action模块：{error}")))?;
+    }
+    replace(&path, &previous, &updated)
 }
