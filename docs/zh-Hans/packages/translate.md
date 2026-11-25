@@ -86,6 +86,9 @@ async fn preview() -> TranslationResult<String> {
 | --- | --- | --- |
 | `deepl` | `plan` 选择 `free`（默认）或 `pro`，同时设置 `api_key_env`。`base_url` 可覆盖官方 Free 或 Pro 地址，驱动追加 `/v2/translate`。 | 区域或文字体系明确的目标包括 `en-GB`、`en-US`、`pt-BR`、`pt-PT`、`zh-Hans` 和 `zh-Hant`。显式源语言使用基础语言。 |
 | `libretranslate` | 设置自托管的 `base_url`，可选 `api_key_env`。驱动追加 `/translate`。 | `zh-Hant` 和 `pt-BR` 分别使用繁体中文 `zt`、巴西葡萄牙语 `pb` 模型。支持的语言对取决于服务端安装的模型。 |
+| `tencent` | 设置 `api_key_env` 和 TokenHub 专用翻译模型，例如 `hy-mt3-plus`。`base_url` 可选择其他 TokenHub 站点。 | 调用 `/v1/api/translations` 并发送 `stream=false`。`zh-Hant` 映射为 `zh-TR`，自动识别时省略 source。 |
+| `aliyun` | 设置 `access_key_id_env` 和 `access_key_secret_env`，临时凭据可用 `security_token_env`。`region` 默认 `cn-hangzhou`。 | 对纯文本表单做 ACS3 签名后调用 `TranslateGeneral`。`zh-Hant` 映射为 `zh-tw`，自动识别使用 auto。 |
+| `baidu` | 配置通用文本服务的 `app_id_env` 和 `api_key_env`。 | 按原始 UTF-8 文本签名后才做表单编码。`zh-Hant`、ja、ko 对应 `cht`、`jp`、`kor`。译文分段按顺序用换行连接。 |
 
 ```json
 {

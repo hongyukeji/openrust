@@ -1,13 +1,15 @@
 use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
 use serde_json::Value;
-use url::{Position, Url};
+use url::Url;
 
-use crate::notifications::{NotificationFuture, NotificationResult, delivery};
+use crate::{
+    http::client::aliyun_rpc::AliyunRpcSigner,
+    notifications::{NotificationFuture, NotificationResult, delivery},
+};
 
 use super::{
     super::{SmsDriver, SmsMessage, SmsTemplateParameters},
-    hex, now, rejected, request, required, response, rpc_endpoint, setting, sha256, sign,
-    signed_headers, unknown,
+    rejected, request, required, response, rpc_endpoint, setting, unknown,
 };
 
 pub(super) struct Aliyun {
@@ -180,38 +182,18 @@ impl Client {
             .map(|(name, value)| format!("{name}={}", utf8_percent_encode(value, ESCAPE)))
             .collect::<Vec<_>>()
             .join("&");
-        let date = now().strftime("%Y-%m-%dT%H:%M:%SZ").to_string();
-        let nonce = uuid::Uuid::now_v7().to_string();
-        let hash = sha256(b"");
-        let headers = [
-            (
-                "host",
-                &self.endpoint[Position::BeforeHost..Position::AfterPort],
-            ),
-            ("x-acs-action", action),
-            ("x-acs-content-sha256", hash.as_str()),
-            ("x-acs-date", date.as_str()),
-            ("x-acs-signature-nonce", nonce.as_str()),
-            ("x-acs-version", version),
-        ];
-        let signed =
-            "host;x-acs-action;x-acs-content-sha256;x-acs-date;x-acs-signature-nonce;x-acs-version";
-        let canonical_headers: String = headers
-            .iter()
-            .map(|(key, value)| format!("{key}:{value}\n"))
-            .collect();
-        let canonical = format!("POST\n/\n{query}\n{canonical_headers}\n{signed}\n{hash}");
-        let to_sign = format!("ACS3-HMAC-SHA256\n{}", sha256(canonical.as_bytes()));
-        let signature = hex(sign(self.access_key_secret.as_bytes(), &to_sign).as_ref());
-        let authorization = format!(
-            "ACS3-HMAC-SHA256 Credential={},SignedHeaders={signed},Signature={signature}",
-            self.access_key_id
-        );
         let mut url = self.endpoint.clone();
         url.set_query(Some(&query));
+        let headers = AliyunRpcSigner {
+            access_key_id: &self.access_key_id,
+            access_key_secret: self.access_key_secret.as_bytes(),
+            security_token: None,
+        }
+        .sign_post(&url, action, version, None, b"")
+        .map_err(|_| delivery("The SMS profile contains an invalid request header."))?;
         response(
             request()?
-                .with_headers(signed_headers(&headers, &authorization)?)
+                .with_headers(headers)
                 .send(http::Method::POST, url.as_str())
                 .await,
         )

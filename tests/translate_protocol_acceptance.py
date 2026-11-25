@@ -2,6 +2,8 @@
 import argparse
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import hashlib
+import hmac
 import json
 import os
 from pathlib import Path
@@ -45,7 +47,7 @@ def server():
                 else:
                     data = {key: items[0] for key, items in parse_qs(raw.decode()).items()}
                 if "check" in case:
-                    case["check"](self.headers, data)
+                    case["check"](self.headers, data, raw)
                 else:
                     assert data == case["request"], (data, case["request"])
                     assert self.headers.get("Authorization") == case.get("auth")
@@ -83,6 +85,9 @@ def runner(binary, stage):
         "APP_CONFIG_CACHE": str(stage / "config.json"), "TRANSLATE_TEST_KEY": KEY,
         "TRANSLATE_TEST_OBSERVATIONS": str(stage / "observations.log"),
         "TRANSLATE_DRIVER": "protocol",
+        "TRANSLATE_TEST_AK": "SYNTHETIC_SECRET_ACCOUNT",
+        "TRANSLATE_TEST_STS": "SYNTHETIC_SECRET_STS",
+        "TRANSLATE_TEST_APP_ID": "2015063000000001",
     }
     env.pop("TRANSLATE_TEST_LABEL", None)
     env.pop("DB_URL", None)
@@ -194,13 +199,156 @@ def batch_a(binary, stage):
         print("LibreTranslate: optional key, auto and explicit source, script mapping, errors, timeout, single send and redaction PASS")
 
 
+def batch_b(binary, stage):
+    artisan, events = runner(binary, stage)
+
+    with server() as (base, cases, calls, faults):
+        def submit(profile, scenario, **options):
+            round_trip(artisan, events, profile, cases, calls, faults, scenario, **options)
+
+        tencent = {"driver": "tencent", "model": "hy-mt3-plus", "base_url": base + "/tencent",
+                   "api_key_env": "TRANSLATE_TEST_KEY", "timeout_ms": 3000}
+        tencent_auto = {
+            "path": "/tencent/v1/api/translations",
+            "auth": f"Bearer {KEY}",
+            "request": {"text": ORIGINAL, "model": "hy-mt3-plus", "target": "zh-TR", "stream": False},
+            "response": {
+                "choices": [{"finish_reason": "stop", "message": {"role": "assistant", "content": TRANSLATED}}],
+                "source": "zh",
+            },
+        }
+        submit(tencent, tencent_auto, target="zh-Hant",
+               outcome={"text": TRANSLATED, "source": "zh-Hans"})
+        submit(tencent, tencent_auto | {
+            "request": tencent_auto["request"] | {"source": "fr", "target": "en"},
+            "response": tencent_auto["response"] | {"source": "fr"},
+        }, target="en", source="fr", outcome={"text": TRANSLATED, "source": "fr"})
+        submit(tencent, None, target="en-GB", error="UnsupportedLanguage")
+        submit(tencent, tencent_auto | {"response": {"choices": []}},
+               target="zh-Hant", error="InvalidResponse")
+        submit(tencent, tencent_auto | {
+            "response": {"choices": [{"finish_reason": "sensitive", "message": {"content": ""}}]},
+        }, target="zh-Hant", error="Rejected")
+        for code, category in [(400, "Rejected"), (401, "Authentication"), (402, "Quota"),
+                               (429, "RateLimited"), (500, "Service"), (307, "Service")]:
+            submit(tencent, tencent_auto | {"status": code, "response": ERROR_BODY},
+                   target="zh-Hant", error=category)
+        submit(tencent | {"timeout_ms": 140}, tencent_auto | {"delay": .45},
+               target="zh-Hant", error="Timeout", expected_observations=["request", "failure"])
+        print("Tencent TokenHub: dedicated endpoint, Bearer, source, errors, timeout, single send and redaction PASS")
+
+        aliyun = {"driver": "aliyun", "region": "cn-hangzhou", "base_url": base + "/ali",
+                  "access_key_id_env": "TRANSLATE_TEST_AK", "access_key_secret_env": "TRANSLATE_TEST_KEY",
+                  "security_token_env": "TRANSLATE_TEST_STS", "timeout_ms": 3000}
+
+        def verify_aliyun(source, target, temporary=True, path="/ali/"):
+            def check(headers, payload, raw):
+                assert payload == {
+                    "FormatType": "text", "Scene": "general", "SourceLanguage": source,
+                    "SourceText": ORIGINAL, "TargetLanguage": target,
+                }
+                assert headers.get("x-acs-action") == "TranslateGeneral"
+                assert headers.get("x-acs-version") == "2018-10-12"
+                assert headers.get("x-acs-security-token") == ("SYNTHETIC_SECRET_STS" if temporary else None)
+                assert headers.get("x-acs-date").endswith("Z")
+                assert headers.get("x-acs-signature-nonce")
+                hashed = hashlib.sha256(raw).hexdigest()
+                assert headers["x-acs-content-sha256"] == hashed
+                names = ["content-type", "host", "x-acs-action", "x-acs-content-sha256", "x-acs-date"]
+                if temporary:
+                    names.append("x-acs-security-token")
+                names += ["x-acs-signature-nonce", "x-acs-version"]
+                signed = ";".join(names)
+                canonical = (
+                    f"POST\n{path}\n\n"
+                    + "".join(f"{name}:{headers[name]}\n" for name in names)
+                    + f"\n{signed}\n{hashed}"
+                )
+                to_sign = "ACS3-HMAC-SHA256\n" + hashlib.sha256(canonical.encode()).hexdigest()
+                signature = hmac.new(KEY.encode(), to_sign.encode(), hashlib.sha256).hexdigest()
+                assert headers["Authorization"] == (
+                    "ACS3-HMAC-SHA256 Credential=SYNTHETIC_SECRET_ACCOUNT,"
+                    f"SignedHeaders={signed},Signature={signature}"
+                )
+            return check
+
+        aliyun_auto = {
+            "path": "/ali/", "content_type": "application/x-www-form-urlencoded",
+            "check": verify_aliyun("auto", "zh-tw"),
+            "response": {"Code": 200, "Message": "success",
+                         "Data": {"Translated": TRANSLATED, "DetectedLanguage": "zh"}},
+        }
+        submit(aliyun, aliyun_auto, target="zh-Hant",
+               outcome={"text": TRANSLATED, "source": "zh-Hans"})
+        without_sts = {key: value for key, value in aliyun.items() if key != "security_token_env"}
+        submit(without_sts, aliyun_auto | {
+            "check": verify_aliyun("fr", "en", temporary=False),
+            "response": {"Code": "200", "Data": {"Translated": TRANSLATED}},
+        }, target="en", source="fr", outcome={"text": TRANSLATED, "source": None})
+        submit(aliyun, None, target="en-GB", error="UnsupportedLanguage")
+        submit(aliyun, aliyun_auto | {"response": {"Code": 200}}, target="zh-Hant", error="InvalidResponse")
+        for code, category in [(10005, "UnsupportedLanguage"), (10013, "Quota"), (10001, "Timeout")]:
+            submit(aliyun, aliyun_auto | {"response": ERROR_BODY | {"Code": code}},
+                   target="zh-Hant", error=category)
+        submit(aliyun, aliyun_auto | {
+            "status": 400, "response": ERROR_BODY | {"Code": "Throttling.Api"},
+        }, target="zh-Hant", error="RateLimited")
+        for code, category in [(403, "Authentication"), (429, "RateLimited"),
+                               (500, "Service"), (307, "Service")]:
+            submit(aliyun, aliyun_auto | {"status": code, "response": ERROR_BODY},
+                   target="zh-Hant", error=category)
+        submit(aliyun | {"timeout_ms": 140}, aliyun_auto | {"delay": .45},
+               target="zh-Hant", error="Timeout", expected_observations=["request", "failure"])
+        print("Aliyun: ACS3 signature, form, STS, source, business errors, timeout, single send and redaction PASS")
+
+        baidu = {"driver": "baidu", "base_url": base + "/baidu", "api_key_env": "TRANSLATE_TEST_KEY",
+                 "app_id_env": "TRANSLATE_TEST_APP_ID", "timeout_ms": 3000}
+
+        def verify_baidu(source, target):
+            def check(headers, payload, _):
+                assert headers.get("Authorization") is None
+                assert set(payload) == {"q", "from", "to", "appid", "salt", "sign"}
+                assert (payload["q"], payload["from"], payload["to"]) == (ORIGINAL, source, target)
+                assert payload["appid"] == "2015063000000001" and payload["salt"].isdigit()
+                material = payload["appid"] + ORIGINAL + payload["salt"] + KEY
+                assert payload["sign"] == hashlib.md5(material.encode()).hexdigest()
+            return check
+
+        baidu_auto = {
+            "path": "/baidu/api/trans/vip/translate", "content_type": "application/x-www-form-urlencoded",
+            "check": verify_baidu("auto", "cht"),
+            "response": {"from": "fra", "to": "cht",
+                         "trans_result": [{"dst": TRANSLATED}, {"dst": "第二段"}]},
+        }
+        submit(baidu, baidu_auto, target="zh-Hant",
+               outcome={"text": TRANSLATED + "\n第二段", "source": "fr"})
+        submit(baidu, baidu_auto | {"check": verify_baidu("jp", "kor"),
+                                   "response": {"from": "jp", "trans_result": [{"dst": TRANSLATED}]}},
+               target="ko", source="ja", outcome={"text": TRANSLATED, "source": "ja"})
+        submit(baidu, None, target="en-AU", error="UnsupportedLanguage")
+        submit(baidu, baidu_auto | {"response": {"trans_result": []}},
+               target="zh-Hant", error="InvalidResponse")
+        for code, category in [("54001", "Authentication"), ("54003", "RateLimited"),
+                               ("54004", "Quota"), ("58001", "UnsupportedLanguage"), (52001, "Timeout")]:
+            submit(baidu, baidu_auto | {"response": ERROR_BODY | {"error_code": code}},
+                   target="zh-Hant", error=category)
+        for code, category in [(429, "RateLimited"), (500, "Service"), (307, "Service")]:
+            submit(baidu, baidu_auto | {"status": code, "response": ERROR_BODY},
+                   target="zh-Hant", error=category)
+        submit(baidu | {"timeout_ms": 140}, baidu_auto | {"delay": .45},
+               target="zh-Hant", error="Timeout", expected_observations=["request", "failure"])
+        assert len(calls) == len(cases)
+        print("Baidu: MD5 and form, source and segments, business errors, timeout, single send and redaction PASS")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", required=True, type=Path)
     parser.add_argument("--stage", required=True, type=Path)
+    parser.add_argument("--batch", default="a", choices=["a", "b"])
     args = parser.parse_args()
     stage = args.stage.resolve()
     project = Path(__file__).resolve().parents[1]
     assert stage.is_relative_to(project / "target/tmp")
     stage.mkdir(parents=True, exist_ok=False)
-    batch_a(args.binary.resolve(), stage)
+    {"a": batch_a, "b": batch_b}[args.batch](args.binary.resolve(), stage)

@@ -86,6 +86,9 @@ Set the `driver` field of a profile as shown below. The `api_key_env` field hold
 | --- | --- | --- |
 | `deepl` | Set `plan` to `free` (default) or `pro` and provide `api_key_env`. An optional `base_url` overrides the official Free or Pro base address. The `driver` appends `/v2/translate`. | Regional and script-specific targets include `en-GB`, `en-US`, `pt-BR`, `pt-PT`, `zh-Hans`, and `zh-Hant`. Use a base language for an explicit source. |
 | `libretranslate` | Provide the self-hosted `base_url` and optionally `api_key_env`. The `driver` appends `/translate`. | The traditional Chinese and Brazilian Portuguese models use the `zt` and `pb` protocol codes for `zh-Hant` and `pt-BR`. Installed models determine the available pairs. |
+| `tencent` | Set `api_key_env` and the TokenHub translation model, such as `hy-mt3-plus`. An optional `base_url` selects a different TokenHub site. | Uses `/v1/api/translations` and sends `stream=false`. Maps `zh-Hant` to `zh-TR` and omits source for automatic detection. |
+| `aliyun` | Set `access_key_id_env` and `access_key_secret_env`. Use `security_token_env` with temporary credentials. Select `region` if needed (default `cn-hangzhou`). | Calls `TranslateGeneral` with an ACS3-signed plain-text form. Maps `zh-Hant` to `zh-tw` and uses auto for automatic detection. |
+| `baidu` | Set `app_id_env` and `api_key_env` for the general text translation service. | Signs the original UTF-8 text before form encoding. Maps `zh-Hant` to `cht`, ja to `jp`, and ko to `kor`. Joins returned segments in order with newlines. |
 
 ```json
 {

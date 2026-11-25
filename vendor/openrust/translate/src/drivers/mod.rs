@@ -1,9 +1,12 @@
+mod aliyun;
+mod baidu;
 mod deepl;
 mod libretranslate;
+mod tencent;
 
 use std::{net::IpAddr, sync::Arc, time::Duration};
 
-use http::HeaderValue;
+use http::{HeaderMap, HeaderValue, Method};
 use openrust::{
     config::Environment,
     http::client::{Error as HttpError, Factory, PendingRequest, Response},
@@ -24,12 +27,35 @@ pub(crate) fn register(manager: &TranslateManager, http: Arc<Factory>, env: Arc<
             profile,
         )?))
     });
+    let client = http.clone();
+    let environment = env.clone();
     manager.extend("libretranslate", move |profile| {
         Ok(Arc::new(libretranslate::LibreTranslate::new(
-            http.clone(),
-            &env,
+            client.clone(),
+            &environment,
             profile,
         )?))
+    });
+    let client = http.clone();
+    let environment = env.clone();
+    manager.extend("tencent", move |profile| {
+        Ok(Arc::new(tencent::Tencent::new(
+            client.clone(),
+            &environment,
+            profile,
+        )?))
+    });
+    let client = http.clone();
+    let environment = env.clone();
+    manager.extend("aliyun", move |profile| {
+        Ok(Arc::new(aliyun::Aliyun::new(
+            client.clone(),
+            &environment,
+            profile,
+        )?))
+    });
+    manager.extend("baidu", move |profile| {
+        Ok(Arc::new(baidu::Baidu::new(http.clone(), &env, profile)?))
     });
 }
 
@@ -97,25 +123,49 @@ impl Endpoint {
     ) -> TranslationResult<Response> {
         self.http
             .without_global_configuration_async(async {
-                let request = self
-                    .http
-                    .pending_request()
-                    .accept_json()
-                    .redact_payload()
-                    .without_redirecting()
-                    .connect_timeout(self.timeout)
-                    .timeout(self.timeout)
-                    .max_response_bytes(1024 * 1024);
-                configure(request).post(self.url.as_str(), body).await
+                configure(self.pending())
+                    .post(self.url.as_str(), body)
+                    .await
             })
             .await
-            .map_err(|error| match error {
-                HttpError::Timeout => TranslationError::Timeout,
-                HttpError::BodyTooLarge | HttpError::InvalidJson(_) => {
-                    TranslationError::InvalidResponse
-                }
-                _ => TranslationError::Transport,
+            .map_err(transport_error)
+    }
+
+    async fn post_encoded(
+        &self,
+        headers: HeaderMap,
+        body: String,
+        content_type: &'static str,
+    ) -> TranslationResult<Response> {
+        self.http
+            .without_global_configuration_async(async {
+                self.pending()
+                    .with_headers(headers)
+                    .with_body(body, HeaderValue::from_static(content_type))
+                    .send(Method::POST, self.url.as_str())
+                    .await
             })
+            .await
+            .map_err(transport_error)
+    }
+
+    fn pending(&self) -> PendingRequest {
+        self.http
+            .pending_request()
+            .accept_json()
+            .redact_payload()
+            .without_redirecting()
+            .connect_timeout(self.timeout)
+            .timeout(self.timeout)
+            .max_response_bytes(1024 * 1024)
+    }
+}
+
+fn transport_error(error: HttpError) -> TranslationError {
+    match error {
+        HttpError::Timeout => TranslationError::Timeout,
+        HttpError::BodyTooLarge | HttpError::InvalidJson(_) => TranslationError::InvalidResponse,
+        _ => TranslationError::Transport,
     }
 }
 

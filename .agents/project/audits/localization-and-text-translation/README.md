@@ -50,3 +50,15 @@
 | LibreTranslate | 自托管 `/translate` 单条文本，带钥和匿名、`auto` 和显式源语言、繁体 `zt`、巴葡 `pb`、检测语言反向映射、403、429、500、结构错误、重定向拒绝、超时及缓存进程注入通过。见 [Translate Text](https://docs.libretranslate.com/api/operations/translate/) 和 [语言模型](https://docs.libretranslate.com/guides/supported_languages/)。 |
 
 使用独立 Artisan 通过一次性回环 HTTP 服务按网络请求计数，分别核对一次 POST 与零重定向。HTTP 请求、响应和连接失败事件验证原文、译文、鉴权材料和响应载荷不可见，日志错误仅包含安全类别，缓存只保存环境变量名。超时返回结果未知；重试由应用决策。Rust 1.94 格式、工作区及启用功能后的严格 Clippy、2 项包回归和 1 项 Rustdoc、三语构建与 12 组 Chrome 通过。日志见 `target/tmp/localization-translate/tr-02a-*`。付费 DeepL 实账号与自托管 LibreTranslate 真实译文独立记录。
+
+## TR-02B 腾讯云、阿里云与百度
+
+| 驱动 | 协议核对与验收 |
+| --- | --- |
+| 腾讯云 | [TokenHub 混元专用翻译](https://cloud.tencent.com/document/product/1823/132252) 的 `/v1/api/translations`，默认 `hy-mt3-plus`，Bearer 和非流式单文本。通过源语言缺省／显式、`zh-TR`、响应终止状态、参数／鉴权／额度／限流／服务错误及超时。 |
+| 阿里云 | [TranslateGeneral](https://help.aliyun.com/zh/machine-translation/developer-reference/api-alimt-2018-10-12-translategeneral) 的 2018-10-12 纯文本 general 表单。按[官方 SDK](https://github.com/aliyun/alibabacloud-python-sdk/blob/master/alimt-20181012/alibabacloud_alimt20181012/client.py) 使用表单正文，复用阿里云短信的 ACS3 签名算法，按实际字节计算摘要。普通密钥和 STS、`auto`、`zh-tw`、语言／额度／超时业务码及 HTTP 错误均通过。夹具独立用 Python HMAC 重算签名。 |
+| 百度 | [通用文本翻译](https://fanyi-api.baidu.com/product/11) 和[签名说明](https://baidufanyi.apifox.cn/doc-1006705)的 HTTPS POST 表单。使用原始 UTF-8 字节生成 MD5，之后编码表单。通过合成 APP ID 签名校验、自动检测／显式语种、简繁及日韩映射、分段顺序、业务错误与超时。 |
+
+三个驱动各自通过隔离服务真实 HTTP、单发、禁止重定向和事件／错误脱敏。阿里云临时安全令牌在出站观测中随同其他标记敏感的头移除。DeepL／LibreTranslate 协议整批重跑通过。既有 HTTP Client 3 项与 SMS 真实协议 1 项回归通过。日志见 `target/tmp/localization-translate/tr-02b-*`。
+
+Rust 1.94 格式、工作区及启用功能后的严格 Clippy、2 项包回归、1 项 Rustdoc、三语站点与 12 组 Chrome 通过。

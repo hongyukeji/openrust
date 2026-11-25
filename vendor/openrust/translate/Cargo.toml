@@ -11,7 +11,10 @@ version = 1
 providers = true
 
 [dependencies]
+fastrand = "2.4.1"
+hex = "0.4"
 http = "1.5"
+md-5 = "0.11"
 openrust = { package = "openrust-framework", path = "../framework" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

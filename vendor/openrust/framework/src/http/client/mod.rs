@@ -1,5 +1,6 @@
 //! Outbound HTTP requests, responses, and application-local testing.
 
+pub mod aliyun_rpc;
 mod batch;
 mod body;
 mod destination;

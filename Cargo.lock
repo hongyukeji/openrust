@@ -4645,7 +4645,10 @@ dependencies = [
 name = "openrust-translate"
 version = "0.0.0"
 dependencies = [
+ "fastrand",
+ "hex",
  "http 1.5.0",
+ "md-5 0.11.0",
  "openrust-framework",
  "serde",
  "serde_json",
