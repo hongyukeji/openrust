@@ -15,6 +15,7 @@ mod result;
 mod review;
 mod revision;
 mod storage;
+mod video_service;
 
 pub use contracts::{
     ModerationDriver, ModerationError, ModerationFuture, ModerationResult, Operation,
@@ -27,6 +28,9 @@ pub use provider::{ModerationServiceProvider, openrust_providers};
 pub use result::{
     Assessment, Confidence, Coverage, Decision, EvidenceSpan, Finding, Modality, TaskStatus,
 };
-pub use review::{VideoReview, VideoReviewRequest};
+pub use review::{
+    ReviewState, SubmissionFailure, VideoReview, VideoReviewRequest, VideoSubmission,
+};
 pub use revision::ProfileRevision;
 pub use storage::ModerationStore;
+pub use video_service::VideoReviewService;

@@ -160,4 +160,6 @@ let recommendation = result.decision(&[Modality::Text]);
 
 启用扩展后执行 `./artisan migrate`。需要将两份迁移源码发布到应用时，执行 `./artisan vendor:publish --tag=moderation-migrations`。
 
-使用数据库连接和稳定的应用、租户标识构造 `ModerationStore`，HTTP 和 Worker 使用相同标识。用幂等键、业务内容 ID 与修订、原始 `StoredMedia`、已固定的配置和超时秒数构造 `VideoReviewRequest`。调用 `stage_video` 在同一事务写入待审核记录和点播子检查。重试相同请求可拿到原记录。同一范围内用相同的键提交不同内容会产生冲突。通过 `find` 按审核 ID 从同一范围读取，调用方在事务提交后安排送审。
+使用数据库连接和稳定的应用、租户标识构造 `ModerationStore`，HTTP 和 Worker 使用相同标识。用幂等键、业务内容 ID 与修订、原始 `StoredMedia`、已固定的配置和超时秒数构造 `VideoReviewRequest`。调用 `stage_video` 在同一事务写入待审核记录和点播子检查。重试相同请求可拿到原记录。同一范围内用相同的键提交不同内容会产生冲突。通过 `find` 按审核 ID 从同一范围读取。
+
+落单后用存储适配及当前应用的 `ModerationManager` 构造 `VideoReviewService`，通过 Worker 或应用调用 `submit(review_id)`。服务在数据库领取子检查，解析原凭据修订，并提交原对象版本。并发调用可能读到 `Submitting`。供应商返回可确认的响应时保存其任务 ID。响应含糊或领取后 Worker 中断时，后续调用在租约到期后可把状态记为 `Unknown`。先向供应商核对原任务，再决定是否创建新审核。达到截止时间的审核保持过期。

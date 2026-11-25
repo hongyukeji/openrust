@@ -123,7 +123,7 @@ class Supplier(http.server.BaseHTTPRequestHandler):
         self.respond(200, {"status": "success", "request": {"id": "se-stop-reference"}})
 
 
-def exercise(binary, work, storage_env, storage, *, credentials=False):
+def versioned_clips(work, storage):
     storage("PUT", query="versioning", content=(
         b'<VersioningConfiguration xmlns="http://s3.amazonaws.com/doc/2006-03-01/">'
         b'<Status>Enabled</Status></VersioningConfiguration>'))
@@ -137,6 +137,11 @@ def exercise(binary, work, storage_env, storage, *, credentials=False):
     first, last = versions["false"], versions["true"]
     assert first != last and "null" not in {first, last}
     storage("GET", KEY, status=403, signed=False)
+    return first, last, original, changed
+
+
+def exercise(binary, work, storage_env, storage, *, credentials=False):
+    first, last, original, changed = versioned_clips(work, storage)
 
     with socket.socket() as listener:
         listener.bind(("127.0.0.1", 0))

@@ -26,6 +26,8 @@ pub enum ModerationError {
     ProfileRevisionChanged,
     #[error("相同的审核幂等键已关联另一份请求")]
     ReviewConflict,
+    #[error("当前应用和租户内未找到审核记录")]
+    ReviewNotFound,
     #[error("内容审核记录读写失败")]
     ReviewStorage,
     #[error("内容审核默认配置未指定")]

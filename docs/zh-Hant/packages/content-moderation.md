@@ -160,4 +160,6 @@ let recommendation = result.decision(&[Modality::Text]);
 
 啟用擴充後執行 `./artisan migrate`。需要將兩份遷移原始碼發布到應用程式時，執行 `./artisan vendor:publish --tag=moderation-migrations`。
 
-使用資料庫連線和穩定的應用程式、租戶識別碼建立 `ModerationStore`，HTTP 和 Worker 使用相同識別碼。用冪等鍵、業務內容 ID 與修訂、原始 `StoredMedia`、已固定的設定和逾時秒數建立 `VideoReviewRequest`。呼叫 `stage_video` 在同一交易寫入待審核記錄和隨選影片子檢查。重試相同請求時可取得原記錄。同一範圍內用相同的鍵提交不同內容會產生衝突。透過 `find` 按審核 ID 從同一範圍讀取，呼叫方在交易提交後安排送審。
+使用資料庫連線和穩定的應用程式、租戶識別碼建立 `ModerationStore`，HTTP 和 Worker 使用相同識別碼。用冪等鍵、業務內容 ID 與修訂、原始 `StoredMedia`、已固定的設定和逾時秒數建立 `VideoReviewRequest`。呼叫 `stage_video` 在同一交易寫入待審核記錄和隨選影片子檢查。重試相同請求時可取得原記錄。同一範圍內用相同的鍵提交不同內容會產生衝突。透過 `find` 按審核 ID 從同一範圍讀取。
+
+落單後用儲存介面及目前應用程式的 `ModerationManager` 建立 `VideoReviewService`，透過 Worker 或應用程式呼叫 `submit(review_id)`。服務在資料庫領取子檢查，解析原憑證修訂，並提交原始物件版本。並行呼叫可能讀到 `Submitting`。供應商傳回可確認的回應時保存其任務 ID。回應不明確或領取後 Worker 中斷時，後續呼叫可在租約到期後將狀態記為 `Unknown`。先向供應商核對原任務，再決定是否建立新審核。達到截止時間的審核保持過期。

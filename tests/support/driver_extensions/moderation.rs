@@ -36,6 +36,7 @@ const ALIYUN_JOB: &str = "moderation.fixture.aliyun-query";
 const TENCENT_JOB: &str = "moderation.fixture.tencent-query";
 const SIGHTENGINE_JOB: &str = "moderation.fixture.sightengine-query";
 const REVIEW_JOB: &str = "moderation.fixture.read-review";
+const SUBMIT_REVIEW_JOB: &str = "moderation.fixture.submit-review";
 
 pub(super) fn configuration(env: &Environment) -> Result<Value, ConfigError> {
     let mut configuration = json!({"default":"comments","drivers":{
@@ -133,9 +134,13 @@ pub(super) fn configuration(env: &Environment) -> Result<Value, ConfigError> {
         configuration["drivers"]["sightengine-images"] = image;
     }
     if let Some(endpoint) = env.get_utf8("MODERATION_FIXTURE_SIGHTENGINE_VIDEO")? {
+        let timeout = env
+            .get_utf8("MODERATION_FIXTURE_SIGHTENGINE_VIDEO_TIMEOUT")?
+            .and_then(|value| value.parse::<u64>().ok())
+            .unwrap_or(2500);
         let mut profile = json!({
             "driver":"sightengine", "base_url":endpoint, "api_user_env":"FIXTURE_SIGHTENGINE_USER",
-            "api_secret_env":"FIXTURE_SIGHTENGINE_SECRET", "timeout_ms":2500,
+            "api_secret_env":"FIXTURE_SIGHTENGINE_SECRET", "timeout_ms":timeout,
             "media_disk":"s3", "media_origin":env.get_utf8("MODERATION_FIXTURE_IMAGE_ORIGIN")?,
             "video_models":["violence","text-content-2.0"], "video_text_categories":["email"],
             "video_review_score":0.8, "video_max_duration":900,
@@ -228,7 +233,8 @@ impl ServiceProvider for ExternalProvider {
                 Ok(Arc::new(Media(region.to_owned())))
             });
             Queue::register(JOB, Arc::new(Query))?;
-            Queue::register(REVIEW_JOB, Arc::new(ReadReview))?;
+            Queue::register(REVIEW_JOB, Arc::new(ReviewWorker(false)))?;
+            Queue::register(SUBMIT_REVIEW_JOB, Arc::new(ReviewWorker(true)))?;
             Queue::register(ALIYUN_JOB, Arc::new(ProviderVideoQuery("aliyun-videos")))?;
             Queue::register(TENCENT_JOB, Arc::new(ProviderVideoQuery("tencent-videos")))?;
             Queue::register(
@@ -466,7 +472,9 @@ fn video_route<'a>(
     profile: &'static str,
 ) -> HttpFuture<'a, Result<Response, HttpError>> {
     Box::pin(async move {
-        let result = if let Some(intent) = request.header("x-fixture-review-intent")? {
+        let result = if let Some(id) = request.header("x-fixture-submit-review")? {
+            submit_review("app", "tenant", id).await
+        } else if let Some(intent) = request.header("x-fixture-review-intent")? {
             let version = request
                 .header("x-fixture-version")?
                 .ok_or(HttpError::InvalidRequest)?;
@@ -667,6 +675,7 @@ fn provider_response(result: ModerationResult<Value>) -> Result<Response, HttpEr
                 }
                 ModerationError::Unauthorized => StatusCode::UNAUTHORIZED,
                 ModerationError::ReviewConflict => StatusCode::CONFLICT,
+                ModerationError::ReviewNotFound => StatusCode::NOT_FOUND,
                 ModerationError::Throttled => StatusCode::TOO_MANY_REQUESTS,
                 ModerationError::Timeout => StatusCode::GATEWAY_TIMEOUT,
                 _ => StatusCode::BAD_GATEWAY,
@@ -695,13 +704,29 @@ async fn stage_review(
 }
 
 fn render_review(review: VideoReview) -> Value {
+    use openrust_content_moderation::VideoSubmission;
+    let submission = match review.submission() {
+        VideoSubmission::Ready => json!({"state":"Ready"}),
+        VideoSubmission::Submitting => json!({"state":"Submitting"}),
+        VideoSubmission::Submitted(id) => json!({"state":"Submitted","task":id}),
+        VideoSubmission::Unknown => json!({"state":"Unknown"}),
+        VideoSubmission::Failed(reason) => json!({"state":"Failed","reason":reason}),
+        VideoSubmission::Expired => json!({"state":"Expired"}),
+    };
     json!({
         "id":review.id(), "check_id":review.check_id(),
         "content_id":review.content_id(), "content_revision":review.content_revision(),
         "object_version":review.source().version(), "profile":review.profile(),
         "created_at":review.created_at(), "deadline_at":review.deadline_at(),
-        "version":review.version(),
+        "version":review.version(), "state":format!("{:?}",review.state()), "submission":submission,
     })
+}
+
+async fn submit_review(application: &str, tenant: &str, id: &str) -> ModerationResult<Value> {
+    let store = review_store(application, tenant)?;
+    let service =
+        openrust_content_moderation::VideoReviewService::new(store, Moderation::manager()?);
+    Ok(render_review(service.submit(id).await?))
 }
 
 #[derive(Deserialize, Serialize)]
@@ -721,9 +746,9 @@ impl ReviewReference {
     }
 }
 
-struct ReadReview;
+struct ReviewWorker(bool);
 
-impl JobHandler for ReadReview {
+impl JobHandler for ReviewWorker {
     fn handle<'a>(
         &'a self,
         _: &'a mut JobContext<'_>,
@@ -732,7 +757,12 @@ impl JobHandler for ReadReview {
         Box::pin(async move {
             let reference: ReviewReference = serde_json::from_value(payload.data().clone())
                 .map_err(|_| QueueError::InvalidPayload)?;
-            let record = reference.read().await.map_err(queue_error)?;
+            let record = if self.0 {
+                submit_review(&reference.application, &reference.tenant, &reference.id).await
+            } else {
+                reference.read().await
+            }
+            .map_err(queue_error)?;
             let path = std::env::var_os("MODERATION_FIXTURE_RESULT")
                 .map(PathBuf::from)
                 .ok_or(QueueError::InvalidPayload)?;
@@ -847,11 +877,13 @@ impl Command for Probe {
 pub(super) fn register_command(artisan: &mut Artisan) -> Result<(), ConsoleError> {
     artisan.add_command(Box::new(ReviewProbe(CommandDefinition::new(
         clap::Command::new("drivers:moderation-review")
-            .arg(
-                clap::Arg::new("action")
-                    .required(true)
-                    .value_parser(["stage", "find", "queue"]),
-            )
+            .arg(clap::Arg::new("action").required(true).value_parser([
+                "stage",
+                "find",
+                "queue",
+                "submit",
+                "queue-submit",
+            ]))
             .arg(clap::Arg::new("application").required(true))
             .arg(clap::Arg::new("tenant").required(true))
             .arg(clap::Arg::new("reference").required(true))
@@ -967,7 +999,8 @@ impl Command for ReviewProbe {
                 tenant: required("tenant"),
                 id: required("reference"),
             };
-            let value = match required("action").as_str() {
+            let action = required("action");
+            let value = match action.as_str() {
                 "stage" => stage_review(
                     &reference.application,
                     &reference.tenant,
@@ -977,9 +1010,17 @@ impl Command for ReviewProbe {
                 .await
                 .map_err(ConsoleError::from_source)?,
                 "find" => reference.read().await.map_err(ConsoleError::from_source)?,
-                "queue" => {
+                "submit" => submit_review(&reference.application, &reference.tenant, &reference.id)
+                    .await
+                    .map_err(ConsoleError::from_source)?,
+                "queue" | "queue-submit" => {
+                    let job = if action == "queue-submit" {
+                        SUBMIT_REVIEW_JOB
+                    } else {
+                        REVIEW_JOB
+                    };
                     let payload =
-                        Payload::new(REVIEW_JOB, &reference).map_err(ConsoleError::from_source)?;
+                        Payload::new(job, &reference).map_err(ConsoleError::from_source)?;
                     Queue::dispatch(payload, DispatchOptions::default(), None)
                         .await
                         .map_err(ConsoleError::from_source)?;

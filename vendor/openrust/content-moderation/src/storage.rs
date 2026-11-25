@@ -7,9 +7,11 @@ use openrust::{
 use sha2::{Digest as _, Sha256};
 
 use crate::{
-    ModerationError, ModerationResult, StoredMedia, VideoReview, VideoReviewRequest,
-    credentials::valid_identifier,
+    ModerationError, ModerationResult, ReviewState, StoredMedia, TaskId, VideoReview,
+    VideoReviewRequest, VideoSubmission, credentials::valid_identifier,
 };
+
+mod submission;
 
 const REVIEWS: &str = "moderation_reviews";
 const CHECKS: &str = "moderation_checks";
@@ -48,7 +50,7 @@ impl ModerationStore {
         let scope_key = self.scope_key.clone();
         let saved_intent = intent_key.clone();
         let saved_id = id.clone();
-        let clock = database_clock(&self.connection);
+        let clock = database_clock_query(&self.connection);
         let transaction = self
             .connection
             .transaction(
@@ -58,9 +60,10 @@ impl ModerationStore {
                     let intent_key = saved_intent.clone();
                     let id = saved_id.clone();
                     let check_id = check_id.clone();
+                    let clock = clock.clone();
                     Box::pin(async move {
                         let created_at = transaction
-                            .select_one(clock, &[])
+                            .select_one(&clock, &[])
                             .await?
                             .and_then(|row| integer(&row, "created_at"))
                             .ok_or(DatabaseError::InvalidQuery("无法读取审核存储时钟"))?;
@@ -151,6 +154,11 @@ impl ModerationStore {
                 "created_at",
                 "deadline_at",
                 "version",
+                "state",
+                "submission",
+                "submit_lease_until",
+                "remote_task_id",
+                "submit_failure",
             ])
             .r#where("moderation_reviews.scope_key", "=", self.scope_key.as_str())
             .r#where(&format!("{REVIEWS}.{key}"), "=", value)
@@ -188,6 +196,22 @@ fn decode(row: Row) -> ModerationResult<VideoReview> {
         created_at: number("created_at")?,
         deadline_at: number("deadline_at")?,
         version: number("version")?,
+        state: ReviewState::parse(text("state")?)?,
+        submission: match text("submission")? {
+            "Ready" => VideoSubmission::Ready,
+            "Submitting" => VideoSubmission::Submitting,
+            "Submitted" => VideoSubmission::Submitted(
+                TaskId::new(text("remote_task_id")?).map_err(|_| ModerationError::ReviewStorage)?,
+            ),
+            "Unknown" => VideoSubmission::Unknown,
+            "Failed" => VideoSubmission::Failed(
+                serde_json::from_value(serde_json::Value::String(text("submit_failure")?.into()))
+                    .map_err(|_| ModerationError::ReviewStorage)?,
+            ),
+            "Expired" => VideoSubmission::Expired,
+            _ => return Err(ModerationError::ReviewStorage),
+        },
+        submit_lease_until: integer(&row, "submit_lease_until"),
     })
 }
 
@@ -209,9 +233,13 @@ fn digest(value: &str) -> String {
 
 fn database_clock(connection: &Connection) -> &'static str {
     match connection.get_driver_name() {
-        "sqlite" => "select unixepoch() as created_at",
-        "pgsql" => "select floor(extract(epoch from statement_timestamp()))::bigint as created_at",
-        "sqlsrv" => "select datediff_big(second, '19700101', sysutcdatetime()) as created_at",
-        _ => "select unix_timestamp() as created_at",
+        "sqlite" => "unixepoch()",
+        "pgsql" => "floor(extract(epoch from statement_timestamp()))::bigint",
+        "sqlsrv" => "datediff_big(second, '19700101', sysutcdatetime())",
+        _ => "unix_timestamp()",
     }
+}
+
+fn database_clock_query(connection: &Connection) -> String {
+    format!("select {} as created_at", database_clock(connection))
 }
