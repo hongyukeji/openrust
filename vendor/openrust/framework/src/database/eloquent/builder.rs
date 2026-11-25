@@ -2014,29 +2014,44 @@ impl<M: Model> Builder<'static, M> {
     }
 
     /// Streams hydrated models one at a time from separately fetched offset batches.
+    #[track_caller]
     pub fn lazy(self, chunk_size: u64) -> DatabaseCursor<'static, M> {
-        query::flatten_batches(
+        let caller = std::panic::Location::caller();
+        let stream = query::flatten_batches(
             self.chunk_collections(chunk_size, None, |_, _| Ok(())),
             |models| models,
-        )
+        );
+        Box::pin(crate::database::events::stream_with_query_caller(
+            caller, stream,
+        ))
     }
 
+    #[track_caller]
     pub fn lazy_by_id(
         self,
         chunk_size: u64,
         column: Option<&str>,
         alias: Option<&str>,
     ) -> DatabaseCursor<'static, M> {
-        self.lazy_by_key(chunk_size, column, alias, false)
+        let caller = std::panic::Location::caller();
+        let stream = self.lazy_by_key(chunk_size, column, alias, false);
+        Box::pin(crate::database::events::stream_with_query_caller(
+            caller, stream,
+        ))
     }
 
+    #[track_caller]
     pub fn lazy_by_id_desc(
         self,
         chunk_size: u64,
         column: Option<&str>,
         alias: Option<&str>,
     ) -> DatabaseCursor<'static, M> {
-        self.lazy_by_key(chunk_size, column, alias, true)
+        let caller = std::panic::Location::caller();
+        let stream = self.lazy_by_key(chunk_size, column, alias, true);
+        Box::pin(crate::database::events::stream_with_query_caller(
+            caller, stream,
+        ))
     }
 
     pub(super) fn lazy_by_key(
@@ -2054,111 +2069,126 @@ impl<M: Model> Builder<'static, M> {
         )
     }
 
-    pub async fn chunk_map<T, Fut>(
+    #[track_caller]
+    pub fn chunk_map<T, Fut>(
         self,
         callback: impl FnMut(M) -> Fut,
         count: u64,
-    ) -> DatabaseResult<crate::support::Collection<T>>
+    ) -> impl Future<Output = DatabaseResult<crate::support::Collection<T>>>
     where
         Fut: Future<Output = DatabaseResult<T>>,
     {
-        query::map_chunk_rows(self.lazy(count), callback).await
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            query::map_chunk_rows(self.lazy(count), callback).await
+        })
     }
 
     /// Visits models with their keys from each hydrated batch.
-    pub async fn each<Fut>(
+    #[track_caller]
+    pub fn each<Fut>(
         self,
         callback: impl FnMut(M, crate::support::ArrayKey) -> Fut,
         count: u64,
-    ) -> DatabaseResult<bool>
+    ) -> impl Future<Output = DatabaseResult<bool>>
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
-        let batches = self
-            .chunk_collections(count, None, |_, _| Ok(()))
-            .map_ok(Collection::to_base);
-        query::visit_batches(batches, |_, key| Ok(key), callback).await
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            let batches = self
+                .chunk_collections(count, None, |_, _| Ok(()))
+                .map_ok(Collection::to_base);
+            query::visit_batches(batches, |_, key| Ok(key), callback).await
+        })
     }
 
     /// Visits models in ascending key order, with indices spanning all batches.
-    pub async fn each_by_id<Fut>(
+    #[track_caller]
+    pub fn each_by_id<Fut>(
         self,
         callback: impl FnMut(M, i64) -> Fut,
         count: u64,
         column: Option<&str>,
         alias: Option<&str>,
-    ) -> DatabaseResult<bool>
+    ) -> impl Future<Output = DatabaseResult<bool>>
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
-        let key = self.chunk_key(column, alias, false);
-        let batches = self
-            .chunk_collections(count, Some(key), |_, _| Ok(()))
-            .map_ok(Collection::to_base);
-        query::visit_batches(
-            batches,
-            |batch, key| query::collection_chunk_index(batch, count, key),
-            callback,
-        )
-        .await
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            let key = self.chunk_key(column, alias, false);
+            let batches = self
+                .chunk_collections(count, Some(key), |_, _| Ok(()))
+                .map_ok(Collection::to_base);
+            query::visit_batches(
+                batches,
+                |batch, key| query::collection_chunk_index(batch, count, key),
+                callback,
+            )
+            .await
+        })
     }
 
     /// Fetches model collections in separate queries, stopping when the callback returns false.
-    pub async fn chunk<Fut>(
+    #[track_caller]
+    pub fn chunk<Fut>(
         self,
         count: u64,
         callback: impl FnMut(Collection<M>, u64) -> Fut,
-    ) -> DatabaseResult<bool>
+    ) -> impl Future<Output = DatabaseResult<bool>>
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
-        self.chunk_hydrated(count, None, |_, _| Ok(()), callback)
-            .await
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            self.chunk_hydrated(count, None, |_, _| Ok(()), callback)
+                .await
+        })
     }
 
     /// Processes successive batches ordered by the model key or a projected key.
-    pub async fn chunk_by_id<Fut>(
+    #[track_caller]
+    pub fn chunk_by_id<Fut>(
         self,
         count: u64,
         callback: impl FnMut(Collection<M>, u64) -> Fut,
         column: Option<&str>,
         alias: Option<&str>,
-    ) -> DatabaseResult<bool>
+    ) -> impl Future<Output = DatabaseResult<bool>>
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
         self.ordered_chunk_by_id(count, callback, column, alias, false)
-            .await
     }
 
-    pub async fn chunk_by_id_desc<Fut>(
+    #[track_caller]
+    pub fn chunk_by_id_desc<Fut>(
         self,
         count: u64,
         callback: impl FnMut(Collection<M>, u64) -> Fut,
         column: Option<&str>,
         alias: Option<&str>,
-    ) -> DatabaseResult<bool>
+    ) -> impl Future<Output = DatabaseResult<bool>>
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
         self.ordered_chunk_by_id(count, callback, column, alias, true)
-            .await
     }
 
-    pub async fn ordered_chunk_by_id<Fut>(
+    #[track_caller]
+    pub fn ordered_chunk_by_id<Fut>(
         self,
         count: u64,
         callback: impl FnMut(Collection<M>, u64) -> Fut,
         column: Option<&str>,
         alias: Option<&str>,
         descending: bool,
-    ) -> DatabaseResult<bool>
+    ) -> impl Future<Output = DatabaseResult<bool>>
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
-        let key = self.chunk_key(column, alias, descending);
-        self.chunk_hydrated(count, Some(key), |_, _| Ok(()), callback)
-            .await
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            let key = self.chunk_key(column, alias, descending);
+            self.chunk_hydrated(count, Some(key), |_, _| Ok(()), callback)
+                .await
+        })
     }
 
     pub(super) fn chunk_key(

@@ -35,6 +35,7 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
     Route::get("/page-callers", page_callers)?;
     Route::get("/model-write-callers", model_write_callers)?;
     Route::get("/relationship-callers", relationship_callers)?;
+    Route::get("/chunk-callers", chunk_callers)?;
     Route::get("/relationship-write-callers", relationship_write_callers)?;
     Route::get("/relationship-load-callers", relationship_load_callers)?;
     Route::get("/pivot-callers", pivot_callers)?;
@@ -166,6 +167,67 @@ async fn seed_relationship_source() -> openrust::database::Connection {
         .await
         .unwrap();
     connection
+}
+
+fn chunk_callers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    use futures_util::TryStreamExt as _;
+    use openrust::database::eloquent::{Model as _, relations::HasMany};
+
+    Box::pin(async {
+        let connection = seed_relationship_source().await;
+        let parent_line = line!() + 1;
+        let parent = PageProbe::query_on(&connection).find_or_fail(1).await?;
+        let query = connection
+            .table("query_page_probe")
+            .r#where("owner_id", "=", 1)
+            .order_by("id", "asc");
+        let mut callback_line = 0;
+        let builder_line = line!() + 2;
+        let completed = query
+            .chunk(1, |_, page| {
+                callback_line = line!() + 4;
+                async move {
+                    Db::table("query_page_probe")?
+                        .r#where("id", "=", 1)
+                        .get()
+                        .await?;
+                    Ok(page < 2)
+                }
+            })
+            .await?;
+        assert!(!completed);
+
+        let mut eloquent = PageProbe::query_on(&connection);
+        eloquent.r#where("owner_id", "=", 1);
+        let each_line = line!() + 1;
+        let each = eloquent.each_by_id(|_, _| async { Ok(true) }, 1, None, None);
+        assert!(each.await?);
+
+        let children = HasMany::<PageProbe, PageProbe>::new("id", "owner_id");
+        let relation_line = line!() + 1;
+        let batches = children.chunk_by_id(&parent, 1, |_, _| async { Ok(true) }, None, None);
+        assert!(batches.await?);
+        let lazy_line = line!() + 1;
+        let mut stream = children.lazy(&parent, 1);
+        assert!(stream.try_next().await?.is_some());
+        let outside = line!() + 1;
+        let unrelated = PageProbe::query_on(&connection).find_or_fail(2);
+        unrelated.await?;
+        assert_eq!(stream.try_collect::<Vec<_>>().await?.len(), 1);
+
+        Response::json(
+            http::StatusCode::OK,
+            json!([
+                [parent_line, 1],
+                [builder_line, 2],
+                [callback_line, 2],
+                [each_line, 3],
+                [relation_line, 3],
+                [lazy_line, 3],
+                [outside, 1]
+            ]),
+        )
+    })
 }
 
 fn relationship_callers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
@@ -587,6 +649,11 @@ async fn query_watcher_attributes_relationship_reads_to_the_public_entry() {
         &["select "],
     )
     .await;
+}
+
+#[tokio::test]
+async fn query_watcher_attributes_chunk_and_lazy_reads_across_polls() {
+    assert_query_source_lines("/api/chunk-callers", "query_page_probe", &["select "]).await;
 }
 
 #[tokio::test]

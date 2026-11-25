@@ -16,31 +16,46 @@ pub(in crate::database) struct ChunkKey {
 
 impl<'connection> Builder<'connection> {
     /// Streams rows from successive offset batches as the caller polls the stream.
+    #[track_caller]
     pub fn lazy(mut self, chunk_size: u64) -> DatabaseCursor<'connection, Row> {
-        Box::pin(async_stream::try_stream! {
+        let caller = std::panic::Location::caller();
+        let stream = async_stream::try_stream! {
             let mut rows = flatten_batches(self.chunk_pages(chunk_size), |rows| rows);
             while let Some(row) = rows.try_next().await? {
                 yield row;
             }
-        })
+        };
+        Box::pin(crate::database::events::stream_with_query_caller(
+            caller, stream,
+        ))
     }
 
+    #[track_caller]
     pub fn lazy_by_id(
         self,
         chunk_size: u64,
         column: Option<&str>,
         alias: Option<&str>,
     ) -> DatabaseCursor<'connection, Row> {
-        self.lazy_by_key(chunk_size, query_chunk_key(column, alias, false))
+        let caller = std::panic::Location::caller();
+        let stream = self.lazy_by_key(chunk_size, query_chunk_key(column, alias, false));
+        Box::pin(crate::database::events::stream_with_query_caller(
+            caller, stream,
+        ))
     }
 
+    #[track_caller]
     pub fn lazy_by_id_desc(
         self,
         chunk_size: u64,
         column: Option<&str>,
         alias: Option<&str>,
     ) -> DatabaseCursor<'connection, Row> {
-        self.lazy_by_key(chunk_size, query_chunk_key(column, alias, true))
+        let caller = std::panic::Location::caller();
+        let stream = self.lazy_by_key(chunk_size, query_chunk_key(column, alias, true));
+        Box::pin(crate::database::events::stream_with_query_caller(
+            caller, stream,
+        ))
     }
 
     fn lazy_by_key(
@@ -58,101 +73,113 @@ impl<'connection> Builder<'connection> {
     }
 
     /// Maps every row while fetching inputs in offset batches.
-    pub async fn chunk_map<T, Fut>(
+    #[track_caller]
+    pub fn chunk_map<T, Fut>(
         self,
         callback: impl FnMut(Row) -> Fut,
         count: u64,
-    ) -> DatabaseResult<Collection<T>>
+    ) -> impl Future<Output = DatabaseResult<Collection<T>>>
     where
         Fut: Future<Output = DatabaseResult<T>>,
     {
-        map_chunk_rows(self.lazy(count), callback).await
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            map_chunk_rows(self.lazy(count), callback).await
+        })
     }
 
     /// Visits rows in offset batches, with an index local to each batch.
-    pub async fn each<Fut>(
+    #[track_caller]
+    pub fn each<Fut>(
         mut self,
         callback: impl FnMut(Row, i64) -> Fut,
         count: u64,
-    ) -> DatabaseResult<bool>
+    ) -> impl Future<Output = DatabaseResult<bool>>
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
-        let batches = self.chunk_pages(count).map_ok(index_rows);
-        visit_batches(batches, |_, key| Ok(key), callback).await
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            let batches = self.chunk_pages(count).map_ok(index_rows);
+            visit_batches(batches, |_, key| Ok(key), callback).await
+        })
     }
 
     /// Visits rows in ascending key order, with indices spanning all batches.
-    pub async fn each_by_id<Fut>(
+    #[track_caller]
+    pub fn each_by_id<Fut>(
         mut self,
         callback: impl FnMut(Row, i64) -> Fut,
         count: u64,
         column: Option<&str>,
         alias: Option<&str>,
-    ) -> DatabaseResult<bool>
+    ) -> impl Future<Output = DatabaseResult<bool>>
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
-        let key = query_chunk_key(column, alias, false);
-        let batches = self.chunk_id_pages(count, key).map_ok(index_rows);
-        visit_batches(
-            batches,
-            |batch, key| chunk_index(batch, count, key),
-            callback,
-        )
-        .await
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            let key = query_chunk_key(column, alias, false);
+            let batches = self.chunk_id_pages(count, key).map_ok(index_rows);
+            visit_batches(
+                batches,
+                |batch, key| chunk_index(batch, count, key),
+                callback,
+            )
+            .await
+        })
     }
 
     /// Processes successive batches ordered by a unique, projected key.
-    pub async fn chunk_by_id<Fut>(
+    #[track_caller]
+    pub fn chunk_by_id<Fut>(
         self,
         count: u64,
         callback: impl FnMut(Vec<Row>, u64) -> Fut,
         column: Option<&str>,
         alias: Option<&str>,
-    ) -> DatabaseResult<bool>
+    ) -> impl Future<Output = DatabaseResult<bool>>
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
         self.ordered_chunk_by_id(count, callback, column, alias, false)
-            .await
     }
 
-    pub async fn chunk_by_id_desc<Fut>(
+    #[track_caller]
+    pub fn chunk_by_id_desc<Fut>(
         self,
         count: u64,
         callback: impl FnMut(Vec<Row>, u64) -> Fut,
         column: Option<&str>,
         alias: Option<&str>,
-    ) -> DatabaseResult<bool>
+    ) -> impl Future<Output = DatabaseResult<bool>>
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
         self.ordered_chunk_by_id(count, callback, column, alias, true)
-            .await
     }
 
-    pub async fn ordered_chunk_by_id<Fut>(
+    #[track_caller]
+    pub fn ordered_chunk_by_id<Fut>(
         mut self,
         count: u64,
         mut callback: impl FnMut(Vec<Row>, u64) -> Fut,
         column: Option<&str>,
         alias: Option<&str>,
         descending: bool,
-    ) -> DatabaseResult<bool>
+    ) -> impl Future<Output = DatabaseResult<bool>>
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
-        let key = query_chunk_key(column, alias, descending);
-        let mut batches = self.chunk_id_pages(count, key);
-        let mut page = 1;
-        while let Some(rows) = batches.try_next().await? {
-            if !callback(rows, page).await? {
-                return Ok(false);
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            let key = query_chunk_key(column, alias, descending);
+            let mut batches = self.chunk_id_pages(count, key);
+            let mut page = 1;
+            while let Some(rows) = batches.try_next().await? {
+                if !callback(rows, page).await? {
+                    return Ok(false);
+                }
+                page += 1;
             }
-            page += 1;
-        }
-        Ok(true)
+            Ok(true)
+        })
     }
 
     pub(in crate::database) fn chunk_id_pages(

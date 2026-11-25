@@ -174,18 +174,21 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
     }
 
     /// Reads this parent's related models in ordered batches.
-    pub async fn chunk<Fut>(
+    #[track_caller]
+    pub fn chunk<Fut>(
         &self,
         parent: &P,
         count: u64,
         callback: impl FnMut(crate::database::eloquent::Collection<R>, u64) -> Fut,
-    ) -> DatabaseResult<bool>
+    ) -> impl Future<Output = DatabaseResult<bool>>
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
-        self.pagination_query(parent, &["*"])?
-            .chunk(count, callback)
-            .await
+        with_query_caller(std::panic::Location::caller(), async move {
+            self.pagination_query(parent, &["*"])?
+                .chunk(count, callback)
+                .await
+        })
     }
 
     super::key_chunks::lazy_chunks!(R);
@@ -209,44 +212,51 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
         })
     }
 
-    pub async fn each<Fut>(
+    #[track_caller]
+    pub fn each<Fut>(
         &self,
         parent: &P,
         callback: impl FnMut(R, crate::support::ArrayKey) -> Fut,
         count: u64,
-    ) -> DatabaseResult<bool>
+    ) -> impl Future<Output = DatabaseResult<bool>>
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
-        self.pagination_query(parent, &["*"])?
-            .each(callback, count)
-            .await
+        with_query_caller(std::panic::Location::caller(), async move {
+            self.pagination_query(parent, &["*"])?
+                .each(callback, count)
+                .await
+        })
     }
 
-    pub async fn each_by_id<Fut>(
+    #[track_caller]
+    pub fn each_by_id<Fut>(
         &self,
         parent: &P,
         callback: impl FnMut(R, i64) -> Fut,
         count: u64,
         column: Option<&str>,
         alias: Option<&str>,
-    ) -> DatabaseResult<bool>
+    ) -> impl Future<Output = DatabaseResult<bool>>
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
-        self.pagination_query(parent, &["*"])?
-            .each_by_id(
-                callback,
-                count,
-                column,
-                alias.or(Some(R::metadata().primary_key)),
-            )
-            .await
+        with_query_caller(std::panic::Location::caller(), async move {
+            self.pagination_query(parent, &["*"])?
+                .each_by_id(
+                    callback,
+                    count,
+                    column,
+                    alias.or(Some(R::metadata().primary_key)),
+                )
+                .await
+        })
     }
 
     super::key_chunks::key_chunks!(crate::database::eloquent::Collection<R>);
 
-    pub async fn ordered_chunk_by_id<Fut>(
+    #[track_caller]
+    pub fn ordered_chunk_by_id<Fut>(
         &self,
         parent: &P,
         count: u64,
@@ -254,19 +264,21 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
         column: Option<&str>,
         alias: Option<&str>,
         descending: bool,
-    ) -> DatabaseResult<bool>
+    ) -> impl Future<Output = DatabaseResult<bool>>
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
-        self.pagination_query(parent, &["*"])?
-            .ordered_chunk_by_id(
-                count,
-                callback,
-                column,
-                alias.or(Some(R::metadata().primary_key)),
-                descending,
-            )
-            .await
+        with_query_caller(std::panic::Location::caller(), async move {
+            self.pagination_query(parent, &["*"])?
+                .ordered_chunk_by_id(
+                    count,
+                    callback,
+                    column,
+                    alias.or(Some(R::metadata().primary_key)),
+                    descending,
+                )
+                .await
+        })
     }
 
     /// Streams related models across the constrained intermediate join.

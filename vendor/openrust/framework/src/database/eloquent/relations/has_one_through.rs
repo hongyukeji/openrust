@@ -142,16 +142,17 @@ impl<P: Model, I: Model, R: Model> HasOneThrough<P, I, R> {
     }
 
     /// Reads this parent's related models in ordered batches.
-    pub async fn chunk<Fut>(
+    #[track_caller]
+    pub fn chunk<Fut>(
         &self,
         parent: &P,
         count: u64,
         callback: impl FnMut(crate::database::eloquent::Collection<R>, u64) -> Fut,
-    ) -> DatabaseResult<bool>
+    ) -> impl Future<Output = DatabaseResult<bool>>
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
-        self.0.chunk(parent, count, callback).await
+        self.0.chunk(parent, count, callback)
     }
 
     super::key_chunks::key_chunks!(forward 0);

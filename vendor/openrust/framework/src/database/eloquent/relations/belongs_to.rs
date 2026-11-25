@@ -32,22 +32,25 @@ impl<P: Model, R: Model> BelongsTo<P, R> {
     }
 
     /// Processes persisted owners that match the child's foreign key.
-    pub async fn chunk<Fut>(
+    #[track_caller]
+    pub fn chunk<Fut>(
         &self,
         child: &P,
         count: u64,
         callback: impl FnMut(crate::database::eloquent::Collection<R>, u64) -> Fut,
-    ) -> DatabaseResult<bool>
+    ) -> impl Future<Output = DatabaseResult<bool>>
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
-        if count == 0 {
-            return Err(DatabaseError::InvalidQuery("chunk size must be positive"));
-        }
-        let Some(query) = self.0.owner_query(child)? else {
-            return Ok(true);
-        };
-        query.chunk(count, callback).await
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            if count == 0 {
+                return Err(DatabaseError::InvalidQuery("chunk size must be positive"));
+            }
+            let Some(query) = self.0.owner_query(child)? else {
+                return Ok(true);
+            };
+            query.chunk(count, callback).await
+        })
     }
 
     super::pagination::relation_pages!();
@@ -80,47 +83,54 @@ impl<P: Model, R: Model> BelongsTo<P, R> {
         })
     }
 
-    pub async fn each<Fut>(
+    #[track_caller]
+    pub fn each<Fut>(
         &self,
         parent: &P,
         callback: impl FnMut(R, crate::support::ArrayKey) -> Fut,
         count: u64,
-    ) -> DatabaseResult<bool>
+    ) -> impl Future<Output = DatabaseResult<bool>>
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
-        if count == 0 {
-            return Err(DatabaseError::InvalidQuery("chunk size must be positive"));
-        }
-        let Some(query) = self.0.owner_query(parent)? else {
-            return Ok(true);
-        };
-        query.each(callback, count).await
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            if count == 0 {
+                return Err(DatabaseError::InvalidQuery("chunk size must be positive"));
+            }
+            let Some(query) = self.0.owner_query(parent)? else {
+                return Ok(true);
+            };
+            query.each(callback, count).await
+        })
     }
 
-    pub async fn each_by_id<Fut>(
+    #[track_caller]
+    pub fn each_by_id<Fut>(
         &self,
         parent: &P,
         callback: impl FnMut(R, i64) -> Fut,
         count: u64,
         column: Option<&str>,
         alias: Option<&str>,
-    ) -> DatabaseResult<bool>
+    ) -> impl Future<Output = DatabaseResult<bool>>
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
-        if count == 0 {
-            return Err(DatabaseError::InvalidQuery("chunk size must be positive"));
-        }
-        let Some(query) = self.0.owner_query(parent)? else {
-            return Ok(true);
-        };
-        query.each_by_id(callback, count, column, alias).await
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            if count == 0 {
+                return Err(DatabaseError::InvalidQuery("chunk size must be positive"));
+            }
+            let Some(query) = self.0.owner_query(parent)? else {
+                return Ok(true);
+            };
+            query.each_by_id(callback, count, column, alias).await
+        })
     }
 
     super::key_chunks::key_chunks!(crate::database::eloquent::Collection<R>);
 
-    pub async fn ordered_chunk_by_id<Fut>(
+    #[track_caller]
+    pub fn ordered_chunk_by_id<Fut>(
         &self,
         parent: &P,
         count: u64,
@@ -128,19 +138,21 @@ impl<P: Model, R: Model> BelongsTo<P, R> {
         column: Option<&str>,
         alias: Option<&str>,
         descending: bool,
-    ) -> DatabaseResult<bool>
+    ) -> impl Future<Output = DatabaseResult<bool>>
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
-        if count == 0 {
-            return Err(DatabaseError::InvalidQuery("chunk size must be positive"));
-        }
-        let Some(query) = self.0.owner_query(parent)? else {
-            return Ok(true);
-        };
-        query
-            .ordered_chunk_by_id(count, callback, column, alias, descending)
-            .await
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            if count == 0 {
+                return Err(DatabaseError::InvalidQuery("chunk size must be positive"));
+            }
+            let Some(query) = self.0.owner_query(parent)? else {
+                return Ok(true);
+            };
+            query
+                .ordered_chunk_by_id(count, callback, column, alias, descending)
+                .await
+        })
     }
 
     /// Streams the persisted owner when a foreign key is present.

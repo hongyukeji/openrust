@@ -320,37 +320,43 @@ impl<P: Model> MorphTo<P> {
         )
     }
 
-    pub async fn each<Fut>(
+    #[track_caller]
+    pub fn each<Fut>(
         &self,
         parent: &P,
         callback: impl FnMut(MorphTarget, crate::support::ArrayKey) -> Fut,
         count: u64,
-    ) -> DatabaseResult<bool>
+    ) -> impl Future<Output = DatabaseResult<bool>>
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
-        let batches = self.morph_batches(parent, count, None, false);
-        query::visit_batches(batches, |_, key| Ok(key), callback).await
+        with_query_caller(std::panic::Location::caller(), async move {
+            let batches = self.morph_batches(parent, count, None, false);
+            query::visit_batches(batches, |_, key| Ok(key), callback).await
+        })
     }
 
-    pub async fn each_by_id<Fut>(
+    #[track_caller]
+    pub fn each_by_id<Fut>(
         &self,
         parent: &P,
         callback: impl FnMut(MorphTarget, i64) -> Fut,
         count: u64,
         column: Option<&str>,
         alias: Option<&str>,
-    ) -> DatabaseResult<bool>
+    ) -> impl Future<Output = DatabaseResult<bool>>
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
-        let batches = self.morph_batches(parent, count, Some((column, alias, false)), false);
-        query::visit_batches(
-            batches,
-            |batch, key| query::collection_chunk_index(batch, count, key),
-            callback,
-        )
-        .await
+        with_query_caller(std::panic::Location::caller(), async move {
+            let batches = self.morph_batches(parent, count, Some((column, alias, false)), false);
+            query::visit_batches(
+                batches,
+                |batch, key| query::collection_chunk_index(batch, count, key),
+                callback,
+            )
+            .await
+        })
     }
 
     fn morph_batches<'a>(
@@ -374,21 +380,25 @@ impl<P: Model> MorphTo<P> {
     }
 
     /// Processes persisted rows from the registered morph target in ordered batches.
-    pub async fn chunk<Fut>(
+    #[track_caller]
+    pub fn chunk<Fut>(
         &self,
         parent: &P,
         count: u64,
         callback: impl FnMut(Collection<MorphTarget>, u64) -> Fut,
-    ) -> DatabaseResult<bool>
+    ) -> impl Future<Output = DatabaseResult<bool>>
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
-        self.chunk_with(parent, count, callback, None).await
+        with_query_caller(std::panic::Location::caller(), async move {
+            self.chunk_with(parent, count, callback, None).await
+        })
     }
 
     super::key_chunks::key_chunks!(Collection<MorphTarget>);
 
-    pub async fn ordered_chunk_by_id<Fut>(
+    #[track_caller]
+    pub fn ordered_chunk_by_id<Fut>(
         &self,
         parent: &P,
         count: u64,
@@ -396,12 +406,14 @@ impl<P: Model> MorphTo<P> {
         column: Option<&str>,
         alias: Option<&str>,
         descending: bool,
-    ) -> DatabaseResult<bool>
+    ) -> impl Future<Output = DatabaseResult<bool>>
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
-        self.chunk_with(parent, count, callback, Some((column, alias, descending)))
-            .await
+        with_query_caller(std::panic::Location::caller(), async move {
+            self.chunk_with(parent, count, callback, Some((column, alias, descending)))
+                .await
+        })
     }
 
     async fn chunk_with<Fut>(

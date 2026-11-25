@@ -618,23 +618,26 @@ impl<'connection> Builder<'connection> {
     }
 
     /// Fetches ordered pages and calls the callback with each nonempty page and its number.
-    pub async fn chunk<Fut>(
+    #[track_caller]
+    pub fn chunk<Fut>(
         mut self,
         count: u64,
         mut callback: impl FnMut(Vec<Row>, u64) -> Fut,
-    ) -> DatabaseResult<bool>
+    ) -> impl Future<Output = DatabaseResult<bool>>
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
-        let mut pages = self.chunk_pages(count);
-        let mut page = 1;
-        while let Some(rows) = pages.try_next().await? {
-            if !callback(rows, page).await? {
-                return Ok(false);
+        crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
+            let mut pages = self.chunk_pages(count);
+            let mut page = 1;
+            while let Some(rows) = pages.try_next().await? {
+                if !callback(rows, page).await? {
+                    return Ok(false);
+                }
+                page += 1;
             }
-            page += 1;
-        }
-        Ok(true)
+            Ok(true)
+        })
     }
 
     pub(in crate::database) fn chunk_pages(&mut self, count: u64) -> DatabaseCursor<'_, Vec<Row>> {

@@ -333,7 +333,13 @@ Rust 为公开 `Relation::get_results`、批量匹配与事务匹配接入位置
 
 ### Telescope Query 分块与惰性读取来源
 
-PHP 8.5.12 使用固定 Telescope QueryWatcher 实测 Query Builder 的 `chunk`、Eloquent 的 `eachById`、HasMany 的 `chunkById` 和 `lazy`。停止回调在第二批返回 `false`，准确产生两条 SQL。其余三个入口各产生三条 SQL，含最后一次空查询，全部来源为各自应用调用行。证据为 `target/tmp/observability-parity/query-chunks-upstream.log`。Rust 现有分页与游标位置传播可复用。分块回调、惰性流实际轮询、应用 SQL 的来源隔离和关系包装变体仍待实现核对与实测。
+PHP 8.5.12 使用固定 Telescope QueryWatcher 实测 Query Builder 的 `chunk`、Eloquent 的 `eachById`、HasMany 的 `chunkById` 和 `lazy`。停止回调在第二批返回 `false`，准确产生两条 SQL。其余三个入口各产生三条 SQL，含最后一次空查询，全部来源为各自应用调用行。证据为 `target/tmp/observability-parity/query-chunks-upstream.log`。 [固定分块与惰性读取](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Concerns/BuildsQueries.php)
+
+PHP 将回调内主动执行的查询归到回调行，将惰性集合的实际 SQL 分别归到 `rewind` 和各次 `next`，创建集合和取得迭代器时无查询。两次惰性读取之间的独立查询仍归到自己的应用行。证据为 `target/tmp/observability-parity/query-chunks-poll-upstream.log`。Rust 的标准 `Stream` 消费入口经异步轮询，当前源码位置取公开流构造处，并在每次轮询恢复这个位置。逐次消费行的等价入口仍在对齐范围内。
+
+Rust Query Builder、Eloquent Builder 和直接、反向、多对多、Through、多态关系的公开分块／遍历／惰性方法已接入现有查询调用位置作用域。偏移与按键推进方法在创建 Future 或流时捕获位置，轮询返回后恢复作用域。SQLite、PostgreSQL 18.7、MySQL 8.4.13 的实际 Telescope HTTP 路由核对两批提前停止、回调查询各自的来源、Eloquent 和 HasMany 的末次空查询，以及流两次轮询之间的独立查询来源。证据为 `target/tmp/observability-parity/query-chunks-macos.log`。其他关系变体的来源逐项实测仍待完成。
+
+macOS 隔离快照通过框架分页／关系／惰性集合回归、Telescope Watcher 15 项、严格 Clippy 和全仓格式。三扩展默认组合 100 项通过，23 项按环境条件跳过。框架分页 14 项通过，另在真实 MySQL 8.4.13 上验收完整分页 HTTP 流程，含分块、反向关系、按键遍历和惰性读取。Windows 11 ARM64 在 SQLite 上通过本批真实 Telescope HTTP 来源专项。Linux ARM64 复用同一构建目录，排在 Pulse 原生报告单作业重跑之后。证据为 `target/tmp/observability-parity/query-chunks-{macos,pagination-macos,pagination-mysql-retry,windows}.log`。
 
 ### Telescope Query 多对多中间表调用来源
 
@@ -422,6 +428,8 @@ Rust Manager 与 Facade 提供 `report_exception(error)`。事件 `NativeExcepti
 macOS 真实 HTTP 通过 Manager 与 Facade 报告，验证事件可读取同一错误、停止记录时继续派发且数据库不增加条目、仅通过框架报告的自定义处理器与 Pulse 显式入口各按自己的行为执行。SQLite、PostgreSQL 18.7、MySQL 8.4.13 均通过。实际存储核对类型、捕获位置和关闭位置。严格 Clippy、快照全仓格式及三扩展默认组合通过，组合 99 项通过、23 项按环境条件跳过。证据为 `target/tmp/observability-parity/pulse-native-report-macos-verified.log`。
 
 三语指南与浏览器验收检查原生报告方法、对应事件及位置捕获入口。站点构建和根路径、子目录下的桌面／手机共 12 组验证通过。Windows 11 ARM64 最终源码通过 4 项模式测试和 17 项 Pulse Provider 测试，含 SQLite 上的原生报告事件和关闭记录专项。Linux ARM64 最终源码复验已启动。证据为 `target/tmp/observability-parity/pulse-native-report-{docs,windows}.log`。
+
+Linux ARM64 首次构建在 Provider 链接阶段收到信号 9，未取得该次运行的测试结果。已用单作业重跑。证据为 `target/tmp/observability-parity/pulse-native-report-linux{,-serial}.log`。
 
 ### Horizon Linux ARM64 Release 进程矩阵
 
