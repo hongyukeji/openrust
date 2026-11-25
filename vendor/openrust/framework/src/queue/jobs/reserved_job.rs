@@ -45,7 +45,7 @@ impl ReservedJob {
             && matches!(manager.observes_worker_event(name), Ok(true))
         {
             manager
-                .observe_settlement_event(event(
+                .observe_confirmed_event(event(
                     self.context.connection.clone(),
                     JobSnapshot::from_job(self),
                     reserved_at.elapsed(),

@@ -207,7 +207,7 @@ impl Repository {
             || record.name.is_empty()
             || record.name.len() > 1024
             || !label(&record.connection)
-            || !label(&record.queue)
+            || openrust::queue::RedisQueue::validate_queue_name(&record.queue).is_err()
             || !matches!(phase, "processing" | "failed" | "released" | "finalize")
             || !record.duration.is_finite()
             || record.duration < 0.
@@ -262,7 +262,7 @@ impl Repository {
     }
     /// Aggregates the latest 60 server-clock minute buckets. Expired buckets count as zero.
     pub async fn metrics(&self, connection: &str, queue: &str) -> Result<Metrics> {
-        if !label(connection) || !label(queue) {
+        if !label(connection) || openrust::queue::RedisQueue::validate_queue_name(queue).is_err() {
             return Err(Error::InvalidRecord);
         }
         let minute = self.now().await? / 60000;

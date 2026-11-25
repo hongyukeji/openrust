@@ -134,14 +134,21 @@ pub struct RedisQueue {
 
 impl RedisQueue {
     pub(super) fn queue_name<'a>(&'a self, selected: Option<&'a str>) -> QueueResult<&'a str> {
-        let queue = queue_name(selected, &self.queue)?;
+        let queue = selected.unwrap_or(&self.queue);
+        Self::validate_queue_name(queue)?;
+        Ok(queue)
+    }
+
+    /// 验证原生 Redis 队列名称及传输内部的保留后缀。
+    pub fn validate_queue_name(name: &str) -> QueueResult<()> {
+        queue_name(Some(name), "")?;
         if [":delayed", ":reserved", ":notify"]
             .iter()
-            .any(|suffix| queue.ends_with(suffix))
+            .any(|suffix| name.ends_with(suffix))
         {
             return Err(QueueError::InvalidConfiguration);
         }
-        Ok(queue)
+        Ok(())
     }
 
     fn keys(&self, queue: &str) -> [String; 3] {
@@ -249,14 +256,18 @@ impl RedisQueue {
             released: false,
             failed: false,
         };
-        let manager = self.registry.manager()?;
-        if manager.observes_worker_event(RedisJobReserved::NAME)? {
+        if let Ok(manager) = self.registry.manager()
+            && matches!(
+                manager.observes_worker_event(RedisJobReserved::NAME),
+                Ok(true)
+            )
+        {
             manager
-                .emit_control_event(RedisJobReserved {
+                .observe_confirmed_event(RedisJobReserved {
                     connection_name: self.name.clone(),
                     job: JobSnapshot::from_job(&reservation),
                 })
-                .await?;
+                .await;
         }
         Ok(Some(Box::new(reservation)))
     }

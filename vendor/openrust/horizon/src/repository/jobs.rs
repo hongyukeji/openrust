@@ -473,7 +473,10 @@ impl JobRepository {
         phase: &str,
         release_delay_ms: Option<u64>,
     ) -> Result<()> {
-        if !crate::label(&record.id) || record.connection.is_empty() || record.queue.is_empty() {
+        if !crate::label(&record.id)
+            || record.connection.is_empty()
+            || openrust::queue::RedisQueue::validate_queue_name(&record.queue).is_err()
+        {
             return Err(Error::InvalidRecord);
         }
         let now = self.0.now().await?;

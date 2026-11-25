@@ -427,8 +427,8 @@ impl QueueManager {
         Ok(dispatcher.observes(name))
     }
 
-    pub(super) async fn observe_settlement_event(&self, event: impl Event) {
-        // Redis 已完成确认，监听器错误不能让调用方误判为可重试的确认失败。
+    pub(super) async fn observe_confirmed_event(&self, event: impl Event) {
+        // Redis 已完成变更，监听器错误不能掩盖传输结果。
         if let Err(error) = self.emit_control_event(event).await
             && let Some(owner) = self.owner.upgrade()
         {

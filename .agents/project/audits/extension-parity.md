@@ -359,7 +359,15 @@ Rust 1.94.0 单作业构建通过，实际运行于 Linux 7.0.14-linuxkit、Debi
 
 基于 `86b602de9` 加本批文件的 macOS 隔离快照，真实 Redis 8.10.3 验证同步 Listener、授权 HTTP 任务详情、直接释放和删除、失效和重复确认、任务链成功推进、Worker 永久失败及退避重试。额外验证观察者错误时 Redis 结果和句柄标记一致，成功和失败各自只记账一次。三包默认测试共 83 项、Horizon Redis 专项 14 项、真实 Artisan 进程矩阵和无 Horizon 的框架 Redis HTTP／阻塞取任务均通过。快照全仓格式、Horizon 全目标严格 Clippy、三语站点和 12 组文档浏览器检查通过。证据为 `target/tmp/observability-parity/horizon-redis-settlement-*.log`。本批 Linux、Windows 和发布组合待验。
 
-对账时还发现 Horizon 的监督器选项及仓储使用较窄的 ASCII 队列名检查，原生 Redis 接受更宽的队列名。保留事件的仓储处理错误目前可能阻断已经成功的原生 `pop`。需核对可用名称、分组分隔符、指标和命令入口，并验证保留后的错误边界。
+队列名称与已确认保留后的观察错误见下节。
+
+### Horizon 队列名称与保留确认
+
+固定 Supervisor 按逗号分组，固定负载仓储只用首个冒号拆分连接和队列组。Rust 监督器选项、任务仓储和队列指标现在复用原生 Redis 队列名校验。队列名保留空格、Unicode 字符和冒号，单个名称上限为 255 字节。直接传输允许字面逗号，监督器列表的逗号用于分组。控制字符和 Redis 内部集合后缀均被拒绝；连接名仍沿用原有规则。 [固定 Supervisor](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Supervisor.php) [固定负载仓储](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Repositories/RedisWorkloadRepository.php)
+
+原生 Redis 已确认保留后，观察器错误经日志报告，任务句柄仍交给 `pop` 调用方。派发仍是同步的，应用监听器可按顺序读取仓储中的保留状态。PHP Redis 对假值队列名（含字符串 `0`）使用默认队列的规则须单独核对；本批沿用 Rust 对显式名称的字面解析。
+
+基于 `178a87b58` 加本批文件的 macOS 隔离快照，独占 Redis 8.10.3 验证 Unicode、空格、冒号、字面逗号和 255 字节名称，经公开监听器读取保留状态，并在观察器返回错误后仍完成任务。真实 Artisan Master、Supervisor、Worker 验证包含前置空格的分组名称传递和任务执行，授权 HTTP 返回原队列名、分组及对应负载。Horizon 默认 25 项、Redis 专项 15 项、真实进程矩阵、无 Horizon 的框架 Redis HTTP／阻塞取任务回归、全仓格式、Horizon 全目标严格 Clippy、三语站点及 12 组浏览器检查通过。证据为 `target/tmp/observability-parity/horizon-queue-names-*.log`。本批 Linux、Windows 和发布组合待验。
 
 ### Horizon WorkerProcessRestarting 公开事件
 

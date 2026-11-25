@@ -267,6 +267,7 @@ struct TransportListener {
     repository: Arc<Repository>,
     observations: std::sync::Mutex<Vec<TransportObservation>>,
     fail_settlement_listeners: bool,
+    fail_reservation_listener: bool,
 }
 
 impl openrust::contracts::events::Listener for TransportListener {
@@ -355,6 +356,9 @@ impl openrust::contracts::events::Listener for TransportListener {
             if self.fail_settlement_listeners && (released.is_some() || deleted.is_some()) {
                 return Err(openrust::events::EventError::InvalidPayload);
             }
+            if self.fail_reservation_listener && event.downcast_ref::<JobReserved>().is_some() {
+                return Err(openrust::events::EventError::InvalidPayload);
+            }
             Ok(None)
         })
     }
@@ -403,6 +407,7 @@ async fn redis_public_transport_events_follow_writes_reservations_and_commit() {
         repository,
         observations: Default::default(),
         fail_settlement_listeners: false,
+        fail_reservation_listener: false,
     });
     let dispatcher = app.app().make::<Dispatcher>().await.unwrap();
     for name in [JobPending::NAME, JobPushed::NAME, JobReserved::NAME] {
@@ -561,6 +566,7 @@ async fn redis_public_settlement_events_follow_confirmed_operations_and_count_on
         repository: repository.clone(),
         observations: Default::default(),
         fail_settlement_listeners: true,
+        fail_reservation_listener: false,
     });
     let dispatcher = app.app().make::<Dispatcher>().await.unwrap();
     for name in [JobReleased::NAME, JobDeleted::NAME] {
@@ -710,6 +716,123 @@ async fn redis_public_settlement_events_follow_confirmed_operations_and_count_on
         })
         .collect();
     assert_eq!(observed, expected);
+}
+
+#[tokio::test]
+#[ignore = "requires dedicated Redis 8 acceptance wrapper"]
+async fn redis_queue_names_and_reservation_observer_errors_preserve_delivery() {
+    use openrust::{
+        contracts::events::Dispatcher as _,
+        events::{Delivery, Dispatcher},
+        queue::{Payload, QueueManager},
+    };
+    use openrust_horizon::JobReserved;
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(config)
+            .with_providers(vec![Box::new(HorizonServiceProvider)])
+            .with_routing(Routing::default().api(authorized_routes))
+    })
+    .unwrap();
+    app.boot().await.unwrap();
+    let manager = app.app().make::<QueueManager>().await.unwrap();
+    let queue = manager.connection(Some("redis")).unwrap();
+    let repository = app.app().make::<Repository>().await.unwrap();
+    let listener = Arc::new(TransportListener {
+        queue: queue.clone(),
+        repository: repository.clone(),
+        observations: Default::default(),
+        fail_settlement_listeners: false,
+        fail_reservation_listener: true,
+    });
+    app.app()
+        .make::<Dispatcher>()
+        .await
+        .unwrap()
+        .listen(JobReserved::NAME, listener.clone(), Delivery::Sync)
+        .unwrap();
+    manager
+        .register("probe", Arc::new(Handler("success")))
+        .unwrap();
+    let payload = Payload::new("probe", json!({})).unwrap();
+    let name = "出库 汇总:报表";
+    let long = "a".repeat(255);
+    let group = format!("{name},{long}");
+    let mut ids = Vec::new();
+    for queue_name in [name, &long] {
+        ids.push(
+            queue
+                .push(&payload, Some(queue_name))
+                .await
+                .unwrap()
+                .unwrap(),
+        );
+    }
+    repository
+        .heartbeat_supervisor(
+            "queue-name-probe",
+            &json!({"name":"queue-name-probe","processes":{format!("redis:{group}"):1}}),
+        )
+        .await
+        .unwrap();
+    let request = http::Request::builder()
+        .uri("/api/horizon/api/workload")
+        .header("x-test-operator", "operator")
+        .body(openrust::http::Body::empty())
+        .unwrap();
+    let response = app.call(request).await.unwrap();
+    response.assert_ok();
+    let workload: Value = serde_json::from_slice(response.body()).unwrap();
+    assert_eq!(workload[0]["name"], group);
+    assert_eq!(workload[0]["length"], 2);
+    assert_eq!(workload[0]["split_queues"][name]["length"], 1);
+    assert_eq!(workload[0]["split_queues"][&long]["length"], 1);
+    for queue_name in [name, &long] {
+        app.artisan([
+            "horizon:work",
+            "redis",
+            "--queue",
+            &group,
+            "--once",
+            "--force",
+            "--memory=1024",
+        ])
+        .await
+        .assert_successful();
+        assert_eq!(
+            repository
+                .metrics("redis", queue_name)
+                .await
+                .unwrap()
+                .completed,
+            1
+        );
+        assert_eq!(queue.metrics(Some(queue_name)).await.unwrap().size, 0);
+    }
+    let literal = "逗号,原样";
+    let id = queue.push(&payload, Some(literal)).await.unwrap().unwrap();
+    let mut job = queue.pop_now(Some(literal)).await.unwrap().unwrap();
+    assert_eq!(job.get_job_id(), id);
+    job.delete().await.unwrap();
+    assert_eq!(
+        repository
+            .metrics("redis", literal)
+            .await
+            .unwrap()
+            .completed,
+        1
+    );
+    ids.push(id);
+    let rows = listener.observations.lock().unwrap();
+    assert_eq!(
+        rows.iter().map(|row| &row.id).collect::<Vec<_>>(),
+        ids.iter().collect::<Vec<_>>()
+    );
+    for (row, queue_name) in rows.iter().zip([name, &long, literal]) {
+        assert_eq!(row.queue, queue_name);
+        assert_eq!(row.status, "reserved");
+        assert_eq!(row.attempts, 1);
+    }
 }
 
 #[tokio::test]

@@ -75,7 +75,10 @@ impl SupervisorOptions {
     pub fn validate(&self) -> Result<()> {
         if !label(&self.connection)
             || self.queue.is_empty()
-            || self.queue.iter().any(|q| !label(q))
+            || self.queue.iter().any(|queue| {
+                queue.contains(',')
+                    || openrust::queue::RedisQueue::validate_queue_name(queue).is_err()
+            })
             || self.queue.iter().collect::<BTreeSet<_>>().len() != self.queue.len()
             || !matches!(self.balance.as_str(), Some("auto" | "simple" | "off"))
                 && self.balance != false

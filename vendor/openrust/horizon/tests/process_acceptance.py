@@ -41,8 +41,11 @@ def main():
             result = subprocess.run([binary, 'artisan', *args], env=env, capture_output=True, text=True, timeout=30)
             assert result.returncode == code, (args, result.stdout, result.stderr)
             return result.stdout
-        def dispatch(payload_uuid=False, **data):
-            result = subprocess.run([binary], env=dict(env, HORIZON_PROBE_DISPATCH=json.dumps(data), HORIZON_PROBE_DISPATCH_UUID="1" if payload_uuid else "0"), capture_output=True, text=True, timeout=15)
+        def dispatch(payload_uuid=False, destination=None, **data):
+            dispatch_env = dict(env, HORIZON_PROBE_DISPATCH=json.dumps(data), HORIZON_PROBE_DISPATCH_UUID="1" if payload_uuid else "0")
+            if destination is not None:
+                dispatch_env['HORIZON_PROBE_DISPATCH_QUEUE'] = destination
+            result = subprocess.run([binary], env=dispatch_env, capture_output=True, text=True, timeout=15)
             assert result.returncode == 0, result.stderr
             return result.stdout.strip()
         def status():
@@ -404,6 +407,26 @@ def main():
             assert master.returncode == 0, (stdout, stderr)
             assert status() == []
             assert gone(restored_pid)
+            # The Master creates a grouped Supervisor and Worker with literal queue names.
+            names = ['出库 汇总:报表', '  打包复核']
+            ids = {dispatch(destination=queue_name) for queue_name in names}
+            master = subprocess.Popen(
+                [binary, 'artisan', 'horizon', '--environment=queue-names'],
+                env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            )
+            ready = until_master(lambda state: state['workers'])
+            assert ready['workers'][0]['queue'] == ','.join(names)
+            until(lambda: ids <= {job['id'] for job in stats()['recent'] if job['status'] == 'completed'})
+            with request('/api/workload') as response:
+                assert response.status == 200
+                group = json.load(response)[0]
+            assert group['name'] == ','.join(names)
+            assert list(group['split_queues']) == names
+            master.send_signal(signal.SIGTERM)
+            stdout, stderr = master.communicate(timeout=15)
+            assert master.returncode == 0, (stdout, stderr)
+            assert status() == []
+            assert gone(ready['workers'][0]['pid'])
             # Loss of metadata terminates the master and reaps its owned workers.
             master = subprocess.Popen([binary, 'artisan', 'horizon'], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             last_master = until_master(lambda state: state['workers'])
@@ -420,7 +443,7 @@ def main():
                 except ProcessLookupError:
                     continue
                 raise AssertionError(f'orphan after metadata failure: {pid}')
-            print('PASS: native processes, worker options/backoff/nice/maintenance force, replacement and one-minute cooldown, spawn failure recovery, pause/continue, retry/forget, graceful signals, terminate, HTTP authorization and redaction')
+            print('PASS: native processes, grouped literal queue names, worker options/backoff/nice/maintenance force, replacement and one-minute cooldown, spawn failure recovery, pause/continue, retry/forget, graceful signals, terminate, HTTP authorization and redaction')
         finally:
             for process in [master, server]:
                 if process is not None and process.poll() is None:

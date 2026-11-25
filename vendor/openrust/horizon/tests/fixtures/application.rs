@@ -52,6 +52,7 @@ fn config(base: &Path, _: &Environment) -> Result<BTreeMap<String, Value>, Confi
                     "disabled": {"supervisor-1": {"maxProcesses": 0}},
                     "cooldown": {"supervisor-1": {"maxProcesses": 1}},
                     "spawn": {"supervisor-1": {"maxProcesses": 1, "directory": base.join("worker-cwd")}},
+                    "queue-names": {"supervisor-1": {"maxProcesses": 1, "balance": false, "queue": "出库 汇总:报表,  打包复核"}},
                 },
             }),
         ),
@@ -297,10 +298,11 @@ async fn main() -> std::process::ExitCode {
         app.boot().await.unwrap();
         let manager = app.make::<QueueManager>().await.unwrap();
         let payload = Payload::new("probe", serde_json::from_str::<Value>(&data).unwrap()).unwrap();
+        let queue = std::env::var("HORIZON_PROBE_DISPATCH_QUEUE").ok();
         let id = manager
             .connection(None)
             .unwrap()
-            .push(&payload, None)
+            .push(&payload, queue.as_deref())
             .await
             .unwrap()
             .expect("Redis transport ID");

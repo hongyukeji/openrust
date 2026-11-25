@@ -77,6 +77,46 @@ fn scaler_rejects_invalid_metrics_and_configuration() {
 }
 
 #[test]
+fn supervisor_preserves_redis_queue_names_as_literal_command_arguments() {
+    let long = "a".repeat(255);
+    let group = format!("出库 汇总:报表,{long}");
+    let options = SupervisorOptions::from_array(json!({"queue":group,"balance":false})).unwrap();
+    assert_eq!(options.pools(), std::slice::from_ref(&group));
+    let executable = std::path::Path::new("openrust");
+    let option = format!("--queue={group}");
+    assert!(
+        options
+            .to_supervisor_command(executable)
+            .unwrap()
+            .contains(&option.clone().into())
+    );
+    assert!(
+        options
+            .to_worker_command(executable)
+            .unwrap()
+            .contains(&option.into())
+    );
+    for invalid in [
+        "",
+        "a\nb",
+        "queue:delayed",
+        "queue:reserved",
+        "queue:notify",
+    ] {
+        assert!(
+            SupervisorOptions::from_array(json!({"queue":[invalid]})).is_err(),
+            "{invalid:?}"
+        );
+    }
+    assert!(SupervisorOptions::from_array(json!({"queue":["a".repeat(256)]})).is_err());
+    let invalid = SupervisorOptions {
+        queue: vec!["one,two".into()],
+        ..Default::default()
+    };
+    assert!(invalid.validate().is_err());
+}
+
+#[test]
 fn options_preserve_upstream_defaults_and_allow_unlimited_tries_and_zero_sleep() {
     let options = SupervisorOptions::default();
     assert_eq!(options.balance, "off");

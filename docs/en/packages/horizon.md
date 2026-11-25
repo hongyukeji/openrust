@@ -57,6 +57,8 @@ Register synchronous listeners for `JobPending::NAME`, `JobPushed::NAME`, and `J
 
 `JobReleased::NAME` runs after Redis returns the reservation to the delayed queue. Its `delay` is a Rust `Duration`, and job details expose it as `release_delay_ms`. `JobDeleted::NAME` runs after Redis acknowledges deletion, including when a job advances its chain. It includes the job snapshot, failure flag, and elapsed time since reservation.
 
+Supervisor queue names follow the native Redis transport's 255-byte limit. Spaces, Unicode, and colons are retained. Supervisor queue lists use commas as separators. Names ending in `:delayed`, `:reserved`, or `:notify` are reserved by the transport.
+
 Long-wait alerts include the deployment name in the email subject, SMS body and Slack details. Pass an incoming webhook URL or a channel ID to `Horizon::route_slack_notifications_to`. A channel ID uses the Slack Bot API and requires `services.slack.notifications.bot_user_oauth_token`.
 
 Use `Horizon::route_slack_webhook_notifications_to(url, channel)` to include a channel override in the incoming Webhook payload. Slack app incoming Webhooks always post to the channel selected during installation. Use a Bot API channel ID to choose the destination on each request.
