@@ -361,7 +361,9 @@ SQLite、PostgreSQL 18.7、MySQL 8.4.13 的 Telescope Gate 专项及框架授权
 
 重映射保留包目录结构时可继续使用 `ignore_packages`。重映射若抹平应用与依赖的包目录，Rust 无法从文件位置恢复归属，部署应为依赖保留可区分前缀，再用 `ignore_paths` 配置。
 
-修复版在 macOS、Linux ARM64 和 Windows 11 ARM64 的测试构建中各实跑 8 项 SQLite 路由回归。标准映射验证 Gate、嵌套 Gate、Query 和 Pulse SlowQueries。自定义 registry 与 Git checkout 两种布局各验证 Gate 和 Query，并在 Cargo 根的父目录加入 `openrust-` 前缀检查误判。相关严格 Clippy、快照全仓格式、三语文档构建和浏览器检查通过。编译后的实际路径及测试证据为 `target/tmp/observability-parity/source-remap-{macos-test,linux-verified,windows-verified,clippy-fmt,docs}.log`。macOS 默认优化构建及远端数据库组合另记 Release 验收。
+修复版在 macOS、Linux ARM64 和 Windows 11 ARM64 的测试构建中各实跑 8 项 SQLite 路由回归。标准映射验证 Gate、嵌套 Gate、Query 和 Pulse SlowQueries。自定义 registry 与 Git checkout 两种布局各验证 Gate 和 Query，并在 Cargo 根的父目录加入 `openrust-` 前缀检查误判。相关严格 Clippy、快照全仓格式、三语文档构建和浏览器检查通过。编译后的实际路径及测试证据为 `target/tmp/observability-parity/source-remap-{macos-test,linux-verified,windows-verified,clippy-fmt,docs}.log`。
+
+macOS 默认 Release 的标准路径重映射以修复前快照构建，已用该 Telescope 测试二进制在 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 各通过 Gate、嵌套 Gate 与 Query 三项真实路由测试。证据为 `target/tmp/observability-parity/source-remap-macos-release-telescope.log`。自定义 Cargo 路径修复版的优化构建、优化后的 Pulse 和 Linux／Windows Release 继续验收。
 
 ### Telescope Query 数据库调用来源
 
