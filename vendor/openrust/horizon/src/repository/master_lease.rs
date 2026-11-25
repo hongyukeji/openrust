@@ -171,6 +171,48 @@ return 1
 }
 
 impl MasterLease {
+    pub(crate) async fn restart_supervisors(&self, supervisors: &[&str]) -> Result<()> {
+        let repository = &self.repository.0;
+        let master = &self.ownership.name;
+        let mut keys = vec![
+            repository.key(&format!("master-owner:{master}")),
+            repository.key(&format!("master-paused:{master}")),
+        ];
+        for supervisor in supervisors {
+            let [_, _, paused, _, commands] = repository.supervisor_keys(supervisor);
+            keys.extend([paused, commands]);
+        }
+        let terminate = serde_json::to_string(&QueuedCommand {
+            command: crate::supervisor_commands::TERMINATE.into(),
+            options: serde_json::json!({"status": 1}),
+        })
+        .map_err(|_| Error::InvalidRecord)?;
+        let result = repository
+            .eval(
+                r#"
+if redis.call('GET',KEYS[1]) ~= ARGV[1] then return false end
+for index=4,#KEYS,2 do
+    local kind=redis.call('TYPE',KEYS[index]).ok
+    if kind ~= 'none' and kind ~= 'list' then return 0 end
+end
+for index=3,#KEYS,2 do
+    redis.call('SET',KEYS[index],'1')
+    redis.call('RPUSH',KEYS[index+1],ARGV[2])
+end
+redis.call('DEL',KEYS[2])
+return 1
+"#,
+                keys,
+                vec![self.ownership.token.clone(), terminate],
+            )
+            .await?;
+        match result {
+            Value::Int(1) => Ok(()),
+            Value::Nil => Err(Error::MasterOwnershipLost),
+            _ => Err(Error::Redis),
+        }
+    }
+
     pub(crate) async fn deploy(&self, commands: &[QueuedCommand]) -> Result<()> {
         self.repository
             .0

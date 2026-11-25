@@ -94,6 +94,50 @@ def main():
             planned_job = run(HORIZON_PROBE_DISPATCH='{}', HORIZON_PROBE_DISPATCH_UUID='1',
                               HORIZON_PROBE_DISPATCH_QUEUE='planned')
             until(lambda: planned_job in completed.read_text())
+
+            def parent_pid(pid):
+                if sys.platform.startswith('linux'):
+                    status = Path(f'/proc/{pid}/status').read_text()
+                    return int(next(line.split()[1] for line in status.splitlines() if line.startswith('PPid:')))
+                return int(subprocess.check_output(['ps', '-p', str(pid), '-o', 'ppid='], text=True).strip())
+
+            def worker_tree(row):
+                return {entry['supervisor']: (entry['pid'], parent_pid(entry['pid'])) for entry in row['workers']}
+
+            before = worker_tree(live)
+            assert before.keys() == {child, planned}, live
+            active_job = run(HORIZON_PROBE_DISPATCH='{"record_start":true,"sleep_ms":6000}',
+                             HORIZON_PROBE_DISPATCH_UUID='1', HORIZON_PROBE_DISPATCH_QUEUE='added')
+            started = root / 'started.log'
+            until(lambda: started.exists() and active_job in started.read_text())
+            run('artisan', 'horizon:pause')
+            until(lambda: statuses()[0]['status'] == 'paused')
+            pending_job = run(HORIZON_PROBE_DISPATCH='{"record_start":true}',
+                              HORIZON_PROBE_DISPATCH_UUID='1', HORIZON_PROBE_DISPATCH_QUEUE='added')
+            command = 'Laravel\\Horizon\\SupervisorCommands\\Restart'
+            queue('push', name, master=True, command=command, options=[])
+            resumed = until(lambda: next((row for row in statuses() if row['status'] == 'running'), None))
+            assert resumed['pid'] == master.pid and resumed['name'] == name, resumed
+            assert active_job not in completed.read_text()
+            assert pending_job not in started.read_text()
+
+            def replaced():
+                row = statuses()[0]
+                workers = {item['supervisor']: item['pid'] for item in row['workers']}
+                if workers.keys() == before.keys() and all(
+                    pid != before[supervisor][0] for supervisor, pid in workers.items()
+                ):
+                    return row
+
+            replacement = until(replaced)
+            after = worker_tree(replacement)
+            assert all(old[1] != after[supervisor][1] for supervisor, old in before.items()), after
+            assert replacement['unexpected_exits'] == live['unexpected_exits'], replacement
+            until(lambda: pending_job in completed.read_text())
+            assert completed.read_text().splitlines().count(active_job) == 1
+            assert completed.read_text().splitlines().index(active_job) < completed.read_text().splitlines().index(pending_job)
+            print('PASS: Master restart resumes a paused deployment, drains a real job and replaces both Supervisor and Worker trees')
+
             run('artisan', 'horizon:terminate')
             stdout, stderr = master.communicate(timeout=15)
             assert master.returncode == 0, (stdout, stderr)

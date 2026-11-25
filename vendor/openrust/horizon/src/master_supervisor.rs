@@ -17,6 +17,7 @@ pub struct SupervisorProcess {
     restart_again_at: Instant,
     dead: bool,
     from_command: bool,
+    restarting: bool,
 }
 
 impl SupervisorProcess {
@@ -28,6 +29,7 @@ impl SupervisorProcess {
             restart_again_at: Instant::now(),
             dead: false,
             from_command: false,
+            restarting: false,
         }
     }
 
@@ -301,6 +303,19 @@ impl MasterSupervisor {
         }
     }
 
+    /// 向本 Master 的监控循环提交重启请求。
+    pub async fn restart(&self) -> Result<()> {
+        let target = Self::command_queue_for(Some(&self.id))?;
+        self.repository
+            .command_queue()
+            .push(
+                &target,
+                crate::supervisor_commands::RESTART,
+                serde_json::json!([]),
+            )
+            .await
+    }
+
     /// 在当前应用内设置 Master 名称前缀解析器。
     pub fn determine_name_using(
         resolve: impl Fn() -> String + Send + Sync + 'static,
@@ -395,19 +410,23 @@ impl MasterSupervisor {
         if masters.termination_requested(&self.id).await?.is_some() {
             return Ok(false);
         }
-        let paused = masters.paused(&self.id).await?;
         for item in lease.pending_commands().await? {
             let result = match item.command.as_str() {
                 AddSupervisor::NAME => AddSupervisor.process(self, item.options),
+                crate::supervisor_commands::RESTART => self.restart_supervisors(lease).await,
                 _ => Err(Error::InvalidRecord),
             };
             if let Err(error) = result {
+                if !matches!(error, Error::InvalidRecord | Error::InvalidConfiguration) {
+                    return Err(error);
+                }
                 let _ = openrust::support::facades::Log::warning(
                     &format!("Horizon Master 命令未执行: {error}"),
                     &Default::default(),
                 );
             }
         }
+        let paused = masters.paused(&self.id).await?;
         for supervisor in &mut self.supervisors {
             if supervisor
                 .process
@@ -421,8 +440,10 @@ impl MasterSupervisor {
                     .wait()
                     .await
                     .map_err(|_| Error::Process)?;
-                supervisor.dead = matches!(result.exit_code(), 0 | 2 | 13);
-                if !supervisor.dead {
+                let restarted = std::mem::take(&mut supervisor.restarting);
+                let exit = result.exit_code();
+                supervisor.dead = matches!(exit, 0 | 2 | 13);
+                if !(supervisor.dead || restarted && exit == 1) {
                     self.failures = self.failures.saturating_add(1);
                 }
                 if let Some(previous) = self.repository.supervisor(&supervisor.name).await? {
@@ -504,6 +525,25 @@ impl MasterSupervisor {
             return Err(Error::MemoryLimitExceeded);
         }
         Ok(true)
+    }
+
+    async fn restart_supervisors(&mut self, lease: &MasterLease) -> Result<()> {
+        let mut children = self
+            .supervisors
+            .iter_mut()
+            .filter(|child| {
+                !child.restarting && child.process.as_ref().is_some_and(InvokedProcess::running)
+            })
+            .collect::<Vec<_>>();
+        let names = children
+            .iter()
+            .map(|child| child.name.as_str())
+            .collect::<Vec<_>>();
+        lease.restart_supervisors(&names).await?;
+        for child in &mut children {
+            child.restarting = true;
+        }
+        Ok(())
     }
 
     fn status(&self, paused: bool, states: &[serde_json::Value]) -> serde_json::Value {

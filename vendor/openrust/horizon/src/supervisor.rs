@@ -224,9 +224,16 @@ impl Supervisor {
     }
 
     pub async fn run_with_status(mut self, shutdown: &CancellationToken) -> Result<i32> {
-        self.repository
-            .flush_structured_supervisor_commands(&self.id, self.ownership.as_ref())
-            .await?;
+        if self.ownership.is_some() {
+            // Master 已在启动子进程前清空队列，保留启动期间收到的新命令。
+            self.repository
+                .check_master_ownership(self.ownership.as_ref())
+                .await?;
+        } else {
+            self.repository
+                .flush_structured_supervisor_commands(&self.id, None)
+                .await?;
+        }
         if self.initially_paused && !self.repository.paused().await? {
             self.set_paused(true).await?;
         }

@@ -140,6 +140,8 @@ Master 名稱由主機名稱轉換出的短名和程序內固定的四字元權�
 
 若要從應用程式程式碼控制執行中的監督器，透過 `RedisHorizonCommandQueue` 將 `openrust_horizon::supervisor_commands` 中的命令送往監督器全名。`SCALE` 的 `scale` 參數指定 Worker 總數，`BALANCE` 接收各佇列的 Worker 數量，`TERMINATE` 可透過 `status` 指定結束碼。`RESTART` 會更換 Worker 並恢復暫停的監督器。
 
+若要更換執行中 Master 的所有監督器及其 Worker，將空選項的 `RESTART` 送往 `MasterSupervisor::command_queue_for(Some(master_name))`。`MasterSupervisor::restart().await` 依執行個體的名稱提交同一請求。Master 從暫停恢復。依預設，各監督器會等候執行中的工作完成後再更換。
+
 Horizon 工作 ID 識別獨立的 Redis 投遞，由佇列推送和面板回傳。`horizon:retry` 與 `horizon:forget` 使用此 ID。重試取得新 ID，原失敗監控記錄保留並記錄重試結果。原生 `queue:retry` 和失敗工作儲存使用承載資料 UUID，由 Horizon 內部轉換；批次重試也會將這些 UUID 解析為目前失敗投遞。
 
 按[佇列](../digging-deeper/queues.md)設定持久失敗儲存，重試重用原生領取與重新派發機制。`horizon:forget` 刪除監控失敗記錄與原生失敗記錄，`--all` 分頁處理全部 Horizon 失敗記錄。`horizon:clear` 清空指定佇列和待處理監控記錄，`horizon:purge` 處理孤立程序。透過[工作排程](../digging-deeper/scheduling.md)定期執行 `horizon:snapshot` 保存指標歷史；`horizon:clear-metrics` 清理指標並保留工作記錄。

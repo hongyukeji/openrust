@@ -244,6 +244,8 @@ async fn same_named_master_cannot_overwrite_an_owner_or_remove_its_replacement()
 
     fn compete(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         Box::pin(async {
+            // 并发测试共用本进程的 RSS。此用例只验证名称所有权与命令队列。
+            Config::set("horizon.memory_limit", json!(1024)).unwrap();
             let repository = App::make::<Repository>().await.unwrap();
             let masters = repository.master_supervisors();
             let queues = App::make::<openrust::queue::QueueManager>().await.unwrap();
@@ -311,10 +313,16 @@ async fn same_named_master_cannot_overwrite_an_owner_or_remove_its_replacement()
                 );
                 assert!(matches!(a, Err(Error::MasterAlreadyRunning)));
                 assert!(matches!(b, Err(Error::MasterAlreadyRunning)));
+                create("restart-request").restart().await.unwrap();
                 let pending = commands.pending(&target).await.unwrap();
-                assert_eq!(pending.len(), 1);
+                assert_eq!(pending.len(), 2);
                 assert_eq!(pending[0].command, "OwnerProbe");
                 assert_eq!(pending[0].options, json!(["retained"]));
+                assert_eq!(
+                    pending[1].command,
+                    openrust_horizon::supervisor_commands::RESTART
+                );
+                assert_eq!(pending[1].options, json!([]));
                 assert!(matches!(
                     masters.update(&name, &json!({"name":name})).await,
                     Err(Error::MasterAlreadyRunning)

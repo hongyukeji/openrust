@@ -70,17 +70,27 @@ Rust 的公开 `ProvisioningPlan` 可从应用配置取得，包含有序的环�
 
 macOS 的真实 Artisan 完整进程回归在部署监听器中检查 Redis 待办数量，覆盖未匹配、匹配空计划、全部停用、正常启动及目录恢复。macOS 与 Linux ARM64 使用公开 `deploy` 与真实 Master 验证首个通配环境、新 Worker 执行任务和相对工作目录。Windows ARM64 复验默认计划启动、排空、快速终止及父进程异常退出。配置测试 8 项、Horizon 全目标严格 Clippy、格式与三语正文检查通过。证据为 `target/tmp/observability-parity/horizon-provisioning-{macos-artisan,macos-process,linux-artisan,windows}.log`。
 
-剩余契约包括可替换的命令队列接口、命令类的应用容器解析，以及 Master 公开重启和输出回调。
+剩余契约包括可替换的命令队列接口、命令类的应用容器解析，以及 Master 输出回调。
 
 ### Supervisor 结构化命令
 
 固定 PHP 探针经真实 Redis 8.10.3 发送并领取 `Pause`、`ContinueWorking`、`Restart`、`Scale`、`Balance` 及 `Terminate`。调用固定命令类和固定 `Supervisor` 方法，使用进程池替身观察调用。暂停和继续切换工作状态，重启恢复工作并更换 Worker，`Scale(5)` 在两个池各申请 2 个 Worker 并将上限提高到 5，`Balance` 忽略不存在的池，终止状态可指定且默认 0。证据为 `target/tmp/observability-parity/horizon-supervisor-commands-upstream.log`。 [固定 SupervisorCommands](https://github.com/laravel/horizon/tree/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/SupervisorCommands) [固定 Supervisor](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Supervisor.php)
 
-Rust 透过 `supervisor_commands` 提供命令名称。Supervisor 启动时清空旧的结构化命令，运行中按顺序领取，使用现有进程池扩缩容和排空机制。受管 Supervisor 的清空、领取和退出清理均比对 Master 所有权。旧文本命令继续由原 Redis 键处理。无效结构化命令记录错误并继续，同批后续合法命令仍可处理。`run_with_status` 和真实 Artisan 返回终止状态，CLI 状态取值为 0 至 255。
+Rust 透过 `supervisor_commands` 提供命令名称。独立 Supervisor 启动时清空旧的结构化命令。受管 Supervisor 由 Master 在创建子进程之前清空旧命令，因此可接收启动过程中抵达的命令。受管 Supervisor 的清空、领取和退出清理均比对 Master 所有权。运行中按顺序领取，使用现有进程池扩缩容和排空机制。旧文本命令继续由原 Redis 键处理。无效结构化命令记录错误并继续，同批后续合法命令仍可处理。`run_with_status` 和真实 Artisan 返回终止状态，CLI 状态取值为 0 至 255。
 
 macOS 与 Linux ARM64 用真实 Artisan Supervisor、Worker 与 Redis 验证了六类命令，覆盖启动清空、重启恢复工作、两个池的扩缩容、排空和退出码 23／0。接管复验确认旧进程保留了新持有者的结构化命令。Windows ARM64 原生受管进程树验证了六类命令，以及默认状态码 0 的终止。证据为 `target/tmp/observability-parity/horizon-supervisor-commands-{build,macos,linux,windows}.log`。
 
-固定上游 `MasterSupervisor::restart` 的后续参考也已生成。对暂停中的 Master 调用后会恢复处理，并向每个 Supervisor 的结构化命令队列发送 `Terminate` 和状态码 1。证据为 `target/tmp/observability-parity/horizon-master-restart-upstream.log`。
+### Master 公开重启
+
+固定上游 `MasterSupervisor::restart` 恢复 Master 工作状态，向每个 Supervisor 的结构化队列发送 `Terminate` 和状态码 1。监控循环按原配置重新部署退出的 Supervisor。PHP 8.5.12 与 Redis 8.10.3 上验证两个 Supervisor 的命令及选项，进程由探针替身承接。证据为 `target/tmp/observability-parity/horizon-master-restart-upstream.log`。 [固定 MasterSupervisor](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/MasterSupervisor.php) [固定 SupervisorProcess](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/SupervisorProcess.php)
+
+Rust 的 `MasterSupervisor::restart().await` 通过该实例的命令队列提交请求。独立应用进程也可向目标 Master 队列提交 `RESTART`。Master 在 Redis 比对所有权后一次写入各子进程的暂停状态及终止命令，并清除自己的暂停状态。已开始的任务继续执行。默认模式下，Supervisor 排空后以状态码 1 退出。同一 Master 按原部署选项重新拉起子树，主动产生的状态码 1 不计入异常退出。
+
+macOS 和 Linux ARM64 在真实 Redis 8.10.3 上验证暂停恢复、执行中的任务只完成一次、待处理任务随后执行、两个 Supervisor 及其 Worker 更换 PID，Master 保持原 PID。Windows 11 ARM64 原生进程验证同一流程，并直接检查旧 Supervisor 以状态码 1 退出。macOS 的公开实例方法和所有权竞争也在 20 项 Redis 运行时测试中通过，完整进程回归、Horizon 全目标严格 Clippy、格式和三语正文检查通过。证据为 `target/tmp/observability-parity/horizon-master-restart-{macos-final,macos-regression,linux,windows-final,docs}.log`。快速终止模式下的 Master 重启和正式部署组合仍待验证。
+
+### Master 与 Supervisor 输出回调
+
+固定 PHP 8.5.12、Horizon 与 Symfony Process 8.0.5 探针验证 `MasterSupervisor::handleOutputUsing` 返回原实例。直接调用 `output` 和 `AddSupervisor` 启动的真实子进程均把数据送给回调。回调可区分 stdout 和 stderr，收到有换行及末尾无换行的片段。Symfony 保持禁用输出留存。上游的 `horizon` 和 `horizon:supervisor` 都将收到的两个流写入各自的 Artisan 输出。Rust 的受管子进程当前丢弃输出，公开回调、转发和持续运行时的输出留存边界待补齐。证据为 `target/tmp/observability-parity/horizon-output-upstream.log`。 [固定 AddSupervisor](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/MasterSupervisorCommands/AddSupervisor.php) [固定 HorizonCommand](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Console/HorizonCommand.php) [固定 SupervisorCommand](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Console/SupervisorCommand.php)
 
 ### Windows 原生进程树
 

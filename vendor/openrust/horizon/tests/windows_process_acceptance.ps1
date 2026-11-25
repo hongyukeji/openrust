@@ -53,9 +53,9 @@ function Recorded($File, $Job) {
     return (Test-Path $path) -and (@(Get-Content $path) -contains $Job)
 }
 
-function Supervisor-Command($Name, $Command, $Options) {
+function Supervisor-Command($Name, $Command, $Options, [switch]$MasterQueue) {
     $env:HORIZON_PROBE_COMMAND_QUEUE = @{
-        action = 'push'; name = $Name
+        action = 'push'; name = $Name; master = $MasterQueue.IsPresent
         command = 'Laravel\Horizon\SupervisorCommands\' + $Command
         options = $Options
     } | ConvertTo-Json -Depth 4 -Compress
@@ -130,6 +130,33 @@ foreach ($mode in @('idle', 'wait', 'fast', 'parent-exit')) {
         if ($mode -eq 'idle') {
             $dynamic = Dispatch 20
             Wait-For 'job on the dynamically added Worker' { Recorded 'completed.log' $dynamic } | Out-Null
+
+            $draining = Dispatch 6000
+            Wait-For 'job running before Master restart' { Recorded 'started.log' $draining } | Out-Null
+            $null = Artisan horizon:pause
+            Wait-For 'paused Master' { (Status).status -eq 'paused' } | Out-Null
+            $queued = Dispatch 20
+            Supervisor-Command $active.name Restart @() -MasterQueue
+            $restarted = Wait-For 'Master with replacement Worker' {
+                $row = Status
+                if ($row.pid -eq $master.Id -and $row.status -eq 'running' -and
+                    @($row.workers).Count -eq 1 -and $row.workers[0].pid -ne $worker.Id) { $row }
+            }
+            if (!$supervisor.WaitForExit(15000) -or $supervisor.ExitCode -ne 1) { throw 'Master restart did not exit the old Supervisor with status 1.' }
+            if (!$worker.WaitForExit(15000)) { throw 'The previous Worker remained alive.' }
+            $worker = Get-Process -Id $restarted.workers[0].pid
+            $null = $worker.Handle
+            $parent = Get-CimInstance Win32_Process -Filter "ProcessId = $($worker.Id)"
+            if ($parent.ParentProcessId -eq $supervisor.Id) { throw 'Master restart kept the previous Supervisor.' }
+            $supervisor = Get-Process -Id $parent.ParentProcessId
+            $null = $supervisor.Handle
+            Wait-For 'job on the replacement Worker' { Recorded 'completed.log' $queued } | Out-Null
+            $finished = @(Get-Content (Join-Path $fixture 'completed.log'))
+            if ([array]::IndexOf($finished, $draining) -lt 0 -or
+                [array]::IndexOf($finished, $draining) -ge [array]::IndexOf($finished, $queued)) {
+                throw 'Master restart did not drain the active job before the pending job.'
+            }
+            'PASS: Windows native Master restart resumed and replaced the managed process tree'
 
             Supervisor-Command $name Pause @()
             Wait-For 'structured pause' { ((Artisan horizon:supervisor-status $name) -join "`n") -match 'is paused' } | Out-Null
