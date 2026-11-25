@@ -2,7 +2,7 @@
 
 ## Support status {#support-status}
 
-The optional `openrust-webhook-client` package supplies named configuration, typed implementation factories, explicit callback routing, `WebhookController`, a manual `WebhookProcessor` and scoped database receipt storage. Applications provide the job dispatcher. The database receiver supports opt-in deduplication by verified event ID. Recovery scanning and Storage disk references remain pending. A saved receipt and successful dispatch do not prove business completion. No public callback route is installed automatically.
+The optional `openrust-webhook-client` package supplies named configuration, typed implementation factories, explicit callback routing, `WebhookController`, a manual `WebhookProcessor` and scoped database receipt storage. Applications provide the job dispatcher. The database receiver supports opt-in deduplication by verified event ID. Optional recovery scanning and private Storage disk references are available. A saved receipt and successful dispatch do not prove business completion. No public callback route is installed automatically.
 
 ## Enable and configure {#configuration}
 
@@ -143,11 +143,26 @@ Stop Webhook writers before rolling back the attachment migration. The rollback 
 
 Implement `jobs::ProcessWebhookJob` to process a saved receipt. In an application Provider shared by HTTP and Workers, call `QueuedWebhookJob::register` with the native `QueueManager`, a stable name, a store for the trusted scope and your handler. Register a `QueuedWebhookJob` dispatcher under the name selected by `process_webhook_job`. Use distinct registrations for distinct storage scopes. The Worker checks the receipt ID, scope, profile and revision against the stored record before calling your handler.
 
-Set connection and queue on the dispatcher. The native `JobOptions` controls attempts, backoff and timeout. Assign business policy in your handler. The queued data contains the receipt identifiers. Workers open the saved record without using the receiver’s verification secret. Failed handler attempts save a generic receipt exception, and a subsequent attempt clears the previous diagnostic. Cross-backend dispatch recovery and idempotency are pending. Choose a Worker-backed connection. The dispatcher rejects built-in sync, null, deferred and background connections and requires the queue to return an enqueue result.
+Set connection and queue on the dispatcher. The native `JobOptions` controls attempts, backoff and timeout. Assign business policy in your handler. The queued data contains the receipt identifiers. Workers open the saved record without using the receiver’s verification secret. Failed handler attempts save a generic receipt exception, and a subsequent attempt clears the previous diagnostic. Choose a Worker-backed connection. The dispatcher rejects built-in sync, null, deferred and background connections and requires the queue to return an enqueue result.
 
 ### Commit the receipt with its database queue task {#atomic-database-queue}
 
 Set `atomic_database_queue: true` on a profile, or use `with_atomic_database_queue(true)` for a runtime configuration. Use `DatabaseWebhookStore` and `QueuedWebhookJob` with the same application database connection. The receipt and native queue task commit together before the HTTP acknowledgment. Queue insertion failure rolls both back. Other drivers and distinct connection instances are rejected, even when they refer to the same database. The default remains off. This option closes the pre-enqueue process exit window for that deployment. Use verified event deduplication when the signing protocol supplies an authenticated event ID.
+
+### Recover after committing the receipt {#dispatch-recovery}
+
+Set `recover_dispatch: true` on the profile or use `with_dispatch_recovery(true)` in Rust. Run `./artisan migrate`. This mode commits the verified receipt and a dispatch intent together, then returns the configured HTTP acknowledgment. Leave `atomic_database_queue` off for this profile.
+
+Register a leased handler with `QueuedWebhookJob::register_with_database_recovery` on the receiver, recovery process and Workers. Use the same handler name, receipt database and scope. Set an explicit durable connection and queue on the dispatcher with `on_connection` and `on_queue`. Set a positive job timeout at least two seconds shorter than the Worker lease. Built-in inline and failover connections are rejected. A durable direct connection such as Redis can run separately from the receipt database.
+
+Schedule the bounded command for each receipt scope. Keep the stored queue connection name mapped to the same broker. Use `--database` to select a named receipt connection.
+
+```sh
+./artisan webhook-client:recover --scope=billing/site-a --limit=100 --pretend
+./artisan webhook-client:recover --scope=billing/site-a --limit=100
+```
+
+Failed dispatches keep their intent and return a failing exit status. A subsequent run may claim the intent after 60 seconds. If the queue accepts a task and the recovery process exits before clearing the intent, the next run may enqueue it again. Workers share the same receipt claim and completion state. Make business side effects idempotent to handle interruptions during processing.
 
 ### Claim a receipt across Workers {#processing-lease}
 
@@ -159,13 +174,13 @@ The database records each lease attempt by receipt and generation. A completed, 
 
 ### Deduplicate a verified event {#verified-event-deduplication}
 
-For a profile with `atomic_database_queue: true`, enable `deduplicate_verified_events: true` and run `./artisan migrate`. At runtime, use `with_verified_event_deduplication(true)` together with `with_atomic_database_queue(true)`. The `standard` validator supplies the signed `webhook-id` and requires it to contain no periods in this mode. A custom validator can supply a stable ID through `SignatureValidator::verified_event_id` after verifying that the signature covers that ID. The default body-only HMAC validator supplies no event ID. The receiver rejects the deduplication mode if its validator cannot supply a valid ID. Configure a distinct scope or profile for each source account.
+For a profile with `atomic_database_queue: true` or `recover_dispatch: true`, enable `deduplicate_verified_events: true` and run `./artisan migrate`. At runtime, use `with_verified_event_deduplication(true)` together with the corresponding dispatch option. The `standard` validator supplies the signed `webhook-id` and requires it to contain no periods in this mode. A custom validator can supply a stable ID through `SignatureValidator::verified_event_id` after verifying that the signature covers that ID. The default body-only HMAC validator supplies no event ID. The receiver rejects the deduplication mode if its validator cannot supply a valid ID. Configure a distinct scope or profile for each source account.
 
 The database receives the event, stores its deduplication key and enqueues its job in the same transaction. The same ID and request content return the configured acknowledgment without a second receipt or job. Reusing an ID within the same scope and profile with a changed method, raw path/query, body or Content-Type returns HTTP 409. Signing timestamps, signatures and credential revisions may change between retries. A key is retained with its receipt, so retain receipts at least as long as the provider can redeliver. The mode is off by default.
 
 ### Deduplicate by request content when no stable ID is available {#body-deduplication}
 
-Set `deduplicate_body_seconds` to 1–3,600 on a profile with `atomic_database_queue: true`, or use `with_body_deduplication(seconds)` with `with_atomic_database_queue(true)`. Choose either this window or verified event ID deduplication for each profile. The receiver applies the window after signature verification and profile acceptance.
+Set `deduplicate_body_seconds` to 1–3,600 on a profile with `atomic_database_queue: true` or `recover_dispatch: true`, or use `with_body_deduplication(seconds)` with the corresponding dispatch option. Choose either this window or verified event ID deduplication for each profile. The receiver applies the window after signature verification and profile acceptance.
 
 The window starts with the first accepted request, using the database clock. The fingerprint covers the HTTP method, raw path and query, original body and Content-Type. Identical requests within the window share one receipt and task. The next request after expiry can create a new receipt while earlier receipts remain available. Enable this mode only when identical legitimate requests in that window should be treated as retries.
 
@@ -211,4 +226,4 @@ This cleanup uses the package’s `delete_after_days` setting and applies only t
 
 ## Scope {#scope}
 
-Use the existing [HTTP client](../digging-deeper/http-client.md) and [queues](../digging-deeper/queues.md) for application networking and jobs. Persistent recovery and a complete delivery state machine remain outside the current implementation.
+Use the existing [HTTP client](../digging-deeper/http-client.md) and [queues](../digging-deeper/queues.md) for application networking and jobs. Recovery covers dispatch of committed receipts. Backends and deployments require their own operational validation.

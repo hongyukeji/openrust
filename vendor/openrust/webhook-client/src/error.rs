@@ -36,6 +36,8 @@ pub enum Error {
     AttachmentStorage,
     #[error("Webhook 队列操作失败")]
     Queue(#[from] openrust::queue::QueueError),
+    #[error("Webhook 处理任务派发失败")]
+    DispatchFailed,
     #[error("Webhook 处理任务执行失败")]
     ProcessingFailed,
     #[error("Webhook 处理租约已失效")]

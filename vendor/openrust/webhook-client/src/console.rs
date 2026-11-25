@@ -1,9 +1,10 @@
-use crate::{DatabaseWebhookStore, Error, models::WebhookCall};
+use crate::{DatabaseWebhookStore, Error, jobs::QueuedWebhookJob, models::WebhookCall};
 use clap::{Arg, ArgAction, Command as Syntax, value_parser};
 use openrust::{
     console::{Command, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output},
     database::DatabaseManager,
     foundation::Application,
+    queue::QueueManager,
     support::facades::{Artisan, Config},
 };
 
@@ -34,7 +35,23 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
                 .long("pretend")
                 .action(ArgAction::SetTrue),
         );
-    Artisan::add(Box::new(Prune(CommandDefinition::new(syntax))))
+    Artisan::add(Box::new(Prune(CommandDefinition::new(syntax))))?;
+    let recover = Syntax::new("webhook-client:recover")
+        .about("派发当前范围内待恢复的 Webhook 处理任务")
+        .arg(Arg::new("scope").long("scope").required(true))
+        .arg(Arg::new("database").long("database"))
+        .arg(
+            Arg::new("limit")
+                .long("limit")
+                .default_value("100")
+                .value_parser(value_parser!(u32).range(1..=500)),
+        )
+        .arg(
+            Arg::new("pretend")
+                .long("pretend")
+                .action(ArgAction::SetTrue),
+        );
+    Artisan::add(Box::new(Recover(CommandDefinition::new(recover))))
 }
 
 struct Prune(CommandDefinition);
@@ -126,6 +143,54 @@ impl Command for Prune {
                 .map_err(ConsoleError::from_source)?;
             output.info(&format!("已清理 {removed} 条 Webhook 接收记录"));
             Ok(0)
+        })
+    }
+}
+
+struct Recover(CommandDefinition);
+
+impl Command for Recover {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+
+    fn handle<'a>(
+        &'a self,
+        app: &'a Application,
+        input: &'a Input,
+        output: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            let matches = input.matches();
+            let scope = matches.get_one::<String>("scope").expect("必填范围");
+            let connection = matches.get_one::<String>("database").map(String::as_str);
+            let limit = *matches.get_one::<u32>("limit").expect("默认批次上限");
+            let pretend = matches.get_flag("pretend");
+            let manager = app
+                .make::<DatabaseManager>()
+                .await
+                .map_err(ConsoleError::from_source)?;
+            let connection = manager
+                .connection(connection)
+                .map_err(ConsoleError::from_source)?;
+            let store =
+                DatabaseWebhookStore::new(connection, scope).map_err(ConsoleError::from_source)?;
+            let queue = app
+                .make::<QueueManager>()
+                .await
+                .map_err(ConsoleError::from_source)?;
+            let report = QueuedWebhookJob::recover_dispatches(&store, &queue, limit, pretend)
+                .await
+                .map_err(ConsoleError::from_source)?;
+            if pretend {
+                output.info(&format!("可派发 {} 条 Webhook 接收记录", report.candidates));
+            } else {
+                output.info(&format!(
+                    "已派发 {} 条 Webhook 接收记录，{} 条待重试",
+                    report.dispatched, report.failed
+                ));
+            }
+            Ok(i32::from(report.failed > 0))
         })
     }
 }

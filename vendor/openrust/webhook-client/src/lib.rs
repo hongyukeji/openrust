@@ -14,6 +14,8 @@ mod contracts;
 mod deferred_migration;
 #[path = "../database/migrations/2026_11_25_000007_add_deferred_route_to_webhook_calls_table.rs"]
 mod deferred_route_migration;
+#[path = "../database/migrations/2026_11_25_000013_create_webhook_dispatch_intents_table.rs"]
+mod dispatch_intents_migration;
 mod error;
 #[path = "../database/migrations/2026_11_25_000008_add_expiry_to_webhook_event_receipts_table.rs"]
 mod event_expiry_migration;
@@ -183,6 +185,10 @@ impl WebhookClientServiceProvider {
             openrust::database::migrations::MigrationEntry::new(
                 "vendor/openrust/webhook-client/database/migrations/2026_11_25_000012_add_webhook_attachment_cleanup_lease.rs",
                 &attachment_cleanup_migration::MIGRATION,
+            ),
+            openrust::database::migrations::MigrationEntry::new(
+                "vendor/openrust/webhook-client/database/migrations/2026_11_25_000013_create_webhook_dispatch_intents_table.rs",
+                &dispatch_intents_migration::MIGRATION,
             ),
         ];
         ENTRIES

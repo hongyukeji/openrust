@@ -309,6 +309,17 @@ impl WebhookStore for DeferredStore {
                 .await
         })
     }
+    fn store_for_dispatch_recovery<'a>(
+        &'a self,
+        webhook: &'a crate::VerifiedWebhook<'_>,
+        dispatcher: &'a dyn WebhookJobDispatcher,
+    ) -> HttpFuture<'a, Result<()>> {
+        Box::pin(async move {
+            self.resolve()?
+                .store_for_dispatch_recovery(webhook, dispatcher)
+                .await
+        })
+    }
     fn store_webhook<'a>(
         &'a self,
         webhook: &'a crate::VerifiedWebhook<'_>,
@@ -358,6 +369,9 @@ impl DeferredJob {
 impl WebhookJobDispatcher for DeferredJob {
     fn prepare(&self, call: &WebhookCall) -> Result<()> {
         self.resolve()?.prepare(call)
+    }
+    fn recovery_route(&self) -> Result<crate::jobs::RecoveryDispatch> {
+        self.resolve()?.recovery_route()
     }
     fn dispatch_in_transaction<'a>(
         &'a self,

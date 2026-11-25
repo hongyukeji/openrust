@@ -2,6 +2,7 @@ mod attachment_cleanup;
 mod attachments;
 pub use attachment_cleanup::AttachmentCleanupReport;
 mod attempts;
+mod dispatch_recovery;
 mod identity;
 mod lease;
 mod retention;
@@ -13,7 +14,7 @@ use http::{
 };
 pub(crate) use lease::{DeferredWakeup, ProcessingClaim, ProcessingOutcome};
 use openrust::{
-    database::{Connection, Row, Value},
+    database::{Connection, Row, Transaction, Value},
     http::HttpFuture,
     support::Str,
 };
@@ -31,6 +32,13 @@ pub trait WebhookStore: Send + Sync {
         _dispatcher: &'a dyn crate::WebhookJobDispatcher,
     ) -> HttpFuture<'a, Result<()>> {
         Box::pin(async { Err(Error::InvalidConfig("atomic_database_queue")) })
+    }
+    fn store_for_dispatch_recovery<'a>(
+        &'a self,
+        _webhook: &'a VerifiedWebhook<'_>,
+        _dispatcher: &'a dyn crate::WebhookJobDispatcher,
+    ) -> HttpFuture<'a, Result<()>> {
+        Box::pin(async { Err(Error::InvalidConfig("recover_dispatch")) })
     }
     fn payload<'a>(&'a self, _id: &'a str) -> HttpFuture<'a, Result<Option<Json>>> {
         Box::pin(async { Err(Error::PayloadUnsupported) })
@@ -176,7 +184,7 @@ impl DatabaseWebhookStore {
 
     async fn rollback_receipt(
         &self,
-        transaction: &mut openrust::database::Transaction,
+        transaction: &mut Transaction,
         id: &str,
         attachment: Option<&attachments::AttachmentReference>,
     ) -> Result<()> {
@@ -185,6 +193,75 @@ impl DatabaseWebhookStore {
             self.discard_attachment(id, attachment).await;
         }
         Ok(())
+    }
+
+    async fn store_with_dispatch(
+        &self,
+        webhook: &VerifiedWebhook<'_>,
+        dispatcher: &dyn crate::WebhookJobDispatcher,
+        recover: bool,
+    ) -> Result<()> {
+        let identity = identity::EventIdentity::from_verified(&self.scope, webhook);
+        let clock = self.clock();
+        if let Some(identity) = &identity
+            && identity.already_received(&self.connection, clock).await?
+        {
+            return Ok(());
+        }
+        let PreparedReceipt {
+            call,
+            row,
+            attachment,
+        } = self.prepare(webhook).await?;
+        let mut transaction = self.connection.begin_transaction().await?;
+        if let Err(error) = transaction.table("webhook_calls").insert(&[row]).await {
+            self.rollback_receipt(&mut transaction, call.id(), attachment.as_ref())
+                .await?;
+            return Err(error.into());
+        }
+        if let Some(identity) = &identity {
+            let persisted = async {
+                let record = identity.record(&mut transaction, call.id(), clock).await?;
+                transaction
+                    .table("webhook_event_receipts")
+                    .insert(&[record])
+                    .await?;
+                Ok::<(), Error>(())
+            }
+            .await;
+            if let Err(error) = persisted {
+                self.rollback_receipt(&mut transaction, call.id(), attachment.as_ref())
+                    .await?;
+                if identity.already_received(&self.connection, clock).await? {
+                    return Ok(());
+                }
+                return Err(error);
+            }
+        }
+        let queued = async {
+            if attachment.is_some() {
+                self.finish_attachment(&mut transaction, call.id()).await?;
+            }
+            dispatcher.prepare(&call)?;
+            if recover {
+                let route = dispatcher.recovery_route()?.encode()?;
+                self.record_dispatch_intent(&mut transaction, call.id(), route)
+                    .await
+            } else {
+                dispatcher
+                    .dispatch_in_transaction(&call, &mut transaction)
+                    .await
+            }
+        }
+        .await;
+        match queued {
+            Ok(()) => transaction.commit().await.map_err(Into::into),
+            Err(error) => {
+                self.rollback_receipt(&mut transaction, call.id(), attachment.as_ref())
+                    .await?;
+                Err(error)
+            }
+        }
     }
 
     async fn read_body(&self, row: &Row) -> Result<Vec<u8>> {
@@ -233,63 +310,15 @@ impl WebhookStore for DatabaseWebhookStore {
         webhook: &'a VerifiedWebhook<'_>,
         dispatcher: &'a dyn crate::WebhookJobDispatcher,
     ) -> HttpFuture<'a, Result<()>> {
-        Box::pin(async move {
-            let identity = identity::EventIdentity::from_verified(&self.scope, webhook);
-            let clock = self.clock();
-            if let Some(identity) = &identity
-                && identity.already_received(&self.connection, clock).await?
-            {
-                return Ok(());
-            }
-            let PreparedReceipt {
-                call,
-                row,
-                attachment,
-            } = self.prepare(webhook).await?;
-            let mut transaction = self.connection.begin_transaction().await?;
-            if let Err(error) = transaction.table("webhook_calls").insert(&[row]).await {
-                self.rollback_receipt(&mut transaction, call.id(), attachment.as_ref())
-                    .await?;
-                return Err(error.into());
-            }
-            if let Some(identity) = &identity {
-                let persisted = async {
-                    let record = identity.record(&mut transaction, call.id(), clock).await?;
-                    transaction
-                        .table("webhook_event_receipts")
-                        .insert(&[record])
-                        .await?;
-                    Ok::<(), Error>(())
-                }
-                .await;
-                if let Err(error) = persisted {
-                    self.rollback_receipt(&mut transaction, call.id(), attachment.as_ref())
-                        .await?;
-                    if identity.already_received(&self.connection, clock).await? {
-                        return Ok(());
-                    }
-                    return Err(error);
-                }
-            }
-            let queued = async {
-                if attachment.is_some() {
-                    self.finish_attachment(&mut transaction, call.id()).await?;
-                }
-                dispatcher.prepare(&call)?;
-                dispatcher
-                    .dispatch_in_transaction(&call, &mut transaction)
-                    .await
-            }
-            .await;
-            match queued {
-                Ok(()) => transaction.commit().await.map_err(Into::into),
-                Err(error) => {
-                    self.rollback_receipt(&mut transaction, call.id(), attachment.as_ref())
-                        .await?;
-                    Err(error)
-                }
-            }
-        })
+        Box::pin(self.store_with_dispatch(webhook, dispatcher, false))
+    }
+
+    fn store_for_dispatch_recovery<'a>(
+        &'a self,
+        webhook: &'a VerifiedWebhook<'_>,
+        dispatcher: &'a dyn crate::WebhookJobDispatcher,
+    ) -> HttpFuture<'a, Result<()>> {
+        Box::pin(self.store_with_dispatch(webhook, dispatcher, true))
     }
     fn prunable(&self, days: u32, limit: u32) -> HttpFuture<'_, Result<Vec<String>>> {
         Box::pin(self.prunable_ids(days, limit))
@@ -395,7 +424,7 @@ impl WebhookStore for DatabaseWebhookStore {
         })
     }
 }
-fn text<'a>(row: &'a Row, key: &str) -> Result<&'a str> {
+pub(crate) fn text<'a>(row: &'a Row, key: &str) -> Result<&'a str> {
     match row.get(key) {
         Some(Value::Text(value)) => Ok(value),
         _ => Err(Error::InvalidRecord),

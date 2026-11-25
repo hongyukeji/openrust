@@ -64,6 +64,7 @@ struct ConfiguredQueue {
     after_commit: bool,
     capture_context_on_dispatch: bool,
     synchronous: bool,
+    failover: bool,
     default_queue: String,
     batch_backend: BatchBackend,
 }
@@ -320,6 +321,12 @@ impl QueueManager {
     /// 检查连接是否使用内联或仅限当前进程生命周期的驱动。
     pub fn connection_is_synchronous(&self, name: Option<&str>) -> QueueResult<bool> {
         Ok(self.resolve(name)?.synchronous)
+    }
+
+    /// 判断具名连接是否直接交付给 Worker。内建 failover 可能转入仅进程内的连接。
+    pub fn connection_is_direct_worker_queue(&self, name: &str) -> QueueResult<bool> {
+        let connection = self.resolve(Some(name))?;
+        Ok(!connection.synchronous && !connection.failover)
     }
 
     pub fn without_interruption_polling(&self) {
@@ -1157,6 +1164,7 @@ impl QueueManager {
                 after_commit: settings.after_commit,
                 capture_context_on_dispatch: true,
                 synchronous: settings.driver == "sync",
+                failover: false,
                 batch_backend: BatchBackend::Unsupported,
             });
             let mut connections = self
@@ -1182,6 +1190,7 @@ impl QueueManager {
                 settings.driver.as_str(),
                 "sync" | "null" | "deferred" | "background"
             ),
+            failover: settings.driver == "failover",
             default_queue: settings.queue.clone().unwrap_or_else(|| "default".into()),
             batch_backend,
         });

@@ -809,7 +809,7 @@ def check_attachment_storage(binary, env, root, port, driver, sql):
             assert sql("SELECT COUNT(*) FROM webhook_attachment_staging") == "0"
 
     def expect_guarded_rollback():
-        result = subprocess.run([str(binary), "artisan", "migrate:rollback", "--step=1", "--force"],
+        result = subprocess.run([str(binary), "artisan", "migrate:rollback", "--path=vendor/openrust/webhook-client/database/migrations/2026_11_25_000012_add_webhook_attachment_cleanup_lease.rs", "--force"],
                                 env=current, capture_output=True, text=True, timeout=20)
         assert result.returncode != 0, result.stdout + result.stderr
 
@@ -914,7 +914,7 @@ def check_attachment_storage(binary, env, root, port, driver, sql):
             assert sql("SELECT COUNT(*) FROM webhook_attachment_staging") == "0"
 
             expect_guarded_rollback()
-            preview = command(binary, current, "migrate:rollback", "--step=1", "--pretend", "--force")
+            preview = command(binary, current, "migrate:rollback", "--path=vendor/openrust/webhook-client/database/migrations/2026_11_25_000012_add_webhook_attachment_cleanup_lease.rs", "--pretend", "--force")
             assert "webhook_attachment_staging" in preview
             record = json.loads(command(binary, current, "webhooks:record", receipt, scope))
             assert bytes(record["body"]) == body
@@ -951,6 +951,146 @@ def check_attachment_storage(binary, env, root, port, driver, sql):
             http_helpers["stop"](server)
     print(f"{driver}: 附件 Storage 7 个真实 HTTP、3 次 Worker；私有对象、并发去重、篡改拒绝、事务解绑、崩溃补偿、并发清理与回滚保护通过")
 
+
+def check_dispatch_recovery(binary, env, root, port, driver, sql):
+    from concurrent.futures import ThreadPoolExecutor
+
+    scope = "webhook-recovery-scope"
+    redis = os.environ.get("OPENRUST_TEST_WEBHOOK_REDIS_URL")
+    redis_container = os.environ.get("OPENRUST_TEST_WEBHOOK_REDIS_CONTAINER")
+    assert not redis or redis_container, "Redis 验收需要隔离容器名称"
+    connection = "redis" if redis else "foreign-database"
+    current = env | {"FIXTURE_RECOVERY_QUEUE": connection}
+    if redis:
+        current |= {"REDIS_URL": redis, "REDIS_PREFIX": root.name + ":",
+                    "REDIS_QUEUE_RETRY_AFTER": "8"}
+        current.pop("REDIS_USERNAME", None)
+        current.pop("REDIS_PASSWORD", None)
+    sweep = ("webhook-client:recover", "--scope=" + scope, "--limit=1")
+    body = b"durable exact bytes\x00\xff"
+    initial = sql(f"SELECT COUNT(*) FROM webhook_calls WHERE scope='{scope}'")
+
+    def pending_count():
+        if not redis:
+            return int(sql("SELECT COUNT(*) FROM jobs"))
+        count = subprocess.check_output(
+            ["docker", "exec", redis_container, "redis-cli", "LLEN",
+             current["REDIS_PREFIX"] + "queues:webhook-recovery"], text=True, timeout=15,
+        )
+        return int(count)
+
+    def send(profile, status):
+        client = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+        try:
+            client.request("POST", f"/api/package/{profile}", body, {
+                "Content-Type": "application/octet-stream",
+                "Signature": hmac.new(SECRET.encode(), body, hashlib.sha256).hexdigest(),
+            })
+            response = client.getresponse()
+            assert response.status == status, (response.status, response.read())
+        finally:
+            client.close()
+
+    with (root / "dispatch-recovery-crash.log").open("w+") as log:
+        server = http_helpers["serve"](binary, current | {"FIXTURE_CRASH_AFTER_DURABLE_COMMIT": "1"}, log)
+        try:
+            try:
+                send("recovery", 200)
+            except http.client.RemoteDisconnected:
+                pass
+            else:
+                raise AssertionError("预期在提交接收记录和待派发意图后退出")
+            assert server.wait(timeout=10) == 80
+        finally:
+            if server.poll() is None:
+                http_helpers["stop"](server)
+    assert sql("SELECT COUNT(*) FROM webhook_dispatch_intents") == "1"
+    assert pending_count() == 0
+
+    with (root / "dispatch-recovery-http.log").open("w+") as log:
+        server = http_helpers["serve"](binary, current, log)
+        try:
+            send("recovery-null", 500)
+            send("recovery-failover", 500)
+            assert sql(f"SELECT COUNT(*) FROM webhook_calls WHERE scope='{scope}'") == str(int(initial) + 1)
+            assert sql("SELECT COUNT(*) FROM webhook_dispatch_intents") == "1"
+            send("recovery", 200)
+            send("recovery", 200)
+        finally:
+            http_helpers["stop"](server)
+
+    receipt = sql(f"SELECT id FROM webhook_calls WHERE scope='{scope}' AND name='recovery'")
+    assert re.fullmatch(r"[0-9a-f-]{36}", receipt)
+    route = json.loads(sql(f"SELECT route FROM webhook_dispatch_intents WHERE call_id='{receipt}'"))
+    assert set(route) == {"connection", "queue", "job", "options"}
+    assert (route["connection"], route["queue"], route["job"]) == (connection, "webhook-recovery", "accepted")
+    assert route["options"]["timeout"]["secs"] == 4 and SECRET not in json.dumps(route)
+    assert pending_count() == 0
+    assert "可派发 0 条" in command(binary, current, "webhook-client:recover",
+                                      "--scope=wrong-scope", "--pretend")
+    assert "可派发 1 条" in command(binary, current, *sweep, "--pretend")
+    assert sql("SELECT COUNT(claim_token) FROM webhook_dispatch_intents") == "0"
+
+    rollback = subprocess.run([str(binary), "artisan", "migrate:rollback", "--step=1", "--force"],
+                              env=current, capture_output=True, text=True, timeout=20)
+    assert rollback.returncode != 0 and "仍有待派发" in rollback.stdout + rollback.stderr, rollback
+
+    def expire_claim():
+        write_database(driver, sql,
+                       f"UPDATE webhook_dispatch_intents SET available_at=0 WHERE call_id='{receipt}'")
+
+    # 队列不可用时仍保留已确认的接收记录，以及可恢复的队列快照。
+    broken = {"FIXTURE_FOREIGN_QUEUE_TABLE": "missing_webhook_recovery_jobs"}
+    if redis:
+        with socket.socket() as unused:
+            unused.bind(("127.0.0.1", 0))
+            broken = {"REDIS_URL": f"redis://127.0.0.1:{unused.getsockname()[1]}"}
+            failure = subprocess.run([str(binary), "artisan", *sweep], env=current | broken,
+                                     capture_output=True, text=True, timeout=25)
+    else:
+        failure = subprocess.run([str(binary), "artisan", *sweep], env=current | broken,
+                                 capture_output=True, text=True, timeout=25)
+    assert failure.returncode != 0 and "1 条待重试" in failure.stdout, failure
+    assert sql("SELECT COUNT(claim_token) FROM webhook_dispatch_intents") == "1"
+    assert "可派发 0 条" in command(binary, current, *sweep, "--pretend")
+    expire_claim()
+
+    if redis:
+        # Redis 已保存任务，但同步队列事件使本进程在清除派发意图前退出。
+        crash = subprocess.run([str(binary), "artisan", *sweep],
+                               env=current | {"FIXTURE_CRASH_AFTER_REDIS_ENQUEUE": "1"},
+                               capture_output=True, text=True, timeout=25)
+        assert crash.returncode == 79, crash
+        assert pending_count() == 1
+        assert sql("SELECT COUNT(claim_token) FROM webhook_dispatch_intents") == "1"
+        assert "可派发 0 条" in command(binary, current, *sweep, "--pretend")
+        expire_claim()
+
+    def dispatch():
+        # 进程配置可变化，已接收的记录仍使用持久路由。
+        result = command(binary, current | {"FIXTURE_RECOVERY_QUEUE": "null"}, *sweep)
+        return int(re.search(r"已派发 (\d+) 条", result)[1])
+
+    with ThreadPoolExecutor(max_workers=2) as runners:
+        outcomes = sorted(run.result() for run in (runners.submit(dispatch), runners.submit(dispatch)))
+    assert outcomes == [0, 1]
+    assert pending_count() == (2 if redis else 1)
+    assert sql("SELECT COUNT(*) FROM webhook_dispatch_intents") == "0"
+    marker = root / "dispatch-recovered-worker.json"
+    worker = ("queue:work", connection, "--queue=webhook-recovery", "--once")
+    worker_env = current | {"FIXTURE_SPATIE_SECRET": "independent-worker-key"}
+    command(binary, worker_env | {"WEBHOOK_TEST_RECEIPT_OUTPUT": str(marker)}, *worker)
+    record = json.loads(marker.read_text())
+    assert bytes(record["body"]) == body and record["revision"] == "recover-v1"
+    assert int(sql(f"SELECT processed_at FROM webhook_calls WHERE id='{receipt}'")) > 0
+    if redis:
+        duplicate = root / "dispatch-duplicate-worker.json"
+        command(binary, worker_env | {"WEBHOOK_TEST_RECEIPT_OUTPUT": str(duplicate)}, *worker)
+        assert not duplicate.exists()
+    assert pending_count() == 0
+    print(f"{driver}: 恢复派发经 {connection} 实测 5 个 HTTP、"
+          f"{2 if redis else 1} 次 Worker；队列故障、提交后重启、独占领取与迁移保护通过",
+          flush=True)
 
 def main():
  driver,url=helpers["database_settings"]();binary=args.binary.resolve();requests=workers=0
@@ -1150,8 +1290,9 @@ def main():
   check_verification_audit(binary,env,root,port,driver,sql)
   check_attachment_storage(binary,env,root,port,driver,sql)
   check_retention(binary,env,root,port,driver,sql)
+  check_dispatch_recovery(binary,env,root,port,driver,sql)
   legacy_id=sql("SELECT id FROM webhook_calls WHERE name='default' ORDER BY id LIMIT 1")
-  assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate:rollback","--step=11","--force")
+  assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate:rollback","--step=12","--force")
   assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate","--force")
   legacy=json.loads(command(binary,env,"webhooks:record",legacy_id,"webhook-acceptance"))
   assert bytes(legacy["body"])==b"default" and legacy["payload"] is None and legacy["attachments"] is None

@@ -4,6 +4,7 @@ use crate::{
     storage::{DeferredWakeup, ProcessingClaim, ProcessingOutcome},
 };
 use crate::{Error, Result, WebhookJobDispatcher, WebhookStore, models::WebhookCall};
+mod recovery;
 use openrust::{
     bus::Bus,
     contracts::queue::JobHandler,
@@ -13,6 +14,7 @@ use openrust::{
         QueueFacade, QueueFuture, QueueManager, QueueResult,
     },
 };
+pub use recovery::{DispatchRecoveryReport, RecoveryDispatch};
 use std::{sync::Arc, time::Duration};
 
 /// 应用业务处理器从其注册的存储读取载荷及附件。
@@ -111,7 +113,7 @@ impl QueuedWebhookJob {
         handler: Arc<dyn ProcessWebhookJob>,
         lease_seconds: u32,
     ) -> Result<()> {
-        Self::register_leased(queue, name, store, handler, lease_seconds, None)
+        Self::register_leased(queue, job_name(name)?, store, handler, lease_seconds, None)
     }
 
     /// 延期时在同一数据库事务中记录业务状态并创建下次原生队列任务。
@@ -128,12 +130,19 @@ impl QueuedWebhookJob {
         {
             return Err(Error::InvalidConfig("deferred_processing_policy"));
         }
-        Self::register_leased(queue, name, store, handler, lease_seconds, Some(policy))
+        Self::register_leased(
+            queue,
+            job_name(name)?,
+            store,
+            handler,
+            lease_seconds,
+            Some(policy),
+        )
     }
 
     fn register_leased(
         queue: &QueueManager,
-        name: &str,
+        name: String,
         store: Arc<DatabaseWebhookStore>,
         handler: Arc<dyn ProcessWebhookJob>,
         lease_seconds: u32,
@@ -143,7 +152,7 @@ impl QueuedWebhookJob {
             return Err(Error::InvalidConfig("processing_lease_seconds"));
         }
         queue.register(
-            &job_name(name)?,
+            &name,
             Arc::new(RegisteredJob {
                 store: store.clone(),
                 handler,
@@ -177,7 +186,7 @@ impl QueuedWebhookJob {
                         revision: &revision,
                     };
                     receipt.validate()?;
-                    let route = DeferredRoute::decode(&route)?;
+                    let route = QueueRoute::decode(&route)?;
                     let payload = route.payload(receipt)?;
                     route.enqueue(&queue, payload, None, transaction).await
                 })
@@ -198,6 +207,10 @@ impl QueuedWebhookJob {
 }
 
 impl WebhookJobDispatcher for QueuedWebhookJob {
+    fn recovery_route(&self) -> Result<RecoveryDispatch> {
+        self.snapshot_recovery_route()
+    }
+
     fn dispatch_in_transaction<'a>(
         &'a self,
         call: &'a WebhookCall,
@@ -399,7 +412,7 @@ impl RegisteredJob {
         (seconds, policy): (u32, DeferredProcessingPolicy),
     ) -> QueueResult<bool> {
         let manager = QueueFacade::manager()?;
-        let route = DeferredRoute {
+        let route = QueueRoute {
             connection: context.connection().to_owned(),
             queue: context.queue().to_owned(),
             job: payload
@@ -436,14 +449,14 @@ impl RegisteredJob {
 
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-struct DeferredRoute {
+struct QueueRoute {
     connection: String,
     queue: String,
     job: String,
     options: JobOptions,
 }
 
-impl DeferredRoute {
+impl QueueRoute {
     fn encode(&self) -> Result<String> {
         let value = serde_json::to_string(self).map_err(|_| Error::InvalidRecord)?;
         if value.len() > 16 * 1024 {

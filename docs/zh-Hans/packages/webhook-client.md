@@ -2,7 +2,7 @@
 
 ## 支持状态 {#support-status}
 
-可选包 `openrust-webhook-client` 提供具名配置、类型化实现工厂、显式回调路由、`WebhookController`、手动 `WebhookProcessor` 和按范围隔离的数据库接收记录。应用提供任务派发实现。数据库接收支持按已验签的事件 ID 去重，可显式启用。恢复扫描和 Storage 磁盘引用尚未提供。保存记录及派发成功不代表业务完成，包不会自动安装公开回调路由。
+可选包 `openrust-webhook-client` 提供具名配置、类型化实现工厂、显式回调路由、`WebhookController`、手动 `WebhookProcessor` 和按范围隔离的数据库接收记录。应用提供任务派发实现。数据库接收支持按已验签的事件 ID 去重，可显式启用。支持显式开启恢复扫描和私有 Storage 磁盘引用。保存记录及派发成功不代表业务完成，包不会自动安装公开回调路由。
 
 ## 启用与配置 {#configuration}
 
@@ -143,11 +143,26 @@ Provider 注册 `webhook_calls` 迁移，使用 `DatabaseWebhookStore` 前运行
 
 实现 `jobs::ProcessWebhookJob` 处理已保存的接收记录。在 HTTP 和 Worker 共用的应用 Provider 中，调用 `QueuedWebhookJob::register`，传入原生 `QueueManager`、稳定名称、可信范围的存储及处理器。再按 `process_webhook_job` 选择的名称注册 `QueuedWebhookJob` 派发器。不同存储范围使用各自的注册名。Worker 对照原记录核对 ID、范围、配置名和修订号后才调用处理器。
 
-派发器可指定队列连接和名称，原生 `JobOptions` 控制尝试次数、退避及超时。业务策略由处理器决定。队列载荷保存接收记录标识，Worker 直接读取已验收的记录，无需接收方的验签密钥。处理器失败时记录固定异常，下次尝试清除上次诊断。跨后端派发恢复及幂等仍待完成。请选择由 Worker 消费的连接。派发器拒绝内置 sync、null、deferred 和 background 连接，并要求队列返回已入队结果。
+派发器可指定队列连接和名称，原生 `JobOptions` 控制尝试次数、退避及超时。业务策略由处理器决定。队列载荷保存接收记录标识，Worker 直接读取已验收的记录，无需接收方的验签密钥。处理器失败时记录固定异常，下次尝试清除上次诊断。请选择由 Worker 消费的连接。派发器拒绝内置 sync、null、deferred 和 background 连接，并要求队列返回已入队结果。
 
 ### 同事务保存接收记录与数据库队列任务 {#atomic-database-queue}
 
 在配置中设置 `atomic_database_queue: true`，或在运行时调用 `with_atomic_database_queue(true)`。让 `DatabaseWebhookStore` 和 `QueuedWebhookJob` 使用同一应用数据库连接。接收记录和队列任务一起提交后才返回 HTTP 确认，队列写入失败时一并回滚。其他驱动或分开的连接实例会被拒绝，即使指向同一个数据库。该选项默认关闭，开启后覆盖入队前的进程退出窗口。签名协议提供已认证事件 ID 时，可启用事件去重。
+
+### 接收记录提交后恢复派发 {#dispatch-recovery}
+
+在 profile 中设置 `recover_dispatch: true`，或在 Rust 中调用 `with_dispatch_recovery(true)`。运行 `./artisan migrate`。此模式在同一事务中提交已验签接收记录和待派发意图，再返回配置的 HTTP 确认。该 profile 的 `atomic_database_queue` 须关闭。
+
+在接收器、恢复进程和 Worker 中调用 `QueuedWebhookJob::register_with_database_recovery` 注册带租约的处理器，使用一致的处理器名称、接收数据库及范围。通过派发器的 `on_connection` 和 `on_queue` 明确指定持久队列连接和队列名。任务超时必须为正值，且比 Worker 租约至少短两秒。内建进程内连接和 failover 连接会被拒绝。Redis 等持久直连队列可以与接收数据库分开运行。
+
+为每个接收范围调度有界命令，并将已保存的队列连接名始终映射到同一队列后端。使用 `--database` 选择具名接收连接。
+
+```sh
+./artisan webhook-client:recover --scope=billing/site-a --limit=100 --pretend
+./artisan webhook-client:recover --scope=billing/site-a --limit=100
+```
+
+派发失败时保留意图，命令以失败状态退出。60 秒后可再次领取。队列已接受任务、恢复进程却在清除意图前退出时，重试可能产生重复队列任务。各 Worker 共享接收记录的领取与完成状态。业务副作用须实现幂等，以应对处理过程中的中断。
 
 ### 多 Worker 领取接收记录 {#processing-lease}
 
@@ -159,13 +174,13 @@ Provider 注册 `webhook_calls` 迁移，使用 `DatabaseWebhookStore` 前运行
 
 ### 按已验签事件去重 {#verified-event-deduplication}
 
-在 profile 中启用 `atomic_database_queue: true` 和 `deduplicate_verified_events: true`，并运行 `./artisan migrate`。运行时配置可同时使用 `with_verified_event_deduplication(true)` 和 `with_atomic_database_queue(true)`。`standard` 验证器提供签名覆盖的 `webhook-id`，该模式要求 ID 不含半角句点。自定义验证器可在确认签名覆盖稳定事件 ID 后，通过 `SignatureValidator::verified_event_id` 提供该 ID。默认 HMAC 仅覆盖正文，无法提供事件 ID。启用去重时，验证器不能提供有效 ID 则拒绝接收。为每个来源账号配置独立的 scope 或 profile。
+在 profile 中选择 `atomic_database_queue: true` 或 `recover_dispatch: true`，再启用 `deduplicate_verified_events: true`，并运行 `./artisan migrate`。运行时配置可结合所选派发选项使用 `with_verified_event_deduplication(true)`。`standard` 验证器提供签名覆盖的 `webhook-id`，该模式要求 ID 不含半角句点。自定义验证器可在确认签名覆盖稳定事件 ID 后，通过 `SignatureValidator::verified_event_id` 提供该 ID。默认 HMAC 仅覆盖正文，无法提供事件 ID。启用去重时，验证器不能提供有效 ID 则拒绝接收。为每个来源账号配置独立的 scope 或 profile。
 
 接收记录、去重键和原生队列任务在同一事务提交。相同 ID 和请求内容的重试返回配置的确认响应，只保存一条接收记录及一条任务。同一 scope 和 profile 内，已使用的 ID 携带不同的 HTTP 方法、原始路径和查询串、正文或 Content-Type 时返回 HTTP 409。签名时间戳、签名和凭据修订允许在重试时变化。去重键随接收记录保留，接收记录的保留期应覆盖供应商的重投递窗口。默认关闭。
 
 ### 无稳定事件 ID 时按请求摘要去重 {#body-deduplication}
 
-在启用 `atomic_database_queue: true` 的 profile 中将 `deduplicate_body_seconds` 设为 1–3,600。运行时可同时调用 `with_body_deduplication(seconds)` 和 `with_atomic_database_queue(true)`。每个 profile 选择已验签事件 ID 去重或摘要窗口去重。接收方在通过验签和 Profile 筛选后应用窗口。
+在启用 `atomic_database_queue: true` 或 `recover_dispatch: true` 的 profile 中将 `deduplicate_body_seconds` 设为 1–3,600。运行时可结合所选派发选项调用 `with_body_deduplication(seconds)`。每个 profile 选择已验签事件 ID 去重或摘要窗口去重。接收方在通过验签和 Profile 筛选后应用窗口。
 
 窗口以首次接受请求时的数据库时间起算。摘要涵盖 HTTP 方法、原始路径和查询串、原始正文及 Content-Type。窗口内完全相同的请求共用一条接收记录及任务，过期后可创建新记录，早先的接收记录仍可读取。只有在业务允许把窗口内完全相同的合法请求视为重试时，才启用此模式。
 
@@ -211,4 +226,4 @@ Provider 注册 `webhook_calls` 迁移，使用 `DatabaseWebhookStore` 前运行
 
 ## 使用边界 {#scope}
 
-应用网络与任务执行复用现有 [HTTP 客户端](../digging-deeper/http-client.md)和[队列](../digging-deeper/queues.md)。持久恢复、完整投递状态机仍未实现。
+应用网络与任务执行复用现有 [HTTP 客户端](../digging-deeper/http-client.md)和[队列](../digging-deeper/queues.md)。持久恢复覆盖已提交的接收记录派发。各队列后端和部署拓扑需分别验收。

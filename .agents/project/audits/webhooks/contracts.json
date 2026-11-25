@@ -86,7 +86,7 @@
       "status": "controller_entry_verified",
       "parent_classes": [],
       "declared_public_properties": [],
-      "notes": "公开 invoke 与原生 Handler 共用已实现 Processor；当前匹配路由配置由 Provider 解析。普通签名／配置错误默认500，原始正文413；显式应用 CSRF 排除，三库真实 HTTP／Artisan Worker 与缓存前后已验。解析载荷和附件、原生处理 Job 已分批验收。跨后端恢复及远端附件清理仍待验，不据本入口关闭 WH-02。",
+      "notes": "公开 invoke 与原生 Handler 共用已实现 Processor；当前匹配路由配置由 Provider 解析。普通签名／配置错误默认500，原始正文413；显式应用 CSRF 排除，三库真实 HTTP／Artisan Worker 与缓存前后已验。解析载荷和附件、原生处理 Job 已分批验收。可选持久派发模式有独立验收。远端附件清理待验，WH-02 保持开放。",
       "evidence": [
         "tests/webhooks_routes_acceptance.py"
       ],
@@ -135,7 +135,7 @@
       "declared_public_properties": [
         "guarded"
       ],
-      "notes": "store_webhook／headers_to_store／header_bag／headers／save_exception／clear_exception 与 find 保留，具体 SQL 独立 storage。UUID／unix seconds／base64 原文字节与受限异常诊断仍为 Rust 适配。本批持久化 JSON／form／query 输入，get_attachments 从持久 multipart 原文返回原生上传对象分组。旧 PHP 内嵌载荷导入、Eloquent 继承及可恢复状态仍待核定。保留期清理由独立包命令及模型 prunable 存储委托提供，三库核对范围、已终态、活跃和预演。可选私有 Storage 引用支持按范围读回原文和上传组。同事务登记过期对象并由有界、可重试的附件清理命令回收，三库已验本地磁盘。通用 model:prune 及远端／跨主机附件仍开放。",
+      "notes": "store_webhook／headers_to_store／header_bag／headers／save_exception／clear_exception 与 find 保留，具体 SQL 独立 storage。UUID／unix seconds／base64 原文字节与受限异常诊断仍为 Rust 适配。本批持久化 JSON／form／query 输入，get_attachments 从持久 multipart 原文返回原生上传对象分组。旧 PHP 内嵌载荷导入及 Eloquent 继承仍待核定。保留期清理由独立包命令及模型 prunable 存储委托提供，三库核对范围、已终态、活跃和预演。可选私有 Storage 引用支持按范围读回原文和上传组。同事务登记过期对象并由有界、可重试的附件清理命令回收，三库已验本地磁盘。通用 model:prune 及远端／跨主机附件仍开放。",
       "evidence": [
         "vendor/openrust/webhook-client/tests/processor.rs",
         "tests/webhooks_receiver_acceptance.py",
@@ -274,7 +274,7 @@
       "status": "partial_processor_runtime_verified",
       "parent_classes": [],
       "declared_public_properties": [],
-      "notes": "new／process 手动入口与公开 Controller 共用验签→Profile→模型委托保存→prepare→clear_exception→dispatch→响应；构造失败与异常顺序已验。类型化 Runtime 在所属 App 上下文构造及执行并恢复调用者；HTTP 同次请求借用支持请求依赖。载荷和数据库附件读取、原生 Job、同库原子入队、可选已验签事件 ID 去重与 Worker 领取已各自验收。可选有限摘要窗口覆盖无稳定 ID 的来源。可靠恢复和完整生命周期仍待补，不据本入口关闭 WH-02 或 WH-03。",
+      "notes": "new／process 手动入口与公开 Controller 共用验签→Profile→模型委托保存→prepare→clear_exception→dispatch→响应；构造失败与异常顺序已验。类型化 Runtime 在所属 App 上下文构造及执行并恢复调用者；HTTP 同次请求借用支持请求依赖。载荷和数据库附件读取、原生 Job、同库原子入队、可选已验签事件 ID 去重与 Worker 领取已各自验收。可选有限摘要窗口覆盖无稳定 ID 的来源。可选恢复派发在同一事务记录接收与派发意图，并由有界 Artisan 扫描尝试入列。入列后完整生命周期及双拓扑仍待验，WH-02、WH-03 保持开放。",
       "evidence": [
         "vendor/openrust/webhook-client/tests/processor.rs",
         "tests/webhooks_receiver_acceptance.py",

@@ -324,8 +324,15 @@ impl openrust_webhook_client::jobs::ProcessWebhookJob for FixtureJob {
         store: &'a dyn openrust_webhook_client::WebhookStore,
     ) -> HttpFuture<'a, openrust_webhook_client::Result<()>> {
         Box::pin(async move {
-            assert_eq!(context.connection(), "database");
-            assert_eq!(context.queue(), "webhook-receipts");
+            if call.name() == "recovery" {
+                let expected = std::env::var("FIXTURE_RECOVERY_QUEUE")
+                    .unwrap_or_else(|_| "foreign-database".into());
+                assert_eq!(context.connection(), expected);
+                assert_eq!(context.queue(), "webhook-recovery");
+            } else {
+                assert_eq!(context.connection(), "database");
+                assert_eq!(context.queue(), "webhook-receipts");
+            }
             if (call.raw_body() == b"retry-binary-receipt" && context.attempts() == 1)
                 || call.raw_body() == b"terminal-binary-receipt"
             {
@@ -536,6 +543,27 @@ impl openrust::contracts::events::Listener for RejectAuditListener {
         })
     }
 }
+struct CrashAfterRedisEnqueue;
+impl openrust::contracts::events::Listener for CrashAfterRedisEnqueue {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn openrust::contracts::events::Event,
+        _: &'a mut openrust::events::EventContext<'_>,
+    ) -> openrust::events::EventFuture<
+        'a,
+        openrust::events::EventResult<Option<openrust::events::ListenerResponse>>,
+    > {
+        Box::pin(async move {
+            if event
+                .downcast_ref::<openrust::queue::events::JobQueued>()
+                .is_some_and(|event| event.queue == "webhook-recovery")
+            {
+                std::process::exit(79);
+            }
+            Ok(None)
+        })
+    }
+}
 struct FixtureProvider;
 impl openrust::support::ServiceProvider for FixtureProvider {
     fn register<'a>(
@@ -636,6 +664,32 @@ impl openrust::support::ServiceProvider for FixtureProvider {
             )?;
             WebhookRuntime::register_job_dispatcher(
                 openrust::contracts::foundation::Application::container(app),
+                "recovery",
+                |config, container| {
+                    use openrust::contracts::container::Container as _;
+                    let env = container.make::<openrust::config::Environment>()?;
+                    let connection = match config.name() {
+                        "recovery-null" => "null",
+                        "recovery-failover" => "failover",
+                        _ => env
+                            .get_utf8("FIXTURE_RECOVERY_QUEUE")
+                            .map_err(runtime_error)?
+                            .unwrap_or("foreign-database"),
+                    };
+                    Ok(std::sync::Arc::new(
+                        openrust_webhook_client::jobs::QueuedWebhookJob::new("accepted")?
+                            .on_connection(connection)
+                            .on_queue("webhook-recovery")
+                            .with_options(openrust::queue::JobOptions {
+                                max_tries: Some(2),
+                                timeout: Some(std::time::Duration::from_secs(4)),
+                                ..Default::default()
+                            }),
+                    ))
+                },
+            )?;
+            WebhookRuntime::register_job_dispatcher(
+                openrust::contracts::foundation::Application::container(app),
                 "factory-fails",
                 |_, _| {
                     Err(openrust_webhook_client::Error::InvalidConfig(
@@ -667,6 +721,11 @@ impl openrust::support::ServiceProvider for FixtureProvider {
                 openrust::contracts::foundation::Application::container(app),
                 "custom",
                 |_, _| Ok(std::sync::Arc::new(CustomResponse)),
+            )?;
+            WebhookRuntime::register_webhook_response(
+                openrust::contracts::foundation::Application::container(app),
+                "recovery-response",
+                |_, _| Ok(std::sync::Arc::new(RecoveryResponse)),
             )?;
             WebhookRuntime::register_webhook_store(
                 openrust::contracts::foundation::Application::container(app),
@@ -703,6 +762,19 @@ impl openrust::support::ServiceProvider for FixtureProvider {
                         openrust::events::Delivery::Sync,
                     )?;
             }
+            if std::env::var_os("FIXTURE_CRASH_AFTER_REDIS_ENQUEUE").is_some() {
+                use openrust::contracts::{
+                    container::Container as _, events::Dispatcher as _,
+                    foundation::Application as _,
+                };
+                app.container()
+                    .get::<openrust::events::Dispatcher>("events")?
+                    .listen(
+                        openrust::queue::events::JobQueued::NAME,
+                        std::sync::Arc::new(CrashAfterRedisEnqueue),
+                        openrust::events::Delivery::Sync,
+                    )?;
+            }
             let queue = app.make::<openrust::queue::QueueManager>().await?;
             let manager = app.make::<openrust::database::DatabaseManager>().await?;
             for profile in ["hint", "hint-standard"] {
@@ -724,6 +796,16 @@ impl openrust::support::ServiceProvider for FixtureProvider {
                     std::sync::Arc::new(FixtureJob),
                 )?;
             }
+            openrust_webhook_client::jobs::QueuedWebhookJob::register_with_database_recovery(
+                &queue,
+                "accepted",
+                std::sync::Arc::new(openrust_webhook_client::DatabaseWebhookStore::new(
+                    manager.connection(None)?,
+                    "webhook-recovery-scope",
+                )?),
+                std::sync::Arc::new(FixtureJob),
+                6,
+            )?;
             openrust_webhook_client::jobs::QueuedWebhookJob::register_with_database_lease(
                 &queue,
                 "leased",
@@ -768,6 +850,19 @@ impl SignatureValidator for CustomValidator {
                 .contains("webhook-client-custom")
         })?);
         DefaultSignatureValidator.is_valid(request, config)
+    }
+}
+struct RecoveryResponse;
+impl RespondsToWebhook for RecoveryResponse {
+    fn respond_to_valid_webhook(
+        &self,
+        request: &WebhookRequest,
+        config: &openrust_webhook_client::WebhookConfig,
+    ) -> openrust_webhook_client::Result<Response> {
+        if std::env::var_os("FIXTURE_CRASH_AFTER_DURABLE_COMMIT").is_some() {
+            std::process::exit(80);
+        }
+        openrust_webhook_client::DefaultRespondsTo.respond_to_valid_webhook(request, config)
     }
 }
 struct CustomResponse;
@@ -824,6 +919,9 @@ fn api_routes() -> Result<(), openrust::routing::RoutingError> {
         "atomic",
         "atomic-null",
         "atomic-foreign",
+        "recovery",
+        "recovery-null",
+        "recovery-failover",
         "leased",
         "deferred",
         "event-dedup",
@@ -1070,7 +1168,7 @@ async fn main() -> ExitCode {
             config.get_mut("database").unwrap()["connections"]["fixture-foreign"]=alias;
             // 原子派发须覆盖普通连接的提交后派发默认值。
             config.get_mut("queue").unwrap()["connections"]["database"]["after_commit"]=json!(true);
-            config.get_mut("queue").unwrap()["connections"]["foreign-database"]=json!({"driver":"database","connection":"fixture-foreign","table":"jobs","queue":"webhook-receipts"});
+            config.get_mut("queue").unwrap()["connections"]["foreign-database"]=json!({"driver":"database","connection":"fixture-foreign","table":env.get_utf8("FIXTURE_FOREIGN_QUEUE_TABLE")?.unwrap_or("jobs"),"queue":"webhook-receipts"});
             config.insert("webhook-client".into(),json!({"add_unique_token_to_route_name": env.get_utf8("FIXTURE_UNIQUE_ROUTES")?==Some("true"),"configs":[
                 {"name":"spatie","revision":"one","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"fixture","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database"},
                 {"name":"no-attachments","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"fixture","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","store_attachments":false},
@@ -1084,6 +1182,9 @@ async fn main() -> ExitCode {
                 {"name":"unregistered","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"unregistered","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database"},
                 {"name":"event-dedup","signing_secret":{"env":"FIXTURE_STANDARD_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"standard","webhook_profile":"process-everything","webhook_model":"database","atomic_database_queue":true,"deduplicate_verified_events":true},
                 {"name":"event-other","signing_secret":{"env":"FIXTURE_STANDARD_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"standard","webhook_profile":"process-everything","webhook_model":"database","atomic_database_queue":true,"deduplicate_verified_events":true},
+                {"name":"recovery","revision":"recover-v1","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-recovery-scope","process_webhook_job":"recovery","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","recover_dispatch":true,"deduplicate_body_seconds":300,"webhook_response":"recovery-response"},
+                {"name":"recovery-null","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-recovery-scope","process_webhook_job":"recovery","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","recover_dispatch":true},
+                {"name":"recovery-failover","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-recovery-scope","process_webhook_job":"recovery","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","recover_dispatch":true},
                 {"name":"attachment-disk","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","atomic_database_queue":true,"attachment_disk":"local","deduplicate_body_seconds":30},
                 {"name":"attachment-plain","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"fixture","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","attachment_disk":"local"},
                 {"name":"attachment-disabled","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"fixture","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","attachment_disk":"local","store_attachments":false},

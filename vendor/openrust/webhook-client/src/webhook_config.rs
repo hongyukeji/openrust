@@ -90,10 +90,32 @@ impl WebhookConfig {
         self
     }
 
+    pub fn recover_dispatch(&self) -> Result<bool> {
+        match self.options.get("recover_dispatch") {
+            None | Some(Value::Null) => Ok(false),
+            Some(Value::Bool(enabled)) if !enabled || !self.atomic_database_queue()? => {
+                Ok(*enabled)
+            }
+            _ => Err(Error::InvalidConfig("recover_dispatch")),
+        }
+    }
+
+    pub fn with_dispatch_recovery(mut self, enabled: bool) -> Self {
+        if self.options.is_null() {
+            self.options = serde_json::json!({});
+        }
+        self.options["recover_dispatch"] = Value::Bool(enabled);
+        self
+    }
+
     pub fn deduplicate_verified_events(&self) -> Result<bool> {
         match self.options.get("deduplicate_verified_events") {
             None | Some(Value::Null) => Ok(false),
-            Some(Value::Bool(enabled)) if !enabled || self.atomic_database_queue()? => Ok(*enabled),
+            Some(Value::Bool(enabled))
+                if !enabled || self.atomic_database_queue()? || self.recover_dispatch()? =>
+            {
+                Ok(*enabled)
+            }
             _ => Err(Error::InvalidConfig("deduplicate_verified_events")),
         }
     }
@@ -111,7 +133,9 @@ impl WebhookConfig {
         if value.is_null() {
             return Ok(None);
         }
-        if !self.atomic_database_queue()? || self.deduplicate_verified_events()? {
+        if (!self.atomic_database_queue()? && !self.recover_dispatch()?)
+            || self.deduplicate_verified_events()?
+        {
             return Err(Error::InvalidConfig("deduplicate_body_seconds"));
         }
         value
@@ -358,6 +382,7 @@ impl WebhookConfig {
         config.store_attachments()?;
         config.attachment_disk()?;
         config.atomic_database_queue()?;
+        config.recover_dispatch()?;
         config.deduplicate_verified_events()?;
         config.body_deduplication_window()?;
         if let Some(names) = value.get("store_headers").filter(|names| !names.is_null()) {

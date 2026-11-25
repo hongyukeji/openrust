@@ -40,6 +40,10 @@ pub trait WebhookJobDispatcher: Send + Sync {
     fn prepare(&self, _: &WebhookCall) -> Result<()> {
         Ok(())
     }
+    /// 固化供独立恢复进程使用的具名队列路由。
+    fn recovery_route(&self) -> Result<crate::jobs::RecoveryDispatch> {
+        Err(Error::InvalidConfig("recover_dispatch"))
+    }
     fn dispatch_in_transaction<'a>(
         &'a self,
         _call: &'a WebhookCall,
@@ -236,6 +240,13 @@ impl<'a> WebhookProcessor<'a> {
             event_id: event_id.as_deref(),
             body_deduplication_window: self.config.body_deduplication_window()?,
         };
+        if self.config.recover_dispatch()? {
+            self.runtime
+                .store
+                .store_for_dispatch_recovery(&verified, self.runtime.job.as_ref())
+                .await?;
+            return self.create_response();
+        }
         if self.config.atomic_database_queue()? {
             self.runtime
                 .store
