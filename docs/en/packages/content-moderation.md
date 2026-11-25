@@ -2,7 +2,7 @@
 
 Enable the `content-moderation` feature or register `ModerationServiceProvider` in an application that depends on `openrust-content-moderation`. Run `./artisan vendor:publish --tag=moderation-config` to publish the configuration template. In your application's Rust configuration, set `moderation.drivers.comments.driver` to `review-text` and set `MODERATION_DRIVER=comments` for the default profile.
 
-The package provides custom driver contracts, Alibaba Cloud text and stored-image moderation, and Tencent Cloud text and image moderation. The other provider operations and durable video orchestration are being implemented.
+The package provides custom driver contracts, Alibaba Cloud text and stored-image moderation, Tencent Cloud text and image moderation, and Sightengine text moderation. The other provider operations and durable video orchestration are being implemented.
 
 ## Alibaba Cloud text {#aliyun-text}
 
@@ -29,6 +29,12 @@ Chinese hints map to `zh`. Set `english_text: true` once Tencent Cloud has enabl
 Add `image_biz_type` with the standard image policy configured in Tencent Cloud. A profile can use images alone or in combination with text. The standard `ImageModeration` adapter sends inline image bytes as Base64 (at least 16 bytes before encoding and under 10 MB after encoding), or a five-minute URL pinned to a private S3 object version. For stored images, set `media_disk` and `media_origin` to the authorized HTTPS storage origin.
 
 The adapter preserves risk findings from visual and OCR results with their original scores. Tencent Cloud may sample frames or split long images. Its synchronous response provides no proof of full coverage, so a provider `Pass` remains inconclusive. OCR text, matched keywords, and temporary links stay out of reported results. [Tencent Cloud ImageModeration](https://cloud.tencent.com/document/product/1125/53273)
+
+## Sightengine text {#sightengine-text}
+
+Set `driver: "sightengine"`, `api_user_env` and `api_secret_env` in a named profile. Supply the language codes enabled for that profile in `text_languages`. For `text_mode: "rules"`, configure `text_categories`, such as `["profanity", "personal"]`. For `text_mode: "ml"`, set `text_models` and a `text_review_score` from 0 to 1. The `self-harm` model requires `text_languages: ["en"]`.
+
+The adapter preserves the rule or model label for each finding and the original score for ML findings. Findings at or above the configured threshold require review. Missing results for a configured category or class leave text coverage partial. The adapter accepts up to 10,000 Unicode characters and keeps matched text and API credentials out of results and logs. [Rules](https://sightengine.com/docs/text-moderation-rule-based) · [ML models](https://sightengine.com/docs/text-moderation-ml-models)
 
 ## Custom drivers {#custom-drivers}
 

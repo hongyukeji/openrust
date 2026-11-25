@@ -2,7 +2,7 @@
 
 启用 `content-moderation` 功能，或在依赖 `openrust-content-moderation` 的应用中注册 `ModerationServiceProvider`。执行 `./artisan vendor:publish --tag=moderation-config` 发布配置模板。在应用的 Rust 配置中将 `moderation.drivers.comments.driver` 设为 `review-text`，并通过 `MODERATION_DRIVER=comments` 选择默认配置。
 
-当前包提供自定义驱动契约、阿里云文本和已存储图片审核，以及腾讯云文本和图片审核。其他供应商操作及持久化视频编排正在实施。
+当前包提供自定义驱动契约、阿里云文本和已存储图片审核，腾讯云文本和图片审核，以及 Sightengine 文本审核。其他供应商操作及持久化视频编排正在实施。
 
 ## 阿里云文本 {#aliyun-text}
 
@@ -29,6 +29,12 @@
 用 `image_biz_type` 指定已开通的标准图片策略。具名配置可单独启用图片，也可同文本共用。标准 `ImageModeration` 接收内联图片的 Base64（原始内容至少 16 字节，编码后小于 10 MB），也可用五分钟有效、固定私有 S3 对象版本的签名链接。存储图片需要配置 `media_disk` 和已授权的 HTTPS `media_origin`。
 
 适配器保留画面和 OCR 的风险结果与原始分数。腾讯云可能抽帧或切分长图，同步响应无法证明完整覆盖，因此厂商返回 `Pass` 时仍无法得出放行结论。识别正文、命中词和临时链接不进入对外结果。 [腾讯云 ImageModeration](https://cloud.tencent.com/document/product/1125/53273)
+
+## Sightengine 文本 {#sightengine-text}
+
+在具名配置设置 `driver: "sightengine"`、`api_user_env` 和 `api_secret_env`，在 `text_languages` 列出启用的语言代码。`text_mode: "rules"` 使用 `text_categories`，例如 `["profanity", "personal"]`。`text_mode: "ml"` 使用 `text_models` 和 0 至 1 的 `text_review_score`。`self-harm` 模型要求 `text_languages: ["en"]`。
+
+适配器保留规则或模型标签及 ML 命中的原始分数。分数达到配置阈值时进入复审，缺少已配置类别的结果时覆盖为部分。最多接收 10,000 个 Unicode 字符，命中的原文和 API 凭据不进入结果或日志。 [规则](https://sightengine.com/docs/text-moderation-rule-based) · [ML 模型](https://sightengine.com/docs/text-moderation-ml-models)
 
 ## 自定义驱动 {#custom-drivers}
 

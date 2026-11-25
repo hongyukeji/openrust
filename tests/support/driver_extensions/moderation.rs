@@ -67,6 +67,24 @@ pub(super) fn configuration(env: &Environment) -> Result<Value, ConfigError> {
         }
         configuration["drivers"]["tencent-images"] = images;
     }
+    if let Some(endpoint) = env.get_utf8("MODERATION_FIXTURE_SIGHTENGINE")? {
+        let mut text = json!({
+            "driver":"sightengine", "base_url":endpoint, "api_user_env":"FIXTURE_SIGHTENGINE_USER",
+            "api_secret_env":"FIXTURE_SIGHTENGINE_SECRET", "timeout_ms":350,
+        });
+        let mut rules = text.clone();
+        rules["text_mode"] = json!("rules");
+        rules["text_languages"] = json!(["en", "zh"]);
+        rules["text_categories"] = json!(["profanity", "personal"]);
+        configuration["drivers"]["sightengine-rules"] = rules;
+        text["text_mode"] = json!("ml");
+        text["text_languages"] = json!(["en"]);
+        text["text_models"] = json!(["general", "self-harm"]);
+        text["text_review_score"] = json!(0.8);
+        configuration["drivers"]["sightengine-ml"] = text.clone();
+        text["text_languages"] = json!(["en", "fr"]);
+        configuration["drivers"]["sightengine-bad-ml"] = text;
+    }
     Ok(configuration)
 }
 
@@ -289,6 +307,28 @@ pub(super) fn tencent_image_route(
     })
 }
 
+async fn sightengine(text: &str, language: Option<&str>, profile: &str) -> ModerationResult<Value> {
+    let mut input = TextInput::new(text)?;
+    if let Some(language) = language {
+        input = input.with_language(language)?;
+    }
+    let result = Moderation::driver(profile)?.text(&input).await?;
+    Ok(render_assessment(result, Modality::Text))
+}
+
+pub(super) fn sightengine_route(
+    request: &mut Request,
+) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let raw = request.body_bytes().await?;
+        let text = std::str::from_utf8(&raw).map_err(|_| HttpError::InvalidRequest)?;
+        let profile = request
+            .header("x-fixture-profile")?
+            .unwrap_or("sightengine-rules");
+        provider_response(sightengine(text, request.header("x-fixture-language")?, profile).await)
+    })
+}
+
 fn provider_response(result: ModerationResult<Value>) -> Result<Response, HttpError> {
     match result {
         Ok(value) => Response::json(StatusCode::OK, value),
@@ -396,6 +436,10 @@ pub(super) fn register_command(artisan: &mut Artisan) -> Result<(), ConsoleError
                     .action(clap::ArgAction::SetTrue),
             ),
     ))))?;
+    artisan.add_command(Box::new(SightengineProbe(CommandDefinition::new(
+        clap::Command::new("drivers:moderation-sightengine")
+            .arg(clap::Arg::new("text").required(true)),
+    ))))?;
     artisan.add_command(Box::new(TencentProbe(CommandDefinition::new(
         clap::Command::new("drivers:moderation-tencent")
             .arg(clap::Arg::new("text").required(true))
@@ -405,6 +449,36 @@ pub(super) fn register_command(artisan: &mut Artisan) -> Result<(), ConsoleError
                     .action(clap::ArgAction::SetTrue),
             ),
     ))))
+}
+
+struct SightengineProbe(CommandDefinition);
+
+impl Command for SightengineProbe {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+
+    fn handle<'a>(
+        &'a self,
+        _: &'a Application,
+        input: &'a Input,
+        output: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            let text = input.argument("text").expect("fixture command input");
+            let result = sightengine(
+                text.as_str().expect("fixture text"),
+                None,
+                "sightengine-rules",
+            )
+            .await
+            .map_err(ConsoleError::from_source)?;
+            output
+                .write_raw(&format!("{result}\n"))
+                .map_err(ConsoleError::from_source)?;
+            Ok(0)
+        })
+    }
 }
 
 struct TencentProbe(CommandDefinition);

@@ -1,5 +1,6 @@
 mod aliyun;
 mod media;
+mod sightengine;
 mod tencent;
 mod tencent_image;
 
@@ -31,6 +32,15 @@ pub(crate) fn register(
             client.clone(),
             &environment,
             media.clone(),
+            profile,
+        )?))
+    });
+    let client = http.clone();
+    let environment = env.clone();
+    manager.extend("sightengine", move |profile| {
+        Ok(Arc::new(sightengine::Sightengine::new(
+            client.clone(),
+            &environment,
             profile,
         )?))
     });
