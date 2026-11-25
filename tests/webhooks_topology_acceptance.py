@@ -252,7 +252,7 @@ def object_storage(enabled):
 
 
 def exercise(binary, driver, url, redis, redis_url, interruption, storage_env, object_request, ownership,
-             local_file_cache=False):
+             local_file_cache=False, scaling=False):
     count = 1 if driver == "sqlite" or local_file_cache else 2
     queue = "redis" if redis else "database"
     cache = "file" if local_file_cache else queue
@@ -264,7 +264,8 @@ def exercise(binary, driver, url, redis, redis_url, interruption, storage_env, o
         sql = lambda statement: helpers["database_rows"](helpers["database_container"](), statement).strip()
 
         lb = start_server(stack, RoundRobin)
-        lb.ports = reserve_ports(count)
+        lb.ports = reserve_ports(count + int(scaling))
+        lb.active = tuple(range(count))
         lb.cursor = 0
         lb.mutex = threading.Lock()
         receiver = start_server(stack, send["Receiver"])
@@ -305,6 +306,7 @@ def exercise(binary, driver, url, redis, redis_url, interruption, storage_env, o
         if redis:
             common |= {"REDIS_URL": redis_url, "REDIS_PREFIX": root.name + ":", "REDIS_CACHE_DB": "0"}
         nodes = []
+        processes = {}
         for index, port in enumerate(lb.ports):
             directory = root / f"node-{index}"
             directory.mkdir()
@@ -321,6 +323,7 @@ def exercise(binary, driver, url, redis, redis_url, interruption, storage_env, o
             log = stack.enter_context((Path(nodes[node]["APP_BASE_PATH"]) / "http.log").open("a+"))
             env = nodes[node] | extra | ({"FIXTURE_CRASH_AFTER_DURABLE_COMMIT": "1"} if crash else {})
             process = http_helpers["serve"](binary, env, log)
+            processes[node] = process
             stack.callback(http_helpers["stop"], process)
             return process
 
@@ -840,6 +843,54 @@ def exercise(binary, driver, url, redis, redis_url, interruption, storage_env, o
         print(f"{driver}/{queue}: {count} 个 HTTP 节点，缓存前后 HTTP、独立 Artisan/Worker、共享附件、HTTP 与 Worker 退出后恢复、调度选举、同步／异步投递及共享限额通过")
         if local_file_cache:
             print(f"{driver}/file: 两个本机 Artisan 调度进程共享文件锁，仅一次扫描和一次入队", flush=True)
+        if scaling:
+            event_id = "topology-scale-event"
+            event_body = b'{"source":"topology-scaling"}'
+            event_time = str(int(time.time()))
+            signing_key = base64.b64decode(routes["STANDARD"][6:])
+            signature_input = f"{event_id}.{event_time}.".encode() + event_body
+            event_signature = hmac.new(signing_key, signature_input, hashlib.sha256).digest()
+            event_headers = {"webhook-id": event_id, "webhook-timestamp": event_time,
+                             "webhook-signature": "v1," + base64.b64encode(event_signature).decode()}
+
+            def post_event(_=None):
+                return post("package/event-dedup", event_body, 200, "application/json", event_headers)[0]
+
+            assert post_event() in (0, 1)
+            saved_receipt = receipt("event-dedup", event_body)
+            key = "topology-scale-outbound"
+            _, delivery = post(f"outbound/normal/{key}", send["BODY"], 202)
+            outgoing_id = delivery["id"]
+            assert re.fullmatch("[0-9a-f]{64}", outgoing_id)
+            artisan(0, "webhook-server:send", outgoing_id, "--scope=" + send["SCOPE"], "--queue")
+            assert ready_jobs(queue, "webhook-outgoing") == 1
+
+            artisan(2, "config:cache")
+            artisan(2, "route:cache")
+            start(2)
+            with lb.mutex:
+                lb.active, lb.cursor = (0, 1, 2), 0
+            with ThreadPoolExecutor(max_workers=3) as pool:
+                assert sorted(pool.map(post_event, range(3))) == [0, 1, 2]
+            assert receipt("event-dedup", event_body) == saved_receipt
+            assert ready_jobs("database", "webhook-receipts") == 1
+
+            with lb.mutex:
+                lb.active, lb.cursor = (2,), 0
+            for node in (0, 1):
+                http_helpers["stop"](processes[node])
+            assert post_event() == 2
+            marker = Path(nodes[2]["APP_BASE_PATH"]) / "scale-receipt.json"
+            work(2, "webhook-receipts", "database", marker)
+            record = json.loads(marker.read_text())
+            assert record["id"] == saved_receipt and bytes(record["body"]) == event_body
+            work(2, "webhook-outgoing")
+            assert sql(f"SELECT state,attempts FROM webhook_deliveries WHERE id='{outgoing_id}'") == "succeeded\t1"
+            (_, headers, body), = receiver.received[key]
+            assert body == send["BODY"]
+            assert hmac.compare_digest(headers["Signature"], hmac.new(send["SECRET"], body, hashlib.sha256).hexdigest())
+            assert ready_jobs("database", "webhook-receipts") == ready_jobs(queue, "webhook-outgoing") == 0
+            print(f"{driver}/{queue}: 同一制品 2→3→1 节点，收件和投递身份、独立 Worker 交接及验签通过", flush=True)
 
 
 if __name__ == "__main__":
@@ -849,11 +900,12 @@ if __name__ == "__main__":
     use_storage = os.environ.get("OPENRUST_TEST_WEBHOOK_TOPOLOGY_S3") == "1"
     ownership = os.environ.get("OPENRUST_TEST_WEBHOOK_TOPOLOGY_OWNERSHIP") == "1"
     local_file_cache = os.environ.get("OPENRUST_TEST_WEBHOOK_TOPOLOGY_FILE_CACHE") == "1"
-    assert database != "sqlite" or not (use_redis or interruption or use_storage or ownership)
-    assert not local_file_cache or not (use_redis or interruption or use_storage or ownership)
+    scaling = os.environ.get("OPENRUST_TEST_WEBHOOK_TOPOLOGY_SCALING") == "1"
+    assert database != "sqlite" or not (use_redis or interruption or use_storage or ownership or scaling)
+    assert not local_file_cache or not (use_redis or interruption or use_storage or ownership or scaling)
     with redis_backend(use_redis) as (container, endpoint, version), \
             object_storage(use_storage) as (storage_env, object_request):
         if version:
             print(version, flush=True)
         exercise(routes["args"].binary.resolve(), database, database_url, container, endpoint,
-                 interruption, storage_env, object_request, ownership, local_file_cache)
+                 interruption, storage_env, object_request, ownership, local_file_cache, scaling)

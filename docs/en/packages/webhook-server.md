@@ -381,4 +381,6 @@ Use one writable PostgreSQL or MySQL database for delivery state and limits, and
 
 If the delivery database is unreachable, registration and sending fail. When Redis is unavailable, scheduled recovery can resume pending deliveries after Redis reconnects and the recovery reservation expires. Each delivery stays on its configured queue.
 
+When resizing the application, keep the delivery database and queue configuration available to the remaining Workers. Put a new replica behind the load balancer after its configuration, routes and job handlers are ready. Remove retiring replicas from the load balancer before stopping them.
+
 For an additive schema upgrade, apply the migrations once, drain each old instance from the load balancer and then start its replacement. Keep both versions on the same queue during the transition. Enable new idempotency expiration and cleanup commands after upgrading all writers and cleanup processes.

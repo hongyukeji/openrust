@@ -27,4 +27,10 @@
 
 使用同一个 Rust 1.94.0 制品，设置 `OPENRUST_TEST_WEBHOOK_TOPOLOGY_FILE_CACHE=1`，分别在内嵌 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 启动一个 HTTP 节点，以 database 队列和同一应用目录下的 file 缓存运行。每库由两个独立 `schedule:run` 进程在同一分钟竞争，只有一个进程执行恢复扫描并推送唯一任务。独立 Worker 完成发送，真实收件端验签。各库同时复跑缓存前后同步、接收记录、HTTP／Worker 退出恢复及共享投递额度。file 缓存覆盖依据为当前应用的本地文件目录与同一主机的进程，跨主机配置见上表。
 
+## 同制品扩缩容 {#replica-scaling}
+
+开启 `OPENRUST_TEST_WEBHOOK_TOPOLOGY_SCALING=1`。先在两节点登记同一个签名事件和一笔异步投递，通过独立 Artisan 将投递入列。第三个节点用同一个二进制、独立应用目录和独立配置／路由缓存接入负载均衡。三个节点并发收到同一原文和签名时仍只有一个接收记录和一个接收任务。将前两个节点移出负载均衡并停止进程后，保留节点继续处理重复请求，并由其独立 Worker 处理原先的两项任务。测试核对原接收 ID、原文、原投递 ID、单次成功尝试、收件端 HMAC 和清空的两侧队列。
+
+在 `699ad83cd` 冻结 Rust 源码上实测 PostgreSQL 18.7、MySQL 8.4.13 各搭配 database 及 Redis 8.10.3，四组均通过。MySQL＋Redis 首轮在磁盘停线时由守卫中断，持锁清理后用同一源码及 Rust 1.94.0 重新构建并单独通过。Rust 源码沿用前述格式与严格 Clippy 结果，本批另核对 Python 语法和改动差异。
+
 此验收覆盖 WH-V25、WH-V26 和 WH-V27 的上述路径。WH-V26 已补[同主机双节点共享 S3 附件](shared-object-storage.md)，真实跨主机、托管对象存储、生产入口和目标操作系统仍待验。WH-V27 已补[共享主写库和 Redis 断连与恢复](backend-interruption.md)及[Scheduler 退出、旧 Worker 回归、端点撤销与凭据缺失](cluster-ownership.md)。[同主机两版本滚动升级](rolling-upgrade.md)已覆盖选定的增量迁移。节点时差、真实跨主机与生产升级仍待验收。完整 Webhook 门禁保持开放。
