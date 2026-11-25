@@ -9,6 +9,7 @@ pub mod events;
 mod facade;
 mod factory;
 mod middleware;
+mod multipart_input;
 mod pending_request;
 mod pool;
 mod response;

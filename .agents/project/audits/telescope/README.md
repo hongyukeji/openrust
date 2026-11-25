@@ -91,10 +91,18 @@ Telescope.ignoreFrameworkEvents 使用应用共享 Arc<AtomicBool>，默认 true
 
 `attach` 读取随仓 reqwest `Part` 的构造类型及配置。原生文本和可解码为 UTF-8 的缓冲字节保留字段值，流和其他字节记录文件名、已知长度及配置头部。流即便由缓冲字节构造，也只记录元数据。快照复用现有 `RecordedRequest.multipart`，同时保留部件的线上编码、原请求中的顺序、末项覆盖和脱敏。中间件保留原 multipart 边界但替换正文时，快照仍对应构建参数。
 
-固定 Laravel HTTP Client 与 Telescope 的 PHP 8.5.12 探针验证了预格式化数组。Guzzle 生成的正文包含文本、具名和无名流及非 UTF-8 字节。发送及响应诊断均保留普通文本和有效 UTF-8 字节，即便文本配置了文件名。流与无法编码为 JSON 的字节字段只记录名称、十进制 KB 长度和部件头部。重复字段取末项，未提供头部时输出空数组。证据为 `target/tmp/observability-parity/multipart-native-equivalent-upstream.log`。Rust 通过原生 `Part` 对齐这些部件类型，`as_multipart` 的直接预格式化数组入口仍待对账。
+固定 Laravel HTTP Client 与 Telescope 的 PHP 8.5.12 探针验证了预格式化数组。Guzzle 生成的正文包含文本、具名和无名流及非 UTF-8 字节。发送及响应诊断均保留普通文本和有效 UTF-8 字节，即便文本配置了文件名。流与无法编码为 JSON 的字节字段只记录名称、十进制 KB 长度和部件头部。重复字段取末项，未提供头部时输出空数组。证据为 `target/tmp/observability-parity/multipart-native-equivalent-upstream.log`。Rust 通过原生 `Part` 对齐这些部件类型。
 
 直接预格式化入口的固定探针确认，列表保留提交顺序及重复部件，普通对象中可嵌入 `name`／`contents` 描述项。有效的布尔与数字保留原诊断类型。普通字段允许空值，空值描述项及嵌套数组会被 Guzzle 拒绝。证据为 `target/tmp/observability-parity/multipart-descriptor-shapes-upstream.log`。
+
+固定补充探针核对了字符串名称与文件名、显式 `Content-Disposition`、文件名去目录及空列表。自定义 disposition 能改写线上的字段名，诊断仍使用描述项原名称；显式空列表发送结束边界，诊断为空数组。Rust 的 `as_multipart` 接入描述项列表和混合对象，保留描述项顺序、标量诊断和既有 `attach` 追加规则。普通对象字段的部件默认头部继续沿用已有发送行为。证据为 `target/tmp/observability-parity/multipart-descriptor-extra-upstream.log`。
+
+命名为 `0`、`1`、`0` 的上游探针得到 `["last","one"]`，倒序、稀疏和带前导零的名称得到 JSON 对象。Rust 仍以字段对象记录非空 multipart，连续数字键的数组形状及首次出现顺序待处理。证据为 `target/tmp/observability-parity/multipart-numeric-fields-upstream.log`。
+
+PHP 浮点字段在发送时按字符串转换精度编码，并在诊断中保留原数字。固定探针观察到 `1.0` 发送为 `1`，`1e20` 为 `1.0E+20`，长小数按默认精度舍入。Rust 沿用 JSON 数字编码，浮点发送格式另待对齐。证据为 `target/tmp/observability-parity/multipart-float-fields-upstream.log`。
 
 macOS 的回环 HTTP 同时核对线上字节、重复字段、敏感部件头部、完全脱敏、302 后原始字段、307 重放及重试。未知长度的原生流在发送前未被轮询，传输中消费一次。SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 的专项入库通过。框架 HTTP 客户端 23 项、Telescope Provider 15 项及独立 Redis 8.10.3 的观察和 Redis 缓存用例通过。
 
 Linux 7.0.14 ARM64 同源码通过框架 HTTP 客户端 23 项、Telescope Provider 15 项，独立 Redis 用例按条件忽略。Windows 11 ARM64 通过两项 multipart 真实传输和一项 Telescope SQLite 入库。macOS 严格 Clippy、快照全仓格式、随仓 reqwest 模块格式、三语文档构建及浏览器检查通过。证据为 `target/tmp/observability-parity/multipart-native-part-{macos,macos-redis,linux,windows,fmt,docs}.log`。
+
+预格式化入口在 macOS 和 Linux ARM64 各通过 HTTP 客户端 24 项、Telescope Provider 15 项，Windows 11 ARM64 通过三项 multipart 真实传输及一项 Telescope SQLite 入库。macOS 另通过 PostgreSQL 18.7、MySQL 8.4.13 和 Redis 8.10.3 缓存专项。实测涵盖发送顺序、部件头部、空边界、非法数据在发送前被拒绝、重复字段末项入库和敏感字段脱敏。首次 macOS 构建触及磁盘停线，空间恢复后用相同隔离目录重新构建。相关目标严格 Clippy、隔离快照格式、三语文档构建及浏览器检查均通过。证据为 `target/tmp/observability-parity/multipart-descriptors-{macos,macos-final,macos-redis,linux,windows,docs,fmt}.log`。

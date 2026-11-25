@@ -1722,6 +1722,105 @@ async fn reference_header_replacement_preserves_other_keys_multi_values_and_sink
 }
 
 #[tokio::test]
+async fn multipart_accepts_ordered_descriptors_and_rejects_invalid_values() {
+    use openrust::http::client::RecordedMultipartField;
+
+    async fn echo(body: axum::body::Bytes) -> axum::body::Bytes {
+        body
+    }
+    let (url, task) = serve(Router::new().route("/", any(echo))).await;
+    let factory = Factory::new().unwrap();
+    factory.fake(|_| None);
+    let data = json!([
+        {"name": "dup", "contents": "first"},
+        {"name": "dup", "contents": "last"},
+        {"name": "file", "contents": "ascii", "filename": "input/sample.txt", "headers": {"X-Part": "observed"}},
+        {"name": "logical", "contents": true, "headers": {"Content-Disposition": "form-data; name=\"wire\""}},
+        {"name": "number", "contents": 42},
+        {"name": "false", "contents": false}
+    ]);
+    let response = factory
+        .pending_request()
+        .as_multipart()
+        .post(&url, &data)
+        .await
+        .unwrap();
+    let body = String::from_utf8(response.body().unwrap().to_vec()).unwrap();
+    assert!(body.find("\r\n\r\nfirst\r\n").unwrap() < body.find("\r\n\r\nlast\r\n").unwrap());
+    assert!(body.contains("name=\"file\"; filename=\"sample.txt\""));
+    assert!(body.contains("content-length: 5\r\n"));
+    assert!(body.contains("content-type: text/plain\r\n"));
+    assert!(body.contains("x-part: observed\r\n"));
+    assert!(body.contains("name=\"wire\""));
+    assert!(!body.contains("name=\"logical\""));
+    let recorded = factory.recorded();
+    let fields = recorded[0].0.multipart.as_ref().unwrap();
+    for (name, expected) in [
+        ("dup", json!("last")),
+        ("logical", json!(true)),
+        ("number", json!(42)),
+        ("false", json!(false)),
+    ] {
+        assert!(
+            matches!(&fields[name], RecordedMultipartField::Value(value) if value == &expected)
+        );
+    }
+
+    let mixed =
+        json!({"zeta": "first", "outer": {"name": "renamed", "contents": 2}, "alpha": null});
+    let response = factory
+        .pending_request()
+        .as_multipart()
+        .post(&url, &mixed)
+        .await
+        .unwrap();
+    let body = String::from_utf8(response.body().unwrap().to_vec()).unwrap();
+    let order =
+        ["zeta", "renamed", "alpha"].map(|name| body.find(&format!("name=\"{name}\"")).unwrap());
+    assert!(order[0] < order[1] && order[1] < order[2]);
+    assert!(body.contains("name=\"alpha\"\r\n\r\n\r\n"));
+
+    let response = factory
+        .pending_request()
+        .as_multipart()
+        .post(&url, &json!([]))
+        .await
+        .unwrap();
+    let recorded = factory.recorded();
+    let boundary = recorded[2].0.headers[header::CONTENT_TYPE]
+        .to_str()
+        .unwrap()
+        .split_once("boundary=")
+        .unwrap()
+        .1;
+    assert_eq!(
+        response.body().unwrap().as_ref(),
+        format!("--{boundary}--\r\n").as_bytes()
+    );
+
+    for invalid in [
+        json!([{"name": "null", "contents": null}]),
+        json!([{"name": 0, "contents": "body"}]),
+        json!([{"name": "file", "contents": "body", "filename": 42}]),
+        json!(["unlabelled"]),
+        json!([{"name": "list", "contents": [1, 2]}]),
+        json!({"object": {"contents": "missing name"}}),
+        json!([{"name": "bad", "contents": "body", "headers": {"x-test": "line\n"}}]),
+    ] {
+        assert!(matches!(
+            factory
+                .pending_request()
+                .as_multipart()
+                .post(&url, &invalid)
+                .await,
+            Err(Error::InvalidRequest)
+        ));
+    }
+    assert_eq!(factory.recorded().len(), 3);
+    task.abort();
+}
+
+#[tokio::test]
 async fn multipart_redirect_limits_and_invalid_header_state_use_the_real_transport() {
     use openrust::http::client::RecordedMultipartField;
 

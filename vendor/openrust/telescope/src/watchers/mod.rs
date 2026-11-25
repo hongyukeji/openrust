@@ -789,6 +789,9 @@ fn client_content(
     let payload = request.multipart.as_ref().map_or_else(
         || request.diagnostic_data(),
         |fields| {
+            if fields.is_empty() {
+                return json!([]);
+            }
             Value::Object(
                 fields
                     .iter()

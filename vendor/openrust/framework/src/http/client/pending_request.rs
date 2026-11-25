@@ -724,21 +724,9 @@ impl PendingRequest {
                 let mut fields = BTreeMap::new();
                 if let Some(data) = data {
                     let value = serde_json::to_value(data).map_err(Error::InvalidJson)?;
-                    let serde_json::Value::Object(data_fields) = value else {
-                        return Err(Error::InvalidRequest);
-                    };
-                    for (name, value) in data_fields {
-                        let text = match &value {
-                            serde_json::Value::String(value) => value.clone(),
-                            serde_json::Value::Number(value) => value.to_string(),
-                            serde_json::Value::Bool(value) => {
-                                if *value { "1" } else { "" }.to_owned()
-                            }
-                            serde_json::Value::Null => String::new(),
-                            _ => return Err(Error::InvalidRequest),
-                        };
-                        form = form.text(name.clone(), text);
-                        fields.insert(name, RecordedMultipartField::Value(value));
+                    for (name, part, value) in super::multipart_input::parts(value)? {
+                        fields.insert(name.clone(), RecordedMultipartField::Value(value));
+                        form = form.part(name, part);
                     }
                 }
                 // Laravel 先发送普通字段，然后按登记顺序追加附件。
@@ -756,8 +744,15 @@ impl PendingRequest {
                     form.boundary(),
                 ))
                 .map_err(|_| Error::InvalidRequest)?;
-                multipart = Some((Arc::new(fields), content_type));
-                request.multipart(form)
+                let explicitly_empty = data.is_some() && fields.is_empty();
+                multipart = Some((Arc::new(fields), content_type.clone()));
+                if explicitly_empty {
+                    request
+                        .header(header::CONTENT_TYPE, content_type)
+                        .body(format!("--{}--\r\n", form.boundary()))
+                } else {
+                    request.multipart(form)
+                }
             }
             _ => request,
         };

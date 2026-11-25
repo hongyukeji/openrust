@@ -19,7 +19,7 @@ use futures_util::{future, stream, StreamExt};
 use http_body_util::BodyExt;
 
 use super::Body;
-use crate::header::HeaderMap;
+use crate::header::{HeaderMap, HeaderValue};
 
 /// An async multipart/form-data request.
 pub struct Form {
@@ -45,6 +45,7 @@ pub(crate) struct FormParts<P> {
 pub(crate) struct PartMetadata {
     mime: Option<Mime>,
     file_name: Option<Cow<'static, str>>,
+    content_disposition: Option<HeaderValue>,
     pub(crate) headers: HeaderMap,
 }
 
@@ -383,6 +384,14 @@ impl Part {
         self.with_inner(move |inner| inner.headers(headers))
     }
 
+    /// Sets the disposition for this part in place of the generated one.
+    pub fn with_content_disposition(self, value: HeaderValue) -> Part {
+        self.with_inner(|mut metadata| {
+            metadata.content_disposition = Some(value);
+            metadata
+        })
+    }
+
     fn with_inner<F>(self, func: F) -> Self
     where
         F: FnOnce(PartMetadata) -> PartMetadata,
@@ -517,6 +526,7 @@ impl PartMetadata {
         PartMetadata {
             mime: None,
             file_name: None,
+            content_disposition: None,
             headers: HeaderMap::default(),
         }
     }
@@ -593,6 +603,28 @@ pub(crate) enum PercentEncoding {
 impl PercentEncoding {
     pub(crate) fn encode_headers(&self, name: &str, field: &PartMetadata) -> Vec<u8> {
         let mut buf = Vec::new();
+        if let Some(disposition) = &field.content_disposition {
+            buf.extend_from_slice(b"Content-Disposition: ");
+            buf.extend_from_slice(disposition.as_bytes());
+        } else {
+            self.encode_disposition(&mut buf, name, field);
+        }
+
+        if let Some(mime) = &field.mime {
+            buf.extend_from_slice(b"\r\nContent-Type: ");
+            buf.extend_from_slice(mime.as_ref().as_bytes());
+        }
+
+        for (k, v) in field.headers.iter() {
+            buf.extend_from_slice(b"\r\n");
+            buf.extend_from_slice(k.as_str().as_bytes());
+            buf.extend_from_slice(b": ");
+            buf.extend_from_slice(v.as_bytes());
+        }
+        buf
+    }
+
+    fn encode_disposition(&self, buf: &mut Vec<u8>, name: &str, field: &PartMetadata) {
         buf.extend_from_slice(b"Content-Disposition: form-data; ");
 
         match self.percent_encode(name) {
@@ -621,19 +653,6 @@ impl PercentEncoding {
             buf.extend_from_slice(legal_filename.as_bytes());
             buf.extend_from_slice(b"\"");
         }
-
-        if let Some(mime) = &field.mime {
-            buf.extend_from_slice(b"\r\nContent-Type: ");
-            buf.extend_from_slice(mime.as_ref().as_bytes());
-        }
-
-        for (k, v) in field.headers.iter() {
-            buf.extend_from_slice(b"\r\n");
-            buf.extend_from_slice(k.as_str().as_bytes());
-            buf.extend_from_slice(b": ");
-            buf.extend_from_slice(v.as_bytes());
-        }
-        buf
     }
 
     fn percent_encode<'a>(&self, value: &'a str) -> Cow<'a, str> {

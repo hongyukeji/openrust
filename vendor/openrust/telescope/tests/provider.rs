@@ -1554,7 +1554,10 @@ fn client_handler(
                         )])),
                 )
         };
-        let data = json!({"same":"multipart","secret":"private","enabled":true,"optional":null});
+        let data = json!({"same":"multipart","enabled":true,"optional":null,
+            "descriptor":{"name":"renamed","contents":42,"filename":"typed.txt"},
+            "hidden":{"name":"secret","contents":"private"}
+        });
         assert_eq!(
             multipart()
                 .post(url, &data)
@@ -1698,6 +1701,15 @@ fn client_handler(
                 .unwrap()
                 .ok()
         );
+        assert!(
+            Http::pending_request()
+                .unwrap()
+                .as_multipart()
+                .post(url, &json!([]))
+                .await
+                .unwrap()
+                .ok()
+        );
         Ok(openrust::http::Response::from("observed"))
     })
 }
@@ -1710,7 +1722,7 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
     let redirect_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let redirect_address = redirect_listener.local_addr().unwrap();
     let origin = tokio::spawn(async move {
-        for index in 0..24 {
+        for index in 0..25 {
             let target = if matches!(index, 17 | 19) {
                 &redirect_listener
             } else {
@@ -1801,6 +1813,8 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
                             assert!(body.contains("name=\"utf8-bytes\"\r\n\r\nnative-bytes"));
                             assert!(body.contains("name=\"anonymous\"\r\n\r\nnative-stream"));
                             assert!(body.contains("filename=\"raw.bin\""));
+                            assert!(body.contains("name=\"renamed\"; filename=\"typed.txt\""));
+                            assert!(body.contains("\r\n\r\n42\r\n"));
                             assert!(body.contains("name=\"same\"\r\n\r\nmultipart"));
                             assert!(
                                 body.find("name=\"same\"\r\n\r\nmultipart").unwrap()
@@ -1879,10 +1893,19 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
         .get(Some(EntryType::ClientRequest), EntryQueryOptions::default())
         .await
         .unwrap();
-    assert_eq!(entries.len(), 22);
+    assert_eq!(entries.len(), 23);
+    assert_eq!(entries[0].content["payload"], json!([]));
+    assert_eq!(entries[0].content["response_status"], 200);
+    assert!(
+        entries[0].content["headers"]["content-type"]
+            .as_str()
+            .unwrap()
+            .starts_with("multipart/form-data; boundary=")
+    );
+    let entries = &entries[1..];
     let payload = json!({
         "same":{"name":"replaced.txt","size":"0.008KB","headers":[]},
-        "secret":"********","enabled":true,"optional":null,
+        "secret":"********","enabled":true,"optional":null,"renamed":42,
         "file":{"name":"file.bin","size":"1.5KB","headers":{"content-type":"application/octet-stream","x-secret":"********"}},
         "opaque":"native",
         "utf8-bytes":"native-bytes",
