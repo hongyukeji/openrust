@@ -52,7 +52,7 @@ struct CallConfig {
     respect_retry_after: bool,
     retry_with_jitter: bool,
     webhook_job: String,
-    verify_ssl: Value,
+    verify_ssl: bool,
     throw_exception_on_failure: bool,
     proxy: Value,
     tags: Vec<String>,
@@ -268,6 +268,16 @@ impl WebhookCall {
         self
     }
 
+    pub fn verify_ssl(mut self, verify: bool) -> Self {
+        self.config.verify_ssl = verify;
+        self
+    }
+
+    /// 请求跳过证书和主机名校验。执行时还需应用投递策略明确许可。
+    pub fn do_not_verify_ssl(self) -> Self {
+        self.verify_ssl(false)
+    }
+
     pub fn throw_exception_on_failure(mut self, enabled: bool) -> Self {
         self.config.throw_exception_on_failure = enabled;
         self
@@ -353,8 +363,8 @@ impl CallConfig {
         }) {
             return Err(Error::InvalidConfig("retryable_status_codes"));
         }
-        if self.verify_ssl != Value::Bool(true) || !self.proxy.is_null() {
-            return Err(Error::InvalidConfig("verify_ssl/proxy"));
+        if !self.proxy.is_null() {
+            return Err(Error::InvalidConfig("proxy"));
         }
         for (field, name) in [
             ("webhook_job", Some(self.webhook_job.as_str())),
@@ -484,6 +494,7 @@ impl PreparedWebhook {
             endpoint: self.endpoint.clone(),
             message_ref: None,
             hydrated_body: None,
+            unverified_tls: !self.config.verify_ssl,
         })
     }
 

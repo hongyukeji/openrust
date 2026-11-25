@@ -40,6 +40,10 @@ impl PinnedDestination {
         })
     }
 
+    pub(super) fn is_https(&self) -> bool {
+        matches!(&self.origin, Origin::Tuple(scheme, _, _) if scheme == "https")
+    }
+
     pub(super) fn apply(&self, builder: reqwest::ClientBuilder) -> reqwest::ClientBuilder {
         builder.dns_resolver(Arc::new(PinnedResolver {
             domain: self.domain.clone(),

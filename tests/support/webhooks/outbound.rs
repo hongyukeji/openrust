@@ -79,9 +79,33 @@ impl DeliveryPolicy for FixturePolicy {
             if context.url != url && !fixture_backup {
                 return Ok(None);
             }
-            Ok(Some(
-                DeliveryPermission::new(policy).with_secret(secret.to_owned()),
-            ))
+            let mut permission = DeliveryPermission::new(policy).with_secret(secret.to_owned());
+            if let Some(directory) = std::env::var_os("FIXTURE_SEND_TLS_DIR") {
+                let directory = std::path::PathBuf::from(directory);
+                let read =
+                    |name| std::fs::read(directory.join(name)).map_err(|_| Error::InvalidRecord);
+                match context.message_id {
+                    "tls-insecure-denied" | "tls-default" => {}
+                    "tls-insecure" | "tls-verified-again" => {
+                        permission = permission.allow_unverified_tls();
+                    }
+                    "tls-wrong-ca" => {
+                        permission = permission.with_tls_ca(&read("other-ca.pem")?)?
+                    }
+                    _ => permission = permission.with_tls_ca(&read("ca.pem")?)?,
+                }
+                let pair = match context.message_id {
+                    "tls-client" | "tls-client-unverified" => Some(("client.pem", "client.key")),
+                    "tls-client-wrong" => Some(("other-client.pem", "other-client.key")),
+                    "tls-client-expired" => Some(("expired-client.pem", "expired-client.key")),
+                    "tls-client-mismatched" => Some(("client.pem", "other-client.key")),
+                    _ => None,
+                };
+                if let Some((certificate, key)) = pair {
+                    permission = permission.with_mutual_tls(&read(certificate)?, &read(key)?)?;
+                }
+            }
+            Ok(Some(permission))
         })
     }
 }
@@ -356,6 +380,12 @@ pub(super) fn submit(
             } else {
                 2
             });
+        if mode == "tls-insecure" {
+            call = call.do_not_verify_ssl();
+        }
+        if mode == "tls-verified-again" {
+            call = call.do_not_verify_ssl().verify_ssl(true);
+        }
         if mode == "inline" {
             call = call.use_secret(SECRET);
         }

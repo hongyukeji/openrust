@@ -258,11 +258,17 @@ pub(super) fn build_pinned_client(
     timeout: Duration,
     verify_tls: bool,
     destination: &super::destination::PinnedDestination,
+    tls_ca: Option<Vec<super::TlsCertificate>>,
+    tls_identity: Option<super::TlsIdentity>,
 ) -> Result<reqwest::Client> {
-    destination
-        .apply(client_builder(timeout, verify_tls))
-        .build()
-        .map_err(|_| Error::Configuration)
+    let mut builder = destination.apply(client_builder(timeout, verify_tls));
+    if let Some(ca) = tls_ca {
+        builder = builder.tls_certs_only(ca);
+    }
+    if let Some(identity) = tls_identity {
+        builder = builder.identity(identity);
+    }
+    builder.build().map_err(|_| Error::Configuration)
 }
 
 tokio::task_local! {static WITHOUT_GLOBAL:Vec<usize>;}

@@ -102,6 +102,8 @@ pub struct PendingRequest {
     redact_response: bool,
     connect_timeout: Duration,
     verify_tls: bool,
+    tls_ca: Option<Vec<super::TlsCertificate>>,
+    tls_identity: Option<super::TlsIdentity>,
     unix_socket: Option<std::path::PathBuf>,
     destination: Option<PinnedDestination>,
     timeout: Duration,
@@ -132,6 +134,8 @@ impl PendingRequest {
             redact_response: false,
             connect_timeout: CONNECT_TIMEOUT,
             verify_tls: true,
+            tls_ca: None,
+            tls_identity: None,
             unix_socket: None,
             destination: None,
             timeout: TIMEOUT,
@@ -226,6 +230,18 @@ impl PendingRequest {
     /// 只对当前请求关闭 TLS 证书及主机名校验。
     pub fn without_verifying(mut self) -> Self {
         self.verify_tls = false;
+        self
+    }
+
+    /// 使用指定 CA 取代系统信任库，只用于固定地址的 HTTPS 请求。
+    pub fn with_tls_ca(mut self, certificates: Vec<super::TlsCertificate>) -> Self {
+        self.tls_ca = Some(certificates);
+        self
+    }
+
+    /// 仅向固定地址的 HTTPS 对端出示此客户端证书。
+    pub fn with_tls_identity(mut self, identity: super::TlsIdentity) -> Self {
+        self.tls_identity = Some(identity);
         self
     }
 
@@ -558,11 +574,27 @@ impl PendingRequest {
         if self.timeout.is_zero() || self.connect_timeout.is_zero() {
             return Err(Error::Configuration);
         }
+        if (self.tls_ca.is_some() || self.tls_identity.is_some())
+            && (!self.verify_tls
+                || self.tls_ca.as_ref().is_some_and(Vec::is_empty)
+                || !self
+                    .destination
+                    .as_ref()
+                    .is_some_and(PinnedDestination::is_https))
+        {
+            return Err(Error::Configuration);
+        }
         let client = if let Some(destination) = &self.destination {
             if self.unix_socket.is_some() {
                 return Err(Error::Configuration);
             }
-            build_pinned_client(self.connect_timeout, self.verify_tls, destination)?
+            build_pinned_client(
+                self.connect_timeout,
+                self.verify_tls,
+                destination,
+                self.tls_ca,
+                self.tls_identity,
+            )?
         } else if self.unix_socket.is_some() {
             build_client_with_socket(
                 self.connect_timeout,

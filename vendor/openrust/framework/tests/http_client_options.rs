@@ -243,6 +243,10 @@ async fn certificate_verification_is_disabled_only_for_the_selected_request() {
         pinned().get(&pinned_url).await,
         Err(Error::Connection)
     ));
+    assert!(matches!(
+        pinned().with_tls_ca(Vec::new()).get(&pinned_url).await,
+        Err(Error::Configuration)
+    ));
     assert_eq!(
         pinned()
             .without_verifying()

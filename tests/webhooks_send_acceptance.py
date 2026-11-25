@@ -11,6 +11,7 @@ from pathlib import Path
 import re
 import runpy
 import socket
+import ssl
 import subprocess
 import tempfile
 import threading
@@ -38,6 +39,8 @@ class Receiver(http.server.BaseHTTPRequestHandler):
             deliveries = owner.received.setdefault(key, [])
             path_attempt = 1 + sum(path == self.path for path, _, _ in deliveries)
             deliveries.append((self.path, self.headers, body))
+            if isinstance(self.connection, ssl.SSLSocket):
+                owner.client_certificates[key] = self.connection.getpeercert(binary_form=True)
             attempt = len(deliveries)
         if key in ("concurrent", "crash", "stale", "timeout", "endpoint-inflight") and attempt == 1:
             owner.entered[key].set()
@@ -139,6 +142,56 @@ def exercise(binary, env, log, receiver, driver, sql):
             )
 
     worker = ["queue:work", env.get("FIXTURE_SEND_QUEUE", "database"), "--queue=webhook-outgoing", "--once", "--tries=7"]
+
+    if profile := env.get("FIXTURE_SEND_TLS"):
+        cases = {
+            "server": [
+                ("tls-default", "normal", "unknown"),
+                ("tls-ca", "normal", "succeeded"),
+                ("tls-wrong-ca", "normal", "unknown"),
+                ("tls-insecure-denied", "tls-insecure", "rejected"),
+                ("tls-insecure", "tls-insecure", "succeeded"),
+                ("tls-verified-again", "tls-verified-again", "unknown"),
+                ("redirect", "normal", "http_failure"),
+            ],
+            "mutual": [
+                ("tls-no-client", "normal", "unknown"),
+                ("tls-client", "normal", "succeeded"),
+                ("tls-client-wrong", "normal", "unknown"),
+                ("tls-client-expired", "normal", "unknown"),
+                ("tls-client-mismatched", "normal", "rejected"),
+                ("tls-client-unverified", "tls-insecure", "rejected"),
+            ],
+            "wrong-host": [("tls-ca", "normal", "unknown")],
+            "expired": [("tls-ca", "normal", "unknown")],
+        }[profile]
+        for key, mode, outcome in cases:
+            identifier = submit(key, mode)
+            enqueue(identifier)
+            queue = sql("SELECT payload FROM jobs WHERE queue='webhook-outgoing'")
+            assert identifier in queue and "PRIVATE KEY" not in queue and "BEGIN CERTIFICATE" not in queue
+            command(*worker)
+            status = {"succeeded": 204, "http_failure": 302}.get(outcome, 0)
+            assert attempts(identifier) == f"1\t{outcome}\t{status}", (key, attempts(identifier))
+            snapshot = sql(f"SELECT snapshot FROM webhook_deliveries WHERE id='{identifier}'")
+            assert "PRIVATE KEY" not in snapshot and "FIXTURE_SEND_TLS_DIR" not in snapshot
+            if mode == "tls-insecure":
+                assert json.loads(snapshot)["unverified_tls"] is True
+            else:
+                assert "unverified_tls" not in json.loads(snapshot)
+            if status:
+                captured(key)
+            else:
+                assert key not in receiver.received, key
+        if profile == "mutual":
+            certificate = Path(env["FIXTURE_SEND_TLS_DIR"]) / "client.pem"
+            assert receiver.client_certificates == {
+                "tls-client": ssl.PEM_cert_to_DER_cert(certificate.read_text())
+            }
+        assert not receiver.unexpected
+        assert receiver.tls_names and set(receiver.tls_names) == {"outgoing-fixture.invalid"}
+        print(f"{driver}: TLS {profile} HTTP、Artisan、Worker 及固定连接通过")
+        return
 
     if env.get("FIXTURE_SEND_FANOUT"):
         def admin(operation, name, *options):
@@ -1081,6 +1134,48 @@ def exercise(binary, env, log, receiver, driver, sql):
         assert b"fixture-custom-hook-sensitive" not in output
 
 
+def configure_tls(receiver, folder, profile):
+    def openssl(*tokens):
+        subprocess.run(["openssl", *tokens], cwd=folder, check=True, capture_output=True, timeout=10)
+
+    def ca(name):
+        openssl("req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:P-256",
+                "-noenc", "-subj", f"/CN={name}", "-days", "2",
+                "-keyout", f"{name}.key", "-out", f"{name}.pem")
+
+    def certificate(name, authority, serial, extensions, dates=("-days", "2")):
+        openssl("req", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:P-256",
+                "-noenc", "-subj", f"/CN={name}", "-keyout", f"{name}.key", "-out", f"{name}.csr")
+        config = folder / f"{name}.ext"
+        config.write_text(extensions)
+        openssl("x509", "-req", "-in", f"{name}.csr", "-CA", f"{authority}.pem",
+                "-CAkey", f"{authority}.key", "-set_serial", str(serial), "-extfile",
+                config.name, *dates, "-out", f"{name}.pem")
+
+    old = ("-not_before", "200101000000Z", "-not_after", "200102000000Z")
+    ca("ca")
+    ca("other-ca")
+    domain = "wrong-name.invalid" if profile == "wrong-host" else "outgoing-fixture.invalid"
+    certificate("server", "ca", 1, f"subjectAltName=DNS:{domain}\nextendedKeyUsage=serverAuth\n",
+                old if profile == "expired" else ("-days", "2"))
+    if profile == "mutual":
+        certificate("client", "ca", 2, "extendedKeyUsage=clientAuth\n")
+        certificate("other-client", "other-ca", 3, "extendedKeyUsage=clientAuth\n")
+        certificate("expired-client", "ca", 4, "extendedKeyUsage=clientAuth\n", old)
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    receiver.tls_names = []
+
+    def store_sni(_, name, __):
+        receiver.tls_names.append(name)
+
+    context.set_servername_callback(store_sni)
+    context.load_cert_chain(folder / "server.pem", folder / "server.key")
+    if profile == "mutual":
+        context.verify_mode = ssl.CERT_REQUIRED
+        context.load_verify_locations(folder / "ca.pem")
+    receiver.socket = context.wrap_socket(receiver.socket, server_side=True)
+
+
 def main():
     binary = routes["args"].binary.resolve()
     driver, url = helpers["database_settings"]()
@@ -1088,12 +1183,18 @@ def main():
     receiver.mutex = threading.Lock()
     receiver.received = {}
     receiver.unexpected = []
+    receiver.client_certificates = {}
     receiver.entered = {name: threading.Event() for name in ("crash", "concurrent", "stale", "timeout", "endpoint-inflight")}
     receiver.release = {name: threading.Event() for name in receiver.entered}
     peer = threading.Thread(target=receiver.serve_forever, daemon=True)
-    peer.start()
     try:
         with tempfile.TemporaryDirectory(dir=ROOT / "target/tmp", prefix="webhook-send-") as root:
+            profile = os.environ.get("FIXTURE_SEND_TLS")
+            if profile:
+                tls = Path(root) / "tls"
+                tls.mkdir(mode=0o700)
+                configure_tls(receiver, tls, profile)
+            peer.start()
             with socket.socket() as sock:
                 sock.bind(("127.0.0.1", 0))
                 app_port = sock.getsockname()[1]
@@ -1114,8 +1215,11 @@ def main():
                 "FIXTURE_SEND_ADDRESS": f"127.0.0.1:{receiver.server_port}",
                 "FIXTURE_SEND_EVENTS": str(Path(root) / "delivery-events.jsonl"),
                 "FIXTURE_JOB_HOOK_LOG": str(Path(root) / "job-hooks.jsonl"),
-                "HTTP_PROXY": "http://127.0.0.1:1", "NO_PROXY": "",
+                "HTTP_PROXY": "http://127.0.0.1:1", "HTTPS_PROXY": "http://127.0.0.1:1", "NO_PROXY": "",
             }
+            if profile:
+                env["FIXTURE_SEND_TLS_DIR"] = str(tls)
+                env["FIXTURE_SEND_TARGET"] = env["FIXTURE_SEND_TARGET"].replace("http:", "https:", 1)
             if url:
                 env["DB_URL"] = url
             else:
@@ -1146,12 +1250,13 @@ def main():
                     http_helpers["stop"](app)
         if not (os.environ.get("FIXTURE_SEND_SCHEDULE") or os.environ.get("FIXTURE_SEND_REPLAY")
                 or os.environ.get("FIXTURE_SEND_ENDPOINTS") or os.environ.get("FIXTURE_SEND_LIMITS")
-                or os.environ.get("FIXTURE_SEND_FANOUT")):
+                or os.environ.get("FIXTURE_SEND_FANOUT") or os.environ.get("FIXTURE_SEND_TLS")):
             print(f"{driver}: HTTP 签名和字节、事务回滚、重复领取、重试预算、撤销、超时、崩溃恢复、Builder 分支、投递事件与自定义 Job 通过")
     finally:
-        receiver.shutdown()
+        if peer.ident is not None:
+            receiver.shutdown()
+            peer.join(timeout=5)
         receiver.server_close()
-        peer.join(timeout=5)
 
 
 if __name__ == "__main__":

@@ -24,8 +24,8 @@ pub use factory::{
 pub use middleware::{Middleware, Next};
 pub use pending_request::PendingRequest;
 pub use pool::Pool;
-pub use reqwest::Request;
 pub use reqwest::multipart::{Form, Part};
+pub use reqwest::{Certificate as TlsCertificate, Identity as TlsIdentity, Request};
 pub use response::{Response, TransferStats};
 pub use sink::Sink;
 

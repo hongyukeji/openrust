@@ -12,7 +12,7 @@ use openrust::{
     contracts::container::Container as _,
     http::{
         HttpFuture,
-        client::{Factory, Response},
+        client::{Factory, Response, TlsCertificate, TlsIdentity},
     },
     log::Log,
 };
@@ -27,6 +27,8 @@ use crate::{
     snapshot::Snapshot,
 };
 
+const MAX_TLS_PEM_BYTES: usize = 128 * 1024;
+
 /// 每次领取后交给应用重新授权的投递信息。
 pub struct DeliveryContext<'a> {
     pub scope: &'a str,
@@ -39,6 +41,9 @@ pub struct DeliveryContext<'a> {
 pub struct DeliveryPermission {
     target: TargetPolicy,
     secret: Option<Zeroizing<String>>,
+    tls_ca: Option<Vec<TlsCertificate>>,
+    tls_identity: Option<TlsIdentity>,
+    allow_unverified_tls: bool,
 }
 
 impl DeliveryPermission {
@@ -46,12 +51,63 @@ impl DeliveryPermission {
         Self {
             target,
             secret: None,
+            tls_ca: None,
+            tls_identity: None,
+            allow_unverified_tls: false,
         }
     }
 
     pub fn with_secret(mut self, secret: impl Into<Zeroizing<String>>) -> Self {
         self.secret = Some(secret.into());
         self
+    }
+
+    /// 以应用为当前目的地批准的 CA 链替换系统信任库。
+    pub fn with_tls_ca(mut self, bundle: &[u8]) -> Result<Self> {
+        if bundle.len() > MAX_TLS_PEM_BYTES {
+            return Err(Error::InvalidConfig("delivery.tls_ca"));
+        }
+        let certificates = TlsCertificate::from_pem_bundle(bundle)
+            .map_err(|_| Error::InvalidConfig("delivery.tls_ca"))?;
+        if certificates.is_empty() {
+            return Err(Error::InvalidConfig("delivery.tls_ca"));
+        }
+        self.tls_ca = Some(certificates);
+        Ok(self)
+    }
+
+    /// 从应用加载的 PEM 证书链及私钥建立当前目的地的客户端身份。
+    pub fn with_mutual_tls(mut self, certificate: &[u8], key: &[u8]) -> Result<Self> {
+        if certificate.is_empty()
+            || key.is_empty()
+            || certificate.len().saturating_add(key.len()) > MAX_TLS_PEM_BYTES
+        {
+            return Err(Error::InvalidConfig("delivery.tls_identity"));
+        }
+        let mut identity = Zeroizing::new(Vec::with_capacity(certificate.len() + key.len() + 1));
+        identity.extend_from_slice(certificate);
+        identity.push(b'\n');
+        identity.extend_from_slice(key);
+        self.tls_identity = Some(
+            TlsIdentity::from_pem(&identity)
+                .map_err(|_| Error::InvalidConfig("delivery.tls_identity"))?,
+        );
+        Ok(self)
+    }
+
+    /// 仅在隔离环境中许可显式关闭服务端证书和主机名校验的投递。
+    pub fn allow_unverified_tls(mut self) -> Self {
+        self.allow_unverified_tls = true;
+        self
+    }
+
+    fn permits_tls(&self, snapshot: &Snapshot, https: bool) -> bool {
+        let uses_credentials = self.tls_ca.is_some() || self.tls_identity.is_some();
+        if snapshot.unverified_tls {
+            https && !uses_credentials && self.allow_unverified_tls
+        } else {
+            !uses_credentials || https
+        }
     }
 }
 
@@ -209,7 +265,9 @@ impl DeliveryService {
             .target
             .validate_target(&url)
             .map_err(|_| Error::ReplayDenied)?;
-        if snapshot.credential.is_some() && permission.secret.is_none() {
+        if !permission.permits_tls(snapshot, url.scheme() == "https")
+            || snapshot.credential.is_some() && permission.secret.is_none()
+        {
             return Err(Error::ReplayDenied);
         }
         Ok(())
@@ -262,6 +320,9 @@ impl DeliveryService {
             }
             Err(_) => return AttemptResult::failure("rejected").into(),
         };
+        if !permission.permits_tls(snapshot, target.url().scheme() == "https") {
+            return AttemptResult::failure("rejected").into();
+        }
         let secret = permission.secret.as_ref().map(|value| value.as_str());
         let Ok((method, headers, body)) = snapshot.request_parts(claim.timestamp, secret) else {
             return AttemptResult::failure("rejected").into();
@@ -270,7 +331,7 @@ impl DeliveryService {
             return AttemptResult::failure("rejected").into();
         };
         let url = target.url().as_str();
-        let Ok(request) = factory
+        let Ok(mut request) = factory
             .pending_request()
             .pin_destination(url, target.addresses().to_vec())
         else {
@@ -278,6 +339,15 @@ impl DeliveryService {
         };
         if let Some(result) = self.endpoint_stop(snapshot).await {
             return result.into();
+        }
+        if let Some(ca) = permission.tls_ca {
+            request = request.with_tls_ca(ca);
+        }
+        if let Some(identity) = permission.tls_identity {
+            request = request.with_tls_identity(identity);
+        }
+        if snapshot.unverified_tls {
+            request = request.without_verifying();
         }
         let Ok(limits) = limits::current() else {
             return AttemptResult::transient("unresolved").into();
@@ -342,6 +412,9 @@ impl DeliveryService {
                     response: Some(response),
                     retry_at: None,
                 }
+            }
+            Err(openrust::http::client::Error::Configuration) => {
+                AttemptResult::failure("rejected").into()
             }
             Err(_) => AttemptResult::transient("unknown").into(),
         }

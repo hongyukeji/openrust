@@ -138,6 +138,18 @@ pub async fn publish_invoice(
         &TargetPolicy::default(),
     ).await
 }
+
+pub fn grant_invoice_tls(
+    policy: openrust_webhook_server::TargetPolicy,
+    ca: &[u8],
+    client_chain: &[u8],
+    client_key: &[u8],
+) -> Result<openrust_webhook_server::DeliveryPermission> {
+    openrust_webhook_server::DeliveryPermission::new(policy)
+        .with_tls_ca(ca)?
+        .with_mutual_tls(client_chain, client_key)
+}
+
 ```
 
 
@@ -148,6 +160,12 @@ pub async fn publish_invoice(
 POST 等正文方法使用已准备的字节。GET 将载荷编码为 RFC 3986 查询串，Spatie 签名继续使用已准备的 JSON。原始正文模式可以保留任意字节。快照限制正文为 16 MiB、Header 为 64 KiB。通过 `register_signer` 和 `register_backoff_strategy` 把外部实现注册到应用容器。
 
 默认目的地策略要求 HTTPS，并复核解析出的全部 Socket 地址。内部端点使用应用可信配置提供固定来源、路径与地址。`PreparedWebhook::bind_target` 可验证单次尝试的地址列表。HTTP 客户端固定实际连接地址，保留 Host 与 SNI，禁止重定向和代理转发，HTTPS 默认证书校验。
+
+### 配置 TLS {#tls}
+
+使用私有 CA 或双向 TLS 时，应用的 `DeliveryPolicy` 先授权范围和具体目的地，再通过 `DeliveryPermission::with_tls_ca(&pem_bundle)` 为该对端替换系统信任库，或通过 `with_mutual_tls(&certificate_chain, &private_key)` 提供客户端身份。Worker 从可信应用配置读取 PEM 材料，私钥由应用在运行时解密。队列、投递快照和事件均不包含 PEM 材料。连接保留目的地主机名用于 SNI 和证书校验。
+
+隔离测试中，调用 `do_not_verify_ssl()` 且投递策略同时返回 `allow_unverified_tls()` 时，才关闭服务端证书及主机名校验。未得到策略许可、指定了自定义 CA 或附带客户端证书时，该请求会被拒绝。调用 `verify_ssl(true)` 可恢复校验。
 
 ### 登记和投递 {#delivery}
 
