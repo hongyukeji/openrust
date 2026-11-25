@@ -1,0 +1,371 @@
+[
+  {
+    "kind": "Ask",
+    "surface": "derived",
+    "decorated": false,
+    "input": "answer\n",
+    "stdout": "\n  Name:\n❯ \nCOMPONENT_VALUE:\"answer\"\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "kind": "Ask",
+    "surface": "derived",
+    "decorated": true,
+    "input": "answer\n",
+    "stdout": "\n\u001b[32m  \u001b[39m\u001b[39;1mName:\u001b[39;22m\n\u001b[1m❯ \u001b[22m\nCOMPONENT_VALUE:\"answer\"\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "kind": "Ask",
+    "surface": "base",
+    "decorated": false,
+    "input": "answer\n",
+    "stdout": "\n  Name:\n❯ \nCOMPONENT_VALUE:\"answer\"\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "kind": "Ask",
+    "surface": "base",
+    "decorated": true,
+    "input": "answer\n",
+    "stdout": "\n\u001b[32m  \u001b[39m\u001b[39;1mName:\u001b[39;22m\n\u001b[1m❯ \u001b[22m\nCOMPONENT_VALUE:\"answer\"\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "kind": "Ask",
+    "surface": "nested",
+    "decorated": false,
+    "input": "answer\n",
+    "stdout": "\n  Name:\n❯ \nCOMPONENT_VALUE:\"answer\"\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "kind": "Ask",
+    "surface": "nested",
+    "decorated": true,
+    "input": "answer\n",
+    "stdout": "\n\u001b[32m  \u001b[39m\u001b[39;1mName:\u001b[39;22m\n\u001b[1m❯ \u001b[22m\nCOMPONENT_VALUE:\"answer\"\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "kind": "Ask",
+    "surface": "stderr",
+    "decorated": false,
+    "input": "answer\n",
+    "stdout": "COMPONENT_VALUE:\"answer\"\n",
+    "stderr": "\n  Name:\n❯ \n",
+    "exit": 0
+  },
+  {
+    "kind": "Ask",
+    "surface": "stderr",
+    "decorated": true,
+    "input": "answer\n",
+    "stdout": "COMPONENT_VALUE:\"answer\"\n",
+    "stderr": "\n\u001b[32m  \u001b[39m\u001b[39;1mName:\u001b[39;22m\n\u001b[1m❯ \u001b[22m\n",
+    "exit": 0
+  },
+  {
+    "kind": "AskWithCompletion",
+    "surface": "derived",
+    "decorated": false,
+    "input": "green\n",
+    "stdout": "\n  Name:\n❯ \nCOMPONENT_VALUE:\"green\"\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "kind": "AskWithCompletion",
+    "surface": "derived",
+    "decorated": true,
+    "input": "green\n",
+    "stdout": "\n\u001b[32m  \u001b[39m\u001b[39;1mName:\u001b[39;22m\n\u001b[1m❯ \u001b[22m\nCOMPONENT_VALUE:\"green\"\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "kind": "AskWithCompletion",
+    "surface": "base",
+    "decorated": false,
+    "input": "green\n",
+    "stdout": "\n  Name:\n❯ \nCOMPONENT_VALUE:\"green\"\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "kind": "AskWithCompletion",
+    "surface": "base",
+    "decorated": true,
+    "input": "green\n",
+    "stdout": "\n\u001b[32m  \u001b[39m\u001b[39;1mName:\u001b[39;22m\n\u001b[1m❯ \u001b[22m\nCOMPONENT_VALUE:\"green\"\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "kind": "AskWithCompletion",
+    "surface": "nested",
+    "decorated": false,
+    "input": "green\n",
+    "stdout": "\n  Name:\n❯ \nCOMPONENT_VALUE:\"green\"\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "kind": "AskWithCompletion",
+    "surface": "nested",
+    "decorated": true,
+    "input": "green\n",
+    "stdout": "\n\u001b[32m  \u001b[39m\u001b[39;1mName:\u001b[39;22m\n\u001b[1m❯ \u001b[22m\nCOMPONENT_VALUE:\"green\"\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "kind": "AskWithCompletion",
+    "surface": "stderr",
+    "decorated": false,
+    "input": "green\n",
+    "stdout": "COMPONENT_VALUE:\"green\"\n",
+    "stderr": "\n  Name:\n❯ \n",
+    "exit": 0
+  },
+  {
+    "kind": "AskWithCompletion",
+    "surface": "stderr",
+    "decorated": true,
+    "input": "green\n",
+    "stdout": "COMPONENT_VALUE:\"green\"\n",
+    "stderr": "\n\u001b[32m  \u001b[39m\u001b[39;1mName:\u001b[39;22m\n\u001b[1m❯ \u001b[22m\n",
+    "exit": 0
+  },
+  {
+    "kind": "Choice",
+    "surface": "derived",
+    "decorated": false,
+    "input": "1\n",
+    "stdout": "\n  Color:\n  red ...................................................................... 0  \n  green .................................................................... 1  \n❯ \nCOMPONENT_VALUE:\"green\"\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "kind": "Choice",
+    "surface": "derived",
+    "decorated": true,
+    "input": "1\n",
+    "stdout": "\n\u001b[32m  \u001b[39m\u001b[39;1mColor:\u001b[39;22m\n  red \u001b[90m......................................................................\u001b[39m 0  \n  green \u001b[90m....................................................................\u001b[39m 1  \n\u001b[1m❯ \u001b[22m\nCOMPONENT_VALUE:\"green\"\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "kind": "Choice",
+    "surface": "base",
+    "decorated": false,
+    "input": "1\n",
+    "stdout": "\n  Color:\n  red ...................................................................... 0  \n  green .................................................................... 1  \n❯ \nCOMPONENT_VALUE:\"green\"\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "kind": "Choice",
+    "surface": "base",
+    "decorated": true,
+    "input": "1\n",
+    "stdout": "\n\u001b[32m  \u001b[39m\u001b[39;1mColor:\u001b[39;22m\n  red \u001b[90m......................................................................\u001b[39m 0  \n  green \u001b[90m....................................................................\u001b[39m 1  \n\u001b[1m❯ \u001b[22m\nCOMPONENT_VALUE:\"green\"\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "kind": "Choice",
+    "surface": "nested",
+    "decorated": false,
+    "input": "1\n",
+    "stdout": "\n  Color:\n  red ...................................................................... 0  \n  green .................................................................... 1  \n❯ \nCOMPONENT_VALUE:\"green\"\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "kind": "Choice",
+    "surface": "nested",
+    "decorated": true,
+    "input": "1\n",
+    "stdout": "\n\u001b[32m  \u001b[39m\u001b[39;1mColor:\u001b[39;22m\n  red \u001b[90m......................................................................\u001b[39m 0  \n  green \u001b[90m....................................................................\u001b[39m 1  \n\u001b[1m❯ \u001b[22m\nCOMPONENT_VALUE:\"green\"\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "kind": "Choice",
+    "surface": "stderr",
+    "decorated": false,
+    "input": "1\n",
+    "stdout": "COMPONENT_VALUE:\"green\"\n",
+    "stderr": "\n  Color:\n  red ...................................................................... 0  \n  green .................................................................... 1  \n❯ \n",
+    "exit": 0
+  },
+  {
+    "kind": "Choice",
+    "surface": "stderr",
+    "decorated": true,
+    "input": "1\n",
+    "stdout": "COMPONENT_VALUE:\"green\"\n",
+    "stderr": "\n\u001b[32m  \u001b[39m\u001b[39;1mColor:\u001b[39;22m\n  red \u001b[90m......................................................................\u001b[39m 0  \n  green \u001b[90m....................................................................\u001b[39m 1  \n\u001b[1m❯ \u001b[22m\n",
+    "exit": 0
+  },
+  {
+    "kind": "Confirm",
+    "surface": "derived",
+    "decorated": false,
+    "input": "yes\n",
+    "stdout": "\n  Continue: (yes/no) [no]\n❯ \nCOMPONENT_VALUE:true\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "kind": "Confirm",
+    "surface": "derived",
+    "decorated": true,
+    "input": "yes\n",
+    "stdout": "\n\u001b[32m  \u001b[39m\u001b[39;1mContinue:\u001b[39;22m (yes/no) [\u001b[33mno\u001b[39m]\n\u001b[1m❯ \u001b[22m\nCOMPONENT_VALUE:true\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "kind": "Confirm",
+    "surface": "base",
+    "decorated": false,
+    "input": "yes\n",
+    "stdout": "\n  Continue: (yes/no) [no]\n❯ \nCOMPONENT_VALUE:true\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "kind": "Confirm",
+    "surface": "base",
+    "decorated": true,
+    "input": "yes\n",
+    "stdout": "\n\u001b[32m  \u001b[39m\u001b[39;1mContinue:\u001b[39;22m (yes/no) [\u001b[33mno\u001b[39m]\n\u001b[1m❯ \u001b[22m\nCOMPONENT_VALUE:true\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "kind": "Confirm",
+    "surface": "nested",
+    "decorated": false,
+    "input": "yes\n",
+    "stdout": "\n  Continue: (yes/no) [no]\n❯ \nCOMPONENT_VALUE:true\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "kind": "Confirm",
+    "surface": "nested",
+    "decorated": true,
+    "input": "yes\n",
+    "stdout": "\n\u001b[32m  \u001b[39m\u001b[39;1mContinue:\u001b[39;22m (yes/no) [\u001b[33mno\u001b[39m]\n\u001b[1m❯ \u001b[22m\nCOMPONENT_VALUE:true\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "kind": "Confirm",
+    "surface": "stderr",
+    "decorated": false,
+    "input": "yes\n",
+    "stdout": "COMPONENT_VALUE:true\n",
+    "stderr": "\n  Continue: (yes/no) [no]\n❯ \n",
+    "exit": 0
+  },
+  {
+    "kind": "Confirm",
+    "surface": "stderr",
+    "decorated": true,
+    "input": "yes\n",
+    "stdout": "COMPONENT_VALUE:true\n",
+    "stderr": "\n\u001b[32m  \u001b[39m\u001b[39;1mContinue:\u001b[39;22m (yes/no) [\u001b[33mno\u001b[39m]\n\u001b[1m❯ \u001b[22m\n",
+    "exit": 0
+  },
+  {
+    "kind": "Secret",
+    "surface": "derived",
+    "decorated": false,
+    "input": "secret\n",
+    "stdout": "\n  Password:\n❯ \n\nCOMPONENT_VALUE:\"secret\"\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "kind": "Secret",
+    "surface": "derived",
+    "decorated": true,
+    "input": "secret\n",
+    "stdout": "\n\u001b[32m  \u001b[39m\u001b[39;1mPassword:\u001b[39;22m\n\u001b[1m❯ \u001b[22m\n\nCOMPONENT_VALUE:\"secret\"\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "kind": "Secret",
+    "surface": "base",
+    "decorated": false,
+    "input": "secret\n",
+    "stdout": "\n  Password:\n❯ \n\nCOMPONENT_VALUE:\"secret\"\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "kind": "Secret",
+    "surface": "base",
+    "decorated": true,
+    "input": "secret\n",
+    "stdout": "\n\u001b[32m  \u001b[39m\u001b[39;1mPassword:\u001b[39;22m\n\u001b[1m❯ \u001b[22m\n\nCOMPONENT_VALUE:\"secret\"\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "kind": "Secret",
+    "surface": "nested",
+    "decorated": false,
+    "input": "secret\n",
+    "stdout": "\n  Password:\n❯ \n\nCOMPONENT_VALUE:\"secret\"\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "kind": "Secret",
+    "surface": "nested",
+    "decorated": true,
+    "input": "secret\n",
+    "stdout": "\n\u001b[32m  \u001b[39m\u001b[39;1mPassword:\u001b[39;22m\n\u001b[1m❯ \u001b[22m\n\nCOMPONENT_VALUE:\"secret\"\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "kind": "Secret",
+    "surface": "stderr",
+    "decorated": false,
+    "input": "secret\n",
+    "stdout": "COMPONENT_VALUE:\"secret\"\n",
+    "stderr": "\n  Password:\n❯ \n\n",
+    "exit": 0
+  },
+  {
+    "kind": "Secret",
+    "surface": "stderr",
+    "decorated": true,
+    "input": "secret\n",
+    "stdout": "COMPONENT_VALUE:\"secret\"\n",
+    "stderr": "\n\u001b[32m  \u001b[39m\u001b[39;1mPassword:\u001b[39;22m\n\u001b[1m❯ \u001b[22m\n\n",
+    "exit": 0
+  },
+  {
+    "kind": "AskMultiline",
+    "surface": "derived",
+    "decorated": true,
+    "input": "first\nsecond\u0004",
+    "stdout": "\n\u001b[32m  \u001b[39m\u001b[39;1mName:\u001b[39;22m (press \u001b[33mCtrl+D\u001b[39m to continue)\n\u001b[1m❯ \u001b[22m\nCOMPONENT_VALUE:\"first\\nsecond\"\n",
+    "stderr": "",
+    "exit": 0
+  }
+]

@@ -645,3 +645,17 @@ Task以new/render/render_with/render_task/render_task_with接通。已核旧版�
 三语正文直接提取135例，全部实际执行；完整workspace/all-targets严格Clippy、格式、既有借用负编译、三语构建和12浏览器检查通过。最终SHA/实际父消费者计数及剩余项见accepted-question-helper.json，日志target/tmp/artisan-tutorial-20261125/question-helper-*。首轮测试目标拼写误用单数已纠正；中间共享守卫清理掉profile后，保留源码/日志/下载并从同一快照恢复重编译，未把别的工作流清理冒称本簇触发或把中断算通过。单份TTY交付程序验收后回收，热缓存及证据保留；无测试服务/容器遗留，其他WIP和索引保护，逐簇本地提交，不推送。
 
 必须区分：这里只闭合帮助器核心与作用域原语，不用它代替五组件所属render入口或抽象Component::usingQuestionHelper所属入口。五种问答组件、Choice稀疏整数键的非list策略继续下一簇；普通ChoiceQuestion行为不变。Helper父类的setHelperSet/getHelperSet及六种通用静态工具、完整HelperSet/注册格式器SDK仍逐项待办，不能因默认无集合分支通过而宣称完整Helper SDK。完整Component编译/变换/视图生命周期、Factory/CommandIo、Time剩余延迟方法与一般输出仍开放；Artisan整章未闭合。
+
+## 第四十五簇：五种问答组件所属入口与Choice键策略（2026-11-26）
+
+Ask/AskWithCompletion/Choice/Confirm/Secret以console::view::components正式类型及new/render系列接通，复用44簇QuestionStyle/帮助器作用域与原读取/校验管线。已核旧版，没有对应五组件可直接复用。各类型的常用默认与完整参数分别实际调用；候选列表/回调、关联键/稀疏整数键、多行及禁止隐藏回退有真实消费者，不用OutputStyle同名方法代替所属入口。Confirm默认false，Secret默认允许回退，其他mixed结果为已约定JSON快照；不打印真实秘密。无新依赖或lint豁免。
+
+134真实框架源码向量覆盖五种render、ANSI、交互/非交互/EOF/默认、标点、键布局/多选、级别、空选择/零尝试、禁止明文回退和多行；41实际PHP ConsoleOutput的stdout/stderr由41实际Artisan进程逐字比较，涵盖derived/base/nested/error样式及真实多行管道。输入及原Helper保持同一实例；Choice/Ask按源在作用域内构造定义，构造失败同样恢复默认或原Helper。五种实际render逐一取消后恢复原Arc身份，继续同一流的下一问成功；HTTP18请求含5类型、500后恢复及12并发通过。
+
+Choice源的isAssoc实际属于getChoiceQuestion返回的匿名ChoiceQuestion，不是外部Choice类型声明；修正先前清单归属。非list规则通过每定义关联分类器表达，复用原ChoiceState.validate，未另造验证器。规范化重复键后再调用分类器；普通ChoiceQuestion::from_pairs仍按是否存在字符串键分类，不改变已验默认。稀疏数值键按源返回字符串键；首轮手写断言误期望整数，实际固定源补验非交互默认同样返回字符串1后纠正测试，未改变返回格式以迎合断言。
+
+保护分类钩子还用实际PHP子类做状态/调用序列对照：构造两次分类分别生成验证/补全快照，改变状态后直接回答不重新分类；setMultiselect与setErrorMessage各重建一次，clone不再次分类。原生按此快照机制接线，保留已有独立trim克隆适配；spy单场景包含7事件及原键数组，未当作7个功能数。公开from_pairs_with_associative及组件get_choice_question/get_choice_question_pairs/is_assoc工具均实调，分类回调接受规范条目，拥有Send+Sync状态。未把所有回答时动态分类或PHP任意对象身份说成相同机制。
+
+10真实PTY场景包含数组/回调补全（查询串和候选真实触发）、普通/基础/嵌套/错误样式、确认默认、隐藏不回显、禁止回退、Unicode、多行、补全失败OS1及Ctrl+C130。全部termios与可变fd恢复、外部stty探针未触发；Darwin沿既定FWASWRITTEN历史位例外，其余逐位核对。三语正式源码直接提取138例并实跑，完整workspace/all-targets严格Clippy、格式、借用负编译、三语构建与12浏览器通过；源/命令/计数/冻结SHA见accepted-question-components.json与question-components-contracts.json，原日志target/tmp/artisan-tutorial-20261125/question-components-*。技术验收范围macOS ARM64/Rust1.94，参考Linux/PHP8.5.12，不计Windows发布矩阵。
+
+当前14个具体组件的正式构造和render均在约定原生适配范围通过；这不等于抽象Component、通用HTML/CSS编译器或Factory/CommandIo已实现。抽象基类所属compile/renderView/mutate/usingQuestionHelper与扩展、Factory装配/错误分发、公共Helper/HelperSet、Time延迟继承与一般输出继续逐项核对。Artisan整章仍未闭合，按依赖进入Component与Factory。保留所有其他WIP/索引，只本地提交，不推送；临时单份PTY程序验后回收，日志/源码/热缓存保留。

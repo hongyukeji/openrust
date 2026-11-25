@@ -1756,3 +1756,42 @@ fn register_question_helpers() -> Result<(), ConsoleError> {
 实现 `QuestionHelperBehavior` 可自定义标点、提示或重试错误，再用 `set_question_helper(Some(Arc::new(...)))` 安装或使用临时作用域。`write_prompt` 写入提示，并返回已格式化的末尾光标文本供原生行编辑重绘。`write_error` 接收原输出是否为样式的标记。`Question::get_kind()` 提供借用的 `QuestionKind` 视图，可区分文本、确认和选择题，并读取原选择键值。这些帮助器尚未公开通用帮助器集合注册表。
 
 既有原生输入引擎保留完整 UTF-8 长行，使用原生终端 API，不执行 shell 命令。`disable_stty()` 保持不调用外部 stty 的保证，不关闭原生补全或隐藏输入；这与依赖 shell 的终端实现不同。多行提示继续使用应用译器。
+
+## 问答组件 {#question-components}
+
+`Ask`、`AskWithCompletion`、`Choice`、`Confirm` 和 `Secret` 借用当前 `QuestionStyle`，支持 `OutputStyle` 和 `ConsoleStyle`。每次 render 临时选取组件帮助器，结束后恢复原帮助器；构造、校验失败及取消均走相同恢复路径。
+
+```rust
+use openrust::console::{AsyncCommandCallback, CompletionCallback, ConsoleError, OutputOptions,
+    OutputStyle, view::components::{Ask, AskWithCompletion, Choice, Confirm, Secret}};
+use openrust::support::facades::Artisan;
+use serde_json::json;
+
+fn register_question_components() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:question-components", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut style = OutputStyle::new(input, output);
+            let name = Ask::new(&mut style).render_with("Name", Some(json!("Guest")), false).await?;
+            let color = AskWithCompletion::new(&mut style).render_with_callback(
+                "Color", CompletionCallback::sync(|typed| {
+                    Ok(["red", "green"].into_iter().filter(|value| value.starts_with(&typed)).map(str::to_owned).collect())
+                }), Some(json!("red")),
+            ).await?;
+            let confirmed = Confirm::new(&mut style).render("Continue").await?;
+            let format = Choice::new(&mut style).render_with(
+                "Format", ["CSV", "JSON"], Some(json!(0)), None, false,
+            ).await?;
+            let secret = Secret::new(&mut style).render("Password").await?;
+            style.writeln(format!("User:{name}; Color:{color}; Confirmed:{confirmed}; Format:{format}; Secret supplied:{}", !secret.is_null()).as_str(), OutputOptions::default())?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+`Ask::render` 无默认值，读取一行；`render_with` 接受标量 JSON 默认值及多行开关。`AskWithCompletion::render` 接收候选字符串，`render_with` 增加默认值，`render_with_callback` 使用既有支持异步的补全回调。候选输入只遍历一次。这些组件返回 `serde_json::Value`；`Confirm` 返回 `bool`，默认 false。`Secret::render_with(question, false)` 在原生隐藏不可用时禁止明文回退，请勿打印返回的秘密。
+
+`Choice::render` 使用列表，无默认值及尝试次数上限。`render_with` 增加默认值、最多尝试次数及多选开关，次数为零时报错。`render_pairs_with` 保留关联键和稀疏整数键。组件把非 list 键布局视为关联选择：稀疏数字键返回 `"1"` 这样的字符串键；标准列表返回选中值。普通 `ChoiceQuestion::from_pairs` 仍沿用原来的字符串键分类机制。
+
+`Choice::get_choice_question` 和 `get_choice_question_pairs` 提供已准备的问题定义，供组合使用；`is_assoc` 检查 `ChoiceQuestion::get_choices` 返回的规范键值顺序。`ChoiceQuestion::from_pairs_with_associative` 接收 `Send + Sync` 键分类函数，参数是规范键值；分类结果在构造或重建校验器时保存，不在每次回答时重新计算。补全候选保留构造时的快照。克隆保留分类，同时沿用已有独立 trim 设置。

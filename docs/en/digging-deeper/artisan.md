@@ -1756,3 +1756,42 @@ fn register_question_helpers() -> Result<(), ConsoleError> {
 Implement `QuestionHelperBehavior` to customize punctuation, prompts or retry errors, then install it with `set_question_helper(Some(Arc::new(...)))` or a temporary scope. `write_prompt` writes the prompt and returns its formatted final cursor text for native line editing. `write_error` receives whether the original output is a style. `Question::get_kind()` provides a borrowed `QuestionKind` view for text, confirmation and choice questions, including original choice keys and values. A helper-set registry is not exposed by these helpers.
 
 The existing native input engine preserves complete UTF-8 lines and uses native terminal APIs instead of shell commands. `disable_stty()` retains the no-external-stty guarantee; it does not disable native completion or hidden input. This differs from a shell-backed terminal implementation. Prompt hints continue to use the application translator.
+
+## Question components {#question-components}
+
+`Ask`, `AskWithCompletion`, `Choice`, `Confirm` and `Secret` borrow the current `QuestionStyle`; both `OutputStyle` and `ConsoleStyle` are supported. Each render temporarily selects the component helper and then restores the original helper. Constructor or validation errors and cancellation follow the same restoration path.
+
+```rust
+use openrust::console::{AsyncCommandCallback, CompletionCallback, ConsoleError, OutputOptions,
+    OutputStyle, view::components::{Ask, AskWithCompletion, Choice, Confirm, Secret}};
+use openrust::support::facades::Artisan;
+use serde_json::json;
+
+fn register_question_components() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:question-components", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut style = OutputStyle::new(input, output);
+            let name = Ask::new(&mut style).render_with("Name", Some(json!("Guest")), false).await?;
+            let color = AskWithCompletion::new(&mut style).render_with_callback(
+                "Color", CompletionCallback::sync(|typed| {
+                    Ok(["red", "green"].into_iter().filter(|value| value.starts_with(&typed)).map(str::to_owned).collect())
+                }), Some(json!("red")),
+            ).await?;
+            let confirmed = Confirm::new(&mut style).render("Continue").await?;
+            let format = Choice::new(&mut style).render_with(
+                "Format", ["CSV", "JSON"], Some(json!(0)), None, false,
+            ).await?;
+            let secret = Secret::new(&mut style).render("Password").await?;
+            style.writeln(format!("User:{name}; Color:{color}; Confirmed:{confirmed}; Format:{format}; Secret supplied:{}", !secret.is_null()).as_str(), OutputOptions::default())?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+`Ask::render` has no default and reads one line; `render_with` accepts a scalar JSON default and a multiline flag. `AskWithCompletion::render` accepts candidate strings, `render_with` adds a default, and `render_with_callback` uses the existing asynchronous-capable completion callback. Candidate input is consumed once. These components return `serde_json::Value`; `Confirm` returns `bool` and defaults to false. `Secret::render_with(question, false)` disables visible fallback when native hidden input is unavailable. Do not print the returned secret.
+
+`Choice::render` uses a list without a default or attempt limit. `render_with` adds the default, maximum attempts and multiple-selection flag; zero attempts returns an error. `render_pairs_with` preserves associative and sparse integer keys. A component treats every non-list key layout as associative: sparse numeric keys return string keys such as `"1"`. A proper list returns its selected value. Ordinary `ChoiceQuestion::from_pairs` retains its existing string-key classification.
+
+`Choice::get_choice_question` and `get_choice_question_pairs` expose the prepared definition for composition. `is_assoc` examines normalized key/value entries from `ChoiceQuestion::get_choices`. `ChoiceQuestion::from_pairs_with_associative` accepts a `Send + Sync` key classifier over normalized entries; its boolean is captured when constructing or rebuilding the validator, not recomputed per answer. Completion candidates keep their construction snapshot. Cloning preserves that classification while retaining the existing independent trim setting.

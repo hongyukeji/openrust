@@ -1,0 +1,61 @@
+{
+    "trace": [
+        {
+            "event": "constructed",
+            "calls": 2,
+            "answer": null
+        },
+        {
+            "event": "answer_before_rebuild",
+            "calls": 2,
+            "answer": "First"
+        },
+        {
+            "event": "multiselect",
+            "calls": 3,
+            "answer": null
+        },
+        {
+            "event": "answer_after_rebuild",
+            "calls": 3,
+            "answer": "0"
+        },
+        {
+            "event": "error_message",
+            "calls": 4,
+            "answer": null
+        },
+        {
+            "event": "clone",
+            "calls": 4,
+            "answer": null
+        },
+        {
+            "event": "clone_answer",
+            "calls": 4,
+            "answer": "0"
+        }
+    ],
+    "completion": [
+        "First",
+        "Second"
+    ],
+    "keys": [
+        [
+            0,
+            1
+        ],
+        [
+            0,
+            1
+        ],
+        [
+            0,
+            1
+        ],
+        [
+            0,
+            1
+        ]
+    ]
+}

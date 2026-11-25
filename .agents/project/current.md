@@ -6,6 +6,8 @@ Git 默认流程已于 2026-11-23 更新：已授权任务完成并通过相关�
 
 ## 正在推进与等待条件
 
+- 2026-11-26 Artisan第四十五簇五问答组件所属render与Choice非list键策略已验：134源码向量、41实际Artisan、分类快照子类、18HTTP、10真实PTY、三语138例及严格门禁通过。见[问答组件契约](audits/artisan-tutorial/question-components-contracts.json)。14具体组件在所述范围通过，继续抽象Component/Factory/CommandIo与其余SDK，整章未闭合，不推送。
+
 - 2026-11-26 Artisan第四十四簇QuestionHelper核心/原生临时作用域已验：76固定源场景、实际Artisan/HTTP恢复并发、6真实PTY、三语135例及严格门禁通过。见[帮助器契约](audits/artisan-tutorial/question-helper-contracts.json)。继续五组件所属render和Choice非list键策略；HelperSet/完整Component与工厂等仍开放，不以原语代替所属入口，整章未闭合，不推送。
 
 - 2026-11-26 Artisan第四十三簇Task回调/失败收尾/默认耗时已验：387布局与32耗时真实源场景、10实际Artisan进程、18HTTP、三语132例及严格门禁通过。见[任务组件契约](audits/artisan-tutorial/task-contracts.json)。继续QuestionHelper/五问答组件及工厂，Time其余继承方法仍开放，整章未闭合，不推送。

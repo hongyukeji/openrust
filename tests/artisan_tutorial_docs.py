@@ -272,6 +272,10 @@ async fn formal_progress_example(){
     helpers_code=re.search(r'```rust\n(.*?)```',text.split('{#question-helpers}',1)[1],re.S).group(1)
     helpers_checks='use openrust::console::Output;\n'+progress_checks.replace('formal_progress_example','formal_question_helpers_example').replace('register_progress)', 'register_question_helpers)').replace('"reports:progress"','"reports:question-helpers"').replace('assert!(output.stdout.contains("CSV,JSON,HTML:11"));assert_eq!(output.stdout.matches("100%").count(),2);assert!(output.stdout.contains("build"));','assert!(output.stdout.contains("Users:Guest/Guest"));')
     parts.append('mod '+locale.replace('-','_').lower()+'_question_helpers{\n'+helpers_code+helpers_checks+'}\n')
+    qcomponents_code=re.search(r'```rust\n(.*?)```',text.split('{#question-components}',1)[1],re.S).group(1)
+    qcomponents_checks='use openrust::console::Output;\n'+progress_checks.replace('formal_progress_example','formal_question_components_example').replace('register_progress)', 'register_question_components)').replace('"reports:progress"','"reports:question-components"').replace('assert!(output.stdout.contains("CSV,JSON,HTML:11"));assert_eq!(output.stdout.matches("100%").count(),2);assert!(output.stdout.contains("build"));','assert!(output.stdout.contains("User:\\"Guest\\"; Color:\\"red\\"; Confirmed:false; Format:\\"CSV\\"; Secret supplied:false"),"{}",output.stdout);')
+    parts.append('mod '+locale.replace('-','_').lower()+'_question_components{\n'+qcomponents_code+qcomponents_checks+'}\n')
+
 
 
 

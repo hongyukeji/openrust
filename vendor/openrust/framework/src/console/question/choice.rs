@@ -57,9 +57,20 @@ impl ChoiceKey {
         }
     }
 }
+type Association = dyn Fn(&[(ChoiceKey, Value)]) -> bool + Send + Sync;
+fn classify_entries(entries: &[(ChoiceKey, Value)], resolver: Option<&Arc<Association>>) -> bool {
+    match resolver {
+        Some(resolver) => resolver(entries),
+        None => entries
+            .iter()
+            .any(|(key, _)| matches!(key, ChoiceKey::String(_))),
+    }
+}
 #[derive(Clone)]
 pub(super) struct ChoiceState {
     pub entries: Arc<Vec<(ChoiceKey, Value)>>,
+    association: Option<Arc<Association>>,
+    validator_associative: bool,
     pub multiple: bool,
     pub prompt: String,
     pub error: String,
@@ -77,11 +88,6 @@ impl ChoiceState {
             Ok(message) => ConsoleError::from_source(ConsoleQuestionError::InvalidAnswer(message)),
             Err(error) => error,
         }
-    }
-    fn associative(&self) -> bool {
-        self.entries
-            .iter()
-            .any(|(key, _)| matches!(key, ChoiceKey::String(_)))
     }
     pub(super) fn lookup(&self, value: &Value) -> Option<&Value> {
         let key = ChoiceKey::from_value(value);
@@ -132,7 +138,7 @@ impl ChoiceState {
                 .entries
                 .iter()
                 .find(|(_, choice)| crate::support::php_loose_value_equal(&value, choice));
-            let result = if self.associative() {
+            let result = if self.validator_associative {
                 found
                     .map(|(key, _)| Value::String(key.to_string()))
                     .or_else(|| {
@@ -199,6 +205,13 @@ impl ChoiceState {
 }
 impl Question {
     pub(super) fn install_choice_validator(&mut self) {
+        if let Some(state) = self.choice.as_mut() {
+            state.validator_associative =
+                classify_entries(&state.entries, state.association.as_ref());
+        }
+        self.install_choice_validator_snapshot();
+    }
+    pub(super) fn install_choice_validator_snapshot(&mut self) {
         let Some(state) = self.choice.as_mut() else {
             return;
         };
@@ -236,6 +249,23 @@ impl ChoiceQuestion {
         choices: impl IntoIterator<Item = (K, V)>,
         default: Option<Value>,
     ) -> Result<Self, ConsoleError> {
+        Self::from_pairs_using(label, choices, default, None)
+    }
+    /// 以组合覆盖键分类；构造或重建校验器时求值，验证回答使用其快照。
+    pub fn from_pairs_with_associative<K: Into<ChoiceKey>, V: Into<Value>>(
+        label: impl Into<String>,
+        choices: impl IntoIterator<Item = (K, V)>,
+        default: Option<Value>,
+        is_associative: impl Fn(&[(ChoiceKey, Value)]) -> bool + Send + Sync + 'static,
+    ) -> Result<Self, ConsoleError> {
+        Self::from_pairs_using(label, choices, default, Some(Arc::new(is_associative)))
+    }
+    fn from_pairs_using<K: Into<ChoiceKey>, V: Into<Value>>(
+        label: impl Into<String>,
+        choices: impl IntoIterator<Item = (K, V)>,
+        default: Option<Value>,
+        association: Option<Arc<Association>>,
+    ) -> Result<Self, ConsoleError> {
         let mut entries: Vec<(ChoiceKey, Value)> = Vec::new();
         for (key, value) in choices {
             let key = match key.into() {
@@ -257,9 +287,8 @@ impl ChoiceQuestion {
             return Err(configuration("选择题至少需要一个选项"));
         }
         let mut question = Question::new(label, default)?;
-        let associative = entries
-            .iter()
-            .any(|(key, _)| matches!(key, ChoiceKey::String(_)));
+        let validator_associative = classify_entries(&entries, association.as_ref());
+        let associative = classify_entries(&entries, association.as_ref());
         let mut completion = Vec::new();
         if associative {
             completion.extend(entries.iter().map(|(key, _)| key.to_string()));
@@ -272,13 +301,15 @@ impl ChoiceQuestion {
         question.set_autocompleter_values(Some(completion))?;
         question.choice = Some(ChoiceState {
             entries: Arc::new(entries),
+            association,
+            validator_associative,
             multiple: false,
             prompt: " > ".into(),
             error: super::super::localization::text("question.choice_invalid", "选项“%s”无效"),
             default_validator: true,
             trimmable: Arc::new(AtomicBool::new(question.trimmable)),
         });
-        question.install_choice_validator();
+        question.install_choice_validator_snapshot();
         Ok(Self(question))
     }
     pub(super) fn remap_default_value(&mut self) {

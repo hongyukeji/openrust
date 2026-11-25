@@ -193,7 +193,7 @@ impl Clone for Question {
             .as_ref()
             .is_some_and(|choice| choice.default_validator)
         {
-            question.install_choice_validator();
+            question.install_choice_validator_snapshot();
         }
         question
     }

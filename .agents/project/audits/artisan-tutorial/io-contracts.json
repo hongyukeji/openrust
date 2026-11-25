@@ -2028,6 +2028,96 @@
         "status": "verified_both_builtin_and_dynamic_styles",
         "evidence": "question-helper-contracts.json"
       }
+    ],
+    "Ask": [
+      {
+        "method": "constructor",
+        "native": "console::view::components::Ask::new",
+        "status": "verified_both_builtin_styles",
+        "evidence": "question-components-contracts.json"
+      },
+      {
+        "method": "render",
+        "native": [
+          "render",
+          "render_with"
+        ],
+        "status": "verified_actual_source_and_consumers",
+        "evidence": "question-components-contracts.json"
+      }
+    ],
+    "AskWithCompletion": [
+      {
+        "method": "constructor",
+        "native": "console::view::components::AskWithCompletion::new",
+        "status": "verified_both_builtin_styles",
+        "evidence": "question-components-contracts.json"
+      },
+      {
+        "method": "render",
+        "native": [
+          "render",
+          "render_with",
+          "render_with_callback"
+        ],
+        "status": "verified_actual_source_and_consumers",
+        "evidence": "question-components-contracts.json"
+      }
+    ],
+    "Choice": [
+      {
+        "method": "constructor",
+        "native": "console::view::components::Choice::new",
+        "status": "verified_both_builtin_styles",
+        "evidence": "question-components-contracts.json"
+      },
+      {
+        "method": "render",
+        "native": [
+          "render",
+          "render_with",
+          "render_pairs_with",
+          "get_choice_question",
+          "get_choice_question_pairs",
+          "is_assoc"
+        ],
+        "status": "verified_actual_source_and_consumers",
+        "evidence": "question-components-contracts.json"
+      }
+    ],
+    "Confirm": [
+      {
+        "method": "constructor",
+        "native": "console::view::components::Confirm::new",
+        "status": "verified_both_builtin_styles",
+        "evidence": "question-components-contracts.json"
+      },
+      {
+        "method": "render",
+        "native": [
+          "render",
+          "render_with"
+        ],
+        "status": "verified_actual_source_and_consumers",
+        "evidence": "question-components-contracts.json"
+      }
+    ],
+    "Secret": [
+      {
+        "method": "constructor",
+        "native": "console::view::components::Secret::new",
+        "status": "verified_both_builtin_styles",
+        "evidence": "question-components-contracts.json"
+      },
+      {
+        "method": "render",
+        "native": [
+          "render",
+          "render_with"
+        ],
+        "status": "verified_actual_source_and_consumers",
+        "evidence": "question-components-contracts.json"
+      }
     ]
   },
   "notes": [
@@ -2598,7 +2688,7 @@
     ]
   },
   "remaining_output_style_behaviors": [
-    "4种变换器、8种显示组件、Task/TaskResult、默认耗时及QuestionHelper核心/作用域已验；5种问答组件所属render、完整Component/Factory/CommandIo、Helper/HelperSet SDK和Time继承延迟方法仍开放。",
+    "4种变换器及14种具体组件、TaskResult、默认耗时与QuestionHelper核心/作用域已验；抽象Component/Factory/CommandIo、Helper/HelperSet SDK、Time延迟方法及一般输出接口仍开放。",
     "通用OutputInterface、ConsoleOutputInterface及任意自定义输出／Artisan.call第三参数仍待完整类型与消费者；当前所选内置stderr借用不冒充完整接口。"
   ],
   "output_format_explicit_normal": {

@@ -1,0 +1,204 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "console_reference": "Symfony Console7.4.0",
+  "status": "verified_concrete_question_components_builtin_styles",
+  "types": [
+    {
+      "source": "Illuminate/Console/View/Components/Ask",
+      "native": "console::view::components::Ask",
+      "constructor": {
+        "native": "new",
+        "status": "verified_both_builtin_styles"
+      },
+      "render": {
+        "native": [
+          "render",
+          "render_with"
+        ],
+        "status": "verified_actual_source_and_consumers"
+      }
+    },
+    {
+      "source": "Illuminate/Console/View/Components/AskWithCompletion",
+      "native": "console::view::components::AskWithCompletion",
+      "constructor": {
+        "native": "new",
+        "status": "verified_both_builtin_styles"
+      },
+      "render": {
+        "native": [
+          "render",
+          "render_with",
+          "render_with_callback"
+        ],
+        "status": "verified_actual_source_and_consumers"
+      }
+    },
+    {
+      "source": "Illuminate/Console/View/Components/Choice",
+      "native": "console::view::components::Choice",
+      "constructor": {
+        "native": "new",
+        "status": "verified_both_builtin_styles"
+      },
+      "render": {
+        "native": [
+          "render",
+          "render_with",
+          "render_pairs_with",
+          "get_choice_question",
+          "get_choice_question_pairs",
+          "is_assoc"
+        ],
+        "status": "verified_actual_source_and_consumers"
+      }
+    },
+    {
+      "source": "Illuminate/Console/View/Components/Confirm",
+      "native": "console::view::components::Confirm",
+      "constructor": {
+        "native": "new",
+        "status": "verified_both_builtin_styles"
+      },
+      "render": {
+        "native": [
+          "render",
+          "render_with"
+        ],
+        "status": "verified_actual_source_and_consumers"
+      }
+    },
+    {
+      "source": "Illuminate/Console/View/Components/Secret",
+      "native": "console::view::components::Secret",
+      "constructor": {
+        "native": "new",
+        "status": "verified_both_builtin_styles"
+      },
+      "render": {
+        "native": [
+          "render",
+          "render_with"
+        ],
+        "status": "verified_actual_source_and_consumers"
+      }
+    }
+  ],
+  "choice_override": {
+    "source": "Anonymous ChoiceQuestion returned by Choice::getChoiceQuestion, protected isAssoc; this is not a method on the outer PHP Choice class.",
+    "native": [
+      "Choice::get_choice_question",
+      "Choice::get_choice_question_pairs",
+      "Choice::is_assoc (native composition utility over normalized entries)",
+      "ChoiceQuestion::from_pairs_with_associative"
+    ],
+    "status": "verified_non_list_policy_and_source_snapshot_lifecycle",
+    "invariants": [
+      "Canonical duplicate-key overwrite occurs before classifier invocation.",
+      "Constructor classifies validator and completion separately, twice in source order.",
+      "Answers use frozen validator classification; changing classifier state does not change existing validation.",
+      "set_multiselect/set_error_message rebuild validation classification once; completion remains construction snapshot.",
+      "Clone preserves classification without invoking classifier and retains existing independent trim state.",
+      "Numeric associative keys return strings; ordinary sparse numeric ChoiceQuestion keeps its existing value behavior."
+    ]
+  },
+  "source_scenes": {
+    "question-components-oracle.json": 134,
+    "question-components-console-oracle.json": 41,
+    "choice-association-oracle.json": 1
+  },
+  "adaptations": [
+    "Optional arguments use render and render_with variants; completion callback and key/value pairs have explicit methods. Questions return native JSON scalar snapshots; Confirm returns bool.",
+    "OutputStyle, ConsoleStyle and QuestionStyle trait retain original input and helper. Native cancellation uses the verified scope guard; no reflection or duplicated input engine.",
+    "The source anonymous ChoiceQuestion array-is-list override is per-definition key classifier composition, not an additional parallel choice validator. Callback takes normalized entries and returns bool with Send+Sync ownership.",
+    "Protected Choice helper utilities are public for native composition. General subclass/object identity and abstract Component extension APIs remain separate pending work.",
+    "Existing native crossterm/full UTF-8/translated multiline behavior remains; native and PHP engine implementation details are not represented as identical."
+  ],
+  "runtime": {
+    "physical_source_console_cases": 41,
+    "native_console_cases": 41,
+    "http_requests": 18,
+    "http_failure": 500,
+    "parallel_requests": 12,
+    "recovery": true,
+    "each_component_cancel_restores_identity": true,
+    "tty": [
+      {
+        "case": "ask",
+        "exit": 0,
+        "terminal_restored": true,
+        "no_external_stty": true,
+        "callback_exercised": false
+      },
+      {
+        "case": "completion-values",
+        "exit": 0,
+        "terminal_restored": true,
+        "no_external_stty": true,
+        "callback_exercised": false
+      },
+      {
+        "case": "completion-callback",
+        "exit": 0,
+        "terminal_restored": true,
+        "no_external_stty": true,
+        "callback_exercised": true
+      },
+      {
+        "case": "choice",
+        "exit": 0,
+        "terminal_restored": true,
+        "no_external_stty": true,
+        "callback_exercised": false
+      },
+      {
+        "case": "confirm-default",
+        "exit": 0,
+        "terminal_restored": true,
+        "no_external_stty": true,
+        "callback_exercised": false
+      },
+      {
+        "case": "secret",
+        "exit": 0,
+        "terminal_restored": true,
+        "no_external_stty": true,
+        "callback_exercised": false
+      },
+      {
+        "case": "strict-secret",
+        "exit": 0,
+        "terminal_restored": true,
+        "no_external_stty": true,
+        "callback_exercised": false
+      },
+      {
+        "case": "multiline",
+        "exit": 0,
+        "terminal_restored": true,
+        "no_external_stty": true,
+        "callback_exercised": false
+      },
+      {
+        "case": "secret-interrupt",
+        "exit": 130,
+        "terminal_restored": true,
+        "no_external_stty": true,
+        "callback_exercised": false
+      },
+      {
+        "case": "completion-error",
+        "exit": 1,
+        "terminal_restored": true,
+        "no_external_stty": true,
+        "callback_exercised": true
+      }
+    ]
+  },
+  "remaining": [
+    "Abstract Component compile/renderView/mutate/usingQuestionHelper owned entries and extensibility remain pending; five render methods do not close the base.",
+    "Factory/CommandIo component factory entry, common Helper/HelperSet SDK, remaining Time delay methods and general outputs remain pending.",
+    "Artisan remaining tutorial anchors and release platform matrix remain open."
+  ],
+  "pushed": false
+}

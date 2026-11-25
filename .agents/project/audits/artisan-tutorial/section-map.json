@@ -521,5 +521,10 @@
     "contracts": "question-helper-contracts.json",
     "question_components": "pending",
     "common_helper_sdk": "pending"
+  },
+  "question_components": {
+    "status": "verified_concrete_question_components_builtin_styles",
+    "contracts": "question-components-contracts.json",
+    "abstract_component_and_factory": "pending"
   }
 }
