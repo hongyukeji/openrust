@@ -4,7 +4,7 @@
 
 2026-11-25 用户启用持续开发目标，按已核定[计划](../../plans/webhooks.md)实现两个独立可选包。此前“仅方案、不实现”的授权边界已被本次明确开发授权替代；不授权推送、正式部署、发布或付费操作。持续目标未完成，WH-00至WH-07均未整体闭合。
 
-首批实现两包的配置／Provider、签名／退避及外部扩展基础；后续[接收记录批次](receiver.md)补入手动 Processor、存储及模型委托。[公开路由／控制器与具名工厂](routes.md)已补齐本批入口和真实消费者；[载荷快照与数据库附件读取](payload.md)已接入。[原生处理 Job](jobs.md)、[同库原子入队](atomic-enqueue.md)及[接收 Worker 租约](processing-lease.md)已接入。已补[签名事件 ID 去重](verified-event-deduplication.md)与[同库待关联延期](deferred-processing.md)，以及[领取尝试和旧 Worker 写回隔离](processing-attempts.md)、[关联就绪主动唤醒](deferred-wakeup.md)和[有限摘要窗口去重](body-deduplication.md)。[接收保留期清理](retention.md)与[无签名查单提示](unverified-hints.md)已接入。Storage 附件引用、恢复，以及发送 Builder、安全连接、投递状态和管理尚未完成。**不以验签返回200冒充可靠接收，不以生成签名头冒充发送模块。**实际进度见[逐类型清单](contracts.json)；扫描清单包含固定源码直接声明及父类线索，另登记packageRegistered注册的Route::webhooks宏（方法白名单含query），不能证明所有继承契约已完成。后续必须补齐构造／字段／trait／模型继承裁决与实际消费者。
+首批实现两包的配置／Provider、签名／退避及外部扩展基础；后续[接收记录批次](receiver.md)补入手动 Processor、存储及模型委托。[公开路由／控制器与具名工厂](routes.md)已补齐本批入口和真实消费者；[载荷快照与数据库附件读取](payload.md)已接入。[原生处理 Job](jobs.md)、[同库原子入队](atomic-enqueue.md)及[接收 Worker 租约](processing-lease.md)已接入。已补[签名事件 ID 去重](verified-event-deduplication.md)与[同库待关联延期](deferred-processing.md)，以及[领取尝试和旧 Worker 写回隔离](processing-attempts.md)、[关联就绪主动唤醒](deferred-wakeup.md)和[有限摘要窗口去重](body-deduplication.md)。[接收保留期清理](retention.md)与[无签名查单提示](unverified-hints.md)已接入。[有限验签判定依据](verification-evidence.md)已提供按分钟审计与范围清理。Storage 附件引用、恢复，以及发送 Builder、安全连接、投递状态和管理尚未完成。**不以验签返回200冒充可靠接收，不以生成签名头冒充发送模块。**实际进度见[逐类型清单](contracts.json)；扫描清单包含固定源码直接声明及父类线索，另登记packageRegistered注册的Route::webhooks宏（方法白名单含query），不能证明所有继承契约已完成。后续必须补齐构造／字段／trait／模型继承裁决与实际消费者。
 
 ## 固定来源与采用理由
 

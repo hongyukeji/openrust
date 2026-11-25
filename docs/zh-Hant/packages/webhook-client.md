@@ -186,6 +186,19 @@ Provider 註冊 `webhook_calls` 遷移，使用 `DatabaseWebhookStore` 前執行
 
 查詢處理器須依業務契約獨立驗證供應商回應。原始通知維持無簽名提示，提示任務只攜帶提示 ID 及修訂。可信接收記錄與佇列繼續處理已驗簽回呼。
 
+### 保留驗簽判定依據 {#verification-audit}
+
+在設有可信 `scope` 的 profile 中啟用 `verification_audit: true`，並執行 `./artisan migrate`。稽核使用 profile 的 `connection`。帳本保存驗證器和策略名稱、profile 修訂、UTC 分鐘，以及分類和固定原因。修訂是設定中的憑證集合標籤，憑證集合變更時應更新。
+
+每個範圍、profile、修訂、驗證器、策略和原因在一分鐘內只保留一筆觀測。稽核記錄業務處理前的可信度判定，區分已驗簽、無簽名提示和拒絕。稽核僅保存上述中繼資料。啟用稽核後，寫入失敗會回傳錯誤並中止後續業務處理。
+
+```sh
+./artisan webhook-client:prune --scope=billing/site-a --verification-audit --pretend
+./artisan webhook-client:prune --scope=billing/site-a --verification-audit
+```
+
+該指令依套件的 `delete_after_days` 清理驗簽判定記錄。
+
 ## 使用邊界 {#scope}
 
 應用網路與任務執行複用既有 [HTTP 用戶端](../digging-deeper/http-client.md)與[佇列](../digging-deeper/queues.md)。持久恢復、完整投遞狀態機仍未實作。

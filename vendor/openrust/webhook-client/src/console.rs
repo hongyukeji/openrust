@@ -19,6 +19,11 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
                 .value_parser(value_parser!(u32).range(1..=500)),
         )
         .arg(
+            Arg::new("verification-audit")
+                .long("verification-audit")
+                .action(ArgAction::SetTrue),
+        )
+        .arg(
             Arg::new("pretend")
                 .long("pretend")
                 .action(ArgAction::SetTrue),
@@ -64,13 +69,23 @@ impl Command for Prune {
                 .make::<DatabaseManager>()
                 .await
                 .map_err(ConsoleError::from_source)?;
-            let store = DatabaseWebhookStore::new(
-                manager
-                    .connection(connection)
-                    .map_err(ConsoleError::from_source)?,
-                scope,
-            )
-            .map_err(ConsoleError::from_source)?;
+            let connection = manager
+                .connection(connection)
+                .map_err(ConsoleError::from_source)?;
+            if matches.get_flag("verification-audit") {
+                let audit = crate::verification::DatabaseVerificationAudit::new(connection, scope)
+                    .map_err(ConsoleError::from_source)?;
+                let pretend = matches.get_flag("pretend");
+                let rows = audit
+                    .prune(days, limit, pretend)
+                    .await
+                    .map_err(ConsoleError::from_source)?;
+                let action = if pretend { "可清理" } else { "已清理" };
+                output.info(&format!("{action} {rows} 条 Webhook 验签判定记录"));
+                return Ok(0);
+            }
+            let store =
+                DatabaseWebhookStore::new(connection, scope).map_err(ConsoleError::from_source)?;
             if matches.get_flag("pretend") {
                 let ids = WebhookCall::prunable(&store, days, limit)
                     .await

@@ -186,6 +186,19 @@ Use `QueuedWebhookHint` with a database queue on the same connection as the hint
 
 The lookup handler validates the supplier response in its own domain. The original notice stays an unverified hint. The hint transport carries the receipt ID and revision. The trusted receipt and processing queue continue to handle verified callbacks.
 
+### Retain verification evidence {#verification-audit}
+
+Set `verification_audit: true` on a profile with a trusted `scope` and run `./artisan migrate`. The database connection follows the profile’s `connection`. The audit records the validator and policy names, profile revision, UTC minute, and a classification with a fixed reason. The revision is the configured label for the credential set, so update it when the set changes.
+
+The audit keeps one observation per scope, profile, revision, validator, policy and reason in each minute. It records the trust decision before business processing. A valid signature, an unsigned hint, or a rejection produces a distinct classification. The audit stores only these metadata fields. When audit writes fail, the enabled receiver returns an error rather than continuing to business processing.
+
+```sh
+./artisan webhook-client:prune --scope=billing/site-a --verification-audit --pretend
+./artisan webhook-client:prune --scope=billing/site-a --verification-audit
+```
+
+This cleanup uses the package’s `delete_after_days` setting and applies only to verification evidence.
+
 ## Scope {#scope}
 
 Use the existing [HTTP client](../digging-deeper/http-client.md) and [queues](../digging-deeper/queues.md) for application networking and jobs. Persistent recovery and a complete delivery state machine remain outside the current implementation.

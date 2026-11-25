@@ -132,11 +132,9 @@ impl WebhookRuntime {
 
     fn from_application_scoped(app: Arc<Application>, config: Arc<WebhookConfig>) -> Result<Self> {
         let container = app.container();
-        let validator = get::<dyn SignatureValidator>(
-            container,
-            "signature_validator",
-            option(&config, "signature_validator", None)?,
-        )?;
+        let validator_name = option(&config, "signature_validator", None)?;
+        let validator =
+            get::<dyn SignatureValidator>(container, "signature_validator", validator_name)?;
         let validator = (validator.create)(&config, container)?;
         let profile = get::<dyn WebhookProfile>(
             container,
@@ -171,6 +169,26 @@ impl WebhookRuntime {
             }
             _ => return Err(Error::InvalidConfig("unverified_hint_receiver")),
         };
+        let audit = match config.options().get("verification_audit") {
+            None | Some(serde_json::Value::Null | serde_json::Value::Bool(false)) => None,
+            Some(serde_json::Value::Bool(true)) => {
+                let scope = option(&config, "scope", None)?;
+                let connection = match config.options().get("connection") {
+                    None | Some(serde_json::Value::Null) => None,
+                    Some(serde_json::Value::String(connection)) => Some(connection.as_str()),
+                    _ => return Err(Error::InvalidConfig("connection")),
+                };
+                let manager = container.make::<openrust::database::DatabaseManager>()?;
+                Some((
+                    crate::verification::DatabaseVerificationAudit::new(
+                        manager.connection(connection)?,
+                        scope,
+                    )?,
+                    validator_name.to_owned(),
+                ))
+            }
+            _ => return Err(Error::InvalidConfig("verification_audit")),
+        };
         let owner = app.clone();
         let mut runtime = Self::new(
             Arc::new(DeferredStore {
@@ -192,6 +210,9 @@ impl WebhookRuntime {
         .with_webhook_response(response);
         if let Some(hint) = hint {
             runtime = runtime.with_unverified_hint_receiver(hint);
+        }
+        if let Some((audit, validator)) = audit {
+            runtime = runtime.with_verification_audit(audit, &validator)?;
         }
         runtime.application = Some(owner);
         Ok(runtime)

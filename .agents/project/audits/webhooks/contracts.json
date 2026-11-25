@@ -174,7 +174,7 @@
       "status": "foundation_verified",
       "parent_classes": [],
       "declared_public_properties": [],
-      "notes": "布尔验签入口保留；可选 verified_event_id 仅在验签与筛选通过后调用，适配 Standard 及自定义已签正文事件身份。显式配置的无签名提示使用独立表和 Worker，空签名与协议字段不全按既有拒绝路径处理。完整信任分类持久审计仍开放。",
+      "notes": "布尔验签入口保留；可选 verified_event_id 仅在验签与筛选通过后调用，适配 Standard 及自定义已签正文事件身份。显式配置的无签名提示使用独立表和 Worker，空签名与协议字段不全按既有拒绝路径处理。已提供三类判定的可选分钟审计与范围清理。历史凭据库、真实查单及跨主机门禁仍开放。",
       "rust_source": "vendor/openrust/webhook-client/src/contracts.rs",
       "evidence": [
         "vendor/openrust/webhook-client/tests/contracts.rs",

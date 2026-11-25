@@ -36,6 +36,9 @@ pub use payload_migration::AddPayloadToWebhookCallsTable;
 mod processor;
 mod signature_validator;
 mod storage;
+pub mod verification;
+#[path = "../database/migrations/2026_11_25_000010_create_webhook_verification_audits_table.rs"]
+mod verification_migration;
 mod webhook_config;
 
 pub use migration::CreateWebhookCallsTable;
@@ -164,6 +167,10 @@ impl WebhookClientServiceProvider {
             openrust::database::migrations::MigrationEntry::new(
                 "vendor/openrust/webhook-client/database/migrations/2026_11_25_000009_create_webhook_hints_table.rs",
                 &hints_migration::MIGRATION,
+            ),
+            openrust::database::migrations::MigrationEntry::new(
+                "vendor/openrust/webhook-client/database/migrations/2026_11_25_000010_create_webhook_verification_audits_table.rs",
+                &verification_migration::MIGRATION,
             ),
         ];
         ENTRIES

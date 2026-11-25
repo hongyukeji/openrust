@@ -1,7 +1,9 @@
 use crate::{
     DefaultRespondsTo, DefaultSignatureValidator, Error, ProcessEverythingWebhookProfile,
     RespondsToWebhook, Result, SignatureValidator, WebhookConfig, WebhookProfile, WebhookRequest,
-    WebhookStore, models::WebhookCall,
+    WebhookStore,
+    models::WebhookCall,
+    verification::{DatabaseVerificationAudit, VerificationDecision},
 };
 use openrust::{
     contracts::events::Dispatcher,
@@ -57,6 +59,7 @@ pub struct WebhookRuntime {
     profile: Arc<dyn WebhookProfile>,
     response: Arc<dyn RespondsToWebhook>,
     hint: Option<Arc<dyn crate::hints::ReceivesUnverifiedHint>>,
+    verification_audit: Option<(DatabaseVerificationAudit, String)>,
     events: Arc<dyn Dispatcher>,
 }
 impl WebhookRuntime {
@@ -71,6 +74,7 @@ impl WebhookRuntime {
             job,
             events,
             hint: None,
+            verification_audit: None,
             validator: Arc::new(DefaultSignatureValidator),
             profile: Arc::new(ProcessEverythingWebhookProfile),
             response: Arc::new(DefaultRespondsTo),
@@ -82,6 +86,16 @@ impl WebhookRuntime {
     ) -> Self {
         self.hint = Some(receiver);
         self
+    }
+
+    pub fn with_verification_audit(
+        mut self,
+        audit: DatabaseVerificationAudit,
+        validator: &str,
+    ) -> Result<Self> {
+        crate::factories::validate_reference("signature_validator", validator)?;
+        self.verification_audit = Some((audit, validator.to_owned()));
+        Ok(self)
     }
 
     pub fn with_signature_validator(mut self, validator: Arc<dyn SignatureValidator>) -> Self {
@@ -141,6 +155,8 @@ impl<'a> WebhookProcessor<'a> {
                 .validator
                 .has_signature(self.request, self.config)
         {
+            self.record_verification(VerificationDecision::UnverifiedHint)
+                .await?;
             receiver
                 .receive(crate::hints::UnverifiedHint::new(self.request, self.config))
                 .await?;
@@ -149,7 +165,30 @@ impl<'a> WebhookProcessor<'a> {
                 serde_json::json!({"message":"accepted"}),
             )?);
         }
-        if !self.runtime.validator.is_valid(self.request, self.config)? {
+        let valid = match self.runtime.validator.is_valid(self.request, self.config) {
+            Ok(valid) => valid,
+            Err(error) => {
+                self.record_verification(VerificationDecision::ValidatorError)
+                    .await?;
+                return Err(error);
+            }
+        };
+        if !valid {
+            let audit = if self.runtime.verification_audit.is_some() {
+                let decision = if self
+                    .runtime
+                    .validator
+                    .has_signature(self.request, self.config)
+                {
+                    VerificationDecision::InvalidSignature
+                } else {
+                    VerificationDecision::MissingSignature
+                };
+                self.record_verification(decision).await
+            } else {
+                Ok(())
+            };
+
             self.runtime
                 .events
                 .dispatch(
@@ -163,8 +202,11 @@ impl<'a> WebhookProcessor<'a> {
                 .map_err(|source| Error::Runtime {
                     source: Box::new(source),
                 })?;
+            audit?;
             return Err(Error::InvalidSignature);
         }
+        self.record_verification(VerificationDecision::Verified)
+            .await?;
         if !self
             .runtime
             .profile
@@ -219,6 +261,21 @@ impl<'a> WebhookProcessor<'a> {
         }
         self.create_response()
     }
+    async fn record_verification(&self, decision: VerificationDecision) -> Result<()> {
+        let Some((audit, validator)) = &self.runtime.verification_audit else {
+            return Ok(());
+        };
+        let policy = match decision {
+            VerificationDecision::UnverifiedHint => {
+                self.config.options()["unverified_hint_receiver"]
+                    .as_str()
+                    .unwrap_or("unverified_hint")
+            }
+            _ => "signature_required",
+        };
+        audit.record(self.config, validator, policy, decision).await
+    }
+
     fn create_response(&self) -> Result<Response> {
         self.runtime
             .response

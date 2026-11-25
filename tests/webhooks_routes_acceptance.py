@@ -661,6 +661,88 @@ def check_unverified_hints(binary, env, root, port, driver, sql):
     print(f"{driver}: 无签名提示 12 个真实 HTTP、5 次 Worker；限额、签名和范围隔离、入队回滚、重复、过期及撤销通过")
 
 
+def check_verification_audit(binary, env, root, port, driver, sql):
+    body = b"private-body-for-audit"
+    listener = root / "audit-listener-ran"
+    current = env | {"FIXTURE_EMPTY_SECRET": "", "FIXTURE_AUDIT_LISTENER_FAIL": str(listener)}
+    signature = hmac.new(SECRET.encode(), body, hashlib.sha256).hexdigest()
+    starting_count = int(sql("SELECT COUNT(*) FROM webhook_calls"))
+    command(binary, current, "config:cache")
+    with (root / "verification-audit.log").open("w+") as log:
+        server = http_helpers["serve"](binary, current, log)
+        try:
+            def send(profile, expected, signed=None):
+                connection = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+                try:
+                    headers = {"Accept": "application/json", "Content-Type": "application/octet-stream",
+                               "X-Private": "private-header-for-audit"}
+                    if signed is not None:
+                        headers["Signature"] = signed
+                    connection.request("POST", f"/api/package/{profile}?query=private-query", body, headers)
+                    response = connection.getresponse()
+                    data = response.read()
+                    assert response.status == expected, (profile, expected, response.status, data)
+                finally:
+                    connection.close()
+
+            send("audit-required", 500)
+            for _ in range(3):
+                send("audit-required", 500, "0" * 64)
+            assert listener.read_bytes() == b"ran"
+            send("audit-error", 500, "0" * 64)
+            send("audit-required", 200, signature)
+            assert int(sql("SELECT COUNT(*) FROM webhook_calls")) == starting_count + 1
+            assert sql("SELECT COUNT(*) FROM jobs") == "1"
+            marker = root / "audited-worker.json"
+            command(binary, current | {"WEBHOOK_TEST_RECEIPT_OUTPUT": str(marker)}, "queue:work",
+                    "database", "--queue=webhook-receipts", "--once")
+            assert bytes(json.loads(marker.read_text())["body"]) == body
+            assert sql("SELECT COUNT(*) FROM jobs") == "0"
+
+            entries = sql(
+                "SELECT profile,revision,validator,policy,classification,evidence "
+                "FROM webhook_verification_audits"
+            ).splitlines()
+            expected = {
+                "audit-required\taudit-v1\tdefault\tsignature_required\trejected\tmissing_signature",
+                "audit-required\taudit-v1\tdefault\tsignature_required\trejected\tinvalid_signature",
+                "audit-required\taudit-v1\tdefault\tsignature_required\tverified\tsignature_accepted",
+                "audit-error\taudit-error-v1\tdefault\tsignature_required\trejected\tvalidator_error",
+                "hint\thint-one\tdefault\tfixture-hint\tunverified_hint\tmissing_signature",
+                "hint-standard\t1\tstandard\tsignature_required\trejected\tinvalid_signature",
+            }
+            assert expected <= set(entries), entries
+            assert not any("private-" in entry or SECRET in entry for entry in entries)
+            assert sql("SELECT COUNT(*) FROM webhook_verification_audits WHERE profile='post'") == "0"
+            assert 1 <= int(sql(
+                "SELECT COUNT(*) FROM webhook_verification_audits "
+                "WHERE profile='audit-required' AND evidence='invalid_signature'"
+            )) <= 2
+            if driver == "sqlite":
+                columns = {line.split("\t")[1] for line in sql("PRAGMA table_info(webhook_verification_audits)").splitlines()}
+            else:
+                columns = set(sql(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name='webhook_verification_audits'"
+                ).splitlines())
+            assert columns == {"audit_key", "scope_key", "scope", "profile", "revision", "validator",
+                               "policy", "classification", "evidence", "observed_minute"}
+
+            write_database(driver, sql,
+                           "UPDATE webhook_verification_audits SET observed_minute=0 WHERE profile='audit-error'")
+            prune = ("webhook-client:prune", "--verification-audit", "--limit=1")
+            assert "已清理 0 条" in command(binary, current, *prune, "--scope=another-account")
+            assert "可清理 1 条" in command(binary, current, *prune, "--scope=webhook-acceptance", "--pretend")
+            assert "已清理 1 条" in command(binary, current, *prune, "--scope=webhook-acceptance")
+            assert sql("SELECT COUNT(*) FROM webhook_verification_audits WHERE profile='audit-error'") == "0"
+            assert int(sql("SELECT COUNT(*) FROM webhook_verification_audits")) == len(entries) - 1
+            assert int(sql("SELECT COUNT(*) FROM webhook_calls")) == starting_count + 1
+        finally:
+            http_helpers["stop"](server)
+            command(binary, current, "config:clear")
+    print(f"{driver}: 验签证据 6 个真实 HTTP、1 次 Worker、3 次清理命令；三类判定、合并、脱敏与配置缓存通过")
+
+
 def main():
  driver,url=helpers["database_settings"]();binary=args.binary.resolve();requests=workers=0
  with tempfile.TemporaryDirectory(dir=ROOT/"target/tmp",prefix="webhook-routes-") as tmp:
@@ -856,9 +938,10 @@ def main():
   check_deferred_processing(binary,env,root,port,driver,sql)
   check_body_deduplication(binary,env,root,port,driver,sql)
   check_unverified_hints(binary,env,root,port,driver,sql)
+  check_verification_audit(binary,env,root,port,driver,sql)
   check_retention(binary,env,root,port,driver,sql)
   legacy_id=sql("SELECT id FROM webhook_calls WHERE name='default' ORDER BY id LIMIT 1")
-  assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate:rollback","--step=8","--force")
+  assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate:rollback","--step=9","--force")
   assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate","--force")
   legacy=json.loads(command(binary,env,"webhooks:record",legacy_id,"webhook-acceptance"))
   assert bytes(legacy["body"])==b"default" and legacy["payload"] is None and legacy["attachments"] is None
