@@ -40,6 +40,7 @@ mod message_migration;
 mod message_retention;
 #[path = "../database/migrations/2026_11_25_000000_extend_webhook_messages_for_retention.rs"]
 mod message_retention_migration;
+mod proxy_map;
 mod publication;
 #[path = "../database/migrations/2026_11_25_000000_create_webhook_rate_buckets_table.rs"]
 mod rate_migration;
@@ -47,6 +48,7 @@ mod recovery;
 #[path = "../database/migrations/2026_11_25_000000_extend_webhook_deliveries_for_recovery.rs"]
 mod recovery_migration;
 mod replay;
+pub use proxy_map::ProxyMap;
 #[path = "../database/migrations/2026_11_25_000000_extend_webhook_deliveries_for_replay.rs"]
 mod replay_migration;
 mod replay_retention;

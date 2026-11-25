@@ -8,12 +8,13 @@ use url::Url;
 use zeroize::Zeroizing;
 
 use crate::{
-    BackoffStrategy, BoundTarget, Error, Result, Signer, SigningContext, TargetPolicy,
+    BackoffStrategy, BoundTarget, Error, ProxyMap, Result, Signer, SigningContext, TargetPolicy,
     body::{Payload, encode_json},
     configuration,
     destination::{MAX_URL_BYTES, parse_target},
     endpoints::{Endpoint, EndpointBinding},
     extensions,
+    proxy_map::ProxySetting,
 };
 
 /// 构造可验证的 Webhook 请求。准备过程只生成不可变快照。
@@ -54,7 +55,7 @@ struct CallConfig {
     webhook_job: String,
     verify_ssl: bool,
     throw_exception_on_failure: bool,
-    proxy: Option<String>,
+    proxy: Option<ProxySetting>,
     tags: Vec<String>,
 }
 
@@ -78,6 +79,7 @@ pub struct PreparedWebhook {
     signing: Option<(Secret, Arc<dyn Signer>)>,
     backoff: Arc<dyn BackoffStrategy>,
     config: CallConfig,
+    proxy: Option<String>,
     endpoint: Option<EndpointBinding>,
 }
 
@@ -280,7 +282,12 @@ impl WebhookCall {
 
     /// 选择由应用投递策略在执行时授权的具名代理。
     pub fn use_proxy(mut self, reference: Option<String>) -> Self {
-        self.config.proxy = reference;
+        self.config.proxy = reference.map(ProxySetting::Reference);
+        self
+    }
+
+    pub fn use_proxy_map(mut self, map: ProxyMap) -> Self {
+        self.config.proxy = Some(ProxySetting::Map(map));
         self
     }
 
@@ -309,7 +316,16 @@ impl WebhookCall {
         };
         validate_message_id(&self.uuid)?;
         let method = self.config.validate(&self.meta)?;
-        if self.config.proxy.is_some() && (url.scheme() != "https" || !self.config.verify_ssl) {
+        let proxy = self
+            .config
+            .proxy
+            .take()
+            .as_ref()
+            .map(|setting| setting.select(&url))
+            .transpose()?
+            .flatten()
+            .map(str::to_owned);
+        if proxy.is_some() && (url.scheme() != "https" || !self.config.verify_ssl) {
             return Err(Error::InvalidConfig("proxy"));
         }
         let (bytes, query) = self.payload.prepare(method == Method::GET)?;
@@ -360,6 +376,7 @@ impl WebhookCall {
             signing,
             backoff,
             config: self.config,
+            proxy,
             endpoint: self.endpoint,
         })
     }
@@ -383,7 +400,6 @@ impl CallConfig {
         for (field, name) in [
             ("webhook_job", Some(self.webhook_job.as_str())),
             ("queue", self.queue.as_deref()),
-            ("proxy", self.proxy.as_deref()),
             ("connection", self.connection.as_deref()),
         ] {
             if let Some(name) = name {
@@ -514,7 +530,7 @@ impl PreparedWebhook {
             message_ref: None,
             hydrated_body: None,
             unverified_tls: !self.config.verify_ssl,
-            proxy: self.config.proxy.clone(),
+            proxy: self.proxy.clone(),
         })
     }
 

@@ -174,8 +174,17 @@ def exercise(binary, env, log, receiver, driver, sql):
                 ("proxy-good", "proxy", "succeeded"),
                 ("redirect", "proxy", "http_failure"),
                 ("proxy-direct", "normal", "succeeded"),
+                ("proxy-map-https", "proxy-map", "succeeded"),
+                ("proxy-map-configured", "proxy-map-config", "succeeded"),
+                ("proxy-map-bypass", "proxy-map-excluded", "succeeded"),
+                ("proxy-map-missing-scheme", "proxy-map-missing-https", "succeeded"),
+                ("proxy-map-not-authorized", "proxy-map-unregistered", "rejected"),
             ],
-            "proxy-ip": [("proxy-good", "proxy", "succeeded")],
+            "proxy-ip": [
+                ("proxy-good", "proxy", "succeeded"),
+                ("proxy-map-ip-literal", "proxy-map-ip-exclusion", "succeeded"),
+                ("tls-wrong-ca", "proxy", "unknown"),
+            ],
             "proxy-mutual": [
                 ("tls-client", "proxy", "succeeded"),
                 ("tls-no-client", "proxy", "unknown"),
@@ -202,8 +211,10 @@ def exercise(binary, env, log, receiver, driver, sql):
             assert attempts(identifier) == f"1\t{outcome}\t{status}", (key, attempts(identifier))
             snapshot = sql(f"SELECT snapshot FROM webhook_deliveries WHERE id='{identifier}'")
             assert "PRIVATE KEY" not in snapshot and "FIXTURE_SEND_TLS_DIR" not in snapshot
-            if mode == "proxy":
-                assert json.loads(snapshot)["proxy"] == "fixture-egress"
+            if mode in ("proxy", "proxy-map", "proxy-map-config", "proxy-map-unregistered"):
+                reference = "fixture-missing" if mode == "proxy-map-unregistered" else "fixture-egress"
+                assert json.loads(snapshot)["proxy"] == reference
+                assert "unused-egress" not in snapshot and "unused-egress" not in queue
                 assert "fixture-user" not in snapshot and "local p@ss" not in snapshot
                 assert env["FIXTURE_SEND_PROXY_ADDRESS"] not in snapshot
             else:
@@ -225,11 +236,13 @@ def exercise(binary, env, log, receiver, driver, sql):
         expected_sni = None if profile == "proxy-ip" else "outgoing-fixture.invalid"
         assert receiver.tls_names and set(receiver.tls_names) == {expected_sni}
         if profile.startswith("proxy"):
-            destination = ("127.0.0.1", receiver.server_port)
+            destination = (receiver.server_address[0], receiver.server_port)
             proxy = receiver.proxy
-            target_count = 2 if profile in ("proxy", "proxy-mutual") else 1
+            target_count = 2 if profile in ("proxy", "proxy-ip", "proxy-mutual") else 1
             if proxy_tls and profile == "proxy":
                 target_count += 1  # Target TLS rejects after CONNECT succeeds.
+            if profile == "proxy":
+                target_count += 2  # Builder and object configuration both select the HTTPS route.
             assert proxy.targets == [destination] * target_count, proxy.targets
             assert proxy.rejected == (1 if profile == "proxy" else 0)
             if proxy_tls:
@@ -239,7 +252,8 @@ def exercise(binary, env, log, receiver, driver, sql):
                 assert sorted(proxy.tls_names) == sorted(names), proxy.tls_names
                 assert proxy.client_certificates == [None] * (target_count + proxy.rejected)
         protocol = env.get("FIXTURE_SEND_PROXY_PROTOCOL", "socks5") if profile.startswith("proxy") else "direct"
-        print(f"{driver}: TLS {profile} {protocol} HTTP、Artisan、Worker 及固定连接通过")
+        network = "IPv6" if env.get("FIXTURE_SEND_IPV6") == "1" else "IPv4"
+        print(f"{driver}: TLS {profile} {protocol} {network} HTTP、Artisan、Worker 及固定连接通过")
         return
 
     def admin(operation, name, *options):
@@ -1828,9 +1842,11 @@ class SocksProxy(socketserver.BaseRequestHandler):
             self.request.sendall(b"\x01\x01")
             return
         self.request.sendall(b"\x01\x00")
-        # 被授权的回环目标固定为数字 IPv4，收到域名即为回归。
-        assert self.read(4) == b"\x05\x01\x00\x01"
-        target = socket.inet_ntoa(self.read(4)), int.from_bytes(self.read(2), "big")
+        # 授权目标必须使用实际数字回环 IP，而非域名。
+        family = socket.AF_INET6 if ":" in self.server.expected[0] else socket.AF_INET
+        ipv6 = family == socket.AF_INET6
+        assert self.read(4) == (b"\x05\x01\x00\x04" if ipv6 else b"\x05\x01\x00\x01")
+        target = socket.inet_ntop(family, self.read(16 if ipv6 else 4)), int.from_bytes(self.read(2), "big")
         assert target == self.server.expected, target
         self.server.targets.append(target)
         with socket.create_connection(target, timeout=6) as peer:
@@ -1855,7 +1871,7 @@ class HttpConnectProxy(socketserver.BaseRequestHandler):
     def connect(self, connection):
         with connection.makefile("rb", buffering=0) as reader:
             line = reader.readline(1024)
-            target = f"{self.server.expected[0]}:{self.server.expected[1]}".encode()
+            target = socket_authority(*self.server.expected).encode()
             assert line == b"CONNECT " + target + b" HTTP/1.1\r\n", line
             headers = {}
             for _ in range(16):
@@ -1889,6 +1905,18 @@ def relay_proxy(request, peer):
             swap[source].sendall(data)
 
 
+def socket_authority(host, port):
+    return f"[{host}]:{port}" if ":" in host else f"{host}:{port}"
+
+
+class Ipv6Receiver(http.server.ThreadingHTTPServer):
+    address_family = socket.AF_INET6
+
+
+class Ipv6Proxy(socketserver.ThreadingTCPServer):
+    address_family = socket.AF_INET6
+
+
 def configure_tls(receiver, folder, profile, proxy):
     def openssl(*tokens):
         subprocess.run(["openssl", *tokens], cwd=folder, check=True, capture_output=True, timeout=10)
@@ -1913,7 +1941,7 @@ def configure_tls(receiver, folder, profile, proxy):
     san = {
         "wrong-host": "DNS:wrong-name.invalid",
         "proxy-wrong-host": "DNS:wrong-name.invalid",
-        "proxy-ip": "IP:127.0.0.1",
+        "proxy-ip": f"IP:{receiver.server_address[0]}",
     }.get(profile, "DNS:outgoing-fixture.invalid")
     certificate("server", "ca", 1, f"subjectAltName={san}\nextendedKeyUsage=serverAuth\n",
                 old if profile == "expired" else ("-days", "2"))
@@ -1949,7 +1977,11 @@ def configure_tls(receiver, folder, profile, proxy):
 def main():
     binary = routes["args"].binary.resolve()
     driver, url = helpers["database_settings"]()
-    receiver = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Receiver)
+    ipv6 = os.environ.get("FIXTURE_SEND_IPV6") == "1"
+    local = "::1" if ipv6 else "127.0.0.1"
+    receiver_type = Ipv6Receiver if ipv6 else http.server.ThreadingHTTPServer
+    proxy_type = Ipv6Proxy if ipv6 else socketserver.ThreadingTCPServer
+    receiver = receiver_type((local, 0), Receiver)
     receiver.mutex = threading.Lock()
     receiver.received = {}
     receiver.unexpected = []
@@ -1964,8 +1996,8 @@ def main():
             protocol = os.environ.get("FIXTURE_SEND_PROXY_PROTOCOL")
             if profile and profile.startswith("proxy"):
                 handler = HttpConnectProxy if protocol in ("connect", "connect-tls") else SocksProxy
-                proxy = socketserver.ThreadingTCPServer(("127.0.0.1", 0), handler)
-                proxy.expected = ("127.0.0.1", receiver.server_port)
+                proxy = proxy_type((local, 0), handler)
+                proxy.expected = (local, receiver.server_port)
                 proxy.targets = []
                 proxy.rejected = 0
                 proxy.tls_context = None
@@ -1997,7 +2029,7 @@ def main():
                 "APP_KEY": "base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
                 "FIXTURE_SPATIE_SECRET": routes["SECRET"], "FIXTURE_STANDARD_SECRET": routes["STANDARD"],
                 "FIXTURE_SEND_TARGET": f"http://outgoing-fixture.invalid:{receiver.server_port}/receiver",
-                "FIXTURE_SEND_ADDRESS": f"127.0.0.1:{receiver.server_port}",
+                "FIXTURE_SEND_ADDRESS": socket_authority(local, receiver.server_port),
                 "FIXTURE_SEND_EVENTS": str(Path(root) / "delivery-events.jsonl"),
                 "FIXTURE_JOB_HOOK_LOG": str(Path(root) / "job-hooks.jsonl"),
                 "HTTP_PROXY": "http://127.0.0.1:1", "HTTPS_PROXY": "http://127.0.0.1:1", "NO_PROXY": "",
@@ -2006,9 +2038,9 @@ def main():
                 env["FIXTURE_SEND_TLS_DIR"] = str(tls)
                 env["FIXTURE_SEND_TARGET"] = env["FIXTURE_SEND_TARGET"].replace("http:", "https:", 1)
                 if profile == "proxy-ip":
-                    env["FIXTURE_SEND_TARGET"] = env["FIXTURE_SEND_TARGET"].replace("outgoing-fixture.invalid", "127.0.0.1")
+                    env["FIXTURE_SEND_TARGET"] = f"https://{socket_authority(local, receiver.server_port)}/receiver"
             if proxy:
-                env["FIXTURE_SEND_PROXY_ADDRESS"] = f"127.0.0.1:{proxy.server_address[1]}"
+                env["FIXTURE_SEND_PROXY_ADDRESS"] = socket_authority(local, proxy.server_address[1])
             if url:
                 env["DB_URL"] = url
             else:

@@ -565,17 +565,14 @@ impl ConnectorService {
             #[cfg(feature = "__rustls")]
             Inner::RustlsTls { http, tls, .. } => {
                 if dst.scheme() == Some(&Scheme::HTTPS) {
-                    use std::convert::TryFrom;
+                    use hyper_rustls::{DefaultServerNameResolver, ResolveServerName};
                     use tokio_rustls::TlsConnector as RustlsConnector;
 
                     let tls = tls.clone();
-                    let host = dst.host().ok_or("no host in url")?.to_string();
+                    let server_name = DefaultServerNameResolver::default().resolve(&dst)?;
                     let conn = socks::connect(proxy, dst, dns, &self.resolver, http).await?;
                     let conn = TokioIo::new(conn);
                     let conn = TokioIo::new(conn);
-                    let server_name =
-                        rustls_pki_types::ServerName::try_from(host.as_str().to_owned())
-                            .map_err(|_| "Invalid Server Name")?;
                     let io = RustlsConnector::from(tls)
                         .connect(server_name, conn)
                         .await?;
@@ -870,7 +867,7 @@ impl ConnectorService {
                 tls_proxy,
             } => {
                 if dst.scheme() == Some(&Scheme::HTTPS) {
-                    use rustls_pki_types::ServerName;
+                    use hyper_rustls::{DefaultServerNameResolver, ResolveServerName};
                     use std::convert::TryFrom;
                     use tokio_rustls::TlsConnector as RustlsConnector;
 
@@ -911,9 +908,7 @@ impl ConnectorService {
                     // We don't wrap this again in an HttpsConnector since that uses Maybe,
                     // and we know this is definitely HTTPS.
                     let tunneled = tunnel.call(connect_dst).await?;
-                    let host = dst.host().ok_or("no host in url")?.to_string();
-                    let server_name = ServerName::try_from(host.as_str().to_owned())
-                        .map_err(|_| "Invalid Server Name")?;
+                    let server_name = DefaultServerNameResolver::default().resolve(&dst)?;
                     let io = RustlsConnector::from(tls.clone())
                         .connect(server_name, TokioIo::new(tunneled))
                         .await?;

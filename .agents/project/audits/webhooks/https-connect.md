@@ -4,7 +4,7 @@
 
 固定 Laravel HTTP Client 通过 Guzzle options 提供传输配置。固定 Spatie 发送器的 `useProxy` 继续映射到 OpenRust 的具名策略入口。原 Reqwest 0.13.5 的 HTTPS 代理使用从目标克隆的 TLS 配置。本批复用已有 CONNECT 补丁及 Hyper 隧道，使用 hyper-rustls 0.27.10 的 `FixedServerNameResolver` 独立选择代理 TLS 名称，并用 Rustls 0.23.46 构建只接受代理信任根的独立 TLS 配置。旧版工作树 `6d1a81924` 未发现相同机制。 [固定 Laravel HTTP Client](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Client/PendingRequest.php) · [固定 Spatie WebhookCall](https://github.com/spatie/laravel-webhook-server/blob/6da6be3a721190bcdedcdef32d31d5980b77eb0e/src/WebhookCall.php) · [Reqwest 0.13.5](https://docs.rs/reqwest/0.13.5/src/reqwest/connect.rs.html) · [hyper-rustls 0.27.10](https://docs.rs/hyper-rustls/0.27.10/hyper_rustls/struct.FixedServerNameResolver.html) · [Rustls 0.23.46](https://docs.rs/rustls/0.23.46/rustls/client/struct.ClientConfig.html)
 
-代理跳的客户端证书认证、代理映射及排除列表、IPv6 代理拓扑、外部代理和真实跨主机部署仍未覆盖。代理跳支持 Basic 认证和服务端证书校验，收件端支持 mTLS。WH-04／WH-05 保持开放。
+[代理映射、排除列表与 IPv6 本地拓扑](proxy-map.md)已补验。代理跳的客户端证书认证、外部代理和真实跨主机部署仍未覆盖。代理跳支持 Basic 认证和服务端证书校验，收件端支持 mTLS。WH-04／WH-05 保持开放。
 
 ## 验收
 

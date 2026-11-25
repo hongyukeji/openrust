@@ -21,7 +21,8 @@ use openrust::{
 };
 use openrust_webhook_server::{
     BackoffStrategy, CallWebhookJob, DeliveryContext, DeliveryPermission, DeliveryPolicy,
-    DeliveryService, DeliveryStore, Error, Result, TargetPolicy, WebhookCall, WebhookJobAttempt,
+    DeliveryService, DeliveryStore, Error, ProxyMap, Result, TargetPolicy, WebhookCall,
+    WebhookJobAttempt,
     events::{
         DispatchingWebhookCallEvent, FinalWebhookCallFailedEvent, WebhookCallEvent,
         WebhookCallFailedEvent, WebhookCallSucceededEvent,
@@ -430,7 +431,14 @@ pub(super) fn submit(
         if mode.starts_with("publish") {
             return publish(&key, &mode, &data, &policy).await;
         }
-        let mut call = WebhookCall::create()
+        let builder = if mode == "proxy-map-config" {
+            WebhookCall::from_configuration(&json!({
+                "proxy": {"http":"unused-egress","https":"fixture-egress","no":[".another.invalid"]}
+            }))
+        } else {
+            WebhookCall::create()
+        };
+        let mut call = builder
             .map_err(super::internal)?
             .url(url)
             .uuid(&key)
@@ -455,9 +463,35 @@ pub(super) fn submit(
             } else {
                 2
             });
-        if mode == "proxy" {
-            call = call.use_proxy(Some("fixture-egress".to_owned()));
-        }
+        call = match mode.as_str() {
+            "proxy" => call.use_proxy(Some("fixture-egress".to_owned())),
+            "proxy-map" => call.use_proxy_map(ProxyMap::new(
+                Some("unused-egress".to_owned()),
+                Some("fixture-egress".to_owned()),
+                vec!["fixture.invalid".into()],
+            )),
+            "proxy-map-excluded" => call.use_proxy_map(ProxyMap::new(
+                None,
+                Some("fixture-egress".to_owned()),
+                vec![".invalid".into()],
+            )),
+            "proxy-map-missing-https" => call.use_proxy_map(ProxyMap::new(
+                Some("unused-egress".to_owned()),
+                None,
+                Vec::new(),
+            )),
+            "proxy-map-ip-exclusion" => call.use_proxy_map(ProxyMap::new(
+                None,
+                Some("fixture-egress".to_owned()),
+                vec!["127.0.0.1".into(), "[::1]".into()],
+            )),
+            "proxy-map-unregistered" => call.use_proxy_map(ProxyMap::new(
+                None,
+                Some("fixture-missing".to_owned()),
+                Vec::new(),
+            )),
+            _ => call,
+        };
         if mode == "tls-insecure" {
             call = call.do_not_verify_ssl();
         }
