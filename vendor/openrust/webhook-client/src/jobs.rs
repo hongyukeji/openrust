@@ -38,6 +38,17 @@ pub trait ProcessWebhookJob: Send + Sync {
             Ok(WebhookProcessingOutcome::Completed)
         })
     }
+
+    /// 原生队列确认终态失败后，从已登记的存储重新读取记录并通知处理器。
+    fn failed<'a>(
+        &'a self,
+        _context: &'a JobContext<'_>,
+        _call: &'a WebhookCall,
+        _store: &'a dyn WebhookStore,
+        _error: &'a QueueError,
+    ) -> HttpFuture<'a, Result<()>> {
+        Box::pin(async { Ok(()) })
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -308,11 +319,7 @@ impl JobHandler for RegisteredJob {
                 .await
                 .map_err(queue_error)?
                 .ok_or_else(|| QueueError::MissingModel(receipt.id.to_owned()))?;
-            if call.id() != receipt.id
-                || call.scope() != receipt.scope
-                || call.name() != receipt.profile
-                || call.revision() != receipt.revision
-            {
+            if !receipt.matches_call(&call) {
                 return Err(QueueError::InvalidPayload);
             }
 
@@ -330,6 +337,49 @@ impl JobHandler for RegisteredJob {
                 return Err(queue_error(Error::ProcessingFailed));
             }
             Ok(())
+        })
+    }
+
+    fn failed<'a>(
+        &'a self,
+        context: &'a mut JobContext<'_>,
+        payload: &'a Payload,
+        error: &'a QueueError,
+    ) -> QueueFuture<'a, QueueResult<()>> {
+        Box::pin(async move {
+            let receipt = Receipt::deserialize_from(payload)?;
+            let store = self.store.as_ref();
+            let Some(call) = WebhookCall::find(store, receipt.id)
+                .await
+                .map_err(queue_error)?
+            else {
+                return Ok(());
+            };
+            if !receipt.matches_call(&call) {
+                return Ok(());
+            }
+            match &self.lease {
+                Some((database, _)) => {
+                    let generation = database
+                        .processing_replay_generation(call.id())
+                        .await
+                        .map_err(queue_error)?;
+                    if generation != receipt.replay_generation
+                        || generation != 0
+                            && crate::replay::authorize_generation(database, call.id(), generation)
+                                .await
+                                .is_err()
+                    {
+                        return Ok(());
+                    }
+                }
+                None if receipt.replay_generation != 0 => return Ok(()),
+                None => {}
+            }
+            self.handler
+                .failed(context, &call, store, error)
+                .await
+                .map_err(|_| queue_error(Error::ProcessingFailed))
         })
     }
 }
@@ -570,6 +620,13 @@ impl QueueRoute {
 }
 
 impl<'a> Receipt<'a> {
+    fn matches_call(&self, call: &WebhookCall) -> bool {
+        call.id() == self.id
+            && call.scope() == self.scope
+            && call.name() == self.profile
+            && call.revision() == self.revision
+    }
+
     fn original(generation: &u32) -> bool {
         *generation == 0
     }

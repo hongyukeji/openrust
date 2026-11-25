@@ -32,7 +32,8 @@ def check_processing_lease(binary, env, root, port, driver, sql):
             "--queue=webhook-receipts", "--once", "--tries=1"]
 
     def worker(marker, **extra):
-        return current | {"WEBHOOK_TEST_RECEIPT_OUTPUT": str(root / marker), **extra}
+        return current | {"WEBHOOK_TEST_RECEIPT_OUTPUT": str(root / marker),
+                          "FIXTURE_WEBHOOK_FAILED_HOOK": str(root / f"{marker}-failure.json"), **extra}
 
     def run(marker, **extra):
         result = subprocess.run(work, env=worker(marker, **extra),
@@ -95,11 +96,19 @@ def check_processing_lease(binary, env, root, port, driver, sql):
             assert sql("SELECT COUNT(*) FROM jobs") == "1"
             assert int(sql("SELECT COUNT(*) FROM failed_jobs")) == failed_count + 1
             assert "private-terminal-sentinel" not in sql("SELECT exception FROM failed_jobs")
+            first_hook = json.loads((root / "halted-failure.json").read_text())
+            assert first_hook == {
+                "id": halted, "scope": "webhook-acceptance", "profile": "leased",
+                "queue": "webhook-receipts", "connection": "database", "attempts": 1, "failed_jobs": 1,
+                "exception": {"code": 0, "message": "Webhook 处理已终止"},
+                "redacted_error": True, "expected_body": True,
+            }, first_hook
             run("halted-duplicate")
             assert state(halted) == "1\t0\t0" and attempts(halted) == "1\tstopped\t1"
             assert sql("SELECT COUNT(*) FROM jobs") == "0"
             assert int(sql("SELECT COUNT(*) FROM failed_jobs")) == failed_count + 1
             assert not (root / "halted").exists() and not (root / "halted-duplicate").exists()
+            assert not (root / "halted-duplicate-failure.json").exists()
             record = json.loads(command(binary, current, "webhooks:record", halted, "webhook-acceptance"))
             assert record["exception"] == {"code":0,"message":"Webhook 处理已终止"}
             write_database(driver, sql, f"DELETE FROM failed_jobs WHERE payload LIKE '%{halted}%'")
@@ -108,7 +117,23 @@ def check_processing_lease(binary, env, root, port, driver, sql):
             run("completed-with-control")
             assert state(completed) == "1\t0\t1" and attempts(completed) == "1\tcompleted\t1"
             assert (root / "completed-with-control").exists()
+            assert not (root / "completed-with-control-failure.json").exists()
             assert int(sql("SELECT COUNT(*) FROM failed_jobs")) == failed_count
+
+            mismatched = dispatch(b"leased-untrusted-queue-revision")
+            job = json.loads(sql("SELECT payload FROM jobs"))
+            original = job["data"]["revision"]
+            last_attempt = job["options"]["max_tries"]
+            assert re.fullmatch(r"[a-zA-Z0-9_.:-]+", original)
+            assert isinstance(last_attempt, int) and last_attempt > 0
+            write_database(driver, sql,
+                           f"UPDATE jobs SET payload=replace(payload, '\"revision\":\"{original}\"', "
+                           f"'\"revision\":\"not-the-current-revision\"'), attempts={last_attempt}")
+            run("wrong-revision")
+            assert not (root / "wrong-revision-failure.json").exists()
+            assert state(mismatched) == "0\t0\t0" and not attempts(mismatched)
+            assert int(sql("SELECT COUNT(*) FROM failed_jobs")) == failed_count + 1
+            write_database(driver, sql, f"DELETE FROM failed_jobs WHERE payload LIKE '%{mismatched}%'")
 
             concurrent = dispatch(b"leased-concurrent")
             write_database(driver, sql, duplicate)
@@ -148,6 +173,7 @@ def check_processing_lease(binary, env, root, port, driver, sql):
             assert state(crashed) == "2\t0\t1" and (root / "recovered").exists()
             assert attempts(crashed) == "1\texpired\t1\n2\tcompleted\t1"
             assert sql("SELECT COUNT(*) FROM jobs") == "0"
+            assert "private-failed-hook-sentinel" not in log_path.read_text()
 
             stale = dispatch(b"leased-stale")
             write_database(driver, sql, duplicate)
@@ -186,7 +212,7 @@ def check_processing_lease(binary, env, root, port, driver, sql):
             raise
         finally:
             http_helpers["stop"](server)
-    print(f"{driver}: 接收处理租约 6 个真实 HTTP、14 个独立 Worker；主动释放、显式终态失败、成功保持、并发重复投递、终态去重、崩溃重领及旧 Worker 写回隔离通过")
+    print(f"{driver}: 接收处理租约 7 个真实 HTTP、15 个独立 Worker；主动释放、显式终态失败回调、成功保持、失配拒绝、并发重复投递、崩溃重领及旧 Worker 写回隔离通过")
 
 
 def check_verified_event_identity(binary, env, root, port, driver, sql):
@@ -1135,6 +1161,7 @@ def check_attachment_storage(binary, env, root, port, driver, sql):
 
 def check_dispatch_recovery(binary, env, root, port, driver, sql):
     from concurrent.futures import ThreadPoolExecutor
+    from uuid import uuid4
 
     scope = "webhook-recovery-scope"
     redis = os.environ.get("OPENRUST_TEST_WEBHOOK_REDIS_URL")
@@ -1366,8 +1393,12 @@ def check_dispatch_recovery(binary, env, root, port, driver, sql):
 
     # 原始队列正在等待的旧任务被新重放代次隔离，随后再撤销派发端许可。
     prior = root / "prior-generation-worker.json"
-    command(binary, worker_env | {"WEBHOOK_TEST_RECEIPT_OUTPUT": str(prior)}, *worker)
-    assert not prior.exists() and pending_count() == 0
+    prior_hook = root / "prior-generation-failure.json"
+    if not redis:
+        write_database(driver, sql, "UPDATE jobs SET attempts=2 WHERE queue='webhook-recovery'")
+    command(binary, worker_env | {"WEBHOOK_TEST_RECEIPT_OUTPUT": str(prior),
+                                  "FIXTURE_WEBHOOK_FAILED_HOOK": str(prior_hook)}, *worker)
+    assert not prior.exists() and not prior_hook.exists() and pending_count() == 0
     denied = replay_result(current, *sweep)
     assert denied.returncode != 0 and "1 条待重试" in denied.stdout, denied
     assert pending_count() == 0
@@ -1384,6 +1415,34 @@ def check_dispatch_recovery(binary, env, root, port, driver, sql):
     assert replay_result(authorized, *replay).returncode != 0
     assert sql("SELECT COUNT(*) FROM webhook_replays") == "1"
 
+    if not redis:
+        job_id, available_at, payload = sql(
+            "SELECT id,available_at,payload FROM jobs WHERE queue='webhook-recovery'"
+        ).split("\t", 2)
+        job_id, available_at = int(job_id), int(available_at)
+        clone = json.loads(payload)
+        # 隔离复制任务使用尝试上限，权威重放期限继续由接收数据库检查。
+        assert clone["options"].pop("retry_until") is not None
+        write_database(driver, sql, f"UPDATE jobs SET available_at={int(time.time()) + 300} WHERE id={job_id}")
+        try:
+            for allowed in (False, True):
+                clone["uuid"] = str(uuid4())
+                wire = json.dumps(clone, separators=(",", ":")).replace("'", "''")
+                write_database(driver, sql,
+                    "INSERT INTO jobs (queue,payload,attempts,reserved_at,available_at,created_at) "
+                    f"SELECT queue,'{wire}',2,NULL,0,created_at FROM jobs WHERE id={job_id}")
+                failure = root / f"replay-terminal-{allowed}.json"
+                failure_env = worker_env | {"FIXTURE_WEBHOOK_FAILED_HOOK": str(failure)}
+                if allowed:
+                    failure_env["FIXTURE_REPLAY_ALLOW"] = "1"
+                command(binary, failure_env, *worker)
+                assert failure.exists() == allowed
+                if allowed:
+                    assert json.loads(failure.read_text())["id"] == receipt
+                assert pending_count() == 1, allowed
+        finally:
+            write_database(driver, sql, f"UPDATE jobs SET available_at={available_at} WHERE id={job_id}")
+
     denied_worker = root / "denied-replay-worker.json"
     command(binary, worker_env | {"WEBHOOK_TEST_RECEIPT_OUTPUT": str(denied_worker)}, *worker)
     assert not denied_worker.exists()
@@ -1399,6 +1458,8 @@ def check_dispatch_recovery(binary, env, root, port, driver, sql):
     assert "已派发 0 条" in command(binary, current, *sweep)
     assert sql(f"SELECT COUNT(*) FROM webhook_dispatch_intents WHERE call_id='{receipt}'") == "0"
     assert pending_count() == 0
+    if not redis:
+        write_database(driver, sql, f"DELETE FROM failed_jobs WHERE payload LIKE '%{receipt}%'")
     print(f"{driver}: 入列后丢失恢复经 {connection} 实测 1 个 HTTP、2 次 Worker；等待窗口、"
           "清除任务、崩溃租约、并发预算扣减、终态清理及迁移保护通过", flush=True)
 
@@ -1599,7 +1660,8 @@ def main():
        assert payload["options"]["max_tries"]==2 and payload["options"]["timeout"]["secs"]==12
        assert record["exception"] is None
        marker=root/f"worker-{receipt}.json"
-       worker_env=current|{"WEBHOOK_TEST_RECEIPT_OUTPUT":str(marker),"FIXTURE_SPATIE_SECRET":"other-worker-secret","FIXTURE_STANDARD_SECRET":"unused"}
+       failure=root/f"worker-{receipt}-failure.json"
+       worker_env=current|{"WEBHOOK_TEST_RECEIPT_OUTPUT":str(marker),"FIXTURE_WEBHOOK_FAILED_HOOK":str(failure),"FIXTURE_SPATIE_SECRET":"other-worker-secret","FIXTURE_STANDARD_SECRET":"unused"}
        def work():
         nonlocal workers
         command(binary,worker_env,"queue:work","database","--queue=webhook-receipts","--once","--tries=1")
@@ -1607,17 +1669,24 @@ def main():
        if attempt_failure or terminal:
         work()
         assert not marker.exists() and sql("SELECT COUNT(*) FROM jobs")=="1"
+        assert not failure.exists()
         failed=json.loads(command(binary,current,"webhooks:record",receipt,scope))
         assert failed["exception"]=={"code":0,"message":"Webhook 处理任务执行失败"}
        work()
        if terminal:
         assert not marker.exists()
+        failed_hook=json.loads(failure.read_text())
+        assert failed_hook=={"id":receipt,"scope":scope,"profile":expected_name,
+                             "queue":"webhook-receipts","connection":"database","attempts":2,"failed_jobs":1,
+                             "exception":{"code":0,"message":"Webhook 处理任务执行失败"},
+                             "redacted_error":True,"expected_body":True},failed_hook
         failed=json.loads(command(binary,current,"webhooks:record",receipt,scope))
         assert failed["exception"]=={"code":0,"message":"Webhook 处理任务执行失败"}
         assert "private-business-error-sentinel" not in sql("SELECT exception FROM failed_jobs")
         assert sql("SELECT COUNT(*) FROM failed_jobs")=="1"
        else:
         assert json.loads(marker.read_text())==record
+        assert not failure.exists()
       else:assert record["exception"]=={"code":0,"message":"Webhook 处理任务派发失败"}
       assert sql("SELECT COUNT(*) FROM jobs")=="0"
       return record

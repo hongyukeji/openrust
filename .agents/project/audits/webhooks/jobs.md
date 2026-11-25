@@ -8,6 +8,6 @@ Worker 在执行前清除旧诊断。业务异常保存固定诊断，原始错�
 
 源码隔离基线 `d7409544f510b7c0e58ad6ec072a9f7cc6865153`。编译与测试使用原生 Rust 1.94.0、项目 build_guard 和锁文件。实测日志位于 `target/tmp/webhooks-job`。
 
-PostgreSQL 18.7、MySQL 8.4.13、SQLite 各通过 124 个真实 HTTP 请求与 80 次独立 Artisan Worker 运行。三种缓存状态均走正式注册的 Job，保留原文与附件读取，另核对只有四项接收标识入队。每库验证首次业务失败后重试成功、两次失败进入 failed_jobs、敏感异常文本未落入终态异常、无处理器和 null 连接假确认被拒绝。Worker 启动时换用其他接收密钥，已验证记录仍可读取和处理。独立 Artisan 读取回归继续通过。测试核对 12 秒超时配置传入原生任务，本批没有触发超时或进程中断。
+PostgreSQL 18.7、MySQL 8.4.13、SQLite 各通过 124 个真实 HTTP 请求与 80 次独立 Artisan Worker 运行。三种缓存状态均走正式注册的 Job，保留原文与附件读取，另核对只有四项接收标识入队。每库验证首次业务失败后重试成功、两次失败进入 failed_jobs、敏感异常文本未落入终态异常、无处理器和 null 连接假确认被拒绝。Worker 启动时换用其他接收密钥，已验证记录仍可读取和处理。独立 Artisan 读取回归继续通过。测试核对 12 秒超时配置传入原生任务，本批没有触发超时或进程中断。[接收 Job 原生终态回调](processing-failed-hook.md)在后续补入。
 
 接收包 31 项 Rust 回归、最终应用夹具与六段三语文档示例编译、全仓格式、两项 Webhook feature 启用后的 workspace/all-targets 严格 Clippy，以及三语文档站构建通过。隔离数据库和站点生成目录已清理，保留日志与可复用编译缓存。

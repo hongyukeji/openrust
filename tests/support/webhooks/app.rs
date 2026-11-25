@@ -428,6 +428,45 @@ impl openrust_webhook_client::jobs::ProcessWebhookJob for FixtureJob {
         })
     }
 
+    fn failed<'a>(
+        &'a self,
+        context: &'a openrust::queue::JobContext<'_>,
+        call: &'a openrust_webhook_client::models::WebhookCall,
+        _: &'a dyn openrust_webhook_client::WebhookStore,
+        error: &'a openrust::queue::QueueError,
+    ) -> HttpFuture<'a, openrust_webhook_client::Result<()>> {
+        Box::pin(async move {
+            let Some(path) = std::env::var_os("FIXTURE_WEBHOOK_FAILED_HOOK") else {
+                return Ok(());
+            };
+            let manager = Databases::get_facade_root().map_err(runtime_error)?;
+            let failed_jobs = manager
+                .connection(None)?
+                .table("failed_jobs")
+                .use_write_pdo()
+                .r#where("payload", "like", format!("%{}%", call.id()))
+                .count("*")
+                .await?;
+            let record = json!({
+                "id": call.id(), "scope": call.scope(), "profile": call.name(),
+                "queue": context.queue(), "connection": context.connection(),
+                "attempts": context.attempts(), "failed_jobs": failed_jobs,
+                "exception": call.exception(),
+                "redacted_error": !error.to_string().contains("private-"),
+                "expected_body": matches!(call.raw_body(), b"leased-stop-on-error" | b"terminal-binary-receipt"),
+            });
+            tokio::fs::write(path, record.to_string())
+                .await
+                .map_err(runtime_error)?;
+            if call.raw_body() == b"leased-stop-on-error" {
+                return Err(runtime_error(std::io::Error::other(
+                    "private-failed-hook-sentinel",
+                )));
+            }
+            Ok(())
+        })
+    }
+
     fn handle_outcome<'a>(
         &'a self,
         context: &'a mut openrust::queue::JobContext<'_>,
