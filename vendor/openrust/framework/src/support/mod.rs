@@ -32,6 +32,8 @@ mod number;
 pub(crate) mod publishing;
 mod service_provider;
 mod sleep;
+#[doc(hidden)]
+pub mod source_path;
 pub(crate) use publishing::PublishableResource;
 mod stringable;
 mod strings;

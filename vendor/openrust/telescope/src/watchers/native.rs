@@ -1,6 +1,8 @@
 use super::{NativeWatcher, json};
 use crate::{EntryType, EntryUpdate, IncomingEntry, Telescope};
-use openrust::{contracts::events::Event, events::EventContext};
+use openrust::{
+    contracts::events::Event, events::EventContext, support::source_path::cargo_package,
+};
 use serde_json::{Map, Value};
 use std::panic::Location;
 use uuid::Uuid;
@@ -296,25 +298,6 @@ impl NativeWatcher {
         Ok(())
     }
 }
-fn cargo_package(path: &str) -> Option<&str> {
-    // 自定义 CARGO_HOME 和发布路径重映射可移除 .cargo 目录名。
-    if let Some((_, tail)) = path.split_once("/registry/src/")
-        && let Some((index, source)) = tail.split_once('/')
-        && cargo_cache_key(index)
-    {
-        return source.split_once('/').map(|(package, _)| package);
-    }
-    let (_, tail) = path.split_once("/git/checkouts/")?;
-    let (checkout, _) = tail.split_once('/')?;
-    cargo_cache_key(checkout).then_some(checkout)
-}
-
-fn cargo_cache_key(component: &str) -> bool {
-    component.rsplit_once('-').is_some_and(|(_, fingerprint)| {
-        fingerprint.len() == 16 && fingerprint.bytes().all(|byte| byte.is_ascii_hexdigit())
-    })
-}
-
 fn ignored_job(payload: &openrust::queue::Payload) -> bool {
     payload.name() == crate::jobs::ProcessPendingUpdates::NAME
 }

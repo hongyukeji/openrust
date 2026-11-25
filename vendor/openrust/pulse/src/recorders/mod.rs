@@ -8,7 +8,7 @@ use openrust::{
         events::{Dispatcher as _, Event, Listener},
     },
     events::{Delivery, EventContext, EventFuture, EventResult, ListenerResponse},
-    support::facades::Facade,
+    support::{facades::Facade, source_path::cargo_package},
 };
 use serde_json::{Value, json};
 pub use servers::{Memory, Servers};
@@ -54,11 +54,10 @@ impl Recorders {
                 let rooted = format!("/{}", normalized.trim_start_matches('/'));
                 let framework = rooted.contains("/vendor/openrust/framework/src/")
                     || rooted.contains("/vendor/openrust/pulse/src/")
-                    || (rooted.contains("/registry/src/")
-                        && rooted.split('/').any(|part| {
-                            part.starts_with("openrust-framework-")
-                                || part.starts_with("openrust-pulse-")
-                        }));
+                    || matches!(
+                        cargo_package(&rooted),
+                        Some("openrust-framework" | "openrust-pulse")
+                    );
                 if framework
                     || matches!(
                         normalized.as_str(),

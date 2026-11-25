@@ -592,7 +592,11 @@ async fn slow_queries_use_the_query_event_source_and_respect_the_location_switch
         .assert_successful();
     let response = app.get("/api/query-source").await.unwrap();
     response.assert_ok();
-    let expected = response.json::<String>().unwrap();
+    let mut expected = response.json::<String>().unwrap();
+    if let Some(prefix) = option_env!("OPENRUST_PULSE_TEST_INTERNAL_SOURCE") {
+        assert!(expected.starts_with(prefix), "{expected}");
+        expected.clear();
+    }
     app.app()
         .config()
         .unwrap()

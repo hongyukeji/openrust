@@ -363,7 +363,7 @@ SQLite、PostgreSQL 18.7、MySQL 8.4.13 的 Telescope Gate 专项及框架授权
 
 修复版在 macOS、Linux ARM64 和 Windows 11 ARM64 的测试构建中各实跑 8 项 SQLite 路由回归。标准映射验证 Gate、嵌套 Gate、Query 和 Pulse SlowQueries。自定义 registry 与 Git checkout 两种布局各验证 Gate 和 Query，并在 Cargo 根的父目录加入 `openrust-` 前缀检查误判。相关严格 Clippy、快照全仓格式、三语文档构建和浏览器检查通过。编译后的实际路径及测试证据为 `target/tmp/observability-parity/source-remap-{macos-test,linux-verified,windows-verified,clippy-fmt,docs}.log`。
 
-macOS 默认 Release 的标准路径重映射以修复前快照构建，已用该 Telescope 测试二进制在 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 各通过 Gate、嵌套 Gate 与 Query 三项真实路由测试。证据为 `target/tmp/observability-parity/source-remap-macos-release-telescope.log`。自定义 Cargo 路径修复版的优化构建、优化后的 Pulse 和 Linux／Windows Release 继续验收。
+macOS 默认 Release 的标准路径重映射以自定义 Cargo 路径修复前的快照构建。Telescope 的 Gate、嵌套 Gate 与 Query 加上 Pulse 的 SlowQueries，在 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 各通过四项真实路由测试，共 12 项。证据为 `target/tmp/observability-parity/source-remap-macos-release.log`。自定义 Cargo 路径修复版的优化构建与 Linux／Windows Release 继续验收。
 
 ### Telescope Query 数据库调用来源
 
@@ -464,6 +464,13 @@ Linux 7.0.14 ARM64 与 Windows 11 ARM64 用 `274644de4` 的变更源码及 Rust 
 Rust 使用原生 `QueryExecuted.callers` 已捕获的位置，跳过框架、Pulse 及启动入口，无需解析本地调试符号。默认保留第三方包的候选，符合 Pulse 对内部来源较窄的排除范围。来源不可用时写空字符串，禁用时写 `null`。移除 Pulse 唯一的 `backtrace` 依赖及其孤立依赖。未接入调用来源的数据库入口和自定义路径重映射仍继续核对。
 
 基于 `d987d7fa9` 加本批文件的隔离快照，SQLite 真实路由验证有来源与关闭来源的条目键。Pulse 默认 21 项、独立 Redis 8.10.3 Stream 用例、Pulse 与 Telescope 的运行时组合、快照全仓格式、Pulse 全目标严格 Clippy、三语文档构建及 12 组浏览器检查通过。同一 macOS Release 二进制分别验证 SQLite、PostgreSQL 18.7、MySQL 8.4.13 的慢查询来源和关闭开关。Linux／Windows 与部署组合仍需验收。证据位于 `target/tmp/observability-parity/pulse-query-source-*.log`。
+
+
+固定 PHP 探针另从 Pulse 包内执行同一 SQLite 查询，确保调用栈只剩应排除的位置。启用 `location` 时实际条目键为 `["select 42 as pulse_source_probe",""]`，关闭后为 `["select 42 as pulse_source_probe",null]`。证据为 `target/tmp/observability-parity/pulse-query-no-source-upstream.log`。
+
+修复前的实际 HTTP 与 SQLite 用例复现两处差异。Pulse 保留了自定义 Cargo Git 缓存中的框架调用位置，又因 Cargo 根目录包含 `openrust-framework-` 前缀而丢弃了第三方注册表包的位置。Pulse 和 Telescope 现在共用 Cargo 包目录识别，并分别保留各自的过滤范围。Pulse 排除框架与 Pulse 包，按完整的注册表包名或 Git 仓库名识别，名字相近的第三方包（如 `openrust-pulse-exporter`）仍以实际文件和行号写入。保留 Cargo 目录结构的 Rust 路径重映射用于回归，自定义映射抹去包身份时仍受上节所述限制。修复前证据为 `target/tmp/observability-parity/pulse-cargo-source-macos-baseline.log`。注册表包名及语义版本以 Cargo 规则解析，缓存路径结构按 Rust 1.94.0 的实际布局验证。 [Cargo 包名与版本](https://doc.rust-lang.org/cargo/reference/manifest.html#the-name-field) [Cargo 缓存结构](https://doc.rust-lang.org/cargo/guide/cargo-home.html)
+
+macOS 使用本批完整源码，以实际编译器重映射验证五种路径。SQLite 通过 Git 框架包、普通第三方注册表包、同名前缀第三方注册表包、Pulse 注册表包和标准发布路径的 HTTP 测试。标准路径的 Pulse Provider 17 项及 PostgreSQL 18.7、MySQL 8.4.13 慢查询专项通过。Pulse 和 Telescope 的 Provider／Watcher 共 48 项，独占 Redis 8.10.3 的 Telescope 原生命令专项、共享识别规则单项、快照全仓格式和相关严格 Clippy 均通过。证据为 `target/tmp/observability-parity/pulse-cargo-source-exact-{macos,redis}.log`。
 
 ### Pulse Servers 默认主机名与配置缓存
 
