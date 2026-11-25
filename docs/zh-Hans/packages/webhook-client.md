@@ -260,3 +260,7 @@ pub fn register_replay_policy(
 ## 使用边界 {#scope}
 
 应用网络与任务执行复用现有 [HTTP 客户端](../digging-deeper/http-client.md)和[队列](../digging-deeper/queues.md)。持久恢复覆盖已提交的接收记录派发。各队列后端和部署拓扑需分别验收。
+
+### 单机与多副本 {#deployment}
+
+为所有副本配置同一套可写 PostgreSQL 或 MySQL 数据库。同库原子接收和入队使用 database 队列，任务投递到 Redis 时可配置持久派发恢复。HTTP 节点与 Worker 使用一致的队列名称、应用密钥及已授权的配置版本。持久附件使用所有 Worker 都能访问的私有存储。本地验收在同一主机使用独立节点目录和共享目录。跨主机部署前须验证实际共享存储和部署环境。

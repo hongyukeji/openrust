@@ -366,3 +366,7 @@ Implement `Signer` in an external crate. `SigningContext` supplies immutable bod
 ## Scope {#scope}
 
 Use the existing [HTTP client](../digging-deeper/http-client.md) and [queues](../digging-deeper/queues.md) for networking and jobs. Pending deliveries may need another queue wake-up or a bounded scan after their next attempt time.
+
+### Single host and replicas {#deployment}
+
+Use one writable PostgreSQL or MySQL database for delivery state and limits, and point every Worker at the same database or Redis queue. Keep credential references and authorized revisions available on every Worker. A recovery schedule using `on_one_server()` needs a shared database or Redis cache. SQLite is a single-host option. The database and Redis combinations were exercised with independent application processes on one host. Validate your infrastructure before deploying across hosts.

@@ -674,12 +674,14 @@ async fn dispatch_builder(
 
 pub(super) fn schedule(schedule: &mut Schedule) -> std::result::Result<(), ConsoleError> {
     if std::env::var_os("FIXTURE_SEND_SCHEDULE").is_some() {
-        schedule
-            .command(
-                "webhook-server:recover",
-                ["--scope=webhook-outbound-test".into(), "--limit=20".into()],
-            )
-            .every_minute();
+        let task = schedule.command(
+            "webhook-server:recover",
+            ["--scope=webhook-outbound-test".into(), "--limit=20".into()],
+        );
+        task.every_minute();
+        if std::env::var_os("FIXTURE_SEND_SINGLE_SCHEDULER").is_some() {
+            task.on_one_server();
+        }
     }
     Ok(())
 }

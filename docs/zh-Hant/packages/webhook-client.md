@@ -260,3 +260,7 @@ pub fn register_replay_policy(
 ## 使用邊界 {#scope}
 
 應用網路與任務執行複用既有 [HTTP 用戶端](../digging-deeper/http-client.md)與[佇列](../digging-deeper/queues.md)。持久復原涵蓋已提交接收記錄的派發。各佇列後端與部署拓撲需各自驗收。
+
+### 單機與多副本 {#deployment}
+
+為所有副本設定同一套可寫入的 PostgreSQL 或 MySQL 資料庫。同庫原子接收和入列使用 database 佇列，任務投遞到 Redis 時可設定持久派發復原。HTTP 節點與 Worker 使用一致的佇列名稱、應用程式金鑰及已授權的設定版本。持久附件使用所有 Worker 都能存取的私有儲存。本機驗收在同一主機使用獨立節點目錄和共用目錄。跨主機部署前須驗證實際共用儲存和部署環境。

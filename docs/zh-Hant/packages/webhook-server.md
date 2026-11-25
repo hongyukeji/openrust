@@ -366,3 +366,7 @@ Builder 的 `dispatch`、`dispatch_if` 和 `dispatch_unless` 登記投遞並入�
 ## 使用邊界 {#scope}
 
 網路和任務執行重用既有 [HTTP 用戶端](../digging-deeper/http-client.md)與[佇列](../digging-deeper/queues.md)。待重試的投遞到期後，可再次喚醒佇列任務或使用有界掃描。
+
+### 單機與多副本 {#deployment}
+
+多個副本使用同一個可寫入的 PostgreSQL 或 MySQL 資料庫儲存投遞狀態和限額，各 Worker 使用同一套 database 或 Redis 佇列。所有 Worker 都須能讀取憑據參照和已授權的設定版本。復原任務使用 `on_one_server()` 時，需要共用 database 或 Redis 快取。SQLite 適用於單機。上述 database 與 Redis 組合已在一台主機的獨立應用行程中驗收，跨主機部署前須驗證實際基礎設施。

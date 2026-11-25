@@ -260,3 +260,7 @@ This cleanup uses the package’s `delete_after_days` setting and applies only t
 ## Scope {#scope}
 
 Use the existing [HTTP client](../digging-deeper/http-client.md) and [queues](../digging-deeper/queues.md) for application networking and jobs. Recovery covers dispatch of committed receipts. Backends and deployments require their own operational validation.
+
+### Single host and replicas {#deployment}
+
+Point every replica at the same writable PostgreSQL or MySQL database. Use the database queue for atomic receipt and enqueue, or configure durable dispatch recovery when jobs go to Redis. Keep the queue names, application key, and authorized profile revisions consistent across HTTP nodes and Workers. Use private storage accessible to all Workers for persisted attachments. The local acceptance runs used a shared directory and independent node directories on one host. Validate your shared storage and deployment before using replicas across hosts.

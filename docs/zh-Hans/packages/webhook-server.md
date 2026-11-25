@@ -366,3 +366,7 @@ Builder 的 `dispatch`、`dispatch_if` 和 `dispatch_unless` 登记投递并入�
 ## 使用边界 {#scope}
 
 网络和任务执行复用现有 [HTTP 客户端](../digging-deeper/http-client.md)与[队列](../digging-deeper/queues.md)。待重试的投递到期后，可再次唤醒队列任务或使用有界扫描。
+
+### 单机与多副本 {#deployment}
+
+多个副本使用同一个可写 PostgreSQL 或 MySQL 数据库保存投递状态和限额，各 Worker 使用同一套 database 或 Redis 队列。所有 Worker 都须能读取凭据引用和已授权的配置版本。恢复任务使用 `on_one_server()` 时，需要共享 database 或 Redis 缓存。SQLite 适用于单机。上述 database 与 Redis 组合已在一台主机的独立应用进程中验收，跨主机部署前须验证实际基础设施。
