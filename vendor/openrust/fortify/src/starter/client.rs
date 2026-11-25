@@ -555,6 +555,7 @@ where
     M: HasApiTokens + TwoFactorAuthenticatable + Clone,
 {
     use openrust::support::ServiceProvider as _;
+    super::configure_mail_queue::<M>(app)?;
     super::credentials::scope_for::<M>(app)?;
     super::bind_password_tokens::<M>(app)?;
     super::web::register::<M>(app)?;

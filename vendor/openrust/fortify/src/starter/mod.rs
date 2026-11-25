@@ -13,7 +13,9 @@ mod client_middleware;
 mod configuration;
 #[cfg(feature = "sanctum")]
 pub mod confirmation;
+mod mail_queue;
 mod messages;
+pub use mail_queue::configure_mail_queue;
 mod password_tokens;
 #[cfg(feature = "sanctum")]
 pub(crate) use challenges::prune_for as prune_challenges_for;

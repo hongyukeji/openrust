@@ -176,13 +176,19 @@ async fn start_custom_resource(
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
     std::fs::write(root.0.join("app-url"), format!("http://{address}")).unwrap();
-    std::fs::write(
-        root.0.join("user-config.json"),
-        json!({"profile":profile,"registration":true,"email_verification":verification,"two_factor":two_factor,"api_prefix":prefix})
-            .to_string(),
-    )
-    .unwrap();
-    if let Some(mail) = mail {
+    let mut settings = json!({"profile":profile,"registration":true,"email_verification":verification,"two_factor":two_factor,"api_prefix":prefix});
+    if let Some(queue) = mail.as_ref().and_then(|mail| mail.get("__user_queue")) {
+        settings["mail"] = queue.clone();
+        if let Some(name) = queue.get("queue").and_then(Value::as_str) {
+            settings["mail"]["queue"] = json!(format!(
+                "{name}-{}",
+                root.0.file_name().unwrap().to_string_lossy()
+            ));
+        }
+    }
+    std::fs::write(root.0.join("user-config.json"), settings.to_string()).unwrap();
+    if let Some(mut mail) = mail {
+        mail.as_object_mut().unwrap().remove("__user_queue");
         std::fs::write(root.0.join("mail-config.json"), mail.to_string()).unwrap();
     }
     let mut app = Application::configure(root.0.clone())
@@ -355,6 +361,27 @@ async fn start_custom_resource(
         )
         .await
         .unwrap();
+    if app
+        .make::<dyn openrust::contracts::config::Repository>()
+        .await
+        .unwrap()
+        .get("user.mail.queue")
+        .is_some_and(|queue| queue.is_string())
+    {
+        // 与正式jobs迁移保持相同列类型和秒单位，不扩大验收字段。
+        schema
+            .create("jobs", |table| {
+                table.id();
+                table.string("queue", None).index();
+                table.long_text("payload");
+                table.unsigned_small_integer("attempts");
+                table.unsigned_big_integer("reserved_at").nullable();
+                table.unsigned_big_integer("available_at");
+                table.unsigned_big_integer("created_at");
+            })
+            .await
+            .unwrap();
+    }
     let mailer = app
         .make::<openrust::mail::MailManager>()
         .await
@@ -589,7 +616,7 @@ fn full_configuration(
     base: &std::path::Path,
     _env: &openrust::config::Environment,
 ) -> Result<BTreeMap<String, Value>, openrust::config::ConfigError> {
-    Ok([
+    let mut configuration:BTreeMap<String,Value> = [
         ("app".into(),json!({"key":"a".repeat(32),"url":std::fs::read_to_string(base.join("app-url")).unwrap(),"env":"local","name":"用户套件测试","version":"1.2.3","locale":"zh-Hans","supported_locales":[],"debug":true})),
         ("user".into(),serde_json::from_slice::<Value>(&std::fs::read(base.join("user-config.json")).unwrap()).unwrap()),
         ("api".into(),json!({"prefix":serde_json::from_slice::<Value>(&std::fs::read(base.join("user-config.json")).unwrap()).unwrap()["api_prefix"],"response_envelope":true})),
@@ -600,7 +627,11 @@ fn full_configuration(
         ("auth".into(),json!({"defaults":{"guard":"web","passwords":"users"},"guards":{"web":{"driver":"session","provider":"users"},"admin":{"driver":"session","provider":"admins"}},"providers":{"users":{"driver":"eloquent","model":"StarterUser"},"admins":{"driver":"database","table":"admins"}},"passwords":{"users":password_token_configuration()}})),
         ("fortify-options".into(),json!({"two-factor-authentication":{"confirm":true,"confirmPassword":true}})),
         ("mail".into(),std::fs::read(base.join("mail-config.json")).ok().map(|bytes|serde_json::from_slice::<Value>(&bytes).unwrap()).unwrap_or_else(||json!({"default":"array","mailers":{"array":{"transport":"array"}},"from":{"address":"admin@example.test","name":"用户套件测试"}}))),
-    ].into())
+    ].into();
+    if configuration["user"].get("mail").is_some() {
+        configuration.insert("queue".into(),json!({"default":"database","connections":{"database":{"driver":"database","table":"jobs","queue":"default","retry_after":90},"redis":{"driver":"redis","connection":"default","queue":"default","retry_after":90}},"failed":{"driver":"null"}}));
+    }
+    Ok(configuration)
 }
 fn api_configuration(
     base: &std::path::Path,
@@ -4834,4 +4865,256 @@ async fn web_sensitive_confirmation_is_bound_to_state_when_confirmed() {
         .send("PUT", "/user/profile-information", update, true)
         .await;
     assert_eq!(status, 200, "{body}");
+}
+
+#[cfg(feature = "sanctum")]
+fn auth_mail_queue_settings() -> Value {
+    json!({"default":"array","mailers":{"array":{"transport":"array","username":"producer-user","password":"producer-secret"}},"from":{"address":"admin@example.test","name":"认证邮件验收"},"__user_queue":{"queue":"auth-mail","connection":std::env::var("OPENRUST_USER_KIT_MAIL_QUEUE_CONNECTION").unwrap_or_else(|_|"database".into())}})
+}
+#[cfg(feature = "sanctum")]
+async fn auth_mail_queue_size(server: &Server) -> u64 {
+    use openrust::support::facades::{App, Facade as _, Queue};
+    App::set_facade_application(Some(server._kernel.get_application()), async {
+        let config = server
+            ._kernel
+            .get_application()
+            .make::<dyn openrust::contracts::config::Repository>()
+            .await
+            .unwrap();
+        let connection = config.get("user.mail.connection").unwrap();
+        let queue = config.get("user.mail.queue").unwrap();
+        Queue::connection(connection.as_str())
+            .unwrap()
+            .size(queue.as_str())
+            .await
+            .unwrap()
+    })
+    .await
+}
+#[cfg(feature = "sanctum")]
+async fn peek_auth_mail_envelope(server: &Server) -> (String, String) {
+    use openrust::support::facades::{App, Crypt, Facade as _, Queue};
+    App::set_facade_application(Some(server._kernel.get_application()), async {
+        let config = server
+            ._kernel
+            .get_application()
+            .make::<dyn openrust::contracts::config::Repository>()
+            .await
+            .unwrap();
+        let connection = config.get("user.mail.connection").unwrap();
+        let queue = config.get("user.mail.queue").unwrap();
+        let mut job = Queue::connection(connection.as_str())
+            .unwrap()
+            .pop(queue.as_str())
+            .await
+            .unwrap()
+            .unwrap();
+        let raw = serde_json::to_string(job.payload()).unwrap();
+        let encrypted = job.payload().data()["encrypted_delivery"]
+            .as_str()
+            .expect("认证通知必须使用原生加密载荷");
+        let clear = String::from_utf8(Crypt::decrypt_string(encrypted).unwrap()).unwrap();
+        assert!(!clear.contains("producer-user"));
+        assert!(!clear.contains("producer-secret"));
+        job.release(std::time::Duration::ZERO).await.unwrap();
+        (raw, clear)
+    })
+    .await
+}
+#[cfg(feature = "sanctum")]
+async fn run_auth_mail_worker_once(server: &Server) {
+    use openrust::support::facades::{App, Artisan, Facade as _};
+    App::set_facade_application(Some(server._kernel.get_application()), async {
+        let config = server
+            ._kernel
+            .get_application()
+            .make::<dyn openrust::contracts::config::Repository>()
+            .await
+            .unwrap();
+        let connection = config.get("user.mail.connection").unwrap();
+        let queue = config.get("user.mail.queue").unwrap();
+        let mut output = openrust::console::Output::default();
+        assert_eq!(
+            Artisan::call(
+                "queue:work",
+                &[
+                    connection.as_str().unwrap().into(),
+                    format!("--queue={}", queue.as_str().unwrap()).into(),
+                    "--once".into(),
+                    "--tries=3".into(),
+                    "--sleep=0".into()
+                ],
+                &mut output
+            )
+            .await
+            .unwrap(),
+            0,
+            "{}",
+            output.stderr
+        );
+    })
+    .await
+}
+
+#[cfg(feature = "sanctum")]
+#[tokio::test]
+async fn auth_mail_queue_encrypts_links_and_scopes_models_apps_and_notification_kinds() {
+    use openrust::support::facades::{App, Facade as _};
+    let server = start_security_catalog_mail(
+        "api",
+        true,
+        false,
+        "api",
+        false,
+        Some(auth_mail_queue_settings()),
+    )
+    .await;
+    let other = start_profile("api").await;
+    let registration = json!({"name":"认证队列用户","email":"queued-mail@example.test","password":"long-password-123","password_confirmation":"long-password-123"});
+    assert_eq!(
+        token_client_request(server.address, "/api/auth/register", registration.clone())
+            .await
+            .0,
+        201
+    );
+    assert!(server.mailer.sent().unwrap().is_empty());
+    assert_eq!(auth_mail_queue_size(&server).await, 1);
+    assert_eq!(
+        token_client_request(other.address, "/api/auth/register", registration)
+            .await
+            .0,
+        201
+    );
+    assert_eq!(
+        other.mailer.sent().unwrap().len(),
+        1,
+        "另一应用的相同模型仍同步发送"
+    );
+    App::set_facade_application(Some(server._kernel.get_application()), async {
+        openrust::auth::notifications::ResetPassword::new(&"a".repeat(64))
+            .send("unscoped@example.test")
+            .await
+            .unwrap();
+    })
+    .await;
+    assert_eq!(
+        server.mailer.sent().unwrap().len(),
+        1,
+        "无用户能力类型的原生发送不套用具名策略"
+    );
+    let (raw, clear) = peek_auth_mail_envelope(&server).await;
+    assert!(!raw.contains("queued-mail@example.test"));
+    assert!(clear.contains("queued-mail@example.test"));
+    run_auth_mail_worker_once(&server).await;
+    assert_eq!(auth_mail_queue_size(&server).await, 0);
+    assert_eq!(server.mailer.sent().unwrap().len(), 2);
+    let verification = server.mail_link("/email/verify/");
+    let mut login = device_login();
+    login["email"] = json!("queued-mail@example.test");
+    let token = token_client_request(server.address, "/api/auth/token", login)
+        .await
+        .2["data"]["token"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert_eq!(
+        account_wire_request(
+            server.address,
+            &token,
+            "GET",
+            &verification,
+            Value::Null,
+            None
+        )
+        .await
+        .0,
+        204
+    );
+    assert_eq!(
+        token_client_request(
+            server.address,
+            "/api/auth/forgot-password",
+            json!({"email":"queued-mail@example.test"})
+        )
+        .await
+        .0,
+        200
+    );
+    assert_eq!(server.mailer.sent().unwrap().len(), 2);
+    assert_eq!(auth_mail_queue_size(&server).await, 1);
+    let (raw, _) = peek_auth_mail_envelope(&server).await;
+    run_auth_mail_worker_once(&server).await;
+    let reset = server.mail_link("/reset-password/");
+    let secret = reset.split('?').next().unwrap().rsplit('/').next().unwrap();
+    assert!(!raw.contains(secret));
+    assert_eq!(server.mailer.sent().unwrap().len(), 3);
+    let input = json!({"email":"queued-mail@example.test","token":secret,"password":"new-queued-password-456","password_confirmation":"new-queued-password-456"});
+    assert_eq!(
+        token_client_request(server.address, "/api/auth/reset-password", input)
+            .await
+            .0,
+        200
+    );
+    assert_eq!(bearer_request(server.address, &token).await, 401);
+    App::set_facade_application(Some(server._kernel.get_application()), async {
+        openrust::auth::notifications::ResetPassword::queue_for::<app::models::User>(
+            server._kernel.get_application(),
+            None,
+        )
+        .unwrap();
+    })
+    .await;
+    assert_eq!(
+        token_client_request(
+            server.address,
+            "/api/auth/forgot-password",
+            json!({"email":"queued-mail@example.test"})
+        )
+        .await
+        .0,
+        200
+    );
+    assert_eq!(auth_mail_queue_size(&server).await, 0);
+    assert_eq!(server.mailer.sent().unwrap().len(), 4);
+}
+
+#[cfg(feature = "sanctum")]
+#[tokio::test]
+async fn auth_mail_queue_disabled_verification_never_queues_delayed_verification_mail() {
+    let server = start_security_catalog_mail(
+        "api",
+        false,
+        false,
+        "api",
+        false,
+        Some(auth_mail_queue_settings()),
+    )
+    .await;
+    let registration = json!({"name":"不验证邮件","email":"no-verification-queue@example.test","password":"long-password-123","password_confirmation":"long-password-123"});
+    assert_eq!(
+        token_client_request(server.address, "/api/auth/register", registration)
+            .await
+            .0,
+        201
+    );
+    assert_eq!(auth_mail_queue_size(&server).await, 0);
+    assert!(server.mailer.sent().unwrap().is_empty());
+    assert_eq!(
+        token_client_request(
+            server.address,
+            "/api/auth/forgot-password",
+            json!({"email":"no-verification-queue@example.test"})
+        )
+        .await
+        .0,
+        200
+    );
+    assert_eq!(auth_mail_queue_size(&server).await, 1);
+    run_auth_mail_worker_once(&server).await;
+    assert_eq!(server.mailer.sent().unwrap().len(), 1);
+    assert!(
+        server
+            .mail_link("/reset-password/")
+            .contains("/reset-password/")
+    );
 }

@@ -323,3 +323,58 @@ curl -X PUT "$APP_URL/api/user/profile-information" \
 当前Cookie确认绑定确认时的用户、邮箱、凭据及双因素状态和Session时间。其他设备变更邮箱／因素后，旧时间标记不足以继续授权；重新确认后方可操作。密码变更保留当前浏览器，旧会话及PAT失效。更新会轮换Session和CSRF，JSON／SPA客户端须刷新CSRF后继续；普通浏览器跟随重定向读取新表单。独立Fortify应用未装配用户套件时保持原生行为。
 
 网页保留原生闪存状态码，通过 `lang/<locale>/user.json` 翻译显示，例如 `password-updated`；覆盖对应条目即可定制。JSON成功消息仍使用ApiResponse本地化。升级前没有套件快照的既有浏览器确认需要重新确认。
+
+## 认证邮件队列与开发预览 {#auth-mail-queue}
+
+默认沿用原生同步邮件。需要请求快速返回、由独立 Worker 发送时，在安装后生成的 `config/user.rs` 配置：
+
+```rust
+"mail": {
+    "queue": get(env, "USER_MAIL_QUEUE", Value::Null)?,
+    "connection": get(env, "USER_MAIL_QUEUE_CONNECTION", Value::Null)?,
+},
+```
+
+```dotenv
+QUEUE_CONNECTION=database
+USER_MAIL_QUEUE=auth-mail
+# 可选；省略时使用 queue.default。
+USER_MAIL_QUEUE_CONNECTION=database
+```
+
+执行现有迁移后启动消费进程：
+
+```sh
+./artisan migrate
+./artisan queue:work database --queue=auth-mail --tries=3 --backoff=10
+```
+
+注册／重发验证与密码找回使用同一具名队列；关闭邮箱验证后不会创建验证邮件任务，密码找回继续有效。队列名未设置或为 `null` 时恢复同步；空字符串、包含逗号或首尾空白的名称无效。同步、丢弃、进程内驱动及包含这些驱动或循环的 failover 会被拒绝；可用的持久化连接还须按所选驱动正确注册和配置。Redis 连接可将上面两处 `database` 改为对应的队列连接名称。Worker 的 `--queue` 须匹配配置，重试、回退与超时沿用原生队列选项。
+
+套件对具体用户类型分别配置 `ResetPassword` 和 `VerifyEmail`，独立应用与其他模型保留自己的发送策略。开启时链接载荷强制加密，任务沿用原生通知的事务提交后派发。生产者与 Worker 须共享 `APP_KEY`、应用 URL、用户模型和队列配置；Worker 使用自身邮件配置解析传输和凭据，密码、签名 URL 与重置令牌不可打印到日志。邮件连接名可以保留在任务中，SMTP 密码不会因此进入任务。
+
+如需独立控制两类通知，可在 Provider 中使用 `ResetPassword::queue_for::<User>(app, Some(options))` 与 `VerifyEmail::queue_for::<User>(app, Some(options))`，其中 `options` 为 `openrust::auth::notifications::AuthMailQueueOptions`；传入 `None` 恢复该类通知的同步发送。自定义 URL／邮件回调继续有效。模型通过包装对象提供重置／验证能力时，套件自动注册会明确报错，应为该实际能力类型手动注册；不静默回退同步。旧项目升级不会覆盖已有 `config/user.rs`，请合并上面的配置组并重新部署 Provider／Worker。
+
+请求成功表示已入队，不能据此认定收件成功。供应商暂时拒绝后，原生 Worker 会按重试配置释放并重试；超过次数进入所配置的失败任务存储。SMTP 在供应商受理后、队列确认前崩溃可能重复投递，不能保证恰好一次；重置令牌保持单次消费，验证链接保持幂等。
+
+开发可使用独立 [Mailpit](https://mailpit.axllent.org/docs/install/docker/) 实例，不连接真实收件人：
+
+```sh
+docker run --rm --name openrust-auth-mailpit \
+  --tmpfs /data \
+  -e MP_DATABASE=/data/mailpit.db \
+  -p 127.0.0.1:1025:1025 -p 127.0.0.1:8025:8025 \
+  axllent/mailpit:v1.34.0
+```
+
+```dotenv
+MAIL_MAILER=smtp
+MAIL_SCHEME=smtp
+MAIL_HOST=127.0.0.1
+MAIL_PORT=1025
+MAIL_USERNAME=null
+MAIL_PASSWORD=null
+MAIL_FROM_ADDRESS=hello@example.test
+```
+
+浏览器访问 `http://127.0.0.1:8025` 预览邮件。以上地址用于应用运行在宿主机的情况；容器内应用应使用同一网络中的邮件服务名。已有 `MAIL_URL` 会覆盖单项设置，开发预览时须移除或设为 `null`。此实例关闭后预览数据丢失，不作为生产邮件服务；真实供应商凭据、生产 TLS、投递与最终收信仍需独立验收。

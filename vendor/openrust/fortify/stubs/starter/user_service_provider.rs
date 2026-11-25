@@ -11,6 +11,7 @@ impl ServiceProvider for UserServiceProvider {
     }
     fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
+            openrust_fortify::starter::configure_mail_queue::<crate::app::models::User>(app)?;
             openrust_fortify::starter::bind_password_tokens::<crate::app::models::User>(app)?;
             openrust_fortify::starter::UserResource::use_resource::<
                 crate::app::models::User,

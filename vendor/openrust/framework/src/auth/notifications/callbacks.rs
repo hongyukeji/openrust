@@ -17,6 +17,8 @@ type VerifyMail = dyn Fn(&dyn MustVerifyEmail, &str) -> AuthResult<MailDelivery>
 
 #[derive(Default)]
 pub(crate) struct MailCallbacks {
+    pub(super) queues:
+        std::collections::BTreeMap<(std::any::TypeId, &'static str), super::AuthMailQueueOptions>,
     pub(super) reset_url: Option<Arc<ResetUrl>>,
     pub(super) reset_mail: Option<Arc<ResetMail>>,
     pub(super) verify_url: Option<Arc<VerifyUrl>>,

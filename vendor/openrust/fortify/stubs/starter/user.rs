@@ -30,6 +30,20 @@ pub(super) fn load(env: &Environment) -> Result<Value, ConfigError> {
         "token_expiration_days": get(env, "USER_TOKEN_EXPIRATION_DAYS", 30)?,
         "token_abilities": ["account:read", "account:update", "tokens:manage"],
         "unverified_token_abilities": ["account:read","account:update","tokens:manage"],
-        "avatar": {"disk":"public","max_kilobytes":2048,"max_dimension":4096}
+        "avatar": {"disk":"public","max_kilobytes":2048,"max_dimension":4096},
+        /*
+        |--------------------------------------------------------------------------
+        | 认证邮件队列
+        |--------------------------------------------------------------------------
+        |
+        | 默认null保持原生同步发送。USER_MAIL_QUEUE设置队列名后，重置与验证
+        | 通知加密入队；连接未配置时使用queue.default，Worker读取自己的邮件凭据。
+        | 重试、退避和超时使用queue:work选项，需启动对应持久化队列的Worker。
+        |
+        */
+        "mail": {
+            "queue": get(env, "USER_MAIL_QUEUE", Value::Null)?,
+            "connection": get(env, "USER_MAIL_QUEUE_CONNECTION", Value::Null)?,
+        }
     }))
 }

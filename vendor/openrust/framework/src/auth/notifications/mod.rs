@@ -1,6 +1,8 @@
 //! Notifications issued by authentication flows.
 
 mod callbacks;
+mod queue_options;
+pub use queue_options::AuthMailQueueOptions;
 mod reset_password;
 mod verify_email;
 
@@ -62,11 +64,24 @@ impl LinkMail<'_> {
 }
 
 struct AuthMail<F> {
+    queue: Option<AuthMailQueueOptions>,
     kind: &'static str,
     render: F,
 }
 
 impl<F: Fn() -> AuthResult<MailDelivery> + Send + Sync> Notification for AuthMail<F> {
+    fn queue_options(&self, _: &dyn Notifiable, _: &str) -> Option<crate::queue::DispatchOptions> {
+        self.queue.as_ref().map(|options| options.dispatch.clone())
+    }
+    fn queue_job_options(&self, _: &dyn Notifiable, _: &str) -> crate::queue::JobOptions {
+        self.queue
+            .as_ref()
+            .map(|options| options.job.clone())
+            .unwrap_or_default()
+    }
+    fn should_encrypt(&self, _: &dyn Notifiable, _: &str) -> bool {
+        self.queue.is_some()
+    }
     fn kind(&self) -> &str {
         self.kind
     }
@@ -87,11 +102,19 @@ impl<F: Fn() -> AuthResult<MailDelivery> + Send + Sync> Notification for AuthMai
 async fn send_mail(
     kind: &'static str,
     email: &str,
+    user_type: Option<std::any::TypeId>,
     render: impl Fn() -> AuthResult<MailDelivery> + Send + Sync,
 ) -> AuthResult<()> {
-    Notifications::send(&[&EmailRecipient(email)], &AuthMail { kind, render })
-        .await
-        .map_err(AuthError::backend)
+    Notifications::send(
+        &[&EmailRecipient(email)],
+        &AuthMail {
+            kind,
+            render,
+            queue: queue_options::for_type(kind, user_type)?,
+        },
+    )
+    .await
+    .map_err(AuthError::backend)
 }
 
 pub(crate) fn route_id(id: &AuthIdentifier) -> String {

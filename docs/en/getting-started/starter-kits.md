@@ -323,3 +323,58 @@ The account page provides profile and password forms with a confirmation link. N
 Cookie confirmation binds the user, email, credentials and two-factor state at confirmation time together with the Session timestamp. An old timestamp cannot authorize changes after another device changes the email or factors. Confirm again before continuing. A password change preserves the current browser and invalidates old sessions and PATs. Updates rotate the Session and CSRF token: JSON/SPA clients must refresh CSRF, while ordinary browsers follow the redirect to a new form. Standalone Fortify applications without the user suite retain native behavior.
 
 Browser feedback retains the native flash status codes and translates their display through `lang/<locale>/user.json`, such as `password-updated`; override the corresponding entry to customize it. JSON success messages continue to use ApiResponse localization. Existing browser confirmations without the suite snapshot require confirmation again after upgrading.
+
+## Authentication mail queues and development preview {#auth-mail-queue}
+
+Mail is synchronous by default, matching the native notification flow. To send through a separate Worker, configure the generated `config/user.rs` after installation:
+
+```rust
+"mail": {
+    "queue": get(env, "USER_MAIL_QUEUE", Value::Null)?,
+    "connection": get(env, "USER_MAIL_QUEUE_CONNECTION", Value::Null)?,
+},
+```
+
+```dotenv
+QUEUE_CONNECTION=database
+USER_MAIL_QUEUE=auth-mail
+# Optional; omission uses queue.default.
+USER_MAIL_QUEUE_CONNECTION=database
+```
+
+Run the existing migrations and start the consumer:
+
+```sh
+./artisan migrate
+./artisan queue:work database --queue=auth-mail --tries=3 --backoff=10
+```
+
+Registration/resend verification and password recovery use the named queue. Disabling email verification creates no verification jobs; recovery remains available. An omitted or `null` queue restores synchronous delivery. Empty names, commas and surrounding whitespace are invalid. Synchronous, discarding and in-process drivers, including failover entries of these types or cycles, are rejected. Persistent connections must also be registered and configured for the selected driver. For Redis, replace both `database` connection names above with the configured Redis queue connection name. Worker `--queue` must match; retry, backoff and timeout retain native semantics.
+
+The kit configures `ResetPassword` and `VerifyEmail` separately for the concrete user type; other applications and models retain their own policies. Queued link payloads are always encrypted and use native after-commit notification dispatch. Producers and Workers must share `APP_KEY`, the application URL, model and queue configuration. Workers resolve mail transports and credentials from their own configuration. Never log passwords, signed URLs or reset tokens. A mail connection name may be stored in the job without serializing its SMTP password.
+
+For independent policies, call `ResetPassword::queue_for::<User>(app, Some(options))` or `VerifyEmail::queue_for::<User>(app, Some(options))` in a Provider, using `openrust::auth::notifications::AuthMailQueueOptions`; `None` restores synchronous delivery for that notification. Custom URL/mail callbacks remain active. Models exposing reset/verification through wrapper objects are rejected by automatic registration; register the actual capability type explicitly instead of silently falling back. Upgrades preserve an existing `config/user.rs`: merge the group above and redeploy the Provider and Workers.
+
+A successful request means enqueued, not received. Native Workers release and retry temporary provider failures, then use the configured failed-job store when attempts are exhausted. SMTP may duplicate delivery if a Worker crashes after provider acceptance but before queue acknowledgement; exactly-once delivery is not promised. Reset tokens remain single-use and verification links idempotent.
+
+Use an isolated [Mailpit](https://mailpit.axllent.org/docs/install/docker/) instance for preview without real recipients:
+
+```sh
+docker run --rm --name openrust-auth-mailpit \
+  --tmpfs /data \
+  -e MP_DATABASE=/data/mailpit.db \
+  -p 127.0.0.1:1025:1025 -p 127.0.0.1:8025:8025 \
+  axllent/mailpit:v1.34.0
+```
+
+```dotenv
+MAIL_MAILER=smtp
+MAIL_SCHEME=smtp
+MAIL_HOST=127.0.0.1
+MAIL_PORT=1025
+MAIL_USERNAME=null
+MAIL_PASSWORD=null
+MAIL_FROM_ADDRESS=hello@example.test
+```
+
+Open `http://127.0.0.1:8025`. These addresses assume the app runs on the host; containerized apps use the mail service name on their shared network. Remove an existing `MAIL_URL` or set it to `null`, since it overrides individual settings. Preview data disappears when this instance stops. This is not a production mail service: real provider credentials, production TLS, delivery and final receipt require separate acceptance.

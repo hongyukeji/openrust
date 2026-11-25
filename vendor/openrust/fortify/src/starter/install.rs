@@ -148,8 +148,13 @@ fn initialize<'a>(
             >(app)?;
 "#;
             let binding = "            openrust_fortify::starter::bind_password_tokens::<crate::app::models::User>(app)?;\n";
-            let without_binding = template.replacen(binding, "", 1);
-            if without_binding == template {
+            let mail = "            openrust_fortify::starter::configure_mail_queue::<crate::app::models::User>(app)?;\n";
+            let without_mail = template.replacen(mail, "", 1);
+            if without_mail == template {
+                return Err(ConsoleError::new("用户套件邮件队列模板不一致"));
+            }
+            let without_binding = without_mail.replacen(binding, "", 1);
+            if without_binding == without_mail {
                 return Err(ConsoleError::new("用户套件密码绑定模板不一致"));
             }
             let without_resource = without_binding.replacen(resource, "", 1);
@@ -158,8 +163,8 @@ fn initialize<'a>(
             if edit(template).is_ok() {
                 None
             } else {
-                let updated=[without_binding,without_resource,oldest,without_client].iter().find_map(|expected|edit(expected).ok())
-                    .ok_or_else(||ConsoleError::new("用户套件Provider已自定义，请手动接入bind_password_tokens和用户资源；不会覆盖业务代码"))?;
+                let updated=[without_mail,without_binding,without_resource,oldest,without_client].iter().find_map(|expected|edit(expected).ok())
+                    .ok_or_else(||ConsoleError::new("用户套件Provider已自定义，请手动接入configure_mail_queue、bind_password_tokens和用户资源；不会覆盖业务代码"))?;
                 Some((previous.clone(), updated))
             }
         } else {

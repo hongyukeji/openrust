@@ -12,6 +12,7 @@ async fn profiles_control_views_and_features_without_changing_guard_or_prefix() 
             .unwrap();
         app.boot().await.unwrap();
         let config = app.container().get::<dyn Repository>("config").unwrap();
+        config.set("auth", json!({"defaults":{"guard":"web"},"guards":{"web":{"driver":"session","provider":"users"},"admin":{"driver":"session","provider":"users"}}})).unwrap();
         config
             .set("user", json!({"profile":profile,"registration":false}))
             .unwrap();
@@ -52,6 +53,7 @@ async fn invalid_configuration_does_not_partially_change_fortify() {
         .unwrap();
     app.boot().await.unwrap();
     let config = app.container().get::<dyn Repository>("config").unwrap();
+    config.set("auth", json!({"defaults":{"guard":"web"},"guards":{"web":{"driver":"session","provider":"users"},"admin":{"driver":"session","provider":"users"}}})).unwrap();
     let original = json!({"views":false,"features":["custom"],"middleware":["web"]});
     for user in [
         json!({"profile":"other"}),
@@ -72,6 +74,7 @@ async fn extra_factors_are_only_enabled_by_explicit_configuration() {
         .unwrap();
     app.boot().await.unwrap();
     let config = app.container().get::<dyn Repository>("config").unwrap();
+    config.set("auth", json!({"defaults":{"guard":"web"},"guards":{"web":{"driver":"session","provider":"users"},"admin":{"driver":"session","provider":"users"}}})).unwrap();
     config
         .set("user", json!({"two_factor":true,"passkeys":true}))
         .unwrap();
@@ -89,6 +92,7 @@ async fn api_mail_redirects_follow_auth_prefix_and_preserve_explicit_destination
         .unwrap();
     app.boot().await.unwrap();
     let config = app.container().get::<dyn Repository>("config").unwrap();
+    config.set("auth", json!({"defaults":{"guard":"web"},"guards":{"web":{"driver":"session","provider":"users"},"admin":{"driver":"session","provider":"users"}}})).unwrap();
     config.set("user", json!({"profile":"api"})).unwrap();
     config
         .set("fortify", json!({"prefix":"auth","home":"/home"}))
@@ -132,9 +136,72 @@ async fn disabling_verification_does_not_redirect_to_an_absent_notice() {
         .unwrap();
     app.boot().await.unwrap();
     let config = app.container().get::<dyn Repository>("config").unwrap();
+    config.set("auth", json!({"defaults":{"guard":"web"},"guards":{"web":{"driver":"session","provider":"users"},"admin":{"driver":"session","provider":"users"}}})).unwrap();
     config
         .set("user", json!({"profile":"api","email_verification":false}))
         .unwrap();
     openrust_fortify::starter::configure(&app).await.unwrap();
     assert_eq!(config.get("fortify.home"), Some(json!("/")));
+}
+
+#[path = "../../../../app/models/user.rs"]
+mod queued_mail_user;
+#[tokio::test]
+async fn auth_mail_queue_rejects_invalid_and_nonpersistent_connections_before_installing_policy() {
+    let mut app = Application::configure(std::env::temp_dir())
+        .create()
+        .unwrap();
+    app.boot().await.unwrap();
+    let config = app.container().get::<dyn Repository>("config").unwrap();
+    assert!(
+        openrust_fortify::starter::configure_mail_queue::<queued_mail_user::User>(&app).is_ok()
+    );
+    for mail in [
+        json!({"queue":" auth-mail"}),
+        json!({"queue":"auth,mail"}),
+        json!({"queue":""}),
+        json!({"queue":false}),
+        json!({"queue":"mail","connection":1}),
+        json!({"queue":"mail","connection":"bad\nname"}),
+    ] {
+        config.set("user.mail", mail).unwrap();
+        assert!(
+            openrust_fortify::starter::configure_mail_queue::<queued_mail_user::User>(&app)
+                .is_err()
+        );
+    }
+    config
+        .set("user.mail", json!({"queue":"auth-mail"}))
+        .unwrap();
+    for driver in ["sync", "null", "deferred", "background"] {
+        config
+            .set(
+                "queue",
+                json!({"default":"chosen","connections":{"chosen":{"driver":driver}}}),
+            )
+            .unwrap();
+        assert!(
+            openrust_fortify::starter::configure_mail_queue::<queued_mail_user::User>(&app)
+                .is_err(),
+            "{driver}"
+        );
+    }
+    for connections in [
+        json!({"a":{"driver":"failover","connections":["a"]}}),
+        json!({"a":{"driver":"failover","connections":["b"]},"b":{"driver":"failover","connections":["a"]}}),
+        json!({"a":{"driver":"failover","connections":[]}}),
+        json!({"a":{"driver":"failover","connections":["sync"]},"sync":{"driver":"sync"}}),
+    ] {
+        config
+            .set("queue", json!({"default":"a","connections":connections}))
+            .unwrap();
+        assert!(
+            openrust_fortify::starter::configure_mail_queue::<queued_mail_user::User>(&app)
+                .is_err()
+        );
+    }
+    config.set("user.mail", json!({"queue":null})).unwrap();
+    assert!(
+        openrust_fortify::starter::configure_mail_queue::<queued_mail_user::User>(&app).is_ok()
+    );
 }

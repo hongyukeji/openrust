@@ -20,6 +20,14 @@ use super::{LinkMail, MailCallbacks, route_id, send_mail};
 pub struct VerifyEmail;
 
 impl VerifyEmail {
+    /// 为所属应用的实际用户能力类型选择队列；None恢复同步，其他模型保持原行为。
+    pub fn queue_for<T: std::any::Any>(
+        app: &crate::foundation::Application,
+        options: Option<super::AuthMailQueueOptions>,
+    ) -> AuthResult<()> {
+        super::queue_options::configure_for::<T>(app, "VerifyEmail", options)
+    }
+
     /// Configure verification link creation for this application.
     pub fn create_url_using(
         callback: impl Fn(&dyn MustVerifyEmail) -> AuthResult<String> + Send + Sync + 'static,
@@ -84,26 +92,31 @@ impl VerifyEmail {
     }
 
     pub async fn send(user: &dyn MustVerifyEmail) -> AuthResult<()> {
-        send_mail("VerifyEmail", user.get_email_for_verification(), || {
-            let url = Self::url(user)?;
-            let mail = MailCallbacks::get()?
-                .read()
-                .expect("auth mail callbacks lock")
-                .verify_mail
-                .clone();
-            if let Some(mail) = mail {
-                return mail(user, &url);
-            }
-            LinkMail {
-                subject: "Verify your email address",
-                introduction: "Please click the button below to verify your email address.",
-                action: "Verify Email Address",
-                closing: "If you did not create an account, no further action is required.",
-                url: &url,
-                expires_minutes: None,
-            }
-            .render()
-        })
+        send_mail(
+            "VerifyEmail",
+            user.get_email_for_verification(),
+            Some((user as &dyn std::any::Any).type_id()),
+            || {
+                let url = Self::url(user)?;
+                let mail = MailCallbacks::get()?
+                    .read()
+                    .expect("auth mail callbacks lock")
+                    .verify_mail
+                    .clone();
+                if let Some(mail) = mail {
+                    return mail(user, &url);
+                }
+                LinkMail {
+                    subject: "Verify your email address",
+                    introduction: "Please click the button below to verify your email address.",
+                    action: "Verify Email Address",
+                    closing: "If you did not create an account, no further action is required.",
+                    url: &url,
+                    expires_minutes: None,
+                }
+                .render()
+            },
+        )
         .await
     }
 }

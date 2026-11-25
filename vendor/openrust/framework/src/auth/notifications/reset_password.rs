@@ -32,6 +32,14 @@ impl<'a> ResetPassword<'a> {
         .map_err(AuthError::backend)
     }
 
+    /// 为所属应用的实际用户能力类型选择队列；None恢复同步，其他模型保持原行为。
+    pub fn queue_for<T: std::any::Any>(
+        app: &crate::foundation::Application,
+        options: Option<super::AuthMailQueueOptions>,
+    ) -> AuthResult<()> {
+        super::queue_options::configure_for::<T>(app, "ResetPassword", options)
+    }
+
     /// Configure reset link creation for this application.
     pub fn create_url_using(
         callback: impl Fn(&dyn CanResetPassword, &str) -> AuthResult<String> + Send + Sync + 'static,
@@ -60,27 +68,32 @@ impl<'a> ResetPassword<'a> {
     /// Send to the user, applying this application's notification callbacks.
     pub async fn send_to(&self, user: &dyn CanResetPassword) -> AuthResult<()> {
         let email = user.get_email_for_password_reset();
-        send_mail("ResetPassword", email, || {
-            let (url, mail) = {
-                let callbacks = MailCallbacks::get()?;
-                let callbacks = callbacks.read().expect("auth mail callbacks lock");
-                (callbacks.reset_url.clone(), callbacks.reset_mail.clone())
-            };
-            if let Some(mail) = mail {
-                return mail(user, self.token);
-            }
-            let url = match url {
-                Some(create_url) => create_url(user, self.token)?,
-                None => self.url(email)?,
-            };
-            self.default_mail(&url)
-        })
+        send_mail(
+            "ResetPassword",
+            email,
+            Some((user as &dyn std::any::Any).type_id()),
+            || {
+                let (url, mail) = {
+                    let callbacks = MailCallbacks::get()?;
+                    let callbacks = callbacks.read().expect("auth mail callbacks lock");
+                    (callbacks.reset_url.clone(), callbacks.reset_mail.clone())
+                };
+                if let Some(mail) = mail {
+                    return mail(user, self.token);
+                }
+                let url = match url {
+                    Some(create_url) => create_url(user, self.token)?,
+                    None => self.url(email)?,
+                };
+                self.default_mail(&url)
+            },
+        )
         .await
     }
 
     /// Send the default notification using an email address alone.
     pub async fn send(&self, email: &str) -> AuthResult<()> {
-        send_mail("ResetPassword", email, || {
+        send_mail("ResetPassword", email, None, || {
             self.default_mail(&self.url(email)?)
         })
         .await

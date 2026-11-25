@@ -364,3 +364,18 @@ web-sensitive-runtime-final.log用生成full应用实际重建、真实Artisan i
 过程中32GB守卫停线，等待其他构建退出后持锁清理，最后一次记录释放79,840,591,872字节、清理后111,710,760,960字节；源码／日志／下载／数据库保留。因反复冷构建和多套debug信息使缓存触线，本工作流后续通过target/tmp/user-starter/accept.py仅设置CARGO_PROFILE_DEV_DEBUG=1与CARGO_PROFILE_TEST_DEBUG=1，保留增量、正常并发与调试断言；主仓库及IDE配置未改。最终清单／SHA／空间分别为web-sensitive-files.json、web-sensitive-final-source-sha.json、web-sensitive-delivery-space.json。临时数据库和Redis容器已退出，文档dist直接删除，正常工作流缓存保留。
 
 本项闭合网页资料／密码事务和密码确认时快照，尚不闭合完整A01阶段。继续可靠邮件队列、数据库设备列表、头像、DeleteUser可靠清理，以及Passkey／第三方登录／完整因素页面和S10安装矩阵。已验收且未受影响路径复用上述证据。
+
+
+## A01-02／04：可选认证邮件队列与开发预览（本子单元验收通过）
+
+沿用固定[Framework13.40.0 SendQueuedNotifications](https://github.com/laravel/framework/blob/v13.40.0/src/Illuminate/Notifications/SendQueuedNotifications.php)及[ResetPassword](https://github.com/laravel/framework/blob/v13.40.0/src/Illuminate/Auth/Notifications/ResetPassword.php)：原生默认同步不变，套件只有显式设置user.mail.queue／USER_MAIL_QUEUE后，才为实际用户能力类型分别装配重置与验证通知的队列策略。公开AuthMailQueueOptions与ResetPassword／VerifyEmail::queue_for复用既有通知、JobOptions、AfterCommit及加密，不另建邮件队列系统。可单独恢复一类通知同步发送，缓存回调所属应用隔离；URL／to_mail自定义保留。未类型化ResetPassword::send保持同步。
+
+安装生成config/user.rs的mail组，连接缺省遵循queue.default。拒绝空／空白／逗号名称、无效类型、sync／null／deferred／background及循环或非持久化叶节点failover；实例化所选真实连接确认注册。包装能力不默默失效，自动套件明确拒绝，允许按实际能力类型手动装配。Provider标准旧模板可升级，自定义Provider保留并给出接线错误；既有配置不覆盖，三语教程要求合并新组。关闭套件邮箱验证不创建验证任务，密码找回可继续入队。
+
+命令均经target/tmp/user-starter/accept.py／项目build_guard、Rust1.94执行。auth-mail-full-gates.log中旧无Sanctum配置夹具缺auth.guards导致4项失败，未计通过；补齐真实web／admin会话Guard夹具，没有放宽生产校验。auth-mail-full-gates-resumed.log完整安装13、配置6、Sanctum套件49；无Sanctum配置6／网页11全部通过；workspace严格Clippy55.24秒、Fortify+Sanctum43.19秒与fmt退出0。SQLite3.54.1正式jobs列类型验证加密、App／模型／通知类型隔离、凭据不进入任务、Worker投递及链接消费。auth-mail-matrix.log独立MySQL8.4.13、PostgreSQL18.7各2项database队列，Redis8.10.3实际redis队列／Session2项全部通过；非仅改变量或无环境跳过，临时容器已回收。
+
+生成full应用的auth-mail-runtime-build.log实际cargo重建、Artisan init:resources --extensions=user-web,api,fortify --force --no-interaction升级及再重建通过（仅本任务隔离应用force）。auth-mail-runtime-final.log／auth-mail-runtime.json使用独立SQLite、file缓存、三个应用进程与三个真实Artisan queue:work --once --tries=3：SMTP首次451后任务释放且未误报已投递，Worker重试成功；生产者错误端口／假凭据不影响Worker自身正确端口及无认证配置；生产者退出后重置通知仍可消费；验证204、重置200、重放422、旧PAT401、新密码登录201及当前用户200。首轮数据库文件路径拼错被保护断言阻止，改为本任务既有acceptance.sqlite，未访问开发数据库。日志不记录明文链接／令牌，验收摘要13条含3次Worker，供应商受理2封，待处理0。
+
+Mailpit固定v1.34.0，镜像digest sha256:23a2ef85bc50853ab3093645d1d64679afd8887e89da5e48a88940c172591a4e；原共享旧镜像保留。auth-mailpit-runtime-final.log／json三语真实注册201、三次真实Worker退出0，API确认每封真实验证链接及各语言主题。首轮比较大小写收件人失败，修正验收断言为邮件地址规范化比较，没有修改生产逻辑。auth-mailpit-browser.json三语桌面／手机共6次打开实际邮件，脚本错误为空；手机截图人工复核显示繁体正文与按钮。容器只暴露随机回环端口、tmpfs存预览、没有真实供应商转发；结束直接删除本批容器，不动数据库／数据卷。教程提供宿主机Mailpit配置、容器网络区别和MAIL_URL优先级。auth-mail-docs-final.log三语站构建及两挂载／桌面手机12组正文浏览器全部通过。
+
+边界：请求成功只表示入队；SMTP受理后、队列确认前崩溃仍可能重复邮件，不宣称恰好一次，重置单用与验证幂等分别保证。真实SMTP账号、生产TLS、外部投递及手机／邮箱最终收信仍属外部发布验收。本项未闭合A01整体，后续仍需数据库设备列表、头像／DeleteUser可靠清理、Passkey／第三方登录及完整因素页面、S10自定义用户与安装矩阵；复核还须将旧DisableVerificationMail事件策略限定到套件用户，不能以当前队列类型隔离代替全局事件范围核对。清单及最终SHA见auth-mail-files.json／auth-mail-final-source-sha.json，清理与剩余空间见auth-mail-delivery-space.json。未推送。
