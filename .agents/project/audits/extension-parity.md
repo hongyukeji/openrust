@@ -325,6 +325,12 @@ Rust 在 BelongsToMany 的中间表入口传播调用位置，覆盖带属性及
 
 基于 `42bca1a84` 加本批文件的隔离快照，在 SQLite、PostgreSQL 18.7 与 MySQL 8.4.13 的真实应用路由验证五个入口的九条 SQL 与精确行号，同时检查更新行数、同步和切换的附加／移除集合及最终移除行数。Telescope 默认 38 项、框架关系 6 项、MySQL 两项显式连接原生回归、快照全仓格式、严格 Clippy、三语文档构建及 12 组浏览器检查通过。Release 与其他目标平台留在发布组合验收。证据位于 `target/tmp/observability-parity/query-pivot-*.log`。
 
+### Telescope Query Schema 调用来源
+
+PHP 8.5.12、固定 Laravel 和固定 Telescope、真实 SQLite 连接。`Schema` Builder 的 `create`、`hasTable`、`table`、`hasColumn`、`dropIfExists` 以及删除后再查表，共七条 SQL 落到对应六行，其中 `hasColumn` 发出两条目录查询。证据为 `target/tmp/observability-parity/query-schema-source-upstream.log`。 [固定 Schema Builder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Builder.php)
+
+Rust `Schema` Facade、Builder 与目录检查仍需传播应用调用位置，并通过真实入口验证 DDL 和目录查询，包括一次入口生成多条 SQL 的情况。现有查询来源作用域已用于 Query Builder 和 Eloquent，Schema 构建器尚未接入。
+
 ### Pulse SlowQueries 数据库调用来源
 
 固定 [SlowQueries](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Recorders/SlowQueries.php) 从查询调用栈选首个可用文件与行号，省略应用根路径并跳过框架、Pulse 和启动脚本。无可用位置写空字符串，关掉 `location` 写 `null`。在 PHP 8.5.12 中实际注册固定 Recorder，通过 SQLite 查询、Pulse 延迟队列和 Ingest 契约核对这两种配置的条目键。
