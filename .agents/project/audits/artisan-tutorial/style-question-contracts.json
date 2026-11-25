@@ -1,0 +1,43 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "console_reference": "Symfony Console7.4.0",
+  "status": "verified_existing_helpers_no_production_reimplementation",
+  "native_members": {
+    "ask": "ask/ask_with/ask_with_validator",
+    "askHidden": "ask_hidden/ask_hidden_with",
+    "confirm": "confirm/confirm_with",
+    "choice": "choice/choice_with/choice_pairs_with"
+  },
+  "source_sequences": 704,
+  "source_error_counts": {
+    "RuntimeException": 32,
+    "Symfony\\Component\\Console\\Exception\\MissingInputException": 16,
+    "Symfony\\Component\\Console\\Exception\\RuntimeException": 32
+  },
+  "existing_implementation_hashes": {
+    "vendor/openrust/framework/src/console/question/io.rs": "bcbcb7661fe441d07db91eba138de3624143f609309febcc94a506759e95c6cf",
+    "vendor/openrust/framework/src/console/question/mod.rs": "c71b07ec972ac5666aca6f1973a2ed18041206789fe8cfe050509cc24cf6aadb",
+    "vendor/openrust/framework/src/console/question/choice.rs": "2f3eb7d7f974e88d5e1493e85a3141f9852789339f8db68b936b3302f6976f9d",
+    "vendor/openrust/framework/src/console/output_style.rs": "c20ba41145cda6ec88f4b5bbc7431f1f0f239bd129832efd7c785a4149ab9b9a"
+  },
+  "native_adaptations": [
+    "Short and _with methods express optional PHP parameters using existing Rust APIs; no new options type or duplicated question engine.",
+    "Without a validator ask/hidden return nullable text as Option<String>; validator variants preserve the complete serde_json::Value result.",
+    "Style confirm defaults true, CommandIo confirm remains false; source types are distinct.",
+    "Global user RuntimeException is retryable; the source Console Exception RuntimeException aborts. Native from_source/new versus explicit from_runtime_source represent those behaviors without PHP inheritance.",
+    "Existing JSON/Display model and native async/timeout support remain as previously accepted; no claim of PHP object identity or global VM warning emulation."
+  ],
+  "evidence": [
+    "console_style_questions",
+    "style-questions-oracle.json",
+    "artisan_docs_generated",
+    "artisan_style_questions.py",
+    "accepted-style-questions.json"
+  ],
+  "remaining": [
+    "Full StyleInterface/OutputInterface and arbitrary sinks",
+    "Table constructor/output generality and create_table/horizontal_table/definition_list",
+    "Tree/error-style/component Factory and other chapter anchors",
+    "Windows terminal release matrix"
+  ]
+}

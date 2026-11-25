@@ -1340,3 +1340,44 @@ fn register_blocks() -> Result<(), ConsoleError> {
 标准状态块转义消息标签，`comment` 保留行内格式；只有需要按格式器标记解释消息时，才设置 `escape: false`。`padding` 仅在装饰输出中添加首尾空行。块宽度在样式构造时确定，最多 120 列；配置为零时使用 120，Windows 还会预留一列。之后修改 `COLUMNS` 不改变该样式的块宽度。
 
 `error` 输出错误块，命令退出码仍由返回值控制。无效格式或零宽度分区可能在部分输出后返回类型化控制台错误。问答校验重试复用同一错误块渲染器，包括格式器、转义与构造时宽度。
+
+## 样式级问答助手 {#style-question-helpers}
+
+样式对象也直接提供问答助手。简写方法采用默认参数，`_with` 变体传入可选参数；它们与 `ask_question` 共用 `Question`、`ChoiceQuestion`、`ConfirmationQuestion`、输入流和取消机制。
+
+```rust
+use openrust::console::{
+    AsyncCommandCallback, ConsoleError, OutputFormat, OutputStyle, QuestionCallback,
+};
+use openrust::support::facades::Artisan;
+use serde_json::json;
+
+fn register_style_helpers() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:style-questions", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut style = OutputStyle::new(input, output);
+            let profile = style.ask_with_validator("Name", Some("Ada"), Some(
+                QuestionCallback::sync(|value| Ok(json!({"name": value}))),
+            )).await?;
+            let _token = style.ask_hidden("Token").await?;
+            let confirmed = style.confirm("Continue").await?;
+            let color = style.choice_with(
+                "Color", ["red", "green"], Some(json!("green")), false,
+            ).await?;
+            style.writeln(
+                json!({"profile": profile, "confirmed": confirmed, "color": color})
+                    .to_string().as_str(),
+                OutputFormat::Raw,
+            )?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+`ask`、`ask_with` 返回 `Option<String>`；`ask_with_validator` 保留校验器完整的 JSON 返回值。`ask_hidden` 返回隐藏输入的文本，`ask_hidden_with` 也保留结构化校验结果。示例使用令牌但不打印其内容。
+
+`OutputStyle::confirm` 默认 `true`，命令级 `CommandIo::confirm` 默认 `false`，两者都可用 `confirm_with` 显式指定。样式的 `choice_with` 将匹配的默认值映射至选项键，`choice_pairs_with` 保留命名键，最后的布尔参数启用多选。
+
+非交互模式下，非 null 默认值会执行校验器；null 默认值直接返回 null，不调用校验器。校验失败遵循现有重试规则，`ConsoleError::from_runtime_source` 显式标记需要立即终止的错误。需要设置次数、补全或超时时，创建 `Question` 并调用 `ask_question`。

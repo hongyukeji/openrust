@@ -1340,3 +1340,44 @@ fn register_blocks() -> Result<(), ConsoleError> {
 標準狀態區塊轉義訊息標籤，`comment` 保留行內格式；只有需要依格式器標記解讀訊息時，才設定 `escape: false`。`padding` 僅在裝飾輸出中加入首尾空行。區塊寬度在樣式建構時確定，最多 120 欄；設定為零時使用 120，Windows 還會預留一欄。之後修改 `COLUMNS` 不改變該樣式的區塊寬度。
 
 `error` 輸出錯誤區塊，命令結束碼仍由回傳值控制。無效格式或零寬度分區可能在部分輸出後回傳型別化主控台錯誤。問答驗證重試重用同一錯誤區塊渲染器，包括格式器、轉義與建構時寬度。
+
+## 樣式層問答助手 {#style-question-helpers}
+
+樣式物件也直接提供問答助手。簡寫方法採用預設參數，`_with` 變體傳入可選參數；它們與 `ask_question` 共用 `Question`、`ChoiceQuestion`、`ConfirmationQuestion`、輸入串流與取消機制。
+
+```rust
+use openrust::console::{
+    AsyncCommandCallback, ConsoleError, OutputFormat, OutputStyle, QuestionCallback,
+};
+use openrust::support::facades::Artisan;
+use serde_json::json;
+
+fn register_style_helpers() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:style-questions", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut style = OutputStyle::new(input, output);
+            let profile = style.ask_with_validator("Name", Some("Ada"), Some(
+                QuestionCallback::sync(|value| Ok(json!({"name": value}))),
+            )).await?;
+            let _token = style.ask_hidden("Token").await?;
+            let confirmed = style.confirm("Continue").await?;
+            let color = style.choice_with(
+                "Color", ["red", "green"], Some(json!("green")), false,
+            ).await?;
+            style.writeln(
+                json!({"profile": profile, "confirmed": confirmed, "color": color})
+                    .to_string().as_str(),
+                OutputFormat::Raw,
+            )?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+`ask`、`ask_with` 回傳 `Option<String>`；`ask_with_validator` 保留驗證器完整的 JSON 回傳值。`ask_hidden` 回傳隱藏輸入的文字，`ask_hidden_with` 也保留結構化驗證結果。範例使用權杖但不列印其內容。
+
+`OutputStyle::confirm` 預設 `true`，命令層 `CommandIo::confirm` 預設 `false`，兩者都可用 `confirm_with` 明確指定。樣式的 `choice_with` 將匹配的預設值映射至選項鍵，`choice_pairs_with` 保留具名鍵，最後的布林參數啟用多選。
+
+非互動模式下，非 null 預設值會執行驗證器；null 預設值直接回傳 null，不呼叫驗證器。驗證失敗遵循既有重試規則，`ConsoleError::from_runtime_source` 明確標記需要立即終止的錯誤。需要設定次數、補全或逾時時，建立 `Question` 並呼叫 `ask_question`。

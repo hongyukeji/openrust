@@ -466,3 +466,18 @@ ProgressBar／ProgressOutput保留同一目标：分区进度按源计算旧消�
 最终退出码复验前，32GB清理遇到旧Windows编译缓存root属主导致Permission denied，未启动的测试不计通过。核对归属与占用、持有协调锁和该Cargo锁后，仅修复868个root属主的生成缓存条目，原Cargo锁inode518139676保持，未删除源码／日志／数据或该缓存；cache-owner-repair.json保留证据。恢复后最终测试／Clippy／fmt通过，原失败日志保留，不修改全局构建守卫或其他任务源码。
 
 正式证据style-block-contracts.json、accepted-style-block.json及两份oracle；原始日志target/tmp/artisan-tutorial-20261125/style-block-*。运行目录／PTY／参考容器回收，保留源码／日志／可复用缓存与数据库／数据卷。完整StyleInterface、组件Factory、便捷问答、其余表格／树／错误流样式及一般OutputInterface仍继续，不把inherent方法冒充完整Trait或整章闭合，Windows实机属发布待验。仅本批本地提交，不推送，保留其他在途。
+
+
+## 第三十二簇：既有样式问答助手的逐入口复核（2026-11-25）
+
+第三十一簇已提交fc2af116bf7a47f8f44e504412197adbf1fcddb9，未推送。逐项检查发现ask/ask_with/ask_with_validator、ask_hidden/ask_hidden_with、confirm/confirm_with、choice/choice_with/choice_pairs_with已由前序问答簇实现。本簇不重写生产实现、不新增AskOptions或平行问答引擎，只补真实公开入口消费者与三语解释，并更新原先仍写pending的继承清单；旧版无可进一步提取的同名完整样式SDK。
+
+704组固定源实际消费者逐项比对返回值、stdout、各层换行计数／布尔值、校验回调轨迹和交互状态。覆盖基础／带参／显式空校验器入口，普通与隐藏问答、结构化校验返回、重试／立即终止、默认值／EOF、非交互、确认true/false、选择按值映射／多选、嵌套／分区、装饰和级别。80个预期错误保留真实失败，不作为正常回答。既有选择117向量和Question公开类型的验收继续有效，不重开已闭合能力。
+
+首轮夹具将PHP全局用户RuntimeException错误映射到原生显式终止标记，208号消费者暴露交互状态差异。固定QuestionHelper导入的是Console命名空间RuntimeException；全局用户异常走重试分支。已按真实类型拆为user-runtime和console-runtime，分别用from_source/new与from_runtime_source验证，两类输出／回调／EOF状态全部匹配；保留初始Source和失败日志，不修改源代码来迁就错误夹具，也不改变生产错误策略。
+
+实际HTTP200／JSON500／200恢复与12并发隔离通过；独立命令二进制OS退出0／1通过。新增正式tests/artisan_style_questions.py，从样式便捷方法实际读取TTY：普通校验失败再回答、隐藏输入关闭ECHO、确认默认true、选择默认green，完整流程0；在隐藏输入处Ctrl+C130。两种情况完整termios恢复，stdout/stderr及TTY回显均未出现测试口令，只输出长度元数据，临时PTY／应用目录回收。首次TTY探针在全局缓存清理后的二进制重建完成前误启动，FileNotFound不计通过；重建后与最终门禁后两次实际通过。
+
+三语正式代码直接提取99份运行。问题／选择／本簇三个框架目标22父消费者，根6目标140父消费者，共162个本批不同父消费者；4个ignored驱动不叠加。生产实现未变，因此不重复宣称本批重跑未受影响的表格／进度全套。fmt、workspace all-targets严格Clippy、实际main(pail)、三语构建与12项浏览器通过；实际HTTP/up/静态/HTML与JSON404/HEAD、Artisan inspire/list/Pail过滤/-vv/timeout回收/Ctrl+C通过。
+
+正式证据style-question-contracts.json、accepted-style-questions.json、style-questions-oracle.json；原始日志target/tmp/artisan-tutorial-20261125/style-questions-*。生产SDK源码与基线hash一致，只提交已验测试／三语文档／账本。保留源码／日志／可复用缓存与数据库／数据卷，运行目录回收。完整StyleInterface、表格通用构造／create_table／水平与定义列表、组件Factory／树／错误流／通用OutputInterface继续，不把新证据当整章或全项目闭合；Windows实机仍属发布待验，不推送，其他在途保留。

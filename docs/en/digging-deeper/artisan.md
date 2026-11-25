@@ -1340,3 +1340,44 @@ fn register_blocks() -> Result<(), ConsoleError> {
 Standard status blocks escape message tags; `comment` keeps inline formatting active. Set `escape: false` only when the message should use formatter markup. `padding` adds top and bottom rows only to decorated output. Blocks wrap at the width captured when the style is constructed, capped at 120 columns; a configured zero width uses 120 before the one-column Windows margin. Changing `COLUMNS` later does not change that style’s block width.
 
 `error` prints an error block; the command’s return value still controls its exit status. Invalid formatting or a zero-width section can return a typed console error after partial output. Question validation retries use this same error-block renderer, including its formatter, escaping and captured width.
+
+## Style-level question helpers {#style-question-helpers}
+
+The style also exposes the question helpers directly. Use the short method for defaults and the `_with` variants for optional arguments. They share `Question`, `ChoiceQuestion`, `ConfirmationQuestion`, input streams and cancellation with `ask_question`.
+
+```rust
+use openrust::console::{
+    AsyncCommandCallback, ConsoleError, OutputFormat, OutputStyle, QuestionCallback,
+};
+use openrust::support::facades::Artisan;
+use serde_json::json;
+
+fn register_style_helpers() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:style-questions", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut style = OutputStyle::new(input, output);
+            let profile = style.ask_with_validator("Name", Some("Ada"), Some(
+                QuestionCallback::sync(|value| Ok(json!({"name": value}))),
+            )).await?;
+            let _token = style.ask_hidden("Token").await?;
+            let confirmed = style.confirm("Continue").await?;
+            let color = style.choice_with(
+                "Color", ["red", "green"], Some(json!("green")), false,
+            ).await?;
+            style.writeln(
+                json!({"profile": profile, "confirmed": confirmed, "color": color})
+                    .to_string().as_str(),
+                OutputFormat::Raw,
+            )?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+`ask` and `ask_with` return `Option<String>`. `ask_with_validator` returns the validator’s complete JSON result. `ask_hidden` returns hidden text; `ask_hidden_with` also retains a structured validator result. The example uses the token without printing it.
+
+`OutputStyle::confirm` defaults to `true`; the command-level `CommandIo::confirm` defaults to `false`. Both have `confirm_with` for an explicit default. Style `choice_with` resolves a matching default value to its choice key; `choice_pairs_with` preserves named keys. The final boolean enables multiselect.
+
+A non-null noninteractive default runs the validator. A null default returns null without calling it. Validation errors follow the existing retry rules; `ConsoleError::from_runtime_source` explicitly marks an error that must stop immediately. Create a `Question` and call `ask_question` when configuring attempt limits, completion or timeout.
