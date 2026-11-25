@@ -106,6 +106,10 @@ impl Dispatcher {
         }
     }
 
+    pub(crate) fn owner(&self) -> Option<Arc<Container>> {
+        self.owner.upgrade()
+    }
+
     fn pushed_events(&self) -> EventResult<Arc<PushedEvents>> {
         match self.owner.upgrade() {
             Some(owner) => owner.make::<PushedEvents>().map_err(Into::into),

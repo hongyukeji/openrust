@@ -1,0 +1,166 @@
+//! 可选扩展观测执行作用域的接缝。
+
+use std::{future::Future, sync::Arc, task::Poll};
+
+use futures_util::Stream;
+
+use crate::{
+    container::Container,
+    contracts::container::{BindingResolutionError, Container as _},
+};
+
+/// 框架开始执行的操作。只传递埋点所需的元数据。
+#[non_exhaustive]
+pub enum Operation<'a> {
+    Http {
+        method: &'a http::Method,
+        headers: &'a http::HeaderMap,
+    },
+    HttpClient {
+        method: &'a http::Method,
+        origin: &'a url::Origin,
+        headers: &'a mut http::HeaderMap,
+    },
+    Command {
+        name: &'a str,
+    },
+    Sql {
+        system: &'static str,
+        operation: Option<&'static str>,
+    },
+    Job {
+        name: &'a str,
+    },
+}
+
+/// 操作的终态。错误文案由单独的异常报告管线处理。
+#[non_exhaustive]
+#[derive(Clone, Copy)]
+pub enum Outcome {
+    Http(http::StatusCode),
+    Command(i32),
+    HttpClient(Result<http::StatusCode, &'static str>),
+    Job { failed: bool },
+    Sql { failed: bool },
+    Failed,
+    Cancelled,
+}
+
+/// 一个应用的观测扩展。
+pub trait Observer: Send + Sync + 'static {
+    fn begin(&self, operation: Operation<'_>) -> Option<Box<dyn Observation>>;
+}
+
+/// 对一次执行建立上下文，且在结束或取消时收尾。
+pub trait Observation: Send + Sync {
+    /// 同步调用一次 poll。上下文守卫应在返回前退出。
+    fn in_scope(&self, poll: &mut dyn FnMut());
+    fn finish(&mut self, outcome: Outcome);
+}
+
+struct Registered(Arc<dyn Observer>);
+
+/// 为当前应用登记观察者。
+pub fn register(
+    container: &Container,
+    observer: Arc<dyn Observer>,
+) -> Result<(), BindingResolutionError> {
+    container.instance(Arc::new(Registered(observer)))?;
+    Ok(())
+}
+
+pub(crate) fn begin_sql(
+    owner: Option<Arc<Container>>,
+    system: &'static str,
+    sql: &str,
+) -> Execution {
+    let Some(owner) = owner else {
+        return Execution::default();
+    };
+    // 只映射固定操作词。不会向观察者传递 SQL、绑定值或标识符。
+    const OPERATIONS: [&str; 12] = [
+        "SELECT", "INSERT", "UPDATE", "DELETE", "REPLACE", "MERGE", "CREATE", "ALTER", "DROP",
+        "TRUNCATE", "PRAGMA", "CALL",
+    ];
+    let operation = sql.split_ascii_whitespace().next().and_then(|first| {
+        OPERATIONS
+            .into_iter()
+            .find(|operation| first.eq_ignore_ascii_case(operation))
+    });
+    begin(&owner, Operation::Sql { system, operation })
+}
+
+pub(crate) fn begin(container: &Container, operation: Operation<'_>) -> Execution {
+    Execution(
+        container
+            .has(crate::container::ServiceKey::typed::<Registered>())
+            .then(|| container.make::<Registered>().ok())
+            .flatten()
+            .and_then(|registration| registration.0.begin(operation)),
+    )
+}
+
+#[derive(Default)]
+pub(crate) struct Execution(Option<Box<dyn Observation>>);
+
+impl Execution {
+    pub(crate) async fn run<T>(
+        mut self,
+        future: impl Future<Output = T>,
+        outcome: impl FnOnce(&T) -> Outcome,
+    ) -> T {
+        let Some(observation) = self.0.as_ref() else {
+            return future.await;
+        };
+        let mut future = std::pin::pin!(future);
+        let result = std::future::poll_fn(|cx| {
+            let mut result = Poll::Pending;
+            observation.in_scope(&mut || result = future.as_mut().poll(cx));
+            result
+        })
+        .await;
+        if let Some(mut observation) = self.0.take() {
+            observation.finish(outcome(&result));
+        }
+        result
+    }
+}
+
+pub(crate) fn sql_stream<T, E>(
+    start: impl FnOnce() -> Execution,
+    stream: impl Stream<Item = Result<T, E>>,
+) -> impl Stream<Item = Result<T, E>> {
+    let mut start = Some(start);
+    let mut execution = Execution::default();
+    let mut stream = Box::pin(stream);
+    futures_util::stream::poll_fn(move |cx| {
+        if let Some(start) = start.take() {
+            execution = start();
+        }
+        let mut result = Poll::Pending;
+        if let Some(observation) = execution.0.as_ref() {
+            observation.in_scope(&mut || result = stream.as_mut().poll_next(cx));
+        } else {
+            result = stream.as_mut().poll_next(cx);
+        }
+        let outcome = match &result {
+            Poll::Ready(None) => Some(Outcome::Sql { failed: false }),
+            Poll::Ready(Some(Err(_))) => Some(Outcome::Sql { failed: true }),
+            _ => None,
+        };
+        if let Some(outcome) = outcome
+            && let Some(mut observation) = execution.0.take()
+        {
+            observation.finish(outcome);
+        }
+        result
+    })
+}
+
+impl Drop for Execution {
+    fn drop(&mut self) {
+        if let Some(observation) = self.0.as_mut() {
+            observation.finish(Outcome::Cancelled);
+        }
+    }
+}

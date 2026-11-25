@@ -245,14 +245,28 @@ macro_rules! observed_transaction_query {
                 .await?;
             return Ok($preview);
         }
-        let start = Instant::now();
-        $transaction.physical()?.validate($sql, true)?;
-        $before();
-        let result = $transaction.physical()?.$operation($sql, bindings).await?;
-        let elapsed = start.elapsed();
-        $after(&result);
-        $transaction.dispatch_query($sql, bindings, elapsed).await?;
-        Ok::<_, DatabaseError>(result)
+        use crate::foundation::observability::{self, Outcome};
+        observability::begin_sql(
+            Connection::model_container(Some(&$transaction.connection)),
+            $transaction.connection.get_driver_name(),
+            $sql,
+        )
+        .run(
+            async {
+                let start = Instant::now();
+                $transaction.physical()?.validate($sql, true)?;
+                $before();
+                let result = $transaction.physical()?.$operation($sql, bindings).await?;
+                let elapsed = start.elapsed();
+                $after(&result);
+                $transaction.dispatch_query($sql, bindings, elapsed).await?;
+                Ok::<_, DatabaseError>(result)
+            },
+            |result| Outcome::Sql {
+                failed: result.is_err(),
+            },
+        )
+        .await
     }};
 }
 
@@ -606,28 +620,43 @@ impl Transaction {
         bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseCursor<'a> {
         let bindings = bindings.into();
-        Box::pin(async_stream::try_stream! {
-            self.run_before_executing(sql, bindings).await?;
-            if self.connection.pretending() {
-                self.dispatch_query(sql, bindings, Duration::ZERO).await?;
-                return;
+        use crate::foundation::observability::{self, Execution};
+        let connection = self.connection.clone();
+        let start = move || {
+            if connection.pretending() {
+                return Execution::default();
             }
-            let mut elapsed = Duration::ZERO;
-            {
-                let physical = self.physical()?;
-                physical.validate(sql, true)?;
-                let prepared = physical.prepare(sql, bindings)?;
-                let mut rows = std::pin::pin!(physical.cursor(&prepared));
-                loop {
-                    let start = Instant::now();
-                    let next = rows.try_next().await?;
-                    elapsed += start.elapsed();
-                    let Some(row) = next else { break };
-                    yield row;
+            observability::begin_sql(
+                Connection::model_container(Some(&connection)),
+                connection.get_driver_name(),
+                sql,
+            )
+        };
+        Box::pin(observability::sql_stream(
+            start,
+            async_stream::try_stream! {
+                self.run_before_executing(sql, bindings).await?;
+                if self.connection.pretending() {
+                    self.dispatch_query(sql, bindings, Duration::ZERO).await?;
+                    return;
                 }
-            }
-            self.dispatch_query(sql, bindings, elapsed).await?;
-        })
+                let mut elapsed = Duration::ZERO;
+                {
+                    let physical = self.physical()?;
+                    physical.validate(sql, true)?;
+                    let prepared = physical.prepare(sql, bindings)?;
+                    let mut rows = std::pin::pin!(physical.cursor(&prepared));
+                    loop {
+                        let start = Instant::now();
+                        let next = rows.try_next().await?;
+                        elapsed += start.elapsed();
+                        let Some(row) = next else { break };
+                        yield row;
+                    }
+                }
+                self.dispatch_query(sql, bindings, elapsed).await?;
+            },
+        ))
     }
 
     pub async fn select<'a>(
@@ -761,13 +790,27 @@ impl Transaction {
                 .await?;
             return Ok(true);
         }
-        let start = Instant::now();
-        self.physical()?.validate(sql, false)?;
-        let result = self.physical()?.unprepared(sql).await?;
-        let elapsed = start.elapsed();
-        self.connection.set_record_modification_state(true);
-        self.dispatch_query(sql, (&[]).into(), elapsed).await?;
-        Ok(result)
+        use crate::foundation::observability::{self, Outcome};
+        observability::begin_sql(
+            Connection::model_container(Some(&self.connection)),
+            self.connection.get_driver_name(),
+            sql,
+        )
+        .run(
+            async {
+                let start = Instant::now();
+                self.physical()?.validate(sql, false)?;
+                let result = self.physical()?.unprepared(sql).await?;
+                let elapsed = start.elapsed();
+                self.connection.set_record_modification_state(true);
+                self.dispatch_query(sql, (&[]).into(), elapsed).await?;
+                Ok(result)
+            },
+            |result: &DatabaseResult<bool>| Outcome::Sql {
+                failed: result.is_err(),
+            },
+        )
+        .await
     }
 }
 

@@ -74,10 +74,42 @@ fn commands(artisan: &mut Artisan) -> Result<(), ConsoleError> {
 
 fn probe(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        Ok(Response::empty(match request.route("id") {
+        let status = match request.route("id") {
             Some("fail") => StatusCode::INTERNAL_SERVER_ERROR,
+            Some("dependency") => {
+                for variable in [
+                    "NEW_RELIC_TEST_ALLOWED_UPSTREAM",
+                    "NEW_RELIC_TEST_OTHER_UPSTREAM",
+                ] {
+                    let url = std::env::var(variable).expect("local test endpoint");
+                    let connected =
+                        openrust::support::facades::Http::get(&url)
+                            .await
+                            .map_err(|source| HttpError::Internal {
+                                source: Box::new(source),
+                            })?;
+                    assert_eq!(connected.status(), StatusCode::NO_CONTENT);
+                }
+                let db = openrust::support::facades::Db::connection(None)?;
+                db.select("SELECT 'private-sql-literal'", &[]).await?;
+                assert!(
+                    db.select("SELECT * FROM private_missing_table", &[])
+                        .await
+                        .is_err()
+                );
+                let mut rows = db.cursor("SELECT 1", &[]);
+                while let Some(row) = std::future::poll_fn(|cx| rows.as_mut().poll_next(cx)).await {
+                    row?;
+                }
+                drop(rows);
+                let mut transaction = db.begin_transaction().await?;
+                transaction.select("SELECT 1", &[]).await?;
+                transaction.commit().await?;
+                StatusCode::ACCEPTED
+            }
             _ => StatusCode::NO_CONTENT,
-        }))
+        };
+        Ok(Response::empty(status))
     })
 }
 

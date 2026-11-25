@@ -822,7 +822,16 @@ async fn run_command_with_events(
     let offset = output.stdout.len();
     let generation = output.capture_generation;
     let started = std::time::Instant::now();
-    let status = command.handle(application, input, output).await?;
+    use crate::foundation::observability::{self, Operation, Outcome};
+    let status = observability::begin(application.container(), Operation::Command { name: &name })
+        .run(
+            command.handle(application, input, output),
+            |result| match result {
+                Ok(code) => Outcome::Command(*code),
+                Err(_) => Outcome::Failed,
+            },
+        )
+        .await?;
     let duration = started.elapsed();
     events
         .dispatch(

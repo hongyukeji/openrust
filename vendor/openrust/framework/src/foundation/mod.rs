@@ -16,6 +16,7 @@ pub mod http;
 mod inspiring;
 mod locale;
 pub mod maintenance;
+pub mod observability;
 mod package_manifest;
 pub(crate) mod paths;
 mod precognition;

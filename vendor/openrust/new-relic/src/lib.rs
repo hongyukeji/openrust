@@ -36,6 +36,7 @@ impl ServiceProvider for NewRelicServiceProvider {
                         "app_name": env.get_utf8("NEW_RELIC_APP_NAME")?,
                         "region": env.get_utf8("NEW_RELIC_REGION")?.unwrap_or("us"),
                         "collector_endpoint": env.get_utf8("NEW_RELIC_COLLECTOR_ENDPOINT")?,
+                        "propagate_origins": env.get_utf8("NEW_RELIC_PROPAGATE_ORIGINS")?,
                     }),
                     "new_relic",
                 )?;
@@ -68,11 +69,47 @@ impl ServiceProvider for NewRelicServiceProvider {
                     // 引导入口只显示 Provider 失败，需要单独告知具体配置项。
                     eprintln!("New Relic 配置错误：{error}");
                 })?;
-            let recorder =
-                tokio::task::spawn_blocking(move || recorder::Recorder::new(name, destination))
-                    .await??;
+            let propagation = config.get("new_relic.propagate_origins");
+            let propagation = match propagation.as_ref() {
+                None | Some(serde_json::Value::Null) => Vec::new(),
+                Some(value) => value
+                    .as_str()
+                    .ok_or_else(|| {
+                        invalid("new_relic.propagate_origins", "逗号分隔的 HTTP Origin")
+                    })?
+                    .split(',')
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+                    .map(|value| {
+                        url::Url::parse(value)
+                            .ok()
+                            .filter(|url| {
+                                matches!(url.scheme(), "http" | "https")
+                                    && url.host().is_some()
+                                    && url.username().is_empty()
+                                    && url.password().is_none()
+                                    && url.path() == "/"
+                                    && url.query().is_none()
+                                    && url.fragment().is_none()
+                            })
+                            .map(|url| url.origin())
+                            .ok_or_else(|| {
+                                invalid(
+                                    "new_relic.propagate_origins",
+                                    "不含路径或凭据的 HTTP Origin",
+                                )
+                            })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
+            };
+            let recorder = tokio::task::spawn_blocking(move || {
+                recorder::Recorder::new(name, destination, propagation)
+            })
+            .await??;
             let dispatcher = app.container().make::<openrust::events::Dispatcher>()?;
-            recorder::register(&dispatcher, Arc::new(recorder))?;
+            let recorder = Arc::new(recorder);
+            openrust::foundation::observability::register(app.container(), recorder.clone())?;
+            recorder::register(&dispatcher, recorder)?;
             Ok(())
         })
     }

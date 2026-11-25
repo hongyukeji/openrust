@@ -813,38 +813,52 @@ macro_rules! observed_query {
             $connection.preview_query($sql, $values, $read).await?;
             return Ok($preview);
         }
-        let mut replayed = false;
-        let mut elapsed = Duration::ZERO;
-        loop {
-            let QueryLease {
-                physical: mut $physical,
-                role,
-                wait,
-                generation,
-            } = $connection.acquire_query($read).await?;
-            let start = Instant::now();
-            $physical.validate($sql, true)?;
-            $before();
-            let result = $operation.await;
-            elapsed += wait + start.elapsed();
-            drop($physical);
-            match result {
-                Ok(result) => {
-                    $after(&result);
-                    $connection
-                        .dispatch_query($sql, $values, elapsed, role)
-                        .await?;
-                    break Ok::<_, DatabaseError>(result);
+        use crate::foundation::observability::{self, Outcome};
+        observability::begin_sql(
+            Connection::model_container(Some($connection)),
+            $connection.get_driver_name(),
+            $sql,
+        )
+        .run(
+            async {
+                let mut replayed = false;
+                let mut elapsed = Duration::ZERO;
+                loop {
+                    let QueryLease {
+                        physical: mut $physical,
+                        role,
+                        wait,
+                        generation,
+                    } = $connection.acquire_query($read).await?;
+                    let start = Instant::now();
+                    $physical.validate($sql, true)?;
+                    $before();
+                    let result = $operation.await;
+                    elapsed += wait + start.elapsed();
+                    drop($physical);
+                    match result {
+                        Ok(result) => {
+                            $after(&result);
+                            $connection
+                                .dispatch_query($sql, $values, elapsed, role)
+                                .await?;
+                            break Ok::<_, DatabaseError>(result);
+                        }
+                        Err(error)
+                            if $connection.retry_lost_connection(
+                                generation.as_ref(),
+                                &error,
+                                &mut replayed,
+                            ) => {}
+                        Err(error) => break Err(error),
+                    }
                 }
-                Err(error)
-                    if $connection.retry_lost_connection(
-                        generation.as_ref(),
-                        &error,
-                        &mut replayed,
-                    ) => {}
-                Err(error) => break Err(error),
-            }
-        }
+            },
+            |result| Outcome::Sql {
+                failed: result.is_err(),
+            },
+        )
+        .await
     }};
 }
 
@@ -1490,47 +1504,61 @@ impl Connection {
         write: bool,
     ) -> DatabaseCursor<'a> {
         let bindings = bindings.into();
-        Box::pin(async_stream::try_stream! {
-            self.run_before_executing(sql, bindings, None).await?;
+        use crate::foundation::observability::{self, Execution};
+        let start = || {
             if self.pretending() {
-                self.preview_query(sql, bindings, !write).await?;
-                return;
+                return Execution::default();
             }
-            let mut replayed = false;
-            let mut elapsed = Duration::ZERO;
-            let mut delivered = false;
-            loop {
-                let QueryLease { mut physical, role, wait, generation } = self.acquire_query(!write).await?;
-                physical.validate(sql, true)?;
-                elapsed += wait;
-                let result = {
-                    let prepared = physical.prepare(sql, bindings)?;
-                    let mut rows = std::pin::pin!(physical.cursor(&prepared));
-                    loop {
-                        let start = Instant::now();
-                        let next = rows.try_next().await;
-                        elapsed += start.elapsed();
-                        match next {
-                            Ok(Some(row)) => {
-                                delivered = true;
-                                yield row;
-                            }
-                            Ok(None) => break Ok(()),
-                            Err(error) => break Err(error),
-                        }
-                    }
-                };
-                drop(physical);
-                match result {
-                    Ok(()) => {
-                        self.dispatch_query(sql, bindings, elapsed, role).await?;
-                        break;
-                    }
-                    Err(error) if !delivered && self.retry_lost_connection(generation.as_ref(), &error, &mut replayed) => {}
-                    Err(error) => Err(error)?,
+            observability::begin_sql(
+                Connection::model_container(Some(self)),
+                self.get_driver_name(),
+                sql,
+            )
+        };
+        Box::pin(observability::sql_stream(
+            start,
+            async_stream::try_stream! {
+                self.run_before_executing(sql, bindings, None).await?;
+                if self.pretending() {
+                    self.preview_query(sql, bindings, !write).await?;
+                    return;
                 }
-            }
-        })
+                let mut replayed = false;
+                let mut elapsed = Duration::ZERO;
+                let mut delivered = false;
+                loop {
+                    let QueryLease { mut physical, role, wait, generation } = self.acquire_query(!write).await?;
+                    physical.validate(sql, true)?;
+                    elapsed += wait;
+                    let result = {
+                        let prepared = physical.prepare(sql, bindings)?;
+                        let mut rows = std::pin::pin!(physical.cursor(&prepared));
+                        loop {
+                            let start = Instant::now();
+                            let next = rows.try_next().await;
+                            elapsed += start.elapsed();
+                            match next {
+                                Ok(Some(row)) => {
+                                    delivered = true;
+                                    yield row;
+                                }
+                                Ok(None) => break Ok(()),
+                                Err(error) => break Err(error),
+                            }
+                        }
+                    };
+                    drop(physical);
+                    match result {
+                        Ok(()) => {
+                            self.dispatch_query(sql, bindings, elapsed, role).await?;
+                            break;
+                        }
+                        Err(error) if !delivered && self.retry_lost_connection(generation.as_ref(), &error, &mut replayed) => {}
+                        Err(error) => Err(error)?,
+                    }
+                }
+            },
+        ))
     }
 
     pub async fn select<'a>(

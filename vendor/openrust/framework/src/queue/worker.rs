@@ -572,6 +572,32 @@ impl Worker {
         attempt: &mut AttemptStatus,
         signals: Option<&watch::Receiver<WorkerSignalState>>,
     ) -> QueueResult<WorkResult> {
+        use crate::foundation::observability::{self, Operation, Outcome};
+        observability::begin(
+            self.app.as_ref(),
+            Operation::Job {
+                name: job.payload().name(),
+            },
+        )
+        .run(
+            self.process_attempt(job, options, attempt, signals),
+            |result| Outcome::Job {
+                failed: !matches!(
+                    result,
+                    Ok(WorkResult::Processed | WorkResult::Released | WorkResult::Idle)
+                ),
+            },
+        )
+        .await
+    }
+
+    async fn process_attempt(
+        &self,
+        job: &mut dyn Job,
+        options: &WorkerOptions,
+        attempt: &mut AttemptStatus,
+        signals: Option<&watch::Receiver<WorkerSignalState>>,
+    ) -> QueueResult<WorkResult> {
         let batch = BatchCompletion::resolve(&self.app, job)?;
         if let Some(failed) = self.failed.find(job.uuid()).await?
             && failed.payload.delivery_id == job.payload().delivery_id

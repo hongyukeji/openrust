@@ -325,9 +325,16 @@ impl http::Kernel for Kernel {
     }
 
     fn handle<'a>(&'a self, request: &'a mut Request) -> HttpFuture<'a, Response> {
-        Box::pin(crate::support::facades::scope(
-            self.application.container_handle(),
-            async move {
+        use super::observability::{self, Operation, Outcome};
+        let observation = observability::begin(
+            self.application.container(),
+            Operation::Http {
+                method: request.method(),
+                headers: request.headers(),
+            },
+        );
+        let lifecycle =
+            crate::support::facades::scope(self.application.container_handle(), async move {
                 if !self.ready {
                     return Response::empty(StatusCode::SERVICE_UNAVAILABLE);
                 }
@@ -485,8 +492,8 @@ impl http::Kernel for Kernel {
                     extensions.remove::<Arc<Factory>>();
                 }
                 response
-            },
-        ))
+            });
+        Box::pin(observation.run(lifecycle, |response| Outcome::Http(response.status())))
     }
 
     fn terminate<'a>(

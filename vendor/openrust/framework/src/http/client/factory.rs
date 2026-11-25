@@ -451,7 +451,7 @@ impl Factory {
     pub(super) async fn dispatch(
         &self,
         client: &reqwest::Client,
-        request: reqwest::Request,
+        mut request: reqwest::Request,
     ) -> Result<Incoming> {
         let stubs = self.testing().stubs.clone();
         match stubs.iter().find_map(|callback| callback(&request)) {
@@ -459,11 +459,37 @@ impl Factory {
             None if !self.is_allowed_request_url(request.url().as_str()) => {
                 Err(Error::StrayRequest)
             }
-            None => client
-                .execute(request)
-                .await
-                .map(Incoming::Network)
-                .map_err(super::transport_error),
+            None => {
+                use crate::foundation::observability::{self, Operation, Outcome};
+                let owner = self.events.as_ref().and_then(|events| events.owner());
+                let method = request.method().clone();
+                let origin = request.url().origin();
+                let observation =
+                    owner
+                        .as_ref()
+                        .map_or_else(observability::Execution::default, |owner| {
+                            observability::begin(
+                                owner,
+                                Operation::HttpClient {
+                                    method: &method,
+                                    origin: &origin,
+                                    headers: request.headers_mut(),
+                                },
+                            )
+                        });
+                observation
+                    .run(client.execute(request), |result| {
+                        Outcome::HttpClient(match result {
+                            Ok(response) => Ok(response.status()),
+                            Err(error) if error.is_timeout() => Err("timeout"),
+                            Err(error) if error.is_connect() => Err("connection"),
+                            Err(_) => Err("transport"),
+                        })
+                    })
+                    .await
+                    .map(Incoming::Network)
+                    .map_err(super::transport_error)
+            }
         }
     }
 }

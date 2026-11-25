@@ -20,7 +20,7 @@ from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTrace
 
 ROOT = Path(__file__).resolve().parents[1]
 PRIVATE = (b"private-command-input", b"private-job-input", b"private-url-id",
-           b"private-job-error", b"private-cookie", b"private-query", b"private-license", b"private-otel-header")
+           b"private-job-error", b"private-sql-literal", b"private_missing_table", b"private-cookie", b"private-query", b"private-license", b"private-otel-header")
 
 
 class Collector(ThreadingHTTPServer):
@@ -28,10 +28,18 @@ class Collector(ThreadingHTTPServer):
         super().__init__(("127.0.0.1", 0), CollectorHandler)
         self.requests = []
         self.responses = {}
+        self.received_traceparents = []
         self.lock = threading.Lock()
 
 
 class CollectorHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        with self.server.lock:
+            self.server.received_traceparents.append(self.headers.get("traceparent"))
+        self.send_response(204)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
     def do_POST(self):
         body = self.rfile.read(int(self.headers["Content-Length"]))
         with self.server.lock:
@@ -130,6 +138,7 @@ def web(binary, env, root):
                     time.sleep(0.05)
             else:
                 raise AssertionError("HTTP 未监听")
+            assert request(port, "/api/probe/dependency") == 202
             assert request(port, "/api/probe/fail") == 500
             assert request(port, "/private-url-id") == 404
         finally:
@@ -142,9 +151,9 @@ def web(binary, env, root):
                 raise
 
 
-def main(binary):
+def main(binary, driver):
     (ROOT / "target/tmp").mkdir(parents=True, exist_ok=True)
-    with collector_server() as collector, tempfile.TemporaryDirectory(
+    with collector_server() as collector, collector_server() as other, tempfile.TemporaryDirectory(
         dir=ROOT / "target/tmp", prefix="new-relic-runtime-"
     ) as temp:
         root = Path(temp)
@@ -153,14 +162,21 @@ def main(binary):
         env |= {
             "TMPDIR": temp, "APP_BASE_PATH": temp, "APP_ENV": "testing", "APP_DEBUG": "false",
             "APP_DISABLED_RUNNERS": "queue,schedule", "APP_CONFIG_CACHE": str(root / "configuration.json"),
-            "DB_CONNECTION": "sqlite", "DB_DATABASE": str(root / "db.sqlite"),
+            "DB_CONNECTION": driver, "DB_DATABASE": str(root / "db.sqlite"),
+            "NEW_RELIC_TEST_ALLOWED_UPSTREAM": f"http://127.0.0.1:{collector.server_port}/private-url-id?token=private-query",
+            "NEW_RELIC_TEST_OTHER_UPSTREAM": f"http://127.0.0.1:{other.server_port}/private-url-id",
+            "NEW_RELIC_PROPAGATE_ORIGINS": f"http://127.0.0.1:{collector.server_port}",
             "CACHE_STORE": "file", "SESSION_DRIVER": "array", "QUEUE_CONNECTION": "database",
             "APP_NAME": "acceptance-app",
             "NEW_RELIC_COLLECTOR_ENDPOINT": f"http://127.0.0.1:{collector.server_port}",
             "NEW_RELIC_LICENSE_KEY": "private-license",
             "OTEL_EXPORTER_OTLP_HEADERS": "x-private=private-otel-header,api-key=private-otel-header",
         }
-        (root / "db.sqlite").touch()
+        if driver == "sqlite":
+            (root / "db.sqlite").touch()
+        else:
+            env["DB_URL"] = os.environ[("OPENRUST_TEST_POSTGRES_URL" if driver == "pgsql" else "OPENRUST_TEST_MYSQL_URL")]
+            env["DB_DATABASE"] = "openrust_acceptance"
         cli(binary, env, "telemetry:probe")
         assert collector.requests == [], "默认未启用的扩展发送了遥测"
         cli(binary, env, "migrate", "--force")
@@ -182,6 +198,17 @@ def main(binary):
         assert http_spans[204].parent_span_id.hex() == "0123456789012345"
         assert http_spans[404].status.code == 0 and http_spans[404].name == "GET"
         assert http_spans[500].status.code == 2
+        parent = http_spans[202]
+        children = [span for name, span in spans if name == "acceptance-app"
+                    and span.parent_span_id == parent.span_id and span.trace_id == parent.trace_id]
+        http_children = [span for span in children if attrs(span.attributes).get("http.request.method") == "GET"]
+        db_children = [span for span in children if attrs(span.attributes).get("db.system.name")]
+        assert len(http_children) == 2 and len(db_children) >= 4
+        assert any(span.status.code == 2 for span in db_children), db_children
+        assert collector.received_traceparents and collector.received_traceparents[0].split("-")[1] == parent.trace_id.hex()
+        assert other.received_traceparents == [None]
+        assert {"http.client.request.duration", "db.client.operation.duration"} <= {metric.name for _, metric in metrics}
+        print(f"{driver} 出站 HTTP 与 SQL 子链路、失败及传播白名单通过", flush=True)
         http_metric = next(metric for _, metric in metrics if metric.name == "http.server.request.duration")
         assert http_metric.unit == "s" and http_metric.histogram.aggregation_temporality == 1
         points = [attrs(point.attributes) for point in http_metric.histogram.data_points]
@@ -208,7 +235,11 @@ def main(binary):
                    and attrs(span.attributes)["openrust.queue.result"] == "error" for name, span in spans)
         assert any(name == "acceptance-worker" and metric.name == "openrust.queue.job.duration"
                    for name, metric in metrics)
-        print("独立 Artisan 状态、SQLite Worker、400 拒收和后续退出刷新通过", flush=True)
+        worker_spans = [span for name, span in spans if name == "acceptance-worker"]
+        job_ids = {span.span_id for span in worker_spans if span.name.startswith("queue ")}
+        assert any(span.name == "artisan telemetry:probe" and span.parent_span_id in job_ids
+                   for span in worker_spans), worker_spans
+        print(f"独立 Artisan、{driver} Worker 的嵌套链路、拒收和退出刷新通过", flush=True)
 
         invalid_env = enabled.copy()
         invalid_env.pop("NEW_RELIC_COLLECTOR_ENDPOINT")
@@ -234,4 +265,6 @@ def main(binary):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("binary", type=Path)
-    main(str(parser.parse_args().binary.resolve()))
+    parser.add_argument("--driver", choices=("sqlite", "mysql", "pgsql"), default="sqlite")
+    args = parser.parse_args()
+    main(str(args.binary.resolve()), args.driver)

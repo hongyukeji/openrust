@@ -34,7 +34,7 @@ impl SyncQueue {
         let queue = queue_name(queue, "default")?;
         let manager = self.registry.manager()?;
         let (owner, dispatcher) = manager.worker_dispatcher()?;
-        scope(owner, async {
+        scope(owner.clone(), async {
             let mut context = JobContext {
                 connection: self.name.clone(),
                 queue: queue.into(),
@@ -45,7 +45,15 @@ impl SyncQueue {
             let mut next = None;
             loop {
                 let job = next.as_ref().unwrap_or(payload);
-                let discarded = self.execute_attempt(&dispatcher, &mut context, job).await?;
+                use crate::foundation::observability::{self, Operation, Outcome};
+                let discarded = observability::begin(&owner, Operation::Job { name: job.name() })
+                    .run(
+                        self.execute_attempt(&dispatcher, &mut context, job),
+                        |result| Outcome::Job {
+                            failed: result.is_err(),
+                        },
+                    )
+                    .await?;
                 if discarded || context.release_after.is_some() {
                     return Ok(None);
                 }
