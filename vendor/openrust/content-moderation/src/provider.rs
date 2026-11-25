@@ -12,6 +12,11 @@ use crate::{
     drivers,
 };
 
+#[path = "../database/migrations/2026_11_26_000002_create_moderation_checks_table.rs"]
+mod checks_migration;
+#[path = "../database/migrations/2026_11_26_000001_create_moderation_reviews_table.rs"]
+mod reviews_migration;
+
 pub struct ModerationServiceProvider;
 
 impl ServiceProvider for ModerationServiceProvider {
@@ -43,6 +48,9 @@ impl ServiceProvider for ModerationServiceProvider {
 
     fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
+            self.load_migrations_with_application_overrides(app, Self::migrations())
+                .await?;
+            self.publishes(app, MIGRATION_SOURCES, "moderation-migrations")?;
             self.publishes(
                 app,
                 &[(
@@ -52,6 +60,17 @@ impl ServiceProvider for ModerationServiceProvider {
                 "moderation-config",
             )
         })
+    }
+}
+
+openrust::compiled_migration_assets!("content-moderation";
+    "2026_11_26_000001_create_moderation_reviews_table.rs" => reviews_migration,
+    "2026_11_26_000002_create_moderation_checks_table.rs" => checks_migration,
+);
+
+impl ModerationServiceProvider {
+    pub fn migrations() -> &'static [openrust::database::migrations::MigrationEntry] {
+        MIGRATION_ENTRIES
     }
 }
 

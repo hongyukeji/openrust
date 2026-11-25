@@ -155,3 +155,9 @@ let recommendation = result.decision(&[Modality::Text]);
 提交前用 `Moderation::pin_profile(name, revision)` 固定設定，用 `Moderation::driver_for_revision(&profile)` 解析驅動。應用程式將傳回的設定定位符、遠端 `TaskId` 和原始物件版本一起持久化，查詢時依該定位符重新解析。原設定遭直接修改、移除或對應憑證無法讀取時，復原失敗。待處理、失敗或必檢涵蓋不完整時均無法核准發布。
 
 透過 `Assessment::decision` 檢查所需模態。結果不完整時仍可保留人工複核或封鎖所需的風險證據。若業務要求語音審核，部分語音涵蓋的成功結果無法產生 `Allow`。
+
+## 持久化影片送審意圖 {#video-review-storage}
+
+啟用擴充後執行 `./artisan migrate`。需要將兩份遷移原始碼發布到應用程式時，執行 `./artisan vendor:publish --tag=moderation-migrations`。
+
+使用資料庫連線和穩定的應用程式、租戶識別碼建立 `ModerationStore`，HTTP 和 Worker 使用相同識別碼。用冪等鍵、業務內容 ID 與修訂、原始 `StoredMedia`、已固定的設定和逾時秒數建立 `VideoReviewRequest`。呼叫 `stage_video` 在同一交易寫入待審核記錄和隨選影片子檢查。重試相同請求時可取得原記錄。同一範圍內用相同的鍵提交不同內容會產生衝突。透過 `find` 按審核 ID 從同一範圍讀取，呼叫方在交易提交後安排送審。

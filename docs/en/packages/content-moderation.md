@@ -155,3 +155,9 @@ For delayed queries, declare the full profile under `moderation.profile_revision
 Call `Moderation::pin_profile(name, revision)` before submission and resolve the driver with `Moderation::driver_for_revision(&profile)`. Persist the returned profile locator with the remote `TaskId` and the original object version. Use the locator to resolve the driver again when querying. Recovery fails if the configuration was edited in place or removed, or the recorded credential can no longer be resolved. A pending task, execution failure, or incomplete required coverage cannot authorize publication.
 
 Check the requested modalities with `Assessment::decision`. Review and block can retain risk evidence when results are incomplete. A successful result with partial speech coverage cannot produce `Allow` for a policy that requires speech.
+
+## Persisting a video review {#video-review-storage}
+
+Run `./artisan migrate` after enabling the package. To publish the two migration sources into the application, run `./artisan vendor:publish --tag=moderation-migrations`.
+
+Create a `ModerationStore` with the database connection and stable application and tenant identifiers shared by HTTP and worker processes. Build a `VideoReviewRequest` from an idempotency key, the business content ID and revision, the original `StoredMedia`, a pinned profile, and a timeout in seconds. Call `stage_video` to record the pending review and its video check in one transaction. Repeating the same request returns the original record. Reusing the key within the same scope for different inputs produces a conflict. Use `find` to load the record by review ID from the same scope. The caller arranges submission after the transaction commits.

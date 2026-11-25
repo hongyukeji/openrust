@@ -155,3 +155,9 @@ let recommendation = result.decision(&[Modality::Text]);
 提交前用 `Moderation::pin_profile(name, revision)` 固定配置，用 `Moderation::driver_for_revision(&profile)` 解析驱动。应用将返回的配置定位符、远端 `TaskId` 和原对象版本一起持久化，查单时按该定位符重新解析。原配置被原地修改、移除或对应凭据无法读取时，恢复失败。待处理、失败或必检覆盖不完整时均无法批准发布。
 
 通过 `Assessment::decision` 检查所需模态。结果不完整时仍可保留人工复核或拦截所需的风险证据。若业务要求语音审核，部分语音覆盖的成功结果无法产生 `Allow`。
+
+## 持久化视频送审意图 {#video-review-storage}
+
+启用扩展后执行 `./artisan migrate`。需要将两份迁移源码发布到应用时，执行 `./artisan vendor:publish --tag=moderation-migrations`。
+
+使用数据库连接和稳定的应用、租户标识构造 `ModerationStore`，HTTP 和 Worker 使用相同标识。用幂等键、业务内容 ID 与修订、原始 `StoredMedia`、已固定的配置和超时秒数构造 `VideoReviewRequest`。调用 `stage_video` 在同一事务写入待审核记录和点播子检查。重试相同请求可拿到原记录。同一范围内用相同的键提交不同内容会产生冲突。通过 `find` 按审核 ID 从同一范围读取，调用方在事务提交后安排送审。

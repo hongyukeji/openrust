@@ -24,6 +24,10 @@ pub enum ModerationError {
     ProfileRevisionUnavailable,
     #[error("内容审核配置修订与原任务不一致或版本不受支持")]
     ProfileRevisionChanged,
+    #[error("相同的审核幂等键已关联另一份请求")]
+    ReviewConflict,
+    #[error("内容审核记录读写失败")]
+    ReviewStorage,
     #[error("内容审核默认配置未指定")]
     DefaultNotConfigured,
     #[error("内容审核驱动未注册")]
