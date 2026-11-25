@@ -438,3 +438,16 @@ ProgressBar／ProgressOutput保留同一目标：分区进度按源计算旧消�
 最终复核保留普通根write_raw直接IO路径与原有错误类型，不因包装接口统一而改变直接原始写入契约。
 
 正式证据nested-style-contracts.json、accepted-nested-styles.json及两份oracle；原始日志target/tmp/artisan-tutorial-20261125/nested-*。本批临时应用／PTY／容器均结束回收，保留源码／日志／可复用缓存和数据库／数据卷。完整组件Factory、其余继承块／树与一般OutputInterface／程序化输出缓冲继续核对，Windows实机属发布待验；不声称整章或全工作区闭合。仅核定本批本地提交，不推送，其他在途保留。
+
+
+## 第三十簇：样式标题、分节、文本与列表（2026-11-25）
+
+第二十九簇已提交9417d700dabceb8a029179f9602c7c9c1beb7d80，未推送。本簇逐项接通SymfonyStyle继承的title、section、text、listing，使用当前正式OutputStyle／OutputReference写入、格式器、换行与历史缓冲。旧版无同名完整SDK可提取，不增加依赖或另一套命令渲染器。问答的前置块间距提取为共用私有prepare_block；文本／列表先获取并清空自己的历史，再按原规则决定前置LF。
+
+固定216组真实PHP消费者覆盖普通根流／可重绘分区、单层／嵌套样式、装饰／无装饰及三种级别。每步输出／每层换行计数与布尔值一致，包含数组／空值、LF、Unicode组合与ZWJ宽度、ANSI与格式标签、尾部反斜杠、长标题和级别变化。48个预期无效颜色／选项失败步骤保留失败阶段和部分输出，原生来源链明确断言ConsoleFormatError，后续调用恢复与源一致。
+
+真实HTTP200／JSON500／200恢复、12个并发请求的独立输出通过；实际handle_command正常0、无效格式1，输出与固定源一致。OutputStyle::section(message)用于标题，Output::section()仍创建分区，未混用两种公开契约。text使用借用的字符串／数组，listing接受字符串迭代器，不为语言适配改变输出行为。
+
+三语正式示例直接提取93份运行，框架／根应用父消费者计数见accepted-style-text.json，ignored子驱动不重复计算。fmt、workspace all-targets严格Clippy、实际main(pail)、三语构建与12项手机／桌面／双挂载浏览器通过；33项终端编辑器回归、Ctrl+C130与完整termios恢复通过。实际main HTTP/up/静态/HTML与JSON404/HEAD、Artisan inspire/list/Pail过滤/-vv/timeout清理/Ctrl+C均通过。
+
+正式证据style-text-contracts.json、accepted-style-text.json和style-text-oracle.json；原始日志target/tmp/artisan-tutorial-20261125/style-text-*。临时应用、PTY、参考容器已回收，保留隔离源码／日志／可复用缓存与数据库／数据卷。完整组件Factory、块／状态样式、table/create_table／树、便捷问答及一般OutputInterface／程序化输出缓冲继续；不将本簇当整章或全项目闭合，Windows实机仍为发布待验。本地提交，不推送，其他在途保留。

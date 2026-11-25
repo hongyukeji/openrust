@@ -1,0 +1,52 @@
+{
+  "source_base": "9417d700dabceb8a029179f9602c7c9c1beb7d80",
+  "source_hashes": {
+    "vendor/openrust/framework/src/console/output_style.rs": "ded834ecb9699703e4c534901bfb995e7fca50fe68b3e34466e075d6544b54af",
+    "vendor/openrust/framework/src/console/output_style/text.rs": "d6fb122e70485c5f5a192f1bc1b0569ae91bbe571a91516b8086be33db44d478",
+    "vendor/openrust/framework/tests/console_style_text.rs": "034c70ecd44b5211ca7b505b020526d00503558d4a3d987708dc470ec9d193bd",
+    "tests/artisan_tutorial_docs.py": "ba8c0cd114db5532d5f2c3102efcffd4a89cb0887a7e3729f1794eaa3221bbc9",
+    "docs/tests/check_artisan_tutorial.mjs": "34534286507c6420dc3b62f0ac21fe37b306a4943568ee564448370f3e2d4293",
+    ".agents/project/audits/artisan-tutorial/style-text-oracle.json": "037bdbbdee0b09f02f4131588240ba41f94879a86aa7b4aeffb98827a5c0275f",
+    "docs/en/digging-deeper/artisan.md": "2aa14c76c7c68fa0249325de8e841ee15ead9fd8541eac50aa336aee0d0924d6",
+    "docs/zh-Hans/digging-deeper/artisan.md": "94984739b0fb23713f020c105510e87c46cb4635023d632f8d9755f1dd217a35",
+    "docs/zh-Hant/digging-deeper/artisan.md": "4bb7e47634402408d0d440d4644284b64aaa820e8558512300f99c5d1b326bcd"
+  },
+  "parent_consumers": {
+    "framework": {
+      "targets": 23,
+      "passed": 139,
+      "ignored_drivers": 28
+    },
+    "root": {
+      "targets": 6,
+      "passed": 134,
+      "ignored_drivers": 0
+    }
+  },
+  "formal_examples": 93,
+  "source_sequences": 216,
+  "source_error_steps": 48,
+  "http": [
+    "200",
+    "JSON500",
+    "200 recovery",
+    "12 concurrent isolated command outputs"
+  ],
+  "artisan": [
+    "actual handle_command output matches source",
+    "invalid format exit1",
+    "normal exit0"
+  ],
+  "terminal_regression_cases": 33,
+  "ctrl_c_exit": 130,
+  "terminal_restored": true,
+  "workspace_fmt": true,
+  "workspace_clippy": true,
+  "browser_checks": 12,
+  "logs": "target/tmp/artisan-tutorial-20261125/style-text-*",
+  "limits": [
+    "Not the whole active worktree or Artisan chapter",
+    "Windows terminal release checks remain pending"
+  ],
+  "pushed": false
+}

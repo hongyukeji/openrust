@@ -1278,3 +1278,31 @@ fn register_nested() -> Result<(), ConsoleError> {
 `get_output()` borrows the immediate selected output. On an `OutputReference`, `as_new_line_aware()` is `Some` only when that target is a wrapped style; `get_output()` can then borrow its underlying output. A plain stream has neither capability. Rust’s exclusive borrow prevents concurrent writes through a parent while a child is using it.
 
 A wrapped style is not a direct console section: table append/redraw rejects it, and progress uses its ordinary cursor output without redirecting it to stderr. Use the section directly when section-specific behavior is required. General custom output streams and the remaining component helpers are separate capabilities.
+
+## Headings, text and lists {#style-text-layout}
+
+`OutputStyle` provides `title`, `section`, `text` and `listing`. Titles use `=` underlines and sections use `-`, measured with the selected formatter and Unicode display width. Text has a single-space indent; lists use ` * `. Existing output determines the blank lines between blocks.
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, OutputStyle};
+use openrust::support::facades::Artisan;
+
+fn register_text_layout() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:text-layout", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut style = OutputStyle::new(input, output);
+            style.title("Hello")?;
+            style.section("Part")?;
+            style.text(&["one", "two"])?;
+            style.listing(["A", "B"])?;
+            style.title("")?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+`text` accepts a string or a borrowed string array. `listing` accepts a string iterator. Empty arrays retain each helper’s spacing behavior. Inline formatter tags remain active; title underlines ignore decoration, and trailing backslashes remain visible. Invalid formatting returns the existing typed console error and preserves output written before the failure.
+
+`OutputStyle::section("Part")` writes a heading. `Output::section()` creates a redrawable output region. These are separate APIs. All four helpers support selected sections and borrowed nested styles; they preserve the same formatter, verbosity and newline state.

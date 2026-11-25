@@ -667,22 +667,50 @@
       {
         "method": "title",
         "source_line": 75,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_real_entry_source_and_http_artisan_consumers",
+        "native": "console::OutputStyle::title",
+        "evidence": [
+          "console_style_text",
+          "style-text-oracle.json",
+          "style-text-contracts.json",
+          "artisan_docs_generated"
+        ]
       },
       {
         "method": "section",
         "source_line": 85,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_real_entry_source_and_http_artisan_consumers",
+        "native": "console::OutputStyle::section",
+        "evidence": [
+          "console_style_text",
+          "style-text-oracle.json",
+          "style-text-contracts.json",
+          "artisan_docs_generated"
+        ]
       },
       {
         "method": "listing",
         "source_line": 95,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_real_entry_source_and_http_artisan_consumers",
+        "native": "console::OutputStyle::listing",
+        "evidence": [
+          "console_style_text",
+          "style-text-oracle.json",
+          "style-text-contracts.json",
+          "artisan_docs_generated"
+        ]
       },
       {
         "method": "text",
         "source_line": 104,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_real_entry_source_and_http_artisan_consumers",
+        "native": "console::OutputStyle::text",
+        "evidence": [
+          "console_style_text",
+          "style-text-oracle.json",
+          "style-text-contracts.json",
+          "artisan_docs_generated"
+        ]
       },
       {
         "method": "comment",
@@ -853,7 +881,7 @@
     ]
   },
   "remaining_output_style_behaviors": [
-    "完整组件Factory与OutputStyle继承的标题／块／列表／树、table/create_table等布局助手仍逐项核对",
+    "完整组件Factory与OutputStyle继承的样式块／树、table/create_table等布局助手仍逐项核对；title/section/text/listing已实际验收",
     "OutputStyle继承的ask/ask_hidden/confirm/choice等便捷助手继续；Question/ChoiceQuestion/ConfirmationQuestion与ask_question已验，不重复开发",
     "任意OutputInterface缓冲（包括Artisan.call第三参数）的专用消费者与类型仍待核对；现有原生入口不冒充完整接口"
   ]

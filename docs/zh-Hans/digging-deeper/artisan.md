@@ -1278,3 +1278,31 @@ fn register_nested() -> Result<(), ConsoleError> {
 `get_output()` 借用当前直接选中的输出。`OutputReference::as_new_line_aware()` 仅在该目标是被包装样式时返回 `Some`，此时还能通过它的 `get_output()` 继续借用底层输出；普通流没有这两种能力。Rust 独占借用保证子级使用父级期间，不能并发从父级写入。
 
 被包装样式不等于直接的控制台分区：表格追加重绘会拒绝它，进度条使用普通光标输出，也不会自动改走 stderr。需要分区专属行为时直接使用分区。一般自定义输出流及其余组件助手仍是独立能力。
+
+## 标题、文本与列表 {#style-text-layout}
+
+`OutputStyle` 提供 `title`、`section`、`text` 和 `listing`。主标题使用 `=` 下划线，分节标题使用 `-`，宽度按所选格式器与 Unicode 显示宽度计算。文本缩进一个空格，列表使用 ` * ` 前缀；块之间的空行取决于之前的实际输出。
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, OutputStyle};
+use openrust::support::facades::Artisan;
+
+fn register_text_layout() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:text-layout", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut style = OutputStyle::new(input, output);
+            style.title("Hello")?;
+            style.section("Part")?;
+            style.text(&["one", "two"])?;
+            style.listing(["A", "B"])?;
+            style.title("")?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+`text` 接受字符串或借用的字符串数组，`listing` 接受字符串迭代器。空数组保留各助手自身的间距规则。行内格式标签继续生效，标题下划线忽略装饰，尾部反斜杠正常显示。无效格式返回既有的类型化控制台错误，保留失败前已经写出的内容。
+
+`OutputStyle::section("Part")` 输出分节标题；`Output::section()` 创建可重绘输出分区，两者是独立接口。这四个助手支持所选分区与借用的嵌套样式，沿用同一格式器、详细程度和换行状态。

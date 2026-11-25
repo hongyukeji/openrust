@@ -4,6 +4,7 @@ use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
 };
+mod text;
 mod wrapping;
 
 /// 输出阈值；消息只有在当前输出的级别不低于它时才会写出。
@@ -367,18 +368,7 @@ impl<'a> OutputStyle<'a> {
         self.state.settle_question();
     }
     pub(super) fn prepare_question(&mut self) -> Result<(), ConsoleError> {
-        let count = if self.state.history.is_empty() {
-            1
-        } else {
-            2 - self
-                .state
-                .history
-                .iter()
-                .filter(|byte| **byte == b'\n')
-                .count()
-        };
-        self.state.history.clear();
-        self.new_line(count)
+        self.prepare_block()
     }
     pub(super) fn question_validation_error(&mut self, message: &str) -> Result<(), ConsoleError> {
         self.new_line(1)?;

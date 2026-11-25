@@ -1,0 +1,30 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "console_reference": "Symfony Console7.4.0",
+  "status": "verified_feature_cluster_not_chapter",
+  "public_entries": [
+    "OutputStyle::title",
+    "OutputStyle::section",
+    "OutputStyle::text",
+    "OutputStyle::listing"
+  ],
+  "native_adaptations": [
+    "Borrowed string/array OutputMessages for text, native string iterator for listing; reuse the existing write/writeln counter and error pipeline",
+    "OutputStyle::section(message) is a heading, distinct from Output::section() redraw region",
+    "No new dependency, unsafe, global output target or parallel renderer"
+  ],
+  "source_sequences": 216,
+  "expected_source_errors": 48,
+  "evidence": [
+    "console_style_text",
+    "style-text-oracle.json",
+    "artisan_docs_generated",
+    "accepted-style-text.json"
+  ],
+  "remaining": [
+    "Blocks and styled status helpers",
+    "Full component Factory, inherited table/tree and convenience question methods",
+    "Arbitrary output sinks and programmatic output buffer",
+    "Windows terminal release matrix"
+  ]
+}
