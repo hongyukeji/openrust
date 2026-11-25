@@ -22,9 +22,9 @@ NEW_RELIC_REGION=us
 
 HTTP 遥测包含服务端 Span 和 `http.server.request.duration` 直方图。匹配请求按已注册的路由模板聚合，未匹配请求省略路由标签。记录响应状态码，5xx 标为错误。收到 W3C Trace Context 时可接续上游链路。HTTP 耗时统计到应用生成响应为止。
 
-Artisan 命令完成和有计时信息的队列执行尝试都会生成 Span 和耗时指标。失败的命令或任务尝试标为错误。采集不包含请求或响应正文、URL 参数、Cookie、命令参数、任务载荷或异常消息。独立命令和 HTTP 进程正常退出时刷新遥测。导出使用有界 Span 队列并重试暂时性故障，过载或持续故障可能导致数据丢失。
+Artisan 命令（含帮助、列表和版本快捷入口）及队列执行尝试都会生成 Span 和耗时指标。失败的命令或任务尝试标为错误。采集不包含请求或响应正文、URL 参数、Cookie、命令参数、任务载荷或异常消息。独立命令和 HTTP 进程正常退出时刷新遥测。导出使用有界 Span 队列并重试暂时性故障，过载或持续故障可能导致数据丢失。
 
-执行期间的出站 HTTP 和 SQL 操作以当前 Span 为父节点。HTTP 客户端 Span 从网络尝试开始记录到响应头到达。数据库 Span 与耗时指标覆盖预备语句、事务查询和游标，属性只使用驱动和固定的操作名称，不采集 SQL 文本或绑定值。
+执行期间的出站 HTTP 和 SQL 操作以当前 Span 为父节点。HTTP 客户端 Span 覆盖每次网络尝试，直到响应正文传输完成或该次尝试出错。数据库 Span 与耗时指标覆盖预备语句、事务查询和游标，属性只使用驱动和固定的操作名称，不采集 SQL 文本或绑定值。
 
 通过队列管理器派发的任务可以携带可选链路元数据。批量派发时，每个任务使用独立的创建 Span。异步 Worker 的 Span Link 关联任务的来源。已有任务缺少该字段时可照常执行。队列和命令耗时指标可分别按 `openrust.queue.job.duration` 和 `openrust.artisan.command.duration` 查询。
 
@@ -43,12 +43,12 @@ Artisan 命令完成和有计时信息的队列执行尝试都会生成 Span 和
 }
 ```
 
-只有选用该渠道的日志会发送。默认格式器使用结构化记录及其消息。通过 `with.fields` 明确列出允许导出的顶层 context 或 extra 字段。处理器保留有限长度的标量和简单数组，附带日志产生时的 Trace ID 和 Span ID。仅需转发日志时设置 `report_errors=false`。已经由应用异常处理器报告的错误，经本渠道转发时不会再创建一个错误 Span。使用默认格式器可避免把其他字段写入导出消息。
+只有选用该渠道的日志会发送。默认格式器使用结构化记录及其消息。通过 `with.fields` 明确列出允许导出的顶层 context 或 extra 字段。处理器保留有限长度的标量和简单数组，附带日志产生时的 Trace ID 和 Span ID。仅需转发日志时设置 `report_errors=false`。已经由应用异常处理器报告的错误，经本渠道转发时不会再创建一个错误 Span。使用默认格式器可避免把其他字段写入导出消息。可用 `with.transaction_name` 设置固定事务名称，或在 `with.fields` 中允许 `context.transaction_name` 让日志覆盖该名称。日志只能重命名自身仍在执行的事务。
 
-异常报告使用错误类型和安全摘要。设置 `NEW_RELIC_EXCEPTION_STACKTRACE=true` 后，只有应用已经在异常快照中提供 `stacktrace` 字段时才发送截断后的堆栈。开启前确认该字段适合导出。
+异常报告使用错误类型和安全摘要。设置 `NEW_RELIC_EXCEPTION_STACKTRACE=true` 后，只有应用已经通过异常上下文提供 `stacktrace` 字段，例如由 `ExceptionBehavior` 提供在错误源捕获的堆栈时才发送截断后的堆栈。开启前确认该字段适合导出。
 
 ## 运行控制 {#runtime-controls}
 
 扩展启用后默认发送链路和指标。可用 `NEW_RELIC_TRACES_ENABLED=false` 或 `NEW_RELIC_METRICS_ENABLED=false` 单独关闭。将 `NEW_RELIC_TRACE_SAMPLE_RATIO` 设为 0 到 1，为根 Span 设置采样比例，并沿用父 Span 的采样决定。指标计数不受链路采样影响。需要显式区分服务副本时设置 `NEW_RELIC_INSTANCE_ID`。使用配置缓存的应用修改这些设置后需重建缓存。
 
-从应用容器解析 `openrust_new_relic::NewRelic`。在事务作用域内，可用 `name_transaction` 和 `add_attribute` 更新 Span 名称及有限的自定义属性，HTTP 指标继续按路由聚合。嵌入式消费者可在自己的工作结束后调用 `flush().await` 或 `shutdown().await`。`export_stats()` 统计实际 HTTP 请求尝试及失败，重试单独计数，排队阶段丢弃的记录不属于该统计。 `rejected_items` 另行统计接收端在成功 OTLP 响应中明确拒收的记录。部分接收不会由本扩展重新发送。
+从应用容器解析 `openrust_new_relic::NewRelic`。在事务作用域内，可用 `name_transaction` 和 `add_attribute` 更新 Span 名称及有限的自定义属性，HTTP 指标继续按路由聚合。嵌入式消费者可在自己的工作结束后调用 `flush().await` 或 `shutdown().await`。`export_stats()` 统计实际 HTTP 请求尝试及失败，重试单独计数。`dropped_spans` 和 `dropped_logs` 统计应用的导出队列已满时丢弃的记录。`rejected_items` 统计接收端在成功 OTLP 响应中明确拒收的记录。部分接收不会由本扩展重新发送。

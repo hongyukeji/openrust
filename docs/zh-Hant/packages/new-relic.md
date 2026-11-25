@@ -22,9 +22,9 @@ NEW_RELIC_REGION=us
 
 HTTP 遙測包含伺服器 Span 和 `http.server.request.duration` 直方圖。符合的請求按已註冊的路由範本彙總，未符合的請求省略路由標籤。記錄回應狀態碼，並將 5xx 標為錯誤。收到 W3C Trace Context 時可接續上游追蹤。HTTP 耗時統計到應用程式產生回應為止。
 
-Artisan 命令完成和有計時資訊的佇列執行嘗試都會產生 Span 和耗時指標。執行失敗會標為錯誤。收集範圍不包含請求或回應本文、URL 參數、Cookie、命令引數、工作酬載或例外訊息。獨立命令與 HTTP 程序正常結束時會送出緩衝的遙測資料。匯出使用有界 Span 佇列並重試暫時性故障，超載或持續故障可能造成資料遺失。
+Artisan 命令（包含說明、清單及版本快速入口）與佇列執行嘗試都會產生 Span 和耗時指標。執行失敗會標為錯誤。收集範圍不包含請求或回應本文、URL 參數、Cookie、命令引數、工作酬載或例外訊息。獨立命令與 HTTP 程序正常結束時會送出緩衝的遙測資料。匯出使用有界 Span 佇列並重試暫時性故障，超載或持續故障可能造成資料遺失。
 
-執行期間的外送 HTTP 與 SQL 操作以目前的 Span 為父節點。HTTP 用戶端 Span 從網路嘗試開始記錄到收到回應標頭。資料庫 Span 與耗時指標涵蓋預備陳述式、交易查詢與游標，屬性只採用驅動程式和固定的操作名稱，不收集 SQL 本文或繫結值。
+執行期間的外送 HTTP 與 SQL 操作以目前的 Span 為父節點。HTTP 用戶端 Span 涵蓋每次網路嘗試，直到回應本文傳輸完成或該次嘗試出錯。資料庫 Span 與耗時指標涵蓋預備陳述式、交易查詢與游標，屬性只採用驅動程式和固定的操作名稱，不收集 SQL 本文或繫結值。
 
 透過佇列管理器派發的工作可以攜帶選用追蹤中繼資料。批次派發時，每個工作使用獨立的建立 Span。非同步 Worker 的 Span Link 會關聯工作的來源。既有工作缺少此欄位時仍可照常執行。佇列與命令耗時指標可分別使用 `openrust.queue.job.duration` 和 `openrust.artisan.command.duration` 查詢。
 
@@ -43,12 +43,12 @@ Artisan 命令完成和有計時資訊的佇列執行嘗試都會產生 Span 和
 }
 ```
 
-只有選用此通道的日誌會傳送。預設格式器使用結構化記錄及其訊息。透過 `with.fields` 明確列出允許匯出的頂層 context 或 extra 欄位。處理器保留有限長度的純量和簡單陣列，並附加日誌產生時的 Trace ID 和 Span ID。只需轉送日誌時設定 `report_errors=false`。已由應用程式例外處理器回報的錯誤，經此通道轉送時不會再建立一個錯誤 Span。使用預設格式器可避免把其他欄位寫入匯出訊息。
+只有選用此通道的日誌會傳送。預設格式器使用結構化記錄及其訊息。透過 `with.fields` 明確列出允許匯出的頂層 context 或 extra 欄位。處理器保留有限長度的純量和簡單陣列，並附加日誌產生時的 Trace ID 和 Span ID。只需轉送日誌時設定 `report_errors=false`。已由應用程式例外處理器回報的錯誤，經此通道轉送時不會再建立一個錯誤 Span。使用預設格式器可避免把其他欄位寫入匯出訊息。可用 `with.transaction_name` 設定固定交易名稱，或在 `with.fields` 中允許 `context.transaction_name` 讓日誌覆寫該名稱。日誌只能重新命名自身仍在執行的交易。
 
-例外回報使用錯誤類型和安全摘要。設定 `NEW_RELIC_EXCEPTION_STACKTRACE=true` 後，只有應用程式已在例外快照提供 `stacktrace` 欄位時才會傳送截斷後的堆疊。啟用前請確認該欄位適合匯出。
+例外回報使用錯誤類型和安全摘要。設定 `NEW_RELIC_EXCEPTION_STACKTRACE=true` 後，只有應用程式已透過例外上下文提供 `stacktrace` 欄位，例如由 `ExceptionBehavior` 提供在錯誤來源擷取的堆疊時才會傳送截斷後的堆疊。啟用前請確認該欄位適合匯出。
 
 ## 執行控制 {#runtime-controls}
 
 擴充啟用後預設傳送追蹤與指標。可用 `NEW_RELIC_TRACES_ENABLED=false` 或 `NEW_RELIC_METRICS_ENABLED=false` 個別停用。將 `NEW_RELIC_TRACE_SAMPLE_RATIO` 設為 0 到 1，為根 Span 設定取樣比例，並沿用父 Span 的取樣決定。指標計數不受追蹤取樣影響。需要明確區分服務副本時，可設定 `NEW_RELIC_INSTANCE_ID`。使用設定快取的應用程式在變更這些設定後需重新產生快取。
 
-從應用程式容器解析 `openrust_new_relic::NewRelic`。在交易作用域內，可用 `name_transaction` 和 `add_attribute` 更新 Span 名稱與有限的自訂屬性，HTTP 指標繼續依路由彙總。嵌入式使用者可在自己的工作結束後呼叫 `flush().await` 或 `shutdown().await`。`export_stats()` 統計實際 HTTP 請求嘗試與失敗，重試個別計數，排隊階段丟棄的記錄不屬於此統計。 `rejected_items` 另行統計接收端在成功 OTLP 回應中明確拒收的記錄。部分接收不會由此擴充重新傳送。
+從應用程式容器解析 `openrust_new_relic::NewRelic`。在交易作用域內，可用 `name_transaction` 和 `add_attribute` 更新 Span 名稱與有限的自訂屬性，HTTP 指標繼續依路由彙總。嵌入式使用者可在自己的工作結束後呼叫 `flush().await` 或 `shutdown().await`。`export_stats()` 統計實際 HTTP 請求嘗試與失敗，重試個別計數。`dropped_spans` 和 `dropped_logs` 統計應用程式的匯出佇列已滿時丟棄的記錄。`rejected_items` 統計接收端在成功 OTLP 回應中明確拒收的記錄。部分接收不會由此擴充重新傳送。

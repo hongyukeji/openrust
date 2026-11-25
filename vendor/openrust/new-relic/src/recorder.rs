@@ -1,5 +1,4 @@
 use std::{
-    collections::HashSet,
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, AtomicUsize, Ordering},
@@ -13,9 +12,10 @@ use openrust::{
     foundation::{
         events::ApplicationTerminating,
         http::events::RequestHandled,
-        observability::{JobOutcome, Observation, Observer, Operation, Outcome, TraceContext},
+        observability::{
+            ExceptionIdentity, JobOutcome, Observation, Observer, Operation, Outcome, TraceContext,
+        },
     },
-    queue::events::JobAttempted,
     routing::RouteMetadata,
 };
 use opentelemetry::{
@@ -24,7 +24,8 @@ use opentelemetry::{
     metrics::{Histogram, MeterProvider as _},
     propagation::TextMapPropagator as _,
     trace::{
-        Link, SpanBuilder, SpanKind, Status, TraceContextExt as _, Tracer as _, TracerProvider as _,
+        Link, SpanBuilder, SpanContext, SpanKind, Status, TraceContextExt as _, Tracer as _,
+        TracerProvider as _,
     },
 };
 use opentelemetry_http::{HeaderExtractor, HeaderInjector};
@@ -33,13 +34,19 @@ use opentelemetry_otlp::{
 };
 use opentelemetry_sdk::{
     Resource,
-    logs::{SdkLogger, SdkLoggerProvider},
+    logs::{
+        BatchConfigBuilder as LogBatchConfigBuilder, BatchLogProcessor, SdkLogger,
+        SdkLoggerProvider,
+    },
     metrics::{PeriodicReader, SdkMeterProvider, Temporality},
     propagation::TraceContextPropagator,
     trace::{BatchConfigBuilder, BatchSpanProcessor, Sampler, SdkTracer, SdkTracerProvider},
 };
 
-use crate::export::{Destination, EXPORT_TIMEOUT, ExportStats, Transport};
+use crate::{
+    admission::{Admission, CAPACITY},
+    export::{Destination, EXPORT_TIMEOUT, ExportStats, Transport},
+};
 
 const SCOPE: &str = "openrust.new_relic";
 const MAX_PAYLOAD_BYTES: usize = 999_999;
@@ -58,6 +65,8 @@ pub(crate) struct Settings {
 
 pub(crate) struct Recorder {
     export_client: Transport,
+    span_admission: Arc<Admission>,
+    log_admission: Arc<Admission>,
     tracer_provider: SdkTracerProvider,
     meter_provider: SdkMeterProvider,
     logger_provider: Option<SdkLoggerProvider>,
@@ -80,6 +89,8 @@ impl Recorder {
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         // 使用 SDK 的有界 span 队列与周期指标聚合，导出不占用请求执行线程。
         let client = destination.client()?;
+        let span_admission = Arc::<Admission>::default();
+        let log_admission = Arc::<Admission>::default();
         let mut attributes = vec![KeyValue::new("service.name", settings.name)];
         if let Some(version) = settings.version {
             attributes.push(KeyValue::new("service.version", version));
@@ -100,7 +111,18 @@ impl Recorder {
             Some(
                 SdkLoggerProvider::builder()
                     .with_resource(resource.clone())
-                    .with_batch_exporter(exporter)
+                    .with_log_processor(
+                        log_admission.wrap(
+                            BatchLogProcessor::builder(log_admission.wrap(exporter))
+                                .with_batch_config(
+                                    LogBatchConfigBuilder::default()
+                                        .with_max_queue_size(CAPACITY)
+                                        .with_max_export_batch_size(512)
+                                        .build(),
+                                )
+                                .build(),
+                        ),
+                    )
                     .build(),
             )
         } else {
@@ -121,14 +143,16 @@ impl Recorder {
                     settings.ratio,
                 ))))
                 .with_span_processor(
-                    BatchSpanProcessor::builder(exporter)
-                        .with_batch_config(
-                            BatchConfigBuilder::default()
-                                .with_max_queue_size(2048)
-                                .with_max_export_batch_size(512)
-                                .build(),
-                        )
-                        .build(),
+                    span_admission.wrap(
+                        BatchSpanProcessor::builder(span_admission.wrap(exporter))
+                            .with_batch_config(
+                                BatchConfigBuilder::default()
+                                    .with_max_queue_size(CAPACITY)
+                                    .with_max_export_batch_size(512)
+                                    .build(),
+                            )
+                            .build(),
+                    ),
                 );
         } else {
             tracer_provider = tracer_provider.with_sampler(Sampler::AlwaysOff);
@@ -157,6 +181,8 @@ impl Recorder {
         let duration = |name: &'static str| meter.f64_histogram(name).with_unit("s").build();
         Ok(Self {
             export_client: client,
+            span_admission,
+            log_admission,
             tracer_provider,
             meter_provider,
             logger_provider,
@@ -205,6 +231,16 @@ impl Recorder {
         true
     }
 
+    pub(crate) fn name_transaction_from_log(&self, name: &str, origin: &SpanContext) {
+        let context = Context::current();
+        let span = context.span();
+        let current = span.span_context();
+        // 缓冲记录在其他请求触发写入时，不能重命名新请求的事务。
+        if current.trace_id() == origin.trace_id() && current.span_id() == origin.span_id() {
+            self.name_transaction(name);
+        }
+    }
+
     pub(crate) fn add_attribute(&self, key: &str, value: &str) -> bool {
         let context = Context::current();
         let Some(active) = self.transaction(&context) else {
@@ -248,7 +284,11 @@ impl Recorder {
     }
 
     pub(crate) fn export_stats(&self) -> ExportStats {
-        self.export_client.stats()
+        ExportStats {
+            dropped_spans: self.span_admission.dropped(),
+            dropped_logs: self.log_admission.dropped(),
+            ..self.export_client.stats()
+        }
     }
 
     pub(crate) async fn export_pending(&self, shutdown: bool) -> bool {
@@ -343,39 +383,6 @@ impl Recorder {
             .record(request.duration.as_secs_f64(), &attributes);
         context.span().set_attributes(attributes);
     }
-
-    fn job(&self, event: &JobAttempted) {
-        let context = Context::current();
-        if !self.active(&context, OperationKind::Job) {
-            return;
-        }
-        let attributes = vec![
-            KeyValue::new("openrust.queue.job", event.job.payload.name().to_owned()),
-            KeyValue::new(
-                "openrust.queue.result",
-                if event.successful() {
-                    "success"
-                } else {
-                    "error"
-                },
-            ),
-        ];
-        if let Some(duration) = event
-            .duration
-            .and_then(|value| Duration::try_from_secs_f64(value).ok())
-        {
-            self.job_duration
-                .record(duration.as_secs_f64(), &attributes);
-        }
-        context.span().set_attributes(attributes);
-        context.span().set_attribute(KeyValue::new(
-            "openrust.queue.attempt",
-            i64::from(event.job.attempts),
-        ));
-        if !event.successful() {
-            context.span().set_status(Status::error(""));
-        }
-    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -392,7 +399,7 @@ enum OperationKind {
 struct Active {
     owner: Arc<()>,
     kind: OperationKind,
-    errors: Mutex<HashSet<usize>>,
+    errors: Mutex<Vec<Option<ExceptionIdentity>>>,
     renamed: AtomicBool,
     attributes: AtomicUsize,
 }
@@ -522,7 +529,13 @@ impl Observer for Recorder {
                     None,
                 )
             }
-            Operation::Job { name, trace } => {
+            Operation::Job {
+                name,
+                attempt,
+                trace,
+            } => {
+                let job = KeyValue::new("openrust.queue.job", name.to_owned());
+                measured = Some((vec![job.clone()], self.job_duration.clone()));
                 let parent = local();
                 let link = trace.and_then(|trace| {
                     let context = TraceContextPropagator::new()
@@ -536,7 +549,8 @@ impl Observer for Recorder {
                         .with_kind(SpanKind::Consumer)
                         .with_links(link.into_iter().collect())
                         .with_attributes([
-                            KeyValue::new("openrust.queue.job", name.to_owned()),
+                            job,
+                            KeyValue::new("openrust.queue.attempt", i64::from(attempt)),
                             KeyValue::new("messaging.system", "openrust.queue"),
                             KeyValue::new("messaging.system.name", "openrust.queue"),
                             KeyValue::new("messaging.operation.name", "process"),
@@ -565,7 +579,7 @@ impl Observer for Recorder {
         let context = parent.with_span(span).with_value(Active {
             owner: self.owner.clone(),
             kind,
-            errors: Mutex::new(HashSet::new()),
+            errors: Mutex::default(),
             renamed: AtomicBool::new(false),
             attributes: AtomicUsize::new(0),
         });
@@ -587,7 +601,7 @@ impl Observer for Recorder {
             measured,
         }))
     }
-    fn report(&self, identity: usize, snapshot: &serde_json::Value) {
+    fn report(&self, identity: Option<ExceptionIdentity>, snapshot: &serde_json::Value) {
         if self.stopped.load(Ordering::Acquire) {
             return;
         }
@@ -600,11 +614,22 @@ impl Observer for Recorder {
             KeyValue::new("exception.type", safe_kind.clone()),
             KeyValue::new("exception.message", format!("应用异常：{safe_kind}")),
         ];
-        // 只有应用已经在异常源提供的堆栈才会送出，不在报告位置伪造。
+        let sources = || std::iter::successors(Some(snapshot), |node| node.get("previous")).take(8);
+        let cause_types: Vec<_> = sources()
+            .skip(1)
+            .filter_map(|node| node.get("class").and_then(serde_json::Value::as_str))
+            .map(|kind| kind.chars().take(128).collect::<String>())
+            .collect();
+        if !cause_types.is_empty() {
+            attributes.push(KeyValue::new(
+                "exception.cause_types",
+                cause_types.join(", "),
+            ));
+        }
+        // 只有应用在异常源提供的堆栈才会送出。
         if self.exception_stacktrace
-            && let Some(trace) = snapshot
-                .get("stacktrace")
-                .and_then(serde_json::Value::as_str)
+            && let Some(trace) = sources()
+                .find_map(|node| node.get("stacktrace").and_then(serde_json::Value::as_str))
         {
             attributes.push(KeyValue::new(
                 "exception.stacktrace",
@@ -619,9 +644,14 @@ impl Observer for Recorder {
                 .errors
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
-            if identities.len() >= 64 || !identities.insert(identity) {
+            if identities.len() >= 64
+                || identity.as_ref().is_some_and(|identity| {
+                    identities.iter().flatten().any(|seen| seen == identity)
+                })
+            {
                 return;
             }
+            identities.push(identity);
             drop(identities);
             active.span().set_status(Status::error(safe_kind));
             active.span().add_event("exception", attributes);
@@ -733,6 +763,14 @@ impl Observation for SpanObservation {
                     _ => ("unknown", false),
                 };
                 span.set_attribute(KeyValue::new("openrust.queue.outcome", label));
+                if let Some((attributes, histogram)) = &self.measured {
+                    let result = if failed { "error" } else { "success" };
+                    span.set_attribute(KeyValue::new("openrust.queue.result", result));
+                    let mut attributes = attributes.clone();
+                    attributes.push(KeyValue::new("openrust.queue.result", result));
+                    attributes.push(KeyValue::new("openrust.queue.outcome", label));
+                    histogram.record(self.started.elapsed().as_secs_f64(), &attributes);
+                }
                 failed
             }
             Outcome::JobDispatch { failed } => failed,
@@ -797,8 +835,6 @@ impl Listener for Recorder {
             }
             if let Some(request) = event.downcast_ref::<RequestHandled>() {
                 self.request(request);
-            } else if let Some(job) = event.downcast_ref::<JobAttempted>() {
-                self.job(job);
             } else if event.downcast_ref::<ApplicationTerminating>().is_some()
                 && !self.export_pending(true).await
             {
@@ -813,7 +849,6 @@ pub(crate) fn register(dispatcher: &Dispatcher, recorder: Arc<Recorder>) -> Even
     dispatcher.register(|registry| {
         for event in [
             r"OpenRust\Foundation\Http\Events\RequestHandled",
-            JobAttempted::NAME,
             ApplicationTerminating::NAME,
         ] {
             registry.listen(event, recorder.clone(), Delivery::Sync)?;

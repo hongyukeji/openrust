@@ -1,10 +1,10 @@
 # 日志供应商原生集成
 
-## LOG-S01：New Relic APM（主路径实现，完整版验收未闭合）
+## LOG-S01：New Relic APM
 
 2026-11-25，用户明确选择“单列供应商集成（推荐）”。固定Logging教程的核心渠道／格式器／处理器按本机实际消费者收尾，本项不阻塞核心章节；不把供应商实现缺失降格为仅缺真实账号或发布验收。
 
-固定文档960eedf0911155ad16326ade49c0ea5d18eda0b8/logging.md的formatter:default示例使用Monolog3.10.0 NewRelicHandler，依赖PHP newrelic扩展。当前原生专用Agent及该处理器尚未提供，不能以register_handler或register_formattable_handler回调存在代替完成。
+固定文档 960eedf0911155ad16326ade49c0ea5d18eda0b8 的 `logging.md` 中，`formatter: default` 示例使用依赖 PHP 扩展的 Monolog 3.10.0 `NewRelicHandler`。OpenRust 已通过独立扩展提供同用途的结构化处理器。PHP Agent 专属兼容性按下文逐项裁决。
 
 [官方C SDK仓库](https://github.com/newrelic/c-sdk)已于2022年归档，[官方文档](https://docs.newrelic.com/docs/apm/agents/c-sdk/get-started/introduction-c-sdk/)明确停止支持，原目标为64位Linux。不能为照搬PHP示例而默默引入停维SDK，也不能把Log API或OTel的新实现说成原APM调用完全等价。
 
@@ -68,7 +68,7 @@ Slack／Papertrail已有原生网络实现和本地真实协议消费者；其�
 
 用户已授权按完整方案实施。HTTP Kernel、Artisan 实际命令处理、Worker 和 SyncQueue 注册期使用应用级观察者，在每次异步轮询中绑定执行上下文并在终止或取消时释放。仍走既有事件补充路由模板及 Worker 尝试时长，既有快捷命令、独立子进程和真实账号矩阵未因此关闭。
 
-出站 HTTP 在真实网络发送路径绑定客户端子 Span，保留框架 Fake 和重定向机制。用精确 Origin 配置控制自动传递 W3C 头，默认关闭传播。数据库从核心查询执行、事务和游标路径采集，使用固定操作名称与驱动，排除源 SQL、绑定值与地址凭据。当前 HTTP 客户端计时到响应头，流式响应正文与外层总超时分类保留独立验收。
+出站 HTTP 在真实网络发送路径绑定客户端子 Span，保留框架 Fake 和重定向机制。用精确 Origin 配置控制自动传递 W3C 头，默认关闭传播。数据库从核心查询执行、事务和游标路径采集，使用固定操作名称与驱动，排除源 SQL、绑定值与地址凭据。本批初始计时边界为响应头，正文与总超时见后续模拟验收。
 
 Rust 1.94.0 冻结快照使用真实 HTTP、两个回环下游和独立 Artisan／Worker 验证；SQLite、MySQL 8.4.13 和 PostgreSQL 18.7 均覆盖实际 SQL、事务、游标、查询失败、上下游父子关系、Origin 传播限制、敏感数据排除及现有 OTLP 拒收／重试／刷新回归。框架库与扩展的定向严格 Clippy、全仓格式、三语文档构建和 12 个浏览器组合通过。后续 NR-03 至 NR-06 和供应商账号验收分项跟踪。
 
@@ -82,4 +82,22 @@ Rust 1.94.0 冻结快照使用真实 HTTP、两个回环下游和独立 Artisan�
 - Rust 1.94.0 的全仓格式、框架库与扩展及应用验收目标的定向严格 Clippy 通过。三语正文检查、VitePress 构建、两种部署路径的 12 个浏览器组合及全部导航页面检查通过。各验收容器已回收，复用构建缓存与日志保留在批次目录。
 - 批量派发为每个入队任务单独生成创建 Span，独立 Worker 分别关联对应的 Span。成功的 OTLP 响应若携带部分拒收计数，应用可从 `NewRelic::export_stats().rejected_items` 读取。SQLite、MySQL 8.4.13、PostgreSQL 18.7、Redis 8.10.3 实测双任务批量关联和部分拒收响应。三语使用说明、文档构建和浏览器检查已复验。
 - 两个实际回环 HTTP 服务验证从允许的 Origin 重定向到未允许的 Origin 时，每跳各有客户端 Span，未允许的目标未收到自动注入的追踪头。真实 Worker 的隔离子进程正常退出时刷新执行 Span，保留 Worker 尝试的 Trace ID 与父 Span ID。
-- **未闭合。** 队列生命周期回调、SQS、Beanstalkd、隔离 Worker 强杀／重启，Artisan 快捷路径，出站 HTTP 正文计时和全程超时分类，堆栈与缓冲／堆叠日志回归，SDK 过载丢弃统计仍待补齐或补验。真实 New Relic 摄取、APM 页面和跨平台验收待执行。本地没有用到真实供应商密钥或发送付费遥测。
+
+#### 合成业务数据与实际 OTLP 模拟验收
+
+应用、命令、Worker、下游 HTTP 和数据库均按公开入口实际执行。业务输入为合成数据，收集器接收并解码实际 OTLP protobuf。依据 New Relic 公布的 APM 数据映射，核对服务标识、HTTP 路由与非 Web 处理 Span、外部 HTTP 和 SQL、错误状态与 Delta 指标，以及日志和 Trace ID 的关联。 [APM 数据映射](https://docs.newrelic.com/docs/opentelemetry/get-started/apm-monitoring/opentelemetry-apm-ui/)
+
+| 项目 | 实际验收 |
+| --- | --- |
+| NR-01 执行入口 | 根 HTTP、独立与嵌套 Artisan、隐式与显式 `list`、`help`、`--help`、`--version`。快捷入口各产生一个 Span，既有命令事件语义保留。 |
+| NR-02 出站与数据库 | 真实回环连接覆盖跨 Origin 重定向与各跳传播判断。慢正文完整读出、截断正文、总超时、主动取消、503 后重试各有独立验证。SQLite、MySQL 8.4.13、PostgreSQL 18.7 覆盖实际查询、失败、事务、游标与敏感字段排除。 |
+| NR-03 队列 | 实际 Consumer 与创建 Span 的关联覆盖数据库、Redis 8.10.3、Beanstalkd 1.13 和 SQS 协议模拟器 ElasticMQ 1.6.15。普通、批量、旧载荷、同步、deferred、background、null、failover 首选与失败回退均有消费者或预期无消费者的实测。释放后重领保持生产关联，超时强杀后记录终态和耗时，独立 Worker 重启后可继续处理。 |
+| NR-04 异常 | 真实异常报告输出安全类别及来源链，带与不带原始堆栈分别验证。共享异常在同一作用域去重，新异常保留，忽略规则继续生效。 |
+| NR-05 日志 | 直接结构化渠道和堆叠渠道实测。堆叠同时写文件，缓冲区在另一请求触发后仍使用原日志的 Trace ID 与 Span ID。日志允许字段可覆盖自身活动事务的固定名称，缓冲写入不会重命名触发刷新请求的事务。 |
+| NR-06 导出 | 主动／退出刷新、采样、信号开关、配置缓存与凭据隔离。HTTP 400 不重试，429／503 重试，模拟超时保留正常业务退出码，三种信号的 OTLP 部分拒收合计为 6。实际压测产生 4,096 条日志及 4,096 个错误 Span，收件与过载丢弃计数逐项守恒。每个请求体不超过 999,999 字节。 |
+
+`tests/new_relic_acceptance.py` 运行实际 `new_relic_app`，使用 `opentelemetry-proto==1.43.0` 解码。可用 `--driver` 选择 SQLite、MySQL 或 PostgreSQL，用 `--queue` 选择 database、Redis、Beanstalkd 或 SQS。重复运行需指定独立的测试数据库或协议服务。证据在项目内 `target/tmp/new-relic-simulation/`。
+
+Rust 1.94.0 在 macOS ARM64 完成数据库与队列矩阵，在 Debian Bookworm ARM64 容器完成 SQLite 端到端、真实子进程和退出流程复验。两个环境各实测日志和错误 Span 分别成功接收 2,560 条、过载丢弃 1,536 条。格式、定向严格 Clippy、36 项框架 HTTP／Artisan 回归、VitePress 三语构建、12 组浏览器与导航检查通过。
+
+产品实现与上述模拟验收按用户确认的口径闭合。真实 New Relic 租户的 HTTPS 摄取、NRQL、APM 页面及后台聚合属于发布实机验收。托管 SQS 身份与 Windows 原生环境同样需要各自的运行环境。

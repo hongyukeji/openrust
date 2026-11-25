@@ -577,13 +577,18 @@ impl Worker {
             self.app.as_ref(),
             Operation::Job {
                 name: job.payload().name(),
+                attempt: job.attempts(),
                 trace: job.payload().trace_context.as_ref(),
             },
         )
         .run(
-            self.process_attempt(job, options, attempt, signals),
-            |result| {
+            async {
+                let result = self.process_attempt(job, options, attempt, signals).await;
+                (result, attempt.timed_out)
+            },
+            |(result, timed_out)| {
                 Outcome::Job(match result {
+                    _ if *timed_out => JobOutcome::TimedOut,
                     Ok(WorkResult::Processed) => JobOutcome::Processed,
                     Ok(WorkResult::Released) => JobOutcome::Released,
                     Ok(WorkResult::TimedOut) => JobOutcome::TimedOut,
@@ -593,6 +598,7 @@ impl Worker {
             },
         )
         .await
+        .0
     }
 
     async fn process_attempt(

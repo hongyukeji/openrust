@@ -119,6 +119,10 @@ pub struct ExportStats {
     pub failures: u64,
     /// 收集器在成功 HTTP 响应中明确拒绝的记录数。
     pub rejected_items: u64,
+    /// 等待导出的追踪队列已满而丢弃的 Span 数。
+    pub dropped_spans: u64,
+    /// 等待导出的日志队列已满而丢弃的日志数。
+    pub dropped_logs: u64,
 }
 
 #[derive(Default)]
@@ -134,6 +138,8 @@ impl Transport {
             attempts: self.stats.attempts.load(Ordering::Relaxed),
             failures: self.stats.failures.load(Ordering::Relaxed),
             rejected_items: self.stats.rejected_items.load(Ordering::Relaxed),
+            dropped_spans: 0,
+            dropped_logs: 0,
         }
     }
 }

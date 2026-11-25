@@ -68,36 +68,35 @@ impl Transport<'_> {
                     .then(|| request.try_clone())
                     .flatten();
                     let transfer_started = Instant::now();
-                    let (mut response, network) = tokio::time::timeout(remaining, async {
-                        let sink = self.sink.map(super::Sink::writer);
-                        if let Some(sink) = &sink {
-                            sink.validate().await?;
-                        }
-                        let incoming = self.factory.dispatch(self.client, request).await?;
-                        let network = matches!(&incoming, Incoming::Network(_));
-                        // Redirect/authentication bodies remain unbuffered, as in the original transport.
-                        let following = (incoming.status() == StatusCode::UNAUTHORIZED
-                            && replay
-                                .as_ref()
-                                .and_then(Request::try_clone)
-                                .and_then(|request| {
-                                    self.digest?.authenticate(
-                                        request,
-                                        incoming.headers(),
-                                        authentications > 0,
-                                    )
-                                })
-                                .is_some())
-                            || redirect.as_ref().is_some_and(|redirect| {
-                                redirect.can_follow(incoming.status(), incoming.headers())
-                            });
-                        Ok((
-                            incoming.finish(self.body_limit, following, sink).await?,
-                            network,
-                        ))
-                    })
-                    .await
-                    .unwrap_or(Err(Error::Timeout))?;
+                    let sink = self.sink.map(super::Sink::writer);
+                    if let Some(sink) = &sink {
+                        tokio::time::timeout(remaining, sink.validate())
+                            .await
+                            .unwrap_or(Err(Error::Timeout))?;
+                    }
+                    let remaining = remaining.saturating_sub(transfer_started.elapsed());
+                    let (mut response, network) = self
+                        .factory
+                        .dispatch(self.client, request, remaining, |incoming| async {
+                            // Redirect/authentication bodies remain unbuffered, as in the original transport.
+                            let following = (incoming.status() == StatusCode::UNAUTHORIZED
+                                && replay
+                                    .as_ref()
+                                    .and_then(Request::try_clone)
+                                    .and_then(|request| {
+                                        self.digest?.authenticate(
+                                            request,
+                                            incoming.headers(),
+                                            authentications > 0,
+                                        )
+                                    })
+                                    .is_some())
+                                || redirect.as_ref().is_some_and(|redirect| {
+                                    redirect.can_follow(incoming.status(), incoming.headers())
+                                });
+                            incoming.finish(self.body_limit, following, sink).await
+                        })
+                        .await?;
                     let measured = super::TransferStats {
                         duration: if network {
                             transfer_started.elapsed()

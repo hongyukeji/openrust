@@ -500,10 +500,24 @@ impl Handler {
             }
             let snapshot = self.build_log_exception(exception, None, true);
             if let Some(owner) = &owner {
+                let identity = exception
+                    .error()
+                    .downcast_ref::<SharedException>()
+                    .map(|shared| {
+                        crate::foundation::observability::ExceptionIdentity::new(shared.identity())
+                    });
+                let telemetry_snapshot = context
+                    .get("stacktrace")
+                    .filter(|value| value.is_string())
+                    .and_then(|trace| {
+                        let mut snapshot = snapshot.as_object()?.clone();
+                        snapshot.insert("stacktrace".into(), trace.clone());
+                        Some(serde_json::Value::Object(snapshot))
+                    });
                 crate::foundation::observability::report(
                     owner,
-                    exception_identity(exception),
-                    &snapshot,
+                    identity,
+                    telemetry_snapshot.as_ref().unwrap_or(&snapshot),
                 );
             }
             if let Some(request) = request {

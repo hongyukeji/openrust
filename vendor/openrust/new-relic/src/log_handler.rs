@@ -19,6 +19,8 @@ pub struct NewRelicHandler {
     report_errors: bool,
     logger: SdkLogger,
     fields: Vec<String>,
+    transaction_name: Option<String>,
+    transaction_name_from_context: bool,
 }
 
 impl NewRelicHandler {
@@ -53,11 +55,27 @@ impl NewRelicHandler {
                 })
                 .collect::<LogResult<Vec<_>>>()?,
         };
+        let transaction_name = arguments
+            .get("transaction_name")
+            .filter(|value| !value.is_null())
+            .map(|value| {
+                value
+                    .as_str()
+                    .filter(|name| !name.trim().is_empty() && name.len() <= 128)
+                    .map(str::to_owned)
+                    .ok_or(LogError::InvalidConfiguration)
+            })
+            .transpose()?;
+        let transaction_name_from_context = fields
+            .iter()
+            .any(|field| field == "context.transaction_name");
         Ok(Self {
             recorder,
             report_errors,
             logger,
             fields,
+            transaction_name,
+            transaction_name_from_context,
         })
     }
 }
@@ -95,6 +113,19 @@ impl FormattableHandler for NewRelicHandler {
             let trace = span.span_context();
             if trace.is_valid() {
                 log.set_trace_context(trace.trace_id(), trace.span_id(), Some(trace.trace_flags()));
+                let name = self
+                    .transaction_name_from_context
+                    .then(|| {
+                        record
+                            .context
+                            .get("transaction_name")
+                            .and_then(Value::as_str)
+                    })
+                    .flatten()
+                    .or(self.transaction_name.as_deref());
+                if let Some(name) = name {
+                    self.recorder.name_transaction_from_log(name, trace);
+                }
             }
         }
         for field in &self.fields {

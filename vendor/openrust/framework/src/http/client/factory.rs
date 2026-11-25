@@ -1,5 +1,6 @@
 use std::{
     collections::VecDeque,
+    future::Future,
     num::NonZeroUsize,
     sync::{Arc, Mutex, MutexGuard},
     time::Duration,
@@ -448,14 +449,19 @@ impl Factory {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
-    pub(super) async fn dispatch(
+    pub(super) async fn dispatch<F: Future<Output = Result<Response>>>(
         &self,
         client: &reqwest::Client,
         mut request: reqwest::Request,
-    ) -> Result<Incoming> {
+        remaining: Duration,
+        finish: impl FnOnce(Incoming) -> F,
+    ) -> Result<(Response, bool)> {
         let stubs = self.testing().stubs.clone();
         match stubs.iter().find_map(|callback| callback(&request)) {
-            Some(result) => result.map(Incoming::Fake),
+            Some(result) => tokio::time::timeout(remaining, finish(Incoming::Fake(result?)))
+                .await
+                .unwrap_or(Err(Error::Timeout))
+                .map(|response| (response, false)),
             None if !self.is_allowed_request_url(request.url().as_str()) => {
                 Err(Error::StrayRequest)
             }
@@ -477,18 +483,41 @@ impl Factory {
                                 },
                             )
                         });
-                observation
-                    .run(client.execute(request), |result| {
-                        Outcome::HttpClient(match result {
-                            Ok(response) => Ok(response.status()),
-                            Err(error) if error.is_timeout() => Err("timeout"),
-                            Err(error) if error.is_connect() => Err("connection"),
-                            Err(_) => Err("transport"),
-                        })
+                let transfer = tokio::time::timeout(remaining, async move {
+                    let response = client.execute(request).await.map_err(|error| {
+                        let kind = if error.is_timeout() {
+                            "timeout"
+                        } else if error.is_connect() {
+                            "connection"
+                        } else {
+                            "transport"
+                        };
+                        (super::transport_error(error), kind)
+                    })?;
+                    finish(Incoming::Network(response)).await.map_err(|error| {
+                        let kind = match &error {
+                            Error::Timeout => "timeout",
+                            Error::BodyTooLarge => "body_too_large",
+                            Error::Connection | Error::ResponseBody(_) => "response_body",
+                            Error::Sink(_) => "sink",
+                            _ => "transport",
+                        };
+                        (error, kind)
                     })
+                });
+                observation
+                    .run(
+                        async { transfer.await.unwrap_or(Err((Error::Timeout, "timeout"))) },
+                        |result| {
+                            Outcome::HttpClient(match result {
+                                Ok(response) => Ok(response.status()),
+                                Err((_, kind)) => Err(kind),
+                            })
+                        },
+                    )
                     .await
-                    .map(Incoming::Network)
-                    .map_err(super::transport_error)
+                    .map(|response| (response, true))
+                    .map_err(|(error, _)| error)
             }
         }
     }

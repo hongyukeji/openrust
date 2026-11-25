@@ -392,14 +392,20 @@ impl Application {
                 let flags = || arguments.iter().take_while(|argument| *argument != "--");
                 let decorated = flags().any(|argument| argument == "--ansi")
                     || (output.is_decorated() && !flags().any(|argument| argument == "--no-ansi"));
-                output
-                    .stdout
-                    .push_str(&descriptor::help(&target, decorated));
-                return 0;
+                return observe_shortcut(application, "help", || {
+                    output
+                        .stdout
+                        .push_str(&descriptor::help(&target, decorated));
+                    0
+                })
+                .await;
             }
             Err(version) => {
-                output.stdout.push_str(&version.to_string());
-                return 0;
+                return observe_shortcut(application, "version", || {
+                    output.stdout.push_str(&version.to_string());
+                    0
+                })
+                .await;
             }
         };
 
@@ -431,7 +437,10 @@ impl Application {
             )
             .await
         } else {
-            Ok(list_command::run(self, &syntax, None, output))
+            Ok(observe_shortcut(application, "list", || {
+                list_command::run(self, &syntax, None, output)
+            })
+            .await)
         };
         let status = match result {
             Ok(status) => status,
@@ -701,7 +710,14 @@ impl Application {
                 },
             }
         });
-        crate::log::context::Origin::scope(
+        use crate::foundation::observability::{self, Operation, Outcome};
+        let observation = observability::begin(
+            application.container(),
+            Operation::Command {
+                name: entry.definition().name(),
+            },
+        );
+        let execution = crate::log::context::Origin::scope(
             application.container_handle(),
             origin,
             Box::pin(async {
@@ -791,9 +807,25 @@ impl Application {
                 let released = lock.release().await.map_err(lock_error);
                 result.and_then(|status| released.map(|_| status))
             }),
-        )
-        .await
+        );
+        observation
+            .run(execution, |result| match result {
+                Ok(code) => Outcome::Command(*code),
+                Err(_) => Outcome::Failed,
+            })
+            .await
     }
+}
+
+async fn observe_shortcut(
+    application: &FoundationApplication,
+    name: &'static str,
+    handle: impl FnOnce() -> i32,
+) -> i32 {
+    use crate::foundation::observability::{self, Operation, Outcome};
+    observability::begin(application.container(), Operation::Command { name })
+        .run(async { handle() }, |code| Outcome::Command(*code))
+        .await
 }
 
 async fn run_command_with_events(
@@ -822,16 +854,7 @@ async fn run_command_with_events(
     let offset = output.stdout.len();
     let generation = output.capture_generation;
     let started = std::time::Instant::now();
-    use crate::foundation::observability::{self, Operation, Outcome};
-    let status = observability::begin(application.container(), Operation::Command { name: &name })
-        .run(
-            command.handle(application, input, output),
-            |result| match result {
-                Ok(code) => Outcome::Command(*code),
-                Err(_) => Outcome::Failed,
-            },
-        )
-        .await?;
+    let status = command.handle(application, input, output).await?;
     let duration = started.elapsed();
     events
         .dispatch(

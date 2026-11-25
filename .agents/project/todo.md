@@ -68,7 +68,8 @@ L01–L22本批实现和实际验收见[审计修复节](audits/laravel-code-aud
 
 ## 供应商专用能力
 
-- [ ] **LOG-S01 New Relic APM 独立扩展（主路径已实现，完整版验收未闭合）**：执行作用域、出站 HTTP／SQL、普通与批量队列跨进程关联、异常、结构化日志和运行控制已接入。OTLP 部分拒收可查。本机实际验收、剩余专项、平台账号和跨平台矩阵见[完整版记录](plans/log-supplier-integrations.md#nr-03-至-nr-06-实施记录)。
+- [x] **LOG-S01 New Relic APM 独立扩展及协议模拟验收**，按用户确认的范围闭合。[逐项验收记录](plans/log-supplier-integrations.md#合成业务数据与实际-otlp-模拟验收)
+- [ ] **LOG-S01 发布实机验收**，使用授权租户核对 New Relic 摄取、NRQL、APM 与错误和日志页面；Windows 原生、托管 SQS 身份按发布环境复核。[验收边界](plans/log-supplier-integrations.md#合成业务数据与实际-otlp-模拟验收)
 
 ## 条件性后续与已知限制（不是新增功能缺陷）
 

@@ -1,6 +1,11 @@
 //! 可选扩展观测执行作用域的接缝。
 
-use std::{future::Future, sync::Arc, task::Poll};
+use std::{
+    error::Error,
+    future::Future,
+    sync::{Arc, Weak},
+    task::Poll,
+};
 
 use futures_util::Stream;
 
@@ -38,6 +43,7 @@ pub enum Operation<'a> {
     },
     Job {
         name: &'a str,
+        attempt: u32,
         trace: Option<&'a TraceContext>,
     },
     JobExecution {
@@ -122,12 +128,29 @@ pub enum JobOutcome {
     Idle,
 }
 
+/// 共享异常的稳定身份。持有它不会保留异常内容，也不会复用已经报告的地址。
+pub struct ExceptionIdentity(Weak<dyn Error + Send + Sync>);
+
+impl ExceptionIdentity {
+    pub(crate) fn new(identity: Weak<dyn Error + Send + Sync>) -> Self {
+        Self(identity)
+    }
+}
+
+impl PartialEq for ExceptionIdentity {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.ptr_eq(&other.0)
+    }
+}
+
+impl Eq for ExceptionIdentity {}
+
 /// 一个应用的观测扩展。
 pub trait Observer: Send + Sync + 'static {
     fn begin(&self, operation: Operation<'_>) -> Option<Box<dyn Observation>>;
 
     /// 接收通过框架报告策略的异常。
-    fn report(&self, _identity: usize, _snapshot: &serde_json::Value) {}
+    fn report(&self, _identity: Option<ExceptionIdentity>, _snapshot: &serde_json::Value) {}
 
     fn current_trace(&self) -> Option<TraceContext> {
         None
@@ -184,7 +207,11 @@ pub(crate) fn begin(container: &Container, operation: Operation<'_>) -> Executio
     Execution(registered(container).and_then(|registration| registration.0.begin(operation)))
 }
 
-pub(crate) fn report(container: &Container, identity: usize, snapshot: &serde_json::Value) {
+pub(crate) fn report(
+    container: &Container,
+    identity: Option<ExceptionIdentity>,
+    snapshot: &serde_json::Value,
+) {
     if let Some(registration) = registered(container) {
         registration.0.report(identity, snapshot);
     }

@@ -50,6 +50,7 @@ impl SyncQueue {
                     &owner,
                     Operation::Job {
                         name: job.name(),
+                        attempt: 1,
                         trace: job.trace_context.as_ref(),
                     },
                 )

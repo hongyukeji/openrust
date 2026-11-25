@@ -1,6 +1,7 @@
 //! 通过 OTLP 将应用遥测发送至 New Relic。
 #![forbid(unsafe_code)]
 
+mod admission;
 mod export;
 pub use export::ExportStats;
 mod log_handler;

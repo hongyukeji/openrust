@@ -17,13 +17,19 @@ import time
 from opentelemetry.proto.collector.logs.v1.logs_service_pb2 import (
     ExportLogsPartialSuccess, ExportLogsServiceRequest, ExportLogsServiceResponse,
 )
-from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import ExportMetricsServiceRequest
-from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceRequest
+from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import (
+    ExportMetricsPartialSuccess, ExportMetricsServiceRequest, ExportMetricsServiceResponse,
+)
+from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
+    ExportTracePartialSuccess, ExportTraceServiceRequest, ExportTraceServiceResponse,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
 PRIVATE = (b"private-command-input", b"private-job-input", b"private-url-id",
-           b"private-job-error", b"private-exception-message", b"private-log-context", b"private-sql-literal", b"private_missing_table", b"private-cookie", b"private-query", b"private-license", b"private-otel-header")
+           b"private-job-error", b"private-exception-message", b"private-explicit-report", b"private-explicit-source",
+           b"private-log-context", b"private-sql-literal", b"private_missing_table", b"private-cookie", b"private-query",
+           b"private-license", b"private-otel-header")
 
 
 class Collector(ThreadingHTTPServer):
@@ -33,6 +39,7 @@ class Collector(ThreadingHTTPServer):
         self.responses = {}
         self.received_traceparents = []
         self.redirect_to = None
+        self.retry_received = False
         self.lock = threading.Lock()
 
 
@@ -40,8 +47,22 @@ class CollectorHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         with self.server.lock:
             self.server.received_traceparents.append(self.headers.get("traceparent"))
+            retry_failure = self.path == "/retry" and not self.server.retry_received
+            self.server.retry_received |= self.path == "/retry"
+        if self.path in ("/slow-body", "/interrupted-body"):
+            self.send_response(200)
+            self.send_header("Content-Length", "7")
+            self.end_headers()
+            self.wfile.flush()
+            if self.path == "/slow-body":
+                time.sleep(0.25)
+                try:
+                    self.wfile.write(b"fixture")
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
+            return
         location = self.server.redirect_to if self.path == "/redirect" else None
-        self.send_response(302 if location else 204)
+        self.send_response(503 if retry_failure else 302 if location else 204)
         if location:
             self.send_header("Location", location)
         self.send_header("Content-Length", "0")
@@ -53,19 +74,33 @@ class CollectorHandler(BaseHTTPRequestHandler):
             pending = self.server.responses.get(self.path, [])
             status = pending.pop(0) if pending else 200
             partial = (status == 299)
-            if partial:
+            delayed = (status == 298)
+            if partial or delayed:
                 status = 200
             self.server.requests.append((self.path, dict(self.headers), body, status))
         if status == 0:
             time.sleep(4)
             return
-        reply = ExportLogsServiceResponse(partial_success=ExportLogsPartialSuccess(
-            rejected_log_records=1, error_message="fixture partial success",
-        )).SerializeToString() if partial else b""
+        if delayed:
+            time.sleep(0.5)
+        reply = b""
+        if partial:
+            partial_responses = {
+                "/v1/logs": ExportLogsServiceResponse(partial_success=ExportLogsPartialSuccess(
+                    rejected_log_records=1, error_message="fixture partial success",
+                )),
+                "/v1/metrics": ExportMetricsServiceResponse(partial_success=ExportMetricsPartialSuccess(
+                    rejected_data_points=2, error_message="fixture partial success",
+                )),
+                "/v1/traces": ExportTraceServiceResponse(partial_success=ExportTracePartialSuccess(
+                    rejected_spans=3, error_message="fixture partial success",
+                )),
+            }
+            reply = partial_responses[self.path].SerializeToString()
         self.send_response(status)
         self.send_header("Content-Type", "application/x-protobuf")
         self.send_header("Content-Length", str(len(reply)))
-        if status == 503:
+        if status in (429, 503):
             self.send_header("Retry-After", "1")
         self.end_headers()
         if reply:
@@ -96,6 +131,7 @@ def decode(requests):
     for path, headers, body, status in requests:
         assert headers.get("content-type", headers.get("Content-Type")) == "application/x-protobuf", headers
         assert not {"api-key", "x-private"} & {header.lower() for header in headers}
+        assert len(body) <= 999_999, (path, len(body))
         assert all(value not in body for value in PRIVATE)
         if status != 200:
             continue
@@ -126,11 +162,11 @@ def cli(binary, env, *args, exit_code=0):
     return outcome
 
 
-def request(port, path):
+def request(port, path, trace_id="01234567890123456789012345678901"):
     connection = HTTPConnection("127.0.0.1", port, timeout=5)
     try:
         connection.request("GET", path, headers={
-            "traceparent": "00-01234567890123456789012345678901-0123456789012345-01",
+            "traceparent": f"00-{trace_id}-0123456789012345-01",
             "Cookie": "private-cookie",
         })
         response = connection.getresponse()
@@ -160,7 +196,10 @@ def web(binary, env, root):
                 raise AssertionError("HTTP 未监听")
             assert request(port, "/api/probe/dependency") == 202
             assert request(port, "/api/probe/fail") == 500
+            assert request(port, "/api/probe/report") == 205
             assert request(port, "/api/probe/log") == 201
+            assert request(port, "/api/probe/buffer-retain", "1" * 32) == 200
+            assert request(port, "/api/probe/buffer-flush", "2" * 32) == 206
             assert request(port, "/api/probe/flush") == 204
             assert request(port, "/private-url-id") == 404
         finally:
@@ -181,7 +220,7 @@ def main(binary, driver, queue):
         root = Path(temp)
         collector.redirect_to = f"http://127.0.0.1:{other.server_port}/redirected"
         env = {key: value for key, value in os.environ.items()
-               if not key.startswith(("NEW_RELIC_", "OTEL_", "DB_", "APP_", "QUEUE_"))}
+               if not key.startswith(("NEW_RELIC_", "OTEL_", "DB_", "APP_", "QUEUE_", "AWS_", "SQS_"))}
         env |= {
             "TMPDIR": temp, "APP_BASE_PATH": temp, "APP_ENV": "testing", "APP_DEBUG": "false",
             "APP_DISABLED_RUNNERS": "queue,schedule", "APP_CONFIG_CACHE": str(root / "configuration.json"),
@@ -189,6 +228,7 @@ def main(binary, driver, queue):
             "NEW_RELIC_TEST_ALLOWED_UPSTREAM": f"http://127.0.0.1:{collector.server_port}/private-url-id?token=private-query",
             "NEW_RELIC_TEST_OTHER_UPSTREAM": f"http://127.0.0.1:{other.server_port}/private-url-id",
             "NEW_RELIC_TEST_REDIRECT_UPSTREAM": f"http://127.0.0.1:{collector.server_port}/redirect",
+            "NEW_RELIC_TEST_BODY_UPSTREAM": f"http://127.0.0.1:{other.server_port}",
             "NEW_RELIC_PROPAGATE_ORIGINS": f"http://127.0.0.1:{collector.server_port}",
             "CACHE_STORE": "file", "SESSION_DRIVER": "array", "QUEUE_CONNECTION": queue,
             "NEW_RELIC_TEST_QUEUE": queue,
@@ -204,14 +244,24 @@ def main(binary, driver, queue):
             env["DB_DATABASE"] = "openrust_acceptance"
         if queue == "redis":
             env.update(REDIS_HOST="127.0.0.1", REDIS_PORT=os.environ["OPENRUST_TEST_REDIS_PORT"], REDIS_DB="0")
+        if queue == "beanstalkd":
+            env.update(BEANSTALKD_QUEUE_HOST="127.0.0.1",
+                       BEANSTALKD_QUEUE_PORT=os.environ["OPENRUST_TEST_BEANSTALKD_PORT"])
+        if queue == "sqs":
+            endpoint = os.environ["OPENRUST_TEST_SQS_ENDPOINT"]
+            env.update(AWS_ACCESS_KEY_ID="fixture", AWS_SECRET_ACCESS_KEY="fixture",
+                       AWS_DEFAULT_REGION="us-east-1", AWS_EC2_METADATA_DISABLED="true",
+                       SQS_ENDPOINT=endpoint, SQS_PREFIX=f"{endpoint}/000000000000")
         cli(binary, env, "telemetry:probe")
         assert collector.requests == [], "默认未启用的扩展发送了遥测"
         cli(binary, env, "migrate", "--force")
         cli(binary, env, "telemetry:enqueue")
         cli(binary, env, "telemetry:enqueue", "--fail")
-        enabled = env | {"NEW_RELIC_ENABLED": "true", "NEW_RELIC_LOGS_ENABLED": "true"}
+        enabled = env | {"NEW_RELIC_ENABLED": "true", "NEW_RELIC_LOGS_ENABLED": "true",
+                         "NEW_RELIC_EXCEPTION_STACKTRACE": "true"}
 
-        collector.responses["/v1/traces"] = [503]
+        collector.responses["/v1/traces"] = [503, 299]
+        collector.responses["/v1/metrics"] = [299]
         collector.responses["/v1/logs"] = [299]
         web(binary, enabled, root)
         requests = collector.requests.copy()
@@ -228,27 +278,49 @@ def main(binary, driver, queue):
         assert http_spans[500].status.code == 2
         events = [event for event in http_spans[500].events if event.name == "exception"]
         assert len(events) == 1 and attrs(events[0].attributes).get("exception.type")
-        assert http_spans[201].name == "custom linked request"
+        assert "exception.stacktrace" not in attrs(events[0].attributes)
+        reported = [event for event in http_spans[205].events if event.name == "exception"]
+        assert len(reported) == 3, reported
+        for event in reported:
+            report_fields = attrs(event.attributes)
+            assert "ReportProbe" in report_fields["exception.type"]
+            assert report_fields["exception.stacktrace"] and "std::io" in report_fields["exception.cause_types"]
+        assert http_spans[201].name == "logged transaction"
+        assert http_spans[206].name == "GET /api/probe/{id}"
         assert attrs(http_spans[201].attributes).get("custom.operation") == "fixture"
         assert any(span.name == "log error" and span.parent_span_id == http_spans[201].span_id
                    for _, span in spans)
-        log = next(log for name, log in logs if name == "acceptance-app")
+        log = next(log for name, log in logs
+                   if name == "acceptance-app" and log.body.string_value == "linked fixture record")
         assert log.body.string_value == "linked fixture record", log
         assert log.trace_id == http_spans[201].trace_id and log.span_id == http_spans[201].span_id
         assert attrs(log.attributes).get("context.operation") == "sample", log
         assert "context.secret" not in attrs(log.attributes)
+        buffered = {log.body.string_value: (log.trace_id, log.span_id) for _, log in logs}
+        for message, status in (("buffered fixture record", 200), ("flush fixture record", 206)):
+            span = http_spans[status]
+            assert buffered[message] == (span.trace_id, span.span_id)
+            assert message in (root / "parallel-logs.log").read_text()
         print("实际异常报告、脱敏及结构化日志 Trace 关联通过", flush=True)
         parent = http_spans[202]
         children = [span for name, span in spans if name == "acceptance-app"
                     and span.parent_span_id == parent.span_id and span.trace_id == parent.trace_id]
         http_children = [span for span in children if attrs(span.attributes).get("http.request.method") == "GET"]
         db_children = [span for span in children if attrs(span.attributes).get("db.system.name")]
-        assert len(http_children) == 4 and len(db_children) >= 4
+        assert len(http_children) == 10 and len(db_children) >= 4
+        assert any(span.end_time_unix_nano - span.start_time_unix_nano >= 220_000_000
+                   and attrs(span.attributes).get("http.response.status_code") == 200
+                   for span in http_children)
+        client_errors = {attrs(span.attributes).get("error.type") for span in http_children
+                         if span.status.code == 2}
+        assert {"timeout", "response_body", "503"} <= client_errors, client_errors
+        assert sum(event.name == "openrust.operation.cancelled" for span in http_children
+                   for event in span.events) == 1
         assert any(span.status.code == 2 for span in db_children), db_children
         assert len(collector.received_traceparents) == 2
         assert all(header and header.split("-")[1] == parent.trace_id.hex()
                    for header in collector.received_traceparents)
-        assert other.received_traceparents == [None, None]
+        assert other.received_traceparents == [None] * 8
         assert {"http.client.request.duration", "db.client.operation.duration"} <= {metric.name for _, metric in metrics}
         print(f"{driver} 出站 HTTP 与 SQL 子链路、查询失败、跨 Origin 重定向及传播白名单通过", flush=True)
         http_metric = next(metric for _, metric in metrics if metric.name == "http.server.request.duration")
@@ -264,7 +336,33 @@ def main(binary, driver, queue):
         cli(binary, artisan, "telemetry:probe")
         rejected = [item for item in collector.requests[start:] if item[0] == "/v1/traces"]
         assert len(rejected) == 1 and rejected[0][3] == 400
+        start = len(collector.requests)
+        collector.responses["/v1/traces"] = [429]
+        cli(binary, artisan, "telemetry:probe")
+        assert [item[3] for item in collector.requests[start:] if item[0] == "/v1/traces"] == [429, 200]
         cli(binary, artisan, "telemetry:probe", "private-command-input", "--fail", exit_code=1)
+        shortcut_start = len(collector.requests)
+        for arguments in ((), ("list",), ("help", "telemetry:probe"),
+                          ("telemetry:probe", "--help"), ("--version",)):
+            cli(binary, artisan, *arguments)
+        shortcut_spans, _, _ = decode(collector.requests[shortcut_start:])
+        assert sorted(span.name for _, span in shortcut_spans) == [
+            "artisan help", "artisan help", "artisan list", "artisan list", "artisan version",
+        ]
+        print("独立 Artisan 的隐式 list、显式 list、help、--help 与 --version 通过", flush=True)
+        if driver == "sqlite" and queue == "database":
+            overload_start = len(collector.requests)
+            collector.responses["/v1/traces"] = [298]
+            collector.responses["/v1/logs"] = [298]
+            overload = cli(binary, enabled, "telemetry:overload").stdout.decode()
+            drops = next(line.split()[1:] for line in overload.splitlines() if line.startswith("drops "))
+            dropped_spans, dropped_logs = map(int, drops)
+            assert dropped_spans > 0 and dropped_logs > 0, drops
+            overload_spans, _, overload_logs = decode(collector.requests[overload_start:])
+            assert sum(span.name == "log error" for _, span in overload_spans) + dropped_spans == 4096
+            assert len(overload_logs) + dropped_logs == 4096
+            print(f"实际生成 4096 条错误日志和 4096 个错误 Span，限额内送达且过载计数吻合，"
+                  f"丢弃 Span {dropped_spans}、日志 {dropped_logs}", flush=True)
         cli(binary, enabled | {"NEW_RELIC_APP_NAME": "acceptance-producer"}, "telemetry:enqueue")
         cli(binary, enabled | {"NEW_RELIC_APP_NAME": "acceptance-batch"}, "telemetry:batch")
         cli(binary, enabled | {"NEW_RELIC_APP_NAME": "acceptance-worker"},
@@ -294,6 +392,61 @@ def main(binary, driver, queue):
         assert any(span.kind == 5 and span.span_id == isolated.parent_span_id
                    and span.trace_id == isolated.trace_id for span in worker_spans)
         print(f"独立 Artisan、{queue}/{driver} Worker 的生产者／批量关联、隔离子进程、拒收和退出刷新通过", flush=True)
+
+        if queue == "database" and driver == "sqlite":
+            start = len(collector.requests)
+            producer = enabled | {"NEW_RELIC_APP_NAME": "acceptance-lifecycle-producer"}
+            worker = enabled | {"NEW_RELIC_APP_NAME": "acceptance-lifecycle-worker",
+                                "QUEUE_WORKER_TIMED_OUT_EXIT_CODE": "77"}
+            cli(binary, producer, "telemetry:lifecycle", "release-once")
+            cli(binary, worker, "queue:work", queue, "--queue=telemetry", "--stop-when-empty", "--tries=2")
+            cli(binary, producer, "telemetry:lifecycle", "hard-timeout")
+            cli(binary, worker, "queue:work", queue, "--queue=telemetry", "--stop-when-empty", "--tries=1",
+                exit_code=77)
+            cli(binary, producer, "telemetry:lifecycle", "after-restart")
+            cli(binary, worker, "queue:work", queue, "--queue=telemetry", "--stop-when-empty", "--tries=1")
+            lifecycle_spans, lifecycle_metrics, _ = decode(collector.requests[start:])
+            consumers = [span for name, span in lifecycle_spans
+                         if name == "acceptance-lifecycle-worker" and span.kind == 5]
+            outcomes = [(span, attrs(span.attributes)["openrust.queue.outcome"]) for span in consumers]
+            assert sorted(result for _, result in outcomes) == [
+                "processed", "processed", "released", "timed_out",
+            ], [(span.name, attrs(span.attributes)) for span, _ in outcomes]
+            released = next(span for span, result in outcomes if result == "released")
+            assert released.links and any(list(span.links) == list(released.links)
+                                          for span, result in outcomes if result == "processed")
+            assert any(attrs(point.attributes).get("openrust.queue.outcome") == "timed_out"
+                       for _, metric in lifecycle_metrics if metric.name == "openrust.queue.job.duration"
+                       for point in metric.histogram.data_points)
+            assert not any(span.name == "queue execute telemetry.batch.item" for _, span in lifecycle_spans)
+            print("真实任务释放与重领、隔离任务强杀、Worker 退出与重启通过", flush=True)
+            for lifecycle in ("deferred", "background", "null", "failover", "fallback"):
+                start = len(collector.requests)
+                connection = "failover" if lifecycle == "fallback" else lifecycle
+                lifecycle_env = enabled | {"NEW_RELIC_TEST_QUEUE": connection}
+                if lifecycle == "fallback":
+                    lifecycle_env["NEW_RELIC_TEST_FAILOVER"] = "true"
+                cli(binary, lifecycle_env, "telemetry:lifecycle", "lifecycle-driver")
+                if lifecycle == "failover":
+                    cli(binary, lifecycle_env, "queue:work", "database", "--queue=telemetry", "--stop-when-empty")
+                deadline = time.monotonic() + 8
+                while True:
+                    spans, _, _ = decode(collector.requests[start:])
+                    sends = [span for _, span in spans if span.kind == 4]
+                    received = [span for _, span in spans if span.kind == 5]
+                    if lifecycle != "background" or received or time.monotonic() >= deadline:
+                        break
+                    time.sleep(0.05)
+                assert len(sends) == 1, (lifecycle, sends)
+                if lifecycle == "null":
+                    assert not received, received
+                    continue
+                assert len(received) == 1, (lifecycle, received)
+                sent, job = sends[0], received[0]
+                assert job.parent_span_id == sent.span_id or any(
+                    link.span_id == sent.span_id and link.trace_id == sent.trace_id for link in job.links
+                ), (lifecycle, job, sent)
+            print("deferred、background、null、failover 首选及失败回退的生命周期链路通过", flush=True)
 
         start = len(collector.requests)
         cli(binary, enabled | {"NEW_RELIC_TEST_QUEUE": "sync"}, "telemetry:enqueue")
@@ -337,6 +490,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("binary", type=Path)
     parser.add_argument("--driver", choices=("sqlite", "mysql", "pgsql"), default="sqlite")
-    parser.add_argument("--queue", choices=("database", "redis"), default="database")
+    parser.add_argument("--queue", choices=("database", "redis", "beanstalkd", "sqs"), default="database")
     args = parser.parse_args()
     main(str(args.binary.resolve()), args.driver, args.queue)
