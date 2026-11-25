@@ -171,15 +171,6 @@ impl Supervisor {
         result.and(cleanup).and(forget)
     }
     async fn tick(&mut self, generation: &Option<String>) -> Result<bool> {
-        let memory_limit = self
-            .options
-            .values()
-            .next()
-            .ok_or(Error::InvalidConfiguration)?
-            .memory as u64;
-        if self.memory_usage() > memory_limit as f64 {
-            return Err(Error::MemoryLimitExceeded);
-        }
         if &self.repository.generation().await? != generation {
             return Ok(false);
         }
@@ -315,6 +306,22 @@ impl Supervisor {
                 &format!("Horizon supervisor loop listener failed: {error}"),
                 &Default::default(),
             );
+        }
+        let memory_limit = self
+            .options
+            .values()
+            .next()
+            .ok_or(Error::InvalidConfiguration)?
+            .memory as u64;
+        let memory_usage = self.memory_usage();
+        if memory_usage > memory_limit as f64 {
+            crate::process_memory::dispatch(crate::SupervisorOutOfMemory {
+                name: self.id.clone(),
+                memory_usage,
+                memory_limit,
+            })
+            .await;
+            return Err(Error::MemoryLimitExceeded);
         }
         Ok(true)
     }

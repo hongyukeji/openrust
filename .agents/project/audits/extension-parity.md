@@ -172,3 +172,11 @@ Provider 按固定 [ExpireSupervisors](https://github.com/laravel/horizon/blob/b
 固定上游 [Master 事件映射](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/EventMap.php) 注册三类任务清理。Rust 公开并同步注册 `TrimRecentJobs`、`TrimFailedJobs` 和 `TrimMonitoredJobs`，复用 `JobRepository` 现有的 Redis 时钟与保留期计算。每类在首次循环检查，执行成功后才开始自己的间隔。最近索引间隔 60 秒，失败及监控索引各自以保留分钟数除以 12 向下取整，最少一分钟。间隔在该 Master 第一次调用时确定，运行时状态不跨 Master 共用。
 
 隔离 Redis 8.10.3 上，真实 Master 首轮清除七个索引中过期项目并保留新项目，测试监听器在首轮结束时写入的过期项目在紧接的循环中未被提前清除。本批未等待所有实际配置的完整周期。运行时与通知 18 项、独立 Artisan 进程回归、快照全仓格式、Horizon 全目标严格 Clippy、三语文档构建及 12 组浏览器检查通过。
+
+### Horizon Master 与 Supervisor 内存超限事件
+
+固定 [MonitorMasterSupervisorMemory](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Listeners/MonitorMasterSupervisorMemory.php) 与 [MonitorSupervisorMemory](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Listeners/MonitorSupervisorMemory.php) 均在进程持久化后的循环阶段检查，并在退出码 12 之前派发各自事件。Rust 将检查移到心跳持久化和循环事件之后，补齐 `MasterSupervisorOutOfMemory` 与 `SupervisorOutOfMemory`。事件保存进程名称、实测常驻内存及上限，Supervisor 保留读取与覆写记录用量的接口。
+
+本批内存保护直接由原生循环调用，公开内存监控监听器和对应装配仍待补齐。监听器报告错误时仍执行 native 终止与清理，以维持内存保护边界。与 PHP 分配器统计的差异沿用项目的常驻内存定义，其他平台的内存测量和终止仍待实测。
+
+构建守卫内隔离 Redis 8.10.3 与独立 Artisan 进程通过。Master 和 Supervisor 的上限各设为 1 MiB，应用监听器分别记录同名事件、进程名称及超限的实测用量，随后故意返回错误，两条命令仍以 12 退出且无残留活动进程登记。快照全仓格式、Horizon 全目标严格 Clippy、三语文档构建和 12 组浏览器检查通过。

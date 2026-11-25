@@ -159,14 +159,6 @@ impl MasterSupervisor {
         result.and(cleanup).and(forget)
     }
     async fn tick(&mut self, generation: &Option<String>) -> Result<bool> {
-        let memory_limit = openrust::support::facades::Config::get_facade_root()
-            .map_err(|_| Error::Unavailable)?
-            .get("horizon.memory_limit")
-            .and_then(|value| value.as_u64())
-            .unwrap_or(64);
-        if self.memory_usage() > memory_limit as f64 {
-            return Err(Error::MemoryLimitExceeded);
-        }
         if &self.repository.generation().await? != generation {
             return Ok(false);
         }
@@ -249,6 +241,21 @@ impl MasterSupervisor {
                 &format!("Horizon master loop listener failed: {error}"),
                 &Default::default(),
             );
+        }
+        let memory_limit = openrust::support::facades::Config::get_facade_root()
+            .map_err(|_| Error::Unavailable)?
+            .get("horizon.memory_limit")
+            .and_then(|value| value.as_u64())
+            .unwrap_or(64);
+        let memory_usage = self.memory_usage();
+        if memory_usage > memory_limit as f64 {
+            crate::process_memory::dispatch(crate::MasterSupervisorOutOfMemory {
+                name: self.id.clone(),
+                memory_usage,
+                memory_limit,
+            })
+            .await;
+            return Err(Error::MemoryLimitExceeded);
         }
         Ok(true)
     }

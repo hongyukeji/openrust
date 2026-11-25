@@ -8,6 +8,7 @@ mod dashboard;
 mod job_trim;
 mod notifications;
 mod options;
+mod process_memory;
 mod provider;
 mod repository;
 mod signals;
@@ -26,6 +27,7 @@ pub use master_supervisor::{
     ExpireSupervisors, MasterSupervisor, MasterSupervisorLooped, SupervisorProcess,
 };
 pub use options::{AutoScaler, SupervisorOptions};
+pub use process_memory::{MasterSupervisorOutOfMemory, SupervisorOutOfMemory};
 pub use provider::HorizonServiceProvider;
 pub use repository::{
     JobDetails, JobRecord, JobRepository, MasterSupervisorRepository, Metrics, MetricsRepository,

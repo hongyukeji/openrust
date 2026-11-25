@@ -1,14 +1,18 @@
 //! Dedicated process acceptance application; never registered in the default app.
 use openrust::{
     config::{ConfigError, Environment, Value},
+    contracts::events::{Dispatcher as _, Event, Listener},
     contracts::foundation::Application as _,
     contracts::queue::JobHandler,
+    events::{Delivery, EventContext, EventError, EventFuture, EventResult, ListenerResponse},
     foundation::{Application, configuration::Routing, run_application},
     http::{HttpError, HttpFuture, Request},
     queue::{JobContext, Payload, QueueError, QueueFuture, QueueManager, QueueResult},
     support::{ProviderResult, ServiceProvider},
 };
-use openrust_horizon::{Horizon, HorizonServiceProvider};
+use openrust_horizon::{
+    Horizon, HorizonServiceProvider, MasterSupervisorOutOfMemory, SupervisorOutOfMemory,
+};
 use serde_json::json;
 use std::{collections::BTreeMap, path::Path, sync::Arc, time::Duration};
 fn config(base: &Path, _: &Environment) -> Result<BTreeMap<String, Value>, ConfigError> {
@@ -65,6 +69,41 @@ impl JobHandler for Probe {
     }
 }
 struct ProbeProvider;
+
+struct MemoryEventRecorder(std::path::PathBuf);
+
+impl Listener for MemoryEventRecorder {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn Event,
+        _: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            let (name, usage, limit) =
+                if let Some(event) = event.downcast_ref::<MasterSupervisorOutOfMemory>() {
+                    (&event.name, event.memory_usage, event.memory_limit)
+                } else if let Some(event) = event.downcast_ref::<SupervisorOutOfMemory>() {
+                    (&event.name, event.get_memory_usage(), event.memory_limit)
+                } else {
+                    return Ok(None);
+                };
+            use std::io::Write as _;
+            let row = json!({"event":event.name(),"name":name,"usage":usage,"limit":limit});
+            writeln!(
+                std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(&self.0)
+                    .unwrap(),
+                "{row}"
+            )
+            .unwrap();
+            // A failing application listener must not cancel the memory-limit exit.
+            Err(EventError::InvalidPayload)
+        })
+    }
+}
+
 impl ServiceProvider for ProbeProvider {
     fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
@@ -72,6 +111,16 @@ impl ServiceProvider for ProbeProvider {
                 "probe",
                 Arc::new(Probe(app.base_path().join("completed.log"))),
             )?;
+            let dispatcher = app.make::<openrust::events::Dispatcher>().await?;
+            let recorder = Arc::new(MemoryEventRecorder(
+                app.base_path().join("memory-events.jsonl"),
+            ));
+            dispatcher.listen(
+                MasterSupervisorOutOfMemory::NAME,
+                recorder.clone(),
+                Delivery::Sync,
+            )?;
+            dispatcher.listen(SupervisorOutOfMemory::NAME, recorder, Delivery::Sync)?;
             Ok(())
         })
     }

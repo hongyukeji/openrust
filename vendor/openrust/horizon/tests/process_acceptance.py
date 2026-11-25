@@ -228,6 +228,10 @@ def main():
             artisan('horizon', code=12)
             env.pop('HORIZON_PROBE_MEMORY_LIMIT')
             assert status() == []
+            memory_events = [json.loads(line) for line in (root / 'memory-events.jsonl').read_text().splitlines()]
+            assert [event['event'] for event in memory_events] == ['SupervisorOutOfMemory', 'MasterSupervisorOutOfMemory']
+            assert memory_events[0]['name'] == 'memory-probe'
+            assert all(event['name'] and event['usage'] > event['limit'] == 1 for event in memory_events)
             # File watching is live, responds to a change once, and cleans up
             # its child tree when interrupted.
             watched = root / 'routes' / 'web.rs'
