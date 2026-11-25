@@ -126,7 +126,9 @@ Pause, continue, terminate, monitoring changes and retries require the authoriza
 ./artisan horizon:purge
 ```
 
-`horizon:status` exits with code 0 when running, 1 when any active master is paused, and 2 when no master is active. Pause stops new reservations; running jobs can finish. Continue resumes reservations. Terminate drains current masters; subsequently started masters use the new generation. The named supervisor commands select a name or suffix on the current host. Restart supervisors left from an earlier version so that they publish their host in Redis. The master-level pause, continue, and terminate commands use the shared metadata prefix.
+`horizon:status` exits with code 0 when running, 1 when any active master is paused, and 2 when no master is active. Run `horizon:pause`, `horizon:continue`, and `horizon:terminate` on each host you want to control. Pause stops new reservations while running jobs finish. Continue resumes reservations. Terminate shuts down the local masters and broadcasts the native queue restart notification through the application cache. With `fast_termination` enabled, pass `--wait` to wait for the workers to drain. Named supervisor commands also select targets on the current host. Restart masters and supervisors left from an earlier version so they publish their host in Redis.
+
+If an earlier version left a shared pause in Redis, use **Continue** in the authorized dashboard to clear it for that metadata prefix.
 
 Horizon job IDs identify individual Redis deliveries and are returned by queue pushes and the dashboard. Use these IDs for `horizon:retry` and `horizon:forget`. A retry gets a new ID and preserves the original failed monitoring record with its retry result. Native `queue:retry` and failed-job storage use the payload UUID, which Horizon resolves internally; batch retries also resolve those UUIDs to the current failed delivery.
 

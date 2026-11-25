@@ -389,6 +389,11 @@ impl QueueManager {
         self.interruption_polling.store(false, Ordering::Relaxed);
     }
 
+    /// 写入框架 Worker 读取的优雅重启通知。
+    pub async fn restart_workers(&self) -> QueueResult<()> {
+        self.worker_control()?.restart().await
+    }
+
     /// Pauses one queue until it is resumed.
     pub async fn pause(&self, connection: &str, queue: &str) -> QueueResult<()> {
         self.set_queue_pause(connection, queue, None).await

@@ -94,6 +94,22 @@ impl Repository {
             .await?
             == Value::Int(1))
     }
+    pub(crate) async fn reservations_paused(&self, supervisor: Option<&str>) -> Result<bool> {
+        let mut keys = vec![self.key("paused")];
+        if let Some(name) = supervisor {
+            if !supervisor_name(name) {
+                return Err(Error::InvalidRecord);
+            }
+            keys.push(self.key(&format!("supervisor-paused:{}", super::encode(name))));
+            if let Some((master, _)) = name.split_once(':').filter(|(master, _)| label(master)) {
+                keys.push(self.key(&format!("master-paused:{master}")));
+            }
+        }
+        match self.command("EXISTS", &keys).await? {
+            Value::Int(count) => Ok(count > 0),
+            _ => Err(Error::Redis),
+        }
+    }
     pub async fn push_command(&self, name: &str, command: &str) -> Result<()> {
         if !supervisor_name(name)
             || command.is_empty()
@@ -176,6 +192,79 @@ impl MasterSupervisorRepository {
     }
     pub async fn update(&self, name: &str, status: &Json) -> Result<()> {
         self.0.heartbeat(name, status).await
+    }
+    pub(crate) async fn set_paused(&self, name: &str, paused: bool) -> Result<()> {
+        if !label(name) {
+            return Err(Error::InvalidRecord);
+        }
+        let key = self.0.key(&format!("master-paused:{name}"));
+        if paused {
+            self.0
+                .command("SET", &[key, "1".into(), "EX".into(), "30".into()])
+                .await?;
+        } else {
+            self.0.command("DEL", &[key]).await?;
+        }
+        Ok(())
+    }
+    pub(crate) async fn paused(&self, name: &str) -> Result<bool> {
+        if !label(name) {
+            return Err(Error::InvalidRecord);
+        }
+        match self
+            .0
+            .command(
+                "EXISTS",
+                &[
+                    self.0.key("paused"),
+                    self.0.key(&format!("master-paused:{name}")),
+                ],
+            )
+            .await?
+        {
+            Value::Int(count) => Ok(count > 0),
+            _ => Err(Error::Redis),
+        }
+    }
+    pub(crate) async fn request_termination(&self, name: &str, wait: bool) -> Result<()> {
+        if !label(name) {
+            return Err(Error::InvalidRecord);
+        }
+        self.0
+            .command(
+                "SET",
+                &[
+                    self.0.key(&format!("master-terminate:{name}")),
+                    if wait { "1" } else { "0" }.into(),
+                    "EX".into(),
+                    "3600".into(),
+                ],
+            )
+            .await?;
+        Ok(())
+    }
+    pub(crate) async fn termination_requested(&self, name: &str) -> Result<Option<bool>> {
+        if !label(name) {
+            return Err(Error::InvalidRecord);
+        }
+        match self
+            .0
+            .command("GET", &[self.0.key(&format!("master-terminate:{name}"))])
+            .await?
+        {
+            Value::Nil => Ok(None),
+            Value::BulkString(value) if value == b"0" => Ok(Some(false)),
+            Value::BulkString(value) if value == b"1" => Ok(Some(true)),
+            _ => Err(Error::Redis),
+        }
+    }
+    pub(crate) async fn termination_wait(&self, master: Option<&str>) -> Result<bool> {
+        if let Some(name) = master
+            && let Some(wait) = self.termination_requested(name).await?
+        {
+            return Ok(wait);
+        }
+        self.0.termination_wait().await
     }
     pub async fn forget(&self, name: &str) -> Result<()> {
         if let Some(master) = self.find(name).await?

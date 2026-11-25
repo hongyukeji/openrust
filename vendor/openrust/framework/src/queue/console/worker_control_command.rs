@@ -51,12 +51,7 @@ impl Command for WorkerControlCommand {
                 }
             }
             if matches!(action, Action::Restart) {
-                manager
-                    .worker_control()
-                    .map_err(error)?
-                    .restart()
-                    .await
-                    .map_err(error)?;
+                manager.restart_workers().await.map_err(error)?;
                 output.info("Broadcasting queue restart signal.");
                 return Ok(0);
             }

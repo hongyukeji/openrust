@@ -316,5 +316,16 @@ async fn main() -> std::process::ExitCode {
         );
         return std::process::ExitCode::SUCCESS;
     }
+    if std::env::var("HORIZON_PROBE_GLOBAL_PAUSE").as_deref() == Ok("1") {
+        let mut app = create().unwrap();
+        app.boot().await.unwrap();
+        app.make::<openrust_horizon::Repository>()
+            .await
+            .unwrap()
+            .pause()
+            .await
+            .unwrap();
+        return std::process::ExitCode::SUCCESS;
+    }
     run_application(create).await
 }

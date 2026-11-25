@@ -10,6 +10,7 @@ use tokio_util::sync::CancellationToken;
 mod install;
 mod listen;
 mod management;
+mod master_control;
 mod purge;
 mod supervisor_command;
 mod work_command;
@@ -33,9 +34,9 @@ pub(crate) fn register() -> std::result::Result<(), ConsoleError> {
         let mut syntax = Syntax::new(name).about(match name {
             "horizon" => "Start the Horizon master supervisor",
             "horizon:status" => "Show active Horizon supervisors",
-            "horizon:pause" => "Pause reservations by Horizon workers",
-            "horizon:continue" => "Continue Horizon workers",
-            "horizon:terminate" => "Gracefully terminate current Horizon supervisors",
+            "horizon:pause" => "Pause the master supervisor",
+            "horizon:continue" => "Instruct the master supervisor to continue processing jobs",
+            "horizon:terminate" => "Terminate the master supervisor so it can be restarted",
             "horizon:failed" => "List recent sanitized Horizon failures",
             "horizon:retry" => "Retry one stored failure from a configured Horizon queue",
             _ => "Forget one stored failure from a configured Horizon queue",
@@ -52,7 +53,12 @@ pub(crate) fn register() -> std::result::Result<(), ConsoleError> {
             syntax = syntax.arg(Arg::new("environment").long("environment"));
         }
         if name == "horizon:terminate" {
-            syntax = syntax.arg(Arg::new("wait").long("wait").action(ArgAction::SetTrue));
+            syntax = syntax.arg(
+                Arg::new("wait")
+                    .long("wait")
+                    .action(ArgAction::SetTrue)
+                    .help("Wait for all workers to terminate"),
+            );
         }
         if name == "horizon:status" {
             syntax = syntax.arg(Arg::new("json").long("json").action(ArgAction::SetTrue));
@@ -140,20 +146,15 @@ impl Command for HorizonCommand {
                     }
                     result.map_err(error)?;
                 }
-                "horizon:pause" => {
-                    repository.pause().await.map_err(error)?;
-                    output.info("Horizon paused.");
-                }
-                "horizon:continue" => {
-                    repository.r#continue().await.map_err(error)?;
-                    output.info("Horizon continued.");
-                }
-                "horizon:terminate" => {
-                    repository
-                        .terminate_with_wait(input.matches().get_flag("wait"))
-                        .await
-                        .map_err(error)?;
-                    output.info("Horizon termination requested.");
+                "horizon:pause" | "horizon:continue" | "horizon:terminate" => {
+                    let control = match self.1 {
+                        "horizon:pause" => master_control::Control::Pause,
+                        "horizon:continue" => master_control::Control::Continue,
+                        _ => master_control::Control::Terminate {
+                            wait: input.matches().get_flag("wait"),
+                        },
+                    };
+                    control.handle(app, &repository, output).await?;
                 }
                 "horizon:status" => {
                     let masters = repository.master_supervisors().all().await.map_err(error)?;

@@ -122,12 +122,13 @@ def main():
                 stdout, stderr = master.communicate(timeout=15)
                 assert master.returncode == 0, (stdout, stderr)
                 assert status() == []
-            # Pause before startup: no child may reserve queued work.
-            artisan('horizon:pause')
-            dispatch(password='secret-never-exported')
+            assert 'No processes to pause.' in artisan('horizon:pause')
             assert redis('SET', wait_lock, 'contender', 'EX', '30') == 'OK'
             master = subprocess.Popen([binary, 'artisan', 'horizon'], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            until_master(lambda state: state['pid'] == master.pid)
+            assert 'Sending USR2 signal to processes.' in artisan('horizon:pause')
             until_master(lambda state: state['status'] == 'paused')
+            dispatch(password='secret-never-exported')
             time.sleep(1.2)
             assert redis('GET', wait_lock) == 'contender'
             assert redis('DEL', wait_lock) == '1'
@@ -267,9 +268,31 @@ def main():
             until(lambda: (root / 'completed.log').exists() and forced_id in (root / 'completed.log').read_text())
             artisan('up')
             until(lambda: stats()['queues'][0]['metrics']['completed'] == before + 3)
-            artisan('horizon:terminate')
-            stdout, stderr = master.communicate(timeout=15)
-            assert master.returncode == 0, (stdout, stderr)
+            # A foreign heartbeat can even name a valid PID on this host.
+            peer_name = 'remote-master-probe'
+            prefix = f'{root.name}:horizon-probe:{{horizon}}:'
+            peer = subprocess.Popen(['sleep', '60'])
+            try:
+                remote = json.dumps({'name': peer_name, 'pid': peer.pid, 'host': 'other-' + socket.gethostname(), 'status': 'running'})
+                assert redis('SET', prefix + 'master:' + peer_name, remote, 'EX', '15') == 'OK'
+                redis('ZADD', prefix + 'masters', str(int(time.time() * 1000)), peer_name)
+                for action, expected in [('pause', 'paused'), ('continue', 'running')]:
+                    response = artisan('horizon:' + action)
+                    assert f'Process: {master.pid}' in response and f'Process: {peer.pid}' not in response, response
+                    until(lambda: any(row['pid'] == master.pid and row['status'] == expected for row in status()))
+                    assert peer.poll() is None
+                    assert redis('EXISTS', prefix + 'paused') == '0'
+                response = artisan('horizon:terminate')
+                assert f'Process: {master.pid}' in response and f'Process: {peer.pid}' not in response, response
+                stdout, stderr = master.communicate(timeout=15)
+                assert master.returncode == 0, (stdout, stderr)
+                assert peer.poll() is None
+                assert redis('EXISTS', prefix + 'terminate') == '0'
+            finally:
+                redis('ZREM', prefix + 'masters', peer_name)
+                redis('DEL', prefix + 'master:' + peer_name)
+                peer.terminate()
+                peer.wait(timeout=5)
             assert status() == []
             # Fast termination releases the master while jobs finish; --wait
             # explicitly restores the draining guarantee.

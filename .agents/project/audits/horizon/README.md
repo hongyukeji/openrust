@@ -12,7 +12,13 @@
 
 PHP 8.5.12 在 Linux 隔离容器里使用固定 Horizon 命令、真实子进程与 POSIX 信号对照 `horizon:pause`、`horizon:continue` 和 `horizon:terminate`。三条命令只向本机 Master 名称前缀匹配的 PID 分别发送 USR2、CONT 和 TERM。夹具覆盖空暂停／继续集合，并保留模拟其他主机的进程。快速终止下 `--wait` 写入 `horizon:terminate:wait`。终止还向 Laravel Cache 写入 `illuminate:queue:restart`，供原生 Worker 使用。证据为 `target/tmp/observability-parity/horizon-master-local-control-upstream.log`。 [固定 PauseCommand](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Console/PauseCommand.php) [固定 ContinueCommand](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Console/ContinueCommand.php) [固定 TerminateCommand](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Console/TerminateCommand.php)
 
-当前 Rust 三条命令更新共享 Redis 的全局暂停或终止状态。Master 接收外部 USR2／CONT 后也更新全局暂停。下一批需让真实 Artisan 命令从已登记的主机选择本机 Master，核对本机信号传播给其子 Supervisor、不同主机的 Master 存活及 `--wait` 的行为，并复用框架 Worker 读取的原生重启标记。Windows 需单独验证没有 POSIX 信号时的控制入口。当前仓储公开的全局控制方法亦有调用方，验收应同时覆盖这些调用方。固定默认名称使用 `Str::slug(gethostname())` 和进程内四字符令牌，支持 `determineNameUsing`，名称契约继续单独核对。 [固定 MasterSupervisor](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/MasterSupervisor.php)
+Rust 三条 Artisan 命令按心跳中的完整主机名选择 Master。完整主机名可区分名称前缀相同的机器，升级前缺少主机信息的心跳需通过重启更新。Unix 使用原生信号，Windows 通过按 Master 标识隔离的 Redis 状态控制。暂停会传播到选中 Master 的 Supervisor 和 Worker。终止复用原生队列 Worker 的应用缓存重启标记。命令先写入该标记，再通知 Master 退出，以便容器回收命令进程前完成广播。快速终止的等待选项按目标 Master 登记。仓储的全局操作继续供原有调用方和授权面板使用，后者可清除旧版本留下的全局暂停。
+
+Linux 7.0.14 ARM64 与 Redis 8.10.3 上，两个有独立主机名和 PID 命名空间的容器分别以 PID 1 运行真正的 Master，共用 Redis 和应用缓存。本机暂停后另一台仍能执行真实队列任务。本机继续与终止只操作本机 Master，另一台的 Master 身份保持，Worker 收到原生重启通知后更换 PID。证据为 `target/tmp/observability-parity/horizon-master-control-linux-pid1.log`。首轮在容器退出时曾回收 Artisan 执行进程，复验以 Master 自身的容器退出码和存活远端为准，并核对远端 Worker 完成重启。
+
+Windows 11 ARM64 与 Redis 8.10.3 使用最终源码运行原生 Artisan。真实 Master 在空部署计划下经过启动、暂停、继续、终止，以 0 退出且清除心跳。Windows 上带 Worker 的排空和快速终止仍待验证。macOS 最终源码通过严格 Clippy 和真实进程组合，覆盖 `horizon:work`、普通 `queue:work` 收到重启通知、外部信号、快速终止与 `--wait`。另经真实 HTTP 验证，本机继续不会清除旧全局暂停，未授权的面板请求返回 403，授权请求可清除该状态并使 Master 恢复。三语文档构建及 12 组桌面／移动浏览器检查通过。证据为 `target/tmp/observability-parity/horizon-master-control-{windows,macos,docs}-final.log` 与 `target/tmp/observability-parity/horizon-master-control-upgrade.log`。
+
+固定默认名称使用 `Str::slug(gethostname())` 和进程内四字符令牌，支持 `determineNameUsing`。PHP 8.5.12 探针确认同进程重复读名称以及更换解析器时共用四字符令牌，解析器返回的点号和下划线保留。证据为 `target/tmp/observability-parity/horizon-master-name-upstream.log`。Rust 当前 Master 名称仍使用 UUID，名称契约继续单独处理。 [固定 MasterSupervisor](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/MasterSupervisor.php)
 
 ## 当前实现
 

@@ -54,7 +54,21 @@ def main():
             assert failed() == 0, 'Horizon default tries must be unlimited'
             artisan('queue:clear', 'redis', '--force')
 
-        artisan('horizon:pause')
+        assert 'No processes to pause.' in artisan('horizon:pause')
+        assert 'No processes to continue.' in artisan('horizon:continue')
+        native = subprocess.Popen([binary, 'artisan', 'queue:work', '--sleep=1', '--force'], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        try:
+            time.sleep(1.3)
+            assert native.poll() is None
+            assert 'No processes to terminate.' in artisan('horizon:terminate')
+            stdout, stderr = native.communicate(timeout=10)
+            assert native.returncode == 0, (stdout, stderr)
+        finally:
+            if native.poll() is None:
+                native.kill()
+                native.communicate()
+
+        subprocess.run([binary], env=dict(env, HORIZON_PROBE_GLOBAL_PAUSE='1'), check=True, timeout=10)
         pending = dispatch()
         worker = subprocess.Popen([binary, 'artisan', 'horizon:work', '--supervisor=worker scope $(literal)', '--force', '--sleep=0', '--json'], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         try:
@@ -72,7 +86,7 @@ def main():
             if worker.poll() is None:
                 worker.kill()
                 worker.communicate()
-        print('PASS: hidden Horizon worker, native execution, unlimited tries, PHP delay/backoff selection, pause isolation, SIGTERM')
+        print('PASS: hidden Horizon worker, native execution, unlimited tries, PHP delay/backoff selection, global repository pause compatibility, native queue restart, SIGTERM')
 
 
 if __name__ == '__main__':

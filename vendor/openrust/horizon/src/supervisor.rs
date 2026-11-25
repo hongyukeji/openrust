@@ -259,8 +259,7 @@ impl Supervisor {
                 _ => return Err(Error::InvalidRecord),
             }
         }
-        let paused =
-            self.repository.paused().await? || self.repository.supervisor_paused(&self.id).await?;
+        let paused = self.repository.reservations_paused(Some(&self.id)).await?;
         for pool in self.pools.values_mut() {
             let mut index = 0;
             while index < pool.workers.len() {
@@ -571,7 +570,17 @@ impl Supervisor {
                 failed |= crate::signals::terminate(process).await.is_err();
             }
         }
-        let wait = !self.fast_termination || self.repository.termination_wait().await?;
+        let master = self
+            .id
+            .split_once(':')
+            .map(|(master, _)| master)
+            .filter(|master| crate::label(master));
+        let wait = !self.fast_termination
+            || self
+                .repository
+                .master_supervisors()
+                .termination_wait(master)
+                .await?;
         for process in self
             .pools
             .values_mut()

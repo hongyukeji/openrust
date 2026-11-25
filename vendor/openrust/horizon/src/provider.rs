@@ -182,16 +182,8 @@ impl Listener for JobListener {
                     return Ok(None);
                 }
                 let repository = crate::dashboard::Store::get_facade_root()?;
-                let state = async {
-                    if repository.paused().await? {
-                        return Ok::<_, Error>(true);
-                    }
-                    if let Some(name) = crate::console::supervisor_name() {
-                        return repository.supervisor_paused(&name).await;
-                    }
-                    Ok(false)
-                }
-                .await;
+                let name = crate::console::supervisor_name();
+                let state = repository.reservations_paused(name.as_deref()).await;
                 return match state {
                     Ok(false) => Ok(None),
                     // Metadata failure suspends reservations until the supervisor can shut down.

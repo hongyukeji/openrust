@@ -257,7 +257,16 @@ impl MasterSupervisor {
         }
         let mut ticker = tokio::time::interval(Duration::from_secs(1));
         let result = loop {
-            tokio::select! { _ = shutdown.cancelled() => break Ok(()), _ = ticker.tick() => {}, paused=control.next()=>{ if paused {self.repository.pause().await?;}else{self.repository.r#continue().await?;}continue; } }
+            tokio::select! {
+                _ = shutdown.cancelled() => break Ok(()),
+                _ = ticker.tick() => {},
+                paused = control.next() => {
+                    if let Err(error) = self.repository.master_supervisors().set_paused(&self.id, paused).await {
+                        break Err(error);
+                    }
+                    continue;
+                }
+            }
             match self.tick(&generation).await {
                 Ok(true) => {}
                 Ok(false) => break Ok(()),
@@ -272,7 +281,12 @@ impl MasterSupervisor {
         if &self.repository.generation().await? != generation {
             return Ok(false);
         }
-        let paused = self.repository.paused().await?;
+        let masters = self.repository.master_supervisors();
+        #[cfg(not(unix))]
+        if masters.termination_requested(&self.id).await?.is_some() {
+            return Ok(false);
+        }
+        let paused = masters.paused(&self.id).await?;
         for supervisor in &mut self.supervisors {
             if supervisor
                 .process
@@ -303,10 +317,7 @@ impl MasterSupervisor {
             {
                 continue;
             }
-            let mut arguments = supervisor.options.to_supervisor_command(&self.executable)?;
-            if paused {
-                arguments.push("--paused".into());
-            }
+            let arguments = supervisor.options.to_supervisor_command(&self.executable)?;
             supervisor.process = Some(
                 Factory::new()
                     .command(arguments)
@@ -385,7 +396,12 @@ impl MasterSupervisor {
                 failed |= crate::signals::terminate(process).await.is_err();
             }
         }
-        let wait = !self.fast_termination || self.repository.termination_wait().await?;
+        let wait = !self.fast_termination
+            || self
+                .repository
+                .master_supervisors()
+                .termination_wait(Some(&self.id))
+                .await?;
         for supervisor in &mut self.supervisors {
             if let Some(process) = supervisor.process.take() {
                 if wait {
