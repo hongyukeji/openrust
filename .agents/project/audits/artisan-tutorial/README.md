@@ -161,3 +161,20 @@ Unicode键暴露公共格式器关联缺口，已补固定NFC和字素切片行�
 证据choice-final-framework2.log、choice-label-tests.log、choice-final-root.log、choice-label-{clippy,main,docs,runtime}.log、choice-final-browser.log、choice-final-tty.log、choice-base-question-tty.log、choice-final-formal-tty.log及choice-base-formal-tty.log。旧配置夹具、JSON字段撞名、NFC／科学尾数／精度反例及首次Clippy多余生命周期失败均保留，未计通过。标准PHP脚本与归档只在target/tmp，正式提交必要JSON数据及提取器，生成测试副本不提交。
 
 本轮期间项目共享守卫曾清理profile及站点编译物，最后相关事件before=31,949,533,184、after=113,779,240,960、released=81,829,707,776字节，保留锁inode／源码／日志／依赖及数据；本簇从保留快照继续冷构建完成，不把其他触发者的清理冒称自己的75验收。回收本批两份独立PTY二进制和运行夹具，保留热缓存及原始证据。prompting-for-input按约定原生教程范围闭合；表格／进度／完整组件、注册生成、事件／信号、Tinker及继承SDK其余入口继续，Artisan整章仍未闭合。Windows终端仍属发布实机矩阵，其他对话在途完整保留。本地提交，不推送。
+
+
+## 第十一簇：矩形表格与样式消费者（2026-11-25）
+
+第十簇已本地提交a0e4dcbdb。按固定框架InteractsWithIO::table与Console 7.4的Table／TableStyle核对，旧v0.x没有可复用表格实现；本批复用原格式器、公共标量转换、单值模板格式化和OutputStyle写入，不增加依赖或另造输出管线。接通CommandIo::table／table_with／table_with_columns、Table矩形构造／渲染、TableStyle和类型化ConsoleTableError。七种预置、自定义边框／格式／填充、按列样式、缺列、多行、已着色ANSI、未知标签、Unicode／组合字符、反斜杠和空字符逐项与实际固定源码输出对照。多行颜色的格式器状态与末尾重置差异已定位并修正，失败过程保留原日志。
+
+正式源对照经真正InteractsWithIO::table＋Arrayable Collection执行，149份输出向量保存在table-oracle.json，首次141份与底层Table对照严格相等；原始脚本／输出在target/tmp/artisan-tutorial-20261125/reference及table-source4.*，PHP脚本不进入交付源码。NAN／INF／-INF文字转换另有实际参考；PHP8.5的NAN转换VM警告保留table-special-floats.stderr，不声称没有告警，原生实现不模拟PHP引擎警告。保留既有控制台许可；symfony-style-guide属于公开预置标识，按兼容规则保留。
+
+原生适配：表头／行使用IntoIterator，JSON标量使用TableCell转换，业务Display类型显式TableCell::display；静态类型不携带PHP对象身份。选择有序列后将实际模型投影的值传入；真实SQLite查询／Model::to_array到table的消费链通过。TablePadding枚举替代整数填充位，交叉点以12项数组表达，错误通过Result及真实来源链传播。多字节填充截断产生非法UTF-8时返回具体编码错误，不返回无效String；不修改既有序列化、事件、数据库或CLI协议。
+
+最终组合基于e72f852540651af345cbdc357e89fd626d24cbfa的已提交文件，未取其他在途实现：4个框架目标39个父消费者、6个根目标77个父消费者，共116个不同父消费者通过；其中三语正式正文直接提取36例。框架4个被标为ignore的子进程夹具不计通过，实际驱动分别调用；本批table夹具由独立测试进程执行真正handle_command，验证default／box输出及失败操作系统退出1，再成功退出0。真实TCP下表格成功200、未知样式500、后续成功200与JSON内容类型通过；自定义模板错误、配置错误和UTF-8来源链通过。
+
+workspace all-targets严格Clippy、fmt、实际main重建、三语站点构建及12组浏览器验收通过。最后补齐的独立Artisan子进程及模型投影7项再次通过，Clippy／fmt再次通过，见table-final-cli-gates.log。实际最终main验收/up、静态文件、HTML／JSON 404及HEAD，Artisan inspire／list／Pail帮助、真实Pail错误过滤／超时回收和Ctrl+C退出0，见table-runtime.log。代码SHA见accepted-tables.json；其余最终命令日志为table-combined-*、table-final-browser.log，不把中断或重复测试叠加为新功能。
+
+期间32GB磁盘守卫安全中断一次本批组合检查（75），清理后从保留快照继续；中断不计通过，table-gates-interrupted.log与全项目build-guard-events.jsonl保留。源码／日志／依赖／数据及锁保留。结束回收本批实际运行夹具，保留共享热缓存与原始证据，没有本批遗留服务或容器。
+
+本批只闭合矩形表格教程及已验样式范围，不宣称整个Table／TableStyle／TableCell或Artisan章完成。全部声明及剩余宽度／标题／方向／样式注册、跨行跨列、分隔符和单元格样式见table-contracts.json；OutputStyle表格布局、嵌套委托、进度条、完整组件、生成／注册、事件／信号和Tinker继续原清单。按依赖继续推进，不推送。

@@ -590,3 +590,33 @@ fn register_choices() -> Result<(), ConsoleError> {
 回呼中的執行錯誤使用 `ConsoleError::from_runtime_source`：立即終止重試，同時保留原錯誤型別與來源鏈。一般驗證錯誤仍可重試；輸入缺失使用已驗證的預設值並關閉後續互動。終端在執行正規化器或驗證器之前還原。範本產生非 UTF-8 位元組時回傳含原始來源的 `ConsoleQuestionError::InvalidEncoding`，不將任意 PHP 二進位字串當作 Rust 文字回傳。
 
 應用程式標籤型別實作 `Display` 後，可用 `ChoiceLabel(value)` 傳入選項。原生 JSON 回答模型保存標籤文字快照，不攜帶 PHP 物件身分；關聯選擇仍回傳原宣告鍵，應用程式物件保留在呼叫端集合中。
+
+## 表格 {#tables}
+
+使用 `input.io(output).table(headers, rows)` 呈現表格。表頭和資料列接受迭代器；JSON 純量儲存格沿用共用純量轉換，不額外加入 JSON 引號。模型資料先依需要的順序選取欄位，再將值傳入表格。
+
+```rust
+use openrust::{
+    console::{ConsoleError, Input, Output},
+    support::facades::Artisan,
+};
+
+fn register_tables() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:table", |input: &Input, output: &mut Output| {
+        let users = serde_json::json!([
+            {"name": "Ada", "email": "ada@example.test"},
+            {"name": "Li", "email": "li@example.test"}
+        ]);
+        let rows = users.as_array().unwrap().iter().map(|user| {
+            [user["name"].clone(), user["email"].clone()]
+        });
+        input.io(output).table(["Name", "Email"], rows)?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
+`table_with` 選擇 `TableStyle`；`table_with_columns` 另外接受 `(欄位索引, 樣式)`。`TableStyle::from_name` 提供 `default`、`markdown`、`borderless`、`compact`、`symfony-style-guide`、`box` 和 `box-double`。可透過邊框、填充及格式設定方法自訂樣式。`TablePadding::{Left, Right, Both}` 表示填充所在側，預設 `Right`。
+
+直接呈現時使用 `Table::new(io.get_output())`，設定表頭、資料列和欄位樣式後呼叫 `render()`。`TableCell::display(value)` 明確適配實作 `Display` 的業務型別；JSON 值和常用純量直接轉換。多行儲存格、Unicode 可見寬度、格式標籤、ANSI 輸出及 quiet／silent 過濾沿用原輸出管線。此矩形表格介面不代表已支援跨列／跨欄、列分隔符號、標題或整個繼承輔助庫。

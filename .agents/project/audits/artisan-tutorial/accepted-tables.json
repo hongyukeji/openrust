@@ -1,0 +1,38 @@
+{
+  "base": "e72f852540651af345cbdc357e89fd626d24cbfa",
+  "source": "target/tmp/logging-tutorial-20261124/source",
+  "source_sha256": {
+    "vendor/openrust/framework/src/console/mod.rs": "18c849583bb2bad947af6dc8a410b5f5e756d1074e981c2c625e294e0017171e",
+    "vendor/openrust/framework/src/console/question/mod.rs": "71895c242c386a818f057d02e31327fee169e5700356c117839a0befcf88e9a9",
+    "vendor/openrust/framework/src/console/table.rs": "07f6f097b4bde2bd8c8317a7e1b171fc6a51f425b1a95529d5b0c4b1036f56dd",
+    "vendor/openrust/framework/src/console/table/cell.rs": "b99b75eb9935ac8782d10917968945025dad47fec1a3410e1c3d2d02692d9fdd",
+    "vendor/openrust/framework/src/console/table/error.rs": "7cfc12bdd692f2c0c97c0eabc4733a8b51aaead03af8b8340b1f3d83f4cae14c",
+    "vendor/openrust/framework/src/console/table/style.rs": "d10eb97bd8de13f4628ec3394d0649f3a1ab044dc6fb38607fbf48454cdc0a98",
+    "vendor/openrust/framework/tests/console_tables_tutorial.rs": "2433e93c6dbd41058d23802cfbaddd71049d2f4436e6286fda938615bcb21f3e",
+    "docs/en/digging-deeper/artisan.md": "b0d5f22219de043c3e23ac8c00e166c0df100663557d1525154e6060d255d0ea",
+    "docs/zh-Hans/digging-deeper/artisan.md": "d8fcea5c0ce0274ed956924eb372cb091d68b40efb5cf2aad2b922db504f2421",
+    "docs/zh-Hant/digging-deeper/artisan.md": "95978cbff24d5b6c7be7383e4b2e0f5de02c6230d2f75de695d7f8c1d8e785ad",
+    "docs/tests/check_artisan_tutorial.mjs": "00cbb511060e705e1c0a53037b442be90c450898de893e2804d0d8b4616c54df",
+    "tests/artisan_tutorial_docs.py": "de5867995023cfa4854bfc486092cef4b34efbdd538bfbdd695eb7da76f891bf"
+  },
+  "reference": {
+    "framework": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+    "console": "v7.4.0",
+    "table_vectors": 149,
+    "oracle_sha256": "75b8da67b680aad4f1f6f9a3a888efa000238eb012aecf01b9f8239c1bd40fde"
+  },
+  "acceptance": {
+    "framework_parent_tests": 39,
+    "root_parent_tests": 77,
+    "total_distinct_parent_tests": 116,
+    "formal_docs_consumers_in_root": 36,
+    "browser_groups": 12,
+    "ignored_fixtures_excluded": 4,
+    "gates": "table-combined-gates-results.json",
+    "final_cli_gates": "table-final-cli-gates.log",
+    "runtime": "table-runtime.log"
+  },
+  "scope": "矩形表格、预置及自定义表格／列样式、标量适配、真实模型投影与错误传播。进度条及完整辅助SDK仍未闭合。",
+  "commit_base": "eee8c7196e476b840df8d0f2f9b1fdb1ec0170c3",
+  "intervening_changes": "仅项目规划与待办文档；已验源码组合未变。"
+}

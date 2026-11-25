@@ -623,3 +623,11 @@ fn choice_key_width(value: &str) -> usize {
         })
         .sum()
 }
+
+/// 共用单值格式化器，保留参数与UTF-8错误传播。
+pub(super) fn format_template(
+    template: &str,
+    value: &serde_json::Value,
+) -> Result<String, ConsoleError> {
+    error_format::format(template, value)
+}

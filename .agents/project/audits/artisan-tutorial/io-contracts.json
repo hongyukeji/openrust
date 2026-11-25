@@ -162,9 +162,15 @@
         "method": "table",
         "source_line": 246,
         "signature": "public function table($headers, $rows, $tableStyle = 'default', array $columnStyles = [])",
-        "status": "pending_entry_and_behavior_review",
-        "native": null,
-        "evidence": []
+        "status": "verified_rectangular_tutorial_scope_remaining_helper_sdk",
+        "native": "console::CommandIo::{table,table_with,table_with_columns}",
+        "evidence": [
+          "console_tables_tutorial",
+          "table-oracle.json",
+          "table-final-cli-gates.log",
+          "formal_tables_example",
+          "table-contracts.json"
+        ]
       },
       {
         "method": "withProgressBar",

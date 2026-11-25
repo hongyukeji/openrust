@@ -1,0 +1,2550 @@
+[
+    {
+        "style": "default",
+        "headers": [],
+        "rows": [],
+        "decorated": false,
+        "output": "",
+        "error": null
+    },
+    {
+        "style": "default",
+        "headers": [],
+        "rows": [],
+        "decorated": true,
+        "output": "",
+        "error": null
+    },
+    {
+        "style": "default",
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [],
+        "decorated": false,
+        "output": "+------+-------+\n| Name | Email |\n+------+-------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [],
+        "decorated": true,
+        "output": "+------+-------+\n|\u001b[32m Name \u001b[39m|\u001b[32m Email \u001b[39m|\n+------+-------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "headers": [],
+        "rows": [
+            [
+                "A",
+                "B"
+            ]
+        ],
+        "decorated": false,
+        "output": "+---+---+\n| A | B |\n+---+---+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "headers": [],
+        "rows": [
+            [
+                "A",
+                "B"
+            ]
+        ],
+        "decorated": true,
+        "output": "+---+---+\n| A | B |\n+---+---+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [
+            [
+                "Ada",
+                "ada@example.test"
+            ],
+            [
+                "Li",
+                "li@example.test"
+            ]
+        ],
+        "decorated": false,
+        "output": "+------+------------------+\n| Name | Email            |\n+------+------------------+\n| Ada  | ada@example.test |\n| Li   | li@example.test  |\n+------+------------------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [
+            [
+                "Ada",
+                "ada@example.test"
+            ],
+            [
+                "Li",
+                "li@example.test"
+            ]
+        ],
+        "decorated": true,
+        "output": "+------+------------------+\n|\u001b[32m Name \u001b[39m|\u001b[32m Email            \u001b[39m|\n+------+------------------+\n| Ada  | ada@example.test |\n| Li   | li@example.test  |\n+------+------------------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "headers": [
+            "X"
+        ],
+        "rows": [
+            [
+                "A",
+                "B"
+            ],
+            [
+                "Long"
+            ]
+        ],
+        "decorated": false,
+        "output": "+------+---+\n| X    |   |\n+------+---+\n| A    | B |\n| Long |   |\n+------+---+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "headers": [
+            "X"
+        ],
+        "rows": [
+            [
+                "A",
+                "B"
+            ],
+            [
+                "Long"
+            ]
+        ],
+        "decorated": true,
+        "output": "+------+---+\n|\u001b[32m X    \u001b[39m|\u001b[32m   \u001b[39m|\n+------+---+\n| A    | B |\n| Long |   |\n+------+---+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "headers": [
+            "名字",
+            "Café"
+        ],
+        "rows": [
+            [
+                "张三",
+                "é"
+            ],
+            [
+                "👩‍👩‍👦",
+                "hello"
+            ]
+        ],
+        "decorated": false,
+        "output": "+--------+-------+\n| 名字   | Café  |\n+--------+-------+\n| 张三   | é     |\n| 👩‍👩‍👦 | hello |\n+--------+-------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "headers": [
+            "名字",
+            "Café"
+        ],
+        "rows": [
+            [
+                "张三",
+                "é"
+            ],
+            [
+                "👩‍👩‍👦",
+                "hello"
+            ]
+        ],
+        "decorated": true,
+        "output": "+--------+-------+\n|\u001b[32m 名字   \u001b[39m|\u001b[32m Café  \u001b[39m|\n+--------+-------+\n| 张三   | é     |\n| 👩‍👩‍👦 | hello |\n+--------+-------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one\ntwo",
+                "x"
+            ],
+            [
+                "y",
+                "first\r\nlast"
+            ]
+        ],
+        "decorated": false,
+        "output": "+-----+-------+\n| A   | B     |\n+-----+-------+\n| one | x     |\n| two |       |\n| y   | first |\n|     | last  |\n+-----+-------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one\ntwo",
+                "x"
+            ],
+            [
+                "y",
+                "first\r\nlast"
+            ]
+        ],
+        "decorated": true,
+        "output": "+-----+-------+\n|\u001b[32m A   \u001b[39m|\u001b[32m B     \u001b[39m|\n+-----+-------+\n| one | x     |\n| two |       |\n| y   | first |\n|     | last  |\n+-----+-------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "headers": [
+            "<comment>Head<\/comment>",
+            "<info>Two<\/info>"
+        ],
+        "rows": [
+            [
+                "<error>bad<\/error>",
+                "<unknown>x<\/unknown>"
+            ]
+        ],
+        "decorated": false,
+        "output": "+------+----------------------+\n| Head | Two                  |\n+------+----------------------+\n| bad  | <unknown>x<\/unknown> |\n+------+----------------------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "headers": [
+            "<comment>Head<\/comment>",
+            "<info>Two<\/info>"
+        ],
+        "rows": [
+            [
+                "<error>bad<\/error>",
+                "<unknown>x<\/unknown>"
+            ]
+        ],
+        "decorated": true,
+        "output": "+------+----------------------+\n|\u001b[32m \u001b[39m\u001b[33mHead\u001b[39m\u001b[32m \u001b[39m|\u001b[32m \u001b[39m\u001b[32mTwo\u001b[39m\u001b[32m                  \u001b[39m|\n+------+----------------------+\n| \u001b[37;41mbad\u001b[39;49m  | <unknown>x<\/unknown> |\n+------+----------------------+\n",
+        "error": null
+    },
+    {
+        "style": "markdown",
+        "headers": [],
+        "rows": [],
+        "decorated": false,
+        "output": "",
+        "error": null
+    },
+    {
+        "style": "markdown",
+        "headers": [],
+        "rows": [],
+        "decorated": true,
+        "output": "",
+        "error": null
+    },
+    {
+        "style": "markdown",
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [],
+        "decorated": false,
+        "output": "| Name | Email |\n",
+        "error": null
+    },
+    {
+        "style": "markdown",
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [],
+        "decorated": true,
+        "output": "|\u001b[32m Name \u001b[39m|\u001b[32m Email \u001b[39m|\n",
+        "error": null
+    },
+    {
+        "style": "markdown",
+        "headers": [],
+        "rows": [
+            [
+                "A",
+                "B"
+            ]
+        ],
+        "decorated": false,
+        "output": "|---|---|\n| A | B |\n",
+        "error": null
+    },
+    {
+        "style": "markdown",
+        "headers": [],
+        "rows": [
+            [
+                "A",
+                "B"
+            ]
+        ],
+        "decorated": true,
+        "output": "|---|---|\n| A | B |\n",
+        "error": null
+    },
+    {
+        "style": "markdown",
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [
+            [
+                "Ada",
+                "ada@example.test"
+            ],
+            [
+                "Li",
+                "li@example.test"
+            ]
+        ],
+        "decorated": false,
+        "output": "| Name | Email            |\n|------|------------------|\n| Ada  | ada@example.test |\n| Li   | li@example.test  |\n",
+        "error": null
+    },
+    {
+        "style": "markdown",
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [
+            [
+                "Ada",
+                "ada@example.test"
+            ],
+            [
+                "Li",
+                "li@example.test"
+            ]
+        ],
+        "decorated": true,
+        "output": "|\u001b[32m Name \u001b[39m|\u001b[32m Email            \u001b[39m|\n|------|------------------|\n| Ada  | ada@example.test |\n| Li   | li@example.test  |\n",
+        "error": null
+    },
+    {
+        "style": "markdown",
+        "headers": [
+            "X"
+        ],
+        "rows": [
+            [
+                "A",
+                "B"
+            ],
+            [
+                "Long"
+            ]
+        ],
+        "decorated": false,
+        "output": "| X    |   |\n|------|---|\n| A    | B |\n| Long |   |\n",
+        "error": null
+    },
+    {
+        "style": "markdown",
+        "headers": [
+            "X"
+        ],
+        "rows": [
+            [
+                "A",
+                "B"
+            ],
+            [
+                "Long"
+            ]
+        ],
+        "decorated": true,
+        "output": "|\u001b[32m X    \u001b[39m|\u001b[32m   \u001b[39m|\n|------|---|\n| A    | B |\n| Long |   |\n",
+        "error": null
+    },
+    {
+        "style": "markdown",
+        "headers": [
+            "名字",
+            "Café"
+        ],
+        "rows": [
+            [
+                "张三",
+                "é"
+            ],
+            [
+                "👩‍👩‍👦",
+                "hello"
+            ]
+        ],
+        "decorated": false,
+        "output": "| 名字   | Café  |\n|--------|-------|\n| 张三   | é     |\n| 👩‍👩‍👦 | hello |\n",
+        "error": null
+    },
+    {
+        "style": "markdown",
+        "headers": [
+            "名字",
+            "Café"
+        ],
+        "rows": [
+            [
+                "张三",
+                "é"
+            ],
+            [
+                "👩‍👩‍👦",
+                "hello"
+            ]
+        ],
+        "decorated": true,
+        "output": "|\u001b[32m 名字   \u001b[39m|\u001b[32m Café  \u001b[39m|\n|--------|-------|\n| 张三   | é     |\n| 👩‍👩‍👦 | hello |\n",
+        "error": null
+    },
+    {
+        "style": "markdown",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one\ntwo",
+                "x"
+            ],
+            [
+                "y",
+                "first\r\nlast"
+            ]
+        ],
+        "decorated": false,
+        "output": "| A   | B     |\n|-----|-------|\n| one | x     |\n| two |       |\n| y   | first |\n|     | last  |\n",
+        "error": null
+    },
+    {
+        "style": "markdown",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one\ntwo",
+                "x"
+            ],
+            [
+                "y",
+                "first\r\nlast"
+            ]
+        ],
+        "decorated": true,
+        "output": "|\u001b[32m A   \u001b[39m|\u001b[32m B     \u001b[39m|\n|-----|-------|\n| one | x     |\n| two |       |\n| y   | first |\n|     | last  |\n",
+        "error": null
+    },
+    {
+        "style": "markdown",
+        "headers": [
+            "<comment>Head<\/comment>",
+            "<info>Two<\/info>"
+        ],
+        "rows": [
+            [
+                "<error>bad<\/error>",
+                "<unknown>x<\/unknown>"
+            ]
+        ],
+        "decorated": false,
+        "output": "| Head | Two                  |\n|------|----------------------|\n| bad  | <unknown>x<\/unknown> |\n",
+        "error": null
+    },
+    {
+        "style": "markdown",
+        "headers": [
+            "<comment>Head<\/comment>",
+            "<info>Two<\/info>"
+        ],
+        "rows": [
+            [
+                "<error>bad<\/error>",
+                "<unknown>x<\/unknown>"
+            ]
+        ],
+        "decorated": true,
+        "output": "|\u001b[32m \u001b[39m\u001b[33mHead\u001b[39m\u001b[32m \u001b[39m|\u001b[32m \u001b[39m\u001b[32mTwo\u001b[39m\u001b[32m                  \u001b[39m|\n|------|----------------------|\n| \u001b[37;41mbad\u001b[39;49m  | <unknown>x<\/unknown> |\n",
+        "error": null
+    },
+    {
+        "style": "borderless",
+        "headers": [],
+        "rows": [],
+        "decorated": false,
+        "output": "",
+        "error": null
+    },
+    {
+        "style": "borderless",
+        "headers": [],
+        "rows": [],
+        "decorated": true,
+        "output": "",
+        "error": null
+    },
+    {
+        "style": "borderless",
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [],
+        "decorated": false,
+        "output": " ====== ======= \n  Name   Email  \n ====== ======= \n",
+        "error": null
+    },
+    {
+        "style": "borderless",
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [],
+        "decorated": true,
+        "output": " ====== ======= \n \u001b[32m Name \u001b[39m \u001b[32m Email \u001b[39m \n ====== ======= \n",
+        "error": null
+    },
+    {
+        "style": "borderless",
+        "headers": [],
+        "rows": [
+            [
+                "A",
+                "B"
+            ]
+        ],
+        "decorated": false,
+        "output": " === === \n  A   B  \n === === \n",
+        "error": null
+    },
+    {
+        "style": "borderless",
+        "headers": [],
+        "rows": [
+            [
+                "A",
+                "B"
+            ]
+        ],
+        "decorated": true,
+        "output": " === === \n  A   B  \n === === \n",
+        "error": null
+    },
+    {
+        "style": "borderless",
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [
+            [
+                "Ada",
+                "ada@example.test"
+            ],
+            [
+                "Li",
+                "li@example.test"
+            ]
+        ],
+        "decorated": false,
+        "output": " ====== ================== \n  Name   Email             \n ====== ================== \n  Ada    ada@example.test  \n  Li     li@example.test   \n ====== ================== \n",
+        "error": null
+    },
+    {
+        "style": "borderless",
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [
+            [
+                "Ada",
+                "ada@example.test"
+            ],
+            [
+                "Li",
+                "li@example.test"
+            ]
+        ],
+        "decorated": true,
+        "output": " ====== ================== \n \u001b[32m Name \u001b[39m \u001b[32m Email            \u001b[39m \n ====== ================== \n  Ada    ada@example.test  \n  Li     li@example.test   \n ====== ================== \n",
+        "error": null
+    },
+    {
+        "style": "borderless",
+        "headers": [
+            "X"
+        ],
+        "rows": [
+            [
+                "A",
+                "B"
+            ],
+            [
+                "Long"
+            ]
+        ],
+        "decorated": false,
+        "output": " ====== === \n  X         \n ====== === \n  A      B  \n  Long      \n ====== === \n",
+        "error": null
+    },
+    {
+        "style": "borderless",
+        "headers": [
+            "X"
+        ],
+        "rows": [
+            [
+                "A",
+                "B"
+            ],
+            [
+                "Long"
+            ]
+        ],
+        "decorated": true,
+        "output": " ====== === \n \u001b[32m X    \u001b[39m \u001b[32m   \u001b[39m \n ====== === \n  A      B  \n  Long      \n ====== === \n",
+        "error": null
+    },
+    {
+        "style": "borderless",
+        "headers": [
+            "名字",
+            "Café"
+        ],
+        "rows": [
+            [
+                "张三",
+                "é"
+            ],
+            [
+                "👩‍👩‍👦",
+                "hello"
+            ]
+        ],
+        "decorated": false,
+        "output": " ======== ======= \n  名字     Café   \n ======== ======= \n  张三     é      \n  👩‍👩‍👦   hello  \n ======== ======= \n",
+        "error": null
+    },
+    {
+        "style": "borderless",
+        "headers": [
+            "名字",
+            "Café"
+        ],
+        "rows": [
+            [
+                "张三",
+                "é"
+            ],
+            [
+                "👩‍👩‍👦",
+                "hello"
+            ]
+        ],
+        "decorated": true,
+        "output": " ======== ======= \n \u001b[32m 名字   \u001b[39m \u001b[32m Café  \u001b[39m \n ======== ======= \n  张三     é      \n  👩‍👩‍👦   hello  \n ======== ======= \n",
+        "error": null
+    },
+    {
+        "style": "borderless",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one\ntwo",
+                "x"
+            ],
+            [
+                "y",
+                "first\r\nlast"
+            ]
+        ],
+        "decorated": false,
+        "output": " ===== ======= \n  A     B      \n ===== ======= \n  one   x      \n  two          \n  y     first  \n        last   \n ===== ======= \n",
+        "error": null
+    },
+    {
+        "style": "borderless",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one\ntwo",
+                "x"
+            ],
+            [
+                "y",
+                "first\r\nlast"
+            ]
+        ],
+        "decorated": true,
+        "output": " ===== ======= \n \u001b[32m A   \u001b[39m \u001b[32m B     \u001b[39m \n ===== ======= \n  one   x      \n  two          \n  y     first  \n        last   \n ===== ======= \n",
+        "error": null
+    },
+    {
+        "style": "borderless",
+        "headers": [
+            "<comment>Head<\/comment>",
+            "<info>Two<\/info>"
+        ],
+        "rows": [
+            [
+                "<error>bad<\/error>",
+                "<unknown>x<\/unknown>"
+            ]
+        ],
+        "decorated": false,
+        "output": " ====== ====================== \n  Head   Two                   \n ====== ====================== \n  bad    <unknown>x<\/unknown>  \n ====== ====================== \n",
+        "error": null
+    },
+    {
+        "style": "borderless",
+        "headers": [
+            "<comment>Head<\/comment>",
+            "<info>Two<\/info>"
+        ],
+        "rows": [
+            [
+                "<error>bad<\/error>",
+                "<unknown>x<\/unknown>"
+            ]
+        ],
+        "decorated": true,
+        "output": " ====== ====================== \n \u001b[32m \u001b[39m\u001b[33mHead\u001b[39m\u001b[32m \u001b[39m \u001b[32m \u001b[39m\u001b[32mTwo\u001b[39m\u001b[32m                  \u001b[39m \n ====== ====================== \n  \u001b[37;41mbad\u001b[39;49m    <unknown>x<\/unknown>  \n ====== ====================== \n",
+        "error": null
+    },
+    {
+        "style": "compact",
+        "headers": [],
+        "rows": [],
+        "decorated": false,
+        "output": "",
+        "error": null
+    },
+    {
+        "style": "compact",
+        "headers": [],
+        "rows": [],
+        "decorated": true,
+        "output": "",
+        "error": null
+    },
+    {
+        "style": "compact",
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [],
+        "decorated": false,
+        "output": "Name Email \n",
+        "error": null
+    },
+    {
+        "style": "compact",
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [],
+        "decorated": true,
+        "output": "\u001b[32mName \u001b[39m\u001b[32mEmail \u001b[39m\n",
+        "error": null
+    },
+    {
+        "style": "compact",
+        "headers": [],
+        "rows": [
+            [
+                "A",
+                "B"
+            ]
+        ],
+        "decorated": false,
+        "output": "A B \n",
+        "error": null
+    },
+    {
+        "style": "compact",
+        "headers": [],
+        "rows": [
+            [
+                "A",
+                "B"
+            ]
+        ],
+        "decorated": true,
+        "output": "A B \n",
+        "error": null
+    },
+    {
+        "style": "compact",
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [
+            [
+                "Ada",
+                "ada@example.test"
+            ],
+            [
+                "Li",
+                "li@example.test"
+            ]
+        ],
+        "decorated": false,
+        "output": "Name Email            \nAda  ada@example.test \nLi   li@example.test  \n",
+        "error": null
+    },
+    {
+        "style": "compact",
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [
+            [
+                "Ada",
+                "ada@example.test"
+            ],
+            [
+                "Li",
+                "li@example.test"
+            ]
+        ],
+        "decorated": true,
+        "output": "\u001b[32mName \u001b[39m\u001b[32mEmail            \u001b[39m\nAda  ada@example.test \nLi   li@example.test  \n",
+        "error": null
+    },
+    {
+        "style": "compact",
+        "headers": [
+            "X"
+        ],
+        "rows": [
+            [
+                "A",
+                "B"
+            ],
+            [
+                "Long"
+            ]
+        ],
+        "decorated": false,
+        "output": "X      \nA    B \nLong   \n",
+        "error": null
+    },
+    {
+        "style": "compact",
+        "headers": [
+            "X"
+        ],
+        "rows": [
+            [
+                "A",
+                "B"
+            ],
+            [
+                "Long"
+            ]
+        ],
+        "decorated": true,
+        "output": "\u001b[32mX    \u001b[39m\u001b[32m  \u001b[39m\nA    B \nLong   \n",
+        "error": null
+    },
+    {
+        "style": "compact",
+        "headers": [
+            "名字",
+            "Café"
+        ],
+        "rows": [
+            [
+                "张三",
+                "é"
+            ],
+            [
+                "👩‍👩‍👦",
+                "hello"
+            ]
+        ],
+        "decorated": false,
+        "output": "名字   Café  \n张三   é     \n👩‍👩‍👦 hello \n",
+        "error": null
+    },
+    {
+        "style": "compact",
+        "headers": [
+            "名字",
+            "Café"
+        ],
+        "rows": [
+            [
+                "张三",
+                "é"
+            ],
+            [
+                "👩‍👩‍👦",
+                "hello"
+            ]
+        ],
+        "decorated": true,
+        "output": "\u001b[32m名字   \u001b[39m\u001b[32mCafé  \u001b[39m\n张三   é     \n👩‍👩‍👦 hello \n",
+        "error": null
+    },
+    {
+        "style": "compact",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one\ntwo",
+                "x"
+            ],
+            [
+                "y",
+                "first\r\nlast"
+            ]
+        ],
+        "decorated": false,
+        "output": "A   B     \none x     \ntwo       \ny   first \n    last  \n",
+        "error": null
+    },
+    {
+        "style": "compact",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one\ntwo",
+                "x"
+            ],
+            [
+                "y",
+                "first\r\nlast"
+            ]
+        ],
+        "decorated": true,
+        "output": "\u001b[32mA   \u001b[39m\u001b[32mB     \u001b[39m\none x     \ntwo       \ny   first \n    last  \n",
+        "error": null
+    },
+    {
+        "style": "compact",
+        "headers": [
+            "<comment>Head<\/comment>",
+            "<info>Two<\/info>"
+        ],
+        "rows": [
+            [
+                "<error>bad<\/error>",
+                "<unknown>x<\/unknown>"
+            ]
+        ],
+        "decorated": false,
+        "output": "Head Two                  \nbad  <unknown>x<\/unknown> \n",
+        "error": null
+    },
+    {
+        "style": "compact",
+        "headers": [
+            "<comment>Head<\/comment>",
+            "<info>Two<\/info>"
+        ],
+        "rows": [
+            [
+                "<error>bad<\/error>",
+                "<unknown>x<\/unknown>"
+            ]
+        ],
+        "decorated": true,
+        "output": "\u001b[33mHead\u001b[39m\u001b[32m \u001b[39m\u001b[32mTwo\u001b[39m\u001b[32m                  \u001b[39m\n\u001b[37;41mbad\u001b[39;49m  <unknown>x<\/unknown> \n",
+        "error": null
+    },
+    {
+        "style": "symfony-style-guide",
+        "headers": [],
+        "rows": [],
+        "decorated": false,
+        "output": "",
+        "error": null
+    },
+    {
+        "style": "symfony-style-guide",
+        "headers": [],
+        "rows": [],
+        "decorated": true,
+        "output": "",
+        "error": null
+    },
+    {
+        "style": "symfony-style-guide",
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [],
+        "decorated": false,
+        "output": " ------ ------- \n  Name   Email  \n ------ ------- \n",
+        "error": null
+    },
+    {
+        "style": "symfony-style-guide",
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [],
+        "decorated": true,
+        "output": " ------ ------- \n  Name   Email  \n ------ ------- \n",
+        "error": null
+    },
+    {
+        "style": "symfony-style-guide",
+        "headers": [],
+        "rows": [
+            [
+                "A",
+                "B"
+            ]
+        ],
+        "decorated": false,
+        "output": " --- --- \n  A   B  \n --- --- \n",
+        "error": null
+    },
+    {
+        "style": "symfony-style-guide",
+        "headers": [],
+        "rows": [
+            [
+                "A",
+                "B"
+            ]
+        ],
+        "decorated": true,
+        "output": " --- --- \n  A   B  \n --- --- \n",
+        "error": null
+    },
+    {
+        "style": "symfony-style-guide",
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [
+            [
+                "Ada",
+                "ada@example.test"
+            ],
+            [
+                "Li",
+                "li@example.test"
+            ]
+        ],
+        "decorated": false,
+        "output": " ------ ------------------ \n  Name   Email             \n ------ ------------------ \n  Ada    ada@example.test  \n  Li     li@example.test   \n ------ ------------------ \n",
+        "error": null
+    },
+    {
+        "style": "symfony-style-guide",
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [
+            [
+                "Ada",
+                "ada@example.test"
+            ],
+            [
+                "Li",
+                "li@example.test"
+            ]
+        ],
+        "decorated": true,
+        "output": " ------ ------------------ \n  Name   Email             \n ------ ------------------ \n  Ada    ada@example.test  \n  Li     li@example.test   \n ------ ------------------ \n",
+        "error": null
+    },
+    {
+        "style": "symfony-style-guide",
+        "headers": [
+            "X"
+        ],
+        "rows": [
+            [
+                "A",
+                "B"
+            ],
+            [
+                "Long"
+            ]
+        ],
+        "decorated": false,
+        "output": " ------ --- \n  X         \n ------ --- \n  A      B  \n  Long      \n ------ --- \n",
+        "error": null
+    },
+    {
+        "style": "symfony-style-guide",
+        "headers": [
+            "X"
+        ],
+        "rows": [
+            [
+                "A",
+                "B"
+            ],
+            [
+                "Long"
+            ]
+        ],
+        "decorated": true,
+        "output": " ------ --- \n  X         \n ------ --- \n  A      B  \n  Long      \n ------ --- \n",
+        "error": null
+    },
+    {
+        "style": "symfony-style-guide",
+        "headers": [
+            "名字",
+            "Café"
+        ],
+        "rows": [
+            [
+                "张三",
+                "é"
+            ],
+            [
+                "👩‍👩‍👦",
+                "hello"
+            ]
+        ],
+        "decorated": false,
+        "output": " -------- ------- \n  名字     Café   \n -------- ------- \n  张三     é      \n  👩‍👩‍👦   hello  \n -------- ------- \n",
+        "error": null
+    },
+    {
+        "style": "symfony-style-guide",
+        "headers": [
+            "名字",
+            "Café"
+        ],
+        "rows": [
+            [
+                "张三",
+                "é"
+            ],
+            [
+                "👩‍👩‍👦",
+                "hello"
+            ]
+        ],
+        "decorated": true,
+        "output": " -------- ------- \n  名字     Café   \n -------- ------- \n  张三     é      \n  👩‍👩‍👦   hello  \n -------- ------- \n",
+        "error": null
+    },
+    {
+        "style": "symfony-style-guide",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one\ntwo",
+                "x"
+            ],
+            [
+                "y",
+                "first\r\nlast"
+            ]
+        ],
+        "decorated": false,
+        "output": " ----- ------- \n  A     B      \n ----- ------- \n  one   x      \n  two          \n  y     first  \n        last   \n ----- ------- \n",
+        "error": null
+    },
+    {
+        "style": "symfony-style-guide",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one\ntwo",
+                "x"
+            ],
+            [
+                "y",
+                "first\r\nlast"
+            ]
+        ],
+        "decorated": true,
+        "output": " ----- ------- \n  A     B      \n ----- ------- \n  one   x      \n  two          \n  y     first  \n        last   \n ----- ------- \n",
+        "error": null
+    },
+    {
+        "style": "symfony-style-guide",
+        "headers": [
+            "<comment>Head<\/comment>",
+            "<info>Two<\/info>"
+        ],
+        "rows": [
+            [
+                "<error>bad<\/error>",
+                "<unknown>x<\/unknown>"
+            ]
+        ],
+        "decorated": false,
+        "output": " ------ ---------------------- \n  Head   Two                   \n ------ ---------------------- \n  bad    <unknown>x<\/unknown>  \n ------ ---------------------- \n",
+        "error": null
+    },
+    {
+        "style": "symfony-style-guide",
+        "headers": [
+            "<comment>Head<\/comment>",
+            "<info>Two<\/info>"
+        ],
+        "rows": [
+            [
+                "<error>bad<\/error>",
+                "<unknown>x<\/unknown>"
+            ]
+        ],
+        "decorated": true,
+        "output": " ------ ---------------------- \n  \u001b[33mHead\u001b[39m   \u001b[32mTwo\u001b[39m                   \n ------ ---------------------- \n  \u001b[37;41mbad\u001b[39;49m    <unknown>x<\/unknown>  \n ------ ---------------------- \n",
+        "error": null
+    },
+    {
+        "style": "box",
+        "headers": [],
+        "rows": [],
+        "decorated": false,
+        "output": "",
+        "error": null
+    },
+    {
+        "style": "box",
+        "headers": [],
+        "rows": [],
+        "decorated": true,
+        "output": "",
+        "error": null
+    },
+    {
+        "style": "box",
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [],
+        "decorated": false,
+        "output": "┌──────┬───────┐\n│ Name │ Email │\n└──────┴───────┘\n",
+        "error": null
+    },
+    {
+        "style": "box",
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [],
+        "decorated": true,
+        "output": "┌──────┬───────┐\n│\u001b[32m Name \u001b[39m│\u001b[32m Email \u001b[39m│\n└──────┴───────┘\n",
+        "error": null
+    },
+    {
+        "style": "box",
+        "headers": [],
+        "rows": [
+            [
+                "A",
+                "B"
+            ]
+        ],
+        "decorated": false,
+        "output": "├───┼───┤\n│ A │ B │\n└───┴───┘\n",
+        "error": null
+    },
+    {
+        "style": "box",
+        "headers": [],
+        "rows": [
+            [
+                "A",
+                "B"
+            ]
+        ],
+        "decorated": true,
+        "output": "├───┼───┤\n│ A │ B │\n└───┴───┘\n",
+        "error": null
+    },
+    {
+        "style": "box",
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [
+            [
+                "Ada",
+                "ada@example.test"
+            ],
+            [
+                "Li",
+                "li@example.test"
+            ]
+        ],
+        "decorated": false,
+        "output": "┌──────┬──────────────────┐\n│ Name │ Email            │\n├──────┼──────────────────┤\n│ Ada  │ ada@example.test │\n│ Li   │ li@example.test  │\n└──────┴──────────────────┘\n",
+        "error": null
+    },
+    {
+        "style": "box",
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [
+            [
+                "Ada",
+                "ada@example.test"
+            ],
+            [
+                "Li",
+                "li@example.test"
+            ]
+        ],
+        "decorated": true,
+        "output": "┌──────┬──────────────────┐\n│\u001b[32m Name \u001b[39m│\u001b[32m Email            \u001b[39m│\n├──────┼──────────────────┤\n│ Ada  │ ada@example.test │\n│ Li   │ li@example.test  │\n└──────┴──────────────────┘\n",
+        "error": null
+    },
+    {
+        "style": "box",
+        "headers": [
+            "X"
+        ],
+        "rows": [
+            [
+                "A",
+                "B"
+            ],
+            [
+                "Long"
+            ]
+        ],
+        "decorated": false,
+        "output": "┌──────┬───┐\n│ X    │   │\n├──────┼───┤\n│ A    │ B │\n│ Long │   │\n└──────┴───┘\n",
+        "error": null
+    },
+    {
+        "style": "box",
+        "headers": [
+            "X"
+        ],
+        "rows": [
+            [
+                "A",
+                "B"
+            ],
+            [
+                "Long"
+            ]
+        ],
+        "decorated": true,
+        "output": "┌──────┬───┐\n│\u001b[32m X    \u001b[39m│\u001b[32m   \u001b[39m│\n├──────┼───┤\n│ A    │ B │\n│ Long │   │\n└──────┴───┘\n",
+        "error": null
+    },
+    {
+        "style": "box",
+        "headers": [
+            "名字",
+            "Café"
+        ],
+        "rows": [
+            [
+                "张三",
+                "é"
+            ],
+            [
+                "👩‍👩‍👦",
+                "hello"
+            ]
+        ],
+        "decorated": false,
+        "output": "┌────────┬───────┐\n│ 名字   │ Café  │\n├────────┼───────┤\n│ 张三   │ é     │\n│ 👩‍👩‍👦 │ hello │\n└────────┴───────┘\n",
+        "error": null
+    },
+    {
+        "style": "box",
+        "headers": [
+            "名字",
+            "Café"
+        ],
+        "rows": [
+            [
+                "张三",
+                "é"
+            ],
+            [
+                "👩‍👩‍👦",
+                "hello"
+            ]
+        ],
+        "decorated": true,
+        "output": "┌────────┬───────┐\n│\u001b[32m 名字   \u001b[39m│\u001b[32m Café  \u001b[39m│\n├────────┼───────┤\n│ 张三   │ é     │\n│ 👩‍👩‍👦 │ hello │\n└────────┴───────┘\n",
+        "error": null
+    },
+    {
+        "style": "box",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one\ntwo",
+                "x"
+            ],
+            [
+                "y",
+                "first\r\nlast"
+            ]
+        ],
+        "decorated": false,
+        "output": "┌─────┬───────┐\n│ A   │ B     │\n├─────┼───────┤\n│ one │ x     │\n│ two │       │\n│ y   │ first │\n│     │ last  │\n└─────┴───────┘\n",
+        "error": null
+    },
+    {
+        "style": "box",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one\ntwo",
+                "x"
+            ],
+            [
+                "y",
+                "first\r\nlast"
+            ]
+        ],
+        "decorated": true,
+        "output": "┌─────┬───────┐\n│\u001b[32m A   \u001b[39m│\u001b[32m B     \u001b[39m│\n├─────┼───────┤\n│ one │ x     │\n│ two │       │\n│ y   │ first │\n│     │ last  │\n└─────┴───────┘\n",
+        "error": null
+    },
+    {
+        "style": "box",
+        "headers": [
+            "<comment>Head<\/comment>",
+            "<info>Two<\/info>"
+        ],
+        "rows": [
+            [
+                "<error>bad<\/error>",
+                "<unknown>x<\/unknown>"
+            ]
+        ],
+        "decorated": false,
+        "output": "┌──────┬──────────────────────┐\n│ Head │ Two                  │\n├──────┼──────────────────────┤\n│ bad  │ <unknown>x<\/unknown> │\n└──────┴──────────────────────┘\n",
+        "error": null
+    },
+    {
+        "style": "box",
+        "headers": [
+            "<comment>Head<\/comment>",
+            "<info>Two<\/info>"
+        ],
+        "rows": [
+            [
+                "<error>bad<\/error>",
+                "<unknown>x<\/unknown>"
+            ]
+        ],
+        "decorated": true,
+        "output": "┌──────┬──────────────────────┐\n│\u001b[32m \u001b[39m\u001b[33mHead\u001b[39m\u001b[32m \u001b[39m│\u001b[32m \u001b[39m\u001b[32mTwo\u001b[39m\u001b[32m                  \u001b[39m│\n├──────┼──────────────────────┤\n│ \u001b[37;41mbad\u001b[39;49m  │ <unknown>x<\/unknown> │\n└──────┴──────────────────────┘\n",
+        "error": null
+    },
+    {
+        "style": "box-double",
+        "headers": [],
+        "rows": [],
+        "decorated": false,
+        "output": "",
+        "error": null
+    },
+    {
+        "style": "box-double",
+        "headers": [],
+        "rows": [],
+        "decorated": true,
+        "output": "",
+        "error": null
+    },
+    {
+        "style": "box-double",
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [],
+        "decorated": false,
+        "output": "╔══════╤═══════╗\n║ Name │ Email ║\n╚══════╧═══════╝\n",
+        "error": null
+    },
+    {
+        "style": "box-double",
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [],
+        "decorated": true,
+        "output": "╔══════╤═══════╗\n║\u001b[32m Name \u001b[39m│\u001b[32m Email \u001b[39m║\n╚══════╧═══════╝\n",
+        "error": null
+    },
+    {
+        "style": "box-double",
+        "headers": [],
+        "rows": [
+            [
+                "A",
+                "B"
+            ]
+        ],
+        "decorated": false,
+        "output": "╠═══╪═══╣\n║ A │ B ║\n╚═══╧═══╝\n",
+        "error": null
+    },
+    {
+        "style": "box-double",
+        "headers": [],
+        "rows": [
+            [
+                "A",
+                "B"
+            ]
+        ],
+        "decorated": true,
+        "output": "╠═══╪═══╣\n║ A │ B ║\n╚═══╧═══╝\n",
+        "error": null
+    },
+    {
+        "style": "box-double",
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [
+            [
+                "Ada",
+                "ada@example.test"
+            ],
+            [
+                "Li",
+                "li@example.test"
+            ]
+        ],
+        "decorated": false,
+        "output": "╔══════╤══════════════════╗\n║ Name │ Email            ║\n╠══════╪══════════════════╣\n║ Ada  │ ada@example.test ║\n║ Li   │ li@example.test  ║\n╚══════╧══════════════════╝\n",
+        "error": null
+    },
+    {
+        "style": "box-double",
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [
+            [
+                "Ada",
+                "ada@example.test"
+            ],
+            [
+                "Li",
+                "li@example.test"
+            ]
+        ],
+        "decorated": true,
+        "output": "╔══════╤══════════════════╗\n║\u001b[32m Name \u001b[39m│\u001b[32m Email            \u001b[39m║\n╠══════╪══════════════════╣\n║ Ada  │ ada@example.test ║\n║ Li   │ li@example.test  ║\n╚══════╧══════════════════╝\n",
+        "error": null
+    },
+    {
+        "style": "box-double",
+        "headers": [
+            "X"
+        ],
+        "rows": [
+            [
+                "A",
+                "B"
+            ],
+            [
+                "Long"
+            ]
+        ],
+        "decorated": false,
+        "output": "╔══════╤═══╗\n║ X    │   ║\n╠══════╪═══╣\n║ A    │ B ║\n║ Long │   ║\n╚══════╧═══╝\n",
+        "error": null
+    },
+    {
+        "style": "box-double",
+        "headers": [
+            "X"
+        ],
+        "rows": [
+            [
+                "A",
+                "B"
+            ],
+            [
+                "Long"
+            ]
+        ],
+        "decorated": true,
+        "output": "╔══════╤═══╗\n║\u001b[32m X    \u001b[39m│\u001b[32m   \u001b[39m║\n╠══════╪═══╣\n║ A    │ B ║\n║ Long │   ║\n╚══════╧═══╝\n",
+        "error": null
+    },
+    {
+        "style": "box-double",
+        "headers": [
+            "名字",
+            "Café"
+        ],
+        "rows": [
+            [
+                "张三",
+                "é"
+            ],
+            [
+                "👩‍👩‍👦",
+                "hello"
+            ]
+        ],
+        "decorated": false,
+        "output": "╔════════╤═══════╗\n║ 名字   │ Café  ║\n╠════════╪═══════╣\n║ 张三   │ é     ║\n║ 👩‍👩‍👦 │ hello ║\n╚════════╧═══════╝\n",
+        "error": null
+    },
+    {
+        "style": "box-double",
+        "headers": [
+            "名字",
+            "Café"
+        ],
+        "rows": [
+            [
+                "张三",
+                "é"
+            ],
+            [
+                "👩‍👩‍👦",
+                "hello"
+            ]
+        ],
+        "decorated": true,
+        "output": "╔════════╤═══════╗\n║\u001b[32m 名字   \u001b[39m│\u001b[32m Café  \u001b[39m║\n╠════════╪═══════╣\n║ 张三   │ é     ║\n║ 👩‍👩‍👦 │ hello ║\n╚════════╧═══════╝\n",
+        "error": null
+    },
+    {
+        "style": "box-double",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one\ntwo",
+                "x"
+            ],
+            [
+                "y",
+                "first\r\nlast"
+            ]
+        ],
+        "decorated": false,
+        "output": "╔═════╤═══════╗\n║ A   │ B     ║\n╠═════╪═══════╣\n║ one │ x     ║\n║ two │       ║\n║ y   │ first ║\n║     │ last  ║\n╚═════╧═══════╝\n",
+        "error": null
+    },
+    {
+        "style": "box-double",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "one\ntwo",
+                "x"
+            ],
+            [
+                "y",
+                "first\r\nlast"
+            ]
+        ],
+        "decorated": true,
+        "output": "╔═════╤═══════╗\n║\u001b[32m A   \u001b[39m│\u001b[32m B     \u001b[39m║\n╠═════╪═══════╣\n║ one │ x     ║\n║ two │       ║\n║ y   │ first ║\n║     │ last  ║\n╚═════╧═══════╝\n",
+        "error": null
+    },
+    {
+        "style": "box-double",
+        "headers": [
+            "<comment>Head<\/comment>",
+            "<info>Two<\/info>"
+        ],
+        "rows": [
+            [
+                "<error>bad<\/error>",
+                "<unknown>x<\/unknown>"
+            ]
+        ],
+        "decorated": false,
+        "output": "╔══════╤══════════════════════╗\n║ Head │ Two                  ║\n╠══════╪══════════════════════╣\n║ bad  │ <unknown>x<\/unknown> ║\n╚══════╧══════════════════════╝\n",
+        "error": null
+    },
+    {
+        "style": "box-double",
+        "headers": [
+            "<comment>Head<\/comment>",
+            "<info>Two<\/info>"
+        ],
+        "rows": [
+            [
+                "<error>bad<\/error>",
+                "<unknown>x<\/unknown>"
+            ]
+        ],
+        "decorated": true,
+        "output": "╔══════╤══════════════════════╗\n║\u001b[32m \u001b[39m\u001b[33mHead\u001b[39m\u001b[32m \u001b[39m│\u001b[32m \u001b[39m\u001b[32mTwo\u001b[39m\u001b[32m                  \u001b[39m║\n╠══════╪══════════════════════╣\n║ \u001b[37;41mbad\u001b[39;49m  │ <unknown>x<\/unknown> ║\n╚══════╧══════════════════════╝\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "config": {
+            "pad_type": 0
+        },
+        "columns": [],
+        "decorated": false,
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [
+            [
+                "Ada",
+                "x"
+            ],
+            [
+                "Christopher",
+                "long@example.test"
+            ]
+        ],
+        "output": "+-------------+-------------------+\n|        Name |             Email |\n+-------------+-------------------+\n|         Ada |                 x |\n| Christopher | long@example.test |\n+-------------+-------------------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "config": {
+            "pad_type": 0
+        },
+        "columns": [],
+        "decorated": true,
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [
+            [
+                "Ada",
+                "x"
+            ],
+            [
+                "Christopher",
+                "long@example.test"
+            ]
+        ],
+        "output": "+-------------+-------------------+\n|\u001b[32m        Name \u001b[39m|\u001b[32m             Email \u001b[39m|\n+-------------+-------------------+\n|         Ada |                 x |\n| Christopher | long@example.test |\n+-------------+-------------------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "config": {
+            "pad_type": 2
+        },
+        "columns": [],
+        "decorated": false,
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [
+            [
+                "Ada",
+                "x"
+            ],
+            [
+                "Christopher",
+                "long@example.test"
+            ]
+        ],
+        "output": "+-------------+-------------------+\n|    Name     |       Email       |\n+-------------+-------------------+\n|     Ada     |         x         |\n| Christopher | long@example.test |\n+-------------+-------------------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "config": {
+            "pad_type": 2
+        },
+        "columns": [],
+        "decorated": true,
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [
+            [
+                "Ada",
+                "x"
+            ],
+            [
+                "Christopher",
+                "long@example.test"
+            ]
+        ],
+        "output": "+-------------+-------------------+\n|\u001b[32m    Name     \u001b[39m|\u001b[32m       Email       \u001b[39m|\n+-------------+-------------------+\n|     Ada     |         x         |\n| Christopher | long@example.test |\n+-------------+-------------------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "config": {
+            "padding_char": "."
+        },
+        "columns": [],
+        "decorated": false,
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [
+            [
+                "Ada",
+                "x"
+            ],
+            [
+                "Christopher",
+                "long@example.test"
+            ]
+        ],
+        "output": "+-------------+-------------------+\n| Name .......| Email ............|\n+-------------+-------------------+\n| Ada ........| x ................|\n| Christopher | long@example.test |\n+-------------+-------------------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "config": {
+            "padding_char": "."
+        },
+        "columns": [],
+        "decorated": true,
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [
+            [
+                "Ada",
+                "x"
+            ],
+            [
+                "Christopher",
+                "long@example.test"
+            ]
+        ],
+        "output": "+-------------+-------------------+\n|\u001b[32m Name .......\u001b[39m|\u001b[32m Email ............\u001b[39m|\n+-------------+-------------------+\n| Ada ........| x ................|\n| Christopher | long@example.test |\n+-------------+-------------------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "config": {
+            "cell_header_format": "<comment>[%s]<\/comment>",
+            "cell_row_format": "<info>%s<\/info>"
+        },
+        "columns": [],
+        "decorated": false,
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [
+            [
+                "Ada",
+                "x"
+            ],
+            [
+                "Christopher",
+                "long@example.test"
+            ]
+        ],
+        "output": "+-------------+-------------------+\n|[ Name        ]|[ Email             ]|\n+-------------+-------------------+\n| Ada         | x                 |\n| Christopher | long@example.test |\n+-------------+-------------------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "config": {
+            "cell_header_format": "<comment>[%s]<\/comment>",
+            "cell_row_format": "<info>%s<\/info>"
+        },
+        "columns": [],
+        "decorated": true,
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [
+            [
+                "Ada",
+                "x"
+            ],
+            [
+                "Christopher",
+                "long@example.test"
+            ]
+        ],
+        "output": "+-------------+-------------------+\n|\u001b[33m[ Name        ]\u001b[39m|\u001b[33m[ Email             ]\u001b[39m|\n+-------------+-------------------+\n|\u001b[32m Ada         \u001b[39m|\u001b[32m x                 \u001b[39m|\n|\u001b[32m Christopher \u001b[39m|\u001b[32m long@example.test \u001b[39m|\n+-------------+-------------------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "config": {
+            "cell_row_content_format": "::%s::"
+        },
+        "columns": [],
+        "decorated": false,
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [
+            [
+                "Ada",
+                "x"
+            ],
+            [
+                "Christopher",
+                "long@example.test"
+            ]
+        ],
+        "output": "+---------------+---------------------+\n|::Name::       |::Email::            |\n+---------------+---------------------+\n|::Ada::        |::x::                |\n|::Christopher::|::long@example.test::|\n+---------------+---------------------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "config": {
+            "cell_row_content_format": "::%s::"
+        },
+        "columns": [],
+        "decorated": true,
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [
+            [
+                "Ada",
+                "x"
+            ],
+            [
+                "Christopher",
+                "long@example.test"
+            ]
+        ],
+        "output": "+---------------+---------------------+\n|\u001b[32m::Name::       \u001b[39m|\u001b[32m::Email::            \u001b[39m|\n+---------------+---------------------+\n|::Ada::        |::x::                |\n|::Christopher::|::long@example.test::|\n+---------------+---------------------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "config": {
+            "border_format": "<comment>%s<\/comment>"
+        },
+        "columns": [],
+        "decorated": false,
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [
+            [
+                "Ada",
+                "x"
+            ],
+            [
+                "Christopher",
+                "long@example.test"
+            ]
+        ],
+        "output": "+-------------+-------------------+\n| Name        | Email             |\n+-------------+-------------------+\n| Ada         | x                 |\n| Christopher | long@example.test |\n+-------------+-------------------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "config": {
+            "border_format": "<comment>%s<\/comment>"
+        },
+        "columns": [],
+        "decorated": true,
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [
+            [
+                "Ada",
+                "x"
+            ],
+            [
+                "Christopher",
+                "long@example.test"
+            ]
+        ],
+        "output": "\u001b[33m+-------------+-------------------+\u001b[39m\n\u001b[33m|\u001b[39m\u001b[32m Name        \u001b[39m\u001b[33m|\u001b[39m\u001b[32m Email             \u001b[39m\u001b[33m|\u001b[39m\n\u001b[33m+-------------+-------------------+\u001b[39m\n\u001b[33m|\u001b[39m Ada         \u001b[33m|\u001b[39m x                 \u001b[33m|\u001b[39m\n\u001b[33m|\u001b[39m Christopher \u001b[33m|\u001b[39m long@example.test \u001b[33m|\u001b[39m\n\u001b[33m+-------------+-------------------+\u001b[39m\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "config": {
+            "horizontal": [
+                "~",
+                "="
+            ],
+            "vertical": [
+                "!",
+                "\/"
+            ],
+            "cross": "@"
+        },
+        "columns": [],
+        "decorated": false,
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [
+            [
+                "Ada",
+                "x"
+            ],
+            [
+                "Christopher",
+                "long@example.test"
+            ]
+        ],
+        "output": "@~~~~~~~~~~~~~@~~~~~~~~~~~~~~~~~~~@\n! Name        \/ Email             !\n@~~~~~~~~~~~~~@~~~~~~~~~~~~~~~~~~~@\n! Ada         \/ x                 !\n! Christopher \/ long@example.test !\n@~~~~~~~~~~~~~@~~~~~~~~~~~~~~~~~~~@\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "config": {
+            "horizontal": [
+                "~",
+                "="
+            ],
+            "vertical": [
+                "!",
+                "\/"
+            ],
+            "cross": "@"
+        },
+        "columns": [],
+        "decorated": true,
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [
+            [
+                "Ada",
+                "x"
+            ],
+            [
+                "Christopher",
+                "long@example.test"
+            ]
+        ],
+        "output": "@~~~~~~~~~~~~~@~~~~~~~~~~~~~~~~~~~@\n!\u001b[32m Name        \u001b[39m\/\u001b[32m Email             \u001b[39m!\n@~~~~~~~~~~~~~@~~~~~~~~~~~~~~~~~~~@\n! Ada         \/ x                 !\n! Christopher \/ long@example.test !\n@~~~~~~~~~~~~~@~~~~~~~~~~~~~~~~~~~@\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "config": {
+            "outside": false
+        },
+        "columns": [],
+        "decorated": false,
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [
+            [
+                "Ada",
+                "x"
+            ],
+            [
+                "Christopher",
+                "long@example.test"
+            ]
+        ],
+        "output": "| Name        | Email             |\n+-------------+-------------------+\n| Ada         | x                 |\n| Christopher | long@example.test |\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "config": {
+            "outside": false
+        },
+        "columns": [],
+        "decorated": true,
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [
+            [
+                "Ada",
+                "x"
+            ],
+            [
+                "Christopher",
+                "long@example.test"
+            ]
+        ],
+        "output": "|\u001b[32m Name        \u001b[39m|\u001b[32m Email             \u001b[39m|\n+-------------+-------------------+\n| Ada         | x                 |\n| Christopher | long@example.test |\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "config": [],
+        "columns": [
+            {
+                "pad_type": 0,
+                "padding_char": "."
+            },
+            {
+                "pad_type": 2,
+                "padding_char": "_",
+                "cell_row_content_format": "[%s]"
+            }
+        ],
+        "decorated": false,
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [
+            [
+                "Ada",
+                "x"
+            ],
+            [
+                "Christopher",
+                "long@example.test"
+            ]
+        ],
+        "output": "+-------------+-------------------+\n|....... Name |______[Email]______|\n+-------------+-------------------+\n|........ Ada |________[x]________|\n| Christopher |[long@example.test]|\n+-------------+-------------------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "config": [],
+        "columns": [
+            {
+                "pad_type": 0,
+                "padding_char": "."
+            },
+            {
+                "pad_type": 2,
+                "padding_char": "_",
+                "cell_row_content_format": "[%s]"
+            }
+        ],
+        "decorated": true,
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [
+            [
+                "Ada",
+                "x"
+            ],
+            [
+                "Christopher",
+                "long@example.test"
+            ]
+        ],
+        "output": "+-------------+-------------------+\n|\u001b[32m....... Name \u001b[39m|\u001b[32m______[Email]______\u001b[39m|\n+-------------+-------------------+\n|........ Ada |________[x]________|\n| Christopher |[long@example.test]|\n+-------------+-------------------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "config": {
+            "padding_char": "ab"
+        },
+        "columns": [],
+        "decorated": false,
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [
+            [
+                "Ada",
+                "x"
+            ],
+            [
+                "Christopher",
+                "long@example.test"
+            ]
+        ],
+        "output": "+-------------+-------------------+\n| Name abababa| Email abababababab|\n+-------------+-------------------+\n| Ada abababab| x abababababababab|\n| Christopher | long@example.test |\n+-------------+-------------------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "config": {
+            "padding_char": "ab"
+        },
+        "columns": [],
+        "decorated": true,
+        "headers": [
+            "Name",
+            "Email"
+        ],
+        "rows": [
+            [
+                "Ada",
+                "x"
+            ],
+            [
+                "Christopher",
+                "long@example.test"
+            ]
+        ],
+        "output": "+-------------+-------------------+\n|\u001b[32m Name abababa\u001b[39m|\u001b[32m Email abababababab\u001b[39m|\n+-------------+-------------------+\n| Ada abababab| x abababababababab|\n| Christopher | long@example.test |\n+-------------+-------------------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "decorated": false,
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "\u001b[31mred\u001b[0m",
+                "<href=https:\/\/example.test>link<\/>"
+            ]
+        ],
+        "output": "+-----+------+\n| A   | B    |\n+-----+------+\n| \u001b[31mred\u001b[0m | link |\n+-----+------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "headers": [
+            "Flag",
+            "Value"
+        ],
+        "rows": [
+            [
+                true,
+                null
+            ],
+            [
+                false,
+                1
+            ],
+            [
+                0,
+                2.5
+            ]
+        ],
+        "decorated": false,
+        "output": "+------+-------+\n| Flag | Value |\n+------+-------+\n| 1    |       |\n|      | 1     |\n| 0    | 2.5   |\n+------+-------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "headers": [
+            "Flag",
+            "Value"
+        ],
+        "rows": [
+            [
+                true,
+                null
+            ],
+            [
+                false,
+                1
+            ],
+            [
+                0,
+                2.5
+            ]
+        ],
+        "decorated": true,
+        "output": "+------+-------+\n|\u001b[32m Flag \u001b[39m|\u001b[32m Value \u001b[39m|\n+------+-------+\n| 1    |       |\n|      | 1     |\n| 0    | 2.5   |\n+------+-------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "headers": [
+            "A"
+        ],
+        "rows": [
+            [],
+            [
+                "x"
+            ]
+        ],
+        "decorated": false,
+        "output": "+---+\n| A |\n+---+\n| x |\n+---+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "headers": [
+            "A"
+        ],
+        "rows": [
+            [],
+            [
+                "x"
+            ]
+        ],
+        "decorated": true,
+        "output": "+---+\n|\u001b[32m A \u001b[39m|\n+---+\n| x |\n+---+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "<info>one\ntwo<\/info>",
+                "x"
+            ]
+        ],
+        "decorated": false,
+        "output": "+-----+---+\n| A   | B |\n+-----+---+\n| one | x |\n| two |   |\n+-----+---+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "<info>one\ntwo<\/info>",
+                "x"
+            ]
+        ],
+        "decorated": true,
+        "output": "+-----+---+\n|\u001b[32m A   \u001b[39m|\u001b[32m B \u001b[39m|\n+-----+---+\n\u001b[32m| \u001b[39m\u001b[32mone\u001b[39m\u001b[32m | x |\u001b[39m\n\u001b[32m| two\u001b[39m |   |\n+-----+---+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "\tX",
+                "a\u0000b"
+            ]
+        ],
+        "decorated": false,
+        "output": "+----+-----+\n| A  | B   |\n+----+-----+\n| \tX | a\\b |\n+----+-----+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "headers": [
+            "A",
+            "B"
+        ],
+        "rows": [
+            [
+                "\tX",
+                "a\u0000b"
+            ]
+        ],
+        "decorated": true,
+        "output": "+----+-----+\n|\u001b[32m A  \u001b[39m|\u001b[32m B   \u001b[39m|\n+----+-----+\n| \tX | a\\b |\n+----+-----+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "headers": [
+            "Text"
+        ],
+        "rows": [
+            [
+                "a\\"
+            ]
+        ],
+        "decorated": false,
+        "output": "+------+\n| Text |\n+------+\n| a\\   |\n+------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "headers": [
+            "Text"
+        ],
+        "rows": [
+            [
+                "a\\"
+            ]
+        ],
+        "decorated": true,
+        "output": "+------+\n|\u001b[32m Text \u001b[39m|\n+------+\n| a\\   |\n+------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "headers": [
+            "Text"
+        ],
+        "rows": [
+            [
+                "a\\\nb\\"
+            ]
+        ],
+        "decorated": false,
+        "output": "+------+\n| Text |\n+------+\n| a\\  |\n| b\\  |\n+------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "headers": [
+            "Text"
+        ],
+        "rows": [
+            [
+                "a\\\nb\\"
+            ]
+        ],
+        "decorated": true,
+        "output": "+------+\n|\u001b[32m Text \u001b[39m|\n+------+\n| a\\  |\n| b\\  |\n+------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "headers": [
+            "Text"
+        ],
+        "rows": [
+            [
+                "é<info>́<\/info>"
+            ]
+        ],
+        "decorated": false,
+        "output": "+------+\n| Text |\n+------+\n| é    |\n+------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "headers": [
+            "Text"
+        ],
+        "rows": [
+            [
+                "é<info>́<\/info>"
+            ]
+        ],
+        "decorated": true,
+        "output": "+------+\n|\u001b[32m Text \u001b[39m|\n+------+\n| é    |\n+------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "headers": [
+            "Text"
+        ],
+        "rows": [
+            [
+                "<info>one\ntwo\nthree<\/info>"
+            ]
+        ],
+        "decorated": false,
+        "output": "+-------+\n| Text  |\n+-------+\n| one   |\n| two   |\n| three |\n+-------+\n",
+        "error": null
+    },
+    {
+        "style": "default",
+        "headers": [
+            "Text"
+        ],
+        "rows": [
+            [
+                "<info>one\ntwo\nthree<\/info>"
+            ]
+        ],
+        "decorated": true,
+        "output": "+-------+\n|\u001b[32m Text  \u001b[39m|\n+-------+\n\u001b[32m| \u001b[39m\u001b[32mone\u001b[39m\u001b[32m   |\u001b[39m\n\u001b[32m| two\u001b[39m\u001b[32m   |\u001b[39m\n\u001b[32m| three\u001b[39m |\n+-------+\n",
+        "error": null
+    }
+]

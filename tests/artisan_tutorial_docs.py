@@ -133,5 +133,26 @@ async fn formal_choices_example() {
 }
 """
     parts.append('mod '+locale.replace('-','_').lower()+'_choices{\n'+choices_code+choices_checks+'}\n')
+    table_code=re.search(r'```rust\n(.*?)```',text.split('{#tables}',1)[1],re.S).group(1)
+    table_checks=r"""
+use openrust::support::facades::{App,Facade as _};
+#[tokio::test]
+async fn formal_tables_example(){
+    let root=std::env::temp_dir().join(format!("artisan-table-doc-{}-{}",std::process::id(),module_path!()));
+    std::fs::create_dir_all(&root).unwrap();
+    let mut app=openrust::foundation::Application::configure(root.clone()).with_routing(openrust::foundation::configuration::Routing::default().commands(register_tables)).create().unwrap();
+    app.boot().await.unwrap();
+    App::set_facade_application(Some(&app),async {
+        for flag in ["--no-ansi","--ansi","--quiet","--silent"] {
+            let mut output=Output::default();
+            assert_eq!(Artisan::call("reports:table",&[flag.into()],&mut output).await.unwrap(),0);
+            if flag=="--quiet" || flag=="--silent" {assert!(output.stdout.is_empty());}
+            else {assert!(output.stdout.contains("ada@example.test") && output.stdout.contains("li@example.test"));assert_eq!(output.stdout.contains("\x1b[32m"),flag=="--ansi");}
+        }
+    }).await;
+    std::fs::remove_dir_all(root).unwrap();
+}
+"""
+    parts.append('mod '+locale.replace('-','_').lower()+'_tables{\n'+table_code+table_checks+'}\n')
 target=source/'tests/artisan_docs_generated.rs';target.write_text('\n'.join(parts));subprocess.run(['rustfmt','+1.94.0','--edition','2024',str(target)],check=True)
 print('generated',len(parts),'direct formal consumers')

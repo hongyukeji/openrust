@@ -590,3 +590,33 @@ For custom prompts or error text, create `ChoiceQuestion::new` or `from_pairs`, 
 Use `ConsoleError::from_runtime_source` for operational callback failures: they stop retries and retain the original error type and cause. Ordinary validation errors remain retryable. Missing-input failures use the validated default and disable further interaction. The terminal is restored before a normalizer or validator runs. A template that produces invalid UTF-8 returns `ConsoleQuestionError::InvalidEncoding` with its original source; arbitrary PHP binary strings are not returned as Rust text.
 
 Wrap a type implementing `Display` in `ChoiceLabel(value)` when using application label objects. Labels are captured as text in the native JSON answer model; PHP object identity is not carried through answers. Associative helpers retain the original key, so application objects can remain in the caller’s collection.
+
+## Tables {#tables}
+
+Use `input.io(output).table(headers, rows)` to render a table. Headers and rows accept iterators; JSON scalar cells use the shared scalar conversion without adding JSON quotes. Select model columns in the desired order before passing their values to the table.
+
+```rust
+use openrust::{
+    console::{ConsoleError, Input, Output},
+    support::facades::Artisan,
+};
+
+fn register_tables() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:table", |input: &Input, output: &mut Output| {
+        let users = serde_json::json!([
+            {"name": "Ada", "email": "ada@example.test"},
+            {"name": "Li", "email": "li@example.test"}
+        ]);
+        let rows = users.as_array().unwrap().iter().map(|user| {
+            [user["name"].clone(), user["email"].clone()]
+        });
+        input.io(output).table(["Name", "Email"], rows)?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
+`table_with` selects a `TableStyle`; `table_with_columns` additionally accepts `(column_index, style)` pairs. `TableStyle::from_name` provides `default`, `markdown`, `borderless`, `compact`, `symfony-style-guide`, `box`, and `box-double`. Customize a style with its border, padding and format setters. `TablePadding::{Left, Right, Both}` names the side that receives padding; `Right` is the default.
+
+For direct rendering, build `Table::new(io.get_output())`, set headers, rows and column styles, then call `render()`. `TableCell::display(value)` explicitly adapts a business type implementing `Display`; JSON values and ordinary scalars convert directly. Multi-line cells, visible Unicode width, formatter tags, ANSI output and quiet/silent filtering share the original output pipeline. This rectangular-table interface does not claim support for cell spans, row separators, titles or the entire inherited helper SDK.

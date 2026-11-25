@@ -19,6 +19,7 @@ mod prompting;
 pub mod question;
 pub mod scheduling;
 mod signature;
+mod table;
 pub(crate) mod task_command;
 
 use std::{
@@ -51,6 +52,7 @@ pub use question::{
     ChoiceKey, ChoiceLabel, ChoiceQuestion, CompletionCallback, ConfirmationQuestion,
     ConsoleInputStream, ConsoleQuestionError, ConsoleReader, Question, QuestionCallback,
 };
+pub use table::{ConsoleTableError, Table, TableCell, TablePadding, TableStyle};
 
 /// A future for a console command or lifecycle hook.
 pub type ConsoleFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;

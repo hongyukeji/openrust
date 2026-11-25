@@ -281,18 +281,36 @@
     },
     {
       "anchor": "asking-for-confirmation",
-      "status": "pending_public_contract_review",
-      "evidence": []
+      "status": "verified_tutorial_scope",
+      "evidence": [
+        "console_questions_tutorial",
+        "console_choices_tutorial",
+        "accepted-questions.json",
+        "accepted-choices.json",
+        "table-combined-final-framework.log"
+      ]
     },
     {
       "anchor": "auto-completion",
-      "status": "pending_public_contract_review",
-      "evidence": []
+      "status": "verified_tutorial_scope",
+      "evidence": [
+        "console_questions_tutorial",
+        "console_choices_tutorial",
+        "accepted-questions.json",
+        "accepted-choices.json",
+        "table-combined-final-framework.log"
+      ]
     },
     {
       "anchor": "multiple-choice-questions",
-      "status": "pending_public_contract_review",
-      "evidence": []
+      "status": "verified_tutorial_scope",
+      "evidence": [
+        "console_questions_tutorial",
+        "console_choices_tutorial",
+        "accepted-questions.json",
+        "accepted-choices.json",
+        "table-combined-final-framework.log"
+      ]
     },
     {
       "anchor": "writing-output",
@@ -305,14 +323,23 @@
       ],
       "native": "console::CommandIo",
       "remaining": [
-        "OutputStyle问题与继承接口、嵌套包装按io-contracts继续核对",
-        "交互问答、表格、进度条与组件Factory未完成，不关闭整节"
+        "矩形表格及问答已验；OutputStyle嵌套委托、进度条、完整组件与继承SDK按各清单继续逐项核对"
       ]
     },
     {
       "anchor": "tables",
-      "status": "pending_public_contract_review",
-      "evidence": []
+      "status": "verified_rectangular_tutorial_remaining_helper_contracts",
+      "evidence": [
+        "console_tables_tutorial",
+        "table-oracle.json",
+        "table-contracts.json",
+        "table-final-cli-gates.log",
+        "formal_tables_example"
+      ],
+      "native": "console::CommandIo::table",
+      "remaining": [
+        "完整Table SDK的宽度／标题／方向／样式注册、跨行跨列及TableSeparator继续逐项核对；不把矩形教程验收算作全部Table类型已闭合"
+      ]
     },
     {
       "anchor": "progress-bars",

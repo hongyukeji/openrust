@@ -50,6 +50,8 @@ Git 默认流程已于 2026-11-23 更新：已授权任务完成并通过相关�
 - 用户已明确授权清空开发库：本机PostgreSQL openrust重建及4项迁移通过，10张表与全部字段注释为可读中文，无schema翻译键；User刷新及check通过、内容不变。未执行Seeder，users=0，详见[开发库注释重建](audits/model-fields/README.md#开发库注释重建2026-11-23)。本轮仅更新操作记录，未提交；保留其他协作者的18语言计划。
 - 实际环境 BCP 47 升级、Reverb 完整登录协议、Fortify 偶发失败调查、PCRE2上游跟进、真实服务、Windows和分发批准继续按[待办](todo.md)执行。
 
+- 2026-11-25 Artisan第十一簇矩形表格与表格／列样式已验：真实固定源149向量、SQLite模型投影、独立Artisan退出码与HTTP成功／错误恢复通过，116个不同父消费者（含三语直接正文36例）、严格门禁和12组浏览器通过；第十簇a0e4dcbdb已提交。本簇及完整Helper SDK剩余边界见[表格核对](audits/artisan-tutorial/table-contracts.json)与[最新验收](audits/artisan-tutorial/README.md)。继续进度条等，不把局部验收算作整章完成，不推送。
+
 ## 已完成范围的接续入口
 
 以下只表示对应记录所述源码组合与范围通过；其他引擎、实机、Windows、release、完整workspace或真实供应商等未验边界以各记录为准，不因整理重新计为通过。

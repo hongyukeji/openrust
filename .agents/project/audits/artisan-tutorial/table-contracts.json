@@ -1,0 +1,370 @@
+{
+  "reference": "Symfony Console v7.4.0 and fixed framework 1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "scope": "Rectangular table tutorial and directly exposed style/column-style variants; this inventory does not assert that the entire helper SDK is complete.",
+  "classes": {
+    "Table": [
+      {
+        "method": "__construct",
+        "source_line": 57,
+        "status": "verified_rectangular_tutorial_scope",
+        "native": "console::Table::new"
+      },
+      {
+        "method": "setStyleDefinition",
+        "source_line": 68,
+        "status": "pending_sdk_entry_and_consumer_review",
+        "native": null
+      },
+      {
+        "method": "getStyleDefinition",
+        "source_line": 78,
+        "status": "pending_sdk_entry_and_consumer_review",
+        "native": null
+      },
+      {
+        "method": "setStyle",
+        "source_line": 90,
+        "status": "verified_rectangular_tutorial_scope",
+        "native": "console::Table::set_style"
+      },
+      {
+        "method": "getStyle",
+        "source_line": 100,
+        "status": "verified_rectangular_tutorial_scope",
+        "native": "console::Table::get_style"
+      },
+      {
+        "method": "setColumnStyle",
+        "source_line": 112,
+        "status": "verified_rectangular_tutorial_scope",
+        "native": "console::Table::set_column_style"
+      },
+      {
+        "method": "getColumnStyle",
+        "source_line": 124,
+        "status": "verified_rectangular_tutorial_scope",
+        "native": "console::Table::get_column_style"
+      },
+      {
+        "method": "setColumnWidth",
+        "source_line": 134,
+        "status": "pending_sdk_entry_and_consumer_review",
+        "native": null
+      },
+      {
+        "method": "setColumnWidths",
+        "source_line": 146,
+        "status": "pending_sdk_entry_and_consumer_review",
+        "native": null
+      },
+      {
+        "method": "setColumnMaxWidth",
+        "source_line": 164,
+        "status": "pending_sdk_entry_and_consumer_review",
+        "native": null
+      },
+      {
+        "method": "setHeaders",
+        "source_line": 178,
+        "status": "verified_rectangular_tutorial_scope",
+        "native": "console::Table::set_headers"
+      },
+      {
+        "method": "setRows",
+        "source_line": 193,
+        "status": "verified_rectangular_tutorial_scope",
+        "native": "console::Table::set_rows"
+      },
+      {
+        "method": "addRows",
+        "source_line": 203,
+        "status": "pending_sdk_entry_and_consumer_review",
+        "native": null
+      },
+      {
+        "method": "addRow",
+        "source_line": 215,
+        "status": "verified_rectangular_tutorial_scope",
+        "native": "console::Table::add_row"
+      },
+      {
+        "method": "appendRow",
+        "source_line": 233,
+        "status": "pending_sdk_entry_and_consumer_review",
+        "native": null
+      },
+      {
+        "method": "setRow",
+        "source_line": 252,
+        "status": "pending_sdk_entry_and_consumer_review",
+        "native": null
+      },
+      {
+        "method": "setHeaderTitle",
+        "source_line": 262,
+        "status": "pending_sdk_entry_and_consumer_review",
+        "native": null
+      },
+      {
+        "method": "setFooterTitle",
+        "source_line": 272,
+        "status": "pending_sdk_entry_and_consumer_review",
+        "native": null
+      },
+      {
+        "method": "setHorizontal",
+        "source_line": 282,
+        "status": "pending_sdk_entry_and_consumer_review",
+        "native": null
+      },
+      {
+        "method": "setVertical",
+        "source_line": 292,
+        "status": "pending_sdk_entry_and_consumer_review",
+        "native": null
+      },
+      {
+        "method": "render",
+        "source_line": 312,
+        "status": "verified_rectangular_tutorial_scope",
+        "native": "console::Table::render"
+      }
+    ],
+    "TableStyle": [
+      {
+        "method": "setPaddingChar",
+        "source_line": 57,
+        "status": "verified_rectangular_style_scope",
+        "native": "console::TableStyle::set_padding_char"
+      },
+      {
+        "method": "getPaddingChar",
+        "source_line": 71,
+        "status": "verified_rectangular_style_scope",
+        "native": "console::TableStyle::get_padding_char"
+      },
+      {
+        "method": "setHorizontalBorderChars",
+        "source_line": 92,
+        "status": "verified_rectangular_style_scope",
+        "native": "console::TableStyle::set_horizontal_border_chars"
+      },
+      {
+        "method": "setVerticalBorderChars",
+        "source_line": 117,
+        "status": "verified_rectangular_style_scope",
+        "native": "console::TableStyle::set_vertical_border_chars"
+      },
+      {
+        "method": "getBorderChars",
+        "source_line": 130,
+        "status": "verified_rectangular_style_scope",
+        "native": "console::TableStyle::get_border_chars"
+      },
+      {
+        "method": "setCrossingChars",
+        "source_line": 171,
+        "status": "verified_rectangular_style_scope",
+        "native": "console::TableStyle::set_crossing_chars"
+      },
+      {
+        "method": "setDefaultCrossingChar",
+        "source_line": 194,
+        "status": "verified_rectangular_style_scope",
+        "native": "console::TableStyle::set_default_crossing_char"
+      },
+      {
+        "method": "getCrossingChar",
+        "source_line": 202,
+        "status": "verified_rectangular_style_scope",
+        "native": "console::TableStyle::get_crossing_char"
+      },
+      {
+        "method": "getCrossingChars",
+        "source_line": 212,
+        "status": "verified_rectangular_style_scope",
+        "native": "console::TableStyle::get_crossing_chars"
+      },
+      {
+        "method": "setCellHeaderFormat",
+        "source_line": 235,
+        "status": "verified_rectangular_style_scope",
+        "native": "console::TableStyle::set_cell_header_format"
+      },
+      {
+        "method": "getCellHeaderFormat",
+        "source_line": 245,
+        "status": "verified_rectangular_style_scope",
+        "native": "console::TableStyle::get_cell_header_format"
+      },
+      {
+        "method": "setCellRowFormat",
+        "source_line": 255,
+        "status": "verified_rectangular_style_scope",
+        "native": "console::TableStyle::set_cell_row_format"
+      },
+      {
+        "method": "getCellRowFormat",
+        "source_line": 265,
+        "status": "verified_rectangular_style_scope",
+        "native": "console::TableStyle::get_cell_row_format"
+      },
+      {
+        "method": "setCellRowContentFormat",
+        "source_line": 275,
+        "status": "verified_rectangular_style_scope",
+        "native": "console::TableStyle::set_cell_row_content_format"
+      },
+      {
+        "method": "getCellRowContentFormat",
+        "source_line": 285,
+        "status": "verified_rectangular_style_scope",
+        "native": "console::TableStyle::get_cell_row_content_format"
+      },
+      {
+        "method": "setBorderFormat",
+        "source_line": 295,
+        "status": "verified_rectangular_style_scope",
+        "native": "console::TableStyle::set_border_format"
+      },
+      {
+        "method": "getBorderFormat",
+        "source_line": 305,
+        "status": "verified_rectangular_style_scope",
+        "native": "console::TableStyle::get_border_format"
+      },
+      {
+        "method": "setPadType",
+        "source_line": 315,
+        "status": "verified_rectangular_style_scope",
+        "native": "console::TableStyle::set_pad_type"
+      },
+      {
+        "method": "getPadType",
+        "source_line": 329,
+        "status": "verified_rectangular_style_scope",
+        "native": "console::TableStyle::get_pad_type"
+      },
+      {
+        "method": "getHeaderTitleFormat",
+        "source_line": 334,
+        "status": "configuration_only_titles_not_rendered",
+        "native": "console::TableStyle::get_header_title_format"
+      },
+      {
+        "method": "setHeaderTitleFormat",
+        "source_line": 342,
+        "status": "configuration_only_titles_not_rendered",
+        "native": "console::TableStyle::set_header_title_format"
+      },
+      {
+        "method": "getFooterTitleFormat",
+        "source_line": 349,
+        "status": "configuration_only_titles_not_rendered",
+        "native": "console::TableStyle::get_footer_title_format"
+      },
+      {
+        "method": "setFooterTitleFormat",
+        "source_line": 357,
+        "status": "configuration_only_titles_not_rendered",
+        "native": "console::TableStyle::set_footer_title_format"
+      },
+      {
+        "method": "setDisplayOutsideBorder",
+        "source_line": 364,
+        "status": "verified_rectangular_style_scope",
+        "native": "console::TableStyle::set_display_outside_border"
+      },
+      {
+        "method": "displayOutsideBorder",
+        "source_line": 371,
+        "status": "verified_rectangular_style_scope",
+        "native": "console::TableStyle::display_outside_border"
+      }
+    ],
+    "TableCell": [
+      {
+        "method": "__construct",
+        "source_line": 27,
+        "status": "pending_sdk_entry_and_consumer_review",
+        "native": null
+      },
+      {
+        "method": "__toString",
+        "source_line": 46,
+        "status": "pending_sdk_entry_and_consumer_review",
+        "native": null
+      },
+      {
+        "method": "getColspan",
+        "source_line": 54,
+        "status": "pending_sdk_entry_and_consumer_review",
+        "native": null
+      },
+      {
+        "method": "getRowspan",
+        "source_line": 62,
+        "status": "pending_sdk_entry_and_consumer_review",
+        "native": null
+      },
+      {
+        "method": "getStyle",
+        "source_line": 67,
+        "status": "pending_sdk_entry_and_consumer_review",
+        "native": null
+      }
+    ],
+    "TableCellStyle": [
+      {
+        "method": "__construct",
+        "source_line": 43,
+        "status": "pending_sdk_entry_and_consumer_review",
+        "native": null
+      },
+      {
+        "method": "getOptions",
+        "source_line": 56,
+        "status": "pending_sdk_entry_and_consumer_review",
+        "native": null
+      },
+      {
+        "method": "getTagOptions",
+        "source_line": 66,
+        "status": "pending_sdk_entry_and_consumer_review",
+        "native": null
+      },
+      {
+        "method": "getPadByAlign",
+        "source_line": 75,
+        "status": "pending_sdk_entry_and_consumer_review",
+        "native": null
+      },
+      {
+        "method": "getCellFormat",
+        "source_line": 80,
+        "status": "pending_sdk_entry_and_consumer_review",
+        "native": null
+      }
+    ],
+    "TableSeparator": [
+      {
+        "method": "__construct",
+        "source_line": 21,
+        "status": "pending_sdk_entry_and_consumer_review",
+        "native": null
+      }
+    ]
+  },
+  "native_adaptations": [
+    "Typed TablePadding replaces integer pad flags. Crossing points use a fixed 12-entry array.",
+    "Owned JSON scalar conversions and explicit Display adapter preserve text without PHP runtime object identity.",
+    "Native Result propagates typed configuration, formatting and invalid UTF-8 padding errors; invalid bytes cannot be returned as a Rust String.",
+    "The public symfony-style-guide preset name is retained as a compatibility identifier.",
+    "PHP engine diagnostics such as NAN-to-string warnings are retained in reference evidence; the native typed scalar conversion returns NAN without emulating VM warnings."
+  ],
+  "remaining_sdk": [
+    "Named mutable style registry and SDK row/title/orientation/width operations",
+    "Multiple header rows, explicit separators, colspan/rowspan and per-cell style",
+    "OutputStyle inherited table/create_table layout and counters remain separately reviewed in io-contracts"
+  ]
+}
