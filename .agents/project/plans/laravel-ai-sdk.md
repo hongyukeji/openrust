@@ -1,12 +1,13 @@
-# Laravel AI SDK 对齐计划
+# Laravel AI SDK 与模型网关开发计划
 
-E07 当前已完成基线固定、生态调研、协议类型试编和功能分批。SDK 实现及运行验收待开始。
+用户确认 E07 的完整目标为 **Laravel AI + Sub2API**。Laravel AI 定义框架内的 SDK 契约，Sub2API 定义外部兼容接入与模型网关的行为参考。两部分均为交付范围。E07 已完成 SDK 基线固定、生态调研、协议类型试编和初步分批。SDK 与网关实现及运行验收待办。
 
 ## 开发需求
 
 - 将 OpenRust 的 AI 模块对齐固定 Laravel AI SDK。公开入口、目录结构、配置键、默认值、Provider 生命周期、Artisan 命令、测试方式及可观察行为逐项对应 Laravel。Rust 接口使用本项目的命名规范和异步类型，必要适配随契约核对记录依据。
 - 按固定版本交付完整适用能力。覆盖 Agent、结构化输出、流、工具及审批、会话、队列、广播、图像、音频、转录、Embeddings、Reranking、Classification、文件与向量仓库，以及用量、故障转移、事件和 Fake。供应商按下方矩阵逐能力验收。
 - 开发前参考成熟的 GitHub 项目及 Laravel 生态实现。优先复用经过验证的方案和 OpenRust 已有机制，按实际协议差异决定是否增加依赖或适配层。
+- 同时交付三种使用方式。OpenRust 应用能在进程内使用 SDK，能通过兼容或原生协议接入供应商、自建模型服务和 Sub2API，也能启用模型网关，为外部客户端提供兼容 API。网关覆盖协议转换、模型路由与上游账号接入。
 - 应用语言词条、机器翻译、内容审核及 Boost／MCP 服务各自保留职责。AI SDK 自身的 MCP 工具桥接纳入 E07。AI Agent 翻译维持后续计划状态，当前阶段暂缓实施。
 
 ## 建议实施方案
@@ -27,6 +28,7 @@ E07 当前已完成基线固定、生态调研、协议类型试编和功能分�
 | [rust-genai `2a8a5b39c96028d2143d8754ee2bba42a79e32c5`](https://github.com/jeremychone/rust-genai/tree/2a8a5b39c96028d2143d8754ee2bba42a79e32c5) | MIT／Apache-2.0。多供应商模型与流适配候选，支持注入 reqwest 客户端。注入后仍须验证指定版本能通过 Rust 1.94、保留出站策略及日志边界，并完整映射协议事件。 |
 | [async-openai `18a85cba921ccef08b2d058e5080f7083071e39c`](https://github.com/64bit/async-openai/tree/18a85cba921ccef08b2d058e5080f7083071e39c) | MIT。按能力启用 Chat Completions、Responses、Embeddings 等协议类型，声明的 workspace MSRV 为 1.75，实际传递依赖仍需编译核对。首选试用类型特性，经 OpenRust HTTP 发送和解析，保持加密、代理、超时、观测及测试入口一致。若类型与锁定协议不吻合，适配该差异并用 HTTP 用例固定。 |
 | [Rig `f4d73dacdfabb3d9daa3f1de091efa490a84c601`](https://github.com/0xPlaygrounds/rig/tree/f4d73dacdfabb3d9daa3f1de091efa490a84c601) | MIT。参考按模型和工具分隔运行步骤、流式测试及检查点。该版本最低 Rust 1.97.1，当前项目为 1.94，本轮作设计参考。 |
+| [Sub2API `0f6671457132425d1b84f3d80536b53e02942424`](https://github.com/Wei-Shaw/sub2api/tree/0f6671457132425d1b84f3d80536b53e02942424) | 核对公开协议路由、Responses 转 Anthropic Messages，以及按模型和端点选择上游的组合路由。按固定源码核对协议入口、账号类型、实际能力和运维行为，作为网关实现与实测参考。 |
 
 现有代码优先复用包发现、应用容器及生命周期、HTTP 客户端、事件、Cache、Storage、Queue、Broadcast／Reverb、数据库与 Artisan。旧版 `openrust-v0.x`（`6d1a81924`）的 `.agents/project/plans/ai-capabilities.md` 保留了 AI SDK 后续交付意图与自建模型服务边界。当前计划承接其通用 SDK 范围。可复用回归场景见旧版 `vendor/seaql/sea-orm/tests/embedding_tests.rs`。自建服务通过 HTTP 接入，旧计划中的千问（Qwen）可在各自接口验收后作为兼容配置案例；DeepSeek 和 Anthropic 继续按官方驱动验收。数据库查询侧 `EmbeddingProvider`、`HttpEmbeddingProvider`、缓存查询及向量结果校验见[当前实现](../../../vendor/openrust/framework/src/database/query/embeddings.rs)。通过适配器接入 SDK，保留旧查询入口、缓存和 SQL 行为。复核应用现有的向量实现后再定适配位置。
 
@@ -82,3 +84,26 @@ E07 当前已完成基线固定、生态调研、协议类型试编和功能分�
 | 供应商向量仓库 | `openai`、`gemini`、`azure`（取自源码 `StoreProvider`） |
 
 本地实测将使用合成业务输入和真实 HTTP 回环协议服务，Fake 断言与 HTTP 协议测试分别记证据。遇到脱敏、缓存键归属、重试中的副作用或应用间状态隔离差异时，加入对应反例验证。涉及供应商账号、权限、地区、配额或模型可用性的实机结果逐项记录，缺条件的项目保持待验收。运行时用法和当前支持范围同步到现有三语 AI SDK 文档。
+
+## Sub2API 兼容接入与模型网关
+
+| 使用方式 | 装配与行为 |
+|---|---|
+| 框架内调用 | 应用通过 `openrust-ai` 的 `Ai`、`Agent`、各能力入口和测试 Fake 调用模型。进程内直接使用容器中的 `AiManager`，按配置选直连供应商、自建服务或外部网关。 |
+| 接入上游 | `openrust-ai` 的命名 Provider 配置基础 URL、凭证、模型及能力选项。接入 Sub2API 时分别验证 `openai` 的 Responses 和 `openai-compatible` 的 Chat Completions，也按基线验证 Anthropic Messages、Gemini 原生入口。先复用通用协议驱动，实际存在网关专属语义时再确定适配方式。 |
+| 对外服务 | 采用独立可选的 `ai-model-gateway` 工作名称，允许单独部署。外部客户端按已有协议和鉴权头访问 OpenRust 网关。网关复用 SDK 的供应商适配与 HTTP 传输，通过自己的路由、凭证与限额策略调用上游。SDK 的 `Gateway` trait 仍表示应用侧协议适配。 |
+
+固定版 [Sub2API 路由](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/server/routes/gateway.go)、[Responses 桥接](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/backend/internal/handler/gateway_handler_responses.go)和[组合路由设计](https://github.com/Wei-Shaw/sub2api/blob/0f6671457132425d1b84f3d80536b53e02942424/docs/COMPOSITE_GROUPS.md)作为首批参考。优先走同协议上游。跨协议时明确映射请求、响应、工具 ID、流事件、停止原因、错误和用量；对于无法表达的能力返回相应协议的错误。外部客户端的工具调用按协议返回供客户端处理，应用自有 Agent 工具仍由 SDK 按权限与审批配置执行。
+
+### 网关分批交付
+
+| 批次 | 交付与验收 |
+|---|---|
+| GW-00 协议与能力清单 | 按固定 Sub2API 源码建立端点、上游协议、账号类型、能力选项及管理行为清单。记录客户端可观察契约、版本、实现批次和证据。以网关协议能力确定兼容范围，完整商业平台界面与业务仍按独立项目范围确认。 |
+| GW-01 接入现有网关 | 随 AI-01／02／05／06 使用真实 Sub2API 进程和本地协议服务，分批验收普通请求、流、工具、结构化输出、Embeddings 及媒体。记录网关版本、端点、分组、上游及模型；供应商实机结果单独记录。 |
+| GW-02 OpenAI 兼容入口 | 对外提供 `/v1/models`、`/v1/responses`、`/v1/chat/completions`，验证现有客户端只改基础 URL、凭证及可用模型即可调用。核对 HTTP 状态、协议错误、鉴权头、JSON、SSE、取消及用量。协议路由使用对应响应格式。 |
+| GW-03 多协议与路由 | 补 Anthropic Messages、Gemini 原生入口及双向协议适配，首个跨协议验收为 Responses 请求经 Anthropic 上游返回 Responses 事件。覆盖模型别名、按端点和模型选路、能力检测、同协议透传、回退限制。Embeddings、图片、音频、WebSocket 等按 GW-00 实际能力矩阵推进。 |
+| GW-04 账号与运维 | 交付下游 API Key、分组与权限，上游 API Key、适用的 OAuth／订阅账号接入、轮询和冷却、并发与用量限额、审计及计量。按账号类型验证授权生命周期、失效、路由回退与使用记录；跨租户及部分失败纳入反例。 |
+| GW-05 联合验收 | 同一合成任务分别从应用 SDK、经 Sub2API 的上游调用、现有外部客户端访问 OpenRust 网关完成。覆盖直接连接、协议转换和实际路由，验证接入文档、三语支持矩阵和 E07 账本。 |
+
+同一请求输出了流事件或执行了工具之后，测试其失败路径及重复执行风险。兼容结果以实际调用和可观察行为为准，模型目录可见、HTTP 路由存在和单一模型成功各自保留验证边界。E07 在 SDK 与网关批次均完成、三条使用路径均通过相应验收后关闭。
