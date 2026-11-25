@@ -166,3 +166,9 @@ O01 Activitylog、O02 Horizon、O03 Telescope原生范围、O04 Pennant、O05 Pu
 Provider 按固定 [ExpireSupervisors](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Listeners/ExpireSupervisors.php) 注册内置监听器，复用两个原生仓储的 `flush_expired`，以 Redis 时间清理 14 秒以上未更新的 Master 与 Supervisor 排序索引。当前仍需逐项对齐 Master 的三类周期清理监听器，以及内存事件和终止时机。
 
 隔离 Redis 8.10.3 运行时和通知 18 项通过。真实 Master 循环回归验证应用监听器能读取该轮已持久化的暂停状态，首次返回错误后仍收到下一循环事件，两个 Redis 索引的过期成员均被清除。快照全仓格式、Horizon 全目标严格 Clippy、独立 Artisan 进程、三语文档构建及 12 组浏览器检查通过。
+
+### Horizon 周期任务索引清理
+
+固定上游 [Master 事件映射](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/EventMap.php) 注册三类任务清理。Rust 公开并同步注册 `TrimRecentJobs`、`TrimFailedJobs` 和 `TrimMonitoredJobs`，复用 `JobRepository` 现有的 Redis 时钟与保留期计算。每类在首次循环检查，执行成功后才开始自己的间隔。最近索引间隔 60 秒，失败及监控索引各自以保留分钟数除以 12 向下取整，最少一分钟。间隔在该 Master 第一次调用时确定，运行时状态不跨 Master 共用。
+
+隔离 Redis 8.10.3 上，真实 Master 首轮清除七个索引中过期项目并保留新项目，测试监听器在首轮结束时写入的过期项目在紧接的循环中未被提前清除。本批未等待所有实际配置的完整周期。运行时与通知 18 项、独立 Artisan 进程回归、快照全仓格式、Horizon 全目标严格 Clippy、三语文档构建及 12 组浏览器检查通过。

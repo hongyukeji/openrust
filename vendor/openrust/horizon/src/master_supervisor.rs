@@ -30,13 +30,15 @@ pub struct MasterSupervisor {
     supervisors: Vec<SupervisorProcess>,
     failures: u64,
     fast_termination: bool,
+    job_trim_schedule: Arc<crate::job_trim::JobTrimSchedule>,
 }
 
 /// Master state observed after its heartbeat has been persisted.
 pub struct MasterSupervisorLooped {
     pub name: String,
     pub paused: bool,
-    repository: Arc<Repository>,
+    pub(crate) repository: Arc<Repository>,
+    pub(crate) job_trim_schedule: Arc<crate::job_trim::JobTrimSchedule>,
 }
 
 impl MasterSupervisorLooped {
@@ -47,6 +49,7 @@ impl MasterSupervisorLooped {
             name: master.id.clone(),
             paused,
             repository: master.repository.clone(),
+            job_trim_schedule: master.job_trim_schedule.clone(),
         }
     }
 }
@@ -115,6 +118,7 @@ impl MasterSupervisor {
             supervisors: Vec::new(),
             failures: 0,
             fast_termination: false,
+            job_trim_schedule: Arc::default(),
         })
     }
     pub fn fast_termination(mut self, enabled: bool) -> Self {

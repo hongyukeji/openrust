@@ -286,8 +286,10 @@ async fn named_long_wait_notifications_reach_both_native_slack_transports() {
 #[derive(Default)]
 struct SupervisorLoopObserver(AtomicUsize);
 
-#[derive(Default)]
-struct MasterLoopObserver(AtomicUsize);
+struct MasterLoopObserver {
+    cycles: AtomicUsize,
+    job_indices: [String; 7],
+}
 
 impl Listener for MasterLoopObserver {
     fn handle<'a>(
@@ -308,9 +310,29 @@ impl Listener for MasterLoopObserver {
                 .unwrap()
                 .unwrap();
             assert_eq!(snapshot["status"], "paused");
-            if self.0.fetch_add(1, Ordering::Relaxed) == 0 {
+            if self.cycles.load(Ordering::Relaxed) == 0 {
+                let redis = App::make::<openrust::redis::RedisManager>()
+                    .await
+                    .unwrap()
+                    .connection(None)
+                    .unwrap();
+                for key in &self.job_indices {
+                    assert_eq!(
+                        redis
+                            .command("ZSCORE", &[key.as_bytes(), b"probe-stale"])
+                            .await
+                            .unwrap(),
+                        openrust::redis::Value::Nil
+                    );
+                    redis
+                        .command("ZADD", &[key.as_bytes(), b"0", b"probe-next"])
+                        .await
+                        .unwrap();
+                }
+                self.cycles.fetch_add(1, Ordering::Relaxed);
                 return Err(EventError::InvalidPayload);
             }
+            self.cycles.fetch_add(1, Ordering::Relaxed);
             Ok(None)
         })
     }
@@ -376,6 +398,44 @@ fn supervisor_webhook_response(_: &mut Request) -> HttpFuture<'_, Result<Respons
         let prefix = Config::get("horizon.prefix").unwrap().unwrap();
         let stale_indices = ["masters", "supervisors"]
             .map(|kind| redis.key(&format!("{}{{horizon}}:{kind}", prefix.as_str().unwrap())));
+        let job_indices = [
+            "recent",
+            "pending",
+            "completed",
+            "silenced",
+            "recent_failed",
+            "failed",
+            "monitored",
+        ]
+        .map(|kind| {
+            redis.key(&format!(
+                "{}{{horizon}}:jobs:{kind}",
+                prefix.as_str().unwrap()
+            ))
+        });
+        let recent_score = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis()
+            .to_string();
+        for key in &job_indices {
+            assert_eq!(
+                redis
+                    .command(
+                        "ZADD",
+                        &[
+                            key.as_bytes(),
+                            b"0",
+                            b"probe-stale",
+                            recent_score.as_bytes(),
+                            b"probe-fresh"
+                        ]
+                    )
+                    .await
+                    .unwrap(),
+                openrust::redis::Value::Int(2)
+            );
+        }
         for key in &stale_indices {
             assert_eq!(
                 redis
@@ -395,7 +455,10 @@ fn supervisor_webhook_response(_: &mut Request) -> HttpFuture<'_, Result<Respons
         )
         .unwrap();
         repository.pause().await.unwrap();
-        let master_observer = Arc::new(MasterLoopObserver::default());
+        let master_observer = Arc::new(MasterLoopObserver {
+            cycles: AtomicUsize::new(0),
+            job_indices,
+        });
         Event::listen(
             MasterSupervisorLooped::NAME,
             master_observer.clone(),
@@ -405,7 +468,7 @@ fn supervisor_webhook_response(_: &mut Request) -> HttpFuture<'_, Result<Respons
         let shutdown = tokio_util::sync::CancellationToken::new();
         let (result, heartbeat) = tokio::join!(master.run(&shutdown), async {
             let heartbeat = tokio::time::timeout(std::time::Duration::from_secs(5), async {
-                while master_observer.0.load(Ordering::Relaxed) < 2 {
+                while master_observer.cycles.load(Ordering::Relaxed) < 2 {
                     tokio::time::sleep(std::time::Duration::from_millis(10)).await;
                 }
             })
@@ -415,6 +478,17 @@ fn supervisor_webhook_response(_: &mut Request) -> HttpFuture<'_, Result<Respons
         });
         result.unwrap();
         heartbeat.unwrap();
+        for key in &master_observer.job_indices {
+            for member in [b"probe-next".as_slice(), b"probe-fresh"] {
+                assert_ne!(
+                    redis
+                        .command("ZSCORE", &[key.as_bytes(), member])
+                        .await
+                        .unwrap(),
+                    openrust::redis::Value::Nil
+                );
+            }
+        }
         for key in &stale_indices {
             assert_eq!(
                 redis

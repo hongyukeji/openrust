@@ -63,6 +63,8 @@ Register a synchronous listener for `SupervisorLooped::NAME` to observe a Superv
 
 `MasterSupervisorLooped::NAME` likewise fires after the Master heartbeat is persisted. `MasterSupervisorLooped` exposes the Master name and paused state. Horizon registers `ExpireSupervisors` to prune expired entries from both process indexes.
 
+The Master also prunes expired job indexes. Recent, pending, completed, silenced, and recently failed entries are checked every minute. The failed and monitored indexes are checked at intervals of their configured retention in minutes divided by 12, rounded down to a minimum of one minute.
+
 Pause, continue, terminate, monitoring changes and retries require the authorization callback on every request. The browser sends `X-Horizon-Request: 1` for mutations; direct API clients must supply the same header. Cross-site browser mutations are rejected. Apply your application's authentication and middleware to the entire route group. Access to this dashboard permits inspection of job data and operational controls.
 
 ## Commands {#commands}

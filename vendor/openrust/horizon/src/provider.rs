@@ -98,6 +98,17 @@ impl ServiceProvider for HorizonServiceProvider {
             self.commands(app, crate::console::register);
             self.load_routes_from(app, crate::dashboard::configured_routes)?;
             let dispatcher = app.make::<openrust::events::Dispatcher>().await?;
+            for listener in [
+                Arc::new(crate::TrimRecentJobs) as Arc<dyn Listener>,
+                Arc::new(crate::TrimFailedJobs),
+                Arc::new(crate::TrimMonitoredJobs),
+            ] {
+                dispatcher.listen(
+                    crate::MasterSupervisorLooped::NAME,
+                    listener,
+                    Delivery::Sync,
+                )?;
+            }
             dispatcher.listen(
                 crate::MasterSupervisorLooped::NAME,
                 Arc::new(crate::ExpireSupervisors),

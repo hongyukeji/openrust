@@ -63,6 +63,8 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
 
 Master 持久化心跳後也會派發 `MasterSupervisorLooped::NAME`，事件提供 Master 名稱和暫停狀態。Horizon 註冊 `ExpireSupervisors`，清理兩個程序索引中的過期項目。
 
+Master 也會清理過期的工作索引。最近、待處理、已完成、靜默和最近失敗索引每分鐘檢查一次。失敗和監控索引各自按設定的保留分鐘數除以 12 後向下取整，最短間隔為一分鐘。
+
 暫停、繼續、終止、監控變更和重試均須逐次通過授權回調。瀏覽器對寫入操作傳送 `X-Horizon-Request: 1`，直接呼叫介面也須攜帶該標頭；拒絕跨站瀏覽器寫入操作。為整個路由群組套用既有的認證與中間件。面板授權包含檢視工作資料和執行維運控制的權限。
 
 ## 命令 {#commands}
