@@ -57,13 +57,19 @@ fn prepare(
         Some(_) => return Err(delivery("The Slack notification route is invalid.")),
     };
     if let Some(url) = route.webhook {
-        let payload = if let Some(message) = notification.to_legacy_slack(recipient)? {
+        let mut payload = if let Some(message) = notification.to_legacy_slack(recipient)? {
             message.to_array()
         } else if let Some(message) = notification.to_slack(recipient)? {
             message.to_array()?
         } else {
             return Ok(None);
         };
+        if let Some(channel) = route
+            .channel
+            .filter(|channel| !channel.is_empty() && channel != "0")
+        {
+            payload.insert("channel".into(), channel.into());
+        }
         validate_webhook(&url)?;
         return Ok(Some(PreparedSlack {
             payload,

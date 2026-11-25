@@ -5,7 +5,7 @@ use openrust::{
     notifications::{
         AnonymousNotifiable, Notifiable, Notification, NotificationResult, NotificationRoute,
         messages::{MailDelivery, MailMessage, SlackMessage},
-        slack::SlackMessage as BlockKitMessage,
+        slack::{SlackMessage as BlockKitMessage, SlackRoute},
         sms::SmsMessage,
     },
     support::facades::{Config, Facade, Notification as Notifications},
@@ -125,14 +125,20 @@ impl crate::Horizon {
     pub fn route_slack_notifications_to(
         route: impl Into<String>,
     ) -> std::result::Result<(), BindingResolutionError> {
+        Self::register_slack_route(route.into().into())
+    }
+    pub fn route_slack_webhook_notifications_to(
+        url: impl Into<String>,
+        channel: impl Into<String>,
+    ) -> std::result::Result<(), BindingResolutionError> {
+        Self::register_slack_route(SlackRoute::for_webhook(url, Some(channel.into())))
+    }
+    fn register_slack_route(route: SlackRoute) -> std::result::Result<(), BindingResolutionError> {
         Routes::get_facade_root()?
             .0
             .write()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .insert(
-                "slack".into(),
-                NotificationRoute::Slack(route.into().into()),
-            );
+            .insert("slack".into(), NotificationRoute::Slack(route));
         Ok(())
     }
     pub fn route_sms_notifications_to(

@@ -29,6 +29,14 @@ impl SlackRoute {
             webhook: None,
         }
     }
+
+    pub fn for_webhook(url: impl Into<String>, channel: Option<String>) -> Self {
+        Self {
+            channel,
+            token: None,
+            webhook: Some(url.into()),
+        }
+    }
 }
 
 impl From<&str> for SlackRoute {
@@ -40,11 +48,7 @@ impl From<&str> for SlackRoute {
 impl From<String> for SlackRoute {
     fn from(channel: String) -> Self {
         if channel.starts_with("http://") || channel.starts_with("https://") {
-            Self {
-                channel: None,
-                token: None,
-                webhook: Some(channel),
-            }
+            Self::for_webhook(channel, None)
         } else {
             Self::make(Some(channel), None)
         }

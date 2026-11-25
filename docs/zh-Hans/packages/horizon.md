@@ -55,6 +55,8 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
 
 长等待告警在邮件主题、短信正文和 Slack 详情中显示部署名称。`Horizon::route_slack_notifications_to` 接受传入 Webhook 地址或频道 ID。频道 ID 使用 Slack Bot API，需配置 `services.slack.notifications.bot_user_oauth_token`。
 
+使用 `Horizon::route_slack_webhook_notifications_to(url, channel)` 可在传入 Webhook 的载荷中指定频道。Slack 应用的传入 Webhook 固定投递到安装时选定的频道。需要按请求指定目标频道时，使用 Bot API 频道 ID。
+
 暂停、继续、终止、监控变更和重试均须逐次通过授权回调。浏览器对写操作发送 `X-Horizon-Request: 1`，直接调用接口也须携带该请求头；拒绝跨站浏览器写操作。为整个路由组应用已有的认证与中间件。面板授权包含查看任务数据和执行运维控制的权限。
 
 ## 命令 {#commands}

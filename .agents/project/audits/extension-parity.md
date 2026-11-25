@@ -132,3 +132,9 @@ O01 Activitylog、O02 Horizon、O03 Telescope原生范围、O04 Pennant、O05 Pu
 补齐邮件主题、短信正文、Webhook 附件及 Bot API Block Kit 对部署名称的读取。上游缺省名称在邮件主题产生空前缀，短信和 Slack 详情保留空方括号，Rust 同样处理。现有 `Horizon::route_slack_notifications_to` 接受 Webhook URL 或频道 ID，复用原生 Slack 渠道。品牌采用 OpenRust Horizon，未引用 Laravel 的托管图标。
 
 隔离 Redis 8.10.3 上 Horizon 标签与通知测试 7 项、全仓格式及 Horizon 全目标严格 Clippy 通过。真实应用请求作用域内检查邮件与短信消息，通过原生通知渠道投递到 HTTP fake，断言 Webhook 附件、Bot API 授权头、频道 ID 和 Block Kit。三语文档构建和 12 组浏览器检查通过。第三方收件与实际服务投递未实测。可替换通知工厂、Webhook 可选频道覆盖及通知监听器的公开契约仍待处理。
+
+### Horizon Slack Webhook 可选频道
+
+固定 [Horizon::routeSlackNotificationsTo](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Horizon.php) 的第二个参数会进入旧式 Webhook 请求的 `channel` 字段。Rust 保留单参数入口并增加双参数 `route_slack_webhook_notifications_to(url, channel)`。框架 `SlackRoute::for_webhook` 将目标地址和可选频道一并交给原生渠道，原生渠道在构建请求时应用覆盖。提供频道仍走 Webhook 路径，Bot API 的地址、令牌与频道优先级沿用现有契约。空频道按旧式 Slack 消息的空值规则省略。
+
+本批隔离 Redis 8.10.3 标签与通知回归 8 项通过。HTTP fake 捕获普通 Webhook、覆盖频道的 Webhook、空频道与 Bot API 出站请求，核对地址、授权头、频道及附件。真实 Master 循环读取 Redis 队列和运行时指标，通过公开 Horizon 注册入口配置的 Webhook 发出带覆盖频道的请求。第三方收件未实测。全仓格式、框架库和 Horizon 全目标严格 Clippy、三语文档构建及 12 组浏览器检查通过。[Slack 应用的传入 Webhook 固定使用安装时选定的频道](https://api.slack.com/messaging/webhooks)。可替换通知工厂及通知监听器的公开契约继续待处理。

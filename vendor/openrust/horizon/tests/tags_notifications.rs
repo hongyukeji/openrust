@@ -5,12 +5,17 @@ use openrust::{
     },
     foundation::configuration::Routing,
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
-    notifications::{AnonymousNotifiable, Notification, NotificationRoute, messages::MailDelivery},
+    notifications::{
+        AnonymousNotifiable, Notification, NotificationRoute, messages::MailDelivery,
+        slack::SlackRoute,
+    },
     queue::Payload,
-    support::facades::{Http, Notification as Notifications, Route},
+    support::facades::{App, Http, Notification as Notifications, Route},
     testing::TestApp,
 };
-use openrust_horizon::{Horizon, HorizonServiceProvider, LongWaitDetected, Repository, Tags};
+use openrust_horizon::{
+    Horizon, HorizonServiceProvider, LongWaitDetected, MasterSupervisor, Repository, Tags,
+};
 use serde_json::json;
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -190,15 +195,26 @@ fn named_notification_response(_: &mut Request) -> HttpFuture<'_, Result<Respons
             ))
         })
         .unwrap();
-        for destination in ["https://example.test/webhook", "C123"] {
+        for destination in [
+            "https://example.test/webhook".into(),
+            SlackRoute::for_webhook("https://example.test/webhook", Some("#operators".into())),
+            SlackRoute::for_webhook("https://example.test/webhook", Some(String::new())),
+            "C123".into(),
+        ] {
             let slack = AnonymousNotifiable::default()
-                .route("slack", NotificationRoute::Slack(destination.into()))
+                .route("slack", NotificationRoute::Slack(destination))
                 .unwrap();
             Notifications::send(&[&slack], &notification).await.unwrap();
         }
         let sent = Http::recorded().unwrap();
-        let [(webhook, _), (bot, _)] = sent.as_slice() else {
-            panic!("expected one webhook and one Bot API request")
+        let [
+            (webhook, _),
+            (override_webhook, _),
+            (empty_channel, _),
+            (bot, _),
+        ] = sent.as_slice()
+        else {
+            panic!("expected three webhook requests and one Bot API request")
         };
         assert_eq!(webhook.url.as_str(), "https://example.test/webhook");
         assert!(!webhook.headers.contains_key(http::header::AUTHORIZATION));
@@ -207,6 +223,18 @@ fn named_notification_response(_: &mut Request) -> HttpFuture<'_, Result<Respons
         assert_eq!(payload["text"], "Oh no! Something needs your attention.");
         assert_eq!(payload["attachments"][0]["title"], "Long Wait Detected");
         assert_eq!(payload["attachments"][0]["text"], content);
+        assert!(payload.get("channel").is_none());
+        assert_eq!(override_webhook.url, webhook.url);
+        assert!(
+            !override_webhook
+                .headers
+                .contains_key(http::header::AUTHORIZATION)
+        );
+        let overridden: serde_json::Value =
+            serde_json::from_slice(override_webhook.body.as_deref().unwrap()).unwrap();
+        assert_eq!(overridden["channel"], "#operators");
+        assert_eq!(overridden["attachments"], payload["attachments"]);
+        assert_eq!(empty_channel.body, webhook.body);
         assert_eq!(bot.url.as_str(), "https://example.test/bot");
         assert_eq!(
             bot.headers[http::header::AUTHORIZATION],
@@ -242,10 +270,101 @@ async fn named_long_wait_notifications_reach_both_native_slack_transports() {
     std::fs::write(app.root().join(".env"), "HORIZON_NAME=运维\n").unwrap();
     app.get("/api/notification").await.unwrap().assert_ok();
 }
+
+fn master_webhook_response(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let repository = App::make::<Repository>().await.unwrap();
+        let queues = openrust::queue::QueueFacade::manager().unwrap();
+        let queue = queues.connection(Some("redis")).unwrap();
+        let payload = Payload::new("probe", json!({})).unwrap();
+        queue.push(&payload, Some("alerts")).await.unwrap();
+        repository
+            .metrics_repository()
+            .increment_queue("redis:alerts", 2500.)
+            .await
+            .unwrap();
+        repository
+            .heartbeat_supervisor(
+                "probe",
+                &json!({"name":"probe","pid":1,"processes":{"redis:alerts":1}}),
+            )
+            .await
+            .unwrap();
+
+        Horizon::route_slack_webhook_notifications_to("https://example.test/webhook", "#operators")
+            .unwrap();
+        Http::prevent_stray_requests(true).unwrap();
+        Http::fake(|request| {
+            (request.url().as_str() == "https://example.test/webhook").then(|| {
+                openrust::http::client::Response::from_json(StatusCode::OK, &json!({"ok":true}))
+            })
+        })
+        .unwrap();
+        let master = MasterSupervisor::new(
+            repository,
+            queues,
+            BTreeMap::new(),
+            std::env::current_exe().unwrap(),
+            App::base_path("").unwrap(),
+            "testing".into(),
+        )
+        .unwrap();
+        let shutdown = tokio_util::sync::CancellationToken::new();
+        let (result, seen) = tokio::join!(master.run(&shutdown), async {
+            let seen = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+                while Http::recorded().unwrap().is_empty() {
+                    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                }
+            })
+            .await;
+            shutdown.cancel();
+            seen
+        });
+        result.unwrap();
+        seen.unwrap();
+        let sent = Http::recorded().unwrap();
+        let [(webhook, response)] = sent.as_slice() else {
+            panic!("expected a single alert")
+        };
+        assert!(response.is_some());
+        let payload: serde_json::Value =
+            serde_json::from_slice(webhook.body.as_deref().unwrap()).unwrap();
+        assert_eq!(payload["channel"], "#operators");
+        assert_eq!(
+            payload["attachments"][0]["text"],
+            "[] The \"alerts\" queue on the \"redis\" connection has a wait time of 3 seconds."
+        );
+        Response::json(StatusCode::OK, json!({"recorded":true}))
+    })
+}
+
+#[tokio::test]
+#[ignore = "requires dedicated Redis 8 acceptance wrapper"]
+async fn redis_master_delivers_the_registered_slack_webhook_channel_override() {
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(|base, _| {
+                assert_eq!(std::env::var("HORIZON_REQUIRE_REDIS").as_deref(), Ok("1"));
+                Ok(BTreeMap::from([
+                    ("database".into(), json!({"redis":{
+                        "options":{"prefix":format!("{}:",base.file_name().unwrap().to_string_lossy())},
+                        "default":{"url":std::env::var("HORIZON_TEST_REDIS_URL").unwrap()}
+                    }})),
+                    ("queue".into(), json!({"connections":{"redis":{"driver":"redis","connection":"default","queue":"alerts"}}})),
+                    ("horizon".into(), json!({"memory_limit":1024,"waits":{"redis:alerts":1}})),
+                ]))
+            })
+            .with_providers(vec![Box::new(HorizonServiceProvider)])
+            .with_routing(Routing::default().api(|| Route::get("/alert", master_webhook_response)))
+    }).unwrap();
+    app.get("/api/alert").await.unwrap().assert_ok();
+}
 fn notification_response(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
         Horizon::route_mail_notifications_to("operator@example.test").unwrap();
         Horizon::route_slack_notifications_to("https://example.test/webhook").unwrap();
+        Horizon::route_slack_webhook_notifications_to("https://example.test/webhook", "#operators")
+            .unwrap();
         Horizon::route_sms_notifications_to("+15555550100").unwrap();
         let fake = Notifications::fake().unwrap();
         fake.assert_nothing_sent();
