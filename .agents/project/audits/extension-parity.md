@@ -399,6 +399,8 @@ Rust 的类型检查可确认具体类型，模型字段仍由应用回调显式
 
 真实 HTTP 生产、Redis 8.10.3、SQLite 与 Artisan 验证普通任务、四个包装入口、应用间隔离和原始重试保留标签。macOS 通过 Horizon Redis 21 项、全仓格式、Horizon 全目标严格 Clippy 和三语页面 12 组浏览器检查。三包组合遇 32 GB 停线后由构建守卫持锁清理，同源码冷构建通过三包默认 87 项。Windows 11 ARM64 通过同源码真实 Redis 专项。证据为 `target/tmp/observability-parity/horizon-tags-target-{focused,verified,packages,docs}.log` 和 `target/tmp/observability-windows/horizon-tags-target-arm64.log`。
 
+Linux 7.0.14 ARM64 用 `5e92024f0` 的变更源码、Rust 1.94.0 和独占 Redis 8.10.3 冷构建，通过真实 HTTP 生产、SQLite／Worker 失败与 Artisan 重试的标签专项。证据为 `target/tmp/observability-parity/horizon-tags-target-linux.log`。
+
 macOS 冷构建在真实 Redis 8.10.3 验证广播、带自定义名称的监听器、邮件、加密通知及普通任务。覆盖配置底层类、配置只有包装名称、应用间显式注册隔离以及真实 `horizon:retry` 重置静默结果。Horizon Redis 20 项、三包默认 84 项、严格 Clippy、全仓格式、三语文档和 12 组浏览器检查通过。Windows 11 ARM64 用同一源码、专用 NTFS 构建卷和独占 Redis 8.10.3，通过 15 项 Redis Runtime。证据为 `target/tmp/observability-parity/horizon-silenced-{accepted,docs}.log` 及 `target/tmp/observability-windows/horizon-silenced-arm64.log`。完整发布组合待验。
 
 Linux 7.0.14 ARM64 用同一源码快照、Rust 1.94.0 和独占 Redis 8.10.3 冷构建后通过 15 项 Horizon Redis Runtime。证据为 `target/tmp/observability-parity/horizon-silenced-linux.log`。
