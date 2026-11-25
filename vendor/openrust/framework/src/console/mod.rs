@@ -31,6 +31,7 @@ mod table;
 pub(crate) mod task_command;
 mod terminal;
 mod tree;
+pub mod view;
 pub use tree::{
     ConsoleTreeError, TreeChild, TreeChildren, TreeEntry, TreeHelper, TreeHelperIterator,
     TreeIterator, TreeNode, TreeStyle, TreeValue, TreeValues, WeakTreeNode,

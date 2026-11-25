@@ -490,5 +490,10 @@
       "status": "pending_public_contract_review",
       "evidence": []
     }
-  ]
+  ],
+  "component_mutators": {
+    "status": "verified_declared_string_contract",
+    "contracts": "component-mutators-contracts.json",
+    "full_factory": "pending"
+  }
 }

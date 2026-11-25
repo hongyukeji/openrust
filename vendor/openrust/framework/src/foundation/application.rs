@@ -528,6 +528,9 @@ impl Application {
             .instance(paths.clone())
             .expect("application paths are initially unbound");
         container
+            .instance_named("path.base", Arc::new(base_path.clone()))
+            .expect("初始应用根路径尚未绑定");
+        container
             .instance_named("path.lang", Arc::new(paths.lang_path("")))
             .expect("初始语言路径尚未绑定");
         container

@@ -1,0 +1,70 @@
+{
+  "source_base": "699ad83cd43985427f2f37ff88734729dabdd674",
+  "source_hashes": {
+    "vendor/openrust/framework/src/console/mod.rs": "1df8a99ccb8b64c5123b335ae0a3f7bec61c4bf461e563602849dda7158826a5",
+    "vendor/openrust/framework/src/console/view/mod.rs": "7aae40fb2af29573b9dc788cccec19facf213f7d79b630e984d5e88f51fa0c05",
+    "vendor/openrust/framework/src/console/view/components/mod.rs": "7fb14a2542b1f32c9df76a723e5830db04eed6dd001352a5fba8b7bc58e326de",
+    "vendor/openrust/framework/src/console/view/components/mutators.rs": "3c2e1546f56cbccee7edc65e144049d6f12e05effc5ed2f162d0df7ea9a10642",
+    "vendor/openrust/framework/src/console/view/components/LICENSE": "7b4f9149597fbae2ce689bc9317d1869e17f1b3fa5f01c289998c108f8c37cf7",
+    "vendor/openrust/framework/tests/console_component_mutators.rs": "c9d5fd90a80cf7127bce8efcdf5d04f7ef8353a53fc04f1ba84eb3ed9a11d1b1",
+    ".agents/project/audits/artisan-tutorial/component-mutators-oracle.json": "866eccb7d86f4821347acdec063c112f7a25c4354ca50ba57653a5cee8ef4ed4",
+    "docs/en/digging-deeper/artisan.md": "b4cce0786b10e009ff8393941bfb80c5dca80ee794190d413f100eed8fad99e2",
+    "docs/zh-Hans/digging-deeper/artisan.md": "bc831d2255487369589cd306d3c30e07850e63aecdb3b089431338430588e925",
+    "docs/zh-Hant/digging-deeper/artisan.md": "001d58b68d581cb89ba1e72d2b06b0924b4a1ca87fb7a6849791b73d2c1031b9",
+    "tests/artisan_tutorial_docs.py": "0e51b39684615fb49c49968245b8162f0707d2a421b528d247250ed3de7165f6",
+    "docs/tests/check_artisan_tutorial.mjs": "5102cec5862903f234f339691a6a1418a6b8e0b10893ffaefc039fca7775bb46",
+    "vendor/openrust/framework/src/foundation/application.rs": "49f138a2a29fcd9a13d576ce2a6931ac31bfe6a591b63cf09a746330f2671da3",
+    ".agents/project/audits/artisan-tutorial/component-factory-contracts.json": "c2bc003081480de37144b57b75a5ad4faf12a54ce543ad6869976da14956a36a",
+    ".agents/project/audits/artisan-tutorial/component-mutators-contracts.json": "b422a8db0a3b07db8b22c2a374bb33c8c167e9caceeebd2791ad53c472446185",
+    ".agents/project/audits/artisan-tutorial/io-contracts.json": "fa6861b5e6c921ba1f96b00e6dc9a23d6dae62f3aca81a163e3eea6087593e3f",
+    ".agents/project/audits/artisan-tutorial/section-map.json": "e268d7adf9ee46e9a6cfdba344863c2dc3f0f5de5f0cdde3feb6bc1eae01b0fc",
+    ".agents/project/audits/artisan-tutorial/README.md": "6a8b883a75ea49483aabad5af05e8d1b8173bd99e4f76626af3a3ac254dbc103",
+    ".agents/project/current.md": "3fbdd5c6bb1b4bdd152dd99b987c2a74c047a78563dda96a514da3d0f6d20eeb"
+  },
+  "gates": [
+    {
+      "name": "fmt",
+      "returncode": 0
+    },
+    {
+      "name": "consumers",
+      "returncode": 0
+    },
+    {
+      "name": "docs-consumers",
+      "returncode": 0
+    },
+    {
+      "name": "clippy",
+      "returncode": 0
+    },
+    {
+      "name": "docs",
+      "returncode": 0
+    }
+  ],
+  "counts": {
+    "consumers": {
+      "targets": 3,
+      "passed": 25,
+      "ignored_driver_slots": 3
+    },
+    "docs-consumers": {
+      "targets": 3,
+      "passed": 129,
+      "ignored_driver_slots": 0
+    }
+  },
+  "source_scenes": 52,
+  "runtime": "actual main(pail) HTTP/Artisan/Pail/Ctrl+C0 verified; missing-view homepage500 expected",
+  "binary": {
+    "binary": "target/tmp/artisan-tutorial-20261125/component-mutators-delivery/main",
+    "sha256": "68c66261e72f69152ea16dbad1163bb71a1431f10ff8cfa274c71a45c3e1185f",
+    "source_base": "699ad83cd43985427f2f37ff88734729dabdd674",
+    "features": [
+      "pail"
+    ]
+  },
+  "scope": "Four declared text mutators and necessary path.base registration; component factory and chapter remain open",
+  "pushed": false
+}

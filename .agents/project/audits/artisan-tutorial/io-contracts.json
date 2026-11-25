@@ -1715,6 +1715,54 @@
           "tree-helper-contracts.json"
         ]
       }
+    ],
+    "EnsureDynamicContentIsHighlighted": [
+      {
+        "method": "__invoke",
+        "native": "console::view::components::mutators::EnsureDynamicContentIsHighlighted::apply",
+        "status": "verified_native_type_and_actual_consumer",
+        "evidence": [
+          "component-mutators-oracle.json",
+          "console_component_mutators",
+          "component-mutators-{consumers,docs-consumers,clippy,fmt,docs,browser}.log"
+        ]
+      }
+    ],
+    "EnsureNoPunctuation": [
+      {
+        "method": "__invoke",
+        "native": "console::view::components::mutators::EnsureNoPunctuation::apply",
+        "status": "verified_native_type_and_actual_consumer",
+        "evidence": [
+          "component-mutators-oracle.json",
+          "console_component_mutators",
+          "component-mutators-{consumers,docs-consumers,clippy,fmt,docs,browser}.log"
+        ]
+      }
+    ],
+    "EnsurePunctuation": [
+      {
+        "method": "__invoke",
+        "native": "console::view::components::mutators::EnsurePunctuation::apply",
+        "status": "verified_native_type_and_actual_consumer",
+        "evidence": [
+          "component-mutators-oracle.json",
+          "console_component_mutators",
+          "component-mutators-{consumers,docs-consumers,clippy,fmt,docs,browser}.log"
+        ]
+      }
+    ],
+    "EnsureRelativePaths": [
+      {
+        "method": "__invoke",
+        "native": "console::view::components::mutators::EnsureRelativePaths::apply",
+        "status": "verified_native_type_and_actual_consumer",
+        "evidence": [
+          "component-mutators-oracle.json",
+          "console_component_mutators",
+          "component-mutators-{consumers,docs-consumers,clippy,fmt,docs,browser}.log"
+        ]
+      }
     ]
   },
   "notes": [
@@ -2285,7 +2333,7 @@
     ]
   },
   "remaining_output_style_behaviors": [
-    "完整组件Factory继续逐类型核对，不以既有OutputStyle助手代替组件公开入口。",
+    "组件文本4变换器已验，完整Component/14种Factory入口及专用QuestionHelper仍待闭合，不以变换器或既有样式助手代替。",
     "通用OutputInterface、ConsoleOutputInterface及任意自定义输出／Artisan.call第三参数仍待完整类型与消费者；当前所选内置stderr借用不冒充完整接口。"
   ]
 }

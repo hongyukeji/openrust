@@ -55,6 +55,8 @@ try {
                     assert.equal(await page.locator('h2#error-style').count(),1);
                     assert.equal(await page.locator('h2#tree-nodes').count(),1);
                     assert.equal(await page.locator('h2#trees').count(),1);
+                    assert.equal(await page.locator('h2#component-mutators').count(),1);
+                    assert((await page.locator('.vp-doc').innerText()).includes('transform_component_text'));
                     assert((await page.locator('.vp-doc').innerText()).includes('register_tree_output'));
                     assert((await page.locator('.vp-doc').innerText()).includes('register_tree_nodes'));
                     const text=await page.locator('.vp-doc').innerText();

@@ -1,0 +1,71 @@
+{
+  "fixed_framework": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "status": "verified_declared_string_contract",
+  "source_oracle": {
+    "cases": 52,
+    "actual_classes": true,
+    "path_globals": "Fixture implements only app()->has and base_path; native tests use real applications.",
+    "path_marker": "__BASE__ is replaced with each native isolated application directory."
+  },
+  "types": [
+    {
+      "source": "EnsureDynamicContentIsHighlighted",
+      "native": "console::view::components::mutators::EnsureDynamicContentIsHighlighted",
+      "source_method": "__invoke",
+      "native_method": "Mutator::apply",
+      "input": "UTF-8 string",
+      "status": "verified_native_type_and_actual_consumer"
+    },
+    {
+      "source": "EnsureNoPunctuation",
+      "native": "console::view::components::mutators::EnsureNoPunctuation",
+      "source_method": "__invoke",
+      "native_method": "Mutator::apply",
+      "input": "UTF-8 string",
+      "status": "verified_native_type_and_actual_consumer"
+    },
+    {
+      "source": "EnsurePunctuation",
+      "native": "console::view::components::mutators::EnsurePunctuation",
+      "source_method": "__invoke",
+      "native_method": "Mutator::apply",
+      "input": "UTF-8 string",
+      "status": "verified_native_type_and_actual_consumer"
+    },
+    {
+      "source": "EnsureRelativePaths",
+      "native": "console::view::components::mutators::EnsureRelativePaths",
+      "source_method": "__invoke",
+      "native_method": "Mutator::apply",
+      "input": "UTF-8 string",
+      "status": "verified_native_type_and_actual_consumer"
+    }
+  ],
+  "adaptations": [
+    "Explicit apply replaces callable object; stable Rust does not permit manual Fn implementation.",
+    "Declared text input uses &str, not PHP arbitrary weak mixed/null coercion.",
+    "Owned String and Result share one object-safe interface; application binding errors remain observable."
+  ],
+  "associated_gap": "Application constructor lacked path.base; bind its existing PathBuf, no duplicated path inference.",
+  "remaining": [
+    "Component base, all fourteen component factory methods, native question helper selection/restoration and actual rendering remain open.",
+    "General third-party output interface and full Artisan chapter remain open."
+  ],
+  "no_runtime_php": true,
+  "no_new_dependencies": true,
+  "pushed": false,
+  "evidence": [
+    "component-mutators-oracle.json",
+    "console_component_mutators",
+    "component-mutators-{consumers,docs-consumers,clippy,fmt,docs,browser}.log"
+  ],
+  "source_reuse": "v0.x has no matching component mutators; current Regex, Facade/context, Container and OutputStyle reused.",
+  "native_consumers": {
+    "real_http_requests": 2,
+    "parallel_scopes": 24,
+    "applications": 2,
+    "actual_artisan_subprocess": true,
+    "malformed_app_binding_errors_propagate": true,
+    "removed_path_binding_unchanged": true
+  }
+}

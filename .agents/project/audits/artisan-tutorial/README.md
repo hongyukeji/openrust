@@ -577,3 +577,13 @@ Source next只推进，而Rust Iterator.next返回元素；严格Clippy实际指
 测试HTTP参数首轮推导为Vec<String>导致编译失败，已改OsString并完整复验；命名Clippy失败保留原日志，修正advance后完整回归通过。曾触32GB时正式守卫持锁回收编译产物，源码/日志保留后恢复，不把中断当通过。最终两个独立验收二进制按原构建SHA保存到项目内临时交付目录，以免缓存清理破坏进行中的消费者；未复制整套缓存，完成验收与提交后直接删除。其他在途/索引、数据库、数据卷、下载和日志保留。
 
 正式契约tree-helper-contracts.json、accepted-tree-helper.json及九份oracle；原始target/tmp/artisan-tutorial-20261125/tree-*与源工具保留。当前Tree SDK结论限定内置AsOutput-backed输出，任意第三方OutputInterface/ConsoleOutputInterface及Artisan.call第三参数仍是显式未闭合契约，不以构造泛型掩盖；完整组件Factory及Artisan其余锚点继续，未关闭整章/全框架或Windows发布矩阵。仅本簇本地提交，不推送。
+
+## 第三十九簇：组件文本变换与根路径绑定（2026-11-26）
+
+固定框架四种Mutator按实际__invoke逐个核对，移植到console::view::components::mutators；公共对象安全Mutator::apply使用稳定Rust显式调用，输入为声明的文本字符串，不冒充PHP任意对象/null弱转换。52份源场景使用实际上游类，仅app()->has/base_path两项依赖由可控上下文夹具供给；原生端使用真实Application，替换__BASE__为本批隔离目录。空文本、嵌套/重复括号、换行、Unicode/全角/尾随空白、重复路径及有无绑定均按源输出比较。标点只处理最后一个ASCII字符；路径是全部精确字符串替换，不是安全路径规范化。
+
+真实消费者首先暴露Application未绑定path.base，导致正常Artisan/HTTP路径未裁剪；补充构造器已有base_path的命名PathBuf绑定，没有重新推断目录或独立全局路径。无绑定仍保持原文，错误app服务绑定传播错误，24个跨两应用任务与作用域退出验证不串用路径。实际HTTP两次调用真实Artisan命令及实际Artisan子进程退出0，展示结果与源变换链一致。实际main(pail)通过/up、静态、HTML/JSON404、HEAD，Artisan inspire/list/pail help、Pail真实500捕获/级别过滤/-vv/超时清理及Ctrl+C0；独立夹具首页缺视图按预期500，不宣称首页200。三语正式示例直接提取编译执行，浏览器12项通过；完整workspace all-targets严格Clippy与范围组合格式、文档构建通过。详细实际目标/计数见accepted-component-mutators.json；忽略的子进程入口由父消费者执行，不另当作功能数。
+
+首轮夹具误用Application.clone/底层Output.line及&String消息转换导致编译失败，修正为Arc/正式OutputStyle/&str。随后真实原生5项失败准确暴露path.base装配缺口，保留日志，修复后重跑；首次复制接线时未同步已提交的localization模块更名导致隔离快照6项编译错误，已用当前HEAD完整归档重组并只叠加本批源码；归档覆盖遗留旧translation-database快照目录使Cargo要求改锁，查明只多出这个废弃包后删除该独占快照目录并恢复提交版Cargo.lock，保持--locked验收，不把这次失败当产品缺陷或通过；失败与磁盘中断均不算通过。32GB时守卫等待其他构建安全退出后持锁清理，事件实际释放87,853,207,552字节，一次守卫收尾返回Operation not permitted，保留日志并重新核对进程/磁盘后重试正式守卫，未放宽归属或Cargo锁。随后严格Clippy再次触线，等待安全清理后实际再释放77,052,899,328字节；锁inode/源码/日志/下载/数据库保留，恢复后仅续未完成检查。共享缓存排队后刷新本快照一方Rust源码mtime（字节不变），确保实际检查；原始证据target/tmp/artisan-tutorial-20261125/component-mutators-*。旧版v0.x未找到对应变换器，复用当前Regex/Facade/容器/OutputStyle，无新依赖，原MIT版权许可原样随组件源码保留。
+
+完整Component、14种Factory入口、专用QuestionHelper切换/恢复、任意第三方输出接口及Artisan整章仍开放，不把本簇文本变换器当作这些入口已实现；下一簇继续上述依赖。只提交本批已验范围，不推送，不夹带其他在途改动。

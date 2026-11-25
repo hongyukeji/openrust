@@ -1585,3 +1585,20 @@ fn register_tree_output() -> Result<(), ConsoleError> {
 工厂可能在构造、子节点探测和创建子游标时执行，不应假设每个节点只调用一次。底层遍历将子树探测错误视为没有孩子；推进迭代器时的错误会传播，且可能已经写出部分输出。渲染中再次遇到同一节点身份会返回 `ConsoleTreeError::Cycle`，DAG 中复用节点也属于重复；不同节点可以具有相同标签。渲染期间保留已访问节点，避免临时节点分配地址复用造成误判。
 
 `TreeStyle` 提供 `default`、`r#box`、`box_double`、`compact`、`light`、`minimal` 和 `rounded`。`box` 是 Rust 保留字，因此使用原始标识符 `r#box`。`TreeStyle::new` 的六个只读前缀依次为：有下一项的末端、最后末端、左侧、有下一项的中段、最后中段、右侧。预设使用静态字符串，自定义前缀在子助手间共享。
+
+## 组件文本变换器 {#component-mutators}
+
+四个公开变换器共用对象安全的 `Mutator::apply(&str) -> Result<String, ConsoleError>` 接口。显式 `apply` 对应可调用对象；直接实现 Rust 可调用 trait 需要不稳定语言特性。输入固定为字符串，不复现 PHP 对任意对象或 null 的弱转换。
+
+```rust
+use openrust::console::{ConsoleError, view::components::mutators::{EnsureDynamicContentIsHighlighted, EnsureNoPunctuation, EnsurePunctuation, EnsureRelativePaths, Mutator}};
+
+fn transform_component_text(value: &str) -> Result<String, ConsoleError> {
+    let value = EnsureDynamicContentIsHighlighted.apply(value)?;
+    let value = EnsurePunctuation.apply(&value)?;
+    let value = EnsureRelativePaths.apply(&value)?;
+    EnsureNoPunctuation.apply(&value)
+}
+```
+
+动态内容变换将非空 `[内容]` 包入粗体标记。标点判断只识别末尾 ASCII `.`, `?`, `!`, `:`，不裁剪空白、不规范化全角标点。`EnsureNoPunctuation` 只移除一个末尾字符。相对路径变换在当前应用作用域中移除所有精确匹配的 `base_path + "/"`，不规范化路径；没有应用作用域或缺少 `path.base` 绑定时保持原文。这是展示格式处理，不是路径安全校验。上述类型可独立使用，完整组件工厂另行跟踪。

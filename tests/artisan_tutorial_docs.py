@@ -254,5 +254,8 @@ async fn formal_progress_example(){
     trees_code=re.search(r'```rust\n(.*?)```',text.split('{#trees}',1)[1],re.S).group(1)
     trees_checks='use openrust::console::Output;\n'+progress_checks.replace('formal_progress_example','formal_trees_example').replace('register_progress)', 'register_tree_output)').replace('"reports:progress"','"reports:trees"').replace('assert!(output.stdout.contains("CSV,JSON,HTML:11"));assert_eq!(output.stdout.matches("100%").count(),2);assert!(output.stdout.contains("build"));','let cases:Vec<serde_json::Value>=serde_json::from_str(include_str!("../.agents/project/audits/artisan-tutorial/tree-docs-oracle.json")).unwrap();let expected=cases.iter().find(|c|c["level"]==32&&c["decorated"]==serde_json::json!(flag=="--ansi")).unwrap();assert_eq!(output.stdout,expected["output"].as_str().unwrap());')
     parts.append('mod '+locale.replace('-','_').lower()+'_trees{\n'+trees_code+trees_checks+'}\n')
+    mutators_code=re.search(r'```rust\n(.*?)```',text.split('{#component-mutators}',1)[1],re.S).group(1)
+    mutators_checks='\n#[test]\nfn formal_component_mutators_example(){assert_eq!(transform_component_text("Created [report].").unwrap(),"Created <options=bold>[report]</>");assert_eq!(transform_component_text("").unwrap(),"");}\n'
+    parts.append('mod '+locale.replace('-','_').lower()+'_mutators{\n'+mutators_code+mutators_checks+'}\n')
 target=source/'tests/artisan_docs_generated.rs';target.write_text('\n'.join(parts));subprocess.run(['rustfmt','+1.94.0','--edition','2024',str(target)],check=True)
 print('generated',len(parts),'direct formal consumers')

@@ -1,0 +1,145 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "status": "pending_full_factory",
+  "types": [
+    {
+      "source_type": "Alert",
+      "public": [
+        "render"
+      ],
+      "protected": [],
+      "status": "pending_native_type_and_actual_consumer"
+    },
+    {
+      "source_type": "Ask",
+      "public": [
+        "render"
+      ],
+      "protected": [],
+      "status": "pending_native_type_and_actual_consumer"
+    },
+    {
+      "source_type": "AskWithCompletion",
+      "public": [
+        "render"
+      ],
+      "protected": [],
+      "status": "pending_native_type_and_actual_consumer"
+    },
+    {
+      "source_type": "BulletList",
+      "public": [
+        "render"
+      ],
+      "protected": [],
+      "status": "pending_native_type_and_actual_consumer"
+    },
+    {
+      "source_type": "Choice",
+      "public": [
+        "render"
+      ],
+      "protected": [
+        "getChoiceQuestion",
+        "isAssoc"
+      ],
+      "status": "pending_native_type_and_actual_consumer"
+    },
+    {
+      "source_type": "Component",
+      "public": [
+        "__construct"
+      ],
+      "protected": [
+        "renderView",
+        "compile",
+        "mutate",
+        "usingQuestionHelper"
+      ],
+      "status": "pending_native_type_and_actual_consumer"
+    },
+    {
+      "source_type": "Confirm",
+      "public": [
+        "render"
+      ],
+      "protected": [],
+      "status": "pending_native_type_and_actual_consumer"
+    },
+    {
+      "source_type": "Error",
+      "public": [
+        "render"
+      ],
+      "protected": [],
+      "status": "pending_native_type_and_actual_consumer"
+    },
+    {
+      "source_type": "Factory",
+      "public": [
+        "__construct",
+        "__call"
+      ],
+      "protected": [],
+      "status": "pending_native_type_and_actual_consumer"
+    },
+    {
+      "source_type": "Info",
+      "public": [
+        "render"
+      ],
+      "protected": [],
+      "status": "pending_native_type_and_actual_consumer"
+    },
+    {
+      "source_type": "Line",
+      "public": [
+        "render"
+      ],
+      "protected": [],
+      "status": "pending_native_type_and_actual_consumer"
+    },
+    {
+      "source_type": "Secret",
+      "public": [
+        "render"
+      ],
+      "protected": [],
+      "status": "pending_native_type_and_actual_consumer"
+    },
+    {
+      "source_type": "Success",
+      "public": [
+        "render"
+      ],
+      "protected": [],
+      "status": "pending_native_type_and_actual_consumer"
+    },
+    {
+      "source_type": "Task",
+      "public": [
+        "render"
+      ],
+      "protected": [],
+      "status": "pending_native_type_and_actual_consumer"
+    },
+    {
+      "source_type": "TwoColumnDetail",
+      "public": [
+        "render"
+      ],
+      "protected": [],
+      "status": "pending_native_type_and_actual_consumer"
+    },
+    {
+      "source_type": "Warn",
+      "public": [
+        "render"
+      ],
+      "protected": [],
+      "status": "pending_native_type_and_actual_consumer"
+    }
+  ],
+  "inheritance": "Inherited Component constructor, output binding and helper lifecycle remain pending per concrete component; source protected methods are inventoried without claiming native exposure.",
+  "mutators": "component-mutators-contracts.json"
+}

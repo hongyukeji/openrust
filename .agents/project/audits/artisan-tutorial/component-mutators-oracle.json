@@ -1,0 +1,574 @@
+[
+    {
+        "bound": false,
+        "input": "",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "",
+            "EnsurePunctuation": ".",
+            "EnsureNoPunctuation": "",
+            "EnsureRelativePaths": ""
+        },
+        "pipeline": ""
+    },
+    {
+        "bound": false,
+        "input": "Hello",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "Hello",
+            "EnsurePunctuation": "Hello.",
+            "EnsureNoPunctuation": "Hello",
+            "EnsureRelativePaths": "Hello"
+        },
+        "pipeline": "Hello"
+    },
+    {
+        "bound": false,
+        "input": "Hello.",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "Hello.",
+            "EnsurePunctuation": "Hello.",
+            "EnsureNoPunctuation": "Hello",
+            "EnsureRelativePaths": "Hello."
+        },
+        "pipeline": "Hello"
+    },
+    {
+        "bound": false,
+        "input": "Hello..",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "Hello..",
+            "EnsurePunctuation": "Hello..",
+            "EnsureNoPunctuation": "Hello.",
+            "EnsureRelativePaths": "Hello.."
+        },
+        "pipeline": "Hello."
+    },
+    {
+        "bound": false,
+        "input": "Hello?",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "Hello?",
+            "EnsurePunctuation": "Hello?",
+            "EnsureNoPunctuation": "Hello",
+            "EnsureRelativePaths": "Hello?"
+        },
+        "pipeline": "Hello"
+    },
+    {
+        "bound": false,
+        "input": "Hello!",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "Hello!",
+            "EnsurePunctuation": "Hello!",
+            "EnsureNoPunctuation": "Hello",
+            "EnsureRelativePaths": "Hello!"
+        },
+        "pipeline": "Hello"
+    },
+    {
+        "bound": false,
+        "input": "Hello:",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "Hello:",
+            "EnsurePunctuation": "Hello:",
+            "EnsureNoPunctuation": "Hello",
+            "EnsureRelativePaths": "Hello:"
+        },
+        "pipeline": "Hello"
+    },
+    {
+        "bound": false,
+        "input": "Hello！",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "Hello！",
+            "EnsurePunctuation": "Hello！.",
+            "EnsureNoPunctuation": "Hello！",
+            "EnsureRelativePaths": "Hello！"
+        },
+        "pipeline": "Hello！"
+    },
+    {
+        "bound": false,
+        "input": "Hi. ",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "Hi. ",
+            "EnsurePunctuation": "Hi. .",
+            "EnsureNoPunctuation": "Hi. ",
+            "EnsureRelativePaths": "Hi. "
+        },
+        "pipeline": "Hi. "
+    },
+    {
+        "bound": false,
+        "input": "Hi.\\n",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "Hi.\\n",
+            "EnsurePunctuation": "Hi.\\n.",
+            "EnsureNoPunctuation": "Hi.\\n",
+            "EnsureRelativePaths": "Hi.\\n"
+        },
+        "pipeline": "Hi.\\n"
+    },
+    {
+        "bound": false,
+        "input": "Hi.\n",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "Hi.\n",
+            "EnsurePunctuation": "Hi.\n.",
+            "EnsureNoPunctuation": "Hi.\n",
+            "EnsureRelativePaths": "Hi.\n"
+        },
+        "pipeline": "Hi.\n"
+    },
+    {
+        "bound": false,
+        "input": "[name]",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "<options=bold>[name]<\/>",
+            "EnsurePunctuation": "[name].",
+            "EnsureNoPunctuation": "[name]",
+            "EnsureRelativePaths": "[name]"
+        },
+        "pipeline": "<options=bold>[name]<\/>"
+    },
+    {
+        "bound": false,
+        "input": "[]",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "[]",
+            "EnsurePunctuation": "[].",
+            "EnsureNoPunctuation": "[]",
+            "EnsureRelativePaths": "[]"
+        },
+        "pipeline": "[]"
+    },
+    {
+        "bound": false,
+        "input": "[a[b]",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "<options=bold>[a[b]<\/>",
+            "EnsurePunctuation": "[a[b].",
+            "EnsureNoPunctuation": "[a[b]",
+            "EnsureRelativePaths": "[a[b]"
+        },
+        "pipeline": "<options=bold>[a[b]<\/>"
+    },
+    {
+        "bound": false,
+        "input": "[a] [b]",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "<options=bold>[a]<\/> <options=bold>[b]<\/>",
+            "EnsurePunctuation": "[a] [b].",
+            "EnsureNoPunctuation": "[a] [b]",
+            "EnsureRelativePaths": "[a] [b]"
+        },
+        "pipeline": "<options=bold>[a]<\/> <options=bold>[b]<\/>"
+    },
+    {
+        "bound": false,
+        "input": "[x\ny]",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "<options=bold>[x\ny]<\/>",
+            "EnsurePunctuation": "[x\ny].",
+            "EnsureNoPunctuation": "[x\ny]",
+            "EnsureRelativePaths": "[x\ny]"
+        },
+        "pipeline": "<options=bold>[x\ny]<\/>"
+    },
+    {
+        "bound": false,
+        "input": "<options=bold>[x]<\/>",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "<options=bold><options=bold>[x]<\/><\/>",
+            "EnsurePunctuation": "<options=bold>[x]<\/>.",
+            "EnsureNoPunctuation": "<options=bold>[x]<\/>",
+            "EnsureRelativePaths": "<options=bold>[x]<\/>"
+        },
+        "pipeline": "<options=bold><options=bold>[x]<\/><\/>"
+    },
+    {
+        "bound": false,
+        "input": "<tag>",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "<tag>",
+            "EnsurePunctuation": "<tag>.",
+            "EnsureNoPunctuation": "<tag>",
+            "EnsureRelativePaths": "<tag>"
+        },
+        "pipeline": "<tag>"
+    },
+    {
+        "bound": false,
+        "input": "美元$1",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "美元$1",
+            "EnsurePunctuation": "美元$1.",
+            "EnsureNoPunctuation": "美元$1",
+            "EnsureRelativePaths": "美元$1"
+        },
+        "pipeline": "美元$1"
+    },
+    {
+        "bound": false,
+        "input": "你好",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "你好",
+            "EnsurePunctuation": "你好.",
+            "EnsureNoPunctuation": "你好",
+            "EnsureRelativePaths": "你好"
+        },
+        "pipeline": "你好"
+    },
+    {
+        "bound": false,
+        "input": "__BASE__\/file",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "__BASE__\/file",
+            "EnsurePunctuation": "__BASE__\/file.",
+            "EnsureNoPunctuation": "__BASE__\/file",
+            "EnsureRelativePaths": "__BASE__\/file"
+        },
+        "pipeline": "__BASE__\/file"
+    },
+    {
+        "bound": false,
+        "input": "__BASE__\/a __BASE__\/b",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "__BASE__\/a __BASE__\/b",
+            "EnsurePunctuation": "__BASE__\/a __BASE__\/b.",
+            "EnsureNoPunctuation": "__BASE__\/a __BASE__\/b",
+            "EnsureRelativePaths": "__BASE__\/a __BASE__\/b"
+        },
+        "pipeline": "__BASE__\/a __BASE__\/b"
+    },
+    {
+        "bound": false,
+        "input": "__BASE__file",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "__BASE__file",
+            "EnsurePunctuation": "__BASE__file.",
+            "EnsureNoPunctuation": "__BASE__file",
+            "EnsureRelativePaths": "__BASE__file"
+        },
+        "pipeline": "__BASE__file"
+    },
+    {
+        "bound": false,
+        "input": "prefix__BASE__\/file",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "prefix__BASE__\/file",
+            "EnsurePunctuation": "prefix__BASE__\/file.",
+            "EnsureNoPunctuation": "prefix__BASE__\/file",
+            "EnsureRelativePaths": "prefix__BASE__\/file"
+        },
+        "pipeline": "prefix__BASE__\/file"
+    },
+    {
+        "bound": false,
+        "input": "__BASE__\\file",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "__BASE__\\file",
+            "EnsurePunctuation": "__BASE__\\file.",
+            "EnsureNoPunctuation": "__BASE__\\file",
+            "EnsureRelativePaths": "__BASE__\\file"
+        },
+        "pipeline": "__BASE__\\file"
+    },
+    {
+        "bound": false,
+        "input": "[__BASE__\/file]",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "<options=bold>[__BASE__\/file]<\/>",
+            "EnsurePunctuation": "[__BASE__\/file].",
+            "EnsureNoPunctuation": "[__BASE__\/file]",
+            "EnsureRelativePaths": "[__BASE__\/file]"
+        },
+        "pipeline": "<options=bold>[__BASE__\/file]<\/>"
+    },
+    {
+        "bound": true,
+        "input": "",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "",
+            "EnsurePunctuation": ".",
+            "EnsureNoPunctuation": "",
+            "EnsureRelativePaths": ""
+        },
+        "pipeline": ""
+    },
+    {
+        "bound": true,
+        "input": "Hello",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "Hello",
+            "EnsurePunctuation": "Hello.",
+            "EnsureNoPunctuation": "Hello",
+            "EnsureRelativePaths": "Hello"
+        },
+        "pipeline": "Hello"
+    },
+    {
+        "bound": true,
+        "input": "Hello.",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "Hello.",
+            "EnsurePunctuation": "Hello.",
+            "EnsureNoPunctuation": "Hello",
+            "EnsureRelativePaths": "Hello."
+        },
+        "pipeline": "Hello"
+    },
+    {
+        "bound": true,
+        "input": "Hello..",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "Hello..",
+            "EnsurePunctuation": "Hello..",
+            "EnsureNoPunctuation": "Hello.",
+            "EnsureRelativePaths": "Hello.."
+        },
+        "pipeline": "Hello."
+    },
+    {
+        "bound": true,
+        "input": "Hello?",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "Hello?",
+            "EnsurePunctuation": "Hello?",
+            "EnsureNoPunctuation": "Hello",
+            "EnsureRelativePaths": "Hello?"
+        },
+        "pipeline": "Hello"
+    },
+    {
+        "bound": true,
+        "input": "Hello!",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "Hello!",
+            "EnsurePunctuation": "Hello!",
+            "EnsureNoPunctuation": "Hello",
+            "EnsureRelativePaths": "Hello!"
+        },
+        "pipeline": "Hello"
+    },
+    {
+        "bound": true,
+        "input": "Hello:",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "Hello:",
+            "EnsurePunctuation": "Hello:",
+            "EnsureNoPunctuation": "Hello",
+            "EnsureRelativePaths": "Hello:"
+        },
+        "pipeline": "Hello"
+    },
+    {
+        "bound": true,
+        "input": "Hello！",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "Hello！",
+            "EnsurePunctuation": "Hello！.",
+            "EnsureNoPunctuation": "Hello！",
+            "EnsureRelativePaths": "Hello！"
+        },
+        "pipeline": "Hello！"
+    },
+    {
+        "bound": true,
+        "input": "Hi. ",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "Hi. ",
+            "EnsurePunctuation": "Hi. .",
+            "EnsureNoPunctuation": "Hi. ",
+            "EnsureRelativePaths": "Hi. "
+        },
+        "pipeline": "Hi. "
+    },
+    {
+        "bound": true,
+        "input": "Hi.\\n",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "Hi.\\n",
+            "EnsurePunctuation": "Hi.\\n.",
+            "EnsureNoPunctuation": "Hi.\\n",
+            "EnsureRelativePaths": "Hi.\\n"
+        },
+        "pipeline": "Hi.\\n"
+    },
+    {
+        "bound": true,
+        "input": "Hi.\n",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "Hi.\n",
+            "EnsurePunctuation": "Hi.\n.",
+            "EnsureNoPunctuation": "Hi.\n",
+            "EnsureRelativePaths": "Hi.\n"
+        },
+        "pipeline": "Hi.\n"
+    },
+    {
+        "bound": true,
+        "input": "[name]",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "<options=bold>[name]<\/>",
+            "EnsurePunctuation": "[name].",
+            "EnsureNoPunctuation": "[name]",
+            "EnsureRelativePaths": "[name]"
+        },
+        "pipeline": "<options=bold>[name]<\/>"
+    },
+    {
+        "bound": true,
+        "input": "[]",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "[]",
+            "EnsurePunctuation": "[].",
+            "EnsureNoPunctuation": "[]",
+            "EnsureRelativePaths": "[]"
+        },
+        "pipeline": "[]"
+    },
+    {
+        "bound": true,
+        "input": "[a[b]",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "<options=bold>[a[b]<\/>",
+            "EnsurePunctuation": "[a[b].",
+            "EnsureNoPunctuation": "[a[b]",
+            "EnsureRelativePaths": "[a[b]"
+        },
+        "pipeline": "<options=bold>[a[b]<\/>"
+    },
+    {
+        "bound": true,
+        "input": "[a] [b]",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "<options=bold>[a]<\/> <options=bold>[b]<\/>",
+            "EnsurePunctuation": "[a] [b].",
+            "EnsureNoPunctuation": "[a] [b]",
+            "EnsureRelativePaths": "[a] [b]"
+        },
+        "pipeline": "<options=bold>[a]<\/> <options=bold>[b]<\/>"
+    },
+    {
+        "bound": true,
+        "input": "[x\ny]",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "<options=bold>[x\ny]<\/>",
+            "EnsurePunctuation": "[x\ny].",
+            "EnsureNoPunctuation": "[x\ny]",
+            "EnsureRelativePaths": "[x\ny]"
+        },
+        "pipeline": "<options=bold>[x\ny]<\/>"
+    },
+    {
+        "bound": true,
+        "input": "<options=bold>[x]<\/>",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "<options=bold><options=bold>[x]<\/><\/>",
+            "EnsurePunctuation": "<options=bold>[x]<\/>.",
+            "EnsureNoPunctuation": "<options=bold>[x]<\/>",
+            "EnsureRelativePaths": "<options=bold>[x]<\/>"
+        },
+        "pipeline": "<options=bold><options=bold>[x]<\/><\/>"
+    },
+    {
+        "bound": true,
+        "input": "<tag>",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "<tag>",
+            "EnsurePunctuation": "<tag>.",
+            "EnsureNoPunctuation": "<tag>",
+            "EnsureRelativePaths": "<tag>"
+        },
+        "pipeline": "<tag>"
+    },
+    {
+        "bound": true,
+        "input": "美元$1",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "美元$1",
+            "EnsurePunctuation": "美元$1.",
+            "EnsureNoPunctuation": "美元$1",
+            "EnsureRelativePaths": "美元$1"
+        },
+        "pipeline": "美元$1"
+    },
+    {
+        "bound": true,
+        "input": "你好",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "你好",
+            "EnsurePunctuation": "你好.",
+            "EnsureNoPunctuation": "你好",
+            "EnsureRelativePaths": "你好"
+        },
+        "pipeline": "你好"
+    },
+    {
+        "bound": true,
+        "input": "__BASE__\/file",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "__BASE__\/file",
+            "EnsurePunctuation": "__BASE__\/file.",
+            "EnsureNoPunctuation": "__BASE__\/file",
+            "EnsureRelativePaths": "file"
+        },
+        "pipeline": "file"
+    },
+    {
+        "bound": true,
+        "input": "__BASE__\/a __BASE__\/b",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "__BASE__\/a __BASE__\/b",
+            "EnsurePunctuation": "__BASE__\/a __BASE__\/b.",
+            "EnsureNoPunctuation": "__BASE__\/a __BASE__\/b",
+            "EnsureRelativePaths": "a b"
+        },
+        "pipeline": "a b"
+    },
+    {
+        "bound": true,
+        "input": "__BASE__file",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "__BASE__file",
+            "EnsurePunctuation": "__BASE__file.",
+            "EnsureNoPunctuation": "__BASE__file",
+            "EnsureRelativePaths": "__BASE__file"
+        },
+        "pipeline": "__BASE__file"
+    },
+    {
+        "bound": true,
+        "input": "prefix__BASE__\/file",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "prefix__BASE__\/file",
+            "EnsurePunctuation": "prefix__BASE__\/file.",
+            "EnsureNoPunctuation": "prefix__BASE__\/file",
+            "EnsureRelativePaths": "prefixfile"
+        },
+        "pipeline": "prefixfile"
+    },
+    {
+        "bound": true,
+        "input": "__BASE__\\file",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "__BASE__\\file",
+            "EnsurePunctuation": "__BASE__\\file.",
+            "EnsureNoPunctuation": "__BASE__\\file",
+            "EnsureRelativePaths": "__BASE__\\file"
+        },
+        "pipeline": "__BASE__\\file"
+    },
+    {
+        "bound": true,
+        "input": "[__BASE__\/file]",
+        "results": {
+            "EnsureDynamicContentIsHighlighted": "<options=bold>[__BASE__\/file]<\/>",
+            "EnsurePunctuation": "[__BASE__\/file].",
+            "EnsureNoPunctuation": "[__BASE__\/file]",
+            "EnsureRelativePaths": "[file]"
+        },
+        "pipeline": "<options=bold>[file]<\/>"
+    }
+]

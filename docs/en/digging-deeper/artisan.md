@@ -1585,3 +1585,20 @@ The cursor is single-use. Rewinding is allowed before it advances past the first
 Factories may run during construction, child probing and child cursor creation, so do not assume one call per node. Child-probe failures are treated as no children by the underlying traversal; failures while advancing the iterator propagate and can leave partial output. During rendering, revisiting the same node identity raises `ConsoleTreeError::Cycle`, including reuse in a DAG. Distinct nodes with equal labels remain valid. Visited nodes stay owned throughout rendering so temporary-node allocation cannot cause false duplicate detection.
 
 `TreeStyle` offers `default`, `r#box`, `box_double`, `compact`, `light`, `minimal` and `rounded`. `r#box` uses Rust's raw identifier syntax because `box` is reserved. `TreeStyle::new` takes six immutable prefixes in this order: end-with-next, end-last, left, middle-with-next, middle-last, right. Presets use static strings; custom prefix definitions are shared when child helpers are created.
+
+## Component text mutators {#component-mutators}
+
+The four public mutators share the object-safe `Mutator::apply(&str) -> Result<String, ConsoleError>` interface. Explicit `apply` replaces callable objects; implementing Rust’s callable traits directly would require unstable language features. Text input is a string; this API does not reproduce PHP weak conversion for arbitrary objects or null.
+
+```rust
+use openrust::console::{ConsoleError, view::components::mutators::{EnsureDynamicContentIsHighlighted, EnsureNoPunctuation, EnsurePunctuation, EnsureRelativePaths, Mutator}};
+
+fn transform_component_text(value: &str) -> Result<String, ConsoleError> {
+    let value = EnsureDynamicContentIsHighlighted.apply(value)?;
+    let value = EnsurePunctuation.apply(&value)?;
+    let value = EnsureRelativePaths.apply(&value)?;
+    EnsureNoPunctuation.apply(&value)
+}
+```
+
+Highlighting wraps nonempty `[content]` in bold markup. Punctuation recognizes only final ASCII `.`, `?`, `!` and `:`; it does not trim whitespace or normalize Unicode punctuation. `EnsureNoPunctuation` removes exactly one final character. Relative paths remove every exact `base_path + "/"` occurrence inside the current application scope, without canonicalizing the path. Outside an application or without its `path.base` binding, text is unchanged. This is display formatting, not path validation. These types are available independently; the complete component factory is tracked separately.
