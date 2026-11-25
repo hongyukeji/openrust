@@ -189,7 +189,7 @@ async fn app<const K: u8>(root: &Root) -> Application {
             ("hashing".into(),json!({"driver":"bcrypt","bcrypt":{"rounds":4}})),
             ("cache".into(),json!({"default":"array","stores":{"array":{"driver":"array"}}})),
             ("session".into(),json!({"driver":"file","files":root.join("sessions"),"cookie":"member","lottery":[0,100]})),
-            ("queue".into(),json!({"default":"sync","connections":{"sync":{"driver":"sync"}}})),
+            ("queue".into(),json!({"default":"sync","connections":{"sync":{"driver":"sync"},"database":{"driver":"database","connection":"accounts"}}})),
             ("user".into(),json!({"profile":"api","registration":false,"email_verification":false,"two_factor":true,"passkeys":false,"avatar":{"enabled":false},"devices":{"enabled":false}})),
             ("fortify".into(),json!({"guard":"members","username":"email","middleware":["web"],"features":[],"limiters":{"login":null,"two-factor":null}})),
             ("auth".into(),json!({"defaults":{"guard":"members"},"guards":{"members":{"driver":"session","provider":"members"}},"providers":{"members":{"driver":"eloquent","model":if K == 0 {openrust::auth::model!(Member<0>,"custom-member-uuid",sanctum)}else{openrust::auth::model!(Member<1>,"custom-member-ulid",sanctum)},"connection":"accounts"}}})),

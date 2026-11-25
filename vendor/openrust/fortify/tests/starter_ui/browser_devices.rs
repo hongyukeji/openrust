@@ -665,9 +665,10 @@ async fn browser_devices_reject_unsupported_or_custom_handlers_and_disabled_rout
             let driver:Value=serde_json::from_slice(&std::fs::read(base.join("driver.json")).unwrap()).unwrap();
             Ok([
             ("app".into(),json!({"key":"p".repeat(32),"url":"http://localhost","name":"Capability acceptance"})),
-            ("user".into(),json!({"profile":"full","devices":{"enabled":true},"email_verification":false})),
+            ("user".into(),json!({"profile":"full","devices":{"enabled":true},"avatar":{"enabled":false},"email_verification":false})),
             ("auth".into(),json!({"defaults":{"guard":"web"},"guards":{"web":{"driver":"session","provider":"users"}},"providers":{"users":{"driver":"eloquent","model":"StarterUser"}}})),
             ("database".into(),json!({"default":"capability","connections":{"capability":{"driver":"sqlite","database":":memory:"}},"redis":{"default":{"host":"127.0.0.1","port":6379,"database":0}}})),
+            ("queue".into(),json!({"default":"database","connections":{"database":{"driver":"database"}}})),
             ("cache".into(),json!({"default":"array","stores":{"array":{"driver":"array"},"redis":{"driver":"redis","connection":"default"}}})),
             ("session".into(),json!({"driver":driver,"lottery":[0,100]})),
         ].into())}).with_providers(vec![Box::new(openrust_fortify::FortifyServiceProvider)]).create().unwrap();

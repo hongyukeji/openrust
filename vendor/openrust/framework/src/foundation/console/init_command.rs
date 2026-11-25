@@ -187,7 +187,7 @@ impl Command for InitCommand {
             let overrides = if full {
                 full::configure(&mut values, env_path.exists())?
             } else {
-                Default::default()
+                full::process_overrides(&mut values)?
             };
             if interactive && matches.get_one::<String>("extensions").is_none() && starter.is_none()
             {
@@ -630,6 +630,20 @@ impl Extensions {
         env: &BTreeMap<String, String>,
     ) -> Result<(), ConsoleError> {
         if self.has("user-web") || self.has("user-api") {
+            let passkeys = self.has("passkeys")
+                || matches!(
+                    value(env, "USER_PASSKEYS", "false")
+                        .to_ascii_lowercase()
+                        .as_str(),
+                    "true" | "(true)" | "1"
+                );
+            if (self.has("user-web") || passkeys)
+                && value(env, "API_PREFIX", "api").trim_matches('/').is_empty()
+            {
+                return Err(ConsoleError::new(
+                    "API_PREFIX 不能在网页或通行密钥用户套件中留空；尚未修改文件",
+                ));
+            }
             for key in [
                 "USER_REGISTRATION",
                 "USER_EMAIL_VERIFICATION",

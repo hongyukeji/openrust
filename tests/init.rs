@@ -477,3 +477,106 @@ fn user_starter_invalid_environment_fails_before_writes() {
         assert!(!root.path().join("config/user.rs").exists());
     }
 }
+
+#[test]
+fn user_starter_process_key_is_validated_without_persisting_deployment_secrets() {
+    for key in [
+        "01234567890123456789012345678901",
+        "",
+        "null",
+        "not-a-valid-key",
+    ] {
+        let root = user_project();
+        let text = fs::read_to_string(root.path().join(".env"))
+            .unwrap()
+            .replace("APP_KEY=01234567890123456789012345678901", "APP_KEY=");
+        fs::write(root.path().join(".env"), &text).unwrap();
+        let output = Command::new(env!("CARGO_BIN_EXE_main"))
+            .args([
+                "artisan",
+                "init",
+                "--starter-kit=full",
+                "--dry-run",
+                "--no-interaction",
+            ])
+            .env("APP_BASE_PATH", root.path())
+            .env("APP_KEY", key)
+            .output()
+            .unwrap();
+        assert_eq!(
+            output.status.success(),
+            key.len() == 32,
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(fs::read_to_string(root.path().join(".env")).unwrap(), text);
+        assert!(!root.path().join("config/user.rs").exists());
+    }
+}
+
+#[test]
+fn user_starter_process_cipher_and_previous_keys_use_the_same_encryption_configuration() {
+    for (cipher, key, previous, valid) in [
+        ("AES-128-CBC", "0123456789012345", "", true),
+        ("AES-128-GCM", "0123456789012345", "abcdefghijklmnop", true),
+        (
+            "AES-256-CBC",
+            "01234567890123456789012345678901",
+            "invalid",
+            false,
+        ),
+        ("invalid", "01234567890123456789012345678901", "", false),
+    ] {
+        let root = user_project();
+        let before = fs::read(root.path().join(".env")).unwrap();
+        let output = Command::new(env!("CARGO_BIN_EXE_main"))
+            .args([
+                "artisan",
+                "init",
+                "--starter-kit=full",
+                "--dry-run",
+                "--no-interaction",
+            ])
+            .env("APP_BASE_PATH", root.path())
+            .env("APP_KEY", key)
+            .env("APP_CIPHER", cipher)
+            .env("APP_PREVIOUS_KEYS", previous)
+            .output()
+            .unwrap();
+        assert_eq!(
+            output.status.success(),
+            valid,
+            "{cipher}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(fs::read(root.path().join(".env")).unwrap(), before);
+        assert!(!root.path().join("config/user.rs").exists());
+    }
+}
+
+#[test]
+fn user_starter_process_feature_configuration_is_checked_before_writes() {
+    for (name, value) in [
+        ("USER_REGISTRATION", "invalid"),
+        ("USER_TOKEN_EXPIRATION_DAYS", "0"),
+        ("USER_STARTER_PROFILE", "api"),
+        ("API_PREFIX", ""),
+    ] {
+        let root = user_project();
+        let before = fs::read(root.path().join(".env")).unwrap();
+        let output = Command::new(env!("CARGO_BIN_EXE_main"))
+            .args(["artisan", "init", "--starter-kit=full", "--no-interaction"])
+            .env("APP_BASE_PATH", root.path())
+            .env(name, value)
+            .output()
+            .unwrap();
+        assert!(!output.status.success(), "{name}");
+        let error = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            error.contains(name) && error.contains("尚未修改文件"),
+            "{error}"
+        );
+        assert_eq!(fs::read(root.path().join(".env")).unwrap(), before);
+        assert!(!root.path().join("config/user.rs").exists());
+    }
+}

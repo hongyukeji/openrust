@@ -676,6 +676,7 @@ where
     M: HasApiTokens + TwoFactorAuthenticatable + Clone,
 {
     use openrust::support::ServiceProvider as _;
+    super::preflight::validate::<M>(app)?;
     super::configure_mail_queue::<M>(app)?;
     super::credentials::scope_for::<M>(app)?;
     super::devices::configure::<M>(app)?;

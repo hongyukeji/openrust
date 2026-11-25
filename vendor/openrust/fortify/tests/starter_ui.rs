@@ -207,6 +207,13 @@ async fn start_custom_resource(
     }
     let mut settings = json!({"profile":profile,"registration":true,"email_verification":verification,"two_factor":two_factor,"api_prefix":prefix,"devices":{"enabled":false}});
     settings["passkeys"] = json!(passkeys);
+    if let Some(registration) = mail
+        .as_ref()
+        .and_then(|mail| mail.get("__user_registration"))
+    {
+        settings["registration"] = registration.clone();
+    }
+
     if let Some(queue) = mail.as_ref().and_then(|mail| mail.get("__user_queue")) {
         settings["mail"] = queue.clone();
         if let Some(name) = queue.get("queue").and_then(Value::as_str) {
@@ -730,9 +737,7 @@ fn full_configuration(
     {
         configuration.get_mut("session").unwrap()["driver"] = json!("database");
     }
-    if configuration["user"].get("mail").is_some() {
-        configuration.insert("queue".into(),json!({"default":"database","connections":{"database":{"driver":"database","table":"jobs","queue":"default","retry_after":90},"redis":{"driver":"redis","connection":"default","queue":"default","retry_after":90}},"failed":{"driver":"null"}}));
-    }
+    configuration.insert("queue".into(),json!({"default":"database","connections":{"database":{"driver":"database","table":"jobs","queue":"default","retry_after":90},"redis":{"driver":"redis","connection":"default","queue":"default","retry_after":90}},"failed":{"driver":"null"}}));
     Ok(configuration)
 }
 fn api_configuration(
@@ -5341,3 +5346,7 @@ mod passkey_authenticator;
 #[cfg(feature = "socialite")]
 #[path = "starter_ui/socialite.rs"]
 mod socialite;
+
+#[cfg(feature = "sanctum")]
+#[path = "starter_ui/preflight.rs"]
+mod preflight;

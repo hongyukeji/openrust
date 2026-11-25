@@ -67,11 +67,11 @@ impl fmt::Display for BootstrapError {
             Self::CommandRegistrationFailed { source } => {
                 write!(f, "command registration failed: {source}")
             }
-            Self::ProviderRegistrationFailed { name, .. } => {
-                write!(f, "provider {name} failed during register")
+            Self::ProviderRegistrationFailed { name, source, .. } => {
+                write!(f, "provider {name} failed during register: {source}")
             }
-            Self::ProviderBootFailed { name, .. } => {
-                write!(f, "provider {name} failed during boot")
+            Self::ProviderBootFailed { name, source, .. } => {
+                write!(f, "provider {name} failed during boot: {source}")
             }
             Self::LifecycleFailed { .. } => f.write_str("应用生命周期回调失败"),
             Self::PreviousBootFailed => f.write_str("application startup failed previously"),

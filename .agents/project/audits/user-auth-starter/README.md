@@ -795,3 +795,31 @@ Telescope保留被允许采集的安全请求元数据，去除原始URI参数�
 最终核定：custom-current-source.json以01948881c703f3eca542c82fffe0e1aebd97ac88为组合，保留本单元明确文件，排除其他未提交代码及下一单元preflight草稿。custom-clippy-final.log的框架／Fortify lib及实际消费测试严格Clippy通过；custom-delivery-combination.log在此组合补跑最终自定义用户1项与用户UI／TCP105项，全部通过。范围Rustfmt、差异检查及源码字节核定通过，custom-delivery-sha.json记录最终交付哈希。
 
 交付清理custom-cleanup.json：持Cargo锁直接删除闲置原生Sanctum测试二进制和文档dist，净释放463,998,976字节，清后可用58,176,036,864字节；后续S10所需普通增量缓存、源码、全部记录、依赖下载、数据库和数据卷保留。
+
+
+## S10 最终配置预检与公开入口核定（2026-11-26）
+
+逐项入口和可观察边界统一核定于[公开入口索引](contracts.md)，包括原生网页、套件API、邮件签名原路径、资源清理收据及可选因素。完整预设保留未验证账户可访问的修正资料／验证入口；业务路由自行加verified。API-only提供最小邮件落地，不凭注册关闭而删除找回后端。没有通过另建安装器、身份引擎或宽松中间件绕过现有契约。
+
+在公开client::register_routes前增加私有本地预检：头像开关严格布尔，磁盘存在且明确public，真实文件系统驱动可构造，图片大小／像素限额正整数且无溢出；关闭头像不要求磁盘。清理仍使用具名database队列、与实际用户模型同连接，包含已有头像的关闭场景。原始SourceInstallation负责源文件布局与相应写入前保护；Rust配置实际执行需要重建，不能宣称编译前已经理解任意自定义表达式。配置失败保留已生成脚手架，禁止报告就绪，修复配置后可重入。
+
+Provider注册／启动包装原本吞掉具体原因，实际init失败只能看到笼统Provider错误。现Display保留原错误前缀并显示既有source，真实ConsoleKernel的两种失败阶段均验证非零退出及具体原因。过程只读取本地配置，不发送测试供应商请求。原生init另修正仅进程环境提供APP_KEY的判断：按实际密钥预检／跳过生成，恢复原文件值再写入，不把部署秘密持久化到.env；空或无效进程密钥在受影响文件写入前拒绝。
+
+本批新增及组合证据位于target/tmp/user-starter：
+
+- preflight-mysql.log、preflight-postgres.log：独立MySQL8.4.13／PostgreSQL18.7各3项预检及双主键自定义用户流程通过；preflight-file.log的file Session预检3项通过。包含默认关闭注册的full／api入口404、原生登录及找回后端仍可用。API-only完整找回表单GET405是保留POST的正常方法边界。
+- preflight-runtime-full.log及socialite-runtime-full-preflight：实际错误配置导致首次init退出1，保留脚手架；修复后首次／重复安装、自动重建、迁移／重复执行通过。三语桌面／移动视口6组真实浏览器及1组文档S256客户端通过，回调由共享MySQL／database Session的第二应用节点处理。
+- preflight-runtime-api.log及socialite-runtime-api-preflight：仅API预设实际错误恢复／重建／迁移及重复安装通过，断言输出包含明确同库队列错误；不同源浏览器通过文档客户端CORS、S256兑换及Bearer访问实际/api/admin/user，无Cookie依赖。installation-manifest.json分别记录实际新增／修改路径及SHA，包含配置、Action、Provider、资源、路由、语言、视图与迁移；不保存.env内容或凭据。
+- preflight-clippy-final.log：最终父76fa0aa1d组合的框架／Fortify lib及实际消费目标严格Clippy通过。preflight-final-combination.log的bootstrap2、install16、配置7、自定义用户1及用户UI／HTTP108项，共134项通过；此条在后续仅进程密钥修复之前，密钥路径另验。
+- preflight-docs-final.log与preflight-docs-{build,browser}.log：三语教程的预检、跨系统启动命令与文档JS一致，构建及两种挂载前缀、桌面／移动12组实际DOM通过；同时修正早期正文中已完成的无状态Passkey适配仍写成待补的过时句子。
+
+Windows原生与Linux原生架构组合正在最终核定；未完成日志不计通过。三语正文只写开发者契约，详细过程、失败尝试及外部条件保留本记录。阶段状态在最后门禁通过后统一更新，不以本节已有单项通过自动闭合。
+
+
+最终环境规则复核没有保留另一套加密专用解释器：从原生full初始化提取既有进程覆盖流程，由普通／用户预设共用；full预设原有驱动约束保持原样。API_PREFIX进入同一既有覆盖范围。进程注入的APP_KEY／APP_CIPHER／APP_PREVIOUS_KEYS参与真实组合校验，数据库、队列、邮件及用户开关也保持同样优先级，写文件前恢复源文件原值。新增API前缀预检与运行时相同：网页或Passkeys预设不接受空前缀，避免账户路由冲突。
+
+preflight-environment-delivery.log：19项真实Artisan测试通过，包含有效AES-128-CBC／GCM、轮换密钥、非法／空密钥、非法算法、进程功能开关／期限及空API前缀的明确写入前错误；源文件不包含部署秘密。preflight-environment-clippy-delivery.log严格Clippy通过，preflight-code-sha.json核对12份Rust源码与实际快照一致。preflight-docs-complete.log记录最终三语正文的构建与12组DOM通过。早期针对密钥的17／18项记录保留，不替代这份最终19项证据。
+
+本机交付清理preflight-mac-cleanup.json：Mac本批全部Cargo命令结束后取得独占profile锁，直接删除闲置编译profile并保留锁文件，净释放9,174,818,816字节，清理时可用55,752,835,072字节；正常调试／增量／并发设置未改变，源码、日志、依赖、数据库、数据卷及其他任务缓存保留。并行任务之后的写入可能改变余量，不把它们的全局清理算成本任务独占释放。
+
+Windows额外资源边界：初始包消费26项在debug=1、正常线程栈下通过。原生CMD首次安装、自动重建和迁移也已通过，但随后重复安装在独立安全重建缓存因40GB验收盘空间不足失败，space-failure日志保留，不计整条Windows链通过。此盘同时服务其他任务，未调整虚拟机或磁盘布局。持锁仅清本任务cargo-target与application/target/artisan-rebuild两个闲置profile后，盘内可用由277,405,696增至17,561,067,520字节；该数是来宾文件系统余量，不能直接冒充Mac实际回收。接下来的Windows安装验收仅将本任务进程的dev debug设为0以容纳两套缓存，保留正常增量、并发、断言和线程栈，不改项目清单／IDE／全局配置。对验收盘执行的是空闲块ReTrim，不删除任何已分配文件。新链路仍以最终实际结果为准。

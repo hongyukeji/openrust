@@ -45,7 +45,6 @@ pub(super) fn configure(
     values: &mut BTreeMap<String, String>,
     existing: bool,
 ) -> Result<BTreeMap<String, Option<String>>, ConsoleError> {
-    let mut overrides = BTreeMap::new();
     for &(key, expected) in DRIVERS {
         if !existing || !values.contains_key(key) {
             values.insert(key.into(), expected.into());
@@ -58,10 +57,38 @@ pub(super) fn configure(
         );
         values.insert("APP_URL".into(), url);
     }
+    let overrides = process_overrides(values)?;
+    let mut conflicts = Vec::new();
+    for &(key, expected) in DRIVERS {
+        let conflict = super::value(values, key, "") != expected
+            || (existing
+                && overrides
+                    .get(key)
+                    .and_then(Option::as_deref)
+                    .is_some_and(|old| old != expected));
+        if conflict {
+            conflicts.push(format!("{key} 应为 {expected}"));
+        }
+    }
+    if !conflicts.is_empty() {
+        return Err(ConsoleError::new(format!(
+            "完整预设与现有配置冲突：{}。未修改文件。",
+            conflicts.join("、")
+        )));
+    }
+    Ok(overrides)
+}
+
+/// 只在初始化预检中叠加实际进程环境，返回原值以便写文件前恢复。
+pub(super) fn process_overrides(
+    values: &mut BTreeMap<String, String>,
+) -> Result<BTreeMap<String, Option<String>>, ConsoleError> {
+    let mut overrides = BTreeMap::new();
     for (key, value) in std::env::vars_os() {
         let Some(key) = key.to_str() else { continue };
         if ![
             "APP_",
+            "API_",
             "DB_",
             "REDIS_",
             "CACHE_",
@@ -91,24 +118,6 @@ pub(super) fn configure(
             ));
         }
         overrides.insert(key.into(), values.insert(key.into(), value));
-    }
-    let mut conflicts = Vec::new();
-    for &(key, expected) in DRIVERS {
-        let conflict = super::value(values, key, "") != expected
-            || (existing
-                && overrides
-                    .get(key)
-                    .and_then(Option::as_deref)
-                    .is_some_and(|old| old != expected));
-        if conflict {
-            conflicts.push(format!("{key} 应为 {expected}"));
-        }
-    }
-    if !conflicts.is_empty() {
-        return Err(ConsoleError::new(format!(
-            "完整预设与现有配置冲突：{}。未修改文件。",
-            conflicts.join("、")
-        )));
     }
     Ok(overrides)
 }
