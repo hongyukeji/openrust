@@ -4,6 +4,61 @@ use openrust::{config::Environment, foundation::configuration::Routing, testing:
 use openrust_horizon::{Horizon, HorizonServiceProvider, MasterSupervisor};
 use serde_json::json;
 
+#[test]
+fn provisioning_plan_keeps_environment_order_and_merges_default_options() {
+    use openrust::config::Repository;
+    use openrust_horizon::{ProvisioningPlan, SupervisorOptions};
+    use std::collections::BTreeMap;
+
+    let config = Repository::new(BTreeMap::from([
+        (
+            "horizon".into(),
+            json!({
+                "defaults": {"main": {"queue": ["initial", "retained"], "max_processes": 2}},
+                "environments": {
+                    "testing*": {"main": {"queue": ["override"], "processes": 1}, "disabled": {"maxProcesses": 0}},
+                    "testing": {"excluded": {"maxProcesses": 1}},
+                },
+            }),
+        ),
+        (
+            "queue".into(),
+            json!({"connections": {"redis": {"driver": "redis", "retry_after": 90, "queue": "fallback"}}}),
+        ),
+    ]));
+    let plan = ProvisioningPlan::new("North:東京 1-uP19", &config).unwrap();
+    assert_eq!(
+        plan.environments().collect::<Vec<_>>(),
+        ["testing*", "testing"]
+    );
+    assert!(plan.has_environment("testing"));
+    assert!(!plan.has_environment("testing-west"));
+    assert!(plan.options_for("testing-west", "main").is_none());
+    assert!(plan.options_for("testing", "absent").is_none());
+    let main = plan.options_for("testing*", "main").unwrap();
+    assert_eq!(main.name, "North:東京 1-uP19:main");
+    assert_eq!(main.queue, ["override", "retained"]);
+    assert_eq!(main.max_processes, 1);
+    assert_eq!(main.parent_id, std::process::id());
+    assert_eq!(
+        plan.options_for("testing*", "disabled")
+            .unwrap()
+            .max_processes,
+        0
+    );
+    assert_eq!(
+        plan.options_for("testing", "excluded").unwrap().queue,
+        ["fallback"]
+    );
+    assert_eq!(plan.to_supervisor_options().next().unwrap().1.len(), 2);
+    let active = SupervisorOptions::from_config_for_environment(&config, "testing").unwrap();
+    assert_eq!(
+        active.keys().map(String::as_str).collect::<Vec<_>>(),
+        ["main"]
+    );
+    assert_eq!(active["main"].queue, main.queue);
+}
+
 #[tokio::test]
 async fn master_names_use_a_process_token_and_an_application_local_resolver() {
     use openrust::{
@@ -17,6 +72,8 @@ async fn master_names_use_a_process_token_and_an_application_local_resolver() {
             assert_eq!(MasterSupervisor::basename().unwrap(), "first.cluster");
             let first = MasterSupervisor::process_name().unwrap();
             assert_eq!(MasterSupervisor::process_name().unwrap(), first);
+            let plan = openrust_horizon::ProvisioningPlan::get(&first).unwrap();
+            assert!(plan.environments().any(|name| name == "production"));
             let queue = format!("master:{first}");
             assert_eq!(MasterSupervisor::command_queue().unwrap(), queue);
             for default in [None, Some(""), Some("0")] {

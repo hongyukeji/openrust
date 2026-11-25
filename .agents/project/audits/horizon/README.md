@@ -62,9 +62,15 @@ Rust 提供 `MasterSupervisor::command_queue`／`command_queue_for`、可由应�
 
 macOS 和 Linux ARM64 用真实 Redis 验证并发领取、FIFO 与嵌套参数、启动清空、暂停继续、无效命令与去重、工作目录恢复以及新 Worker 的真实任务。旧 Master 退出保留接管方排队的命令，竞争同名启动也不会清空现有持有者的待办。Windows 11 ARM64 通过公开队列把空部署扩展为真实进程树并执行任务，原生排空与意外退出回归通过。证据为 `target/tmp/observability-parity/horizon-master-command-{macos-final,process-regression,competing,linux-final,windows-verified}.log`。
 
-剩余契约包括通过正式 `ProvisioningPlan` 发送默认部署命令、可替换的命令队列接口、命令类的应用容器解析、Supervisor 的结构化命令消费，以及 Master 公开重启和输出回调。
+### ProvisioningPlan 与默认部署
 
-`ProvisioningPlan` 的固定 PHP 参考已生成。环境名称按输入顺序列出，精确存在检查和通配部署分开。部署 `testing` 时优先采用排在前面的 `testing*`，递归合并保留未覆盖的队列位置。有效 Supervisor 通过同一命令队列提交，再派发部署事件。未匹配环境无命令及事件。证据为 `target/tmp/observability-parity/horizon-provisioning-upstream.log`。
+固定 PHP 验收确认环境名称按输入顺序列出，精确存在检查和通配部署分开。部署 `testing` 时优先采用排在前面的 `testing*`，递归合并保留未覆盖的队列位置。有效 Supervisor 先通过同一命令队列提交，再派发部署事件。未匹配环境无命令及事件。匹配的空计划或全部停用计划仍派发事件。证据为 `target/tmp/observability-parity/horizon-provisioning-{upstream,cases-upstream}.log`。 [固定 ProvisioningPlan](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/ProvisioningPlan.php)
+
+Rust 的公开 `ProvisioningPlan` 可从应用配置取得，包含有序的环境及 Supervisor 查询入口。环境选项保留停用项供读取，部署只发送启用项。Artisan `horizon` 完成配置校验及获得名称所有权后，在 Redis 比对令牌并一次提交所有 `AddSupervisor` 命令，再发布部署事件。已运行 Master 可由公开 `deploy` 入口追加计划。相对工作目录以应用根为基准，Supervisor 及其 Worker 使用同一目录。部署事件中的监督器列表与已提交的命令一致。
+
+macOS 的真实 Artisan 完整进程回归在部署监听器中检查 Redis 待办数量，覆盖未匹配、匹配空计划、全部停用、正常启动及目录恢复。macOS 与 Linux ARM64 使用公开 `deploy` 与真实 Master 验证首个通配环境、新 Worker 执行任务和相对工作目录。Windows ARM64 复验默认计划启动、排空、快速终止及父进程异常退出。配置测试 8 项、Horizon 全目标严格 Clippy、格式与三语正文检查通过。证据为 `target/tmp/observability-parity/horizon-provisioning-{macos-artisan,macos-process,linux-artisan,windows}.log`。
+
+剩余契约包括可替换的命令队列接口、命令类的应用容器解析、Supervisor 的结构化命令消费，以及 Master 公开重启和输出回调。
 
 ### Windows 原生进程树
 

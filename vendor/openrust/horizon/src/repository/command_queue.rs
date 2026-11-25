@@ -33,17 +33,60 @@ impl RedisHorizonCommandQueue {
     }
 
     pub async fn push(&self, name: &str, command: &str, options: Json) -> Result<()> {
-        let key = self.key(name)?;
-        if !valid_process_name(command) || !(options.is_array() || options.is_object()) {
-            return Err(Error::InvalidRecord);
-        }
         let item = QueuedCommand {
             command: command.into(),
             options,
         };
-        let entry = serde_json::to_string(&item).map_err(|_| Error::InvalidRecord)?;
-        self.0.command("RPUSH", &[key, entry]).await?;
+        self.push_batch(name, &[item]).await
+    }
+
+    pub(crate) async fn push_batch(&self, name: &str, items: &[QueuedCommand]) -> Result<()> {
+        let mut args = vec![self.key(name)?];
+        if !items.is_empty() {
+            args.extend(Self::encode(items)?);
+            self.0.command("RPUSH", &args).await?;
+        }
         Ok(())
+    }
+
+    pub(super) async fn push_for_master(
+        &self,
+        master: &str,
+        token: &str,
+        items: &[QueuedCommand],
+    ) -> Result<()> {
+        if items.is_empty() {
+            return Ok(());
+        }
+        let keys = vec![
+            self.key(&format!("master:{master}"))?,
+            self.0.key(&format!("master-owner:{master}")),
+        ];
+        let mut args = vec![token.into()];
+        args.extend(Self::encode(items)?);
+        let result = self.0.eval(
+            "if redis.call('GET',KEYS[2]) ~= ARGV[1] then return false end; for index=2,#ARGV do redis.call('RPUSH',KEYS[1],ARGV[index]) end; return 1",
+            keys,
+            args,
+        ).await?;
+        if result == Value::Nil {
+            return Err(Error::MasterOwnershipLost);
+        }
+        Ok(())
+    }
+
+    fn encode(items: &[QueuedCommand]) -> Result<Vec<String>> {
+        items
+            .iter()
+            .map(|item| {
+                if !valid_process_name(&item.command)
+                    || !(item.options.is_array() || item.options.is_object())
+                {
+                    return Err(Error::InvalidRecord);
+                }
+                serde_json::to_string(item).map_err(|_| Error::InvalidRecord)
+            })
+            .collect()
     }
 
     pub async fn pending(&self, name: &str) -> Result<Vec<QueuedCommand>> {

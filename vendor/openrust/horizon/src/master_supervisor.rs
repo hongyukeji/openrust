@@ -73,6 +73,11 @@ impl AddSupervisor {
             return Ok(());
         }
         options.parent_id = std::process::id();
+        if let Some(directory) = &mut options.directory
+            && directory.is_relative()
+        {
+            *directory = master.base.join(&*directory);
+        }
         let mut child = SupervisorProcess::new(options, None);
         child.from_command = true;
         if let Some(existing) = existing {
@@ -130,7 +135,7 @@ impl Event for SupervisorProcessRestarting {
 pub struct MasterSupervisor {
     repository: Arc<Repository>,
     options: BTreeMap<String, SupervisorOptions>,
-    has_deployment_plan: bool,
+    deployment: Option<crate::provisioning_plan::Deployment>,
     executable: PathBuf,
     base: PathBuf,
     environment: String,
@@ -243,7 +248,7 @@ impl MasterSupervisor {
         let basename = repository.master_names.basename(&host)?;
         Ok(Self {
             repository,
-            has_deployment_plan: !options.is_empty(),
+            deployment: None,
             options,
             executable,
             base,
@@ -257,8 +262,11 @@ impl MasterSupervisor {
             job_trim_schedule: Arc::default(),
         })
     }
-    pub(crate) fn with_deployment_plan(mut self, configured: bool) -> Self {
-        self.has_deployment_plan = configured;
+    pub(crate) fn with_deployment(
+        mut self,
+        deployment: Option<crate::provisioning_plan::Deployment>,
+    ) -> Self {
+        self.deployment = deployment;
         self
     }
     pub fn fast_termination(mut self, enabled: bool) -> Self {
@@ -322,8 +330,15 @@ impl MasterSupervisor {
             .master_supervisors()
             .claim(&self.id, &self.status(paused, &[]))
             .await?;
-        started();
-        if self.has_deployment_plan {
+        if let Some(deployment) = &self.deployment
+            && let Err(error) = lease.deploy(&deployment.commands).await
+        {
+            let _ = lease.release().await;
+            return Err(error);
+        }
+        if let Some(deployment) = self.deployment.take() {
+            deployment.report().await;
+        } else if !self.options.is_empty() {
             let event = MasterSupervisorDeployed {
                 master: self.id.clone(),
                 environment: self.environment.clone(),
@@ -340,6 +355,7 @@ impl MasterSupervisor {
                 );
             }
         }
+        started();
         let mut ticker = tokio::time::interval(Duration::from_secs(1));
         let result = loop {
             tokio::select! {

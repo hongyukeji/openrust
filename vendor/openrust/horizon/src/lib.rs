@@ -13,6 +13,7 @@ mod notifications;
 mod options;
 mod process_memory;
 mod provider;
+mod provisioning_plan;
 mod repository;
 mod signals;
 mod silenced;
@@ -42,6 +43,7 @@ pub use process_memory::{
     SupervisorOutOfMemory,
 };
 pub use provider::HorizonServiceProvider;
+pub use provisioning_plan::ProvisioningPlan;
 pub use repository::{
     JobDetails, JobRecord, JobRepository, MasterSupervisorRepository, Metrics, MetricsRepository,
     ProcessRepository, QueuedCommand, RedisHorizonCommandQueue, Repository, SupervisorRepository,

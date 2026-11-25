@@ -12,8 +12,9 @@ use openrust::{
 };
 use openrust_horizon::{
     AddSupervisor, Horizon, HorizonServiceProvider, MasterSupervisor, MasterSupervisorDeployed,
-    MasterSupervisorLooped, MasterSupervisorOutOfMemory, RedisHorizonCommandQueue,
-    SupervisorLooped, SupervisorOutOfMemory, UnableToLaunchProcess, WorkerProcessRestarting,
+    MasterSupervisorLooped, MasterSupervisorOutOfMemory, ProvisioningPlan,
+    RedisHorizonCommandQueue, SupervisorLooped, SupervisorOutOfMemory, UnableToLaunchProcess,
+    WorkerProcessRestarting,
 };
 use serde_json::json;
 use std::{collections::BTreeMap, path::Path, sync::Arc, time::Duration};
@@ -59,6 +60,8 @@ fn config(base: &Path, _: &Environment) -> Result<BTreeMap<String, Value>, Confi
                     "cooldown": {"supervisor-1": {"maxProcesses": 1}},
                     "spawn": {"supervisor-1": {"maxProcesses": 1, "directory": base.join("worker-cwd")}},
                     "queue-names": {"supervisor-1": {"maxProcesses": 1, "balance": false, "queue": "出库 汇总:报表,  打包复核"}},
+                    "public-plan*": {"planned": {"timeout": 5, "maxProcesses": 1, "queue": ["planned"]}, "disabled-plan": {"maxProcesses": 0}},
+                    "public-plan": {"excluded": {"timeout": 5, "maxProcesses": 1, "queue": ["excluded"]}},
                 },
             }),
         ),
@@ -111,7 +114,10 @@ struct ProbeProvider;
 
 struct MemoryEventRecorder(std::path::PathBuf);
 
-struct ProcessEventRecorder(std::path::PathBuf);
+struct ProcessEventRecorder(
+    std::path::PathBuf,
+    Option<(Arc<openrust::redis::connections::Connection>, String)>,
+);
 
 impl Listener for ProcessEventRecorder {
     fn handle<'a>(
@@ -145,6 +151,16 @@ impl Listener for ProcessEventRecorder {
                     }),
                 )
             } else if let Some(deployment) = event.downcast_ref::<MasterSupervisorDeployed>() {
+                if let Some((redis, prefix)) = &self.1 {
+                    let key = redis.key(&format!(
+                        "{prefix}{{horizon}}:commands:queued:master:{}",
+                        deployment.master
+                    ));
+                    assert_eq!(
+                        redis.command("LLEN", &[key.as_bytes()]).await.unwrap(),
+                        openrust::redis::Value::Int(deployment.supervisors.len() as i64)
+                    );
+                }
                 (
                     "deployment-events.jsonl",
                     json!({
@@ -166,7 +182,13 @@ impl Listener for ProcessEventRecorder {
                 "{row}"
             )
             .unwrap();
-            Err(EventError::InvalidPayload)
+            if event.name() == MasterSupervisorDeployed::NAME
+                && std::env::var_os("HORIZON_PROBE_DEPLOY_PLAN").is_some()
+            {
+                Ok(None)
+            } else {
+                Err(EventError::InvalidPayload)
+            }
         })
     }
 }
@@ -261,7 +283,23 @@ impl ServiceProvider for ProbeProvider {
                 Delivery::Sync,
             )?;
             dispatcher.listen(SupervisorOutOfMemory::NAME, recorder, Delivery::Sync)?;
-            let recorder = Arc::new(ProcessEventRecorder(app.base_path().to_owned()));
+            let probe = if std::env::var_os("HORIZON_PROBE_ASSERT_QUEUED_STARTUP").is_some() {
+                let redis = app
+                    .make::<openrust::redis::RedisManager>()
+                    .await?
+                    .connection(None)?;
+                let prefix = app
+                    .config()?
+                    .get("horizon.prefix")
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+                    .to_owned();
+                Some((redis, prefix))
+            } else {
+                None
+            };
+            let recorder = Arc::new(ProcessEventRecorder(app.base_path().to_owned(), probe));
             dispatcher.listen(
                 WorkerProcessRestarting::NAME,
                 recorder.clone(),
@@ -313,6 +351,20 @@ fn create() -> Result<Application, Box<dyn std::error::Error + Send + Sync>> {
 }
 #[tokio::main]
 async fn main() -> std::process::ExitCode {
+    if let Ok(probe) = std::env::var("HORIZON_PROBE_DEPLOY_PLAN") {
+        let mut app = create().unwrap();
+        app.boot().await.unwrap();
+        let args: Value = serde_json::from_str(&probe).unwrap();
+        let plan = ProvisioningPlan::new(
+            args["master"].as_str().unwrap(),
+            app.config().unwrap().as_ref(),
+        )
+        .unwrap();
+        plan.deploy(args["environment"].as_str().unwrap(), &app)
+            .await
+            .unwrap();
+        return std::process::ExitCode::SUCCESS;
+    }
     if std::env::var_os("HORIZON_PROBE_RECORD_SUPERVISOR_CWD").is_some()
         && std::env::args().nth(2).as_deref() == Some("horizon:supervisor")
     {

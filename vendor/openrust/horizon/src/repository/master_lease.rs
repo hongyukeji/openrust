@@ -171,6 +171,13 @@ return 1
 }
 
 impl MasterLease {
+    pub(crate) async fn deploy(&self, commands: &[QueuedCommand]) -> Result<()> {
+        self.repository
+            .0
+            .command_queue()
+            .push_for_master(&self.ownership.name, &self.ownership.token, commands)
+            .await
+    }
     pub(crate) async fn pending_commands(&self) -> Result<Vec<QueuedCommand>> {
         self.repository
             .0

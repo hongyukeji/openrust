@@ -260,104 +260,7 @@ impl SupervisorOptions {
         config: &dyn openrust::contracts::config::Repository,
         environment: &str,
     ) -> Result<BTreeMap<String, Self>> {
-        Self::provisioning_plan(config, environment).map(|(options, _)| options)
-    }
-
-    pub(crate) fn provisioning_plan(
-        config: &dyn openrust::contracts::config::Repository,
-        environment: &str,
-    ) -> Result<(BTreeMap<String, Self>, bool)> {
-        let defaults = config
-            .get("horizon.defaults")
-            .unwrap_or(serde_json::json!({}));
-        let overrides = config
-            .get("horizon.environments")
-            .unwrap_or(serde_json::json!({}));
-        let overrides = overrides
-            .as_object()
-            .ok_or(Error::InvalidConfiguration)?
-            .iter()
-            .find(|(pattern, _)| {
-                openrust::support::Str::is(&[pattern.as_str()], environment, false)
-            })
-            .map(|(_, value)| value);
-        let defaults = defaults.as_object().ok_or(Error::InvalidConfiguration)?;
-        let Some(overrides) = overrides else {
-            return Ok((BTreeMap::new(), false));
-        };
-        let mut values = defaults.clone();
-        for (name, value) in overrides.as_object().ok_or(Error::InvalidConfiguration)? {
-            let mut merged = values.remove(name).unwrap_or(serde_json::json!({}));
-            replace_recursive(&mut merged, value);
-            values.insert(name.clone(), merged);
-        }
-        let mut result = BTreeMap::new();
-        for (name, value) in values {
-            if !label(&name) {
-                return Err(Error::InvalidConfiguration);
-            }
-            let mut value: serde_json::Map<String, serde_json::Value> = value
-                .as_object()
-                .ok_or(Error::InvalidConfiguration)?
-                .iter()
-                .map(|(key, value)| {
-                    let key = match key.as_str() {
-                        "tries" => "maxTries".to_owned(),
-                        "processes" => "maxProcesses".to_owned(),
-                        _ => openrust::support::Str::camel(key),
-                    };
-                    (key, value.clone())
-                })
-                .collect();
-            let connection = value
-                .get("connection")
-                .and_then(|v| v.as_str())
-                .unwrap_or("redis");
-            if !value.contains_key("queue") {
-                let queue = config
-                    .get(&format!("queue.connections.{connection}.queue"))
-                    .unwrap_or(serde_json::json!("default"));
-                value.insert("queue".into(), queue);
-            }
-            value
-                .entry("name")
-                .or_insert_with(|| serde_json::json!(name));
-            value.insert("parentId".into(), serde_json::json!(std::process::id()));
-            let options = Self::from_array(value.into())?;
-            if options.max_processes == 0 {
-                continue;
-            }
-            if config
-                .get(&format!("queue.connections.{}.driver", options.connection))
-                .and_then(|v| v.as_str().map(str::to_owned))
-                .as_deref()
-                != Some("redis")
-                || config
-                    .get(&format!(
-                        "queue.connections.{}.retry_after",
-                        options.connection
-                    ))
-                    .and_then(|v| v.as_u64())
-                    .is_none_or(|v| options.timeout > 0 && v <= u64::from(options.timeout))
-            {
-                return Err(Error::InvalidConfiguration);
-            }
-            let redis = config
-                .get(&format!(
-                    "queue.connections.{}.connection",
-                    options.connection
-                ))
-                .and_then(|v| v.as_str().map(str::to_owned))
-                .unwrap_or("default".into());
-            if config
-                .get(&format!("database.redis.clusters.{redis}"))
-                .is_some()
-            {
-                return Err(Error::InvalidConfiguration);
-            }
-            result.insert(name, options);
-        }
-        Ok((result, true))
+        crate::ProvisioningPlan::active_options(config, environment)
     }
 }
 
@@ -378,32 +281,6 @@ fn queues<'de, D: serde::Deserializer<'de>>(
         .iter()
         .flat_map(|value| value.split(',').map(str::to_owned))
         .collect())
-}
-
-// PHP array_replace_recursive also replaces numeric array keys individually.
-fn replace_recursive(default: &mut serde_json::Value, replacement: &serde_json::Value) {
-    match (default, replacement) {
-        (serde_json::Value::Object(default), serde_json::Value::Object(replacement)) => {
-            for (key, value) in replacement {
-                replace_recursive(
-                    default
-                        .entry(key.clone())
-                        .or_insert(serde_json::Value::Null),
-                    value,
-                );
-            }
-        }
-        (serde_json::Value::Array(default), serde_json::Value::Array(replacement)) => {
-            for (index, value) in replacement.iter().enumerate() {
-                if let Some(default) = default.get_mut(index) {
-                    replace_recursive(default, value);
-                } else {
-                    default.push(value.clone());
-                }
-            }
-        }
-        (default, replacement) => *default = replacement.clone(),
-    }
 }
 
 pub struct AutoScaler;

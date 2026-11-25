@@ -136,6 +136,8 @@ Master 名称由主机名转换出的短名和进程内固定的四字符令牌�
 
 要向运行中的 Master 添加监督器，请从应用容器解析 `RedisHorizonCommandQueue`。通过 `MasterSupervisor::command_queue_for(Some(master_name))` 获取目标队列，将 `AddSupervisor::NAME` 和 `SupervisorOptions::to_array()` 生成的选项推入队列。监督器名称由 Master 全名、`:` 和监督器名称组成。处于暂停状态的 Master 会在继续运行后启动新监督器。
 
+`ProvisioningPlan::get(master_name)` 读取应用的部署计划。部署按配置顺序选择首个匹配的环境，将监督器选项与默认值合并，并跳过 `max_processes` 为零的监督器。Artisan 启动时会应用该计划。要向运行中的 Master 应用计划，可调用 `plan.deploy(environment, &app).await`。
+
 Horizon 任务 ID 标识独立的 Redis 投递，由队列推送和面板返回。`horizon:retry` 与 `horizon:forget` 使用此 ID。重试获得新 ID，原失败监控记录保留并记录重试结果。原生 `queue:retry` 和失败任务存储使用载荷 UUID，由 Horizon 内部转换；批次重试也会将这些 UUID 解析为当前失败投递。
 
 按[队列](../digging-deeper/queues.md)配置持久失败存储，重试复用原生领取与重新派发机制。`horizon:forget` 删除监控失败记录与原生失败记录，`--all` 分页处理全部 Horizon 失败记录。`horizon:clear` 清空指定队列和待处理监控记录，`horizon:purge` 处理孤立进程。通过[任务调度](../digging-deeper/scheduling.md)定期执行 `horizon:snapshot` 保存指标历史；`horizon:clear-metrics` 清理指标并保留任务记录。

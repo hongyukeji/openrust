@@ -66,7 +66,7 @@ def main():
             queue('push', name, master=True, command='Unknown', options={})
             queue('push', name, master=True, options={'name': 'another-master:foreign'})
             queue('push', name, master=True, options={'name': child, 'queue': ['added'], 'maxProcesses': 1,
-                                                      'directory': str(directory)})
+                                                      'directory': directory.name})
             queue('push', name, master=True, options={'name': child, 'queue': ['wrong'], 'maxProcesses': 1})
 
             paused = until(lambda: next((row for row in statuses() if child in row['supervisors']), None))
@@ -84,6 +84,16 @@ def main():
                       HORIZON_PROBE_DISPATCH_QUEUE='added')
             completed = root / 'completed.log'
             until(lambda: completed.exists() and job in completed.read_text())
+            run(HORIZON_PROBE_DEPLOY_PLAN=json.dumps({'master': name, 'environment': 'public-plan'}))
+            planned = name + ':planned'
+            live = until(lambda: next((row for row in statuses()
+                                      if any(worker['supervisor'] == planned for worker in row['workers'])), None))
+            assert live['supervisors'] == [child, planned], live
+            event = json.loads((root / 'deployment-events.jsonl').read_text().splitlines()[-1])
+            assert event['environment'] == 'public-plan' and event['supervisors'] == [planned], event
+            planned_job = run(HORIZON_PROBE_DISPATCH='{}', HORIZON_PROBE_DISPATCH_UUID='1',
+                              HORIZON_PROBE_DISPATCH_QUEUE='planned')
+            until(lambda: planned_job in completed.read_text())
             run('artisan', 'horizon:terminate')
             stdout, stderr = master.communicate(timeout=15)
             assert master.returncode == 0, (stdout, stderr)

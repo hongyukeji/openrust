@@ -1,4 +1,4 @@
-use crate::{Error, MasterSupervisor, Repository, SupervisorOptions};
+use crate::{Error, MasterSupervisor, Repository};
 use clap::{Arg, ArgAction, Command as Syntax};
 use openrust::{
     console::{Command, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output},
@@ -102,9 +102,6 @@ impl Command for HorizonCommand {
                                 .and_then(|v| v.as_str().map(str::to_owned))
                         })
                         .ok_or_else(|| error(Error::InvalidConfiguration))?;
-                    let (options, configured) =
-                        SupervisorOptions::provisioning_plan(config.as_ref(), &environment)
-                            .map_err(error)?;
                     let queues = app
                         .make::<openrust::queue::QueueManager>()
                         .await
@@ -112,19 +109,23 @@ impl Command for HorizonCommand {
                     let supervisor = MasterSupervisor::new(
                         repository,
                         queues,
-                        options,
+                        Default::default(),
                         std::env::current_exe().map_err(error)?,
                         app.base_path().to_owned(),
-                        environment,
+                        environment.clone(),
                     )
                     .map_err(error)?
-                    .with_deployment_plan(configured)
                     .fast_termination(
                         config
                             .get("horizon.fast_termination")
                             .and_then(|value| value.as_bool())
                             .unwrap_or(false),
                     );
+                    let deployment =
+                        crate::ProvisioningPlan::new(supervisor.name(), config.as_ref())
+                            .and_then(|plan| plan.deployment(&environment, config.as_ref()))
+                            .map_err(error)?;
+                    let supervisor = supervisor.with_deployment(deployment);
                     let shutdown = input
                         .shutdown()
                         .cloned()

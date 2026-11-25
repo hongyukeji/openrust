@@ -22,7 +22,8 @@ def main():
         root = Path(base)
         with sqlite3.connect(root / 'database.sqlite') as db:
             db.execute('CREATE TABLE failed_jobs (id INTEGER PRIMARY KEY AUTOINCREMENT, uuid TEXT UNIQUE, connection TEXT, queue TEXT, payload TEXT, exception TEXT, failed_at TEXT)')
-        env = dict(os.environ, APP_BASE_PATH=base, APP_ENV='testing', LOG_CHANNEL='null', HORIZON_PREFIX='horizon-probe:')
+        env = dict(os.environ, APP_BASE_PATH=base, APP_ENV='testing', LOG_CHANNEL='null',
+                   HORIZON_PREFIX='horizon-probe:', HORIZON_PROBE_ASSERT_QUEUED_STARTUP='1')
         redis_url = urlsplit(env['HORIZON_TEST_REDIS_URL'])
         redis_auth = dict(os.environ, REDISCLI_AUTH=redis_url.password)
         redis_container = env.get('HORIZON_ACCEPTANCE_REDIS_CONTAINER')
@@ -119,17 +120,19 @@ def main():
                     'environment': environment,
                     'supervisors': [],
                 }]
-                assert [event for event in deployments() if event['master'] == state['name']] == expected
+                if expected:
+                    until(lambda: [event for event in deployments() if event['master'] == state['name']] == expected)
                 master.send_signal(signal.SIGTERM)
                 stdout, stderr = master.communicate(timeout=15)
                 assert master.returncode == 0, (stdout, stderr)
+                assert [event for event in deployments() if event['master'] == state['name']] == expected
                 assert status() == []
             basename = os.environ.get('HORIZON_TEST_MASTER_BASENAME', '-probe.cluster_one')
             env['HORIZON_PROBE_MASTER_BASENAME'] = basename
             assert 'No processes to pause.' in artisan('horizon:pause')
             assert redis('SET', wait_lock, 'contender', 'EX', '30') == 'OK'
             master = subprocess.Popen([binary, 'artisan', 'horizon'], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            until_master(lambda state: state['pid'] == master.pid)
+            until_master(lambda state: state['pid'] == master.pid and state['workers'])
             assert 'Sending USR2 signal to processes.' in artisan('horizon:pause')
             until_master(lambda state: state['status'] == 'paused')
             dispatch(password='secret-never-exported')
@@ -430,30 +433,20 @@ def main():
             assert master.returncode == 0, (stdout, stderr)
             assert status() == []
             assert gone(fourth_pid)
-            # A failed OS spawn retains the same supervisor and cooldown window.
+            # The provisioning queue passes the working directory to the Supervisor itself.
             master = subprocess.Popen(
                 [binary, 'artisan', 'horizon', '--environment=spawn'],
                 env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             )
             state = until_master(lambda state: state['supervisors'])
             supervisor_name = state['supervisors'][0]
-            expected = {
-                'name': 'UnableToLaunchProcess', 'supervisor': supervisor_name,
-                'queue': 'default', 'pid': None, 'exit_code': None,
-            }
-            until(lambda: restart_history(supervisor_name, None))
-            assert restart_history(supervisor_name, None) == [expected]
-            assert status()[0]['workers'] == []
+            failed = until_master(lambda state: state['unexpected_exits'] > 0)
+            assert not failed['workers']
+            assert restart_history(supervisor_name, None) == []
             (root / 'worker-cwd').mkdir()
-            until(lambda: 'running' in artisan('horizon:supervisor-status', supervisor_name))
-            time.sleep(2.2)
-            state = status()[0]
-            assert state['workers'] == []
-            assert state['unexpected_exits'] == 0
-            assert restart_history(supervisor_name, None) == [expected]
-            restored_pid = until(replacement, timeout=65)
-            assert restart_history(supervisor_name, None) == [expected, expected]
-            assert status()[0]['unexpected_exits'] == 0
+            restored_pid = until(replacement)
+            assert 'is running' in artisan('horizon:supervisor-status', supervisor_name)
+            assert status()[0]['supervisors'] == [supervisor_name]
             master.send_signal(signal.SIGTERM)
             stdout, stderr = master.communicate(timeout=15)
             assert master.returncode == 0, (stdout, stderr)
