@@ -7,17 +7,45 @@ mod migrations;
 #[path = "../../../bootstrap/packages.rs"]
 mod packages;
 
-use std::process::ExitCode;
+use std::{process::ExitCode, sync::Arc};
 
 use openrust::{
     console::{
         Application as Artisan, Command, CommandDefinition, ConsoleError, ConsoleFuture, Input,
         Output,
     },
+    contracts::queue::JobHandler,
     foundation::{Application, configuration::Routing, run_application},
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
-    support::facades::Route,
+    queue::{JobContext, Payload, QueueFuture, QueueResult},
+    support::{
+        ProviderResult, ServiceProvider,
+        facades::{Bus, Queue, Route},
+    },
 };
+
+struct BatchProbe;
+
+impl JobHandler for BatchProbe {
+    fn handle<'a>(
+        &'a self,
+        _: &'a mut JobContext<'_>,
+        _: &'a Payload,
+    ) -> QueueFuture<'a, QueueResult<()>> {
+        Box::pin(async { Ok(()) })
+    }
+}
+
+struct FixtureProvider;
+
+impl ServiceProvider for FixtureProvider {
+    fn boot<'a>(&'a mut self, _: &'a Application) -> HttpFuture<'a, ProviderResult> {
+        Box::pin(async {
+            Queue::register("telemetry.batch.item", Arc::new(BatchProbe))?;
+            Ok(())
+        })
+    }
+}
 
 struct Probe(CommandDefinition);
 
@@ -34,6 +62,21 @@ impl Command for Probe {
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
             let failed = input.matches().get_flag("fail");
+            if self.0.name() == "telemetry:batch" {
+                let make = || {
+                    Payload::new("telemetry.batch.item", "private-job-input")
+                        .map_err(ConsoleError::from_source)
+                };
+                Bus::batch([make()?, make()?])
+                    .on_connection(
+                        std::env::var("NEW_RELIC_TEST_QUEUE").unwrap_or_else(|_| "database".into()),
+                    )
+                    .on_queue("telemetry")
+                    .dispatch()
+                    .await
+                    .map_err(ConsoleError::from_source)?;
+                return Ok(0);
+            }
             if self.0.name() == "telemetry:enqueue" {
                 let mut arguments = vec!["private-job-input".into()];
                 if failed {
@@ -63,7 +106,7 @@ impl Command for Probe {
 }
 
 fn commands(artisan: &mut Artisan) -> Result<(), ConsoleError> {
-    for name in ["telemetry:probe", "telemetry:enqueue"] {
+    for name in ["telemetry:probe", "telemetry:enqueue", "telemetry:batch"] {
         let command = clap::Command::new(name).arg(clap::Arg::new("input")).arg(
             clap::Arg::new("fail")
                 .long("fail")
@@ -119,6 +162,7 @@ fn probe(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
                         source: Box::new(source),
                     })?;
                 assert!(new_relic.export_stats().attempts > 0);
+                assert_eq!(new_relic.export_stats().rejected_items, 1);
                 StatusCode::NO_CONTENT
             }
             Some("dependency") => {
@@ -179,6 +223,7 @@ async fn main() -> ExitCode {
                 Ok(config)
             })
             .with_packages(packages::manifest())
+            .with_providers(vec![Box::new(FixtureProvider)])
             .with_commands(commands)
             .with_migrations(migrations::entries())
             .with_routing(Routing::default().api(|| Route::get("/probe/{id}", probe)))

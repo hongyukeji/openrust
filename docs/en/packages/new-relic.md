@@ -26,7 +26,7 @@ Artisan command completion and timed queue attempts export spans and duration me
 
 Outgoing HTTP calls and SQL operations recorded during an execution use its active Span as their parent. HTTP client spans cover a transport attempt up to response headers. Database spans and duration metrics cover prepared statements, transactions, and cursors. Database attributes use the driver and a fixed vocabulary of operations. SQL text and bindings are excluded.
 
-Each queue dispatch through the manager can carry optional trace metadata to a Worker. The consumer's Span Link identifies the origin of an asynchronous task. Older payloads without these fields continue to run. Queue and command duration metrics can be queried by their `openrust.queue.job.duration` and `openrust.artisan.command.duration` names.
+Queue dispatches through the manager can carry optional trace metadata to a Worker. Batch jobs each get their own creation Span. The consumer's Span Link identifies the origin of an asynchronous task. Older payloads without these fields continue to run. Queue and command duration metrics can be queried by their `openrust.queue.job.duration` and `openrust.artisan.command.duration` names.
 
 ## Logs and errors {#logs-and-errors}
 
@@ -51,4 +51,4 @@ The exception handler reports an error class and a safe summary. `NEW_RELIC_EXCE
 
 Traces and metrics are enabled by default when the extension is on. Disable either with `NEW_RELIC_TRACES_ENABLED=false` or `NEW_RELIC_METRICS_ENABLED=false`. Set `NEW_RELIC_TRACE_SAMPLE_RATIO` between 0 and 1 to sample root spans while honoring the parent decision. Sampling does not change metric counts. Set `NEW_RELIC_INSTANCE_ID` when a service needs an explicit replica ID. Changing these values requires rebuilding the configuration cache if it is in use.
 
-Resolve `openrust_new_relic::NewRelic` from the application container. Inside a transaction, `name_transaction` and `add_attribute` provide bounded span customization. HTTP metrics retain their route labels. Embedding code can call `flush().await` or `shutdown().await` after draining its own work. `export_stats()` counts HTTP attempts and failures, including retries. It cannot count records dropped before an HTTP request.
+Resolve `openrust_new_relic::NewRelic` from the application container. Inside a transaction, `name_transaction` and `add_attribute` provide bounded span customization. HTTP metrics retain their route labels. Embedding code can call `flush().await` or `shutdown().await` after draining its own work. `export_stats()` counts HTTP attempts and failures, including retries. It cannot count records dropped before an HTTP request. The `rejected_items` counter reports items that the receiver explicitly rejects in a successful OTLP response. Partial responses are not retried by the integration.

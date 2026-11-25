@@ -32,6 +32,10 @@ pub enum Operation<'a> {
         destination: &'a str,
         trace: &'a mut Option<TraceContext>,
     },
+    JobCreate {
+        destination: &'a str,
+        trace: &'a mut Option<TraceContext>,
+    },
     Job {
         name: &'a str,
         trace: Option<&'a TraceContext>,

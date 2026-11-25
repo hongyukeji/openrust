@@ -8,7 +8,7 @@ Git 默认流程已于 2026-11-23 更新：已授权任务完成并通过相关�
 
 - 2026-11-25 Artisan第二十三簇默认整行分隔／异构行通过：420源向量、219父消费者含三语72例、真实HTTP／独立Artisan、严格门禁／12浏览器；见[第二十三簇](audits/artisan-tutorial/README.md)。32GB守卫清理后同源恢复构建完成，实际日志保留；分隔单元格继承选项／合并样式单元格／分区及其他SDK继续，不关闭整章／目标，不推送。
 
-- 2026-11-25 New Relic APM 完整版主路径已实现并通过本机验收。真实 HTTP、独立 Artisan、数据库／Redis Worker、链路、日志和指标已实测。剩余入口与真实账号验收仍按[供应商集成](plans/log-supplier-integrations.md)跟踪。
+- 2026-11-25 New Relic APM 完整版主路径已通过本机验收。真实 HTTP、独立 Artisan、数据库／Redis Worker、链路、日志和指标已实测，含批量任务逐项关联与 OTLP 部分拒收计数。剩余入口与真实账号验收仍按[供应商集成](plans/log-supplier-integrations.md)跟踪。
 
 - 2026-11-25 Artisan第二十二簇共享命名表格样式通过：34源操作＋2回调、213父消费者含三语69例、真实HTTP24并发跨应用／独立Artisan、严格门禁／12浏览器；见[第二十二簇](audits/artisan-tutorial/README.md)。Table::new以Result传播解析失败，getter拥有快照、借用共享与显式Clone隔离已迁移；复杂单元格／分区及其余SDK继续，不关闭整章／目标，不推送。
 

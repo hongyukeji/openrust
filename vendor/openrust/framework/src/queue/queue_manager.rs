@@ -964,12 +964,6 @@ impl QueueManager {
         batch: &Batch,
         jobs: Vec<BatchJob>,
     ) -> QueueResult<()> {
-        let mut heads = Vec::with_capacity(jobs.len());
-        for entry in jobs {
-            let mut head = entry.into_head(&batch.id)?;
-            self.capture_context(&mut head)?;
-            heads.push(head);
-        }
         let queue = batch
             .options
             .get("queue")
@@ -978,6 +972,25 @@ impl QueueManager {
             .owner
             .upgrade()
             .ok_or(QueueError::InvalidConfiguration)?;
+        use crate::foundation::observability::{self, Operation, Outcome};
+        let mut heads = Vec::with_capacity(jobs.len());
+        for entry in jobs {
+            let mut head = entry.into_head(&batch.id)?;
+            self.capture_context(&mut head)?;
+            let observation = observability::begin(
+                &owner,
+                Operation::JobCreate {
+                    destination: queue.unwrap_or(&configured.default_queue),
+                    trace: &mut head.trace_context,
+                },
+            );
+            observation
+                .run(std::future::ready(()), |()| Outcome::JobDispatch {
+                    failed: false,
+                })
+                .await;
+            heads.push(head);
+        }
         let options = DispatchOptions {
             queue: queue.map(str::to_owned),
             ..Default::default()

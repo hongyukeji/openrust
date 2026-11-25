@@ -12,6 +12,11 @@ use openrust::{
     contracts::config::Repository,
 };
 use opentelemetry_http::{Bytes, HttpClient, HttpError, Request, Response};
+use opentelemetry_proto::tonic::collector::{
+    logs::v1::ExportLogsServiceResponse, metrics::v1::ExportMetricsServiceResponse,
+    trace::v1::ExportTraceServiceResponse,
+};
+use prost::Message as _;
 use reqwest::{
     Url,
     blocking::Client,
@@ -112,12 +117,15 @@ pub(crate) struct Transport {
 pub struct ExportStats {
     pub attempts: u64,
     pub failures: u64,
+    /// 收集器在成功 HTTP 响应中明确拒绝的记录数。
+    pub rejected_items: u64,
 }
 
 #[derive(Default)]
 struct Counters {
     attempts: AtomicU64,
     failures: AtomicU64,
+    rejected_items: AtomicU64,
 }
 
 impl Transport {
@@ -125,6 +133,7 @@ impl Transport {
         ExportStats {
             attempts: self.stats.attempts.load(Ordering::Relaxed),
             failures: self.stats.failures.load(Ordering::Relaxed),
+            rejected_items: self.stats.rejected_items.load(Ordering::Relaxed),
         }
     }
 }
@@ -148,6 +157,12 @@ impl HttpClient for Transport {
         if let Some(license) = &self.license {
             request.headers_mut().insert("api-key", license.clone());
         }
+        let signal = match request.uri().path() {
+            "/v1/logs" => 1,
+            "/v1/metrics" => 2,
+            "/v1/traces" => 3,
+            _ => 0,
+        };
         self.stats.attempts.fetch_add(1, Ordering::Relaxed);
         let result = self.client.send_bytes(request).await;
         if result.as_ref().is_err()
@@ -156,6 +171,40 @@ impl HttpClient for Transport {
                 .is_ok_and(|response| !response.status().is_success())
         {
             self.stats.failures.fetch_add(1, Ordering::Relaxed);
+        } else if let Ok(response) = &result
+            && !response.body().is_empty()
+        {
+            // 仅统计确认的部分拒绝，原响应继续由 SDK 处理。
+            let body = response.body().as_ref();
+            let rejected = match signal {
+                1 => ExportLogsServiceResponse::decode(body)
+                    .ok()
+                    .and_then(|response| {
+                        response
+                            .partial_success
+                            .map(|partial| partial.rejected_log_records)
+                    }),
+                2 => ExportMetricsServiceResponse::decode(body)
+                    .ok()
+                    .and_then(|response| {
+                        response
+                            .partial_success
+                            .map(|partial| partial.rejected_data_points)
+                    }),
+                3 => ExportTraceServiceResponse::decode(body)
+                    .ok()
+                    .and_then(|response| {
+                        response
+                            .partial_success
+                            .map(|partial| partial.rejected_spans)
+                    }),
+                _ => None,
+            };
+            if let Some(rejected) = rejected.and_then(|count| u64::try_from(count).ok()) {
+                self.stats
+                    .rejected_items
+                    .fetch_add(rejected, Ordering::Relaxed);
+            }
         }
         result
     }

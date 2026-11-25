@@ -24,7 +24,7 @@ Slack／Papertrail已有原生网络实现和本地真实协议消费者；其�
 | [OpenTelemetry Rust SDK 0.33.1](https://github.com/open-telemetry/opentelemetry-rust/releases/tag/opentelemetry-0.33.1) | Apache-2.0，导出器最低 Rust 1.75。采用 SDK 的聚合、采样、批处理、退避和 OTLP protobuf。旧版 `6d1a81924451` 已使用同版 SDK，保留其批次导出经验，改用应用级 Provider 和有界退出刷新。 |
 | [New Relic OTLP](https://docs.newrelic.com/docs/opentelemetry/best-practices/opentelemetry-otlp/) 与 [APM 指标语义](https://docs.newrelic.com/docs/opentelemetry/get-started/apm-monitoring/opentelemetry-apm-ui/) | 使用分区域 HTTPS OTLP、摄取许可证和 Delta 指标。HTTP 指标使用 `http.server.request.duration`，配合服务端 Span 和 `service.name`，为 New Relic APM 提供服务及事务输入。 |
 
-### 实现与本地验收
+### 首版本地验收记录
 
 - 可选 `openrust-new-relic` 包经包发现注册 `NewRelicServiceProvider`。由配置与环境在应用级启用，许可证在启动时读取。独立 Collector 支持无供应商凭据的本机验收与应用外密钥管理。
 - 复用 `RequestHandled`、`CommandFinished` 和 `JobAttempted`。HTTP 记录框架生成响应的时点，非传输结束。HTTP Span 接续入站 W3C 上下文，后台 Span 记录已结束操作。异常分类只取状态和结果，不携带原始业务异常。新增 `ApplicationTerminating` 供编译二进制的退出流程在已有工作结束后刷新。
@@ -80,4 +80,5 @@ Rust 1.94.0 冻结快照使用真实 HTTP、两个回环下游和独立 Artisan�
 - 运行时支持跟随父链的根采样、三信号开关、服务版本与实例标识、容器句柄的事务命名／自定义属性／主动刷新／关闭，以及 HTTP 导出尝试和失败计数。已有正常退出事件统一收尾。出口 HTTP 次数不等同 SDK 队列丢弃数或 New Relic 实际接收量。
 - 同一个实际可执行程序经回环 TCP、独立 Artisan、队列生产者与 Worker 生成 OTLP protobuf。SQLite、MySQL 8.4.13、PostgreSQL 18.7、Redis 8.10.3 和同步队列覆盖主路径。验证异常去敏、日志关联、信号启闭、采样与指标独立、配置缓存、许可排除、400／503／超时、主动及退出刷新。后续矩阵和相关日志保存在项目内 `target/tmp/new-relic-full/`。
 - Rust 1.94.0 的全仓格式、框架库与扩展及应用验收目标的定向严格 Clippy 通过。三语正文检查、VitePress 构建、两种部署路径的 12 个浏览器组合及全部导航页面检查通过。各验收容器已回收，复用构建缓存与日志保留在批次目录。
-- **未闭合。** 仍须补验或完善完整批量／生命周期队列和 SQS、Beanstalkd、真实隔离 Worker 强杀／重启，Artisan 快捷路径，出站 HTTP 正文阶段与重定向／超时专项，堆栈和缓冲／堆叠日志的独立回归，SDK 队列丢弃及 OTLP 部分接收的可观测结果。授权 New Relic 账号、平台页面与跨平台验收单列待执行。本地没有用到真实供应商密钥或发送付费遥测。
+- 批量派发为每个入队任务单独生成创建 Span，独立 Worker 分别关联对应的 Span。成功的 OTLP 响应若携带部分拒收计数，应用可从 `NewRelic::export_stats().rejected_items` 读取。SQLite、MySQL 8.4.13、PostgreSQL 18.7、Redis 8.10.3 实测双任务批量关联和部分拒收响应。三语使用说明、文档构建和浏览器检查已复验。
+- **未闭合。** 队列生命周期回调、SQS、Beanstalkd、隔离 Worker 强杀／重启，Artisan 快捷路径，出站 HTTP 正文计时和重定向／超时专项，堆栈与缓冲／堆叠日志回归，SDK 过载丢弃统计仍待补齐或补验。真实 New Relic 摄取、APM 页面和跨平台验收待执行。本地没有用到真实供应商密钥或发送付费遥测。

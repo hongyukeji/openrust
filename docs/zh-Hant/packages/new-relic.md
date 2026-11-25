@@ -26,7 +26,7 @@ Artisan 命令完成和有計時資訊的佇列執行嘗試都會產生 Span 和
 
 執行期間的外送 HTTP 與 SQL 操作以目前的 Span 為父節點。HTTP 用戶端 Span 從網路嘗試開始記錄到收到回應標頭。資料庫 Span 與耗時指標涵蓋預備陳述式、交易查詢與游標，屬性只採用驅動程式和固定的操作名稱，不收集 SQL 本文或繫結值。
 
-透過佇列管理器派發的工作可以攜帶選用追蹤中繼資料。非同步 Worker 的 Span Link 會關聯工作的來源。既有工作缺少此欄位時仍可照常執行。佇列與命令耗時指標可分別使用 `openrust.queue.job.duration` 和 `openrust.artisan.command.duration` 查詢。
+透過佇列管理器派發的工作可以攜帶選用追蹤中繼資料。批次派發時，每個工作使用獨立的建立 Span。非同步 Worker 的 Span Link 會關聯工作的來源。既有工作缺少此欄位時仍可照常執行。佇列與命令耗時指標可分別使用 `openrust.queue.job.duration` 和 `openrust.artisan.command.duration` 查詢。
 
 ## 日誌與例外 {#logs-and-errors}
 
@@ -51,4 +51,4 @@ Artisan 命令完成和有計時資訊的佇列執行嘗試都會產生 Span 和
 
 擴充啟用後預設傳送追蹤與指標。可用 `NEW_RELIC_TRACES_ENABLED=false` 或 `NEW_RELIC_METRICS_ENABLED=false` 個別停用。將 `NEW_RELIC_TRACE_SAMPLE_RATIO` 設為 0 到 1，為根 Span 設定取樣比例，並沿用父 Span 的取樣決定。指標計數不受追蹤取樣影響。需要明確區分服務副本時，可設定 `NEW_RELIC_INSTANCE_ID`。使用設定快取的應用程式在變更這些設定後需重新產生快取。
 
-從應用程式容器解析 `openrust_new_relic::NewRelic`。在交易作用域內，可用 `name_transaction` 和 `add_attribute` 更新 Span 名稱與有限的自訂屬性，HTTP 指標繼續依路由彙總。嵌入式使用者可在自己的工作結束後呼叫 `flush().await` 或 `shutdown().await`。`export_stats()` 統計實際 HTTP 請求嘗試與失敗，重試個別計數，排隊階段丟棄的記錄不屬於此統計。
+從應用程式容器解析 `openrust_new_relic::NewRelic`。在交易作用域內，可用 `name_transaction` 和 `add_attribute` 更新 Span 名稱與有限的自訂屬性，HTTP 指標繼續依路由彙總。嵌入式使用者可在自己的工作結束後呼叫 `flush().await` 或 `shutdown().await`。`export_stats()` 統計實際 HTTP 請求嘗試與失敗，重試個別計數，排隊階段丟棄的記錄不屬於此統計。 `rejected_items` 另行統計接收端在成功 OTLP 回應中明確拒收的記錄。部分接收不會由此擴充重新傳送。

@@ -14,7 +14,9 @@ import tempfile
 import threading
 import time
 
-from opentelemetry.proto.collector.logs.v1.logs_service_pb2 import ExportLogsServiceRequest
+from opentelemetry.proto.collector.logs.v1.logs_service_pb2 import (
+    ExportLogsPartialSuccess, ExportLogsServiceRequest, ExportLogsServiceResponse,
+)
 from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import ExportMetricsServiceRequest
 from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceRequest
 
@@ -46,16 +48,24 @@ class CollectorHandler(BaseHTTPRequestHandler):
         with self.server.lock:
             pending = self.server.responses.get(self.path, [])
             status = pending.pop(0) if pending else 200
+            partial = (status == 299)
+            if partial:
+                status = 200
             self.server.requests.append((self.path, dict(self.headers), body, status))
         if status == 0:
             time.sleep(4)
             return
+        reply = ExportLogsServiceResponse(partial_success=ExportLogsPartialSuccess(
+            rejected_log_records=1, error_message="fixture partial success",
+        )).SerializeToString() if partial else b""
         self.send_response(status)
         self.send_header("Content-Type", "application/x-protobuf")
-        self.send_header("Content-Length", "0")
+        self.send_header("Content-Length", str(len(reply)))
         if status == 503:
             self.send_header("Retry-After", "1")
         self.end_headers()
+        if reply:
+            self.wfile.write(reply)
 
     def log_message(self, *_args):
         pass
@@ -196,6 +206,7 @@ def main(binary, driver, queue):
         enabled = env | {"NEW_RELIC_ENABLED": "true", "NEW_RELIC_LOGS_ENABLED": "true"}
 
         collector.responses["/v1/traces"] = [503]
+        collector.responses["/v1/logs"] = [299]
         web(binary, enabled, root)
         requests = collector.requests.copy()
         attempts = [item for item in requests if item[0] == "/v1/traces"]
@@ -247,6 +258,7 @@ def main(binary, driver, queue):
         assert len(rejected) == 1 and rejected[0][3] == 400
         cli(binary, artisan, "telemetry:probe", "private-command-input", "--fail", exit_code=1)
         cli(binary, enabled | {"NEW_RELIC_APP_NAME": "acceptance-producer"}, "telemetry:enqueue")
+        cli(binary, enabled | {"NEW_RELIC_APP_NAME": "acceptance-batch"}, "telemetry:batch")
         cli(binary, enabled | {"NEW_RELIC_APP_NAME": "acceptance-worker"},
             "queue:work", queue, "--queue=telemetry", "--stop-when-empty", "--tries=1")
         spans, metrics, logs = decode(collector.requests.copy())
@@ -266,7 +278,11 @@ def main(binary, driver, queue):
         produced = next(span for name, span in spans if name == "acceptance-producer" and span.kind == 4)
         assert any(span.kind == 5 and any(link.trace_id == produced.trace_id and link.span_id == produced.span_id
                                          for link in span.links) for span in worker_spans), worker_spans
-        print(f"独立 Artisan、{queue}/{driver} Worker 的生产者关联、嵌套链路、拒收和退出刷新通过", flush=True)
+        batch_links = {(span.trace_id, span.span_id) for name, span in spans
+                       if name == "acceptance-batch" and span.name == "queue create"}
+        worker_links = {(link.trace_id, link.span_id) for span in worker_spans for link in span.links}
+        assert len(batch_links) == 2 and batch_links <= worker_links
+        print(f"独立 Artisan、{queue}/{driver} Worker 的生产者／批量关联、嵌套链路、拒收和退出刷新通过", flush=True)
 
         start = len(collector.requests)
         cli(binary, enabled | {"NEW_RELIC_TEST_QUEUE": "sync"}, "telemetry:enqueue")

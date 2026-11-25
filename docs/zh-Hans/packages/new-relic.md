@@ -26,7 +26,7 @@ Artisan 命令完成和有计时信息的队列执行尝试都会生成 Span 和
 
 执行期间的出站 HTTP 和 SQL 操作以当前 Span 为父节点。HTTP 客户端 Span 从网络尝试开始记录到响应头到达。数据库 Span 与耗时指标覆盖预备语句、事务查询和游标，属性只使用驱动和固定的操作名称，不采集 SQL 文本或绑定值。
 
-通过队列管理器派发的任务可以携带可选链路元数据。异步 Worker 的 Span Link 关联任务的来源。已有任务缺少该字段时可照常执行。队列和命令耗时指标可分别按 `openrust.queue.job.duration` 和 `openrust.artisan.command.duration` 查询。
+通过队列管理器派发的任务可以携带可选链路元数据。批量派发时，每个任务使用独立的创建 Span。异步 Worker 的 Span Link 关联任务的来源。已有任务缺少该字段时可照常执行。队列和命令耗时指标可分别按 `openrust.queue.job.duration` 和 `openrust.artisan.command.duration` 查询。
 
 ## 日志与异常 {#logs-and-errors}
 
@@ -51,4 +51,4 @@ Artisan 命令完成和有计时信息的队列执行尝试都会生成 Span 和
 
 扩展启用后默认发送链路和指标。可用 `NEW_RELIC_TRACES_ENABLED=false` 或 `NEW_RELIC_METRICS_ENABLED=false` 单独关闭。将 `NEW_RELIC_TRACE_SAMPLE_RATIO` 设为 0 到 1，为根 Span 设置采样比例，并沿用父 Span 的采样决定。指标计数不受链路采样影响。需要显式区分服务副本时设置 `NEW_RELIC_INSTANCE_ID`。使用配置缓存的应用修改这些设置后需重建缓存。
 
-从应用容器解析 `openrust_new_relic::NewRelic`。在事务作用域内，可用 `name_transaction` 和 `add_attribute` 更新 Span 名称及有限的自定义属性，HTTP 指标继续按路由聚合。嵌入式消费者可在自己的工作结束后调用 `flush().await` 或 `shutdown().await`。`export_stats()` 统计实际 HTTP 请求尝试及失败，重试单独计数，排队阶段丢弃的记录不属于该统计。
+从应用容器解析 `openrust_new_relic::NewRelic`。在事务作用域内，可用 `name_transaction` 和 `add_attribute` 更新 Span 名称及有限的自定义属性，HTTP 指标继续按路由聚合。嵌入式消费者可在自己的工作结束后调用 `flush().await` 或 `shutdown().await`。`export_stats()` 统计实际 HTTP 请求尝试及失败，重试单独计数，排队阶段丢弃的记录不属于该统计。 `rejected_items` 另行统计接收端在成功 OTLP 响应中明确拒收的记录。部分接收不会由本扩展重新发送。

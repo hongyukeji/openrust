@@ -502,6 +502,26 @@ impl Observer for Recorder {
                     None,
                 )
             }
+            Operation::JobCreate { destination, trace } => {
+                // 已带创建上下文的任务保持原有关联。
+                if trace.is_none() {
+                    carrier = Some(trace);
+                }
+                (
+                    SpanBuilder::from_name("queue create")
+                        .with_kind(SpanKind::Producer)
+                        .with_attributes([
+                            KeyValue::new("messaging.system", "openrust.queue"),
+                            KeyValue::new("messaging.system.name", "openrust.queue"),
+                            KeyValue::new("messaging.operation.name", "create"),
+                            KeyValue::new("messaging.operation.type", "create"),
+                            KeyValue::new("messaging.destination.name", destination.to_owned()),
+                        ]),
+                    local(),
+                    OperationKind::Dispatch,
+                    None,
+                )
+            }
             Operation::Job { name, trace } => {
                 let parent = local();
                 let link = trace.and_then(|trace| {

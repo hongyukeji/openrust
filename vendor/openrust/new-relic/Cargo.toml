@@ -16,6 +16,8 @@ opentelemetry = { version = "=0.33.1", default-features = false, features = ["tr
 opentelemetry_sdk = { version = "=0.33.1", default-features = false, features = ["trace", "metrics", "logs"] }
 opentelemetry-otlp = { version = "=0.33.1", default-features = false, features = ["http-proto", "trace", "metrics", "logs"] }
 opentelemetry-http = { version = "=0.33.1", default-features = false, features = ["reqwest-blocking"] }
+opentelemetry-proto = { version = "=0.33.1", default-features = false, features = ["gen-tonic-messages", "trace", "metrics", "logs"] }
+prost = "0.14"
 async-trait = "0.1"
 reqwest = { version = "=0.13.5", default-features = false, features = ["blocking", "rustls"] }
 url = "2.5"
