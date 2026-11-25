@@ -1,0 +1,45 @@
+[
+    {
+        "name": "Success",
+        "value": 1,
+        "json": "1",
+        "from": "Success"
+    },
+    {
+        "name": "Failure",
+        "value": 2,
+        "json": "2",
+        "from": "Failure"
+    },
+    {
+        "name": "Skipped",
+        "value": 3,
+        "json": "3",
+        "from": "Skipped"
+    },
+    {
+        "invalid": -1,
+        "try_from": null,
+        "from_error": true
+    },
+    {
+        "invalid": 0,
+        "try_from": null,
+        "from_error": true
+    },
+    {
+        "invalid": 4,
+        "try_from": null,
+        "from_error": true
+    },
+    {
+        "invalid": -9223372036854775808,
+        "try_from": null,
+        "from_error": true
+    },
+    {
+        "invalid": 9223372036854775807,
+        "try_from": null,
+        "from_error": true
+    }
+]

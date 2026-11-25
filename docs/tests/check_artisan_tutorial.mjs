@@ -58,6 +58,7 @@ try {
                     assert.equal(await page.locator('h2#component-mutators').count(),1);
                     assert.equal(await page.locator('h2#line-components').count(),1);
                     assert.equal(await page.locator('h2#display-components').count(),1);
+                    assert.equal(await page.locator('h2#task-results').count(),1);
                     assert((await page.locator('.vp-doc').innerText()).includes('register_display_components'));
                     assert((await page.locator('.vp-doc').innerText()).includes('register_line_components'));
                     assert((await page.locator('.vp-doc').innerText()).includes('transform_component_text'));

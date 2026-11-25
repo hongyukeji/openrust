@@ -1,0 +1,74 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "source": "Illuminate/Console/View/TaskResult.php",
+  "native": "console::view::TaskResult",
+  "status": "verified_task_result_type_and_consumers",
+  "cases": [
+    {
+      "name": "Success",
+      "value": 1
+    },
+    {
+      "name": "Failure",
+      "value": 2
+    },
+    {
+      "name": "Skipped",
+      "value": 3
+    }
+  ],
+  "entries": [
+    {
+      "source": "int backed enum value",
+      "native": [
+        "value",
+        "From<TaskResult> for i64",
+        "Serialize"
+      ],
+      "status": "verified_numeric_backing"
+    },
+    {
+      "source": "UnitEnum::cases",
+      "native": "cases",
+      "status": "verified_declaration_order"
+    },
+    {
+      "source": "BackedEnum::from / tryFrom",
+      "native": [
+        "TryFrom<i64>",
+        "BackedEnum::try_from_backing"
+      ],
+      "status": "verified_valid_and_invalid_backings"
+    },
+    {
+      "source": "JSON integer backing",
+      "native": "Deserialize",
+      "status": "verified_explicit_integer_schema"
+    }
+  ],
+  "adaptations": [
+    "Source built-in enum operations use native associated methods and conversion traits, not string case identifiers.",
+    "TryFrom accepts explicit i64; request BackedEnum uses existing weak scalar request conversion independently. JSON deserialization requires integer known cases; it does not implement PHP object unserialization.",
+    "TaskResult is a prerequisite: no claim that Task rendering, callback outcomes or timing are implemented by the enum."
+  ],
+  "runtime": {
+    "real_http_requests": 9,
+    "success": true,
+    "invalid_input_status": 400,
+    "recovery": true,
+    "artisan_subprocess_exit": 0,
+    "artisan_from_http": true
+  },
+  "source_scenes": 8,
+  "evidence": [
+    "console_task_result",
+    "task-result-oracle.json",
+    "task-result-{consumers,docs-consumers,rustdoc,clippy,fmt,docs,browser}.log"
+  ],
+  "remaining": [
+    "Task rendering and run time formatting remain pending.",
+    "Five question components, QuestionHelper, abstract Component extension and Factory/CommandIo remain open.",
+    "General third-party output interface integration and full Artisan chapter remain open."
+  ],
+  "pushed": false
+}

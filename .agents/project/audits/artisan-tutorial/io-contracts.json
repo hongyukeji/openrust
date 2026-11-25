@@ -1899,6 +1899,35 @@
         "status": "verified_actual_source_and_consumers",
         "evidence": "display-components-contracts.json"
       }
+    ],
+    "TaskResult": [
+      {
+        "source": "int backed enum value",
+        "native": [
+          "value",
+          "From<TaskResult> for i64",
+          "Serialize"
+        ],
+        "status": "verified_numeric_backing"
+      },
+      {
+        "source": "UnitEnum::cases",
+        "native": "cases",
+        "status": "verified_declaration_order"
+      },
+      {
+        "source": "BackedEnum::from / tryFrom",
+        "native": [
+          "TryFrom<i64>",
+          "BackedEnum::try_from_backing"
+        ],
+        "status": "verified_valid_and_invalid_backings"
+      },
+      {
+        "source": "JSON integer backing",
+        "native": "Deserialize",
+        "status": "verified_explicit_integer_schema"
+      }
     ]
   },
   "notes": [
@@ -2469,7 +2498,7 @@
     ]
   },
   "remaining_output_style_behaviors": [
-    "4种文本变换器及8种显示组件已验；Task/TaskResult/耗时格式化、5种问答组件/QuestionHelper、完整Component/Factory/CommandIo仍开放。",
+    "4种文本变换器、8种显示组件和TaskResult枚举已验；Task渲染/耗时格式化、5种问答组件/QuestionHelper、完整Component/Factory/CommandIo仍开放。",
     "通用OutputInterface、ConsoleOutputInterface及任意自定义输出／Artisan.call第三参数仍待完整类型与消费者；当前所选内置stderr借用不冒充完整接口。"
   ],
   "output_format_explicit_normal": {

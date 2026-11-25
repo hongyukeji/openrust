@@ -505,5 +505,10 @@
     "status": "verified_concrete_display_components_builtin_outputs",
     "contracts": "display-components-contracts.json",
     "full_factory": "pending"
+  },
+  "task_result": {
+    "status": "verified_task_result_type_and_consumers",
+    "contracts": "task-result-contracts.json",
+    "task_rendering": "pending"
   }
 }

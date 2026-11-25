@@ -1663,3 +1663,30 @@ fn register_display_components() -> Result<(), ConsoleError> {
 `Alert` 使用整行背景，將內容轉為大寫並置中；內容超過可用寬度時按帶樣式文字規則截斷，無法處理的寬度回傳 `ConsoleError`。`BulletList` 對每項以粗體顯示方括號內容、移除一個末尾 ASCII 標點，並解析相對路徑。輸入只收集一次，隨後逐階段處理所有項目，再一次寫入；空清單仍寫入一個換行。
 
 `TwoColumnDetail` 移除第一欄的末尾標點，保留第二欄標點。`None` 和 `Some("")` 省略第二欄，其他輸入在文字正規化後仍保留欄位置。點狀填充按至多 150 欄的版面寬度計算，過長的欄內容仍完整輸出。元件建構後，透過原共用控制代碼變更格式器樣式仍立即生效。
+
+## 任務結果識別值 {#task-results}
+
+`console::view::TaskResult` 定義 `Success = 1`、`Failure = 2` 和 `Skipped = 3`。`value()` 回傳整數背值，`cases()` 保留宣告順序。`TryFrom<i64>` 拒絕其他值，不將無效識別值當成成功。
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, OutputOptions, OutputStyle,
+    view::TaskResult};
+use openrust::support::facades::Artisan;
+
+fn register_task_results() -> Result<(), ConsoleError> {
+    Artisan::command_with("tasks:states", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut style = OutputStyle::new(input, output);
+            for state in TaskResult::cases() {
+                style.writeln(format!("{state:?}:{}", state.value()).as_str(), OutputOptions::default())?;
+            }
+            let failure = TaskResult::try_from(2)?;
+            assert_eq!(failure, TaskResult::Failure);
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+`TaskResult` 序列化為整數背值，而非 Rust 變體名稱。JSON 反序列化要求整數且屬於已知變體。請求的 `enum::<TaskResult>` 透過 `BackedEnum` 讀取同一型別，沿用既有請求純量轉換與預設值機制。例如查詢值 `2.0` 解析為 `Failure`，未知整數使用請求預設值。JSON 反序列化與請求輸入轉換是兩個不同入口。

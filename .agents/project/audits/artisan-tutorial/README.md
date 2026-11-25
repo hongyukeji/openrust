@@ -611,3 +611,11 @@ Line/Info/Success/Warn/Error以真实公开类型、显式new和render/render_wi
 初次构建触32GB由守卫安全停止并持锁清理，日志实际释放75,102,064,640字节并恢复到107,279,638,528字节；源码/日志/下载/锁/其他工作区保留，随后恢复。中断未计通过，最终冻结源码SHA吻合；原始证据target/tmp/artisan-tutorial-20261125/display-*。当前不重复已闭合URL/Validation/Error/Logging/Settings或Windows发布矩阵。实际本批为macOS ARM64/Rust1.94，源为Linux/PHP8.5.12。
 
 当前合计8种具体显示组件已验，Task/TaskResult/耗时格式化、5种问答组件/专用QuestionHelper、抽象Component扩展/编译/变换生命周期、Factory/CommandIo与任意第三方输出仍开放；下一簇按这些依赖继续，不把显示类型当成工厂或整章完成。仅本批本地提交，不推送，保留所有无关在途改动。
+
+## 第四十二簇：TaskResult 正式背值类型（2026-11-26）
+
+固定框架Console/View/TaskResult.php的3个整数变体以console::view::TaskResult接通；先闭合Task依赖的类型，不以状态枚举冒充任务渲染。已核旧版，无对应可直接复用枚举。原生cases/value、TryFrom<i64>、BackedEnum、From<TaskResult> for i64及整数JSON序列化/反序列化分别验收。整数1/2/3保持声明顺序；未知值、i64两端及非整数JSON均拒绝，不默认转成功。源码8场景直接运行固定PHP8.5.12枚举获取，无占位替身。PHP内建枚举API用Rust关联方法/转换trait表达；JSON读取明确定义整数schema，不冒充PHP对象反序列化。请求弱标量转换仍由既有BackedEnum读取入口承担，查询2.0读取Failure而未知整数走请求默认值，非数值400。
+
+真实TCP HTTP9请求含请求枚举、从HTTP调用Artisan、无效输入400及恢复；实际Artisan子进程退出0并逐行输出三个整数。三语正文新增正式注册示例，直接提取并执行129例；状态API、请求入口与CLI入口没有用内部函数替代。既有组件/输出/Artisan回归、借用负编译、全workspace/all-targets严格Clippy、格式、三语站点及12浏览器检查通过。首次专项编译发现测试夹具误用裸Output的writeln及闭包处理器类型，已改用现有AsOutput借用和正式函数处理器后复验；未修改产品输出/路由机制、默认值、事件或协议，无新增依赖和lint豁免。
+
+实际命令和计数见accepted-task-result.json，原始日志target/tmp/artisan-tutorial-20261125/task-result-*。本次保留其他工作区/索引，逐簇本地提交，不推送。Task本身、耗时及finally失败输出继续下一簇；五问答类型/QuestionHelper、Component/Factory/CommandIo及任意第三方输出仍按原账本开放，整章未闭合。

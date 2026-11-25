@@ -1663,3 +1663,30 @@ fn register_display_components() -> Result<(), ConsoleError> {
 `Alert` centers uppercase text on a full-width background. Text longer than the available width follows styled-text truncation rules; an impossible width returns `ConsoleError`. `BulletList` highlights bracketed values, removes one final ASCII punctuation character and resolves relative paths for each item. Input items are collected once, then each mutation stage runs over all items before any output is written. An empty list still writes one newline.
 
 `TwoColumnDetail` removes final punctuation from the first cell and retains it in the second. `None` and `Some("")` omit the second cell; other input keeps its cell position after text normalization. Dot padding uses a layout width capped at 150 columns; long cell content remains intact. Formatter changes through the original shared handle remain visible after component construction.
+
+## Task result values {#task-results}
+
+`console::view::TaskResult` defines `Success = 1`, `Failure = 2` and `Skipped = 3`. `value()` returns the integer backing; `cases()` retains declaration order. `TryFrom<i64>` rejects other values instead of treating them as success.
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, OutputOptions, OutputStyle,
+    view::TaskResult};
+use openrust::support::facades::Artisan;
+
+fn register_task_results() -> Result<(), ConsoleError> {
+    Artisan::command_with("tasks:states", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut style = OutputStyle::new(input, output);
+            for state in TaskResult::cases() {
+                style.writeln(format!("{state:?}:{}", state.value()).as_str(), OutputOptions::default())?;
+            }
+            let failure = TaskResult::try_from(2)?;
+            assert_eq!(failure, TaskResult::Failure);
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+`TaskResult` serializes as its integer backing, not its Rust case name. JSON deserialization requires an integer and a known case. Request `enum::<TaskResult>` reads the same type through `BackedEnum` and retains the existing request scalar conversion and default behavior. For example, a query value of `2.0` resolves to `Failure`, while an unrecognized integer uses the request default. Keep JSON deserialization and request input conversion distinct.

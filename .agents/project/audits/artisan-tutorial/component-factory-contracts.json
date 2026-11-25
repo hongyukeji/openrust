@@ -157,5 +157,11 @@
     }
   ],
   "inheritance": "Eight concrete display constructors/render verified on selected built-in outputs; abstract Component protected extensibility/lifecycle, Task, question types and Factory remain open.",
-  "mutators": "component-mutators-contracts.json"
+  "mutators": "component-mutators-contracts.json",
+  "task_result": {
+    "status": "verified_task_result_type_and_consumers",
+    "native": "console::view::TaskResult",
+    "evidence": "task-result-contracts.json",
+    "task_rendering": "pending"
+  }
 }

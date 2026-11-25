@@ -1,0 +1,78 @@
+{
+  "source_base": "70f3b1ef8fcf61656debdcb95aab15e596047a6b",
+  "source_hashes": {
+    "vendor/openrust/framework/src/console/view/task_result.rs": "fd9cf513059aaf07c612e967ea97a52c27fdec1c7db5764e90fcf01846e8873a",
+    "vendor/openrust/framework/src/console/view/mod.rs": "9ebeec47f766be0a93d7c6d43d9d66da513d111cbec99ae0bf6c0906bdf96b0c",
+    "vendor/openrust/framework/tests/console_task_result.rs": "6b1477b826a9aeb6b5b95e956d80c763c992d903cfd2673f928650548235101c",
+    ".agents/project/audits/artisan-tutorial/task-result-oracle.json": "2c0b8e7bf497ba225b9d47529ccc622a73cad3f011c49fb9400fc1969a73e562",
+    "docs/en/digging-deeper/artisan.md": "b9f64075804451a000f2e50dc9ced367314f0ada7ffa69a01f542c808241d5d2",
+    "docs/zh-Hans/digging-deeper/artisan.md": "15c9fa4e1414757004391db91d2bcb89628cacddf237a643a6cc96cfa379fba6",
+    "docs/zh-Hant/digging-deeper/artisan.md": "bbdc06f468c00351380626e80d0eb43fe3cf18e9e173d03517b9c8bf417918fa",
+    "tests/artisan_tutorial_docs.py": "83dbc29fe29c3b7fa5c4d6efcaae376db6435a4202e7993bf3fcc63647d7880c",
+    "docs/tests/check_artisan_tutorial.mjs": "01e8e8a83ed133e043d1fb89976e74eea174c9c7d9700d512a4a31e8cf7bfae0",
+    ".agents/project/audits/artisan-tutorial/task-result-contracts.json": "acf568507d2bd77bf3077dc1b27c82d6f2468f838f26ad06161ddbade08c9978",
+    ".agents/project/audits/artisan-tutorial/component-factory-contracts.json": "0a5507eef8d0a9c9e16daf1bb2e14544d1ed5ee0393730cbe47caa74d99935e3",
+    ".agents/project/audits/artisan-tutorial/io-contracts.json": "4f95502dc53ec2ad8f91e9cd0494f0c32e36dc73ea00545b493c86d7bf82a01e",
+    ".agents/project/audits/artisan-tutorial/section-map.json": "96553405ddc3c3b73eefde7faf66e2230d5d1f9e2804cabb5a36153e238cca7d",
+    ".agents/project/audits/artisan-tutorial/README.md": "d7e304fe55596a611a4beebbd704131e6fa6a41552e28e6e029bba59e56707ad",
+    ".agents/project/current.md": "0fc0634c63ff7d0fe0b94ba86b951103ff11a629fb5e651354ef2b7b9b9e1991"
+  },
+  "gates": [
+    {
+      "name": "fmt",
+      "returncode": 0
+    },
+    {
+      "name": "consumers",
+      "returncode": 0
+    },
+    {
+      "name": "docs-consumers",
+      "returncode": 0
+    },
+    {
+      "name": "rustdoc",
+      "returncode": 0
+    },
+    {
+      "name": "clippy",
+      "returncode": 0
+    },
+    {
+      "name": "docs",
+      "returncode": 0
+    }
+  ],
+  "counts": {
+    "consumers": {
+      "targets": 7,
+      "passed": 44,
+      "ignored_driver_slots": 15
+    },
+    "docs-consumers": {
+      "targets": 3,
+      "passed": 138,
+      "ignored_driver_slots": 0
+    },
+    "rustdoc": {
+      "targets": 2,
+      "passed": 1,
+      "ignored_driver_slots": 0
+    }
+  },
+  "scope": "verified_task_result_type_and_consumers",
+  "runtime": {
+    "real_http_requests": 9,
+    "success": true,
+    "invalid_input_status": 400,
+    "recovery": true,
+    "artisan_subprocess_exit": 0,
+    "artisan_from_http": true
+  },
+  "remaining": [
+    "Task rendering and run time formatting remain pending.",
+    "Five question components, QuestionHelper, abstract Component extension and Factory/CommandIo remain open.",
+    "General third-party output interface integration and full Artisan chapter remain open."
+  ],
+  "pushed": false
+}
