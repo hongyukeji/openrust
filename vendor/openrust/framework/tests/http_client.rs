@@ -966,6 +966,112 @@ async fn redirect_events_keep_structured_input_and_apply_request_middleware_befo
 }
 
 #[tokio::test]
+async fn redirects_select_methods_and_bodies_like_the_fixed_guzzle_client() {
+    use axum::extract::Path;
+    use openrust::events::Dispatcher;
+    use openrust::http::client::events::ResponseReceived;
+
+    let (base, task) = serve(
+        Router::new()
+            .route(
+                "/redirect/{code}",
+                any(
+                    |Path(code): Path<u16>, request: axum::extract::Request| async move {
+                        assert!(request.headers().contains_key(header::REFERER));
+                        let body = axum::body::to_bytes(request.into_body(), 512)
+                            .await
+                            .unwrap();
+                        assert_eq!(&body[..], b"payload");
+                        (
+                            StatusCode::from_u16(code).unwrap(),
+                            [(header::LOCATION, "/target")],
+                        )
+                    },
+                ),
+            )
+            .route(
+                "/target",
+                any(|request: axum::extract::Request| async {
+                    assert!(!request.headers().contains_key(header::REFERER));
+                    let (parts, body) = request.into_parts();
+                    let body = axum::body::to_bytes(body, 512).await.unwrap();
+                    let body = if body.is_empty() {
+                        "empty"
+                    } else {
+                        assert_eq!(&body[..], b"payload");
+                        "preserved"
+                    };
+                    (
+                        StatusCode::OK,
+                        [
+                            ("x-method", parts.method.as_str().to_owned()),
+                            ("x-body", body.to_owned()),
+                        ],
+                    )
+                }),
+            ),
+    )
+    .await;
+    let dispatcher = Arc::new(Dispatcher::new());
+    let events = dispatcher.fake(&[]);
+    let factory = Factory::new().unwrap().with_dispatcher(dispatcher);
+    let mut expected_methods = Vec::new();
+    for (code, drop_body) in [
+        (300, true),
+        (301, true),
+        (302, true),
+        (303, true),
+        (304, false),
+        (305, false),
+        (307, false),
+        (308, false),
+        (399, false),
+    ] {
+        for method in [
+            Method::GET,
+            Method::HEAD,
+            Method::OPTIONS,
+            Method::POST,
+            Method::PUT,
+            Method::PATCH,
+            Method::DELETE,
+        ] {
+            let expected =
+                if drop_body && !matches!(method, Method::GET | Method::HEAD | Method::OPTIONS) {
+                    Method::GET
+                } else {
+                    method.clone()
+                };
+            let response = factory
+                .pending_request()
+                .with_header(
+                    header::REFERER,
+                    HeaderValue::from_static("http://example.test/source"),
+                )
+                .with_body("payload", HeaderValue::from_static("text/plain"))
+                .send(method, &format!("{base}/redirect/{code}"))
+                .await
+                .unwrap();
+            assert!(response.ok());
+            assert_eq!(response.header("x-method").unwrap(), expected.as_str());
+            assert_eq!(
+                response.header("x-body").unwrap(),
+                if drop_body { "empty" } else { "preserved" }
+            );
+            expected_methods.push(expected);
+        }
+    }
+    let replies = events.dispatched(r"OpenRust\Http\Client\Events\ResponseReceived");
+    assert_eq!(replies.len(), expected_methods.len());
+    for (reply, expected) in replies.iter().zip(expected_methods) {
+        let reply = reply.downcast_ref::<ResponseReceived>().unwrap();
+        assert_eq!(reply.request.url.path(), "/target");
+        assert_eq!(reply.request.method, expected);
+    }
+    task.abort();
+}
+
+#[tokio::test]
 async fn digest_auth_replays_the_body_and_never_uses_credentials_on_another_origin() {
     use digest_auth::{AlgorithmType, AuthorizationHeader, Qop};
 

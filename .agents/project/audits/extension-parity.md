@@ -239,6 +239,14 @@ Telescope 改用 `RecordedRequest::diagnostic_data()`，失败事件复用同一
 
 固定 [Laravel PendingRequest](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Client/PendingRequest.php) 在每一跳执行首个 `beforeSending` 回调保存请求。成功响应复用最后一跳的回调前请求和原始 GET／JSON／表单参数。连接失败通过 `marshalTransportException` 根据异常的线上请求重新构造 `Request`，未传递原始参数。PHP 8.5.12 和 Guzzle 7.10.0 MockHandler 实测 9 组，覆盖 GET／JSON／表单／原始正文 302、表单 307、发送回调改写以及 GET／表单／multipart 失败。记录位于 `target/tmp/observability-parity/redirect-upstream.log`。
 
-Rust 将原始参数传给 `RequestSending` 与 `ResponseReceived`，连接失败仅按线上媒体类型解析可用缓冲正文。真实请求记录器仍使用实际发送的快照，原生 URL 编码器及其布尔值拼写沿用现有接口，所以失败表单记录实际线上值。额外 PHP 探针确认重定向超限派发六次发送事件，响应与失败事件均为空。Guzzle 的 302 会保留 OPTIONS，Rust 当前转换为 GET。后续须核对流式附件的 multipart 重定向、退避重试改写、初始参数为空时的正文回退与重定向方法选择。
+Rust 将原始参数传给 `RequestSending` 与 `ResponseReceived`，连接失败仅按线上媒体类型解析可用缓冲正文。真实请求记录器仍使用实际发送的快照，原生 URL 编码器及其布尔值拼写沿用现有接口，所以失败表单记录实际线上值。额外 PHP 探针确认重定向超限派发六次发送事件，响应与失败事件均为空。发现 302 的 OPTIONS 行为差异，修复见下节。流式附件的 multipart 重定向、退避重试改写和初始参数为空时的正文回退仍需核对。
 
 隔离快照沿用 `8041ae15a` 加前批和本批文件。真实回环 HTTP 核对跨源目标、GET 初始查询、表单 302／307、原始正文 302、回调前后头部与重定向超限。Telescope 仓储用例在 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 分别实际通过。Telescope 全包 32 项、框架 HTTP 客户端 21 项、独立 Redis 8.10.3 用例、快照全仓格式、框架库及 Telescope 全目标严格 Clippy、三语文档构建和 12 组浏览器检查通过。
+
+### 出站重定向的方法、正文与 Referer
+
+固定 Laravel HTTP Client 通过 [Guzzle 7.10.0 RedirectMiddleware](https://github.com/guzzle/guzzle/blob/7.10.0/src/RedirectMiddleware.php) 默认跟随带 `Location` 的 3xx。300–303 清正文并保留 GET、HEAD、OPTIONS，其他方法变为 GET。其余 3xx 沿用原方法与正文。默认关闭 Referer 追踪，因此清除上一跳的 Referer。PHP 8.5.12 中通过 Laravel `PendingRequest::send` 和 Guzzle MockHandler 对 9 种状态与 7 种方法实际验证 63 组，日志 `target/tmp/observability-parity/redirect-method-upstream.log`。
+
+Rust 复用 `Redirect::follow` 执行上述默认规则，仍要求 HTTP(S) 目的地和可重放正文。清正文时删除旧正文相关头，避免在空请求携带旧 framing。旧版只提供禁用 reqwest 内建跳转的入口。不同源剥离凭据、原生 `max_redirects(0)` 的超限行为和 `without_redirecting` 入口沿用现有契约。Guzzle 严格模式、手工 Host 覆盖和位置错误处理的边界仍待对账。
+
+同一 63 组在 Rust 通过真实回环 HTTP 验证到达目标的请求方法、正文与 Referer，并核对响应事件中的目标地址和方法。Telescope 真实 OPTIONS 302 的入库结果在 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 通过。隔离快照沿用 `8041ae15a` 加前批及本批文件。框架 HTTP 客户端 22 项、Telescope 32 项、独立 Redis 8.10.3 用例、Pulse 慢出站 Recorder 定向回归、快照全仓格式、框架库及 Telescope 全目标严格 Clippy、三语站点构建与 12 组浏览器检查通过。

@@ -181,6 +181,8 @@ Http::global_middleware(|request, next| Box::pin(async move {
 
 `replace_headers` replaces only the supplied header names, preserving other headers and multiple values. `with_header`, `content_type`, `as_multipart`, and `max_redirects` use the existing request builder.
 
+The client follows 3xx responses with a valid HTTP(S) `Location`. For 300–303 it drops the body, keeps GET, HEAD, and OPTIONS, and switches other methods to GET. For 304–399 it preserves the method and requires a replayable body. Each redirect clears the previous `Referer` header.
+
 `sink(path)` writes network chunks directly to a file and keeps a file handle in the response instead of buffering the full body. Pass an owned `std::fs::File` with `sink(file)` to write to a file resource. PendingRequest, Factory and the Http Facade provide this method. A path is created or truncated on its first write; a file resource is written from its current position without truncation, then rewound on completion. A successful empty response also creates or truncates a path. Each retry and redirect handles the path again. A connection failure before any body arrives preserves the old file.
 
 `response.resource()?` implements `Read`, `Write` and `Seek`, sharing the body and cursor with response clones. Rust resources operate directly on that cursor rather than reproducing PHP wrapper read buffering. `body()?` reads the entire body from the start on each call; `json::<T>()?` also needs the complete body. These calls and body-reading observers such as Telescope still allocate body memory. `close()?` closes the shared body; subsequent reads, writes and seeks fail.

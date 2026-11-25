@@ -295,22 +295,26 @@ impl Redirect {
 
     fn follow(self, status: StatusCode, headers: &HeaderMap) -> Option<Request> {
         let mut request = self.request;
-        match status {
-            StatusCode::MOVED_PERMANENTLY | StatusCode::FOUND | StatusCode::SEE_OTHER => {
-                if request.method() != Method::HEAD {
-                    *request.method_mut() = Method::GET;
-                }
-                *request.body_mut() = None;
-                for name in [
-                    header::CONTENT_LENGTH,
-                    header::CONTENT_TYPE,
-                    header::TRANSFER_ENCODING,
-                ] {
-                    request.headers_mut().remove(name);
-                }
+        if !status.is_redirection() {
+            return None;
+        }
+        if status <= StatusCode::SEE_OTHER {
+            if !matches!(
+                *request.method(),
+                Method::GET | Method::HEAD | Method::OPTIONS
+            ) {
+                *request.method_mut() = Method::GET;
             }
-            StatusCode::TEMPORARY_REDIRECT | StatusCode::PERMANENT_REDIRECT if self.replayable => {}
-            _ => return None,
+            *request.body_mut() = None;
+            for name in [
+                header::CONTENT_LENGTH,
+                header::CONTENT_TYPE,
+                header::TRANSFER_ENCODING,
+            ] {
+                request.headers_mut().remove(name);
+            }
+        } else if !self.replayable {
+            return None;
         }
         let location = headers.get(header::LOCATION)?.to_str().ok()?;
         let mut target = request.url().join(location).ok()?;
@@ -319,6 +323,7 @@ impl Redirect {
         }
         let _ = target.set_password(None);
         let _ = target.set_username("");
+        request.headers_mut().remove(header::REFERER);
         if target.origin() != request.url().origin() {
             for name in [
                 header::AUTHORIZATION,

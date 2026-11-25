@@ -181,6 +181,8 @@ Http::global_middleware(|request, next| Box::pin(async move {
 
 `replace_headers` 僅取代傳入的同名請求標頭，保留其他標頭與多值。`with_header`、`content_type`、`as_multipart`、`max_redirects` 沿用原請求建構鏈。
 
+用戶端會跟隨帶有效 HTTP(S) `Location` 的 3xx 回應。300–303 會清除本文，保留 GET、HEAD 與 OPTIONS，其餘方法改為 GET。304–399 保留請求方法，並要求本文可重送。每次跳轉都會清除上一個請求的 `Referer` 標頭。
+
 `sink(path)` 在網路傳輸中逐塊寫入檔案，回應保留檔案控制代碼，不常駐完整本文；也可將 `std::fs::File` 移交給 `sink(file)`。PendingRequest、Factory 和 Http Facade 均提供入口。路徑首次寫入時建立或截斷；檔案資源從目前游標寫入，不截斷，傳輸完成後回到開頭。成功的空回應也會建立或清空路徑檔案。每次重試與重新導向重新處理目標路徑；未收到本文便連線失敗時保留舊檔案。
 
 `response.resource()?` 回傳實作 `Read`、`Write` 和 `Seek` 的資源，與回應複本共用本文及游標；Rust 資源直接操作共用游標，不模擬 PHP 包裝資源的預讀緩衝。`body()?` 每次從開頭讀取完整本文，`json::<T>()?` 同樣需要完整本文；呼叫這兩個方法或啟用會讀取本文的觀察器（例如 Telescope）仍會配置本文記憶體。`close()?` 關閉共用本文，後續讀取、寫入和定位回傳錯誤。

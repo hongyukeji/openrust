@@ -181,6 +181,8 @@ Http::global_middleware(|request, next| Box::pin(async move {
 
 `replace_headers` 仅替换传入的同名请求头，保留其他头和多值。`with_header`、`content_type`、`as_multipart`、`max_redirects` 沿用原请求构建链。
 
+客户端跟随带有效 HTTP(S) `Location` 的 3xx 响应。300–303 会清除正文，保留 GET、HEAD 与 OPTIONS，其余方法改为 GET。304–399 保留请求方法，并要求正文可重放。每次跳转都会清除上一次请求的 `Referer` 头。
+
 `sink(path)` 在网络传输中逐块写入文件，响应保留文件句柄，不常驻完整正文；也可将 `std::fs::File` 移交给 `sink(file)`。PendingRequest、Factory 和 Http Facade 均提供入口。路径首次写入时创建或截断；文件资源从当前游标写入，不截断，传输完成后回到开头。成功的空响应也会创建或清空路径文件。每次重试和重定向重新处理目标路径；未收到正文便连接失败时保留旧文件。
 
 `response.resource()?` 返回实现 `Read`、`Write` 和 `Seek` 的资源，与响应克隆共享正文及游标；Rust 资源直接操作共享游标，不模拟 PHP 包装资源的预读缓冲。`body()?` 每次从开头读取完整正文，`json::<T>()?` 同样需要完整正文；调用这两个方法或启用会读取正文的观察器（例如 Telescope）仍会分配正文内存。`close()?` 关闭共享正文，后续读取、写入和定位返回错误。

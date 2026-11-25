@@ -1623,6 +1623,14 @@ fn client_handler(
                 .ok()
         );
         assert!(Http::get(failed).await.is_err());
+        assert!(
+            Http::pending_request()
+                .unwrap()
+                .send(http::Method::OPTIONS, &redirect_url)
+                .await
+                .unwrap()
+                .ok()
+        );
         Ok(openrust::http::Response::from("observed"))
     })
 }
@@ -1633,7 +1641,7 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
     let origin = tokio::spawn(async move {
-        for index in 0..14 {
+        for index in 0..16 {
             let (mut socket, _) = listener.accept().await.unwrap();
             let mut bytes = Vec::new();
             loop {
@@ -1658,6 +1666,13 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
                             assert!(headers.starts_with("get /final?destination=value "));
                             assert_eq!(size, 0);
                             assert!(!headers.contains("content-type:"));
+                        }
+                        if index == 14 {
+                            assert!(headers.starts_with("options /redirect?"));
+                        }
+                        if index == 15 {
+                            assert!(headers.starts_with("options /final?destination=value "));
+                            assert_eq!(size, 0);
                         }
                         if index == 1 {
                             assert_eq!(
@@ -1688,7 +1703,7 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
                     }
                 }
             }
-            if index == 12 {
+            if index == 12 || index == 14 {
                 socket.write_all(b"HTTP/1.1 302 Found\r\nLocation: /final?destination=value\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").await.unwrap();
                 continue;
             }
@@ -1735,7 +1750,16 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
         .get(Some(EntryType::ClientRequest), EntryQueryOptions::default())
         .await
         .unwrap();
-    assert_eq!(entries.len(), 16);
+    assert_eq!(entries.len(), 17);
+    assert_eq!(entries[0].content["method"], "OPTIONS");
+    assert!(
+        entries[0].content["uri"]
+            .as_str()
+            .unwrap()
+            .ends_with("/final?destination=value")
+    );
+    assert_eq!(entries[0].content["payload"], json!([]));
+    let entries = &entries[1..];
     assert_eq!(entries[0].content["method"], "GET");
     assert_eq!(entries[0].content["payload"], json!([]));
     assert!(entries[0].content["response_status"].is_null());
