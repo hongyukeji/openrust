@@ -4,6 +4,12 @@
 
 目前套件提供自訂驅動契約、阿里雲文字及已儲存圖片審核，騰訊雲文字及圖片審核，Sightengine 文字及圖片審核，以及 Hive 文字和視覺審核。其他供應商操作及持久化影片編排正在實作。
 
+## 供應商憑證 {#credentials}
+
+正式部署可將 `moderation.credential_directory`（預設讀取 `MODERATION_CREDENTIAL_DIRECTORY`）設為受控唯讀掛載的絕對路徑。在具名設定中填寫 `credential_ref` 和 `credential_revision`。例如參照 `sightengine` 和修訂 `r1` 會讀取 `sightengine.r1.json`，其中的 JSON 物件填寫 `api_user` 和 `api_secret`。設定快取保存目錄、參照和修訂，HTTP、Artisan 和 Worker 都需要讀取同一掛載。
+
+下文的 `*_env` 鍵供明確的環境變數注入使用。使用掛載檔案時，移除這些鍵，並在檔案中使用去掉 `_env` 後綴的欄位名稱。每個檔案最多 16 KiB。Unix 上可用 `0400` 或 `0440`，目錄和檔案由部署方控制。輪替時新增修訂檔案，保留舊任務仍參照的版本，撤銷時移除舊檔案並重新啟動持有舊驅動實例的程序。應用程式可在容器中綁定 `dyn ModerationCredentialProvider`，從既有密鑰服務讀取相同參照和修訂。
+
 ## 阿里雲文字 {#aliyun-text}
 
 在 `moderation.drivers.aliyun_comments` 設定 `driver: "aliyun"`、`region: "cn-shanghai"`、`text_service: "comment_detection"`、`access_key_id_env` 和 `access_key_secret_env`。最後兩個欄位填寫環境變數名稱。使用 STS 時還須設定 `security_token_env`。用 `Moderation::driver("aliyun_comments")` 選擇設定後呼叫 `text`，也可透過 `MODERATION_DRIVER=aliyun_comments` 設為預設。

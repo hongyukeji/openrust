@@ -129,13 +129,28 @@ pub(super) fn configuration(env: &Environment) -> Result<Value, ConfigError> {
         configuration["drivers"]["sightengine-images"] = image;
     }
     if let Some(endpoint) = env.get_utf8("MODERATION_FIXTURE_SIGHTENGINE_VIDEO")? {
-        configuration["drivers"]["sightengine-videos"] = json!({
+        let mut profile = json!({
             "driver":"sightengine", "base_url":endpoint, "api_user_env":"FIXTURE_SIGHTENGINE_USER",
             "api_secret_env":"FIXTURE_SIGHTENGINE_SECRET", "timeout_ms":2500,
             "media_disk":"s3", "media_origin":env.get_utf8("MODERATION_FIXTURE_IMAGE_ORIGIN")?,
             "video_models":["violence","text-content-2.0"], "video_text_categories":["email"],
             "video_review_score":0.8, "video_max_duration":900,
         });
+        if let Some(directory) = env.get_utf8("MODERATION_CREDENTIAL_DIRECTORY")? {
+            configuration["credential_directory"] = json!(directory);
+            let fields = profile.as_object_mut().expect("点播审核配置对象");
+            fields.remove("api_user_env");
+            fields.remove("api_secret_env");
+            profile["credential_ref"] = json!(
+                env.get_utf8("MODERATION_FIXTURE_CREDENTIAL_REF")?
+                    .unwrap_or("sightengine")
+            );
+            profile["credential_revision"] = json!(
+                env.get_utf8("MODERATION_FIXTURE_CREDENTIAL_REVISION")?
+                    .unwrap_or("r1")
+            );
+        }
+        configuration["drivers"]["sightengine-videos"] = profile;
     }
     if let Some(endpoint) = env.get_utf8("MODERATION_FIXTURE_HIVE")? {
         configuration["drivers"]["hive-text"] = json!({

@@ -1,7 +1,7 @@
+use crate::credentials::DriverCredentials;
 use std::{collections::BTreeMap, sync::Arc};
 
 use openrust::{
-    config::Environment,
     filesystem::FilesystemManager,
     http::client::{Factory, aliyun_rpc::AliyunRpcSigner},
 };
@@ -9,9 +9,7 @@ use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::{Value, json};
 use zeroize::Zeroizing;
 
-use super::{
-    Endpoint, aliyun_video::VideoService, field, http_status, media::VersionedMediaLinks, secret,
-};
+use super::{Endpoint, aliyun_video::VideoService, field, http_status, media::VersionedMediaLinks};
 use crate::{
     Assessment, Confidence, Coverage, Decision, Finding, ImageInput, Modality, ModerationDriver,
     ModerationError, ModerationFuture, ModerationResult, Operation, TaskId, TaskStatus, TextInput,
@@ -37,7 +35,7 @@ struct ImageService {
 impl Aliyun {
     pub(super) fn new(
         http: Arc<Factory>,
-        env: &Environment,
+        credentials: &DriverCredentials<'_>,
         storage: Arc<FilesystemManager>,
         profile: &Value,
     ) -> ModerationResult<Self> {
@@ -82,12 +80,15 @@ impl Aliyun {
         }
         Ok(Self {
             endpoint,
-            access_key_id: secret(env, profile, "access_key_id_env")?
+            access_key_id: credentials
+                .secret(profile, "access_key_id_env")?
                 .ok_or(ModerationError::InvalidConfiguration("access_key_id_env"))?,
-            access_key_secret: secret(env, profile, "access_key_secret_env")?.ok_or(
-                ModerationError::InvalidConfiguration("access_key_secret_env"),
-            )?,
-            security_token: secret(env, profile, "security_token_env")?,
+            access_key_secret: credentials
+                .secret(profile, "access_key_secret_env")?
+                .ok_or(ModerationError::InvalidConfiguration(
+                    "access_key_secret_env",
+                ))?,
+            security_token: credentials.secret(profile, "security_token_env")?,
             text_service,
             text_languages,
             image,

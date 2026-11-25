@@ -1,9 +1,10 @@
+use crate::credentials::DriverCredentials;
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
 };
 
-use openrust::{config::Environment, filesystem::FilesystemManager, http::client::Factory};
+use openrust::{filesystem::FilesystemManager, http::client::Factory};
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -29,7 +30,7 @@ pub(super) struct OcrService {
 impl OcrService {
     pub(super) fn configured(
         http: Arc<Factory>,
-        env: &Environment,
+        credentials: &DriverCredentials<'_>,
         storage: Arc<FilesystemManager>,
         profile: &Value,
     ) -> ModerationResult<Option<Self>> {
@@ -39,7 +40,7 @@ impl OcrService {
         Ok(Some(Self {
             model: Model::new(
                 http,
-                env,
+                credentials,
                 profile,
                 "ocr_token_env",
                 "ocr_project",

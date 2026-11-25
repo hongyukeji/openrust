@@ -1,3 +1,4 @@
+use crate::credentials::DriverCredentials;
 use std::{collections::BTreeMap, sync::Arc};
 
 use openrust::{filesystem::FilesystemManager, http::client::Factory};
@@ -24,7 +25,7 @@ pub(super) struct ImageService {
 impl ImageService {
     pub(super) fn configured(
         http: Arc<Factory>,
-        env: &openrust::config::Environment,
+        credentials: &DriverCredentials<'_>,
         storage: Arc<FilesystemManager>,
         profile: &Value,
     ) -> ModerationResult<Option<Self>> {
@@ -42,7 +43,7 @@ impl ImageService {
             .ok_or(ModerationError::InvalidConfiguration("image_model_type"))?;
         let model = Model::new(
             http,
-            env,
+            credentials,
             profile,
             "image_token_env",
             "image_project",

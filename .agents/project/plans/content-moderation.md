@@ -348,6 +348,8 @@ vendor/openrust/content-moderation/    可选包，按已确认命名基准
 - config:show moderation、config:cache生成文件、配置读取API／序列化、队列payload、失败任务记录及日志分别用唯一测试秘钥哨兵验证无泄漏；引用路径／账号元数据也按权限限制曝光。HTTP请求构造必须发送必要秘钥，但观测／事件不得把该请求体直接记录。
 - 凭据生命周期与D-01一致：文件修订不可无声覆盖；同账号轮换明确迁移，旧回调签名的有限兼容由部署保留相应修订，撤销与过期优先失败，不回退到其他账号。
 
+D-05 的出站实现和挂载／环境双模式验收见[凭据修订记录](../audits/content-moderation/README.md#credential-revisions)。领域记录固定旧修订和回调验证密钥随 D-01／D-02 验收。
+
 ### 8.7 D-06：限流、在途上限、查询预算与可观察性
 
 - 每个profile／账号／租户使用已注册的RateLimiter策略和队列middleware，区分submit与query额度；多Worker／多实例使用既有共享缓存／数据库，不能仅有进程内Semaphore。包未注册限流策略、参数非法或共享存储不可用时明确失败／延后，不能沿现有middleware的未注册放行路径失控提交。

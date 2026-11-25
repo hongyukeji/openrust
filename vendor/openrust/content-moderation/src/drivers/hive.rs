@@ -1,3 +1,4 @@
+use crate::credentials::DriverCredentials;
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
@@ -5,7 +6,6 @@ use std::{
 
 use http::{HeaderMap, HeaderValue, header::AUTHORIZATION};
 use openrust::{
-    config::Environment,
     filesystem::FilesystemManager,
     http::client::{Factory, Part, Response},
 };
@@ -15,7 +15,7 @@ use zeroize::Zeroizing;
 
 use super::{
     Endpoint, field, hive_image::ImageService, hive_ocr::OcrService, http_status,
-    media::VersionedMediaLinks, secret,
+    media::VersionedMediaLinks,
 };
 use crate::{
     Assessment, Confidence, Coverage, Decision, Finding, ImageInput, Modality, ModerationDriver,
@@ -31,13 +31,13 @@ pub(super) struct Hive {
 impl Hive {
     pub(super) fn new(
         http: Arc<Factory>,
-        env: &Environment,
+        credentials: &DriverCredentials<'_>,
         storage: Arc<FilesystemManager>,
         profile: &Value,
     ) -> ModerationResult<Self> {
-        let text = TextService::configured(http.clone(), env, profile)?;
-        let image = ImageService::configured(http.clone(), env, storage.clone(), profile)?;
-        let ocr = OcrService::configured(http, env, storage, profile)?;
+        let text = TextService::configured(http.clone(), credentials, profile)?;
+        let image = ImageService::configured(http.clone(), credentials, storage.clone(), profile)?;
+        let ocr = OcrService::configured(http, credentials, storage, profile)?;
         if image.is_some() && ocr.is_some() {
             return Err(ModerationError::InvalidConfiguration("hive media project"));
         }
@@ -58,7 +58,7 @@ pub(super) struct Model {
 impl Model {
     pub(super) fn new(
         http: Arc<Factory>,
-        env: &Environment,
+        credentials: &DriverCredentials<'_>,
         profile: &Value,
         token_key: &'static str,
         project_key: &'static str,
@@ -69,7 +69,8 @@ impl Model {
             return Err(ModerationError::InvalidConfiguration("base_url"));
         }
         endpoint.url.set_path("/api/v2/task/sync");
-        let token = secret(env, profile, token_key)?
+        let token = credentials
+            .secret(profile, token_key)?
             .ok_or(ModerationError::InvalidConfiguration(token_key))?;
         let authorization = Zeroizing::new(format!("Token {}", token.as_str()));
         let mut authorization = HeaderValue::from_str(&authorization)
@@ -170,7 +171,7 @@ struct TextService {
 impl TextService {
     fn configured(
         http: Arc<Factory>,
-        env: &Environment,
+        credentials: &DriverCredentials<'_>,
         profile: &Value,
     ) -> ModerationResult<Option<Self>> {
         if profile.get("text_project").is_none() {
@@ -178,7 +179,7 @@ impl TextService {
         }
         let model = Model::new(
             http,
-            env,
+            credentials,
             profile,
             "token_env",
             "text_project",

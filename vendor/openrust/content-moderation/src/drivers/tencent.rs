@@ -1,8 +1,8 @@
+use crate::credentials::DriverCredentials;
 use std::{collections::BTreeMap, sync::Arc};
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use openrust::{
-    config::Environment,
     filesystem::FilesystemManager,
     http::client::{
         Factory,
@@ -14,7 +14,7 @@ use serde_json::{Value, json};
 use zeroize::Zeroizing;
 
 use super::{
-    Endpoint, field, http_status, secret, tencent_image::ImageService, tencent_video::VideoService,
+    Endpoint, field, http_status, tencent_image::ImageService, tencent_video::VideoService,
 };
 use crate::{
     Assessment, Confidence, Coverage, Decision, Finding, ImageInput, Modality, ModerationDriver,
@@ -41,7 +41,7 @@ struct TextService {
 impl Tencent {
     pub(super) fn new(
         http: Arc<Factory>,
-        env: &Environment,
+        credentials: &DriverCredentials<'_>,
         storage: Arc<FilesystemManager>,
         profile: &Value,
     ) -> ModerationResult<Self> {
@@ -76,11 +76,13 @@ impl Tencent {
             text,
             image,
             video,
-            secret_id: secret(env, profile, "secret_id_env")?
+            secret_id: credentials
+                .secret(profile, "secret_id_env")?
                 .ok_or(ModerationError::InvalidConfiguration("secret_id_env"))?,
-            secret_key: secret(env, profile, "secret_key_env")?
+            secret_key: credentials
+                .secret(profile, "secret_key_env")?
                 .ok_or(ModerationError::InvalidConfiguration("secret_key_env"))?,
-            security_token: secret(env, profile, "security_token_env")?,
+            security_token: credentials.secret(profile, "security_token_env")?,
             region: region.to_owned(),
         })
     }

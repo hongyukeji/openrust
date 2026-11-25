@@ -7,7 +7,10 @@ use openrust::{
 };
 use std::sync::Arc;
 
-use crate::{ModerationManager, configuration, drivers};
+use crate::{
+    ModerationCredentialProvider, ModerationManager, configuration, credentials::FileCredentials,
+    drivers,
+};
 
 pub struct ModerationServiceProvider;
 
@@ -19,10 +22,14 @@ impl ServiceProvider for ModerationServiceProvider {
                 self.merge_config_from(app, configuration::load(&env)?, "moderation")?;
             }
             let container = app.container();
+            container.singleton_if::<dyn ModerationCredentialProvider, _>(|container| {
+                Ok(Arc::new(FileCredentials(container.get("config")?)))
+            })?;
             container.singleton_named("moderation", |container| {
                 let manager = ModerationManager::new(container.get("config")?);
                 drivers::register(
                     &manager,
+                    container.make()?,
                     container.make()?,
                     container.make()?,
                     container.make()?,

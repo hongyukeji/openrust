@@ -23,53 +23,63 @@ use openrust::{
 };
 use serde_json::Value;
 use url::Url;
-use zeroize::Zeroizing;
 
-use crate::{ModerationError, ModerationManager, ModerationResult};
+use crate::{
+    ModerationCredentialProvider, ModerationError, ModerationManager, ModerationResult,
+    credentials::DriverCredentials,
+};
 
 pub(crate) fn register(
     manager: &ModerationManager,
     http: Arc<Factory>,
     env: Arc<Environment>,
+    credentials: Arc<dyn ModerationCredentialProvider>,
     storage: Arc<FilesystemManager>,
 ) {
     let client = http.clone();
     let environment = env.clone();
+    let provider = credentials.clone();
     let media = storage.clone();
     manager.extend("aliyun", move |profile| {
+        let credentials = DriverCredentials::resolve(&environment, provider.as_ref(), profile)?;
         Ok(Arc::new(aliyun::Aliyun::new(
             client.clone(),
-            &environment,
+            &credentials,
             media.clone(),
             profile,
         )?))
     });
     let client = http.clone();
     let environment = env.clone();
+    let provider = credentials.clone();
     let media = storage.clone();
     manager.extend("sightengine", move |profile| {
+        let credentials = DriverCredentials::resolve(&environment, provider.as_ref(), profile)?;
         Ok(Arc::new(sightengine::Sightengine::new(
             client.clone(),
-            &environment,
+            &credentials,
             media.clone(),
             profile,
         )?))
     });
     let client = http.clone();
     let environment = env.clone();
+    let provider = credentials.clone();
     let media = storage.clone();
     manager.extend("hive", move |profile| {
+        let credentials = DriverCredentials::resolve(&environment, provider.as_ref(), profile)?;
         Ok(Arc::new(hive::Hive::new(
             client.clone(),
-            &environment,
+            &credentials,
             media.clone(),
             profile,
         )?))
     });
     manager.extend("tencent", move |profile| {
+        let credentials = DriverCredentials::resolve(&env, credentials.as_ref(), profile)?;
         Ok(Arc::new(tencent::Tencent::new(
             http.clone(),
-            &env,
+            &credentials,
             storage.clone(),
             profile,
         )?))
@@ -192,29 +202,15 @@ impl Endpoint {
     }
 }
 
-fn field<'a>(profile: &'a Value, name: &'static str) -> ModerationResult<Option<&'a str>> {
+pub(crate) fn field<'a>(
+    profile: &'a Value,
+    name: &'static str,
+) -> ModerationResult<Option<&'a str>> {
     match profile.get(name) {
         None | Some(Value::Null) => Ok(None),
         Some(Value::String(value)) if !value.trim().is_empty() => Ok(Some(value)),
         _ => Err(ModerationError::InvalidConfiguration(name)),
     }
-}
-
-fn secret(
-    env: &Environment,
-    profile: &Value,
-    name: &'static str,
-) -> ModerationResult<Option<Zeroizing<String>>> {
-    field(profile, name)?
-        .map(|variable| {
-            env.get_utf8(variable)
-                .ok()
-                .flatten()
-                .filter(|value| !value.trim().is_empty())
-                .map(|value| Zeroizing::new(value.to_owned()))
-                .ok_or(ModerationError::InvalidConfiguration(name))
-        })
-        .transpose()
 }
 
 fn http_status(status: u16) -> ModerationResult<()> {

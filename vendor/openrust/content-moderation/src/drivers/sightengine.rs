@@ -1,13 +1,13 @@
+use crate::credentials::DriverCredentials;
 use std::{collections::BTreeMap, sync::Arc};
 
-use openrust::{config::Environment, filesystem::FilesystemManager, http::client::Factory};
+use openrust::{filesystem::FilesystemManager, http::client::Factory};
 use serde::Deserialize;
 use serde_json::Value;
 use zeroize::Zeroizing;
 
 use super::{
-    Endpoint, field, http_status, secret, sightengine_image::ImageService,
-    sightengine_video::VideoService,
+    Endpoint, field, http_status, sightengine_image::ImageService, sightengine_video::VideoService,
 };
 use crate::{
     Assessment, Confidence, Coverage, Decision, Finding, ImageInput, Modality, ModerationDriver,
@@ -62,7 +62,7 @@ enum TextMode {
 impl Sightengine {
     pub(super) fn new(
         http: Arc<Factory>,
-        env: &Environment,
+        credentials: &DriverCredentials<'_>,
         storage: Arc<FilesystemManager>,
         profile: &Value,
     ) -> ModerationResult<Self> {
@@ -75,9 +75,11 @@ impl Sightengine {
             ));
         }
         Ok(Self {
-            user: secret(env, profile, "api_user_env")?
+            user: credentials
+                .secret(profile, "api_user_env")?
                 .ok_or(ModerationError::InvalidConfiguration("api_user_env"))?,
-            secret: secret(env, profile, "api_secret_env")?
+            secret: credentials
+                .secret(profile, "api_secret_env")?
                 .ok_or(ModerationError::InvalidConfiguration("api_secret_env"))?,
             text,
             image,

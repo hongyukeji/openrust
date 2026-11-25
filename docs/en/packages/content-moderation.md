@@ -4,6 +4,12 @@ Enable the `content-moderation` feature or register `ModerationServiceProvider` 
 
 The package provides custom driver contracts, Alibaba Cloud text and stored-image moderation, Tencent Cloud text and image moderation, Sightengine text and image moderation, and Hive text and visual moderation. The other provider operations and durable video orchestration are being implemented.
 
+## Provider credentials {#credentials}
+
+For production, set `moderation.credential_directory` (loaded from `MODERATION_CREDENTIAL_DIRECTORY` by default) to the absolute path of a trusted, read-only mount. Set `credential_ref` and `credential_revision` in the named profile. For example, reference `sightengine` and revision `r1` read `sightengine.r1.json`, a JSON object containing `api_user` and `api_secret`. The configuration cache stores the directory, reference, and revision. HTTP, Artisan, and workers need access to the same mount.
+
+The `*_env` keys in the examples below let you explicitly select environment variables. For mounted credentials, remove those keys and use their names without the `_env` suffix in the file. Each file is limited to 16 KiB. On Unix, use permissions such as `0400` or `0440` and keep the directory and files under deployment control. Add a new revision file when rotating keys and retain revisions referenced by outstanding tasks. To revoke a file, remove it and restart processes holding an older driver instance. Applications can bind `dyn ModerationCredentialProvider` in the container to resolve references and revisions through an existing secret service.
+
 ## Alibaba Cloud text {#aliyun-text}
 
 Set `moderation.drivers.aliyun_comments` to a profile with `driver: "aliyun"`, `region: "cn-shanghai"`, `text_service: "comment_detection"`, `access_key_id_env`, and `access_key_secret_env`. The last two fields contain environment variable names. If using STS, set `security_token_env` as well. Select the profile through `Moderation::driver("aliyun_comments")` and call `text`, or make it the default with `MODERATION_DRIVER=aliyun_comments`.

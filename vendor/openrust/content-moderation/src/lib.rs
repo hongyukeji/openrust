@@ -5,6 +5,7 @@
 #[path = "../config/moderation.rs"]
 mod configuration;
 mod contracts;
+mod credentials;
 mod drivers;
 mod input;
 mod manager;
@@ -15,6 +16,7 @@ mod result;
 pub use contracts::{
     ModerationDriver, ModerationError, ModerationFuture, ModerationResult, Operation,
 };
+pub use credentials::{CredentialReference, ModerationCredentialProvider, ModerationCredentials};
 pub use input::{ImageInput, StoredMedia, TaskId, TextInput, VideoInput};
 pub use manager::ModerationManager;
 pub use moderation::Moderation;

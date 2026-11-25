@@ -20,6 +20,7 @@ VIDEO = runpy.run_path(str(ROOT / "tests/moderation_aliyun_video_acceptance.py")
 HTTP = VIDEO["ALIYUN"]["HTTP"]
 ORIGIN, KEY = VIDEO["ORIGIN"], VIDEO["KEY"]
 SECRET = "sightengine-video-private+/"
+ROTATED = "rotated-sightengine-video-private+/"
 PRIVATE = "sightengine-hidden-ocr-original"
 TASK = "med_detailed"
 COMMAND = "drivers:moderation-sightengine-video"
@@ -43,7 +44,8 @@ class Supplier(http.server.BaseHTTPRequestHandler):
 
     def authorization(self, parameters):
         assert parameters.pop("api_user") == ["local-sightengine-account"]
-        assert parameters.pop("api_secret") == [SECRET]
+        secret, = parameters.pop("api_secret")
+        assert secret == self.server.expected_secret
 
     def do_POST(self):
         assert self.path == "/1.0/video/check.json"
@@ -121,7 +123,7 @@ class Supplier(http.server.BaseHTTPRequestHandler):
         self.respond(200, {"status": "success", "request": {"id": "se-stop-reference"}})
 
 
-def exercise(binary, work, storage_env, storage):
+def exercise(binary, work, storage_env, storage, *, credentials=False):
     storage("PUT", query="versioning", content=(
         b'<VersioningConfiguration xmlns="http://s3.amazonaws.com/doc/2006-03-01/">'
         b'<Status>Enabled</Status></VersioningConfiguration>'))
@@ -141,6 +143,7 @@ def exercise(binary, work, storage_env, storage):
         port = listener.getsockname()[1]
     supplier = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Supplier)
     supplier.lock, supplier.mode = threading.Lock(), "accepted"
+    supplier.expected_secret = SECRET
     supplier.posted, supplier.queried, supplier.stops = [], [], []
     supplier.storage = urlsplit(storage_env["AWS_ENDPOINT"])
     thread = threading.Thread(target=supplier.serve_forever, daemon=True)
@@ -161,12 +164,27 @@ def exercise(binary, work, storage_env, storage):
         "MODERATION_EVENT_OBSERVATIONS": str(observations),
     }
     env.pop("DB_URL", None)
+    sensitive = (PRIVATE, SECRET, ROTATED)
+
+    def write_credential(path, secret):
+        descriptor = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o400)
+        with os.fdopen(descriptor, "w") as handle:
+            json.dump({"api_user": "local-sightengine-account", "api_secret": secret}, handle)
+
+    if credentials:
+        mount = work / "credentials"
+        mount.mkdir(mode=0o700)
+        original_credential = mount / "sightengine.r1.json"
+        write_credential(original_credential, SECRET)
+        write_credential(mount / "sightengine.r2.json", ROTATED)
+        env["MODERATION_CREDENTIAL_DIRECTORY"] = str(mount)
+        env["FIXTURE_SIGHTENGINE_SECRET"] = "explicit-environment-must-not-be-used"
 
     def artisan(current, *tokens, successful=True):
         process = subprocess.run([str(binary), "artisan", *tokens], env=current, capture_output=True,
                                  text=True, timeout=25)
         assert (process.returncode == 0) == successful, process.stdout + process.stderr
-        assert PRIVATE not in process.stdout + process.stderr and SECRET not in process.stdout + process.stderr
+        assert all(value not in process.stdout + process.stderr for value in sensitive)
         return process.stdout
 
     def post(expected=200, *, version=None, task=None, cancel=False, disk="s3"):
@@ -197,8 +215,16 @@ def exercise(binary, work, storage_env, storage):
         artisan(env, "config:cache")
         artisan(env, "route:cache")
         cache = (work / "config.json").read_text()
-        assert SECRET not in cache and "FIXTURE_SIGHTENGINE_SECRET" in cache
+        assert all(value not in cache for value in sensitive)
+        if credentials:
+            assert "credential_revision" in cache and "FIXTURE_SIGHTENGINE_SECRET" not in cache
+            assert "sightengine" in artisan(env, "config:show", "moderation")
+        else:
+            assert "FIXTURE_SIGHTENGINE_SECRET" in cache
         cached = env | {"MODERATION_FIXTURE_SIGHTENGINE_VIDEO": "http://127.0.0.1:1"}
+        if credentials:
+            cached |= {"MODERATION_FIXTURE_CREDENTIAL_REVISION": "r2",
+                       "MODERATION_CREDENTIAL_DIRECTORY": str(work / "missing-mount")}
         with (work / "http.log").open("w+") as log:
             application = HTTP["serve"](binary, cached, log)
             try:
@@ -230,10 +256,13 @@ def exercise(binary, work, storage_env, storage):
                 HTTP["stop"](application)
             log.seek(0)
             traces = log.read()
-            assert all(value not in traces for value in (PRIVATE, SECRET, "X-Amz-Signature"))
+            assert all(value not in traces for value in (*sensitive, "X-Amz-Signature"))
         assert json.loads(artisan(cached, COMMAND, "query", TASK)) == checked
         assert json.loads(artisan(cached, COMMAND, "queue", TASK)) == {"queued": True}
         path = work / "worker-results.json"
+        with sqlite3.connect(database) as conn:
+            payload, = conn.execute("SELECT payload FROM jobs").fetchone()
+            assert TASK in payload and all(value not in payload for value in sensitive)
         artisan(cached | {"MODERATION_FIXTURE_RESULT": str(path)}, "queue:work", "database", "--once")
         assert json.loads(path.read_text()) == checked
         with sqlite3.connect(database) as conn:
@@ -244,6 +273,32 @@ def exercise(binary, work, storage_env, storage):
         assert len(supplier.queried) == 12
         recorded = observations.read_text().splitlines()
         assert recorded.count("GET") == len(supplier.queried) and recorded.count("DELETE") == 1
+        if credentials:
+            original_credential.rename(mount / "retired")
+            artisan(cached, COMMAND, "query", TASK, successful=False)
+            original_credential.symlink_to(mount / "retired")
+            artisan(cached, COMMAND, "query", TASK, successful=False)
+            original_credential.unlink()
+            os.mkfifo(original_credential, 0o600)
+            artisan(cached, COMMAND, "query", TASK, successful=False)
+            original_credential.unlink()
+            original_credential.write_text("x" * (16 * 1024 + 1))
+            original_credential.chmod(0o400)
+            artisan(cached, COMMAND, "query", TASK, successful=False)
+            original_credential.unlink()
+            write_credential(original_credential, SECRET)
+            original_credential.chmod(0o644)
+            artisan(cached, COMMAND, "query", TASK, successful=False)
+            original_credential.unlink()
+            assert len(supplier.queried) == 12
+            artisan(env, "config:clear")
+            artisan(env | {"MODERATION_FIXTURE_CREDENTIAL_REF": "../outside"},
+                    COMMAND, "query", TASK, successful=False)
+            rotated = env | {"MODERATION_FIXTURE_CREDENTIAL_REVISION": "r2"}
+            artisan(rotated, "config:cache")
+            supplier.expected_secret = ROTATED
+            assert json.loads(artisan(rotated, COMMAND, "query", TASK)) == checked
+            assert len(supplier.queried) == 13
     finally:
         supplier.shutdown()
         supplier.server_close()
@@ -254,7 +309,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("binary", type=Path)
     args = parser.parse_args()
+    credentials = os.environ.get("MODERATION_TEST_MOUNTED_CREDENTIALS") == "1"
     with tempfile.TemporaryDirectory(dir=ROOT / "target/tmp", prefix="moderation-sightengine-video-") as work, \
             VIDEO["OBJECTS"]["TOPOLOGY"]["object_storage"](True) as (env, request):
-        exercise(args.binary.resolve(), Path(work), env, request)
-    print("Sightengine 点播：HTTP／Artisan／独立 Worker、查询凭据保护、取消和时间证据通过")
+        exercise(args.binary.resolve(), Path(work), env, request, credentials=credentials)
+    print("Sightengine 点播：HTTP／Artisan／独立 Worker、查询凭据保护、取消和时间证据通过",
+          "（挂载凭据版本）" if credentials else "（显式环境注入）")

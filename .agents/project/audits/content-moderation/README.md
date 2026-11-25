@@ -128,3 +128,11 @@
 使用 `/1.0/video/check.json` 的表单 POST 送审私有 S3 版本，返回 `med_` 媒体 ID。查单用 `GET /1.0/video/byid.json`，停止使用 DELETE 的表单体，均按公开协议发送账号凭据。复用 HTTP Client 的出站快照脱敏，事件不含实际查询串或正文。结果核对媒体身份与进度。视频与图片共用视觉、OCR 模型契约；帧位置转换为原件毫秒，不输出 OCR 原文。异步响应可能因时长限制提前完成，也可能只覆盖抽样帧，画面和 OCR 保持部分，语音保持缺失。官方语音审核另有同步入口。 [异步点播](https://sightengine.com/docs/moderate-stored-video-asynchronously) · [查单和停止](https://sightengine.com/docs/interact-with-video-moderation-jobs) · [语音](https://sightengine.com/docs/audio-moderation-model)
 
 基线 `a8d0e2206`，Rust 1.94.0。本地协议替身通过真实 HTTP、Artisan、独立 SQLite Worker 收到 4 次提交、12 次查单、1 次停止。读取有声、无声两个真实 MP4 的私有版本，核对文件原文、模型和限时参数。覆盖了坏 ID、身份不符、未知进度／状态、限流、拒绝访问、跨版本及无完整覆盖时的门禁。真实 `RequestSending` 事件监听逐次验证 GET 查询串和 DELETE 请求体已脱敏。Sightengine 文本／图片、腾讯云点播消费者回归、3 个包契约、全工作区格式、包及验收应用严格 Clippy 与三语检查均通过。账号级回调密钥、真实视频语音路径、套餐和供应商效果继续按计划验收。
+
+## CM-03D 供应商凭据的只读挂载与修订 {#credential-revisions}
+
+四家内置工厂读取具名配置的 `credential_ref` 与 `credential_revision`，容器默认从受控绝对目录打开单份 JSON。加载时检查实际打开的文件、16 KiB 上限、链接和 Unix 权限。引用和修订限 ASCII 标识符，缺失或不合法立即失败。同一修订内的字段一次读取，支持令牌及同一 Hive 配置内的独立项目。应用可绑定 `ModerationCredentialProvider` 接入已有密钥服务。显式 `*_env` 配置保留，两种来源混用拒绝。生产目录和同一修订的内容由部署方保持只读和一致；撤销后应重启持有旧驱动的进程。
+
+基线 `464432dcf`（当批其他提交无此包变更），Rust 1.94.0。Sightengine 使用挂载凭据完整执行两版本私有 MP4 的真实 HTTP、Artisan 和独立 SQLite Worker，共 4 次提交、13 次查单、1 次停止。配置缓存保留原修订，即使运行环境指定新修订或缺失的挂载路径，HTTP／Artisan／Worker 仍请求原供应商地址并使用原凭据。旧文件撤销、符号链接、FIFO、超长、过宽 Unix 权限及路径穿越在请求前失败。清理配置缓存并显式选择新修订后，独立替身核对新凭据。唯一哨兵扫描覆盖配置缓存、`config:show moderation`、HTTP 日志、公开结果、Artisan 输出、实际数据库队列载荷和出站观察事件。显式环境注入模式复跑完整点播协议，另复跑阿里云文本、腾讯云文本、Sightengine 文本和 Hive OCR。3 个包契约、修改范围格式及包／应用严格 Clippy 通过。三语站点构建通过，Chrome 实测两个挂载点的桌面／移动导航及全量章节。
+
+这批记录属于 D-05 的供应商出站凭据。恢复时固定原审核配置及凭据修订、失败任务诊断、供应商回调签名密钥、Windows 挂载 ACL 和真实供应商轮换仍须独立验收。
