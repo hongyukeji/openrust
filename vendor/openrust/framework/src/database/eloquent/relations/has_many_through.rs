@@ -405,6 +405,7 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
         join.apply(query.scoped()?.0).exists().await
     }
 
+    query_callers! {
     /// Writes the related table using the supplied intermediate foreign keys.
     pub async fn upsert(
         &self,
@@ -429,6 +430,7 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
             Some(model) => Ok(model),
             None => R::new_instance_on(&self.keys.connection(parent)?, Attributes::new()),
         }
+    }
     }
 
     super::lookup::relation_lookup!();
@@ -471,6 +473,7 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
         Ok(R::new_collection(models))
     }
 
+    query_callers! {
     /// Finds a related row or makes an unsaved model using the supplied attributes.
     pub async fn first_or_new(
         &self,
@@ -578,6 +581,7 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
             return Ok(model);
         }
         increment_related(model, column, step, extra).await
+    }
     }
 
     async fn find_or_create(

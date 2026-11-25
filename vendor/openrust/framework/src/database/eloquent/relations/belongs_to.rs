@@ -192,6 +192,7 @@ impl<P: Model, R: Model> BelongsTo<P, R> {
         !self.is(parent, related)
     }
 
+    query_callers! {
     /// Writes the owner table using the supplied rows and conflict columns.
     pub async fn upsert(
         &self,
@@ -208,6 +209,7 @@ impl<P: Model, R: Model> BelongsTo<P, R> {
             .configure(R::query_on(&connection))?
             .upsert(rows, unique_by, update)
             .await
+    }
     }
 
     pub fn associate(&self, model: &mut P, related: &R) -> DatabaseResult<()> {

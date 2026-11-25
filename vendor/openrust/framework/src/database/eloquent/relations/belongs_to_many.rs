@@ -329,6 +329,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         self
     }
 
+    query_callers! {
     /// Refreshes the timestamps of the models linked through this relation.
     pub async fn touch(&self, parent: &P) -> DatabaseResult<()> {
         if R::is_ignoring_touch() {
@@ -340,6 +341,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             query.update(touch.attributes::<R>(&connection)?).await?;
         }
         Ok(())
+    }
     }
 
     pub(in crate::database::eloquent) async fn touch_owners(
@@ -510,6 +512,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         Ok(self.where_pivot(column, "=", value))
     }
 
+    query_callers! {
     /// Writes the related table without attaching or updating pivot rows.
     pub async fn upsert(
         &self,
@@ -534,6 +537,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             Some(model) => Ok(model),
             None => R::new_instance_on(&self.keys.connection(parent)?, Attributes::new()),
         }
+    }
     }
 
     super::lookup::relation_lookup!();
@@ -578,6 +582,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         Ok(R::new_collection(models))
     }
 
+    query_callers! {
     /// Finds an attached model, attaches an existing match, or creates a new model.
     pub async fn first_or_create<'a>(
         &self,
@@ -686,6 +691,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             .await?;
         restore_related(model).await
     }
+    }
 
     fn require_soft_deletes(&self) -> DatabaseResult<()> {
         R::metadata()
@@ -761,6 +767,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             .and_then(|models| models.into_iter().next()))
     }
 
+    query_callers! {
     /// Creates and attaches a model, or attaches a matching model after a unique conflict.
     pub async fn create_or_first<'a>(
         &self,
@@ -777,6 +784,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             false,
         )
         .await
+    }
     }
 
     async fn create_or_first_with_trashed_option(
@@ -810,6 +818,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         self.attach_found(parent, model, lookup, joining).await
     }
 
+    query_callers! {
     /// Saves the related model and attaches it in the same transaction.
     pub async fn save(&self, parent: &P, model: &mut R, joining: Attributes) -> DatabaseResult<()> {
         self.save_and_attach(parent, model, joining, true).await
@@ -926,6 +935,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         joining: Attributes,
     ) -> DatabaseResult<R> {
         R::without_events(self.force_create(parent, attributes, joining)).await
+    }
     }
 
     async fn create_and_attach(

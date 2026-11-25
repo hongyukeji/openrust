@@ -54,7 +54,7 @@ impl Schema {
         Ok(Db::connection(None)?.get_schema_builder())
     }
 
-    schema_queries! {
+    query_callers! {
     pub async fn session() -> DatabaseResult<SchemaSession> {
         Self::default_builder()?.session().await
     }
@@ -153,7 +153,7 @@ impl Schema {
         Ok((schema.map(str::to_owned), table.to_owned()))
     }
 
-    schema_queries! {
+    query_callers! {
     pub async fn get_schemas() -> DatabaseResult<Vec<SchemaInfo>> {
         Self::default_builder()?.get_schemas().await
     }

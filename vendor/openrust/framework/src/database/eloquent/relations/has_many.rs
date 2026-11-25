@@ -295,12 +295,14 @@ impl<P: Model, R: Model> HasMany<P, R> {
             .map_err(Into::into)
     }
 
+    query_callers! {
     /// Finds the related primary key or prepares an unsaved child for this parent.
     pub async fn find_or_new(&self, parent: &P, key: impl Into<Value> + Send) -> DatabaseResult<R> {
         match self.find(parent, key).await? {
             Some(model) => Ok(model),
             None => self.make(parent, Attributes::new()).await,
         }
+    }
     }
 
     super::lookup::relation_lookup!();
@@ -332,6 +334,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
             .await
     }
 
+    query_callers! {
     /// Creates a child with an initial counter or increments a matching child.
     pub async fn first_or_new<'a>(
         &self,
@@ -438,6 +441,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
         }
         increment_related(model, column, step, extra).await
     }
+    }
 
     async fn find_or_create(
         &self,
@@ -498,6 +502,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
             .restrict_relation_attributes(attributes))
     }
 
+    query_callers! {
     /// Writes related rows, assigning the parent key and any morph discriminator.
     pub async fn upsert(
         &self,
@@ -533,6 +538,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
             .await?;
         self.0.hydrate_inverse(parent, model);
         model.save().await
+    }
     }
 
     /// Constructs an unsaved child with the relationship attributes.
@@ -629,6 +635,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
         Ok(())
     }
 
+    query_callers! {
     pub async fn save_quietly(&self, parent: &P, model: &mut R) -> DatabaseResult<bool> {
         R::without_events(self.save(parent, model)).await
     }
@@ -713,6 +720,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
         let mut model = self.make(parent, attributes).await?;
         model.save().await?;
         Ok(model)
+    }
     }
 }
 

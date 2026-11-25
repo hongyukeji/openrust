@@ -128,6 +128,7 @@ impl<P: Model, I: Model, R: Model> HasOneThrough<P, I, R> {
         Ok(!self.is(parent, related).await?)
     }
 
+    query_callers! {
     /// Writes the related table using the supplied intermediate foreign keys.
     pub async fn upsert(
         &self,
@@ -137,6 +138,7 @@ impl<P: Model, I: Model, R: Model> HasOneThrough<P, I, R> {
         update: Option<&[&str]>,
     ) -> DatabaseResult<u64> {
         self.0.upsert(parent, rows, unique_by, update).await
+    }
     }
 
     /// Reads this parent's related models in ordered batches.
@@ -160,12 +162,15 @@ impl<P: Model, I: Model, R: Model> HasOneThrough<P, I, R> {
         self.0.cursor(parent)
     }
 
+    query_callers! {
     pub async fn find_or_new(&self, parent: &P, key: impl Into<Value> + Send) -> DatabaseResult<R> {
         self.0.find_or_new(parent, key).await
+    }
     }
 
     super::lookup::relation_lookup!(.0);
 
+    query_callers! {
     pub async fn first_or_new(
         &self,
         parent: &P,
@@ -232,6 +237,7 @@ impl<P: Model, I: Model, R: Model> HasOneThrough<P, I, R> {
         self.0
             .increment_or_create(parent, attributes, column, default, step, extra)
             .await
+    }
     }
 
     #[must_use]

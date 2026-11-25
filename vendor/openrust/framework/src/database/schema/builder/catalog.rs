@@ -61,7 +61,7 @@ impl Builder<'_> {
         Ok((schema, table))
     }
 
-    schema_queries! {
+    query_callers! {
     pub async fn get_schemas(&mut self) -> DatabaseResult<Vec<SchemaInfo>> {
         let mysql_sql;
         let sql = if self.grammar.mysql() {
@@ -121,7 +121,7 @@ impl Builder<'_> {
             .collect()
     }
 
-    schema_queries! {
+    query_callers! {
     pub async fn get_views(&mut self, schema: Option<&str>) -> DatabaseResult<Vec<ViewInfo>> {
         match schema {
             Some(schema) => self.get_views_in(&[schema]).await,
@@ -252,7 +252,7 @@ impl Builder<'_> {
         Ok(views)
     }
 
-    schema_queries! {
+    query_callers! {
     pub async fn has_table(&mut self, table: &str) -> DatabaseResult<bool> {
         let table = self.resolve_table(table)?;
         if let Executor::Session(session) = &self.executor
@@ -394,7 +394,7 @@ impl Builder<'_> {
             .collect()
     }
 
-    schema_queries! {
+    query_callers! {
     pub async fn get_columns(&mut self, table: &str) -> DatabaseResult<Vec<Column>> {
         let table = self.catalog_table(table)?;
         let parameters = self.catalog_parameters(&table);

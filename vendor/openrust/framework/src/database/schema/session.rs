@@ -178,7 +178,7 @@ impl SchemaSession {
         Ok(())
     }
 
-    schema_queries! {
+    query_callers! {
     pub async fn enable_foreign_key_constraints(&mut self) -> DatabaseResult<bool> {
         self.set_foreign_keys(true).await
     }
@@ -208,7 +208,7 @@ impl SchemaSession {
         Ok(true)
     }
 
-    schema_queries! {
+    query_callers! {
     /// Drops managed temporary tables and restores the session settings before release.
     pub async fn close(mut self) -> DatabaseResult<()> {
         if self.temporary_tables.is_empty() && self.restore_foreign_keys.is_none() {

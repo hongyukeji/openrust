@@ -1,21 +1,5 @@
 //! Schema inspection and data definition operations.
 
-// 在调用入口捕获位置，异步工作仍在轮询时执行。
-macro_rules! schema_queries {
-    ($( $(#[$attribute:meta])* pub async fn $name:ident $(<$generic:tt $(: $bound:path)?>)?
-        ($($argument:tt)*) -> $result:ty $body:block )+) => {
-        $(
-            $(#[$attribute])*
-            #[track_caller]
-            pub fn $name $(<$generic $(: $bound)?>)? ($($argument)*)
-                -> impl std::future::Future<Output = $result>
-            {
-                crate::database::events::with_query_caller(std::panic::Location::caller(), async move $body)
-            }
-        )+
-    };
-}
-
 mod blueprint;
 mod builder;
 mod column_definition;

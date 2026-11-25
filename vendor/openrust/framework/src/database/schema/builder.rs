@@ -80,7 +80,7 @@ impl<'connection> Builder<'connection> {
         }
     }
 
-    schema_queries! {
+    query_callers! {
     pub async fn session(&self) -> DatabaseResult<SchemaSession> {
         let Executor::Connection(connection) = &self.executor else {
             return Err(DatabaseError::UnsupportedSchema(
@@ -138,7 +138,7 @@ impl<'connection> Builder<'connection> {
         Ok(online && self.grammar.postgres())
     }
 
-    schema_queries! {
+    query_callers! {
     /// Creates a database on the selected connection's server or a new SQLite file.
     pub async fn create_database(&mut self, name: &str) -> DatabaseResult<bool> {
         if self.grammar.postgres() {
@@ -234,7 +234,7 @@ impl<'connection> Builder<'connection> {
         Ok(())
     }
 
-    schema_queries! {
+    query_callers! {
     pub async fn create<R: super::BlueprintCallbackResult>(
         &mut self,
         table: &str,
@@ -304,7 +304,7 @@ impl<'connection> Builder<'connection> {
         Ok(format!("drop{temporary} table{guard} {table}"))
     }
 
-    schema_queries! {
+    query_callers! {
     pub async fn table<R: super::BlueprintCallbackResult>(
         &mut self,
         table: &str,
@@ -499,7 +499,7 @@ impl<'connection> Builder<'connection> {
         })).await
     }
 
-    schema_queries! {
+    query_callers! {
     pub async fn drop_columns(&mut self, table: &str, columns: &[&str]) -> DatabaseResult<()> {
         self.table(table, |blueprint| {
             blueprint.drop_column(columns);
@@ -530,7 +530,7 @@ impl<'connection> Builder<'connection> {
             .await
     }
 
-    schema_queries! {
+    query_callers! {
     pub async fn rename(&mut self, from: &str, to: &str) -> DatabaseResult<()> {
         let from = self.resolve_table(from)?;
         let mut to = self.grammar.table(to)?;

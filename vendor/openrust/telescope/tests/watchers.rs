@@ -32,12 +32,37 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
     Route::get("/page-callers", page_callers)?;
     Route::get("/model-write-callers", model_write_callers)?;
     Route::get("/relationship-callers", relationship_callers)?;
+    Route::get("/relationship-write-callers", relationship_write_callers)?;
     Route::get("/pivot-callers", pivot_callers)?;
     Route::get("/schema-callers", schema_callers)?;
     for path in ["/json", "/plain", "/boundary", "/large", "/opaque"] {
         Route::get(path, response_handler)?;
     }
     Ok(())
+}
+
+struct RelatedWriteProbe(openrust::database::eloquent::ModelState);
+
+impl openrust::database::eloquent::Model for RelatedWriteProbe {
+    fn metadata() -> &'static openrust::database::eloquent::ModelMetadata {
+        use openrust::database::eloquent::ModelMetadata;
+        static META: ModelMetadata = ModelMetadata::new("query_related_write_probe")
+            .timestamps(None, None)
+            .fillable(&["label", "owner_id", "subject_id", "subject_type"]);
+        &META
+    }
+
+    fn from_state(state: openrust::database::eloquent::ModelState) -> Self {
+        Self(state)
+    }
+
+    fn state(&self) -> &openrust::database::eloquent::ModelState {
+        &self.0
+    }
+
+    fn state_mut(&mut self) -> &mut openrust::database::eloquent::ModelState {
+        &mut self.0
+    }
 }
 
 struct PageProbe(openrust::database::eloquent::ModelState);
@@ -225,6 +250,127 @@ fn model_write_callers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpE
     })
 }
 
+fn relationship_write_callers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    use openrust::database::{
+        Value,
+        eloquent::{
+            Attributes, Model as _,
+            relations::{BelongsToMany, HasMany, HasOne, MorphMany},
+        },
+        schema::Schema,
+    };
+    type Record = RelatedWriteProbe;
+
+    Box::pin(async {
+        Schema::create("query_related_write_probe", |table| {
+            table.id();
+            table.string("label", None);
+            table.big_integer("owner_id").nullable();
+            table.big_integer("subject_id").nullable();
+            table.string("subject_type", None).nullable();
+        })
+        .await
+        .unwrap();
+        Schema::create("query_related_write_probe_pivot", |table| {
+            table.big_integer("owner_id");
+            table.big_integer("related_id");
+        })
+        .await
+        .unwrap();
+        let label = |value: &str| Attributes::from([("label".into(), value.into())]);
+        let seed = line!() + 1;
+        let parent = Record::create(label("parent")).await.unwrap();
+        let children = HasMany::<Record, Record>::new("id", "owner_id");
+        let create = line!() + 1;
+        let child = children.create(&parent, label("child")).await.unwrap();
+        assert_eq!(child.get_attribute("owner_id"), parent.get_key());
+
+        let first = line!() + 2;
+        let created = children
+            .first_or_create(&parent, label("first"), Attributes::new())
+            .await
+            .unwrap();
+        let update = line!() + 2;
+        let updated = children
+            .update_or_create(&parent, label("first"), label("updated"))
+            .await
+            .unwrap();
+        let numeric_key = |model: &Record| match model.get_key() {
+            Some(Value::Integer(value)) => i128::from(*value),
+            Some(Value::Unsigned(value)) => i128::from(*value),
+            value => panic!("关联主键应为整数，实际为 {value:?}"),
+        };
+        assert_eq!(numeric_key(&updated), numeric_key(&created));
+        assert_eq!(
+            updated.get_attribute("label"),
+            Some(&Value::from("updated"))
+        );
+
+        let mut quiet_record = Record::new_instance(label("quiet")).unwrap();
+        let quiet = line!() + 1;
+        let saved = children.save_quietly(&parent, &mut quiet_record);
+        assert!(saved.await.unwrap());
+        let batch = line!() + 2;
+        let many = children
+            .create_many(&parent, [label("batch one"), label("batch two")])
+            .await
+            .unwrap();
+        assert_eq!(many.len(), 2);
+        assert!(
+            many.iter()
+                .all(|child| child.get_attribute("owner_id") == parent.get_key())
+        );
+
+        let only = HasOne::<Record, Record>::new("id", "owner_id");
+        let one = line!() + 1;
+        let single = only.create(&parent, label("single")).await.unwrap();
+        assert_eq!(single.get_attribute("owner_id"), parent.get_key());
+
+        let morph = MorphMany::<Record, Record>::new("id", "subject_id", "subject_type", "probe");
+        let morph_many = line!() + 1;
+        let morphed = morph.create(&parent, label("morph many")).await.unwrap();
+        assert_eq!(morphed.get_attribute("subject_id"), parent.get_key());
+        assert_eq!(
+            morphed.get_attribute("subject_type"),
+            Some(&Value::from("probe"))
+        );
+        let morph = morph.one();
+        let morph_one = line!() + 1;
+        let morphed = morph.create(&parent, label("morph one")).await.unwrap();
+        assert_eq!(morphed.get_attribute("subject_id"), parent.get_key());
+
+        let peers = BelongsToMany::<Record, Record>::new(
+            "query_related_write_probe_pivot",
+            "owner_id",
+            "related_id",
+            "id",
+            "id",
+        );
+        let pivot = line!() + 2;
+        let peer = peers
+            .create(&parent, label("peer"), Attributes::new())
+            .await
+            .unwrap();
+        assert!(peer.get_key().is_some());
+
+        Response::json(
+            http::StatusCode::OK,
+            [
+                (seed, 1),
+                (create, 1),
+                (first, 2),
+                (update, 2),
+                (quiet, 1),
+                (batch, 2),
+                (one, 1),
+                (morph_many, 1),
+                (morph_one, 1),
+                (pivot, 2),
+            ],
+        )
+    })
+}
+
 fn pivot_callers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     use openrust::database::{
         Value,
@@ -351,6 +497,16 @@ async fn query_watcher_attributes_relationship_reads_to_the_public_entry() {
         "/api/relationship-callers",
         "query_page_probe",
         &["select "],
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn query_watcher_attributes_relationship_writes_to_the_public_entry() {
+    assert_query_source_lines(
+        "/api/relationship-write-callers",
+        "query_related_write_probe",
+        &["select ", "insert ", "update "],
     )
     .await;
 }

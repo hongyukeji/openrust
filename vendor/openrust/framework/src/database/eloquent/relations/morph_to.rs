@@ -118,6 +118,7 @@ impl<P: Model> MorphTo<P> {
         !self.is(parent, related)
     }
 
+    query_callers! {
     /// Writes to the owner table selected by the declaring model's stored morph alias.
     pub async fn upsert(
         &self,
@@ -141,6 +142,7 @@ impl<P: Model> MorphTo<P> {
             .ok_or(DatabaseError::InvalidQuery("unknown morph type"))?
             .upsert(parent, rows, unique_by, update, self.soft_deletes)
             .await
+    }
     }
 
     pub fn identity<R: Model>(&self, alias: &str, model: &R) -> DatabaseResult<MorphIdentity> {

@@ -111,6 +111,7 @@ impl<P: Model, R: Model> MorphOne<P, R> {
         Ok(Self(self.0.where_candidates(filter)?))
     }
 
+    query_callers! {
     /// Writes related rows, assigning the parent key and any morph discriminator.
     pub async fn upsert(
         &self,
@@ -120,6 +121,7 @@ impl<P: Model, R: Model> MorphOne<P, R> {
         update: Option<&[&str]>,
     ) -> DatabaseResult<u64> {
         self.0.upsert(parent, rows, unique_by, update).await
+    }
     }
 
     pub(in crate::database::eloquent) fn factory_attributes(
@@ -137,8 +139,10 @@ impl<P: Model, R: Model> MorphOne<P, R> {
         self.0.save_factory_child(parent, model).await
     }
 
+    query_callers! {
     pub async fn save(&self, parent: &P, model: &mut R) -> DatabaseResult<bool> {
         self.0.save(parent, model).await
+    }
     }
 
     /// Constructs an unsaved child with the relationship attributes.
@@ -182,12 +186,15 @@ impl<P: Model, R: Model> MorphOne<P, R> {
         self.0.cursor(parent)
     }
 
+    query_callers! {
     pub async fn find_or_new(&self, parent: &P, key: impl Into<Value> + Send) -> DatabaseResult<R> {
         self.0.find_or_new(parent, key).await
+    }
     }
 
     super::lookup::relation_lookup!(.0.0);
 
+    query_callers! {
     pub async fn first_or_new<'a>(
         &self,
         parent: &P,
@@ -318,6 +325,7 @@ impl<P: Model, R: Model> MorphOne<P, R> {
 
     pub async fn create(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
         self.0.create(parent, attributes).await
+    }
     }
 }
 
