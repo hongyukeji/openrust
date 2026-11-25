@@ -88,6 +88,21 @@
 
 本地实测将使用合成业务输入和真实 HTTP 回环协议服务，Fake 断言与 HTTP 协议测试分别记证据。遇到脱敏、缓存键归属、重试中的副作用或应用间状态隔离差异时，加入对应反例验证。涉及供应商账号、权限、地区、配额或模型可用性的实机结果逐项记录，缺条件的项目保持待验收。运行时用法和当前支持范围同步到现有三语 AI SDK 文档。
 
+### 国内供应商接入
+
+用户确认在保留以上 17 个固定 Laravel 驱动的基础上，将以下四家纳入可配置的接入示例和兼容验收。应用可同时配置多家供应商，也可为同一家配置多个命名实例，例如两套百炼工作空间。`ai.default` 用于未指定 Provider 的文本调用，其他任务仍可显式选择 Provider 和模型。
+
+| 命名实例 | 服务 | 首批接入与实测范围 |
+|---|---|---|
+| `qwen` | 阿里云百炼／通义千问 | 通过 `openai-compatible` 接入 Chat Completions。基础 URL 与 Key 对应同一地域和工作空间，保留 `/compatible-mode/v1` 路径。 [百炼基础 URL 文档](https://docs.modelstudio.console.alibabacloud.com/en/model-studio/base-url) |
+| `tencent` | 腾讯云 TokenHub／混元等 | 先验收 Chat Completions，再按实际模型分别验证 Responses 和 Anthropic Messages。多协议接入时使用各自的命名实例和驱动。 [TokenHub 协议矩阵](https://cloud.tencent.com/document/product/1823/130079) |
+| `qianfan` | 百度智能云千帆 | 通过 `openai-compatible` 接入 Chat Completions，基础 URL 为 `https://qianfan.baidubce.com/v2`，核对实际模型 ID 或 API 名称。 [千帆文本生成文档](https://cloud.baidu.com/doc/qianfan-api/s/wmwbl48n4) |
+| `ark` | 火山引擎方舟 | 通过 `openai-compatible` 接入 Chat Completions，模型 ID 取实际开通的模型或推理接入点。 [方舟兼容 OpenAI SDK 文档](https://docs.volcengine.com/docs/ark/compatible-with-openai-sdk?lang=zh) |
+
+配置示例复用 `ai.providers.<name>.{driver,url,models.text.default}` 和运行时凭证解析。配置预览中的 `key_env` 仍是凭证引用字段的建议名称。确认真实协议差异后才补专用适配，兼容端点继续复用通用驱动。同一个对外别名（例如 `support-chat`）可改绑到这些实例，验证客户端沿用相同网关地址、接口协议、Key 和模型名即可调用。
+
+随 AI-01 验收基础 URL 拼接、鉴权、模型选择、显式覆盖及 Chat Completions 请求与响应。流、结构化输出、工具调用、Embeddings 和额外协议随对应 SDK 与网关批次按供应商、模型和协议逐项核对。三语文档提供最小配置与调用示例，实测记录分别标明协议模拟、服务商实机和待验收范围。
+
 ## Sub2API 兼容接入与模型网关
 
 | 使用方式 | 装配与行为 |
