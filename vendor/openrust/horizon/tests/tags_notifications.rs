@@ -86,14 +86,14 @@ async fn tag_callbacks_are_application_local_and_preserve_first_nonempty_occurre
     assert!(Tags::for_payload(&Payload::new("outside", json!({})).unwrap()).is_err());
 }
 
-struct Order(ModelState);
+struct Order(ModelState, &'static str);
 impl Model for Order {
     fn metadata() -> &'static ModelMetadata {
         static META: ModelMetadata = ModelMetadata::new("orders");
         &META
     }
     fn from_state(state: ModelState) -> Self {
-        Self(state)
+        Self(state, "")
     }
     fn state(&self) -> &ModelState {
         &self.0
@@ -131,6 +131,40 @@ fn model_tags_convert_scalar_keys_and_include_the_rust_model_type() {
         order.state_mut().set_attribute("id", value);
         assert!(Tags::for_model(&order).is_err());
     }
+}
+
+#[test]
+fn model_tags_deduplicate_models_before_converting_keys() {
+    let mut first = Order::from_state(ModelState::default());
+    first.set_attribute("id", 4_i64);
+    let equal = Order::from_state(first.state().clone());
+    let mut numeric_string = Order::from_state(first.state().clone());
+    numeric_string.set_attribute("id", "4");
+    let mut changed = Order::from_state(first.state().clone());
+    changed.set_attribute("category", "different");
+    let mut custom = Order::from_state(first.state().clone());
+    custom.1 = "extra";
+    let tag = Tags::for_model(&first).unwrap();
+
+    assert_eq!(
+        Tags::for_models([&first, &first, &equal, &numeric_string, &changed]).unwrap(),
+        [tag.clone(), tag.clone()]
+    );
+    assert_eq!(
+        Tags::for_models_by([&first, &equal, &custom], |left, right| {
+            left.is(right) && left.state().has_same_state(right.state()) && left.1 == right.1
+        })
+        .unwrap(),
+        [tag.clone(), tag]
+    );
+    let mut null = Order::from_state(ModelState::default());
+    null.set_attribute("id", Value::Null);
+    let mut false_value = Order::from_state(ModelState::default());
+    false_value.set_attribute("id", false);
+    assert_eq!(
+        Tags::for_models([&null, &false_value]).unwrap(),
+        [Tags::for_model(&null).unwrap()]
+    );
 }
 
 fn notification() -> LongWaitDetected {

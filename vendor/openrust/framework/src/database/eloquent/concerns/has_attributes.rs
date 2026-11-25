@@ -107,6 +107,49 @@ impl ModelState {
         &self.changes
     }
 
+    /// 比较框架保存的模型状态。独立装载的关联和不透明值由调用方比较。
+    #[doc(hidden)]
+    pub fn has_same_state(&self, other: &Self) -> bool {
+        fn equal_attributes(left: &Attributes, right: &Attributes) -> bool {
+            fn comparable(value: &Value) -> Option<serde_json::Value> {
+                match value {
+                    Value::Bytes(bytes) => {
+                        Some(serde_json::Value::from(std::str::from_utf8(bytes).ok()?))
+                    }
+                    _ => super::super::casts::json_value(value.clone()).ok(),
+                }
+            }
+
+            left.len() == right.len()
+                && left.iter().all(|(name, left)| {
+                    right.get(name).is_some_and(|right| {
+                        left == right
+                            || comparable(left).zip(comparable(right)).is_some_and(
+                                |(left, right)| {
+                                    crate::support::php_loose_value_equal(&left, &right)
+                                },
+                            )
+                    })
+                })
+        }
+
+        equal_attributes(&self.attributes, &other.attributes)
+            && equal_attributes(&self.original, &other.original)
+            && equal_attributes(&self.changes, &other.changes)
+            && self.exists == other.exists
+            && self.was_recently_created == other.was_recently_created
+            && self.prevent_lazy_loading == other.prevent_lazy_loading
+            && self.pivot_identity == other.pivot_identity
+            && self.serialization() == other.serialization()
+            && self.casts.is_empty()
+            && other.casts.is_empty()
+            && self.value_objects.is_none()
+            && other.value_objects.is_none()
+            && self.detached_autoload.is_none()
+            && other.detached_autoload.is_none()
+            && self.relations.same_instances(&other.relations)
+    }
+
     pub fn exists(&self) -> bool {
         self.exists
     }

@@ -236,6 +236,11 @@ impl LoadedRelations {
             .is_some_and(|(left, right)| Arc::ptr_eq(left, right))
     }
 
+    pub(in crate::database::eloquent) fn same_instances(&self, other: &Self) -> bool {
+        self.values.len() == other.values.len()
+            && self.values.keys().all(|name| self.same_value(name, other))
+    }
+
     pub(in crate::database::eloquent) fn copy_from(&mut self, name: &str, other: &Self) {
         if let Some(value) = other.values.get(name) {
             self.values.insert(name.to_owned(), value.clone());

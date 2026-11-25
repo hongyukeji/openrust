@@ -23,7 +23,7 @@ impl<M, F: FnOnce(&M) -> bool> VisibilityCondition<M> for F {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, PartialEq, Eq)]
 pub(super) struct SerializationOptions {
     pub(super) hidden: Option<Vec<String>>,
     pub(super) visible: Option<Vec<String>>,

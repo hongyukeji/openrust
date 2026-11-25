@@ -124,11 +124,10 @@ impl Tags {
     }
 
     fn model_tags(callbacks: TargetCallbacks, payload: &Payload) -> Result<Vec<String>> {
-        let mut tags = Vec::new();
-        if let Some(callback) = callbacks.models {
-            append_unique(&mut tags, callback(payload)?);
+        match callbacks.models {
+            Some(callback) => callback(payload),
+            None => Ok(Vec::new()),
         }
-        Ok(tags)
     }
 
     pub fn for_model<M: Model>(model: &M) -> Result<String> {
@@ -147,13 +146,32 @@ impl Tags {
         Ok(format!("{}:{}", std::any::type_name::<M>(), key))
     }
 
-    /// 依模型出现顺序生成标签并去重。
+    /// 对框架状态相同的模型保留第一次出现，再按顺序生成标签。
     pub fn for_models<'a, M: Model + 'a>(
         models: impl IntoIterator<Item = &'a M>,
     ) -> Result<Vec<String>> {
+        Self::for_models_by(models, |left, right| {
+            left.get_table() == right.get_table()
+                && left.get_connection_name() == right.get_connection_name()
+                && left.state().has_same_state(right.state())
+        })
+    }
+
+    /// 使用调用方提供的模型等价规则，比较自定义字段或不透明关联。
+    pub fn for_models_by<'a, M: Model + 'a>(
+        models: impl IntoIterator<Item = &'a M>,
+        mut equivalent: impl FnMut(&M, &M) -> bool,
+    ) -> Result<Vec<String>> {
+        let mut unique: Vec<&M> = Vec::new();
         let mut tags = Vec::new();
         for model in models {
-            append_unique(&mut tags, [Self::for_model(model)?]);
+            if !unique
+                .iter()
+                .any(|previous| std::ptr::eq(*previous, model) || equivalent(previous, model))
+            {
+                tags.push(Self::for_model(model)?);
+                unique.push(model);
+            }
         }
         Ok(tags)
     }

@@ -533,7 +533,11 @@ Rust 的类型检查可确认具体类型，模型字段仍由应用回调显式
 
 固定 Horizon `Tags::for` 拼接实际模型类型和主键。PHP 8.5.12 用非自增模型执行固定方法，验证缺失、null、false 得到空后缀，true 得到 `1`，浮点值及普通字符串保留相应标量文本。Rust 补齐 `Tags::for_model` 的标量转换，浮点数沿用框架的 PHP 精度格式化；结构化值和无效 UTF-8 字节仍返回错误。有序标签集合维持首次出现去重。回归通过实际 HTTP 派发和 Redis 任务详情检查空后缀、布尔与浮点标签。PHP 证据为 `target/tmp/observability-parity/horizon-tags-model-keys-upstream.log`。
 
-集合去重另有差异。PHP 8.5.12 用实际 Eloquent Collection 验证，相同实例或全部状态相同的实例在 `modelsFor` 去重。同一主键但当前属性、原始属性快照或自定义属性不同的模型各自保留。false 与 null 主键也可产生两个相同标签。固定 `JobPayload::prepare` 将重复标签原样附在预置标签后。Rust 当前按标签文本去重，须继续对齐模型等价判定及载荷保留。科学计数法 `1.23E+30` 同一探针亦已确认。证据为 `target/tmp/observability-parity/horizon-tags-model-collection-upstream.log`。
+集合去重另有差异。PHP 8.5.12 用实际 Eloquent Collection 验证，相同实例或全部状态相同的实例在 `modelsFor` 去重。同一主键但当前属性、原始属性快照或自定义属性不同的模型各自保留。false 与 null 主键也可产生两个相同标签。固定 `JobPayload::prepare` 将重复标签原样附在预置标签后。Rust 原按标签文本去重，本批改为先比较模型。科学计数法 `1.23E+30` 同一探针亦已确认。证据为 `target/tmp/observability-parity/horizon-tags-model-collection-upstream.log`。
+
+Rust 将模型去重移到生成标签前，默认比较原生模型的表和连接，以及当前属性、原始快照、变更、生命周期和可确认的关联状态，并保留不同模型生成的同名标签。应用可通过 `Tags::for_models_by` 为自定义字段或独立装载的关联提供完整比较规则。普通任务的模型标签回调保持原序和重复项，排队监听器仍按上游规则合并去重。补充 PHP 探针确认，其他状态相同的模型在整数 `4`／字符串 `"4"` 或 false／null 时会去重。默认属性比较因此复用核心的 PHP 松比较。末次 Rust 回归同时检查应合并的两组标量和不同模型在 Redis 载荷内保留的同名标签。PHP 证据为 `target/tmp/observability-parity/horizon-tags-model-scalar-equality-upstream.log`。
+
+macOS 隔离快照通过标签及通知 6 项，4 项按环境条件忽略。独占 Redis 8.10.3 上的真实 HTTP、任务仓储和 Artisan 重试专项通过。所涉严格 Clippy 与框架关系回归通过，另在 MySQL 8.4.13 实跑关系用例。三语站点构建及包含 `Tags::for_models_by` 的 12 组浏览器检查通过。证据为 `target/tmp/observability-parity/horizon-model-collection-{macos-loose,mysql,docs}.log`。默认状态比较对不透明的模型自定义字段或独立装载关联使用显式比较入口，其他目标平台的 Redis 端到端及完整发布组合继续验收。
 
 macOS 隔离快照的标签及通知套件 5 项通过、4 项按环境条件忽略。真实 Redis 8.10.3 上的 HTTP 派发、任务仓储和 Artisan 重试专项通过，覆盖本批空后缀、布尔和浮点主键。三语站点构建通过，Telescope 与 Horizon 各通过 12 组浏览器检查，生成页面包含文件附件入口和新主键规则。证据为 `target/tmp/observability-parity/{horizon-model-keys-macos,file-and-model-tags-docs}.log`。Horizon 所涉严格 Clippy 通过，Linux ARM64 通过标量主键测试。真实 Redis 的其他平台复验继续执行。
 
