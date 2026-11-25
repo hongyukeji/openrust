@@ -37,13 +37,13 @@ class Supplier(http.server.BaseHTTPRequestHandler):
         self.server.unexpected.append(self.path)
         self.send_error(405)
 
-    def verify(self, action, service):
+    def verify(self, action, service, version="2020-12-29"):
         assert self.path == "/"
         body = self.rfile.read(int(self.headers["Content-Length"]))
         media = "application/json; charset=utf-8"
         assert self.headers["Content-Type"] == media
         assert self.headers["X-TC-Action"] == action
-        assert self.headers["X-TC-Version"] == "2020-12-29"
+        assert self.headers["X-TC-Version"] == version
         assert self.headers["X-TC-Region"] == "ap-guangzhou"
         timestamp = int(self.headers["X-TC-Timestamp"])
         day = datetime.fromtimestamp(timestamp, timezone.utc).strftime("%Y-%m-%d")

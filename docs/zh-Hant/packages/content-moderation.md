@@ -68,6 +68,14 @@
 
 完成的工作仍可能只有部分畫面、語音或 OCR 涵蓋。`Assessment::evidence_span()` 使用原影片起點後的毫秒表示取樣影格或語音證據。辨識原文及證據暫時連結均不出現在結果中。 [阿里雲隨選影片 API](https://help.aliyun.com/zh/document_detail/2505810.html)
 
+## 騰訊雲隨選影片 {#tencent-video}
+
+為具名 `tencent` 設定指定標準隨選策略 `video_biz_type`，並設定私人版本化 S3 素材的 `media_disk` 和 `media_origin`。驅動呼叫 VM `2021-09-22` 介面並使用 `Type=VIDEO`。
+
+透過 `submit_video()` 送出，再用同一具名設定查詢傳回的工作 ID。`cancel_video()` 用於等待中的工作。取消前核對工作類型和策略，已經開始的工作可能由騰訊雲拒絕取消。提交回傳 `SubmissionUnknown` 時，先核對之前的工作再考慮重新提交。
+
+驅動將回應中的畫面、語音和 OCR 證據依原件時間軸轉成毫秒。缺少完整涵蓋證明時仍保留部分涵蓋。 [提交](https://cloud.tencent.com/document/api/1265/80017) · [查詢](https://cloud.tencent.com/document/product/1265/80016) · [取消](https://cloud.tencent.com/document/api/1265/80018)
+
 ## 自訂驅動 {#custom-drivers}
 
 以下範例會將文字送人工複核。在套件 Provider 之後註冊範例 Provider，HTTP、Artisan 和 Worker 都可解析相同的具名設定。

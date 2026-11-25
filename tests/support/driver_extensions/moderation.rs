@@ -24,6 +24,7 @@ use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 
 const JOB: &str = "moderation.fixture.query";
 const ALIYUN_JOB: &str = "moderation.fixture.aliyun-query";
+const TENCENT_JOB: &str = "moderation.fixture.tencent-query";
 
 pub(super) fn configuration(env: &Environment) -> Result<Value, ConfigError> {
     let mut configuration = json!({"default":"comments","drivers":{
@@ -78,6 +79,16 @@ pub(super) fn configuration(env: &Environment) -> Result<Value, ConfigError> {
             images["media_origin"] = json!(origin);
         }
         configuration["drivers"]["tencent-images"] = images;
+    }
+    if let Some(endpoint) = env.get_utf8("MODERATION_FIXTURE_TENCENT_VIDEO")? {
+        let media = env.get_utf8("MODERATION_FIXTURE_IMAGE_ORIGIN")?;
+        configuration["drivers"]["tencent-videos"] = json!({
+            "driver":"tencent", "video_base_url":endpoint, "region":"ap-guangzhou",
+            "video_biz_type":env.get_utf8("MODERATION_FIXTURE_TENCENT_BIZ")?.unwrap_or("video_profile"),
+            "media_disk":"s3", "media_origin":media,
+            "secret_id_env":"FIXTURE_TENCENT_ID","secret_key_env":"FIXTURE_TENCENT_SECRET",
+            "security_token_env":"FIXTURE_TENCENT_TOKEN","timeout_ms":500,
+        });
     }
     if let Some(endpoint) = env.get_utf8("MODERATION_FIXTURE_SIGHTENGINE")? {
         let mut text = json!({
@@ -162,7 +173,8 @@ impl ServiceProvider for ExternalProvider {
                 Ok(Arc::new(Media(region.to_owned())))
             });
             Queue::register(JOB, Arc::new(Query))?;
-            Queue::register(ALIYUN_JOB, Arc::new(AliyunVideoQuery))?;
+            Queue::register(ALIYUN_JOB, Arc::new(ProviderVideoQuery("aliyun-videos")))?;
+            Queue::register(TENCENT_JOB, Arc::new(ProviderVideoQuery("tencent-videos")))?;
             Ok(())
         })
     }
@@ -278,15 +290,15 @@ async fn aliyun_image(version: &str, disk: &str) -> ModerationResult<Value> {
     Ok(render_assessment(result, Modality::Visual))
 }
 
-async fn aliyun_submit_video(version: &str, disk: &str) -> ModerationResult<Value> {
+async fn submit_video(profile: &str, version: &str, disk: &str) -> ModerationResult<Value> {
     let source = StoredMedia::new(disk, "versions/clip.mp4", version)?;
-    let driver = Moderation::driver("aliyun-videos")?;
+    let driver = Moderation::driver(profile)?;
     let task = driver.submit_video(&VideoInput::new(source)).await?;
     Ok(json!({"task":task,"cancel":driver.supports(Operation::CancelVideo)}))
 }
 
-async fn aliyun_query_video(id: &TaskId) -> ModerationResult<Value> {
-    let driver = Moderation::driver("aliyun-videos")?;
+async fn query_video(profile: &str, id: &TaskId) -> ModerationResult<Value> {
+    let driver = Moderation::driver(profile)?;
     let status = driver.query_video(id).await?;
     let stage = match status {
         TaskStatus::Pending => "Pending",
@@ -320,10 +332,26 @@ async fn aliyun_query_video(id: &TaskId) -> ModerationResult<Value> {
 pub(super) fn aliyun_video_route(
     request: &mut Request,
 ) -> HttpFuture<'_, Result<Response, HttpError>> {
+    video_route(request, "aliyun-videos")
+}
+
+pub(super) fn tencent_video_route(
+    request: &mut Request,
+) -> HttpFuture<'_, Result<Response, HttpError>> {
+    video_route(request, "tencent-videos")
+}
+
+fn video_route<'a>(
+    request: &'a mut Request,
+    profile: &'static str,
+) -> HttpFuture<'a, Result<Response, HttpError>> {
     Box::pin(async move {
         let result = if let Some(id) = request.header("x-fixture-task")? {
             match TaskId::new(id) {
-                Ok(id) => aliyun_query_video(&id).await,
+                Ok(id) if request.header("x-fixture-cancel")? == Some("1") => {
+                    cancel_video(profile, &id).await
+                }
+                Ok(id) => query_video(profile, &id).await,
                 Err(error) => Err(error),
             }
         } else {
@@ -331,10 +359,15 @@ pub(super) fn aliyun_video_route(
                 .header("x-fixture-version")?
                 .ok_or(HttpError::InvalidRequest)?;
             let disk = request.header("x-fixture-disk")?.unwrap_or("s3");
-            aliyun_submit_video(version, disk).await
+            submit_video(profile, version, disk).await
         };
         provider_response(result)
     })
+}
+
+async fn cancel_video(profile: &str, id: &TaskId) -> ModerationResult<Value> {
+    Moderation::driver(profile)?.cancel_video(id).await?;
+    Ok(json!({"cancelled":true}))
 }
 
 fn render_assessment(result: Assessment, modality: Modality) -> Value {
@@ -540,9 +573,9 @@ impl JobHandler for Query {
     }
 }
 
-struct AliyunVideoQuery;
+struct ProviderVideoQuery(&'static str);
 
-impl JobHandler for AliyunVideoQuery {
+impl JobHandler for ProviderVideoQuery {
     fn handle<'a>(
         &'a self,
         _: &'a mut JobContext<'_>,
@@ -551,7 +584,7 @@ impl JobHandler for AliyunVideoQuery {
         Box::pin(async move {
             let id: TaskId = serde_json::from_value(payload.data().clone())
                 .map_err(|_| QueueError::InvalidPayload)?;
-            let record = aliyun_query_video(&id).await.map_err(queue_error)?;
+            let record = query_video(self.0, &id).await.map_err(queue_error)?;
             let path = std::env::var_os("MODERATION_FIXTURE_RESULT")
                 .map(PathBuf::from)
                 .ok_or(QueueError::InvalidPayload)?;
@@ -623,15 +656,32 @@ pub(super) fn register_command(artisan: &mut Artisan) -> Result<(), ConsoleError
                     .action(clap::ArgAction::SetTrue),
             ),
     ))))?;
-    artisan.add_command(Box::new(AliyunVideoProbe(CommandDefinition::new(
-        clap::Command::new("drivers:moderation-aliyun-video")
-            .arg(
-                clap::Arg::new("action")
-                    .required(true)
-                    .value_parser(["submit", "query", "queue"]),
-            )
-            .arg(clap::Arg::new("reference").required(true)),
-    ))))?;
+    for (name, profile, job) in [
+        (
+            "drivers:moderation-aliyun-video",
+            "aliyun-videos",
+            ALIYUN_JOB,
+        ),
+        (
+            "drivers:moderation-tencent-video",
+            "tencent-videos",
+            TENCENT_JOB,
+        ),
+    ] {
+        artisan.add_command(Box::new(NamedVideoProbe(
+            CommandDefinition::new(
+                clap::Command::new(name)
+                    .arg(
+                        clap::Arg::new("action")
+                            .required(true)
+                            .value_parser(["submit", "query", "queue", "cancel"]),
+                    )
+                    .arg(clap::Arg::new("reference").required(true)),
+            ),
+            profile,
+            job,
+        )))?;
+    }
     for (name, profile) in [
         ("drivers:moderation-sightengine", "sightengine-rules"),
         ("drivers:moderation-hive", "hive-text"),
@@ -666,9 +716,9 @@ pub(super) fn register_command(artisan: &mut Artisan) -> Result<(), ConsoleError
     ))))
 }
 
-struct AliyunVideoProbe(CommandDefinition);
+struct NamedVideoProbe(CommandDefinition, &'static str, &'static str);
 
-impl Command for AliyunVideoProbe {
+impl Command for NamedVideoProbe {
     fn definition(&self) -> &CommandDefinition {
         &self.0
     }
@@ -684,19 +734,21 @@ impl Command for AliyunVideoProbe {
             let reference = input.argument("reference").expect("fixture reference");
             let reference = reference.as_str().expect("fixture reference text");
             let result = match action.as_str() {
-                Some("submit") => aliyun_submit_video(reference, "s3")
+                Some("submit") => submit_video(self.1, reference, "s3")
                     .await
                     .map_err(ConsoleError::from_source)?,
-                Some("query") => {
+                Some("query" | "cancel") => {
                     let id = TaskId::new(reference).map_err(ConsoleError::from_source)?;
-                    aliyun_query_video(&id)
-                        .await
-                        .map_err(ConsoleError::from_source)?
+                    let result = if action.as_str() == Some("query") {
+                        query_video(self.1, &id).await
+                    } else {
+                        cancel_video(self.1, &id).await
+                    };
+                    result.map_err(ConsoleError::from_source)?
                 }
                 Some("queue") => {
                     let id = TaskId::new(reference).map_err(ConsoleError::from_source)?;
-                    let payload =
-                        Payload::new(ALIYUN_JOB, &id).map_err(ConsoleError::from_source)?;
+                    let payload = Payload::new(self.2, &id).map_err(ConsoleError::from_source)?;
                     Queue::dispatch(payload, DispatchOptions::default(), None)
                         .await
                         .map_err(ConsoleError::from_source)?;

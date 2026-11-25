@@ -66,7 +66,7 @@ impl ImageService {
             return Err(ModerationError::InvalidInput("tencent stored image"));
         }
         let result = driver
-            .request(&self.endpoint, "ims", "ImageModeration", body)
+            .request(&self.endpoint, "ims", "ImageModeration", "2020-12-29", body)
             .await?;
         read_image(result, &self.biz_type)
     }

@@ -68,6 +68,14 @@ Set `video_service` in a named `aliyun` profile. `videoDetection` supports Shang
 
 A finished task can still report partial visual, speech or OCR coverage. `Assessment::evidence_span()` locates sampled frames or audio findings in milliseconds from the start of the original video. Recognized text and temporary evidence links are omitted. [Alibaba Cloud video API](https://help.aliyun.com/en/document_detail/2505810.html)
 
+## Tencent Cloud video {#tencent-video}
+
+Set `video_biz_type` to the standard on-demand policy for the named `tencent` profile, and configure `media_disk` and `media_origin` for private, versioned S3 media. This uses VM API `2021-09-22` with `Type=VIDEO`.
+
+Submit with `submit_video()` and query the returned task ID through the same profile. `cancel_video()` handles pending tasks. It checks the task's type and policy before sending a cancellation, and the provider can refuse if processing has already started. When submitting a task gives `SubmissionUnknown`, reconcile it before submitting again.
+
+The driver reports in-response frame, speech and OCR findings in milliseconds on the source timeline. The result retains partial coverage when the API cannot prove that the whole media and its required modalities were reviewed. [Create task](https://cloud.tencent.com/document/api/1265/80017) · [Query](https://cloud.tencent.com/document/product/1265/80016) · [Cancel](https://cloud.tencent.com/document/api/1265/80018)
+
 ## Custom drivers {#custom-drivers}
 
 This example sends every text assessment to manual review. Register its provider after the package provider so HTTP, Artisan, and Workers can resolve the same named profiles.

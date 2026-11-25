@@ -171,6 +171,10 @@ async fn main() -> ExitCode {
                                 moderation::tencent_image_route,
                             )?;
                             Route::post(
+                                "/drivers/moderation/tencent-video",
+                                moderation::tencent_video_route,
+                            )?;
+                            Route::post(
                                 "/drivers/moderation/sightengine",
                                 moderation::sightengine_route,
                             )?;

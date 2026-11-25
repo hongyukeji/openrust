@@ -13,15 +13,19 @@ use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::{Value, json};
 use zeroize::Zeroizing;
 
-use super::{Endpoint, field, http_status, secret, tencent_image::ImageService};
+use super::{
+    Endpoint, field, http_status, secret, tencent_image::ImageService, tencent_video::VideoService,
+};
 use crate::{
     Assessment, Confidence, Coverage, Decision, Finding, ImageInput, Modality, ModerationDriver,
-    ModerationError, ModerationFuture, ModerationResult, Operation, TextInput,
+    ModerationError, ModerationFuture, ModerationResult, Operation, TaskId, TaskStatus, TextInput,
+    VideoInput,
 };
 
 pub(super) struct Tencent {
     text: Option<TextService>,
     image: Option<ImageService>,
+    video: Option<VideoService>,
     secret_id: Zeroizing<String>,
     secret_key: Zeroizing<String>,
     security_token: Option<Zeroizing<String>>,
@@ -63,13 +67,15 @@ impl Tencent {
                 })
             })
             .transpose()?;
-        let image = ImageService::configured(http, storage, profile)?;
-        if text.is_none() && image.is_none() {
+        let image = ImageService::configured(http.clone(), storage.clone(), profile)?;
+        let video = VideoService::configured(http, storage, profile)?;
+        if text.is_none() && image.is_none() && video.is_none() {
             return Err(ModerationError::InvalidConfiguration("tencent services"));
         }
         Ok(Self {
             text,
             image,
+            video,
             secret_id: secret(env, profile, "secret_id_env")?
                 .ok_or(ModerationError::InvalidConfiguration("secret_id_env"))?,
             secret_key: secret(env, profile, "secret_key_env")?
@@ -84,6 +90,7 @@ impl Tencent {
         endpoint: &Endpoint,
         service: &'static str,
         action: &'static str,
+        version: &'static str,
         parameters: Value,
     ) -> ModerationResult<T> {
         let body = parameters.to_string();
@@ -97,7 +104,7 @@ impl Tencent {
             TencentRpcOperation {
                 service,
                 action,
-                version: "2020-12-29",
+                version,
                 region: &self.region,
             },
             body.as_bytes(),
@@ -147,7 +154,9 @@ impl ModerationDriver for Tencent {
         match operation {
             Operation::Text => self.text.is_some(),
             Operation::Image => self.image.is_some(),
-            _ => false,
+            Operation::SubmitVideo | Operation::QueryVideo | Operation::CancelVideo => {
+                self.video.is_some()
+            }
         }
     }
 
@@ -165,7 +174,7 @@ impl ModerationDriver for Tencent {
                 body["SourceLanguage"] = json!(text.language(language)?);
             }
             let output = self
-                .request(&text.endpoint, "tms", "TextModeration", body)
+                .request(&text.endpoint, "tms", "TextModeration", "2020-12-29", body)
                 .await?;
             read_text(output, &text.biz_type)
         })
@@ -178,6 +187,36 @@ impl ModerationDriver for Tencent {
                 .as_ref()
                 .ok_or(ModerationError::Unsupported(Operation::Image))?;
             image.assess(self, input).await
+        })
+    }
+
+    fn submit_video<'a>(&'a self, input: &'a VideoInput) -> ModerationFuture<'a, TaskId> {
+        Box::pin(async move {
+            self.video
+                .as_ref()
+                .ok_or(ModerationError::Unsupported(Operation::SubmitVideo))?
+                .submit(self, input)
+                .await
+        })
+    }
+
+    fn query_video<'a>(&'a self, id: &'a TaskId) -> ModerationFuture<'a, TaskStatus> {
+        Box::pin(async move {
+            self.video
+                .as_ref()
+                .ok_or(ModerationError::Unsupported(Operation::QueryVideo))?
+                .query(self, id)
+                .await
+        })
+    }
+
+    fn cancel_video<'a>(&'a self, id: &'a TaskId) -> ModerationFuture<'a, ()> {
+        Box::pin(async move {
+            self.video
+                .as_ref()
+                .ok_or(ModerationError::Unsupported(Operation::CancelVideo))?
+                .cancel(self, id)
+                .await
         })
     }
 }
@@ -292,7 +331,7 @@ fn read_text(output: Output, biz_type: &str) -> ModerationResult<Assessment> {
     Ok(assessment)
 }
 
-fn service_error(code: &str) -> ModerationError {
+pub(super) fn service_error(code: &str) -> ModerationError {
     match code.split('.').next().unwrap_or_default() {
         "AuthFailure" | "UnauthorizedOperation" => ModerationError::Unauthorized,
         "LimitExceeded" | "RequestLimitExceeded" => ModerationError::Throttled,

@@ -8,6 +8,8 @@ mod sightengine;
 mod sightengine_image;
 mod tencent;
 mod tencent_image;
+mod tencent_video;
+mod video;
 
 use std::{net::IpAddr, sync::Arc, time::Duration};
 

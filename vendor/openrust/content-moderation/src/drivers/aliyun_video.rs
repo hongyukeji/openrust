@@ -11,6 +11,7 @@ use super::{
     aliyun::{Aliyun, category, image_category},
     field,
     media::VersionedMediaLinks,
+    video::{VideoEvidence, build_assessment, seconds_to_ms, unknown_submission},
 };
 use crate::{
     Assessment, Confidence, Coverage, Decision, EvidenceSpan, Finding, Modality, ModerationError,
@@ -98,15 +99,6 @@ impl VideoService {
             409 => Ok(TaskStatus::Expired),
             code => Err(business_failure(code)),
         }
-    }
-}
-
-fn unknown_submission(error: ModerationError) -> ModerationError {
-    match error {
-        ModerationError::Protocol
-        | ModerationError::ServiceUnavailable
-        | ModerationError::Timeout => ModerationError::SubmissionUnknown,
-        other => other,
     }
 }
 
@@ -219,12 +211,6 @@ struct Slice {
     risk_level: Option<String>,
 }
 
-struct Evidence {
-    finding: Finding,
-    span: Option<EvidenceSpan>,
-    score: Option<Confidence>,
-}
-
 fn assessment(request: Option<String>, data: Query) -> ModerationResult<Assessment> {
     let overall = data
         .risk_level
@@ -245,25 +231,13 @@ fn assessment(request: Option<String>, data: Query) -> ModerationResult<Assessme
     if decision == Decision::Allow && !evidence.is_empty() {
         decision = Decision::Review;
     }
-    let findings = evidence.iter().map(|value| value.finding.clone()).collect();
-    let mut result = Assessment::new(decision, coverage, findings)
-        .with_request_id(request.ok_or(ModerationError::Protocol)?)
-        .map_err(|_| ModerationError::Protocol)?;
-    for (index, entry) in evidence.into_iter().enumerate() {
-        if let Some(span) = entry.span {
-            result = result.with_evidence_span(index, span)?;
-        }
-        if let Some(score) = entry.score {
-            result = result.with_confidence(index, score)?;
-        }
-    }
-    Ok(result)
+    build_assessment(decision, coverage, request, evidence)
 }
 
 fn read_visual(
     visual: Visual,
     coverage: &mut BTreeMap<Modality, Coverage>,
-    evidence: &mut Vec<Evidence>,
+    evidence: &mut Vec<VideoEvidence>,
     decision: &mut Decision,
 ) -> ModerationResult<()> {
     let frames = visual.frames.unwrap_or_default();
@@ -277,7 +251,7 @@ fn read_visual(
     *decision = risk(visual.risk_level.as_deref(), *decision)?;
     let mut seen = BTreeSet::new();
     for frame in frames {
-        let offset = ms(frame.offset)?;
+        let offset = seconds_to_ms(frame.offset)?;
         let span = EvidenceSpan::new(offset, offset)?;
         *decision = risk(frame.risk_level.as_deref(), *decision)?;
         for service in frame.results {
@@ -308,7 +282,7 @@ fn read_visual(
 fn read_audio(
     audio: Audio,
     coverage: &mut BTreeMap<Modality, Coverage>,
-    evidence: &mut Vec<Evidence>,
+    evidence: &mut Vec<VideoEvidence>,
     decision: &mut Decision,
 ) -> ModerationResult<()> {
     let slices = audio.slice_details.unwrap_or_default();
@@ -319,8 +293,11 @@ fn read_audio(
     *decision = risk(audio.risk_level.as_deref(), *decision)?;
     let mut seen = BTreeSet::new();
     for slice in slices {
-        let span = EvidenceSpan::new(ms(slice.start_time)?, ms(slice.end_time)?)
-            .map_err(|_| ModerationError::Protocol)?;
+        let span = EvidenceSpan::new(
+            seconds_to_ms(slice.start_time)?,
+            seconds_to_ms(slice.end_time)?,
+        )
+        .map_err(|_| ModerationError::Protocol)?;
         *decision = risk(slice.risk_level.as_deref(), *decision)?;
         for label in slice
             .labels
@@ -347,7 +324,7 @@ fn finding(
     label: &str,
     span: Option<EvidenceSpan>,
     score: Option<Confidence>,
-) -> ModerationResult<Option<Evidence>> {
+) -> ModerationResult<Option<VideoEvidence>> {
     if !label
         .bytes()
         .all(|value| value.is_ascii_alphanumeric() || matches!(value, b'_' | b'-'))
@@ -364,7 +341,7 @@ fn finding(
     } else {
         category(label)
     };
-    Ok(Some(Evidence {
+    Ok(Some(VideoEvidence {
         finding: Finding {
             modality,
             category: category.to_owned(),
@@ -373,15 +350,6 @@ fn finding(
         span,
         score,
     }))
-}
-
-fn ms(seconds: f64) -> ModerationResult<u64> {
-    let millis = (seconds * 1000.0).round();
-    if (0.0..=f64::from(u32::MAX)).contains(&millis) && seconds >= 0.0 {
-        Ok(millis as u64)
-    } else {
-        Err(ModerationError::Protocol)
-    }
 }
 
 fn risk(value: Option<&str>, existing: Decision) -> ModerationResult<Decision> {

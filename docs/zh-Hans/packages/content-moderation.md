@@ -68,6 +68,14 @@
 
 完成任务仍可能只有部分画面、语音或 OCR 覆盖。`Assessment::evidence_span()` 使用原视频起点后的毫秒表示抽帧或语音证据。识别原文和证据临时链接均不进入结果。 [阿里云点播视频 API](https://help.aliyun.com/zh/document_detail/2505810.html)
 
+## 腾讯云点播视频 {#tencent-video}
+
+为具名 `tencent` 配置设置标准点播策略 `video_biz_type`，并设定私有版本化 S3 素材的 `media_disk` 与 `media_origin`。驱动调用 VM `2021-09-22` 接口并使用 `Type=VIDEO`。
+
+通过 `submit_video()` 提交，再用同一具名配置的返回 ID 查询。`cancel_video()` 用于等待中的任务。发送取消前核对任务类型和策略，期间已开始的任务可能被腾讯云拒绝取消。提交返回 `SubmissionUnknown` 时，先核对旧任务再考虑重新提交。
+
+驱动将响应中的画面、语音和 OCR 证据按原件时间轴转换为毫秒。没有完整覆盖证明时，仍按部分覆盖处理。 [提交](https://cloud.tencent.com/document/api/1265/80017) · [查单](https://cloud.tencent.com/document/product/1265/80016) · [取消](https://cloud.tencent.com/document/api/1265/80018)
+
 ## 自定义驱动 {#custom-drivers}
 
 以下示例将文本送人工复核。在包 Provider 之后注册示例 Provider，HTTP、Artisan 和 Worker 都可解析相同的具名配置。
