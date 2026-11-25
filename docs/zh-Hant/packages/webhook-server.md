@@ -14,6 +14,8 @@
 ./artisan vendor:publish --tag=webhook-server-config
 ```
 
+需要在應用程式中維護遷移時，執行 `./artisan vendor:publish --tag=webhook-server-migrations`，再重新建置。保留發布時的檔名，以沿用現有遷移帳本和執行順序。已執行的遷移以帳本為準。一般重複發布會保留本機修改。
+
 ## 可用入口 {#available-entry-points}
 
 ### 簽名原始位元組 {#signatures}

@@ -126,7 +126,9 @@ impl ServiceProvider for WebhookClientServiceProvider {
     }
     fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            self.load_migrations_from(app, Self::migrations()).await?;
+            self.load_migrations_with_application_overrides(app, Self::migrations())
+                .await?;
+            self.publishes(app, MIGRATION_SOURCES, "webhook-client-migrations")?;
             self.commands(app, console::register);
             self.publishes(
                 app,
@@ -140,71 +142,27 @@ impl ServiceProvider for WebhookClientServiceProvider {
         })
     }
 }
+openrust::compiled_migration_assets!("webhook-client";
+    "2026_11_25_000001_create_webhook_calls_table.rs" => migration,
+    "2026_11_25_000002_add_payload_to_webhook_calls_table.rs" => payload_migration,
+    "2026_11_25_000003_add_processing_lease_to_webhook_calls_table.rs" => lease_migration,
+    "2026_11_25_000004_create_webhook_event_receipts_table.rs" => identity_migration,
+    "2026_11_25_000005_add_deferred_processing_to_webhook_calls_table.rs" => deferred_migration,
+    "2026_11_25_000006_create_webhook_processing_attempts_table.rs" => attempt_migration,
+    "2026_11_25_000007_add_deferred_route_to_webhook_calls_table.rs" => deferred_route_migration,
+    "2026_11_25_000008_add_expiry_to_webhook_event_receipts_table.rs" => event_expiry_migration,
+    "2026_11_25_000009_create_webhook_hints_table.rs" => hints_migration,
+    "2026_11_25_000010_create_webhook_verification_audits_table.rs" => verification_migration,
+    "2026_11_25_000011_add_webhook_attachment_storage.rs" => attachment_migration,
+    "2026_11_25_000012_add_webhook_attachment_cleanup_lease.rs" => attachment_cleanup_migration,
+    "2026_11_25_000013_create_webhook_dispatch_intents_table.rs" => dispatch_intents_migration,
+    "2026_11_25_000014_add_processing_recovery_to_webhook_dispatch_intents.rs" => processing_recovery_migration,
+    "2026_11_25_000015_create_webhook_replays_table.rs" => replay_migration,
+);
+
 impl WebhookClientServiceProvider {
     pub fn migrations() -> &'static [openrust::database::migrations::MigrationEntry] {
-        static ENTRIES: &[openrust::database::migrations::MigrationEntry] = &[
-            openrust::database::migrations::MigrationEntry::new(
-                "vendor/openrust/webhook-client/database/migrations/2026_11_25_000001_create_webhook_calls_table.rs",
-                &migration::MIGRATION,
-            ),
-            openrust::database::migrations::MigrationEntry::new(
-                "vendor/openrust/webhook-client/database/migrations/2026_11_25_000002_add_payload_to_webhook_calls_table.rs",
-                &payload_migration::MIGRATION,
-            ),
-            openrust::database::migrations::MigrationEntry::new(
-                "vendor/openrust/webhook-client/database/migrations/2026_11_25_000003_add_processing_lease_to_webhook_calls_table.rs",
-                &lease_migration::MIGRATION,
-            ),
-            openrust::database::migrations::MigrationEntry::new(
-                "vendor/openrust/webhook-client/database/migrations/2026_11_25_000004_create_webhook_event_receipts_table.rs",
-                &identity_migration::MIGRATION,
-            ),
-            openrust::database::migrations::MigrationEntry::new(
-                "vendor/openrust/webhook-client/database/migrations/2026_11_25_000005_add_deferred_processing_to_webhook_calls_table.rs",
-                &deferred_migration::MIGRATION,
-            ),
-            openrust::database::migrations::MigrationEntry::new(
-                "vendor/openrust/webhook-client/database/migrations/2026_11_25_000006_create_webhook_processing_attempts_table.rs",
-                &attempt_migration::MIGRATION,
-            ),
-            openrust::database::migrations::MigrationEntry::new(
-                "vendor/openrust/webhook-client/database/migrations/2026_11_25_000007_add_deferred_route_to_webhook_calls_table.rs",
-                &deferred_route_migration::MIGRATION,
-            ),
-            openrust::database::migrations::MigrationEntry::new(
-                "vendor/openrust/webhook-client/database/migrations/2026_11_25_000008_add_expiry_to_webhook_event_receipts_table.rs",
-                &event_expiry_migration::MIGRATION,
-            ),
-            openrust::database::migrations::MigrationEntry::new(
-                "vendor/openrust/webhook-client/database/migrations/2026_11_25_000009_create_webhook_hints_table.rs",
-                &hints_migration::MIGRATION,
-            ),
-            openrust::database::migrations::MigrationEntry::new(
-                "vendor/openrust/webhook-client/database/migrations/2026_11_25_000010_create_webhook_verification_audits_table.rs",
-                &verification_migration::MIGRATION,
-            ),
-            openrust::database::migrations::MigrationEntry::new(
-                "vendor/openrust/webhook-client/database/migrations/2026_11_25_000011_add_webhook_attachment_storage.rs",
-                &attachment_migration::MIGRATION,
-            ),
-            openrust::database::migrations::MigrationEntry::new(
-                "vendor/openrust/webhook-client/database/migrations/2026_11_25_000012_add_webhook_attachment_cleanup_lease.rs",
-                &attachment_cleanup_migration::MIGRATION,
-            ),
-            openrust::database::migrations::MigrationEntry::new(
-                "vendor/openrust/webhook-client/database/migrations/2026_11_25_000013_create_webhook_dispatch_intents_table.rs",
-                &dispatch_intents_migration::MIGRATION,
-            ),
-            openrust::database::migrations::MigrationEntry::new(
-                "vendor/openrust/webhook-client/database/migrations/2026_11_25_000014_add_processing_recovery_to_webhook_dispatch_intents.rs",
-                &processing_recovery_migration::MIGRATION,
-            ),
-            openrust::database::migrations::MigrationEntry::new(
-                "vendor/openrust/webhook-client/database/migrations/2026_11_25_000015_create_webhook_replays_table.rs",
-                &replay_migration::MIGRATION,
-            ),
-        ];
-        ENTRIES
+        MIGRATION_ENTRIES
     }
 }
 pub fn openrust_providers() -> Vec<Box<dyn ServiceProvider>> {

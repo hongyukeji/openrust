@@ -110,7 +110,9 @@ impl ServiceProvider for WebhookServerServiceProvider {
     }
     fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            self.load_migrations_from(app, Self::migrations()).await?;
+            self.load_migrations_with_application_overrides(app, Self::migrations())
+                .await?;
+            self.publishes(app, MIGRATION_SOURCES, "webhook-server-migrations")?;
             self.commands(app, console::register);
             self.publishes(
                 app,
@@ -124,73 +126,27 @@ impl ServiceProvider for WebhookServerServiceProvider {
         })
     }
 }
+openrust::compiled_migration_assets!("webhook-server";
+    "2026_11_25_000000_create_webhook_deliveries_table.rs" => delivery_migration,
+    "2026_11_25_000000_create_webhook_endpoints_table.rs" => endpoint_migration,
+    "2026_11_25_000000_create_webhook_messages_table.rs" => message_migration,
+    "2026_11_25_000000_create_webhook_rate_buckets_table.rs" => rate_migration,
+    "2026_11_25_000000_create_webhook_subscriptions_table.rs" => subscription_migration,
+    "2026_11_25_000000_extend_webhook_deliveries_for_recovery.rs" => recovery_migration,
+    "2026_11_25_000000_extend_webhook_deliveries_for_replay.rs" => replay_migration,
+    "2026_11_25_000000_extend_webhook_deliveries_for_retention.rs" => retention_migration,
+    "2026_11_25_000000_extend_webhook_messages_for_retention.rs" => message_retention_migration,
+    "2026_11_25_000000_mark_webhook_deliveries_retention_hold.rs" => delivery_hold_migration,
+    "2026_11_25_000000_mark_webhook_messages_retention_hold.rs" => message_hold_migration,
+    "2026_11_25_000000_create_webhook_idempotency_keys_table.rs" => idempotency_migration,
+    "2026_11_25_000000_index_webhook_idempotency_record.rs" => idempotency_index_migration,
+    "2026_11_25_000000_mark_webhook_deliveries_idempotency_expiry.rs" => delivery_idempotency_expiry_migration,
+    "2026_11_25_000000_mark_webhook_messages_idempotency_expiry.rs" => message_idempotency_expiry_migration,
+);
+
 impl WebhookServerServiceProvider {
     pub fn migrations() -> &'static [openrust::database::migrations::MigrationEntry] {
-        use openrust::database::migrations::MigrationEntry;
-
-        static ENTRIES: &[MigrationEntry] = &[
-            MigrationEntry::new(
-                "vendor/openrust/webhook-server/database/migrations/2026_11_25_000000_create_webhook_deliveries_table.rs",
-                &delivery_migration::MIGRATION,
-            ),
-            MigrationEntry::new(
-                "vendor/openrust/webhook-server/database/migrations/2026_11_25_000000_create_webhook_endpoints_table.rs",
-                &endpoint_migration::MIGRATION,
-            ),
-            MigrationEntry::new(
-                "vendor/openrust/webhook-server/database/migrations/2026_11_25_000000_create_webhook_messages_table.rs",
-                &message_migration::MIGRATION,
-            ),
-            MigrationEntry::new(
-                "vendor/openrust/webhook-server/database/migrations/2026_11_25_000000_create_webhook_rate_buckets_table.rs",
-                &rate_migration::MIGRATION,
-            ),
-            MigrationEntry::new(
-                "vendor/openrust/webhook-server/database/migrations/2026_11_25_000000_create_webhook_subscriptions_table.rs",
-                &subscription_migration::MIGRATION,
-            ),
-            MigrationEntry::new(
-                "vendor/openrust/webhook-server/database/migrations/2026_11_25_000000_extend_webhook_deliveries_for_recovery.rs",
-                &recovery_migration::MIGRATION,
-            ),
-            MigrationEntry::new(
-                "vendor/openrust/webhook-server/database/migrations/2026_11_25_000000_extend_webhook_deliveries_for_replay.rs",
-                &replay_migration::MIGRATION,
-            ),
-            MigrationEntry::new(
-                "vendor/openrust/webhook-server/database/migrations/2026_11_25_000000_extend_webhook_deliveries_for_retention.rs",
-                &retention_migration::MIGRATION,
-            ),
-            MigrationEntry::new(
-                "vendor/openrust/webhook-server/database/migrations/2026_11_25_000000_extend_webhook_messages_for_retention.rs",
-                &message_retention_migration::MIGRATION,
-            ),
-            MigrationEntry::new(
-                "vendor/openrust/webhook-server/database/migrations/2026_11_25_000000_mark_webhook_deliveries_retention_hold.rs",
-                &delivery_hold_migration::MIGRATION,
-            ),
-            MigrationEntry::new(
-                "vendor/openrust/webhook-server/database/migrations/2026_11_25_000000_mark_webhook_messages_retention_hold.rs",
-                &message_hold_migration::MIGRATION,
-            ),
-            MigrationEntry::new(
-                "vendor/openrust/webhook-server/database/migrations/2026_11_25_000000_create_webhook_idempotency_keys_table.rs",
-                &idempotency_migration::MIGRATION,
-            ),
-            MigrationEntry::new(
-                "vendor/openrust/webhook-server/database/migrations/2026_11_25_000000_index_webhook_idempotency_record.rs",
-                &idempotency_index_migration::MIGRATION,
-            ),
-            MigrationEntry::new(
-                "vendor/openrust/webhook-server/database/migrations/2026_11_25_000000_mark_webhook_deliveries_idempotency_expiry.rs",
-                &delivery_idempotency_expiry_migration::MIGRATION,
-            ),
-            MigrationEntry::new(
-                "vendor/openrust/webhook-server/database/migrations/2026_11_25_000000_mark_webhook_messages_idempotency_expiry.rs",
-                &message_idempotency_expiry_migration::MIGRATION,
-            ),
-        ];
-        ENTRIES
+        MIGRATION_ENTRIES
     }
 }
 pub fn openrust_providers() -> Vec<Box<dyn ServiceProvider>> {

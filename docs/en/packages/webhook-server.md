@@ -14,6 +14,8 @@ Add `webhook-server` to the root application’s `[features].default` list, pres
 ./artisan vendor:publish --tag=webhook-server-config
 ```
 
+To maintain the migrations in your application, run `./artisan vendor:publish --tag=webhook-server-migrations` and rebuild. Keep the published filenames so the migration ledger and execution order stay the same. Already applied migrations keep their recorded state. A normal repeat publication preserves local edits.
+
 ## Available entry points {#available-entry-points}
 
 ### Sign original bytes {#signatures}

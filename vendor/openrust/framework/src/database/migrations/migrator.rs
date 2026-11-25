@@ -26,11 +26,16 @@ type ConfirmDatabaseCreation<'a> = &'a (dyn Fn(&Connection) -> DatabaseResult<bo
 pub struct Migrator {
     manager: Arc<DatabaseManager>,
     registry: Arc<MigrationRegistry>,
-    packages: RwLock<Vec<&'static MigrationEntry>>,
+    packages: RwLock<Vec<PackageMigration>>,
     migrations_to_skip: RwLock<BTreeSet<String>>,
     table: String,
     root: PathBuf,
     execution: tokio::sync::Mutex<()>,
+}
+
+struct PackageMigration {
+    entry: &'static MigrationEntry,
+    application_override: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -100,11 +105,18 @@ impl Migrator {
             .expect("migration exclusions lock poisoned") = names;
     }
 
-    pub(crate) fn add_package_migrations(&self, migrations: &'static [MigrationEntry]) {
+    pub(crate) fn add_package_migrations(
+        &self,
+        migrations: &'static [MigrationEntry],
+        application_override: bool,
+    ) {
         self.packages
             .write()
             .expect("package migrations lock poisoned")
-            .extend(migrations);
+            .extend(migrations.iter().map(|entry| PackageMigration {
+                entry,
+                application_override,
+            }));
     }
 
     pub(crate) fn migration_table(&self) -> &str {
@@ -137,9 +149,33 @@ impl Migrator {
             .packages
             .read()
             .expect("package migrations lock poisoned");
-        for entry in self.registry.0.iter().chain(packages.iter().copied()) {
+        let mut entries: Vec<_> = self.registry.0.iter().map(|entry| (entry, None)).collect();
+        let application_count = entries.len();
+        for package in packages.iter() {
+            if package.application_override
+                && let Some(filename) = Path::new(package.entry.path).file_name()
+                && let Some((_, alias)) =
+                    entries[..application_count].iter_mut().find(|(entry, _)| {
+                        let path = Path::new(entry.path);
+                        path.parent() == Some(Path::new("database/migrations"))
+                            && path.file_name() == Some(filename)
+                    })
+            {
+                if alias.replace(package.entry.path).is_some() {
+                    return Err(DatabaseError::InvalidMigration("duplicate file name"));
+                }
+            } else {
+                entries.push((package.entry, None));
+            }
+        }
+        for (entry, alias) in entries {
             let path = self.root.join(entry.path);
-            if !paths.is_empty() && !paths.iter().any(|wanted| path.starts_with(wanted)) {
+            if !paths.is_empty()
+                && !paths.iter().any(|wanted| {
+                    path.starts_with(wanted)
+                        || alias.is_some_and(|alias| self.root.join(alias).starts_with(wanted))
+                })
+            {
                 continue;
             }
             let name = path

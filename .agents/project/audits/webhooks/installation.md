@@ -2,7 +2,7 @@
 
 根应用的 `init` 接受显式的 `webhook-client`、`webhook-server` 及联合选项。沿用现有 `[features].default` 源码编辑、本地包发现、配置清理、密钥生成和迁移装配。标准 `all` 组合保持原有范围。两包继续通过 Provider 注册原生编译迁移；配置模板通过已有 `vendor:publish --tag=webhook-client-config` 或 `--tag=webhook-server-config` 显式发布。应用自行登记回调路由、验证配置及业务处理器，发送侧由应用提供投递策略及 Worker。固定 Spatie 包使用 Composer 发现与 Laravel 资源发布，OpenRust 的 Cargo 特性和编译迁移责任对应其安装步骤。旧版 `6d1a81924` 无这两个独立包的安装入口。 [固定 Laravel 包开发](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/packages.md) · [固定 Spatie 接收包](https://github.com/spatie/laravel-webhook-client/blob/ff886d1bae33d35ad98b6c91403f280df158129d/README.md) · [固定 Spatie 发送包](https://github.com/spatie/laravel-webhook-server/blob/6da6be3a721190bcdedcdef32d31d5980b77eb0e/README.md)
 
-迁移文件发布以及编译迁移与应用自有迁移的同一身份仍需补齐。发布物应由应用正常构建流程读取，并保持既有迁移账本、顺序与回滚身份。仅发布一份无法构建或会重复迁移的源码不会通过 WH-V03。
+应用自管的[迁移发布](migration-publication.md)已补齐同名文件的构建、账本和回滚身份。
 
 ## 实际验收
 

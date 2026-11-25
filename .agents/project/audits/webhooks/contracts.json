@@ -199,8 +199,9 @@
         "PackageServiceProvider"
       ],
       "declared_public_properties": [],
-      "notes": "包发现、配置合并／发布／缓存、内置迁移、默认具名工厂、scoped Repo、当前匹配路由的 WebhookConfig 绑定与公开 trait 路由已验。无 Provider 的登记失败；没有自动公开回调或关闭 CSRF。原生 init 单包、双包及重复安装已验；应用自有迁移文件发布仍待完成。",
+      "notes": "包发现、配置合并／发布／缓存、内置迁移、默认具名工厂、scoped Repo、当前匹配路由的 WebhookConfig 绑定与公开 trait 路由已验。无 Provider 的登记失败；没有自动公开回调或关闭 CSRF。原生 init 单包、双包及重复安装已验；稳定文件名发布、编译替换和原路径回滚已验。",
       "evidence": [
+        "tests/webhooks_install_acceptance.py",
         "tests/webhooks_features.py",
         "tests/webhooks_acceptance.py",
         "tests/webhooks_receiver_acceptance.py",
@@ -757,8 +758,9 @@
         "PackageServiceProvider"
       ],
       "declared_public_properties": [],
-      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。 包发现、配置、发布已验；完整路由／迁移／任务装配待实现。",
+      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。 包发现、配置、原生 init、重复安装、编译迁移发布及账本身份已验。",
       "evidence": [
+        "tests/webhooks_install_acceptance.py",
         "tests/webhooks_features.py",
         "tests/webhooks_acceptance.py"
       ]

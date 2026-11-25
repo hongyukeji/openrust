@@ -16,6 +16,8 @@ The default profile is `default`, using the `Signature` header and a credential 
 ./artisan vendor:publish --tag=webhook-client-config
 ```
 
+To maintain the migrations in your application, run `./artisan vendor:publish --tag=webhook-client-migrations` and rebuild. Keep the published filenames so the migration ledger and execution order stay the same. Already applied migrations keep their recorded state. A normal repeat publication preserves local edits.
+
 ## Available entry points {#available-entry-points}
 
 ### Validate untouched bytes {#signatures}

@@ -250,7 +250,21 @@ pub trait ServiceProvider: Any + Send + Sync {
         Box::pin(async move {
             app.make::<Migrator>()
                 .await?
-                .add_package_migrations(migrations);
+                .add_package_migrations(migrations, false);
+            Ok(())
+        })
+    }
+
+    /// 使用已编译的应用同名迁移覆盖包迁移，保留包路径作为选择别名。
+    fn load_migrations_with_application_overrides<'a>(
+        &'a self,
+        app: &'a Application,
+        migrations: &'static [MigrationEntry],
+    ) -> HttpFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            app.make::<Migrator>()
+                .await?
+                .add_package_migrations(migrations, true);
             Ok(())
         })
     }

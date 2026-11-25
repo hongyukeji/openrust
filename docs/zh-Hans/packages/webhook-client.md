@@ -16,6 +16,8 @@
 ./artisan vendor:publish --tag=webhook-client-config
 ```
 
+需要在应用中维护迁移时，运行 `./artisan vendor:publish --tag=webhook-client-migrations`，再重新构建。保留发布时的文件名，以沿用现有迁移账本和执行顺序。已经执行的迁移以账本为准。普通重复发布会保留本地修改。
+
 ## 可用入口 {#available-entry-points}
 
 ### 验证原始字节 {#signatures}
