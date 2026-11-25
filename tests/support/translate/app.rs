@@ -12,9 +12,18 @@ use openrust::{
         Application as Artisan, Command, CommandDefinition, ConsoleError, ConsoleFuture, Input,
         Output,
     },
-    contracts::{container::Container as _, foundation::Application as _, queue::JobHandler},
+    contracts::{
+        container::Container as _,
+        events::{Event as EventPayload, Listener},
+        foundation::Application as _,
+        queue::JobHandler,
+    },
+    events::{Delivery, Dispatcher, EventContext, EventFuture, EventResult, ListenerResponse},
     foundation::{Application, configuration::Routing, run_application},
-    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    http::{
+        HttpError, HttpFuture, Request, Response, StatusCode,
+        client::events::{ConnectionFailed, RequestSending, ResponseReceived},
+    },
     queue::{DispatchOptions, JobContext, Payload, QueueError, QueueFuture, QueueResult},
     support::{
         ProviderResult, ServiceProvider,
@@ -27,6 +36,7 @@ use openrust_translate::{
 };
 use serde_json::{Value, json};
 use std::{
+    path::PathBuf,
     process::ExitCode,
     sync::{
         Arc,
@@ -70,7 +80,62 @@ impl ServiceProvider for ConsumerProvider {
                 Ok(Arc::new(Example(label.to_owned())))
             });
             Queue::register("translate.test.probe", Arc::new(Job))?;
+            if let Some(path) = std::env::var_os("TRANSLATE_TEST_OBSERVATIONS") {
+                let observer = Arc::new(Observe(PathBuf::from(path)));
+                app.container().make::<Dispatcher>()?.register(|registry| {
+                    for name in [
+                        r"OpenRust\Http\Client\Events\RequestSending",
+                        r"OpenRust\Http\Client\Events\ResponseReceived",
+                        r"OpenRust\Http\Client\Events\ConnectionFailed",
+                    ] {
+                        registry.listen(name, observer.clone(), Delivery::Sync)?;
+                    }
+                    Ok(())
+                })?;
+            }
             Ok(())
+        })
+    }
+}
+
+struct Observe(PathBuf);
+
+impl Listener for Observe {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn EventPayload,
+        _: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            use std::io::Write as _;
+
+            let (kind, request) = if let Some(event) = event.downcast_ref::<RequestSending>() {
+                ("request", &event.request)
+            } else if let Some(event) = event.downcast_ref::<ResponseReceived>() {
+                assert!(event.response.body().unwrap().is_empty());
+                assert!(event.response.headers().is_empty());
+                ("response", &event.request)
+            } else if let Some(event) = event.downcast_ref::<ConnectionFailed>() {
+                ("failure", &event.request)
+            } else {
+                return Ok(None);
+            };
+            assert!(request.body.is_none());
+            assert!(!format!("{:?}", request.data()).contains("SYNTHETIC_SECRET"));
+            assert!(request.diagnostic_source.is_none() && request.multipart.is_none());
+            assert!(!request.headers.contains_key("authorization"));
+            assert!(request.url.query().is_none());
+            assert!(!request.url.as_str().contains("SYNTHETIC_SECRET"));
+            assert!(request.headers.values().all(|value| {
+                !String::from_utf8_lossy(value.as_bytes()).contains("SYNTHETIC_SECRET")
+            }));
+            let mut file = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&self.0)
+                .unwrap();
+            writeln!(file, "{kind}").unwrap();
+            Ok(None)
         })
     }
 }
@@ -158,7 +223,47 @@ impl Command for Probe {
 fn commands(artisan: &mut Artisan) -> Result<(), ConsoleError> {
     artisan.add_command(Box::new(Probe(CommandDefinition::new(
         clap::Command::new("translate:test").arg(clap::Arg::new("queue-output")),
+    ))))?;
+    artisan.add_command(Box::new(Protocol(CommandDefinition::new(
+        clap::Command::new("translate:request")
+            .arg(clap::Arg::new("text").required(true))
+            .arg(clap::Arg::new("target").required(true))
+            .arg(clap::Arg::new("source")),
     ))))
+}
+
+struct Protocol(CommandDefinition);
+impl Command for Protocol {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+
+    fn handle<'a>(
+        &'a self,
+        _: &'a Application,
+        input: &'a Input,
+        output: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            let result = async {
+                let text = input.argument("text").unwrap();
+                let target = input.argument("target").unwrap();
+                let mut request =
+                    TranslationRequest::new(text.as_str().unwrap(), target.as_str().unwrap())?;
+                if let Some(source) = input.argument("source") {
+                    request = request.with_source(source.as_str().unwrap())?;
+                }
+                Translate::translate_request(request).await
+            }
+            .await
+            .map_err(|error| ConsoleError::new(format!("{error:?} | {error}")))?;
+            let value = json!({"text": result.text(), "source": result.detected_source()});
+            output
+                .write_raw(&format!("{value}\n"))
+                .map_err(ConsoleError::from_source)?;
+            Ok(0)
+        })
+    }
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -181,6 +286,15 @@ async fn main() -> ExitCode {
                             },
                         }),
                     );
+                }
+                if let Some(profiles) = env.get_utf8("TRANSLATE_TEST_PROFILES")? {
+                    let drivers: Value = serde_json::from_str(profiles).map_err(|_| {
+                        openrust::config::ConfigError::InvalidType {
+                            key: "translate.drivers".into(),
+                            expected: "测试配置 JSON",
+                        }
+                    })?;
+                    config.insert("translate".into(), json!({"drivers": drivers}));
                 }
                 Ok(config)
             })

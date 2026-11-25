@@ -77,3 +77,24 @@ async fn preview() -> TranslationResult<String> {
 ```
 
 每个应用按配置名缓存驱动。修改配置或替换工厂后，调用 `Translate::manager()?.forget_drivers()`，后续调用会解析新实例。旧句柄继续使用原配置。应用环境或配置加载器有变更时，重建应用配置缓存。
+
+## 内置驱动
+
+在具名配置中设置下表的 `driver`。`api_key_env` 保存环境变量名。启用配置缓存后，通过 HTTP、Artisan 及各 Worker 的进程环境注入密钥。每个服务默认超时 10 秒，可用 `timeout_ms` 设置。
+
+| 驱动 | 配置 | 语言映射 |
+| --- | --- | --- |
+| `deepl` | `plan` 选择 `free`（默认）或 `pro`，同时设置 `api_key_env`。`base_url` 可覆盖官方 Free 或 Pro 地址，驱动追加 `/v2/translate`。 | 区域或文字体系明确的目标包括 `en-GB`、`en-US`、`pt-BR`、`pt-PT`、`zh-Hans` 和 `zh-Hant`。显式源语言使用基础语言。 |
+| `libretranslate` | 设置自托管的 `base_url`，可选 `api_key_env`。驱动追加 `/translate`。 | `zh-Hant` 和 `pt-BR` 分别使用繁体中文 `zt`、巴西葡萄牙语 `pb` 模型。支持的语言对取决于服务端安装的模型。 |
+
+```json
+{
+    "default": "office",
+    "drivers": {
+        "office": {"driver": "deepl", "plan": "pro", "api_key_env": "DEEPL_API_KEY"},
+        "local": {"driver": "libretranslate", "base_url": "http://127.0.0.1:5000"}
+    }
+}
+```
+
+远程端点使用 HTTPS，本机服务可使用回环 HTTP。每次翻译发送一次 POST，收到重定向时直接返回错误。超时时服务商可能已经处理该请求。

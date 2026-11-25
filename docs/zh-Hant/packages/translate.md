@@ -77,3 +77,24 @@ async fn preview() -> TranslationResult<String> {
 ```
 
 每個應用按照設定名稱快取驅動程式。修改設定或替換工廠後，呼叫 `Translate::manager()?.forget_drivers()`，後續便會解析新實例。舊控制代碼繼續使用原設定。應用環境或設定載入器有變更時，請重建應用設定快取。
+
+## 內建驅動程式
+
+在具名設定中指定下表的 `driver`。`api_key_env` 保存環境變數名稱。啟用設定快取後，透過 HTTP、Artisan 及各 Worker 的程序環境提供金鑰。每個服務的預設逾時為 10 秒，可用 `timeout_ms` 設定。
+
+| 驅動程式 | 設定 | 語言對應 |
+| --- | --- | --- |
+| `deepl` | `plan` 選擇 `free`（預設）或 `pro`，並設定 `api_key_env`。`base_url` 可覆寫官方 Free 或 Pro 位址，驅動程式接上 `/v2/translate`。 | 有明確地區或文字體系的目標包括 `en-GB`、`en-US`、`pt-BR`、`pt-PT`、`zh-Hans` 和 `zh-Hant`。明確指定來源語言時使用基礎語言。 |
+| `libretranslate` | 提供自託管的 `base_url`，可選 `api_key_env`。驅動程式接上 `/translate`。 | `zh-Hant` 和 `pt-BR` 分別採用繁體中文 `zt`、巴西葡萄牙語 `pb` 模型。支援的語言組合取決於伺服器已安裝的模型。 |
+
+```json
+{
+    "default": "office",
+    "drivers": {
+        "office": {"driver": "deepl", "plan": "pro", "api_key_env": "DEEPL_API_KEY"},
+        "local": {"driver": "libretranslate", "base_url": "http://127.0.0.1:5000"}
+    }
+}
+```
+
+遠端端點使用 HTTPS，本機服務可使用回送 HTTP。每次翻譯只送出一次 POST，收到重新導向時立即傳回錯誤。逾時時服務商可能已處理該請求。

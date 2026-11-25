@@ -41,3 +41,12 @@
 - 复用 SmsManager／FilesystemManager 的具名槽位方案和 Laravel Manager 的工厂注册与清除约定。并发首次解析对同名配置只构造一次，工厂执行不持有管理器级锁。失败保留重试能力。替换工厂与配置后显式清除，旧句柄保持原配置。
 - 包的 2 项公开契约回归（含 12 线程竞争）与 1 项 Rustdoc 示例通过。根应用作为该包的独立消费者注册外部驱动，实跑跨应用 HTTP、独立 Artisan 与数据库 Worker。验收默认与具名选择、配置缓存冻结、清除后重配、无默认驱动错误，以及 Lang 缺词条的零翻译调用。默认骨架测试 2 项通过。
 - Rust 1.94 格式、默认工作区与启用扩展的严格 Clippy、三语文档构建、两挂载 Chrome 12 组和导航均通过。验收日志见 `target/tmp/localization-translate/tr-01-*`。
+
+## TR-02A DeepL 与 LibreTranslate
+
+| 驱动 | 协议核对与验收 |
+| --- | --- |
+| DeepL v2 | Free／Pro 地址可选，使用 `DeepL-Auth-Key`，单条原文放在数组中。显式源语言和缺省检测、地区与文字体系目标、403、456、429、500、结构错误、重定向拒绝、超时均通过。见 [Translate text](https://developers.deepl.com/api-reference/translate/request-translation) 和 [错误处理](https://developers.deepl.com/docs/best-practices/error-handling)。 |
+| LibreTranslate | 自托管 `/translate` 单条文本，带钥和匿名、`auto` 和显式源语言、繁体 `zt`、巴葡 `pb`、检测语言反向映射、403、429、500、结构错误、重定向拒绝、超时及缓存进程注入通过。见 [Translate Text](https://docs.libretranslate.com/api/operations/translate/) 和 [语言模型](https://docs.libretranslate.com/guides/supported_languages/)。 |
+
+使用独立 Artisan 通过一次性回环 HTTP 服务按网络请求计数，分别核对一次 POST 与零重定向。HTTP 请求、响应和连接失败事件验证原文、译文、鉴权材料和响应载荷不可见，日志错误仅包含安全类别，缓存只保存环境变量名。超时返回结果未知；重试由应用决策。Rust 1.94 格式、工作区及启用功能后的严格 Clippy、2 项包回归和 1 项 Rustdoc、三语构建与 12 组 Chrome 通过。日志见 `target/tmp/localization-translate/tr-02a-*`。付费 DeepL 实账号与自托管 LibreTranslate 真实译文独立记录。

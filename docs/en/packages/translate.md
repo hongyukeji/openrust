@@ -77,3 +77,24 @@ async fn preview() -> TranslationResult<String> {
 ```
 
 Each application caches one instance per profile. After changing a configuration or replacing a factory, call `Translate::manager()?.forget_drivers()` to resolve future handles from the new configuration. Existing handles keep their previous settings. Rebuild the application’s configuration cache after changing its environment or configuration loader.
+
+## Built-in drivers
+
+Set the `driver` field of a profile as shown below. The `api_key_env` field holds an environment variable name. With a cached configuration, provide the secret in the environment of the HTTP server, Artisan, and each Worker. Each profile uses a 10-second timeout unless `timeout_ms` is set.
+
+| Driver | Profile settings | Language mapping |
+| --- | --- | --- |
+| `deepl` | Set `plan` to `free` (default) or `pro` and provide `api_key_env`. An optional `base_url` overrides the official Free or Pro base address. The `driver` appends `/v2/translate`. | Regional and script-specific targets include `en-GB`, `en-US`, `pt-BR`, `pt-PT`, `zh-Hans`, and `zh-Hant`. Use a base language for an explicit source. |
+| `libretranslate` | Provide the self-hosted `base_url` and optionally `api_key_env`. The `driver` appends `/translate`. | The traditional Chinese and Brazilian Portuguese models use the `zt` and `pb` protocol codes for `zh-Hant` and `pt-BR`. Installed models determine the available pairs. |
+
+```json
+{
+    "default": "office",
+    "drivers": {
+        "office": {"driver": "deepl", "plan": "pro", "api_key_env": "DEEPL_API_KEY"},
+        "local": {"driver": "libretranslate", "base_url": "http://127.0.0.1:5000"}
+    }
+}
+```
+
+Use HTTPS for remote endpoints. HTTP is available on loopback for a local service. Each translation sends one POST and leaves redirects untouched. After a timeout the supplier may have processed the request.

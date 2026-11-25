@@ -3,6 +3,7 @@
 #[path = "../config/translate.rs"]
 mod configuration;
 mod contract;
+mod drivers;
 mod error;
 mod facade;
 mod manager;
@@ -33,7 +34,9 @@ impl ServiceProvider for TranslateServiceProvider {
             }
             let container = app.container();
             container.singleton_named("translator", |container| {
-                Ok(Arc::new(TranslateManager::new(container.get("config")?)))
+                let manager = TranslateManager::new(container.get("config")?);
+                drivers::register(&manager, container.make()?, container.make()?);
+                Ok(Arc::new(manager))
             })?;
             container.alias("translator", ServiceKey::typed::<TranslateManager>())?;
             Ok(())
