@@ -115,6 +115,23 @@ impl StorePasskey {
     }
 }
 impl VerifyPasskey {
+    pub async fn get_passkey(&self, value: &serde_json::Value) -> Result<PasskeyRecord, HttpError> {
+        let id = value
+            .get("rawId")
+            .and_then(serde_json::Value::as_str)
+            .ok_or_else(|| invalid("Invalid credential format."))?;
+        self.0
+            .passkey_store()
+            .records("credential_id", id.into())
+            .await
+            .map_err(internal)?
+            .into_iter()
+            .next()
+            .ok_or_else(|| {
+                invalid("Passkey not recognized. It may have been removed from your account.")
+            })
+    }
+
     pub async fn call(
         &self,
         value: serde_json::Value,
@@ -151,9 +168,14 @@ impl VerifyPasskey {
                     &mut transaction,
                 )
                 .await?;
-            let owner = self.0.model()?.find(key).await?.ok_or_else(|| {
-                invalid("Passkey not recognized. It may have been removed from your account.")
-            })?;
+            let owner = self
+                .0
+                .model()?
+                .find_in_transaction(&mut transaction, key)
+                .await?
+                .ok_or_else(|| {
+                    invalid("Passkey not recognized. It may have been removed from your account.")
+                })?;
             crate::events::verified(owner.as_ref(), &passkey).await
         }
         .await;
@@ -185,6 +207,7 @@ pub(crate) fn verified_credential_attributes<M: crate::PasskeyModel>(
     options: &AuthenticationOptions,
     web: &crate::WebAuthn,
     expected: Option<&Value>,
+    discoverable: bool,
 ) -> Result<(Value, openrust::database::eloquent::Attributes), HttpError> {
     let key = model.get_attribute("user_id").cloned().ok_or_else(|| {
         invalid("Passkey not recognized. It may have been removed from your account.")
@@ -197,7 +220,7 @@ pub(crate) fn verified_credential_attributes<M: crate::PasskeyModel>(
         ));
     }
     let mut credential = model.credential().map_err(internal)?;
-    web.verify(value, options, &mut credential, expected.is_none())
+    web.verify(value, options, &mut credential, discoverable)
         .map_err(|_| invalid("Unable to verify passkey. Please try again."))?;
     let now = openrust::support::now(None)
         .map_err(internal)?

@@ -136,6 +136,26 @@ passkeys.purge_user_in_transaction(transaction, user).await?;
 
 先持有使用者資料列鎖，使用所屬連線的同一交易。此方法逐模型實體刪除本人憑證，包含 Scope 隱藏與軟刪除記錄，觸發模型實體刪除事件；任何錯誤須回復整個交易。已註冊使用者型別與已持久化、未改寫的真實主鍵必須相符。尚未安裝的選用資料表回傳零；已存在但位於其他連線的資料表明確拒絕。這是 Rust 交易擴充，一般密鑰管理介面保留原有行為。
 
+## 通行金鑰交易操作 {#transactional-passkey-actions}
+
+```rust
+use openrust_fortify::passkeys::actions::{StorePasskey, VerifyPasskey, DeletePasskey};
+
+let record = StorePasskey(passkeys.clone())
+    .call_in_transaction(user, transaction, "我的裝置", credential, &registration_options)
+    .await?;
+let record = VerifyPasskey(passkeys.clone())
+    .call_in_transaction(user, transaction, assertion, &verification_options)
+    .await?;
+DeletePasskey.call_in_transaction(user, transaction, &record).await?;
+```
+
+以上為不同認證階段的呼叫範例。呼叫方持有已持久化使用者的列鎖，使用使用者連線的交易，並負責提交或回滾；回滾後丟棄或重新讀取回傳模型。所選通行金鑰模型必須使用同一連線。模型修改器、屬性轉換、Observer、真實主鍵及原生註冊／驗證／刪除事件繼續生效。取消儲存、取消刪除，或模型聲稱成功但未持久化驗證／刪除結果時回傳錯誤。事件與原生Action一樣在呼叫方提交前派發，外部副作用應安排在提交後執行。
+
+發現式登入使用 `VerifyPasskey::call_discoverable_in_transaction`，傳入已鎖定的使用者。它仍校驗認證器的 `userHandle`，不會因提前解析出帳戶而省略此要求。`VerifyPasskey::get_passkey(&credential)` 與 `passkeys.user_for(&record).await?` 可在加鎖前解析所選憑證及已註冊使用者。這些讀取不代表認證成功；必須透過Action完成簽名、Origin、RP、使用者驗證與計數器檢查，才能建立Session或權杖。一般 `call` 方法繼續可用；預設驗證器在憑證交易中讀取同連線使用者，也支援SQLite。
+
+`RegistrationOptions` 與 `AuthenticationOptions` 的完整狀態僅保存在伺服器，客戶端只接收 `options()`。透過現有HTTP認證流程或有認證保護的控制器實施過期與單次消費。交易Action本身不提供挑戰儲存、客戶端授權或近期確認。使用者套件的可選管理及無密碼流程與這些原生基礎介面分別追蹤。
+
 ## 雙因素 Action 的交易入口 {#transactional-two-factor-actions}
 
 ```rust

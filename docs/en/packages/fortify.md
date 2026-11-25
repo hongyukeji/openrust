@@ -136,6 +136,26 @@ passkeys.purge_user_in_transaction(transaction, user).await?;
 
 Hold the user row lock and use its connection transaction. This physically deletes the registered user’s credentials, including scoped or soft-deleted records, with model force-delete events. Roll back on any error. The persisted, unchanged primary key and registered user type must match. A missing optional table returns zero; an existing table on another connection is rejected. This Rust transaction extension leaves ordinary passkey APIs unchanged.
 
+## Transactional passkey actions {#transactional-passkey-actions}
+
+```rust
+use openrust_fortify::passkeys::actions::{StorePasskey, VerifyPasskey, DeletePasskey};
+
+let record = StorePasskey(passkeys.clone())
+    .call_in_transaction(user, transaction, "My device", credential, &registration_options)
+    .await?;
+let record = VerifyPasskey(passkeys.clone())
+    .call_in_transaction(user, transaction, assertion, &verification_options)
+    .await?;
+DeletePasskey.call_in_transaction(user, transaction, &record).await?;
+```
+
+These are separate ceremony examples. Hold the persisted user row lock, use its connection transaction, and commit or roll back in the calling operation. Discard or refresh returned models after rollback. The selected passkey model must use the same connection. Model mutators, casts, observers, actual primary keys and native registered/verified/deleted events remain active. Cancelled saves, cancelled deletes and a model claiming success without persisting verification or deletion return errors. Events run before the caller commits, matching the native actions; schedule external side effects after commit.
+
+For discoverable login, use `VerifyPasskey::call_discoverable_in_transaction` with the locked user. It still validates the authenticator's `userHandle`; resolving the account first does not waive that requirement. `VerifyPasskey::get_passkey(&credential)` and `passkeys.user_for(&record).await?` can resolve the selected credential and registered user before locking. These reads do not authenticate anyone: complete signature, origin, RP, user-verification and counter checks through the action before creating a Session or token. Ordinary `call` methods remain available; the default verifier reads a same-connection user inside its credential transaction, including on SQLite.
+
+Keep `RegistrationOptions` and `AuthenticationOptions` state on the server. Return only `options()` to the client and enforce expiry and single use through the existing HTTP ceremony or your authenticated controller. A transaction Action alone does not provide challenge storage, client authorization or recent confirmation. The user starter's optional management and passwordless flow are tracked separately from these native primitives.
+
 ## Transactional two-factor actions {#transactional-two-factor-actions}
 
 ```rust

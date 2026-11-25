@@ -603,3 +603,25 @@ workspace all-targets及Fortify+Sanctum严格Clippy、fmt在passkey-purge-*-deli
 范围SHA为`target/tmp/user-starter/two-factor-management-source-sha.json`，独立提交清单为`two-factor-management-files.json`。已直接删除本批文档dist，逻辑文件大小78,390,368字节；清理后当时可用74,890,387,456字节。系统差额可能含并行构建，不全部归因本批；保留正常增量缓存、源码、日志、数据库及数据卷，详见`two-factor-management-cleanup.json`。
 
 A01-04仍未闭合：后续继续Passkeys、第三方登录及无密码近期确认。S10仍需最终自定义模型／配置／驱动组合与观测记录敏感数据审查，不能由本轮页面私密缓存头推断所有日志已脱敏。独立Passkeys事务草稿不属于本批提交，也未被上述冻结检查计作通过；无推送。
+
+## Passkeys事务基础与SQLite原生验证修复（2026-11-25）
+
+以既有API-F02固定的passkeys-server0.3.0／2e7f893429d35acff45ac16d05ddcf883372a20e为准，重新核对StorePasskey、VerifyPasskey、DeletePasskey及两类Options Action；原文和SHA保存在`target/tmp/user-starter/reference/passkeys-0.3.0/`。旧版auth及对应测试仅找到Passkeys功能标记，没有可直接复用的WebAuthn事务实现；本批复用当前webauthn-rs-core0.6.2、所选Eloquent模型、锁、转换及事件，未另建验证器。
+
+- StorePasskey／VerifyPasskey增加`call_in_transaction`；调用方持有当前用户写锁并负责整体提交／回滚，事务不得跨用户或凭据连接。动态Authenticatable经已注册UserModel适配器核对真实类型、持久化状态、原始主键及连接，使未启用Passkeys的泛型调用方不必额外实现该能力。
+- `VerifyPasskey::call_discoverable_in_transaction`显式保留发现式userHandle校验；读取凭据归属后也不能降级校验。`get_passkey`与`Passkeys::user_for`提供所选模型／用户的正式读取入口，不能当作认证成功。
+- DeletePasskey增加同库、持久化用户与真实归属的事务删除入口，保留模型删除与事件。注册／验证／删除取消，以及模型声称成功但未持久化创建、验证结果或删除时，事务入口均报错，要求回滚；包含真正软删除的模型仍按其删除行为处理。
+- 发现原生VerifyPasskey在SQLite凭据事务内调用事务外Model::find查询用户。定向将这一处恢复旧查询后，真实签名用例在五秒内超时，日志`passkey-transaction-native-old-lookup.log`；正式实现同连接用户在原事务查询，修复后原生call也通过。原生跨连接用户读取保留原行为，没有因此承诺跨库原子认证；新增事务入口拒绝跨连接。
+- 事件仍在模型保存后、外层提交前派发，匹配原生Action。回滚不撤回已调用的内存监听器；外部副作用使用现有提交后机制，调用方回滚后丢弃或刷新返回模型。
+
+### 实际验收
+
+`passkey-transaction-sqlite-final.log`、`passkey-transaction-mysql-final.log`与`passkey-transaction-postgres-final.log`分别通过SQLite、MySQL8.4.13、PostgreSQL18.7的6项：既有清理1项、契约4项及新增事务签名生命周期1项。新增用例用测试认证器生成真正ES256签名，由原生WebAuthn验证；覆盖UUID用户、ULID凭据、自定义表／字段转换、typed事件、计数器更新及回滚、相同计数器重放、错误userHandle、跨用户、错误连接、取消保存／删除、空保存及空删除，以及普通call的注册／验证／删除。测试签名器不是实体设备、生物识别或云同步验收；挑战过期及一次性存储属于上层HTTP流程，不由直接Action调用冒充完成。
+
+最终严格门禁为`passkey-transaction-clippy-final.log`（Passkeys＋Fortify/Sanctum全部目标）、`passkey-transaction-workspace-clippy-resumed.log`（冻结workspace全部目标）和`passkey-transaction-fmt-final.log`，均通过。三语Fortify教程增加正式调用及服务器Options状态／回滚／事件边界；`passkey-transaction-docs-final.log`构建、`passkey-transaction-docs-browser-final.log`三语双基路径桌面／手机12组文章DOM检查通过。源码范围SHA为`passkey-transaction-source-sha.json`，提交清单为`passkey-transaction-files.json`，均在本工作流目录。
+
+32GB停线中断的`passkey-transaction-final-fourth.log`不计通过；随后恢复在冻结源码上完成上述验收。该守卫取得锁时大部分产物已由并行守卫清理，本守卫日志只记录自身释放102,400字节及当时可用127,188,271,104字节，不重复归因其他批次释放。末次直接删除本批文档dist及已退出测试临时目录，逻辑大小78,435,415字节；当时可用61,819,203,584字节，详见`passkey-transaction-cleanup.json`。源码、验收日志、正常增量缓存、下载、数据库与数据卷保留。
+
+早期编译和夹具失败保留：SQL表达式需传引用、Listener签名及数据库Value匹配已修正；同步Mutex断言缩短为独立作用域，未用allow屏蔽Clippy。内部HttpError的Display隐藏源错误，空保存测试改为检查正式Internal源，不修改生产错误暴露行为。
+
+本批仅交付原生事务基础与已复现的SQLite修复；用户套件的Passkeys页面、无会话登录／近期确认和因素撤销证明绑定仍继续实施，A01-04没有闭合。已按同一固定API-F02清单下载验证官方客户端0.4.1及SimpleWebAuthn13.3.0，构建了下批17.33kB候选，但尚未接线，未夹入本提交。未推送。

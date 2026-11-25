@@ -36,6 +36,7 @@ pub(crate) fn internal(
 
 pub mod actions;
 pub mod events;
+mod transactional_actions;
 pub(crate) fn invalid(message: &str) -> openrust::http::HttpError {
     let mut errors = openrust::support::MessageBag::default();
     let message = openrust::support::facades::Lang::get(message, &Default::default(), None)

@@ -10,6 +10,18 @@ pub(crate) trait PasskeyStore: Send + Sync {
         transaction: &'a mut Transaction,
         user: Value,
     ) -> DatabaseFuture<'a, DatabaseResult<u64>>;
+    fn records_in_transaction<'a>(
+        &'a self,
+        transaction: &'a mut Transaction,
+        column: &'static str,
+        value: Value,
+    ) -> DatabaseFuture<'a, DatabaseResult<Vec<PasskeyRecord>>>;
+    fn create_in_transaction<'a>(
+        &'a self,
+        transaction: &'a mut Transaction,
+        attributes: Attributes,
+        user: Value,
+    ) -> DatabaseFuture<'a, DatabaseResult<PasskeyRecord>>;
     fn find(&self, key: Value) -> DatabaseFuture<'_, DatabaseResult<Option<PasskeyRecord>>>;
     fn records(
         &self,
@@ -123,6 +135,81 @@ impl<M: PasskeyModel> PasskeyStore for Store<M> {
                     ));
                 }
             }
+        })
+    }
+    fn records_in_transaction<'a>(
+        &'a self,
+        transaction: &'a mut Transaction,
+        column: &'static str,
+        value: Value,
+    ) -> DatabaseFuture<'a, DatabaseResult<Vec<PasskeyRecord>>> {
+        Box::pin(async move {
+            let connection = M::from_state(Default::default()).get_connection()?;
+            if !transaction.belongs_to(&connection) {
+                return Err(DatabaseError::InvalidQuery(
+                    "通行密钥与用户必须使用同一连接事务",
+                ));
+            }
+            let mut query = M::query_on(&connection).use_write_pdo();
+            query.r#where(column, "=", value.clone());
+            if matches!(connection.get_driver_name(), "mysql" | "mariadb") {
+                query.where_nested(|conditions| {
+                    conditions.where_raw(
+                        &format!("BINARY CAST({column} AS CHAR) = BINARY ?"),
+                        vec![value],
+                    )
+                });
+            }
+            Ok(query
+                .lock_for_update()
+                .get_in_transaction(transaction)
+                .await?
+                .into_iter()
+                .map(PasskeyRecord::new)
+                .collect())
+        })
+    }
+    fn create_in_transaction<'a>(
+        &'a self,
+        transaction: &'a mut Transaction,
+        attributes: Attributes,
+        user: Value,
+    ) -> DatabaseFuture<'a, DatabaseResult<PasskeyRecord>> {
+        Box::pin(async move {
+            let mut model = M::new_instance(attributes)?;
+            if !transaction.belongs_to(&model.get_connection()?) {
+                return Err(DatabaseError::InvalidQuery(
+                    "通行密钥与用户必须使用同一连接事务",
+                ));
+            }
+            model.force_fill([("user_id".into(), user.clone())].into())?;
+            if !model.save_in_transaction(transaction).await? {
+                return Err(DatabaseError::InvalidQuery(
+                    "通行密钥模型取消保存，须回滚调用方事务",
+                ));
+            }
+            if !model.state().exists() {
+                return Err(DatabaseError::InvalidQuery(
+                    "通行密钥模型未完成持久化，须回滚调用方事务",
+                ));
+            }
+            model.refresh_for_update(transaction).await?;
+            if model.get_key().is_none()
+                || model.get_key() != model.get_raw_original(model.get_key_name())
+                || model
+                    .get_attribute("user_id")
+                    .and_then(crate::contracts::scalar)
+                    != crate::contracts::scalar(&user)
+                || model
+                    .get_raw_original("user_id")
+                    .and_then(crate::contracts::scalar)
+                    != crate::contracts::scalar(&user)
+            {
+                return Err(DatabaseError::InvalidQuery(
+                    "通行密钥模型改变了真实主键或归属",
+                ));
+            }
+            Ok(PasskeyRecord::new(model))
         })
     }
     fn find(&self, key: Value) -> DatabaseFuture<'_, DatabaseResult<Option<PasskeyRecord>>> {

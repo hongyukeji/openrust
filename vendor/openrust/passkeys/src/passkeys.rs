@@ -140,6 +140,18 @@ impl Passkeys {
             .purge_in_transaction(transaction, key)
             .await
     }
+    /// 解析所选凭据模型的注册用户；返回值仍须经原生WebAuthn验证后才能用于登录。
+    pub async fn user_for(
+        &self,
+        record: &PasskeyRecord,
+    ) -> Result<Option<Box<dyn Authenticatable>>, HttpError> {
+        let key = record
+            .get_attribute_value("user_id")
+            .await
+            .map_err(crate::internal)?
+            .ok_or(HttpError::NotFound)?;
+        self.model()?.find(key).await
+    }
     pub fn user_model(&self) -> Result<&'static str, HttpError> {
         Ok(self.model()?.name())
     }
@@ -165,6 +177,13 @@ impl Passkeys {
             Some(callback) => callback(request, user, passkey).await,
             None => Ok(true),
         }
+    }
+    pub(crate) fn validate_user_transaction(
+        &self,
+        user: &dyn Authenticatable,
+        transaction: &Transaction,
+    ) -> Result<(), HttpError> {
+        self.model()?.validate_transaction(user, transaction)
     }
     pub(crate) fn account(&self, user: &dyn Authenticatable) -> Result<Account, HttpError> {
         let model = self.model()?;
@@ -203,9 +222,19 @@ pub(crate) struct Account {
 }
 pub(crate) trait UserModel: Send + Sync {
     fn user_type_id(&self) -> std::any::TypeId;
+    fn validate_transaction(
+        &self,
+        user: &dyn Authenticatable,
+        transaction: &Transaction,
+    ) -> Result<(), HttpError>;
     fn name(&self) -> &'static str;
     fn clone_user(&self, user: &dyn Authenticatable) -> Option<Box<dyn Authenticatable>>;
     fn account(&self, user: &dyn Authenticatable, secret: &str) -> Result<Account, HttpError>;
+    fn find_in_transaction<'a>(
+        &'a self,
+        transaction: &'a mut Transaction,
+        key: Value,
+    ) -> HttpFuture<'a, Result<Option<Box<dyn Authenticatable>>, HttpError>>;
     fn find(
         &self,
         key: Value,
@@ -215,6 +244,25 @@ struct Adapter<T>(PhantomData<fn() -> T>);
 impl<T: PasskeyUser + Clone> UserModel for Adapter<T> {
     fn user_type_id(&self) -> std::any::TypeId {
         std::any::TypeId::of::<T>()
+    }
+    fn validate_transaction(
+        &self,
+        user: &dyn Authenticatable,
+        transaction: &Transaction,
+    ) -> Result<(), HttpError> {
+        let user = (user as &dyn Any).downcast_ref::<T>().ok_or_else(|| {
+            crate::internal(DatabaseError::InvalidQuery("通行密钥用户模型未注册"))
+        })?;
+        if !transaction.belongs_to(&user.get_connection().map_err(crate::internal)?)
+            || !user.state().exists()
+            || user.get_key().is_none()
+            || user.get_key() != user.get_raw_original(user.get_key_name())
+        {
+            return Err(crate::internal(DatabaseError::InvalidQuery(
+                "通行密钥事务必须使用已持久化用户的同一连接与真实主键",
+            )));
+        }
+        Ok(())
     }
     fn name(&self) -> &'static str {
         std::any::type_name::<T>()
@@ -243,6 +291,30 @@ impl<T: PasskeyUser + Clone> UserModel for Adapter<T> {
                 .map_err(crate::internal)?,
             username: user.get_passkey_username().map_err(crate::internal)?,
             display_name: user.get_passkey_display_name().map_err(crate::internal)?,
+        })
+    }
+    fn find_in_transaction<'a>(
+        &'a self,
+        transaction: &'a mut Transaction,
+        key: Value,
+    ) -> HttpFuture<'a, Result<Option<Box<dyn Authenticatable>>, HttpError>> {
+        Box::pin(async move {
+            let connection = T::from_state(Default::default())
+                .get_connection()
+                .map_err(crate::internal)?;
+            if !transaction.belongs_to(&connection) {
+                return self.find(key).await;
+            }
+            let mut query = T::query_on(&connection).use_write_pdo();
+            query.where_key(key);
+            Ok(query
+                .limit(1)
+                .get_in_transaction(transaction)
+                .await
+                .map_err(crate::internal)?
+                .into_iter()
+                .next()
+                .map(|user| Box::new(user) as Box<dyn Authenticatable>))
         })
     }
     fn find(
