@@ -469,4 +469,4 @@ Select `handler: "own_text"` with `driver: "monolog"`, `handler_with: {"prefix":
 
 The default getter runs only when the first accepted record needs it. A failed getter remains retryable on the same channel; a successful formatter is cached. Native calls return the original error chain and framework writes retain emergency recovery. No registration lock is held around user code. Concurrent first accesses may invoke the getter more than once, with one successful formatter retained, so keep getters idempotent. This capability produces text; it does not claim support for arbitrary PHP extension or structured APM formatter types.
 
-The core does not include a New Relic APM agent. A generic handler callback is not a built-in integration with that supplier; its native SDK and structured APM adapter must be implemented separately.
+The optional [New Relic APM extension](../packages/new-relic.md) exports application traces and metrics. Core log channels retain their own configuration and handlers.

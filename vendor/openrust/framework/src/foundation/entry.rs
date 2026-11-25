@@ -82,6 +82,7 @@ pub async fn run_application(
     app.container()
         .instance(Arc::new(ExecutableEntry))
         .expect("compiled entry is initially unbound");
+    let application = app.share();
     let (result, error_context) = if artisan {
         let arguments: Vec<_> = arguments.collect();
         if isolated_job {
@@ -120,6 +121,20 @@ pub async fn run_application(
     } else {
         (app.start().await.map(|()| 0), "Application startup failed")
     };
+    if let Ok(dispatcher) = application.container().make::<crate::events::Dispatcher>()
+        && dispatcher.has_listeners(super::events::ApplicationTerminating::NAME)
+    {
+        use crate::contracts::events::Dispatcher as _;
+        if let Err(error) = dispatcher
+            .dispatch(
+                Arc::new(super::events::ApplicationTerminating),
+                &mut crate::events::EventContext::new(),
+            )
+            .await
+        {
+            eprintln!("应用收尾事件执行失败：{error}");
+        }
+    }
     match result {
         Ok(status) => ExitCode::from(u8::try_from(status).unwrap_or(1)),
         Err(error) => {

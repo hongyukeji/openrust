@@ -6,6 +6,8 @@ Git 默认流程已于 2026-11-23 更新：已授权任务完成并通过相关�
 
 ## 正在推进与等待条件
 
+- 2026-11-25 New Relic APM 独立扩展首版实现，真实 HTTP、Artisan、SQLite Worker 和 OTLP 协议接收验收通过。授权账号及实际 APM 页面待验，详见[供应商集成](plans/log-supplier-integrations.md)。
+
 - 2026-11-25 Artisan第二十二簇共享命名表格样式通过：34源操作＋2回调、213父消费者含三语69例、真实HTTP24并发跨应用／独立Artisan、严格门禁／12浏览器；见[第二十二簇](audits/artisan-tutorial/README.md)。Table::new以Result传播解析失败，getter拥有快照、借用共享与显式Clone隔离已迁移；复杂单元格／分区及其余SDK继续，不关闭整章／目标，不推送。
 
 - 2026-11-25 Artisan第二十一簇文本行键／批量追加／多表头／方向通过：230源向量含24个操作失败、204父消费者含三语66例、真实HTTP与Artisan溢出恢复、严格门禁／12浏览器；见[第二十一簇](audits/artisan-tutorial/README.md)。add_row以Result保留追加阶段错误，已有调用已迁移；公开分隔符／合并单元格／共享样式及其余SDK仍推进，不关闭整章／目标，不推送。

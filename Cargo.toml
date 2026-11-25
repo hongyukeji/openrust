@@ -56,6 +56,7 @@ socialite = ["dep:openrust-socialite"]
 oidc = ["dep:openrust-oidc"]
 settings = ["dep:openrust-settings"]
 pay = ["dep:openrust-pay"]
+new-relic = ["dep:openrust-new-relic"]
 cashier = ["dep:openrust-cashier"]
 activitylog = ["dep:openrust-activitylog"]
 horizon = ["dep:openrust-horizon"]
@@ -76,6 +77,7 @@ openrust-socialite = { path = "vendor/openrust/socialite", optional = true }
 openrust-oidc = { path = "vendor/openrust/oidc", optional = true }
 openrust-settings = { path = "vendor/openrust/settings", optional = true }
 openrust-pay = { path = "vendor/openrust/pay", optional = true }
+openrust-new-relic = { path = "vendor/openrust/new-relic", optional = true }
 openrust-cashier = { path = "vendor/openrust/cashier", optional = true }
 openrust-activitylog = { path = "vendor/openrust/activitylog", optional = true }
 openrust-horizon = { path = "vendor/openrust/horizon", optional = true }
@@ -115,3 +117,9 @@ harness = false
 name = "driver_extensions_app"
 path = "tests/support/driver_extensions/app.rs"
 harness = false
+
+[[test]]
+name = "new_relic_app"
+path = "tests/support/new_relic/app.rs"
+harness = false
+required-features = ["new-relic"]

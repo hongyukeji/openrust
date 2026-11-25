@@ -469,4 +469,4 @@ fn register_own_formatter(manager: &LogManager) {
 
 默认 getter 仅在第一条通过级别过滤的记录需要时执行。失败后可在同一渠道重试，成功格式器会缓存。原生调用返回原错误链，框架写入保留应急回退。执行用户代码时不持注册锁。并发首次解析可能多次调用 getter，最终保留同一个成功格式器，因此 getter 应保持幂等。此能力输出文字，不代表任意 PHP 扩展或结构化 APM 格式器类型均已支持。
 
-核心不包含 New Relic APM Agent。通用处理器回调不等于已内置该供应商集成，原生 SDK 和结构化 APM 适配需单独实现。
+可选的 [New Relic APM 扩展](../packages/new-relic.md)导出应用链路与指标。核心日志渠道使用各自的配置和处理器。
