@@ -4,11 +4,11 @@
 
 ## 开发需求
 
-- 将 OpenRust 的 AI 模块对齐固定 Laravel AI SDK。公开入口、目录职责、配置键、Provider 生命周期、Artisan 命令、测试方式及可观察行为逐项对应 Laravel。默认供应商、默认模型及预设清单按用户确认改为显式配置。Rust 接口使用本项目的命名规范和异步类型，必要适配随契约核对记录依据。
+- 将 OpenRust 的 AI 模块对齐固定 Laravel AI SDK。公开入口、目录职责、配置键、Provider 生命周期、Artisan 命令、测试方式及可观察行为逐项对应 Laravel。按用户确认预填常用供应商连接及可覆盖的基础 URL，默认连接和模型由应用显式选择。Rust 接口使用本项目的命名规范和异步类型，必要适配随契约核对记录依据。
 - 按固定版本交付完整适用能力。覆盖 Agent、结构化输出、流、工具及审批、会话、队列、广播、图像、音频、转录、Embeddings、Reranking、Classification、文件与向量仓库，以及用量、故障转移、事件和 Fake。供应商按下方矩阵逐能力验收。
 - 开发前参考成熟的 GitHub 项目及 Laravel 生态实现。优先复用经过验证的方案和 OpenRust 已有机制，按实际协议差异决定是否增加依赖或适配层。
 - 同时交付三种使用方式。OpenRust 应用能在进程内使用 SDK，能通过兼容或原生协议接入供应商、自建模型服务和 Sub2API，也能启用模型网关，为外部客户端提供兼容 API。网关覆盖协议转换、模型路由与上游账号接入。
-- 采用 DSH 式简洁接入流程。用户确认发布默认配置时 `ai.providers` 为空，供应商和模型均按协议配置，已知服务商配置放入文档示例。支持目录查询的连接可拉取模型供选择，手动填写始终可用。将 DSH 本身作为 OpenRust 对外网关的实际客户端验收。
+- 采用 DSH 式简洁接入流程。发布的 `ai.providers` 预填常用供应商的协议、官方基础 URL 和凭证引用，全部 URL 支持环境变量覆盖。缺少凭证的预设保持未配置状态。配置 Key 后可拉取模型供选择，手动填写始终可用。将 DSH 本身作为 OpenRust 对外网关的实际客户端验收。
 - 应用语言词条、机器翻译、内容审核及 Boost／MCP 服务各自保留职责。AI SDK 自身的 MCP 工具桥接纳入 E07。AI Agent 翻译维持后续计划状态，当前阶段暂缓实施。
 
 ## 建议实施方案
@@ -44,7 +44,7 @@
 
 - 框架通过可选 Cargo feature `ai` 装配 `vendor/openrust/ai`。包发现注册 `AiServiceProvider`，由当前应用容器持有 `AiManager`。`Ai` 门面转发 Manager，`openrust_ai::agent(...)` 对应 Laravel 的独立 `agent()` helper。应用可实现 `Agent` trait 并通过 Rust async／Builder 表达提示词、覆盖选项与能力组合。
 - `AiManager` 分开解析 Provider 实例名及 `driver`，保留命名自定义实例、按能力默认、显式覆盖、按需实例、驱动扩展和作用域清理。每类能力是独立 Provider／Gateway 契约。协议适配保留在包内，第三方类型可在内部使用。
-- 发布 `config/ai.rs`。保留 Laravel 的 `ai.default`、各 `default_for_*`、`caching.embeddings.{cache,store,individually}`（false、`CACHE_STORE` 默认 database、true）及 `ai.providers.<name>.driver`。应用显式配置默认连接，调用时也可显式选择连接和模型。发布状态下配置为空仍可启动，需要调用且未能解析连接或模型时报告配置错误。默认供应商、默认模型和凭证变量的预设取消，作为已确认的 Laravel 默认行为差异记录。本地配置缓存和调试输出避免泄露原始密钥，应用及 Worker 从自己的运行时配置解析凭证。
+- 发布 `config/ai.rs`。保留 Laravel 的 `ai.default`、各 `default_for_*`、`caching.embeddings.{cache,store,individually}`（false、`CACHE_STORE` 默认 database、true）及 `ai.providers.<name>.driver`。应用显式配置默认连接，调用时也可显式选择连接和模型。无可用凭证或默认连接时仍可启动，调用中未能解析连接、凭证或模型时报告配置错误。预设只包含公开连接信息与凭证引用，模型从上游发现或手填。本地配置缓存和调试输出避免泄露原始密钥，应用及 Worker 从运行时解析凭证。
 - `openai` 和 `openai-compatible` 分开验收。固定版的 `OpenAiGateway` 发 `responses`，`OpenAiCompatibleGateway` 发 `chat/completions`。兼容驱动以 `models.text.default` 或显式模型为准，其余模型默认及覆盖同样按各自 Provider 源码核对。
 - Artisan 验收 `make:agent`（含 `--structured`）、`make:agent-middleware`、`make:tool`、`vendor:publish` 的 `ai`、`ai-config`、`ai-stubs` 及迁移发布／执行，逐命令查明参数、stub 优先级、覆盖、退出码和副作用。固定 SDK 将 `ChatCommand` 的注册注释掉，`agent:chat` 保留在来源清单的未注册项。
 
@@ -61,7 +61,7 @@
 
 | 核对项 | 复审结论与处理 |
 |---|---|
-| 默认装配与扩展 | `AiServiceProvider`、`AiManager`、`Ai` 及实际消费者列入 AI-00。Laravel 默认使用已预设实例，本项目发布空配置；保留 `AiManager` 的实例解析、注册扩展、按需构建和清理。AI-01 验收空配置启动、显式/默认选择、未知驱动以及缓存配置。 |
+| 默认装配与扩展 | `AiServiceProvider`、`AiManager`、`Ai` 及实际消费者列入 AI-00。保留 `AiManager` 的实例解析、注册扩展、按需构建和清理。与 Laravel 的默认行为差异为应用显式选择默认连接与模型。AI-01 验收无凭证启动、全部预设 URL 的环境变量覆盖、显式/默认选择、未知驱动以及缓存配置。 |
 | Provider 入口和序列化 | `Provider` 有 `name`、`driver`、`providerCredentials`、`additionalConfiguration`、`withHeaders` 及序列化行为。`AiManager` 有各能力和 Fake 入口。AI-00 按所属类型登记，AI-01/04 验证应用、请求、作业之间隔离。对于 Laravel 凭证可访问与 PHP 序列化行为，明确 Rust API、作业凭证引用和缺少凭证时的结果；作业在运行时解析凭证，协议内容及密钥按框架脱敏能力处理。 |
 | Prompt、响应与测试 | `Promptable::make`、`withMessages`、`withTools`、`assertPromptedTimes`、`assertNeverPrompted` 等公开入口随所属能力核对。AI-02 覆盖 `StreamableAgentResponse` 的 `each`、`catch`、`then`、`usingProtocol`、`usingVercelDataProtocol`、`usingAgentUserInteractionProtocol`，并逐项核对 `AgentUserInteraction` 和 Vercel 的输入、状态与事件。Fake、模拟协议服务和供应商实机提供三种独立证据。 |
 | 真实流式传输 | 当前框架 [HTTP 客户端响应转换](../../../vendor/openrust/framework/src/http/client/response.rs) 会将网络块读完才返回，现有 [HTTP 响应流](../../../vendor/openrust/framework/src/http/response.rs) 用于向下游发送。AI-02 先补最小通用出站流入口，SDK 和网关共同使用，并复用 HTTP 工厂、目标校验、TLS、代理、重定向策略和脱敏。以慢速上游验证首块在完成前到达、取消时释放连接、限额和下游背压。 |
@@ -74,7 +74,7 @@
 
 | 批次 | 按类型跟踪的入口与行为 | 首要实测 |
 |---|---|---|
-| AI-00 契约清单与依赖 | 从固定 SDK 建立模块、类型、公开成员、继承／trait／宏／Facade、配置、Artisan、迁移和实际调用入口的索引。落定各批次责任与协议命名，记录现有框架可复用能力及真实缺口。复核无预设的默认值差异和二进制特性隔离 | 按条记录上游位置、本地入口、裁决、批次和实际测试。尚未准备好实现的成员保留待办。按包启停验证空配置无副作用，网关依赖 SDK 的协议实现 |
+| AI-00 契约清单与依赖 | 从固定 SDK 建立模块、类型、公开成员、继承／trait／宏／Facade、配置、Artisan、迁移和实际调用入口的索引。落定各批次责任与协议命名，记录现有框架可复用能力及真实缺口。复核显式选择默认连接与模型的差异和二进制特性隔离 | 按条记录上游位置、本地入口、裁决、批次和实际测试。尚未准备好实现的成员保留待办。按包启停验证仅有无凭证预设时无网络请求，网关依赖 SDK 的协议实现 |
 | AI-01 包发现＋文本 | `AiServiceProvider`、`Ai`、`AiManager` 的命名实例、`build`、`text_provider`、`text_provider_for`、默认及清理，`Agent`、`AnonymousAgent`、`agent()`、`prompt`、文本请求／响应及 Agent Fake。先完成 OpenAI Compatible 与 OpenAI 的非流式纯文本，并明确默认/显式 Provider 及模型优先级 | 启用、未启用及配置缓存后的应用启动。真实 HTTP 路由调用、两个本地协议服务验证 URL／鉴权／JSON／用量。覆盖不支持能力、缺模型、错误响应、Fake 断言及应用隔离。用 Artisan 检查包发现与发布；以 Rust 1.94 试编协议类型并验证不引入重复网络路径 |
 | AI-02 多轮文本基础 | `AgentPrompt`、Messages、附件、`HasStructuredOutput`、`StructuredAgentResponse`、`HasProviderOptions`、属性／模型选项、显式默认／廉价／高级模型、`SummarizeAgent` 与 `Str`／`Stringable` 摘要入口、`StreamableAgentResponse`、SSE／Vercel／AG-UI、Usage、提示缓存、代理及每步生成事件；各文本供应商的限流、过载、故障转移及异常 | 相同调用分别实测普通、结构化和流。覆盖 Schema 深层对象／数组、拒答、畸形响应、UTF-8 与行跨数据块、取消与用量、已经向客户端输出时的失败处理。供应商失败分类用协议样本逐个确认 |
 | AI-03 工具与会话 | `HasTools`、`Tool`／`ToolCall`／`ToolResult`、校验、修复、检索／延迟加载、文件工具、Provider 工具、MCP 工具桥、Skills、`CanActAsTool`、子 Agent、`HasMiddleware`、`StepTextGateway`、停止条件；`Conversational`、`RemembersConversations`、`ConversationStore`、参与者与归属检查；审批请求、审批结果、恢复相关类型与事件 | 实测多个步骤的 Middleware 次数及顺序、工具调用关联、会话迁移、历史裁剪／分页、跨账户隔离、拒绝／批准／过期、重放及并发恢复。Provider 工具用独立合同约束其支持范围 |
@@ -85,7 +85,7 @@
 
 ## 供应商矩阵
 
-以下 17 个驱动名称取自固定 Laravel 源码，用于跟踪供应商和能力覆盖。OpenRust 按协议实现并通过命名连接验收，发布配置不预置这些连接或模型清单。工具支持和协议差异依据实际端点及模型验证，对应能力均待实现。
+以下 17 个驱动名称取自固定 Laravel 源码，用于跟踪供应商和能力覆盖。OpenRust 按协议实现并通过命名连接验收，首批连接预设见下文。模型清单动态发现或手动选择。工具支持和协议差异依据实际端点及模型验证，对应能力均待实现。
 
 | 能力 | 目标驱动 |
 |---|---|
@@ -168,7 +168,28 @@ Laravel 基线的驱动行为作为能力验收依据，供应商配置通过文
 
 ## DSH 式模型接入
 
-1. **添加连接。** 在 `ai.providers.<name>` 选择 `driver`，填写基础 `url` 和凭证引用。`openai-compatible` 走 Chat Completions，`openai` 走 Responses，Anthropic 与 Gemini 使用各自驱动。网关提供多种协议时可为不同协议配置命名连接。验收带 `/v1`、`/v1beta` 或自定义路径前缀的基础 URL，以及协议鉴权和模型 ID 的大小写。
+### 首批供应商预设
+
+`config/ai.rs` 的每个预设都显式写出默认基础 URL。按项目配置习惯使用 `env.get_utf8("变量名")?.unwrap_or("默认基础 URL")`。环境变量未设置时使用默认地址，设置后以环境变量的完整值替换。对带凭证启用的连接验证 URL，显式空值或非法地址返回配置错误。`.env.example` 可列出 URL 覆盖示例，未覆盖的项目可省略该变量。
+
+| 连接名 | `driver` | 默认 `url` | URL 覆盖变量 | 凭证变量 |
+|---|---|---|---|---|
+| `deepseek` | `openai-compatible` | `https://api.deepseek.com` | `DEEPSEEK_URL` | `DEEPSEEK_API_KEY` · [官方文档](https://api-docs.deepseek.com/) |
+| `qwen` | `openai-compatible` | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `QWEN_URL` | `DASHSCOPE_API_KEY` · [百炼基础 URL](https://docs.modelstudio.console.alibabacloud.com/en/model-studio/base-url) |
+| `tencent` | `openai-compatible` | `https://tokenhub.tencentmaas.com/v1` | `TOKENHUB_URL` | `TOKENHUB_API_KEY` · [TokenHub 调用概览](https://cloud.tencent.com/document/product/1823/130079) |
+| `qianfan` | `openai-compatible` | `https://qianfan.baidubce.com/v2` | `QIANFAN_URL` | `QIANFAN_API_KEY` · [千帆文本生成](https://cloud.baidu.com/doc/qianfan-api/s/wmwbl48n4) |
+| `ark` | `openai-compatible` | `https://ark.cn-beijing.volces.com/api/v3` | `ARK_URL` | `ARK_API_KEY` · [方舟兼容 OpenAI SDK](https://docs.volcengine.com/docs/ark/compatible-with-openai-sdk?lang=zh) |
+| `openai` | `openai` | `https://api.openai.com/v1` | `OPENAI_URL` | `OPENAI_API_KEY` · [Responses API](https://developers.openai.com/api/reference/resources/responses/methods/create) |
+| `anthropic` | `anthropic` | `https://api.anthropic.com/v1` | `ANTHROPIC_URL` | `ANTHROPIC_API_KEY` · [Messages API](https://platform.claude.com/docs/en/api/messages/create) |
+| `gemini` | `gemini` | `https://generativelanguage.googleapis.com/v1beta` | `GEMINI_URL` | `GEMINI_API_KEY` · [Gemini 原生 API](https://ai.google.dev/api/generate-content) |
+
+百炼使用北京共享域名作为示例默认值，使用其他地域或工作空间专属域名时覆盖 `QWEN_URL`。TokenHub 默认使用广州地址，新加坡地域可将 `TOKENHUB_URL` 设置为 `https://tokenhub-intl.tencentmaas.com/v1`。覆盖后的地址仍须与凭证及指定协议匹配。
+
+`url` 是基础地址，保留自带的版本与代理路径前缀。协议驱动只追加相对操作路径，例如 `chat/completions`、`responses`、`messages` 或 `models`，确保 `/v1`、`/v2`、`/v1beta` 和 `/api/v3` 恰好出现一次。AI-01 使用本地模拟覆盖各预设的默认地址、覆盖地址、自定义路径前缀及有无末尾斜杠。按实例鉴权和发现模型的流程用同一基础 URL；提供特殊目录端点的服务按已验证协议适配。
+
+### 添加与选用模型
+
+1. **选择或添加连接。** 使用预设时配置对应的 Key，必要时覆盖 URL。自建服务或 Sub2API 在 `ai.providers.<name>` 选择 `driver`，填写基础 `url` 和凭证引用。`openai-compatible` 走 Chat Completions，`openai` 走 Responses，Anthropic 与 Gemini 使用各自驱动。网关提供多种协议时可为不同协议配置命名连接。验收协议鉴权和模型 ID 的大小写。
 2. **动态发现。** 使用当前命名连接对应的凭证和目录端点，请求按协议保留版本路径、处理分页并读取模型 ID。端点示例见 [OpenAI `/v1/models`](https://developers.openai.com/api/reference/resources/models/methods/list)、[Anthropic `/v1/models`](https://platform.claude.com/docs/en/api/models/list)、[Gemini `/v1beta/models`](https://ai.google.dev/api/models)及 [DeepSeek `/models`](https://api-docs.deepseek.com/api/list-models/)。模型能力元数据按上游实际声明显示，缺少描述的能力标记为未知。目录缺失、为空、无权限或返回失败时，保留已配置模型并允许手填模型 ID。
 3. **选用和试调用。** Artisan 显示目录结果并允许手填，用户确认后才写入选择结果。刷新目录时保留已选项和 `models.text.default` 等显式设置。发现目录和实际调用分别验证，且使用同一命名连接。实测覆盖分页、缺字段、错误、空目录、无目录、已选模型在刷新后消失及手填后仍能按协议调用。工具、流、图片等能力以对应调用结果为准。Artisan 命令名及参数作为 OpenRust 扩展随实现核对。
 4. **对外接入。** OpenRust 网关以对外模型名映射实际 Provider 和模型 ID，客户端只配置地址、匹配的协议、网关凭证和对外模型名。用固定版 DSH 的自定义模型 API 完成拉取列表（支持时）、手填、选择和真实调用；覆盖 Chat Completions、Responses 及后续 Anthropic Messages、Gemini 原生入口，按批补工具和 SSE。沿用 Sub2API 的模型路由验收，并继续使用本地模拟上游和授权实机分别留证据。
@@ -178,6 +199,6 @@ DeepSeek 官方端点作为首个完整示例。使用 Chat Completions 的命�
 ## 实施顺序与完成条件
 
 1. AI-00 与 GW-00 先确认契约、可选包边界和能力对应。按类型或端点保留待核对项，计划复审结果用于确定批次，成员级清单继续随实现核对。
-2. AI-01 验收空配置启动、显式连接、非流式文本和配置即可调用，GW-01 用现有 Sub2API 验证接入。随后接模型发现、选择与独立试调用。配置发布只写包拥有的示例与默认空值，用户确认的连接或模型写入方式按现有配置管理约定验收。
+2. AI-01 验收无凭证启动、八家预设及 URL 覆盖、显式连接和非流式文本，GW-01 用现有 Sub2API 验证接入。随后接模型发现、选择与独立试调用。配置发布只写包拥有的预设和示例，用户确认的连接或模型写入方式按现有配置管理约定验收。
 3. AI-02 完成出站流能力后，GW-02 先跑通精确映射和协议响应，GW-03 再验收跨协议、按端点路由与回退。AI-03 至 AI-06 和 GW-04 按各自依赖补齐生命周期、能力、账号与运维。SDK 可独立启用，网关复用 SDK 专用调用所需的协议实现及框架公共能力。
 4. AI-07 与 GW-05 用独立消费者、真实 HTTP／Artisan、适用的 Worker 与 DSH 客户端验收三种调用路径；逐项比对三语配置示例、发布行为、供应商能力矩阵及主账本。兼容性记录保留上游版本、模型、协议、能力、凭证类型及实测条件。公开宣告的能力有实际入口证据；缺账号、地区、权限等条件的能力保持待实机验收。

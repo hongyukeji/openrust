@@ -498,7 +498,7 @@ X09—X24的存在不证明均由用户明确要求，不将历史默认差异�
 | E04 前端 | 与E02联动，明确Vue／React／Inertia各自范围；没有实现仍保留缺口 |
 | E05 Agent开发 | 与E06/E07分别调查职责和需求，保留独立可选任务，不凭外部HTTP调用声称框架SDK |
 | E06 MCP | 可选包后续：协议版本、传输、发现、认证及官方兼容测试，复用成熟协议库 |
-| E07 AI SDK 与模型网关 | [Laravel AI + Sub2API + DeepSeek Harness 开发计划](laravel-ai-sdk.md)。已复审三条调用链路、固定基线、[模型配置与发布](laravel-ai-sdk.md#模型配置发现与发布)及出站流依赖。保留无默认供应商或模型、[动态发现](laravel-ai-sdk.md#dsh-式模型接入)和[国内供应商范围](laravel-ai-sdk.md#国内供应商接入)。成员级契约核对、实施及联合验收待办。 |
+| E07 AI SDK 与模型网关 | [Laravel AI + Sub2API + DeepSeek Harness 开发计划](laravel-ai-sdk.md)。已复审三条调用链路、固定基线、[模型配置与发布](laravel-ai-sdk.md#模型配置发现与发布)及出站流依赖。发布配置提供[八家连接预设及可覆盖的官方 URL](laravel-ai-sdk.md#首批供应商预设)，默认连接与模型显式选择，支持动态发现。成员级契约核对、实施及联合验收待办。 |
 | E08 Boost | 工具后续：与E05/E06区分，调查Rust开发指引生成与工具安装实际需求 |
 | E09 Head | 可选页面能力后续：复核固定官方包来源与职责，布局标签不当独立包等价 |
 | E10 Dusk | PHP包不直接移植；记录成熟浏览器测试方案及真实应用用例，WebDriver封装能力仍单列缺口 |
