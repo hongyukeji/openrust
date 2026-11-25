@@ -12,6 +12,8 @@ mod tencent;
 mod tencent_image;
 mod tencent_video;
 mod video;
+#[cfg(feature = "webhooks")]
+pub(crate) use sightengine_video::media_id as sightengine_media_id;
 
 use std::{net::IpAddr, sync::Arc, time::Duration};
 

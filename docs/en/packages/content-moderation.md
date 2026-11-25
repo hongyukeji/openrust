@@ -94,6 +94,10 @@ Enable `content-moderation` and `webhook-client`. Point the Sightengine accountâ
 
 For a rotation, `moderation_previous_callback_credentials` can list up to three earlier references. Remove retired references from the route configuration when revoking them. Verification checks the raw body and the timestamp within five minutes. Sightengineâ€™s per-request callback URLs send unsigned notifications, so use the account-level URL for this signed route. [Sightengine callback signatures](https://sightengine.com/docs/callback-signature)
 
+For durable reviews, register a `SightengineCallbackProcessor` with `QueuedWebhookJob::register_with_database_deferred_processing`. Give the processor the review store, the account alias used by the pinned profile, and the Webhook Client scope, profile name and revision. Early callbacks stay in Webhook Client's deferred processing until a matching provider task ID is available. If the application already knows the reception ID, it can use `QueuedWebhookJob::wake_deferred` to resume it sooner.
+
+The processor links a matching terminal notification to its review and makes the original provider task due for confirmation. `moderation:recover` then queues the authenticated query. The review continues to apply its stored query budget, deadline and required coverage.
+
 ## Custom drivers {#custom-drivers}
 
 This example sends every text assessment to manual review. Register its provider after the package provider so HTTP, Artisan, and Workers can resolve the same named profiles.

@@ -173,6 +173,7 @@ pub struct VideoReview {
     pub(crate) query_lease_until: Option<i64>,
     pub(crate) query_failure: Option<QueryFailure>,
     pub(crate) assessment: Option<Assessment>,
+    pub(crate) confirmation_callback_id: Option<String>,
 }
 
 impl VideoReview {
@@ -234,6 +235,10 @@ impl VideoReview {
 
     pub fn assessment(&self) -> Option<&Assessment> {
         self.assessment.as_ref()
+    }
+
+    pub fn confirmation_callback_id(&self) -> Option<&str> {
+        self.confirmation_callback_id.as_deref()
     }
 
     /// 成功审核的必检覆盖可交给应用继续作发布决定。

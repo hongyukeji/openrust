@@ -1,7 +1,7 @@
 use std::{fmt::Write as _, sync::Arc};
 
 use openrust::{
-    database::{Connection, DatabaseError, Row, Value},
+    database::{Connection, DatabaseError, Row, Value, query::Builder},
     support::Str,
 };
 use sha2::{Digest as _, Sha256};
@@ -12,6 +12,10 @@ use crate::{
 };
 
 mod assessment_record;
+#[cfg(feature = "webhooks")]
+mod callback;
+#[cfg(feature = "webhooks")]
+pub(crate) use callback::ProviderTask;
 mod query;
 mod recovery;
 mod submission;
@@ -136,7 +140,16 @@ impl ModerationStore {
 
     async fn read(&self, key: &str, value: &str) -> ModerationResult<Option<VideoReview>> {
         let row = self
-            .connection
+            .review_rows()
+            .r#where(&format!("{REVIEWS}.{key}"), "=", value)
+            .first()
+            .await
+            .map_err(|_| ModerationError::ReviewStorage)?;
+        row.map(decode).transpose()
+    }
+
+    fn review_rows(&self) -> Builder<'_> {
+        self.connection
             .table(REVIEWS)
             .use_write_pdo()
             .join(
@@ -167,14 +180,10 @@ impl ModerationStore {
                 "query_lease_until",
                 "query_failure",
                 "assessment",
+                "confirmation_callback_id",
             ])
             .r#where("moderation_reviews.scope_key", "=", self.scope_key.as_str())
-            .r#where(&format!("{REVIEWS}.{key}"), "=", value)
             .r#where("moderation_checks.kind", "=", "video")
-            .first()
-            .await
-            .map_err(|_| ModerationError::ReviewStorage)?;
-        row.map(decode).transpose()
     }
 }
 
@@ -236,6 +245,7 @@ fn decode(row: Row) -> ModerationResult<VideoReview> {
         assessment: optional_text("assessment")?
             .map(assessment_record::decode)
             .transpose()?,
+        confirmation_callback_id: optional_text("confirmation_callback_id")?.map(str::to_owned),
     })
 }
 

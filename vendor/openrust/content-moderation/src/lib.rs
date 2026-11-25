@@ -18,6 +18,8 @@ mod recovery;
 mod result;
 mod review;
 mod revision;
+#[cfg(feature = "webhooks")]
+mod sightengine_callback;
 mod storage;
 mod video_service;
 
@@ -36,5 +38,7 @@ pub use review::{
     QueryFailure, ReviewState, SubmissionFailure, VideoReview, VideoReviewRequest, VideoSubmission,
 };
 pub use revision::ProfileRevision;
+#[cfg(feature = "webhooks")]
+pub use sightengine_callback::SightengineCallbackProcessor;
 pub use storage::ModerationStore;
 pub use video_service::VideoReviewService;

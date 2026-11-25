@@ -112,6 +112,8 @@ fn commands(artisan: &mut Artisan) -> Result<(), ConsoleError> {
     pay::register_command(artisan)?;
     #[cfg(feature = "content-moderation")]
     moderation::register_command(artisan)?;
+    #[cfg(all(feature = "content-moderation", feature = "webhook-client"))]
+    moderation_callbacks::commands(artisan)?;
     Ok(())
 }
 #[tokio::main(flavor = "current_thread")]

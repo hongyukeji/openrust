@@ -94,6 +94,10 @@
 
 轮换期间，`moderation_previous_callback_credentials` 可保留至多三个早期引用。撤销时从路由配置中移除废弃引用。验签使用原始请求体，并校验五分钟时间窗。Sightengine 的逐请求回调 URL 发送无签名通知，签名路由应使用账户级 URL。 [Sightengine 回调签名](https://sightengine.com/docs/callback-signature)
 
+持久审核可通过 `QueuedWebhookJob::register_with_database_deferred_processing` 注册 `SightengineCallbackProcessor`。构造时传入审核存储、固定配置使用的账户别名，以及 Webhook Client 的作用域、配置名称和修订。提前到达的回调由 Webhook Client 延期处理，等待可关联的供应商任务 ID。如果应用已知接收记录 ID，可调用 `QueuedWebhookJob::wake_deferred` 提前唤醒。
+
+匹配的终态通知会关联到原审核，并使原供应商任务到期查单。`moderation:recover` 派发带认证的查单，审核继续使用原有查询预算、截止时间和必检覆盖要求。
+
 ## 自定义驱动 {#custom-drivers}
 
 以下示例将文本送人工复核。在包 Provider 之后注册示例 Provider，HTTP、Artisan 和 Worker 都可解析相同的具名配置。

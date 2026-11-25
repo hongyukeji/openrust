@@ -13,6 +13,8 @@ use crate::{
     drivers,
 };
 
+#[path = "../database/migrations/2026_11_26_000006_add_moderation_callback_reference.rs"]
+mod callback_reference_migration;
 #[path = "../database/migrations/2026_11_26_000002_create_moderation_checks_table.rs"]
 mod checks_migration;
 #[path = "../database/migrations/2026_11_26_000004_add_moderation_query_budget.rs"]
@@ -83,6 +85,7 @@ openrust::compiled_migration_assets!("content-moderation";
     "2026_11_26_000003_add_moderation_submission_lease.rs" => submission_lease_migration,
     "2026_11_26_000004_add_moderation_query_budget.rs" => query_budget_migration,
     "2026_11_26_000005_add_moderation_recovery_dispatch.rs" => recovery_dispatch_migration,
+    "2026_11_26_000006_add_moderation_callback_reference.rs" => callback_reference_migration,
 );
 
 impl ModerationServiceProvider {

@@ -184,7 +184,7 @@ fn job_fields<'a>(
     ])
 }
 
-fn media_id(value: &str) -> bool {
+pub(crate) fn media_id(value: &str) -> bool {
     value.strip_prefix("med_").is_some_and(|token| {
         !token.is_empty() && token.bytes().all(|byte| byte.is_ascii_alphanumeric())
     })

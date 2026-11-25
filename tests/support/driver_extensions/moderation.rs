@@ -770,6 +770,7 @@ fn render_review(review: VideoReview) -> Value {
         "version":review.version(), "state":format!("{:?}",review.state()), "submission":submission,
         "query_attempts":review.query_attempts(), "query_failure":review.query_failure(),
         "next_query_at":review.next_query_at(), "assessment":assessment, "decision":review.decision(),
+        "callback_receipt":review.confirmation_callback_id(),
     })
 }
 
