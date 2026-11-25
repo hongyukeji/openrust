@@ -18,6 +18,9 @@ mod extensions;
 mod recovery;
 #[path = "../database/migrations/2026_11_25_000000_extend_webhook_deliveries_for_recovery.rs"]
 mod recovery_migration;
+mod replay;
+#[path = "../database/migrations/2026_11_25_000000_extend_webhook_deliveries_for_replay.rs"]
+mod replay_migration;
 mod signer;
 mod snapshot;
 mod webhook_call;
@@ -34,6 +37,9 @@ pub use dispatch::{QueuedDelivery, SynchronousDelivery};
 pub use error::{Error, Result};
 pub use extensions::{register_backoff_strategy, register_call_webhook_job, register_signer};
 pub use recovery::RecoveryReport;
+pub use replay::{
+    ReplayDelivery, ReplayLimits, ReplayPhase, ReplayPolicy, ReplayRequest, register_replay_policy,
+};
 pub use signer::{DefaultSigner, Signer, SigningContext, StandardWebhookSigner};
 pub use webhook_call::{PreparedWebhook, WebhookCall};
 
@@ -82,6 +88,10 @@ impl WebhookServerServiceProvider {
             MigrationEntry::new(
                 "vendor/openrust/webhook-server/database/migrations/2026_11_25_000000_extend_webhook_deliveries_for_recovery.rs",
                 &recovery_migration::MIGRATION,
+            ),
+            MigrationEntry::new(
+                "vendor/openrust/webhook-server/database/migrations/2026_11_25_000000_extend_webhook_deliveries_for_replay.rs",
+                &replay_migration::MIGRATION,
             ),
         ];
         ENTRIES

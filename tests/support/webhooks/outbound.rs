@@ -24,12 +24,16 @@ use openrust_webhook_server::{
         WebhookCallFailedEvent, WebhookCallSucceededEvent,
     },
     register_backoff_strategy, register_call_webhook_job, register_delivery_policy,
+    register_replay_policy,
 };
+use openrust_webhook_server::{ReplayLimits, ReplayPhase, ReplayPolicy, ReplayRequest};
 use serde_json::json;
 
 const SCOPE: &str = "webhook-outbound-test";
 const REFERENCE: &str = "fixture-outbound-ref";
 const SECRET: &str = "outbound-isolated-test-key";
+const ROTATED: &str = "outbound-isolated-rotated-key";
+const ROTATED_REFERENCE: &str = "fixture-rotated-ref";
 
 struct FixturePolicy;
 impl DeliveryPolicy for FixturePolicy {
@@ -38,19 +42,53 @@ impl DeliveryPolicy for FixturePolicy {
         context: DeliveryContext<'a>,
     ) -> HttpFuture<'a, Result<Option<DeliveryPermission>>> {
         Box::pin(async move {
-            if context.scope != SCOPE
-                || context.credential != Some(REFERENCE)
-                || std::env::var_os("FIXTURE_SEND_REVOKED").is_some()
-            {
+            if context.scope != SCOPE || std::env::var_os("FIXTURE_SEND_REVOKED").is_some() {
                 return Ok(None);
             }
+            let secret = match context.credential {
+                Some(REFERENCE) => SECRET,
+                Some(ROTATED_REFERENCE)
+                    if std::env::var_os("FIXTURE_REPLAY_REVOKE_CREDENTIAL").is_none() =>
+                {
+                    ROTATED
+                }
+                _ => return Ok(None),
+            };
             let (url, policy) = target()?;
             if context.url != url {
                 return Ok(None);
             }
             Ok(Some(
-                DeliveryPermission::new(policy).with_secret(SECRET.to_owned()),
+                DeliveryPermission::new(policy).with_secret(secret.to_owned()),
             ))
+        })
+    }
+}
+
+struct FixtureReplayPolicy;
+
+impl ReplayPolicy for FixtureReplayPolicy {
+    fn authorize<'a>(
+        &'a self,
+        request: ReplayRequest<'a>,
+    ) -> HttpFuture<'a, Result<Option<ReplayLimits>>> {
+        Box::pin(async move {
+            let allowed = request.scope == SCOPE
+                && request.original_credential == Some(REFERENCE)
+                && matches!(request.actor, "fixture-operator" | "fixture-supervisor")
+                && request.reason.starts_with("test-")
+                && std::env::var_os("FIXTURE_REPLAY_FORBIDDEN").is_none()
+                && (request.phase == ReplayPhase::Attempt
+                    || std::env::var_os("FIXTURE_REPLAY_NO_ADMISSION").is_none());
+            Ok(allowed.then(|| ReplayLimits {
+                max_generations: 2,
+                max_attempts: 1,
+                lifetime_seconds: 60,
+                allow_succeeded: request.actor == "fixture-supervisor",
+                credential_reference: std::env::var_os("FIXTURE_REPLAY_KEEP_ORIGINAL")
+                    .is_none()
+                    .then(|| ROTATED_REFERENCE.into()),
+            }))
         })
     }
 }
@@ -196,6 +234,11 @@ pub(super) async fn register(app: &Application) -> ProviderResult {
     if std::env::var_os("FIXTURE_SEND_TARGET").is_some() {
         let policy = Arc::new(FixturePolicy);
         register_delivery_policy(app.container(), policy.clone())?;
+        if std::env::var_os("FIXTURE_SEND_REPLAY").is_some()
+            && std::env::var_os("FIXTURE_REPLAY_UNREGISTERED").is_none()
+        {
+            register_replay_policy(app.container(), Arc::new(FixtureReplayPolicy))?;
+        }
         register_backoff_strategy(app.container(), "fixture-rapid", Arc::new(FixtureBackoff))?;
         let manager = app.make::<DatabaseManager>().await?;
         let queue = app.make::<QueueManager>().await?;
@@ -255,7 +298,7 @@ pub(super) fn submit(
             ))
             .on_queue(Some("webhook-outgoing".into()))
             .timeout_in_seconds(if mode == "timeout" { 1 } else { 4 })
-            .maximum_tries(2);
+            .maximum_tries(if mode == "fail-once" { 1 } else { 2 });
         if mode == "inline" {
             call = call.use_secret(SECRET);
         }

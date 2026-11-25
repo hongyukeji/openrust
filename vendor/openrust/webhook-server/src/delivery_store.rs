@@ -9,10 +9,11 @@ use openrust::{
 };
 use std::fmt::Write as _;
 
-use crate::{Error, PreparedWebhook, Result, snapshot::Snapshot};
+use crate::{Error, PreparedWebhook, Result, replay::ReplayRecord, snapshot::Snapshot};
 
 const DELIVERIES: &str = "webhook_deliveries";
 const ATTEMPTS: &str = "webhook_delivery_attempts";
+const REPLAYS: &str = "webhook_delivery_replays";
 const WAKE_COOLDOWN_SECONDS: u32 = 60;
 
 pub(crate) enum WakeClaim {
@@ -143,25 +144,8 @@ impl DeliveryStore {
             return Err(Error::InvalidConfig("delivery.lifetime"));
         }
         let snapshot = webhook.freeze(lifetime)?;
-        let bytes = snapshot.encode()?;
-        let fingerprint = hash(bytes.as_bytes());
         let id = hash(format!("{}:{key}", self.scope_key).as_bytes());
-        let now = self.time_in(tx).await?;
-        tx.table(DELIVERIES)
-            .insert_or_ignore(&[[
-                ("id".into(), id.as_str().into()),
-                ("scope_key".into(), self.scope_key.as_str().into()),
-                ("snapshot".into(), bytes.into()),
-                ("digest".into(), fingerprint.as_str().into()),
-                ("state".into(), "pending".into()),
-                ("maximum_tries".into(), i64::from(snapshot.tries).into()),
-                ("timeout_seconds".into(), i64::from(snapshot.timeout).into()),
-                ("available_at".into(), now.into()),
-                ("deadline".into(), (now + i64::from(lifetime)).into()),
-            ]
-            .into_iter()
-            .collect()])
-            .await?;
+        let (_, fingerprint) = self.insert_delivery(tx, &id, &snapshot).await?;
         let row = self
             .owned_row(tx.table(DELIVERIES), &id)
             .select(["digest"])
@@ -172,6 +156,161 @@ impl DeliveryStore {
             return Err(Error::IdempotencyConflict);
         }
         Ok(id)
+    }
+
+    async fn insert_delivery(
+        &self,
+        tx: &mut Transaction,
+        id: &str,
+        snapshot: &Snapshot,
+    ) -> Result<(u64, String)> {
+        let bytes = snapshot.encode()?;
+        let fingerprint = hash(bytes.as_bytes());
+        let now = self.time_in(tx).await?;
+        let inserted = tx
+            .table(DELIVERIES)
+            .insert_or_ignore(&[[
+                ("id".into(), id.into()),
+                ("scope_key".into(), self.scope_key.as_str().into()),
+                ("snapshot".into(), bytes.into()),
+                ("digest".into(), fingerprint.as_str().into()),
+                ("state".into(), "pending".into()),
+                ("maximum_tries".into(), i64::from(snapshot.tries).into()),
+                ("timeout_seconds".into(), i64::from(snapshot.timeout).into()),
+                ("available_at".into(), now.into()),
+                (
+                    "deadline".into(),
+                    (now + i64::from(snapshot.lifetime)).into(),
+                ),
+            ]
+            .into_iter()
+            .collect()])
+            .await?;
+        Ok((inserted, fingerprint))
+    }
+
+    pub(crate) async fn replay_source(&self, id: &str) -> Result<(Snapshot, String)> {
+        check_id(id)?;
+        let row = self
+            .owned_row(self.connection.table(DELIVERIES), id)
+            .use_write_pdo()
+            .select(["state", "snapshot", "digest"])
+            .first()
+            .await?
+            .ok_or(Error::ReplayUnavailable)?;
+        let snapshot = decode(&row)?;
+        if snapshot.replay {
+            return Err(Error::ReplayUnavailable);
+        }
+        Ok((snapshot, text(&row, "state")?.to_owned()))
+    }
+
+    pub(crate) async fn replay_generation(&self, original_id: &str) -> Result<u32> {
+        let previous = self
+            .connection
+            .table(REPLAYS)
+            .r#where("scope_key", "=", self.scope_key.as_str())
+            .r#where("original_id", "=", original_id)
+            .select(["delivery_id", "generation"])
+            .use_write_pdo()
+            .order_by("generation", "desc")
+            .first()
+            .await?;
+        let Some(previous) = previous else {
+            return Ok(1);
+        };
+        let delivery = text(&previous, "delivery_id")?;
+        let state = self
+            .owned_row(self.connection.table(DELIVERIES), delivery)
+            .use_write_pdo()
+            .select(["state"])
+            .first()
+            .await?
+            .ok_or(Error::InvalidRecord)?;
+        if !matches!(
+            text(&state, "state")?,
+            "failed" | "expired" | "succeeded" | "cancelled"
+        ) {
+            return Err(Error::ReplayUnavailable);
+        }
+        let generation = number(&previous, "generation")?;
+        if !(1..10).contains(&generation) {
+            return Err(Error::ReplayUnavailable);
+        }
+        u32::try_from(generation + 1).map_err(|_| Error::InvalidRecord)
+    }
+
+    pub(crate) async fn persist_replay(
+        &self,
+        id: &str,
+        record: &ReplayRecord,
+        snapshot: &Snapshot,
+    ) -> Result<()> {
+        let mut tx = self.connection.begin_transaction().await?;
+        let result = async {
+            let (inserted, _) = self.insert_delivery(&mut tx, id, snapshot).await?;
+            if inserted != 1 {
+                return Err(Error::ReplayConflict);
+            }
+            let now = self.time_in(&mut tx).await?;
+            tx.table(REPLAYS)
+                .insert(&[[
+                    ("delivery_id".into(), id.into()),
+                    ("original_id".into(), record.original_id.as_str().into()),
+                    ("scope_key".into(), self.scope_key.as_str().into()),
+                    ("generation".into(), i64::from(record.generation).into()),
+                    ("actor".into(), record.actor.as_str().into()),
+                    ("reason".into(), record.reason.as_str().into()),
+                    ("source_state".into(), record.source_state.as_str().into()),
+                    (
+                        "original_credential".into(),
+                        record
+                            .original_credential
+                            .as_deref()
+                            .map_or(Value::Null, Into::into),
+                    ),
+                    (
+                        "replay_credential".into(),
+                        snapshot
+                            .credential
+                            .as_deref()
+                            .map_or(Value::Null, Into::into),
+                    ),
+                    ("created_at".into(), now.into()),
+                ]
+                .into_iter()
+                .collect()])
+                .await?;
+            Ok(())
+        }
+        .await;
+        settle(tx, result).await
+    }
+
+    pub(crate) async fn replay_record(&self, id: &str) -> Result<ReplayRecord> {
+        let row = self
+            .connection
+            .table(REPLAYS)
+            .r#where("delivery_id", "=", id)
+            .r#where("scope_key", "=", self.scope_key.as_str())
+            .use_write_pdo()
+            .first()
+            .await?
+            .ok_or(Error::ReplayDenied)?;
+        let original_credential = match row.get("original_credential") {
+            Some(Value::Text(value)) => Some(value.clone()),
+            Some(Value::Null) => None,
+            _ => return Err(Error::InvalidRecord),
+        };
+        Ok(ReplayRecord {
+            original_id: text(&row, "original_id")?.into(),
+            generation: u32::try_from(number(&row, "generation")?)
+                .map_err(|_| Error::InvalidRecord)?,
+            actor: text(&row, "actor")?.into(),
+            reason: text(&row, "reason")?.into(),
+            source_state: text(&row, "source_state")?.into(),
+            original_credential,
+        })
     }
 
     pub(crate) async fn snapshot(&self, id: &str) -> Result<Option<Snapshot>> {
@@ -540,6 +679,10 @@ fn text<'a>(row: &'a Row, key: &str) -> Result<&'a str> {
         Some(Value::Text(value)) => Ok(value),
         _ => Err(Error::InvalidRecord),
     }
+}
+
+pub(crate) fn replay_id(original: &str, generation: u32) -> String {
+    hash(format!("outbound-replay:{original}:{generation}").as_bytes())
 }
 
 fn hash(value: &[u8]) -> String {

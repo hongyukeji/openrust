@@ -466,6 +466,7 @@ impl PreparedWebhook {
             tags: self.config.tags.clone(),
             meta: self.meta.clone(),
             lifetime,
+            replay: false,
         })
     }
 

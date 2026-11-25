@@ -23,7 +23,8 @@ use crate::{
     DeliveryProgress, DeliveryStore, Error, Result, TargetPolicy, WebhookJobAttempt,
     delivery_store::{AttemptResult, Claim, RetryAfter},
     events::{self, WebhookAttempt, WebhookCallEvent},
-    extensions,
+    extensions, replay,
+    snapshot::Snapshot,
 };
 
 /// 每次领取后交给应用重新授权的投递信息。
@@ -175,8 +176,50 @@ impl DeliveryService {
         Ok((progress, throw))
     }
 
+    pub(crate) async fn check_replay_destination(
+        &self,
+        id: &str,
+        snapshot: &Snapshot,
+    ) -> Result<()> {
+        let permission = self
+            .policy
+            .authorize(DeliveryContext {
+                scope: self.store.scope(),
+                delivery_id: id,
+                message_id: &snapshot.uuid,
+                url: &snapshot.url,
+                credential: snapshot.credential.as_deref(),
+            })
+            .await
+            .map_err(|_| Error::ReplayDenied)?
+            .ok_or(Error::ReplayDenied)?;
+        let url =
+            crate::destination::parse_target(&snapshot.url).map_err(|_| Error::ReplayDenied)?;
+        permission
+            .target
+            .validate_target(&url)
+            .map_err(|_| Error::ReplayDenied)?;
+        if snapshot.credential.is_some() && permission.secret.is_none() {
+            return Err(Error::ReplayDenied);
+        }
+        Ok(())
+    }
+
     async fn attempt(&self, id: &str, claim: &Claim, deadline: Instant) -> TransportAttempt {
         let snapshot = &claim.snapshot;
+        if snapshot.replay {
+            let record = match self.store.replay_record(id).await {
+                Ok(record) => record,
+                Err(Error::Database) => return AttemptResult::transient("unresolved").into(),
+                Err(_) => return AttemptResult::failure("rejected").into(),
+            };
+            if replay::authorize_attempt(self.store.scope(), &record, snapshot)
+                .await
+                .is_err()
+            {
+                return AttemptResult::failure("rejected").into();
+            }
+        }
         let permission = self
             .policy
             .authorize(DeliveryContext {

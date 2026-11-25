@@ -2,7 +2,7 @@
 
 ## 支援狀態 {#support-status}
 
-可選套件 `openrust-webhook-server` 提供請求快照、目的地驗證、具名簽名器、退避策略及持久投遞嘗試。重放與端點管理仍在開發。
+可選套件 `openrust-webhook-server` 提供請求快照、目的地驗證、具名簽名器、退避策略及持久投遞嘗試。端點管理仍在開發。
 
 ## 啟用與設定 {#configuration}
 
@@ -98,6 +98,13 @@ pub fn register_delivery_job(
     )?;
     service.register_worker(queue, "stop-on-gone")
 }
+
+pub fn register_application_replay_policy(
+    container: &openrust::container::Container,
+    policy: std::sync::Arc<dyn openrust_webhook_server::ReplayPolicy>,
+) -> Result<()> {
+    openrust_webhook_server::register_replay_policy(container, policy)
+}
 ```
 
 
@@ -143,6 +150,16 @@ Builder 的 `dispatch`、`dispatch_if` 和 `dispatch_unless` 登記投遞並入�
 實作 `CallWebhookJob`，在生產者、Scheduler 和 Worker 用 `register_call_webhook_job` 與 `DeliveryService::register_worker` 註冊同一名稱，再用 `.use_job("stop-on-gone")` 選用。`should_be_removed_from_queue` 可停止原投遞預算允許的重試。`failed` 在一次嘗試提交最終失敗並派發結果事件後執行。兩個鉤子都應快速同步回傳。
 
 鉤子可以讀取原始本文、URL、標籤、中繼資料及有大小上限的原生回應。傳輸、憑據解析、嘗試記錄與持久狀態由套件統一管理。已保存的自訂投遞在執行時要求存在同名鉤子，缺失時撤銷領取且不扣減嘗試額度。啟用這類投遞前，在所有消費者上完成註冊。
+
+### 人工重放投遞 {#replay}
+
+使用重放前，在應用中註冊 `ReplayPolicy`。核實實際操作者身分及其對指定範圍和端點的權限。應用可用 `ReplayPhase::Request` 實施操作限流，並在 `ReplayPhase::Attempt` 重新核對執行許可。
+
+重放登記一筆帶有稽核記錄及獨立嘗試額度和截止時間的投遞。它沿用原訊息 ID、本文及目的地，可依授權改用具名簽名憑據。調度器透過同一 Worker 流程發送。預設只重放最終失敗的投遞。已成功的原投遞須明確傳入 `--include-succeeded`，並取得更高權限。命令報告兩筆投遞的 ID 和新代次。
+
+```sh
+./artisan webhook-server:replay <delivery-id> --scope=billing --actor=operator-42 --reason="confirmed receiver recovery"
+```
 
 ## 自訂簽名與退避 {#customization}
 

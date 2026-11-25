@@ -2,7 +2,7 @@
 
 ## Support status {#support-status}
 
-The optional `openrust-webhook-server` package provides request preparation, target validation, named signers, backoff strategies and durable delivery attempts. Replay and endpoint management are still in development.
+The optional `openrust-webhook-server` package provides request preparation, target validation, named signers, backoff strategies and durable delivery attempts. Endpoint management is still in development.
 
 ## Enable and configure {#configuration}
 
@@ -98,6 +98,13 @@ pub fn register_delivery_job(
     )?;
     service.register_worker(queue, "stop-on-gone")
 }
+
+pub fn register_application_replay_policy(
+    container: &openrust::container::Container,
+    policy: std::sync::Arc<dyn openrust_webhook_server::ReplayPolicy>,
+) -> Result<()> {
+    openrust_webhook_server::register_replay_policy(container, policy)
+}
 ```
 
 
@@ -143,6 +150,16 @@ Recovery reserves a 60-second wake-up window before pushing to the queue. A late
 Implement `CallWebhookJob` and register the same name with `register_call_webhook_job` and `DeliveryService::register_worker` on the producer, Scheduler and Workers. Select it with `.use_job("stop-on-gone")`. The hook `should_be_removed_from_queue` can stop a retry eligible under the original delivery budget. `failed` observes committed terminal failures from an attempt after the result events. Keep both hooks short and synchronous.
 
 The hook can inspect the original body, URL, tags, metadata and the bounded native response. Transport, credential resolution, attempts and persistence remain managed by the package. Saved custom selections require the named hook at runtime. A missing hook aborts the claim without consuming an attempt. Enable the registration on all consumers before submitting jobs that use it.
+
+### Replay a delivery {#replay}
+
+Register an application `ReplayPolicy` before using replay. Validate the actual operator identity and its permission to act on the requested scope and endpoint. Use `ReplayPhase::Request` to apply operator admission limits and `ReplayPhase::Attempt` to recheck authorization during execution.
+
+Replay creates an audited delivery with its own attempts and deadline. It reuses the original message ID, body and destination, and the policy can authorize a different named signing credential. The scheduler sends it through the same Worker pipeline. The default source is a terminal failure. A previously successful source also requires `--include-succeeded` and explicit policy permission. The command reports both delivery IDs and the new generation.
+
+```sh
+./artisan webhook-server:replay <delivery-id> --scope=billing --actor=operator-42 --reason="confirmed receiver recovery"
+```
 
 ## Custom signers and retry timing {#customization}
 

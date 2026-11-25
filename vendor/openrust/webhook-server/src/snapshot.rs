@@ -40,6 +40,8 @@ pub(crate) struct Snapshot {
     pub tags: Vec<String>,
     pub meta: serde_json::Value,
     pub lifetime: u32,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub replay: bool,
 }
 
 impl Snapshot {

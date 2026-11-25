@@ -22,6 +22,7 @@ helpers = routes["helpers"]
 http_helpers = routes["http_helpers"]
 SCOPE = "webhook-outbound-test"
 SECRET = b"outbound-isolated-test-key"
+ROTATED = b"outbound-isolated-rotated-key"
 BODY = b"\x00sealed\x80\xff"
 
 
@@ -45,6 +46,8 @@ class Receiver(http.server.BaseHTTPRequestHandler):
         if (key in ("retry", "retry-date") and attempt == 1) or key in ("exhausted", "excluded", "sync-throws", "worker-throws"):
             status = 503
         if key.startswith("custom-stop") or key == "custom-continue" and attempt == 1:
+            status = 503
+        if key.startswith("replay-failed-") and attempt == 1:
             status = 503
         if key == "redirect":
             status = 302
@@ -116,21 +119,118 @@ def exercise(binary, env, log, receiver, driver, sql):
             driver, sql, f"UPDATE webhook_deliveries SET {values} WHERE id='{identifier}'"
         )
 
-    def captured(key, count=1):
+    def captured(key, count=1, rotated=()):
         with receiver.mutex:
             hits = list(receiver.received.get(key, []))
         assert len(hits) == count, (key, len(hits), count)
-        for path, headers, body in hits:
+        for index, (path, headers, body) in enumerate(hits):
             assert path == "/receiver"
             assert headers["Host"] == f"outgoing-fixture.invalid:{receiver.server_port}"
             assert headers["webhook-id"] == key
             assert int(headers["Timestamp"]) > 0
             assert body == BODY
             assert hmac.compare_digest(
-                headers["Signature"], hmac.new(SECRET, BODY, hashlib.sha256).hexdigest()
+                headers["Signature"], hmac.new(ROTATED if index in rotated else SECRET, BODY, hashlib.sha256).hexdigest()
             )
 
     worker = ["queue:work", env.get("FIXTURE_SEND_QUEUE", "database"), "--queue=webhook-outgoing", "--once", "--tries=7"]
+
+    if env.get("FIXTURE_SEND_REPLAY"):
+        def replay(identifier, *options, scope=SCOPE, actor="fixture-operator", current=env, success=True):
+            tokens = (identifier, "--scope", scope, "--actor", actor, "--reason", "test-replay", *options)
+            output = command("webhook-server:replay", *tokens, current=current, success=success)
+            if success:
+                return json.loads(re.search(r"\{[^\n]+\}", output)[0])
+
+        def failed_source(key):
+            identifier = submit(key, "fail-once")
+            assert '"failed"' in send(identifier)
+            assert attempts(identifier) == "1\thttp_failure\t503"
+            captured(key)
+            return identifier
+
+        source = failed_source("replay-failed-main")
+        replay(source, scope="wrong-scope", success=False)
+        replay(source, actor="untrusted", success=False)
+        replay(source, current=env | {"FIXTURE_REPLAY_UNREGISTERED": "1"}, success=False)
+        replay(source, current=env | {"FIXTURE_SEND_REVOKED": "1"}, success=False)
+        replay(source, current=env | {"FIXTURE_REPLAY_NO_ADMISSION": "1"}, success=False)
+        assert sql("SELECT COUNT(*) FROM webhook_delivery_replays") == "0"
+
+        work = [str(binary), "artisan", "webhook-server:replay", source,
+                f"--scope={SCOPE}", "--actor=fixture-operator", "--reason=test-concurrent"]
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            tasks = [executor.submit(subprocess.run, work, env=env, capture_output=True,
+                                     text=True, timeout=20) for _ in range(2)]
+            concurrent_results = [task.result() for task in tasks]
+        assert sum(result.returncode == 0 for result in concurrent_results) == 1, concurrent_results
+        response = next(result.stdout for result in concurrent_results if result.returncode == 0)
+        first = json.loads(re.search(r"\{[^\n]+\}", response)[0])
+        assert first["original_delivery_id"] == source and first["generation"] == 1
+        first_id = first["delivery_id"]
+        assert first_id != source and read(first_id) == "pending\t0"
+        assert sql("SELECT actor,reason,original_credential,replay_credential FROM webhook_delivery_replays") == (
+            "fixture-operator\ttest-concurrent\tfixture-outbound-ref\tfixture-rotated-ref"
+        )
+        replay(source, success=False)
+        replay(first_id, success=False)
+        assert attempts(source) == "1\thttp_failure\t503"
+        captured("replay-failed-main")
+        command("webhook-server:recover", "--scope", SCOPE)
+        command(*worker, current=env | {"FIXTURE_REPLAY_NO_ADMISSION": "1"})
+        assert read(first_id) == "succeeded\t1"
+        assert read(source) == "failed\t1"
+        captured("replay-failed-main", 2, rotated=(1,))
+
+        second = replay(source)
+        assert second["generation"] == 2 and second["delivery_id"] != first_id
+        second_id = second["delivery_id"]
+        assert '"failed"' in send(second_id, current=env | {"FIXTURE_REPLAY_FORBIDDEN": "1"})
+        assert attempts(second_id) == "1\trejected\t0"
+        replay(source, success=False)
+        captured("replay-failed-main", 2, rotated=(1,))
+
+        revoked = failed_source("replay-failed-credential")
+        revoked_child = replay(revoked)["delivery_id"]
+        assert '"failed"' in send(revoked_child, current=env | {"FIXTURE_REPLAY_REVOKE_CREDENTIAL": "1"})
+        assert attempts(revoked_child) == "1\trejected\t0"
+        captured("replay-failed-credential")
+
+        changed = failed_source("replay-failed-policy-change")
+        changed_child = replay(changed)["delivery_id"]
+        assert '"failed"' in send(changed_child, current=env | {"FIXTURE_REPLAY_KEEP_ORIGINAL": "1"})
+        assert attempts(changed_child) == "1\trejected\t0"
+        captured("replay-failed-policy-change")
+
+        expired = failed_source("replay-failed-expiry")
+        expired_child = replay(expired)["delivery_id"]
+        assert sql(f"SELECT maximum_tries, deadline - available_at FROM webhook_deliveries WHERE id='{expired_child}'") == "1\t60"
+        update(expired_child, "deadline=0")
+        send(expired_child)
+        assert read(expired_child) == "expired\t0"
+        captured("replay-failed-expiry")
+
+        success_source = submit("replay-success")
+        replay(success_source, "--include-succeeded", actor="fixture-supervisor", success=False)
+        assert '"succeeded"' in send(success_source)
+        replay(success_source, actor="fixture-supervisor", success=False)
+        replay(success_source, "--include-succeeded", success=False)
+        elevated = replay(success_source, "--include-succeeded", actor="fixture-supervisor")["delivery_id"]
+        assert '"succeeded"' in send(elevated)
+        assert read(success_source) == "succeeded\t1"
+        captured("replay-success", 2, rotated=(1,))
+
+        missing = failed_source("replay-failed-cleared")
+        update(missing, "snapshot='{}'")
+        replay(missing, success=False)
+        captured("replay-failed-cleared")
+
+        migration = ("--path=vendor/openrust/webhook-server/database/migrations/"
+                     "2026_11_25_000000_extend_webhook_deliveries_for_replay.rs")
+        command("migrate:rollback", migration, "--force", success=False)
+        assert sql("SELECT COUNT(*) FROM webhook_delivery_replays") == "6"
+        print(f"{driver}: 人工重放授权、并发代次、凭据轮换、重试预算与原历史保护通过", flush=True)
+        return
 
     if env.get("FIXTURE_SEND_SCHEDULE"):
         def recover(*options, scope=SCOPE, current=env, success=True):
@@ -616,7 +716,7 @@ def main():
                     raise
                 finally:
                     http_helpers["stop"](app)
-        if not os.environ.get("FIXTURE_SEND_SCHEDULE"):
+        if not (os.environ.get("FIXTURE_SEND_SCHEDULE") or os.environ.get("FIXTURE_SEND_REPLAY")):
             print(f"{driver}: HTTP 签名和字节、事务回滚、重复领取、重试预算、撤销、超时、崩溃恢复、Builder 分支、投递事件与自定义 Job 通过")
     finally:
         receiver.shutdown()

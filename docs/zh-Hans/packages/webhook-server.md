@@ -2,7 +2,7 @@
 
 ## 支持状态 {#support-status}
 
-可选包 `openrust-webhook-server` 提供请求快照、目的地校验、具名签名器、退避策略及持久投递尝试。重放与端点管理仍在开发。
+可选包 `openrust-webhook-server` 提供请求快照、目的地校验、具名签名器、退避策略及持久投递尝试。端点管理仍在开发。
 
 ## 启用与配置 {#configuration}
 
@@ -98,6 +98,13 @@ pub fn register_delivery_job(
     )?;
     service.register_worker(queue, "stop-on-gone")
 }
+
+pub fn register_application_replay_policy(
+    container: &openrust::container::Container,
+    policy: std::sync::Arc<dyn openrust_webhook_server::ReplayPolicy>,
+) -> Result<()> {
+    openrust_webhook_server::register_replay_policy(container, policy)
+}
 ```
 
 
@@ -143,6 +150,16 @@ Builder 的 `dispatch`、`dispatch_if` 和 `dispatch_unless` 登记投递并入�
 实现 `CallWebhookJob`，在生产者、Scheduler 和 Worker 用 `register_call_webhook_job` 与 `DeliveryService::register_worker` 注册同一名称，再用 `.use_job("stop-on-gone")` 选用。`should_be_removed_from_queue` 可停止原投递预算允许的重试。`failed` 在一次尝试提交最终失败并派发结果事件后运行。两个钩子都应快速同步返回。
 
 钩子可以读取原始正文、URL、标签、元数据及有大小上限的原生响应。传输、凭据解析、尝试记录及持久状态由包统一管理。已保存的自定义投递在运行时要求存在同名钩子，缺失时撤销领取且不扣减尝试额度。启用此类投递前，在所有消费者上完成注册。
+
+### 人工重放投递 {#replay}
+
+使用重放前，在应用中注册 `ReplayPolicy`。核实实际操作者身份及其对指定范围和端点的权限。应用可用 `ReplayPhase::Request` 实施操作限流，并在 `ReplayPhase::Attempt` 复核执行许可。
+
+重放登记一条带审计记录及独立尝试额度和截止时间的投递。它沿用原消息 ID、正文与目的地，可按授权改用具名签名凭据。调度器通过同一 Worker 流程发送。默认只重放最终失败的投递。已成功的原投递须显式传入 `--include-succeeded`，并取得更高权限。命令报告两条投递的 ID 和新代次。
+
+```sh
+./artisan webhook-server:replay <delivery-id> --scope=billing --actor=operator-42 --reason="confirmed receiver recovery"
+```
 
 ## 自定义签名与退避 {#customization}
 

@@ -44,7 +44,20 @@ pub(super) fn register() -> Result<(), ConsoleError> {
                 .default_value("100")
                 .value_parser(value_parser!(u32).range(1..=500)),
         );
-    Artisan::add(Box::new(Recover(CommandDefinition::new(recovery))))
+    Artisan::add(Box::new(Recover(CommandDefinition::new(recovery))))?;
+    let replay = Syntax::new("webhook-server:replay")
+        .about("登记有独立预算且可审计的 Webhook 人工重放")
+        .arg(Arg::new("id").required(true))
+        .arg(Arg::new("scope").long("scope").required(true))
+        .arg(Arg::new("database").long("database"))
+        .arg(Arg::new("actor").long("actor").required(true))
+        .arg(Arg::new("reason").long("reason").required(true))
+        .arg(
+            Arg::new("include-succeeded")
+                .long("include-succeeded")
+                .action(ArgAction::SetTrue),
+        );
+    Artisan::add(Box::new(Replay(CommandDefinition::new(replay))))
 }
 
 struct Send(CommandDefinition);
@@ -131,6 +144,37 @@ impl Command for Recover {
                 .map_err(ConsoleError::from_source)?;
             output.info(&serde_json::to_string(&report).map_err(ConsoleError::from_source)?);
             Ok(i32::from(report.failed != 0))
+        })
+    }
+}
+
+struct Replay(CommandDefinition);
+
+impl Command for Replay {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+
+    fn handle<'a>(
+        &'a self,
+        app: &'a Application,
+        input: &'a Input,
+        output: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            let service = delivery_service(app, input).await?;
+            let args = input.matches();
+            let replay = service
+                .replay(
+                    args.get_one::<String>("id").expect("必填投递 ID"),
+                    args.get_one::<String>("actor").expect("必填操作者"),
+                    args.get_one::<String>("reason").expect("必填操作原因"),
+                    args.get_flag("include-succeeded"),
+                )
+                .await
+                .map_err(ConsoleError::from_source)?;
+            output.info(&serde_json::to_string(&replay).map_err(ConsoleError::from_source)?);
+            Ok(0)
         })
     }
 }
