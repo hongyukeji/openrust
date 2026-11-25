@@ -43,7 +43,7 @@ GET/HEAD 路由只返回视图时，使用 `Route::view`。前两个参数是 UR
 ```rust
 use openrust::{routing::ViewRouteOptions, support::facades::Route, view::ViewData};
 
-Route::view("/welcome", "welcome", Default::default())?;
+Route::view("/preview", "welcome", Default::default())?;
 Route::view("/hello/{name}", "welcome", ViewRouteOptions {
     data: ViewData::from_iter([("name".into(), "Taylor".into())]),
     ..Default::default()

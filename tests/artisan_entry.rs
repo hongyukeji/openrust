@@ -98,7 +98,7 @@ fn wait_for_homepage(process: &mut ServeProcess, port: u16, name: &str) {
             let mut response = String::new();
             if write!(
                 stream,
-                "GET /welcome HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
+                "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
             )
             .is_ok()
                 && stream.read_to_string(&mut response).is_ok()

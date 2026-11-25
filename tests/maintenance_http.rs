@@ -154,10 +154,7 @@ fn artisan_maintenance_changes_live_http_and_isolates_application_roots() {
     assert_eq!(marker["except"], serde_json::json!(["up"]));
     assert_eq!(get("/up", "text/html", None).status(), 200);
     assert_eq!(get("/", "text/html", None).status(), 503);
-    assert_eq!(
-        other.request("GET", "/welcome", "text/html", None).status(),
-        200
-    );
+    assert_eq!(other.request("GET", "/", "text/html", None).status(), 200);
 
     let failed = artisan(root, &["down", "--render=missing-view"]);
     assert!(!failed.status.success());
@@ -228,10 +225,7 @@ fn artisan_maintenance_changes_live_http_and_isolates_application_roots() {
     assert_eq!(bypass.header("cache-control"), Some("no-store, private"));
     let cookie = cookie.split(';').next().unwrap();
     assert!(cookie.starts_with("laravel_maintenance="));
-    assert_eq!(
-        get("/welcome", "application/json", Some(cookie)).status(),
-        200
-    );
+    assert_eq!(get("/", "application/json", Some(cookie)).status(), 200);
     assert_eq!(
         get("/", "application/json", Some("laravel_maintenance=invalid")).status(),
         502
@@ -253,7 +247,7 @@ fn artisan_maintenance_changes_live_http_and_isolates_application_roots() {
         Some("Mon, 05 Jun 2028 14:30:00 GMT")
     );
     assert!(success(root, &["up"]).contains("now live"));
-    assert_eq!(get("/welcome", "text/html", None).status(), 200);
+    assert_eq!(get("/", "text/html", None).status(), 200);
     assert!(success(root, &["up"]).contains("already up"));
 }
 

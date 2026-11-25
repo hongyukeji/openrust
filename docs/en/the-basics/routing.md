@@ -43,7 +43,7 @@ Use `Route::view` when a GET/HEAD route only returns a view. The first two argum
 ```rust
 use openrust::{routing::ViewRouteOptions, support::facades::Route, view::ViewData};
 
-Route::view("/welcome", "welcome", Default::default())?;
+Route::view("/preview", "welcome", Default::default())?;
 Route::view("/hello/{name}", "welcome", ViewRouteOptions {
     data: ViewData::from_iter([("name".into(), "Taylor".into())]),
     ..Default::default()

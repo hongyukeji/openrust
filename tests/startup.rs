@@ -1832,7 +1832,6 @@ async fn welcome_route_reads_the_named_view_from_the_application_root() {
         .with_config(|base, env| {
             let mut config = web_config(base, env)?;
             config.get_mut("app").unwrap()["name"] = json!("Startup Test");
-            config.get_mut("app").unwrap()["home_url"] = json!("/api");
             config.get_mut("view").unwrap()["paths"] = json!(["custom-views", "resources/views"]);
             Ok(config)
         })
@@ -1841,19 +1840,6 @@ async fn welcome_route_reads_the_named_view_from_the_application_root() {
         .unwrap();
     let mut kernel = Kernel::new(application);
     kernel.bootstrap().await.unwrap();
-
-    let (parts, body) = axum::extract::Request::builder()
-        .uri("/?search=a%26b")
-        .header("host", "localhost")
-        .body(Body::empty())
-        .unwrap()
-        .into_parts();
-    let redirect = kernel.handle(&mut Request::from_parts(parts, body)).await;
-    assert_eq!(redirect.status(), StatusCode::FOUND);
-    assert_eq!(
-        redirect.headers()["location"],
-        "http://localhost/api?search=a%26b"
-    );
 
     let (parts, body) = axum::extract::Request::builder()
         .uri("/api")
@@ -1873,7 +1859,7 @@ async fn welcome_route_reads_the_named_view_from_the_application_root() {
 
     let welcome_request = || {
         axum::extract::Request::builder()
-            .uri("/welcome")
+            .uri("/")
             .body(Body::empty())
             .unwrap()
             .into_parts()

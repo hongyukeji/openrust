@@ -29,7 +29,7 @@ OpenRust 是一个 Rust Web 应用框架，提供完整的应用目录与统一�
 cargo run
 ```
 
-访问 <http://127.0.0.1:8000/welcome> 查看欢迎页，`/up` 用于健康检查。监听地址和端口可通过 `APP_HOST` 和 `APP_PORT` 配置。 [环境配置示例](.env.example)
+访问 <http://127.0.0.1:8000/> 查看欢迎页，`/up` 用于健康检查。监听地址和端口可通过 `APP_HOST` 和 `APP_PORT` 配置。 [环境配置示例](.env.example)
 
 ### Artisan 命令
 
