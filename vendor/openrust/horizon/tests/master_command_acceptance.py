@@ -80,7 +80,7 @@ def main():
             assert live['workers'][0]['supervisor'] == child and live['workers'][0]['queue'] == 'added', live
             assert Path(json.loads((root / 'supervisor-cwd.json').read_text())).resolve() == directory.resolve()
             assert json.loads(queue('pending', name, master=True)) == []
-            job = run(HORIZON_PROBE_DISPATCH='{}', HORIZON_PROBE_DISPATCH_UUID='1',
+            job = run(HORIZON_PROBE_DISPATCH='{"probe_output":"master-native"}', HORIZON_PROBE_DISPATCH_UUID='1',
                       HORIZON_PROBE_DISPATCH_QUEUE='added')
             completed = root / 'completed.log'
             until(lambda: completed.exists() and job in completed.read_text())
@@ -141,6 +141,9 @@ def main():
             run('artisan', 'horizon:terminate')
             stdout, stderr = master.communicate(timeout=15)
             assert master.returncode == 0, (stdout, stderr)
+            assert stdout.count('worker-out-東京-master-native') == 1, stdout
+            assert stdout.count('worker-err-master-native') == 1, stdout
+            assert 'worker-err-master-native' not in stderr, stderr
             assert statuses() == []
             print('PASS: public FIFO queue, startup flush, paused dynamic deployment, actual Worker and scoped shutdown')
         finally:

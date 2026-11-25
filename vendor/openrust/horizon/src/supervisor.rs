@@ -91,6 +91,7 @@ pub struct Supervisor {
     targets: BTreeMap<String, Vec<usize>>,
     failures: u64,
     fast_termination: bool,
+    output: Option<crate::process_output::OutputHandler>,
     last_wait_monitor: Arc<Mutex<Option<Instant>>>,
 }
 
@@ -198,6 +199,7 @@ impl Supervisor {
             targets: BTreeMap::new(),
             failures: 0,
             fast_termination: false,
+            output: None,
             last_wait_monitor: Arc::default(),
         })
     }
@@ -214,6 +216,27 @@ impl Supervisor {
     }
     pub fn name(&self) -> &str {
         &self.id
+    }
+    /// 注册受管 Worker 的 stdout 和 stderr 回调。
+    pub fn handle_output_using(
+        mut self,
+        handler: impl Fn(openrust::process::OutputStream, &[u8]) + Send + Sync + 'static,
+    ) -> Self {
+        self.output = Some(Arc::new(handler));
+        self
+    }
+    pub(crate) fn with_output_handler(
+        mut self,
+        handler: Option<crate::process_output::OutputHandler>,
+    ) -> Self {
+        self.output = handler;
+        self
+    }
+    /// 将输出片段送往已注册的回调。
+    pub fn output(&self, stream: openrust::process::OutputStream, bytes: &[u8]) {
+        if let Some(handler) = &self.output {
+            handler(stream, bytes);
+        }
     }
     pub fn paused(mut self, paused: bool) -> Self {
         self.initially_paused = paused;
@@ -626,8 +649,7 @@ impl Supervisor {
                 ("APP_BASE_PATH", self.base.as_os_str().to_owned()),
                 ("APP_ENV", self.environment.clone().into()),
             ])
-            .forever()
-            .quietly();
+            .forever();
         if let Some(ownership) = &self.ownership {
             process = process.env(ownership.environment());
         }
@@ -672,7 +694,10 @@ impl Supervisor {
                     now + Duration::from_secs(60)
                 }
             };
-            let result = self.prepare_worker(queue, options)?.start();
+            let result = crate::process_output::start(
+                self.prepare_worker(queue, options)?,
+                self.output.as_ref(),
+            );
             let worker = &mut self.pools.get_mut(queue).expect("configured pool").workers[index];
             worker.restart_again_at = Some(restart_again_at);
             worker.exit_code = None;

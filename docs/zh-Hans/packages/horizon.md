@@ -142,6 +142,8 @@ Master 名称由主机名转换出的短名和进程内固定的四字符令牌�
 
 要更换运行中 Master 的所有监督器及其 Worker，把空选项的 `RESTART` 发送到 `MasterSupervisor::command_queue_for(Some(master_name))`。`MasterSupervisor::restart().await` 按实例名称提交同一请求。Master 从暂停中恢复。默认情况下，各监督器会等待正在执行的任务完成后再更换。
 
+`horizon` 实时将受管进程的输出写到 Artisan。从应用代码运行 `MasterSupervisor` 或 `Supervisor` 时，可用 `handle_output_using` 接收直接子进程的输出。回调接收 `openrust::process::OutputStream` 和字节片段，可区分该子进程的 stdout 与 stderr。`horizon:supervisor` 会把 Worker 的两个流都写入自己的 stdout，因此 Master 收到合并后的输出。
+
 Horizon 任务 ID 标识独立的 Redis 投递，由队列推送和面板返回。`horizon:retry` 与 `horizon:forget` 使用此 ID。重试获得新 ID，原失败监控记录保留并记录重试结果。原生 `queue:retry` 和失败任务存储使用载荷 UUID，由 Horizon 内部转换；批次重试也会将这些 UUID 解析为当前失败投递。
 
 按[队列](../digging-deeper/queues.md)配置持久失败存储，重试复用原生领取与重新派发机制。`horizon:forget` 删除监控失败记录与原生失败记录，`--all` 分页处理全部 Horizon 失败记录。`horizon:clear` 清空指定队列和待处理监控记录，`horizon:purge` 处理孤立进程。通过[任务调度](../digging-deeper/scheduling.md)定期执行 `horizon:snapshot` 保存指标历史；`horizon:clear-metrics` 清理指标并保留任务记录。

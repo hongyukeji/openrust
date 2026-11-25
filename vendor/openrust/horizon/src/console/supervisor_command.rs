@@ -1,4 +1,4 @@
-use super::{error, signals};
+use super::{error, process_output::CommandOutput, signals};
 use crate::{Repository, Supervisor, SupervisorOptions};
 use clap::{Arg, ArgAction, Command as Syntax, value_parser};
 use openrust::{
@@ -173,9 +173,13 @@ impl Command for SupervisorCommand {
                 .cloned()
                 .unwrap_or_else(CancellationToken::new);
             let signals = signals().map_err(error)?;
-            let run = supervisor.run_with_status(&shutdown);
+            let child_output = CommandOutput::new(output);
+            let run = supervisor
+                .with_output_handler(child_output.handler())
+                .run_with_status(&shutdown);
             tokio::pin!(run);
             let result = tokio::select! { result=&mut run=>result, ()=signals=>{shutdown.cancel();run.await} };
+            child_output.finish(output);
             if matches!(result, Err(crate::Error::MemoryLimitExceeded)) {
                 output.error("Supervisor memory limit exceeded.");
                 return Ok(12);

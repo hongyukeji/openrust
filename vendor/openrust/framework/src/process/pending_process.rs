@@ -177,17 +177,29 @@ impl PendingProcess {
     }
 
     pub fn start(self) -> Result<InvokedProcess> {
-        self.spawn(None)
+        self.spawn(None, true)
     }
 
     pub fn start_with_output(
         self,
         callback: impl FnMut(OutputStream, &[u8]) + Send + 'static,
     ) -> Result<InvokedProcess> {
-        self.spawn(Some(Box::new(callback)))
+        self.spawn(Some(Box::new(callback)), true)
     }
 
-    fn spawn(self, callback: Option<OutputCallback>) -> Result<InvokedProcess> {
+    /// 将子进程输出送给回调，进程结果不保留输出。
+    pub fn start_with_streamed_output(
+        self,
+        callback: impl FnMut(OutputStream, &[u8]) + Send + 'static,
+    ) -> Result<InvokedProcess> {
+        self.spawn(Some(Box::new(callback)), false)
+    }
+
+    fn spawn(
+        self,
+        callback: Option<OutputCallback>,
+        retain_output: bool,
+    ) -> Result<InvokedProcess> {
         tokio::runtime::Handle::try_current().map_err(io::Error::other)?;
         if self.quiet && self.idle_timeout.is_some() {
             return Err(Error::InvalidTimeout);
@@ -196,6 +208,9 @@ impl PendingProcess {
         if self.shutdown_pipe && (!self.input.is_empty() || self.tty) {
             return Err(Error::InvalidCommand);
         }
+        let piped = !self.quiet && !self.tty;
+        let capture = piped && retain_output;
+        let callback = callback.filter(|_| piped);
         let mut native = self.command.native()?;
         if let Some(result) = self.factory.resolve_fake(|| RecordedProcess {
             command: self.command.clone(),
@@ -211,7 +226,7 @@ impl PendingProcess {
                 self.command,
                 result?,
                 callback,
-                !self.tty && !self.quiet,
+                capture,
             ));
         }
         if let Some(path) = &self.path {
@@ -225,6 +240,8 @@ impl PendingProcess {
             }
         }
         let attached = self.tty && !self.quiet;
+        #[cfg(windows)]
+        let mut streamed_pipes = None;
         let child = if attached {
             #[cfg(unix)]
             {
@@ -250,6 +267,13 @@ impl PendingProcess {
             if self.quiet {
                 native.stdout(Stdio::null()).stderr(Stdio::null());
             } else {
+                #[cfg(windows)]
+                if !retain_output {
+                    streamed_pipes = Some(super::windows_output::attach(&mut native)?);
+                } else {
+                    native.stdout(Stdio::piped()).stderr(Stdio::piped());
+                }
+                #[cfg(not(windows))]
                 native.stdout(Stdio::piped()).stderr(Stdio::piped());
             }
             #[cfg(windows)]
@@ -273,7 +297,9 @@ impl PendingProcess {
                 timeout: self.timeout,
                 idle_timeout: self.idle_timeout,
                 callback,
-                capture: !attached && !self.quiet,
+                capture,
+                #[cfg(windows)]
+                streamed_pipes,
             },
         ))
     }

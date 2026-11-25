@@ -368,13 +368,19 @@ def main():
             watched = root / 'routes' / 'web.rs'
             watched.parent.mkdir()
             watched.write_text('// first version\n')
-            master = subprocess.Popen([binary, 'artisan', 'horizon:listen', '--poll'], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            watched_master = until_master(lambda state: state['workers'])['name']
-            watched.write_text('// changed version\n')
-            until_master(lambda state: state['name'] != watched_master and state['workers'])
-            master.send_signal(signal.SIGTERM)
-            stdout, stderr = master.communicate(timeout=20)
-            assert master.returncode == 0, (stdout, stderr)
+            listen_log = root / 'listen.log'
+            with listen_log.open('wb') as output:
+                master = subprocess.Popen([binary, 'artisan', 'horizon:listen', '--poll'], env=env, stdout=output, stderr=subprocess.PIPE)
+                watched_master = until_master(lambda state: state['workers'])['name']
+                dispatch(probe_output='listen-before')
+                until(lambda: b'worker-err-listen-before' in listen_log.read_bytes())
+                watched.write_text('// changed version\n')
+                until_master(lambda state: state['name'] != watched_master and state['workers'])
+                dispatch(probe_output='listen-after')
+                until(lambda: b'worker-err-listen-after' in listen_log.read_bytes())
+                master.send_signal(signal.SIGTERM)
+                _, stderr = master.communicate(timeout=20)
+                assert master.returncode == 0, (listen_log.read_bytes(), stderr)
             assert status() == []
             # Exercise the remaining native management entry points against the
             # same isolated metadata and queue transport, after process assertions.

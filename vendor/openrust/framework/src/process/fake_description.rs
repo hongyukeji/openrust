@@ -95,12 +95,12 @@ impl FakeProcessDescription {
     pub(super) fn invocation(
         &self,
         callback: Option<OutputCallback>,
-        capture: bool,
+        deliver: bool,
     ) -> FakePlayback {
         FakePlayback {
             id: self.id,
             remaining_polls: self.iterations,
-            chunks: if capture {
+            chunks: if deliver {
                 self.chunks.iter().cloned().collect()
             } else {
                 VecDeque::new()

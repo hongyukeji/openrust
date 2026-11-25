@@ -13,8 +13,8 @@ use openrust::{
 use openrust_horizon::{
     AddSupervisor, Horizon, HorizonServiceProvider, MasterSupervisor, MasterSupervisorDeployed,
     MasterSupervisorLooped, MasterSupervisorOutOfMemory, ProvisioningPlan,
-    RedisHorizonCommandQueue, SupervisorLooped, SupervisorOutOfMemory, UnableToLaunchProcess,
-    WorkerProcessRestarting,
+    RedisHorizonCommandQueue, Supervisor, SupervisorLooped, SupervisorOptions,
+    SupervisorOutOfMemory, UnableToLaunchProcess, WorkerProcessRestarting,
 };
 use serde_json::json;
 use std::{collections::BTreeMap, path::Path, sync::Arc, time::Duration};
@@ -80,6 +80,12 @@ impl JobHandler for Probe {
                 return Err(QueueError::InvalidPayload);
             }
             use std::io::Write;
+            if let Some(marker) = data.get("probe_output").and_then(Value::as_str) {
+                let mut stdout = std::io::stdout().lock();
+                let _ = writeln!(stdout, "worker-out-東京-{marker}").and_then(|()| stdout.flush());
+                let mut stderr = std::io::stderr().lock();
+                let _ = write!(stderr, "worker-err-{marker}").and_then(|()| stderr.flush());
+            }
             if data.get("record_start").and_then(Value::as_bool) == Some(true) {
                 writeln!(
                     std::fs::OpenOptions::new()
@@ -349,8 +355,98 @@ fn create() -> Result<Application, Box<dyn std::error::Error + Send + Sync>> {
         .with_routing(Routing::default().web(routes))
         .create()?)
 }
+
+async fn run_output_probe(role: &str) {
+    use openrust::{
+        process::OutputStream,
+        support::facades::{App, Facade as _},
+    };
+    use std::io::Write as _;
+
+    let mut app = create().unwrap();
+    app.boot().await.unwrap();
+    App::set_facade_application(Some(&app), async {
+        let repository = app.make::<openrust_horizon::Repository>().await.unwrap();
+        let queues = app.make::<QueueManager>().await.unwrap();
+        let executable = std::env::current_exe().unwrap();
+        let base = app.base_path().to_owned();
+        let directory = base.clone();
+        let receive = move |stream, bytes: &[u8]| {
+            let file = match stream {
+                OutputStream::Stdout => "callback.stdout",
+                OutputStream::Stderr => "callback.stderr",
+            };
+            std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(directory.join(file))
+                .unwrap()
+                .write_all(bytes)
+                .unwrap();
+        };
+        let shutdown = tokio_util::sync::CancellationToken::new();
+        #[cfg(unix)]
+        let _monitor = {
+            let mut term =
+                tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()).unwrap();
+            let shutdown = shutdown.clone();
+            tokio::spawn(async move {
+                term.recv().await;
+                shutdown.cancel();
+            })
+        };
+        let options = BTreeMap::from([(
+            "callback".to_string(),
+            SupervisorOptions {
+                name: "callback".to_string(),
+                timeout: 5,
+                sleep: 1,
+                ..Default::default()
+            },
+        )]);
+        match role {
+            "master" => {
+                let master = MasterSupervisor::new(
+                    repository,
+                    queues,
+                    options,
+                    executable,
+                    base,
+                    "testing".into(),
+                )
+                .unwrap()
+                .handle_output_using(receive);
+                master.output(OutputStream::Stderr, b"direct-master\n");
+                master.run(&shutdown).await.unwrap();
+            }
+            "supervisor" => {
+                let supervisor = Supervisor::new(
+                    repository,
+                    queues,
+                    options,
+                    executable,
+                    base,
+                    "testing".into(),
+                )
+                .unwrap()
+                .handle_output_using(receive);
+                supervisor.output(OutputStream::Stderr, b"direct-supervisor\n");
+                supervisor.run(&shutdown).await.unwrap();
+            }
+            _ => panic!("unknown output probe: {role}"),
+        }
+    })
+    .await;
+}
+
 #[tokio::main]
 async fn main() -> std::process::ExitCode {
+    if let Ok(role) = std::env::var("HORIZON_PROBE_OUTPUT_CALLBACK")
+        && std::env::args_os().len() == 1
+    {
+        run_output_probe(&role).await;
+        return std::process::ExitCode::SUCCESS;
+    }
     if let Ok(probe) = std::env::var("HORIZON_PROBE_DEPLOY_PLAN") {
         let mut app = create().unwrap();
         app.boot().await.unwrap();

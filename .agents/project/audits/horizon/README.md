@@ -70,7 +70,7 @@ Rust 的公开 `ProvisioningPlan` 可从应用配置取得，包含有序的环�
 
 macOS 的真实 Artisan 完整进程回归在部署监听器中检查 Redis 待办数量，覆盖未匹配、匹配空计划、全部停用、正常启动及目录恢复。macOS 与 Linux ARM64 使用公开 `deploy` 与真实 Master 验证首个通配环境、新 Worker 执行任务和相对工作目录。Windows ARM64 复验默认计划启动、排空、快速终止及父进程异常退出。配置测试 8 项、Horizon 全目标严格 Clippy、格式与三语正文检查通过。证据为 `target/tmp/observability-parity/horizon-provisioning-{macos-artisan,macos-process,linux-artisan,windows}.log`。
 
-剩余契约包括可替换的命令队列接口、命令类的应用容器解析，以及 Master 输出回调。
+固定 PHP 探针用应用容器替换 `HorizonCommandQueue`，Master 和 Supervisor 构造时都调用替代实现的 `flush`，之后用其 `pending` 领取。容器可解析应用自己的命令类，也可替换内置 `Pause`。两个监控循环把目标实例和原样选项传给命令的 `process`，按领取顺序执行。Rust 的可替换队列接口和运行时命令解析待实现，默认 Redis 队列的名称所有权及原子领取属于现有行为。证据为 `target/tmp/observability-parity/horizon-command-contract-upstream.log`。 [固定命令队列接口](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Contracts/HorizonCommandQueue.php)
 
 ### Supervisor 结构化命令
 
@@ -90,7 +90,15 @@ macOS 和 Linux ARM64 在真实 Redis 8.10.3 上验证暂停恢复、执行中�
 
 ### Master 与 Supervisor 输出回调
 
-固定 PHP 8.5.12、Horizon 与 Symfony Process 8.0.5 探针验证 `MasterSupervisor::handleOutputUsing` 返回原实例。直接调用 `output` 和 `AddSupervisor` 启动的真实子进程均把数据送给回调。回调可区分 stdout 和 stderr，收到有换行及末尾无换行的片段。Symfony 保持禁用输出留存。上游的 `horizon` 和 `horizon:supervisor` 都将收到的两个流写入各自的 Artisan 输出。Rust 的受管子进程当前丢弃输出，公开回调、转发和持续运行时的输出留存边界待补齐。证据为 `target/tmp/observability-parity/horizon-output-upstream.log`。 [固定 AddSupervisor](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/MasterSupervisorCommands/AddSupervisor.php) [固定 HorizonCommand](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Console/HorizonCommand.php) [固定 SupervisorCommand](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Console/SupervisorCommand.php)
+固定 PHP 8.5.12、Horizon 与 Symfony Process 8.0.5 探针验证 `MasterSupervisor::handleOutputUsing` 和 `Supervisor::handleOutputUsing` 返回原实例。两者通过直接 `output`、`AddSupervisor` 生成的真实子进程或 `ProcessPool` 启动的真实子进程接收 stdout／stderr，保留换行和末尾无换行字节。探针控制子进程的打印内容，Symfony 禁用输出留存。上游的 `horizon` 和 `horizon:supervisor` 都将收到的两个流写入各自的 Artisan 输出。证据为 `target/tmp/observability-parity/horizon-output-upstream-final.log`。 [固定 AddSupervisor](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/MasterSupervisorCommands/AddSupervisor.php) [固定 ProcessPool](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/ProcessPool.php) [固定 HorizonCommand](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Console/HorizonCommand.php) [固定 SupervisorCommand](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Console/SupervisorCommand.php)
+
+Rust 的 `MasterSupervisor` 和 `Supervisor` 提供 `handle_output_using` 与 `output`，按直接子进程的流类型传回原始字节。Rust 使用可在线程间共享的回调，调用方自行处理跨子进程的并发。真实 Artisan 实时写出两个流，`horizon:supervisor` 将 Worker 的两个流写入自己的 stdout。文件监听命令实时转发重启前后的进程输出，保留自身的错误流。框架进程的 `start_with_streamed_output` 在调用回调时跳过历史留存。显式捕获的进程内 Artisan 结果仍按原模型收集输出。
+
+Symfony Console 8.0.6 的运行结果确认，子进程文本中的 `<info>` 等控制台标签由 Artisan 输出格式器解释。Rust 当前实时转发已经输出的字节，标签格式处理仍待补齐。独立的 `WorkerProcess::handleOutputUsing` 及其通过 `SupervisorProcess` 继承的入口仍待按所属类型核对。
+
+macOS 与 Linux ARM64 用真实 Redis 和 Worker 核对公开回调、实时输出和静默模式。macOS 文件监听在源码变动前后都收到实际任务的输出，框架进程测试 17 项通过，其中真实子进程输出 64 MiB，回调收到完整字节，结果无保留副本。框架和 Horizon 所涉严格 Clippy、格式及三语正文检查通过。
+
+Windows ARM64 首轮使用默认子进程输出管道时，快速终止等待了正在执行的任务。流式模式改用 Tokio 异步命名管道之后，真实 Redis 复验通过双流输出、Master 重启、默认终止、`--wait`、快速终止先退出 Master 以及父进程意外退出后的排空。证据为 `target/tmp/observability-parity/horizon-output-{macos-final,macos-pipes,framework-clippy,linux-final,windows,windows-final,docs}.log`。 [Tokio 异步命名管道](https://docs.rs/tokio/latest/tokio/net/windows/named_pipe/struct.ServerOptions.html)
 
 ### Windows 原生进程树
 

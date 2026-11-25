@@ -1,4 +1,8 @@
-use super::{error, signals};
+use super::{
+    error,
+    process_output::{self, CommandOutput},
+    signals,
+};
 use openrust::{
     console::{ConsoleError, Input, Output},
     contracts::foundation::Application as _,
@@ -52,7 +56,11 @@ fn fingerprint(
     }
     Ok(files)
 }
-fn start(app: &Application, input: &Input) -> Result<InvokedProcess, ConsoleError> {
+fn start(
+    app: &Application,
+    input: &Input,
+    output: &CommandOutput,
+) -> Result<InvokedProcess, ConsoleError> {
     let mut args = if app.base_path().join("Cargo.toml").is_file() {
         vec![
             "cargo".into(),
@@ -72,12 +80,8 @@ fn start(app: &Application, input: &Input) -> Result<InvokedProcess, ConsoleErro
     if let Some(env) = input.matches().get_one::<String>("environment") {
         args.push(format!("--environment={env}").into());
     }
-    Factory::new()
-        .command(args)
-        .path(app.base_path())
-        .forever()
-        .start()
-        .map_err(error)
+    let process = Factory::new().command(args).path(app.base_path()).forever();
+    crate::process_output::start(process, output.handler().as_ref()).map_err(error)
 }
 pub(super) async fn listen(
     app: &Application,
@@ -87,31 +91,30 @@ pub(super) async fn listen(
     let config = app.config().map_err(error)?;
     let paths:Vec<String>=config.get("horizon.watch").and_then(|value|serde_json::from_value(value).ok()).filter(|paths:&Vec<String>|!paths.is_empty()).ok_or_else(||ConsoleError::new("List of directories / files to watch not found. Please update your config/horizon.rs configuration file."))?;
     let mut previous = fingerprint(app.base_path(), &paths).map_err(error)?;
-    let mut process = start(app, input)?;
+    let child_output = CommandOutput::with_error_output(output);
     let shutdown = input.shutdown().cloned().unwrap_or_default();
     let signals = signals().map_err(error)?;
     tokio::pin!(signals);
     let mut ticker = tokio::time::interval(Duration::from_millis(500));
-    output.info("Starting Horizon and watching for file changes...");
-    loop {
+    process_output::info(output, "Starting Horizon and watching for file changes...");
+    let mut process = start(app, input, &child_output)?;
+    let result = async {
+        loop {
         tokio::select! {_=shutdown.cancelled()=>break,()=&mut signals=>break,_=ticker.tick()=>{}}
-        output
-            .stdout
-            .push_str(&String::from_utf8_lossy(&process.latest_output()));
-        output
-            .stderr
-            .push_str(&String::from_utf8_lossy(&process.latest_error_output()));
         if !process.running() {
             return Ok(process.wait().await.map_err(error)?.exit_code());
         }
         let current = fingerprint(app.base_path(), &paths).map_err(error)?;
         if current != previous {
             previous = current;
-            output.info("File changed. Restarting Horizon...");
+            process_output::info(output, "File changed. Restarting Horizon...");
             process.stop(Duration::from_secs(65)).await.map_err(error)?;
-            process = start(app, input)?;
+            process = start(app, input, &child_output)?;
         }
-    }
-    process.stop(Duration::from_secs(65)).await.map_err(error)?;
-    Ok(0)
+        }
+        process.stop(Duration::from_secs(65)).await.map_err(error)?;
+        Ok(0)
+    }.await;
+    child_output.finish(output);
+    result
 }

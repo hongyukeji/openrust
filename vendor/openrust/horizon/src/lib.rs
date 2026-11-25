@@ -12,6 +12,7 @@ mod master_names;
 mod notifications;
 mod options;
 mod process_memory;
+mod process_output;
 mod provider;
 mod provisioning_plan;
 mod repository;

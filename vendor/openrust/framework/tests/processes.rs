@@ -1,6 +1,46 @@
 use openrust::process::{Command, Error, Factory};
 
 #[tokio::test]
+async fn streamed_fake_output_reaches_the_callback_without_replay() {
+    use openrust::process::OutputStream;
+    use std::sync::{Arc, Mutex};
+
+    let factory = Factory::new();
+    factory.fake_command(
+        "sequence",
+        Factory::describe()
+            .output("one")
+            .error_output("two")
+            .result(),
+    );
+    factory.fake_command("result", Factory::result("one\n", "two\n", 0));
+
+    for command in ["sequence", "result"] {
+        let chunks = Arc::new(Mutex::new(Vec::new()));
+        let observed = chunks.clone();
+        let mut process = factory
+            .command(command)
+            .start_with_streamed_output(move |stream, bytes| {
+                observed.lock().unwrap().push((stream, bytes.to_vec()));
+            })
+            .unwrap();
+        assert!(matches!(
+            process.wait_until(|_, _| true).await,
+            Err(Error::OutputUnavailable)
+        ));
+        let result = process.wait().await.unwrap();
+        assert_eq!(
+            *chunks.lock().unwrap(),
+            [
+                (OutputStream::Stdout, b"one\n".to_vec()),
+                (OutputStream::Stderr, b"two\n".to_vec()),
+            ]
+        );
+        assert!(result.output().is_empty() && result.error_output().is_empty());
+    }
+}
+
+#[tokio::test]
 async fn fake_configuration_and_results_are_isolated() {
     let left = Factory::new();
     let right = Factory::new();
@@ -301,6 +341,27 @@ mod unix {
         assert_eq!(stdout, result.output());
     }
 
+    #[tokio::test]
+    async fn streams_large_native_output_without_retaining_it() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let totals = Arc::new([AtomicUsize::new(0), AtomicUsize::new(0)]);
+        let observed = totals.clone();
+        let result = Factory::new()
+            .command("head -c 67108864 /dev/zero; printf last >&2; exit 7")
+            .start_with_streamed_output(move |stream, bytes| {
+                let index = usize::from(stream == OutputStream::Stderr);
+                observed[index].fetch_add(bytes.len(), Ordering::Relaxed);
+            })
+            .unwrap()
+            .wait()
+            .await
+            .unwrap();
+        assert_eq!(totals[0].load(Ordering::Relaxed), 67108864);
+        assert_eq!(totals[1].load(Ordering::Relaxed), 4);
+        assert_eq!(result.exit_code(), 7);
+        assert!(result.output().is_empty() && result.error_output().is_empty());
+    }
     #[tokio::test]
     async fn timeouts_and_cancellation_kill_the_unix_process_group() {
         let factory = Factory::new();

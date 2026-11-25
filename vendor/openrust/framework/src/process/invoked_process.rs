@@ -75,6 +75,11 @@ pub(super) struct Options {
     pub(super) idle_timeout: Option<Duration>,
     pub(super) callback: Option<OutputCallback>,
     pub(super) capture: bool,
+    #[cfg(windows)]
+    pub(super) streamed_pipes: Option<(
+        tokio::net::windows::named_pipe::NamedPipeServer,
+        tokio::net::windows::named_pipe::NamedPipeServer,
+    )>,
 }
 
 /// A running process and its live output. Dropping it cancels the process.
@@ -121,17 +126,22 @@ impl InvokedProcess {
         capture: bool,
     ) -> Self {
         let output = Arc::new(LiveOutput::default());
-        let fake = result
-            .description
-            .as_ref()
-            .map(|description| Mutex::new(description.invocation(callback.take(), capture)));
+        let fake = result.description.as_ref().map(|description| {
+            let deliver = capture || callback.is_some();
+            Mutex::new(description.invocation(callback.take(), deliver))
+        });
         if fake.is_none() {
             for (stream, bytes) in [
                 (OutputStream::Stdout, result.stdout),
                 (OutputStream::Stderr, result.stderr),
             ] {
                 if !bytes.is_empty() {
-                    record(&output, &mut callback, stream, &bytes);
+                    record(
+                        capture.then_some(output.as_ref()),
+                        &mut callback,
+                        stream,
+                        &bytes,
+                    );
                 }
             }
         }
@@ -348,7 +358,12 @@ impl InvokedProcess {
         let Some((stream, bytes)) = fake.chunks.pop_front() else {
             return false;
         };
-        record(&self.output, &mut fake.callback, stream, &bytes);
+        record(
+            self.capture.then_some(&*self.output),
+            &mut fake.callback,
+            stream,
+            &bytes,
+        );
         true
     }
 
@@ -402,12 +417,29 @@ impl Drop for InvokedProcess {
 
 async fn drive(
     mut group: ChildGroup,
+    options: Options,
+    output: Arc<LiveOutput>,
+    signals: mpsc::UnboundedReceiver<SignalRequest>,
+) -> Result<Completion> {
+    #[cfg(windows)]
+    let mut options = options;
+    #[cfg(windows)]
+    if let Some((stdout, stderr)) = options.streamed_pipes.take() {
+        return drive_with_pipes(group, options, output, signals, Some(stdout), Some(stderr)).await;
+    }
+    let stdout = group.child.stdout.take();
+    let stderr = group.child.stderr.take();
+    drive_with_pipes(group, options, output, signals, stdout, stderr).await
+}
+
+async fn drive_with_pipes(
+    mut group: ChildGroup,
     mut options: Options,
     output: Arc<LiveOutput>,
     mut signals: mpsc::UnboundedReceiver<SignalRequest>,
+    mut stdout: Option<impl AsyncRead + Unpin>,
+    mut stderr: Option<impl AsyncRead + Unpin>,
 ) -> Result<Completion> {
-    let mut stdout = group.child.stdout.take();
-    let mut stderr = group.child.stderr.take();
     let stdin = group.child.stdin.take();
     let input = write_input(stdin, std::mem::take(&mut options.input));
     tokio::pin!(input);
@@ -417,6 +449,7 @@ async fn drive(
     let mut idle_deadline = deadline(options.idle_timeout)?;
     let mut out_buffer = [0; 8192];
     let mut err_buffer = [0; 8192];
+    let capture = options.capture.then_some(&*output);
 
     let idle_timeout = loop {
         if status.is_some() && stdout.is_none() && stderr.is_none() {
@@ -431,14 +464,14 @@ async fn drive(
             result = read(&mut stdout, &mut out_buffer), if stdout.is_some() => {
                 let count = result?;
                 if count == 0 { stdout = None; } else {
-                    record(&output, &mut options.callback, OutputStream::Stdout, &out_buffer[..count]);
+                    record(capture, &mut options.callback, OutputStream::Stdout, &out_buffer[..count]);
                     idle_deadline = deadline(options.idle_timeout)?;
                 }
             }
             result = read(&mut stderr, &mut err_buffer), if stderr.is_some() => {
                 let count = result?;
                 if count == 0 { stderr = None; } else {
-                    record(&output, &mut options.callback, OutputStream::Stderr, &err_buffer[..count]);
+                    record(capture, &mut options.callback, OutputStream::Stderr, &err_buffer[..count]);
                     idle_deadline = deadline(options.idle_timeout)?;
                 }
             }
@@ -509,17 +542,19 @@ async fn write_input(stdin: Option<tokio::process::ChildStdin>, input: Vec<u8>) 
 }
 
 fn record(
-    output: &LiveOutput,
+    output: Option<&LiveOutput>,
     callback: &mut Option<OutputCallback>,
     stream: OutputStream,
     bytes: &[u8],
 ) {
-    output
-        .data
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .append(stream, bytes);
-    output.changed.notify_one();
+    if let Some(output) = output {
+        output
+            .data
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .append(stream, bytes);
+        output.changed.notify_one();
+    }
     if let Some(callback) = callback {
         callback(stream, bytes);
     }

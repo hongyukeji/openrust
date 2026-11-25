@@ -1,8 +1,11 @@
-use crate::{Error, Repository, Result, SupervisorOptions, repository::MasterLease};
+use crate::{
+    Error, Repository, Result, SupervisorOptions, process_output::OutputHandler,
+    repository::MasterLease,
+};
 use openrust::{
     contracts::events::{Event, Listener},
     events::{EventContext, EventError, EventFuture, EventResult, ListenerResponse},
-    process::{Factory, InvokedProcess},
+    process::{Factory, InvokedProcess, OutputStream},
     queue::QueueManager,
 };
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc, time::Duration};
@@ -147,6 +150,7 @@ pub struct MasterSupervisor {
     supervisors: Vec<SupervisorProcess>,
     failures: u64,
     fast_termination: bool,
+    output: Option<OutputHandler>,
     job_trim_schedule: Arc<crate::job_trim::JobTrimSchedule>,
 }
 
@@ -261,6 +265,7 @@ impl MasterSupervisor {
             supervisors: Vec::new(),
             failures: 0,
             fast_termination: false,
+            output: None,
             job_trim_schedule: Arc::default(),
         })
     }
@@ -314,6 +319,27 @@ impl MasterSupervisor {
                 serde_json::json!([]),
             )
             .await
+    }
+
+    /// 注册受管 Supervisor 的 stdout 和 stderr 回调。
+    pub fn handle_output_using(
+        mut self,
+        handler: impl Fn(OutputStream, &[u8]) + Send + Sync + 'static,
+    ) -> Self {
+        self.output = Some(Arc::new(handler));
+        self
+    }
+
+    pub(crate) fn with_output_handler(mut self, handler: Option<OutputHandler>) -> Self {
+        self.output = handler;
+        self
+    }
+
+    /// 将输出片段送往已注册的回调。
+    pub fn output(&self, stream: OutputStream, bytes: &[u8]) {
+        if let Some(handler) = &self.output {
+            handler(stream, bytes);
+        }
     }
 
     /// 在当前应用内设置 Master 名称前缀解析器。
@@ -476,11 +502,10 @@ impl MasterSupervisor {
                 .path(directory)
                 .env([("APP_BASE_PATH", self.base.as_os_str().to_owned())])
                 .env(lease.ownership().environment())
-                .forever()
-                .quietly();
+                .forever();
             #[cfg(windows)]
             let child = child.with_shutdown_pipe();
-            match child.start() {
+            match crate::process_output::start(child, self.output.as_ref()) {
                 Ok(process) => supervisor.process = Some(process),
                 Err(error) if supervisor.from_command => {
                     self.failures = self.failures.saturating_add(1);

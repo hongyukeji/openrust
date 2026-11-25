@@ -11,6 +11,7 @@ mod install;
 mod listen;
 mod management;
 mod master_control;
+mod process_output;
 mod purge;
 mod supervisor_command;
 mod work_command;
@@ -125,7 +126,10 @@ impl Command for HorizonCommand {
                         crate::ProvisioningPlan::new(supervisor.name(), config.as_ref())
                             .and_then(|plan| plan.deployment(&environment, config.as_ref()))
                             .map_err(error)?;
-                    let supervisor = supervisor.with_deployment(deployment);
+                    let child_output = process_output::CommandOutput::new(output);
+                    let supervisor = supervisor
+                        .with_deployment(deployment)
+                        .with_output_handler(child_output.handler());
                     let shutdown = input
                         .shutdown()
                         .cloned()
@@ -133,7 +137,7 @@ impl Command for HorizonCommand {
                     let signals = signals().map_err(error)?;
                     let result = {
                         let run = supervisor.run_with_start(&shutdown, || {
-                            output.info("Horizon started successfully.");
+                            process_output::info(output, "Horizon started successfully.");
                         });
                         tokio::pin!(run);
                         tokio::select! {
@@ -141,6 +145,7 @@ impl Command for HorizonCommand {
                             () = signals => { shutdown.cancel(); run.await }
                         }
                     };
+                    child_output.finish(output);
                     if matches!(result, Err(Error::MasterAlreadyRunning)) {
                         output.warning(&Error::MasterAlreadyRunning.to_string());
                         return Ok(0);

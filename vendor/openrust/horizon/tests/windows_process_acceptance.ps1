@@ -36,8 +36,10 @@ function Wait-For($Description, $Condition, $Seconds = 20) {
     throw "Timed out waiting for $Description. $(Status | ConvertTo-Json -Depth 6 -Compress)"
 }
 
-function Dispatch([int]$Duration) {
-    $env:HORIZON_PROBE_DISPATCH = @{sleep_ms = $Duration; record_start = $true} | ConvertTo-Json -Compress
+function Dispatch([int]$Duration, [string]$OutputMarker) {
+    $payload = @{sleep_ms = $Duration; record_start = $true}
+    if ($OutputMarker) { $payload.probe_output = $OutputMarker }
+    $env:HORIZON_PROBE_DISPATCH = $payload | ConvertTo-Json -Compress
     $env:HORIZON_PROBE_DISPATCH_UUID = '1'
     try {
         $output = & $Binary
@@ -128,8 +130,13 @@ foreach ($mode in @('idle', 'wait', 'fast', 'parent-exit')) {
         $null = Artisan horizon:supervisor-status $name
 
         if ($mode -eq 'idle') {
-            $dynamic = Dispatch 20
+            $dynamic = Dispatch 20 'windows-native'
             Wait-For 'job on the dynamically added Worker' { Recorded 'completed.log' $dynamic } | Out-Null
+            Wait-For 'both Worker streams on Master stdout' {
+                $contents = Get-Content (Join-Path $fixture 'master.stdout') -Raw -Encoding UTF8
+                $contents -match 'worker-out-.*-windows-native' -and $contents.Contains('worker-err-windows-native')
+            } | Out-Null
+            'PASS: Windows native Horizon streamed both Worker output streams through the Master'
 
             $draining = Dispatch 6000
             Wait-For 'job running before Master restart' { Recorded 'started.log' $draining } | Out-Null
