@@ -739,6 +739,50 @@ async fn cross_and_straight_join_variants() {
 }
 
 #[tokio::test]
+async fn postgres_bounded_update_preserves_other_partitions() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_POSTGRES_BOUNDED_WRITES_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_POSTGRES_BOUNDED_WRITES").is_none());
+        return;
+    };
+    let db = connection(json!({"url":url, "prefix":"app_"}));
+    db.unprepared(
+        "CREATE TABLE app_bounded_writes (id int primary key, score int) PARTITION BY RANGE (id);
+         CREATE TABLE app_bounded_low PARTITION OF app_bounded_writes FOR VALUES FROM (0) TO (10);
+         CREATE TABLE app_bounded_high PARTITION OF app_bounded_writes FOR VALUES FROM (10) TO (20);
+         INSERT INTO app_bounded_writes VALUES (1, 0), (11, 0);",
+    )
+    .await
+    .unwrap();
+    let updated = db
+        .table("bounded_writes as b")
+        .r#where("b.id", "=", 1)
+        .limit(1)
+        .update(record([("score", 7.into())]))
+        .await
+        .unwrap();
+    assert_eq!(updated, 1);
+    assert_eq!(
+        db.table("bounded_writes")
+            .r#where("id", "=", 1)
+            .value("score")
+            .await
+            .unwrap(),
+        7.into()
+    );
+    assert_eq!(
+        db.table("bounded_writes")
+            .r#where("id", "=", 11)
+            .value("score")
+            .await
+            .unwrap(),
+        0.into()
+    );
+    db.unprepared("DROP TABLE app_bounded_writes")
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
 async fn postgres_update_from_sources_conditions_and_rollback() {
     let sqlite = connection(json!({"driver":"sqlite","database":":memory:"}));
     assert!(matches!(

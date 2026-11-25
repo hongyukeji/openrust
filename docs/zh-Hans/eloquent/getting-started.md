@@ -235,6 +235,8 @@ pub async fn count_visit_quietly<M: Model>(model: &mut M) -> DatabaseResult<u64>
 
 需要逐条清理时，在模型上实现 `Prunable`，并调用 `ModelPruners::register_prunable::<Archive>(name, source_file)` 注册。用 `prunable()` 提供候选查询，可选的 `pruning()` 钩子在每条模型删除前运行。支持软删除的模型会包含已软删除的记录，并永久删除符合条件的记录。钩子报错会阻止该条删除。应用报告单条错误后，扫描继续处理后续主键。可直接调用 `Archive::prune_all(app, chunk)`，也可以对已加载的一条模型调用 `prune()`。逐实例进度统计未报错的调用，也包含模型观察者取消删除的记录。
 
+需要在数据库中批量删除时，实现 `MassPrunable`，并通过 `ModelPruners::register_mass_prunable::<Archive>(name, source_file)` 注册。查询设置的正数上限优先于 `--chunk`，进度按实际删除条数累计。批量清理跳过模型实例化和逐条回调。支持软删除的模型走永久删除路径，使用显式查询条件。需要的范围限制应直接写在 `prunable()` 的查询中，预演仍应用全局作用域。可直接调用 `<Archive as MassPrunable>::prune_all(app, chunk)`。
+
 ## 复制模型 {#replicating-models}
 
 调用 `replicate(&[]).await?` 创建尚未保存的副本。框架会排除主键、已配置的时间戳和内部中间表键。可传入其他要排除的列名。副本保留已加载的关系，也可以单独移除关系。副本沿用源模型的数据库连接并触发 `Replicating` 生命周期事件。使用 `replicate_quietly` 跳过该事件，调用 `save` 插入副本。

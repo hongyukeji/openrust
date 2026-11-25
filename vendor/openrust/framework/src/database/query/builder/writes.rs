@@ -525,6 +525,32 @@ impl Builder<'_> {
         self.affect(&sql, &bindings).await
     }
 
+    pub(in crate::database) async fn delete_pruning_batch(
+        &self,
+        chunk: u64,
+    ) -> DatabaseResult<u64> {
+        let Executor::Connection(connection) = &self.executor else {
+            return Err(DatabaseError::InvalidQuery("批量清理需要独立的数据库连接"));
+        };
+        let mut query = self.snapshot();
+        query.executor = Executor::Connection(connection.clone());
+        if query.limit.is_none_or(|limit| limit == 0) {
+            query = query.limit(chunk);
+        }
+        query.apply_before_query_callbacks()?;
+        if query.limit.is_none_or(|limit| limit == 0) {
+            return Err(DatabaseError::InvalidQuery("批量清理须设置正数删除上限"));
+        }
+        if query.grammar.is_sql_server()
+            && (!query.joins.is_empty() || query.offset.unwrap_or_default() > 0)
+        {
+            return Err(DatabaseError::UnsupportedOperation(
+                "SQL Server 批量清理的连接查询或偏移",
+            ));
+        }
+        query.delete().await
+    }
+
     #[track_caller]
     pub fn delete(mut self) -> impl Future<Output = DatabaseResult<u64>> {
         crate::database::events::with_query_caller(std::panic::Location::caller(), async move {
@@ -696,15 +722,17 @@ impl Builder<'_> {
         if !self.grammar.is_mysql() && (!self.joins.is_empty() || self.limit.is_some()) {
             let reference = table_reference(table);
             let reference = self.grammar.table(reference)?;
-            let identity = if self.grammar.is_postgres() {
-                "ctid"
+            let qualified_table = self.grammar.table(table)?;
+            if self.grammar.is_postgres() {
+                // 同一个 CTID 在不同分区中可能出现，写入必须同时匹配物理表。
+                sql.push_str(&format!(
+                    " where (\"tableoid\", \"ctid\") in (select {reference}.\"tableoid\", {reference}.\"ctid\" from {qualified_table}"
+                ));
             } else {
-                "rowid"
-            };
-            sql.push_str(&format!(
-                " where \"{identity}\" in (select {reference}.\"{identity}\" from {}",
-                self.grammar.table(table)?
-            ));
+                sql.push_str(&format!(
+                    " where \"rowid\" in (select {reference}.\"rowid\" from {qualified_table}"
+                ));
+            }
             self.compile_table_hints(sql, None)?;
             self.compile_joins(sql, bindings)?;
             self.compile_predicates(sql, bindings)?;

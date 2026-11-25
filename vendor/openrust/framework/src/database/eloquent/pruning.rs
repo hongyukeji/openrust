@@ -11,7 +11,7 @@ use crate::{
     foundation::Application,
 };
 
-use super::{Prunable, prunable};
+use super::{MassPrunable, Prunable, mass_prunable, prunable};
 
 /// 已编译模型的清理策略。查询、事件或附件相关副作用由模型所属的服务负责。
 pub trait ModelPruner: Send + Sync {
@@ -46,7 +46,7 @@ type Run = for<'a, 'p> fn(
 #[derive(Clone, Copy)]
 enum Strategy {
     Batch(&'static dyn ModelPruner),
-    PerModel { count: Count, run: Run },
+    Model { count: Count, run: Run },
 }
 
 pub(crate) struct PruningProgress<'a> {
@@ -109,7 +109,7 @@ impl RegisteredPruner {
     pub(crate) async fn count(&self, app: &Application) -> Result<u64, ConsoleError> {
         match self.strategy {
             Strategy::Batch(pruner) => pruner.count(app).await,
-            Strategy::PerModel { count, .. } => count(app).await,
+            Strategy::Model { count, .. } => count(app).await,
         }
     }
 
@@ -134,7 +134,7 @@ impl RegisteredPruner {
                     progress.record(removed, "已清理").await?;
                 }
             }
-            Strategy::PerModel { run, .. } => run(app, requested, &mut progress).await?,
+            Strategy::Model { run, .. } => run(app, requested, &mut progress).await?,
         }
         Ok(progress.total())
     }
@@ -163,9 +163,24 @@ impl ModelPruners {
         self.insert(
             name,
             source,
-            Strategy::PerModel {
+            Strategy::Model {
                 count: prunable::count::<M>,
                 run: prunable::run::<M>,
+            },
+        )
+    }
+
+    pub fn register_mass_prunable<M: MassPrunable>(
+        &self,
+        name: &'static str,
+        source: &'static str,
+    ) -> Result<(), ConsoleError> {
+        self.insert(
+            name,
+            source,
+            Strategy::Model {
+                count: mass_prunable::count::<M>,
+                run: mass_prunable::run::<M>,
             },
         )
     }

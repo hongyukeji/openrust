@@ -235,6 +235,8 @@ pub async fn count_visit_quietly<M: Model>(model: &mut M) -> DatabaseResult<u64>
 
 需要逐筆清理時，在模型上實作 `Prunable`，並呼叫 `ModelPruners::register_prunable::<Archive>(name, source_file)` 註冊。以 `prunable()` 提供候選查詢，可選的 `pruning()` 鉤子在每筆模型刪除前執行。支援軟刪除的模型會包含已軟刪除的記錄，並永久刪除符合條件的記錄。鉤子回報錯誤會阻止該筆刪除。應用程式報告單筆錯誤後，掃描繼續處理後續主鍵。可直接呼叫 `Archive::prune_all(app, chunk)`，或對已載入的一筆模型呼叫 `prune()`。逐筆進度統計未回報錯誤的呼叫，也包含模型觀察者取消刪除的記錄。
 
+需要在資料庫中批次刪除時，實作 `MassPrunable`，並透過 `ModelPruners::register_mass_prunable::<Archive>(name, source_file)` 註冊。查詢設定的正數上限優先於 `--chunk`，進度按實際刪除筆數累計。批次清理會略過模型實例化和逐筆回呼。支援軟刪除的模型走永久刪除路徑，使用明確的查詢條件。所需的範圍限制應直接寫在 `prunable()` 的查詢中，預演仍會套用全域範圍。可直接呼叫 `<Archive as MassPrunable>::prune_all(app, chunk)`。
+
 ## 複製模型 {#replicating-models}
 
 呼叫 `replicate(&[]).await?` 建立尚未儲存的副本。框架會排除主鍵、已設定的時間戳記和內部中介資料表鍵。可傳入其他要排除的欄位名稱。副本保留已載入的關聯，也可以單獨移除關聯。副本沿用來源模型的資料庫連線並觸發 `Replicating` 生命週期事件。使用 `replicate_quietly` 跳過該事件，呼叫 `save` 插入副本。

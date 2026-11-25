@@ -8,6 +8,7 @@ mod detached_autoload;
 mod dynamic_relations;
 pub mod factories;
 mod fields;
+mod mass_prunable;
 mod metadata;
 mod model;
 mod named_relations;
@@ -70,6 +71,7 @@ pub use unique_ids::UniqueId;
 /// The raw attributes of a model, keyed by column name.
 pub type Attributes = BTreeMap<String, Value>;
 
+pub use mass_prunable::MassPrunable;
 pub use prunable::Prunable;
 pub use pruning::{ModelPruner, ModelPruners};
 pub use searchable::{SearchBuilder, SearchColumn, Searchable};

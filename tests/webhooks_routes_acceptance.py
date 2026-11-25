@@ -317,13 +317,19 @@ def check_deferred_processing(binary, env, root, port, driver, sql):
             next_task = json.loads(sql("SELECT payload FROM jobs"))
             assert next_task["uuid"] != first and next_task["data"]["id"] == waiting
             assert sql("SELECT attempts FROM jobs") == "0"
+            # 固定「尚未到期」状态，避免启动独立 Worker 的耗时用完两秒窗口。
+            write_database(driver, sql, "UPDATE webhook_calls SET processing_next_at=processing_next_at+300 "
+                           f"WHERE id='{waiting}'")
+            write_database(driver, sql, "UPDATE jobs SET available_at=available_at+300")
             write_database(driver, sql,
                            "INSERT INTO jobs (queue,payload,attempts,reserved_at,available_at,created_at) "
                            "SELECT queue,payload,0,NULL,0,created_at FROM jobs")
             work("early", FIXTURE_DEFERRED_READY="1")
-            assert not (root / "early").exists() and state(waiting) == "1\t1\t1\t0\t0"
+            early_state = state(waiting)
+            assert not (root / "early").exists() and early_state == "1\t1\t1\t0\t0", early_state
             assert sql("SELECT COUNT(*) FROM jobs") == "1"
-            time.sleep(2.2)
+            write_database(driver, sql, f"UPDATE webhook_calls SET processing_next_at=0 WHERE id='{waiting}'")
+            write_database(driver, sql, "UPDATE jobs SET available_at=0")
             work("ready", FIXTURE_DEFERRED_READY="1")
             assert (root / "ready").exists() and state(waiting) == "2\t1\t0\t1\t0"
             assert sql("SELECT COUNT(*) FROM jobs") == "0"
@@ -471,6 +477,62 @@ def check_body_deduplication(binary, env, root, port, driver, sql):
         finally:
             http_helpers["stop"](server)
     print(f"{driver}: 摘要去重 10 个真实 HTTP、6 次 Worker；窗口、并发换代、方法／查询／媒体类型与拒绝边界通过")
+
+
+def check_mass_pruning(binary, env, root, driver, sql):
+    definition = ("CREATE TABLE fixture_mass_entries "
+                  "(id INTEGER PRIMARY KEY, eligible INTEGER NOT NULL, kind INTEGER NOT NULL, "
+                  "visible INTEGER NOT NULL, deleted_at VARCHAR(40))")
+    if driver == "pgsql":
+        write_database(driver, sql, definition + " PARTITION BY RANGE (id)")
+        write_database(driver, sql, "CREATE TABLE fixture_mass_first PARTITION OF fixture_mass_entries "
+                       "FOR VALUES FROM (MINVALUE) TO (6)")
+        write_database(driver, sql, "CREATE TABLE fixture_mass_second PARTITION OF fixture_mass_entries "
+                       "FOR VALUES FROM (6) TO (MAXVALUE)")
+    else:
+        write_database(driver, sql, definition)
+    write_database(driver, sql, "INSERT INTO fixture_mass_entries (id,eligible,kind,visible,deleted_at) VALUES "
+                   "(1,1,0,1,NULL), (2,1,0,1,NULL), (3,1,0,1,NULL), (4,1,0,0,NULL), "
+                   "(5,0,0,1,NULL), (6,1,1,1,'2025-01-01 00:00:00'), (7,1,1,0,NULL), (8,0,1,1,NULL)")
+    if driver == "pgsql":
+        assert sql("SELECT COUNT(DISTINCT ctid), COUNT(DISTINCT tableoid) "
+                   "FROM fixture_mass_entries WHERE id IN (1,6)") == "1\t2"
+    event_log = root / "mass-pruning-events.jsonl"
+    current = env | {"FIXTURE_MODEL_PRUNING_EVENTS": str(event_log), "FIXTURE_MASS_PRUNE": "1"}
+    hard = "fixture::MassEntry"
+    soft = "fixture::SoftMassEntry"
+    model = ("model:prune", "--model=" + hard, "--model=" + soft, "--chunk=1")
+    preview = command(binary, current, *model, "--pretend")
+    assert f"[{hard}] 可清理 3 条" in preview and f"[{soft}] 可清理 1 条" in preview, preview
+    assert not event_log.exists()
+    assert sql("SELECT COUNT(*) FROM fixture_mass_entries") == "8"
+
+    failed = subprocess.run([str(binary), "artisan", *model],
+                            env=current | {"FIXTURE_MASS_PRUNE_ZERO_CALLBACK": "1"},
+                            capture_output=True, text=True, timeout=15)
+    assert failed.returncode != 0 and sql("SELECT COUNT(*) FROM fixture_mass_entries") == "8"
+    assert [json.loads(line) for line in event_log.read_text().splitlines()] == [["starting", [hard, soft]]]
+    event_log.unlink()
+
+    output = command(binary, current, *model)
+    assert f"[{hard}] 已清理 3 条" in output and f"[{soft}] 已清理 2 条" in output, output
+    assert [json.loads(line) for line in event_log.read_text().splitlines()] == [
+        ["starting", [hard, soft]], ["pruned", hard, 2], ["pruned", hard, 3],
+        ["pruned", soft, 1], ["pruned", soft, 2], ["finished", [hard, soft]],
+    ]
+    assert sql("SELECT id FROM fixture_mass_entries ORDER BY id").split() == ["4", "5", "8"]
+    event_log.unlink()
+    assert "无记录可清理" in command(binary, current, *model)
+    assert [json.loads(line) for line in event_log.read_text().splitlines()] == [
+        ["starting", [hard, soft]], ["finished", [hard, soft]],
+    ]
+    write_database(driver, sql, "INSERT INTO fixture_mass_entries (id,eligible,kind,visible) VALUES (9,1,1,1)")
+    event_log.unlink()
+    assert "批量清理 1 条" in command(binary, current | {"FIXTURE_MASS_PRUNE_ZERO_LIMIT": "1"}, "webhooks:mass-prune")
+    [[kind, source, count]] = [json.loads(line) for line in event_log.read_text().splitlines()]
+    assert kind == "pruned" and "::mass_pruning::MassEntry" in source and count == 1
+    assert sql("SELECT id FROM fixture_mass_entries ORDER BY id").split() == ["4", "5", "8"]
+    print(f"{driver}: 批量清理通过预演、显式上限、默认分批、作用域、无逐实例事件及直接调用", flush=True)
 
 
 def check_instance_pruning(binary, env, root, driver, sql):
@@ -1415,6 +1477,7 @@ def main():
   sql=lambda query:helpers["database_rows"](helpers["database_container"](),query).strip()
   command(binary,env,"migrate","--force")
   check_instance_pruning(binary,env,root,driver,sql)
+  check_mass_pruning(binary,env,root,driver,sql)
   for phase in ("plain","cached","unique"):
    current=env|{"FIXTURE_UNIQUE_ROUTES":"true" if phase=="unique" else "false"}
    if phase=="unique":command(binary,current,"config:clear");command(binary,current,"route:clear")

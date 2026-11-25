@@ -28,8 +28,20 @@ Webhook 包注册 `openrust_webhook_client::models::WebhookCall`，默认应用�
 
 逐实例跑主键游标，先报告单条错误，报告成功后继续下一条；无法解析异常处理器时保留原错误，报告操作本身失败时传播错误。固定上游将未抛错的实例计入进度，包括观察者取消删除后返回 false 的实例，故逐实例 Artisan 输出采用「已处理」计数。零成功批次仍派发累计事件，游标继续推进，避免重扫失败记录。包自己的批量策略仍按实际删除数推进，附件和保留期业务继续由包存储负责。
 
-本轮未改变 Webhook 的租约和保留期策略。通用 `MassPrunable` 的 Eloquent trait 及原生批量 SQL 路径另行核对。真实跨主机的支撑环境和完整 Webhook 对照仍待验收。
+本轮沿用 Webhook 的租约和保留期策略。通用 `MassPrunable` 已在[后续批次](#mass-prunable)接入。真实跨主机的支撑环境和完整 Webhook 对照仍待验收。
 
 隔离基线为 `37e471407`，Rust 1.94.0。SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 的实际 Artisan 消费者均验证默认发现、只读预演、普通删除、软删除模型永久删除、失败首批报告后继续、取消删除保留行、每批累计及直接调用。框架应用隔离回归、隔离工作区格式检查和框架及验收目标严格 Clippy 已通过。首次全矩阵在共同磁盘停线中断，磁盘守卫持锁释放约 89.9 GB 后重建。日志保留于 `target/tmp/eloquent-prunable`。
 
 重建后，三库各完成 136 次真实接收 HTTP、83 次独立 Worker 及额外恢复与清理场景。Webhook 原有范围、活跃租约、配置缓存及附件事务回滚均通过回归。
+
+## 模型批量清理 {#mass-prunable}
+
+新增 `MassPrunable`、`ModelPruners::register_mass_prunable::<M>()` 和直接调用入口。批量执行在初始查询保留正数 limit，空或零 limit 取命令批次。普通模型使用带已应用作用域的查询，软删除模型按固定 Eloquent 永久删除语义直接使用显式条件。预演包含软删除记录并应用其余全局作用域，所以预演与软删除模型的实际永久删除范围可能不同。批量没有实例化或单条回调，按原生 SQL 报告的删除数逐批派发 `ModelsPruned`，零删除终止。Webhooks 继续使用存储策略维护范围、租约和附件事务。[固定 MassPrunable](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/MassPrunable.php) · [固定 Eloquent Builder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Builder.php)
+
+Rust 复用同一连接与候选查询，保留显式写入限制。查询回调把删除上限取消或设零时返回错误。已有 MySQL 联结限量写入限制继续生效。SQL Server 的批量联结和正偏移在发出 SQL 前拒绝，该驱动未做本批实机验收。PostgreSQL 继承及分区表中 `ctid` 只在所属物理表内标识行位置，限量更新和删除改用 `(tableoid, ctid)`，避免相同行位置匹配另一个分区。[PostgreSQL 18 系统列](https://www.postgresql.org/docs/18/ddl-system-columns.html)
+
+隔离基线为 `1c0dbe8b5`，Rust 1.94.0。SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 的 Artisan 专项通过预演、显式两条上限、默认单条分批、回调取消上限时拒绝写入、作用域、零删除时无进度和直接调用。通过观察者反例确认没有实例化及逐实例删除事件。PostgreSQL 专项实际构造两个分区的相同 `ctid`，限量删除和带表前缀及别名的限量更新都只触及目标行。框架隔离测试、隔离工作区格式检查及目标严格 Clippy 通过。日志位于 `target/tmp/eloquent-mass-prunable`。
+
+首次 PostgreSQL 接收回归的延期用例在提前领取断言处失败。夹具改用明确的数据库到期状态，分别验证提前的重复 Worker 无法领取及到期后成功领取，仍通过实际派发创建延期及新队列任务。生产延期逻辑保持原样。
+
+后续 PostgreSQL 回归在延期、附件等场景已通过后触及共享磁盘停线。清理构建产物并重建同一隔离源码后，单独重跑完整 PostgreSQL 矩阵通过。修正夹具后三库各通过 136 次真实接收 HTTP、83 次独立 Worker 及额外的恢复和清理场景。
