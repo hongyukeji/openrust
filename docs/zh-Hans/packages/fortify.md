@@ -135,3 +135,13 @@ passkeys.purge_user_in_transaction(transaction, user).await?;
 ```
 
 先持有用户行锁，使用用户连接的同一事务。该方法逐模型物理删除本人凭据，包含 Scope 隐藏与软删除记录，触发模型物理删除事件；任何错误须回滚整个事务。已注册用户类型和已持久化、未改写的真实主键必须匹配。尚未安装的可选表返回零；已存在但位于其他连接的表明确拒绝。这是 Rust 事务扩展，常规密钥管理接口保持原有行为。
+
+## 双因素 Action 的事务入口 {#transactional-two-factor-actions}
+
+```rust
+openrust_fortify::actions::EnableTwoFactorAuthentication::new(provider, fortify)
+    .call_in_transaction(user, transaction, false)
+    .await?;
+```
+
+EnableTwoFactorAuthentication、ConfirmTwoFactorAuthentication、DisableTwoFactorAuthentication 和 GenerateNewRecoveryCodes 均提供 `call_in_transaction`。复用已持有的用户写锁，传入用户连接的事务；下例假定已取得该锁。发生错误时调用方须回滚整个操作，回滚后丢弃或重新加载内存模型。模型取消保存视为失败，即使无状态变更也拒绝错误连接。普通 `call` 保持原有行为；生成、加密、验证和事件复用同一实现。事件仍在保存后、调用方提交前派发，存在外部副作用的监听器应使用已有提交后机制。提供方可能已消费验证码，后续数据库失败时应使用新验证码重试。

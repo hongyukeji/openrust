@@ -135,3 +135,13 @@ passkeys.purge_user_in_transaction(transaction, user).await?;
 ```
 
 Hold the user row lock and use its connection transaction. This physically deletes the registered user’s credentials, including scoped or soft-deleted records, with model force-delete events. Roll back on any error. The persisted, unchanged primary key and registered user type must match. A missing optional table returns zero; an existing table on another connection is rejected. This Rust transaction extension leaves ordinary passkey APIs unchanged.
+
+## Transactional two-factor actions {#transactional-two-factor-actions}
+
+```rust
+openrust_fortify::actions::EnableTwoFactorAuthentication::new(provider, fortify)
+    .call_in_transaction(user, transaction, false)
+    .await?;
+```
+
+EnableTwoFactorAuthentication, ConfirmTwoFactorAuthentication, DisableTwoFactorAuthentication and GenerateNewRecoveryCodes also provide `call_in_transaction`. Reuse an existing user lock and pass the user connection transaction. The example assumes that lock is already held. The caller must roll back the whole operation on error and discard or reload its in-memory model after rollback. A cancelled save is an error; even a no-op rejects the wrong connection. Ordinary `call` behavior remains unchanged. Generation, encryption, verification and events use the same implementation. Events fire after saving and before the caller commits; listeners with external effects must use the existing after-commit facilities. A provider may already have consumed a verification code when a later database operation fails, so retry with a fresh code.

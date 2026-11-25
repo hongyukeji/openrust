@@ -727,3 +727,214 @@ async fn native_artisan_recovery_replacement_keeps_string_semantics_and_failure_
     .unwrap();
     app.artisan(["recovery:probe"]).await.assert_successful();
 }
+
+#[tokio::test]
+async fn transactional_two_factor_actions_share_user_connection_and_rollback_cancelled_changes() {
+    use openrust::support::facades::App;
+    let root = std::path::PathBuf::from(std::env::var_os("TMPDIR").expect("需要项目内临时目录"))
+        .join(format!("two-factor-transaction-{}", std::process::id()));
+    std::fs::create_dir_all(&root).unwrap();
+    let mut app=Application::configure(root.clone()).with_config(|_,_|{
+        let settings=match std::env::var("OPENRUST_TWO_FACTOR_TRANSACTION_DRIVER").as_deref().unwrap_or("sqlite") {
+            "sqlite"=>json!({"driver":"sqlite","database":":memory:"}),
+            driver @ ("mysql"|"pgsql")=>json!({"driver":driver,"url":std::env::var("OPENRUST_TWO_FACTOR_TRANSACTION_URL").expect("必须提供独立双因素验收数据库")}),
+            _=>panic!("不支持的双因素验收数据库"),
+        };
+        Ok([("app".into(),json!({"key":"a".repeat(32),"timezone":"UTC","name":"Transaction test"})),("database".into(),json!({"default":"factors","connections":{"factors":settings.clone(),"other":settings}})),("cache".into(),json!({"default":"array","stores":{"array":{"driver":"array"}}})),("fortify".into(),json!({"features":["two-factor-authentication"]})),("fortify-options".into(),json!({"two-factor-authentication":{"confirm":true}}))].into())
+    }).with_providers(vec![Box::new(FortifyServiceProvider),Box::new(Ignore)]).create().unwrap();
+    app.boot().await.unwrap();
+    App::set_facade_application(Some(&app), async {
+        let db = app.make::<DatabaseManager>().await.unwrap();
+        let connection = db.connection(None).unwrap();
+        connection
+            .get_schema_builder()
+            .create("fortify_factor_users", |table| {
+                table.string("identity", 32).primary();
+                table.text("email");
+                table.text("two_factor_secret").nullable();
+                table.text("two_factor_recovery_codes").nullable();
+                table.timestamp("two_factor_confirmed_at", None).nullable();
+            })
+            .await
+            .unwrap();
+        connection
+            .table("fortify_factor_users")
+            .insert(&[[
+                ("identity".into(), "001".into()),
+                ("email".into(), "factors@example.test".into()),
+            ]
+            .into()])
+            .await
+            .unwrap();
+        let fortify = app.make::<Fortify>().await.unwrap();
+        let engine = Arc::new(Engine {
+            engine: TwoFactorAuthenticationProvider::new(None)
+                .with_clock(|| Ok(59))
+                .with_window(0),
+            generated: Mutex::new(Vec::new()),
+        });
+        let enable = EnableTwoFactorAuthentication::new(engine.clone(), fortify.clone());
+        let confirm = ConfirmTwoFactorAuthentication::new(engine.clone(), fortify.clone());
+        let disable = DisableTwoFactorAuthentication::new(fortify.clone());
+        let regenerate = GenerateNewRecoveryCodes::new(fortify.clone());
+        let mut user = FactorUser::find("001").await.unwrap().unwrap();
+        let mut foreign = db
+            .connection(Some("other"))
+            .unwrap()
+            .begin_transaction()
+            .await
+            .unwrap();
+        assert!(
+            enable
+                .call_in_transaction(&mut user, &mut foreign, false)
+                .await
+                .is_err()
+        );
+        assert!(engine.generated.lock().unwrap().is_empty());
+        foreign.roll_back(None).await.unwrap();
+        let mut tx = connection.begin_transaction().await.unwrap();
+        enable
+            .call_in_transaction(&mut user, &mut tx, false)
+            .await
+            .unwrap();
+        assert_eq!(user.recovery_codes(&fortify).unwrap().len(), 8);
+        tx.roll_back(None).await.unwrap();
+        let mut user = FactorUser::find("001").await.unwrap().unwrap();
+        assert!(field(&user, "two_factor_secret").is_none());
+        let mut tx = connection.begin_transaction().await.unwrap();
+        enable
+            .call_in_transaction(&mut user, &mut tx, false)
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+        let stored = field(&user, "two_factor_secret").unwrap().to_owned();
+        assert_ne!(stored, SECRET);
+        let old_codes = user.recovery_codes(&fortify).unwrap();
+        let mut foreign = db
+            .connection(Some("other"))
+            .unwrap()
+            .begin_transaction()
+            .await
+            .unwrap();
+        assert!(
+            enable
+                .call_in_transaction(&mut user, &mut foreign, false)
+                .await
+                .is_err()
+        );
+        assert!(
+            confirm
+                .call_in_transaction(&mut user, &mut foreign, "287082")
+                .await
+                .is_err()
+        );
+        assert!(
+            disable
+                .call_in_transaction(&mut user, &mut foreign)
+                .await
+                .is_err()
+        );
+        assert!(
+            regenerate
+                .call_in_transaction(&mut user, &mut foreign)
+                .await
+                .is_err()
+        );
+        foreign.roll_back(None).await.unwrap();
+        let mut tx = connection.begin_transaction().await.unwrap();
+        assert!(
+            confirm
+                .call_in_transaction(&mut user, &mut tx, "wrong")
+                .await
+                .is_err()
+        );
+        tx.roll_back(None).await.unwrap();
+        let mut tx = connection.begin_transaction().await.unwrap();
+        confirm
+            .call_in_transaction(&mut user, &mut tx, "287082")
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+        assert!(
+            user.has_enabled_two_factor_authentication(&fortify)
+                .unwrap()
+        );
+        let mut tx = connection.begin_transaction().await.unwrap();
+        regenerate
+            .call_in_transaction(&mut user, &mut tx)
+            .await
+            .unwrap();
+        tx.roll_back(None).await.unwrap();
+        let mut user = FactorUser::find("001").await.unwrap().unwrap();
+        assert_eq!(user.recovery_codes(&fortify).unwrap(), old_codes);
+        let mut tx = connection.begin_transaction().await.unwrap();
+        regenerate
+            .call_in_transaction(&mut user, &mut tx)
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+        assert_ne!(user.recovery_codes(&fortify).unwrap(), old_codes);
+        let mut tx = connection.begin_transaction().await.unwrap();
+        disable
+            .call_in_transaction(&mut user, &mut tx)
+            .await
+            .unwrap();
+        tx.roll_back(None).await.unwrap();
+        let mut user = FactorUser::find("001").await.unwrap().unwrap();
+        assert!(
+            user.has_enabled_two_factor_authentication(&fortify)
+                .unwrap()
+        );
+        let mut tx = connection.begin_transaction().await.unwrap();
+        disable
+            .call_in_transaction(&mut user, &mut tx)
+            .await
+            .unwrap();
+        tx.commit().await.unwrap();
+        assert!(
+            !user
+                .has_enabled_two_factor_authentication(&fortify)
+                .unwrap()
+        );
+        assert!(field(&user, "two_factor_recovery_codes").is_none());
+        FactorUser::register_model_event(
+            &app,
+            openrust::database::eloquent::concerns::ModelEvent::Saving,
+            CancelFactorSave,
+        )
+        .unwrap();
+        let mut tx = connection.begin_transaction().await.unwrap();
+        assert!(
+            enable
+                .call_in_transaction(&mut user, &mut tx, false)
+                .await
+                .is_err()
+        );
+        tx.roll_back(None).await.unwrap();
+        assert!(
+            field(
+                &FactorUser::find("001").await.unwrap().unwrap(),
+                "two_factor_secret"
+            )
+            .is_none()
+        );
+    })
+    .await;
+    std::fs::remove_dir_all(root).unwrap();
+}
+struct CancelFactorSave;
+impl openrust::database::eloquent::concerns::ModelEventListener<FactorUser> for CancelFactorSave {
+    fn handle<'a>(
+        &'a self,
+        _: openrust::database::eloquent::concerns::ModelEvent,
+        _: &'a mut FactorUser,
+        _: &'a openrust::database::Connection,
+    ) -> openrust::database::DatabaseFuture<
+        'a,
+        openrust::database::DatabaseResult<
+            openrust::database::eloquent::concerns::ModelEventResponse,
+        >,
+    > {
+        Box::pin(async { Ok(openrust::database::eloquent::concerns::ModelEventResponse::Cancel) })
+    }
+}

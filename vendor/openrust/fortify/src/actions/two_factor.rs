@@ -47,6 +47,24 @@ impl EnableTwoFactorAuthentication {
         user: &mut T,
         force: bool,
     ) -> Result<(), HttpError> {
+        self.perform(user, force, None).await
+    }
+    /// 调用方持有用户锁并负责回滚；保留原生生成、加密、模型及事件顺序。
+    pub async fn call_in_transaction<T: TwoFactorAuthenticatable>(
+        &self,
+        user: &mut T,
+        transaction: &mut openrust::database::Transaction,
+        force: bool,
+    ) -> Result<(), HttpError> {
+        validate_transaction(user, transaction)?;
+        self.perform(user, force, Some(transaction)).await
+    }
+    async fn perform<T: TwoFactorAuthenticatable>(
+        &self,
+        user: &mut T,
+        force: bool,
+        transaction: Option<&mut openrust::database::Transaction>,
+    ) -> Result<(), HttpError> {
         let secret = text(user, "two_factor_secret").map_err(internal)?;
         if !force
             && secret
@@ -76,17 +94,16 @@ impl EnableTwoFactorAuthentication {
         let encrypted_codes = encrypter
             .encrypt(codes.as_bytes(), true)
             .map_err(internal)?;
-        user.force_fill(
+        persist(
+            user,
             [
                 ("two_factor_secret".into(), encrypted_secret.into()),
                 ("two_factor_recovery_codes".into(), encrypted_codes.into()),
             ]
             .into(),
+            transaction,
         )
-        .map_err(internal)?
-        .save()
-        .await
-        .map_err(internal)?;
+        .await?;
         super::emit(
             TwoFactorAuthenticationEnabled {
                 user: user.get_auth_identifier(),
@@ -104,6 +121,24 @@ impl ConfirmTwoFactorAuthentication {
         &self,
         user: &mut T,
         code: &str,
+    ) -> Result<(), HttpError> {
+        self.perform(user, code, None).await
+    }
+    /// 在调用方事务内确认；提供方可能消费验证码，数据库失败后须使用新验证码重试。
+    pub async fn call_in_transaction<T: TwoFactorAuthenticatable>(
+        &self,
+        user: &mut T,
+        transaction: &mut openrust::database::Transaction,
+        code: &str,
+    ) -> Result<(), HttpError> {
+        validate_transaction(user, transaction)?;
+        self.perform(user, code, Some(transaction)).await
+    }
+    async fn perform<T: TwoFactorAuthenticatable>(
+        &self,
+        user: &mut T,
+        code: &str,
+        transaction: Option<&mut openrust::database::Transaction>,
     ) -> Result<(), HttpError> {
         let secret = text(user, "two_factor_secret").map_err(internal)?;
         let valid = if let Some(encrypted) = secret.filter(|v| !v.is_empty() && v != "0")
@@ -139,11 +174,12 @@ impl ConfirmTwoFactorAuthentication {
             .as_date_time()
             .strftime(user.get_date_format())
             .to_string();
-        user.force_fill([("two_factor_confirmed_at".into(), date.into())].into())
-            .map_err(internal)?
-            .save()
-            .await
-            .map_err(internal)?;
+        persist(
+            user,
+            [("two_factor_confirmed_at".into(), date.into())].into(),
+            transaction,
+        )
+        .await?;
         super::emit(
             TwoFactorAuthenticationConfirmed {
                 user: user.get_auth_identifier(),
@@ -158,6 +194,22 @@ impl DisableTwoFactorAuthentication {
         Self { fortify }
     }
     pub async fn call<T: TwoFactorAuthenticatable>(&self, user: &mut T) -> Result<(), HttpError> {
+        self.perform(user, None).await
+    }
+    /// 使用同一用户连接的事务；保存被模型取消时返回错误，由调用方回滚。
+    pub async fn call_in_transaction<T: TwoFactorAuthenticatable>(
+        &self,
+        user: &mut T,
+        transaction: &mut openrust::database::Transaction,
+    ) -> Result<(), HttpError> {
+        validate_transaction(user, transaction)?;
+        self.perform(user, Some(transaction)).await
+    }
+    async fn perform<T: TwoFactorAuthenticatable>(
+        &self,
+        user: &mut T,
+        transaction: Option<&mut openrust::database::Transaction>,
+    ) -> Result<(), HttpError> {
         let confirmed = user
             .get_attribute_value("two_factor_confirmed_at")
             .map_err(internal)?
@@ -184,11 +236,7 @@ impl DisableTwoFactorAuthentication {
         {
             attributes.insert("two_factor_confirmed_at".into(), Value::Null);
         }
-        user.force_fill(attributes)
-            .map_err(internal)?
-            .save()
-            .await
-            .map_err(internal)?;
+        persist(user, attributes, transaction).await?;
         super::emit(
             TwoFactorAuthenticationDisabled {
                 user: user.get_auth_identifier(),
@@ -203,9 +251,26 @@ impl GenerateNewRecoveryCodes {
         Self { fortify }
     }
     pub async fn call<T: TwoFactorAuthenticatable>(&self, user: &mut T) -> Result<(), HttpError> {
+        self.perform(user, None).await
+    }
+    /// 使用同一用户连接的事务；保存被模型取消时返回错误，由调用方回滚。
+    pub async fn call_in_transaction<T: TwoFactorAuthenticatable>(
+        &self,
+        user: &mut T,
+        transaction: &mut openrust::database::Transaction,
+    ) -> Result<(), HttpError> {
+        validate_transaction(user, transaction)?;
+        self.perform(user, Some(transaction)).await
+    }
+    async fn perform<T: TwoFactorAuthenticatable>(
+        &self,
+        user: &mut T,
+        transaction: Option<&mut openrust::database::Transaction>,
+    ) -> Result<(), HttpError> {
         let encrypter = self.fortify.current_encrypter().map_err(internal)?;
         let codes = Zeroizing::new(recovery_codes(&self.fortify));
-        user.force_fill(
+        persist(
+            user,
             [(
                 "two_factor_recovery_codes".into(),
                 encrypter
@@ -214,11 +279,9 @@ impl GenerateNewRecoveryCodes {
                     .into(),
             )]
             .into(),
+            transaction,
         )
-        .map_err(internal)?
-        .save()
-        .await
-        .map_err(internal)?;
+        .await?;
         super::emit(
             RecoveryCodesGenerated {
                 user: user.get_auth_identifier(),
@@ -227,6 +290,48 @@ impl GenerateNewRecoveryCodes {
         )
         .await
     }
+}
+
+/*
+ * 普通入口保持固定Fortify的保存行为；事务入口拒绝跨连接与模型取消。
+ * 事件仍在保存后、调用方提交前派发，外部副作用由监听器使用提交后机制。
+ */
+fn validate_transaction<T: TwoFactorAuthenticatable>(
+    user: &T,
+    transaction: &openrust::database::Transaction,
+) -> Result<(), HttpError> {
+    if transaction.transaction_level() == 0 {
+        return Err(internal(
+            openrust::database::DatabaseError::TransactionClosed,
+        ));
+    }
+    if !transaction.belongs_to(&user.get_connection().map_err(internal)?) {
+        return Err(internal(openrust::database::DatabaseError::InvalidQuery(
+            "双因素操作必须使用用户连接的同一事务",
+        )));
+    }
+    Ok(())
+}
+async fn persist<T: TwoFactorAuthenticatable>(
+    user: &mut T,
+    attributes: openrust::database::eloquent::Attributes,
+    transaction: Option<&mut openrust::database::Transaction>,
+) -> Result<(), HttpError> {
+    user.force_fill(attributes).map_err(internal)?;
+    if let Some(transaction) = transaction {
+        if !user
+            .save_in_transaction(transaction)
+            .await
+            .map_err(internal)?
+        {
+            return Err(internal(openrust::database::DatabaseError::InvalidQuery(
+                "用户模型取消双因素变更，须回滚调用方事务",
+            )));
+        }
+    } else {
+        user.save().await.map_err(internal)?;
+    }
+    Ok(())
 }
 
 // 默认模型能力委托此实现；保留加密器、生成器、保存及事件的原执行顺序。

@@ -567,3 +567,17 @@ workspace all-targets及Fortify+Sanctum严格Clippy、fmt在passkey-purge-*-deli
 ### 仍归后续组合的边界
 
 不把该单元当作A01全部闭合。S10继续验证自定义User／字符串主键／连接和软删除应用策略、因素启停历史数据、严格头像磁盘配置与同库队列预检、完整与仅API安装及系统矩阵。完整网页预设的空API前缀可能与既有Fortify网页路径冲突，需要在安装预检明确裁决，不能把仅API空前缀测试当作完整预设通过。S03／A01-04继续无密码近期认证、可选因素管理及第三方绑定；真实供应商／设备／生产SMTP／TLS／存储ACL仍单列外部验收。
+
+## A01-04前置：原生双因素Action事务入口
+
+固定Fortify1.43.0的EnableTwoFactorAuthentication、ConfirmTwoFactorAuthentication、DisableTwoFactorAuthentication、GenerateNewRecoveryCodes四个Action已逐项读取（官方src/Actions，快照／URL／SHA在target/tmp/user-starter/reference/fortify-1.43.0-two-factor/）。同时核对固定TwoFactorAuthenticationController及routes，确认force仍取自request.boolean，未根据旧印象删除。旧版credentials/attach及challenge的CAS实现可作并发核验参考，但类型及JWT／Authority机制不符当前契约，不另移植一套因素引擎；复用当前四个原生Action、Provider、加密器、RecoveryCode、Model.save_in_transaction和事件。
+
+四个Action新增call_in_transaction(user,transaction,...)，普通call委托同一实现但保留原有保存语义。事务入口即使无状态变更也先验证用户连接，模型取消保存明确失败，由调用方持有用户写锁、回滚整个事务并丢弃／刷新内存模型。密钥长度转换、force、生成8个恢复码、加密、确认日期、无效码错误包及事件执行顺序均保留。事件仍在保存后、调用方提交前派发，外部副作用由监听器使用既有提交后机制；验证码提供方可能已消费码，后续数据库失败须取新码重试。这是User Kit所需Rust事务扩展，不将上游Action强行改为隐含事务或新建工作流。
+
+- two-factor-transaction-first.log：SQLite真实模型专项通过，覆盖四个Action的提交、启用／恢复码更新／停用回滚、验证码错误、同库要求（包括已启用的no-op）、模型取消及加密数据。
+- two-factor-transaction-mysql.log：MySQL8.4.13相同事务专项通过，另运行原two_factor_model_actions_persist_encrypted_state_and_events_on_mysql实际模型／加密／回调／事件HTTP回归1项通过，未把缺环境的提前返回计为证据。two-factor-transaction-postgres.log：PostgreSQL18.7事务专项通过。
+- two-factor-transaction-native-http.log：真实独立MySQL及TCP原生Fortify路由6项通过，含固定PHP挑战向量、管理／会话挑战、前缀／回调、错误加密及缺失用户、容器响应、CSRF与限流。
+- two-factor-transaction-workspace-clippy.log的workspace all-targets严格Clippy通过。第一次Fortify+Sanctum检查被32GB守卫中断且停止报Operation not permitted，不计通过；核对本批无活跃Cargo、其他守卫已清理并恢复空间后，仅补跑未完成部分，two-factor-transaction-feature-clippy-resumed.log严格Clippy、two-factor-transaction-fmt.log通过。未重复已通过三库／HTTP路径。
+- two-factor-transaction-docs.log／two-factor-transaction-docs-browser.log：三语教程构建、12组双挂载桌面／移动章节与无溢出检查通过。文件／SHA在two-factor-transaction-files.json、two-factor-transaction-final-source-sha.json；清理文档dist／cache计量在two-factor-transaction-delivery-space.json，保留所有证据、源码、下载、正常增量缓存及数据库／卷。
+
+这里只闭合事务Action前置，不代表套件因素管理页面、API／近期确认或A01-04已完成。接续使用正式入口装配近期确认、Cookie／PAT、页面与API，不能让调用方从底层绕行冒充管理流程。

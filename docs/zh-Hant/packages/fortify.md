@@ -135,3 +135,13 @@ passkeys.purge_user_in_transaction(transaction, user).await?;
 ```
 
 先持有使用者資料列鎖，使用所屬連線的同一交易。此方法逐模型實體刪除本人憑證，包含 Scope 隱藏與軟刪除記錄，觸發模型實體刪除事件；任何錯誤須回復整個交易。已註冊使用者型別與已持久化、未改寫的真實主鍵必須相符。尚未安裝的選用資料表回傳零；已存在但位於其他連線的資料表明確拒絕。這是 Rust 交易擴充，一般密鑰管理介面保留原有行為。
+
+## 雙因素 Action 的交易入口 {#transactional-two-factor-actions}
+
+```rust
+openrust_fortify::actions::EnableTwoFactorAuthentication::new(provider, fortify)
+    .call_in_transaction(user, transaction, false)
+    .await?;
+```
+
+EnableTwoFactorAuthentication、ConfirmTwoFactorAuthentication、DisableTwoFactorAuthentication 與 GenerateNewRecoveryCodes 均提供 `call_in_transaction`。重用已持有的使用者寫入鎖，傳入使用者連線的交易；下例假定已取得此鎖。發生錯誤時呼叫方須回復整個操作，回復後捨棄或重新載入記憶體模型。模型取消儲存視為失敗，即使沒有狀態變更也拒絕錯誤連線。一般 `call` 保留原有行為；產生、加密、驗證與事件重用同一實作。事件仍在儲存後、呼叫方提交前派發，具有外部副作用的監聽器應使用既有提交後機制。提供者可能已消費驗證碼，後續資料庫失敗時應使用新驗證碼重試。
