@@ -10,8 +10,10 @@ pub use cell::{TableCell, TableCellOptions};
 
 mod definitions;
 pub(crate) use definitions::Definitions as TableDefinitions;
+mod headers;
 mod layout;
 mod row;
+pub use headers::TableHeaders;
 mod span_layout;
 pub use row::{TableRow, TableSeparator};
 mod rows;

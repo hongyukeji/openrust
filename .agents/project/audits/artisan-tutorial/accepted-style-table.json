@@ -1,0 +1,77 @@
+{
+  "source_base": "2c23c0fb98677f5a31de8e521637df8acaab723b",
+  "source_hashes": {
+    "docs/en/digging-deeper/artisan.md": "dd608bf193d93caa529c44cd3afb77184c37ef7552463b092acde97c319ed39e",
+    "docs/tests/check_artisan_tutorial.mjs": "97b5bcaf048b9ca856686630a2c55800cbd7658ae36d783b598e3264dd7143ac",
+    "docs/zh-Hans/digging-deeper/artisan.md": "35342664a198c9ef398645c0e0f8b054c69376f4015e0d31936628aa6b29442d",
+    "docs/zh-Hant/digging-deeper/artisan.md": "9dd01ff83f6377ff3a654fc21241cb9318c1a0ba9c5e524356315f18598eefa7",
+    "tests/artisan_tutorial_docs.py": "9ad08b921b750e158d6876cbb553dae09ace8ec5f61ac004500dffd9d14f6047",
+    "vendor/openrust/framework/src/console/mod.rs": "4b486ab9fc694b26cbb6ef02869be0b206ef091f2e05502f3c78bd22a15e4de5",
+    "vendor/openrust/framework/src/console/output_style.rs": "38c5e78fd9df9bfeffd648b8b616312641370b1a900b71b4285243ee2ac5d0f6",
+    "vendor/openrust/framework/src/console/output_style/table.rs": "10c3776988c78bf44ccb210358d63cd4ad4858e46609fd36276b150a5a90b7bf",
+    "vendor/openrust/framework/src/console/table.rs": "f04c71585197b4e6b7521f4103b705f6546aaa1dc8fd4efb4550483ee148068d",
+    "vendor/openrust/framework/src/console/table/cell.rs": "54553f3e2bd08d32124e0f2aa34348ba9e913cfe8c7dc90badbfc7e3538109ee",
+    "vendor/openrust/framework/src/console/table/rows.rs": "d98ef923587920f2f977490053fb1a255b047f556fc7be7d535e06821c5d66d6",
+    "vendor/openrust/framework/src/console/table/headers.rs": "70302e2932931f0bd4b9d96a3508e4972862504d2aeff8c6160da4299bfb056d",
+    "vendor/openrust/framework/src/console/output_style/definition.rs": "4a5302a4ea2bde84bc5a1c6bed7791364c673b93ac7a136892a2959086b2b042",
+    "vendor/openrust/framework/tests/console_style_tables.rs": "0bda37faa35a9f177ab828de3a136628b5f7d5a53cad1a22a68e686d63b56d6e",
+    ".agents/project/audits/artisan-tutorial/style-table-oracle.json": "332a842605d233ef6d7311e93dcebfcc580a42ae03a15b655b17427cb4fd32f8",
+    ".agents/project/audits/artisan-tutorial/io-contracts.json": "7fcfa0a35e5786c6e12e72dec755e8f538487c04ca278cf155bc1b4bda08a2bc",
+    ".agents/project/audits/artisan-tutorial/table-contracts.json": "888f84000a761cbda10a5bf1780f3f8fd4ea9306c26c0b6c563d65549b7576a6",
+    ".agents/project/audits/artisan-tutorial/section-map.json": "b967db98d51a6bbf3e0b1ec30f51a32b41eaba77c2ae3e8c6a48ef134f697e81"
+  },
+  "parent_consumers": {
+    "framework": {
+      "targets": 27,
+      "passed": 155,
+      "ignored_drivers": 38
+    },
+    "root": {
+      "targets": 6,
+      "passed": 146,
+      "ignored_drivers": 0
+    }
+  },
+  "formal_examples": 105,
+  "source_cases": 432,
+  "expected_format_errors": 48,
+  "actual_cli": {
+    "processes": 12,
+    "os_exit_codes": [
+      0,
+      1
+    ],
+    "output_and_counters_match_source": true
+  },
+  "actual_http": {
+    "modes": 3,
+    "sequence": [
+      "200",
+      "JSON500",
+      "200 recovery"
+    ],
+    "concurrent": 12
+  },
+  "one_pass_iterators": true,
+  "unsupported_union_category_compile_fail": true,
+  "build_guard_recovery": {
+    "released_bytes": 94623113216,
+    "available_bytes_after_cleanup": 126568902656,
+    "interrupted_clippy_counted_as_pass": false
+  },
+  "fmt": true,
+  "workspace_all_targets_strict_clippy": true,
+  "browser_checks": 12,
+  "actual_main_runtime": true,
+  "logs": "target/tmp/artisan-tutorial-20261125/style-table-*",
+  "failures": [
+    "initial fixtures used borrowed Value callback for owned input values and String for OsString; corrected",
+    "actual source matrix exposed extra column for null underneath spanning definition title; fixed shared TableCell/transpose logic",
+    "missing private null initializer in explicit object constructor corrected"
+  ],
+  "scope_limits": [
+    "Not whole active worktree or Artisan chapter",
+    "Windows terminal release verification pending"
+  ],
+  "pushed": false
+}

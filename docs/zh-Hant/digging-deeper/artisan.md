@@ -1408,3 +1408,37 @@ fn register_factory_table() -> Result<(), ConsoleError> {
 追加支援由實際建構目標決定。直接選取分區時，使用 `Table::new(&mut section)` 或 `Table::new(style.get_output())`。傳入 `&mut style` 表示包裝該樣式，即使最終寫往分區，`append_row` 也會拒絕；渲染與設定仍遵循同一格式器與詳細程度規則。
 
 修改工廠回傳表格的樣式，不會修改應用的具名樣式指南定義。上述建構介接器不代表其餘一般自訂輸出介面已經完成。
+
+## 樣式表格與定義列表 {#style-table-helpers}
+
+`OutputStyle::table` 與 `horizontal_table` 使用既有表格工廠，僅在渲染成功後加入一個空行，不額外插入前置區塊間距。資料列接受 `TableRow`，包含明確的 `TableSeparator`；一般表頭陣列直接傳入，多層表頭透過 `TableHeaders::rows` 與儲存格值區分。
+
+`definition_list` 接受 `DefinitionListItem` 迭代器：標題跨兩欄，`entry` 提供單個鍵值，`entries` 保留有序陣列輸入並只渲染首項，`TableSeparator::new().into()` 加入分隔線。空 `Entries` 仍保留一個空項。列舉表達原始字串／陣列／分隔線聯合型別，不支援的型別在編譯時拒絕。
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, DefinitionListItem, OutputStyle, TableCell, TableHeaders};
+use openrust::support::facades::Artisan;
+
+fn register_style_tables() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:style-tables", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let rows = vec![
+                vec![TableCell::from("Ada"), TableCell::from(42)],
+                vec![TableCell::from("Lin"), serde_json::Value::Null.into()],
+            ];
+            let mut style = OutputStyle::new(input, output);
+            style.table(["Name", "Value"], rows)?;
+            style.horizontal_table(TableHeaders::rows([["A", "B"], ["C", "D"]]), [["x", "y"]])?;
+            style.definition_list([
+                DefinitionListItem::from("Profile"),
+                DefinitionListItem::entry("Name", "Ada"),
+                DefinitionListItem::entry("Count", 42),
+            ])?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+可空純量儲存格使用 `serde_json::Value::Null.into()`。一般儲存格裡的 null 與空字串顯示相同，水平表格仍須區分：跨欄標題下的 null 被省略，空字串保留為儲存格；明確的樣式／跨欄儲存格仍作為儲存格物件處理。定義列表標題複用這項公共表格行為，不另造渲染器。格式錯誤保留既有 `ConsoleError` 來源鏈與部分輸出，失敗後不補成功空行。

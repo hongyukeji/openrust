@@ -1,0 +1,7778 @@
+[
+    {
+        "mode": "table",
+        "variant": 0,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 0,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ------ ------- \n  Name   Value  \n ------ ------- \n  Ada    42     \n  Lin           \n ------ ------- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 0,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 0,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ------ ------- \n \u001b[32m Name \u001b[39m \u001b[32m Value \u001b[39m \n ------ ------- \n  Ada    42     \n  Lin           \n ------ ------- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 0,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 0,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ------ ------- \n  Name   Value  \n ------ ------- \n  Ada    42     \n  Lin           \n ------ ------- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 0,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 0,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ------ ------- \n \u001b[32m Name \u001b[39m \u001b[32m Value \u001b[39m \n ------ ------- \n  Ada    42     \n  Lin           \n ------ ------- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 0,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 0,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ------ ------- \n  Name   Value  \n ------ ------- \n  Ada    42     \n  Lin           \n ------ ------- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 0,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 0,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ------ ------- \n \u001b[32m Name \u001b[39m \u001b[32m Value \u001b[39m \n ------ ------- \n  Ada    42     \n  Lin           \n ------ ------- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 0,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 0,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ------ ------- \n  Name   Value  \n ------ ------- \n  Ada    42     \n  Lin           \n ------ ------- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 0,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 0,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ------ ------- \n \u001b[32m Name \u001b[39m \u001b[32m Value \u001b[39m \n ------ ------- \n  Ada    42     \n  Lin           \n ------ ------- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 1,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 1,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": "\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 1,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 1,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": "\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 1,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 1,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": "\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 1,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 1,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": "\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 1,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 1,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": "\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 1,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 1,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": "\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 1,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 1,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": "\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 1,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 1,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": "\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 2,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 2,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ---- ------- \n  名   Count  \n ---- ------- \n  a    1      \n  b           \n ---- ------- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 2,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 2,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ---- ------- \n \u001b[32m \u001b[39m\u001b[32m名\u001b[39m\u001b[32m \u001b[39m \u001b[32m Count \u001b[39m \n ---- ------- \n  a    1      \n  b           \n ---- ------- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 2,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 2,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ---- ------- \n  名   Count  \n ---- ------- \n  a    1      \n  b           \n ---- ------- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 2,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 2,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ---- ------- \n \u001b[32m \u001b[39m\u001b[32m名\u001b[39m\u001b[32m \u001b[39m \u001b[32m Count \u001b[39m \n ---- ------- \n  a    1      \n  b           \n ---- ------- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 2,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 2,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ---- ------- \n  名   Count  \n ---- ------- \n  a    1      \n  b           \n ---- ------- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 2,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 2,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ---- ------- \n \u001b[32m \u001b[39m\u001b[32m名\u001b[39m\u001b[32m \u001b[39m \u001b[32m Count \u001b[39m \n ---- ------- \n  a    1      \n  b           \n ---- ------- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 2,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 2,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ---- ------- \n  名   Count  \n ---- ------- \n  a    1      \n  b           \n ---- ------- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 2,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 2,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ---- ------- \n \u001b[32m \u001b[39m\u001b[32m名\u001b[39m\u001b[32m \u001b[39m \u001b[32m Count \u001b[39m \n ---- ------- \n  a    1      \n  b           \n ---- ------- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 3,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 3,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ----- ----- \n  One   Two  \n ----- ----- \n  x     y    \n ----- ----- \n  z     q    \n ----- ----- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 3,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 3,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ----- ----- \n \u001b[32m One \u001b[39m \u001b[32m Two \u001b[39m \n ----- ----- \n  x     y    \n ----- ----- \n  z     q    \n ----- ----- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 3,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 3,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ----- ----- \n  One   Two  \n ----- ----- \n  x     y    \n ----- ----- \n  z     q    \n ----- ----- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 3,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 3,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ----- ----- \n \u001b[32m One \u001b[39m \u001b[32m Two \u001b[39m \n ----- ----- \n  x     y    \n ----- ----- \n  z     q    \n ----- ----- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 3,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 3,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ----- ----- \n  One   Two  \n ----- ----- \n  x     y    \n ----- ----- \n  z     q    \n ----- ----- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 3,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 3,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ----- ----- \n \u001b[32m One \u001b[39m \u001b[32m Two \u001b[39m \n ----- ----- \n  x     y    \n ----- ----- \n  z     q    \n ----- ----- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 3,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 3,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ----- ----- \n  One   Two  \n ----- ----- \n  x     y    \n ----- ----- \n  z     q    \n ----- ----- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 3,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 3,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ----- ----- \n \u001b[32m One \u001b[39m \u001b[32m Two \u001b[39m \n ----- ----- \n  x     y    \n ----- ----- \n  z     q    \n ----- ----- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 4,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 4,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ------ --- --- \n  Only          \n ------ --- --- \n  x      y   z  \n ------ --- --- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 4,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 4,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ------ --- --- \n \u001b[32m Only \u001b[39m \u001b[32m   \u001b[39m \u001b[32m   \u001b[39m \n ------ --- --- \n  x      y   z  \n ------ --- --- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 4,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 4,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ------ --- --- \n  Only          \n ------ --- --- \n  x      y   z  \n ------ --- --- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 4,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 4,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ------ --- --- \n \u001b[32m Only \u001b[39m \u001b[32m   \u001b[39m \u001b[32m   \u001b[39m \n ------ --- --- \n  x      y   z  \n ------ --- --- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 4,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 4,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ------ --- --- \n  Only          \n ------ --- --- \n  x      y   z  \n ------ --- --- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 4,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 4,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ------ --- --- \n \u001b[32m Only \u001b[39m \u001b[32m   \u001b[39m \u001b[32m   \u001b[39m \n ------ --- --- \n  x      y   z  \n ------ --- --- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 4,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 4,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ------ --- --- \n  Only          \n ------ --- --- \n  x      y   z  \n ------ --- --- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 4,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 4,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ------ --- --- \n \u001b[32m Only \u001b[39m \u001b[32m   \u001b[39m \u001b[32m   \u001b[39m \n ------ --- --- \n  x      y   z  \n ------ --- --- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 5,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 5,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ---- ---- \n  A    B   \n ---- ---- \n  wide     \n ---- ---- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 5,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 5,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ---- ---- \n \u001b[32m A  \u001b[39m \u001b[32m B  \u001b[39m \n ---- ---- \n  wide     \n ---- ---- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 5,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 5,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ---- ---- \n  A    B   \n ---- ---- \n  wide     \n ---- ---- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 5,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 5,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ---- ---- \n \u001b[32m A  \u001b[39m \u001b[32m B  \u001b[39m \n ---- ---- \n  wide     \n ---- ---- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 5,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 5,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ---- ---- \n  A    B   \n ---- ---- \n  wide     \n ---- ---- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 5,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 5,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ---- ---- \n \u001b[32m A  \u001b[39m \u001b[32m B  \u001b[39m \n ---- ---- \n  wide     \n ---- ---- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 5,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 5,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ---- ---- \n  A    B   \n ---- ---- \n  wide     \n ---- ---- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 5,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 5,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ---- ---- \n \u001b[32m A  \u001b[39m \u001b[32m B  \u001b[39m \n ---- ---- \n  wide     \n ---- ---- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 6,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 6,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 6,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 6,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 6,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 6,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 6,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 6,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 6,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ],
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 6,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ],
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 6,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ],
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 6,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ],
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 6,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ],
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 6,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ],
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 6,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ],
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 6,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ],
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 7,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 7,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " --- --- \n  A   B  \n --- --- \n  C   D  \n --- --- \n  x   y  \n --- --- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 7,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 7,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " --- --- \n \u001b[32m A \u001b[39m \u001b[32m B \u001b[39m \n --- --- \n \u001b[32m C \u001b[39m \u001b[32m D \u001b[39m \n --- --- \n  x   y  \n --- --- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 7,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 7,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " --- --- \n  A   B  \n --- --- \n  C   D  \n --- --- \n  x   y  \n --- --- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 7,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 7,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " --- --- \n \u001b[32m A \u001b[39m \u001b[32m B \u001b[39m \n --- --- \n \u001b[32m C \u001b[39m \u001b[32m D \u001b[39m \n --- --- \n  x   y  \n --- --- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 7,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 7,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " --- --- \n  A   B  \n --- --- \n  C   D  \n --- --- \n  x   y  \n --- --- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 7,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 7,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " --- --- \n \u001b[32m A \u001b[39m \u001b[32m B \u001b[39m \n --- --- \n \u001b[32m C \u001b[39m \u001b[32m D \u001b[39m \n --- --- \n  x   y  \n --- --- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 7,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 7,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " --- --- \n  A   B  \n --- --- \n  C   D  \n --- --- \n  x   y  \n --- --- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 7,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 7,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " --- --- \n \u001b[32m A \u001b[39m \u001b[32m B \u001b[39m \n --- --- \n \u001b[32m C \u001b[39m \u001b[32m D \u001b[39m \n --- --- \n  x   y  \n --- --- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 8,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 8,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ----- ---- ------ \n  Title      Name  \n ----- ---- ------ \n        x          \n        y          \n ----- ---- ------ \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 8,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 8,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ----- ---- ------ \n \u001b[32m Title    \u001b[39m \u001b[32m Name \u001b[39m \n ----- ---- ------ \n        x          \n        y          \n ----- ---- ------ \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 8,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 8,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ----- ---- ------ \n  Title      Name  \n ----- ---- ------ \n        x          \n        y          \n ----- ---- ------ \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 8,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 8,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ----- ---- ------ \n \u001b[32m Title    \u001b[39m \u001b[32m Name \u001b[39m \n ----- ---- ------ \n        x          \n        y          \n ----- ---- ------ \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 8,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 8,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ----- ---- ------ \n  Title      Name  \n ----- ---- ------ \n        x          \n        y          \n ----- ---- ------ \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 8,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 8,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ----- ---- ------ \n \u001b[32m Title    \u001b[39m \u001b[32m Name \u001b[39m \n ----- ---- ------ \n        x          \n        y          \n ----- ---- ------ \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 8,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 8,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ----- ---- ------ \n  Title      Name  \n ----- ---- ------ \n        x          \n        y          \n ----- ---- ------ \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 8,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "table",
+        "variant": 8,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ----- ---- ------ \n \u001b[32m Title    \u001b[39m \u001b[32m Name \u001b[39m \n ----- ---- ------ \n        x          \n        y          \n ----- ---- ------ \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 0,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 0,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ------- ----- ----- \n  Name    Ada   Lin  \n  Value   42         \n ------- ----- ----- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 0,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 0,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ------- ----- ----- \n \u001b[32m Name  \u001b[39m  Ada   Lin  \n \u001b[32m Value \u001b[39m  42         \n ------- ----- ----- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 0,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 0,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ------- ----- ----- \n  Name    Ada   Lin  \n  Value   42         \n ------- ----- ----- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 0,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 0,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ------- ----- ----- \n \u001b[32m Name  \u001b[39m  Ada   Lin  \n \u001b[32m Value \u001b[39m  42         \n ------- ----- ----- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 0,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 0,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ------- ----- ----- \n  Name    Ada   Lin  \n  Value   42         \n ------- ----- ----- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 0,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 0,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ------- ----- ----- \n \u001b[32m Name  \u001b[39m  Ada   Lin  \n \u001b[32m Value \u001b[39m  42         \n ------- ----- ----- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 0,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 0,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ------- ----- ----- \n  Name    Ada   Lin  \n  Value   42         \n ------- ----- ----- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 0,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 0,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ------- ----- ----- \n \u001b[32m Name  \u001b[39m  Ada   Lin  \n \u001b[32m Value \u001b[39m  42         \n ------- ----- ----- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 1,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 1,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": "\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 1,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 1,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": "\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 1,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 1,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": "\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 1,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 1,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": "\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 1,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 1,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": "\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 1,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 1,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": "\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 1,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 1,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": "\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 1,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 1,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": "\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 2,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 2,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ------- --- \n  名      a  \n          b  \n  Count   1  \n ------- --- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 2,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 2,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ------- --- \n \u001b[32m \u001b[39m\u001b[32m名\u001b[39m\u001b[32m    \u001b[39m  a  \n \u001b[32m       \u001b[39m  b  \n \u001b[32m Count \u001b[39m  1  \n ------- --- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 2,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 2,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ------- --- \n  名      a  \n          b  \n  Count   1  \n ------- --- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 2,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 2,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ------- --- \n \u001b[32m \u001b[39m\u001b[32m名\u001b[39m\u001b[32m    \u001b[39m  a  \n \u001b[32m       \u001b[39m  b  \n \u001b[32m Count \u001b[39m  1  \n ------- --- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 2,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 2,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ------- --- \n  名      a  \n          b  \n  Count   1  \n ------- --- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 2,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 2,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ------- --- \n \u001b[32m \u001b[39m\u001b[32m名\u001b[39m\u001b[32m    \u001b[39m  a  \n \u001b[32m       \u001b[39m  b  \n \u001b[32m Count \u001b[39m  1  \n ------- --- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 2,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 2,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ------- --- \n  名      a  \n          b  \n  Count   1  \n ------- --- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 2,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 2,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ------- --- \n \u001b[32m \u001b[39m\u001b[32m名\u001b[39m\u001b[32m    \u001b[39m  a  \n \u001b[32m       \u001b[39m  b  \n \u001b[32m Count \u001b[39m  1  \n ------- --- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 3,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 3,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ----- --- --- \n  One   x   z  \n  Two   y   q  \n ----- --- --- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 3,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 3,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ----- --- --- \n \u001b[32m One \u001b[39m  x   z  \n \u001b[32m Two \u001b[39m  y   q  \n ----- --- --- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 3,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 3,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ----- --- --- \n  One   x   z  \n  Two   y   q  \n ----- --- --- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 3,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 3,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ----- --- --- \n \u001b[32m One \u001b[39m  x   z  \n \u001b[32m Two \u001b[39m  y   q  \n ----- --- --- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 3,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 3,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ----- --- --- \n  One   x   z  \n  Two   y   q  \n ----- --- --- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 3,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 3,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ----- --- --- \n \u001b[32m One \u001b[39m  x   z  \n \u001b[32m Two \u001b[39m  y   q  \n ----- --- --- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 3,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 3,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ----- --- --- \n  One   x   z  \n  Two   y   q  \n ----- --- --- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 3,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 3,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ----- --- --- \n \u001b[32m One \u001b[39m  x   z  \n \u001b[32m Two \u001b[39m  y   q  \n ----- --- --- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 4,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 4,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ------ --- \n  Only   x  \n ------ --- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 4,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 4,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ------ --- \n \u001b[32m Only \u001b[39m  x  \n ------ --- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 4,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 4,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ------ --- \n  Only   x  \n ------ --- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 4,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 4,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ------ --- \n \u001b[32m Only \u001b[39m  x  \n ------ --- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 4,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 4,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ------ --- \n  Only   x  \n ------ --- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 4,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 4,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ------ --- \n \u001b[32m Only \u001b[39m  x  \n ------ --- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 4,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 4,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ------ --- \n  Only   x  \n ------ --- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 4,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 4,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ------ --- \n \u001b[32m Only \u001b[39m  x  \n ------ --- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 5,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 5,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " --- ---- ---- \n  A   wide     \n  B            \n --- ---- ---- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 5,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 5,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " --- ---- ---- \n \u001b[32m A \u001b[39m  wide     \n \u001b[32m B \u001b[39m           \n --- ---- ---- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 5,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 5,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " --- ---- ---- \n  A   wide     \n  B            \n --- ---- ---- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 5,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 5,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " --- ---- ---- \n \u001b[32m A \u001b[39m  wide     \n \u001b[32m B \u001b[39m           \n --- ---- ---- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 5,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 5,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " --- ---- ---- \n  A   wide     \n  B            \n --- ---- ---- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 5,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 5,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " --- ---- ---- \n \u001b[32m A \u001b[39m  wide     \n \u001b[32m B \u001b[39m           \n --- ---- ---- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 5,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 5,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " --- ---- ---- \n  A   wide     \n  B            \n --- ---- ---- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 5,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 5,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " --- ---- ---- \n \u001b[32m A \u001b[39m  wide     \n \u001b[32m B \u001b[39m           \n --- ---- ---- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 6,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 6,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 6,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 6,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 6,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 6,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 6,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 6,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 6,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ],
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 6,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ],
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 6,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ],
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 6,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ],
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 6,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ],
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 6,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ],
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 6,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ],
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 6,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ],
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 7,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 7,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " --- --- \n  A   x  \n  B   y  \n --- --- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 7,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 7,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " --- --- \n \u001b[32m A \u001b[39m  x  \n \u001b[32m B \u001b[39m  y  \n --- --- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 7,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 7,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " --- --- \n  A   x  \n  B   y  \n --- --- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 7,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 7,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " --- --- \n \u001b[32m A \u001b[39m  x  \n \u001b[32m B \u001b[39m  y  \n --- --- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 7,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 7,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " --- --- \n  A   x  \n  B   y  \n --- --- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 7,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 7,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " --- --- \n \u001b[32m A \u001b[39m  x  \n \u001b[32m B \u001b[39m  y  \n --- --- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 7,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 7,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " --- --- \n  A   x  \n  B   y  \n --- --- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 7,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 7,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " --- --- \n \u001b[32m A \u001b[39m  x  \n \u001b[32m B \u001b[39m  y  \n --- --- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 8,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 8,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ------ ---- --- \n  Title          \n  Name   x    y  \n ------ ---- --- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 8,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 8,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ------ ---- --- \n \u001b[32m Title     \u001b[39m     \n \u001b[32m Name \u001b[39m  x    y  \n ------ ---- --- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 8,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 8,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ------ ---- --- \n  Title          \n  Name   x    y  \n ------ ---- --- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 8,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 8,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ------ ---- --- \n \u001b[32m Title     \u001b[39m     \n \u001b[32m Name \u001b[39m  x    y  \n ------ ---- --- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 8,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 8,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ------ ---- --- \n  Title          \n  Name   x    y  \n ------ ---- --- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 8,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 8,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ------ ---- --- \n \u001b[32m Title     \u001b[39m     \n \u001b[32m Name \u001b[39m  x    y  \n ------ ---- --- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 8,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 8,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ------ ---- --- \n  Title          \n  Name   x    y  \n ------ ---- --- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 8,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "horizontal",
+        "variant": 8,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ------ ---- --- \n \u001b[32m Title     \u001b[39m     \n \u001b[32m Name \u001b[39m  x    y  \n ------ ---- --- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 0,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 0,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ------- ----- \n  Profile      \n  Name    Ada  \n  Count   42   \n ------- ----- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 0,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 0,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ------- ----- \n \u001b[32m Profile     \u001b[39m \n \u001b[32m Name  \u001b[39m  Ada  \n \u001b[32m Count \u001b[39m  42   \n ------- ----- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 0,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 0,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ------- ----- \n  Profile      \n  Name    Ada  \n  Count   42   \n ------- ----- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 0,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 0,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ------- ----- \n \u001b[32m Profile     \u001b[39m \n \u001b[32m Name  \u001b[39m  Ada  \n \u001b[32m Count \u001b[39m  42   \n ------- ----- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 0,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 0,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ------- ----- \n  Profile      \n  Name    Ada  \n  Count   42   \n ------- ----- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 0,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 0,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ------- ----- \n \u001b[32m Profile     \u001b[39m \n \u001b[32m Name  \u001b[39m  Ada  \n \u001b[32m Count \u001b[39m  42   \n ------- ----- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 0,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 0,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ------- ----- \n  Profile      \n  Name    Ada  \n  Count   42   \n ------- ----- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 0,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 0,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ------- ----- \n \u001b[32m Profile     \u001b[39m \n \u001b[32m Name  \u001b[39m  Ada  \n \u001b[32m Count \u001b[39m  42   \n ------- ----- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 1,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 1,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": "\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 1,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 1,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": "\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 1,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 1,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": "\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 1,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 1,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": "\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 1,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 1,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": "\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 1,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 1,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": "\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 1,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 1,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": "\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 1,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 1,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": "\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 2,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 2,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " --------- --- \n  名        a  \n            b  \n  Enabled   1  \n --------- --- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 2,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 2,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " --------- --- \n \u001b[32m 名      \u001b[39m  a  \n \u001b[32m         \u001b[39m  b  \n \u001b[32m Enabled \u001b[39m  1  \n --------- --- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 2,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 2,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " --------- --- \n  名        a  \n            b  \n  Enabled   1  \n --------- --- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 2,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 2,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " --------- --- \n \u001b[32m 名      \u001b[39m  a  \n \u001b[32m         \u001b[39m  b  \n \u001b[32m Enabled \u001b[39m  1  \n --------- --- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 2,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 2,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " --------- --- \n  名        a  \n            b  \n  Enabled   1  \n --------- --- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 2,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 2,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " --------- --- \n \u001b[32m 名      \u001b[39m  a  \n \u001b[32m         \u001b[39m  b  \n \u001b[32m Enabled \u001b[39m  1  \n --------- --- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 2,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 2,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " --------- --- \n  名        a  \n            b  \n  Enabled   1  \n --------- --- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 2,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 2,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " --------- --- \n \u001b[32m 名      \u001b[39m  a  \n \u001b[32m         \u001b[39m  b  \n \u001b[32m Enabled \u001b[39m  1  \n --------- --- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 3,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 3,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " --- --- \n  A   x  \n --- --- \n  B   y  \n --- --- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 3,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 3,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " --- --- \n \u001b[32m A \u001b[39m  x  \n --- --- \n \u001b[32m B \u001b[39m  y  \n --- --- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 3,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 3,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " --- --- \n  A   x  \n --- --- \n  B   y  \n --- --- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 3,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 3,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " --- --- \n \u001b[32m A \u001b[39m  x  \n --- --- \n \u001b[32m B \u001b[39m  y  \n --- --- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 3,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 3,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " --- --- \n  A   x  \n --- --- \n  B   y  \n --- --- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 3,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 3,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " --- --- \n \u001b[32m A \u001b[39m  x  \n --- --- \n \u001b[32m B \u001b[39m  y  \n --- --- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 3,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 3,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " --- --- \n  A   x  \n --- --- \n  B   y  \n --- --- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 3,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 3,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " --- --- \n \u001b[32m A \u001b[39m  x  \n --- --- \n \u001b[32m B \u001b[39m  y  \n --- --- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 4,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 4,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " -------- ------- \n                  \n  second   value  \n -------- ------- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 4,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 4,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " -------- ------- \n \u001b[32m        \u001b[39m         \n \u001b[32m second \u001b[39m  value  \n -------- ------- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 4,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 4,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " -------- ------- \n                  \n  second   value  \n -------- ------- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 4,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 4,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " -------- ------- \n \u001b[32m        \u001b[39m         \n \u001b[32m second \u001b[39m  value  \n -------- ------- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 4,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 4,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " -------- ------- \n                  \n  second   value  \n -------- ------- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 4,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 4,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " -------- ------- \n \u001b[32m        \u001b[39m         \n \u001b[32m second \u001b[39m  value  \n -------- ------- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 4,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 4,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " -------- ------- \n                  \n  second   value  \n -------- ------- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 4,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 4,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " -------- ------- \n \u001b[32m        \u001b[39m         \n \u001b[32m second \u001b[39m  value  \n -------- ------- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 5,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 5,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ------- ------ \n  first   used  \n  Footer        \n ------- ------ \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 5,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 5,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ------- ------ \n \u001b[32m first \u001b[39m  used  \n \u001b[32m Footer       \u001b[39m \n ------- ------ \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 5,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 5,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ------- ------ \n  first   used  \n  Footer        \n ------- ------ \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 5,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 5,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ------- ------ \n \u001b[32m first \u001b[39m  used  \n \u001b[32m Footer       \u001b[39m \n ------- ------ \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 5,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 5,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ------- ------ \n  first   used  \n  Footer        \n ------- ------ \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 5,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 5,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ------- ------ \n \u001b[32m first \u001b[39m  used  \n \u001b[32m Footer       \u001b[39m \n ------- ------ \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 5,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 5,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ------- ------ \n  first   used  \n  Footer        \n ------- ------ \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 5,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 5,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ------- ------ \n \u001b[32m first \u001b[39m  used  \n \u001b[32m Footer       \u001b[39m \n ------- ------ \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 6,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 6,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 6,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 6,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 6,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 6,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 6,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 6,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 6,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ],
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 6,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ],
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 6,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ],
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 6,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ],
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 6,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ],
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 6,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ],
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 6,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ],
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 6,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException",
+        "output": "",
+        "counts": [
+            [
+                1,
+                false
+            ],
+            [
+                1,
+                false
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 7,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 7,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ----- ---- \n  Title     \n ----- ---- \n  Key       \n ----- ---- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 7,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 7,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ----- ---- \n \u001b[32m Title    \u001b[39m \n ----- ---- \n \u001b[32m Key \u001b[39m      \n ----- ---- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 7,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 7,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ----- ---- \n  Title     \n ----- ---- \n  Key       \n ----- ---- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 7,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 7,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ----- ---- \n \u001b[32m Title    \u001b[39m \n ----- ---- \n \u001b[32m Key \u001b[39m      \n ----- ---- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 7,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 7,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ----- ---- \n  Title     \n ----- ---- \n  Key       \n ----- ---- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 7,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 7,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ----- ---- \n \u001b[32m Title    \u001b[39m \n ----- ---- \n \u001b[32m Key \u001b[39m      \n ----- ---- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 7,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 7,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ----- ---- \n  Title     \n ----- ---- \n  Key       \n ----- ---- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 7,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 7,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ----- ---- \n \u001b[32m Title    \u001b[39m \n ----- ---- \n \u001b[32m Key \u001b[39m      \n ----- ---- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 8,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 8,
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ------- ---- \n  Title       \n  Empty       \n  Null        \n  False       \n ------- ---- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 8,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 8,
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ------- ---- \n \u001b[32m Title      \u001b[39m \n \u001b[32m Empty \u001b[39m      \n \u001b[32m Null  \u001b[39m      \n \u001b[32m False \u001b[39m      \n ------- ---- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 8,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 8,
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ------- ---- \n  Title       \n  Empty       \n  Null        \n  False       \n ------- ---- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 8,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 8,
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ------- ---- \n \u001b[32m Title      \u001b[39m \n \u001b[32m Empty \u001b[39m      \n \u001b[32m Null  \u001b[39m      \n \u001b[32m False \u001b[39m      \n ------- ---- \n\n",
+        "counts": [
+            [
+                2,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 8,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 8,
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ------- ---- \n  Title       \n  Empty       \n  Null        \n  False       \n ------- ---- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 8,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 8,
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ------- ---- \n \u001b[32m Title      \u001b[39m \n \u001b[32m Empty \u001b[39m      \n \u001b[32m Null  \u001b[39m      \n \u001b[32m False \u001b[39m      \n ------- ---- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 8,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 8,
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "error": null,
+        "output": " ------- ---- \n  Title       \n  Empty       \n  Null        \n  False       \n ------- ---- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 8,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "error": null,
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    },
+    {
+        "mode": "definition",
+        "variant": 8,
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "error": null,
+        "output": " ------- ---- \n \u001b[32m Title      \u001b[39m \n \u001b[32m Empty \u001b[39m      \n \u001b[32m Null  \u001b[39m      \n \u001b[32m False \u001b[39m      \n ------- ---- \n\n",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ]
+    }
+]

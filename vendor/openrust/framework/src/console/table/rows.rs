@@ -120,7 +120,7 @@ impl Table<'_> {
                         .filter(|(index, _)| !self.separators.contains(index))
                     {
                         let index = row.len();
-                        if let Some(cell) = source.get(column) {
+                        if let Some(cell) = source.get(column).filter(|cell| !cell.is_null()) {
                             if let Some(attributes) = cell.attributes() {
                                 result
                                     .row_attributes

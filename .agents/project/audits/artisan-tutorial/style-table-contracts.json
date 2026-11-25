@@ -1,0 +1,31 @@
+{
+  "reference": "Symfony Console7.4.0; framework1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "status": "verified_helpers_and_associated_null_transpose_fix",
+  "native": [
+    "OutputStyle::table",
+    "OutputStyle::horizontal_table",
+    "OutputStyle::definition_list",
+    "TableHeaders",
+    "DefinitionListItem"
+  ],
+  "source_cases": 432,
+  "expected_format_failures": 48,
+  "native_adaptations": [
+    "Typed TableHeaders::Cells/Rows separates flat and nested PHP arrays; direct flat iterators keep familiar calls.",
+    "DefinitionListItem::Title/Entries/Separator models PHP variadic string/array/separator union via an iterator; unsupported categories fail compilation.",
+    "Entry arrays retain order and emptiness; only first pair is used, not every pair.",
+    "Nullable scalar cell has a private null marker for PHP isset; empty text remains present; explicit TableCell objects remain present. No new dependency or parallel renderer.",
+    "Success adds one LF through existing NewLineAware state; failure preserves partial bytes and cause without success LF."
+  ],
+  "evidence": [
+    "console_style_tables",
+    "style-table-oracle.json",
+    "accepted-style-table.json",
+    "artisan_docs_generated"
+  ],
+  "remaining": [
+    "Full StyleInterface/OutputInterface traits",
+    "Tree/get_error_style/components and other chapter anchors",
+    "Windows terminal release matrix"
+  ]
+}

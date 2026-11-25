@@ -1408,3 +1408,37 @@ fn register_factory_table() -> Result<(), ConsoleError> {
 The actual constructor target determines append support. Use `Table::new(&mut section)` or `Table::new(style.get_output())` for a directly selected section. Passing `&mut style` wraps that style, so `append_row` rejects it even if the style ultimately writes to a section. Render and configuration still pass through the same formatter and verbosity rules.
 
 Factory style changes are local to the returned table. They do not mutate the application’s named style-guide definition. The constructor adapters above do not claim support for the remaining general custom-output interface.
+
+## Style tables and definition lists {#style-table-helpers}
+
+`OutputStyle::table` and `horizontal_table` use the existing table factory and add one blank line only after successful rendering. Neither method inserts a leading block separator. Rows accept `TableRow`, including explicit `TableSeparator` values. Flat header arrays work directly; `TableHeaders::rows` distinguishes multiple header rows from cell values.
+
+`definition_list` accepts an iterator of `DefinitionListItem`: a title spans two columns, `entry` provides one key/value pair, `entries` preserves ordered array input and renders only its first pair, and `TableSeparator::new().into()` adds a separator. An empty `Entries` value retains an empty item. This enum expresses the source string/array/separator union; unsupported types are rejected during compilation.
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, DefinitionListItem, OutputStyle, TableCell, TableHeaders};
+use openrust::support::facades::Artisan;
+
+fn register_style_tables() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:style-tables", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let rows = vec![
+                vec![TableCell::from("Ada"), TableCell::from(42)],
+                vec![TableCell::from("Lin"), serde_json::Value::Null.into()],
+            ];
+            let mut style = OutputStyle::new(input, output);
+            style.table(["Name", "Value"], rows)?;
+            style.horizontal_table(TableHeaders::rows([["A", "B"], ["C", "D"]]), [["x", "y"]])?;
+            style.definition_list([
+                DefinitionListItem::from("Profile"),
+                DefinitionListItem::entry("Name", "Ada"),
+                DefinitionListItem::entry("Count", 42),
+            ])?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+Use `serde_json::Value::Null.into()` for a nullable scalar cell. A null value and an empty string display alike in an ordinary cell, but horizontal tables must distinguish them: null under a spanning title is omitted, while an empty string remains a cell. Explicit styled/spanning cells remain cell objects. Definition-list titles use this same general table behavior, rather than a separate renderer. Formatting errors return the existing `ConsoleError` with its original source and preserve partial output; no success blank line is added after an error.

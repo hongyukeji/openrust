@@ -3,6 +3,7 @@ use std::fmt::{self, Display};
 #[derive(Clone, Debug)]
 pub struct TableCell {
     value: String,
+    null: bool,
     options: Option<Box<TableCellOptions>>,
     separator: bool,
     explicit: bool,
@@ -22,6 +23,7 @@ impl TableCell {
         let value: Self = value.into();
         Self {
             value: value.value,
+            null: false,
             options: None,
             separator: false,
             explicit: true,
@@ -30,6 +32,7 @@ impl TableCell {
     fn text(value: String) -> Self {
         Self {
             value,
+            null: false,
             options: None,
             separator: false,
             explicit: false,
@@ -85,6 +88,7 @@ impl TableCell {
     pub(super) fn separator() -> Self {
         Self {
             value: String::new(),
+            null: false,
             options: None,
             separator: true,
             explicit: true,
@@ -92,6 +96,9 @@ impl TableCell {
     }
     pub fn display(value: impl Display) -> Self {
         Self::text(value.to_string())
+    }
+    pub(super) fn is_null(&self) -> bool {
+        self.null && !self.explicit
     }
     pub fn as_str(&self) -> &str {
         &self.value
@@ -119,7 +126,10 @@ impl From<&str> for TableCell {
 }
 impl From<serde_json::Value> for TableCell {
     fn from(value: serde_json::Value) -> Self {
-        Self::text(crate::support::input_scalars::string(value))
+        let null = value.is_null();
+        let mut cell = Self::text(crate::support::input_scalars::string(value));
+        cell.null = null;
+        cell
     }
 }
 impl From<&serde_json::Value> for TableCell {

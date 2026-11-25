@@ -814,17 +814,38 @@
       {
         "method": "table",
         "source_line": 155,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_actual_source_public_helper_http_cli",
+        "native": "console::OutputStyle::table",
+        "evidence": [
+          "console_style_tables",
+          "style-table-contracts.json",
+          "style-table-oracle.json",
+          "artisan_docs_generated"
+        ]
       },
       {
         "method": "horizontalTable",
         "source_line": 169,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_actual_source_public_helper_http_cli",
+        "native": "console::OutputStyle::horizontal_table",
+        "evidence": [
+          "console_style_tables",
+          "style-table-contracts.json",
+          "style-table-oracle.json",
+          "artisan_docs_generated"
+        ]
       },
       {
         "method": "definitionList",
         "source_line": 189,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_actual_source_public_helper_http_cli",
+        "native": "console::OutputStyle::definition_list",
+        "evidence": [
+          "console_style_tables",
+          "style-table-contracts.json",
+          "style-table-oracle.json",
+          "artisan_docs_generated"
+        ]
       },
       {
         "method": "ask",
@@ -985,6 +1006,7 @@
     "任意OutputInterface缓冲（包括Artisan.call第三参数）的专用消费者与类型仍待核对；现有原生入口不冒充完整接口",
     "公开StyleInterface完整Trait契约随其余依赖方法核对，不能用已有inherent助手冒充完整Trait实现",
     "样式问答简写／带参数入口已验证，Source异常类别与原生显式运行错误标记已分别验收；其余表格构造／完整Trait／通用输出继续",
-    "Table::new已有单生命周期输出借用，create_table已验真实控制台分区／捕获／样式身份和局部样式克隆；table/horizontal_table/definition_list与完整Trait仍待接通。"
+    "Table::new已有单生命周期输出借用，create_table已验真实控制台分区／捕获／样式身份和局部样式克隆；table/horizontal_table/definition_list与完整Trait仍待接通。",
+    "table/horizontal_table/definition_list已由432个固定源实际消费者核定；完整StyleInterface Trait、树／错误流样式／组件Factory及通用OutputInterface仍继续。"
   ]
 }

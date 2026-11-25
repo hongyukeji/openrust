@@ -5,7 +5,9 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 mod block;
+mod definition;
 mod table;
+pub use definition::DefinitionListItem;
 mod text;
 pub use block::BlockOptions;
 mod wrapping;

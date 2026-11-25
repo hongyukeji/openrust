@@ -63,7 +63,8 @@ pub use generator_command::GeneratorCommand;
 pub(crate) use isolation::IsolatedCommand;
 pub(crate) use localization::text as localized_text;
 pub use output_style::{
-    BlockOptions, OutputFormat, OutputMessages, OutputOptions, OutputStyle, OutputVerbosity,
+    BlockOptions, DefinitionListItem, OutputFormat, OutputMessages, OutputOptions, OutputStyle,
+    OutputVerbosity,
 };
 pub(crate) use progress_bar::ProgressDefinitions;
 pub use progress_bar::{
@@ -77,8 +78,8 @@ pub use question::{
 };
 pub(crate) use table::TableDefinitions;
 pub use table::{
-    ConsoleTableError, Table, TableCell, TableCellOptions, TableCellStyle, TablePadding, TableRow,
-    TableSeparator, TableStyle,
+    ConsoleTableError, Table, TableCell, TableCellOptions, TableCellStyle, TableHeaders,
+    TablePadding, TableRow, TableSeparator, TableStyle,
 };
 pub use terminal::Terminal;
 
