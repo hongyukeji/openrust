@@ -96,7 +96,7 @@ O01 Activitylog、O02 Horizon、O03 Telescope原生范围、O04 Pennant、O05 Pu
 |---|---|
 | Telescope | 继续 Query／Gate 来源过滤与出站 multipart 剩余边界。逐类型核对 Watcher、Entry／过滤与脱敏、关联和仓储、生命周期、配置发布、命令输出及授权面板。原生界面和来源传递须验证同等使用结果。 |
 | Pulse | 按固定配置的十个 Recorder 逐一核对订阅事件、默认参数、过滤、采样和聚合。继续核对自定义 Recorder、存储和 ingest 契约、Worker 与命令、面板授权及卡片数据。 |
-| Horizon | 先核对面板名称与配置默认值、等待时间与通知，再核对管理命令、监督器与 Worker、进程恢复、标签、仓储、指标和面板操作。Redis Cluster 沿用固定上游支持边界。 |
+| Horizon | 继续补齐 `JobPayload` 的公开读取、变更和预置标签合并，核对 Redis 入队、重试和仓储消费者。其余管理命令、监督器与 Worker、进程恢复、仓储、指标和面板操作逐项复验。Redis Cluster 沿用固定上游支持边界。 |
 | 发布验收 | 跟踪 Fortify 三个测试目标编译深度溢出，复验最终交付快照的全仓门禁。锁定提交、依赖、目标平台和实际数据库／Redis／Worker 组合，验收迁移、正常关停、故障恢复、业务端到端及容量。平台与供应商所需真实条件按[发布待办](../todo.md#平台与发布条件)记录。 |
 
 ### Horizon 面板名称与配置默认值
@@ -369,7 +369,9 @@ PHP 8.5.12 探针使用固定上游的四个实际包装类型并调用 `JobPayl
 
 Linux 7.0.14 ARM64 用与 `52848e62b` 可观测性代码一致的快照，Rust 1.94.0 和独占 Redis 8.10.3 冷构建后通过全部 14 项 Horizon Redis Runtime，含类型与上一批载荷重试元数据。日志为 `target/tmp/observability-parity/horizon-job-types-linux.log`。
 
-PHP 8.5.12 探针按固定源码给四类包装设置对应底层对象。广播取事件对象，监听器取监听器类名，邮件取 Mailable，通知取 Notification。实现 `Silenced`、配置命中底层类型或标签任一条件成立时静默；只配置包装类名不命中。无任务对象的原始重试即使保留静默标签也会清除静默状态。Rust 在真实包装生产者记录底层类型，在 `horizon.silenced` 匹配完整类型名，普通任务兼容其注册名称。旧载荷缺少底层类型时沿用任务名称。Rust 在对象擦除后无法自动检查标记 trait，由应用显式调用 `Horizon::silence::<T>()` 注册实现 `Silenced` 的类型。注册与已保存的静默状态均按应用隔离。对照证据为 `target/tmp/observability-parity/horizon-wrapper-silence-upstream.log`。显式预置标签合并与公开载荷的值、解码、名称、ID 回退和可变字段操作仍需逐项核对。
+PHP 8.5.12 探针按固定源码给四类包装设置对应底层对象。广播取事件对象，监听器取监听器类名，邮件取 Mailable，通知取 Notification。实现 `Silenced`、配置命中底层类型或标签任一条件成立时静默；只配置包装类名不命中。无任务对象的原始重试即使保留静默标签也会清除静默状态。Rust 在真实包装生产者记录底层类型，在 `horizon.silenced` 匹配完整类型名，普通任务兼容其注册名称。旧载荷缺少底层类型时沿用任务名称。Rust 在对象擦除后无法自动检查标记 trait，由应用显式调用 `Horizon::silence::<T>()` 注册实现 `Silenced` 的类型。注册与已保存的静默状态均按应用隔离。对照证据为 `target/tmp/observability-parity/horizon-wrapper-silence-upstream.log`。
+
+固定上游 `JobPayload` 的 PHP 8.5.12 探针已确认，ID 优先读取 UUID，缺失或为 `null` 时回退到旧 ID，空字符串仍作为值返回。命令名来自 `data.commandName`，显示名来自顶层 `displayName`。`tags` 缺失时返回空数组，显式 `null` 原样返回。重试字段把缺失和 `null` 视为无值，空字符串视为存在。下标写入和删除只影响解码值，`set` 会合并字段并重新序列化全部解码值。探针也验证了预置标签与任务标签的合并顺序及重复项保留。Rust 对应公开契约仍待实现与验收。证据为 `target/tmp/observability-parity/horizon-job-payload-accessors-upstream.log`。
 
 macOS 冷构建在真实 Redis 8.10.3 验证广播、带自定义名称的监听器、邮件、加密通知及普通任务。覆盖配置底层类、配置只有包装名称、应用间显式注册隔离以及真实 `horizon:retry` 重置静默结果。Horizon Redis 20 项、三包默认 84 项、严格 Clippy、全仓格式、三语文档和 12 组浏览器检查通过。Windows 11 ARM64 用同一源码、专用 NTFS 构建卷和独占 Redis 8.10.3，通过 15 项 Redis Runtime。证据为 `target/tmp/observability-parity/horizon-silenced-{accepted,docs}.log` 及 `target/tmp/observability-windows/horizon-silenced-arm64.log`。完整发布组合待验。
 
@@ -380,6 +382,10 @@ Linux 7.0.14 ARM64 用同一源码快照、Rust 1.94.0 和独占 Redis 8.10.3 �
 Rust 的活跃事务派发由 failover 逐个委派给实际候选连接。首个接收任务的连接使用现有事务机制，同时保留派发级和包装连接的提交设置。连接解析及提交回调登记期间发生的错误沿用现有 failover 事件和后续尝试。已选连接的写入在提交回调中执行，错误返回 `DatabaseError::AfterCommit`。以独占 Redis 8.10.3 的两个逻辑库与 SQLite 验证回滚、选定后失败、首连接解析失败并使用备用连接的 `after_commit` 默认值、标签计数和实际连接名。
 
 macOS 快照通过 Horizon Redis 21 项、三包默认 84 项、严格 Clippy、全仓格式、三语文档与 12 组浏览器检查。Windows 11 ARM64 用同一源码快照和独占 Redis 8.10.3 通过 failover 专项。证据为 `target/tmp/observability-parity/horizon-failover-commit-{verified,docs}.log` 与 `target/tmp/observability-windows/horizon-failover-commit-arm64.log`。
+
+macOS 用与 `0493e6e2d` 变更源码一致的快照冷构建，通过独占 Redis 8.10.3 上的真实 Artisan 进程矩阵。验证 Worker 选项、退避、维护模式、分钟级冷却、进程恢复、暂停、重试、正常关停及 HTTP 授权和脱敏。证据为 `target/tmp/observability-parity/horizon-failover-commit-process-verified.log`。
+
+Linux 7.0.14 ARM64 用同一变更源码和 Rust 1.94.0 冷构建，在独占 Redis 8.10.3 与 SQLite 上通过 failover 专项。证据为 `target/tmp/observability-parity/horizon-failover-commit-linux-verified.log`。Linux x86_64、其他事务驱动和完整发布组合仍待分别验收。
 
 基于 `eb189cfb1` 加已提交 Redis 事件与本批文件的 macOS 隔离快照，独占 Redis 8.10.3 和 SQLite 验证 `JobPending`、`JobPushed`、保留和结算读取相同的标签及静默结果。原生 Artisan 验证标签回调仅在入队执行一次、成功完成后保留原静默结果、Horizon 重试保留标签及原投递引用并重算截止时间。授权 HTTP 验证旧失败任务的重投递和标签回退。Horizon Redis 18 项与三包默认 84 项、无 Horizon 的框架 Redis Worker、真实 Artisan 进程矩阵、全仓格式、Horizon 全目标严格 Clippy、三语站点和 12 组浏览器检查通过。新载荷行为的 Linux、Windows 和完整发布组合待验。验证日志位于 `target/tmp/observability-parity/horizon-payload-{verified,core,process,docs}.log`。
 
