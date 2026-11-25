@@ -164,6 +164,12 @@ Schedule the bounded command for each receipt scope. Keep the stored queue conne
 
 Failed dispatches keep their intent and return a failing exit status. A subsequent run may claim the intent after 60 seconds. If the queue accepts a task and the recovery process exits before clearing the intent, the next run may enqueue it again. Workers share the same receipt claim and completion state. Make business side effects idempotent to handle interruptions during processing.
 
+#### Recover an overdue receipt after enqueue {#processing-recovery}
+
+For a profile with `recover_dispatch: true`, set `"recover_processing": {"after_seconds": 300, "max_requeues": 2}` or call `with_processing_recovery(300, 2)?`. Run `./artisan migrate`. The delay accepts 60–86,400 seconds and the budget accepts 1–10 requeues. Both are captured at receipt time. Choose a delay that allows for normal queue backlog, retries and backoff.
+
+The same scheduled command requeues an overdue unfinished receipt using its saved queue route. It skips active processing leases and future processing times. Each requeue claim spends one unit of budget, including a claim interrupted before queue confirmation. Budget exhaustion stops automatic requeues and leaves any already queued task eligible to run. Once the receipt is complete or stopped, the next recovery run removes the dispatch tracking row. `--pretend` only previews eligible dispatches. Processing can still repeat after a crash during a side effect, so handlers need business idempotency.
+
 ### Claim a receipt across Workers {#processing-lease}
 
 Run `./artisan migrate` and register the handler with `QueuedWebhookJob::register_with_database_lease(&queue, name, store, handler, lease_seconds)`. The store must be an `Arc<DatabaseWebhookStore>`. Deploy the same registration to every Worker serving that queue during a coordinated restart. For example, use a 20-second job timeout, a 30-second lease and a database queue `retry_after` of 60 seconds. The lease accepts 3–86,400 seconds and requires a positive job timeout at least two seconds shorter than the lease. Allow additional time for database work and configure the queue’s reservation or visibility timeout to exceed the lease. A competing job is released through the native queue and can use an attempt from its configured budget.

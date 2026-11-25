@@ -245,8 +245,13 @@ impl DatabaseWebhookStore {
             dispatcher.prepare(&call)?;
             if recover {
                 let route = dispatcher.recovery_route()?.encode()?;
-                self.record_dispatch_intent(&mut transaction, call.id(), route)
-                    .await
+                self.record_dispatch_intent(
+                    &mut transaction,
+                    call.id(),
+                    route,
+                    webhook.processing_recovery.as_ref(),
+                )
+                .await
             } else {
                 dispatcher
                     .dispatch_in_transaction(&call, &mut transaction)

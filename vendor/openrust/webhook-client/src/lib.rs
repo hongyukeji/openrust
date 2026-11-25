@@ -27,6 +27,8 @@ pub mod http;
 #[path = "../database/migrations/2026_11_25_000004_create_webhook_event_receipts_table.rs"]
 mod identity_migration;
 pub mod jobs;
+#[path = "../database/migrations/2026_11_25_000014_add_processing_recovery_to_webhook_dispatch_intents.rs"]
+mod processing_recovery_migration;
 mod routes;
 pub use routes::{WebhookRouteOptions, WebhookRouter, WebhookRoutes};
 pub mod events;
@@ -189,6 +191,10 @@ impl WebhookClientServiceProvider {
             openrust::database::migrations::MigrationEntry::new(
                 "vendor/openrust/webhook-client/database/migrations/2026_11_25_000013_create_webhook_dispatch_intents_table.rs",
                 &dispatch_intents_migration::MIGRATION,
+            ),
+            openrust::database::migrations::MigrationEntry::new(
+                "vendor/openrust/webhook-client/database/migrations/2026_11_25_000014_add_processing_recovery_to_webhook_dispatch_intents.rs",
+                &processing_recovery_migration::MIGRATION,
             ),
         ];
         ENTRIES

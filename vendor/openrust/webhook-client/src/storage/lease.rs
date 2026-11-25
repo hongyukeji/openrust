@@ -394,7 +394,7 @@ fn stopped_assignments(clock: &str) -> BTreeMap<String, UpdateValue<'static, 'st
     .collect()
 }
 
-fn assignment(
+pub(super) fn assignment(
     name: &str,
     value: impl Into<ValueOperand>,
 ) -> (String, UpdateValue<'static, 'static>) {

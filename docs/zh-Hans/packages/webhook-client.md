@@ -164,6 +164,12 @@ Provider 注册 `webhook_calls` 迁移，使用 `DatabaseWebhookStore` 前运行
 
 派发失败时保留意图，命令以失败状态退出。60 秒后可再次领取。队列已接受任务、恢复进程却在清除意图前退出时，重试可能产生重复队列任务。各 Worker 共享接收记录的领取与完成状态。业务副作用须实现幂等，以应对处理过程中的中断。
 
+#### 补派已入列但逾期未完成的记录 {#processing-recovery}
+
+对已启用 `recover_dispatch: true` 的 profile，设置 `"recover_processing": {"after_seconds": 300, "max_requeues": 2}`，或调用 `with_processing_recovery(300, 2)?`。运行 `./artisan migrate`。等待时间可设为 60–86,400 秒，补派预算为 1–10 次，两者随接收记录保存。等待时间应覆盖正常队列积压、重试和退避。
+
+同一个定时命令按已保存的队列路由补派逾期且未完成的记录，跳过仍有业务租约或尚未到预定处理时间的记录。每次领取补派占用一次预算，包括队列确认前中断的尝试。预算耗尽后停止自动补派，已入列任务仍可执行。记录完成或终止后，下次恢复命令移除派发跟踪行。`--pretend` 只预览可派发的记录。Worker 在产生副作用后退出时仍可能重复处理，业务处理器须实现幂等。
+
 ### 多 Worker 领取接收记录 {#processing-lease}
 
 先运行 `./artisan migrate`，再用 `QueuedWebhookJob::register_with_database_lease(&queue, name, store, handler, lease_seconds)` 注册处理器。存储参数为 `Arc<DatabaseWebhookStore>`。协调重启消费该队列的各个 Worker，使它们使用同一注册。例如任务超时 20 秒、租约 30 秒、数据库队列 `retry_after` 60 秒。租约范围为 3–86,400 秒，任务必须显式设置正数超时且至少比租约短两秒。应为数据库操作留出余量，并让队列保留时间或可见性超时长于租约。竞争中的任务通过原生队列释放，可能消耗一次队列尝试预算。

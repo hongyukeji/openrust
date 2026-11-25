@@ -9,7 +9,7 @@ pub fn load(_: &Environment) -> Result<Value, ConfigError> {
             "signature_header_name":"Signature", "signature_validator":"default",
             "webhook_profile":"process-everything", "webhook_response":"default",
             "webhook_model":"database", "scope":null, "connection":null, "process_webhook_job":"",
-            "atomic_database_queue":false, "recover_dispatch":false, "deduplicate_verified_events":false, "deduplicate_body_seconds":null, "store_headers":[], "store_attachments":true,
+            "atomic_database_queue":false, "recover_dispatch":false, "recover_processing":null, "deduplicate_verified_events":false, "deduplicate_body_seconds":null, "store_headers":[], "store_attachments":true,
             "max_body_bytes":1048576,
             "verification_secrets":[]
         }],

@@ -1,6 +1,7 @@
 use crate::{Error, Result};
 use http::header::HeaderName;
 use openrust::config::Environment;
+use serde::Deserialize as _;
 use serde_json::Value;
 use std::{
     collections::HashMap,
@@ -8,6 +9,22 @@ use std::{
     sync::{Arc, RwLock},
 };
 use zeroize::Zeroizing;
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ProcessingRecovery {
+    pub after_seconds: u32,
+    pub max_requeues: u32,
+}
+
+impl ProcessingRecovery {
+    fn validate(self) -> Result<Self> {
+        if !(60..=86_400).contains(&self.after_seconds) || !(1..=10).contains(&self.max_requeues) {
+            return Err(Error::InvalidConfig("recover_processing"));
+        }
+        Ok(self)
+    }
+}
 
 /// 单次解析的不可变配置；不实现 Serialize，密钥不进入任务与诊断快照。
 #[derive(Clone)]
@@ -106,6 +123,41 @@ impl WebhookConfig {
         }
         self.options["recover_dispatch"] = Value::Bool(enabled);
         self
+    }
+
+    /// 为已入列但逾期未完成的接收记录启用有界补派。
+    pub fn with_processing_recovery(
+        mut self,
+        after_seconds: u32,
+        max_requeues: u32,
+    ) -> Result<Self> {
+        let policy = ProcessingRecovery {
+            after_seconds,
+            max_requeues,
+        }
+        .validate()?;
+        if self.options.is_null() {
+            self.options = serde_json::json!({});
+        }
+        self.options["recover_processing"] = serde_json::json!({
+            "after_seconds": policy.after_seconds,
+            "max_requeues": policy.max_requeues,
+        });
+        Ok(self)
+    }
+
+    pub(crate) fn processing_recovery(&self) -> Result<Option<ProcessingRecovery>> {
+        let value = &self.options["recover_processing"];
+        if value.is_null() {
+            return Ok(None);
+        }
+        if !self.recover_dispatch()? {
+            return Err(Error::InvalidConfig("recover_processing"));
+        }
+        ProcessingRecovery::deserialize(value)
+            .map_err(|_| Error::InvalidConfig("recover_processing"))?
+            .validate()
+            .map(Some)
     }
 
     pub fn deduplicate_verified_events(&self) -> Result<bool> {
@@ -383,6 +435,7 @@ impl WebhookConfig {
         config.attachment_disk()?;
         config.atomic_database_queue()?;
         config.recover_dispatch()?;
+        config.processing_recovery()?;
         config.deduplicate_verified_events()?;
         config.body_deduplication_window()?;
         if let Some(names) = value.get("store_headers").filter(|names| !names.is_null()) {

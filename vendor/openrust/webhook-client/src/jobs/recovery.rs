@@ -1,5 +1,6 @@
 use super::{ProcessWebhookJob, QueueRoute, QueuedWebhookJob, Receipt};
 use crate::{DatabaseWebhookStore, Error, Result, storage::text};
+use openrust::database::Value;
 use openrust::queue::{
     DispatchOptions, DispatchResult, Payload, QueueError, QueueFacade, QueueManager,
 };
@@ -79,8 +80,14 @@ impl QueuedWebhookJob {
         if pretend {
             return Ok(report);
         }
+        store.prune_settled_dispatches(limit).await?;
         for row in rows {
             let id = text(&row, "call_id")?;
+            let retry_after = match row.get("processing_retry_after") {
+                Some(Value::Null) => None,
+                Some(Value::Integer(seconds)) if (60..=86_400).contains(seconds) => Some(*seconds),
+                _ => return Err(Error::InvalidRecord),
+            };
             let Some(token) = store.claim_dispatch(id).await? else {
                 continue;
             };
@@ -102,7 +109,7 @@ impl QueuedWebhookJob {
                 report.failed += 1;
                 continue;
             }
-            report.dispatched += usize::from(store.finish_dispatch(id, &token).await?);
+            report.dispatched += usize::from(store.finish_dispatch(id, &token, retry_after).await?);
         }
         Ok(report)
     }

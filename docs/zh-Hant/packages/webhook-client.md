@@ -164,6 +164,12 @@ Provider 註冊 `webhook_calls` 遷移，使用 `DatabaseWebhookStore` 前執行
 
 派發失敗時保留意圖，指令以失敗狀態結束。60 秒後可再次領取。若佇列已接受任務，而復原程序在清除意圖前結束，重試可能產生重複的佇列任務。各 Worker 共用接收記錄的領取與完成狀態。業務副作用須實作冪等，以處理執行期間的中斷。
 
+#### 補派已入列但逾期未完成的記錄 {#processing-recovery}
+
+在已啟用 `recover_dispatch: true` 的 profile 中，設定 `"recover_processing": {"after_seconds": 300, "max_requeues": 2}`，或呼叫 `with_processing_recovery(300, 2)?`。執行 `./artisan migrate`。等待時間可設為 60–86,400 秒，補派預算為 1–10 次，兩者都會隨接收記錄保存。等待時間須涵蓋正常的佇列積壓、重試和退避。
+
+同一個排程指令依保存的佇列路由補派逾期且未完成的記錄，跳過仍有業務租約或尚未到預定處理時間的記錄。每次領取補派消耗一次預算，包括佇列確認前中斷的試行。預算耗盡後停止自動補派，已入列的任務仍可執行。記錄完成或終止後，下次復原指令移除派發追蹤列。`--pretend` 只預覽可派發的記錄。Worker 在產生副作用後結束時仍可能重複處理，業務處理器須實作冪等。
+
 ### 多 Worker 領取接收記錄 {#processing-lease}
 
 先執行 `./artisan migrate`，再用 `QueuedWebhookJob::register_with_database_lease(&queue, name, store, handler, lease_seconds)` 註冊處理器。儲存參數為 `Arc<DatabaseWebhookStore>`。協調重新啟動消費該佇列的各個 Worker，使其採用相同註冊。例如任務逾時 20 秒、租約 30 秒、資料庫佇列 `retry_after` 60 秒。租約範圍為 3–86,400 秒，任務必須明確設定正數逾時，且至少比租約短兩秒。應為資料庫操作保留餘裕，並讓佇列保留時間或可見性逾時長於租約。競爭中的任務透過原生佇列釋放，可能耗用一次佇列嘗試額度。

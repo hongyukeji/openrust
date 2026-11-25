@@ -18,6 +18,7 @@ pub struct VerifiedWebhook<'a> {
     config: &'a WebhookConfig,
     event_id: Option<&'a str>,
     body_deduplication_window: Option<u32>,
+    pub(crate) processing_recovery: Option<crate::webhook_config::ProcessingRecovery>,
 }
 impl VerifiedWebhook<'_> {
     pub fn request(&self) -> &WebhookRequest {
@@ -239,6 +240,7 @@ impl<'a> WebhookProcessor<'a> {
             config: self.config,
             event_id: event_id.as_deref(),
             body_deduplication_window: self.config.body_deduplication_window()?,
+            processing_recovery: self.config.processing_recovery()?,
         };
         if self.config.recover_dispatch()? {
             self.runtime

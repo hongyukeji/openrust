@@ -1031,9 +1031,13 @@ def check_dispatch_recovery(binary, env, root, port, driver, sql):
     assert "可派发 1 条" in command(binary, current, *sweep, "--pretend")
     assert sql("SELECT COUNT(claim_token) FROM webhook_dispatch_intents") == "0"
 
-    rollback = subprocess.run([str(binary), "artisan", "migrate:rollback", "--step=1", "--force"],
-                              env=current, capture_output=True, text=True, timeout=20)
-    assert rollback.returncode != 0 and "仍有待派发" in rollback.stdout + rollback.stderr, rollback
+    def verify_rollback_guard(file, reason):
+        migration = "--path=vendor/openrust/webhook-client/database/migrations/" + file
+        rollback = subprocess.run([str(binary), "artisan", "migrate:rollback", migration, "--force"],
+                                  env=current, capture_output=True, text=True, timeout=20)
+        assert rollback.returncode != 0 and reason in rollback.stdout + rollback.stderr, rollback
+
+    verify_rollback_guard("2026_11_25_000013_create_webhook_dispatch_intents_table.rs", "仍有待派发")
 
     def expire_claim():
         write_database(driver, sql,
@@ -1091,6 +1095,73 @@ def check_dispatch_recovery(binary, env, root, port, driver, sql):
     print(f"{driver}: 恢复派发经 {connection} 实测 5 个 HTTP、"
           f"{2 if redis else 1} 次 Worker；队列故障、提交后重启、独占领取与迁移保护通过",
           flush=True)
+
+    body = b"leased-crash"
+    with (root / "processing-recovery-http.log").open("w+") as log:
+        server = http_helpers["serve"](binary, current, log)
+        try:
+            send("processing-recovery", 200)
+        finally:
+            http_helpers["stop"](server)
+    receipt = sql(f"SELECT id FROM webhook_calls WHERE scope='{scope}' AND name='processing-recovery'")
+    assert re.fullmatch(r"[0-9a-f-]{36}", receipt)
+    verify_rollback_guard("2026_11_25_000014_add_processing_recovery_to_webhook_dispatch_intents.rs",
+                          "仍有启用处理恢复")
+    assert "已派发 1 条" in command(binary, current, *sweep)
+    assert "可派发 0 条" in command(binary, current, *sweep, "--pretend")
+    assert int(sql(f"SELECT enqueued_at FROM webhook_dispatch_intents WHERE call_id='{receipt}'")) > 0
+    assert sql(f"SELECT processing_requeues_left FROM webhook_dispatch_intents WHERE call_id='{receipt}'") == "2"
+
+    # 清除已确认入列的任务，模拟队列丢失。预算仅在首次成功入列后的补派领取时扣减。
+    clear = ("queue:clear", connection, "--queue=webhook-recovery", "--force")
+    assert pending_count() == 1
+    command(binary, current, *clear)
+    assert pending_count() == 0
+    expire_claim()
+    if redis:
+        # 补派尝试的队列确认丢失时，领取已经消耗预算。
+        ambiguous = subprocess.run([str(binary), "artisan", *sweep],
+                                   env=current | {"FIXTURE_CRASH_AFTER_REDIS_ENQUEUE": "1"},
+                                   capture_output=True, text=True, timeout=25)
+        assert ambiguous.returncode == 79 and pending_count() == 1, ambiguous
+    else:
+        assert "已派发 1 条" in command(binary, current, *sweep)
+    assert sql(f"SELECT processing_requeues_left FROM webhook_dispatch_intents WHERE call_id='{receipt}'") == "1"
+
+    # Worker 已领取业务租约后真实退出。租约仍活跃时禁止补派，过期后才允许另一 Worker 领取。
+    crash = subprocess.run([str(binary), "artisan", *worker],
+                           env=worker_env | {"FIXTURE_LEASE_CRASH": "1"},
+                           capture_output=True, text=True, timeout=20)
+    assert crash.returncode == 79, crash
+    assert re.fullmatch(r"[0-9a-f-]{36}", sql(
+        f"SELECT processing_token FROM webhook_calls WHERE id='{receipt}'"))
+    active_until = int(time.time()) + 120
+    write_database(driver, sql, f"UPDATE webhook_calls SET processing_until={active_until} WHERE id='{receipt}'")
+    expire_claim()
+    assert "可派发 0 条" in command(binary, current, *sweep, "--pretend")
+    assert "已派发 0 条" in command(binary, current, *sweep)
+    command(binary, current, *clear)
+    write_database(driver, sql, f"UPDATE webhook_calls SET processing_until=0 WHERE id='{receipt}'")
+    with ThreadPoolExecutor(max_workers=2) as runners:
+        outcomes = sorted(run.result() for run in (runners.submit(dispatch), runners.submit(dispatch)))
+    assert outcomes == [0, 1] and pending_count() == 1
+    assert sql(f"SELECT processing_requeues_left FROM webhook_dispatch_intents WHERE call_id='{receipt}'") == "0"
+    expire_claim()
+    assert "可派发 0 条" in command(binary, current, *sweep, "--pretend")
+    assert "已派发 0 条" in command(binary, current, *sweep)
+
+    marker = root / "processing-recovered-worker.json"
+    command(binary, worker_env | {"WEBHOOK_TEST_RECEIPT_OUTPUT": str(marker)}, *worker)
+    record = json.loads(marker.read_text())
+    assert bytes(record["body"]) == body and record["name"] == "processing-recovery"
+    assert int(sql(f"SELECT processed_at FROM webhook_calls WHERE id='{receipt}'")) > 0
+    assert sql(f"SELECT COUNT(*) FROM webhook_dispatch_intents WHERE call_id='{receipt}'") == "1"
+    assert "可派发 0 条" in command(binary, current, *sweep, "--pretend")
+    assert "已派发 0 条" in command(binary, current, *sweep)
+    assert sql(f"SELECT COUNT(*) FROM webhook_dispatch_intents WHERE call_id='{receipt}'") == "0"
+    assert pending_count() == 0
+    print(f"{driver}: 入列后丢失恢复经 {connection} 实测 1 个 HTTP、2 次 Worker；等待窗口、"
+          "清除任务、崩溃租约、并发预算扣减、终态清理及迁移保护通过", flush=True)
 
 def main():
  driver,url=helpers["database_settings"]();binary=args.binary.resolve();requests=workers=0
@@ -1292,7 +1363,7 @@ def main():
   check_retention(binary,env,root,port,driver,sql)
   check_dispatch_recovery(binary,env,root,port,driver,sql)
   legacy_id=sql("SELECT id FROM webhook_calls WHERE name='default' ORDER BY id LIMIT 1")
-  assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate:rollback","--step=12","--force")
+  assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate:rollback","--step=13","--force")
   assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate","--force")
   legacy=json.loads(command(binary,env,"webhooks:record",legacy_id,"webhook-acceptance"))
   assert bytes(legacy["body"])==b"default" and legacy["payload"] is None and legacy["attachments"] is None
