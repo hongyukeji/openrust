@@ -22,9 +22,10 @@ use openrust::{
 };
 use openrust_content_moderation::{
     Assessment, Coverage, Decision, ImageInput, Modality, Moderation, ModerationDriver,
-    ModerationError, ModerationFuture, ModerationManager, ModerationResult, Operation, StoredMedia,
-    TaskId, TaskStatus, TextInput, VideoInput,
+    ModerationError, ModerationFuture, ModerationManager, ModerationResult, Operation,
+    ProfileRevision, StoredMedia, TaskId, TaskStatus, TextInput, VideoInput,
 };
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 
@@ -149,6 +150,26 @@ pub(super) fn configuration(env: &Environment) -> Result<Value, ConfigError> {
                 env.get_utf8("MODERATION_FIXTURE_CREDENTIAL_REVISION")?
                     .unwrap_or("r1")
             );
+            if let Some(old_endpoint) = env.get_utf8("MODERATION_FIXTURE_PIN_ENDPOINT")? {
+                let mut original = profile.clone();
+                original["base_url"] = json!(old_endpoint);
+                original["account"] = json!("original-account");
+                original["credential_revision"] = json!("r1");
+                original["policy_revision"] = json!("policy-1");
+                original["required_modalities"] = json!(["visual", "speech", "ocr"]);
+                let change = env.get_utf8("MODERATION_FIXTURE_PIN_CHANGE")?;
+                match change {
+                    Some("account") => original["account"] = json!("different-account"),
+                    Some("policy") => original["policy_revision"] = json!("policy-replacement"),
+                    Some("endpoint") => original["base_url"] = json!("http://127.0.0.1:1"),
+                    Some("credential") => original["credential_revision"] = json!("r2"),
+                    _ => (),
+                }
+                if change != Some("missing") {
+                    configuration["profile_revisions"]["sightengine-videos"]["original"] = original;
+                }
+                configuration["default"] = json!("video");
+            }
         }
         configuration["drivers"]["sightengine-videos"] = profile;
     }
@@ -374,7 +395,21 @@ async fn submit_video(profile: &str, version: &str, disk: &str) -> ModerationRes
 
 async fn query_video(profile: &str, id: &TaskId) -> ModerationResult<Value> {
     let driver = Moderation::driver(profile)?;
-    let status = driver.query_video(id).await?;
+    Ok(render_video_status(driver.query_video(id).await?))
+}
+
+#[derive(Deserialize, Serialize)]
+struct PinnedQuery {
+    profile: ProfileRevision,
+    id: TaskId,
+}
+
+async fn query_pinned(query: &PinnedQuery) -> ModerationResult<Value> {
+    let driver = Moderation::driver_for_revision(&query.profile)?;
+    Ok(render_video_status(driver.query_video(&query.id).await?))
+}
+
+fn render_video_status(status: TaskStatus) -> Value {
     let stage = match status {
         TaskStatus::Pending => "Pending",
         TaskStatus::Running => "Running",
@@ -398,10 +433,10 @@ async fn query_video(profile: &str, id: &TaskId) -> ModerationResult<Value> {
             let mut response = render_assessment(result, Modality::Visual);
             response["decision"] = json!(decision);
             response["coverage"] = json!(coverage);
-            return Ok(json!({"status":"Succeeded","assessment":response}));
+            return json!({"status":"Succeeded","assessment":response});
         }
     };
-    Ok(json!({"status":stage}))
+    json!({"status":stage})
 }
 
 pub(super) fn aliyun_video_route(
@@ -427,7 +462,10 @@ fn video_route<'a>(
     profile: &'static str,
 ) -> HttpFuture<'a, Result<Response, HttpError>> {
     Box::pin(async move {
-        let result = if let Some(id) = request.header("x-fixture-task")? {
+        let result = if let Some(query) = request.header("x-fixture-pinned-query")? {
+            let query = serde_json::from_str(query).map_err(|_| HttpError::InvalidRequest)?;
+            query_pinned(&query).await
+        } else if let Some(id) = request.header("x-fixture-task")? {
             match TaskId::new(id) {
                 Ok(id) if request.header("x-fixture-cancel")? == Some("1") => {
                     cancel_video(profile, &id).await
@@ -656,6 +694,13 @@ impl JobHandler for Query {
 
 struct ProviderVideoQuery(&'static str);
 
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum QueryPayload {
+    Current(TaskId),
+    Pinned(Box<PinnedQuery>),
+}
+
 impl JobHandler for ProviderVideoQuery {
     fn handle<'a>(
         &'a self,
@@ -663,9 +708,13 @@ impl JobHandler for ProviderVideoQuery {
         payload: &'a Payload,
     ) -> QueueFuture<'a, QueueResult<()>> {
         Box::pin(async move {
-            let id: TaskId = serde_json::from_value(payload.data().clone())
+            let query: QueryPayload = serde_json::from_value(payload.data().clone())
                 .map_err(|_| QueueError::InvalidPayload)?;
-            let record = query_video(self.0, &id).await.map_err(queue_error)?;
+            let record = match query {
+                QueryPayload::Current(id) => query_video(self.0, &id).await,
+                QueryPayload::Pinned(query) => query_pinned(&query).await,
+            }
+            .map_err(queue_error)?;
             let path = std::env::var_os("MODERATION_FIXTURE_RESULT")
                 .map(PathBuf::from)
                 .ok_or(QueueError::InvalidPayload)?;
@@ -757,11 +806,15 @@ pub(super) fn register_command(artisan: &mut Artisan) -> Result<(), ConsoleError
         artisan.add_command(Box::new(NamedVideoProbe(
             CommandDefinition::new(
                 clap::Command::new(name)
-                    .arg(
-                        clap::Arg::new("action")
-                            .required(true)
-                            .value_parser(["submit", "query", "queue", "cancel"]),
-                    )
+                    .arg(clap::Arg::new("action").required(true).value_parser([
+                        "submit",
+                        "query",
+                        "queue",
+                        "cancel",
+                        "pin",
+                        "query-pinned",
+                        "queue-pinned",
+                    ]))
                     .arg(clap::Arg::new("reference").required(true)),
             ),
             profile,
@@ -820,6 +873,27 @@ impl Command for NamedVideoProbe {
             let reference = input.argument("reference").expect("fixture reference");
             let reference = reference.as_str().expect("fixture reference text");
             let result = match action.as_str() {
+                Some("pin") => json!(
+                    Moderation::pin_profile(self.1, reference)
+                        .map_err(ConsoleError::from_source)?
+                ),
+                Some("query-pinned") => {
+                    let query =
+                        serde_json::from_str(reference).map_err(ConsoleError::from_source)?;
+                    query_pinned(&query)
+                        .await
+                        .map_err(ConsoleError::from_source)?
+                }
+                Some("queue-pinned") => {
+                    let query: PinnedQuery =
+                        serde_json::from_str(reference).map_err(ConsoleError::from_source)?;
+                    let payload =
+                        Payload::new(self.2, &query).map_err(ConsoleError::from_source)?;
+                    Queue::dispatch(payload, DispatchOptions::default(), None)
+                        .await
+                        .map_err(ConsoleError::from_source)?;
+                    json!({"queued":true})
+                }
                 Some("submit") => submit_video(self.1, reference, "s3")
                     .await
                     .map_err(ConsoleError::from_source)?,

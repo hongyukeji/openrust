@@ -150,6 +150,8 @@ Call `Moderation::driver("comments")` to select an explicit profile. `Moderation
 
 `ImageInput::inline` accepts up to 10 MiB. The driver checks the actual format and may impose a lower limit. Use `StoredMedia` for private objects and `VideoInput` for video. Drivers must verify the object's version using the configured storage.
 
-Use the original named driver and configuration revision to query a `TaskId` after submission. A serializable task ID contains only the remote identifier. Applications retain the profile, credential revision and object version when persisting work. A pending task, execution failure, or incomplete required coverage cannot authorize publication.
+For delayed queries, declare the full profile under `moderation.profile_revisions.<name>.<revision>`. Add `account`, `policy_revision`, `credential_ref`, `credential_revision` and a nonempty `required_modalities` array using `text`, `visual`, `speech` or `ocr`. Record the account or project alias you provisioned with that credential. Use a new profile revision whenever the endpoint, model, policy, or credential revision changes. Keep earlier revisions in configuration until their tasks finish.
+
+Call `Moderation::pin_profile(name, revision)` before submission and resolve the driver with `Moderation::driver_for_revision(&profile)`. Persist the returned profile locator with the remote `TaskId` and the original object version. Use the locator to resolve the driver again when querying. Recovery fails if the configuration was edited in place or removed, or the recorded credential can no longer be resolved. A pending task, execution failure, or incomplete required coverage cannot authorize publication.
 
 Check the requested modalities with `Assessment::decision`. Review and block can retain risk evidence when results are incomplete. A successful result with partial speech coverage cannot produce `Allow` for a policy that requires speech.

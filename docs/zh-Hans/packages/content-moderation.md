@@ -150,6 +150,8 @@ let recommendation = result.decision(&[Modality::Text]);
 
 `ImageInput::inline` 接受最多 10 MiB 的图片字节。驱动须核对实际格式，并可进一步缩小上限。私有对象使用 `StoredMedia`，视频使用 `VideoInput`。驱动应通过配置的存储核对对象版本。
 
-提交后按原具名驱动和配置修订查询 `TaskId`。可序列化的任务 ID 仅包含远端标识。持久化时由应用保留配置、凭据修订和对象版本。待处理、失败或必检覆盖不完整时均无法批准发布。
+需要延后查单时，在 `moderation.profile_revisions.<名称>.<修订>` 下声明完整配置，加入 `account`、`policy_revision`、`credential_ref`、`credential_revision` 和非空的 `required_modalities`。可选模态为 `text`、`visual`、`speech` 和 `ocr`。`account` 填部署时与该凭据配对的账号或项目别名。地址、模型、策略或凭据修订发生变化时创建新配置修订，并保留未完成任务引用的旧配置。
+
+提交前用 `Moderation::pin_profile(name, revision)` 固定配置，用 `Moderation::driver_for_revision(&profile)` 解析驱动。应用将返回的配置定位符、远端 `TaskId` 和原对象版本一起持久化，查单时按该定位符重新解析。原配置被原地修改、移除或对应凭据无法读取时，恢复失败。待处理、失败或必检覆盖不完整时均无法批准发布。
 
 通过 `Assessment::decision` 检查所需模态。结果不完整时仍可保留人工复核或拦截所需的风险证据。若业务要求语音审核，部分语音覆盖的成功结果无法产生 `Allow`。

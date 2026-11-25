@@ -187,7 +187,7 @@ def exercise(binary, work, storage_env, storage, *, credentials=False):
         assert all(value not in process.stdout + process.stderr for value in sensitive)
         return process.stdout
 
-    def post(expected=200, *, version=None, task=None, cancel=False, disk="s3"):
+    def post(expected=200, *, version=None, task=None, cancel=False, disk="s3", pinned=None):
         connection = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
         try:
             headers = {"Accept": "application/json"}
@@ -197,6 +197,8 @@ def exercise(binary, work, storage_env, storage, *, credentials=False):
                 headers["X-Fixture-Task"] = task
             if cancel:
                 headers["X-Fixture-Cancel"] = "1"
+            if pinned:
+                headers["X-Fixture-Pinned-Query"] = json.dumps(pinned)
             connection.request("POST", "/api/drivers/moderation/sightengine-video", headers=headers)
             response = connection.getresponse()
             data = response.read()
@@ -299,6 +301,54 @@ def exercise(binary, work, storage_env, storage, *, credentials=False):
             supplier.expected_secret = ROTATED
             assert json.loads(artisan(rotated, COMMAND, "query", TASK)) == checked
             assert len(supplier.queried) == 13
+
+            original_credential = mount / "sightengine.r1.json"
+            (mount / "retired").rename(original_credential)
+            supplier.expected_secret = SECRET
+            old_endpoint = env["MODERATION_FIXTURE_SIGHTENGINE_VIDEO"]
+            pinned_env = env | {"MODERATION_FIXTURE_PIN_ENDPOINT": old_endpoint}
+            artisan(pinned_env, "config:clear")
+            profile = json.loads(artisan(pinned_env, COMMAND, "pin", "original"))
+            assert profile["account"] == "original-account"
+            assert profile["policy_revision"] == "policy-1"
+            assert profile["credential"] == {"name": "sightengine", "revision": "r1"}
+            assert sorted(profile["required_modalities"]) == ["ocr", "speech", "visual"]
+            query = {"profile": profile, "id": TASK}
+            encoded = json.dumps(query)
+            assert not any(value in encoded for value in (*sensitive, old_endpoint))
+            assert json.loads(artisan(pinned_env, COMMAND, "queue-pinned", encoded)) == {"queued": True}
+            with sqlite3.connect(database) as conn:
+                payload, = conn.execute("SELECT payload FROM jobs").fetchone()
+                assert TASK in payload and not any(value in payload for value in (*sensitive, old_endpoint))
+
+            changed = pinned_env | {"MODERATION_FIXTURE_SIGHTENGINE_VIDEO": "http://127.0.0.1:1",
+                                    "MODERATION_FIXTURE_CREDENTIAL_REVISION": "r2"}
+            artisan(changed, "config:clear")
+            artisan(changed, "config:cache")
+            path.unlink()
+            artisan(changed | {"MODERATION_FIXTURE_RESULT": str(path)}, "queue:work", "database", "--once")
+            assert json.loads(path.read_text()) == checked
+            assert json.loads(artisan(changed, COMMAND, "query-pinned", encoded)) == checked
+            with (work / "pinned-http.log").open("w+") as log:
+                application = HTTP["serve"](binary, changed, log)
+                try:
+                    assert post(pinned=query) == checked
+                    unsupported = query | {"profile": profile | {"format": 2}}
+                    assert post(502, pinned=unsupported) == {"error": "ProfileRevisionChanged"}
+                finally:
+                    HTTP["stop"](application)
+                log.seek(0)
+                assert not any(value in log.read() for value in sensitive)
+            for change in ("account", "policy", "endpoint", "credential", "missing"):
+                modified = changed | {"MODERATION_FIXTURE_PIN_CHANGE": change}
+                artisan(modified, "config:clear")
+                artisan(modified, "config:cache")
+                artisan(modified, COMMAND, "query-pinned", encoded, successful=False)
+            artisan(changed, "config:clear")
+            artisan(changed, "config:cache")
+            original_credential.unlink()
+            artisan(changed, COMMAND, "query-pinned", encoded, successful=False)
+            assert len(supplier.queried) == 16
     finally:
         supplier.shutdown()
         supplier.server_close()

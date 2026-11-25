@@ -12,6 +12,7 @@ mod manager;
 mod moderation;
 mod provider;
 mod result;
+mod revision;
 
 pub use contracts::{
     ModerationDriver, ModerationError, ModerationFuture, ModerationResult, Operation,
@@ -24,3 +25,4 @@ pub use provider::{ModerationServiceProvider, openrust_providers};
 pub use result::{
     Assessment, Confidence, Coverage, Decision, EvidenceSpan, Finding, Modality, TaskStatus,
 };
+pub use revision::ProfileRevision;

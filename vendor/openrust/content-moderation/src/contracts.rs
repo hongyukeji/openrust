@@ -20,6 +20,10 @@ pub enum ModerationError {
     InvalidConfiguration(&'static str),
     #[error("内容审核配置未定义")]
     ProfileNotConfigured,
+    #[error("内容审核配置修订已移除或不可用")]
+    ProfileRevisionUnavailable,
+    #[error("内容审核配置修订与原任务不一致或版本不受支持")]
+    ProfileRevisionChanged,
     #[error("内容审核默认配置未指定")]
     DefaultNotConfigured,
     #[error("内容审核驱动未注册")]

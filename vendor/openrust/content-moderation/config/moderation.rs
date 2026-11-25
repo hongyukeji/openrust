@@ -6,6 +6,7 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
     Ok(json!({
         "default": env.get_utf8("MODERATION_DRIVER")?,
         "credential_directory": env.get_utf8("MODERATION_CREDENTIAL_DIRECTORY")?,
+        "profile_revisions": {},
         "drivers": {}
     }))
 }

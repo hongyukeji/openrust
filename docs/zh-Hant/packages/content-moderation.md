@@ -150,6 +150,8 @@ let recommendation = result.decision(&[Modality::Text]);
 
 `ImageInput::inline` 接受最多 10 MiB 的圖片位元組。驅動須核對實際格式，並可進一步縮小上限。私有物件使用 `StoredMedia`，影片使用 `VideoInput`。驅動應透過設定的儲存核對物件版本。
 
-提交後依原具名驅動和設定修訂查詢 `TaskId`。可序列化的任務 ID 僅包含遠端識別碼。持久化時由應用程式保留設定、憑證修訂和物件版本。待處理、失敗或必檢涵蓋不完整時均無法核准發布。
+需要延後查詢時，在 `moderation.profile_revisions.<名稱>.<修訂>` 下宣告完整設定，加入 `account`、`policy_revision`、`credential_ref`、`credential_revision` 和非空的 `required_modalities`。可用的模態為 `text`、`visual`、`speech` 和 `ocr`。`account` 填寫部署時與該憑證配對的帳號或專案別名。位址、模型、策略或憑證修訂變更時建立新設定修訂，並保留未完成任務參照的舊設定。
+
+提交前用 `Moderation::pin_profile(name, revision)` 固定設定，用 `Moderation::driver_for_revision(&profile)` 解析驅動。應用程式將傳回的設定定位符、遠端 `TaskId` 和原始物件版本一起持久化，查詢時依該定位符重新解析。原設定遭直接修改、移除或對應憑證無法讀取時，復原失敗。待處理、失敗或必檢涵蓋不完整時均無法核准發布。
 
 透過 `Assessment::decision` 檢查所需模態。結果不完整時仍可保留人工複核或封鎖所需的風險證據。若業務要求語音審核，部分語音涵蓋的成功結果無法產生 `Allow`。

@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use crate::{
     Assessment, ImageInput, ModerationDriver, ModerationError, ModerationManager, ModerationResult,
-    TextInput,
+    ProfileRevision, TextInput,
 };
 
 pub struct Moderation;
@@ -27,6 +27,16 @@ impl Moderation {
 
     pub fn default_driver() -> ModerationResult<Arc<dyn ModerationDriver>> {
         Self::manager()?.default_driver()
+    }
+
+    pub fn pin_profile(name: &str, revision: &str) -> ModerationResult<ProfileRevision> {
+        Self::manager()?.pin_profile(name, revision)
+    }
+
+    pub fn driver_for_revision(
+        profile: &ProfileRevision,
+    ) -> ModerationResult<Arc<dyn ModerationDriver>> {
+        Self::manager()?.driver_for_revision(profile)
     }
 
     pub async fn text(input: &TextInput) -> ModerationResult<Assessment> {

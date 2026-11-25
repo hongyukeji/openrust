@@ -2,7 +2,7 @@ use std::{collections::BTreeMap, io::Read as _, path::Path, sync::Arc};
 
 use cap_std::{ambient_authority, fs::Dir};
 use openrust::{config::Environment, contracts::config::Repository};
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use zeroize::Zeroizing;
 
@@ -12,22 +12,31 @@ const MAX_CREDENTIAL_BYTES: u64 = 16 * 1024;
 const REFERENCE: &str = "credential_ref";
 const REVISION: &str = "credential_revision";
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(try_from = "ReferenceFields")]
 pub struct CredentialReference {
     name: String,
     revision: String,
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ReferenceFields {
+    name: String,
+    revision: String,
+}
+
+impl TryFrom<ReferenceFields> for CredentialReference {
+    type Error = ModerationError;
+
+    fn try_from(fields: ReferenceFields) -> Result<Self, Self::Error> {
+        Self::new(&fields.name, &fields.revision)
+    }
+}
+
 impl CredentialReference {
     pub fn new(name: &str, revision: &str) -> ModerationResult<Self> {
-        fn valid(value: &str) -> bool {
-            !value.is_empty()
-                && value.len() <= 64
-                && value.bytes().enumerate().all(|(index, byte)| {
-                    byte.is_ascii_alphanumeric() || index > 0 && matches!(byte, b'_' | b'-')
-                })
-        }
-        if !valid(name) || !valid(revision) {
+        if !valid_identifier(name) || !valid_identifier(revision) {
             return Err(ModerationError::InvalidConfiguration(REFERENCE));
         }
         Ok(Self {
@@ -148,6 +157,22 @@ fn unavailable() -> ModerationError {
     ModerationError::InvalidConfiguration("credential file")
 }
 
+pub(crate) fn valid_identifier(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 64
+        && value.bytes().enumerate().all(|(index, byte)| {
+            byte.is_ascii_alphanumeric() || index > 0 && matches!(byte, b'_' | b'-')
+        })
+}
+
+pub(crate) fn uses_environment(profile: &Value) -> bool {
+    profile.as_object().is_some_and(|profile| {
+        profile
+            .iter()
+            .any(|(key, value)| key.ends_with("_env") && !value.is_null())
+    })
+}
+
 pub(crate) enum DriverCredentials<'a> {
     Environment(&'a Environment),
     Referenced(ModerationCredentials),
@@ -162,11 +187,7 @@ impl<'a> DriverCredentials<'a> {
         let Some(reference) = CredentialReference::configured(profile)? else {
             return Ok(Self::Environment(env));
         };
-        if profile.as_object().is_some_and(|profile| {
-            profile
-                .iter()
-                .any(|(key, value)| key.ends_with("_env") && !value.is_null())
-        }) {
+        if uses_environment(profile) {
             return Err(ModerationError::InvalidConfiguration(REFERENCE));
         }
         provider.resolve(&reference).map(Self::Referenced)

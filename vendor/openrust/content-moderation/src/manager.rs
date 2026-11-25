@@ -5,7 +5,10 @@ use std::{
     sync::{Arc, Mutex, RwLock},
 };
 
-use crate::{ModerationDriver, ModerationError, ModerationResult};
+use crate::{
+    ModerationDriver, ModerationError, ModerationResult, ProfileRevision,
+    credentials::valid_identifier,
+};
 
 type DriverFactory = dyn Fn(&Value) -> ModerationResult<Arc<dyn ModerationDriver>> + Send + Sync;
 type DriverSlot = Arc<Mutex<Option<Arc<dyn ModerationDriver>>>>;
@@ -56,6 +59,10 @@ impl ModerationManager {
             .as_ref()
             .and_then(|profiles| profiles.get(name))
             .ok_or(ModerationError::ProfileNotConfigured)?;
+        Ok((profile.clone(), self.factory(profile)?))
+    }
+
+    fn factory(&self, profile: &Value) -> ModerationResult<Arc<DriverFactory>> {
         let driver = profile
             .get("driver")
             .and_then(Value::as_str)
@@ -63,14 +70,49 @@ impl ModerationManager {
             .ok_or(ModerationError::InvalidConfiguration(
                 "drivers.<profile>.driver",
             ))?;
-        let factory = self
-            .factories
+        self.factories
             .read()
             .expect("内容审核工厂锁")
             .get(driver)
             .cloned()
-            .ok_or(ModerationError::DriverNotRegistered)?;
-        Ok((profile.clone(), factory))
+            .ok_or(ModerationError::DriverNotRegistered)
+    }
+
+    fn revision_config(&self, name: &str, revision: &str) -> ModerationResult<Value> {
+        if !valid_identifier(name) || !valid_identifier(revision) {
+            return Err(ModerationError::InvalidConfiguration("profile_revisions"));
+        }
+        let revisions = self.config.get("moderation.profile_revisions");
+        revisions
+            .as_ref()
+            .and_then(|revisions| revisions.get(name)?.get(revision))
+            .cloned()
+            .ok_or(ModerationError::ProfileRevisionUnavailable)
+    }
+
+    /// 固定要写入领域任务的配置版本，便于进程重启后解析同一配置。
+    pub fn pin_profile(&self, name: &str, revision: &str) -> ModerationResult<ProfileRevision> {
+        let profile = self.revision_config(name, revision)?;
+        let snapshot = ProfileRevision::configured(name, revision, &profile)?;
+        self.factory(&profile)?;
+        Ok(snapshot)
+    }
+
+    /// 每次复核不可变配置及凭据，旧任务避开默认配置和具名驱动实例缓存。
+    pub fn driver_for_revision(
+        &self,
+        pinned: &ProfileRevision,
+    ) -> ModerationResult<Arc<dyn ModerationDriver>> {
+        if !pinned.supported() {
+            return Err(ModerationError::ProfileRevisionChanged);
+        }
+        let profile = self.revision_config(pinned.name(), pinned.revision())?;
+        let configured = ProfileRevision::configured(pinned.name(), pinned.revision(), &profile)
+            .map_err(|_| ModerationError::ProfileRevisionChanged)?;
+        if &configured != pinned {
+            return Err(ModerationError::ProfileRevisionChanged);
+        }
+        self.factory(&profile)?(&profile)
     }
 
     pub fn driver(&self, name: &str) -> ModerationResult<Arc<dyn ModerationDriver>> {
