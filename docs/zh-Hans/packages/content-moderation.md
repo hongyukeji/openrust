@@ -228,6 +228,8 @@ let recommendation = result.decision(&[Modality::Text]);
 
 用同一审核对象和当前内容 ID、修订调用 `effective_decision`。仅在有效决定为 `Allow` 且决定修订与应用接受的修订一致时继续发布。多项必检策略始终使用审核组。应用在自身发布流程内核对内容仍存在、仍可发布且修订一致，并在提交发布前重新读取有效决定。操作者 ID 和理由仅在授权的审计入口展示。
 
+撤回或删除内容修订时，应用鉴权后用准确的内容 ID 和修订调用 `ModerationStore::withdraw_video_revision`。重复调用返回首次撤回时间。同一应用和租户内，该修订的所有审核立即失去有效发布决定，原始评估仍可供授权审计。新内容修订按自身审核结果发布。撤回时需要停止在途检查，可同时调用取消接口。
+
 ### 取消已保存的点播检查 {#video-review-cancellation}
 
 调用 `VideoReviewService::cancel(id)`，冻结待处理或进行中的检查。取消使用数据库时钟和记录版本，已越过截止时间的检查标记为过期。晚到的 Worker 无法改写取消结果。

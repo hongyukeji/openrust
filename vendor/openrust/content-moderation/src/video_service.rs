@@ -35,6 +35,13 @@ impl VideoReviewService {
             return Ok(None);
         };
         let manual = self.store.latest_decision(target).await?;
+        if self
+            .store
+            .revision_is_withdrawn(content_id, content_revision)
+            .await?
+        {
+            return Ok(None);
+        }
         Ok(Some(match manual {
             Some(manual) => ReviewDecision::Manual(manual),
             None => ReviewDecision::Automatic(automatic),

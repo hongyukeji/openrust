@@ -28,6 +28,7 @@ mod recovery;
 mod remote_leases;
 mod segment_record;
 mod submission;
+mod withdrawals;
 
 const REVIEWS: &str = "moderation_reviews";
 const CHECKS: &str = "moderation_checks";

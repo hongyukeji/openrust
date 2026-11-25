@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use openrust::database::{Row, Value, query::Builder};
+use openrust::database::{DatabaseError, Row, Value, query::Builder};
 
-use super::{ModerationStore, database_clock_query, integer, read_clock};
+use super::{ModerationStore, database_clock_query, integer, read_clock, withdrawals::WITHDRAWN};
 use crate::{
     Decision, ManualReviewDecision, ModerationError, ModerationResult, ReviewDecisionRequest,
     VideoReviewTarget, credentials::valid_identifier, review::valid_content_identifier,
@@ -46,12 +46,16 @@ impl ModerationStore {
             ("reason", request.reason.as_str().into()),
         ]);
         let clock = database_clock_query(&self.connection);
+        let control = self.revision_control(&request.content_id, &request.content_revision);
         let written = self
             .connection
             .transaction(
                 move |transaction| {
-                    let (fields, clock) = (fields.clone(), clock.clone());
+                    let (fields, clock, control) = (fields.clone(), clock.clone(), control.clone());
                     Box::pin(async move {
+                        if control.lock(transaction).await?.is_some() {
+                            return Err(DatabaseError::InvalidQuery(WITHDRAWN));
+                        }
                         let now = read_clock(transaction, &clock).await?;
                         let values = fields
                             .iter()
@@ -74,6 +78,7 @@ impl ModerationStore {
                 reason: request.reason.clone(),
                 decided_at,
             }),
+            Err(DatabaseError::InvalidQuery(WITHDRAWN)) => Err(ModerationError::ReviewConflict),
             Err(_) => {
                 if self
                     .latest_decision(target)

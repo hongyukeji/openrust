@@ -228,6 +228,8 @@ After authenticating and authorizing the reviewer, construct a `ReviewDecisionRe
 
 Call `effective_decision` for the same target and the current content ID and revision. Only proceed with publication if the result is `Allow` and its revision matches the one accepted by the application. For policies requiring multiple checks, always use the group target. Within its own publication workflow, the application must check that the content still exists, remains eligible, and has the expected revision. Fetch the effective decision again before committing publication. Keep reviewer IDs and reasons within the application’s authorized audit views.
 
+When withdrawing or deleting a content revision, authorize the request in the application and call `ModerationStore::withdraw_video_revision` with its exact content ID and revision. A repeated call returns the original withdrawal time. All reviews for that revision in the same application and tenant lose their effective publication decision. Their assessments remain available to authorized audit readers. A new content revision can proceed through its own review. Use cancellation to stop active checks during withdrawal.
+
 ### Cancelling a stored video check {#video-review-cancellation}
 
 Call `VideoReviewService::cancel(id)` to freeze a pending or running check. Cancellation uses the database clock and version. A check that has already reached its deadline becomes expired. Late workers cannot replace the cancelled result.

@@ -228,6 +228,8 @@ let recommendation = result.decision(&[Modality::Text]);
 
 用同一審核對象和目前內容 ID、修訂呼叫 `effective_decision`。僅在有效決定為 `Allow` 且決定修訂與應用程式接受的修訂一致時繼續發布。多項必查策略一律使用審核群組。應用程式在自身發布流程內確認內容仍存在、仍可發布且修訂一致，並在提交發布前重新讀取有效決定。操作者 ID 和理由僅在獲授權的稽核入口顯示。
 
+撤回或刪除內容修訂時，應用程式授權後用確切的內容 ID 和修訂呼叫 `ModerationStore::withdraw_video_revision`。重複呼叫會傳回首次撤回時間。同一應用程式和租戶內，該修訂的所有審核立即失去有效發布決定，原始評估仍可供授權稽核。新內容修訂依其審核結果發布。撤回時如需停止執行中的檢查，可一併呼叫取消介面。
+
 ### 取消已保存的隨選檢查 {#video-review-cancellation}
 
 呼叫 `VideoReviewService::cancel(id)`，凍結待處理或進行中的檢查。取消使用資料庫時鐘和記錄版本，已超過截止時間的檢查會標記為過期。晚到的 Worker 無法改寫取消結果。

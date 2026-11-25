@@ -104,6 +104,12 @@ def exercise(binary, driver, database_url, root):
             "X-Fixture-Decision-Revision": str(revision),
         })["permitted"]
 
+    def withdraw(target, tenant="tenant", actor="moderator-withdraw", expected=200):
+        return post(None, group=target, tenant=tenant, expected=expected, extra={
+            "X-Fixture-Operation": "withdraw", "X-Fixture-Actor": actor,
+            "X-Fixture-Content-Revision": "content-v1",
+        })
+
     def work(action, check):
         if action == "query":
             time.sleep(1.05)
@@ -260,8 +266,46 @@ def exercise(binary, driver, database_url, root):
             assert json.loads(artisan(COMMAND, "cancel-group", "app", "tenant", stopping["id"])) == frozen
             assert post(None, group=stopping["id"]) == frozen
 
-            assert sql("SELECT COUNT(*) FROM moderation_review_groups") == "6"
-            assert sql("SELECT COUNT(*) FROM moderation_checks") == "13"
+            latest_old = post("withdrawal-inflight")
+            old_visual, old_speech = latest_old["checks"]
+            assert work("submit", old_visual)["state"] == "Running"
+            published = post(None, group=first["id"])
+            assert permit(first["id"], "content-v1", 0, 200)
+            assert withdraw(first["id"], actor="viewer", expected=401)["error"] == "Unauthorized"
+            withdraw(first["id"], tenant="Tenant")
+            assert permit(first["id"], "content-v1", 0, 200)
+
+            with ThreadPoolExecutor(max_workers=9) as executor:
+                contested = executor.submit(record, first["id"], 0, "allow", expected=(200, 409))
+                withdrawals = list(executor.map(lambda _: withdraw(first["id"]), range(8)))
+                written = contested.result()
+            assert all(result == withdrawals[0] for result in withdrawals)
+            assert withdrawals[0]["withdrawn_at"] > 0
+            assert json.loads(artisan(COMMAND, "withdraw-revision", "app", "tenant", "影片/1",
+                                      "content-v1")) == withdrawals[0]
+            recorded = 3 + int(written.get("revision") == 1)
+            assert written.get("revision") == 1 or written["error"] == "ReviewConflict"
+            assert record(first["id"], 1 if recorded == 4 else 0, "allow", expected=409)["error"] == "ReviewConflict"
+            assert gate(first["id"]) is None and gate(manual["id"]) is None
+            assert gate(first["checks"][0]["id"], single=True) is None
+            assert post(None, group=first["id"]) == published
+            assert not permit(first["id"], "content-v1", 0, 403)
+            assert not permit(first["id"], "content-v1", 1, 403)
+
+            assert work("query", old_visual)["decision"] == "allow"
+            work("submit", old_speech)
+            assert work("query", old_speech)["decision"] == "allow"
+            assert post(None, group=latest_old["id"])["decision"] == "allow"
+            assert gate(latest_old["id"]) is None and not permit(latest_old["id"], "content-v1", 0, 403)
+
+            for child in current["checks"]:
+                work("submit", child)
+                assert work("query", child)["decision"] == "allow"
+            assert gate(current["id"], revision="content-v2") == {"decision": "allow", "revision": 0}
+            assert permit(current["id"], "content-v2", 0, 200)
+            assert sql("SELECT COUNT(*) FROM moderation_revision_controls WHERE withdrawn_at IS NOT NULL") == "2"
+            assert sql("SELECT COUNT(*) FROM moderation_review_groups") == "7"
+            assert sql("SELECT COUNT(*) FROM moderation_checks") == "15"
             assert sql("SELECT COUNT(*) FROM jobs") == sql("SELECT COUNT(*) FROM failed_jobs") == "0"
         finally:
             HTTP["stop"](app)
@@ -271,8 +315,11 @@ def exercise(binary, driver, database_url, root):
     artisan("migrate:rollback", "--force",
             "--path=vendor/openrust/content-moderation/database/migrations/"
             "2026_11_26_000008_create_moderation_review_groups_table.rs", successful=False)
-    assert sql("SELECT COUNT(*) FROM moderation_review_groups") == "6"
-    assert sql("SELECT COUNT(*) FROM moderation_review_decisions") == "3"
+    artisan("migrate:rollback", "--force",
+            "--path=vendor/openrust/content-moderation/database/migrations/"
+            "2026_11_26_000017_create_moderation_revision_controls_table.rs", successful=False)
+    assert sql("SELECT COUNT(*) FROM moderation_review_groups") == "7"
+    assert sql("SELECT COUNT(*) FROM moderation_review_decisions") == str(recorded)
 
 
 if __name__ == "__main__":
@@ -282,4 +329,4 @@ if __name__ == "__main__":
     driver, url = DATABASE["database_settings"]()
     with tempfile.TemporaryDirectory(dir=ROOT / "target/tmp", prefix="moderation-groups-") as root:
         exercise(args.binary.resolve(), driver, url, Path(root))
-    print(f"{driver}: 复合审核并发落单、取消及裁决、事务回滚、22 个独立 Worker 和修订发布门禁通过")
+    print(f"{driver}: 复合审核并发落单、取消及裁决、事务回滚、30 个独立 Worker 和修订撤回门禁通过")

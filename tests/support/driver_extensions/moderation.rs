@@ -922,6 +922,19 @@ pub(super) fn group_route(request: &mut Request) -> HttpFuture<'_, Result<Respon
         let result = if let Some(id) = request.header("x-fixture-group-id")? {
             match request.header("x-fixture-operation")? {
                 Some("cancel") => cancel_group("app", tenant, id).await,
+                Some("withdraw") => {
+                    let authorized = request
+                        .header("x-fixture-actor")?
+                        .is_some_and(|actor| actor == "moderator-withdraw");
+                    if !authorized {
+                        return provider_response(Err(ModerationError::Unauthorized));
+                    }
+                    let content = request.header("x-fixture-content-id")?.unwrap_or("影片/1");
+                    let revision = request
+                        .header("x-fixture-content-revision")?
+                        .unwrap_or("content-v1");
+                    withdraw_revision("app", tenant, content, revision).await
+                }
                 Some("decision" | "record") => match decision_operation(request, tenant, id) {
                     Ok(operation) => operation.await,
                     Err(error) => Err(error),
@@ -1155,6 +1168,17 @@ fn render_group(group: VideoReviewGroup) -> Value {
         );
     }
     result
+}
+
+async fn withdraw_revision(
+    application: &str,
+    tenant: &str,
+    content_id: &str,
+    revision: &str,
+) -> ModerationResult<Value> {
+    let store = review_store(application, tenant)?;
+    let withdrawn_at = store.withdraw_video_revision(content_id, revision).await?;
+    Ok(json!({"withdrawn_at": withdrawn_at}))
 }
 
 async fn stage_review(
@@ -1421,6 +1445,7 @@ pub(super) fn register_command(artisan: &mut Artisan) -> Result<(), ConsoleError
                 "cancel-group",
                 "group-decision",
                 "review-decision",
+                "withdraw-revision",
             ]))
             .arg(clap::Arg::new("application").required(true))
             .arg(clap::Arg::new("tenant").required(true))
@@ -1608,6 +1633,14 @@ impl Command for ReviewProbe {
                     .await
                     .map_err(ConsoleError::from_source)?
                 }
+                "withdraw-revision" => withdraw_revision(
+                    &reference.application,
+                    &reference.tenant,
+                    &reference.id,
+                    &required("object-version"),
+                )
+                .await
+                .map_err(ConsoleError::from_source)?,
                 "submit" => submit_review(&reference.application, &reference.tenant, &reference.id)
                     .await
                     .map_err(ConsoleError::from_source)?,
