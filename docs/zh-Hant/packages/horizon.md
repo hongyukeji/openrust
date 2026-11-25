@@ -55,6 +55,8 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
 
 從 `openrust_horizon` 匯入事件類型，為 `JobPending::NAME`、`JobPushed::NAME` 和 `JobReserved::NAME` 註冊同步監聽器。三個事件分別在 Redis 寫入前、成功寫入後和保留工作後派發，提供連線、佇列、投遞 ID 和原生承載資料。`JobReserved` 的 `job` 快照也提供嘗試次數。使用承載資料的 UUID 關聯同一工作的不同投遞。
 
+同一 Redis 連線上的工作鏈推進時，先為後續工作派發 `JobPending`。Redis 在一次原子操作中將後續工作加入佇列並刪除前一個保留，確認後依序派發後續工作的 `JobPushed` 和前一工作的 `JobDeleted`。保留失效可能在 `JobPending` 後阻止推進，使用 `JobPushed` 確認新的投遞。
+
 Redis 將保留工作放回延遲佇列後派發 `JobReleased::NAME`。`delay` 是 Rust 的 `Duration`，工作詳情以 `release_delay_ms` 提供該值。Redis 確認刪除保留工作後派發 `JobDeleted::NAME`，工作鏈推進時也會派發。它提供工作快照、失敗標記和保留後的實際時間。
 
 每批 Redis 遷移完成後、Worker 保留工作前，Horizon 派發 `JobsMigrated::NAME`。每次輪詢先處理到期的延遲工作，再處理過期的保留工作。監聽器收到連線、佇列和工作快照，空批次的工作清單為空。

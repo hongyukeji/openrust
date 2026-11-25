@@ -252,6 +252,9 @@ impl RedisQueue {
         let payload = Payload::decode(&job.payload)?;
         let storage = RedisReservation {
             connection: self.connection.clone(),
+            registry: self.registry.clone(),
+            connection_name: self.name.clone(),
+            queue: queue.into(),
             ready,
             delayed,
             reserved,
@@ -475,6 +478,9 @@ impl Contract for RedisQueue {
 
 struct RedisReservation {
     connection: Arc<Connection>,
+    registry: Arc<Queue>,
+    connection_name: String,
+    queue: String,
     ready: String,
     delayed: String,
     reserved: String,
@@ -509,21 +515,50 @@ impl Reservation for RedisReservation {
         delay: Option<Delay>,
     ) -> QueueFuture<'a, QueueResult<()>> {
         Box::pin(async move {
+            let target = queue.unwrap_or(&self.queue);
+            RedisQueue::validate_queue_name(target)?;
             let ready = queue.map_or_else(
                 || self.ready.clone(),
                 |queue| self.connection.key(&format!("queues:{queue}")),
             );
             let delayed = format!("{ready}:delayed");
             let notify = format!("{ready}:notify");
-            let command = chain_enqueue_command(
-                ADVANCE_CHAIN_START,
-                ADVANCE_CHAIN_END,
+            let (command, id) = chain_enqueue_command(
                 [&self.reserved, &ready, &delayed, &notify],
                 &self.raw,
                 next,
                 delay,
             )?;
-            self.run(command).await
+            let manager = self.registry.manager().ok();
+            if let Some(manager) = &manager
+                && matches!(
+                    manager.observes_worker_event(RedisJobQueueing::NAME),
+                    Ok(true)
+                )
+            {
+                manager
+                    .emit_control_event(RedisJobQueueing {
+                        connection_name: self.connection_name.clone(),
+                        queue: target.into(),
+                        id: id.clone(),
+                        job: next.clone(),
+                    })
+                    .await?;
+            }
+            self.run(command).await?;
+            if let Some(manager) = manager
+                && matches!(manager.observes_worker_event(JobQueued::NAME), Ok(true))
+            {
+                manager
+                    .observe_confirmed_event(JobQueued {
+                        connection_name: self.connection_name.clone(),
+                        queue: target.into(),
+                        id,
+                        job: next.clone(),
+                    })
+                    .await;
+            }
+            Ok(())
         })
     }
 
@@ -552,20 +587,18 @@ fn created_at() -> u64 {
 }
 
 fn chain_enqueue_command(
-    before: &str,
-    after: &str,
     keys: [&str; 4],
     reservation: &str,
     payload: &Payload,
     delay: Option<Delay>,
-) -> QueueResult<::redis::Cmd> {
-    let raw = serde_json::to_string(&RedisJob {
+) -> QueueResult<(::redis::Cmd, String)> {
+    let job = RedisJob {
         id: new_id()?,
         payload: payload.encode()?,
         attempts: 0,
         created_at: Some(created_at()),
-    })
-    .map_err(|_| QueueError::InvalidPayload)?;
+    };
+    let raw = serde_json::to_string(&job).map_err(|_| QueueError::InvalidPayload)?;
     let (mode, duration) = match delay.unwrap_or(Delay::For(Duration::ZERO)) {
         Delay::For(duration) => ("relative", duration),
         Delay::Until(time) => (
@@ -573,13 +606,16 @@ fn chain_enqueue_command(
             time.duration_since(UNIX_EPOCH).unwrap_or_default(),
         ),
     };
-    let mut command = script(&format!("{before}{CHAIN_ENQUEUE}{after}"), &keys);
+    let mut command = script(
+        &format!("{ADVANCE_CHAIN_START}{CHAIN_ENQUEUE}{ADVANCE_CHAIN_END}"),
+        &keys,
+    );
     command
         .arg(reservation)
         .arg(raw)
         .arg(milliseconds(duration)?)
         .arg(mode);
-    Ok(command)
+    Ok((command, job.id))
 }
 
 fn script(body: &str, keys: &[&str]) -> ::redis::Cmd {

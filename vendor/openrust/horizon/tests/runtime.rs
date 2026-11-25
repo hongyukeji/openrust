@@ -2180,3 +2180,212 @@ async fn native_failure_replacement_during_lookup_preserves_the_new_delivery() {
         }
     }
 }
+
+#[tokio::test]
+#[ignore = "requires dedicated Redis 8 acceptance wrapper"]
+async fn redis_chain_publishes_successor_events_at_atomic_queue_boundary() {
+    use openrust::{
+        bus::Bus,
+        contracts::events::{Dispatcher as _, Event, Listener},
+        events::{
+            Delivery, Dispatcher, EventContext, EventError, EventFuture, EventResult,
+            ListenerResponse,
+        },
+        http::Response,
+        queue::{Delay, Payload, QueueError, QueueManager},
+        support::facades::Route,
+    };
+    use openrust_horizon::{JobDeleted, JobPending, JobPushed};
+
+    fn dispatch_chain(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async {
+            let head = Payload::new("head", json!({})).unwrap();
+            let next = Payload::new("next", json!({"serial": 9_007_199_254_740_993_u64}))
+                .unwrap()
+                .on_queue(" 后继:发货")
+                .delay(Delay::For(Duration::from_secs(90)));
+            Bus::chain([head, next])
+                .on_queue("source")
+                .dispatch()
+                .await?;
+            Response::json(http::StatusCode::OK, json!({"queued": true}))
+        })
+    }
+
+    struct RejectCertainEvents;
+    impl Listener for RejectCertainEvents {
+        fn handle<'a>(
+            &'a self,
+            event: &'a dyn Event,
+            _: &'a mut EventContext<'_>,
+        ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+            Box::pin(async move {
+                if event
+                    .downcast_ref::<JobPending>()
+                    .is_some_and(|event| event.queue == "pre-error")
+                    || event
+                        .downcast_ref::<JobPushed>()
+                        .is_some_and(|event| event.queue == "post-error")
+                {
+                    return Err(EventError::InvalidPayload);
+                }
+                Ok(None)
+            })
+        }
+    }
+
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(transport_config)
+            .with_providers(vec![Box::new(HorizonServiceProvider)])
+            .with_routing(Routing::default().api(|| {
+                transport_routes()?;
+                Route::get("/dispatch-chain", dispatch_chain)
+            }))
+    })
+    .unwrap();
+    app.boot().await.unwrap();
+    let manager = app.app().make::<QueueManager>().await.unwrap();
+    manager.register("head", Arc::new(Handler("head"))).unwrap();
+    let queue = manager.connection(Some("redis")).unwrap();
+    let repository = app.app().make::<Repository>().await.unwrap();
+    repository.tags().monitor("tracked").await.unwrap();
+    let listener = Arc::new(TransportListener {
+        queue: queue.clone(),
+        repository,
+        observations: Default::default(),
+        fail_settlement_listeners: false,
+        fail_reservation_listener: false,
+    });
+    let dispatcher = app.app().make::<Dispatcher>().await.unwrap();
+    for name in [JobPending::NAME, JobPushed::NAME, JobDeleted::NAME] {
+        dispatcher
+            .listen(name, listener.clone(), Delivery::Sync)
+            .unwrap();
+    }
+    for name in [JobPending::NAME, JobPushed::NAME] {
+        dispatcher
+            .listen(name, Arc::new(RejectCertainEvents), Delivery::Sync)
+            .unwrap();
+    }
+
+    app.get("/api/dispatch-chain").await.unwrap().assert_ok();
+    app.artisan([
+        "horizon:work",
+        "redis",
+        "--queue=source",
+        "--once",
+        "--force",
+        "--memory=1024",
+    ])
+    .await
+    .assert_successful();
+    {
+        let rows = listener.observations.lock().unwrap();
+        let [
+            head_pending,
+            head_pushed,
+            next_pending,
+            next_pushed,
+            head_deleted,
+        ] = rows.as_slice()
+        else {
+            panic!("unexpected chain events: {rows:?}");
+        };
+        assert_eq!(head_pending.id, head_pushed.id);
+        assert_eq!(head_pushed.id, head_deleted.id);
+        assert_eq!(next_pending.id, next_pushed.id);
+        assert_eq!(next_pending.uuid, next_pushed.uuid);
+        assert_ne!(next_pending.id, head_pending.id);
+        assert_eq!(
+            (&*next_pending.name, &*next_pending.queue),
+            ("JobPending", " 后继:发货")
+        );
+        assert_eq!(next_pending.counts, Some((0, 0, 0)));
+        assert!(!next_pending.monitored);
+        assert_eq!(
+            (&*next_pushed.name, &*next_pushed.queue),
+            ("JobPushed", " 后继:发货")
+        );
+        assert_eq!(next_pushed.counts, Some((0, 1, 0)));
+        assert!(next_pushed.monitored);
+        assert_eq!(
+            (&*head_deleted.name, &*head_deleted.status),
+            ("JobDeleted", "completed")
+        );
+        assert_eq!(head_deleted.counts, Some((0, 0, 0)));
+    }
+
+    let head = Payload::new("head", json!({})).unwrap();
+    let next = Payload::new("next", json!({"serial": 9_007_199_254_740_993_u64})).unwrap();
+    queue.push(&head, Some("direct")).await.unwrap();
+    let mut reserved = queue.pop_now(Some("direct")).await.unwrap().unwrap();
+    listener.observations.lock().unwrap().clear();
+    assert!(
+        reserved
+            .advance_chain_to(&next, Some("pre-error"), None)
+            .await
+            .is_err()
+    );
+    assert!(!reserved.is_deleted());
+    assert_eq!(
+        queue.metrics(Some("direct")).await.unwrap().reserved,
+        Some(1)
+    );
+    assert_eq!(
+        queue.metrics(Some("pre-error")).await.unwrap().pending,
+        Some(0)
+    );
+    reserved
+        .advance_chain_to(&next, Some("post-error"), None)
+        .await
+        .unwrap();
+    assert!(reserved.is_deleted());
+    assert!(matches!(
+        reserved.advance_chain(&next).await,
+        Err(QueueError::LostReservation)
+    ));
+    let successor = queue.pop_now(Some("post-error")).await.unwrap().unwrap();
+    assert_eq!(successor.payload().uuid(), next.uuid());
+    assert_eq!(
+        successor.payload().data()["serial"],
+        9_007_199_254_740_993_u64
+    );
+
+    queue.push(&head, Some("stale-chain")).await.unwrap();
+    let mut stale = queue.pop_now(Some("stale-chain")).await.unwrap().unwrap();
+    queue
+        .clearable()
+        .unwrap()
+        .clear("stale-chain")
+        .await
+        .unwrap();
+    let before = listener.observations.lock().unwrap().len();
+    assert!(matches!(
+        stale
+            .advance_chain_to(&next, Some("invalid:reserved"), None)
+            .await,
+        Err(QueueError::InvalidConfiguration)
+    ));
+    assert_eq!(listener.observations.lock().unwrap().len(), before);
+    assert!(matches!(
+        stale.advance_chain_to(&next, Some("lost"), None).await,
+        Err(QueueError::LostReservation)
+    ));
+    assert!(!stale.is_deleted());
+    assert_eq!(queue.metrics(Some("lost")).await.unwrap().pending, Some(0));
+
+    let rows = listener.observations.lock().unwrap();
+    assert_eq!(rows[0].name, "JobPending");
+    assert_eq!(rows[0].queue, "pre-error");
+    assert_eq!(rows[1].name, "JobPending");
+    assert_eq!(rows[1].queue, "post-error");
+    assert_eq!(rows[2].name, "JobPushed");
+    assert_eq!(rows[2].queue, "post-error");
+    assert_eq!(rows[2].id, successor.get_job_id());
+    assert_eq!(rows[3].name, "JobDeleted");
+    assert_eq!(rows[3].queue, "direct");
+    assert_eq!(rows.len(), before + 1);
+    assert_eq!(rows[before].name, "JobPending");
+    assert_eq!(rows[before].queue, "lost");
+}

@@ -55,6 +55,8 @@ Set `HORIZON_NAME` to show a deployment name in the dashboard title and heading.
 
 Register synchronous listeners for `JobPending::NAME`, `JobPushed::NAME`, and `JobReserved::NAME` from `openrust_horizon` to observe Redis queue operations. `JobPending` runs before Redis writes the job, `JobPushed` runs after a successful write, and `JobReserved` runs after Redis reserves the job. The events include the connection, queue, delivery ID, and native payload. For `JobReserved`, the `job` snapshot also records the attempt number. Use the payload UUID to correlate separate deliveries of the same job.
 
+When a job chain advances on the same Redis connection, `JobPending` describes the next job before Redis atomically enqueues it and removes the previous reservation. After Redis confirms both changes, `JobPushed` for the next job precedes `JobDeleted` for the previous job. An expired reservation can prevent the transition after `JobPending`, so use `JobPushed` to confirm the new delivery.
+
 `JobReleased::NAME` runs after Redis returns the reservation to the delayed queue. Its `delay` is a Rust `Duration`, and job details expose it as `release_delay_ms`. `JobDeleted::NAME` runs after Redis acknowledges deletion, including when a job advances its chain. It includes the job snapshot, failure flag, and elapsed time since reservation.
 
 `JobsMigrated::NAME` runs after each Redis promotion batch and before the worker reserves a job. Each poll checks delayed jobs first, then expired reservations. Listeners receive the connection, queue, and job snapshots, including an empty list when a batch moves no jobs.
