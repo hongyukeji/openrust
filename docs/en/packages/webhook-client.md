@@ -18,6 +18,8 @@ The default profile is `default`, using the `Signature` header and a credential 
 
 To maintain the migrations in your application, run `./artisan vendor:publish --tag=webhook-client-migrations` and rebuild. Keep the published filenames so the migration ledger and execution order stay the same. Already applied migrations keep their recorded state. A normal repeat publication preserves local edits.
 
+When an application uses both packages, register the receive dispatcher and business Job in a provider shared by HTTP and Artisan. A receive Worker can read the persisted receipt and handle it with the application’s queue configuration. Choose a receive queue distinct from the outbound delivery queue so independent Workers can process the two stages.
+
 ## Available entry points {#available-entry-points}
 
 ### Validate untouched bytes {#signatures}

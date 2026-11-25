@@ -1,10 +1,16 @@
 """用正式应用入口验收 Webhook 独立选择、重复初始化和包发布。"""
 
 import argparse
+import base64
+from contextlib import contextmanager
 import http.client
+import json
 import os
 from pathlib import Path
 import runpy
+import re
+import secrets
+import shutil
 import socket
 import sqlite3
 import subprocess
@@ -18,6 +24,7 @@ parser.add_argument("--source", type=Path, required=True)
 parser.add_argument("--initial", type=Path, required=True)
 parser.add_argument("--profile", choices=("client", "server", "both"))
 parser.add_argument("--publish-migrations", action="store_true")
+parser.add_argument("--roundtrip", action="store_true")
 args = parser.parse_args()
 source = args.source.resolve()
 assert source.is_relative_to(ROOT / "target/tmp")
@@ -29,10 +36,12 @@ helpers = runpy.run_path(str(ROOT / "tests/sms_worker.py"))
 driver, url = helpers["database_settings"]()
 assert args.profile or driver == "sqlite"
 assert not args.publish_migrations or args.profile == "both"
+assert not args.roundtrip or (args.profile == "both" and not args.publish_migrations)
 
 
-def command(binary, *options, expected=0):
-    result = subprocess.run([str(binary), "artisan", *options], cwd=source, env=env,
+def command(binary, *options, expected=0, environment=None):
+    result = subprocess.run([str(binary), "artisan", *options], cwd=source,
+                            env=env if environment is None else environment,
                             capture_output=True, text=True, timeout=240)
     assert (result.returncode == 0) == (expected == 0), (options, result.stdout, result.stderr)
     return result.stdout
@@ -44,9 +53,10 @@ def available_port():
         return listener.getsockname()[1]
 
 
-def live_http(binary, port, log_path):
+@contextmanager
+def live_application(binary, port, log_path, environment):
     with log_path.open("w+") as log:
-        application = subprocess.Popen([str(binary)], cwd=source, env=env, stdout=log, stderr=log)
+        application = subprocess.Popen([str(binary)], cwd=source, env=environment, stdout=log, stderr=log)
         try:
             deadline = time.monotonic() + 20
             while application.poll() is None and time.monotonic() < deadline:
@@ -64,6 +74,7 @@ def live_http(binary, port, log_path):
             else:
                 log.seek(0)
                 raise AssertionError(log.read())
+            yield
         finally:
             application.terminate()
             try:
@@ -71,6 +82,11 @@ def live_http(binary, port, log_path):
             except subprocess.TimeoutExpired:
                 application.kill()
                 application.wait(timeout=5)
+
+
+def live_http(binary, port, log_path):
+    with live_application(binary, port, log_path, env):
+        pass
 
 
 def database_rows(database, query):
@@ -87,6 +103,139 @@ def package_tables(database):
     schema = "DATABASE()" if driver == "mysql" else "current_schema()"
     return set(database_rows(database, "SELECT table_name FROM information_schema.tables "
                                        f"WHERE table_schema={schema} AND table_name LIKE 'webhook_%'"))
+
+
+def replace_fixture_source(relative_path, old, new):
+    path = source / relative_path
+    original = path.read_text()
+    assert original.count(old) == 1, relative_path
+    path.write_text(original.replace(old, new))
+
+
+def install_roundtrip_fixture():
+    provider = source / "app/providers/installed_webhooks.rs"
+    shutil.copyfile(ROOT / "tests/support/webhooks/installed_roundtrip.rs", provider)
+    with (source / "app/providers/mod.rs").open("a") as modules:
+        modules.write("\npub(crate) mod installed_webhooks;\n")
+    replace_fixture_source(
+        "bootstrap/providers.rs", "vec![Box::new(AppServiceProvider)]",
+        "vec![Box::new(AppServiceProvider), Box::new(crate::app::providers::installed_webhooks::InstalledWebhookProvider)]",
+    )
+    replace_fixture_source("routes/api.rs", '    Route::get("/", ApiController::index)',
+                           '    Route::get("/", ApiController::index)?;\n    crate::app::providers::installed_webhooks::routes()')
+    replace_fixture_source("app/console/commands/mod.rs", "_artisan: &mut Artisan) -> Result<(), ConsoleError> {\n    Ok(())",
+                           "artisan: &mut Artisan) -> Result<(), ConsoleError> {\n    crate::app::providers::installed_webhooks::commands(artisan)")
+    with (source / "config/webhook_client.rs").open("a") as config:
+        config.write("""
+pub(crate) fn installed_fixture(env: &Environment) -> Result<Value, ConfigError> {
+    let mut value = load(env)?;
+    let template = value["configs"][0].clone();
+    value["configs"] = Value::Array(["spatie", "standard"].into_iter().map(|protocol| {
+        let mut profile = template.clone();
+        profile["name"] = protocol.into();
+        profile["signing_secret"]["env"] = if protocol == "spatie" {
+            "FIXTURE_INSTALLED_SPATIE_SECRET"
+        } else {
+            "FIXTURE_INSTALLED_STANDARD_SECRET"
+        }.into();
+        profile["signature_validator"] = if protocol == "spatie" { "default" } else { "standard" }.into();
+        profile["scope"] = "installed-webhooks".into();
+        profile["process_webhook_job"] = "installed-handler".into();
+        profile["atomic_database_queue"] = true.into();
+        profile
+    }).collect());
+    Ok(value)
+}
+""")
+    replace_fixture_source(
+        "config/mod.rs", "mod view;",
+        "mod view;\nmod webhook_client;\nmod webhook_server;",
+    )
+    replace_fixture_source("config/mod.rs", '        ("app".to_owned(), app.config),',
+                           '        ("app".to_owned(), app.config),\n'
+                           '        ("webhook-client".to_owned(), webhook_client::installed_fixture(env)?),\n'
+                           '        ("webhook-server".to_owned(), webhook_server::load(env)?),')
+    formatted = [provider, source / "bootstrap/providers.rs", source / "routes/api.rs",
+                 source / "app/console/commands/mod.rs", source / "config/mod.rs",
+                 source / "config/webhook_client.rs"]
+    result = subprocess.run(["rustfmt", "--edition", "2024", "--config", "skip_children=true",
+                             *map(str, formatted)], cwd=source, env=env,
+                            capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def verify_installed_roundtrip(binary, database, port):
+    command(binary, "config:clear")
+    command(binary, "route:clear")
+    install_roundtrip_fixture()
+    build = subprocess.run(["cargo", "build", "--locked", "--bin", "main"], cwd=source, env=env,
+                           capture_output=True, text=True, timeout=300)
+    assert build.returncode == 0, build.stdout + build.stderr
+    receipts = source / "installed-worker-receipts.jsonl"
+    env_send = env | {
+        "FIXTURE_INSTALLED_PORT": str(port),
+        "FIXTURE_INSTALLED_RECEIPTS": str(receipts),
+        "FIXTURE_INSTALLED_SPATIE_SECRET": secrets.token_hex(24),
+        "FIXTURE_INSTALLED_STANDARD_SECRET": "whsec_" + base64.b64encode(secrets.token_bytes(24)).decode(),
+    }
+    references = {"FIXTURE_INSTALLED_SPATIE_SECRET", "FIXTURE_INSTALLED_STANDARD_SECRET"}
+    private_values = [env_send[reference] for reference in references]
+    no_credentials = {name: value for name, value in env_send.items() if name not in references}
+    producer = no_credentials | {"FIXTURE_INSTALLED_SPATIE_SECRET": "producer-only-not-the-signing-secret"}
+    private_values.append(producer["FIXTURE_INSTALLED_SPATIE_SECRET"])
+    observed = []
+
+    def scalar(query):
+        [value] = database_rows(database, query)
+        return value
+
+    def worker(queue, environment):
+        command(binary, "queue:work", "database", f"--queue={queue}", "--once", environment=environment)
+
+    for phase in ("uncached", "cached"):
+        if phase == "cached":
+            command(binary, "config:cache", environment=producer)
+            command(binary, "route:cache", environment=producer)
+            cache = Path(env["APP_CONFIG_CACHE"]).read_text()
+            assert "FIXTURE_INSTALLED_SPATIE_SECRET" in cache and "FIXTURE_INSTALLED_STANDARD_SECRET" in cache
+            assert all(secret not in cache for secret in private_values)
+        with live_application(binary, port, source.parent / f"{driver}-installed-{phase}.log", env_send):
+            connection = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+            try:
+                connection.request("POST", "/api/installed-webhooks/spatie", b"{}",
+                                   {"Content-Type": "application/json", "Signature": "bad"})
+                response = connection.getresponse()
+                assert response.status == 500, response.read()
+            finally:
+                connection.close()
+            assert int(scalar("SELECT COUNT(*) FROM webhook_calls")) == len(observed)
+            for protocol in ("spatie", "standard"):
+                key = f"{phase}-{protocol}"
+                delivery = command(binary, "webhooks:installed-send", protocol, key, environment=producer).strip()
+                assert re.fullmatch(r"[0-9a-f]{64}", delivery), delivery
+                outgoing = scalar("SELECT payload FROM jobs WHERE queue='installed-send'")
+                assert json.loads(outgoing)["data"] == delivery
+                assert all(secret not in outgoing for secret in private_values)
+                snapshot = scalar(f"SELECT snapshot FROM webhook_deliveries WHERE id='{delivery}'")
+                assert json.loads(snapshot)["credential"] == protocol
+                assert all(secret not in snapshot for secret in private_values)
+                assert int(scalar("SELECT COUNT(*) FROM webhook_calls")) == len(observed)
+                worker("installed-send", env_send)
+                assert scalar(f"SELECT state FROM webhook_deliveries WHERE id='{delivery}'") == "succeeded"
+                incoming = scalar("SELECT payload FROM jobs WHERE queue='installed-receive'")
+                payload = json.loads(incoming)["data"]
+                receipt = payload["id"]
+                assert re.fullmatch(r"[0-9a-f-]{36}", receipt), receipt
+                assert payload["profile"] == protocol and payload["scope"] == "installed-webhooks"
+                assert all(secret not in incoming for secret in private_values)
+                assert scalar(f"SELECT COUNT(*) FROM webhook_calls WHERE id='{receipt}' AND processed_at IS NULL") == "1"
+                worker("installed-receive", no_credentials)
+                observed.append({"id": receipt, "name": protocol, "body": list(json.dumps({"key": key}, separators=(",", ":")).encode())})
+                assert [json.loads(line) for line in receipts.read_text().splitlines()] == observed
+                assert scalar(f"SELECT COUNT(*) FROM webhook_calls WHERE id='{receipt}' AND processed_at IS NOT NULL") == "1"
+        assert scalar("SELECT COUNT(*) FROM jobs") == "0"
+        assert scalar("SELECT COUNT(*) FROM failed_jobs") == "0"
+    print(f"{driver}: 正式安装应用双协议从 Artisan 发送、HTTP 接收到独立 Worker 完整通过", flush=True)
 
 
 def verify_migration_publication(binary, database, port):
@@ -237,3 +386,5 @@ for selected in (profiles[args.profile],) if args.profile else profiles.values()
     print(f"{driver}/{label}: 原生 init、独立启用、真实 HTTP、Artisan 及重复安装通过", flush=True)
     if args.publish_migrations:
         verify_migration_publication(binary, database, port)
+    if args.roundtrip:
+        verify_installed_roundtrip(binary, database, port)

@@ -18,6 +18,8 @@
 
 需要在应用中维护迁移时，运行 `./artisan vendor:publish --tag=webhook-client-migrations`，再重新构建。保留发布时的文件名，以沿用现有迁移账本和执行顺序。已经执行的迁移以账本为准。普通重复发布会保留本地修改。
 
+同一应用使用两个包时，在 HTTP 和 Artisan 共用的 Provider 注册接收派发器及业务 Job。接收 Worker 使用应用的队列配置读取已保存的接收记录。分别设置接收与发送队列，便于独立 Worker 各自处理。
+
 ## 可用入口 {#available-entry-points}
 
 ### 验证原始字节 {#signatures}

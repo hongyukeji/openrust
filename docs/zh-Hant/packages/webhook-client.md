@@ -18,6 +18,8 @@
 
 需要在應用程式中維護遷移時，執行 `./artisan vendor:publish --tag=webhook-client-migrations`，再重新建置。保留發布時的檔名，以沿用現有遷移帳本和執行順序。已執行的遷移以帳本為準。一般重複發布會保留本機修改。
 
+同一應用使用兩個套件時，在 HTTP 和 Artisan 共用的 Provider 註冊接收派發器及業務 Job。接收 Worker 使用應用的佇列設定讀取已保存的接收記錄。分別設定接收與發送佇列，讓獨立 Worker 各自處理。
+
 ## 可用入口 {#available-entry-points}
 
 ### 驗證原始位元組 {#signatures}
