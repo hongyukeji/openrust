@@ -177,7 +177,7 @@ impl VideoReviewRequest {
     }
 }
 
-fn valid_content_identifier(value: &str, max_bytes: usize) -> bool {
+pub(crate) fn valid_content_identifier(value: &str, max_bytes: usize) -> bool {
     value.len() <= max_bytes && !value.trim().is_empty() && !value.chars().any(char::is_control)
 }
 

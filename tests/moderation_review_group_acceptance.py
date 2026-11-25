@@ -58,7 +58,7 @@ def exercise(binary, driver, database_url, root):
         return DATABASE["database_rows"](DATABASE["database_container"](), query).strip()
 
     def post(intent, profiles=(VISUAL, SPEECH), expected=200, tenant="tenant",
-             version="revision-2", group=None, cancel=False):
+             version="revision-2", group=None, cancel=False, extra=None):
         headers = {"Accept": "application/json", "X-Fixture-Tenant": tenant}
         if group:
             headers["X-Fixture-Group-Id"] = group
@@ -67,15 +67,42 @@ def exercise(binary, driver, database_url, root):
         else:
             headers |= {"X-Fixture-Review-Intent": intent, "X-Fixture-Profiles": ",".join(profiles),
                         "X-Fixture-Version": version}
+        headers.update(extra or {})
         connection = http.client.HTTPConnection("127.0.0.1", port, timeout=12)
         try:
             connection.request("POST", "/api/drivers/moderation/group", headers=headers)
             response = connection.getresponse()
             data = response.read()
-            assert response.status == expected, (response.status, expected, data[:300])
+            statuses = expected if isinstance(expected, tuple) else (expected,)
+            assert response.status in statuses, (response.status, expected, data[:300])
             return json.loads(data)
         finally:
             connection.close()
+
+    def gate(target, revision="content-v1", expected=200, single=False, tenant="tenant", content_id=None):
+        extra = {"X-Fixture-Operation": "decision", "X-Fixture-Content-Revision": revision}
+        if single:
+            extra["X-Fixture-Review-Unit"] = "single"
+        if content_id:
+            extra["X-Fixture-Content-Id"] = content_id
+        return post(None, group=target, expected=expected, tenant=tenant, extra=extra)
+
+    def record(target, previous, decision, expected=200, revision="content-v1",
+               actor="moderator-A", single=False):
+        headers = {
+            "X-Fixture-Operation": "record", "X-Fixture-Content-Revision": revision,
+            "X-Fixture-Decision-Revision": str(previous), "X-Fixture-Decision": decision,
+            "X-Fixture-Actor": actor, "X-Fixture-Reason": "Verified editorial exception",
+        }
+        if single:
+            headers["X-Fixture-Review-Unit"] = "single"
+        return post(None, group=target, expected=expected, extra=headers)
+
+    def permit(target, version, revision, expected):
+        return post(None, group=target, expected=expected, extra={
+            "X-Fixture-Operation": "publish", "X-Fixture-Content-Revision": version,
+            "X-Fixture-Decision-Revision": str(revision),
+        })["permitted"]
 
     def work(action, check):
         if action == "query":
@@ -112,6 +139,8 @@ def exercise(binary, driver, database_url, root):
             first = groups[0]
             assert all(group == first for group in groups)
             assert first["state"] == "Pending" and first["decision"] is None
+            assert gate(first["id"]) is None
+            assert record(first["id"], 0, "allow", expected=409)["error"] == "ReviewConflict"
             assert [check["profile"]["name"] for check in first["checks"]] == [VISUAL, SPEECH]
             assert len({check["deadline_at"] for check in first["checks"]}) == 1
             assert sql("SELECT COUNT(*) FROM moderation_review_groups") == "1"
@@ -144,6 +173,58 @@ def exercise(binary, driver, database_url, root):
                 assert json.loads(artisan(COMMAND, "find-group", "app", "tenant", group["id"])) == final
                 assert post(None, group=group["id"]) == final
                 assert post(None, group=group["id"], cancel=True) == final
+
+            partial, manual = cases[1][0], cases[3][0]
+            assert gate(partial["id"]) is None
+            assert record(partial["id"], 0, "allow", expected=409)["error"] == "ReviewConflict"
+            assert gate(manual["id"]) == {"decision": "review", "revision": 0}
+            assert record(manual["id"], 0, "allow", expected=401, actor="viewer")["error"] == "Unauthorized"
+            assert record(manual["id"], 0, "allow", expected=409, revision="content-v2")["error"] == "ReviewConflict"
+
+            def attempt(actor):
+                extra = {
+                    "X-Fixture-Operation": "record", "X-Fixture-Decision-Revision": "0",
+                    "X-Fixture-Decision": "allow", "X-Fixture-Actor": f"moderator-{actor}",
+                }
+                response = post(None, group=manual["id"], expected=(200, 409), extra=extra)
+                return response
+
+            with ThreadPoolExecutor(max_workers=8) as executor:
+                results = list(executor.map(attempt, range(8)))
+            accepted = [result for result in results if result.get("revision") == 1]
+            assert len(accepted) == 1 and sum(result.get("error") == "ReviewConflict" for result in results) == 7
+            allow = accepted[0]
+            assert allow["decision"] == "allow" and allow["decided_at"] > 0
+            assert gate(manual["id"]) == allow
+            assert permit(manual["id"], "content-v1", 1, 200)
+            assert not permit(manual["id"], "content-v2", 1, 403)
+            assert gate(manual["id"], content_id="another-content") is None
+            assert gate(manual["id"], tenant="Tenant", expected=404)["error"] == "ReviewNotFound"
+            assert gate(manual["id"], revision="content-v2") is None
+            assert json.loads(artisan(COMMAND, "group-decision", "app", "tenant", manual["id"],
+                                      "content-v1")) == allow
+            assert record(manual["id"], 0, "allow", expected=409)["error"] == "ReviewConflict"
+            block = record(manual["id"], 1, "block")
+            assert block["revision"] == 2 and block["decision"] == "block"
+            assert block["reason"] == "Verified editorial exception"
+            assert not permit(manual["id"], "content-v1", 1, 403)
+            assert gate(manual["id"]) == block and post(None, group=manual["id"])["decision"] == "review"
+
+            first_check = first["checks"][0]
+            assert gate(first_check["id"], single=True) == {"decision": "allow", "revision": 0}
+            single = record(first_check["id"], 0, "review", single=True)
+            assert single["revision"] == 1 and single["decision"] == "review"
+            assert json.loads(artisan(COMMAND, "review-decision", "app", "tenant", first_check["id"],
+                                      "content-v1")) == single
+            assert gate(first["id"]) == {"decision": "allow", "revision": 0}
+
+            current = post("new-content-revision", (VISUAL, SPEECH), version="revision-3",
+                           extra={"X-Fixture-Content-Revision": "content-v2"})
+            assert gate(current["id"], revision="content-v2") is None
+            assert not permit(current["id"], "content-v2", 0, 403)
+            assert work("query", manual["checks"][1])["decision"] == "review"
+            assert gate(manual["id"]) == block and gate(current["id"], revision="content-v2") is None
+            assert sql("SELECT COUNT(*) FROM moderation_review_decisions") == "3"
 
             stopping = post("stopping", (VISUAL, SPEECH, "group-manual"))
             first_check, running, pending = stopping["checks"]
@@ -179,13 +260,14 @@ def exercise(binary, driver, database_url, root):
             assert json.loads(artisan(COMMAND, "cancel-group", "app", "tenant", stopping["id"])) == frozen
             assert post(None, group=stopping["id"]) == frozen
 
-            assert sql("SELECT COUNT(*) FROM moderation_review_groups") == "5"
-            assert sql("SELECT COUNT(*) FROM moderation_checks") == "11"
+            assert sql("SELECT COUNT(*) FROM moderation_review_groups") == "6"
+            assert sql("SELECT COUNT(*) FROM moderation_checks") == "13"
             assert sql("SELECT COUNT(*) FROM jobs") == sql("SELECT COUNT(*) FROM failed_jobs") == "0"
         finally:
             HTTP["stop"](app)
     artisan("migrate:rollback", "--step=2", "--force", successful=False)
-    assert sql("SELECT COUNT(*) FROM moderation_review_groups") == "5"
+    assert sql("SELECT COUNT(*) FROM moderation_review_groups") == "6"
+    assert sql("SELECT COUNT(*) FROM moderation_review_decisions") == "3"
 
 
 if __name__ == "__main__":
@@ -195,4 +277,4 @@ if __name__ == "__main__":
     driver, url = DATABASE["database_settings"]()
     with tempfile.TemporaryDirectory(dir=ROOT / "target/tmp", prefix="moderation-groups-") as root:
         exercise(args.binary.resolve(), driver, url, Path(root))
-    print(f"{driver}: 复合审核并发落单和取消、事务回滚、21 个独立 Worker 和完整覆盖门禁通过")
+    print(f"{driver}: 复合审核并发落单、取消及裁决、事务回滚、22 个独立 Worker 和修订发布门禁通过")

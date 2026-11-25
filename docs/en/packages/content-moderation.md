@@ -206,6 +206,12 @@ Use `VideoReviewGroupRequest::new` and `ModerationStore::stage_video_group` to s
 
 Each child has its own submission and lookup state and can progress through the existing Worker and recovery commands. Read the aggregate with `find_video_group`. It yields a publication decision only after every required check succeeds with complete coverage. It uses the highest recommendation among complete checks, with Block taking priority over Review and Allow. Keep the application’s publication authorization bound to the current content revision.
 
+### Editorial decisions and publication {#video-review-decision}
+
+After authenticating and authorizing the reviewer, construct a `ReviewDecisionRequest` with the content ID and revision, the expected decision revision, the decision, the reviewer ID, and a reason. Call `VideoReviewService::record_decision` with `VideoReviewTarget::Single` or `VideoReviewTarget::Group`, according to the application's policy. The automatic result is revision 0. Each successful manual decision appends the next revision and retains the original assessment. A concurrent write with a stale revision is rejected. Required checks must succeed with complete coverage before any manual decision can be recorded.
+
+Call `effective_decision` for the same target and the current content ID and revision. Only proceed with publication if the result is `Allow` and its revision matches the one accepted by the application. For policies requiring multiple checks, always use the group target. Within its own publication workflow, the application must check that the content still exists, remains eligible, and has the expected revision. Fetch the effective decision again before committing publication. Keep reviewer IDs and reasons within the application’s authorized audit views.
+
 ### Cancelling a stored video check {#video-review-cancellation}
 
 Call `VideoReviewService::cancel(id)` to freeze a pending or running check. Cancellation uses the database clock and version. A check that has already reached its deadline becomes expired. Late workers cannot replace the cancelled result.

@@ -225,7 +225,9 @@ def exercise(binary, driver, url, root, storage_env, storage):
                 assert supplier.posted == [(first, original)] * 5
             finally:
                 HTTP["stop"](server)
-        artisan("migrate:rollback", "--step=1", "--force", successful=False)
+        artisan("migrate:rollback", "--force",
+                "--path=vendor/openrust/content-moderation/database/migrations/"
+                "2026_11_26_000009_add_moderation_cancellation.rs", successful=False)
         assert sql("SELECT COUNT(*) FROM moderation_checks WHERE provider_cancellation IS NOT NULL") == "8"
     finally:
         supplier.shutdown()

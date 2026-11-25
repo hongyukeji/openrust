@@ -206,6 +206,12 @@ let recommendation = result.decision(&[Modality::Text]);
 
 每個子檢查獨立提交和查詢，可由原有 Worker 與復原指令推進。用 `find_video_group` 讀取彙總結果。每個必查項成功且涵蓋完整後才產生決定，並採用最嚴格的建議，優先順序依次為 Block、Review、Allow。應用程式仍應根據目前內容修訂執行發布授權。
 
+### 人工裁決與發布 {#video-review-decision}
+
+應用程式驗證操作者身分並完成授權後，使用內容 ID 和修訂、預期決定修訂、裁決、操作者 ID 與理由建立 `ReviewDecisionRequest`。依業務審核策略選擇 `VideoReviewTarget::Single` 或 `VideoReviewTarget::Group` 呼叫 `VideoReviewService::record_decision`。自動結論的修訂為 0。每次成功的人工裁決追加新修訂並保留原始評估；使用過期修訂的並行寫入會遭拒絕。全部必查項成功且涵蓋完整後才可記錄人工裁決。
+
+用同一審核對象和目前內容 ID、修訂呼叫 `effective_decision`。僅在有效決定為 `Allow` 且決定修訂與應用程式接受的修訂一致時繼續發布。多項必查策略一律使用審核群組。應用程式在自身發布流程內確認內容仍存在、仍可發布且修訂一致，並在提交發布前重新讀取有效決定。操作者 ID 和理由僅在獲授權的稽核入口顯示。
+
 ### 取消已保存的隨選檢查 {#video-review-cancellation}
 
 呼叫 `VideoReviewService::cancel(id)`，凍結待處理或進行中的檢查。取消使用資料庫時鐘和記錄版本，已超過截止時間的檢查會標記為過期。晚到的 Worker 無法改寫取消結果。

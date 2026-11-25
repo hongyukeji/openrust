@@ -206,6 +206,12 @@ let recommendation = result.decision(&[Modality::Text]);
 
 每个子检查独立提交和查单，可由原有 Worker 与恢复命令推进。用 `find_video_group` 读取汇总结果。每个必检项成功且覆盖完整后才生成决定，并采用最严格的建议，优先级依次为 Block、Review、Allow。应用仍应根据当前内容修订执行发布授权。
 
+### 人工裁决与发布 {#video-review-decision}
+
+应用鉴别操作者身份并完成授权后，使用内容 ID 和修订、预期决定修订、裁决、操作者 ID 与理由构造 `ReviewDecisionRequest`。按业务审核策略选择 `VideoReviewTarget::Single` 或 `VideoReviewTarget::Group` 调用 `VideoReviewService::record_decision`。自动结论的修订为 0。每次成功的人工裁决追加新修订并保留原始评估；使用过期修订的并发写入会被拒绝。全部必检项成功且覆盖完整后才可记录人工裁决。
+
+用同一审核对象和当前内容 ID、修订调用 `effective_decision`。仅在有效决定为 `Allow` 且决定修订与应用接受的修订一致时继续发布。多项必检策略始终使用审核组。应用在自身发布流程内核对内容仍存在、仍可发布且修订一致，并在提交发布前重新读取有效决定。操作者 ID 和理由仅在授权的审计入口展示。
+
 ### 取消已保存的点播检查 {#video-review-cancellation}
 
 调用 `VideoReviewService::cancel(id)`，冻结待处理或进行中的检查。取消使用数据库时钟和记录版本，已越过截止时间的检查标记为过期。晚到的 Worker 无法改写取消结果。

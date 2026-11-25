@@ -24,8 +24,9 @@ use openrust::{
 use openrust_content_moderation::{
     Assessment, Coverage, Decision, ImageInput, Modality, Moderation, ModerationDriver,
     ModerationError, ModerationFuture, ModerationManager, ModerationResult, ModerationStore,
-    Operation, ProfileRevision, StoredMedia, TaskId, TaskStatus, TextInput, VideoInput,
-    VideoReview, VideoReviewGroup, VideoReviewGroupRequest, VideoReviewRequest,
+    Operation, ProfileRevision, ReviewDecision, ReviewDecisionRequest, StoredMedia, TaskId,
+    TaskStatus, TextInput, VideoInput, VideoReview, VideoReviewGroup, VideoReviewGroupRequest,
+    VideoReviewRequest, VideoReviewService, VideoReviewTarget,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -874,10 +875,23 @@ pub(super) fn group_route(request: &mut Request) -> HttpFuture<'_, Result<Respon
     Box::pin(async move {
         let tenant = request.header("x-fixture-tenant")?.unwrap_or("tenant");
         let result = if let Some(id) = request.header("x-fixture-group-id")? {
-            if request.header("x-fixture-operation")? == Some("cancel") {
-                cancel_group("app", tenant, id).await
-            } else {
-                find_group("app", tenant, id).await
+            match request.header("x-fixture-operation")? {
+                Some("cancel") => cancel_group("app", tenant, id).await,
+                Some("decision" | "record") => match decision_operation(request, tenant, id) {
+                    Ok(operation) => operation.await,
+                    Err(error) => Err(error),
+                },
+                Some("publish") => {
+                    let version = request
+                        .header("x-fixture-content-revision")?
+                        .ok_or(HttpError::InvalidRequest)?;
+                    let expected = request
+                        .header("x-fixture-decision-revision")?
+                        .and_then(|value| value.parse::<i64>().ok())
+                        .ok_or(HttpError::InvalidRequest)?;
+                    return publication_route(tenant, id, version, expected).await;
+                }
+                _ => find_group("app", tenant, id).await,
             }
         } else {
             let (intent, version, profiles) = {
@@ -888,10 +902,105 @@ pub(super) fn group_route(request: &mut Request) -> HttpFuture<'_, Result<Respon
                     required("x-fixture-profiles")?,
                 )
             };
-            stage_group("app", tenant, intent, version, profiles).await
+            let content_revision = request
+                .header("x-fixture-content-revision")?
+                .unwrap_or("content-v1");
+            stage_group("app", tenant, intent, version, content_revision, profiles).await
         };
         provider_response(result)
     })
+}
+
+async fn publication_route(
+    tenant: &str,
+    id: &str,
+    version: &str,
+    expected_revision: i64,
+) -> Result<Response, HttpError> {
+    let service = match review_store("app", tenant)
+        .and_then(|store| Ok(VideoReviewService::new(store, Moderation::manager()?)))
+    {
+        Ok(service) => service,
+        Err(error) => return provider_response(Err(error)),
+    };
+    match service
+        .effective_decision(VideoReviewTarget::Group(id), "影片/1", version)
+        .await
+    {
+        Ok(Some(decision))
+            if decision.decision() == Decision::Allow
+                && decision.revision() == expected_revision =>
+        {
+            Response::json(StatusCode::OK, json!({"permitted": true}))
+        }
+        Ok(_) => Response::json(StatusCode::FORBIDDEN, json!({"permitted": false})),
+        Err(error) => provider_response(Err(error)),
+    }
+}
+
+fn decision_operation<'a>(
+    request: &'a Request,
+    tenant: &'a str,
+    id: &'a str,
+) -> ModerationResult<HttpFuture<'a, ModerationResult<Value>>> {
+    let header = |key| {
+        request
+            .header(key)
+            .map_err(|_| ModerationError::InvalidInput("fixture header"))
+    };
+    let target = if header("x-fixture-review-unit")? == Some("single") {
+        VideoReviewTarget::Single(id)
+    } else {
+        VideoReviewTarget::Group(id)
+    };
+    let content = header("x-fixture-content-id")?.unwrap_or("影片/1");
+    let version = header("x-fixture-content-revision")?.unwrap_or("content-v1");
+    if header("x-fixture-operation")? != Some("record") {
+        return Ok(Box::pin(fixture_decision(
+            "app", tenant, target, content, version,
+        )));
+    }
+    let actor = header("x-fixture-actor")?
+        .filter(|actor| actor.starts_with("moderator-"))
+        .ok_or(ModerationError::Unauthorized)?;
+    let decision = match header("x-fixture-decision")? {
+        Some("allow") => Decision::Allow,
+        Some("block") => Decision::Block,
+        Some("review") => Decision::Review,
+        _ => return Err(ModerationError::InvalidInput("fixture decision")),
+    };
+    let revision = header("x-fixture-decision-revision")?
+        .and_then(|value| value.parse().ok())
+        .ok_or(ModerationError::InvalidInput("fixture revision"))?;
+    let reason = header("x-fixture-reason")?.unwrap_or("editorial review");
+    let input = ReviewDecisionRequest::new(content, version, revision, decision, actor, reason)?;
+    let service = VideoReviewService::new(review_store("app", tenant)?, Moderation::manager()?);
+    Ok(Box::pin(async move {
+        let decision = service.record_decision(target, &input).await?;
+        Ok(render_decision(ReviewDecision::Manual(decision)))
+    }))
+}
+
+async fn fixture_decision(
+    app: &str,
+    tenant: &str,
+    target: VideoReviewTarget<'_>,
+    content: &str,
+    version: &str,
+) -> ModerationResult<Value> {
+    let service = VideoReviewService::new(review_store(app, tenant)?, Moderation::manager()?);
+    let decision = service.effective_decision(target, content, version).await?;
+    Ok(decision.map(render_decision).unwrap_or(Value::Null))
+}
+
+fn render_decision(decision: ReviewDecision) -> Value {
+    match decision {
+        ReviewDecision::Automatic(decision) => json!({"decision": decision, "revision": 0}),
+        ReviewDecision::Manual(manual) => json!({
+            "decision": manual.decision(), "revision": manual.revision(),
+            "actor": manual.actor(), "reason": manual.reason(), "decided_at": manual.decided_at(),
+        }),
+    }
 }
 
 async fn stage_group(
@@ -899,6 +1008,7 @@ async fn stage_group(
     tenant: &str,
     intent: &str,
     version: &str,
+    content_revision: &str,
     profiles: &str,
 ) -> ModerationResult<Value> {
     let source = StoredMedia::new("s3", "versions/clip.mp4", version)?;
@@ -907,7 +1017,7 @@ async fn stage_group(
         .map(|name| Moderation::pin_profile(name, "r1"))
         .collect::<ModerationResult<Vec<_>>>()?;
     let request =
-        VideoReviewGroupRequest::new(intent, "影片/1", "content-v1", source, profiles, 300)?;
+        VideoReviewGroupRequest::new(intent, "影片/1", content_revision, source, profiles, 300)?;
     let store = review_store(application, tenant)?;
     Ok(render_group(store.stage_video_group(&request).await?))
 }
@@ -1180,6 +1290,8 @@ pub(super) fn register_command(artisan: &mut Artisan) -> Result<(), ConsoleError
                 "stage-group",
                 "find-group",
                 "cancel-group",
+                "group-decision",
+                "review-decision",
             ]))
             .arg(clap::Arg::new("application").required(true))
             .arg(clap::Arg::new("tenant").required(true))
@@ -1321,6 +1433,7 @@ impl Command for ReviewProbe {
                     &reference.tenant,
                     &reference.id,
                     &required("object-version"),
+                    "content-v1",
                     &required("profiles"),
                 )
                 .await
@@ -1334,6 +1447,22 @@ impl Command for ReviewProbe {
                     cancel_group(&reference.application, &reference.tenant, &reference.id)
                         .await
                         .map_err(ConsoleError::from_source)?
+                }
+                "group-decision" | "review-decision" => {
+                    let target = if action == "group-decision" {
+                        VideoReviewTarget::Group(&reference.id)
+                    } else {
+                        VideoReviewTarget::Single(&reference.id)
+                    };
+                    fixture_decision(
+                        &reference.application,
+                        &reference.tenant,
+                        target,
+                        "影片/1",
+                        &required("object-version"),
+                    )
+                    .await
+                    .map_err(ConsoleError::from_source)?
                 }
                 "submit" => submit_review(&reference.application, &reference.tenant, &reference.id)
                     .await

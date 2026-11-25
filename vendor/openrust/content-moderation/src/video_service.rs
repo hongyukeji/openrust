@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
 use crate::{
-    Coverage, ModerationDriver, ModerationError, ModerationManager, ModerationResult,
-    ModerationStore, Operation, ProviderCancellation, QueryFailure, ReviewState, SubmissionFailure,
-    TaskId, TaskStatus, VideoInput, VideoReview, VideoReviewGroup, VideoSubmission,
+    Coverage, Decision, ManualReviewDecision, ModerationDriver, ModerationError, ModerationManager,
+    ModerationResult, ModerationStore, Operation, ProviderCancellation, QueryFailure,
+    ReviewDecision, ReviewDecisionRequest, ReviewState, SubmissionFailure, TaskId, TaskStatus,
+    VideoInput, VideoReview, VideoReviewGroup, VideoReviewTarget, VideoSubmission,
     review::QueryOutcome, storage::Cancellation,
 };
 
@@ -16,6 +17,65 @@ pub struct VideoReviewService {
 impl VideoReviewService {
     pub fn new(store: ModerationStore, manager: Arc<ModerationManager>) -> Self {
         Self { store, manager }
+    }
+
+    /// 仅针对指定的内容修订和完整必检覆盖获取当前有效决定。
+    pub async fn effective_decision(
+        &self,
+        target: VideoReviewTarget<'_>,
+        content_id: &str,
+        content_revision: &str,
+    ) -> ModerationResult<Option<ReviewDecision>> {
+        let Some(automatic) = self
+            .automatic_decision(target, content_id, content_revision)
+            .await?
+        else {
+            return Ok(None);
+        };
+        let manual = self.store.latest_decision(target).await?;
+        Ok(Some(match manual {
+            Some(manual) => ReviewDecision::Manual(manual),
+            None => ReviewDecision::Automatic(automatic),
+        }))
+    }
+
+    /// 在已完成必检的内容修订上追加人工裁决。授权由调用方执行。
+    pub async fn record_decision(
+        &self,
+        target: VideoReviewTarget<'_>,
+        request: &ReviewDecisionRequest,
+    ) -> ModerationResult<ManualReviewDecision> {
+        let current = self
+            .effective_decision(target, &request.content_id, &request.content_revision)
+            .await?;
+        if current.as_ref().map(ReviewDecision::revision) != Some(request.expected_revision) {
+            return Err(ModerationError::ReviewConflict);
+        }
+        // 成功的子检查已不可改写。唯一索引仲裁同时提交的同一修订。
+        self.store.append_decision(target, request).await
+    }
+
+    async fn automatic_decision(
+        &self,
+        target: VideoReviewTarget<'_>,
+        content_id: &str,
+        content_revision: &str,
+    ) -> ModerationResult<Option<Decision>> {
+        let matches = |review: &VideoReview| {
+            review.content_id() == content_id && review.content_revision() == content_revision
+        };
+        match target {
+            VideoReviewTarget::Single(id) => {
+                let review = self.find(id).await?;
+                Ok(matches(&review).then(|| review.decision()).flatten())
+            }
+            VideoReviewTarget::Group(id) => {
+                let group = self.find_group(id).await?;
+                Ok(matches(&group.checks()[0])
+                    .then(|| group.decision())
+                    .flatten())
+            }
+        }
     }
 
     /// 领取待提交检查。提交结果不明确或进程中断时保留未知状态供补偿。

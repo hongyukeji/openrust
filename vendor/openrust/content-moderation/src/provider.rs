@@ -19,6 +19,8 @@ mod callback_reference_migration;
 mod cancellation_migration;
 #[path = "../database/migrations/2026_11_26_000002_create_moderation_checks_table.rs"]
 mod checks_migration;
+#[path = "../database/migrations/2026_11_26_000010_create_moderation_review_decisions_table.rs"]
+mod decisions_migration;
 #[path = "../database/migrations/2026_11_26_000008_create_moderation_review_groups_table.rs"]
 mod groups_migration;
 #[path = "../database/migrations/2026_11_26_000007_add_moderation_lookup_hint.rs"]
@@ -95,6 +97,7 @@ openrust::compiled_migration_assets!("content-moderation";
     "2026_11_26_000007_add_moderation_lookup_hint.rs" => lookup_hint_migration,
     "2026_11_26_000008_create_moderation_review_groups_table.rs" => groups_migration,
     "2026_11_26_000009_add_moderation_cancellation.rs" => cancellation_migration,
+    "2026_11_26_000010_create_moderation_review_decisions_table.rs" => decisions_migration,
 );
 
 impl ModerationServiceProvider {

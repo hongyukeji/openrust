@@ -16,6 +16,7 @@ mod cancellation;
 pub(crate) use cancellation::Cancellation;
 #[cfg(feature = "webhooks")]
 mod callback;
+mod decisions;
 mod groups;
 #[cfg(feature = "webhooks")]
 pub(crate) use callback::ProviderTask;
