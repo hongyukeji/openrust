@@ -23,6 +23,12 @@ use crate::{
 };
 
 tokio::task_local! {static CURRENTLY_REPORTING:Option<(usize,usize)>; static RESOLVING_CONTEXT_USER: Vec<usize>;}
+pub(crate) fn reporting() -> bool {
+    CURRENTLY_REPORTING
+        .try_with(Option::is_some)
+        .unwrap_or(false)
+}
+
 fn exception_identity(exception: &Exception<'_>) -> usize {
     if let Some(shared) = exception.error().downcast_ref::<SharedException>() {
         return shared.identity().as_ptr() as *const () as usize;
@@ -473,9 +479,9 @@ impl Handler {
         {
             return Ok(());
         }
-        let logger = self
-            .owner
-            .upgrade()
+        let owner = self.owner.upgrade();
+        let logger = owner
+            .as_ref()
             .and_then(|owner| owner.make::<dyn crate::contracts::log::Logger>().ok());
         if let Some(logger) = logger {
             let configuration_snapshot = self.configuration();
@@ -493,6 +499,13 @@ impl Handler {
                 context.insert("status".into(), error.status().as_u16().into());
             }
             let snapshot = self.build_log_exception(exception, None, true);
+            if let Some(owner) = &owner {
+                crate::foundation::observability::report(
+                    owner,
+                    exception_identity(exception),
+                    &snapshot,
+                );
+            }
             if let Some(request) = request {
                 return logger
                     .log_with_exception_for_request(

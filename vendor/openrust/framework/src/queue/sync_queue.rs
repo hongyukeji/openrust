@@ -45,16 +45,30 @@ impl SyncQueue {
             let mut next = None;
             loop {
                 let job = next.as_ref().unwrap_or(payload);
-                use crate::foundation::observability::{self, Operation, Outcome};
-                let discarded = observability::begin(&owner, Operation::Job { name: job.name() })
-                    .run(
-                        self.execute_attempt(&dispatcher, &mut context, job),
-                        |result| Outcome::Job {
-                            failed: result.is_err(),
-                        },
-                    )
-                    .await?;
-                if discarded || context.release_after.is_some() {
+                use crate::foundation::observability::{self, JobOutcome, Operation, Outcome};
+                let (discarded, released) = observability::begin(
+                    &owner,
+                    Operation::Job {
+                        name: job.name(),
+                        trace: job.trace_context.as_ref(),
+                    },
+                )
+                .run(
+                    async {
+                        self.execute_attempt(&dispatcher, &mut context, job)
+                            .await
+                            .map(|discarded| (discarded, context.release_after.is_some()))
+                    },
+                    |result| {
+                        Outcome::Job(match result {
+                            Ok((_, true)) => JobOutcome::Released,
+                            Ok((_, false)) => JobOutcome::Processed,
+                            Err(_) => JobOutcome::Failed,
+                        })
+                    },
+                )
+                .await?;
+                if discarded || released {
                     return Ok(None);
                 }
                 next = context

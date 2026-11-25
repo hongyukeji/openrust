@@ -68,7 +68,7 @@ L01–L22本批实现和实际验收见[审计修复节](audits/laravel-code-aud
 
 ## 供应商专用能力
 
-- [ ] **LOG-S01 New Relic APM 独立扩展（首版已实现，真实账号待验）**：已接通 HTTP Span 与耗时指标、独立 Artisan／Worker 和正常退出刷新，真实本地消费者与 OTLP 接收端已验。取得授权账号后核对区域凭据、实际摄取、服务／事务视图及指标，结果归[独立供应商计划](plans/log-supplier-integrations.md)。日志转发、专用 Agent API、异常堆栈及出站子链路不纳入首版。
+- [ ] **LOG-S01 New Relic APM 独立扩展（主路径已实现，完整版验收未闭合）**：执行作用域、出站 HTTP／SQL、普通队列跨进程关联、异常、结构化日志和运行控制已接入。本机实际验收、待补的异常与队列专项、平台账号和跨平台矩阵见[完整版记录](plans/log-supplier-integrations.md#nr-03-至-nr-06-实施记录)。
 
 ## 条件性后续与已知限制（不是新增功能缺陷）
 

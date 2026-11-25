@@ -462,6 +462,8 @@ pub struct LogRecord<'a> {
     pub channel: Cow<'a, str>,
     pub message: Cow<'a, str>,
     pub exception: Option<Cow<'a, Value>>,
+    trace_context: Option<crate::foundation::observability::TraceContext>,
+    reported_exception: bool,
     replace: bool,
 }
 
@@ -478,6 +480,8 @@ impl<'a> LogRecord<'a> {
                 .exception
                 .as_ref()
                 .map(|value| Cow::Owned(value.as_ref().clone())),
+            trace_context: self.trace_context.clone(),
+            reported_exception: self.reported_exception,
             replace: self.replace,
         }
     }
@@ -498,8 +502,21 @@ impl<'a> LogRecord<'a> {
             channel: Cow::Borrowed(channel),
             message: Cow::Borrowed(message),
             exception: None,
+            trace_context: crate::support::facades::current_container()
+                .and_then(|owner| crate::foundation::observability::current_trace(&owner)),
+            reported_exception: crate::foundation::exceptions::reporting(),
             replace,
         }
+    }
+
+    /// 日志创建时的追踪标识。缓冲和重放沿用同一份上下文。
+    pub fn trace_context(&self) -> Option<&crate::foundation::observability::TraceContext> {
+        self.trace_context.as_ref()
+    }
+
+    /// 由框架异常报告器写入的日志，避免下游处理器重复报告。
+    pub fn is_exception_report(&self) -> bool {
+        self.reported_exception && self.exception.is_some()
     }
 
     pub fn message(&self) -> Cow<'_, str> {

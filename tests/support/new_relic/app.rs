@@ -40,7 +40,9 @@ impl Command for Probe {
                     arguments.push("--fail".into());
                 }
                 openrust::support::facades::Artisan::queue("telemetry:probe", &arguments)
-                    .on_connection("database")
+                    .on_connection(
+                        std::env::var("NEW_RELIC_TEST_QUEUE").unwrap_or_else(|_| "database".into()),
+                    )
                     .on_queue("telemetry")
                     .dispatch()
                     .await
@@ -75,7 +77,50 @@ fn commands(artisan: &mut Artisan) -> Result<(), ConsoleError> {
 fn probe(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         let status = match request.route("id") {
-            Some("fail") => StatusCode::INTERNAL_SERVER_ERROR,
+            Some("fail") => {
+                return Err(HttpError::Internal {
+                    source: Box::new(std::io::Error::other("private-exception-message")),
+                });
+            }
+            Some("log") => {
+                use openrust::contracts::container::Container as _;
+                let services = openrust::support::facades::App::get_container()?;
+                let new_relic = services.make::<openrust_new_relic::NewRelic>()?;
+                assert!(new_relic.name_transaction("custom linked request"));
+                assert!(new_relic.add_attribute("operation", "fixture"));
+                let channel = openrust::support::facades::Log::channel(Some("telemetry")).map_err(
+                    |source| HttpError::Internal {
+                        source: Box::new(source),
+                    },
+                )?;
+                channel
+                    .error(
+                        "linked fixture record",
+                        &[
+                            ("operation".into(), serde_json::json!("sample")),
+                            ("secret".into(), serde_json::json!("private-log-context")),
+                        ]
+                        .into_iter()
+                        .collect(),
+                    )
+                    .map_err(|source| HttpError::Internal {
+                        source: Box::new(source),
+                    })?;
+                StatusCode::CREATED
+            }
+            Some("flush") => {
+                use openrust::contracts::container::Container as _;
+                let services = openrust::support::facades::App::get_container()?;
+                let new_relic = services.make::<openrust_new_relic::NewRelic>()?;
+                new_relic
+                    .flush()
+                    .await
+                    .map_err(|source| HttpError::Internal {
+                        source: Box::new(source),
+                    })?;
+                assert!(new_relic.export_stats().attempts > 0);
+                StatusCode::NO_CONTENT
+            }
             Some("dependency") => {
                 for variable in [
                     "NEW_RELIC_TEST_ALLOWED_UPSTREAM",
@@ -121,7 +166,18 @@ async fn main() -> ExitCode {
     run_application(|| {
         let root = Application::infer_base_path(Some(env!("CARGO_MANIFEST_DIR")))?;
         Application::configure(root)
-            .with_config(config::load)
+            .with_config(|path, env| {
+                let mut config = config::load(path, env)?;
+                config.get_mut("logging").expect("logging config")["channels"]["telemetry"] =
+                    serde_json::json!({
+                        "driver": "monolog",
+                        "handler": "new_relic",
+                        "formatter": "default",
+                        "level": "error",
+                        "with": { "fields": ["context.operation"] },
+                    });
+                Ok(config)
+            })
             .with_packages(packages::manifest())
             .with_commands(commands)
             .with_migrations(migrations::entries())

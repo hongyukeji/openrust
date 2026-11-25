@@ -9,6 +9,7 @@ pub use reportable_handler::{ReportableHandler, ReportableTypeError};
 mod validation_redirect;
 
 pub use handler::Handler;
+pub(crate) use handler::reporting;
 pub(super) use render::maintenance_page;
 
 pub(crate) mod view_exception;

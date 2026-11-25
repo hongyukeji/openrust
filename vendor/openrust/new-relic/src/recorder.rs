@@ -1,7 +1,8 @@
 use std::{
+    collections::HashSet,
     sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
     time::{Duration, Instant},
 };
@@ -12,38 +13,54 @@ use openrust::{
     foundation::{
         events::ApplicationTerminating,
         http::events::RequestHandled,
-        observability::{Observation, Observer, Operation, Outcome},
+        observability::{JobOutcome, Observation, Observer, Operation, Outcome, TraceContext},
     },
     queue::events::JobAttempted,
     routing::RouteMetadata,
 };
 use opentelemetry::{
     Context, KeyValue,
+    logs::LoggerProvider as _,
     metrics::{Histogram, MeterProvider as _},
     propagation::TextMapPropagator as _,
     trace::{
-        SpanBuilder, SpanKind, Status, TraceContextExt as _, Tracer as _, TracerProvider as _,
+        Link, SpanBuilder, SpanKind, Status, TraceContextExt as _, Tracer as _, TracerProvider as _,
     },
 };
 use opentelemetry_http::{HeaderExtractor, HeaderInjector};
 use opentelemetry_otlp::{
-    MetricExporter, Protocol, SpanExporter, WithExportConfig as _, WithHttpConfig as _,
+    LogExporter, MetricExporter, Protocol, SpanExporter, WithExportConfig as _, WithHttpConfig as _,
 };
 use opentelemetry_sdk::{
     Resource,
+    logs::{SdkLogger, SdkLoggerProvider},
     metrics::{PeriodicReader, SdkMeterProvider, Temporality},
     propagation::TraceContextPropagator,
-    trace::{BatchConfigBuilder, BatchSpanProcessor, SdkTracer, SdkTracerProvider},
+    trace::{BatchConfigBuilder, BatchSpanProcessor, Sampler, SdkTracer, SdkTracerProvider},
 };
 
-use crate::export::{Destination, EXPORT_TIMEOUT};
+use crate::export::{Destination, EXPORT_TIMEOUT, ExportStats, Transport};
 
 const SCOPE: &str = "openrust.new_relic";
 const MAX_PAYLOAD_BYTES: usize = 999_999;
 
+pub(crate) struct Settings {
+    pub(crate) name: String,
+    pub(crate) version: Option<String>,
+    pub(crate) instance_id: Option<String>,
+    pub(crate) propagate_origins: Vec<url::Origin>,
+    pub(crate) exception_stacktrace: bool,
+    pub(crate) logs_enabled: bool,
+    pub(crate) traces_enabled: bool,
+    pub(crate) metrics_enabled: bool,
+    pub(crate) ratio: f64,
+}
+
 pub(crate) struct Recorder {
+    export_client: Transport,
     tracer_provider: SdkTracerProvider,
     meter_provider: SdkMeterProvider,
+    logger_provider: Option<SdkLoggerProvider>,
     tracer: SdkTracer,
     http_duration: Histogram<f64>,
     command_duration: Histogram<f64>,
@@ -53,61 +70,96 @@ pub(crate) struct Recorder {
     propagate_origins: Vec<url::Origin>,
     client_duration: Histogram<f64>,
     sql_duration: Histogram<f64>,
+    exception_stacktrace: bool,
 }
 
 impl Recorder {
     pub(crate) fn new(
-        name: String,
+        settings: Settings,
         destination: Destination,
-        propagate_origins: Vec<url::Origin>,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         // 使用 SDK 的有界 span 队列与周期指标聚合，导出不占用请求执行线程。
         let client = destination.client()?;
-        let spans = SpanExporter::builder()
-            .with_http()
-            .with_protocol(Protocol::HttpBinary)
-            .with_timeout(EXPORT_TIMEOUT)
-            .with_max_request_body_size(MAX_PAYLOAD_BYTES)
-            .with_endpoint(destination.endpoint.join("/v1/traces")?.to_string())
-            .with_http_client(client.clone())
-            .build()?;
-        let metrics = MetricExporter::builder()
-            .with_http()
-            .with_protocol(Protocol::HttpBinary)
-            .with_timeout(EXPORT_TIMEOUT)
-            .with_max_request_body_size(MAX_PAYLOAD_BYTES)
-            .with_endpoint(destination.endpoint.join("/v1/metrics")?.to_string())
-            .with_http_client(client)
-            .with_temporality(Temporality::Delta)
-            .build()?;
-        let resource = Resource::builder().with_service_name(name).build();
-        let tracer_provider = SdkTracerProvider::builder()
-            .with_resource(resource.clone())
-            .with_span_processor(
-                BatchSpanProcessor::builder(spans)
-                    .with_batch_config(
-                        BatchConfigBuilder::default()
-                            .with_max_queue_size(2048)
-                            .with_max_export_batch_size(512)
-                            .build(),
-                    )
+        let mut attributes = vec![KeyValue::new("service.name", settings.name)];
+        if let Some(version) = settings.version {
+            attributes.push(KeyValue::new("service.version", version));
+        }
+        if let Some(instance) = settings.instance_id {
+            attributes.push(KeyValue::new("service.instance.id", instance));
+        }
+        let resource = Resource::builder().with_attributes(attributes).build();
+        let logger_provider = if settings.logs_enabled {
+            let exporter = LogExporter::builder()
+                .with_http()
+                .with_protocol(Protocol::HttpBinary)
+                .with_timeout(EXPORT_TIMEOUT)
+                .with_max_request_body_size(MAX_PAYLOAD_BYTES)
+                .with_endpoint(destination.endpoint.join("/v1/logs")?.to_string())
+                .with_http_client(client.clone())
+                .build()?;
+            Some(
+                SdkLoggerProvider::builder()
+                    .with_resource(resource.clone())
+                    .with_batch_exporter(exporter)
                     .build(),
             )
-            .build();
-        let meter_provider = SdkMeterProvider::builder()
-            .with_resource(resource)
-            .with_reader(
-                PeriodicReader::builder(metrics)
+        } else {
+            None
+        };
+        let mut tracer_provider = SdkTracerProvider::builder().with_resource(resource.clone());
+        if settings.traces_enabled {
+            let exporter = SpanExporter::builder()
+                .with_http()
+                .with_protocol(Protocol::HttpBinary)
+                .with_timeout(EXPORT_TIMEOUT)
+                .with_max_request_body_size(MAX_PAYLOAD_BYTES)
+                .with_endpoint(destination.endpoint.join("/v1/traces")?.to_string())
+                .with_http_client(client.clone())
+                .build()?;
+            tracer_provider = tracer_provider
+                .with_sampler(Sampler::ParentBased(Box::new(Sampler::TraceIdRatioBased(
+                    settings.ratio,
+                ))))
+                .with_span_processor(
+                    BatchSpanProcessor::builder(exporter)
+                        .with_batch_config(
+                            BatchConfigBuilder::default()
+                                .with_max_queue_size(2048)
+                                .with_max_export_batch_size(512)
+                                .build(),
+                        )
+                        .build(),
+                );
+        } else {
+            tracer_provider = tracer_provider.with_sampler(Sampler::AlwaysOff);
+        }
+        let tracer_provider = tracer_provider.build();
+        let mut meter_provider = SdkMeterProvider::builder().with_resource(resource);
+        if settings.metrics_enabled {
+            let exporter = MetricExporter::builder()
+                .with_http()
+                .with_protocol(Protocol::HttpBinary)
+                .with_timeout(EXPORT_TIMEOUT)
+                .with_max_request_body_size(MAX_PAYLOAD_BYTES)
+                .with_endpoint(destination.endpoint.join("/v1/metrics")?.to_string())
+                .with_http_client(client.clone())
+                .with_temporality(Temporality::Delta)
+                .build()?;
+            meter_provider = meter_provider.with_reader(
+                PeriodicReader::builder(exporter)
                     .with_interval(Duration::from_secs(30))
                     .build(),
-            )
-            .build();
+            );
+        }
+        let meter_provider = meter_provider.build();
         let tracer = tracer_provider.tracer(SCOPE);
         let meter = meter_provider.meter(SCOPE);
         let duration = |name: &'static str| meter.f64_histogram(name).with_unit("s").build();
         Ok(Self {
+            export_client: client,
             tracer_provider,
             meter_provider,
+            logger_provider,
             tracer,
             http_duration: meter
                 .f64_histogram("http.server.request.duration")
@@ -120,10 +172,136 @@ impl Recorder {
             job_duration: duration("openrust.queue.job.duration"),
             stopped: AtomicBool::new(false),
             owner: Arc::new(()),
-            propagate_origins,
+            propagate_origins: settings.propagate_origins,
             client_duration: duration("http.client.request.duration"),
             sql_duration: duration("db.client.operation.duration"),
+            exception_stacktrace: settings.exception_stacktrace,
         })
+    }
+
+    fn transaction<'a>(&self, context: &'a Context) -> Option<&'a Active> {
+        context.get::<Active>().filter(|active| {
+            Arc::ptr_eq(&self.owner, &active.owner)
+                && matches!(
+                    active.kind,
+                    OperationKind::Http
+                        | OperationKind::Command
+                        | OperationKind::Job
+                        | OperationKind::JobExecution
+                )
+        })
+    }
+
+    pub(crate) fn name_transaction(&self, name: &str) -> bool {
+        let context = Context::current();
+        if name.trim().is_empty() || name.len() > 128 {
+            return false;
+        }
+        let Some(active) = self.transaction(&context) else {
+            return false;
+        };
+        active.renamed.store(true, Ordering::Relaxed);
+        context.span().update_name(name.to_owned());
+        true
+    }
+
+    pub(crate) fn add_attribute(&self, key: &str, value: &str) -> bool {
+        let context = Context::current();
+        let Some(active) = self.transaction(&context) else {
+            return false;
+        };
+        if key.is_empty()
+            || key.len() > 64
+            || value.len() > 512
+            || !key
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+            || active
+                .attributes
+                .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |count| {
+                    (count < 32).then_some(count + 1)
+                })
+                .is_err()
+        {
+            return false;
+        }
+        context
+            .span()
+            .set_attribute(KeyValue::new(format!("custom.{key}"), value.to_owned()));
+        true
+    }
+
+    pub(crate) fn report_log(&self, kind: &str, trace: Option<&TraceContext>) {
+        let parent = trace.map_or_else(Context::new, |trace| {
+            TraceContextPropagator::new()
+                .extract_with_context(&Context::new(), &HeaderExtractor(&trace.headers()))
+        });
+        let kind = kind.chars().take(128).collect::<String>();
+        let span = Context::new().with_span(self.tracer.build_with_context(
+            SpanBuilder::from_name("log error").with_kind(SpanKind::Internal),
+            &parent,
+        ));
+        span.span().set_status(Status::error(kind.clone()));
+        span.span()
+            .add_event("exception", vec![KeyValue::new("exception.type", kind)]);
+        span.span().end();
+    }
+
+    pub(crate) fn export_stats(&self) -> ExportStats {
+        self.export_client.stats()
+    }
+
+    pub(crate) async fn export_pending(&self, shutdown: bool) -> bool {
+        if shutdown {
+            if self.stopped.swap(true, Ordering::AcqRel) {
+                return true;
+            }
+        } else if self.stopped.load(Ordering::Acquire) {
+            return false;
+        }
+        let spans = self.tracer_provider.clone();
+        let metrics = self.meter_provider.clone();
+        let span_task = tokio::task::spawn_blocking(move || {
+            if shutdown {
+                spans.shutdown_with_timeout(EXPORT_TIMEOUT)
+            } else {
+                spans.force_flush()
+            }
+        });
+        let metric_task = tokio::task::spawn_blocking(move || {
+            if shutdown {
+                metrics.shutdown_with_timeout(EXPORT_TIMEOUT)
+            } else {
+                metrics.force_flush()
+            }
+        });
+        let log_task = self.logger_provider.clone().map(|logs| {
+            tokio::task::spawn_blocking(move || {
+                if shutdown {
+                    logs.shutdown_with_timeout(EXPORT_TIMEOUT)
+                } else {
+                    logs.force_flush()
+                }
+            })
+        });
+        let finished = async {
+            let (spans, metrics, logs) = tokio::join!(span_task, metric_task, async {
+                match log_task {
+                    Some(task) => task.await.is_ok_and(|result| result.is_ok()),
+                    None => true,
+                }
+            });
+            matches!(spans, Ok(Ok(()))) && matches!(metrics, Ok(Ok(()))) && logs
+        };
+        tokio::time::timeout(EXPORT_TIMEOUT + Duration::from_secs(3), finished)
+            .await
+            .unwrap_or(false)
+    }
+
+    pub(crate) fn logger(&self) -> Option<SdkLogger> {
+        self.logger_provider
+            .as_ref()
+            .map(|provider| provider.logger(SCOPE))
     }
 
     fn active(&self, context: &Context, kind: OperationKind) -> bool {
@@ -151,7 +329,12 @@ impl Recorder {
         if let Some(route) = route {
             attributes.push(KeyValue::new("http.route", route.to_owned()));
             let operation = if method == "_OTHER" { "HTTP" } else { method };
-            context.span().update_name(format!("{operation} {route}"));
+            if context
+                .get::<Active>()
+                .is_none_or(|active| !active.renamed.load(Ordering::Relaxed))
+            {
+                context.span().update_name(format!("{operation} {route}"));
+            }
         }
         if status.is_server_error() {
             attributes.push(KeyValue::new("error.type", status.as_u16().to_string()));
@@ -185,6 +368,10 @@ impl Recorder {
                 .record(duration.as_secs_f64(), &attributes);
         }
         context.span().set_attributes(attributes);
+        context.span().set_attribute(KeyValue::new(
+            "openrust.queue.attempt",
+            i64::from(event.job.attempts),
+        ));
         if !event.successful() {
             context.span().set_status(Status::error(""));
         }
@@ -196,6 +383,8 @@ enum OperationKind {
     Http,
     HttpClient,
     Sql,
+    Dispatch,
+    JobExecution,
     Command,
     Job,
 }
@@ -203,6 +392,9 @@ enum OperationKind {
 struct Active {
     owner: Arc<()>,
     kind: OperationKind,
+    errors: Mutex<HashSet<usize>>,
+    renamed: AtomicBool,
+    attributes: AtomicUsize,
 }
 
 impl Observer for Recorder {
@@ -222,6 +414,7 @@ impl Observer for Recorder {
             }
         };
         let mut inject = None;
+        let mut carrier = None;
         let mut measured = None;
         let (builder, parent, kind, command) = match operation {
             Operation::Http { method, headers } => {
@@ -289,24 +482,83 @@ impl Observer for Recorder {
                 OperationKind::Command,
                 Some((name.to_owned(), self.command_duration.clone())),
             ),
-            Operation::Job { name } => (
-                SpanBuilder::from_name(format!("queue {name}"))
-                    .with_attributes([KeyValue::new("openrust.queue.job", name.to_owned())]),
-                local(),
-                OperationKind::Job,
-                None,
-            ),
+            Operation::JobDispatch { destination, trace } => {
+                // 已带创建上下文的任务保持原有关联。
+                if trace.is_none() {
+                    carrier = Some(trace);
+                }
+                (
+                    SpanBuilder::from_name("queue send")
+                        .with_kind(SpanKind::Producer)
+                        .with_attributes([
+                            KeyValue::new("messaging.system", "openrust.queue"),
+                            KeyValue::new("messaging.system.name", "openrust.queue"),
+                            KeyValue::new("messaging.operation.name", "send"),
+                            KeyValue::new("messaging.operation.type", "send"),
+                            KeyValue::new("messaging.destination.name", destination.to_owned()),
+                        ]),
+                    local(),
+                    OperationKind::Dispatch,
+                    None,
+                )
+            }
+            Operation::Job { name, trace } => {
+                let parent = local();
+                let link = trace.and_then(|trace| {
+                    let context = TraceContextPropagator::new()
+                        .extract_with_context(&Context::new(), &HeaderExtractor(&trace.headers()));
+                    let remote = context.span().span_context().clone();
+                    let current = parent.span().span_context().clone();
+                    (remote.is_valid() && remote != current).then(|| Link::with_context(remote))
+                });
+                (
+                    SpanBuilder::from_name(format!("queue {name}"))
+                        .with_kind(SpanKind::Consumer)
+                        .with_links(link.into_iter().collect())
+                        .with_attributes([
+                            KeyValue::new("openrust.queue.job", name.to_owned()),
+                            KeyValue::new("messaging.system", "openrust.queue"),
+                            KeyValue::new("messaging.system.name", "openrust.queue"),
+                            KeyValue::new("messaging.operation.name", "process"),
+                            KeyValue::new("messaging.operation.type", "process"),
+                        ]),
+                    parent,
+                    OperationKind::Job,
+                    None,
+                )
+            }
+            Operation::JobExecution { name, parent } => {
+                let parent = parent.map_or_else(Context::new, |parent| {
+                    TraceContextPropagator::new()
+                        .extract_with_context(&Context::new(), &HeaderExtractor(&parent.headers()))
+                });
+                (
+                    SpanBuilder::from_name(format!("queue execute {name}")),
+                    parent,
+                    OperationKind::JobExecution,
+                    None,
+                )
+            }
             _ => return None,
         };
         let span = self.tracer.build_with_context(builder, &parent);
         let context = parent.with_span(span).with_value(Active {
             owner: self.owner.clone(),
             kind,
+            errors: Mutex::new(HashSet::new()),
+            renamed: AtomicBool::new(false),
+            attributes: AtomicUsize::new(0),
         });
         if let Some(headers) = inject
             && !headers.contains_key("traceparent")
         {
             TraceContextPropagator::new().inject_context(&context, &mut HeaderInjector(headers));
+        }
+        if let Some(carrier) = carrier {
+            let mut headers = reqwest::header::HeaderMap::new();
+            TraceContextPropagator::new()
+                .inject_context(&context, &mut HeaderInjector(&mut headers));
+            *carrier = TraceContext::from_headers(&headers);
         }
         Some(Box::new(SpanObservation {
             context,
@@ -314,6 +566,67 @@ impl Observer for Recorder {
             command,
             measured,
         }))
+    }
+    fn report(&self, identity: usize, snapshot: &serde_json::Value) {
+        if self.stopped.load(Ordering::Acquire) {
+            return;
+        }
+        let kind = snapshot
+            .get("class")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("Error");
+        let safe_kind = kind.chars().take(256).collect::<String>();
+        let mut attributes = vec![
+            KeyValue::new("exception.type", safe_kind.clone()),
+            KeyValue::new("exception.message", format!("应用异常：{safe_kind}")),
+        ];
+        // 只有应用已经在异常源提供的堆栈才会送出，不在报告位置伪造。
+        if self.exception_stacktrace
+            && let Some(trace) = snapshot
+                .get("stacktrace")
+                .and_then(serde_json::Value::as_str)
+        {
+            attributes.push(KeyValue::new(
+                "exception.stacktrace",
+                trace.chars().take(1024).collect::<String>(),
+            ));
+        }
+        let active = Context::current();
+        if let Some(operation) = active.get::<Active>()
+            && Arc::ptr_eq(&self.owner, &operation.owner)
+        {
+            let mut identities = operation
+                .errors
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if identities.len() >= 64 || !identities.insert(identity) {
+                return;
+            }
+            drop(identities);
+            active.span().set_status(Status::error(safe_kind));
+            active.span().add_event("exception", attributes);
+        } else {
+            let span = Context::new().with_span(self.tracer.build_with_context(
+                SpanBuilder::from_name("exception").with_kind(SpanKind::Internal),
+                &Context::new(),
+            ));
+            span.span().set_status(Status::error(safe_kind));
+            span.span().add_event("exception", attributes);
+            span.span().end();
+        }
+    }
+
+    fn current_trace(&self) -> Option<TraceContext> {
+        let context = Context::current();
+        if !context
+            .get::<Active>()
+            .is_some_and(|active| Arc::ptr_eq(&self.owner, &active.owner))
+        {
+            return None;
+        }
+        let mut headers = reqwest::header::HeaderMap::new();
+        TraceContextPropagator::new().inject_context(&context, &mut HeaderInjector(&mut headers));
+        TraceContext::from_headers(&headers)
     }
 }
 
@@ -390,7 +703,19 @@ impl Observation for SpanObservation {
                 }
                 code != 0
             }
-            Outcome::Job { failed } => failed,
+            Outcome::Job(outcome) => {
+                let (label, failed) = match outcome {
+                    JobOutcome::Processed => ("processed", false),
+                    JobOutcome::Released => ("released", false),
+                    JobOutcome::TimedOut => ("timed_out", true),
+                    JobOutcome::Failed => ("failed", true),
+                    JobOutcome::Idle => ("idle", false),
+                    _ => ("unknown", false),
+                };
+                span.set_attribute(KeyValue::new("openrust.queue.outcome", label));
+                failed
+            }
+            Outcome::JobDispatch { failed } => failed,
             Outcome::Failed => {
                 if let Some((name, histogram)) = &self.command {
                     histogram.record(
@@ -409,7 +734,15 @@ impl Observation for SpanObservation {
             }
             _ => false,
         };
-        if failed {
+        if failed
+            && self.context.get::<Active>().is_none_or(|active| {
+                active
+                    .errors
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .is_empty()
+            })
+        {
             span.set_status(Status::error(""));
         }
         span.end();
@@ -447,20 +780,9 @@ impl Listener for Recorder {
             } else if let Some(job) = event.downcast_ref::<JobAttempted>() {
                 self.job(job);
             } else if event.downcast_ref::<ApplicationTerminating>().is_some()
-                && !self.stopped.swap(true, Ordering::AcqRel)
+                && !self.export_pending(true).await
             {
-                let spans = self.tracer_provider.clone();
-                let metrics = self.meter_provider.clone();
-                let span_task = tokio::task::spawn_blocking(move || {
-                    spans.shutdown_with_timeout(EXPORT_TIMEOUT)
-                });
-                let metric_task = tokio::task::spawn_blocking(move || {
-                    metrics.shutdown_with_timeout(EXPORT_TIMEOUT)
-                });
-                let (spans, metrics) = tokio::join!(span_task, metric_task);
-                if !matches!(spans, Ok(Ok(()))) || !matches!(metrics, Ok(Ok(()))) {
-                    eprintln!("New Relic 遥测未能完整刷新");
-                }
+                eprintln!("New Relic 遥测未能完整刷新");
             }
             Ok(None)
         })

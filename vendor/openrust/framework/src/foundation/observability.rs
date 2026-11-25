@@ -28,9 +28,69 @@ pub enum Operation<'a> {
         system: &'static str,
         operation: Option<&'static str>,
     },
+    JobDispatch {
+        destination: &'a str,
+        trace: &'a mut Option<TraceContext>,
+    },
     Job {
         name: &'a str,
+        trace: Option<&'a TraceContext>,
     },
+    JobExecution {
+        name: &'a str,
+        parent: Option<&'a TraceContext>,
+    },
+}
+
+/// 跨进程携带的 W3C 消息创建上下文。
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct TraceContext {
+    traceparent: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    tracestate: Option<String>,
+}
+
+impl TraceContext {
+    pub fn from_headers(headers: &http::HeaderMap) -> Option<Self> {
+        let traceparent = headers.get("traceparent")?.to_str().ok()?;
+        if traceparent.len() > 512 {
+            return None;
+        }
+        let tracestate = headers
+            .get("tracestate")
+            .and_then(|value| value.to_str().ok())
+            .filter(|value| value.len() <= 512)
+            .map(str::to_owned);
+        Some(Self {
+            traceparent: traceparent.to_owned(),
+            tracestate,
+        })
+    }
+
+    pub fn headers(&self) -> http::HeaderMap {
+        let mut headers = http::HeaderMap::new();
+        if self.traceparent.len() <= 512
+            && let Ok(value) = http::HeaderValue::from_str(&self.traceparent)
+        {
+            headers.insert("traceparent", value);
+        }
+        if let Some(state) = &self.tracestate
+            && state.len() <= 512
+            && let Ok(value) = http::HeaderValue::from_str(state)
+        {
+            headers.insert("tracestate", value);
+        }
+        headers
+    }
+}
+
+pub(crate) fn deserialize_trace<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<TraceContext>, D::Error> {
+    let value = <serde_json::Value as serde::Deserialize>::deserialize(deserializer)?;
+    // 旧版本或第三方生产者携带不认识的字段时，任务仍然可执行。
+    let trace = serde_json::from_value::<TraceContext>(value).ok();
+    Ok(trace.filter(|trace| trace.headers().contains_key("traceparent")))
 }
 
 /// 操作的终态。错误文案由单独的异常报告管线处理。
@@ -40,15 +100,34 @@ pub enum Outcome {
     Http(http::StatusCode),
     Command(i32),
     HttpClient(Result<http::StatusCode, &'static str>),
-    Job { failed: bool },
+    Job(JobOutcome),
+    JobDispatch { failed: bool },
     Sql { failed: bool },
     Failed,
     Cancelled,
 }
 
+/// 队列执行的终态。
+#[non_exhaustive]
+#[derive(Clone, Copy)]
+pub enum JobOutcome {
+    Processed,
+    Released,
+    TimedOut,
+    Failed,
+    Idle,
+}
+
 /// 一个应用的观测扩展。
 pub trait Observer: Send + Sync + 'static {
     fn begin(&self, operation: Operation<'_>) -> Option<Box<dyn Observation>>;
+
+    /// 接收通过框架报告策略的异常。
+    fn report(&self, _identity: usize, _snapshot: &serde_json::Value) {}
+
+    fn current_trace(&self) -> Option<TraceContext> {
+        None
+    }
 }
 
 /// 对一次执行建立上下文，且在结束或取消时收尾。
@@ -90,14 +169,25 @@ pub(crate) fn begin_sql(
     begin(&owner, Operation::Sql { system, operation })
 }
 
+fn registered(container: &Container) -> Option<Arc<Registered>> {
+    if !container.has(crate::container::ServiceKey::typed::<Registered>()) {
+        return None;
+    }
+    container.make::<Registered>().ok()
+}
+
 pub(crate) fn begin(container: &Container, operation: Operation<'_>) -> Execution {
-    Execution(
-        container
-            .has(crate::container::ServiceKey::typed::<Registered>())
-            .then(|| container.make::<Registered>().ok())
-            .flatten()
-            .and_then(|registration| registration.0.begin(operation)),
-    )
+    Execution(registered(container).and_then(|registration| registration.0.begin(operation)))
+}
+
+pub(crate) fn report(container: &Container, identity: usize, snapshot: &serde_json::Value) {
+    if let Some(registration) = registered(container) {
+        registration.0.report(identity, snapshot);
+    }
+}
+
+pub(crate) fn current_trace(container: &Container) -> Option<TraceContext> {
+    registered(container).and_then(|registration| registration.0.current_trace())
 }
 
 #[derive(Default)]

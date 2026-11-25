@@ -500,34 +500,58 @@ impl QueueManager {
             .owner
             .upgrade()
             .ok_or(QueueError::InvalidConfiguration)?;
-        let selected = options.queue.as_deref();
-        let transaction = transaction.filter(|transaction| transaction.transaction_level() != 0);
-        if let Some(transaction) = transaction {
-            if unique.is_some() && options.after_commit == Some(false) {
-                return Err(QueueError::InvalidConfiguration);
-            }
-            if unique.is_some() || options.after_commit.unwrap_or(configured.after_commit) {
-                transaction
-                    .after_commit(move || {
-                        Box::pin(async move {
-                            dispatch_unique(&*queue, payload, &options, owner, unique)
-                                .await
-                                .map(|_| ())
-                                .map_err(|source| DatabaseError::AfterCommit {
-                                    source: Box::new(source),
+        use crate::foundation::observability::{self, Operation, Outcome};
+        let destination = options
+            .queue
+            .as_deref()
+            .unwrap_or_else(|| queue.default_queue());
+        let observation = observability::begin(
+            &owner,
+            Operation::JobDispatch {
+                destination,
+                trace: &mut payload.trace_context,
+            },
+        );
+        observation
+            .run(
+                async {
+                    let selected = options.queue.as_deref();
+                    let transaction =
+                        transaction.filter(|transaction| transaction.transaction_level() != 0);
+                    if let Some(transaction) = transaction {
+                        if unique.is_some() && options.after_commit == Some(false) {
+                            return Err(QueueError::InvalidConfiguration);
+                        }
+                        if unique.is_some()
+                            || options.after_commit.unwrap_or(configured.after_commit)
+                        {
+                            transaction
+                                .after_commit(move || {
+                                    Box::pin(async move {
+                                        dispatch_unique(&*queue, payload, &options, owner, unique)
+                                            .await
+                                            .map(|_| ())
+                                            .map_err(|source| DatabaseError::AfterCommit {
+                                                source: Box::new(source),
+                                            })
+                                    })
                                 })
-                        })
-                    })
-                    .map_err(backend)?;
-                return Ok(DispatchResult::Deferred);
-            }
-            emit_queueing(&owner, &*queue, &payload, &options).await?;
-            return queue
-                .push_in_transaction(&payload, selected, options.delay, transaction)
-                .await
-                .map(dispatch_result);
-        }
-        dispatch_unique(&*queue, payload, &options, owner, unique).await
+                                .map_err(backend)?;
+                            return Ok(DispatchResult::Deferred);
+                        }
+                        emit_queueing(&owner, &*queue, &payload, &options).await?;
+                        return queue
+                            .push_in_transaction(&payload, selected, options.delay, transaction)
+                            .await
+                            .map(dispatch_result);
+                    }
+                    dispatch_unique(&*queue, payload, &options, owner, unique).await
+                },
+                |result| Outcome::JobDispatch {
+                    failed: result.is_err(),
+                },
+            )
+            .await
     }
 
     /// Retries a failure through the configured transport and reports whether it was claimed.

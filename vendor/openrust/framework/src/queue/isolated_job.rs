@@ -29,6 +29,8 @@ struct Request {
     queue: String,
     attempts: u32,
     environment: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    observation_parent: Option<crate::foundation::observability::TraceContext>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -75,9 +77,25 @@ pub(crate) async fn serve(
         Context::hooks()
             .map_err(backend)?
             .hydrate(&request.payload.context, &repository);
-        let result = manager
-            .fire_isolated_job(&mut context, &request.payload)
-            .await;
+        use crate::foundation::observability::{self, JobOutcome, Operation, Outcome};
+        let result = observability::begin(
+            &container,
+            Operation::JobExecution {
+                name: request.payload.name(),
+                parent: request.observation_parent.as_ref(),
+            },
+        )
+        .run(
+            manager.fire_isolated_job(&mut context, &request.payload),
+            |result| {
+                Outcome::Job(if result.is_ok() {
+                    JobOutcome::Processed
+                } else {
+                    JobOutcome::Failed
+                })
+            },
+        )
+        .await;
         if let Err(error) = &result
             && !context.fail_immediately
             && !matches!(error, super::QueueError::MissingModel(_))
@@ -169,6 +187,7 @@ pub(super) async fn execute(
         queue: job.get_queue().into(),
         attempts: job.attempts(),
         environment,
+        observation_parent: crate::foundation::observability::current_trace(app),
     };
     let encoded = serde_json::to_vec(&request).map_err(backend)?;
     tokio::fs::write(directory.path().join("request.json"), encoded)

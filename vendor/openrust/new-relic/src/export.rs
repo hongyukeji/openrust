@@ -1,4 +1,11 @@
-use std::{fmt, time::Duration};
+use std::{
+    fmt,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::Duration,
+};
 
 use openrust::{
     config::{ConfigError, Environment},
@@ -88,6 +95,7 @@ impl Destination {
         Ok(Transport {
             client,
             license: self.license.clone(),
+            stats: Arc::default(),
         })
     }
 }
@@ -96,6 +104,29 @@ impl Destination {
 pub(crate) struct Transport {
     client: Client,
     license: Option<HeaderValue>,
+    stats: Arc<Counters>,
+}
+
+/// OTLP 出口计数。SDK 重试计为独立请求尝试。
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ExportStats {
+    pub attempts: u64,
+    pub failures: u64,
+}
+
+#[derive(Default)]
+struct Counters {
+    attempts: AtomicU64,
+    failures: AtomicU64,
+}
+
+impl Transport {
+    pub(crate) fn stats(&self) -> ExportStats {
+        ExportStats {
+            attempts: self.stats.attempts.load(Ordering::Relaxed),
+            failures: self.stats.failures.load(Ordering::Relaxed),
+        }
+    }
 }
 
 impl fmt::Debug for Transport {
@@ -117,6 +148,15 @@ impl HttpClient for Transport {
         if let Some(license) = &self.license {
             request.headers_mut().insert("api-key", license.clone());
         }
-        self.client.send_bytes(request).await
+        self.stats.attempts.fetch_add(1, Ordering::Relaxed);
+        let result = self.client.send_bytes(request).await;
+        if result.as_ref().is_err()
+            || result
+                .as_ref()
+                .is_ok_and(|response| !response.status().is_success())
+        {
+            self.stats.failures.fetch_add(1, Ordering::Relaxed);
+        }
+        result
     }
 }

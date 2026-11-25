@@ -14,13 +14,14 @@ import tempfile
 import threading
 import time
 
+from opentelemetry.proto.collector.logs.v1.logs_service_pb2 import ExportLogsServiceRequest
 from opentelemetry.proto.collector.metrics.v1.metrics_service_pb2 import ExportMetricsServiceRequest
 from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceRequest
 
 
 ROOT = Path(__file__).resolve().parents[1]
 PRIVATE = (b"private-command-input", b"private-job-input", b"private-url-id",
-           b"private-job-error", b"private-sql-literal", b"private_missing_table", b"private-cookie", b"private-query", b"private-license", b"private-otel-header")
+           b"private-job-error", b"private-exception-message", b"private-log-context", b"private-sql-literal", b"private_missing_table", b"private-cookie", b"private-query", b"private-license", b"private-otel-header")
 
 
 class Collector(ThreadingHTTPServer):
@@ -77,7 +78,7 @@ def attrs(attributes):
 
 
 def decode(requests):
-    spans, metrics = [], []
+    spans, metrics, logs = [], [], []
     for path, headers, body, status in requests:
         assert headers.get("content-type", headers.get("Content-Type")) == "application/x-protobuf", headers
         assert not {"api-key", "x-private"} & {header.lower() for header in headers}
@@ -94,9 +95,14 @@ def decode(requests):
             for resource in protobuf.resource_metrics:
                 service = attrs(resource.resource.attributes)["service.name"]
                 metrics.extend((service, metric) for scope in resource.scope_metrics for metric in scope.metrics)
+        elif path == "/v1/logs":
+            protobuf = ExportLogsServiceRequest.FromString(body)
+            for resource in protobuf.resource_logs:
+                service = attrs(resource.resource.attributes)["service.name"]
+                logs.extend((service, log) for scope in resource.scope_logs for log in scope.log_records)
         else:
             raise AssertionError(path)
-    return spans, metrics
+    return spans, metrics, logs
 
 
 def cli(binary, env, *args, exit_code=0):
@@ -140,6 +146,8 @@ def web(binary, env, root):
                 raise AssertionError("HTTP 未监听")
             assert request(port, "/api/probe/dependency") == 202
             assert request(port, "/api/probe/fail") == 500
+            assert request(port, "/api/probe/log") == 201
+            assert request(port, "/api/probe/flush") == 204
             assert request(port, "/private-url-id") == 404
         finally:
             process.terminate()
@@ -151,7 +159,7 @@ def web(binary, env, root):
                 raise
 
 
-def main(binary, driver):
+def main(binary, driver, queue):
     (ROOT / "target/tmp").mkdir(parents=True, exist_ok=True)
     with collector_server() as collector, collector_server() as other, tempfile.TemporaryDirectory(
         dir=ROOT / "target/tmp", prefix="new-relic-runtime-"
@@ -166,7 +174,8 @@ def main(binary, driver):
             "NEW_RELIC_TEST_ALLOWED_UPSTREAM": f"http://127.0.0.1:{collector.server_port}/private-url-id?token=private-query",
             "NEW_RELIC_TEST_OTHER_UPSTREAM": f"http://127.0.0.1:{other.server_port}/private-url-id",
             "NEW_RELIC_PROPAGATE_ORIGINS": f"http://127.0.0.1:{collector.server_port}",
-            "CACHE_STORE": "file", "SESSION_DRIVER": "array", "QUEUE_CONNECTION": "database",
+            "CACHE_STORE": "file", "SESSION_DRIVER": "array", "QUEUE_CONNECTION": queue,
+            "NEW_RELIC_TEST_QUEUE": queue,
             "APP_NAME": "acceptance-app",
             "NEW_RELIC_COLLECTOR_ENDPOINT": f"http://127.0.0.1:{collector.server_port}",
             "NEW_RELIC_LICENSE_KEY": "private-license",
@@ -177,19 +186,21 @@ def main(binary, driver):
         else:
             env["DB_URL"] = os.environ[("OPENRUST_TEST_POSTGRES_URL" if driver == "pgsql" else "OPENRUST_TEST_MYSQL_URL")]
             env["DB_DATABASE"] = "openrust_acceptance"
+        if queue == "redis":
+            env.update(REDIS_HOST="127.0.0.1", REDIS_PORT=os.environ["OPENRUST_TEST_REDIS_PORT"], REDIS_DB="0")
         cli(binary, env, "telemetry:probe")
         assert collector.requests == [], "默认未启用的扩展发送了遥测"
         cli(binary, env, "migrate", "--force")
         cli(binary, env, "telemetry:enqueue")
         cli(binary, env, "telemetry:enqueue", "--fail")
-        enabled = env | {"NEW_RELIC_ENABLED": "true"}
+        enabled = env | {"NEW_RELIC_ENABLED": "true", "NEW_RELIC_LOGS_ENABLED": "true"}
 
         collector.responses["/v1/traces"] = [503]
         web(binary, enabled, root)
         requests = collector.requests.copy()
         attempts = [item for item in requests if item[0] == "/v1/traces"]
         assert any(item[3] == 503 for item in attempts) and any(item[3] == 200 for item in attempts)
-        spans, metrics = decode(requests)
+        spans, metrics, logs = decode(requests)
         http_spans = {attrs(span.attributes)["http.response.status_code"]: span for name, span in spans
                       if name == "acceptance-app" and span.kind == 2}
         assert {204, 404, 500} <= http_spans.keys(), http_spans
@@ -198,6 +209,18 @@ def main(binary, driver):
         assert http_spans[204].parent_span_id.hex() == "0123456789012345"
         assert http_spans[404].status.code == 0 and http_spans[404].name == "GET"
         assert http_spans[500].status.code == 2
+        events = [event for event in http_spans[500].events if event.name == "exception"]
+        assert len(events) == 1 and attrs(events[0].attributes).get("exception.type")
+        assert http_spans[201].name == "custom linked request"
+        assert attrs(http_spans[201].attributes).get("custom.operation") == "fixture"
+        assert any(span.name == "log error" and span.parent_span_id == http_spans[201].span_id
+                   for _, span in spans)
+        log = next(log for name, log in logs if name == "acceptance-app")
+        assert log.body.string_value == "linked fixture record", log
+        assert log.trace_id == http_spans[201].trace_id and log.span_id == http_spans[201].span_id
+        assert attrs(log.attributes).get("context.operation") == "sample", log
+        assert "context.secret" not in attrs(log.attributes)
+        print("实际异常报告、脱敏及结构化日志 Trace 关联通过", flush=True)
         parent = http_spans[202]
         children = [span for name, span in spans if name == "acceptance-app"
                     and span.parent_span_id == parent.span_id and span.trace_id == parent.trace_id]
@@ -223,9 +246,10 @@ def main(binary, driver):
         rejected = [item for item in collector.requests[start:] if item[0] == "/v1/traces"]
         assert len(rejected) == 1 and rejected[0][3] == 400
         cli(binary, artisan, "telemetry:probe", "private-command-input", "--fail", exit_code=1)
+        cli(binary, enabled | {"NEW_RELIC_APP_NAME": "acceptance-producer"}, "telemetry:enqueue")
         cli(binary, enabled | {"NEW_RELIC_APP_NAME": "acceptance-worker"},
-            "queue:work", "database", "--queue=telemetry", "--stop-when-empty", "--tries=1")
-        spans, metrics = decode(collector.requests.copy())
+            "queue:work", queue, "--queue=telemetry", "--stop-when-empty", "--tries=1")
+        spans, metrics, logs = decode(collector.requests.copy())
         assert any(name == "acceptance-artisan" and span.name == "artisan telemetry:probe"
                    and span.status.code == 2 for name, span in spans)
         assert any(name == "acceptance-worker" and span.name.startswith("queue ")
@@ -239,7 +263,27 @@ def main(binary, driver):
         job_ids = {span.span_id for span in worker_spans if span.name.startswith("queue ")}
         assert any(span.name == "artisan telemetry:probe" and span.parent_span_id in job_ids
                    for span in worker_spans), worker_spans
-        print(f"独立 Artisan、{driver} Worker 的嵌套链路、拒收和退出刷新通过", flush=True)
+        produced = next(span for name, span in spans if name == "acceptance-producer" and span.kind == 4)
+        assert any(span.kind == 5 and any(link.trace_id == produced.trace_id and link.span_id == produced.span_id
+                                         for link in span.links) for span in worker_spans), worker_spans
+        print(f"独立 Artisan、{queue}/{driver} Worker 的生产者关联、嵌套链路、拒收和退出刷新通过", flush=True)
+
+        start = len(collector.requests)
+        cli(binary, enabled | {"NEW_RELIC_TEST_QUEUE": "sync"}, "telemetry:enqueue")
+        sync_spans, _, _ = decode(collector.requests[start:])
+        sender = next(span for _, span in sync_spans if span.kind == 4)
+        assert any(span.kind == 5 and span.parent_span_id == sender.span_id for _, span in sync_spans)
+
+        start = len(collector.requests)
+        cli(binary, enabled | {"NEW_RELIC_TRACE_SAMPLE_RATIO": "0"}, "telemetry:probe")
+        assert {item[0] for item in collector.requests[start:]} == {"/v1/metrics"}
+        start = len(collector.requests)
+        cli(binary, enabled | {"NEW_RELIC_METRICS_ENABLED": "false"}, "telemetry:probe")
+        assert {item[0] for item in collector.requests[start:]} == {"/v1/traces"}
+        start = len(collector.requests)
+        cli(binary, enabled | {"NEW_RELIC_TRACES_ENABLED": "false"}, "telemetry:probe")
+        assert {item[0] for item in collector.requests[start:]} == {"/v1/metrics"}
+        print("sync 队列、独立采样及信号开关通过", flush=True)
 
         invalid_env = enabled.copy()
         invalid_env.pop("NEW_RELIC_COLLECTOR_ENDPOINT")
@@ -266,5 +310,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("binary", type=Path)
     parser.add_argument("--driver", choices=("sqlite", "mysql", "pgsql"), default="sqlite")
+    parser.add_argument("--queue", choices=("database", "redis"), default="database")
     args = parser.parse_args()
-    main(str(args.binary.resolve()), args.driver)
+    main(str(args.binary.resolve()), args.driver, args.queue)

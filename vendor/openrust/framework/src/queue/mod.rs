@@ -215,6 +215,12 @@ pub struct Payload {
         skip_serializing_if = "crate::log::context::DehydratedContext::is_empty"
     )]
     context: crate::log::context::DehydratedContext,
+    #[serde(
+        default,
+        deserialize_with = "crate::foundation::observability::deserialize_trace",
+        skip_serializing_if = "Option::is_none"
+    )]
+    trace_context: Option<crate::foundation::observability::TraceContext>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     delivery_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -253,6 +259,7 @@ impl Payload {
             sqs_deduplication: None,
             unique_lock: None,
             context: Default::default(),
+            trace_context: None,
             delivery_id: None,
             batch_id: None,
             chain: None,

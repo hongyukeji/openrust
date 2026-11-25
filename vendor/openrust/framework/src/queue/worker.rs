@@ -572,20 +572,24 @@ impl Worker {
         attempt: &mut AttemptStatus,
         signals: Option<&watch::Receiver<WorkerSignalState>>,
     ) -> QueueResult<WorkResult> {
-        use crate::foundation::observability::{self, Operation, Outcome};
+        use crate::foundation::observability::{self, JobOutcome, Operation, Outcome};
         observability::begin(
             self.app.as_ref(),
             Operation::Job {
                 name: job.payload().name(),
+                trace: job.payload().trace_context.as_ref(),
             },
         )
         .run(
             self.process_attempt(job, options, attempt, signals),
-            |result| Outcome::Job {
-                failed: !matches!(
-                    result,
-                    Ok(WorkResult::Processed | WorkResult::Released | WorkResult::Idle)
-                ),
+            |result| {
+                Outcome::Job(match result {
+                    Ok(WorkResult::Processed) => JobOutcome::Processed,
+                    Ok(WorkResult::Released) => JobOutcome::Released,
+                    Ok(WorkResult::TimedOut) => JobOutcome::TimedOut,
+                    Ok(WorkResult::Idle) => JobOutcome::Idle,
+                    Ok(WorkResult::Failed) | Err(_) => JobOutcome::Failed,
+                })
             },
         )
         .await

@@ -26,4 +26,29 @@ Artisan 命令完成和有計時資訊的佇列執行嘗試都會產生 Span 和
 
 執行期間的外送 HTTP 與 SQL 操作以目前的 Span 為父節點。HTTP 用戶端 Span 從網路嘗試開始記錄到收到回應標頭。資料庫 Span 與耗時指標涵蓋預備陳述式、交易查詢與游標，屬性只採用驅動程式和固定的操作名稱，不收集 SQL 本文或繫結值。
 
-此擴充目前不轉送日誌或收集例外堆疊。佇列與命令耗時指標可分別使用 `openrust.queue.job.duration` 和 `openrust.artisan.command.duration` 查詢。
+透過佇列管理器派發的工作可以攜帶選用追蹤中繼資料。非同步 Worker 的 Span Link 會關聯工作的來源。既有工作缺少此欄位時仍可照常執行。佇列與命令耗時指標可分別使用 `openrust.queue.job.duration` 和 `openrust.artisan.command.duration` 查詢。
+
+## 日誌與例外 {#logs-and-errors}
+
+設定 `NEW_RELIC_LOGS_ENABLED=true`，並在 `logging.channels` 中明確新增通道。下例是通道的設定值。
+
+```json
+{
+  "driver": "monolog",
+  "handler": "new_relic",
+  "formatter": "default",
+  "level": "error",
+  "bubble": true,
+  "with": {"fields": ["context.operation"], "report_errors": true}
+}
+```
+
+只有選用此通道的日誌會傳送。預設格式器使用結構化記錄及其訊息。透過 `with.fields` 明確列出允許匯出的頂層 context 或 extra 欄位。處理器保留有限長度的純量和簡單陣列，並附加日誌產生時的 Trace ID 和 Span ID。只需轉送日誌時設定 `report_errors=false`。已由應用程式例外處理器回報的錯誤，經此通道轉送時不會再建立一個錯誤 Span。使用預設格式器可避免把其他欄位寫入匯出訊息。
+
+例外回報使用錯誤類型和安全摘要。設定 `NEW_RELIC_EXCEPTION_STACKTRACE=true` 後，只有應用程式已在例外快照提供 `stacktrace` 欄位時才會傳送截斷後的堆疊。啟用前請確認該欄位適合匯出。
+
+## 執行控制 {#runtime-controls}
+
+擴充啟用後預設傳送追蹤與指標。可用 `NEW_RELIC_TRACES_ENABLED=false` 或 `NEW_RELIC_METRICS_ENABLED=false` 個別停用。將 `NEW_RELIC_TRACE_SAMPLE_RATIO` 設為 0 到 1，為根 Span 設定取樣比例，並沿用父 Span 的取樣決定。指標計數不受追蹤取樣影響。需要明確區分服務副本時，可設定 `NEW_RELIC_INSTANCE_ID`。使用設定快取的應用程式在變更這些設定後需重新產生快取。
+
+從應用程式容器解析 `openrust_new_relic::NewRelic`。在交易作用域內，可用 `name_transaction` 和 `add_attribute` 更新 Span 名稱與有限的自訂屬性，HTTP 指標繼續依路由彙總。嵌入式使用者可在自己的工作結束後呼叫 `flush().await` 或 `shutdown().await`。`export_stats()` 統計實際 HTTP 請求嘗試與失敗，重試個別計數，排隊階段丟棄的記錄不屬於此統計。
