@@ -1,0 +1,35 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "status": "verified_owned_component_compile_four_embedded_templates_and_per_instance_override",
+  "native": [
+    "Component::compile/set_view_compiler",
+    "ComponentViewCompiler::compile",
+    "BuiltinComponentViewCompiler::new/default/compile",
+    "console/resources/views/components/{alert,line,bullet-list,two-column-detail}.blade.html"
+  ],
+  "source_oracles": {
+    "component-compile-oracle.json": 109,
+    "component-compile-extract-oracle.json": 2
+  },
+  "runtime": {
+    "real_artisan_processes": 3,
+    "real_http_requests": 17,
+    "docs_consumers": 153,
+    "browser_checks": 12
+  },
+  "adaptations": [
+    "默认复用已验BladeCompiler/CompiledTemplate与HTML转义，翻译四个静态PHP模板为内嵌Blade资源；不引入另一套模板语言/解释器。默认程序不可变且只编译一次，数据各次独立，无应用状态混用。资源更改须重建，无运行期源文件include或编译目录。",
+    "模板数据维持源字段拼写（marginTop/bgColor/fgColor等是数据键，不是Rust标识符）。内容与样式/标题按源分别转义/原始插值，白空/循环/条件细节逐字节对照。",
+    "自定义编译器是组件拥有的Send可变实例，收原Context，可写输出/保留计数/返回错误/委托默认；None重置默认，不把全局函数回调当作正式组件编译接口。",
+    "源应用HandleExceptions将非弃用warning转ErrorException，探测调用真实handleError；弃用报告仅省略日志。Source compile错误残留的ob输出字节保留，不在原生泄漏。",
+    "PHP extract会覆盖view/data等局部变量，2反例实证改变模板/触发缺文件；原生选择参数与模板数据分离，不复制局部变量覆盖或任意路径include。此为有意的PHP缺陷转换，非已存在原生数据格式变更。",
+    "默认限制四个编译资源，新增来源通过真实ComponentViewCompiler。沿JSON边界且编译同步，异步数据先准备。"
+  ],
+  "remaining": [
+    "Component::renderView以及默认终端HTML/CSS布局和可覆盖渲染策略仍待实现/实际消费者，compile返回HTML不能代替终端渲染。",
+    "Command容器Factory构造/覆盖生命周期、Helper/HelperSet/Time其余继承SDK和Artisan其他锚点继续，整章未闭合。"
+  ],
+  "licenses": [
+    "资源随对应MIT版权许可分发；LICENSE使用中性名称，必要版权不因品牌清理删除。"
+  ]
+}

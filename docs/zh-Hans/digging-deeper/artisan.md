@@ -1956,3 +1956,55 @@ fn register_component_data() -> Result<(), ConsoleError> {
 `using_question_helper` 接受可借用局部状态的异步闭包，临时安装组件帮助器，在成功、错误、panic 展开及取消后恢复同一个原帮助器。原帮助器尚未初始化时恢复普通默认帮助器。闭包内可以更新借用的局部状态；普通输出会在调用闭包前失败。可恢复的失败优先使用 `Result`。
 
 闭包接收 `QuestionStyleReference`，即原样式的短期借用，支持 `QuestionStyle` 和 `AsOutput`。使用 `async |mut style|` 绑定。具名引用让要求 `Send` 的命令处理器能明确识别借用生命周期，不另分配样式对象，也不复制输入。
+
+
+### 编译组件标记 {#component-markup-compilation}
+
+`Component::compile(view, data)` 返回组件 HTML 标记，不写入终端输出。默认编译器复用 Blade，内嵌四个模板；不可变编译结果共享，每次调用的数据独立。运行时不执行源文件，也不写编译视图目录；修改内嵌模板需要重新构建二进制。
+
+| 视图 | 必需数据键 |
+| --- | --- |
+| `alert` | `content` |
+| `line` | `marginTop`, `bgColor`, `fgColor`, `title`, `content` |
+| `bullet-list` | `elements` |
+| `two-column-detail` | `first`, `second` |
+
+这些名称是模板数据键，保持原拼写。内容执行 HTML 转义；行样式值与标题使用模板的原始插值。`elements` 接受标量列表或具名条目。缺少变量、类型非法及未知内置视图返回 `ConsoleError`。
+
+```rust
+use openrust::{
+    console::{AsyncCommandCallback, ConsoleError, OutputFormat,
+        view::components::{BuiltinComponentViewCompiler, Component, ComponentContext, ComponentViewCompiler}},
+    support::facades::Artisan,
+};
+use serde_json::{Value, json};
+struct HeadingCompiler;
+impl ComponentViewCompiler for HeadingCompiler {
+    fn compile(&mut self, view: &str, data: Value, output: &mut ComponentContext<'_>) -> Result<String, ConsoleError> {
+        if view == "heading" {
+            let text = data["text"].as_str().ok_or_else(|| ConsoleError::new("需要标题文本"))?;
+            return Ok(format!("<strong>{}</strong>", text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")));
+        }
+        BuiltinComponentViewCompiler::new().compile(view, data, output)
+    }
+}
+fn register_component_compilation() -> Result<(), ConsoleError> {
+    Artisan::command_with("components:compile", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let mut component = Component::new(output);
+            let html = component.compile("alert", json!({"content": "Compiled <report>"}))?;
+            component.get_output().writeln(format!("Builtin:{html}").as_str(), OutputFormat::Raw)?;
+            component.set_view_compiler(Some(Box::new(HeadingCompiler)));
+            let html = component.compile("heading", json!({"text": "Ready"}))?;
+            component.get_output().writeln(format!("Custom:{html}").as_str(), OutputFormat::Raw)?;
+            component.set_view_compiler(None);
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+`ComponentViewCompiler` 由组件持有，接收原输出上下文，可以保存实例状态、返回错误或委托 `BuiltinComponentViewCompiler`。`set_view_compiler(None)` 恢复默认编译器。编译为同步操作；异步数据应先准备好再编译标记。
+
+视图选择参数与模板数据分开，数据键 `view` 不会重定向编译，也不能覆盖编译器局部变量。自定义视图来源通过自定义编译器接入，不作为路径传给内置模板目录。

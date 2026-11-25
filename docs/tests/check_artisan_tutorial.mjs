@@ -73,6 +73,7 @@ try {
                     assert.equal(await page.locator('h3#dynamic-component-calls').count(),1);
                     assert.equal(await page.locator('h3#custom-console-components').count(),1);
                     assert.equal(await page.locator('h3#component-data-scopes').count(),1);
+                    assert.equal(await page.locator('h3#component-markup-compilation').count(),1);
                     assert.deepEqual(errors,[]);
                     console.log(`${base} ${locale} ${width}: formal signatures and injected example PASS`);
                     await page.close();

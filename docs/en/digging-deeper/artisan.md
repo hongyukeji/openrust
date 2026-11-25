@@ -1956,3 +1956,55 @@ fn register_component_data() -> Result<(), ConsoleError> {
 `using_question_helper` accepts a lending async closure. It temporarily installs the component helper, then restores the exact previous helper on success, error, panic unwinding or cancellation. An uninitialized helper is restored to the ordinary default helper. Borrowed local state can be updated inside the closure. Plain outputs fail before the closure is called. Prefer `Result` for recoverable failures.
 
 The callback receives a `QuestionStyleReference`, a short-lived view of the original style implementing `QuestionStyle` and `AsOutput`. Bind it as `async |mut style|`. This named reference makes the borrow lifetime explicit for `Send` command handlers; it does not allocate another style or copy input.
+
+
+### Compiling component markup {#component-markup-compilation}
+
+`Component::compile(view, data)` returns the component's HTML markup. It does not write terminal output. The built-in compiler reuses Blade and embeds four templates; the immutable compiled programs are shared, while data remains local to each call. It neither executes source files at runtime nor writes a compiled-view directory. Changes to embedded templates require rebuilding the binary.
+
+| View | Required data keys |
+| --- | --- |
+| `alert` | `content` |
+| `line` | `marginTop`, `bgColor`, `fgColor`, `title`, `content` |
+| `bullet-list` | `elements` |
+| `two-column-detail` | `first`, `second` |
+
+These are template data keys, so their spelling remains unchanged. Content is HTML escaped; line style values and the title use the template's raw interpolation. `elements` accepts a list or keyed entries of scalar values. Missing variables, invalid types and unknown built-in views return `ConsoleError`.
+
+```rust
+use openrust::{
+    console::{AsyncCommandCallback, ConsoleError, OutputFormat,
+        view::components::{BuiltinComponentViewCompiler, Component, ComponentContext, ComponentViewCompiler}},
+    support::facades::Artisan,
+};
+use serde_json::{Value, json};
+struct HeadingCompiler;
+impl ComponentViewCompiler for HeadingCompiler {
+    fn compile(&mut self, view: &str, data: Value, output: &mut ComponentContext<'_>) -> Result<String, ConsoleError> {
+        if view == "heading" {
+            let text = data["text"].as_str().ok_or_else(|| ConsoleError::new("需要标题文本"))?;
+            return Ok(format!("<strong>{}</strong>", text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")));
+        }
+        BuiltinComponentViewCompiler::new().compile(view, data, output)
+    }
+}
+fn register_component_compilation() -> Result<(), ConsoleError> {
+    Artisan::command_with("components:compile", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let mut component = Component::new(output);
+            let html = component.compile("alert", json!({"content": "Compiled <report>"}))?;
+            component.get_output().writeln(format!("Builtin:{html}").as_str(), OutputFormat::Raw)?;
+            component.set_view_compiler(Some(Box::new(HeadingCompiler)));
+            let html = component.compile("heading", json!({"text": "Ready"}))?;
+            component.get_output().writeln(format!("Custom:{html}").as_str(), OutputFormat::Raw)?;
+            component.set_view_compiler(None);
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+A `ComponentViewCompiler` is owned by its component and receives the original output context. It may retain instance state, return errors or delegate to `BuiltinComponentViewCompiler`. `set_view_compiler(None)` restores the default compiler. Compilation is synchronous; prepare asynchronous data before compiling markup.
+
+The view selector is separate from template data. A data key named `view` cannot redirect compilation, and data cannot replace compiler-local variables. Custom view sources belong in a custom compiler rather than a path passed to the built-in catalog.

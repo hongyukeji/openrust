@@ -1,0 +1,28 @@
+{
+  "source_base": "cf9d38b3ac7f4bd44432b9207c8cbf00721bb1f1",
+  "contract": "component-compile-contracts.json",
+  "gates": [
+    "target/tmp/artisan-tutorial-20261125/component-compile-gates-first.log",
+    "target/tmp/artisan-tutorial-20261125/component-compile-gates-final.log",
+    "target/tmp/artisan-tutorial-20261125/component-compile-site.log"
+  ],
+  "test_summaries": [
+    "test result: ok. 5 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.15s",
+    "test result: ok. 8 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.13s",
+    "test result: ok. 5 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.05s",
+    "test result: ok. 11 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.22s",
+    "test result: ok. 153 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.47s"
+  ],
+  "runtime": {
+    "real_artisan_processes": 3,
+    "real_http_requests": 17,
+    "docs_consumers": 153,
+    "browser_checks": 12
+  },
+  "failed_gate_not_counted": "component-compile-tests-first.log: invalid translated Blade boundary, fixed and reverified",
+  "remaining": [
+    "Component::renderView以及默认终端HTML/CSS布局和可覆盖渲染策略仍待实现/实际消费者，compile返回HTML不能代替终端渲染。",
+    "Command容器Factory构造/覆盖生命周期、Helper/HelperSet/Time其余继承SDK和Artisan其他锚点继续，整章未闭合。"
+  ],
+  "pushed": false
+}

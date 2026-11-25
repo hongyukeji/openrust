@@ -711,3 +711,16 @@ Source所属usingQuestionHelper另用实际子类暴露方法的12场景核对�
 原生API通过注册的CoreConstructor/CoreRenderer组合Component::from_context调用，而非只直调底层方法。真实Artisan2进程核对成功0/错误1且传播前RESTORED；HTTP13请求含500及12并发恢复；真实PTY3例Unicode/默认/Ctrl+C130，全部帮助器、termios/fd恢复。Src Scalar原型和实际源码不同之处均修复，混用legacy ask的Option/String和原始IO错误转换的夹具也已修正；不降低真实公开消费者。150份正式三语直接提取运行、31框架父消费者(驱动按父进程运行)、workspace/all-targets严格Clippy、格式、三语构建和12浏览器通过；日志见accepted-component-core.json。32GB中断保留原失败/中断记录，守卫协作持锁清理后继续；本批单份PTY二进制验后核SHA回收，保留日志/源码/共享缓存，无数据库/长期服务。
 
 本节未实现compile/renderView或其扩展，不用Data/Question SDK冒称完整Component基类。继续这些方法及Factory容器构造/覆盖，Helper/HelperSet/Time其余继承与Artisan剩余锚点开放。仅核定本地提交，不推送。
+
+
+## 50. Component所属模板编译与实例编译钩子（2026-11-26）
+
+Component::compile/set_view_compiler、正式ComponentViewCompiler/BuiltinComponentViewCompiler和四个内嵌资源接通。复用主线BladeCompiler/CompiledTemplate及转义，不另造模板解析器；只编译一次不可变程序，无全局数据/应用可变状态，无临时编译目录或PHP进程依赖。Rust内嵌资源需要随二进制重建，运行期数据仍独立。默认资源数据键marginTop/bgColor/fgColor等原样保留，不能机械改成Rust蛇形。旧版没有该控制台基类编译实现可复用。
+
+固定Source子类真实compile的109场景逐字比HTML，覆盖四模板、标量/空/Unicode/转义、关联列表、title真值、第二列条件、PHP结束标签吞换行、foreach迭代空白和未知/缺变量/类型失败。PHP探测用真实HandleExceptions::handleError将非弃用warning转ErrorException，弃用只省略日志；错误残留ob字节实收，不伪造正常输出。首轮移植把ml-1紧挨@endif，既有Blade与固定上游\B@规则都会不识别此边界；核对两边实现后以合法的条件内echo翻译，保持字节不变，没有修改/绕过视图解析器。原型无效内嵌表达式导致的失败保留，修正后109场景全通过。
+
+另2真实extract反例证实$data['view']会覆盖方法参数并改选alert或读missing，可能覆盖局部变量。本原生接口明确隔离选择参数与数据，并限制默认资源名，数据不会重定向选择或变成路径。此为PHP缺陷的有意安全转换，已在三语说明；不改原生既有业务数据格式。自定义来源通过真正的实例编译器接入：计数跨调用保留、输出Ctx为原对象、编译错误传播、委托内置与None恢复默认均实际调用，不以通用回调或Source include原样执行代替。附资源MIT许可保留必要版权，文件中性命名。
+
+真实Artisan3进程默认/未知/自定义分别0/1/0；HTTP17请求包含四默认视图、500以及12并发自定义钩子，每个请求新编译器实例index1。组件Core/Registry/变换外围共29框架父消费者通过，正式三语直接提取153消费者全部执行；workspace/all-targets严格Clippy、格式、三语构建和12浏览器通过。代码/命令/边界见accepted-component-compile.json，证据target/tmp/artisan-tutorial-20261125/component-compile-*；本批无独立发布二进制/数据库/容器/持久服务，保留日志、源码和复用缓存。
+
+下一步renderView不能用compile返回HTML冒充终端渲染。已补调研：官方[html2text](https://github.com/jugglerchris/rust-html2text)及[0.17.4着色源码](https://docs.rs/crate/html2text/0.17.4/source/src/ansi_colours.rs)提供HTML到文本/注解和部分CSS支持，但尚未证明固定布局的margin/padding/flex/content-repeat可直接等价，不能贸然替换。另见[hypercmd](https://github.com/fusor-rs/hypercmd)反应式HTML CLI候选，未完成源码/消费者验证，不作为已选方案。继续优先复用现有OutputReference、格式器、已验布局及固定Termwind源码，禁止用纯文本去标签当作完整renderView。Factory容器构造/覆盖及其余继承SDK保持开放；仅本地提交，不推送。

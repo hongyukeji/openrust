@@ -322,8 +322,8 @@
           "factory-registry-contracts.json"
         ],
         "remaining": [
-          "Command容器解析/覆盖Factory本身及其构造时机仍需专用服务类型和实际消费者，不能由ComponentRegistry注册代替。",
-          "抽象Component的compile/renderView/mutate/usingQuestionHelper及继承SDK仍开放；不宣称Factory类或Artisan整章已闭合。"
+          "Component::renderView以及默认终端HTML/CSS布局和可覆盖渲染策略仍待实现/实际消费者，compile返回HTML不能代替终端渲染。",
+          "Command容器Factory构造/覆盖生命周期、Helper/HelperSet/Time其余继承SDK和Artisan其他锚点继续，整章未闭合。"
         ]
       }
     ],

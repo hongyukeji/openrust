@@ -19,3 +19,5 @@ mod component;
 pub use component::{
     Component, DefaultMutatorConstructor, MutatorConstructor, QuestionStyleReference,
 };
+mod view_compiler;
+pub use view_compiler::{BuiltinComponentViewCompiler, ComponentViewCompiler};

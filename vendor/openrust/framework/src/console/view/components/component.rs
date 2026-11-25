@@ -1,4 +1,7 @@
-use super::{ComponentContext, ComponentOutput, mutators::Mutator};
+use super::{
+    BuiltinComponentViewCompiler, ComponentContext, ComponentOutput, ComponentViewCompiler,
+    mutators::Mutator,
+};
 use crate::console::{
     AsOutput, ConsoleError, OutputReference, QuestionHelper, QuestionHelperScope, QuestionStyle,
 };
@@ -72,13 +75,24 @@ impl QuestionStyle for QuestionStyleReference<'_> {
 /// 通过组合复用组件数据变换和原始输出，不复制输入或帮助器。
 pub struct Component<'a> {
     output: ComponentContext<'a>,
+    view_compiler: Box<dyn ComponentViewCompiler>,
 }
 impl<'a> Component<'a> {
     pub fn new(output: &'a mut (impl ComponentOutput + ?Sized)) -> Self {
         Self::from_context(output.component_context())
     }
     pub fn from_context(output: ComponentContext<'a>) -> Self {
-        Self { output }
+        Self {
+            output,
+            view_compiler: Box::new(BuiltinComponentViewCompiler::new()),
+        }
+    }
+    pub fn compile(&mut self, view: &str, data: Value) -> Result<String, ConsoleError> {
+        self.view_compiler.compile(view, data, &mut self.output)
+    }
+    pub fn set_view_compiler(&mut self, compiler: Option<Box<dyn ComponentViewCompiler>>) {
+        self.view_compiler =
+            compiler.unwrap_or_else(|| Box::new(BuiltinComponentViewCompiler::new()));
     }
     pub fn get_output(&mut self) -> OutputReference<'_> {
         self.output.as_output()

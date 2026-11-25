@@ -1,0 +1,1358 @@
+[
+  {
+    "view": "alert",
+    "data": {
+      "content": "Hello"
+    },
+    "answer": "<div class=\"w-full mx-2 py-1 mt-1 bg-yellow text-black text-center uppercase\">\n    Hello</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": "info",
+      "content": "Hello"
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\">info</span>\n    <span class=\"ml-1\">\n        Hello    </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": "",
+      "content": "Hello"
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\"></span>\n    <span class=\"\">\n        Hello    </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": false,
+      "content": "Hello"
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\"></span>\n    <span class=\"\">\n        Hello    </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": 0,
+      "content": "Hello"
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\">0</span>\n    <span class=\"\">\n        Hello    </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "two-column-detail",
+    "data": {
+      "first": "Hello",
+      "second": "Value"
+    },
+    "answer": "<div class=\"flex mx-2 max-w-150\">\n    <span>\n        Hello    </span>\n    <span class=\"flex-1 content-repeat-[.] text-gray ml-1\"></span>\n            <span class=\"ml-1\">\n            Value        </span>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "two-column-detail",
+    "data": {
+      "first": "Key",
+      "second": "Hello"
+    },
+    "answer": "<div class=\"flex mx-2 max-w-150\">\n    <span>\n        Key    </span>\n    <span class=\"flex-1 content-repeat-[.] text-gray ml-1\"></span>\n            <span class=\"ml-1\">\n            Hello        </span>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "bullet-list",
+    "data": {
+      "elements": [
+        "Hello",
+        "Next"
+      ]
+    },
+    "answer": "<div>\n            <div class=\"text-gray mx-2\">\n            ⇂ Hello        </div>\n            <div class=\"text-gray mx-2\">\n            ⇂ Next        </div>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "alert",
+    "data": {
+      "content": "Created [item]."
+    },
+    "answer": "<div class=\"w-full mx-2 py-1 mt-1 bg-yellow text-black text-center uppercase\">\n    Created [item].</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": "info",
+      "content": "Created [item]."
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\">info</span>\n    <span class=\"ml-1\">\n        Created [item].    </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": "",
+      "content": "Created [item]."
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\"></span>\n    <span class=\"\">\n        Created [item].    </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": false,
+      "content": "Created [item]."
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\"></span>\n    <span class=\"\">\n        Created [item].    </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": 0,
+      "content": "Created [item]."
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\">0</span>\n    <span class=\"\">\n        Created [item].    </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "two-column-detail",
+    "data": {
+      "first": "Created [item].",
+      "second": "Value"
+    },
+    "answer": "<div class=\"flex mx-2 max-w-150\">\n    <span>\n        Created [item].    </span>\n    <span class=\"flex-1 content-repeat-[.] text-gray ml-1\"></span>\n            <span class=\"ml-1\">\n            Value        </span>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "two-column-detail",
+    "data": {
+      "first": "Key",
+      "second": "Created [item]."
+    },
+    "answer": "<div class=\"flex mx-2 max-w-150\">\n    <span>\n        Key    </span>\n    <span class=\"flex-1 content-repeat-[.] text-gray ml-1\"></span>\n            <span class=\"ml-1\">\n            Created [item].        </span>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "bullet-list",
+    "data": {
+      "elements": [
+        "Created [item].",
+        "Next"
+      ]
+    },
+    "answer": "<div>\n            <div class=\"text-gray mx-2\">\n            ⇂ Created [item].        </div>\n            <div class=\"text-gray mx-2\">\n            ⇂ Next        </div>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "alert",
+    "data": {
+      "content": "<options=bold>X</> & \" '"
+    },
+    "answer": "<div class=\"w-full mx-2 py-1 mt-1 bg-yellow text-black text-center uppercase\">\n    &lt;options=bold&gt;X&lt;/&gt; &amp; &quot; &#039;</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": "info",
+      "content": "<options=bold>X</> & \" '"
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\">info</span>\n    <span class=\"ml-1\">\n        &lt;options=bold&gt;X&lt;/&gt; &amp; &quot; &#039;    </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": "",
+      "content": "<options=bold>X</> & \" '"
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\"></span>\n    <span class=\"\">\n        &lt;options=bold&gt;X&lt;/&gt; &amp; &quot; &#039;    </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": false,
+      "content": "<options=bold>X</> & \" '"
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\"></span>\n    <span class=\"\">\n        &lt;options=bold&gt;X&lt;/&gt; &amp; &quot; &#039;    </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": 0,
+      "content": "<options=bold>X</> & \" '"
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\">0</span>\n    <span class=\"\">\n        &lt;options=bold&gt;X&lt;/&gt; &amp; &quot; &#039;    </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "two-column-detail",
+    "data": {
+      "first": "<options=bold>X</> & \" '",
+      "second": "Value"
+    },
+    "answer": "<div class=\"flex mx-2 max-w-150\">\n    <span>\n        &lt;options=bold&gt;X&lt;/&gt; &amp; &quot; &#039;    </span>\n    <span class=\"flex-1 content-repeat-[.] text-gray ml-1\"></span>\n            <span class=\"ml-1\">\n            Value        </span>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "two-column-detail",
+    "data": {
+      "first": "Key",
+      "second": "<options=bold>X</> & \" '"
+    },
+    "answer": "<div class=\"flex mx-2 max-w-150\">\n    <span>\n        Key    </span>\n    <span class=\"flex-1 content-repeat-[.] text-gray ml-1\"></span>\n            <span class=\"ml-1\">\n            &lt;options=bold&gt;X&lt;/&gt; &amp; &quot; &#039;        </span>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "bullet-list",
+    "data": {
+      "elements": [
+        "<options=bold>X</> & \" '",
+        "Next"
+      ]
+    },
+    "answer": "<div>\n            <div class=\"text-gray mx-2\">\n            ⇂ &lt;options=bold&gt;X&lt;/&gt; &amp; &quot; &#039;        </div>\n            <div class=\"text-gray mx-2\">\n            ⇂ Next        </div>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "alert",
+    "data": {
+      "content": "猫😀"
+    },
+    "answer": "<div class=\"w-full mx-2 py-1 mt-1 bg-yellow text-black text-center uppercase\">\n    猫😀</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": "info",
+      "content": "猫😀"
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\">info</span>\n    <span class=\"ml-1\">\n        猫😀    </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": "",
+      "content": "猫😀"
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\"></span>\n    <span class=\"\">\n        猫😀    </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": false,
+      "content": "猫😀"
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\"></span>\n    <span class=\"\">\n        猫😀    </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": 0,
+      "content": "猫😀"
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\">0</span>\n    <span class=\"\">\n        猫😀    </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "two-column-detail",
+    "data": {
+      "first": "猫😀",
+      "second": "Value"
+    },
+    "answer": "<div class=\"flex mx-2 max-w-150\">\n    <span>\n        猫😀    </span>\n    <span class=\"flex-1 content-repeat-[.] text-gray ml-1\"></span>\n            <span class=\"ml-1\">\n            Value        </span>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "two-column-detail",
+    "data": {
+      "first": "Key",
+      "second": "猫😀"
+    },
+    "answer": "<div class=\"flex mx-2 max-w-150\">\n    <span>\n        Key    </span>\n    <span class=\"flex-1 content-repeat-[.] text-gray ml-1\"></span>\n            <span class=\"ml-1\">\n            猫😀        </span>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "bullet-list",
+    "data": {
+      "elements": [
+        "猫😀",
+        "Next"
+      ]
+    },
+    "answer": "<div>\n            <div class=\"text-gray mx-2\">\n            ⇂ 猫😀        </div>\n            <div class=\"text-gray mx-2\">\n            ⇂ Next        </div>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "alert",
+    "data": {
+      "content": "A\\nB"
+    },
+    "answer": "<div class=\"w-full mx-2 py-1 mt-1 bg-yellow text-black text-center uppercase\">\n    A\\nB</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": "info",
+      "content": "A\\nB"
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\">info</span>\n    <span class=\"ml-1\">\n        A\\nB    </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": "",
+      "content": "A\\nB"
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\"></span>\n    <span class=\"\">\n        A\\nB    </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": false,
+      "content": "A\\nB"
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\"></span>\n    <span class=\"\">\n        A\\nB    </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": 0,
+      "content": "A\\nB"
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\">0</span>\n    <span class=\"\">\n        A\\nB    </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "two-column-detail",
+    "data": {
+      "first": "A\\nB",
+      "second": "Value"
+    },
+    "answer": "<div class=\"flex mx-2 max-w-150\">\n    <span>\n        A\\nB    </span>\n    <span class=\"flex-1 content-repeat-[.] text-gray ml-1\"></span>\n            <span class=\"ml-1\">\n            Value        </span>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "two-column-detail",
+    "data": {
+      "first": "Key",
+      "second": "A\\nB"
+    },
+    "answer": "<div class=\"flex mx-2 max-w-150\">\n    <span>\n        Key    </span>\n    <span class=\"flex-1 content-repeat-[.] text-gray ml-1\"></span>\n            <span class=\"ml-1\">\n            A\\nB        </span>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "bullet-list",
+    "data": {
+      "elements": [
+        "A\\nB",
+        "Next"
+      ]
+    },
+    "answer": "<div>\n            <div class=\"text-gray mx-2\">\n            ⇂ A\\nB        </div>\n            <div class=\"text-gray mx-2\">\n            ⇂ Next        </div>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "alert",
+    "data": {
+      "content": "A\nB\tC"
+    },
+    "answer": "<div class=\"w-full mx-2 py-1 mt-1 bg-yellow text-black text-center uppercase\">\n    A\nB\tC</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": "info",
+      "content": "A\nB\tC"
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\">info</span>\n    <span class=\"ml-1\">\n        A\nB\tC    </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": "",
+      "content": "A\nB\tC"
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\"></span>\n    <span class=\"\">\n        A\nB\tC    </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": false,
+      "content": "A\nB\tC"
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\"></span>\n    <span class=\"\">\n        A\nB\tC    </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": 0,
+      "content": "A\nB\tC"
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\">0</span>\n    <span class=\"\">\n        A\nB\tC    </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "two-column-detail",
+    "data": {
+      "first": "A\nB\tC",
+      "second": "Value"
+    },
+    "answer": "<div class=\"flex mx-2 max-w-150\">\n    <span>\n        A\nB\tC    </span>\n    <span class=\"flex-1 content-repeat-[.] text-gray ml-1\"></span>\n            <span class=\"ml-1\">\n            Value        </span>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "two-column-detail",
+    "data": {
+      "first": "Key",
+      "second": "A\nB\tC"
+    },
+    "answer": "<div class=\"flex mx-2 max-w-150\">\n    <span>\n        Key    </span>\n    <span class=\"flex-1 content-repeat-[.] text-gray ml-1\"></span>\n            <span class=\"ml-1\">\n            A\nB\tC        </span>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "bullet-list",
+    "data": {
+      "elements": [
+        "A\nB\tC",
+        "Next"
+      ]
+    },
+    "answer": "<div>\n            <div class=\"text-gray mx-2\">\n            ⇂ A\nB\tC        </div>\n            <div class=\"text-gray mx-2\">\n            ⇂ Next        </div>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "alert",
+    "data": {
+      "content": ""
+    },
+    "answer": "<div class=\"w-full mx-2 py-1 mt-1 bg-yellow text-black text-center uppercase\">\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": "info",
+      "content": ""
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\">info</span>\n    <span class=\"ml-1\">\n            </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": "",
+      "content": ""
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\"></span>\n    <span class=\"\">\n            </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": false,
+      "content": ""
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\"></span>\n    <span class=\"\">\n            </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": 0,
+      "content": ""
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\">0</span>\n    <span class=\"\">\n            </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "two-column-detail",
+    "data": {
+      "first": "",
+      "second": "Value"
+    },
+    "answer": "<div class=\"flex mx-2 max-w-150\">\n    <span>\n            </span>\n    <span class=\"flex-1 content-repeat-[.] text-gray ml-1\"></span>\n            <span class=\"ml-1\">\n            Value        </span>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "two-column-detail",
+    "data": {
+      "first": "Key",
+      "second": ""
+    },
+    "answer": "<div class=\"flex mx-2 max-w-150\">\n    <span>\n        Key    </span>\n    <span class=\"flex-1 content-repeat-[.] text-gray ml-1\"></span>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "bullet-list",
+    "data": {
+      "elements": [
+        "",
+        "Next"
+      ]
+    },
+    "answer": "<div>\n            <div class=\"text-gray mx-2\">\n            ⇂         </div>\n            <div class=\"text-gray mx-2\">\n            ⇂ Next        </div>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "alert",
+    "data": {
+      "content": null
+    },
+    "answer": "<div class=\"w-full mx-2 py-1 mt-1 bg-yellow text-black text-center uppercase\">\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": "info",
+      "content": null
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\">info</span>\n    <span class=\"ml-1\">\n            </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": "",
+      "content": null
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\"></span>\n    <span class=\"\">\n            </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": false,
+      "content": null
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\"></span>\n    <span class=\"\">\n            </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": 0,
+      "content": null
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\">0</span>\n    <span class=\"\">\n            </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "two-column-detail",
+    "data": {
+      "first": null,
+      "second": "Value"
+    },
+    "answer": "<div class=\"flex mx-2 max-w-150\">\n    <span>\n            </span>\n    <span class=\"flex-1 content-repeat-[.] text-gray ml-1\"></span>\n            <span class=\"ml-1\">\n            Value        </span>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "two-column-detail",
+    "data": {
+      "first": "Key",
+      "second": null
+    },
+    "answer": "<div class=\"flex mx-2 max-w-150\">\n    <span>\n        Key    </span>\n    <span class=\"flex-1 content-repeat-[.] text-gray ml-1\"></span>\n            <span class=\"ml-1\">\n                    </span>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "bullet-list",
+    "data": {
+      "elements": [
+        null,
+        "Next"
+      ]
+    },
+    "answer": "<div>\n            <div class=\"text-gray mx-2\">\n            ⇂         </div>\n            <div class=\"text-gray mx-2\">\n            ⇂ Next        </div>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "alert",
+    "data": {
+      "content": false
+    },
+    "answer": "<div class=\"w-full mx-2 py-1 mt-1 bg-yellow text-black text-center uppercase\">\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": "info",
+      "content": false
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\">info</span>\n    <span class=\"ml-1\">\n            </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": "",
+      "content": false
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\"></span>\n    <span class=\"\">\n            </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": false,
+      "content": false
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\"></span>\n    <span class=\"\">\n            </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": 0,
+      "content": false
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\">0</span>\n    <span class=\"\">\n            </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "two-column-detail",
+    "data": {
+      "first": false,
+      "second": "Value"
+    },
+    "answer": "<div class=\"flex mx-2 max-w-150\">\n    <span>\n            </span>\n    <span class=\"flex-1 content-repeat-[.] text-gray ml-1\"></span>\n            <span class=\"ml-1\">\n            Value        </span>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "two-column-detail",
+    "data": {
+      "first": "Key",
+      "second": false
+    },
+    "answer": "<div class=\"flex mx-2 max-w-150\">\n    <span>\n        Key    </span>\n    <span class=\"flex-1 content-repeat-[.] text-gray ml-1\"></span>\n            <span class=\"ml-1\">\n                    </span>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "bullet-list",
+    "data": {
+      "elements": [
+        false,
+        "Next"
+      ]
+    },
+    "answer": "<div>\n            <div class=\"text-gray mx-2\">\n            ⇂         </div>\n            <div class=\"text-gray mx-2\">\n            ⇂ Next        </div>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "alert",
+    "data": {
+      "content": true
+    },
+    "answer": "<div class=\"w-full mx-2 py-1 mt-1 bg-yellow text-black text-center uppercase\">\n    1</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": "info",
+      "content": true
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\">info</span>\n    <span class=\"ml-1\">\n        1    </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": "",
+      "content": true
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\"></span>\n    <span class=\"\">\n        1    </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": false,
+      "content": true
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\"></span>\n    <span class=\"\">\n        1    </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": 0,
+      "content": true
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\">0</span>\n    <span class=\"\">\n        1    </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "two-column-detail",
+    "data": {
+      "first": true,
+      "second": "Value"
+    },
+    "answer": "<div class=\"flex mx-2 max-w-150\">\n    <span>\n        1    </span>\n    <span class=\"flex-1 content-repeat-[.] text-gray ml-1\"></span>\n            <span class=\"ml-1\">\n            Value        </span>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "two-column-detail",
+    "data": {
+      "first": "Key",
+      "second": true
+    },
+    "answer": "<div class=\"flex mx-2 max-w-150\">\n    <span>\n        Key    </span>\n    <span class=\"flex-1 content-repeat-[.] text-gray ml-1\"></span>\n            <span class=\"ml-1\">\n            1        </span>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "bullet-list",
+    "data": {
+      "elements": [
+        true,
+        "Next"
+      ]
+    },
+    "answer": "<div>\n            <div class=\"text-gray mx-2\">\n            ⇂ 1        </div>\n            <div class=\"text-gray mx-2\">\n            ⇂ Next        </div>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "alert",
+    "data": {
+      "content": 0
+    },
+    "answer": "<div class=\"w-full mx-2 py-1 mt-1 bg-yellow text-black text-center uppercase\">\n    0</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": "info",
+      "content": 0
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\">info</span>\n    <span class=\"ml-1\">\n        0    </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": "",
+      "content": 0
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\"></span>\n    <span class=\"\">\n        0    </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": false,
+      "content": 0
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\"></span>\n    <span class=\"\">\n        0    </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": 0,
+      "content": 0
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\">0</span>\n    <span class=\"\">\n        0    </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "two-column-detail",
+    "data": {
+      "first": 0,
+      "second": "Value"
+    },
+    "answer": "<div class=\"flex mx-2 max-w-150\">\n    <span>\n        0    </span>\n    <span class=\"flex-1 content-repeat-[.] text-gray ml-1\"></span>\n            <span class=\"ml-1\">\n            Value        </span>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "two-column-detail",
+    "data": {
+      "first": "Key",
+      "second": 0
+    },
+    "answer": "<div class=\"flex mx-2 max-w-150\">\n    <span>\n        Key    </span>\n    <span class=\"flex-1 content-repeat-[.] text-gray ml-1\"></span>\n            <span class=\"ml-1\">\n            0        </span>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "bullet-list",
+    "data": {
+      "elements": [
+        0,
+        "Next"
+      ]
+    },
+    "answer": "<div>\n            <div class=\"text-gray mx-2\">\n            ⇂ 0        </div>\n            <div class=\"text-gray mx-2\">\n            ⇂ Next        </div>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "alert",
+    "data": {
+      "content": 1.25
+    },
+    "answer": "<div class=\"w-full mx-2 py-1 mt-1 bg-yellow text-black text-center uppercase\">\n    1.25</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": "info",
+      "content": 1.25
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\">info</span>\n    <span class=\"ml-1\">\n        1.25    </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": "",
+      "content": 1.25
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\"></span>\n    <span class=\"\">\n        1.25    </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": false,
+      "content": 1.25
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\"></span>\n    <span class=\"\">\n        1.25    </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": 0,
+      "content": 1.25
+    },
+    "answer": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\">0</span>\n    <span class=\"\">\n        1.25    </span>\n</div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "two-column-detail",
+    "data": {
+      "first": 1.25,
+      "second": "Value"
+    },
+    "answer": "<div class=\"flex mx-2 max-w-150\">\n    <span>\n        1.25    </span>\n    <span class=\"flex-1 content-repeat-[.] text-gray ml-1\"></span>\n            <span class=\"ml-1\">\n            Value        </span>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "two-column-detail",
+    "data": {
+      "first": "Key",
+      "second": 1.25
+    },
+    "answer": "<div class=\"flex mx-2 max-w-150\">\n    <span>\n        Key    </span>\n    <span class=\"flex-1 content-repeat-[.] text-gray ml-1\"></span>\n            <span class=\"ml-1\">\n            1.25        </span>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "bullet-list",
+    "data": {
+      "elements": [
+        1.25,
+        "Next"
+      ]
+    },
+    "answer": "<div>\n            <div class=\"text-gray mx-2\">\n            ⇂ 1.25        </div>\n            <div class=\"text-gray mx-2\">\n            ⇂ Next        </div>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "bullet-list",
+    "data": {
+      "elements": []
+    },
+    "answer": "<div>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "bullet-list",
+    "data": {
+      "elements": [
+        "One",
+        "Two"
+      ]
+    },
+    "answer": "<div>\n            <div class=\"text-gray mx-2\">\n            ⇂ One        </div>\n            <div class=\"text-gray mx-2\">\n            ⇂ Two        </div>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "bullet-list",
+    "data": {
+      "elements": {
+        "a": "One",
+        "b": "Two"
+      }
+    },
+    "answer": "<div>\n            <div class=\"text-gray mx-2\">\n            ⇂ One        </div>\n            <div class=\"text-gray mx-2\">\n            ⇂ Two        </div>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "bullet-list",
+    "data": {
+      "elements": [
+        "<tag>",
+        "&amp;"
+      ]
+    },
+    "answer": "<div>\n            <div class=\"text-gray mx-2\">\n            ⇂ &lt;tag&gt;        </div>\n            <div class=\"text-gray mx-2\">\n            ⇂ &amp;amp;        </div>\n    </div>\n",
+    "error": null,
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "alert",
+    "data": [],
+    "answer": null,
+    "error": "ErrorException",
+    "leaked_stdout": "<div class=\"w-full mx-2 py-1 mt-1 bg-yellow text-black text-center uppercase\">\n    ",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": [],
+    "answer": null,
+    "error": "ErrorException",
+    "leaked_stdout": "<div class=\"mx-2 mb-1 mt-",
+    "output": ""
+  },
+  {
+    "view": "bullet-list",
+    "data": [],
+    "answer": null,
+    "error": "ErrorException",
+    "leaked_stdout": "<div>\n    ",
+    "output": ""
+  },
+  {
+    "view": "two-column-detail",
+    "data": [],
+    "answer": null,
+    "error": "ErrorException",
+    "leaked_stdout": "<div class=\"flex mx-2 max-w-150\">\n    <span>\n        ",
+    "output": ""
+  },
+  {
+    "view": "missing",
+    "data": [],
+    "answer": null,
+    "error": "ErrorException",
+    "leaked_stdout": "",
+    "output": ""
+  },
+  {
+    "view": "alert",
+    "data": {
+      "content": [
+        "bad"
+      ]
+    },
+    "answer": null,
+    "error": "TypeError",
+    "leaked_stdout": "<div class=\"w-full mx-2 py-1 mt-1 bg-yellow text-black text-center uppercase\">\n    ",
+    "output": ""
+  },
+  {
+    "view": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": "info",
+      "content": [
+        "bad"
+      ]
+    },
+    "answer": null,
+    "error": "TypeError",
+    "leaked_stdout": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\">info</span>\n    <span class=\"ml-1\">\n        ",
+    "output": ""
+  },
+  {
+    "view": "bullet-list",
+    "data": {
+      "elements": [
+        [
+          "bad"
+        ]
+      ]
+    },
+    "answer": null,
+    "error": "TypeError",
+    "leaked_stdout": "<div>\n            <div class=\"text-gray mx-2\">\n            ⇂ ",
+    "output": ""
+  },
+  {
+    "view": "two-column-detail",
+    "data": {
+      "first": "Key",
+      "second": [
+        "bad"
+      ]
+    },
+    "answer": null,
+    "error": "TypeError",
+    "leaked_stdout": "<div class=\"flex mx-2 max-w-150\">\n    <span>\n        Key    </span>\n    <span class=\"flex-1 content-repeat-[.] text-gray ml-1\"></span>\n            <span class=\"ml-1\">\n            ",
+    "output": ""
+  }
+]

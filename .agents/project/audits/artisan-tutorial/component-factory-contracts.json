@@ -70,14 +70,17 @@
         "mutate",
         "usingQuestionHelper"
       ],
-      "status": "partial_owned_constructor_mutate_question_scope_verified_compile_render_view_pending",
+      "status": "partial_owned_constructor_compile_mutate_question_verified_render_view_pending",
       "native": "console::view::components::Component",
-      "evidence": "component-core-contracts.json",
+      "evidence": [
+        "component-core-contracts.json",
+        "component-compile-contracts.json"
+      ],
       "owned_bindings": {
         "__construct": "verified_new/from_context",
         "mutate": "verified_named_constructors_and_value_pipeline",
         "usingQuestionHelper": "verified_lending_scope_original_identity_and_finally",
-        "compile": "pending",
+        "compile": "verified_embedded_blade_templates_and_owned_compiler_override",
         "renderView": "pending"
       }
     },
@@ -191,7 +194,7 @@
       "evidence": "line-components-contracts.json"
     }
   ],
-  "inheritance": "All fourteen concrete components, typed/dynamic/custom construction and Component owned mutation/question scope verified in recorded native scope; abstract compile/renderView extensions, container Factory override and general inherited SDK remain open.",
+  "inheritance": "All fourteen concrete components, typed/dynamic/custom construction and Component owned compilation/mutation/question scope verified within recorded native scope; renderView/default terminal layout, container Factory override and general inherited SDK remain open.",
   "mutators": "component-mutators-contracts.json",
   "task_result": {
     "status": "verified_task_result_type_and_consumers",
@@ -226,5 +229,9 @@
   "mutator_value_api": {
     "status": "verified_source_json_value_type_and_key_preservation",
     "evidence": "component-core-contracts.json"
+  },
+  "component_compile": {
+    "status": "verified_owned_component_compile_four_embedded_templates_and_per_instance_override",
+    "evidence": "component-compile-contracts.json"
   }
 }

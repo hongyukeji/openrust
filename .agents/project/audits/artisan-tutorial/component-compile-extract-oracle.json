@@ -1,0 +1,28 @@
+[
+  {
+    "selected": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": "info",
+      "content": "Expected",
+      "view": "alert"
+    },
+    "answer": "<div class=\"w-full mx-2 py-1 mt-1 bg-yellow text-black text-center uppercase\">\n    Expected</div>\n",
+    "error": null
+  },
+  {
+    "selected": "line",
+    "data": {
+      "marginTop": 1,
+      "bgColor": "blue",
+      "fgColor": "white",
+      "title": "info",
+      "content": "Expected",
+      "view": "missing"
+    },
+    "answer": null,
+    "error": "ErrorException"
+  }
+]
