@@ -1,6 +1,8 @@
 use openrust::http::HttpFuture;
 
-use crate::{Assessment, ImageInput, RetryAfter, TaskId, TaskStatus, TextInput, VideoInput};
+use crate::{
+    Assessment, ImageInput, RetryAfter, TaskId, TaskStatus, TextInput, VideoInput, VideoInspection,
+};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Operation {
@@ -71,6 +73,14 @@ pub trait ModerationDriver: Send + Sync + 'static {
 
     fn image<'a>(&'a self, _: &'a ImageInput) -> ModerationFuture<'a, Assessment> {
         unsupported(Operation::Image)
+    }
+
+    /// 配置支持即时检查时返回一次完整请求，否则由服务走异步提交。
+    fn inspect_video<'a>(
+        &'a self,
+        _input: &'a VideoInput,
+    ) -> Option<ModerationFuture<'a, VideoInspection>> {
+        None
     }
 
     fn submit_video<'a>(&'a self, _: &'a VideoInput) -> ModerationFuture<'a, TaskId> {

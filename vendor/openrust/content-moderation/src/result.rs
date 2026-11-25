@@ -1,8 +1,8 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{ModerationError, ModerationResult};
+use crate::{ModerationError, ModerationResult, TaskId};
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -101,6 +101,13 @@ pub struct Assessment {
 }
 
 impl Assessment {
+    pub(crate) fn covers(&self, required: &BTreeSet<Modality>) -> bool {
+        !required.is_empty()
+            && required
+                .iter()
+                .all(|&kind| self.coverage(kind) == Coverage::Complete)
+    }
+
     pub(crate) fn recommendation(&self) -> Decision {
         self.decision
     }
@@ -197,4 +204,28 @@ pub enum TaskStatus {
     Failed,
     Cancelled,
     Expired,
+}
+
+/// 已在一次请求内完成的媒体检查及其供应商标识。
+pub struct VideoInspection {
+    task: TaskId,
+    assessment: Assessment,
+}
+
+impl VideoInspection {
+    pub fn new(task: TaskId, assessment: Assessment) -> Self {
+        Self { task, assessment }
+    }
+
+    pub fn task(&self) -> &TaskId {
+        &self.task
+    }
+
+    pub fn assessment(&self) -> &Assessment {
+        &self.assessment
+    }
+
+    pub(crate) fn into_parts(self) -> (TaskId, Assessment) {
+        (self.task, self.assessment)
+    }
 }

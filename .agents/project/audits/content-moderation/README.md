@@ -296,3 +296,11 @@ HTTP 发布入口是隔离应用消费者。生产应用持有内容、删除状
 在 `d31032e98` 隔离快照上叠加既有实现及本批改动。SQLite、PostgreSQL 18.7、MySQL 8.4.13 分别用真实 HTTP、Artisan、独立 Worker 及保留私有版本的隔离供应商，竞争 2 个名额。验证提交响应后的持续占用、查单进行中、查单确认结束、停止确认、远端拒绝停止、派发后进程中断并从旧提交租约转 Unknown、原期限到达后回收、拒绝受理释放、活跃旧记录禁止迁移和禁止回滚。每库实际 6 次提交、2 次查单及 3 次停止请求。SQLite 另通过既有取消、账户限速、存储、复合裁决、查单退避和回调关联回归。包及隔离应用严格 Clippy、3 个包契约、关闭回调 feature 的编译、三语文档与 Chrome 检查通过。
 
 租约是本地有期限的供应商任务占用记录。真实供应商承诺的远端活动上限、真实停止结果与物理集群部署仍需独立验收。
+
+## CM-03Y Sightengine 短视频语音 {#sightengine-short-speech}
+
+固定 [官方语音模型](https://sightengine.com/docs/audio-moderation-model) 与 [短视频 API](https://sightengine.com/docs/moderate-stored-video) 所列 `audio-moderation`、`audio_categories` 和 `video/check-sync.json`。复用版本化私有 URL、固定凭据、送审领取、账号速率和在途租约。应用把核实的时长与确切对象版本一起落库，缺少时长或达到 60 秒时拒绝送审。具名语音检查由 Worker 保存一次请求的终态。保留输出类别、严重程度与毫秒证据，识别匹配原文与供应商 URI 均省略。无音轨覆盖、无效证据和其他必检模态尚无结果时均无发布许可。
+
+在 `d31032e98` 隔离快照叠加既有实现及本批改动。SQLite、PostgreSQL 18.7、MySQL 8.4.13 分别用真实 HTTP、Artisan 与独立 Worker，实际访问私有 SeaweedFS 的两个固定对象版本。各库供应商协议替身收到 8 次 POST，未出现查单 GET。覆盖静音素材、干净结果、有风险的毫秒证据、重复类别、越界时间、同意图时长变更、复合必检、提前取消后迟到的成功响应及 HTTP Client 事件脱敏。现有 Sightengine 异步视频、存储、复合审核、退避和远端租约回归通过。包及应用严格 Clippy、3 项包契约、关闭回调 feature 的编译、三语文档构建和 Chrome 检查通过。
+
+本批验证短视频语音协议和应用消费者。长视频分段、同一实际素材的画面／OCR 完整性、账号开通和效果仍需验收。

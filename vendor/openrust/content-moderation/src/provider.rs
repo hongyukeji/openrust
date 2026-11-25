@@ -39,6 +39,8 @@ mod remote_leases_migration;
 mod reviews_migration;
 #[path = "../database/migrations/2026_11_26_000003_add_moderation_submission_lease.rs"]
 mod submission_lease_migration;
+#[path = "../database/migrations/2026_11_26_000014_add_moderation_video_duration.rs"]
+mod video_duration_migration;
 
 pub struct ModerationServiceProvider;
 
@@ -107,6 +109,7 @@ openrust::compiled_migration_assets!("content-moderation";
     "2026_11_26_000011_add_moderation_query_retry_at.rs" => query_retry_migration,
     "2026_11_26_000012_create_moderation_account_rate_buckets_table.rs" => account_rates_migration,
     "2026_11_26_000013_create_moderation_remote_leases_table.rs" => remote_leases_migration,
+    "2026_11_26_000014_add_moderation_video_duration.rs" => video_duration_migration,
 );
 
 impl ModerationServiceProvider {

@@ -133,6 +133,7 @@ impl ModerationStore {
                 "disk",
                 "object_key",
                 "object_version",
+                "video_duration_ms",
                 "created_at",
                 "deadline_at",
                 "version",
@@ -213,6 +214,13 @@ async fn write_check(
             ("disk".into(), request.source.disk().into()),
             ("object_key".into(), request.source.key().into()),
             ("object_version".into(), request.source.version().into()),
+            (
+                "video_duration_ms".into(),
+                request
+                    .source
+                    .video_duration_ms()
+                    .map_or(Value::Null, |duration| i64::from(duration).into()),
+            ),
             ("state".into(), "Pending".into()),
             ("created_at".into(), created_at.into()),
             ("deadline_at".into(), deadline_at.into()),
@@ -256,13 +264,21 @@ fn decode(row: Row) -> ModerationResult<VideoReview> {
         Some(Value::Null) => Ok(None),
         _ => Err(ModerationError::ReviewStorage),
     };
+    let mut source = StoredMedia::new(text("disk")?, text("object_key")?, text("object_version")?)
+        .map_err(|_| ModerationError::ReviewStorage)?;
+    if row.get("video_duration_ms") != Some(&Value::Null) {
+        let duration = u32::try_from(number("video_duration_ms")?)
+            .map_err(|_| ModerationError::ReviewStorage)?;
+        source = source
+            .with_video_duration_ms(duration)
+            .map_err(|_| ModerationError::ReviewStorage)?;
+    }
     Ok(VideoReview {
         id: text("review_id")?.into(),
         check_id: text("check_id")?.into(),
         content_id: text("content_id")?.into(),
         content_revision: text("content_revision")?.into(),
-        source: StoredMedia::new(text("disk")?, text("object_key")?, text("object_version")?)
-            .map_err(|_| ModerationError::ReviewStorage)?,
+        source,
         profile: serde_json::from_str(text("profile_revision")?)
             .map_err(|_| ModerationError::ReviewStorage)?,
         created_at: number("created_at")?,

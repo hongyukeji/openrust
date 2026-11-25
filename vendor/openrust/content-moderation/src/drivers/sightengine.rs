@@ -7,12 +7,13 @@ use serde_json::Value;
 use zeroize::Zeroizing;
 
 use super::{
-    Endpoint, field, http_status, sightengine_image::ImageService, sightengine_video::VideoService,
+    Endpoint, field, http_status, sightengine_image::ImageService,
+    sightengine_speech::SpeechService, sightengine_video::VideoService,
 };
 use crate::{
     Assessment, Confidence, Coverage, Decision, Finding, ImageInput, Modality, ModerationDriver,
     ModerationError, ModerationFuture, ModerationResult, Operation, RetryAfter, TaskId, TaskStatus,
-    TextInput, VideoInput,
+    TextInput, VideoInput, VideoInspection,
 };
 
 const RULE_LANGUAGES: &[&str] = &[
@@ -43,6 +44,7 @@ pub(super) struct Sightengine {
     text: Option<TextService>,
     image: Option<ImageService>,
     video: Option<VideoService>,
+    speech: Option<SpeechService>,
 }
 
 struct TextService {
@@ -68,8 +70,9 @@ impl Sightengine {
     ) -> ModerationResult<Self> {
         let text = TextService::configured(http.clone(), profile)?;
         let image = ImageService::configured(http.clone(), storage.clone(), profile)?;
-        let video = VideoService::configured(http, storage, profile)?;
-        if text.is_none() && image.is_none() && video.is_none() {
+        let video = VideoService::configured(http.clone(), storage.clone(), profile)?;
+        let speech = SpeechService::configured(http, storage, profile)?;
+        if text.is_none() && image.is_none() && video.is_none() && speech.is_none() {
             return Err(ModerationError::InvalidConfiguration(
                 "sightengine services",
             ));
@@ -84,6 +87,7 @@ impl Sightengine {
             text,
             image,
             video,
+            speech,
         })
     }
 }
@@ -221,6 +225,14 @@ impl ModerationDriver for Sightengine {
                 .ok_or(ModerationError::Unsupported(Operation::Image))?;
             image.assess(&self.user, &self.secret, input).await
         })
+    }
+
+    fn inspect_video<'a>(
+        &'a self,
+        input: &'a VideoInput,
+    ) -> Option<ModerationFuture<'a, VideoInspection>> {
+        let speech = self.speech.as_ref()?;
+        Some(Box::pin(speech.inspect(&self.user, &self.secret, input)))
     }
 
     fn submit_video<'a>(&'a self, input: &'a VideoInput) -> ModerationFuture<'a, TaskId> {

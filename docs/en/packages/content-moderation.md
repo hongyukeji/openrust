@@ -2,7 +2,7 @@
 
 Enable the `content-moderation` feature or register `ModerationServiceProvider` in an application that depends on `openrust-content-moderation`. Run `./artisan vendor:publish --tag=moderation-config` to publish the configuration template. In your application's Rust configuration, set `moderation.drivers.comments.driver` to `review-text` and set `MODERATION_DRIVER=comments` for the default profile.
 
-The package provides custom driver contracts, Alibaba Cloud text and stored-image moderation, Tencent Cloud text and image moderation, Sightengine text and image moderation, and Hive text and visual moderation. The other provider operations and durable video orchestration are being implemented.
+The package provides custom driver contracts, named Alibaba Cloud, Tencent Cloud, Sightengine and Hive profiles, and a durable video review workflow. Each provider section describes its supported inputs and coverage.
 
 ## Provider credentials {#credentials}
 
@@ -109,6 +109,12 @@ The validator checks `X-Signature` against the original body with the Tencent Cl
 Set `video_models` and `video_review_score` for a named `sightengine` profile. Use `video_text_categories` when the OCR model is enabled. `video_max_duration` defaults to 1,800 seconds and accepts values up to 3,600 seconds where your plan permits. Configure `media_disk` and `media_origin` for the versioned private source.
 
 `submit_video()` returns a media ID. Use the same profile to query the job or stop it. A finished job can reflect a duration limit or sampled frames. The async path reports only the visual and OCR evidence it received, and speech coverage remains unavailable. The HTTP client's diagnostics redact the service credentials from the outgoing query and stop body. [Async video](https://sightengine.com/docs/moderate-stored-video-asynchronously) · [Job operations](https://sightengine.com/docs/interact-with-video-moderation-jobs)
+
+### Short-video speech {#sightengine-short-speech}
+
+Create a separate named `sightengine` profile with `video_speech_categories`, for example `["insult", "phone_number"]`. Supply `media_disk` and `media_origin` for the private source. This profile uses `audio-moderation` through `video/check-sync.json`. Its request timeout defaults to 75 seconds and may be set with `timeout_ms`. Use a different profile for `video_models`.
+
+Attach the duration verified by your application to the exact source version with `StoredMedia::with_video_duration_ms`. Sightengine's short-video endpoint takes clips under 60 seconds. For a durable check, pin the profile with `required_modalities = ["speech"]` and stage it normally. The submit Worker saves the completed result in one transition. Categories, severity labels and time spans are retained. Transcribed matches stay out of durable records and application diagnostics. Missing audio leaves speech coverage unavailable. For other required modalities on the same source, configure separate checks in a review group. [Audio moderation](https://sightengine.com/docs/audio-moderation-model) · [Short-video API](https://sightengine.com/docs/moderate-stored-video)
 
 ### Account-level video callbacks {#sightengine-callbacks}
 

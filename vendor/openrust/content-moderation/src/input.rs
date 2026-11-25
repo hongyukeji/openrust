@@ -54,6 +54,7 @@ pub struct StoredMedia {
     disk: String,
     key: String,
     version: String,
+    video_duration_ms: Option<u32>,
 }
 
 impl StoredMedia {
@@ -65,7 +66,25 @@ impl StoredMedia {
         let disk = checked_identifier(disk.into(), 128, "disk")?;
         let key = checked_identifier(key.into(), 1024, "object key")?;
         let version = checked_identifier(version.into(), 256, "object version")?;
-        Ok(Self { disk, key, version })
+        Ok(Self {
+            disk,
+            key,
+            version,
+            video_duration_ms: None,
+        })
+    }
+
+    /// 记录应用已核实且与这个对象版本绑定的媒体时长。
+    pub fn with_video_duration_ms(mut self, duration: u32) -> ModerationResult<Self> {
+        if !(1..=86_400_000).contains(&duration) {
+            return Err(ModerationError::InvalidInput("video duration"));
+        }
+        self.video_duration_ms = Some(duration);
+        Ok(self)
+    }
+
+    pub fn video_duration_ms(&self) -> Option<u32> {
+        self.video_duration_ms
     }
 
     pub fn disk(&self) -> &str {

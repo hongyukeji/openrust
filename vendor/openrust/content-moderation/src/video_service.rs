@@ -1,11 +1,13 @@
 use std::sync::Arc;
 
 use crate::{
-    Coverage, Decision, ManualReviewDecision, ModerationDriver, ModerationError, ModerationManager,
+    Decision, ManualReviewDecision, ModerationDriver, ModerationError, ModerationManager,
     ModerationResult, ModerationStore, Operation, ProviderCancellation, QueryFailure,
     ReviewDecision, ReviewDecisionRequest, ReviewState, SubmissionFailure, TaskId, TaskStatus,
     VideoInput, VideoReview, VideoReviewGroup, VideoReviewTarget, VideoSubmission,
-    rate_policy::RateOperation, review::QueryOutcome, storage::Cancellation,
+    rate_policy::RateOperation,
+    review::{QueryOutcome, SubmissionOutcome},
+    storage::Cancellation,
 };
 
 /// 点播送审流程，使用已落库的对象版本、配置修订和租约。
@@ -109,7 +111,7 @@ impl VideoReviewService {
                     self.store.recover_submission(&claim).await?;
                     return Ok(());
                 }
-                Err(failure) => VideoSubmission::Failed(failure),
+                Err(failure) => SubmissionOutcome::Tracking(VideoSubmission::Failed(failure)),
             };
             self.store.finish_submission(&claim, outcome).await?;
         } else {
@@ -247,25 +249,29 @@ impl VideoReviewService {
     }
 
     fn driver(&self, claim: &VideoReview) -> Result<Arc<dyn ModerationDriver>, SubmissionFailure> {
-        let driver = match self.manager.driver_for_revision(claim.profile()) {
-            Ok(driver) => driver,
+        match self.manager.driver_for_revision(claim.profile()) {
+            Ok(driver) => Ok(driver),
             Err(ModerationError::ProfileRevisionUnavailable) => {
-                return Err(SubmissionFailure::RevisionUnavailable);
+                Err(SubmissionFailure::RevisionUnavailable)
             }
-            Err(ModerationError::ProfileRevisionChanged) => {
-                return Err(SubmissionFailure::RevisionChanged);
-            }
-            Err(_) => return Err(SubmissionFailure::Configuration),
-        };
-        if !driver.supports(Operation::SubmitVideo) {
-            return Err(SubmissionFailure::Unsupported);
+            Err(ModerationError::ProfileRevisionChanged) => Err(SubmissionFailure::RevisionChanged),
+            Err(_) => Err(SubmissionFailure::Configuration),
         }
-        Ok(driver)
     }
 
-    async fn send(driver: &dyn ModerationDriver, source: crate::StoredMedia) -> VideoSubmission {
+    async fn send(driver: &dyn ModerationDriver, source: crate::StoredMedia) -> SubmissionOutcome {
         let source = VideoInput::new(source);
-        match driver.submit_video(&source).await {
+        let result = if let Some(inspection) = driver.inspect_video(&source) {
+            match inspection.await {
+                Ok(assessment) => return SubmissionOutcome::Inspected(assessment),
+                Err(error) => Err(error),
+            }
+        } else if driver.supports(Operation::SubmitVideo) {
+            driver.submit_video(&source).await
+        } else {
+            Err(ModerationError::Unsupported(Operation::SubmitVideo))
+        };
+        SubmissionOutcome::Tracking(match result {
             Ok(task) => VideoSubmission::Submitted(task),
             Err(ModerationError::InvalidConfiguration(_)) => {
                 VideoSubmission::Failed(SubmissionFailure::Configuration)
@@ -287,7 +293,7 @@ impl VideoReviewService {
                 VideoSubmission::Failed(SubmissionFailure::Throttled)
             }
             Err(_) => VideoSubmission::Unknown,
-        }
+        })
     }
 
     async fn read_provider(
@@ -299,11 +305,7 @@ impl VideoReviewService {
         match driver.query_video_with_retry(task, &mut retry_after).await {
             Ok(TaskStatus::Pending | TaskStatus::Running) => QueryOutcome::Waiting,
             Ok(TaskStatus::Succeeded(assessment)) => {
-                let complete = review
-                    .profile()
-                    .required_modalities()
-                    .iter()
-                    .all(|&modality| assessment.coverage(modality) == Coverage::Complete);
+                let complete = assessment.covers(review.profile().required_modalities());
                 QueryOutcome::Stop {
                     state: if complete {
                         ReviewState::Succeeded

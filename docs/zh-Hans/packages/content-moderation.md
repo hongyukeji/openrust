@@ -2,7 +2,7 @@
 
 启用 `content-moderation` 功能，或在依赖 `openrust-content-moderation` 的应用中注册 `ModerationServiceProvider`。执行 `./artisan vendor:publish --tag=moderation-config` 发布配置模板。在应用的 Rust 配置中将 `moderation.drivers.comments.driver` 设为 `review-text`，并通过 `MODERATION_DRIVER=comments` 选择默认配置。
 
-当前包提供自定义驱动契约、阿里云文本和已存储图片审核，腾讯云文本和图片审核，Sightengine 文本和图片审核，以及 Hive 文本和视觉审核。其他供应商操作及持久化视频编排正在实施。
+本包提供自定义驱动契约、阿里云、腾讯云、Sightengine 和 Hive 的具名配置，以及持久化视频审核流程。各供应商小节说明支持的输入和审核覆盖。
 
 ## 供应商凭据 {#credentials}
 
@@ -109,6 +109,12 @@ Hive 回调可以通过 Webhook Client 接收查单提示。将 `HiveLookupHint`
 在具名 `sightengine` 配置填写 `video_models` 和 `video_review_score`，启用 OCR 时另填 `video_text_categories`。`video_max_duration` 默认 1,800 秒，套餐允许时可设至 3,600 秒。用 `media_disk` 和 `media_origin` 指定版本化私有素材来源。
 
 `submit_video()` 返回媒体 ID，用原具名配置查询或停止任务。完成状态可能来自时长限制或对部分帧的采样。异步入口只报告已取得的画面和 OCR 证据，语音覆盖保持缺失。HTTP 客户端的诊断事件从查询串及停止请求正文中省略凭据。 [异步视频](https://sightengine.com/docs/moderate-stored-video-asynchronously) · [任务操作](https://sightengine.com/docs/interact-with-video-moderation-jobs)
+
+### 短视频语音 {#sightengine-short-speech}
+
+为语音新建具名 `sightengine` 配置，在 `video_speech_categories` 填写类别，例如 `["insult", "phone_number"]`，并用 `media_disk` 和 `media_origin` 指定私有素材。该配置通过 `video/check-sync.json` 调用 `audio-moderation`，请求超时默认 75 秒，可用 `timeout_ms` 设置。使用独立配置填写 `video_models`。
+
+调用 `StoredMedia::with_video_duration_ms`，把应用已核实的时长与准确素材版本一起传入。Sightengine 的短视频接口只接受不足 60 秒的素材。需要持久化时将该配置固定为 `required_modalities = ["speech"]`，按常规流程落单。送审 Worker 一次写入终态与结果。证据保留类别、严重程度标签和时间范围，记录与诊断不保存识别原文。缺少音轨结果时语音覆盖为不可用。同一素材还有其他必检模态时，在审核组中配置独立检查。 [语音审核](https://sightengine.com/docs/audio-moderation-model) · [短视频接口](https://sightengine.com/docs/moderate-stored-video)
 
 ### 账户级视频回调 {#sightengine-callbacks}
 

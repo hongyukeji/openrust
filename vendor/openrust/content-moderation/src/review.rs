@@ -1,6 +1,6 @@
 use crate::{
-    Assessment, Coverage, Decision, ModerationError, ModerationResult, ProfileRevision, RetryAfter,
-    StoredMedia, TaskId, credentials::valid_identifier,
+    Assessment, Decision, ModerationError, ModerationResult, ProfileRevision, RetryAfter,
+    StoredMedia, TaskId, VideoInspection, credentials::valid_identifier,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -55,6 +55,11 @@ pub enum QueryFailure {
     Protocol,
     ServiceUnavailable,
     ProviderFailed,
+}
+
+pub(crate) enum SubmissionOutcome {
+    Tracking(VideoSubmission),
+    Inspected(VideoInspection),
 }
 
 pub(crate) enum QueryOutcome {
@@ -285,12 +290,7 @@ impl VideoReview {
     pub fn decision(&self) -> Option<Decision> {
         let result = self.assessment()?;
         if self.state != ReviewState::Succeeded
-            || self.profile.required_modalities().is_empty()
-            || self
-                .profile
-                .required_modalities()
-                .iter()
-                .any(|&kind| result.coverage(kind) != Coverage::Complete)
+            || !result.covers(self.profile.required_modalities())
         {
             return None;
         }

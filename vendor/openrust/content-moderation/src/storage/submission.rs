@@ -2,11 +2,14 @@ use std::sync::Arc;
 
 use openrust::database::{DatabaseError, Value};
 
-use crate::{ModerationError, ModerationResult, ReviewState, VideoReview, VideoSubmission};
+use crate::{
+    ModerationError, ModerationResult, QueryFailure, ReviewState, VideoReview, VideoSubmission,
+    review::SubmissionOutcome,
+};
 
 use super::{
-    CHECKS, ModerationStore, REVIEWS, RateBudget, database_clock, database_clock_query, integer,
-    rates::RESERVATION_STALE, remote_leases,
+    CHECKS, ModerationStore, REVIEWS, RateBudget, assessment_record, database_clock,
+    database_clock_query, integer, rates::RESERVATION_STALE, remote_leases,
 };
 
 // 给当前最长 120 秒的供应商请求留出提交上下文时间，到期只转未知。
@@ -16,7 +19,12 @@ const SUBMISSION_LEASE_SECONDS: i64 = 150;
 enum Action {
     Claim,
     Recover,
-    Finish(VideoSubmission),
+    Finish(VideoSubmission, Option<Arc<InspectedAssessment>>),
+}
+
+struct InspectedAssessment {
+    failure: Option<QueryFailure>,
+    encoded: Option<String>,
 }
 
 impl ModerationStore {
@@ -38,10 +46,27 @@ impl ModerationStore {
     pub(crate) async fn finish_submission(
         &self,
         claim: &VideoReview,
-        outcome: VideoSubmission,
+        outcome: SubmissionOutcome,
     ) -> ModerationResult<()> {
-        self.transition(claim, Action::Finish(outcome), None)
-            .await?;
+        let finish = match outcome {
+            SubmissionOutcome::Tracking(submission) => Action::Finish(submission, None),
+            SubmissionOutcome::Inspected(report) => {
+                let (task, assessment) = report.into_parts();
+                let (encoded, failure) = match assessment_record::encode(&assessment) {
+                    Ok(record) => (
+                        Some(record),
+                        (!assessment.covers(claim.profile().required_modalities()))
+                            .then_some(QueryFailure::IncompleteCoverage),
+                    ),
+                    Err(_) => (None, Some(QueryFailure::Protocol)),
+                };
+                Action::Finish(
+                    VideoSubmission::Submitted(task),
+                    Some(Arc::new(InspectedAssessment { failure, encoded })),
+                )
+            }
+        };
+        self.transition(claim, finish, None).await?;
         Ok(())
     }
 
@@ -99,9 +124,36 @@ impl ModerationStore {
                             .await?
                             .and_then(|row| integer(&row, "created_at"))
                             .ok_or(DatabaseError::InvalidQuery("无法读取审核存储时钟"))?;
+                        let inspection = match &action {
+                            Action::Finish(_, inspection) => inspection.clone(),
+                            _ => None,
+                        };
                         let Some(mut next) = next_state(&review, action, now) else {
                             return Ok(None);
                         };
+                        let mut report = Value::Null;
+                        let mut query_failure = Value::Null;
+                        if let Some(assessment) = &inspection
+                            && next.state != ReviewState::Expired
+                        {
+                            next.state = if assessment.failure.is_none() {
+                                ReviewState::Succeeded
+                            } else {
+                                ReviewState::Failed
+                            };
+                            report = assessment
+                                .encoded
+                                .as_deref()
+                                .map_or(Value::Null, Value::from);
+                            if let Some(failure) = assessment.failure {
+                                query_failure = serde_json::to_value(failure)
+                                    .ok()
+                                    .and_then(|value| value.as_str().map(Value::from))
+                                    .ok_or(DatabaseError::InvalidQuery(
+                                        "无法保存即时审核失败原因",
+                                    ))?;
+                            }
+                        }
                         let mut charged = false;
                         if let Some((budget, limit)) = &budget {
                             match budget.reserve(transaction, now, Some(*limit)).await? {
@@ -166,6 +218,8 @@ impl ModerationStore {
                                     ),
                                     ("remote_task_id".into(), remote_id),
                                     ("submit_failure".into(), failure),
+                                    ("assessment".into(), report),
+                                    ("query_failure".into(), query_failure),
                                     ("available_at".into(), next.available_at.into()),
                                     ("dispatch_lease_until".into(), Value::Null),
                                 ]
@@ -181,7 +235,9 @@ impl ModerationStore {
                         {
                             budget.open_remote(transaction, &next).await?;
                         }
-                        if matches!(next.submission, VideoSubmission::Failed(_)) {
+                        if inspection.is_some()
+                            || matches!(next.submission, VideoSubmission::Failed(_))
+                        {
                             remote_leases::release(transaction, next.check_id()).await?;
                         }
                         Ok((next.submission == VideoSubmission::Submitting).then_some(next))
@@ -215,7 +271,7 @@ fn next_state(review: &VideoReview, action: Action, now: i64) -> Option<VideoRev
                 Some((now + SUBMISSION_LEASE_SECONDS).min(review.deadline_at)),
             )
         }
-        Action::Finish(result) if review.submission == VideoSubmission::Submitting => {
+        Action::Finish(result, _) if review.submission == VideoSubmission::Submitting => {
             let state = if expired {
                 ReviewState::Expired
             } else if matches!(result, VideoSubmission::Failed(_)) {

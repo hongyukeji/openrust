@@ -334,7 +334,7 @@ D-03 的父审核／点播子检查同库落单和幂等已通过三库验证，
 |---|---|---|---|---|
 | 阿里云 | 增强内容安全对应文本接口，依据所选站点冻结TextModeration等正式版本，不能混入IMM | 对应图片增强接口及场景配置，冻结ImageModeration等正式版本 | 增强2.0 VideoModeration／VideoModerationResult为已查到的协议候选，国内站另核对相应端点／service | 帧／音频场景分别开启；回调表单checksum／content按所选版本处理；不复制旧green或其他地域的算法／参数 |
 | 腾讯云 | [TMS接入](https://cloud.tencent.com/document/product/1124/100981)，TextModeration | [IMS能力](https://cloud.tencent.com/document/product/1124/137268)，ImageModeration；无需以异步图片Agent代替同步入口 | CreateVideoModerationTask／DescribeTaskDetail及正式API版本 | BizType／模态、Seed／X-Signature、RUNNING／FINISH／ERROR；最终回调前30片段上限需完整查询补偿 |
-| Sightengine | [text/check.json](https://sightengine.com/docs/text-moderation-introduction)，明确rules／ML与语言 | check.json，按选择的视觉／OCR模型及实际动图采样限制 | video/check.json／video/byid.json、账号级回调与状态映射 | [语音模型](https://www1.sightengine.com/docs/audio-moderation-model)文档例子使用同步视频接口；长视频异步音轨与分段支持必须落实，未验证不能计全模态完成 |
+| Sightengine | [text/check.json](https://sightengine.com/docs/text-moderation-introduction)，明确rules／ML与语言 | check.json，按选择的视觉／OCR模型及实际动图采样限制 | video/check.json／video/byid.json、账号级回调与状态映射 | [短视频语音](../audits/content-moderation/README.md#sightengine-short-speech)已通过三库的本地协议验收。官方语音模型使用同步接口，长视频分段与真实完整覆盖继续验收 |
 | Hive | [Text Moderation项目](https://docs.thehive.ai/docs/text-moderation-api)，独立项目／模型对应task/sync或async | Visual Moderation项目对应模型API及真实project | [模型Task API](https://docs.thehive.ai/reference/submitting-via-task-api)的sync／async选择及任务查询；不混入hivemoderation Dashboard端点 | 文本／视觉／音频项目可能不同凭据，均纳入profile快照；完成结果按项目与任务归属关联，合同开通和官方查询／鉴权细节留真实验证 |
 
 [腾讯云标准 VM 回调](../audits/content-moderation/README.md#tencent-video-callback)及[阿里云增强版回调](../audits/content-moderation/README.md#aliyun-video-callback)已通过三库本地协议验收，真实回调和公开 HTTPS 继续按 CM-04 核对。

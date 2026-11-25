@@ -49,6 +49,7 @@ pub use openrust::http::client::RetryAfter;
 pub use provider::{ModerationServiceProvider, openrust_providers};
 pub use result::{
     Assessment, Confidence, Coverage, Decision, EvidenceSpan, Finding, Modality, TaskStatus,
+    VideoInspection,
 };
 pub use review::{
     ProviderCancellation, QueryFailure, ReviewState, SubmissionFailure, VideoReview,

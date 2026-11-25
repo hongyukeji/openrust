@@ -9,6 +9,7 @@ mod media;
 mod sightengine;
 mod sightengine_image;
 mod sightengine_models;
+mod sightengine_speech;
 mod sightengine_video;
 mod tencent;
 mod tencent_image;

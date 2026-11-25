@@ -286,6 +286,27 @@ pub(super) fn configuration(env: &Environment) -> Result<Value, ConfigError> {
                         configuration["profile_revisions"]["separate-account-videos"]["original"] =
                             separate;
                     }
+                    if env.get_utf8("MODERATION_FIXTURE_SPEECH")? == Some("1") {
+                        let mut speech = original.clone();
+                        let settings = speech.as_object_mut().expect("语音审核验收配置对象");
+                        for key in [
+                            "video_models",
+                            "video_text_categories",
+                            "video_review_score",
+                            "video_max_duration",
+                        ] {
+                            settings.remove(key);
+                        }
+                        speech["video_speech_categories"] = json!(["insult", "phone_number"]);
+                        speech["required_modalities"] = json!(["speech"]);
+                        configuration["profile_revisions"]["sightengine-speech"]["original"] =
+                            speech.clone();
+                        configuration["profile_revisions"]["sightengine-speech"]["r1"] =
+                            speech.clone();
+                        speech["required_modalities"] = json!(["speech", "visual"]);
+                        configuration["profile_revisions"]["sightengine-speech-visual"]["original"] =
+                            speech;
+                    }
                     configuration["profile_revisions"]["sightengine-videos"]["original"] = original;
                 }
                 configuration["default"] = json!("video");
@@ -455,7 +476,10 @@ impl Listener for ObserveJobRequest {
             let event = event
                 .downcast_ref::<RequestSending>()
                 .expect("fixture HTTP event");
-            if event.request.url.path() == "/1.0/video/byid.json" {
+            if matches!(
+                event.request.url.path(),
+                "/1.0/video/byid.json" | "/1.0/video/check-sync.json"
+            ) {
                 assert!(event.request.url.query().is_none());
                 assert!(event.request.body.is_none());
                 assert!(event.request.diagnostic_source.is_none());
@@ -1022,6 +1046,18 @@ fn render_decision(decision: ReviewDecision) -> Value {
     }
 }
 
+fn fixture_video_source(version: &str) -> ModerationResult<StoredMedia> {
+    let source = StoredMedia::new("s3", "versions/clip.mp4", version)?;
+    match std::env::var("MODERATION_FIXTURE_VIDEO_DURATION_MS") {
+        Ok(value) => source.with_video_duration_ms(
+            value
+                .parse()
+                .map_err(|_| ModerationError::InvalidInput("fixture video duration"))?,
+        ),
+        Err(_) => Ok(source),
+    }
+}
+
 async fn stage_group(
     application: &str,
     tenant: &str,
@@ -1030,7 +1066,7 @@ async fn stage_group(
     content_revision: &str,
     profiles: &str,
 ) -> ModerationResult<Value> {
-    let source = StoredMedia::new("s3", "versions/clip.mp4", version)?;
+    let source = fixture_video_source(version)?;
     let profiles = profiles
         .split(',')
         .map(|name| Moderation::pin_profile(name, "r1"))
@@ -1069,7 +1105,7 @@ async fn stage_review(
     intent: &str,
     version: &str,
 ) -> ModerationResult<Value> {
-    let source = StoredMedia::new("s3", "versions/clip.mp4", version)?;
+    let source = fixture_video_source(version)?;
     let name = std::env::var("MODERATION_FIXTURE_DURABLE_VIDEO_PROFILE")
         .unwrap_or_else(|_| "sightengine-videos".to_owned());
     let profile = Moderation::pin_profile(&name, "original")?;
