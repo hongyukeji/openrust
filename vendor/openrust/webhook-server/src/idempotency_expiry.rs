@@ -168,7 +168,7 @@ impl DeliveryStore {
 }
 
 impl IdempotencyKind {
-    fn pruned_at(self) -> &'static str {
+    pub(crate) fn pruned_at(self) -> &'static str {
         match self {
             Self::Delivery => "payload_pruned_at",
             Self::Publication => "body_pruned_at",

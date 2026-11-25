@@ -23,6 +23,7 @@ mod endpoints;
 mod error;
 pub mod events;
 mod extensions;
+mod history_retention;
 mod idempotency;
 mod idempotency_expiry;
 #[path = "../database/migrations/2026_11_25_000000_index_webhook_idempotency_record.rs"]
@@ -73,6 +74,7 @@ pub use dispatch::{QueuedDelivery, SynchronousDelivery};
 pub use endpoints::{Endpoint, EndpointState, EndpointStore};
 pub use error::{Error, Result};
 pub use extensions::{register_backoff_strategy, register_call_webhook_job, register_signer};
+pub use history_retention::HistoryPruneReport;
 pub use idempotency::IdempotencyKind;
 pub use idempotency_expiry::IdempotencyPruneReport;
 pub use limits::{DeliveryLimit, DeliveryLimits, register_delivery_limits};

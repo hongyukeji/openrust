@@ -196,6 +196,13 @@ pub async fn preview_expiring_invoice_keys(
     store.prune_idempotency_keys(openrust_webhook_server::IdempotencyKind::Delivery, 30, 100, true).await
 }
 
+pub async fn preview_invoice_history_pruning(
+    store: &openrust_webhook_server::DeliveryStore,
+    after: Option<&str>,
+) -> Result<openrust_webhook_server::HistoryPruneReport> {
+    store.prune_history(openrust_webhook_server::IdempotencyKind::Delivery, 90, 100, after, true).await
+}
+
 ```
 
 
@@ -301,6 +308,12 @@ Builder 的 `dispatch`、`dispatch_if` 和 `dispatch_unless` 登記投遞並入�
 使用 `./artisan webhook-server:prune --scope=<scope> --days=30 --idempotency=delivery --pretend` 預演直接投遞鍵到期。發布訊息使用 `--idempotency=publication`。期限從請求快照或共享本文清理時起算，業務保留會阻止到期。移除 `--pretend` 後釋放符合條件的鍵。啟用前先執行遷移，並升級所有寫入及清理程序。
 
 重用已釋放的鍵會產生新記錄和 ID，舊佇列任務仍指向舊投遞。歷史記錄保留原 ID，並在診斷中顯示 `idempotency_expired_at`。若接收方應將續用鍵的直接投遞視為新事件，應用程式需設定新的業務訊息 ID。
+
+### 清理歷史中繼資料 {#history-retention}
+
+使用 `./artisan webhook-server:prune --scope=<scope> --days=90 --history=delivery --pretend` 預演歷史投遞清理。發布收據使用 `--history=publication`。期限從冪等鍵到期起算，使用回傳的 `next_after` 與 `--after` 繼續分頁。下一輪從頭重新檢查先前未符合清理條件的記錄。
+
+投遞歷史只有在嘗試均已清理、重放稽核與現存共享本文皆未引用時才可刪除。發布收據需先清理本文並釋放冪等鍵。業務保留會阻止兩類清理。歷史中繼資料刪除後，診斷無法再查詢該 ID。
 
 ### 依訂閱發布 {#subscriptions}
 

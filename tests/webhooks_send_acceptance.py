@@ -243,6 +243,104 @@ def exercise(binary, env, log, receiver, driver, sql):
         finally:
             connection.close()
 
+    if env.get("FIXTURE_SEND_HISTORY"):
+        def db(statement):
+            routes["write_database"](driver, sql, statement)
+
+        def prune(*args, scope=SCOPE, success=True):
+            output = command("webhook-server:prune", "--scope", scope, *args, success=success)
+            return json.loads(output) if success else None
+
+        def hold(identifier, *args):
+            command("webhook-server:hold", identifier, "--scope", SCOPE, *args)
+
+        def inspect_history(identifier, *args):
+            return json.loads(command("webhook-server:inspect", identifier, "--scope", SCOPE, *args))
+
+        direct = submit("history-direct")
+        retained = submit("history-hold")
+        original = submit("replay-failed-history", "fail-once")
+        enqueue(direct)
+        db("INSERT INTO jobs(queue,payload,attempts,available_at,created_at) "
+           "SELECT 'webhook-stale',payload,attempts,available_at,created_at FROM jobs WHERE queue='webhook-outgoing'")
+        command(*worker)
+        for identifier in (retained, original):
+            enqueue(identifier)
+            command(*worker)
+        result = command("webhook-server:replay", original, "--scope", SCOPE,
+                         "--actor=fixture-operator", "--reason=test-history")
+        replayed = json.loads(re.search(r"\{[^\n]+\}", result)[0])["delivery_id"]
+        enqueue(replayed)
+        command(*worker)
+        assert read(replayed) == "succeeded\t1"
+
+        admin("create", "primary")
+        admin("subscribe", "primary", "--topic=invoice.paid", "--schema=1")
+        receipt = publish("history-fanout")
+        fanout = receipt["delivery_ids"][0]
+        message = receipt["message_id"]
+        enqueue(fanout)
+        command(*worker)
+        assert read(fanout) == "succeeded\t1"
+        for identifier in (direct, retained, original, replayed, fanout):
+            update(identifier, "deadline=1")
+        assert prune("--days=0")["pruned"] == 5
+        for identifier in (direct, retained, original, replayed, fanout):
+            update(identifier, "payload_pruned_at=1")
+        assert prune("--days=1", "--idempotency=delivery")["expired"] == 5
+        assert prune("--days=1", "--history=delivery")["candidates"] == 0
+        for identifier in (direct, retained, original, replayed, fanout):
+            update(identifier, "idempotency_expired_at=1")
+            db(f"UPDATE webhook_delivery_attempts SET finished_at=1 WHERE delivery_id='{identifier}'")
+        assert prune("--days=0", "--history=delivery")["scanned"] == 0
+        hold(retained)
+        assert prune("--days=1", "--attempts")["pruned"] == 4
+        assert prune("--days=1", "--history=delivery", scope="other-tenant")["scanned"] == 0
+        assert prune("--days=1", "--history=delivery", "--after=bad", success=False) is None
+        first = prune("--days=1", "--history=delivery", "--limit=1", "--pretend")
+        assert first["scanned"] == 1 and first["next_after"] == min(direct, fanout)
+        second = prune("--days=1", "--history=delivery", "--limit=1", "--pretend",
+                       f"--after={first['next_after']}")
+        assert second["scanned"] == 1 and second["next_after"] is None
+        assert first["candidates"] + second["candidates"] == 1
+        assert read(direct) == "succeeded\t1"
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            jobs = [pool.submit(prune, "--days=1", "--history=delivery") for _ in range(2)]
+            assert sum(job.result()["deleted"] for job in jobs) == 1
+        assert inspect_history(direct) is None and inspect_history(retained)["retention_hold_at"]
+        assert all(read(identifier) for identifier in (original, replayed, fanout))
+        assert sql(f"SELECT count(*) FROM webhook_delivery_replays WHERE original_id='{original}'") == "1"
+
+        renewed = submit("history-direct")
+        assert renewed != direct
+        command("queue:work", "database", "--queue=webhook-stale", "--once", "--tries=7")
+        assert read(renewed) == "pending\t0"
+        captured("history-direct")
+        assert prune("--days=1", "--history=publication")["deleted"] == 0
+        db(f"UPDATE webhook_messages SET created_at=1 WHERE id='{message}'")
+        assert prune("--days=1", "--messages")["pruned"] == 1
+        assert prune("--days=1", "--history=delivery")["deleted"] == 1
+        assert inspect_history(fanout) is None
+        assert inspect_history(message, "--message")["delivery_ids"] == [fanout]
+        db(f"UPDATE webhook_messages SET body_pruned_at=1 WHERE id='{message}'")
+        assert prune("--days=1", "--idempotency=publication")["expired"] == 1
+        db(f"UPDATE webhook_messages SET idempotency_expired_at=1 WHERE id='{message}'")
+        hold(message, "--message")
+        assert prune("--days=1", "--history=publication")["deleted"] == 0
+        hold(message, "--message", "--release")
+        assert prune("--days=1", "--history=publication")["deleted"] == 1
+        assert inspect_history(message, "--message") is None
+        assert publish("history-fanout")["message_id"] != message
+        hold(retained, "--release")
+        assert prune("--days=1", "--attempts")["pruned"] == 1
+        hold(retained)
+        assert prune("--days=1", "--history=delivery")["deleted"] == 0
+        hold(retained, "--release")
+        assert prune("--days=1", "--history=delivery")["deleted"] == 1
+        assert prune("--days=1", "--history=delivery")["scanned"] == 0
+        print(f"{driver}: 历史元数据、留存与依赖保护、并发清理及旧队列隔离通过")
+        return
+
     if env.get("FIXTURE_SEND_KEY_EXPIRY"):
         def db(statement):
             routes["write_database"](driver, sql, statement)
@@ -1835,7 +1933,8 @@ def main():
                 or os.environ.get("FIXTURE_SEND_ENDPOINTS") or os.environ.get("FIXTURE_SEND_LIMITS")
                 or os.environ.get("FIXTURE_SEND_FANOUT") or os.environ.get("FIXTURE_SEND_TLS")
                 or os.environ.get("FIXTURE_SEND_DIAGNOSTICS") or os.environ.get("FIXTURE_SEND_RETENTION")
-                or os.environ.get("FIXTURE_SEND_KEY_BINDINGS") or os.environ.get("FIXTURE_SEND_KEY_EXPIRY")):
+                or os.environ.get("FIXTURE_SEND_KEY_BINDINGS") or os.environ.get("FIXTURE_SEND_KEY_EXPIRY")
+                or os.environ.get("FIXTURE_SEND_HISTORY")):
             print(f"{driver}: HTTP 签名和字节、事务回滚、重复领取、重试预算、撤销、超时、崩溃恢复、Builder 分支、投递事件与自定义 Job 通过")
     finally:
         if proxy_thread is not None:

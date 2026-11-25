@@ -196,6 +196,13 @@ pub async fn preview_expiring_invoice_keys(
     store.prune_idempotency_keys(openrust_webhook_server::IdempotencyKind::Delivery, 30, 100, true).await
 }
 
+pub async fn preview_invoice_history_pruning(
+    store: &openrust_webhook_server::DeliveryStore,
+    after: Option<&str>,
+) -> Result<openrust_webhook_server::HistoryPruneReport> {
+    store.prune_history(openrust_webhook_server::IdempotencyKind::Delivery, 90, 100, after, true).await
+}
+
 ```
 
 
@@ -301,6 +308,12 @@ Run `./artisan webhook-server:hold <id> --scope=<scope>` to keep a delivery snap
 Use `./artisan webhook-server:prune --scope=<scope> --days=30 --idempotency=delivery --pretend` to preview direct delivery key expiry. Use `--idempotency=publication` for publication keys. The period starts when the request snapshot or shared body was pruned. A hold prevents expiry. Remove `--pretend` to release the selected keys. Run migrations and upgrade all writers and pruners before enabling expiry.
 
 Reusing a released key creates a new record with a new ID. Old queue tasks still address the old delivery. Existing delivery and message history keeps its original IDs and exposes `idempotency_expired_at` in diagnostics. For direct submissions, choose a new application message ID if the receiver should treat the next delivery as a new event.
+
+### Prune historical metadata {#history-retention}
+
+Use `./artisan webhook-server:prune --scope=<scope> --days=90 --history=delivery --pretend` to preview historical delivery deletion. Select `--history=publication` for publication receipts. The period starts when the idempotency key expired. Keep using `next_after` with `--after` to scan later pages. Restart without a cursor on a subsequent pass to revisit blocked records.
+
+Delivery metadata is eligible when attempts have been cleaned, no replay audit refers to it and no shared publication body still depends on it. Publication receipt deletion requires prior body cleanup and key expiry. Holds block both operations. Removing historical metadata makes that ID unavailable in diagnostics.
 
 ### Publish to subscriptions {#subscriptions}
 

@@ -91,7 +91,7 @@ pub(super) fn register() -> Result<(), ConsoleError> {
         );
     Artisan::add(Box::new(Inspect(CommandDefinition::new(inspect))))?;
     let prune = Syntax::new("webhook-server:prune")
-        .about("分批清理已过保留期的出站快照、尝试或共享正文")
+        .about("分批清理已过保留期的出站数据")
         .arg(Arg::new("scope").long("scope").required(true))
         .arg(Arg::new("database").long("database"))
         .arg(
@@ -111,7 +111,18 @@ pub(super) fn register() -> Result<(), ConsoleError> {
                 .conflicts_with_all(["messages", "attempts"])
                 .value_parser(["delivery", "publication"]),
         )
-        .arg(Arg::new("after").long("after").requires("messages"))
+        .arg(
+            Arg::new("history")
+                .long("history")
+                .conflicts_with_all(["messages", "attempts", "idempotency"])
+                .value_parser(["delivery", "publication"]),
+        )
+        .group(clap::ArgGroup::new("prune-with-cursor").args(["messages", "history"]))
+        .arg(
+            Arg::new("after")
+                .long("after")
+                .requires("prune-with-cursor"),
+        )
         .arg(
             Arg::new("pretend")
                 .long("pretend")
@@ -341,7 +352,20 @@ impl Command for Prune {
             let days = *args.get_one::<u32>("days").expect("必填保留天数");
             let limit = *args.get_one::<u32>("limit").expect("默认批次大小");
             let pretend = args.get_flag("pretend");
-            let json = if let Some(kind) = args.get_one::<String>("idempotency") {
+            let json = if let Some(kind) = args.get_one::<String>("history") {
+                let kind = if kind == "delivery" {
+                    IdempotencyKind::Delivery
+                } else {
+                    IdempotencyKind::Publication
+                };
+                let after = args.get_one::<String>("after").map(String::as_str);
+                serde_json::to_string(
+                    &store
+                        .prune_history(kind, days, limit, after, pretend)
+                        .await
+                        .map_err(ConsoleError::from_source)?,
+                )
+            } else if let Some(kind) = args.get_one::<String>("idempotency") {
                 let kind = if kind == "delivery" {
                     IdempotencyKind::Delivery
                 } else {
