@@ -69,6 +69,7 @@ pub struct Telescope {
     enabled: AtomicBool,
     started: AtomicBool,
     sensitive_seen: AtomicBool,
+    diagnostic_context: Option<Arc<openrust::log::context::Repository>>,
     pub(crate) automatic_recording: AtomicBool,
     suppressed: AtomicUsize,
     pending: Mutex<Pending>,
@@ -85,12 +86,19 @@ impl Drop for WithoutRecording<'_> {
 }
 impl Telescope {
     pub fn new(repository: Arc<dyn EntriesRepository>, enabled: bool) -> Self {
-        Self::with_options(repository, enabled, Arc::new(Options::default()))
+        // 只在构造时解析Context，事件回调直接读取同一实例，避免采集时递归解析容器。
+        Self::with_options(
+            repository,
+            enabled,
+            Arc::new(Options::default()),
+            openrust::log::context::Context::repository().ok(),
+        )
     }
     pub(crate) fn with_options(
         repository: Arc<dyn EntriesRepository>,
         enabled: bool,
         options: Arc<Options>,
+        diagnostic_context: Option<Arc<openrust::log::context::Repository>>,
     ) -> Self {
         Self {
             repository,
@@ -98,6 +106,7 @@ impl Telescope {
             enabled: AtomicBool::new(enabled),
             started: AtomicBool::new(false),
             sensitive_seen: AtomicBool::new(false),
+            diagnostic_context,
             automatic_recording: AtomicBool::new(false),
             suppressed: AtomicUsize::new(0),
             pending: Mutex::default(),
@@ -293,7 +302,15 @@ impl Telescope {
         self
     }
     pub(crate) fn protect_sensitive_request(&self) -> Option<String> {
-        let path = openrust::http::middleware::ProtectSensitiveData::current_path()?;
+        let path =
+            openrust::http::middleware::ProtectSensitiveData::current_path().or_else(|| {
+                (self.sensitive_seen.load(Ordering::Acquire)
+                    || self.diagnostic_context.as_ref().is_some_and(|context| {
+                        context.get_hidden(openrust::log::context::SENSITIVE_DATA)
+                            == Some(serde_json::Value::Bool(true))
+                    }))
+                .then(|| "[sensitive operation]".to_owned())
+            })?;
         if !self.sensitive_seen.swap(true, Ordering::AcqRel) {
             self.flush_entries();
         }

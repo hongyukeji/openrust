@@ -725,3 +725,24 @@ Telescope保留被允许采集的安全请求元数据，去除原始URI参数�
 - notification-stack-cleanup.json：持本批Cargo锁直接删除7份闲置验收测试二进制，净释放1,332,297,728字节，清后可用45,953,073,152字节；保留正常增量缓存、源码、日志、下载、数据库和数据卷，没有本批待清理Docker资源。
 
 该栈问题从后续缺口移除；后台认证邮件诊断保护、真实Worker与Socialite／S10仍在开发。Context草稿、自定义第三方身份草稿和其他代理在途文件未包含在本笔修复中。
+
+
+## 后台加密通知诊断保护（真实 Worker 已验收）
+
+沿用既有 Context／队列上下文脱水与恢复机制，不另建任务局部状态或队列协议。加密通知派发时在隐藏上下文加入 openrust.diagnostics.sensitive=true，非秘密布尔值随原生载荷传播，调用方原Context随后恢复；未加密通知不自动加入标记。处理器兼容旧加密载荷，在既有作业作用域内设置标记直到作业结束，失败和后续事件也受保护。原生Worker的逐任务隔离使下一份普通任务正常采集。Telescope构造时捕获当前Context仓储，采集回调不递归解析容器；作用域外管理端配置只对ScopeClosed保留无Context状态，其他绑定错误仍返回。已识别敏感操作的同一采集器保持保护，不因内层scope退出或取消重新泄漏后续响应。
+
+实现复用本记录既有Context／通知／Telescope源码调研与固定上游契约；隐藏标记是Rust诊断扩展，不声称Laravel有同名内置键。不会自动处理业务代码显式写向其他日志或供应商的内容。
+
+证据均保存在target/tmp/user-starter/：
+
+- worker-privacy-fourth.log：与独立栈修复组合后，Fortify Provider 3、Telescope Provider 15、敏感Context 1及HTTP敏感记录1，共20项通过。worker-privacy-final-regression.log最终选择Telescope三个目标17项通过、既有Redis外部Provider用例1项忽略；worker-privacy-final-clippy.log对应lib／测试严格Clippy通过。两轮重复目标不累加。
+- Context新增测试真实SQLite和公开Context门面覆盖内层错误、取消后恢复原隐藏值、采集器继续脱敏及下一普通请求恢复SQL／JSON记录。原Provider作用域外配置和默认栈综合场景也通过。worker-privacy-source-sha.json核对正式实现／测试与实际冻结源码；冻结基线沿用notification-stack-final-source.json的11a2220e0edcffd1e06f335271829d54526d9f67及已提交通知栈修复，不将其他代理之后的整个主线冒充已验。
+- worker-privacy-build-second.log及fixture-clippy-second.log：新增真实运行夹具编译与严格Clippy通过；worker-privacy-runtime-second.log中的原TCP HTTP／SQLite成功、失败和普通对照通过。夹具仅在独立源码临时注册bin，不修改应用正式Cargo清单。
+- worker-privacy-database-second.log：独立MySQL8.4.13、原生Artisan migrate／serve／queue:work、database持久化队列和固定摘要Mailpit SMTP通过。连续三个任务包含私密邮件发送成功、私密模板错误失败及普通邮件成功；两份加密载荷隐藏标记true、普通false，加密数据不含明文探针；Worker退出0、failed_jobs=1、队列为空，Telescope私密条目0、普通邮件1，SMTP实际接收2封。
+- worker-privacy-redis-third.log：独立MySQL8.4.13、Redis8.10.3持久化队列与同一SMTP流程通过，成功／失败／后续任务隔离的结果相同。初轮Redis夹具把原生RedisJob外层误作直接Payload，解析前失败，没有运行Worker，不算通过；修正为读取既有payload字段中的JSON字符串后实际补验，未改变产品队列协议。
+- 原始运行结果分别为target/tmp/telescope-sensitive-worker/e349c358f0fd-result.json与aeea20d9aced-result.json。运行器复用tests/mysql_acceptance.py和smtp_acceptance.py固定Mailpit摘要；本批Redis镜像固定实际已缓存ID。所有服务loopback、独占容器、标签核定且tmpfs无数据卷；退出后删除本批容器，结果确认containers_removed=true。未动共享数据库、数据卷、镜像或BuildKit缓存。SMTP为本机真实协议接收，不是生产SMTP、外部供应商或手机／邮箱实际收信验收。
+- worker-privacy-docs-build.log及docs-browser.log：三语Fortify敏感诊断章节增加加密任务及Context::scope用法，内容门禁／文档构建及两种前缀、桌面／手机12组实际正文DOM检查通过。正文不含内部流水。
+
+首轮夹具API类型错误、ScopeClosed和Redis封装假设的失败日志全部保留。此前已修复的通知语言作用域栈问题未通过加大测试栈绕过。本单元完成HTTP之外的后台通知保护；Socialite和S10最终组合继续开发，A01各阶段仍未整簇闭合，未推送。
+
+交付清理worker-privacy-cleanup.json：持本批Cargo锁直接删除已闲置的运行夹具、敏感测试可执行文件和文档dist，净释放1,005,498,368字节，清后可用37,419,700,224字节；正常增量缓存、源码、验收记录、依赖下载、数据库和数据卷保留。

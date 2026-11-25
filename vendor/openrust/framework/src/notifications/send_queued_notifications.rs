@@ -103,9 +103,25 @@ impl SendQueuedNotifications {
         .map_err(NotificationError::Queue)?
         .with_job_subject(crate::queue::JobType::Notification, subject_type)
         .with_options(job_options);
-        Queue::dispatch(payload, options, transaction)
+        let dispatch = Queue::dispatch(payload, options, transaction);
+        if encrypt {
+            // 复用原生Context脱水：隐藏标记随作业恢复，明文和凭据仍不进入元数据。
+            crate::log::context::Context::scope(
+                Box::pin(dispatch),
+                Default::default(),
+                [(
+                    crate::log::context::SENSITIVE_DATA.to_owned(),
+                    Value::Bool(true),
+                )]
+                .into_iter()
+                .collect(),
+            )
             .await
+            .map_err(super::delivery)?
             .map_err(NotificationError::Queue)?;
+        } else {
+            dispatch.await.map_err(NotificationError::Queue)?;
+        }
         Ok(())
     }
 }
@@ -118,16 +134,17 @@ impl JobHandler for SendQueuedNotifications {
     ) -> QueueFuture<'a, QueueResult<()>> {
         Box::pin(async move {
             let job_id = payload.uuid();
-            let job = match serde_json::from_value(payload.data().clone()) {
-                Ok(QueuedDelivery::Plain(job)) => Ok(*job),
-                Ok(QueuedDelivery::Encrypted { encrypted_delivery }) => {
+            let (job, sensitive) = match serde_json::from_value(payload.data().clone()) {
+                Ok(QueuedDelivery::Plain(job)) => (Ok(*job), false),
+                Ok(QueuedDelivery::Encrypted { encrypted_delivery }) => (
                     Crypt::decrypt_string(&encrypted_delivery)
                         .map_err(|_| QueueError::InvalidPayload)
                         .and_then(|json| {
                             serde_json::from_slice(&json).map_err(|_| QueueError::InvalidPayload)
-                        })
-                }
-                Err(_) => Err(QueueError::InvalidPayload),
+                        }),
+                    true,
+                ),
+                Err(_) => (Err(QueueError::InvalidPayload), false),
             };
             let Job { delivery, payload } = match job {
                 Ok(job) => job,
@@ -136,7 +153,17 @@ impl JobHandler for SendQueuedNotifications {
                     return Err(error);
                 }
             };
-            let result = async {
+            if sensitive {
+                // 已入队的旧载荷也保护整个原生作业作用域；失败和中断后的诊断仍须脱敏。
+                crate::log::context::Context::add_hidden(
+                    crate::log::context::SENSITIVE_DATA,
+                    Value::Bool(true),
+                )
+                .map_err(|source| QueueError::Execution {
+                    source: Arc::new(source),
+                })?;
+            }
+            let operation = Box::pin(async {
                 let manager = NotificationFacade::get_facade_root().map_err(super::delivery)?;
                 delivery
                     .localized(async {
@@ -160,8 +187,8 @@ impl JobHandler for SendQueuedNotifications {
                         }
                     })
                     .await
-            }
-            .await;
+            });
+            let result = operation.await;
             result.map_err(|source| QueueError::Execution {
                 source: std::sync::Arc::new(source),
             })

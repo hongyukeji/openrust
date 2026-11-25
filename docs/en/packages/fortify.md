@@ -171,3 +171,24 @@ EnableTwoFactorAuthentication, ConfirmTwoFactorAuthentication, DisableTwoFactorA
 The user starter kit marks its authentication and account routes with the `sensitive` middleware. Telescope retains only the HTTP method, status, duration and route metadata for these requests. It omits request and response bodies, headers, query strings and diagnostic entries such as SQL bindings, mail contents and model attributes. Request-origin log metadata uses the route template instead of a reset token in the URL. Ordinary routes retain their existing recording behavior.
 
 For a custom authentication route, add `.middleware_name("sensitive")` to the route or its `RouteGroup`. The kernel identifies prepared protected routes before global middleware and request events; custom diagnostic integrations must honor `ProtectSensitiveData::current_path()` or the marker in `RequestAttributes`. This does not redact a secret that application code explicitly sends to an unrelated external logger.
+
+Encrypted queued notifications automatically carry a non-secret flag through the existing hidden Context metadata. The native Worker restores it for delivery and failure events, so Telescope skips the decrypted mail contents and associated diagnostics. The next ordinary job uses a fresh scope and is recorded normally. This also protects previously queued encrypted notifications when their handler runs; it does not encrypt an ordinary notification automatically.
+
+For a custom sensitive operation, reuse `Context::scope`:
+
+```rust
+use openrust::{log::context::SENSITIVE_DATA, support::facades::Context};
+
+Context::scope(
+    async {
+        // Run the sensitive application operation here.
+    },
+    Default::default(),
+    [(SENSITIVE_DATA.to_owned(), true.into())]
+        .into_iter()
+        .collect(),
+)
+.await?;
+```
+
+The reserved key is `openrust::log::context::SENSITIVE_DATA`. Context restores its previous value on success, error or cancellation. Telescope keeps the current collector protected until that request or job ends; it does not resume recording private data after an inner scope exits. Custom diagnostic integrations must also honor this hidden flag.

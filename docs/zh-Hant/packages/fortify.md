@@ -171,3 +171,24 @@ EnableTwoFactorAuthentication、ConfirmTwoFactorAuthentication、DisableTwoFacto
 使用者入門套件為認證和帳戶路由加入 `sensitive` 中介軟體。Telescope 對這些請求只保留 HTTP 方法、狀態、耗時及路由中繼資料，不記錄請求與回應本文、標頭、查詢字串，以及可能攜帶憑證的 SQL 綁定、郵件本文和模型屬性等診斷記錄。日誌來源使用路由範本，避免把密碼重設權杖保留在路徑中。一般路由繼續沿用原有記錄行為。
 
 自訂認證路由可在路由或 `RouteGroup` 上新增 `.middleware_name("sensitive")`。核心在全域中介軟體和請求事件之前識別已準備的保護路由；自訂診斷整合應遵循 `ProtectSensitiveData::current_path()` 或 `RequestAttributes` 中的標記。這不會自動清除業務程式碼主動傳送給其他外部日誌服務的秘密。
+
+加密的佇列通知會透過現有 Context 隱藏中繼資料攜帶一個非秘密標記。原生 Worker 在投遞和失敗事件中還原該標記，Telescope 略過解密後的郵件內容及相關診斷記錄；下一份一般任務使用新作用域，正常收集。已入列的舊加密通知在執行其處理器時也受保護；此機制不會自動加密一般通知。
+
+自訂敏感操作重用 `Context::scope`：
+
+```rust
+use openrust::{log::context::SENSITIVE_DATA, support::facades::Context};
+
+Context::scope(
+    async {
+        // 在這裡執行敏感業務操作。
+    },
+    Default::default(),
+    [(SENSITIVE_DATA.to_owned(), true.into())]
+        .into_iter()
+        .collect(),
+)
+.await?;
+```
+
+保留鍵為 `openrust::log::context::SENSITIVE_DATA`。Context 在成功、錯誤或取消時還原原值；Telescope 繼續保護目前收集器，直到請求或任務結束，不會在內層作用域退出後恢復收集敏感資料。自訂診斷整合也須遵循此隱藏標記。

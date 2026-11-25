@@ -87,6 +87,12 @@ impl ServiceProvider for TelescopeServiceProvider {
                     container.make::<dyn crate::contracts::EntriesRepository>()?,
                     enabled,
                     container.make::<crate::telescope::Options>()?,
+                    match container.make::<openrust::log::context::Repository>() {
+                        Ok(context) => Some(context),
+                        // 管理端可在HTTP／作业作用域外配置共享选项，此时不创建Context。
+                        Err(BindingResolutionError::ScopeClosed) => None,
+                        Err(error) => return Err(error),
+                    },
                 ));
                 let pending = telescope.clone();
                 match openrust::support::defer(
