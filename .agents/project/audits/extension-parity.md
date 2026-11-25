@@ -213,6 +213,12 @@ Provider 按固定 [ExpireSupervisors](https://github.com/laravel/horizon/blob/b
 
 真实回环 HTTP 覆盖先返回 500 后重试成功、已接收请求后断开以及带用户凭据的直接记录。SQLite 应用数据库中两次重试分别按脱敏地址分组，断开单列一条，直接记录保留查询字符串和明确的 25ms 耗时。Provider 12 项、快照全仓格式、Pulse 全目标严格 Clippy、三语文档构建及 12 组浏览器检查通过。PHP Guzzle 重定向统计、跨协议 URI 细节及生产组合仍需对账。
 
+### Pulse 队列任务显示名
+
+固定 Pulse 的 `Queues` 和 `UserJobs` 在入队时读取任务对象提供的 `displayName()`，`Queues` 的 Worker 事件及 `SlowJobs` 读取 `Job::resolveName()`。PHP 8.5.12 用同一处理器与两种显示名派发入队、开始和结束事件，三类 Recorder 均排除了被显示名规则忽略的任务。保留任务写入 `queued`、`processing`、`processed`、`user_job`，慢任务条目按显示名记录 7 毫秒。证据为 `target/tmp/observability-parity/pulse-job-display-name-upstream.log`。 [固定 Queues](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Recorders/Queues.php) [固定 UserJobs](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Recorders/UserJobs.php) [固定 SlowJobs](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Recorders/SlowJobs.php)
+
+当前 Rust 三类 Recorder 使用 `Payload::name()`，它是队列处理器注册名。原生 `Artisan::queue` 已为载荷设置命令显示名。待接通 Recorder 的显示名读取，并通过真实 Artisan 入队、已认证 HTTP 请求、数据库 Worker 与聚合验证筛选和分组。
+
 ### Telescope 出站 multipart 构建器快照
 
 真实回环 HTTP 与 SQLite 应用仓储覆盖上传成功、连接被拒、脱敏、原生 `Part` 兼容及两种重复字段覆盖。服务端检查附件字节、文件名和上传顺序。框架回归验证未知长度流到发送阶段才被读取，正文流只执行一次，快照长度为空。验证使用 `8041ae15a` 加前批和本批文件的隔离快照。Telescope 32 项、框架 HTTP 客户端 20 项、快照全仓格式、框架库及 Telescope 全目标严格 Clippy、三语站点及 12 组浏览器检查通过。Telescope 独立 Redis 用例本批未执行；出站 multipart 未遍历部署数据库或目标平台。保留原生 `Part`、预格式化输入与中间件替换流的差异，见[包审计](telescope/README.md#出站-multipart)。
