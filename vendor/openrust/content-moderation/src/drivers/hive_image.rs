@@ -126,8 +126,8 @@ impl ImageService {
 }
 
 #[derive(Deserialize)]
-pub(super) struct ImageOutput {
-    pub(super) output: Vec<Frame>,
+struct ImageOutput {
+    output: Vec<Frame>,
 }
 
 #[derive(Deserialize)]

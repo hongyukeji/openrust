@@ -74,6 +74,8 @@
 
 如果 Hive 已為該專案啟用 V1 Task Summary 介面，可設定 `video_query_api: "v1-task-summary"`，在 `video_classes` 列出類別，並將 `video_review_score` 設為 0 至 1。該設定的任務可呼叫 `query_video()`。每次最多讀取四頁，每頁 64 幀，並保留類別的最高分和對應時間。畫面取樣或分頁受限時，涵蓋範圍維持部分。 [Hive 查詢介面](https://docs.thehive.ai/reference/get-task-summary)
 
+各項影片檢查使用獨立專案與憑證。畫面文字將 `video_model_type` 設為 `OCR_MODERATION`，語音設為 `TRANSCRIPTION`，兩者都用 `video_review_severity` 設定 1、2 或 3 級複核門檻。OCR 證據保存對應幀時間，語音證據保存分類嚴重度。正規化結果僅提供類別證據，原始轉錄和比對文字留在供應商回應。 [Hive OCR](https://docs.thehive.ai/reference/ocr-moderation) · [Hive 語音審核](https://docs.thehive.ai/reference/speech-moderation)
+
 ## 阿里雲隨選影片 {#aliyun-video}
 
 在具名 `aliyun` 設定指定 `video_service`。上海、北京、杭州支援 `videoDetection`，上海和北京支援 `videoDetectionByVL`。私人版本化 S3 物件使用 `media_disk`、`media_origin`，驅動會為指定版本產生五分鐘有效的 HTTPS 簽名下載連結。

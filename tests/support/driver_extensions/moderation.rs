@@ -264,12 +264,35 @@ pub(super) fn configuration(env: &Environment) -> Result<Value, ConfigError> {
             video["video_classes"] = json!(["general_nsfw", "gun_in_hand"]);
             video["video_review_score"] = json!(0.9);
         }
+        let modality = match env.get_utf8("MODERATION_FIXTURE_HIVE_VIDEO_MODEL")? {
+            Some("ocr") => {
+                video["video_model_type"] = json!("OCR_MODERATION");
+                video["video_project"] = json!(48176);
+                video["credential_ref"] = json!("hive-video-ocr");
+                "ocr"
+            }
+            Some("speech") => {
+                video["video_model_type"] = json!("TRANSCRIPTION");
+                video["video_project"] = json!(48177);
+                video["credential_ref"] = json!("hive-video-speech");
+                "speech"
+            }
+            _ => "visual",
+        };
+        if modality != "visual" {
+            video["video_classes"] = json!(["hate", "violence"]);
+            video["video_review_severity"] = json!(2);
+        }
         configuration["credential_directory"] =
             json!(env.get_utf8("MODERATION_CREDENTIAL_DIRECTORY")?);
         configuration["drivers"]["hive-videos"] = video.clone();
-        video["account"] = json!("hive-video-account");
+        video["account"] = json!(format!("hive-video-{modality}"));
         video["policy_revision"] = json!("hive-policy-1");
-        video["required_modalities"] = json!(["visual", "speech", "ocr"]);
+        video["required_modalities"] = if modality == "visual" {
+            json!(["visual", "speech", "ocr"])
+        } else {
+            json!([modality])
+        };
         configuration["profile_revisions"]["hive-videos"]["original"] = video;
     }
     Ok(configuration)

@@ -208,3 +208,9 @@ Hive V2 建立任务页面的异步例子指向 V1 路径，公开带认证查�
 基线 `501fc1c21`，Rust 1.94.0。SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 上，真实 HTTP、Artisan 和独立 Worker 经替身各发出 23 次查单 HTTP 请求。验证空任务列表和 HTTP 202、双页与四页上限、原项目外层身份、缓存／非缓存内层身份、模型/项目错配、数学边界、限流和禁用情况下的拦截。认证查询跨进程保留原配置和任务，第二页峰值出现在 64500 毫秒，部分覆盖保留证据且无 Allow。现有 V2 送审和私有媒体、Hive 文本／图片／OCR 回归，包及应用严格 Clippy、修改范围格式和 3 个契约通过。三语文档构建和 Chrome 双挂载点验收通过。
 
 该选项的本地协议模拟已验收。Hive 正式项目开通 V1 查询、实际等待／缓存响应的形状、视频 OCR／语音及供应商回调继续独立核对。
+
+## CM-03N Hive 点播 OCR 与语音严重级别 {#hive-video-modalities}
+
+具名配置用 `video_model_type` 选择独立 `OCR_MODERATION` 或 `TRANSCRIPTION` 项目，默认仍是 `CATEGORIZATION`。原版本配置绑定项目、凭据和模型。认证查询复用有界分页、任务及缓存身份检查。OCR 按原帧时间保留每类别峰值，语音保留句子分类中原始 0–3 严重级别。语音分类仅有字符偏移时省略媒体时间。两种模式均省略完整原文、匹配原文、转录和词元，且采样结果只作为部分覆盖。 [Hive OCR](https://docs.thehive.ai/reference/ocr-moderation) · [Hive 语音](https://docs.thehive.ai/reference/speech-moderation)
+
+基线 `0643922a8`，Rust 1.94.0。SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 均通过真实 HTTP、Artisan、独立 Worker 和私有 S3 MP4 验证，在隔离供应商替身每库实发 34 次查单（视觉 23、OCR 6、语音 5）。覆盖项目／Token 隔离、模型错配、无效严重级别和时间戳、部分及空覆盖、跨页峰值和敏感原文脱敏。Hive 文本、图片、静态 OCR 回归、3 个包契约、修改范围格式与包和应用严格 Clippy 通过。三语文档构建及 Chrome 导航检查通过。Hive 正式项目权限、供应商回调以及同一父审核的多模态完整性仍待验收。

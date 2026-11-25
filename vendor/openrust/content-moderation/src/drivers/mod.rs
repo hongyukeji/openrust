@@ -4,6 +4,7 @@ mod hive;
 mod hive_image;
 mod hive_ocr;
 mod hive_video;
+mod hive_video_severity;
 mod media;
 mod sightengine;
 mod sightengine_image;

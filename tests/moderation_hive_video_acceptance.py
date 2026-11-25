@@ -23,6 +23,8 @@ HTTP = VIDEO["HTTP"]
 PROJECT = 48175
 TASK = "dd52c0d0-9ec7-11ea-98a3-4b92424b8366"
 TOKEN = "fixture-hive-video-project-token"
+OCR_TOKEN = "fixture-hive-video-ocr-project-token"
+SPEECH_TOKEN = "fixture-hive-video-speech-project-token"
 PRIVATE = "hidden-hive-frame-reference"
 CALLBACK = "https://moderation-callback.fixture.invalid/api/hive"
 COMMAND = "drivers:moderation-hive-video"
@@ -34,7 +36,7 @@ class Supplier(http.server.BaseHTTPRequestHandler):
 
     def do_POST(self):
         assert self.path == "/api/v2/task/async"
-        assert self.headers["Authorization"] == f"Token {TOKEN}"
+        assert self.headers["Authorization"] == f"Token {self.server.token}"
         assert self.headers["Content-Type"] == "application/x-www-form-urlencoded"
         fields = parse_qs(self.rfile.read(int(self.headers["Content-Length"])).decode(), strict_parsing=True)
         assert fields.pop("callback_url") == [CALLBACK] and set(fields) == {"url"}
@@ -56,7 +58,7 @@ class Supplier(http.server.BaseHTTPRequestHandler):
         with self.server.lock:
             self.server.calls.append((version, content))
             mode = self.server.mode
-        response = {"id": TASK, "project_id": PROJECT, "callback": CALLBACK}
+        response = {"id": TASK, "project_id": self.server.project, "callback": CALLBACK}
         status = 200
         if mode == "wrong-project":
             response["project_id"] += 1
@@ -89,7 +91,7 @@ class Supplier(http.server.BaseHTTPRequestHandler):
 
     def do_GET(self):
         target = urlsplit(self.path)
-        assert target.path == "/api/v1/task" and self.headers["Authorization"] == f"Token {TOKEN}"
+        assert target.path == "/api/v1/task" and self.headers["Authorization"] == f"Token {self.server.token}"
         parameters = parse_qs(target.query, strict_parsing=True)
         offset, = parameters.pop("frame_offset")
         offset = int(offset)
@@ -97,6 +99,9 @@ class Supplier(http.server.BaseHTTPRequestHandler):
         with self.server.lock:
             self.server.summary_calls.append(offset)
             mode = self.server.query_mode
+        if self.server.video_model != "CATEGORIZATION":
+            self.respond_modality(mode)
+            return
         status = 200
         task = {"id": TASK, "project_id": PROJECT}
         frames = []
@@ -137,6 +142,36 @@ class Supplier(http.server.BaseHTTPRequestHandler):
             frames[0]["classes"].append(frames[0]["classes"][0])
         self.respond(status, json.dumps(task).encode())
 
+    def respond_modality(self, mode):
+        model = self.server.video_model
+        if model == "OCR_MODERATION":
+            data = [{"time": 1.44, "frame_results": [{
+                "block_text": PRIVATE, "pii_entities": [{"match": PRIVATE}],
+                "classes": [{"class": "hate", "score": 2}, {"class": "violence", "score": -1}],
+            }]}]
+            if mode == "empty":
+                data[0]["frame_results"] = []
+            elif mode == "bad-time":
+                data[0]["time"] = -1
+            elif mode == "bad-score":
+                data[0]["frame_results"][0]["classes"][0]["score"] = 9
+        else:
+            data = [{"transcript": PRIVATE, "words": [{"time": 2.25, "alternatives": [{"text": PRIVATE}]}],
+                     "classifications": [{"start_char_index": 2, "end_char_index": 18,
+                                          "classes": [{"class": "violence", "score": 3},
+                                                      {"class": "hate", "score": -1}]}]}]
+            if mode == "empty":
+                data[0]["classifications"] = []
+            elif mode == "bad-score":
+                data[0]["classifications"][0]["classes"][0]["score"] = 9
+        task = {"id": TASK, "project_id": self.server.project, "status": [{
+            "status": {"code": "0"},
+            "response": {"input": {"id": TASK, "project_id": self.server.project,
+                                   "model_type": "CATEGORIZATION" if mode == "wrong-model" else model},
+                         "output": data},
+        }]}
+        self.respond(200, json.dumps(task).encode())
+
 
 def exercise(binary, driver, url, root, storage_env, storage):
     first, last, original, changed = VIDEO["versioned_clips"](root, storage)
@@ -144,6 +179,7 @@ def exercise(binary, driver, url, root, storage_env, storage):
     server.storage = urlsplit(storage_env["AWS_ENDPOINT"])
     server.calls, server.mode, server.lock = [], "accepted", threading.Lock()
     server.summary_calls, server.query_mode = [], "paged"
+    server.project, server.token, server.video_model = PROJECT, TOKEN, "CATEGORIZATION"
     worker = threading.Thread(target=server.serve_forever, daemon=True)
     worker.start()
     with socket.socket() as listener:
@@ -155,9 +191,10 @@ def exercise(binary, driver, url, root, storage_env, storage):
         os.environ["OPENRUST_SMS_SQLITE_PATH"] = str(sqlite)
     mount = root / "credentials"
     mount.mkdir(mode=0o700)
-    descriptor = os.open(mount / "hive-video.r1.json", os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o400)
-    with os.fdopen(descriptor, "w") as file:
-        json.dump({"video_token": TOKEN}, file)
+    for name, token in [("hive-video", TOKEN), ("hive-video-ocr", OCR_TOKEN), ("hive-video-speech", SPEECH_TOKEN)]:
+        descriptor = os.open(mount / f"{name}.r1.json", os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o400)
+        with os.fdopen(descriptor, "w") as file:
+            json.dump({"video_token": token}, file)
     env = os.environ | storage_env | {
         "APP_BASE_PATH": str(root), "APP_ENV": "testing", "APP_DEBUG": "false",
         "APP_HOST": "127.0.0.1", "APP_PORT": str(port), "APP_SUPPORTED_LOCALES": "",
@@ -180,7 +217,7 @@ def exercise(binary, driver, url, root, storage_env, storage):
     def artisan(current, *tokens, success=True):
         result = subprocess.run([str(binary), "artisan", *tokens], env=current,
                                 capture_output=True, text=True, timeout=35)
-        assert TOKEN not in result.stdout + result.stderr
+        assert all(value not in result.stdout + result.stderr for value in (TOKEN, OCR_TOKEN, SPEECH_TOKEN, PRIVATE))
         assert (result.returncode == 0) == success, result.stdout + result.stderr
         return result.stdout
 
@@ -194,7 +231,7 @@ def exercise(binary, driver, url, root, storage_env, storage):
             response = connection.getresponse()
             data = response.read()
             assert response.status == status, (status, response.status, data[:250])
-            assert TOKEN.encode() not in data and PRIVATE.encode() not in data
+            assert all(value.encode() not in data for value in (TOKEN, OCR_TOKEN, SPEECH_TOKEN, PRIVATE))
             return json.loads(data)
         finally:
             connection.close()
@@ -303,6 +340,62 @@ def exercise(binary, driver, url, root, storage_env, storage):
         assert confirmed["query_attempts"] == 1 and confirmed["decision"] is None
         assert confirmed["assessment"]["labels"] == checked["assessment"]["labels"]
         assert len(server.summary_calls) == 23
+        for name, project, secret, model, coverage, provider, score, span in (
+            ("ocr", 48176, OCR_TOKEN, "OCR_MODERATION", "Ocr", "hate", 2.0, [1440, 1440]),
+            ("speech", 48177, SPEECH_TOKEN, "TRANSCRIPTION", "Speech", "violence", 3.0, None),
+        ):
+            server.project, server.token, server.video_model = project, secret, model
+            current = summary | {"MODERATION_FIXTURE_HIVE_VIDEO_MODEL": name}
+            artisan(current, "config:clear")
+            artisan(current, "config:cache")
+            server.query_mode = "result"
+            assert json.loads(artisan(current, COMMAND, "submit", first)) == ready
+            with (root / f"{name}-http.log").open("w+") as log:
+                application = HTTP["serve"](binary, current, log)
+                try:
+                    direct = post(task=TASK)
+                    assert direct["status"] == "Succeeded"
+                    assessment = direct["assessment"]
+                    expected_coverage = {key: "Unavailable" for key in ("Ocr", "Speech", "Visual")}
+                    expected_coverage[coverage] = "Partial"
+                    assert assessment["coverage"] == expected_coverage
+                    finding = next(label for label in assessment["labels"] if label["provider"] == provider)
+                    assert finding["confidence"] == {"value": score, "maximum": 3.0}
+                    assert finding.get("span_ms") == span and assessment["decision"] == "Review"
+                    if name == "ocr":
+                        assert any(label["provider"] == "pii_entities" for label in assessment["labels"])
+                    for mode in ("bad-score", "wrong-model"):
+                        server.query_mode = mode
+                        assert post(502, task=TASK) == {"error": "Protocol"}
+                    server.query_mode = "empty"
+                    empty = post(task=TASK)["assessment"]
+                    assert empty["decision"] is None and not empty["labels"]
+                    if name == "ocr":
+                        server.query_mode = "bad-time"
+                        assert post(502, task=TASK) == {"error": "Protocol"}
+                finally:
+                    HTTP["stop"](application)
+                log.seek(0)
+                trace = log.read()
+                assert secret not in trace and PRIVATE not in trace
+            server.query_mode = "result"
+            intent = json.loads(artisan(current, "drivers:moderation-review", "stage", "app", "tenant",
+                                         f"hive-{name}-intent", first))
+            artisan(current, "drivers:moderation-review", "submit", "app", "tenant", intent["id"])
+            due = f"UPDATE moderation_checks SET available_at = 1 WHERE id = '{intent['check_id']}'"
+            if driver == "sqlite":
+                with sqlite3.connect(sqlite) as connection:
+                    connection.execute(due)
+            else:
+                DATABASE["database_rows"](DATABASE["database_container"](), due)
+            artisan(current, "drivers:moderation-review", "queue-query", "app", "tenant", intent["id"])
+            output.unlink()
+            artisan(current | {"MODERATION_FIXTURE_RESULT": str(output)}, "queue:work", "database", "--once")
+            result = json.loads(output.read_text())
+            assert result["profile"]["required_modalities"] == [name]
+            assert result["query_failure"] == "incomplete_coverage" and result["decision"] is None
+            assert result["assessment"]["labels"] == direct["assessment"]["labels"]
+        assert len(server.summary_calls) == 34
     finally:
         server.shutdown()
         server.server_close()
@@ -317,4 +410,4 @@ if __name__ == "__main__":
     with tempfile.TemporaryDirectory(dir=ROOT / "target/tmp", prefix="moderation-hive-video-") as root, \
             VIDEO["VIDEO"]["OBJECTS"]["TOPOLOGY"]["object_storage"](True) as (env, storage):
         exercise(args.binary.resolve(), driver, url, Path(root), env, storage)
-    print(f"{driver}: Hive V2 送审与显式 V1 查单、分页、覆盖及独立 Worker 通过")
+    print(f"{driver}: Hive 点播视觉、OCR 和语音通过真实 HTTP、Artisan 与独立 Worker")

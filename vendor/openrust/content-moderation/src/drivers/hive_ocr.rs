@@ -127,14 +127,14 @@ struct OcrOutput {
 }
 
 #[derive(Deserialize)]
-struct Frame {
-    time: Option<f64>,
-    frame_results: Vec<Block>,
+pub(super) struct Frame {
+    pub(super) time: Option<f64>,
+    pub(super) frame_results: Vec<Block>,
 }
 
 #[derive(Deserialize)]
-struct Block {
-    classes: Vec<ScoredClass>,
+pub(super) struct Block {
+    pub(super) classes: Vec<ScoredClass>,
     #[serde(flatten)]
-    patterns: PatternMatches,
+    pub(super) patterns: PatternMatches,
 }

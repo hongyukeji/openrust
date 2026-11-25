@@ -74,6 +74,8 @@ Use a named `hive` profile with the numeric `video_project` ID of your Hive V2 E
 
 For a project that Hive has enabled for the V1 Task Summary API, set `video_query_api: "v1-task-summary"`, list the classes in `video_classes` and set `video_review_score` from 0 to 1. This enables `query_video()` for tasks from that profile. It reads at most four pages of 64 frames and retains the peak class scores with their times. Visual sampling or capped pages produce partial coverage. [Hive Task Summary](https://docs.thehive.ai/reference/get-task-summary)
 
+Use a separate project and credential for each video check. Set `video_model_type` to `OCR_MODERATION` for on-screen text or `TRANSCRIPTION` for speech. In either case set `video_review_severity` to 1, 2 or 3. OCR findings retain their frame time. Speech findings retain their classification severity. Transcripts and detected text stay out of the normalized assessment. [Hive OCR](https://docs.thehive.ai/reference/ocr-moderation) · [Hive speech moderation](https://docs.thehive.ai/reference/speech-moderation)
+
 ## Alibaba Cloud video {#aliyun-video}
 
 Set `video_service` in a named `aliyun` profile. `videoDetection` supports Shanghai, Beijing and Hangzhou, and `videoDetectionByVL` supports Shanghai and Beijing. Set `media_disk` and `media_origin` for a versioned private S3 object. The driver signs a five-minute HTTPS download URL for the requested version.
