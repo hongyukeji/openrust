@@ -413,6 +413,11 @@
       "contract": "Placeholder output argument",
       "reason": "Borrow the selected stream sequentially through bar.get_output, without unsafe overlapping mutable references, runtime alias locks or cloned buffers. Both actual CLI stderr and captured output reuse the existing formatter and sink.",
       "evidence": "console_progress_output; progress-output-oracle.json; progress-output-cli-oracle.json"
+    },
+    {
+      "contract": "Selected output configuration and command isolation",
+      "reason": "Real CLI stderr has an independent verbosity override and decoration; primary setters update both. Captured single-stream output aliases its primary settings. Scoped command metadata restores both streams on cancellation and explicit nested flags apply temporarily. Already accepted bytes retain visibility through later level changes; raw direct buffer edits still follow command filtering.",
+      "evidence": "console_output_configuration; output-configuration-before-filter-fix.log; output-configuration-before-reuse-fix.log"
     }
   ],
   "remaining": [
@@ -509,15 +514,21 @@
     },
     {
       "method": "setVerbosity",
-      "native": null,
-      "status": "pending_inherited_sdk_configuration",
-      "evidence": []
+      "native": "console::ProgressOutput::set_verbosity",
+      "status": "verified_selected_stream_configuration",
+      "evidence": [
+        "console_output_configuration",
+        "accepted-output-configuration.json"
+      ]
     },
     {
       "method": "setDecorated",
-      "native": null,
-      "status": "pending_inherited_sdk_configuration",
-      "evidence": []
+      "native": "console::ProgressOutput::set_decorated",
+      "status": "verified_selected_stream_configuration",
+      "evidence": [
+        "console_output_configuration",
+        "accepted-output-configuration.json"
+      ]
     },
     {
       "method": "setFormatter",

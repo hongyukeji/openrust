@@ -106,10 +106,11 @@ pub struct Output {
     pub stderr: String,
     decorated: bool,
     error_decorated: bool,
+    error_verbosity: Option<OutputVerbosity>,
     verbosity: u8,
     suppressed: bool,
     silent: bool,
-    quiet_ranges: Vec<std::ops::Range<usize>>,
+    accepted_ranges: Vec<std::ops::Range<usize>>,
     terminal: bool,
     capture_generation: u64,
     formatter: formatting::Formatter,
@@ -145,6 +146,23 @@ impl Output {
         !self.suppressed && self.verbosity >= 2
     }
 
+    /// 设置普通输出；真实控制台同时更新错误流的默认级别。
+    pub fn set_verbosity(&mut self, level: OutputVerbosity) {
+        self.verbosity = match level {
+            OutputVerbosity::Verbose => 1,
+            OutputVerbosity::VeryVerbose => 2,
+            OutputVerbosity::Debug => 3,
+            _ => 0,
+        };
+        self.suppressed = matches!(level, OutputVerbosity::Quiet | OutputVerbosity::Silent);
+        self.silent = level == OutputVerbosity::Silent;
+        self.error_verbosity = None;
+    }
+    pub fn set_decorated(&mut self, decorated: bool) {
+        self.decorated = decorated;
+        self.error_decorated = decorated;
+    }
+
     pub fn verbosity(&self) -> OutputVerbosity {
         if self.silent {
             OutputVerbosity::Silent
@@ -169,12 +187,12 @@ impl Output {
         self.verbosity() == OutputVerbosity::Debug
     }
 
-    /// 保留明确标记为 quiet 的消息；普通缓冲仍受调用的静默选项控制。
-    pub(super) fn suppress_stdout_since(&mut self, start: usize, silent: bool) {
+    /// 保留经输出管线按写入时级别接受的消息；原始缓冲仍受调用静默选项控制。
+    pub(super) fn suppress_stdout_since(&mut self, start: usize) {
         let start = start.min(self.stdout.len());
         let mut accepted = String::new();
         let mut ranges = Vec::new();
-        for range in &self.quiet_ranges {
+        for range in &self.accepted_ranges {
             if range.end <= start {
                 ranges.push(range.clone());
                 continue;
@@ -182,18 +200,16 @@ impl Output {
             if range.start < start {
                 ranges.push(range.start..start);
             }
-            if !silent {
-                let from = range.start.max(start);
-                if let Some(text) = self.stdout.get(from..range.end) {
-                    let offset = start + accepted.len();
-                    accepted.push_str(text);
-                    ranges.push(offset..start + accepted.len());
-                }
+            let from = range.start.max(start);
+            if let Some(text) = self.stdout.get(from..range.end) {
+                let offset = start + accepted.len();
+                accepted.push_str(text);
+                ranges.push(offset..start + accepted.len());
             }
         }
         self.stdout.truncate(start);
         self.stdout.push_str(&accepted);
-        self.quiet_ranges = ranges;
+        self.accepted_ranges = ranges;
     }
 
     pub(super) fn emit_rendered(
@@ -212,7 +228,7 @@ impl Output {
                     self.stdout = pending;
                     return Err(ConsoleError::from_source(source));
                 }
-                self.quiet_ranges.clear();
+                self.accepted_ranges.clear();
             }
             use std::io::Write as _;
             let mut stdout = io::stdout().lock();
@@ -222,16 +238,18 @@ impl Output {
                 .map_err(ConsoleError::from_source)
         } else {
             let start = self.stdout.len();
+            // 调用方可以清空捕获缓冲，旧的可见区间不能再次命中新内容。
+            self.accepted_ranges.retain(|range| range.end <= start);
             self.stdout.push_str(message);
-            if self.suppressed && !message.is_empty() {
+            if !message.is_empty() {
                 if let Some(last) = self
-                    .quiet_ranges
+                    .accepted_ranges
                     .last_mut()
                     .filter(|last| last.end == start)
                 {
                     last.end = self.stdout.len();
                 } else {
-                    self.quiet_ranges.push(start..self.stdout.len());
+                    self.accepted_ranges.push(start..self.stdout.len());
                 }
             }
             Ok(())

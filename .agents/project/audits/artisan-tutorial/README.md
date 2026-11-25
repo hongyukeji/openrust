@@ -232,3 +232,16 @@ ProgressOutput的write／writeln及单次迭代器变体、类型化OutputOption
 最终8框架目标64项＋根6目标89项，共153个不同父消费者，含48个直接提取正式三语示例；此前各进度／问答／选择／表格入口同时回归。workspace格式、all-targets严格Clippy、main(pail)、三语构建／12组浏览器及实际HTTP／Artisan／Pail／Ctrl+C复验通过，命令与源码SHA见accepted-progress-output.json，日志progress-output-final-*、progress-output-gates-results.json、progress-output-runtime.log及progress-output-browser.log。首次check的未使用reexport源于缺少根公开导出，已补齐并由实际显式导入消费者验证，不屏蔽lint。
 
 本视图只闭合已列出的读写及元数据入口，不将它替代完整OutputInterface／Formatter SDK；setVerbosity、setDecorated、setFormatter、getFormatter继续在progress-contracts.json逐项待办，其他Table／组件／注册生成／事件信号与Tinker等依旧开放。回收本批运行夹具，无本批服务或容器遗留，保留共享缓存和证据；仅本地提交本簇，不推送，保护其他认证／事务／生成器在途。
+
+
+## 第十六簇：输出配置与可见性恢复（2026-11-25）
+
+第十五簇07eb666e8已本地提交。逐项补齐Output／OutputStyle的详细程度与装饰设置、样式读取／Silent查询，以及ProgressOutput所选流的两个设置器。真正CLI错误流拥有独立级别／装饰，主样式设置同时更新两流；捕获调用仍是共享单流。ProgressBar按照实际选中流确定Quiet和默认格式；嵌套显式CLI标志临时应用两流，既有作用域在结束／取消后恢复父级错误流配置。不增加并行输出器、全局状态、依赖或命名lint豁免。
+
+实际固定源码18组运行时配置向量逐项比较元数据、计数及内容，另12组BufferedOutput单流和12组真正ConsoleOutput双流配置，见output-configuration-oracle及output-stream-configuration-{buffer,cli}-oracle.json。覆盖Silent／Quiet／Normal及动态Verbose／装饰、进度错误流全部六级别、主setter重置两流。公开Output、OutputStyle和ProgressOutput均有直接消费者，不以内部委托替代可见性验证；实际CLI逐路核对stdout／stderr。程序运行时主动设置可覆盖最初的CLI级别，三语示例明确先尊重调用者Quiet／Silent，再演示设置，恢复原配置。
+
+真实关联反例：最初调用Silent、任务内部切成Quiet后已接受的quiet文本仍在退出过滤时被删除，output-configuration-before-filter-fix.log保留。改按消息写入时的真实级别记录可见区间，合并相邻区间；后续Quiet／Silent不追溯删除已接受输出，原始直接字符串修改仍服从调用静默规则。继而补验复用同一Output并清空stdout，发现旧区间重复命中新文本，实际返回restoredrestored；固定BufferedOutput::fetch对照应为两次各restored，原始output-configuration-reuse-source.json及before-reuse-fix.log保留。追加前清除超出当前长度的旧区间，修复后重跑完整最终组合，不把第一次门禁算最终源通过。
+
+新增7个不同父消费者，1个ignore子进程由实际驱动调用不计通过。包括真CLI子命令Quiet／NoAnsi临时覆盖、进入后主动取消等待命令、父错误流Debug与装饰恢复；无计时猜测，Notify确认回调已进入才取消。真实TCP六种配置200、未知命令500、后续200；类型化输出错误接口不因本批改动。最终9框架目标71项＋根6目标92项，共163个不同父消费者，含51个直接提取三语正式正文例。workspace格式、all-targets严格Clippy（24.95s）、main(pail)、三语构建／12组浏览器及最终HTTP／Artisan／Pail／Ctrl+C通过。具体命令／源SHA见accepted-output-configuration.json；最终日志output-configuration-final-*、gates-results.json、runtime.log和browser.log。
+
+组合本轮吸收已提交5ed4b12b0认证／事务改动后，以07eb666e8为底；不取其余在途。结束删除本批运行夹具，保留共享缓存、原始对照及日志，无本批遗留服务／容器。磁盘接近32GB时均通过守卫复查，本轮截至验收未触发新的清理，不把之前全项目清理再次归为本批事件。继续setFormatter／getFormatter及完整格式器／样式SDK、其余Table／组件／注册生成／信号事件／Tinker入口；整章和持续目标仍未闭合，只提交已验本簇，不推送。

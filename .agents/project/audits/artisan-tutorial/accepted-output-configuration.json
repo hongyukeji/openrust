@@ -1,0 +1,39 @@
+{
+  "base": "07eb666e83965214b0ff56c8ad9069cc5b82b96a",
+  "source": "target/tmp/logging-tutorial-20261124/source",
+  "source_sha256": {
+    "vendor/openrust/framework/src/console/mod.rs": "36451a51ff43de59e1a1ca26cecef888d9896f0531ac774c111f38cb09ea8a90",
+    "vendor/openrust/framework/src/console/application.rs": "41d7d0667678fcadf74a000015da0d012b49ab975dbe164a45d1a0553b330b46",
+    "vendor/openrust/framework/src/console/output_style.rs": "477148099f689a90428e6ccbe5d2326031d2ae59763da304634458ed14d7906b",
+    "vendor/openrust/framework/src/console/progress_bar.rs": "825a4d3b574c73648f12b9e1e2144b00f27060c990caa2947ae8db601932d473",
+    "vendor/openrust/framework/src/console/progress_bar/output.rs": "41f14e8dcbbfa988129284982f4ecfb32fc18278e9aeb69ca37f7543b22bfada",
+    "vendor/openrust/framework/tests/console_output_configuration.rs": "4d3905519a06d81edf8c1e18a1bee7fc52fe1f1ace7948dace9e7f01178a73e3",
+    "docs/en/digging-deeper/artisan.md": "88efad4c64053d8ce607cd9ec5fbe31d4cafc58c10649b18740045f6b2257fb4",
+    "docs/zh-Hans/digging-deeper/artisan.md": "28e8630d725451a3b8ab8b76acedf73a949e39ee18d38a201ecd8e0e2214e484",
+    "docs/zh-Hant/digging-deeper/artisan.md": "08bcd992c3705a2f27f876d7f29dfff645007527ddb58af5bcbf45d6531478bf",
+    "docs/tests/check_artisan_tutorial.mjs": "0d61d6a8075ab3f8d2dacff2bb3f882088bd7ec1c8934cf6abe1b35a572ebf0d",
+    "tests/artisan_tutorial_docs.py": "c6a65f444f7521aab3e1dc88eda3efdca588a744a54b1821c31fba378a267914"
+  },
+  "reference": {
+    "framework": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+    "console": "v7.4.0",
+    "configuration_vectors": 18,
+    "buffered_stream_vectors": 12,
+    "actual_console_stream_vectors": 12,
+    "reuse": "output-configuration-reuse-source.json"
+  },
+  "acceptance": {
+    "framework_parent_tests": 71,
+    "root_parent_tests": 92,
+    "total_distinct_parent_tests": 163,
+    "formal_docs_consumers": 51,
+    "ignored_fixtures_excluded": 9,
+    "gates": "output-configuration-gates-results.json",
+    "runtime": "output-configuration-runtime.log",
+    "browser": "output-configuration-browser.log"
+  },
+  "remaining": [
+    "Output formatter replacement and formatter/style SDK",
+    "Other open table/component/registration/signals/Tinker entries; chapter remains open"
+  ]
+}

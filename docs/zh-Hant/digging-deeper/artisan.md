@@ -776,3 +776,38 @@ fn register_progress_output() -> Result<(), ConsoleError> {
 ```
 
 回呼接收進度條，輸出僅在使用期間借出，避免同時取得進度條及其內部輸出的重疊可變參照。先讀取所需進度狀態，再借用輸出，借用結束後可繼續操作進度條。寫入複用既有格式器與錯誤鏈，不更新外層樣式換行計數。占位符在排版時可能重複求值，業務副作用應放在回呼之外。本視圖不代表完整繼承輸出 SDK；格式器替換和輸出設定設置器仍為單獨入口。
+
+## 輸出設定 {#output-configuration}
+
+`Output` 與 `OutputStyle` 提供 `set_verbosity`、`set_decorated`；樣式另有 `get_verbosity`、`is_decorated` 和 `is_silent`，操作實際後端。後續改成 Quiet 或 Silent 不會刪除先前已接受的訊息。執行期設置器可以明確覆蓋 CLI 層級；範例先尊重呼叫方最初的 Quiet／Silent。
+
+```rust
+use openrust::{
+    console::{ConsoleError, Input, Output, OutputOptions, OutputVerbosity},
+    support::facades::Artisan,
+};
+
+fn register_output_configuration() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:output-config", |input: &Input, output: &mut Output| {
+        let mut io = input.io(output);
+        let style = io.get_output();
+        let previous = style.get_verbosity();
+        if previous <= OutputVerbosity::Quiet {
+            return Ok(0);
+        }
+        style.set_verbosity(OutputVerbosity::Verbose);
+        style.write("details;", false, OutputVerbosity::Verbose)?;
+        style.set_verbosity(OutputVerbosity::Quiet);
+        style.write("quiet;", false, OutputVerbosity::Quiet)?;
+        style.set_verbosity(previous);
+        let decorated = style.is_decorated();
+        style.set_decorated(false);
+        style.write("<info>plain</info>", false, OutputOptions::default())?;
+        style.set_decorated(decorated);
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
+進度輸出視圖也有 `set_verbosity` 和 `set_decorated`。真實主控台僅設定 stderr；主樣式的設置器同時更新兩條流。擷取呼叫的單一輸出共用設定。進度排版讀取所選流，巢狀命令的明確 CLI 旗標暫時作用於兩條流；既有命令作用域在結束或取消時還原父級設定。原生直接修改字串緩衝仍受命令過濾約束，按層級寫入應使用輸出方法。自訂格式器替換為單獨的 SDK 入口。

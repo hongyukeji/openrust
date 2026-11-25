@@ -358,7 +358,7 @@ impl<'a> ProgressBar<'a> {
         Self { output, state }
     }
     pub fn display(&mut self) -> Result<(), ConsoleError> {
-        if self.output.is_quiet() {
+        if self.output.progress_verbosity() == OutputVerbosity::Quiet {
             return Ok(());
         }
         self.resolve_format();
@@ -376,7 +376,7 @@ impl<'a> ProgressBar<'a> {
         if self.state.format.is_some() {
             return;
         }
-        let level = self.output.verbosity();
+        let level = self.output.progress_verbosity();
         let name = self
             .state
             .internal_format

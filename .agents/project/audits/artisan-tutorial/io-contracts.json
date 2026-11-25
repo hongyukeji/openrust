@@ -540,22 +540,42 @@
       {
         "method": "setVerbosity",
         "source_line": 51,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_native_output_configuration",
+        "native": "console::OutputStyle::set_verbosity",
+        "evidence": [
+          "console_output_configuration",
+          "accepted-output-configuration.json"
+        ]
       },
       {
         "method": "getVerbosity",
         "source_line": 56,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_native_output_configuration",
+        "native": "console::OutputStyle::get_verbosity",
+        "evidence": [
+          "console_output_configuration",
+          "accepted-output-configuration.json"
+        ]
       },
       {
         "method": "setDecorated",
         "source_line": 61,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_native_output_configuration",
+        "native": "console::OutputStyle::set_decorated",
+        "evidence": [
+          "console_output_configuration",
+          "accepted-output-configuration.json"
+        ]
       },
       {
         "method": "isDecorated",
         "source_line": 66,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_native_output_configuration",
+        "native": "console::OutputStyle::is_decorated",
+        "evidence": [
+          "console_output_configuration",
+          "accepted-output-configuration.json"
+        ]
       },
       {
         "method": "setFormatter",
@@ -570,7 +590,12 @@
       {
         "method": "isSilent",
         "source_line": 81,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_native_output_configuration",
+        "native": "console::OutputStyle::is_silent",
+        "evidence": [
+          "console_output_configuration",
+          "accepted-output-configuration.json"
+        ]
       },
       {
         "method": "isQuiet",

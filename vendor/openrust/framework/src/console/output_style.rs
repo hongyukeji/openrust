@@ -123,6 +123,22 @@ impl<'a> OutputStyle<'a> {
             new_line_written: false,
         }
     }
+    pub fn set_verbosity(&mut self, level: OutputVerbosity) {
+        self.output.set_verbosity(level);
+    }
+    pub fn get_verbosity(&self) -> OutputVerbosity {
+        self.output.verbosity()
+    }
+    pub fn set_decorated(&mut self, decorated: bool) {
+        self.output.set_decorated(decorated);
+    }
+    pub fn is_decorated(&self) -> bool {
+        self.output.is_decorated()
+    }
+    pub fn is_silent(&self) -> bool {
+        self.output.is_silent()
+    }
+
     pub fn get_output(&mut self) -> &mut Output {
         self.output
     }
@@ -485,6 +501,13 @@ impl Output {
         }
         Ok(rendered)
     }
+    pub(super) fn progress_verbosity(&self) -> OutputVerbosity {
+        if self.terminal {
+            self.error_verbosity.unwrap_or_else(|| self.verbosity())
+        } else {
+            self.verbosity()
+        }
+    }
     pub(super) fn progress_is_decorated(&self) -> bool {
         if self.terminal {
             self.error_decorated
@@ -515,7 +538,8 @@ impl Output {
         format: OutputFormat,
         level: OutputVerbosity,
     ) -> Result<(), ConsoleError> {
-        if self.is_silent() || self.verbosity() < level {
+        if self.progress_verbosity() == OutputVerbosity::Silent || self.progress_verbosity() < level
+        {
             return Ok(());
         }
         if !self.terminal {

@@ -1,0 +1,62 @@
+[
+  {
+    "case_index": 0,
+    "stdout": "before;quiet;q0\nq1after;",
+    "stderr": ""
+  },
+  {
+    "case_index": 1,
+    "stdout": "before;quiet;q0\nq1after;",
+    "stderr": ""
+  },
+  {
+    "case_index": 2,
+    "stdout": "before;quiet;q0\nq1after;",
+    "stderr": ""
+  },
+  {
+    "case_index": 3,
+    "stdout": "before;quiet;q0\nq1after;",
+    "stderr": ""
+  },
+  {
+    "case_index": 4,
+    "stdout": "before;error-before;p0\np1main:32:0;quiet;q0\nq1after;",
+    "stderr": ""
+  },
+  {
+    "case_index": 5,
+    "stdout": "before;\u001b[32merror-before;\u001b[39mp0\np1main:32:1;quiet;q0\nq1after;",
+    "stderr": ""
+  },
+  {
+    "case_index": 6,
+    "stdout": "before;error-before;p0\np1main:64:0;quiet;q0\nq1after;",
+    "stderr": ""
+  },
+  {
+    "case_index": 7,
+    "stdout": "before;\u001b[32merror-before;\u001b[39mp0\np1main:64:1;quiet;q0\nq1after;",
+    "stderr": ""
+  },
+  {
+    "case_index": 8,
+    "stdout": "before;error-before;p0\np1main:128:0;quiet;q0\nq1after;",
+    "stderr": ""
+  },
+  {
+    "case_index": 9,
+    "stdout": "before;\u001b[32merror-before;\u001b[39mp0\np1main:128:1;quiet;q0\nq1after;",
+    "stderr": ""
+  },
+  {
+    "case_index": 10,
+    "stdout": "before;error-before;p0\np1main:256:0;quiet;q0\nq1after;",
+    "stderr": ""
+  },
+  {
+    "case_index": 11,
+    "stdout": "before;\u001b[32merror-before;\u001b[39mp0\np1main:256:1;quiet;q0\nq1after;",
+    "stderr": ""
+  }
+]

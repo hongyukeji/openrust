@@ -73,8 +73,22 @@ impl ProgressOutput<'_> {
             options.verbosity.unwrap_or_default(),
         )
     }
+    pub fn set_verbosity(&mut self, level: OutputVerbosity) {
+        if self.output.streams_to_terminal() {
+            self.output.error_verbosity = Some(level);
+        } else {
+            self.output.set_verbosity(level);
+        }
+    }
+    pub fn set_decorated(&mut self, decorated: bool) {
+        if self.output.streams_to_terminal() {
+            self.output.error_decorated = decorated;
+        } else {
+            self.output.decorated = decorated;
+        }
+    }
     pub fn get_verbosity(&self) -> OutputVerbosity {
-        self.output.verbosity()
+        self.output.progress_verbosity()
     }
     pub fn is_decorated(&self) -> bool {
         self.output.progress_is_decorated()

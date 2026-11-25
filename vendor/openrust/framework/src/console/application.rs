@@ -315,7 +315,7 @@ impl Application {
             .handle_arguments(application, arguments, output, shutdown)
             .await;
         if quiet || silent {
-            output.suppress_stdout_since(stdout_start, silent);
+            output.suppress_stdout_since(stdout_start);
         }
         if silent {
             output.stderr.truncate(stderr_start);
@@ -444,7 +444,7 @@ impl Application {
             }
         };
         if parsed_quiet || parsed_silent {
-            output.suppress_stdout_since(stdout_start, parsed_silent);
+            output.suppress_stdout_since(stdout_start);
         }
         if parsed_silent {
             output
@@ -583,7 +583,7 @@ impl Application {
             )
             .await;
         if matches.get_flag("quiet") || matches.get_flag("silent") {
-            output.suppress_stdout_since(stdout, matches.get_flag("silent"));
+            output.suppress_stdout_since(stdout);
         }
         if matches.get_flag("silent") {
             output.stderr.truncate(stderr);
@@ -636,6 +636,7 @@ impl Application {
     ) -> Result<i32, ConsoleError> {
         let (invoked_name, matches, supplied_input) = invocation;
         let (verbosity, suppressed, silent) = (output.verbosity, output.suppressed, output.silent);
+        let error_verbosity = output.error_verbosity;
         output.silent |= matches
             .try_get_one::<bool>("silent")
             .ok()
@@ -659,6 +660,22 @@ impl Application {
                     .copied()
                     .unwrap_or(false)
             });
+        if matches
+            .try_get_one::<u8>("verbose")
+            .ok()
+            .flatten()
+            .is_some_and(|level| *level > 0)
+            || ["quiet", "silent"].into_iter().any(|name| {
+                matches
+                    .try_get_one::<bool>(name)
+                    .ok()
+                    .flatten()
+                    .copied()
+                    .unwrap_or(false)
+            })
+        {
+            output.error_verbosity = None;
+        }
         let stdout_start = output.stdout.len();
         let stderr_start = output.stderr.len();
         let scope = ScopedOutput {
@@ -668,6 +685,7 @@ impl Application {
             verbosity,
             suppressed,
             silent,
+            error_verbosity,
         };
         let output = &mut *scope.output;
         let origin = crate::log::context::Origin::enabled(application.container()).then(|| {
@@ -826,7 +844,7 @@ async fn run_command_with_events(
     Ok(status)
 }
 
-// Restores command-local metadata even when a long-running command is cancelled.
+// 长时间运行的命令被取消时也恢复当前调用的输出配置。
 struct ScopedOutput<'a> {
     output: &'a mut Output,
     stdout_start: usize,
@@ -834,12 +852,12 @@ struct ScopedOutput<'a> {
     verbosity: u8,
     suppressed: bool,
     silent: bool,
+    error_verbosity: Option<super::OutputVerbosity>,
 }
 impl Drop for ScopedOutput<'_> {
     fn drop(&mut self) {
         if self.output.suppressed {
-            self.output
-                .suppress_stdout_since(self.stdout_start, self.output.silent);
+            self.output.suppress_stdout_since(self.stdout_start);
         }
         if self.output.silent {
             self.output
@@ -849,6 +867,7 @@ impl Drop for ScopedOutput<'_> {
         self.output.verbosity = self.verbosity;
         self.output.suppressed = self.suppressed;
         self.output.silent = self.silent;
+        self.output.error_verbosity = self.error_verbosity;
     }
 }
 

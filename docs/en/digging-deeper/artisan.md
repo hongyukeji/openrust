@@ -776,3 +776,38 @@ fn register_progress_output() -> Result<(), ConsoleError> {
 ```
 
 The callback receives the bar; its output is borrowed only while used. This avoids overlapping mutable references to the bar and its output. Read the needed bar state before borrowing the output, then continue after that borrow ends. Writes share the existing formatter and error chain and do not update outer style newline counters. A placeholder may be evaluated repeatedly while formatting; keep business side effects outside it. This view does not claim the complete inherited output SDK: formatter replacement and output configuration setters remain separate entries.
+
+## Output configuration {#output-configuration}
+
+`Output` and `OutputStyle` expose `set_verbosity` and `set_decorated`; the style also provides `get_verbosity`, `is_decorated` and `is_silent`. These change the actual backend. Already accepted messages stay visible when a later setting becomes Quiet or Silent. Runtime setters can explicitly override CLI levels; the example respects an initial Quiet/Silent request.
+
+```rust
+use openrust::{
+    console::{ConsoleError, Input, Output, OutputOptions, OutputVerbosity},
+    support::facades::Artisan,
+};
+
+fn register_output_configuration() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:output-config", |input: &Input, output: &mut Output| {
+        let mut io = input.io(output);
+        let style = io.get_output();
+        let previous = style.get_verbosity();
+        if previous <= OutputVerbosity::Quiet {
+            return Ok(0);
+        }
+        style.set_verbosity(OutputVerbosity::Verbose);
+        style.write("details;", false, OutputVerbosity::Verbose)?;
+        style.set_verbosity(OutputVerbosity::Quiet);
+        style.write("quiet;", false, OutputVerbosity::Quiet)?;
+        style.set_verbosity(previous);
+        let decorated = style.is_decorated();
+        style.set_decorated(false);
+        style.write("<info>plain</info>", false, OutputOptions::default())?;
+        style.set_decorated(decorated);
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
+A progress output view has its own `set_verbosity` and `set_decorated`. On a real console they configure stderr independently; a primary style setter updates both streams. Captured single-stream output shares the same settings. Progress formatting reads its selected stream, and nested explicit CLI flags temporarily apply to both. The existing command scope restores parent settings on completion and cancellation. Native direct string-buffer edits remain subject to command filtering; prefer the output methods for level-aware writing. Custom formatter replacement is a separate SDK entry.
