@@ -1,0 +1,914 @@
+[
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "decorated": false,
+        "level": 16,
+        "before": false,
+        "output": "",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    false
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "decorated": false,
+        "level": 16,
+        "before": true,
+        "output": "",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    false
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "decorated": false,
+        "level": 32,
+        "before": false,
+        "output": "+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    false
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "decorated": false,
+        "level": 32,
+        "before": true,
+        "output": "+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    false
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "decorated": true,
+        "level": 16,
+        "before": false,
+        "output": "",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    false
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "decorated": true,
+        "level": 16,
+        "before": true,
+        "output": "",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    false
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "decorated": true,
+        "level": 32,
+        "before": false,
+        "output": "+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    false
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "decorated": true,
+        "level": 32,
+        "before": true,
+        "output": "+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    false
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "decorated": false,
+        "level": 16,
+        "before": false,
+        "output": "",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    true
+                ],
+                [
+                    1,
+                    true
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "decorated": false,
+        "level": 16,
+        "before": true,
+        "output": "",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    true
+                ],
+                [
+                    1,
+                    true
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "decorated": false,
+        "level": 32,
+        "before": false,
+        "output": "+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    true
+                ],
+                [
+                    1,
+                    true
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "decorated": false,
+        "level": 32,
+        "before": true,
+        "output": "+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    true
+                ],
+                [
+                    1,
+                    true
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "decorated": true,
+        "level": 16,
+        "before": false,
+        "output": "",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    true
+                ],
+                [
+                    1,
+                    true
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "decorated": true,
+        "level": 16,
+        "before": true,
+        "output": "",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    true
+                ],
+                [
+                    1,
+                    true
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "decorated": true,
+        "level": 32,
+        "before": false,
+        "output": "+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    true
+                ],
+                [
+                    1,
+                    true
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "decorated": true,
+        "level": 32,
+        "before": true,
+        "output": "+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    true
+                ],
+                [
+                    1,
+                    true
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "decorated": false,
+        "level": 16,
+        "before": false,
+        "output": "",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    true
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "decorated": false,
+        "level": 16,
+        "before": true,
+        "output": "",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    true
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "decorated": false,
+        "level": 32,
+        "before": false,
+        "output": "+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    true
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "decorated": false,
+        "level": 32,
+        "before": true,
+        "output": "+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    true
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "decorated": true,
+        "level": 16,
+        "before": false,
+        "output": "",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    true
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "decorated": true,
+        "level": 16,
+        "before": true,
+        "output": "",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    true
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "decorated": true,
+        "level": 32,
+        "before": false,
+        "output": "+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    true
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "decorated": true,
+        "level": 32,
+        "before": true,
+        "output": "+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    true
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "decorated": false,
+        "level": 16,
+        "before": false,
+        "output": "",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    true
+                ],
+                [
+                    1,
+                    true
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "decorated": false,
+        "level": 16,
+        "before": true,
+        "output": "",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    true
+                ],
+                [
+                    1,
+                    true
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "decorated": false,
+        "level": 32,
+        "before": false,
+        "output": "+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    true
+                ],
+                [
+                    1,
+                    true
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "decorated": false,
+        "level": 32,
+        "before": true,
+        "output": "+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    true
+                ],
+                [
+                    1,
+                    true
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "decorated": true,
+        "level": 16,
+        "before": false,
+        "output": "",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    true
+                ],
+                [
+                    1,
+                    true
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "decorated": true,
+        "level": 16,
+        "before": true,
+        "output": "",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    true
+                ],
+                [
+                    1,
+                    true
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "decorated": true,
+        "level": 32,
+        "before": false,
+        "output": "+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    true
+                ],
+                [
+                    1,
+                    true
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "decorated": true,
+        "level": 32,
+        "before": true,
+        "output": "+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    true
+                ],
+                [
+                    1,
+                    true
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "decorated": false,
+        "level": 16,
+        "before": false,
+        "output": "",
+        "meta": {
+            "append_error": false,
+            "counts": [
+                [
+                    1,
+                    false
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "decorated": false,
+        "level": 16,
+        "before": true,
+        "output": "",
+        "meta": {
+            "append_error": false,
+            "counts": [
+                [
+                    1,
+                    false
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "decorated": false,
+        "level": 32,
+        "before": false,
+        "output": " ------ ----- \n  H      V    \n ------ ----- \n  x      y    \n  next   row  \n ------ ----- \n ------ ----- \n  H      V    \n ------ ----- \n  x      y    \n  next   row  \n ------ ----- \n",
+        "meta": {
+            "append_error": false,
+            "counts": [
+                [
+                    1,
+                    false
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "decorated": false,
+        "level": 32,
+        "before": true,
+        "output": " --- --- \n  H   V  \n --- --- \n  x   y  \n --- --- \n ------ ----- \n  H      V    \n ------ ----- \n  x      y    \n  next   row  \n ------ ----- \n ------ ----- \n  H      V    \n ------ ----- \n  x      y    \n  next   row  \n ------ ----- \n",
+        "meta": {
+            "append_error": false,
+            "counts": [
+                [
+                    1,
+                    false
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "decorated": true,
+        "level": 16,
+        "before": false,
+        "output": "",
+        "meta": {
+            "append_error": false,
+            "counts": [
+                [
+                    1,
+                    false
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "decorated": true,
+        "level": 16,
+        "before": true,
+        "output": "",
+        "meta": {
+            "append_error": false,
+            "counts": [
+                [
+                    1,
+                    false
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "decorated": true,
+        "level": 32,
+        "before": false,
+        "output": " ------ ----- \n \u001b[32m H    \u001b[39m \u001b[32m V   \u001b[39m \n ------ ----- \n  x      y    \n  next   row  \n ------ ----- \n ------ ----- \n \u001b[32m H    \u001b[39m \u001b[32m V   \u001b[39m \n ------ ----- \n  x      y    \n  next   row  \n ------ ----- \n",
+        "meta": {
+            "append_error": false,
+            "counts": [
+                [
+                    1,
+                    false
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "decorated": true,
+        "level": 32,
+        "before": true,
+        "output": " --- --- \n \u001b[32m H \u001b[39m \u001b[32m V \u001b[39m \n --- --- \n  x   y  \n --- --- \n\u001b[5A\u001b[0J ------ ----- \n \u001b[32m H    \u001b[39m \u001b[32m V   \u001b[39m \n ------ ----- \n  x      y    \n  next   row  \n ------ ----- \n ------ ----- \n \u001b[32m H    \u001b[39m \u001b[32m V   \u001b[39m \n ------ ----- \n  x      y    \n  next   row  \n ------ ----- \n",
+        "meta": {
+            "append_error": false,
+            "counts": [
+                [
+                    1,
+                    false
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "decorated": false,
+        "level": 16,
+        "before": false,
+        "output": "",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    true
+                ],
+                [
+                    1,
+                    true
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "decorated": false,
+        "level": 16,
+        "before": true,
+        "output": "",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    true
+                ],
+                [
+                    1,
+                    true
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "decorated": false,
+        "level": 32,
+        "before": false,
+        "output": " --- --- \n  H   V  \n --- --- \n  x   y  \n --- --- \n",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    true
+                ],
+                [
+                    1,
+                    true
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "decorated": false,
+        "level": 32,
+        "before": true,
+        "output": " --- --- \n  H   V  \n --- --- \n  x   y  \n --- --- \n --- --- \n  H   V  \n --- --- \n  x   y  \n --- --- \n",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    true
+                ],
+                [
+                    1,
+                    true
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "decorated": true,
+        "level": 16,
+        "before": false,
+        "output": "",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    true
+                ],
+                [
+                    1,
+                    true
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "decorated": true,
+        "level": 16,
+        "before": true,
+        "output": "",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    true
+                ],
+                [
+                    1,
+                    true
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "decorated": true,
+        "level": 32,
+        "before": false,
+        "output": " --- --- \n \u001b[32m H \u001b[39m \u001b[32m V \u001b[39m \n --- --- \n  x   y  \n --- --- \n",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    true
+                ],
+                [
+                    1,
+                    true
+                ]
+            ]
+        }
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "decorated": true,
+        "level": 32,
+        "before": true,
+        "output": " --- --- \n \u001b[32m H \u001b[39m \u001b[32m V \u001b[39m \n --- --- \n  x   y  \n --- --- \n --- --- \n \u001b[32m H \u001b[39m \u001b[32m V \u001b[39m \n --- --- \n  x   y  \n --- --- \n",
+        "meta": {
+            "append_error": true,
+            "counts": [
+                [
+                    1,
+                    true
+                ],
+                [
+                    1,
+                    true
+                ]
+            ]
+        }
+    }
+]

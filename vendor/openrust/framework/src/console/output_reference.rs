@@ -74,6 +74,18 @@ impl OutputReference<'_> {
             parents: self.parents.iter_mut().map(|state| &mut **state).collect(),
         }
     }
+    pub(super) fn for_style_table(&mut self) -> OutputReference<'_> {
+        if self.parents.is_empty() && self.section.is_none() && self.output.streams_to_terminal() {
+            let id = self.output.new_section_id();
+            OutputReference {
+                output: self.output,
+                section: Some(id),
+                parents: Vec::new(),
+            }
+        } else {
+            self.reborrow()
+        }
+    }
     pub(super) fn direct_section(&self) -> Option<usize> {
         self.parents.is_empty().then_some(self.section).flatten()
     }

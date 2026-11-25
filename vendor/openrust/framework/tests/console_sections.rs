@@ -184,7 +184,7 @@ fn row(value: &Value) -> Result<TableRow, ConsoleError> {
     }
 }
 fn fixed_source_append_sequences() {
-    use openrust::console::{CommandDefinition, Table};
+    use openrust::console::Table;
     unsafe {
         std::env::set_var("COLUMNS", "80");
     }
@@ -192,10 +192,6 @@ fn fixed_source_append_sequences() {
         "../../../../.agents/project/audits/artisan-tutorial/table-append-oracle.json"
     ))
     .unwrap();
-    let input = CommandDefinition::from_signature("tables")
-        .unwrap()
-        .parse(&[])
-        .unwrap();
     let mut failures = Vec::new();
     for (index, case) in cases.iter().enumerate() {
         let mut output = Output::default();
@@ -213,8 +209,7 @@ fn fixed_source_append_sequences() {
             section.handle()
         };
         let mut section = output.section_output(&first).unwrap();
-        let mut style = section.style(&input);
-        let mut table = Table::new(&mut style).unwrap();
+        let mut table = Table::new(&mut section).unwrap();
         table
             .set_headers(cells(&case["headers"]).unwrap())
             .set_rows(
@@ -249,7 +244,7 @@ fn fixed_source_append_sequences() {
             );
         }
         drop(table);
-        drop(style);
+
         let expected = case["steps"].as_array().unwrap().last().unwrap();
         let content = section.get_content();
         if output.stdout != expected["output"].as_str().unwrap()
@@ -296,8 +291,7 @@ fn register() -> Result<(), ConsoleError> {
                 section.writeln("other section", OutputOptions::default())?;
             }
             let mut section = output.section_output(&first)?;
-            let mut style = section.style(input);
-            let mut table = Table::new(&mut style)?;
+            let mut table = Table::new(&mut section)?;
             table.set_headers(["A", "B"]).set_rows([["x", "y"]]);
             table.append_row(["one", "two"])?;
             table.append_row(["longer", "last"])?;

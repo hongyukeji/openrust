@@ -28,7 +28,7 @@ fn header_rows(value: &Value) -> Vec<Vec<Value>> {
         .map(|v| v.as_array().unwrap().clone())
         .collect()
 }
-fn headers(table: &mut Table<'_, '_>, value: &Value) {
+fn headers(table: &mut Table<'_>, value: &Value) {
     if value
         .as_array()
         .unwrap()

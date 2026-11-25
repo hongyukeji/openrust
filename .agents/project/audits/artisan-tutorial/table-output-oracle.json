@@ -1,0 +1,4418 @@
+[
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": "+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": "+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": "+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": "+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": "+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": "+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": "+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": "+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": null,
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": null,
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": null,
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": null,
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": null,
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": "+------+-----+\n| H    | V   |\n+------+-----+\n| x    | y   |\n| next | row |\n+------+-----+\n+------+-----+\n| H    | V   |\n+------+-----+\n| x    | y   |\n| next | row |\n+------+-----+\n"
+    },
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": null,
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": "+------+-----+\n| H    | V   |\n+------+-----+\n| x    | y   |\n| next | row |\n+------+-----+\n+------+-----+\n| H    | V   |\n+------+-----+\n| x    | y   |\n| next | row |\n+------+-----+\n"
+    },
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": null,
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": "+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n+------+-----+\n| H    | V   |\n+------+-----+\n| x    | y   |\n| next | row |\n+------+-----+\n+------+-----+\n| H    | V   |\n+------+-----+\n| x    | y   |\n| next | row |\n+------+-----+\n"
+    },
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": null,
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": "+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n+------+-----+\n| H    | V   |\n+------+-----+\n| x    | y   |\n| next | row |\n+------+-----+\n+------+-----+\n| H    | V   |\n+------+-----+\n| x    | y   |\n| next | row |\n+------+-----+\n"
+    },
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": null,
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": null,
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": null,
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": null,
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": null,
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": "+------+-----+\n|\u001b[32m H    \u001b[39m|\u001b[32m V   \u001b[39m|\n+------+-----+\n| x    | y   |\n| next | row |\n+------+-----+\n+------+-----+\n|\u001b[32m H    \u001b[39m|\u001b[32m V   \u001b[39m|\n+------+-----+\n| x    | y   |\n| next | row |\n+------+-----+\n"
+    },
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": null,
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": "+------+-----+\n|\u001b[32m H    \u001b[39m|\u001b[32m V   \u001b[39m|\n+------+-----+\n| x    | y   |\n| next | row |\n+------+-----+\n+------+-----+\n|\u001b[32m H    \u001b[39m|\u001b[32m V   \u001b[39m|\n+------+-----+\n| x    | y   |\n| next | row |\n+------+-----+\n"
+    },
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": null,
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": "+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n\u001b[5A\u001b[0J+------+-----+\n|\u001b[32m H    \u001b[39m|\u001b[32m V   \u001b[39m|\n+------+-----+\n| x    | y   |\n| next | row |\n+------+-----+\n+------+-----+\n|\u001b[32m H    \u001b[39m|\u001b[32m V   \u001b[39m|\n+------+-----+\n| x    | y   |\n| next | row |\n+------+-----+\n"
+    },
+    {
+        "mode": "underlying",
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": null,
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": "+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n\u001b[5A\u001b[0J+------+-----+\n|\u001b[32m H    \u001b[39m|\u001b[32m V   \u001b[39m|\n+------+-----+\n| x    | y   |\n| next | row |\n+------+-----+\n+------+-----+\n|\u001b[32m H    \u001b[39m|\u001b[32m V   \u001b[39m|\n+------+-----+\n| x    | y   |\n| next | row |\n+------+-----+\n"
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "underlying",
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "style",
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n+---+---+\n| H | V |\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "style",
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "LOCAL %s",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n+---+---+\n|\u001b[32m H \u001b[39m|\u001b[32m V \u001b[39m|\n+---+---+\n| x | y |\n+---+---+\n"
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "<comment>%s<\/comment>",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "<comment>%s<\/comment>",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": " --- --- \n  H   V  \n --- --- \n  x   y  \n --- --- \n"
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "<comment>%s<\/comment>",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": " --- --- \n  H   V  \n --- --- \n  x   y  \n --- --- \n"
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": " --- --- \n  H   V  \n --- --- \n  x   y  \n --- --- \n --- --- \n  H   V  \n --- --- \n  x   y  \n --- --- \n"
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "<comment>%s<\/comment>",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": " --- --- \n  H   V  \n --- --- \n  x   y  \n --- --- \n --- --- \n  H   V  \n --- --- \n  x   y  \n --- --- \n"
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "<comment>%s<\/comment>",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "<comment>%s<\/comment>",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": " --- --- \n \u001b[32m H \u001b[39m \u001b[32m V \u001b[39m \n --- --- \n  x   y  \n --- --- \n"
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "<comment>%s<\/comment>",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": " --- --- \n \u001b[32m H \u001b[39m \u001b[32m V \u001b[39m \n --- --- \n \u001b[33m x \u001b[39m \u001b[33m y \u001b[39m \n --- --- \n"
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": " --- --- \n \u001b[32m H \u001b[39m \u001b[32m V \u001b[39m \n --- --- \n  x   y  \n --- --- \n --- --- \n \u001b[32m H \u001b[39m \u001b[32m V \u001b[39m \n --- --- \n  x   y  \n --- --- \n"
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "<comment>%s<\/comment>",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": " --- --- \n \u001b[32m H \u001b[39m \u001b[32m V \u001b[39m \n --- --- \n \u001b[33m x \u001b[39m \u001b[33m y \u001b[39m \n --- --- \n --- --- \n \u001b[32m H \u001b[39m \u001b[32m V \u001b[39m \n --- --- \n \u001b[33m x \u001b[39m \u001b[33m y \u001b[39m \n --- --- \n"
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": null,
+        "global_guide_header": "%s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "<comment>%s<\/comment>",
+        "append_error": null,
+        "global_guide_header": "BASE %s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": null,
+        "global_guide_header": "%s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "<comment>%s<\/comment>",
+        "append_error": null,
+        "global_guide_header": "BASE %s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": null,
+        "global_guide_header": "%s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": " ------ ----- \n  H      V    \n ------ ----- \n  x      y    \n  next   row  \n ------ ----- \n ------ ----- \n  H      V    \n ------ ----- \n  x      y    \n  next   row  \n ------ ----- \n"
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "<comment>%s<\/comment>",
+        "append_error": null,
+        "global_guide_header": "BASE %s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": " ------ ----- \n  H      V    \n ------ ----- \n  x      y    \n  next   row  \n ------ ----- \n ------ ----- \n  H      V    \n ------ ----- \n  x      y    \n  next   row  \n ------ ----- \n"
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": null,
+        "global_guide_header": "%s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": " --- --- \n  H   V  \n --- --- \n  x   y  \n --- --- \n ------ ----- \n  H      V    \n ------ ----- \n  x      y    \n  next   row  \n ------ ----- \n ------ ----- \n  H      V    \n ------ ----- \n  x      y    \n  next   row  \n ------ ----- \n"
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "<comment>%s<\/comment>",
+        "append_error": null,
+        "global_guide_header": "BASE %s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": " --- --- \n  H   V  \n --- --- \n  x   y  \n --- --- \n ------ ----- \n  H      V    \n ------ ----- \n  x      y    \n  next   row  \n ------ ----- \n ------ ----- \n  H      V    \n ------ ----- \n  x      y    \n  next   row  \n ------ ----- \n"
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": null,
+        "global_guide_header": "%s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "<comment>%s<\/comment>",
+        "append_error": null,
+        "global_guide_header": "BASE %s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": null,
+        "global_guide_header": "%s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "<comment>%s<\/comment>",
+        "append_error": null,
+        "global_guide_header": "BASE %s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": null,
+        "global_guide_header": "%s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": " ------ ----- \n \u001b[32m H    \u001b[39m \u001b[32m V   \u001b[39m \n ------ ----- \n  x      y    \n  next   row  \n ------ ----- \n ------ ----- \n \u001b[32m H    \u001b[39m \u001b[32m V   \u001b[39m \n ------ ----- \n  x      y    \n  next   row  \n ------ ----- \n"
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "<comment>%s<\/comment>",
+        "append_error": null,
+        "global_guide_header": "BASE %s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": " ------ ----- \n \u001b[32m H    \u001b[39m \u001b[32m V   \u001b[39m \n ------ ----- \n \u001b[33m x    \u001b[39m \u001b[33m y   \u001b[39m \n \u001b[33m next \u001b[39m \u001b[33m row \u001b[39m \n ------ ----- \n ------ ----- \n \u001b[32m H    \u001b[39m \u001b[32m V   \u001b[39m \n ------ ----- \n \u001b[33m x    \u001b[39m \u001b[33m y   \u001b[39m \n \u001b[33m next \u001b[39m \u001b[33m row \u001b[39m \n ------ ----- \n"
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": null,
+        "global_guide_header": "%s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": " --- --- \n \u001b[32m H \u001b[39m \u001b[32m V \u001b[39m \n --- --- \n  x   y  \n --- --- \n\u001b[5A\u001b[0J ------ ----- \n \u001b[32m H    \u001b[39m \u001b[32m V   \u001b[39m \n ------ ----- \n  x      y    \n  next   row  \n ------ ----- \n ------ ----- \n \u001b[32m H    \u001b[39m \u001b[32m V   \u001b[39m \n ------ ----- \n  x      y    \n  next   row  \n ------ ----- \n"
+    },
+    {
+        "mode": "factory",
+        "depth": 1,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "<comment>%s<\/comment>",
+        "append_error": null,
+        "global_guide_header": "BASE %s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                false
+            ]
+        ],
+        "output": " --- --- \n \u001b[32m H \u001b[39m \u001b[32m V \u001b[39m \n --- --- \n \u001b[33m x \u001b[39m \u001b[33m y \u001b[39m \n --- --- \n\u001b[5A\u001b[0J ------ ----- \n \u001b[32m H    \u001b[39m \u001b[32m V   \u001b[39m \n ------ ----- \n \u001b[33m x    \u001b[39m \u001b[33m y   \u001b[39m \n \u001b[33m next \u001b[39m \u001b[33m row \u001b[39m \n ------ ----- \n ------ ----- \n \u001b[32m H    \u001b[39m \u001b[32m V   \u001b[39m \n ------ ----- \n \u001b[33m x    \u001b[39m \u001b[33m y   \u001b[39m \n \u001b[33m next \u001b[39m \u001b[33m row \u001b[39m \n ------ ----- \n"
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "<comment>%s<\/comment>",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 16,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "<comment>%s<\/comment>",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": " --- --- \n  H   V  \n --- --- \n  x   y  \n --- --- \n"
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "<comment>%s<\/comment>",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": " --- --- \n  H   V  \n --- --- \n  x   y  \n --- --- \n"
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": " --- --- \n  H   V  \n --- --- \n  x   y  \n --- --- \n --- --- \n  H   V  \n --- --- \n  x   y  \n --- --- \n"
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "section": false,
+        "decorated": false,
+        "level": 32,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "<comment>%s<\/comment>",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": " --- --- \n  H   V  \n --- --- \n  x   y  \n --- --- \n --- --- \n  H   V  \n --- --- \n  x   y  \n --- --- \n"
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "<comment>%s<\/comment>",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 16,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "<comment>%s<\/comment>",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": " --- --- \n \u001b[32m H \u001b[39m \u001b[32m V \u001b[39m \n --- --- \n  x   y  \n --- --- \n"
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "<comment>%s<\/comment>",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": " --- --- \n \u001b[32m H \u001b[39m \u001b[32m V \u001b[39m \n --- --- \n \u001b[33m x \u001b[39m \u001b[33m y \u001b[39m \n --- --- \n"
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": " --- --- \n \u001b[32m H \u001b[39m \u001b[32m V \u001b[39m \n --- --- \n  x   y  \n --- --- \n --- --- \n \u001b[32m H \u001b[39m \u001b[32m V \u001b[39m \n --- --- \n  x   y  \n --- --- \n"
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "section": false,
+        "decorated": true,
+        "level": 32,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "<comment>%s<\/comment>",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": " --- --- \n \u001b[32m H \u001b[39m \u001b[32m V \u001b[39m \n --- --- \n \u001b[33m x \u001b[39m \u001b[33m y \u001b[39m \n --- --- \n --- --- \n \u001b[32m H \u001b[39m \u001b[32m V \u001b[39m \n --- --- \n \u001b[33m x \u001b[39m \u001b[33m y \u001b[39m \n --- --- \n"
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "<comment>%s<\/comment>",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 16,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "<comment>%s<\/comment>",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": " --- --- \n  H   V  \n --- --- \n  x   y  \n --- --- \n"
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "<comment>%s<\/comment>",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": " --- --- \n  H   V  \n --- --- \n  x   y  \n --- --- \n"
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": " --- --- \n  H   V  \n --- --- \n  x   y  \n --- --- \n --- --- \n  H   V  \n --- --- \n  x   y  \n --- --- \n"
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "section": true,
+        "decorated": false,
+        "level": 32,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "<comment>%s<\/comment>",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": " --- --- \n  H   V  \n --- --- \n  x   y  \n --- --- \n --- --- \n  H   V  \n --- --- \n  x   y  \n --- --- \n"
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "<comment>%s<\/comment>",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 16,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "<comment>%s<\/comment>",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "before": false,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": " --- --- \n \u001b[32m H \u001b[39m \u001b[32m V \u001b[39m \n --- --- \n  x   y  \n --- --- \n"
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "before": false,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "<comment>%s<\/comment>",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": " --- --- \n \u001b[32m H \u001b[39m \u001b[32m V \u001b[39m \n --- --- \n \u001b[33m x \u001b[39m \u001b[33m y \u001b[39m \n --- --- \n"
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "before": true,
+        "custom_guide": false,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "%s",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "%s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": " --- --- \n \u001b[32m H \u001b[39m \u001b[32m V \u001b[39m \n --- --- \n  x   y  \n --- --- \n --- --- \n \u001b[32m H \u001b[39m \u001b[32m V \u001b[39m \n --- --- \n  x   y  \n --- --- \n"
+    },
+    {
+        "mode": "factory",
+        "depth": 2,
+        "section": true,
+        "decorated": true,
+        "level": 32,
+        "before": true,
+        "custom_guide": true,
+        "initial_header_format": "<info>%s<\/info>",
+        "initial_row_format": "<comment>%s<\/comment>",
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException",
+        "global_guide_header": "BASE %s",
+        "global_default_header": "<info>%s<\/info>",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": " --- --- \n \u001b[32m H \u001b[39m \u001b[32m V \u001b[39m \n --- --- \n \u001b[33m x \u001b[39m \u001b[33m y \u001b[39m \n --- --- \n --- --- \n \u001b[32m H \u001b[39m \u001b[32m V \u001b[39m \n --- --- \n \u001b[33m x \u001b[39m \u001b[33m y \u001b[39m \n --- --- \n"
+    }
+]

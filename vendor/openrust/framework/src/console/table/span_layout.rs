@@ -114,7 +114,7 @@ fn fill_cells(cells: Vec<Cell>) -> Result<Vec<Cell>, ConsoleError> {
     }
     Ok(result)
 }
-impl Table<'_, '_> {
+impl Table<'_> {
     pub(super) fn span_layout(
         &mut self,
         oriented: OrientedRows,

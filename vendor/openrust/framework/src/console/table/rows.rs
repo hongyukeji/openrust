@@ -14,7 +14,7 @@ pub(super) struct OrientedRows {
     pub(super) row_attributes: super::AttributeRows,
     pub(super) separators: BTreeSet<usize>,
 }
-impl Table<'_, '_> {
+impl Table<'_> {
     pub fn add_rows<I, R>(&mut self, rows: I) -> Result<&mut Self, ConsoleError>
     where
         I: IntoIterator<Item = R>,

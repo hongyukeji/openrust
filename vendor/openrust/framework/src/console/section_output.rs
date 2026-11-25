@@ -40,6 +40,10 @@ impl Output {
     }
 
     pub fn section(&mut self) -> ConsoleSectionOutput<'_> {
+        let id = self.new_section_id();
+        ConsoleSectionOutput { output: self, id }
+    }
+    pub(super) fn new_section_id(&mut self) -> usize {
         self.section_identity
             .get_or_insert_with(|| std::sync::Arc::new(()));
         let id = self.sections.len();
@@ -50,7 +54,7 @@ impl Output {
             verbosity: self.verbosity(),
             formatter: super::formatting::Formatter::from_handle(self.get_formatter()),
         });
-        ConsoleSectionOutput { output: self, id }
+        id
     }
     fn section_pop(&mut self, id: usize, own_lines: i64) -> Result<String, ConsoleError> {
         let mut lines = own_lines;

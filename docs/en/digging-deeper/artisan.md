@@ -1133,7 +1133,7 @@ use openrust::{
 };
 
 fn register_sections() -> Result<(), ConsoleError> {
-    Artisan::command_with("reports:sections", |input: &Input, output: &mut Output| {
+    Artisan::command_with("reports:sections", |_input: &Input, output: &mut Output| {
         let first = {
             let mut section = output.section();
             section.writeln("prefix", OutputOptions::default())?;
@@ -1144,8 +1144,7 @@ fn register_sections() -> Result<(), ConsoleError> {
             section.writeln("other section", OutputOptions::default())?;
         }
         let mut section = output.section_output(&first)?;
-        let mut style = section.style(input);
-        let mut table = Table::new(&mut style)?;
+        let mut table = Table::new(&mut section)?;
         table.set_headers(["A", "B"]).set_rows([["x", "y"]]);
         table.append_row(["one", "two"])?;
         table.append_row(["longer", "last"])?;
@@ -1381,3 +1380,31 @@ fn register_style_helpers() -> Result<(), ConsoleError> {
 `OutputStyle::confirm` defaults to `true`; the command-level `CommandIo::confirm` defaults to `false`. Both have `confirm_with` for an explicit default. Style `choice_with` resolves a matching default value to its choice key; `choice_pairs_with` preserves named keys. The final boolean enables multiselect.
 
 A non-null noninteractive default runs the validator. A null default returns null without calling it. Validation errors follow the existing retry rules; `ConsoleError::from_runtime_source` explicitly marks an error that must stop immediately. Create a `Question` and call `ask_question` when configuring attempt limits, completion or timeout.
+
+## Table output targets and the style factory {#table-output-factory}
+
+`Table::new` accepts the existing `AsOutput` adapters: `Output`, `ConsoleSectionOutput`, `OutputReference`, `OutputStyle` and boxed adapters. A plain output can construct a table without an input object. The table now has a single output-borrow lifetime: explicit `Table<'a, 'o>` annotations become `Table<'a>`; ordinary constructor calls keep their syntax.
+
+`OutputStyle::create_table` selects the underlying output, clones the named style-guide definition and uses the `info` header format. A real console gets a dedicated section; capture output stays a capture stream. It does not add a trailing blank line.
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, OutputStyle};
+use openrust::support::facades::Artisan;
+
+fn register_factory_table() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:factory-table", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+        let mut style = OutputStyle::new(input, output);
+        let mut table = style.create_table()?;
+        table.set_headers(["H", "V"]).set_rows([["x", "y"]]);
+        table.render()?;
+        Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+The actual constructor target determines append support. Use `Table::new(&mut section)` or `Table::new(style.get_output())` for a directly selected section. Passing `&mut style` wraps that style, so `append_row` rejects it even if the style ultimately writes to a section. Render and configuration still pass through the same formatter and verbosity rules.
+
+Factory style changes are local to the returned table. They do not mutate the application’s named style-guide definition. The constructor adapters above do not claim support for the remaining general custom-output interface.

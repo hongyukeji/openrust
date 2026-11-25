@@ -1,0 +1,69 @@
+{
+  "source_base": "e73993b9e8c76b74c43f80855ad80873bac1c4fa",
+  "source_hashes": {
+    "docs/en/digging-deeper/artisan.md": "26a77f42ccf342a9dc779b280f0454adb49cce26581e8f832e585db588b9184c",
+    "docs/tests/check_artisan_tutorial.mjs": "9280063cc9015c4ed3a4042ed43cb0b00887d922bbac4d18d8ce14073d92fb76",
+    "docs/zh-Hans/digging-deeper/artisan.md": "ec4573fa44dffdb7426b24ea4590ad56900c264a4d26895682bb218f334eaa29",
+    "docs/zh-Hant/digging-deeper/artisan.md": "429174ee67b5f8ecda1c012dc8a156299e81b6a6d3ab86b6560840c60ec0d36d",
+    "tests/artisan_tutorial_docs.py": "f007394f03711348b62b866288c784553ba293b7ed0e28ca8030f0bcc8838b5b",
+    "vendor/openrust/framework/src/console/output_reference.rs": "1a649294e0323950d8bdc944574e06271e3097fb9e04abff1239ee89c9740cd1",
+    "vendor/openrust/framework/src/console/output_style.rs": "7738436753a64b55c045117ff6476bde5ef6b44576661ce3629aa85b0422db55",
+    "vendor/openrust/framework/src/console/section_output.rs": "448a63837ba251108308d21a52511769df0cac479c3fe70f0fdfdb026af0ff5f",
+    "vendor/openrust/framework/src/console/table.rs": "c9a31d089bc0e4ff2a320cde8acc5d158f5f614dfdbc5fca8e0212f91772b7b9",
+    "vendor/openrust/framework/src/console/table/definitions.rs": "801ed8d04c7a9ac626fd561eae5c32dcb51ece5cf9ac351c6c4603d848b6109c",
+    "vendor/openrust/framework/src/console/table/layout.rs": "6f06f95bed9fa6696568fc40db17154e0c2cdf428959eba24960694f603863a6",
+    "vendor/openrust/framework/src/console/table/rows.rs": "45827d469ddc2ac2378a88b1efcacbf4d0a442394af862c1d585b1016d9d03c6",
+    "vendor/openrust/framework/src/console/table/span_layout.rs": "8446d7ca6a95903ad84d5db1e01ce71356576eef3950a08c991bcd3a649f395d",
+    "vendor/openrust/framework/tests/console_sections.rs": "e65a07a14c092e79b4afe4370418893cfea3673a2a8f35e356aa88cdf675936b",
+    "vendor/openrust/framework/tests/console_table_rows.rs": "f9c46cf09facbbaae88754a2329b606d40f96d6fce49837c805a7e36adeac380",
+    "vendor/openrust/framework/tests/console_table_separators.rs": "6974b41d50de4946f622c50426280aafcff1f15409d2eb655905da719174936b",
+    "vendor/openrust/framework/src/console/output_style/table.rs": "d0547e1fbe0298b1cbb9836800fc3cb0cb5761c937e93b444038c2b736c4331c",
+    "vendor/openrust/framework/tests/console_table_outputs.rs": "5a5f1d50909507ce07d6891a8041d3c090fc94cfd19ef7f012435876fbcb47db",
+    ".agents/project/audits/artisan-tutorial/table-output-oracle.json": "96ac359aa8f327d5eb07d07d5b6d986f6925da62534691705042a19b4b3fc8f2",
+    ".agents/project/audits/artisan-tutorial/table-console-oracle.json": "eab471bfd42424d3ec3092d25e5d347438a4d1640c5568209dc0b0e993d4d80a",
+    ".agents/project/audits/artisan-tutorial/io-contracts.json": "bcb3ffcd27505e0c361a23da6023299640790022580d32ffa66ea41f00708004",
+    ".agents/project/audits/artisan-tutorial/table-contracts.json": "9a0fc11e7a408515f166f128463f15a46ff67fce12353fe5b0bca0e3d1549fb3",
+    ".agents/project/audits/artisan-tutorial/section-map.json": "2fcf37477328d35c091d1be3bfef99cfc6dcf1ac632c0f751cd9950010944783"
+  },
+  "parent_consumers": {
+    "framework": {
+      "targets": 26,
+      "passed": 151,
+      "ignored_drivers": 36
+    },
+    "root": {
+      "targets": 6,
+      "passed": 143,
+      "ignored_drivers": 0
+    }
+  },
+  "formal_examples": 102,
+  "actual_http": [
+    "200",
+    "JSON500",
+    "200 recovery",
+    "12 concurrent isolated outputs"
+  ],
+  "actual_cli": "48 real native handle_command processes compared with48 source ConsoleOutput subprocesses",
+  "source_stream_cases": 192,
+  "expected_stream_append_rejections": 160,
+  "expected_stream_append_successes": 32,
+  "workspace_fmt": true,
+  "workspace_all_targets_clippy": true,
+  "browser_checks": 12,
+  "terminal_evidence": "table-output-pty.json",
+  "runtime_evidence": "table-output-runtime.log",
+  "failures_preserved": [
+    "initial incomplete test migration corrected",
+    "quiet nested counters revealed explicit Normal flags mismatch; fixed to default source flags",
+    "formal example sync callback unsupported and generated test missing Output import; corrected async adapter and import",
+    "32GB guard interrupted root compile; recovered after generated profiles cleanup and resumed",
+    "Clippy required explicit deep clone expression and removal of obsolete test import; final strict check passed"
+  ],
+  "logs": "target/tmp/artisan-tutorial-20261125/table-output-*",
+  "pushed": false,
+  "limits": [
+    "Not whole active worktree or Artisan chapter",
+    "Windows terminal release checks remain pending"
+  ]
+}

@@ -1133,7 +1133,7 @@ use openrust::{
 };
 
 fn register_sections() -> Result<(), ConsoleError> {
-    Artisan::command_with("reports:sections", |input: &Input, output: &mut Output| {
+    Artisan::command_with("reports:sections", |_input: &Input, output: &mut Output| {
         let first = {
             let mut section = output.section();
             section.writeln("prefix", OutputOptions::default())?;
@@ -1144,8 +1144,7 @@ fn register_sections() -> Result<(), ConsoleError> {
             section.writeln("other section", OutputOptions::default())?;
         }
         let mut section = output.section_output(&first)?;
-        let mut style = section.style(input);
-        let mut table = Table::new(&mut style)?;
+        let mut table = Table::new(&mut section)?;
         table.set_headers(["A", "B"]).set_rows([["x", "y"]]);
         table.append_row(["one", "two"])?;
         table.append_row(["longer", "last"])?;
@@ -1381,3 +1380,31 @@ fn register_style_helpers() -> Result<(), ConsoleError> {
 `OutputStyle::confirm` 默认 `true`，命令级 `CommandIo::confirm` 默认 `false`，两者都可用 `confirm_with` 显式指定。样式的 `choice_with` 将匹配的默认值映射至选项键，`choice_pairs_with` 保留命名键，最后的布尔参数启用多选。
 
 非交互模式下，非 null 默认值会执行校验器；null 默认值直接返回 null，不调用校验器。校验失败遵循现有重试规则，`ConsoleError::from_runtime_source` 显式标记需要立即终止的错误。需要设置次数、补全或超时时，创建 `Question` 并调用 `ask_question`。
+
+## 表格输出目标与样式工厂 {#table-output-factory}
+
+`Table::new` 接受现有 `AsOutput` 适配器：`Output`、`ConsoleSectionOutput`、`OutputReference`、`OutputStyle` 和盒装适配器。普通输出无需输入对象即可构造表格。表格现在只有一个输出借用生命周期，显式 `Table<'a, 'o>` 注解改为 `Table<'a>`，普通构造调用语法不变。
+
+`OutputStyle::create_table` 选择底层输出，克隆命名的样式指南定义，并采用 `info` 表头格式。真实控制台使用独立分区，捕获输出仍使用捕获流；该方法不添加末尾空行。
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, OutputStyle};
+use openrust::support::facades::Artisan;
+
+fn register_factory_table() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:factory-table", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+        let mut style = OutputStyle::new(input, output);
+        let mut table = style.create_table()?;
+        table.set_headers(["H", "V"]).set_rows([["x", "y"]]);
+        table.render()?;
+        Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+追加支持由实际构造目标决定。直接选择分区时，使用 `Table::new(&mut section)` 或 `Table::new(style.get_output())`。传入 `&mut style` 表示包装该样式，即使最终写往分区，`append_row` 也会拒绝；渲染与配置仍遵循同一格式器和详细程度规则。
+
+修改工厂返回表格的样式不会修改应用的命名样式指南定义。上述构造适配器不代表其余通用自定义输出接口已经完成。

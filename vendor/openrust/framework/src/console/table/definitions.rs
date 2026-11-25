@@ -61,7 +61,7 @@ pub(super) fn current(required: bool) -> Result<Arc<Definitions>, ConsoleError> 
     }
     Ok(Arc::new(Definitions::default()))
 }
-impl Table<'_, '_> {
+impl Table<'_> {
     pub fn set_style_definition(
         name: &str,
         style: impl Into<TableStyle>,

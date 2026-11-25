@@ -481,3 +481,16 @@ ProgressBar／ProgressOutput保留同一目标：分区进度按源计算旧消�
 三语正式代码直接提取99份运行。问题／选择／本簇三个框架目标22父消费者，根6目标140父消费者，共162个本批不同父消费者；4个ignored驱动不叠加。生产实现未变，因此不重复宣称本批重跑未受影响的表格／进度全套。fmt、workspace all-targets严格Clippy、实际main(pail)、三语构建与12项浏览器通过；实际HTTP/up/静态/HTML与JSON404/HEAD、Artisan inspire/list/Pail过滤/-vv/timeout回收/Ctrl+C通过。
 
 正式证据style-question-contracts.json、accepted-style-questions.json、style-questions-oracle.json；原始日志target/tmp/artisan-tutorial-20261125/style-questions-*。生产SDK源码与基线hash一致，只提交已验测试／三语文档／账本。保留源码／日志／可复用缓存与数据库／数据卷，运行目录回收。完整StyleInterface、表格通用构造／create_table／水平与定义列表、组件Factory／树／错误流／通用OutputInterface继续，不把新证据当整章或全项目闭合；Windows实机仍属发布待验，不推送，其他在途保留。
+
+
+## 第三十三簇：表格通用输出借用与样式工厂（2026-11-25）
+
+第三十二簇已提交b14ddfd0261d4207e3630e8e6d37695ca6bec1bf。本簇按固定Table构造器与SymfonyStyle::createTable核对，复用当前AsOutput／OutputReference、应用隔离样式定义和表格渲染器。Table从两个生命周期收为一个输出借用生命周期，普通构造调用不变，显式Table<'a,'o>迁移到Table<'a>。新构造入口接受真实Output／ConsoleSectionOutput／OutputReference／OutputStyle／盒装适配器，不再要求无关Input；一般OutputInterface及任意自定义流仍明确待做，不能用适配器代替完整公开Trait。
+
+create_table借用底层实际目标，真实控制台分配独立分区，捕获流保持捕获；克隆命名样式指南并设置info表头，不额外换行，不修改共享命名定义。包装样式不冒充直接分区，append_row仅接受直接分区；既有分区追加测试和三语示例改用真实分区，仍保留实际样式参数拒绝反例。
+
+192个固定PHP流／分区消费者和48个真实ConsoleOutput子进程与原生实际handle_command进程逐一比较，覆盖一／两层、装饰／无装饰、静默／普通级别、追加前渲染及自定义指南；输出／逐层计数／初始格式／样式克隆隔离完全一致。192例中160个预期追加拒绝和32个成功明确区分。对照发现原表格显式Normal写入在quiet下改变包装样式计数，已按源码默认type0修复；首轮quiet计数失败日志保留。独立无应用工厂及普通根／分区／引用／盒装构造实际运行通过。
+
+真实HTTP200／JSON500／200恢复与12并发样式克隆隔离通过；三语正式示例直接提取102份运行。26个框架目标151父消费者、根6目标143父消费者共294项通过，36个ignored子驱动不叠加。fmt、workspace all-targets严格Clippy、实际main(pail)、三语构建与12浏览器、33终端编辑器／Ctrl+C130／完整termios恢复通过。主程序HTTP/up／静态／HTML与JSON404／HEAD，Artisan inspire/list/Pail过滤／详细程度／超时回收／Ctrl+C通过。
+
+严格Clippy另指出深拷贝表达式和迁移后测试的未用导入，均已修正；未用导入失败日志独立保存。新增正式示例首轮误用不支持的同步命令签名、随后测试缺Output导入均已修正并真实编译运行；磁盘32GB中断不计通过，守卫清理后恢复同源验收。正式证据table-output-contracts.json、accepted-table-output.json及两份oracle，原始日志target/tmp/artisan-tutorial-20261125/table-output-*。临时应用／PTY／容器回收，保留源码／日志／可复用缓存与数据库／数据卷。完整StyleInterface、便利表格布局、树／错误样式／组件Factory／通用输出继续，整章未闭合；Windows实机属发布待验。仅本批本地提交，不推送，其他在途保留。

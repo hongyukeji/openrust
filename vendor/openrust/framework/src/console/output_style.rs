@@ -5,6 +5,7 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 mod block;
+mod table;
 mod text;
 pub use block::BlockOptions;
 mod wrapping;
@@ -619,15 +620,6 @@ impl Output {
             .write_all(rendered.as_bytes())
             .and_then(|()| stderr.flush())
             .map_err(ConsoleError::from_source)
-    }
-}
-
-impl OutputStyle<'_> {
-    pub(super) fn clear_table_section(&mut self, lines: i64) -> Result<(), ConsoleError> {
-        let id = self
-            .section
-            .ok_or_else(|| ConsoleError::new("追加并重绘表格需要控制台分区输出"))?;
-        self.output.output.clear_section(id, Some(lines))
     }
 }
 

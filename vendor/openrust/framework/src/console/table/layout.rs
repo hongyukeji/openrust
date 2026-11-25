@@ -13,7 +13,7 @@ pub(super) struct PreparedLayout {
     pub(super) separators: BTreeSet<usize>,
     pub(super) unsplit_rows: ColumnMasks,
 }
-impl Table<'_, '_> {
+impl Table<'_> {
     pub fn get_style_mut(&mut self) -> &mut TableStyle {
         &mut self.style
     }

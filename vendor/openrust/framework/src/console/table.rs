@@ -1,5 +1,5 @@
 use super::formatting::display_width as width;
-use super::{ConsoleError, OutputStyle, OutputVerbosity};
+use super::{ConsoleError, OutputOptions, OutputReference};
 mod error;
 pub use error::ConsoleTableError;
 mod cell_style;
@@ -22,9 +22,9 @@ use std::collections::BTreeMap;
 pub use style::{TablePadding, TableStyle};
 
 /// 标准矩形表格；输入转成文本后按可见宽度布局，标签交给原格式器处理。
-pub struct Table<'a, 'o> {
+pub struct Table<'a> {
     definitions: std::sync::Arc<definitions::Definitions>,
-    output: &'a mut OutputStyle<'o>,
+    output: OutputReference<'a>,
     headers: Vec<Vec<TableCell>>,
     rows: Vec<Vec<TableCell>>,
     row_keys: Vec<ArrayKey>,
@@ -39,8 +39,11 @@ pub struct Table<'a, 'o> {
     footer_title: Option<String>,
     rendered: bool,
 }
-impl<'a, 'o> Table<'a, 'o> {
-    pub fn new(output: &'a mut OutputStyle<'o>) -> Result<Self, ConsoleError> {
+impl<'a> Table<'a> {
+    pub fn new(output: &'a mut (impl super::AsOutput + ?Sized)) -> Result<Self, ConsoleError> {
+        Self::from_reference(output.as_output())
+    }
+    pub(super) fn from_reference(output: OutputReference<'a>) -> Result<Self, ConsoleError> {
         let definitions = definitions::current(false)?;
         let style = definitions.get("default")?;
         Ok(Self {
@@ -60,6 +63,11 @@ impl<'a, 'o> Table<'a, 'o> {
             footer_title: None,
             rendered: false,
         })
+    }
+    pub(super) fn style_definition_snapshot(&self, name: &str) -> Result<TableStyle, ConsoleError> {
+        let shared = self.definitions.get(name)?;
+        // 命名定义返回共享句柄，工厂必须深拷贝其状态。
+        Ok(shared.clone())
     }
     pub fn set_headers<I, T>(&mut self, headers: I) -> &mut Self
     where
@@ -113,7 +121,7 @@ impl<'a, 'o> Table<'a, 'o> {
         self.column_styles.get(&column).unwrap_or(&self.style)
     }
     pub fn append_row(&mut self, row: impl Into<TableRow>) -> Result<&mut Self, ConsoleError> {
-        if self.output.section.is_none() {
+        if self.output.direct_section().is_none() {
             return Err(ConsoleError::new("追加并重绘表格需要控制台分区输出"));
         }
         if self.rendered {
@@ -127,7 +135,7 @@ impl<'a, 'o> Table<'a, 'o> {
                 + usize::from(!self.headers.is_empty())
                 + usize::from(!self.rows.is_empty());
             self.output
-                .clear_table_section(i64::try_from(count).map_err(ConsoleError::from_source)?)?;
+                .clear_section(i64::try_from(count).map_err(ConsoleError::from_source)?)?;
         }
         self.add_row(row)?;
         self.render()?;
@@ -239,7 +247,7 @@ impl<'a, 'o> Table<'a, 'o> {
             line = self.with_title(&line, &title, &format)?;
         }
         let line = template(&self.style.get_border_format(), &line)?;
-        self.output.writeln(line.as_str(), OutputVerbosity::Normal)
+        self.output.writeln(line.as_str(), OutputOptions::default())
     }
     fn row(
         &mut self,
@@ -339,7 +347,7 @@ impl<'a, 'o> Table<'a, 'o> {
                 line.push_str(&self.column_separator(column.unwrap_or(position) != last)?);
             }
             self.output
-                .writeln(line.as_str(), OutputVerbosity::Normal)?;
+                .writeln(line.as_str(), OutputOptions::default())?;
         }
         Ok(())
     }

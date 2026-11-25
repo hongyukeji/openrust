@@ -959,7 +959,14 @@
       {
         "method": "createTable",
         "source_line": 360,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_selected_target_factory_actual_source_http_cli",
+        "native": "console::OutputStyle::create_table",
+        "evidence": [
+          "console_table_outputs",
+          "table-output-contracts.json",
+          "table-output-oracle.json",
+          "table-console-oracle.json"
+        ]
       },
       {
         "method": "tree",
@@ -977,6 +984,7 @@
     "完整组件Factory与OutputStyle继承的树、table/create_table/definition_list、get_error_style等继续逐项核对；标题／文本／列表／八种块助手已验",
     "任意OutputInterface缓冲（包括Artisan.call第三参数）的专用消费者与类型仍待核对；现有原生入口不冒充完整接口",
     "公开StyleInterface完整Trait契约随其余依赖方法核对，不能用已有inherent助手冒充完整Trait实现",
-    "样式问答简写／带参数入口已验证，Source异常类别与原生显式运行错误标记已分别验收；其余表格构造／完整Trait／通用输出继续"
+    "样式问答简写／带参数入口已验证，Source异常类别与原生显式运行错误标记已分别验收；其余表格构造／完整Trait／通用输出继续",
+    "Table::new已有单生命周期输出借用，create_table已验真实控制台分区／捕获／样式身份和局部样式克隆；table/horizontal_table/definition_list与完整Trait仍待接通。"
   ]
 }

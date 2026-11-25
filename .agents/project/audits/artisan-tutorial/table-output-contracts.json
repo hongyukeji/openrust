@@ -1,0 +1,35 @@
+{
+  "reference": "Symfony Console 7.4.0; framework1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "native": [
+    "Table::new(&mut impl AsOutput)",
+    "OutputStyle::create_table"
+  ],
+  "status": "verified",
+  "source_cases": {
+    "stream_or_selected_section": 192,
+    "actual_console_processes": 48
+  },
+  "native_adaptations": [
+    "One output lifetime replaces two lifetimes tied to an unused Input; explicit Table annotations migrate to Table<'a>.",
+    "Native adapters cover Output/ConsoleSectionOutput/OutputReference/OutputStyle/Box; arbitrary OutputInterface is a separate pending contract.",
+    "Direct section supports append; wrapping a style does not become a section; old append fixtures migrate to their actual direct target.",
+    "Factory uses root console section only for actual terminal output with no style parents; capture stream remains capture.",
+    "Factory clones named guide, info header, does not emit trailing LF; local mutations do not affect registry."
+  ],
+  "fixes": [
+    "Default Table writes use type0 rather than explicit Normal32, preserving quiet nested style counters."
+  ],
+  "evidence": [
+    "console_table_outputs",
+    "artisan_docs_generated",
+    "table-output-oracle.json",
+    "table-console-oracle.json",
+    "accepted-table-output.json"
+  ],
+  "remaining": [
+    "table/horizontal_table/definition_list",
+    "Full StyleInterface/OutputInterface, arbitrary custom output",
+    "Tree/get_error_style/components and other chapter anchors",
+    "Windows terminal release verification"
+  ]
+}

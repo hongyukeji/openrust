@@ -6,11 +6,13 @@
       {
         "method": "__construct",
         "source_line": 57,
-        "status": "verified_application_owned_default_registry_result_constructor",
-        "native": "console::Table::new",
+        "status": "verified_one_lifetime_as_output_targets_and_source_class_identity",
+        "native": "console::Table::new / OutputStyle::create_table",
         "evidence": [
           "console_table_definitions",
-          "console_tables_tutorial"
+          "console_tables_tutorial",
+          "console_table_outputs",
+          "table-output-contracts.json"
         ]
       },
       {

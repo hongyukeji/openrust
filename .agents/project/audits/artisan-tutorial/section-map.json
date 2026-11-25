@@ -333,11 +333,13 @@
         "console_style_blocks",
         "style-block-contracts.json",
         "console_style_questions",
-        "style-question-contracts.json"
+        "style-question-contracts.json",
+        "console_table_outputs",
+        "table-output-contracts.json"
       ],
       "native": "console::CommandIo",
       "remaining": [
-        "样式问答／状态块及既有输出助手已验；完整StyleInterface／组件Factory、表格构造／create_table／树／错误流样式／通用输出继续，不关闭整章。"
+        "表格构造与样式工厂已验，水平／定义列表便利布局、完整StyleInterface／组件Factory、树／错误流样式／通用输出继续，整章不关闭。"
       ]
     },
     {
