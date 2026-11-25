@@ -325,11 +325,13 @@
         "formatter-contracts.json",
         "color-terminal-contracts.json",
         "accepted-output-formatters.json",
-        "accepted-colors-terminal.json"
+        "accepted-colors-terminal.json",
+        "console_nested_styles",
+        "nested-style-contracts.json"
       ],
       "native": "console::CommandIo",
       "remaining": [
-        "矩形表格及问答已验；OutputStyle嵌套委托、进度条、完整组件与继承SDK按各清单继续逐项核对"
+        "嵌套OutputStyle换行委托与NewLineAware、既有表格／进度公开入口已验；完整组件Factory、其余样式块／树及一般输出流接口继续逐项核对，不关闭整章。"
       ]
     },
     {

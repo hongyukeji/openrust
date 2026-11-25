@@ -423,3 +423,18 @@ ProgressBar／ProgressOutput保留同一目标：分区进度按源计算旧消�
 三语正式代码直接提取87例编译执行。21个框架目标130项、根6目标128项，共258不同父消费者通过，23个被父驱动ignore不叠加；既有编译期拒绝消费者保持通过。旧补全／选择／问题／表格／进度回归保留。首次文档消费编译指出夹具缺少Output导入，补在夹具，不污染正式示例。最终fmt、workspace all-targets严格Clippy 53.00s、main(pail)、三语构建与12个桌面／手机／双挂载浏览器通过；实际main HTTP/up/静态/HTML与JSON404/HEAD、Artisan inspire/list/Pail过滤/-vv/timeout清理/Ctrl+C通过。
 
 正式证据terminal-editor-contracts.json、accepted-section-editors.json与section-editor-oracle.json；原始日志target/tmp/artisan-tutorial-20261125/section-editors-*。保留源码／日志／可复用缓存与数据库／数据卷，本批运行目录直接清理。嵌套OutputStyle计数、组件Factory、一般OutputInterface／程序化输出缓冲仍继续，不把本批当整个继承SDK或章节已闭合。Windows实机列发布验收，未声称新终端矩阵已通过；仅核定范围本地提交，不推送，其他在途保留。
+
+
+## 第二十九簇：嵌套样式委托与换行契约（2026-11-25）
+
+第二十八簇已提交89fc43a8a95b406920c9f82ee061b064bfcb175d，未推送。本簇按固定OutputStyle、Console/Contracts/NewLineAware、SymfonyStyle／OutputStyle和ProgressBar逐类型核对。旧版无对应样式／分区SDK可提取，复用当前真实输出、格式器、问答、表格和进度，不增依赖或平行派发器。接通OutputStyle的AsOutput、真实console::contracts::NewLineAware与底层可选NewLineView；get_output可继续独占借用下一层样式输出，普通流不冒充换行接口。
+
+216组固定PHP实际消费者覆盖1／2／3层、根流／分区、两种装饰与三种级别、数组／空消息、原始／普通格式、换行、级别改变和问答，每步完整输出／每层计数与布尔值／回答一致。最底层计数委托与递归OR规则、外层整体计数和父级逐条计数、新行转发write而非newLine、构造时历史缓冲级别均保留。普通流／分区的父状态Vec为空，无新堆分配；嵌套只保存借用引用，无unsafe／全局选择状态或输出复制，独占借用竞争有实际compile_fail验收。
+
+32组固定源进度消费者进一步发现聚合光标写入在被包裹分区时改变记账，已按Cursor逐条正常写入修复，全部输出与计数一致。包装样式不当作直接ConsoleSectionOutput，表格append_row拒绝；进度保持所选stdout，真实Artisan子进程断言stderr为空。真实HTTP调用本簇命令的200／JSON500／200恢复、独立handle_command输出及退出0通过。现有分区补全／问答／表格／进度全部回归保留，33组真实终端编辑器复验通过，Ctrl+C130与完整termios恢复通过。
+
+三语正式示例直接提取90份运行，框架和根应用父消费者计数见accepted-nested-styles.json（ignored子驱动不叠加）。fmt、workspace all-targets严格Clippy、实际main(pail)、三语构建与12项浏览器检查通过；实际HTTP/up/静态/HTML与JSON404/HEAD、Artisan inspire/list/Pail过滤/-vv/timeout清理/Ctrl+C检查通过。首次新增HTTP夹具误用拥有型Option的and_then签名已修复；32GB中断未计通过，守卫持锁清理113370030080字节后恢复同源验收，保留原失败及成功日志。
+
+最终复核保留普通根write_raw直接IO路径与原有错误类型，不因包装接口统一而改变直接原始写入契约。
+
+正式证据nested-style-contracts.json、accepted-nested-styles.json及两份oracle；原始日志target/tmp/artisan-tutorial-20261125/nested-*。本批临时应用／PTY／容器均结束回收，保留源码／日志／可复用缓存和数据库／数据卷。完整组件Factory、其余继承块／树与一般OutputInterface／程序化输出缓冲继续核对，Windows实机属发布待验；不声称整章或全工作区闭合。仅核定本批本地提交，不推送，其他在途保留。

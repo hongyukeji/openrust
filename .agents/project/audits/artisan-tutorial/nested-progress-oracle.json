@@ -1,0 +1,546 @@
+[
+    {
+        "section": false,
+        "depth": 1,
+        "decorated": false,
+        "level": 16,
+        "format": "<info>%current%\/%max%<\/info>",
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException"
+    },
+    {
+        "section": false,
+        "depth": 1,
+        "decorated": false,
+        "level": 16,
+        "format": "%current%\n%max%",
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException"
+    },
+    {
+        "section": false,
+        "depth": 1,
+        "decorated": false,
+        "level": 32,
+        "format": "<info>%current%\/%max%<\/info>",
+        "output": "0\/3\n1\/3notice\n\n2\/3\n3\/3",
+        "counts": [
+            [
+                0,
+                false
+            ]
+        ],
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException"
+    },
+    {
+        "section": false,
+        "depth": 1,
+        "decorated": false,
+        "level": 32,
+        "format": "%current%\n%max%",
+        "output": "0\n3\n1\n3notice\n\n2\n3\n3\n3",
+        "counts": [
+            [
+                0,
+                false
+            ]
+        ],
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException"
+    },
+    {
+        "section": false,
+        "depth": 1,
+        "decorated": true,
+        "level": 16,
+        "format": "<info>%current%\/%max%<\/info>",
+        "output": "",
+        "counts": [
+            [
+                0,
+                false
+            ]
+        ],
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException"
+    },
+    {
+        "section": false,
+        "depth": 1,
+        "decorated": true,
+        "level": 16,
+        "format": "%current%\n%max%",
+        "output": "",
+        "counts": [
+            [
+                0,
+                false
+            ]
+        ],
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException"
+    },
+    {
+        "section": false,
+        "depth": 1,
+        "decorated": true,
+        "level": 32,
+        "format": "<info>%current%\/%max%<\/info>",
+        "output": "\u001b[32m0\/3\u001b[39m\u001b[1G\u001b[2K\u001b[32m1\/3\u001b[39mnotice\n\u001b[1G\u001b[2K\u001b[32m2\/3\u001b[39m\u001b[1G\u001b[2K\u001b[1G\u001b[2K\u001b[32m2\/3\u001b[39m\u001b[1G\u001b[2K\u001b[32m3\/3\u001b[39m",
+        "counts": [
+            [
+                0,
+                false
+            ]
+        ],
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException"
+    },
+    {
+        "section": false,
+        "depth": 1,
+        "decorated": true,
+        "level": 32,
+        "format": "%current%\n%max%",
+        "output": "0\n3\u001b[1G\u001b[2K\u001b[1A\u001b[1G\u001b[2K1\n3notice\n\u001b[1G\u001b[2K\u001b[1A\u001b[1G\u001b[2K2\n3\u001b[1G\u001b[2K\u001b[1A\u001b[1G\u001b[2K\u001b[1G\u001b[2K2\n3\u001b[1G\u001b[2K\u001b[1A\u001b[1G\u001b[2K3\n3",
+        "counts": [
+            [
+                0,
+                false
+            ]
+        ],
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException"
+    },
+    {
+        "section": false,
+        "depth": 2,
+        "decorated": false,
+        "level": 16,
+        "format": "<info>%current%\/%max%<\/info>",
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException"
+    },
+    {
+        "section": false,
+        "depth": 2,
+        "decorated": false,
+        "level": 16,
+        "format": "%current%\n%max%",
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException"
+    },
+    {
+        "section": false,
+        "depth": 2,
+        "decorated": false,
+        "level": 32,
+        "format": "<info>%current%\/%max%<\/info>",
+        "output": "0\/3\n1\/3notice\n\n2\/3\n3\/3",
+        "counts": [
+            [
+                0,
+                false
+            ],
+            [
+                0,
+                false
+            ]
+        ],
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException"
+    },
+    {
+        "section": false,
+        "depth": 2,
+        "decorated": false,
+        "level": 32,
+        "format": "%current%\n%max%",
+        "output": "0\n3\n1\n3notice\n\n2\n3\n3\n3",
+        "counts": [
+            [
+                0,
+                false
+            ],
+            [
+                0,
+                false
+            ]
+        ],
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException"
+    },
+    {
+        "section": false,
+        "depth": 2,
+        "decorated": true,
+        "level": 16,
+        "format": "<info>%current%\/%max%<\/info>",
+        "output": "",
+        "counts": [
+            [
+                0,
+                false
+            ],
+            [
+                0,
+                false
+            ]
+        ],
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException"
+    },
+    {
+        "section": false,
+        "depth": 2,
+        "decorated": true,
+        "level": 16,
+        "format": "%current%\n%max%",
+        "output": "",
+        "counts": [
+            [
+                0,
+                false
+            ],
+            [
+                0,
+                false
+            ]
+        ],
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException"
+    },
+    {
+        "section": false,
+        "depth": 2,
+        "decorated": true,
+        "level": 32,
+        "format": "<info>%current%\/%max%<\/info>",
+        "output": "\u001b[32m0\/3\u001b[39m\u001b[1G\u001b[2K\u001b[32m1\/3\u001b[39mnotice\n\u001b[1G\u001b[2K\u001b[32m2\/3\u001b[39m\u001b[1G\u001b[2K\u001b[1G\u001b[2K\u001b[32m2\/3\u001b[39m\u001b[1G\u001b[2K\u001b[32m3\/3\u001b[39m",
+        "counts": [
+            [
+                0,
+                false
+            ],
+            [
+                0,
+                false
+            ]
+        ],
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException"
+    },
+    {
+        "section": false,
+        "depth": 2,
+        "decorated": true,
+        "level": 32,
+        "format": "%current%\n%max%",
+        "output": "0\n3\u001b[1G\u001b[2K\u001b[1A\u001b[1G\u001b[2K1\n3notice\n\u001b[1G\u001b[2K\u001b[1A\u001b[1G\u001b[2K2\n3\u001b[1G\u001b[2K\u001b[1A\u001b[1G\u001b[2K\u001b[1G\u001b[2K2\n3\u001b[1G\u001b[2K\u001b[1A\u001b[1G\u001b[2K3\n3",
+        "counts": [
+            [
+                0,
+                false
+            ],
+            [
+                0,
+                false
+            ]
+        ],
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException"
+    },
+    {
+        "section": true,
+        "depth": 1,
+        "decorated": false,
+        "level": 16,
+        "format": "<info>%current%\/%max%<\/info>",
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException"
+    },
+    {
+        "section": true,
+        "depth": 1,
+        "decorated": false,
+        "level": 16,
+        "format": "%current%\n%max%",
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException"
+    },
+    {
+        "section": true,
+        "depth": 1,
+        "decorated": false,
+        "level": 32,
+        "format": "<info>%current%\/%max%<\/info>",
+        "output": "0\/3\n1\/3notice\n\n2\/3\n3\/3",
+        "counts": [
+            [
+                0,
+                false
+            ]
+        ],
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException"
+    },
+    {
+        "section": true,
+        "depth": 1,
+        "decorated": false,
+        "level": 32,
+        "format": "%current%\n%max%",
+        "output": "0\n3\n1\n3notice\n\n2\n3\n3\n3",
+        "counts": [
+            [
+                0,
+                false
+            ]
+        ],
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException"
+    },
+    {
+        "section": true,
+        "depth": 1,
+        "decorated": true,
+        "level": 16,
+        "format": "<info>%current%\/%max%<\/info>",
+        "output": "",
+        "counts": [
+            [
+                0,
+                false
+            ]
+        ],
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException"
+    },
+    {
+        "section": true,
+        "depth": 1,
+        "decorated": true,
+        "level": 16,
+        "format": "%current%\n%max%",
+        "output": "",
+        "counts": [
+            [
+                0,
+                false
+            ]
+        ],
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException"
+    },
+    {
+        "section": true,
+        "depth": 1,
+        "decorated": true,
+        "level": 32,
+        "format": "<info>%current%\/%max%<\/info>",
+        "output": "\u001b[32m0\/3\u001b[39m\n\u001b[1A\u001b[0J\u001b[32m0\/3\u001b[39m\u001b[1G\n\u001b[1A\u001b[0J\u001b[32m0\/3\u001b[39m\u001b[1G\u001b[2K\n\u001b[1A\u001b[0J\u001b[32m0\/3\u001b[39m\u001b[1G\u001b[2K\u001b[32m1\/3\u001b[39m\n\u001b[1A\u001b[0J\u001b[32m0\/3\u001b[39m\u001b[1G\u001b[2K\u001b[32m1\/3\u001b[39mnotice\n\u001b[1G\n\u001b[1A\u001b[0J\u001b[1G\u001b[2K\n\u001b[1A\u001b[0J\u001b[1G\u001b[2K\u001b[32m2\/3\u001b[39m\n\u001b[1A\u001b[0J\u001b[1G\u001b[2K\u001b[32m2\/3\u001b[39m\u001b[1G\n\u001b[1A\u001b[0J\u001b[1G\u001b[2K\u001b[32m2\/3\u001b[39m\u001b[1G\u001b[2K\n\u001b[1A\u001b[0J\u001b[1G\u001b[2K\u001b[32m2\/3\u001b[39m\u001b[1G\u001b[2K\n\u001b[1A\u001b[0J\u001b[1G\u001b[2K\u001b[32m2\/3\u001b[39m\u001b[1G\u001b[2K\u001b[1G\n\u001b[1A\u001b[0J\u001b[1G\u001b[2K\u001b[32m2\/3\u001b[39m\u001b[1G\u001b[2K\u001b[1G\u001b[2K\n\u001b[1A\u001b[0J\u001b[1G\u001b[2K\u001b[32m2\/3\u001b[39m\u001b[1G\u001b[2K\u001b[1G\u001b[2K\u001b[32m2\/3\u001b[39m\n\u001b[1A\u001b[0J\u001b[1G\u001b[2K\u001b[32m2\/3\u001b[39m\u001b[1G\u001b[2K\u001b[1G\u001b[2K\u001b[32m2\/3\u001b[39m\u001b[1G\n\u001b[1A\u001b[0J\u001b[1G\u001b[2K\u001b[32m2\/3\u001b[39m\u001b[1G\u001b[2K\u001b[1G\u001b[2K\u001b[32m2\/3\u001b[39m\u001b[1G\u001b[2K\n\u001b[1A\u001b[0J\u001b[1G\u001b[2K\u001b[32m2\/3\u001b[39m\u001b[1G\u001b[2K\u001b[1G\u001b[2K\u001b[32m2\/3\u001b[39m\u001b[1G\u001b[2K\u001b[32m3\/3\u001b[39m\n",
+        "counts": [
+            [
+                0,
+                false
+            ]
+        ],
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException"
+    },
+    {
+        "section": true,
+        "depth": 1,
+        "decorated": true,
+        "level": 32,
+        "format": "%current%\n%max%",
+        "output": "0\n3\n\u001b[1A\u001b[0J3\u001b[1G\n\u001b[1A\u001b[0J3\u001b[1G\u001b[2K\n\u001b[1A\u001b[0J3\u001b[1G\u001b[2K\u001b[1A\n\u001b[1A\u001b[0J3\u001b[1G\u001b[2K\u001b[1A\u001b[1G\n\u001b[1A\u001b[0J3\u001b[1G\u001b[2K\u001b[1A\u001b[1G\u001b[2K\n\u001b[1A\u001b[0J3\u001b[1G\u001b[2K\u001b[1A\u001b[1G\u001b[2K1\n3\n\u001b[1A\u001b[0J3notice\n\u001b[1G\n\u001b[1A\u001b[0J\u001b[1G\u001b[2K\n\u001b[1A\u001b[0J\u001b[1G\u001b[2K\u001b[1A\n\u001b[1A\u001b[0J\u001b[1G\u001b[2K\u001b[1A\u001b[1G\n\u001b[1A\u001b[0J\u001b[1G\u001b[2K\u001b[1A\u001b[1G\u001b[2K\n\u001b[1A\u001b[0J\u001b[1G\u001b[2K\u001b[1A\u001b[1G\u001b[2K2\n3\n\u001b[1A\u001b[0J3\u001b[1G\n\u001b[1A\u001b[0J3\u001b[1G\u001b[2K\n\u001b[1A\u001b[0J3\u001b[1G\u001b[2K\u001b[1A\n\u001b[1A\u001b[0J3\u001b[1G\u001b[2K\u001b[1A\u001b[1G\n\u001b[1A\u001b[0J3\u001b[1G\u001b[2K\u001b[1A\u001b[1G\u001b[2K\n\u001b[1A\u001b[0J3\u001b[1G\u001b[2K\u001b[1A\u001b[1G\u001b[2K\n\u001b[1A\u001b[0J3\u001b[1G\u001b[2K\u001b[1A\u001b[1G\u001b[2K\u001b[1G\n\u001b[1A\u001b[0J3\u001b[1G\u001b[2K\u001b[1A\u001b[1G\u001b[2K\u001b[1G\u001b[2K\n\u001b[1A\u001b[0J3\u001b[1G\u001b[2K\u001b[1A\u001b[1G\u001b[2K\u001b[1G\u001b[2K2\n3\n\u001b[1A\u001b[0J3\u001b[1G\n\u001b[1A\u001b[0J3\u001b[1G\u001b[2K\n\u001b[1A\u001b[0J3\u001b[1G\u001b[2K\u001b[1A\n\u001b[1A\u001b[0J3\u001b[1G\u001b[2K\u001b[1A\u001b[1G\n\u001b[1A\u001b[0J3\u001b[1G\u001b[2K\u001b[1A\u001b[1G\u001b[2K\n\u001b[1A\u001b[0J3\u001b[1G\u001b[2K\u001b[1A\u001b[1G\u001b[2K3\n3\n",
+        "counts": [
+            [
+                0,
+                false
+            ]
+        ],
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException"
+    },
+    {
+        "section": true,
+        "depth": 2,
+        "decorated": false,
+        "level": 16,
+        "format": "<info>%current%\/%max%<\/info>",
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException"
+    },
+    {
+        "section": true,
+        "depth": 2,
+        "decorated": false,
+        "level": 16,
+        "format": "%current%\n%max%",
+        "output": "",
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException"
+    },
+    {
+        "section": true,
+        "depth": 2,
+        "decorated": false,
+        "level": 32,
+        "format": "<info>%current%\/%max%<\/info>",
+        "output": "0\/3\n1\/3notice\n\n2\/3\n3\/3",
+        "counts": [
+            [
+                0,
+                false
+            ],
+            [
+                0,
+                false
+            ]
+        ],
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException"
+    },
+    {
+        "section": true,
+        "depth": 2,
+        "decorated": false,
+        "level": 32,
+        "format": "%current%\n%max%",
+        "output": "0\n3\n1\n3notice\n\n2\n3\n3\n3",
+        "counts": [
+            [
+                0,
+                false
+            ],
+            [
+                0,
+                false
+            ]
+        ],
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException"
+    },
+    {
+        "section": true,
+        "depth": 2,
+        "decorated": true,
+        "level": 16,
+        "format": "<info>%current%\/%max%<\/info>",
+        "output": "",
+        "counts": [
+            [
+                0,
+                false
+            ],
+            [
+                0,
+                false
+            ]
+        ],
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException"
+    },
+    {
+        "section": true,
+        "depth": 2,
+        "decorated": true,
+        "level": 16,
+        "format": "%current%\n%max%",
+        "output": "",
+        "counts": [
+            [
+                0,
+                false
+            ],
+            [
+                0,
+                false
+            ]
+        ],
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException"
+    },
+    {
+        "section": true,
+        "depth": 2,
+        "decorated": true,
+        "level": 32,
+        "format": "<info>%current%\/%max%<\/info>",
+        "output": "\u001b[32m0\/3\u001b[39m\n\u001b[1A\u001b[0J\u001b[32m0\/3\u001b[39m\u001b[1G\n\u001b[1A\u001b[0J\u001b[32m0\/3\u001b[39m\u001b[1G\u001b[2K\n\u001b[1A\u001b[0J\u001b[32m0\/3\u001b[39m\u001b[1G\u001b[2K\u001b[32m1\/3\u001b[39m\n\u001b[1A\u001b[0J\u001b[32m0\/3\u001b[39m\u001b[1G\u001b[2K\u001b[32m1\/3\u001b[39mnotice\n\u001b[1G\n\u001b[1A\u001b[0J\u001b[1G\u001b[2K\n\u001b[1A\u001b[0J\u001b[1G\u001b[2K\u001b[32m2\/3\u001b[39m\n\u001b[1A\u001b[0J\u001b[1G\u001b[2K\u001b[32m2\/3\u001b[39m\u001b[1G\n\u001b[1A\u001b[0J\u001b[1G\u001b[2K\u001b[32m2\/3\u001b[39m\u001b[1G\u001b[2K\n\u001b[1A\u001b[0J\u001b[1G\u001b[2K\u001b[32m2\/3\u001b[39m\u001b[1G\u001b[2K\n\u001b[1A\u001b[0J\u001b[1G\u001b[2K\u001b[32m2\/3\u001b[39m\u001b[1G\u001b[2K\u001b[1G\n\u001b[1A\u001b[0J\u001b[1G\u001b[2K\u001b[32m2\/3\u001b[39m\u001b[1G\u001b[2K\u001b[1G\u001b[2K\n\u001b[1A\u001b[0J\u001b[1G\u001b[2K\u001b[32m2\/3\u001b[39m\u001b[1G\u001b[2K\u001b[1G\u001b[2K\u001b[32m2\/3\u001b[39m\n\u001b[1A\u001b[0J\u001b[1G\u001b[2K\u001b[32m2\/3\u001b[39m\u001b[1G\u001b[2K\u001b[1G\u001b[2K\u001b[32m2\/3\u001b[39m\u001b[1G\n\u001b[1A\u001b[0J\u001b[1G\u001b[2K\u001b[32m2\/3\u001b[39m\u001b[1G\u001b[2K\u001b[1G\u001b[2K\u001b[32m2\/3\u001b[39m\u001b[1G\u001b[2K\n\u001b[1A\u001b[0J\u001b[1G\u001b[2K\u001b[32m2\/3\u001b[39m\u001b[1G\u001b[2K\u001b[1G\u001b[2K\u001b[32m2\/3\u001b[39m\u001b[1G\u001b[2K\u001b[32m3\/3\u001b[39m\n",
+        "counts": [
+            [
+                0,
+                false
+            ],
+            [
+                0,
+                false
+            ]
+        ],
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException"
+    },
+    {
+        "section": true,
+        "depth": 2,
+        "decorated": true,
+        "level": 32,
+        "format": "%current%\n%max%",
+        "output": "0\n3\n\u001b[1A\u001b[0J3\u001b[1G\n\u001b[1A\u001b[0J3\u001b[1G\u001b[2K\n\u001b[1A\u001b[0J3\u001b[1G\u001b[2K\u001b[1A\n\u001b[1A\u001b[0J3\u001b[1G\u001b[2K\u001b[1A\u001b[1G\n\u001b[1A\u001b[0J3\u001b[1G\u001b[2K\u001b[1A\u001b[1G\u001b[2K\n\u001b[1A\u001b[0J3\u001b[1G\u001b[2K\u001b[1A\u001b[1G\u001b[2K1\n3\n\u001b[1A\u001b[0J3notice\n\u001b[1G\n\u001b[1A\u001b[0J\u001b[1G\u001b[2K\n\u001b[1A\u001b[0J\u001b[1G\u001b[2K\u001b[1A\n\u001b[1A\u001b[0J\u001b[1G\u001b[2K\u001b[1A\u001b[1G\n\u001b[1A\u001b[0J\u001b[1G\u001b[2K\u001b[1A\u001b[1G\u001b[2K\n\u001b[1A\u001b[0J\u001b[1G\u001b[2K\u001b[1A\u001b[1G\u001b[2K2\n3\n\u001b[1A\u001b[0J3\u001b[1G\n\u001b[1A\u001b[0J3\u001b[1G\u001b[2K\n\u001b[1A\u001b[0J3\u001b[1G\u001b[2K\u001b[1A\n\u001b[1A\u001b[0J3\u001b[1G\u001b[2K\u001b[1A\u001b[1G\n\u001b[1A\u001b[0J3\u001b[1G\u001b[2K\u001b[1A\u001b[1G\u001b[2K\n\u001b[1A\u001b[0J3\u001b[1G\u001b[2K\u001b[1A\u001b[1G\u001b[2K\n\u001b[1A\u001b[0J3\u001b[1G\u001b[2K\u001b[1A\u001b[1G\u001b[2K\u001b[1G\n\u001b[1A\u001b[0J3\u001b[1G\u001b[2K\u001b[1A\u001b[1G\u001b[2K\u001b[1G\u001b[2K\n\u001b[1A\u001b[0J3\u001b[1G\u001b[2K\u001b[1A\u001b[1G\u001b[2K\u001b[1G\u001b[2K2\n3\n\u001b[1A\u001b[0J3\u001b[1G\n\u001b[1A\u001b[0J3\u001b[1G\u001b[2K\n\u001b[1A\u001b[0J3\u001b[1G\u001b[2K\u001b[1A\n\u001b[1A\u001b[0J3\u001b[1G\u001b[2K\u001b[1A\u001b[1G\n\u001b[1A\u001b[0J3\u001b[1G\u001b[2K\u001b[1A\u001b[1G\u001b[2K\n\u001b[1A\u001b[0J3\u001b[1G\u001b[2K\u001b[1A\u001b[1G\u001b[2K3\n3\n",
+        "counts": [
+            [
+                0,
+                false
+            ],
+            [
+                0,
+                false
+            ]
+        ],
+        "append_error": "Symfony\\Component\\Console\\Exception\\RuntimeException"
+    }
+]

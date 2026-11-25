@@ -224,5 +224,8 @@ async fn formal_progress_example(){
     editor_code=re.search(r'```rust\n(.*?)```',text.split('{#section-editors}',1)[1],re.S).group(1)
     editor_checks='use openrust::console::Output;\n'+progress_checks.replace('formal_progress_example','formal_editor_example').replace('register_progress)', 'register_editor)').replace('"reports:progress"','"reports:editor"').replace('&[flag.into()]','&[flag.into(),"--no-interaction".into()]').replace('assert!(output.stdout.contains("CSV,JSON,HTML:11"));assert_eq!(output.stdout.matches("100%").count(),2);assert!(output.stdout.contains("build"));','assert_eq!(output.stdout,"answer=Guest\\n");')
     parts.append('mod '+locale.replace('-','_').lower()+'_editor{\n'+editor_code+editor_checks+'}\n')
+    nested_code=re.search(r'```rust\n(.*?)```',text.split('{#nested-output-styles}',1)[1],re.S).group(1)
+    nested_checks='use openrust::console::Output;\n'+progress_checks.replace('formal_progress_example','formal_nested_example').replace('register_progress)', 'register_nested)').replace('"reports:progress"','"reports:nested"').replace('assert!(output.stdout.contains("CSV,JSON,HTML:11"));assert_eq!(output.stdout.matches("100%").count(),2);assert!(output.stdout.contains("build"));','assert_eq!(output.stdout,"\\nA\\n\\nB\\ncount=1\\n");')
+    parts.append('mod '+locale.replace('-','_').lower()+'_nested{\n'+nested_code+nested_checks+'}\n')
 target=source/'tests/artisan_docs_generated.rs';target.write_text('\n'.join(parts));subprocess.run(['rustfmt','+1.94.0','--edition','2024',str(target)],check=True)
 print('generated',len(parts),'direct formal consumers')

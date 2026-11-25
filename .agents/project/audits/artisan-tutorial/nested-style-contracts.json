@@ -1,0 +1,47 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "console_reference": "Symfony Console7.4.0",
+  "status": "verified_current_feature_cluster_not_entire_chapter",
+  "public_types": {
+    "OutputStyle": [
+      "AsOutput",
+      "new_lines_written",
+      "new_line_written"
+    ],
+    "console::contracts::NewLineAware": [
+      "new_lines_written",
+      "new_line_written"
+    ],
+    "OutputReference": [
+      "get_output",
+      "as_new_line_aware"
+    ],
+    "NewLineView": [
+      "NewLineAware"
+    ]
+  },
+  "source_vectors": {
+    "nested_operations": 216,
+    "wrapped_progress": 32
+  },
+  "evidence": [
+    "console_nested_styles",
+    "nested-style-oracle.json",
+    "nested-progress-oracle.json",
+    "artisan_docs_generated",
+    "accepted-nested-styles.json"
+  ],
+  "mechanisms": [
+    "Underlying style count delegation and recursive OR bool",
+    "Per-message parent updates with aggregate outer counters; write and writeln remain distinct",
+    "new_line forwards normal newline text, not parent new_line",
+    "Clone-time history verbosity survives later output verbosity changes",
+    "Wrapped style is not a direct ConsoleSectionOutput or ConsoleOutputInterface",
+    "Cursor operations retain separate write boundaries for actual section bookkeeping"
+  ],
+  "remaining": [
+    "Arbitrary StreamOutput/OutputInterface and programmatic call output-buffer parameter",
+    "Full component Factory and inherited style blocks/table/tree",
+    "Windows real terminal release acceptance"
+  ]
+}

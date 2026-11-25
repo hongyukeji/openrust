@@ -544,7 +544,7 @@ impl<'a> ProgressBar<'a> {
         let original = message.clone();
         if self.state.overwrite {
             if let Some(previous) = &self.state.previous {
-                if self.output.section.is_some() {
+                if self.output.direct_section().is_some() {
                     let parts: Vec<_> = previous.split('\n').collect();
                     let mut count =
                         i64::try_from(parts.len()).map_err(ConsoleError::from_source)?;
@@ -576,17 +576,20 @@ impl<'a> ProgressBar<'a> {
                     }
                     self.output.clear_section(count)?;
                 } else {
-                    let mut cursor = String::new();
-                    for _ in 0..previous.matches('\n').count() {
-                        cursor.push_str("\x1b[1G\x1b[2K\x1b[1A");
+                    let line_count = previous.matches('\n').count();
+                    for line in 0..=line_count {
+                        for sequence in ["\x1b[1G", "\x1b[2K"]
+                            .into_iter()
+                            .chain((line < line_count).then_some("\x1b[1A"))
+                        {
+                            self.output.emit_progress_message(
+                                sequence,
+                                false,
+                                super::OutputFormat::Normal,
+                                super::OutputVerbosity::Normal,
+                            )?;
+                        }
                     }
-                    cursor.push_str("\x1b[1G\x1b[2K");
-                    self.output.emit_progress_message(
-                        cursor.as_str(),
-                        false,
-                        super::OutputFormat::Raw,
-                        super::OutputVerbosity::Normal,
-                    )?;
                 }
             }
         } else if self.state.step > 0 {

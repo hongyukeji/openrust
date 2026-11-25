@@ -1239,3 +1239,42 @@ fn register_editor() -> Result<(), ConsoleError> {
 `Question::set_multiline(true)` reads until the native EOF key, preserving embedded line breaks. An initial empty Enter uses the default. If completion and multiline are both enabled, completion takes precedence and Enter finishes that answer. Plain multiline echo uses the native asynchronous editor rather than the operating system canonical echo; its terminal redraw bytes differ, while the answer and section bookkeeping match.
 
 Ctrl+C keeps exit status `130` and restores the terminal mode before command handling finishes. Cancellation and timeout keep the existing question error/default rules. Windows terminal acceptance remains part of the release checks.
+
+## Nested output styles {#nested-output-styles}
+
+`OutputStyle::new(input, &mut parent)` wraps the existing style. It forwards writes and settings to that same output, and preserves the parent’s newline and question-buffer state. `console::contracts::NewLineAware` exposes the real newline contract to helpers.
+
+```rust
+use openrust::console::{
+    AsyncCommandCallback, ConsoleError, OutputOptions, OutputStyle,
+    contracts::NewLineAware,
+};
+use openrust::support::facades::Artisan;
+
+fn register_nested() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:nested", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut first = OutputStyle::new(input, output);
+            first.new_line(1)?;
+            {
+                let mut second = OutputStyle::new(input, &mut first);
+                second.write("A", false, OutputOptions::default())?;
+                second.new_line(2)?;
+                let inner = second.get_output().as_new_line_aware().unwrap();
+                assert_eq!(NewLineAware::new_lines_written(&inner), 2);
+                second.writeln("B", OutputOptions::default())?;
+            }
+            let count = NewLineAware::new_lines_written(&first);
+            first.writeln(format!("count={count}").as_str(), OutputOptions::default())?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+`new_lines_written()` delegates to the deepest wrapped style; `new_line_written()` also preserves a true value on any wrapping layer. `new_line(n)` writes newline text to the parent, rather than calling its `new_line(n)`. These operations therefore have different counting behavior.
+
+`get_output()` borrows the immediate selected output. On an `OutputReference`, `as_new_line_aware()` is `Some` only when that target is a wrapped style; `get_output()` can then borrow its underlying output. A plain stream has neither capability. Rust’s exclusive borrow prevents concurrent writes through a parent while a child is using it.
+
+A wrapped style is not a direct console section: table append/redraw rejects it, and progress uses its ordinary cursor output without redirecting it to stderr. Use the section directly when section-specific behavior is required. General custom output streams and the remaining component helpers are separate capabilities.

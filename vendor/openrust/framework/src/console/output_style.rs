@@ -98,17 +98,128 @@ impl OutputMessages<'_> {
 }
 
 /// 命令的样式输出对象；包装本次调用的原输出及输入，不复制输出或建立全局状态。
+/// 子级借用父级期间，父级不能同时写入。
+/// ```compile_fail
+/// use openrust::console::{CommandDefinition, Output, OutputOptions, OutputStyle};
+/// let input = CommandDefinition::from_signature("nested").unwrap().parse(&[]).unwrap();
+/// let mut output = Output::default();
+/// let mut parent = OutputStyle::new(&input, &mut output);
+/// let mut child = OutputStyle::new(&input, &mut parent);
+/// parent.writeln("competing", OutputOptions::default()).unwrap();
+/// child.writeln("child", OutputOptions::default()).unwrap();
+/// ```
 pub struct OutputStyle<'a> {
     pub(super) section: Option<usize>,
     // 问答也使用构造时的输入；与 CommandIo::set_input 的读取对象独立。
     input: &'a Input,
     progress: Option<super::progress_bar::ProgressState>,
+    pub(super) state: StyleState,
+    output: super::OutputReference<'a>,
+}
+pub(super) struct StyleState {
     history: Vec<u8>,
     history_formatter: super::formatting::Formatter,
+    history_verbosity: OutputVerbosity,
     question_finally: Option<Arc<AtomicBool>>,
-    output: super::OutputReference<'a>,
     new_lines_written: usize,
     new_line_written: bool,
+}
+impl StyleState {
+    pub(super) fn count(&self) -> usize {
+        self.new_lines_written
+            + usize::from(
+                self.question_finally
+                    .as_ref()
+                    .is_some_and(|flag| flag.load(Ordering::Relaxed)),
+            )
+    }
+    pub(super) fn line_written(&self) -> bool {
+        self.new_line_written
+    }
+    pub(super) fn update(
+        &mut self,
+        messages: OutputMessages<'_>,
+        newline: bool,
+        options: OutputOptions,
+        writeln: bool,
+        verbosity: OutputVerbosity,
+    ) {
+        self.settle_question();
+        let numeric = options.verbosity.map_or(0, |level| level as u16) | options.format as u16;
+        if !writeln || verbosity as u16 >= numeric {
+            self.new_lines_written = messages.trailing_new_lines() + usize::from(newline);
+            self.new_line_written = self.new_lines_written > 0;
+        }
+    }
+    pub(super) fn buffer(
+        &mut self,
+        message: &str,
+        newline: bool,
+        options: OutputOptions,
+    ) -> Result<(), ConsoleError> {
+        let level = options
+            .verbosity
+            .filter(|v| *v != OutputVerbosity::Silent)
+            .unwrap_or(OutputVerbosity::Normal);
+        if self.history_verbosity == OutputVerbosity::Silent || self.history_verbosity < level {
+            return Ok(());
+        }
+        let mut history = match options.format {
+            OutputFormat::Raw => message.to_owned(),
+            _ => self
+                .history_formatter
+                .format(message, false)
+                .map_err(ConsoleError::from_source)?,
+        };
+        if options.format == OutputFormat::Plain {
+            history = Str::of(history).strip_tags(&[]).to_string().to_owned();
+        }
+        if newline {
+            history.push('\n');
+        }
+        self.record_history(&history);
+        Ok(())
+    }
+}
+impl StyleState {
+    fn settle_question(&mut self) {
+        if self
+            .question_finally
+            .as_ref()
+            .is_some_and(|flag| flag.load(Ordering::Relaxed))
+        {
+            self.new_lines_written += 1;
+            self.question_finally = None;
+        }
+    }
+    fn record_history(&mut self, text: &str) {
+        if text.len() >= 2 {
+            self.history.clear();
+            self.history
+                .extend_from_slice(&text.as_bytes()[text.len() - 2..]);
+        } else if let Some(byte) = text.as_bytes().first() {
+            if self.history.len() == 2 {
+                self.history.remove(0);
+            }
+            self.history.push(*byte);
+        }
+    }
+}
+impl super::AsOutput for OutputStyle<'_> {
+    fn as_output(&mut self) -> super::OutputReference<'_> {
+        self.state.settle_question();
+        let mut output = self.output.reborrow();
+        output.parents.push(&mut self.state);
+        output
+    }
+}
+impl super::contracts::NewLineAware for OutputStyle<'_> {
+    fn new_lines_written(&self) -> usize {
+        self.new_lines_written()
+    }
+    fn new_line_written(&self) -> bool {
+        self.new_line_written()
+    }
 }
 impl<'a> OutputStyle<'a> {
     pub fn new(input: &'a Input, output: &'a mut (impl super::AsOutput + ?Sized)) -> Self {
@@ -116,18 +227,22 @@ impl<'a> OutputStyle<'a> {
     }
     fn from_reference(input: &'a Input, mut output: super::OutputReference<'a>) -> Self {
         let history_formatter = output.formatter().clone();
-        let section = output.section;
+        let section = output.direct_section();
+        let history_verbosity = output.get_verbosity();
         history_formatter.set_decorated(false);
         Self {
             input,
             section,
             progress: None,
-            history: Vec::new(),
-            history_formatter,
-            question_finally: None,
+            state: StyleState {
+                history: Vec::new(),
+                history_formatter,
+                history_verbosity,
+                question_finally: None,
+                new_lines_written: 1,
+                new_line_written: false,
+            },
             output,
-            new_lines_written: 1,
-            new_line_written: false,
         }
     }
     pub fn set_verbosity(&mut self, level: OutputVerbosity) {
@@ -155,15 +270,12 @@ impl<'a> OutputStyle<'a> {
         &mut self.output
     }
     pub fn new_lines_written(&self) -> usize {
-        self.new_lines_written
-            + usize::from(
-                self.question_finally
-                    .as_ref()
-                    .is_some_and(|flag| flag.load(Ordering::Relaxed)),
-            )
+        self.output
+            .parent_count()
+            .unwrap_or_else(|| self.state.count())
     }
     pub fn new_line_written(&self) -> bool {
-        self.new_line_written
+        self.state.line_written() || self.output.parent_line_written()
     }
     pub fn is_quiet(&self) -> bool {
         self.get_verbosity() == OutputVerbosity::Quiet
@@ -186,9 +298,9 @@ impl<'a> OutputStyle<'a> {
     ) -> Result<(), ConsoleError> {
         self.settle_question();
         let messages = messages.into();
-        self.new_lines_written = messages.trailing_new_lines() + usize::from(newline);
-        self.new_line_written = self.new_lines_written > 0;
-        self.write_messages(messages, newline, options.into())
+        self.state.new_lines_written = messages.trailing_new_lines() + usize::from(newline);
+        self.state.new_line_written = self.state.new_lines_written > 0;
+        self.write_messages(messages, newline, options.into(), false)
     }
     pub fn writeln<'m>(
         &mut self,
@@ -200,10 +312,10 @@ impl<'a> OutputStyle<'a> {
         let options = options.into();
         let numeric = options.verbosity.map_or(0, |level| level as u16) | options.format as u16;
         if self.get_verbosity() as u16 >= numeric {
-            self.new_lines_written = messages.trailing_new_lines() + 1;
-            self.new_line_written = true;
+            self.state.new_lines_written = messages.trailing_new_lines() + 1;
+            self.state.new_line_written = true;
         }
-        self.write_messages(messages, true, options)
+        self.write_messages(messages, true, options, true)
     }
     /// 接收单次遍历的字符串迭代器；先保存条目供换行统计，再按原顺序写出。
     pub fn write_iter<I, S>(
@@ -218,10 +330,15 @@ impl<'a> OutputStyle<'a> {
     {
         self.settle_question();
         let messages: Vec<S> = messages.into_iter().collect();
-        self.new_lines_written =
+        self.state.new_lines_written =
             trailing_iter_lines(messages.iter().map(AsRef::as_ref)) + usize::from(newline);
-        self.new_line_written = self.new_lines_written > 0;
-        self.write_iter_messages(messages.iter().map(AsRef::as_ref), newline, options.into())
+        self.state.new_line_written = self.state.new_lines_written > 0;
+        self.write_iter_messages(
+            messages.iter().map(AsRef::as_ref),
+            newline,
+            options.into(),
+            false,
+        )
     }
     pub fn writeln_iter<I, S>(
         &mut self,
@@ -237,43 +354,30 @@ impl<'a> OutputStyle<'a> {
         let options = options.into();
         let numeric = options.verbosity.map_or(0, |level| level as u16) | options.format as u16;
         if self.get_verbosity() as u16 >= numeric {
-            self.new_lines_written = trailing_iter_lines(messages.iter().map(AsRef::as_ref)) + 1;
-            self.new_line_written = true;
+            self.state.new_lines_written =
+                trailing_iter_lines(messages.iter().map(AsRef::as_ref)) + 1;
+            self.state.new_line_written = true;
         }
-        self.write_iter_messages(messages.iter().map(AsRef::as_ref), true, options)
+        self.write_iter_messages(messages.iter().map(AsRef::as_ref), true, options, true)
     }
     pub(super) fn question_input(&self) -> &Input {
         self.input
     }
     fn settle_question(&mut self) {
-        if self
-            .question_finally
-            .as_ref()
-            .is_some_and(|flag| flag.load(Ordering::Relaxed))
-        {
-            self.new_lines_written += 1;
-            self.question_finally = None;
-        }
-    }
-    fn record_history(&mut self, text: &str) {
-        if text.len() >= 2 {
-            self.history.clear();
-            self.history
-                .extend_from_slice(&text.as_bytes()[text.len() - 2..]);
-        } else if let Some(byte) = text.as_bytes().first() {
-            if self.history.len() == 2 {
-                self.history.remove(0);
-            }
-            self.history.push(*byte);
-        }
+        self.state.settle_question();
     }
     pub(super) fn prepare_question(&mut self) -> Result<(), ConsoleError> {
-        let count = if self.history.is_empty() {
+        let count = if self.state.history.is_empty() {
             1
         } else {
-            2 - self.history.iter().filter(|byte| **byte == b'\n').count()
+            2 - self
+                .state
+                .history
+                .iter()
+                .filter(|byte| **byte == b'\n')
+                .count()
         };
-        self.history.clear();
+        self.state.history.clear();
         self.new_line(count)
     }
     pub(super) fn question_validation_error(&mut self, message: &str) -> Result<(), ConsoleError> {
@@ -317,7 +421,7 @@ impl<'a> OutputStyle<'a> {
     ) -> Result<serde_json::Value, ConsoleError> {
         self.settle_question();
         let done = Arc::new(AtomicBool::new(false));
-        self.question_finally = Some(done.clone());
+        self.state.question_finally = Some(done.clone());
         let finally = QuestionFinally(done);
         let shutdown = self.input.shutdown().cloned();
         let result = tokio::select! {
@@ -334,84 +438,42 @@ impl<'a> OutputStyle<'a> {
         messages: impl IntoIterator<Item = &'m str>,
         newline: bool,
         options: OutputOptions,
+        writeln: bool,
     ) -> Result<(), ConsoleError> {
-        let level = match options.verbosity {
-            Some(OutputVerbosity::Silent) | None => OutputVerbosity::Normal,
-            Some(level) => level,
-        };
-        if self.is_silent() || self.get_verbosity() < level {
-            return Ok(());
-        }
         for message in messages {
-            self.write_message(message, newline, options.format, level)?;
+            if writeln {
+                self.output.writeln(message, options)?;
+            } else {
+                self.output.write(message, newline, options)?;
+            }
+            self.state.buffer(message, newline, options)?;
         }
         Ok(())
     }
     pub fn new_line(&mut self, count: usize) -> Result<(), ConsoleError> {
         self.settle_question();
-        self.new_lines_written += count;
-        self.new_line_written = self.new_lines_written > 0;
+        self.state.new_lines_written += count;
+        self.state.new_line_written = self.state.new_lines_written > 0;
         let message = "\n".repeat(count);
-        if let Some(id) = self.section {
-            self.output.output.emit_section(
-                id,
-                &message,
-                false,
-                OutputFormat::Raw,
-                OutputVerbosity::Normal,
-            )?;
-        } else {
-            self.output
-                .emit_rendered(&message, OutputVerbosity::Normal)?;
-        }
-        if self.get_verbosity() >= OutputVerbosity::Normal {
-            self.record_history(&message);
-        }
-        Ok(())
+        self.output
+            .write(message.as_str(), false, OutputOptions::default())?;
+        self.state.buffer(&message, false, OutputOptions::default())
     }
     fn write_messages(
         &mut self,
         messages: OutputMessages<'_>,
         newline: bool,
         options: OutputOptions,
+        writeln: bool,
     ) -> Result<(), ConsoleError> {
         match messages {
-            OutputMessages::Text(message) => self.write_iter_messages([message], newline, options),
+            OutputMessages::Text(message) => {
+                self.write_iter_messages([message], newline, options, writeln)
+            }
             OutputMessages::Lines(messages) => {
-                self.write_iter_messages(messages.iter().copied(), newline, options)
+                self.write_iter_messages(messages.iter().copied(), newline, options, writeln)
             }
         }
-    }
-    fn write_message(
-        &mut self,
-        message: &str,
-        newline: bool,
-        format: OutputFormat,
-        level: OutputVerbosity,
-    ) -> Result<(), ConsoleError> {
-        self.output.write(
-            message,
-            newline,
-            OutputOptions {
-                format,
-                verbosity: Some(level),
-            },
-        )?;
-        let mut history = match format {
-            OutputFormat::Raw => message.to_owned(),
-            _ => self
-                .history_formatter
-                .format(message, false)
-                .map_err(ConsoleError::from_source)?,
-        };
-        if format == OutputFormat::Plain {
-            history = Str::of(history).strip_tags(&[]).to_string().to_owned();
-        }
-        if newline {
-            history.push('\n');
-        }
-        self.record_history(&history);
-        Ok(())
     }
 }
 
@@ -609,6 +671,7 @@ impl<'a> OutputStyle<'a> {
             super::OutputReference {
                 output,
                 section: Some(id),
+                parents: Vec::new(),
             },
         )
     }

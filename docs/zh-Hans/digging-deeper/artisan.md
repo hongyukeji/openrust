@@ -1239,3 +1239,42 @@ fn register_editor() -> Result<(), ConsoleError> {
 `Question::set_multiline(true)` 读取到原生 EOF 键，保留中间换行；开始时直接按空 Enter 使用默认值。同时启用补全和多行时，补全优先，Enter 完成本次回答。普通多行回显使用原生异步编辑器，而非操作系统规范模式回显；终端重绘字节存在差异，答案与分区记账一致。
 
 Ctrl+C 保持退出码 `130`，在命令处理完成前恢复终端模式。取消和超时沿用既有问答错误／默认值规则。Windows 终端实机验收仍属于发布检查。
+
+## 嵌套输出样式 {#nested-output-styles}
+
+`OutputStyle::new(input, &mut parent)` 包裹现有样式，写入和配置仍转发至同一输出，同时保留父级的换行与问答缓冲状态。助手通过 `console::contracts::NewLineAware` 读取真实换行契约。
+
+```rust
+use openrust::console::{
+    AsyncCommandCallback, ConsoleError, OutputOptions, OutputStyle,
+    contracts::NewLineAware,
+};
+use openrust::support::facades::Artisan;
+
+fn register_nested() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:nested", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut first = OutputStyle::new(input, output);
+            first.new_line(1)?;
+            {
+                let mut second = OutputStyle::new(input, &mut first);
+                second.write("A", false, OutputOptions::default())?;
+                second.new_line(2)?;
+                let inner = second.get_output().as_new_line_aware().unwrap();
+                assert_eq!(NewLineAware::new_lines_written(&inner), 2);
+                second.writeln("B", OutputOptions::default())?;
+            }
+            let count = NewLineAware::new_lines_written(&first);
+            first.writeln(format!("count={count}").as_str(), OutputOptions::default())?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+`new_lines_written()` 委托至最底层被包装的样式；`new_line_written()` 还保留任一包装层的真值。`new_line(n)` 向父级写入换行文本，不调用父级的 `new_line(n)`，两种操作的计数行为因此不同。
+
+`get_output()` 借用当前直接选中的输出。`OutputReference::as_new_line_aware()` 仅在该目标是被包装样式时返回 `Some`，此时还能通过它的 `get_output()` 继续借用底层输出；普通流没有这两种能力。Rust 独占借用保证子级使用父级期间，不能并发从父级写入。
+
+被包装样式不等于直接的控制台分区：表格追加重绘会拒绝它，进度条使用普通光标输出，也不会自动改走 stderr。需要分区专属行为时直接使用分区。一般自定义输出流及其余组件助手仍是独立能力。

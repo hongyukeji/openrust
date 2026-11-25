@@ -357,7 +357,9 @@
         "native": "console::OutputStyle::write",
         "evidence": [
           "output-style-oracle.json",
-          "console_io_tutorial::output_style_tracks_real_source_newlines_formats_and_verbosity"
+          "console_io_tutorial::output_style_tracks_real_source_newlines_formats_and_verbosity",
+          "console_nested_styles",
+          "nested-style-contracts.json"
         ]
       },
       {
@@ -368,7 +370,9 @@
         "native": "console::OutputStyle::writeln",
         "evidence": [
           "output-style-oracle.json",
-          "console_io_tutorial::output_style_tracks_real_source_newlines_formats_and_verbosity"
+          "console_io_tutorial::output_style_tracks_real_source_newlines_formats_and_verbosity",
+          "console_nested_styles",
+          "nested-style-contracts.json"
         ]
       },
       {
@@ -379,7 +383,9 @@
         "native": "console::OutputStyle::new_line",
         "evidence": [
           "output-style-oracle.json",
-          "console_io_tutorial::output_style_tracks_real_source_newlines_formats_and_verbosity"
+          "console_io_tutorial::output_style_tracks_real_source_newlines_formats_and_verbosity",
+          "console_nested_styles",
+          "nested-style-contracts.json"
         ]
       },
       {
@@ -390,7 +396,9 @@
         "native": "console::OutputStyle::new_lines_written",
         "evidence": [
           "output-style-oracle.json",
-          "console_io_tutorial::output_style_tracks_real_source_newlines_formats_and_verbosity"
+          "console_io_tutorial::output_style_tracks_real_source_newlines_formats_and_verbosity",
+          "console_nested_styles",
+          "nested-style-contracts.json"
         ]
       },
       {
@@ -401,7 +409,9 @@
         "native": "console::OutputStyle::new_line_written",
         "evidence": [
           "output-style-oracle.json",
-          "console_io_tutorial::output_style_tracks_real_source_newlines_formats_and_verbosity"
+          "console_io_tutorial::output_style_tracks_real_source_newlines_formats_and_verbosity",
+          "console_nested_styles",
+          "nested-style-contracts.json"
         ]
       },
       {
@@ -458,7 +468,9 @@
           "console_section_consumers",
           "output-reference-contracts.json",
           "section-progress-oracle.json",
-          "section-questions-oracle.json"
+          "section-questions-oracle.json",
+          "console_nested_styles",
+          "nested-style-contracts.json"
         ]
       }
     ]
@@ -513,7 +525,7 @@
     "TableCellStyle all five methods, TableCell with_style/get_style and nested default separators are real public renderer consumers. Preprocessing and column-major width callbacks, per-physical-line format capture and live separators follow fixed source. Spans and section redraw remain open.",
     "TableCell/Separator full typed options, inherited getters and rowspan/colspan now have source oracles and actual HTTP/Artisan consumers. ConsoleSectionOutput/append_row redraw and other inherited component interfaces remain open.",
     "Output::section and actual Table::append_row are verified. ConsoleSectionOutput exposes output options, formatter/verbosity controls, height/clear/overwrite/content; safe handles replace shared mutable stream references. OutputStyle::section(message) remains a separate heading SDK gap. Section-bound progress and interactive input are not claimed by this batch.",
-    "OutputStyle now stores the selected OutputReference; get_output returns a mutable borrow of it. AsOutput constructors borrow plain Output, current references and sections without moving an existing &mut Output. Read-only Deref preserves capture-buffer reads, no DerefMut allows bypassing selection. Explicit concrete raw-output helper annotations may use &mut impl AsOutput; nested style/counter forwarding and arbitrary OutputInterface sinks remain separately open.",
+    "OutputStyle now stores the selected OutputReference; get_output returns a mutable borrow of it. AsOutput constructors borrow plain Output, current references and sections without moving an existing &mut Output. Read-only Deref preserves capture-buffer reads, no DerefMut allows bypassing selection. Explicit concrete raw-output helper annotations may use &mut impl AsOutput; Nested style/counter forwarding is verified by nested-style-contracts.json; arbitrary OutputInterface sinks remain separately open.",
     "The terminal completion state machine tracks entered text, accepted full choice and active suggestions separately. First backspace removes the visible suggestion; later backspace removes input, and completion takes precedence over multiline reading. Existing key-event lease/polling, input normalization, callbacks, validators and formatter are reused; no second dispatcher or dependency is introduced."
   ],
   "inherited_output_style_inventory": {
@@ -841,10 +853,8 @@
     ]
   },
   "remaining_output_style_behaviors": [
-    "ask_question及具体Question／Choice／Confirmation公开类型与交互消费者",
-    "嵌套OutputStyle包装的计数委托",
-    "继承的格式器／详细程度设置、组件样式、问答、表格、进度及其他清单入口",
-    "分区补全／多行当前消费者已验收；嵌套样式计数与通用组件Factory继续逐项核对",
+    "完整组件Factory与OutputStyle继承的标题／块／列表／树、table/create_table等布局助手仍逐项核对",
+    "OutputStyle继承的ask/ask_hidden/confirm/choice等便捷助手继续；Question/ChoiceQuestion/ConfirmationQuestion与ask_question已验，不重复开发",
     "任意OutputInterface缓冲（包括Artisan.call第三参数）的专用消费者与类型仍待核对；现有原生入口不冒充完整接口"
   ]
 }

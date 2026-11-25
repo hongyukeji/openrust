@@ -19,7 +19,9 @@
         "write",
         "writeln",
         "write_raw",
-        "as_section"
+        "as_section",
+        "get_output",
+        "as_new_line_aware"
       ]
     },
     "AsOutput": {
@@ -29,7 +31,16 @@
         "Output",
         "OutputReference",
         "ConsoleSectionOutput",
-        "Box<T: AsOutput>"
+        "Box<T: AsOutput>",
+        "OutputStyle"
+      ]
+    },
+    "NewLineView": {
+      "status": "verified_borrowed_optional_newline_contract",
+      "trait": "console::contracts::NewLineAware",
+      "members": [
+        "new_lines_written",
+        "new_line_written"
       ]
     }
   },
@@ -42,7 +53,8 @@
     "Constructors take &mut impl AsOutput rather than consuming a generic value, preserving existing mutable-reference reuse. No default heap allocation, global selection state or unsafe pointer is added.",
     "get_output now returns &mut OutputReference rather than an unconditionally raw &mut Output. Legacy capture-buffer reads remain available; mutable raw escape is rejected by a real compile-fail consumer. Explicit raw-output helper parameter annotations can accept &mut impl AsOutput.",
     "Standard terminal echo bypasses logical section writes, while successful interactive input adds the submission line. Prompt preparation occurs once per question, preserving validation retry behavior and partial-state errors.",
-    "Fixed ProgressBar exposes no getOutput. Source fixtures capture $out directly; the existing native ProgressOutput helper expresses exclusive sequential borrowing."
+    "Fixed ProgressBar exposes no getOutput. Source fixtures capture $out directly; the existing native ProgressOutput helper expresses exclusive sequential borrowing.",
+    "Nested styles borrow existing parent states exclusively. Vec is empty and allocation-free for ordinary root/section outputs; nesting stores references, not copied output, global target state or unsafe pointers. Optional NewLineView exposes only actual wrapped style counters; get_output reborrows the next underlying target. Parent concurrent mutation is rejected at compile time."
   ],
   "evidence": [
     "console_section_consumers",
@@ -51,10 +63,13 @@
     "section-table-oracle.json",
     "console_section_editors",
     "artisan_section_editors.py",
-    "section-editor-oracle.json"
+    "section-editor-oracle.json",
+    "console_nested_styles",
+    "nested-style-oracle.json",
+    "nested-progress-oracle.json"
   ],
   "remaining": [
-    "Nested OutputStyle counter delegation and component Factory",
+    "Full component Factory and inherited style block/table/tree helpers",
     "Full arbitrary output sinks and programmatic call buffer parameter"
   ]
 }

@@ -1,0 +1,61 @@
+{
+  "source_base": "b9cb753362f881c3bd0794a8f5ea29d8ac41e705",
+  "source_hashes": {
+    "vendor/openrust/framework/src/console/contracts.rs": "43833164cb7d63ac958363db68aac38bd08f280bb179ef1d492c14a42f746338",
+    "vendor/openrust/framework/src/console/mod.rs": "d9b13a32da2a876e457ced70c9f342959471729da5ff3d50aaab2a853f53fbdc",
+    "vendor/openrust/framework/src/console/output_reference.rs": "fceefff4ff18f58f9ab465b89a2cb23c3ca9d110e42c4b33286e5affa569beba",
+    "vendor/openrust/framework/src/console/output_style.rs": "61f1c330c8ac5b7978404a6b1d021d54432bf7850b62b5d1a06500ea4e7f7730",
+    "vendor/openrust/framework/src/console/progress_bar.rs": "7bc6b7b86a0633563022600ad5c81e6c8ab23358907e14f16c15c0cc853765d9",
+    "vendor/openrust/framework/src/console/section_output.rs": "19b129f2c0654f82a55e2177b984ffe292519c6e6aa97fb793beec975c17415d",
+    "vendor/openrust/framework/tests/console_nested_styles.rs": "0ca79213033838e7baace6ce77799061b0ac8f7acd5c9b4e47076745c1baf09e",
+    "tests/artisan_tutorial_docs.py": "f55a75a685cb85e98abbf568a7a0573086f7efa23b9eff1b54372c6fb73e969a",
+    "docs/tests/check_artisan_tutorial.mjs": "90c1f628cd4a74d523c642aa75e178cea3fc916650487dd693e2b85ee4cdc3b1",
+    "docs/en/digging-deeper/artisan.md": "05c0fa6c21795368e9b6f49273bc02ece344da9e9fc4b422ae5458e2e0aa05ab",
+    "docs/zh-Hans/digging-deeper/artisan.md": "451335390f23ddff6c50c1fb305c3e53bfbf9f7bbb357621c2062a977bbb5135",
+    "docs/zh-Hant/digging-deeper/artisan.md": "543396b811e8fa3a9e130047493e759ce91c5b7c230f8ec83c093280df70282d",
+    ".agents/project/audits/artisan-tutorial/nested-style-oracle.json": "3563f98a8b3f0342fd4bf76f4d6fa3fce53e22b1aa24e28a0cc628e917c7a883",
+    ".agents/project/audits/artisan-tutorial/nested-progress-oracle.json": "a237cdb240d9f8d683db3b90824f217fafa61da797de2f07d7c440412bf0a286"
+  },
+  "parent_consumers": {
+    "framework": {
+      "targets": 22,
+      "passed": 136,
+      "ignored_drivers": 26
+    },
+    "root": {
+      "targets": 6,
+      "passed": 131,
+      "ignored_drivers": 0
+    }
+  },
+  "formal_examples": 90,
+  "source_vectors": 248,
+  "terminal_regression_cases": 33,
+  "ctrl_c_exit": 130,
+  "terminal_restored": true,
+  "real_http": [
+    "200",
+    "JSON500",
+    "200 recovery"
+  ],
+  "real_artisan": [
+    "native nested writes and status0",
+    "wrapped progress remains stdout; stderr empty"
+  ],
+  "fmt": true,
+  "workspace_clippy": true,
+  "docs_languages": [
+    "en",
+    "zh-Hans",
+    "zh-Hant"
+  ],
+  "browser_checks": 12,
+  "logs": "target/tmp/artisan-tutorial-20261125/nested-styles-*",
+  "initial_interruption": "32GB guard exit75; 113370030080 bytes reclaimed; resumed results only count completed commands",
+  "limitations": [
+    "Full active worktree not accepted",
+    "Entire Artisan chapter not closed",
+    "Windows real terminal remains release check"
+  ],
+  "pushed": false
+}

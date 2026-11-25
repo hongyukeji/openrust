@@ -263,6 +263,7 @@ impl ConsoleSectionOutput<'_> {
         super::OutputReference {
             output: self.output,
             section: Some(self.id),
+            parents: Vec::new(),
         }
     }
 

@@ -6,6 +6,7 @@ mod color;
 mod command;
 mod command_input;
 mod command_io;
+pub mod contracts;
 mod descriptor;
 pub mod events;
 mod formatter;
@@ -547,4 +548,4 @@ mod section_output;
 pub use section_output::{ConsoleSectionHandle, ConsoleSectionOutput};
 
 mod output_reference;
-pub use output_reference::{AsOutput, OutputReference};
+pub use output_reference::{AsOutput, NewLineView, OutputReference};
