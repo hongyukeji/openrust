@@ -231,6 +231,10 @@ Provider 按固定 [ExpireSupervisors](https://github.com/laravel/horizon/blob/b
 
 隔离 Redis 8.10.3 上通过运行时与通知共 18 项和独立 Artisan 进程验收。Master 与 Supervisor 分别在正常注册顺序、应用监听器在前且主动报错两种情形下运行；四次超限各收到一个事件并以 12 退出，提前报错的两类循环事件有单独记录。快照全仓格式、Horizon 全目标严格 Clippy、三语文档构建及 12 组浏览器检查通过。生产平台矩阵与其他生命周期事件仍需验收。
 
+### Pulse CacheInteractions 缓存事件
+
+通过固定上游的缓存仓储和 Rust 的应用 HTTP 路由，核对缓存命中和未命中的事件时间、值、第一条匹配的分组、忽略及延迟采样。macOS 经 file、database、Redis 缓存和 SQLite、PostgreSQL、MySQL 存储的九种组合核对实存字段与计数。Linux ARM64 和 Windows 11 ARM64 在 SQLite 上复验三种缓存。 [对照与证据](pulse/README.md#cacheinteractions-缓存事件对照)
+
 ### Pulse 命名更新请求的页面归因
 
 固定 [LivewireRoutes](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Recorders/Concerns/LivewireRoutes.php)、[SlowRequests](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Recorders/SlowRequests.php) 和 [UserRequests](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Recorders/UserRequests.php) 在采样后检查 `*livewire.update`。两个原生记录器现使用已解码输入的 `components[0].snapshot.memo.path` 归因并应用过滤，慢请求记录在第三项保留原始路由的 `via`。未提供快照路径时继续使用常规路由。已认证用户键 `0` 计入普通用户请求，按上游规则不产生慢用户计数。

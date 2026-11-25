@@ -60,7 +60,11 @@ O05单包验收关闭，接续O06。语言适配明确保留：原生HTML／JS�
 
 PHP 8.5.12 使用固定 Laravel 的缓存 Repository、ArrayStore、固定 Pulse Recorder 和 Ingest 消费者验证命中与未命中。两种事件分别入库，值为空，时间戳取自事件发生时。多个分组规则命中时使用首个规则，忽略规则过滤原始键。事件进入延迟队列后将采样率设为零，实际消费时丢弃该条。证据为 `target/tmp/observability-parity/pulse-cache-interactions-upstream.log`。 [固定 CacheInteractions](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Recorders/CacheInteractions.php)
 
-Rust 的既有真实 HTTP 用例已运行命中／未命中、动态采样率与分组。缓存存储字段以及缓存驱动组合仍须逐项核对。
+固定 PHP 探针将采集时间推后一秒后，命中和未命中仍保留事件发生时的秒级时间戳。Rust 通过应用 HTTP 路由访问实际缓存，并跨到下一秒后结束请求。通过数据库查询确认两条记录按未命中、命中排序，键均为首条匹配规则生成的 `feature:*`，值为空，时间戳均属于缓存操作期间。忽略键和采集前降为零的采样率均未增加条目，公开计数聚合对两类记录分别返回 1。
+
+macOS 将 file、database、Redis 8.10.3 缓存与 SQLite、PostgreSQL 18.7、MySQL 8.4.13 存储逐一组合，九组均通过，同批完整缓存测试目标 3 项通过。固定 PHP 和 macOS 证据为 `target/tmp/observability-parity/pulse-cache-interaction-{source-time-upstream,matrix-macos}.log`。
+
+Linux 7.0.14 ARM64 和 Windows 11 ARM64 使用相同源码复验 SQLite 上的 file、database、Redis 8.10.3 三种缓存。Pulse 库和缓存测试目标通过严格 Clippy，隔离快照全仓格式通过。本批的 PostgreSQL 和 MySQL 矩阵在 macOS 执行。平台证据为 `target/tmp/observability-parity/pulse-cache-interaction-{linux,windows,redis-linux,redis-windows}.log`。
 
 ## Recorder 模式修饰符与分隔符
 

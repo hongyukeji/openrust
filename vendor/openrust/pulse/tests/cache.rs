@@ -61,6 +61,119 @@ fn config(
         ),
     ]))
 }
+
+async fn create_cache_table(connection: &openrust::database::Connection) {
+    connection
+        .get_schema_builder()
+        .create("cache", |table| {
+            table.string("key", None).primary();
+            table.medium_text("value");
+            table.big_integer("expiration");
+        })
+        .await
+        .unwrap();
+}
+
+fn cache_interactions(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    use openrust::support::facades::{Cache, Config};
+    let discard = request.uri().path().ends_with("/sampled-out");
+    Box::pin(async move {
+        if discard {
+            assert!(Cache::get("sampled-out").await?.is_none());
+            Config::get_facade_root()?
+                .set("pulse.recorders.CacheInteractions.sample_rate", json!(0))?;
+            return Ok(Response::from("sampled out"));
+        }
+        let start = jiff::Timestamp::now().as_second();
+        assert!(Cache::get("feature:123").await?.is_none());
+        let payload = openrust::cache::Value::from("value");
+        Cache::put("feature:123", &payload, None).await?;
+        assert_eq!(Cache::get("feature:123").await?, Some(payload));
+        assert!(Cache::get("secret:1").await?.is_none());
+        let end = jiff::Timestamp::now().as_second();
+        // 让缓存事件与 HTTP 终止时的写入落在不同秒。
+        tokio::time::timeout(std::time::Duration::from_secs(3), async {
+            while jiff::Timestamp::now().as_second() <= end {
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .unwrap();
+        Response::json(openrust::http::StatusCode::OK, json!([start, end]))
+    })
+}
+
+#[tokio::test]
+async fn cache_interactions_preserve_source_time_and_count_on_native_driver() {
+    use openrust::database::Value;
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(|root, env| {
+                let mut values = config(root, env)?;
+                values.get_mut("pulse").unwrap()["recorders"] = json!({
+                    "Servers": false,
+                    "SlowQueries": false,
+                    "CacheInteractions": {
+                        "sample_rate": 1,
+                        "ignore": [r"/\Asecret:/"],
+                        "groups": [[r"/\Afeature:\d+\z/", "feature:*"], ["/feature/", "second"]]
+                    }
+                });
+                Ok(values)
+            })
+            .with_providers(vec![Box::new(PulseServiceProvider)])
+            .with_routing(Routing::default().api(|| {
+                Route::get("/cache-interactions", cache_interactions)?;
+                Route::get("/cache-interactions/sampled-out", cache_interactions)?;
+                Ok(())
+            }))
+    })
+    .unwrap();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    let storage = app.app().make::<DatabaseStorage>().await.unwrap();
+    if std::env::var("PULSE_TEST_CACHE").as_deref() == Ok("database") {
+        create_cache_table(storage.connection()).await;
+    }
+
+    let response = app.get("/api/cache-interactions").await.unwrap();
+    response.assert_ok();
+    let [start, end] = serde_json::from_slice::<[i64; 2]>(response.body()).unwrap();
+    app.get("/api/cache-interactions/sampled-out")
+        .await
+        .unwrap()
+        .assert_ok();
+    let types = ["cache_miss".to_owned(), "cache_hit".to_owned()];
+    let rows = storage
+        .connection()
+        .table("pulse_entries")
+        .where_in("type", types.iter().cloned().map(Value::Text).collect())
+        .order_by("id", "asc")
+        .get()
+        .await
+        .unwrap();
+    assert_eq!(rows.len(), 2, "{rows:?}");
+    for (row, kind) in rows.iter().zip(&types) {
+        assert_eq!(row.get("type"), Some(&Value::Text(kind.clone())));
+        assert_eq!(row.get("key"), Some(&Value::Text("feature:*".into())));
+        assert_eq!(row.get("value"), Some(&Value::Null));
+        let timestamp = match row.get("timestamp") {
+            Some(Value::Integer(timestamp)) => *timestamp,
+            Some(Value::Unsigned(timestamp)) => i64::try_from(*timestamp).unwrap(),
+            other => panic!("无效的缓存事件时间戳：{other:?}"),
+        };
+        assert!((start..=end).contains(&timestamp), "{row:?}");
+    }
+    let counts = storage
+        .aggregate_total(&types, "count", 3600)
+        .await
+        .unwrap();
+    for kind in types {
+        assert_eq!(counts[&kind], Some(1.0));
+    }
+}
+
 struct Sampler;
 impl Facade for Sampler {
     type Service = Servers;
@@ -106,16 +219,8 @@ async fn native_cache_driver_throttles_by_instance_and_shares_restart_signal() {
         .unwrap()
         .connection(None)
         .unwrap();
-    let mut schema = db.get_schema_builder();
-    schema
-        .create("cache", |t| {
-            t.string("key", None).primary();
-            t.medium_text("value");
-            t.big_integer("expiration");
-        })
-        .await
-        .unwrap();
-    schema
+    create_cache_table(&db).await;
+    db.get_schema_builder()
         .create("cache_locks", |t| {
             t.string("key", None).primary();
             t.string("owner", None);
