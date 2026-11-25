@@ -2,6 +2,8 @@
 
 Rust 應用從 `openrust::localization` 匯入 `Lang`、`__` 和 `trans_choice`。具體服務和 trait 都稱為 `Localizer`，分別位於 `openrust::localization` 和 `openrust::contracts::localization`。更新舊 Rust 匯入時，將 `Translator` 改為 `Localizer`，容器鍵 `translator`、`translation.loader` 分別改為 `lang`、`lang.loader`。註冊檔案路徑時按型別解析 `FileLoader`。應用 `lang/` 目錄及範本輔助函式沿用原有寫法。
 
+翻譯使用者輸入的文字時，請使用[文字機器翻譯](../packages/translate.md)。
+
 ## 設定語言
 
 透過 `config/app.rs` 的 `locale`、`fallback_locale` 設定預設語言及缺少群組詞條時的備援語言，對應根 `.env`：

@@ -33,3 +33,11 @@
 - 定向框架 11 项通过，覆盖启动顺序、错误、并发刷新、词条删除与回到文件模式。数据库 9 项各自在 SQLite、MySQL 8.4.13、PostgreSQL 18.7 通过，含独立应用真实 TCP、现有 JSON 数据语义与升级脚本。SQLite 另编译通过 4 项包文档用例。
 - `tests/localization_database_acceptance.py` 三库全部通过，实跑独立 HTTP、Artisan 和数据库 Worker。发布迁移、重复发布、`migrate`、`lang:publish`、缺表启动失败、HTTP 刷新失败保留旧值、删词回退及缓存重启均有断言。MySQL／PostgreSQL 使用项目隔离容器与 REQUIRE 门禁。
 - 格式、工作区严格 Clippy、含可选 feature 的消费者严格 Clippy、三语构建、两挂载 Chrome 12 组和数据库章节额外 6 组均通过。日志见 `target/tmp/localization-translate/l10n-02-*`。
+
+## TR-01 文本翻译底座
+
+- 新增独立可选 `openrust-translate`。已启用的应用由包发现注册同一个具名／类型化 `TranslateManager`，`translator` 绑定和 `lang` 各自装配。默认应用保持按需启用。
+- `TranslationRequest` 规范化 BCP 47，拒绝空白原文，保留非空原文的首尾空白。外部 `Translator` 从文本请求返回译文及服务商识别出的源语言。请求和结果的 Debug 输出省略文本。
+- 复用 SmsManager／FilesystemManager 的具名槽位方案和 Laravel Manager 的工厂注册与清除约定。并发首次解析对同名配置只构造一次，工厂执行不持有管理器级锁。失败保留重试能力。替换工厂与配置后显式清除，旧句柄保持原配置。
+- 包的 2 项公开契约回归（含 12 线程竞争）与 1 项 Rustdoc 示例通过。根应用作为该包的独立消费者注册外部驱动，实跑跨应用 HTTP、独立 Artisan 与数据库 Worker。验收默认与具名选择、配置缓存冻结、清除后重配、无默认驱动错误，以及 Lang 缺词条的零翻译调用。默认骨架测试 2 项通过。
+- Rust 1.94 格式、默认工作区与启用扩展的严格 Clippy、三语文档构建、两挂载 Chrome 12 组和导航均通过。验收日志见 `target/tmp/localization-translate/tr-01-*`。

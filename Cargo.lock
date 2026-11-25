@@ -4183,6 +4183,7 @@ dependencies = [
  "openrust-settings",
  "openrust-socialite",
  "openrust-telescope",
+ "openrust-translate",
  "openrust-webhook-client",
  "openrust-webhook-server",
  "serde",
@@ -4638,6 +4639,15 @@ dependencies = [
  "tempfile",
  "tokio",
  "uuid",
+]
+
+[[package]]
+name = "openrust-translate"
+version = "0.0.0"
+dependencies = [
+ "openrust-framework",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]

@@ -2,6 +2,8 @@
 
 Rust applications import `Lang`, `__`, and `trans_choice` from `openrust::localization`. The concrete service and its contract are both named `Localizer`, under `openrust::localization` and `openrust::contracts::localization` respectively. When upgrading older Rust imports, replace `Translator` with `Localizer` and change the container keys `translator` and `translation.loader` to `lang` and `lang.loader`. Resolve the concrete `FileLoader` by type when registering file paths. Application `lang/` directories and template helpers keep their existing syntax.
 
+For translating user-provided text, see [Text Translation](../packages/translate.md).
+
 ## Configuring the Locale
 
 Configure `locale` and `fallback_locale` in `config/app.rs` through the root `.env`:

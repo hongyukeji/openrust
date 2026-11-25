@@ -141,6 +141,7 @@
 - [Socialite 第三方登录](packages/socialite.md)
 - [OpenID Connect（扩展）](packages/oidc.md)
 - [数据库设置（扩展）](packages/settings.md)
+- [文本机器翻译（扩展）](packages/translate.md)
 - [New Relic APM（扩展）](packages/new-relic.md)
 - [支付（扩展）](packages/pay.md)
 - [Webhook 接收（扩展）](packages/webhook-client.md)
