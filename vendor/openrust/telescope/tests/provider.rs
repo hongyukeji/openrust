@@ -1658,7 +1658,17 @@ fn client_handler(
                 .ok()
         );
         let replay_url = url.replace("/outgoing", "/redirect307");
-        assert!(multipart().post(&replay_url, &data).await.unwrap().ok());
+        let upload_path = request.headers()["x-upload-path"].to_str().unwrap();
+        assert!(
+            multipart()
+                .attach_file("disk", upload_path)
+                .await
+                .unwrap()
+                .post(&replay_url, &data)
+                .await
+                .unwrap()
+                .ok()
+        );
         let retry_url = url.replace("/outgoing", "/retry");
         assert!(
             multipart()
@@ -1757,6 +1767,10 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
                             assert!(body.windows(1500).any(|bytes| bytes == [255_u8; 1500]));
                             let body = String::from_utf8_lossy(body);
                             assert!(body.contains("filename=\"file.bin\""));
+                            if matches!(index, 20 | 21) {
+                                assert!(body.contains("filename=\"upload.txt\""));
+                                assert!(body.contains("file-source-bytes"));
+                            }
                             assert!(body.contains("name=\"opaque\"\r\n\r\nnative"));
                             assert!(body.contains("name=\"same\"\r\n\r\nmultipart"));
                             assert!(
@@ -1804,6 +1818,9 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
     let failed = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let failed_address = failed.local_addr().unwrap();
     drop(failed);
+    let upload_dir = tempfile::tempdir().unwrap();
+    let upload_path = upload_dir.path().join("upload.txt");
+    std::fs::write(&upload_path, b"file-source-bytes").unwrap();
     tokio::time::timeout(
         std::time::Duration::from_secs(5),
         app.call(
@@ -1817,6 +1834,7 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
                     "x-failed-url",
                     format!("http://{failed_address}/failed?query=value"),
                 )
+                .header("x-upload-path", upload_path.to_str().unwrap())
                 .body(openrust::http::Body::empty())
                 .unwrap(),
         ),
@@ -1842,7 +1860,15 @@ async fn actual_http_client_preserves_decoded_json_form_query_redaction_and_nati
         assert_eq!(entry.content["uri"], format!("http://{address}{path}"));
         assert_eq!(entry.content["method"], "POST");
         assert_eq!(entry.content["response_status"], status);
-        assert_eq!(entry.content["payload"], payload);
+        let mut expected = payload.clone();
+        if path.starts_with("/final") {
+            expected["disk"] = json!({
+                "name":"upload.txt",
+                "size":"0.017KB",
+                "headers":{"content-type":"text/plain"}
+            });
+        }
+        assert_eq!(entry.content["payload"], expected);
     }
     assert_eq!(entries[0].content["headers"]["x-retry"], "yes");
     assert!(entries[1].content["headers"].get("x-retry").is_none());

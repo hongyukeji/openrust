@@ -1,7 +1,7 @@
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
-#[cfg(feature = "multipart")]
+#[cfg(any(feature = "multipart", feature = "stream"))]
 use std::sync::Arc;
 use std::task::{ready, Context, Poll};
 use std::time::Duration;
@@ -25,9 +25,23 @@ enum Inner {
     Reusable(Bytes),
     Streaming {
         body: BoxBody<Bytes, Box<dyn std::error::Error + Send + Sync>>,
-        #[cfg(feature = "multipart")]
-        multipart: Option<Arc<super::multipart::Form>>,
+        #[cfg(any(feature = "multipart", feature = "stream"))]
+        replay: Option<Replay>,
     },
+}
+
+#[cfg(any(feature = "multipart", feature = "stream"))]
+enum Replay {
+    #[cfg(feature = "multipart")]
+    Multipart(Arc<super::multipart::Form>),
+    #[cfg(feature = "stream")]
+    File(Arc<SeekableFile>),
+}
+
+#[cfg(feature = "stream")]
+struct SeekableFile {
+    file: tokio::sync::Mutex<File>,
+    length: u64,
 }
 
 pin_project! {
@@ -128,11 +142,50 @@ impl Body {
         form: super::multipart::Form,
         template: Option<Arc<super::multipart::Form>>,
     ) -> Body {
-        let mut body = Self::stream(form.into_stream());
-        if let Inner::Streaming { multipart, .. } = &mut body.inner {
-            *multipart = template;
+        Self::stream(form.into_stream()).with_replay(template.map(Replay::Multipart))
+    }
+
+    /// Streams a regular file from offset zero up to its given length. Each
+    /// request attempt reads independently from the same open file.
+    #[cfg(feature = "stream")]
+    pub fn from_seekable_file(file: File, length: u64) -> Body {
+        Self::file_stream(Arc::new(SeekableFile {
+            file: tokio::sync::Mutex::new(file),
+            length,
+        }))
+    }
+
+    #[cfg(feature = "stream")]
+    fn file_stream(file: Arc<SeekableFile>) -> Body {
+        use std::io::{self, SeekFrom};
+        use tokio::io::{AsyncReadExt, AsyncSeekExt};
+
+        let stream = futures_util::stream::try_unfold(
+            (Arc::clone(&file), 0_u64),
+            |(source, offset)| async move {
+                if offset == source.length {
+                    return Ok::<_, io::Error>(None);
+                }
+                let length = (source.length - offset).min(64 * 1024) as usize;
+                let mut bytes = vec![0; length];
+                {
+                    // 每轮拥有独立的逻辑游标，互不改变其重放起点。
+                    let mut file = source.file.lock().await;
+                    file.seek(SeekFrom::Start(offset)).await?;
+                    file.read_exact(&mut bytes).await?;
+                }
+                Ok(Some((bytes, (source, offset + length as u64))))
+            },
+        );
+        Self::stream(stream).with_replay(Some(Replay::File(file)))
+    }
+
+    #[cfg(any(feature = "multipart", feature = "stream"))]
+    fn with_replay(mut self, source: Option<Replay>) -> Body {
+        if let Inner::Streaming { replay, .. } = &mut self.inner {
+            *replay = source;
         }
-        body
+        self
     }
 
     pub(crate) fn empty() -> Body {
@@ -175,8 +228,8 @@ impl Body {
         Body {
             inner: Inner::Streaming {
                 body,
-                #[cfg(feature = "multipart")]
-                multipart: None,
+                #[cfg(any(feature = "multipart", feature = "stream"))]
+                replay: None,
             },
         }
     }
@@ -186,12 +239,17 @@ impl Body {
             Inner::Reusable(ref chunk) => Some(Body::reusable(chunk.clone())),
             #[cfg(feature = "multipart")]
             Inner::Streaming {
-                multipart: Some(ref template),
+                replay: Some(Replay::Multipart(ref template)),
                 ..
             } => Some(Self::multipart_stream(
                 template.try_clone()?,
                 Some(Arc::clone(template)),
             )),
+            #[cfg(feature = "stream")]
+            Inner::Streaming {
+                replay: Some(Replay::File(ref file)),
+                ..
+            } => Some(Self::file_stream(Arc::clone(file))),
             Inner::Streaming { .. } => None,
         }
     }

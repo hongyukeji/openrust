@@ -333,6 +333,40 @@ impl PendingRequest {
         self.add_multipart_part(name.into(), part, None)
     }
 
+    /// 以串流发送常规文件。跳转或重试时从同一文件句柄开头重新读取。
+    pub async fn attach_file(
+        self,
+        name: impl Into<String>,
+        path: impl AsRef<std::path::Path>,
+    ) -> Result<Self> {
+        let path = path.as_ref();
+        let metadata = tokio::fs::metadata(path).await.map_err(Error::Attachment)?;
+        if !metadata.is_file() {
+            return Err(Error::Attachment(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "HTTP 附件必须是常规文件",
+            )));
+        }
+        let file = tokio::fs::File::open(path)
+            .await
+            .map_err(Error::Attachment)?;
+        let length = file.metadata().await.map_err(Error::Attachment)?.len();
+        let filename = path.file_name().map(|name| name.to_string_lossy());
+        let content_type = mime_guess::from_path(path).first_or_octet_stream();
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_str(content_type.as_ref()).map_err(|_| Error::InvalidRequest)?,
+        );
+        Ok(self.attach_body(
+            name,
+            reqwest::Body::from_seekable_file(file, length),
+            filename.as_deref(),
+            headers,
+            Some(length),
+        ))
+    }
+
     /// 附加缓冲正文或串流。未知长度传入 `None`，缓冲正文的长度会自动取得。
     pub fn attach_body(
         self,

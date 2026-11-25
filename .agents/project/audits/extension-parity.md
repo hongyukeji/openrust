@@ -257,6 +257,10 @@ PHP 8.5.12 运行固定 Laravel HTTP Client 和 Telescope `ClientRequestWatcher:
 
 在基于 `177b24933` 的 macOS 隔离快照上，框架 HTTP 客户端 23 项、Telescope Provider 15 项和所涉严格 Clippy 均通过。一个需要独占 Redis 的 Provider 用例未执行。真实回环与 Telescope 仓储验证跨源 302 原始表单参数与完全脱敏、307 重放、422 后重试头和两次条目，在 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 各通过。核心另验证 308、原生 Part 与一次性流拒绝重试。三语内容检查通过。证据为 `target/tmp/observability-parity/multipart-replay-macos-retry.log`。目标平台复验及生产部署组合仍待补齐。
 
+常规文件补充专项。固定 PHP 与真实回环服务器使用已打开的 84,000 字节常规文件，302 清空正文，307 和 308 仍传输完整文件，见 `target/tmp/observability-parity/multipart-file-redirect-wire-upstream.log`。Rust 新增 `PendingRequest::attach_file`，采用同一已打开文件句柄及每个尝试独立的逻辑偏移，分块读至登记长度。原生 reqwest `Part::file` 复用该路径。框架回归按字节核对混合缓冲和文件部件，测试 422 后替换原路径时仍使用原句柄，并检查缺失路径与目录失败。Telescope HTTP 回归核对 307 两跳文件内容以及仓储中的文件名、长度和部件媒体类型。macOS 在隔离快照上通过框架 HTTP 客户端 23 项、Telescope Provider 15 项、三个数据库上的定向入库与脱敏回归，以及所涉严格 Clippy。Provider 的真实 Redis 用例另行验收。三语内容检查通过。 [Tokio AsyncSeekExt](https://docs.rs/tokio/1.54.1/tokio/io/trait.AsyncSeekExt.html)
+
+首次 Rust 编译触及 32 GB 停线，守卫退出并持锁释放 82,869,366,784 字节。在同一隔离源码重新编译并验收通过，证据分别为 `target/tmp/observability-parity/multipart-file-macos.log` 和 `target/tmp/observability-parity/multipart-file-macos-retry.log`。Linux ARM64 和 Windows ARM64 定向复验已启动。
+
 ### Telescope 非 multipart 出站诊断载荷
 
 在 PHP 8.5.12 容器里运行固定 [Laravel PendingRequest](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Client/PendingRequest.php) 和 [Request](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Client/Request.php)，用 Guzzle MockHandler 观察真实 `beforeSending` 回调。9 组用例确认 JSON／表单正文不会混入 URL 查询，普通 GET 使用传入地址的 query，`withQueryParameters` 修改线上地址，HEAD 及不透明原始正文的载荷为空，原始 JSON 可以解码，JSON 构建器覆盖媒体类型仍保留结构化正文。参考日志为 `target/tmp/observability-parity/diagnostic-payload-upstream.log`。

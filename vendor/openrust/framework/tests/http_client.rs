@@ -1818,7 +1818,7 @@ async fn multipart_redirect_limits_and_invalid_header_state_use_the_real_transpo
 }
 
 #[tokio::test]
-async fn multipart_replays_buffered_parts_on_redirect_and_retry() {
+async fn multipart_replays_buffered_and_file_parts_on_redirect_and_retry() {
     type Upload = (Method, String, HeaderMap, axum::body::Bytes);
 
     async fn capture(
@@ -1826,7 +1826,7 @@ async fn multipart_replays_buffered_parts_on_redirect_and_retry() {
         request: axum::extract::Request,
     ) -> impl IntoResponse {
         let (parts, body) = request.into_parts();
-        let body = axum::body::to_bytes(body, 65536).await.unwrap();
+        let body = axum::body::to_bytes(body, 256 * 1024).await.unwrap();
         let path = parts.uri.path().to_owned();
         let status = match path.as_str() {
             "/redirect307" => StatusCode::TEMPORARY_REDIRECT,
@@ -1849,7 +1849,11 @@ async fn multipart_replays_buffered_parts_on_redirect_and_retry() {
     )
     .await;
     let factory = Factory::new().unwrap();
-    let multipart = || {
+    let files = tempfile::tempdir().unwrap();
+    let path = files.path().join("upload.txt");
+    let contents = format!("start-{}-end", "0123456789".repeat(7000));
+    std::fs::write(&path, &contents).unwrap();
+    let multipart = || async {
         factory
             .pending_request()
             .attach_body(
@@ -1860,22 +1864,39 @@ async fn multipart_replays_buffered_parts_on_redirect_and_retry() {
                 None,
             )
             .attach("native", Part::text("native-part"))
+            .attach_file("file", &path)
+            .await
+            .unwrap()
+            .attach("native_file", Part::file(&path).await.unwrap())
     };
+    assert!(matches!(
+        factory.pending_request().attach_file("missing", path.with_extension("missing")).await,
+        Err(Error::Attachment(error)) if error.kind() == std::io::ErrorKind::NotFound
+    ));
+    assert!(matches!(
+        factory.pending_request().attach_file("directory", files.path()).await,
+        Err(Error::Attachment(error)) if error.kind() == std::io::ErrorKind::InvalidInput
+    ));
     let data = json!({"title":"original"});
     for status in [307, 308] {
         assert!(
             multipart()
+                .await
                 .post(&format!("{base}/redirect{status}"), &data)
                 .await
                 .unwrap()
                 .ok()
         );
     }
+    let original_path = path.clone();
     assert!(
         multipart()
+            .await
             .retry(2, Duration::ZERO)
-            .retry_when_request(|error, request| {
+            .retry_when_request(move |error, request| {
                 assert!(matches!(error, Error::RequestFailed(response) if response.status() == StatusCode::UNPROCESSABLE_ENTITY));
+                std::fs::rename(&original_path, original_path.with_extension("moved")).unwrap();
+                std::fs::write(&original_path, b"replacement").unwrap();
                 request.headers_mut().insert("x-retry", HeaderValue::from_static("yes"));
                 Ok(true)
             })
@@ -1933,6 +1954,9 @@ async fn multipart_replays_buffered_parts_on_redirect_and_retry() {
         assert!(body.contains("name=\"title\"\r\n\r\noriginal"));
         assert!(body.contains("filename=\"file.txt\"\r\n\r\nattachment"));
         assert!(body.contains("name=\"native\"\r\n\r\nnative-part"));
+        assert!(body.contains("name=\"file\"; filename=\"upload.txt\""));
+        assert!(body.contains("name=\"native_file\"; filename=\"upload.txt\""));
+        assert_eq!(body.matches(&contents).count(), 2);
     }
     assert!(!uploads[4].2.contains_key("x-retry"));
     assert_eq!(uploads[5].2["x-retry"], "yes");

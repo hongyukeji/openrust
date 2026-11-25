@@ -38,6 +38,7 @@ use std::fmt;
 pub enum Error {
     Configuration,
     Sink(std::io::Error),
+    Attachment(std::io::Error),
     ResponseBody(std::io::Error),
     InvalidRequest,
     DestinationMismatch,
@@ -61,6 +62,7 @@ impl fmt::Display for Error {
         match self {
             Self::ResponseBody(error) => write!(formatter, "读取 HTTP 响应正文失败：{error}"),
             Self::Sink(error) => write!(formatter, "保存 HTTP 响应失败：{error}"),
+            Self::Attachment(error) => write!(formatter, "打开 HTTP 附件失败：{error}"),
             Self::Configuration => formatter.write_str("invalid HTTP client configuration"),
             Self::InvalidRequest => formatter.write_str("invalid outgoing HTTP request"),
             Self::DestinationMismatch => formatter.write_str("HTTP 请求目标与固定连接地址不匹配"),
@@ -102,7 +104,7 @@ impl fmt::Display for Error {
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::Sink(error) | Self::ResponseBody(error) => Some(error),
+            Self::Sink(error) | Self::ResponseBody(error) | Self::Attachment(error) => Some(error),
             Self::InvalidJson(error) => Some(error),
             Self::Event(error) => Some(error),
             Self::Unavailable(error) => Some(error),

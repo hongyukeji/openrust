@@ -178,6 +178,8 @@ rustls-no-provider = [
 socks = []
 stream = [
     "tokio/fs",
+    "tokio/io-util",
+    "tokio/sync",
     "dep:futures-util",
     "dep:tokio-util",
     "dep:wasm-streams",

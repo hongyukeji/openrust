@@ -307,10 +307,13 @@ impl Part {
         let ext = path.extension().and_then(|ext| ext.to_str()).unwrap_or("");
         let mime = mime_guess::from_ext(ext).first_or_octet_stream();
         let file = File::open(path).await?;
-        let len = file.metadata().await.map(|m| m.len()).ok();
-        let field = match len {
-            Some(len) => Part::stream_with_length(file, len),
-            None => Part::stream(file),
+        let field = match file.metadata().await {
+            Ok(metadata) if metadata.is_file() => {
+                let length = metadata.len();
+                Part::stream_with_length(Body::from_seekable_file(file, length), length)
+            }
+            Ok(metadata) => Part::stream_with_length(file, metadata.len()),
+            Err(_) => Part::stream(file),
         }
         .mime(mime);
 
