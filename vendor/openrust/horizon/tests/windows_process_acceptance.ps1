@@ -38,7 +38,10 @@ function Wait-For($Description, $Condition, $Seconds = 20) {
 
 function Dispatch([int]$Duration, [string]$OutputMarker) {
     $payload = @{sleep_ms = $Duration; record_start = $true}
-    if ($OutputMarker) { $payload.probe_output = $OutputMarker }
+    if ($OutputMarker) {
+        $payload.probe_output = $OutputMarker
+        $payload.probe_format = $OutputMarker
+    }
     $env:HORIZON_PROBE_DISPATCH = $payload | ConvertTo-Json -Compress
     $env:HORIZON_PROBE_DISPATCH_UUID = '1'
     try {
@@ -134,7 +137,9 @@ foreach ($mode in @('idle', 'wait', 'fast', 'parent-exit')) {
             Wait-For 'job on the dynamically added Worker' { Recorded 'completed.log' $dynamic } | Out-Null
             Wait-For 'both Worker streams on Master stdout' {
                 $contents = Get-Content (Join-Path $fixture 'master.stdout') -Raw -Encoding UTF8
-                $contents -match 'worker-out-.*-windows-native' -and $contents.Contains('worker-err-windows-native')
+                $contents -match 'worker-out-.*-windows-native' -and
+                    $contents.Contains('worker-err-windows-native') -and
+                    $contents.Contains('styled-windows-native <unknown>windows-native</unknown>')
             } | Out-Null
             'PASS: Windows native Horizon streamed both Worker output streams through the Master'
 

@@ -94,7 +94,9 @@ macOS 和 Linux ARM64 在真实 Redis 8.10.3 上验证暂停恢复、执行中�
 
 Rust 的 `MasterSupervisor` 和 `Supervisor` 提供 `handle_output_using` 与 `output`，按直接子进程的流类型传回原始字节。Rust 使用可在线程间共享的回调，调用方自行处理跨子进程的并发。真实 Artisan 实时写出两个流，`horizon:supervisor` 将 Worker 的两个流写入自己的 stdout。文件监听命令实时转发重启前后的进程输出，保留自身的错误流。框架进程的 `start_with_streamed_output` 在调用回调时跳过历史留存。显式捕获的进程内 Artisan 结果仍按原模型收集输出。
 
-Symfony Console 8.0.6 的运行结果确认，子进程文本中的 `<info>` 等控制台标签由 Artisan 输出格式器解释。Rust 当前实时转发已经输出的字节，标签格式处理仍待补齐。独立的 `WorkerProcess::handleOutputUsing` 及其通过 `SupervisorProcess` 继承的入口仍待按所属类型核对。
+Symfony Console 8.0.6 的实测覆盖 `<info>`、跨输出片段的样式、未知标签和强制 ANSI。Rust 的 Artisan 复用同一个控制台格式器处理有效 UTF-8 输出片段。已知标签按当前装饰选项显示，未知标签保留原文。程序直接注册的回调仍接收原始字节。无效 UTF-8 或格式器报错的片段继续按字节转发，文件监听命令保留 Cargo 的独立诊断。独立的 `WorkerProcess::handleOutputUsing` 及其通过 `SupervisorProcess` 继承的入口仍待按所属类型核对。
+
+macOS 和 Linux ARM64 的实际 Artisan／Worker 验证强制 ANSI、跨写入的样式、未知标签及原始回调。Windows ARM64 用真实 Redis 验证普通标签格式、未知标签和原生进程树回归。Horizon 严格 Clippy、格式及三语正文检查通过。证据为 `target/tmp/observability-parity/horizon-output-format-{upstream,macos-final,linux,windows,docs}.log`。
 
 macOS 与 Linux ARM64 用真实 Redis 和 Worker 核对公开回调、实时输出和静默模式。macOS 文件监听在源码变动前后都收到实际任务的输出，框架进程测试 17 项通过，其中真实子进程输出 64 MiB，回调收到完整字节，结果无保留副本。框架和 Horizon 所涉严格 Clippy、格式及三语正文检查通过。
 

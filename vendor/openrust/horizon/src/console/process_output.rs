@@ -2,6 +2,7 @@ use crate::process_output::OutputHandler;
 use openrust::console::Output;
 use openrust::process::OutputStream;
 use std::{
+    borrow::Cow,
     io,
     sync::{Arc, Mutex},
 };
@@ -29,32 +30,40 @@ impl CommandOutput {
                 captured: None,
             };
         }
-        if output.streams_to_terminal() {
-            return Self {
-                handler: Some(Arc::new(move |stream, bytes| {
-                    if separate_stderr && stream == OutputStream::Stderr {
-                        write(&mut io::stderr().lock(), bytes);
-                    } else {
-                        write(&mut io::stdout().lock(), bytes);
-                    }
-                })),
-                captured: None,
-            };
-        }
-        let captured = Arc::new(Mutex::new(Some([Vec::new(), Vec::new()])));
-        let buffer = Arc::clone(&captured);
+        let terminal = output.streams_to_terminal();
+        let captured = (!terminal).then(|| Arc::new(Mutex::new(Some([Vec::new(), Vec::new()]))));
+        let buffer = captured.clone();
+        let formatter = output.get_formatter();
+        let order = Mutex::new(());
         Self {
             handler: Some(Arc::new(move |stream, bytes| {
-                if let Some(buffer) = buffer
+                let _order = order
                     .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner)
-                    .as_mut()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                let stderr = separate_stderr && stream == OutputStream::Stderr;
+                // 保留 Cargo 的诊断和无法按 UTF-8 解释的原始字节。
+                let mut rendered = Cow::Borrowed(bytes);
+                if !stderr
+                    && let Ok(message) = std::str::from_utf8(bytes)
+                    && let Ok(formatted) = formatter.format(Some(message))
                 {
-                    let index = usize::from(separate_stderr && stream == OutputStream::Stderr);
-                    buffer[index].extend_from_slice(bytes);
+                    rendered = Cow::Owned(formatted.unwrap_or_default().into_bytes());
+                }
+                if let Some(buffer) = &buffer {
+                    if let Some(buffer) = buffer
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        .as_mut()
+                    {
+                        buffer[usize::from(stderr)].extend_from_slice(&rendered);
+                    }
+                } else if stderr {
+                    write(&mut io::stderr().lock(), &rendered);
+                } else {
+                    write(&mut io::stdout().lock(), &rendered);
                 }
             })),
-            captured: Some(captured),
+            captured,
         }
     }
 

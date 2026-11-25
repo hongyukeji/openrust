@@ -36,6 +36,8 @@ def run_case(binary, mode):
         if public:
             args = []
             process_env = dict(env, HORIZON_PROBE_OUTPUT_CALLBACK=mode)
+        elif mode == 'ansi':
+            args = ['artisan', 'horizon:supervisor', 'callback', 'redis', '--ansi', '--timeout=5']
         else:
             args = ['artisan', 'horizon']
             if mode == 'silent':
@@ -44,9 +46,14 @@ def run_case(binary, mode):
         with stdout.open('wb') as out, stderr.open('wb') as err:
             process = subprocess.Popen([binary, *args], env=process_env, stdout=out, stderr=err)
         try:
-            run(HORIZON_PROBE_DISPATCH=json.dumps({'probe_output': mode}))
+            run(HORIZON_PROBE_DISPATCH=json.dumps({
+                'probe_output': mode, 'probe_format': mode, 'probe_split_format': mode == 'ansi',
+            }))
             marker_out = f'worker-out-東京-{mode}'.encode()
             marker_err = f'worker-err-{mode}'.encode()
+            styled = f'styled-{mode}'.encode()
+            literal_tag = b'<info>' + styled + b'</info>'
+            unknown = f'<unknown>{mode}</unknown>'.encode()
             if public:
                 callback_out, callback_err = root / 'callback.stdout', root / 'callback.stderr'
                 expected = callback_err if mode == 'supervisor' else callback_out
@@ -54,13 +61,22 @@ def run_case(binary, mode):
                 assert f'direct-{mode}'.encode() in read(callback_err)
                 assert marker_err not in read(stdout) and marker_err not in read(stderr)
                 assert (marker_err in read(callback_err)) == (mode == 'supervisor')
+                until(lambda: unknown in read(callback_out))
+                assert (literal_tag in read(callback_out)) == (mode == 'supervisor')
             elif mode == 'silent':
                 until(lambda: (root / 'completed.log').exists())
             else:
                 until(lambda: marker_out in read(stdout) and marker_err in read(stdout))
                 assert marker_err not in read(stderr)
+                until(lambda: unknown in read(stdout))
+                assert styled in read(stdout)
+                assert literal_tag not in read(stdout)
+                if mode == 'ansi':
+                    assert b'\x1b[32m' + styled + b'\x1b[39m' in read(stdout)
+                    until(lambda: b'-split' in read(stdout))
+                    assert b'\x1b[32m-split\x1b[39m' in read(stdout), read(stdout)
 
-            if mode == 'supervisor':
+            if mode in ('supervisor', 'ansi'):
                 run(HORIZON_PROBE_COMMAND_QUEUE=json.dumps({
                     'action': 'push', 'name': 'callback',
                     'command': 'Laravel\\Horizon\\SupervisorCommands\\Terminate', 'options': [],
@@ -82,6 +98,6 @@ def run_case(binary, mode):
 
 if __name__ == '__main__':
     assert os.environ['HORIZON_REQUIRE_REDIS'] == '1'
-    for mode in ('artisan', 'silent', 'master', 'supervisor'):
+    for mode in ('artisan', 'silent', 'master', 'supervisor', 'ansi'):
         run_case(str(Path(sys.argv[1]).resolve()), mode)
-    print('PASS: live Artisan stdout, silent output, public Master callback and public Supervisor callback')
+    print('PASS: live Artisan output, silent mode, console tags, ANSI and both public callbacks')

@@ -137,7 +137,7 @@ Supervisor 的结构化命令已接入同一 Redis 队列服务，覆盖暂停�
 
 Horizon 增加 Master 公开重启。恢复暂停后，原 Master 按之前的部署选项替换 Supervisor 与 Worker，已开始的任务继续执行。 [Master 公开重启审计](horizon/README.md#master-公开重启)
 
-Horizon 的 Master 和 Supervisor 增加公开输出回调，Artisan 与文件监听命令接通子进程的实时输出。使用真实任务核对 stdout、stderr、静默模式和文件重启前后的输出。独立进程包装器回调、控制台标签格式及命令队列替换仍在对齐。 [输出回调审计](horizon/README.md#master-与-supervisor-输出回调)
+Horizon 的 Master 和 Supervisor 增加公开输出回调，Artisan 与文件监听命令接通子进程的实时输出和控制台标签格式。使用真实任务核对 stdout、stderr、静默模式和文件重启前后的输出。独立进程包装器回调及命令队列替换仍在对齐。 [输出回调审计](horizon/README.md#master-与-supervisor-输出回调)
 
 ### Horizon 分组等待时间与 HTTP 排序
 

@@ -86,6 +86,23 @@ impl JobHandler for Probe {
                 let mut stderr = std::io::stderr().lock();
                 let _ = write!(stderr, "worker-err-{marker}").and_then(|()| stderr.flush());
             }
+            if let Some(marker) = data.get("probe_format").and_then(Value::as_str) {
+                let mut stdout = std::io::stdout().lock();
+                let _ = writeln!(
+                    stdout,
+                    "<info>styled-{marker}</info> <unknown>{marker}</unknown>"
+                )
+                .and_then(|()| stdout.flush());
+            }
+            if data.get("probe_split_format").and_then(Value::as_bool) == Some(true) {
+                {
+                    let mut stdout = std::io::stdout().lock();
+                    let _ = write!(stdout, "<info>styled").and_then(|()| stdout.flush());
+                }
+                tokio::time::sleep(Duration::from_millis(150)).await;
+                let mut stdout = std::io::stdout().lock();
+                let _ = writeln!(stdout, "-split</info>").and_then(|()| stdout.flush());
+            }
             if data.get("record_start").and_then(Value::as_bool) == Some(true) {
                 writeln!(
                     std::fs::OpenOptions::new()
