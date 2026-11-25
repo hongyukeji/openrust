@@ -395,10 +395,10 @@ pub(super) async fn ask(
         return question.default_answer().await;
     }
     let mut attempt = 0;
+    style.prepare_question()?;
     loop {
         tokio::task::yield_now().await;
         let mut session = reader::prepare(style, question).await?;
-        style.prepare_question()?;
         let label = super::formatting::Formatter::escape_trailing_backslash(&question.label);
         let label = if question.multiline {
             let keys = if cfg!(windows) {
@@ -462,7 +462,7 @@ pub(super) async fn ask(
             .map_or(" > ", |choice| choice.prompt.as_str());
         let output = style.get_output();
         let rendered_prompt = output
-            .formatter
+            .formatter()
             .clone()
             .format(prompt, output.is_decorated())
             .map_err(ConsoleError::from_source)?;
@@ -536,6 +536,7 @@ pub(super) async fn ask(
         match answer {
             Ok(answer) => {
                 if style.question_input().is_interactive() {
+                    style.section_input_submit()?;
                     style.new_line(1)?;
                 }
                 return Ok(answer);

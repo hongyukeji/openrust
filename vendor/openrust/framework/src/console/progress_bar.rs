@@ -1,4 +1,4 @@
-use super::{ConsoleError, Output, OutputStyle, OutputVerbosity};
+use super::{ConsoleError, OutputReference, OutputStyle, OutputVerbosity};
 use regex::Regex;
 use serde_json::Value;
 use std::{
@@ -48,18 +48,22 @@ pub(super) struct ProgressState {
 }
 /// 当前命令输出上的进度条，不拥有进程级输出状态。
 pub struct ProgressBar<'a> {
-    output: &'a mut Output,
+    output: OutputReference<'a>,
     state: ProgressState,
 }
 impl<'a> ProgressBar<'a> {
-    pub fn new(output: &'a mut Output, max: i64) -> Result<Self, ConsoleError> {
+    pub fn new(
+        output: &'a mut (impl super::AsOutput + ?Sized),
+        max: i64,
+    ) -> Result<Self, ConsoleError> {
         Self::new_with_redraw_interval(output, max, 1.0 / 25.0)
     }
     pub fn new_with_redraw_interval(
-        output: &'a mut Output,
+        output: &'a mut (impl super::AsOutput + ?Sized),
         max: i64,
         min_seconds: f64,
     ) -> Result<Self, ConsoleError> {
+        let output = output.as_output();
         let decorated = output.progress_is_decorated();
         let mut bar = Self {
             output,
@@ -354,8 +358,14 @@ impl<'a> ProgressBar<'a> {
     pub(super) fn into_state(self) -> ProgressState {
         self.state
     }
-    pub(super) fn from_state(output: &'a mut Output, state: ProgressState) -> Self {
-        Self { output, state }
+    pub(super) fn from_state(
+        output: &'a mut (impl super::AsOutput + ?Sized),
+        state: ProgressState,
+    ) -> Self {
+        Self {
+            output: output.as_output(),
+            state,
+        }
     }
     pub fn display(&mut self) -> Result<(), ConsoleError> {
         if self.output.progress_verbosity() == OutputVerbosity::Quiet {
@@ -534,17 +544,50 @@ impl<'a> ProgressBar<'a> {
         let original = message.clone();
         if self.state.overwrite {
             if let Some(previous) = &self.state.previous {
-                let mut cursor = String::new();
-                for _ in 0..previous.matches('\n').count() {
-                    cursor.push_str("\x1b[1G\x1b[2K\x1b[1A");
+                if self.output.section.is_some() {
+                    let parts: Vec<_> = previous.split('\n').collect();
+                    let mut count =
+                        i64::try_from(parts.len()).map_err(ConsoleError::from_source)?;
+                    let last = super::formatting::unformatted_text(
+                        self.output.progress_formatter(),
+                        parts.last().copied().unwrap_or(""),
+                    )
+                    .map_err(ConsoleError::from_source)?;
+                    if last.is_empty() {
+                        count -= 1;
+                    }
+                    let width = super::Terminal::new().get_width();
+                    for part in parts {
+                        let plain = super::formatting::unformatted_text(
+                            self.output.progress_formatter(),
+                            part,
+                        )
+                        .map_err(ConsoleError::from_source)?;
+                        let length = i64::try_from(super::formatting::display_width(&plain))
+                            .map_err(ConsoleError::from_source)?;
+                        if length > width {
+                            if width == 0 {
+                                return Err(ConsoleError::new("终端宽度为零，无法清除分区进度条"));
+                            }
+                            count = count
+                                .checked_add((length as f64 / width as f64).floor() as i64)
+                                .ok_or_else(|| ConsoleError::new("进度条清除行数超出可表示范围"))?;
+                        }
+                    }
+                    self.output.clear_section(count)?;
+                } else {
+                    let mut cursor = String::new();
+                    for _ in 0..previous.matches('\n').count() {
+                        cursor.push_str("\x1b[1G\x1b[2K\x1b[1A");
+                    }
+                    cursor.push_str("\x1b[1G\x1b[2K");
+                    self.output.emit_progress_message(
+                        cursor.as_str(),
+                        false,
+                        super::OutputFormat::Raw,
+                        super::OutputVerbosity::Normal,
+                    )?;
                 }
-                cursor.push_str("\x1b[1G\x1b[2K");
-                self.output.emit_progress_message(
-                    cursor.as_str(),
-                    false,
-                    super::OutputFormat::Raw,
-                    super::OutputVerbosity::Normal,
-                )?;
             }
         } else if self.state.step > 0 {
             message.insert(0, '\n');

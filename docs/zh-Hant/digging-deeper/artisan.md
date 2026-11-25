@@ -1155,4 +1155,51 @@ fn register_sections() -> Result<(), ConsoleError> {
 }
 ```
 
-`append_row` 要求分區輸出；首次繪製後按計算列數清除表格區域，附加列並再次繪製，保留後續分區。普通輸出會在新增列之前傳回錯誤；只建立表格而不重繪請用 `add_row`。分區詳細程度獨立，初始格式器共用，亦可為該分區替換。進度列和互動輸入的分區接線另行追蹤。
+`append_row` 要求分區輸出；首次繪製後按計算列數清除表格區域，附加列並再次繪製，保留後續分區。普通輸出會在新增列之前傳回錯誤；只建立表格而不重繪請用 `add_row`。分區詳細程度獨立，初始格式器共用，亦可為該分區替換。所選進度與問答輸出見下節。
+
+
+## 所選輸出、進度列與問答 {#section-consumers}
+
+`OutputStyle::get_output()` 傳回攜帶目前輸出和分區身分的 `OutputReference`。`OutputStyle::new`、`ProgressBar::new` 和 `new_with_redraw_interval` 同時接受它及原來的 `&mut Output`，普通呼叫語法不變。顯式標註 `&mut Output` 參數的助手若要支援分區，應接受 `&mut impl AsOutput`。該借用允許讀取原擷取緩衝，設定和寫入轉送到所選輸出，不能透過可變解參照繞過分區。
+
+進度列清除／重繪使用分區列數，並恢復後續分區。`bar.get_output()` 為回呼寫入和設定提供同一所選串流；`as_section()` 提供分區操作，普通輸出則傳回錯誤。這種順序借用取代在同一閉包中同時擷取可變串流與進度列。
+
+```rust
+use openrust::{
+    console::{ConsoleError, Input, Output, OutputOptions, OutputStyle, ProgressBar},
+    support::facades::Artisan,
+};
+
+fn register_section_progress() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:section-progress", |input: &Input, output: &mut Output| {
+        let first = {
+            let mut section = output.section();
+            section.writeln("prefix", OutputOptions::default())?;
+            section.handle()
+        };
+        {
+            let mut section = output.section();
+            section.writeln("later", OutputOptions::default())?;
+        }
+        let mut section = output.section_output(&first)?;
+        let mut style = OutputStyle::new(input, &mut section);
+        let mut bar = ProgressBar::new(style.get_output(), 3)?;
+        bar.set_format("<info>%current%/%max%</info>")
+            .min_seconds_between_redraws(0.0)
+            .max_seconds_between_redraws(0.0)
+            .set_redraw_frequency(Some(1));
+        bar.start()?;
+        bar.advance()?;
+        bar.display()?;
+        bar.get_output().writeln("notice", OutputOptions::default())?;
+        bar.advance()?;
+        bar.clear()?;
+        bar.display()?;
+        bar.finish()?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
+問答使用所選格式器，在隨後空列之前計入提交輸入的換列；驗證重試只在問題開始前準備一次空列，不在每次重試重複執行。普通終端編輯直接回顯輸入，不把回顯再次儲存到分區內容。已驗證串流輸入問答、確認、隱藏輸入、重試、取消和普通互動 PTY；終端自動完成及多行輸入的分區記帳尚未包含在這批驗收中。

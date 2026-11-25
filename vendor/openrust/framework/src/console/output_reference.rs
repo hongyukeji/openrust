@@ -1,0 +1,291 @@
+use super::{
+    ConsoleError, FormatterHandle, Output, OutputFormat, OutputMessages, OutputOptions,
+    OutputVerbosity,
+};
+/// 借用当前选中的输出；保留分区身份，避免消费者退回普通流。
+///
+/// 可读取原捕获缓冲，但不能取得可变原流以绕开所选分区。
+/// ```compile_fail
+/// use openrust::console::{Output, OutputReference};
+/// let mut output = Output::default();
+/// let mut selected = OutputReference::from(&mut output);
+/// let raw: &mut Output = &mut *selected;
+/// ```
+pub struct OutputReference<'a> {
+    pub(super) output: &'a mut Output,
+    pub(super) section: Option<usize>,
+}
+/// 将输出作为短期可变借用提供给现有消费者；不转移调用方的借用。
+pub trait AsOutput {
+    fn as_output(&mut self) -> OutputReference<'_>;
+}
+impl AsOutput for Output {
+    fn as_output(&mut self) -> OutputReference<'_> {
+        OutputReference {
+            output: self,
+            section: None,
+        }
+    }
+}
+impl AsOutput for OutputReference<'_> {
+    fn as_output(&mut self) -> OutputReference<'_> {
+        self.reborrow()
+    }
+}
+impl<T: AsOutput + ?Sized> AsOutput for Box<T> {
+    fn as_output(&mut self) -> OutputReference<'_> {
+        (**self).as_output()
+    }
+}
+impl AsOutput for super::ConsoleSectionOutput<'_> {
+    fn as_output(&mut self) -> OutputReference<'_> {
+        super::ConsoleSectionOutput::as_output(self)
+    }
+}
+impl<'a> From<&'a mut Output> for OutputReference<'a> {
+    fn from(output: &'a mut Output) -> Self {
+        Self {
+            output,
+            section: None,
+        }
+    }
+}
+impl std::ops::Deref for OutputReference<'_> {
+    type Target = Output;
+    fn deref(&self) -> &Output {
+        self.output
+    }
+}
+impl OutputReference<'_> {
+    pub(super) fn formatter(&mut self) -> &mut super::formatting::Formatter {
+        if let Some(id) = self.section {
+            &mut self.output.sections[id].formatter
+        } else {
+            &mut self.output.formatter
+        }
+    }
+    pub(super) fn reborrow(&mut self) -> OutputReference<'_> {
+        OutputReference {
+            output: self.output,
+            section: self.section,
+        }
+    }
+    pub fn as_section(&mut self) -> Result<super::ConsoleSectionOutput<'_>, ConsoleError> {
+        let id = self
+            .section
+            .ok_or_else(|| ConsoleError::new("当前输出不是控制台分区"))?;
+        Ok(super::ConsoleSectionOutput::from_reference(self.output, id))
+    }
+    pub fn get_formatter(&self) -> FormatterHandle {
+        self.section.map_or_else(
+            || self.output.get_formatter(),
+            |id| self.output.sections[id].formatter.handle(),
+        )
+    }
+    pub fn set_formatter(&mut self, formatter: FormatterHandle) {
+        if let Some(id) = self.section {
+            self.output.sections[id].formatter =
+                super::formatting::Formatter::from_handle(formatter);
+        } else {
+            self.output.set_formatter(formatter);
+        }
+    }
+    pub fn verbosity(&self) -> OutputVerbosity {
+        self.get_verbosity()
+    }
+    pub fn get_verbosity(&self) -> OutputVerbosity {
+        self.section.map_or_else(
+            || self.output.verbosity(),
+            |id| self.output.sections[id].verbosity,
+        )
+    }
+    pub fn set_verbosity(&mut self, level: OutputVerbosity) {
+        if let Some(id) = self.section {
+            self.output.sections[id].verbosity = level;
+        } else {
+            self.output.set_verbosity(level);
+        }
+    }
+    pub fn is_decorated(&self) -> bool {
+        self.get_formatter().is_decorated()
+    }
+    pub fn set_decorated(&mut self, decorated: bool) {
+        if self.section.is_some() {
+            self.get_formatter().set_decorated(decorated);
+        } else {
+            self.output.set_decorated(decorated);
+        }
+    }
+    pub fn is_silent(&self) -> bool {
+        self.get_verbosity() == OutputVerbosity::Silent
+    }
+    pub fn is_quiet(&self) -> bool {
+        self.get_verbosity() == OutputVerbosity::Quiet
+    }
+    pub fn is_verbose(&self) -> bool {
+        self.get_verbosity() >= OutputVerbosity::Verbose
+    }
+    pub fn is_very_verbose(&self) -> bool {
+        self.get_verbosity() >= OutputVerbosity::VeryVerbose
+    }
+    pub fn is_debug(&self) -> bool {
+        self.get_verbosity() == OutputVerbosity::Debug
+    }
+    pub fn write<'m>(
+        &mut self,
+        messages: impl Into<OutputMessages<'m>>,
+        newline: bool,
+        options: impl Into<OutputOptions>,
+    ) -> Result<(), ConsoleError> {
+        let options = options.into();
+        match messages.into() {
+            OutputMessages::Text(text) => self.write_one(text, newline, options),
+            OutputMessages::Lines(lines) => {
+                for text in lines {
+                    self.write_one(text, newline, options)?;
+                }
+                Ok(())
+            }
+        }
+    }
+    pub fn write_raw(&mut self, message: &str) -> std::io::Result<()> {
+        if let Some(id) = self.section {
+            self.output
+                .emit_section(
+                    id,
+                    message,
+                    false,
+                    OutputFormat::Raw,
+                    OutputVerbosity::Normal,
+                )
+                .map_err(std::io::Error::other)
+        } else {
+            self.output.write_raw(message)
+        }
+    }
+    pub fn writeln<'m>(
+        &mut self,
+        messages: impl Into<OutputMessages<'m>>,
+        options: impl Into<OutputOptions>,
+    ) -> Result<(), ConsoleError> {
+        self.write(messages, true, options)
+    }
+    fn write_one(
+        &mut self,
+        message: &str,
+        newline: bool,
+        options: OutputOptions,
+    ) -> Result<(), ConsoleError> {
+        let level = options
+            .verbosity
+            .filter(|v| *v != OutputVerbosity::Silent)
+            .unwrap_or(OutputVerbosity::Normal);
+        if let Some(id) = self.section {
+            self.output
+                .emit_section(id, message, newline, options.format, level)
+        } else {
+            self.output
+                .emit_formatted(message, newline, options.format, level)
+        }
+    }
+    pub(super) fn emit_input_echo(&mut self, message: &str) -> Result<(), ConsoleError> {
+        if self.section.is_some() {
+            if self.get_verbosity() < OutputVerbosity::Normal || self.is_silent() {
+                return Ok(());
+            }
+            self.output.emit_to_sink(message)
+        } else {
+            self.output.emit_rendered(message, OutputVerbosity::Normal)
+        }
+    }
+    pub(super) fn emit_rendered(
+        &mut self,
+        message: &str,
+        level: OutputVerbosity,
+    ) -> Result<(), ConsoleError> {
+        if let Some(id) = self.section {
+            self.output
+                .emit_section(id, message, false, OutputFormat::Raw, level)
+        } else {
+            self.output.emit_rendered(message, level)
+        }
+    }
+    pub(super) fn progress_verbosity(&self) -> OutputVerbosity {
+        if self.section.is_some() {
+            self.get_verbosity()
+        } else {
+            self.output.progress_verbosity()
+        }
+    }
+    pub(super) fn progress_is_decorated(&self) -> bool {
+        if self.section.is_some() {
+            self.is_decorated()
+        } else {
+            self.output.progress_is_decorated()
+        }
+    }
+    pub(super) fn progress_formatter(&mut self) -> &mut super::formatting::Formatter {
+        if let Some(id) = self.section {
+            &mut self.output.sections[id].formatter
+        } else {
+            self.output.progress_formatter()
+        }
+    }
+    pub(super) fn set_progress_decorated(&mut self, value: bool) {
+        if self.section.is_some() {
+            self.set_decorated(value)
+        } else {
+            self.output.set_progress_decorated(value)
+        }
+    }
+    pub(super) fn set_progress_verbosity(&mut self, level: OutputVerbosity) {
+        if self.section.is_none() && self.output.streams_to_terminal() {
+            self.output.error_verbosity = Some(level);
+        } else {
+            self.set_verbosity(level)
+        }
+    }
+    pub(super) fn set_progress_formatter(&mut self, formatter: FormatterHandle) {
+        if self.section.is_none() && self.output.streams_to_terminal() {
+            self.output.error_formatter =
+                Some(super::formatting::Formatter::from_handle(formatter));
+            self.output.error_formatter_generation =
+                self.output.error_formatter_generation.wrapping_add(1);
+        } else {
+            self.set_formatter(formatter)
+        }
+    }
+    pub(super) fn emit_progress(&mut self, message: &str) -> Result<(), ConsoleError> {
+        if self.section.is_none() {
+            self.output.emit_progress(message)
+        } else {
+            self.emit_progress_message(
+                message,
+                false,
+                OutputFormat::Normal,
+                OutputVerbosity::Normal,
+            )
+        }
+    }
+    pub(super) fn emit_progress_message(
+        &mut self,
+        message: &str,
+        newline: bool,
+        format: OutputFormat,
+        level: OutputVerbosity,
+    ) -> Result<(), ConsoleError> {
+        if let Some(id) = self.section {
+            self.output
+                .emit_section(id, message, newline, format, level)
+        } else {
+            self.output
+                .emit_progress_message(message, newline, format, level)
+        }
+    }
+    pub(super) fn clear_section(&mut self, count: i64) -> Result<(), ConsoleError> {
+        let id = self
+            .section
+            .ok_or_else(|| ConsoleError::new("当前输出不是控制台分区"))?;
+        self.output.clear_section(id, Some(count))
+    }
+}

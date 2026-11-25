@@ -1,0 +1,98 @@
+[
+    {
+        "decorated": false,
+        "mode": "default",
+        "wrap": false,
+        "error": null,
+        "output": "prefix\nlater\n+--------- Title -+-------+\n| Heading         | B     |\n+-----------------+-------+\n| long text wraps | value |\n| one             | next  |\n| two             |       |\n+-----------------+-------+\n",
+        "content": ""
+    },
+    {
+        "decorated": false,
+        "mode": "default",
+        "wrap": true,
+        "error": null,
+        "output": "prefix\nlater\n+----- Title -----+\n| Heading | B     |\n+---------+-------+\n| long    | value |\n| text    |       |\n| wraps   |       |\n| one     | next  |\n| two     |       |\n+---------+-------+\n",
+        "content": ""
+    },
+    {
+        "decorated": false,
+        "mode": "horizontal",
+        "wrap": false,
+        "error": null,
+        "output": "prefix\nlater\n+---------+--- Title -------+------+\n| Heading | long text wraps | one  |\n|         |                 | two  |\n| B       | value           | next |\n+---------+-----------------+------+\n",
+        "content": ""
+    },
+    {
+        "decorated": false,
+        "mode": "horizontal",
+        "wrap": true,
+        "error": null,
+        "output": "prefix\nlater\n+---------+--- Title -------+------+\n| Heading | long text wraps | one  |\n|         |                 | two  |\n| B       | value           | next |\n+---------+-----------------+------+\n",
+        "content": ""
+    },
+    {
+        "decorated": false,
+        "mode": "vertical",
+        "wrap": false,
+        "error": null,
+        "output": "prefix\nlater\n+--------- Title ----------+\n| Heading: long text wraps |\n|       B: value           |\n|--------------------------|\n| Heading: one             |\n|          two             |\n|       B: next            |\n+--------------------------+\n",
+        "content": ""
+    },
+    {
+        "decorated": false,
+        "mode": "vertical",
+        "wrap": true,
+        "error": null,
+        "output": "prefix\nlater\n+- Title --+\n| Heading: |\n|  long te |\n| xt wraps |\n|       B: |\n|  value   |\n|----------|\n| Heading: |\n|  one     |\n|          |\n| two      |\n|       B: |\n|  next    |\n+----------+\n",
+        "content": ""
+    },
+    {
+        "decorated": true,
+        "mode": "default",
+        "wrap": false,
+        "error": null,
+        "output": "prefix\nlater\n\u001b[1A\u001b[0J+---------\u001b[30;47;1m \u001b[39;49;22m\u001b[31mTitle\u001b[39m\u001b[30;47;1m \u001b[39;49;22m-+-------+\nlater\n\u001b[1A\u001b[0J|\u001b[32m \u001b[39m\u001b[31mHeading\u001b[39m\u001b[32m         \u001b[39m|\u001b[32m B     \u001b[39m|\nlater\n\u001b[1A\u001b[0J+-----------------+-------+\nlater\n\u001b[1A\u001b[0J| \u001b[31mlong text wraps\u001b[39m | value |\nlater\n\u001b[1A\u001b[0J\u001b[31m| \u001b[39m\u001b[31mone\u001b[39m\u001b[31m             | next  |\u001b[39m\nlater\n\u001b[1A\u001b[0J\u001b[31m| two\u001b[39m             |       |\nlater\n\u001b[1A\u001b[0J+-----------------+-------+\nlater\n",
+        "content": "prefix\n+---------\u001b[30;47;1m \u001b[39;49;22m\u001b[31mTitle\u001b[39m\u001b[30;47;1m \u001b[39;49;22m-+-------+\n|\u001b[32m \u001b[39m\u001b[31mHeading\u001b[39m\u001b[32m         \u001b[39m|\u001b[32m B     \u001b[39m|\n+-----------------+-------+\n| \u001b[31mlong text wraps\u001b[39m | value |\n\u001b[31m| \u001b[39m\u001b[31mone\u001b[39m\u001b[31m             | next  |\u001b[39m\n\u001b[31m| two\u001b[39m             |       |\n+-----------------+-------+\n"
+    },
+    {
+        "decorated": true,
+        "mode": "default",
+        "wrap": true,
+        "error": null,
+        "output": "prefix\nlater\n\u001b[1A\u001b[0J+-----\u001b[30;47;1m \u001b[39;49;22m\u001b[31mTitle\u001b[39m\u001b[30;47;1m \u001b[39;49;22m-----+\nlater\n\u001b[1A\u001b[0J|\u001b[32m \u001b[39m\u001b[31mHeading\u001b[39m\u001b[32m \u001b[39m|\u001b[32m B     \u001b[39m|\nlater\n\u001b[1A\u001b[0J+---------+-------+\nlater\n\u001b[1A\u001b[0J| \u001b[31mlong\u001b[39m    | value |\nlater\n\u001b[1A\u001b[0J| \u001b[31mtext\u001b[39m    |       |\nlater\n\u001b[1A\u001b[0J| \u001b[31mwraps\u001b[39m   |       |\nlater\n\u001b[1A\u001b[0J\u001b[31m| \u001b[39m\u001b[31mone\u001b[39m\u001b[31m     | next  |\u001b[39m\nlater\n\u001b[1A\u001b[0J\u001b[31m| two\u001b[39m     |       |\nlater\n\u001b[1A\u001b[0J+---------+-------+\nlater\n",
+        "content": "prefix\n+-----\u001b[30;47;1m \u001b[39;49;22m\u001b[31mTitle\u001b[39m\u001b[30;47;1m \u001b[39;49;22m-----+\n|\u001b[32m \u001b[39m\u001b[31mHeading\u001b[39m\u001b[32m \u001b[39m|\u001b[32m B     \u001b[39m|\n+---------+-------+\n| \u001b[31mlong\u001b[39m    | value |\n| \u001b[31mtext\u001b[39m    |       |\n| \u001b[31mwraps\u001b[39m   |       |\n\u001b[31m| \u001b[39m\u001b[31mone\u001b[39m\u001b[31m     | next  |\u001b[39m\n\u001b[31m| two\u001b[39m     |       |\n+---------+-------+\n"
+    },
+    {
+        "decorated": true,
+        "mode": "horizontal",
+        "wrap": false,
+        "error": null,
+        "output": "prefix\nlater\n\u001b[1A\u001b[0J+---------+---\u001b[30;47;1m \u001b[39;49;22m\u001b[31mTitle\u001b[39m\u001b[30;47;1m \u001b[39;49;22m-------+------+\nlater\n\u001b[1A\u001b[0J\u001b[31m|\u001b[39m\u001b[32m \u001b[39m\u001b[31mHeading\u001b[39m\u001b[32m \u001b[39m\u001b[31m| \u001b[39m\u001b[31mlong text wraps\u001b[39m\u001b[31m | \u001b[39m\u001b[31mone\u001b[39m\u001b[31m  |\u001b[39m\nlater\n\u001b[1A\u001b[0J\u001b[31m|\u001b[39m\u001b[32m         \u001b[39m\u001b[31m|                 | two\u001b[39m  |\nlater\n\u001b[1A\u001b[0J|\u001b[32m B       \u001b[39m| value           | next |\nlater\n\u001b[1A\u001b[0J+---------+-----------------+------+\nlater\n",
+        "content": "prefix\n+---------+---\u001b[30;47;1m \u001b[39;49;22m\u001b[31mTitle\u001b[39m\u001b[30;47;1m \u001b[39;49;22m-------+------+\n\u001b[31m|\u001b[39m\u001b[32m \u001b[39m\u001b[31mHeading\u001b[39m\u001b[32m \u001b[39m\u001b[31m| \u001b[39m\u001b[31mlong text wraps\u001b[39m\u001b[31m | \u001b[39m\u001b[31mone\u001b[39m\u001b[31m  |\u001b[39m\n\u001b[31m|\u001b[39m\u001b[32m         \u001b[39m\u001b[31m|                 | two\u001b[39m  |\n|\u001b[32m B       \u001b[39m| value           | next |\n+---------+-----------------+------+\n"
+    },
+    {
+        "decorated": true,
+        "mode": "horizontal",
+        "wrap": true,
+        "error": null,
+        "output": "prefix\nlater\n\u001b[1A\u001b[0J+---------+---\u001b[30;47;1m \u001b[39;49;22m\u001b[31mTitle\u001b[39m\u001b[30;47;1m \u001b[39;49;22m-------+------+\nlater\n\u001b[1A\u001b[0J\u001b[31m|\u001b[39m\u001b[32m \u001b[39m\u001b[31mHeading\u001b[39m\u001b[32m \u001b[39m\u001b[31m| \u001b[39m\u001b[31mlong text wraps\u001b[39m\u001b[31m | \u001b[39m\u001b[31mone\u001b[39m\u001b[31m  |\u001b[39m\nlater\n\u001b[1A\u001b[0J\u001b[31m|\u001b[39m\u001b[32m         \u001b[39m\u001b[31m|                 | two\u001b[39m  |\nlater\n\u001b[1A\u001b[0J|\u001b[32m B       \u001b[39m| value           | next |\nlater\n\u001b[1A\u001b[0J+---------+-----------------+------+\nlater\n",
+        "content": "prefix\n+---------+---\u001b[30;47;1m \u001b[39;49;22m\u001b[31mTitle\u001b[39m\u001b[30;47;1m \u001b[39;49;22m-------+------+\n\u001b[31m|\u001b[39m\u001b[32m \u001b[39m\u001b[31mHeading\u001b[39m\u001b[32m \u001b[39m\u001b[31m| \u001b[39m\u001b[31mlong text wraps\u001b[39m\u001b[31m | \u001b[39m\u001b[31mone\u001b[39m\u001b[31m  |\u001b[39m\n\u001b[31m|\u001b[39m\u001b[32m         \u001b[39m\u001b[31m|                 | two\u001b[39m  |\n|\u001b[32m B       \u001b[39m| value           | next |\n+---------+-----------------+------+\n"
+    },
+    {
+        "decorated": true,
+        "mode": "vertical",
+        "wrap": false,
+        "error": null,
+        "output": "prefix\nlater\n\u001b[1A\u001b[0J+---------\u001b[30;47;1m \u001b[39;49;22m\u001b[31mTitle\u001b[39m\u001b[30;47;1m \u001b[39;49;22m----------+\nlater\n\u001b[1A\u001b[0J| \u001b[31mHeading\u001b[39m: \u001b[31mlong text wraps\u001b[39m |\nlater\n\u001b[1A\u001b[0J| \u001b[33m      B\u001b[39m: value           |\nlater\n\u001b[1A\u001b[0J|--------------------------|\nlater\n\u001b[1A\u001b[0J\u001b[31m| \u001b[39m\u001b[31mHeading\u001b[39m\u001b[31m: \u001b[39m\u001b[31mone             |\u001b[39m\nlater\n\u001b[1A\u001b[0J\u001b[31m|          two\u001b[39m             |\nlater\n\u001b[1A\u001b[0J| \u001b[33m      B\u001b[39m: next            |\nlater\n\u001b[1A\u001b[0J+--------------------------+\nlater\n",
+        "content": "prefix\n+---------\u001b[30;47;1m \u001b[39;49;22m\u001b[31mTitle\u001b[39m\u001b[30;47;1m \u001b[39;49;22m----------+\n| \u001b[31mHeading\u001b[39m: \u001b[31mlong text wraps\u001b[39m |\n| \u001b[33m      B\u001b[39m: value           |\n|--------------------------|\n\u001b[31m| \u001b[39m\u001b[31mHeading\u001b[39m\u001b[31m: \u001b[39m\u001b[31mone             |\u001b[39m\n\u001b[31m|          two\u001b[39m             |\n| \u001b[33m      B\u001b[39m: next            |\n+--------------------------+\n"
+    },
+    {
+        "decorated": true,
+        "mode": "vertical",
+        "wrap": true,
+        "error": null,
+        "output": "prefix\nlater\n\u001b[1A\u001b[0J+-\u001b[30;47;1m \u001b[39;49;22m\u001b[31mTitle\u001b[39m\u001b[30;47;1m \u001b[39;49;22m--+\nlater\n\u001b[1A\u001b[0J| \u001b[31mHeading\u001b[39m: |\nlater\n\u001b[1A\u001b[0J|  \u001b[31mlong te\u001b[39m |\nlater\n\u001b[1A\u001b[0J| \u001b[31mxt wraps\u001b[39m |\nlater\n\u001b[1A\u001b[0J| \u001b[33m      B\u001b[39m: |\nlater\n\u001b[1A\u001b[0J|  value   |\nlater\n\u001b[1A\u001b[0J|----------|\nlater\n\u001b[1A\u001b[0J| \u001b[31mHeading\u001b[39m\u001b[31m:\u001b[39m |\nlater\n\u001b[1A\u001b[0J| \u001b[31m \u001b[39m\u001b[31mone\u001b[39m     |\nlater\n\u001b[1A\u001b[0J| \u001b[31m        \u001b[39m |\nlater\n\u001b[1A\u001b[0J| \u001b[31mtwo\u001b[39m      |\nlater\n\u001b[1A\u001b[0J| \u001b[33m      B\u001b[39m: |\nlater\n\u001b[1A\u001b[0J|  next    |\nlater\n\u001b[1A\u001b[0J+----------+\nlater\n",
+        "content": "prefix\n+-\u001b[30;47;1m \u001b[39;49;22m\u001b[31mTitle\u001b[39m\u001b[30;47;1m \u001b[39;49;22m--+\n| \u001b[31mHeading\u001b[39m: |\n|  \u001b[31mlong te\u001b[39m |\n| \u001b[31mxt wraps\u001b[39m |\n| \u001b[33m      B\u001b[39m: |\n|  value   |\n|----------|\n| \u001b[31mHeading\u001b[39m\u001b[31m:\u001b[39m |\n| \u001b[31m \u001b[39m\u001b[31mone\u001b[39m     |\n| \u001b[31m        \u001b[39m |\n| \u001b[31mtwo\u001b[39m      |\n| \u001b[33m      B\u001b[39m: |\n|  next    |\n+----------+\n"
+    }
+]

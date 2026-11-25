@@ -1155,4 +1155,51 @@ fn register_sections() -> Result<(), ConsoleError> {
 }
 ```
 
-`append_row` requires a section, clears the calculated table region after the first render, adds the row and renders it again while preserving later sections. On ordinary output it returns an error before adding the row; use `add_row` to build a table without redrawing. Section verbosity is independent; the formatter is shared initially and can be replaced for that section. Progress and interactive-input integration with sections are tracked separately.
+`append_row` requires a section, clears the calculated table region after the first render, adds the row and renders it again while preserving later sections. On ordinary output it returns an error before adding the row; use `add_row` to build a table without redrawing. Section verbosity is independent; the formatter is shared initially and can be replaced for that section. Selected progress and question output are described below.
+
+
+## Selected output, progress and questions {#section-consumers}
+
+`OutputStyle::get_output()` returns an `OutputReference` carrying the currently selected stream and section identity. `OutputStyle::new`, `ProgressBar::new` and `new_with_redraw_interval` accept it as well as the original `&mut Output`; ordinary calls keep the same syntax. Helpers with explicit `&mut Output` parameter annotations should accept `&mut impl AsOutput` when they need to support sections. The reference allows reading the original capture buffer, and forwards configuration and writes to the selected output; it cannot be mutably dereferenced to bypass the section.
+
+Progress clear/redraw uses section line accounting and restores later sections. `bar.get_output()` provides the same selected stream for callback writes and configuration; `as_section()` exposes section operations or returns an error on ordinary output. This sequential borrow is the native alternative to capturing both a mutable stream and its progress bar in one closure.
+
+```rust
+use openrust::{
+    console::{ConsoleError, Input, Output, OutputOptions, OutputStyle, ProgressBar},
+    support::facades::Artisan,
+};
+
+fn register_section_progress() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:section-progress", |input: &Input, output: &mut Output| {
+        let first = {
+            let mut section = output.section();
+            section.writeln("prefix", OutputOptions::default())?;
+            section.handle()
+        };
+        {
+            let mut section = output.section();
+            section.writeln("later", OutputOptions::default())?;
+        }
+        let mut section = output.section_output(&first)?;
+        let mut style = OutputStyle::new(input, &mut section);
+        let mut bar = ProgressBar::new(style.get_output(), 3)?;
+        bar.set_format("<info>%current%/%max%</info>")
+            .min_seconds_between_redraws(0.0)
+            .max_seconds_between_redraws(0.0)
+            .set_redraw_frequency(Some(1));
+        bar.start()?;
+        bar.advance()?;
+        bar.display()?;
+        bar.get_output().writeln("notice", OutputOptions::default())?;
+        bar.advance()?;
+        bar.clear()?;
+        bar.display()?;
+        bar.finish()?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
+Questions use the selected formatter and account for the submitted input line before the following blank line. Validation retries prepend the block once rather than repeating it on every attempt. Normal terminal editing echoes input directly without storing the echo a second time in section content. Stream-input questions, confirmation, hidden input, retries, cancellation and a normal interactive PTY have been verified. Terminal autocomplete and multiline section bookkeeping are not yet covered by that acceptance.

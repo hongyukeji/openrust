@@ -418,7 +418,8 @@
       "contract": "Selected output configuration and command isolation",
       "reason": "Real CLI stderr has an independent verbosity override and decoration; primary setters update both. Captured single-stream output aliases its primary settings. Scoped command metadata restores both streams on cancellation and explicit nested flags apply temporarily. Already accepted bytes retain visibility through later level changes; raw direct buffer edits still follow command filtering.",
       "evidence": "console_output_configuration; output-configuration-before-filter-fix.log; output-configuration-before-reuse-fix.log"
-    }
+    },
+    "ProgressBar and its ProgressOutput carry the same selected OutputReference. Real section overwrite calculates source line count, calls actual clear and restores later sections; plain output keeps the previous stderr/capture behavior. Native bar.get_output() is a sequential-borrow adaptation of capturing the source output; fixed ProgressBar has no getOutput method, and the initial invalid oracle fixture was rejected and corrected to capture $out."
   ],
   "remaining": [
     {
@@ -550,5 +551,19 @@
         "accepted-colors-terminal.json"
       ]
     }
-  ]
+  ],
+  "section_consumers": {
+    "status": "verified_selected_section_output_and_configuration",
+    "evidence": [
+      "console_section_consumers",
+      "section-progress-oracle.json"
+    ],
+    "cases": 288,
+    "constructor_modes": [
+      "manual",
+      "style.create_progress_bar",
+      "native borrowed output configuration"
+    ],
+    "notes": "Source keeps $out; native bar.get_output provides its sequential mutable borrow. No source ProgressBar::getOutput API is claimed."
+  }
 }

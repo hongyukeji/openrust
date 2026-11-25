@@ -1,19 +1,23 @@
-use super::{ConsoleError, Output, OutputVerbosity, ProgressBar};
+use super::{ConsoleError, OutputReference, OutputVerbosity, ProgressBar};
 use crate::console::{OutputMessages, OutputOptions};
 
 /// 当前进度的实际输出流借用；真实控制台为stderr，捕获调用为原缓冲。
 pub struct ProgressOutput<'a> {
-    output: &'a mut Output,
+    output: OutputReference<'a>,
 }
 impl ProgressBar<'_> {
     /// 在同一可变借用中访问输出，避免将进度条与其输出重复借出。
     pub fn get_output(&mut self) -> ProgressOutput<'_> {
         ProgressOutput {
-            output: self.output,
+            output: self.output.reborrow(),
         }
     }
 }
 impl ProgressOutput<'_> {
+    pub fn as_section(&mut self) -> Result<super::super::ConsoleSectionOutput<'_>, ConsoleError> {
+        self.output.as_section()
+    }
+
     pub fn write<'m>(
         &mut self,
         messages: impl Into<OutputMessages<'m>>,
@@ -74,11 +78,7 @@ impl ProgressOutput<'_> {
         )
     }
     pub fn set_verbosity(&mut self, level: OutputVerbosity) {
-        if self.output.streams_to_terminal() {
-            self.output.error_verbosity = Some(level);
-        } else {
-            self.output.set_verbosity(level);
-        }
+        self.output.set_progress_verbosity(level);
     }
     pub fn set_decorated(&mut self, decorated: bool) {
         self.output.set_progress_decorated(decorated);
@@ -87,14 +87,7 @@ impl ProgressOutput<'_> {
         self.output.progress_formatter().handle()
     }
     pub fn set_formatter(&mut self, formatter: super::super::FormatterHandle) {
-        if self.output.streams_to_terminal() {
-            self.output.error_formatter =
-                Some(super::super::formatting::Formatter::from_handle(formatter));
-            self.output.error_formatter_generation =
-                self.output.error_formatter_generation.wrapping_add(1);
-        } else {
-            self.output.set_formatter(formatter);
-        }
+        self.output.set_progress_formatter(formatter);
     }
 
     pub fn get_verbosity(&self) -> OutputVerbosity {

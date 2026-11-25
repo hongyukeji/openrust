@@ -70,7 +70,7 @@ impl Table<'_, '_> {
     ) -> Result<String, ConsoleError> {
         let mut formatted = template(format, title)?;
         let visible = super::super::formatting::unformatted_text(
-            &mut self.output.get_output().formatter,
+            &mut super::super::formatting::Formatter::from_handle(self.output.get_formatter()),
             &formatted,
         )
         .map_err(ConsoleError::from_source)?;
@@ -81,7 +81,7 @@ impl Table<'_, '_> {
             title_length = limit;
             let empty = template(format, "")?;
             let visible = super::super::formatting::unformatted_text(
-                &mut self.output.get_output().formatter,
+                &mut super::super::formatting::Formatter::from_handle(self.output.get_formatter()),
                 &empty,
             )
             .map_err(ConsoleError::from_source)?;

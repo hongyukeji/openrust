@@ -226,7 +226,9 @@ impl Table<'_, '_> {
                         .ok_or_else(error)?;
                 }
                 let visible = super::super::formatting::unformatted_text(
-                    &mut self.output.get_output().formatter,
+                    &mut crate::console::formatting::Formatter::from_handle(
+                        self.output.get_formatter(),
+                    ),
                     &cell.text,
                 )
                 .map_err(ConsoleError::from_source)?;

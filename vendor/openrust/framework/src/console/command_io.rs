@@ -47,7 +47,7 @@ impl<'a> CommandIo<'a> {
 
     /// 沿用原组件入口；后续实时写入前会先发出待写组件，保持顺序。
     pub fn components(&mut self) -> &mut Output {
-        self.output.get_output()
+        self.output.root_output()
     }
     pub fn output_components(&mut self) -> &mut Output {
         self.components()
@@ -117,7 +117,7 @@ impl<'a> CommandIo<'a> {
         message: &str,
         verbosity: OutputVerbosity,
     ) -> Result<(), ConsoleError> {
-        self.output.get_output().formatter.register_warning();
+        self.output.get_output().formatter().register_warning();
         self.line_with(message, Some("warning"), Some(verbosity))
     }
     pub fn error(&mut self, message: &str) -> Result<(), ConsoleError> {

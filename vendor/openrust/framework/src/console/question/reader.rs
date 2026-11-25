@@ -172,9 +172,7 @@ async fn terminal(
                         if question.completion.is_some() {
                             style.write("\r\n", false, OutputFormat::Raw)?;
                         } else {
-                            style
-                                .get_output()
-                                .emit_rendered("\r\n", OutputVerbosity::Normal)?;
+                            style.get_output().emit_input_echo("\r\n")?;
                         }
                     }
                     if question.completion.is_none() {
@@ -238,19 +236,16 @@ async fn terminal(
                 })
                 .unwrap_or("");
             let visible = text.rsplit('\n').next().unwrap_or(&text);
-            if style.get_output().is_decorated() {
-                style.write(
-                    format!("\r\x1b[2K{prompt}{visible}\x1b[s\x1b[30;47m{ghost}\x1b[39;49m\x1b[u")
-                        .as_str(),
-                    false,
-                    OutputFormat::Raw,
-                )?;
+            let message = if style.get_output().is_decorated() {
+                format!("\r\x1b[2K{prompt}{visible}\x1b[s\x1b[30;47m{ghost}\x1b[39;49m\x1b[u")
             } else {
-                style.write(
-                    format!("\r{prompt}{visible}{ghost}").as_str(),
-                    false,
-                    OutputFormat::Raw,
-                )?;
+                format!("\r{prompt}{visible}{ghost}")
+            };
+            if question.completion.is_none() {
+                // 原生编辑器模拟终端回显，不把输入回显重复记入分区输出。
+                style.get_output().emit_input_echo(&message)?;
+            } else {
+                style.write(message.as_str(), false, OutputFormat::Raw)?;
             }
         }
     }

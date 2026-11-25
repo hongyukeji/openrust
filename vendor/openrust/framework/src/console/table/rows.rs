@@ -202,7 +202,7 @@ impl Table<'_, '_> {
     }
     fn visible_width(&mut self, text: &str) -> Result<usize, ConsoleError> {
         let plain = super::super::formatting::unformatted_text(
-            &mut self.output.get_output().formatter,
+            &mut super::super::formatting::Formatter::from_handle(self.output.get_formatter()),
             text,
         )
         .map_err(ConsoleError::from_source)?;

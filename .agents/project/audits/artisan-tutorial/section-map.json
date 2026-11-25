@@ -365,11 +365,14 @@
         "sections-oracle.json",
         "table-append-oracle.json",
         "section-contracts.json",
-        "accepted-sections.json"
+        "accepted-sections.json",
+        "console_section_consumers",
+        "section-table-oracle.json",
+        "accepted-section-consumers.json"
       ],
       "native": "console::CommandIo::table",
       "remaining": [
-        "分区进度条与交互输入、OutputStyle继承组件及其他Artisan章节入口仍逐项核对，不关闭整章。"
+        "分区终端自动补全／多行与嵌套OutputStyle、组件SDK继续核对；本批未关闭整章。"
       ]
     },
     {
@@ -405,7 +408,10 @@
     {
       "anchor": "programmatically-executing-commands",
       "status": "pending_public_contract_review",
-      "evidence": []
+      "evidence": [],
+      "remaining": [
+        "核对Artisan.call输出缓冲参数的任意OutputInterface／分区实际消费者；不要用Raw Output现有签名假定已实现。"
+      ]
     },
     {
       "anchor": "passing-array-values",

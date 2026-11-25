@@ -237,6 +237,14 @@ fn offset(len: usize, value: i64) -> usize {
     }
 }
 impl SectionState {
+    pub(super) fn input_submit(&mut self) -> Result<(), ConsoleError> {
+        self.content.push("\n".into());
+        self.lines = self
+            .lines
+            .checked_add(1)
+            .ok_or_else(|| ConsoleError::new("分区行数超出可表示范围"))?;
+        Ok(())
+    }
     fn visible(&self) -> String {
         let start = if self.max_height == 0 {
             0
@@ -247,6 +255,17 @@ impl SectionState {
     }
 }
 impl ConsoleSectionOutput<'_> {
+    pub(super) fn from_reference(output: &mut Output, id: usize) -> ConsoleSectionOutput<'_> {
+        ConsoleSectionOutput { output, id }
+    }
+
+    pub fn as_output(&mut self) -> super::OutputReference<'_> {
+        super::OutputReference {
+            output: self.output,
+            section: Some(self.id),
+        }
+    }
+
     pub fn handle(&self) -> ConsoleSectionHandle {
         ConsoleSectionHandle {
             id: self.id,

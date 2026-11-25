@@ -1,0 +1,106 @@
+{
+  "scope": "Artisan phase27 selected-output borrowing, section progress, question submit and selected formatter measurement",
+  "base": "034450a529b2e41fd7619682483e24812dbd2ee8",
+  "source_sha256": {
+    "docs/en/digging-deeper/artisan.md": "421fc0cf75ebd29855521ccd5519572190ebcd5e401c9162633df39c14c64660",
+    "docs/tests/check_artisan_tutorial.mjs": "a5d696e2d54d2518ff91b0144d1997d88b62725881a666156590c60547de9524",
+    "docs/zh-Hans/digging-deeper/artisan.md": "6ad89f98d13f2ad0ef34a75b59395c5aa099592cec2af81f3433f0b3aee9959f",
+    "docs/zh-Hant/digging-deeper/artisan.md": "85eb89534942398ac27342a81a66c39002d728214aac63204bc0fa16c3436b61",
+    "tests/artisan_tutorial_docs.py": "4ba03c4813e5920799f642add5c09364115611e355d5ab401f18e722ecec894f",
+    "vendor/openrust/framework/src/console/command_io.rs": "787a052ff166de7e21ae8237911f7b2aad6dd1556e0ed8f974b476844d1908db",
+    "vendor/openrust/framework/src/console/mod.rs": "9d8b690e7d4f19a6ea8181e6f1ede12f52cf7f13baa4c5783e446a779d791b2f",
+    "vendor/openrust/framework/src/console/output_style.rs": "390bc570264e296872555f5d668f2589681df38c46e6f5e5cd0bb9d1f4e17720",
+    "vendor/openrust/framework/src/console/progress_bar.rs": "5df1c01a000ce7ae1265406291076ef57fd5d1273cb543c167be96a9839edf69",
+    "vendor/openrust/framework/src/console/progress_bar/output.rs": "81959ecf95d8f510749a5329bdac3f13bd12b607f0791cfb9980a687838fc63b",
+    "vendor/openrust/framework/src/console/question/mod.rs": "4f7977eb407d5fb57925cb1658a4e6af3bcc637319be154561d3cd42cb90371f",
+    "vendor/openrust/framework/src/console/question/reader.rs": "d57014ec6067b336a85573ed82829da00c4bcd2d20b37bcbba1a10ac769e8a70",
+    "vendor/openrust/framework/src/console/section_output.rs": "175e6eb9541e2a7d74553f906af5ec24b1765af8ae0e71e801a4377d4e4a0d00",
+    "vendor/openrust/framework/src/console/table.rs": "50110a13080d5df5073b4e36fc8e4c56c29174f38df6a34e3ae09aad534a491c",
+    "vendor/openrust/framework/src/console/table/layout.rs": "7a48b4084398f100a7ff99d6894f0734debee53915b4e1f95f7766de50f5838f",
+    "vendor/openrust/framework/src/console/table/rows.rs": "897a02be52ea87fb0f630632119ef3fd3b0f515e0610b48ea1c3656152004834",
+    "vendor/openrust/framework/src/console/table/span_layout.rs": "12934918eca8b84e5e40586ac3d206b9be02c234e469dca59bf65093e7ac985c",
+    "vendor/openrust/framework/src/console/output_reference.rs": "4f20560c88c739ff215d9eab52672611a4e5e7dc17774ad64d4a545890752111",
+    "vendor/openrust/framework/tests/console_section_consumers.rs": "89b2ac312a9dfc95cff6167ee12a57be8afe581c592199c39ba9d9d84a0c6d04",
+    ".agents/project/audits/artisan-tutorial/section-progress-oracle.json": "d68ec14e787eabe46d809dfce28e23070e75286a4ff0902c9f75c98d25451992",
+    ".agents/project/audits/artisan-tutorial/section-questions-oracle.json": "51378d1a0d055bab055a80b32e2147341b7cc7891bf8c92737512bb5e9a2e177",
+    ".agents/project/audits/artisan-tutorial/section-table-oracle.json": "9f6bb8399a23f9ff1d3f8012327670d821719f223ac8d68aceaaebd4ee98c4a5",
+    ".agents/project/audits/artisan-tutorial/io-contracts.json": "41b5fd2b706ea56294a61ef1e0c1fd95204fc60ca106d71fb4ae6759cb5c8d7b",
+    ".agents/project/audits/artisan-tutorial/progress-contracts.json": "81bf837ca2ddcb4acc9e7b091f6dee85dd5db5789c2b74145efccd28334d85e3",
+    ".agents/project/audits/artisan-tutorial/section-contracts.json": "bd0a69e4435fda19157cfa4baeadbe4352904a18cd6bd5c5f6ec3307c754098d",
+    ".agents/project/audits/artisan-tutorial/section-map.json": "66278f6d27825c1d4e7fca348099db0105fc57cb5cd1653e0c3f6b210f8a199b",
+    ".agents/project/audits/artisan-tutorial/output-reference-contracts.json": "68ce1395d0c7bfdcb73d5555610f779a225812557f6982b97f05ec8432779f81"
+  },
+  "passed": {
+    "framework": 128,
+    "root": 125
+  },
+  "unique_parent_tests": 253,
+  "ignored_driven_fixtures_excluded": 22,
+  "formal_trilingual_examples": 84,
+  "compile_fail_reference_consumer": 1,
+  "source_cases": {
+    "progress": 288,
+    "questions": 40,
+    "selected_table_formatter": 12
+  },
+  "source_stderr_bytes": 0,
+  "gates": [
+    {
+      "name": "format",
+      "returncode": 0
+    },
+    {
+      "name": "final-framework",
+      "returncode": 0
+    },
+    {
+      "name": "final-rustdoc",
+      "returncode": 0
+    },
+    {
+      "name": "final-rustdoc-reference",
+      "returncode": 0
+    },
+    {
+      "name": "final-root",
+      "returncode": 0
+    },
+    {
+      "name": "final-fmt",
+      "returncode": 0
+    },
+    {
+      "name": "final-clippy",
+      "returncode": 0
+    },
+    {
+      "name": "final-main",
+      "returncode": 0
+    },
+    {
+      "name": "final-docs",
+      "returncode": 0
+    }
+  ],
+  "strict_clippy_time": "5.37s",
+  "browser_cases": 12,
+  "real_http": true,
+  "real_artisan": true,
+  "real_pty": {
+    "passed": true,
+    "metadata": {
+      "before": "prefix\n\n \u001b[32mName\u001b[39m:\n > \n\n",
+      "after": "after\n"
+    },
+    "reference": "section-questions-source.json",
+    "stdin": "native PTY80x24",
+    "stdout": "pipe",
+    "stderr": "pipe",
+    "exitcode": 0
+  },
+  "limitations": [
+    "Normal native PTY section metadata is compared with fixed source; full OS-specific echo bytes are not falsely declared identical",
+    "Terminal completion/multiline, generic sinks, nested style/counters and component SDK remain open",
+    "No entire chapter, active-worktree or Windows release-matrix acceptance claimed"
+  ]
+}

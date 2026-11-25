@@ -106,17 +106,21 @@ pub struct OutputStyle<'a> {
     history: Vec<u8>,
     history_formatter: super::formatting::Formatter,
     question_finally: Option<Arc<AtomicBool>>,
-    output: &'a mut Output,
+    output: super::OutputReference<'a>,
     new_lines_written: usize,
     new_line_written: bool,
 }
 impl<'a> OutputStyle<'a> {
-    pub fn new(input: &'a Input, output: &'a mut Output) -> Self {
-        let history_formatter = output.formatter.clone();
+    pub fn new(input: &'a Input, output: &'a mut (impl super::AsOutput + ?Sized)) -> Self {
+        Self::from_reference(input, output.as_output())
+    }
+    fn from_reference(input: &'a Input, mut output: super::OutputReference<'a>) -> Self {
+        let history_formatter = output.formatter().clone();
+        let section = output.section;
         history_formatter.set_decorated(false);
         Self {
             input,
-            section: None,
+            section,
             progress: None,
             history: Vec::new(),
             history_formatter,
@@ -127,51 +131,28 @@ impl<'a> OutputStyle<'a> {
         }
     }
     pub fn set_verbosity(&mut self, level: OutputVerbosity) {
-        if let Some(id) = self.section {
-            self.output.sections[id].verbosity = level;
-        } else {
-            self.output.set_verbosity(level);
-        }
+        self.output.set_verbosity(level);
     }
     pub fn get_verbosity(&self) -> OutputVerbosity {
-        self.section.map_or_else(
-            || self.output.verbosity(),
-            |id| self.output.sections[id].verbosity,
-        )
+        self.output.get_verbosity()
     }
     pub fn get_formatter(&self) -> super::FormatterHandle {
-        self.section.map_or_else(
-            || self.output.get_formatter(),
-            |id| self.output.sections[id].formatter.handle(),
-        )
+        self.output.get_formatter()
     }
     pub fn set_formatter(&mut self, formatter: super::FormatterHandle) {
-        if let Some(id) = self.section {
-            self.output.sections[id].formatter =
-                super::formatting::Formatter::from_handle(formatter);
-        } else {
-            self.output.set_formatter(formatter);
-        }
+        self.output.set_formatter(formatter);
     }
     pub fn set_decorated(&mut self, decorated: bool) {
-        if let Some(id) = self.section {
-            self.output.sections[id].formatter.set_decorated(decorated);
-        } else {
-            self.output.set_decorated(decorated);
-        }
+        self.output.set_decorated(decorated);
     }
     pub fn is_decorated(&self) -> bool {
-        self.section.map_or_else(
-            || self.output.is_decorated(),
-            |id| self.output.sections[id].formatter.is_decorated(),
-        )
+        self.output.is_decorated()
     }
     pub fn is_silent(&self) -> bool {
-        self.get_verbosity() == OutputVerbosity::Silent
+        self.output.is_silent()
     }
-
-    pub fn get_output(&mut self) -> &mut Output {
-        self.output
+    pub fn get_output(&mut self) -> &mut super::OutputReference<'a> {
+        &mut self.output
     }
     pub fn new_lines_written(&self) -> usize {
         self.new_lines_written
@@ -372,7 +353,7 @@ impl<'a> OutputStyle<'a> {
         self.new_line_written = self.new_lines_written > 0;
         let message = "\n".repeat(count);
         if let Some(id) = self.section {
-            self.output.emit_section(
+            self.output.output.emit_section(
                 id,
                 &message,
                 false,
@@ -408,13 +389,14 @@ impl<'a> OutputStyle<'a> {
         format: OutputFormat,
         level: OutputVerbosity,
     ) -> Result<(), ConsoleError> {
-        if let Some(id) = self.section {
-            self.output
-                .emit_section(id, message, newline, format, level)?;
-        } else {
-            self.output
-                .emit_formatted(message, newline, format, level)?;
-        }
+        self.output.write(
+            message,
+            newline,
+            OutputOptions {
+                format,
+                verbosity: Some(level),
+            },
+        )?;
         let mut history = match format {
             OutputFormat::Raw => message.to_owned(),
             _ => self
@@ -616,16 +598,31 @@ impl OutputStyle<'_> {
         let id = self
             .section
             .ok_or_else(|| ConsoleError::new("追加并重绘表格需要控制台分区输出"))?;
-        self.output.clear_section(id, Some(lines))
+        self.output.output.clear_section(id, Some(lines))
     }
 }
 
 impl<'a> OutputStyle<'a> {
     pub(super) fn for_section(input: &'a Input, output: &'a mut Output, id: usize) -> Self {
-        let mut style = Self::new(input, output);
-        style.section = Some(id);
-        style.history_formatter = style.output.sections[id].formatter.clone();
-        style.history_formatter.set_decorated(false);
-        style
+        Self::from_reference(
+            input,
+            super::OutputReference {
+                output,
+                section: Some(id),
+            },
+        )
+    }
+}
+
+impl OutputStyle<'_> {
+    pub(super) fn root_output(&mut self) -> &mut Output {
+        self.output.output
+    }
+    pub(super) fn section_input_submit(&mut self) -> Result<(), ConsoleError> {
+        if let Some(id) = self.section {
+            let section = &mut self.output.output.sections[id];
+            section.input_submit()?;
+        }
+        Ok(())
     }
 }

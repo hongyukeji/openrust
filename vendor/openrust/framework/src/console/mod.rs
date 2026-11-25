@@ -545,3 +545,6 @@ pub(crate) fn monitor_signals(
 
 mod section_output;
 pub use section_output::{ConsoleSectionHandle, ConsoleSectionOutput};
+
+mod output_reference;
+pub use output_reference::{AsOutput, OutputReference};

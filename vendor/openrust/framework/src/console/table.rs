@@ -400,7 +400,9 @@ impl<'a, 'o> Table<'a, 'o> {
                     for (index, attribute) in attributes {
                         if let Some(value) = row.get(*index) {
                             let visible = super::formatting::unformatted_text(
-                                &mut self.output.get_output().formatter,
+                                &mut super::formatting::Formatter::from_handle(
+                                    self.output.get_formatter(),
+                                ),
                                 value,
                             )
                             .map_err(ConsoleError::from_source)?;
@@ -433,7 +435,7 @@ impl<'a, 'o> Table<'a, 'o> {
                 };
                 let length = if let Some(value) = values.get(column) {
                     let plain = super::formatting::unformatted_text(
-                        &mut self.output.get_output().formatter,
+                        &mut super::formatting::Formatter::from_handle(self.output.get_formatter()),
                         value,
                     )
                     .map_err(ConsoleError::from_source)?;

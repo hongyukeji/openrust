@@ -1155,4 +1155,51 @@ fn register_sections() -> Result<(), ConsoleError> {
 }
 ```
 
-`append_row` 要求分区输出；首次渲染后按计算行数清除表格区域，追加行并再次渲染，保留后续分区。普通输出会在添加行之前返回错误；只构建表格而不重绘请用 `add_row`。分区详细程度独立，初始格式器共享，也可为该分区替换。进度条和交互输入的分区接线另行跟踪。
+`append_row` 要求分区输出；首次渲染后按计算行数清除表格区域，追加行并再次渲染，保留后续分区。普通输出会在添加行之前返回错误；只构建表格而不重绘请用 `add_row`。分区详细程度独立，初始格式器共享，也可为该分区替换。所选进度与问答输出见下节。
+
+
+## 所选输出、进度条与问答 {#section-consumers}
+
+`OutputStyle::get_output()` 返回携带当前输出和分区身份的 `OutputReference`。`OutputStyle::new`、`ProgressBar::new` 和 `new_with_redraw_interval` 同时接受它及原来的 `&mut Output`，普通调用语法不变。显式标注 `&mut Output` 参数的助手若要支持分区，应接受 `&mut impl AsOutput`。该借用允许读取原捕获缓冲，配置和写入转发到所选输出，不能通过可变解引用绕过分区。
+
+进度条清除／重绘使用分区行数，并恢复后续分区。`bar.get_output()` 为回调写入和配置提供同一所选流；`as_section()` 提供分区操作，普通输出则返回错误。这种顺序借用替代在同一闭包中同时捕获可变流与进度条。
+
+```rust
+use openrust::{
+    console::{ConsoleError, Input, Output, OutputOptions, OutputStyle, ProgressBar},
+    support::facades::Artisan,
+};
+
+fn register_section_progress() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:section-progress", |input: &Input, output: &mut Output| {
+        let first = {
+            let mut section = output.section();
+            section.writeln("prefix", OutputOptions::default())?;
+            section.handle()
+        };
+        {
+            let mut section = output.section();
+            section.writeln("later", OutputOptions::default())?;
+        }
+        let mut section = output.section_output(&first)?;
+        let mut style = OutputStyle::new(input, &mut section);
+        let mut bar = ProgressBar::new(style.get_output(), 3)?;
+        bar.set_format("<info>%current%/%max%</info>")
+            .min_seconds_between_redraws(0.0)
+            .max_seconds_between_redraws(0.0)
+            .set_redraw_frequency(Some(1));
+        bar.start()?;
+        bar.advance()?;
+        bar.display()?;
+        bar.get_output().writeln("notice", OutputOptions::default())?;
+        bar.advance()?;
+        bar.clear()?;
+        bar.display()?;
+        bar.finish()?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
+问答使用所选格式器，在随后空行之前计入提交输入的换行；校验重试只在问题开始前准备一次空行，不在每次重试重复执行。普通终端编辑直接回显输入，不把回显再次保存到分区内容。已验证流输入问答、确认、隐藏输入、重试、取消和普通交互 PTY；终端自动补全及多行输入的分区记账尚未包含在这批验收中。

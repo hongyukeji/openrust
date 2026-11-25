@@ -59,16 +59,22 @@
   ],
   "internal_source_methods": {
     "addContent": "Private section_add_content, verified by every write/wrap/content step",
-    "addNewLineOfInputSubmit": "Internal interactive consumer hook remains pending"
+    "addNewLineOfInputSubmit": "Private input_submit invoked on successful interactive answer before following blank line; 40 source cases and real native PTY bookkeeping verified"
   },
   "remaining": [
-    "Section-bound progress output and interactive-input submission hook",
     "OutputStyle section(message), blocks/titles/component SDK and inherited counters",
-    "Generic arbitrary StreamOutput constructor and exact ConsoleOutputInterface trait are not claimed; current stream ownership is expressed by existing native Output"
+    "Generic arbitrary StreamOutput constructor and exact ConsoleOutputInterface trait are not claimed; current stream ownership is expressed by existing native Output",
+    "Terminal section autocomplete and multiline bookkeeping are not covered by the normal-question PTY and stream-input matrix",
+    "Nested OutputStyle counters, full component Factory and programmatic custom OutputInterface buffers remain open"
   ],
   "evidence": [
     "console_sections",
     "sections-oracle.json",
-    "table-append-oracle.json"
+    "table-append-oracle.json",
+    "console_section_consumers",
+    "section-progress-oracle.json",
+    "section-questions-oracle.json",
+    "section-table-oracle.json",
+    "output-reference-contracts.json"
   ]
 }

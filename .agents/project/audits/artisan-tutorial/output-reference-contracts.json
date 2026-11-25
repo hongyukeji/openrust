@@ -1,0 +1,58 @@
+{
+  "reference": "Fixed framework OutputStyle::getOutput / Symfony Console7.4.0 ProgressBar, SymfonyStyle::askQuestion, QuestionHelper and ConsoleSectionOutput",
+  "types": {
+    "OutputReference": {
+      "status": "verified_readonly_root_capture_and_selected_mutation",
+      "members": [
+        "get_formatter",
+        "set_formatter",
+        "get_verbosity",
+        "set_verbosity",
+        "verbosity",
+        "is_decorated",
+        "set_decorated",
+        "is_silent",
+        "is_quiet",
+        "is_verbose",
+        "is_very_verbose",
+        "is_debug",
+        "write",
+        "writeln",
+        "write_raw",
+        "as_section"
+      ]
+    },
+    "AsOutput": {
+      "status": "native_exclusive_borrow_adapter",
+      "contract": "fn as_output(&mut self) -> OutputReference",
+      "implementations": [
+        "Output",
+        "OutputReference",
+        "ConsoleSectionOutput",
+        "Box<T: AsOutput>"
+      ]
+    }
+  },
+  "constructor_consumers": [
+    "OutputStyle::new",
+    "ProgressBar::new",
+    "ProgressBar::new_with_redraw_interval"
+  ],
+  "native_adaptations": [
+    "Constructors take &mut impl AsOutput rather than consuming a generic value, preserving existing mutable-reference reuse. No default heap allocation, global selection state or unsafe pointer is added.",
+    "get_output now returns &mut OutputReference rather than an unconditionally raw &mut Output. Legacy capture-buffer reads remain available; mutable raw escape is rejected by a real compile-fail consumer. Explicit raw-output helper parameter annotations can accept &mut impl AsOutput.",
+    "Standard terminal echo bypasses logical section writes, while successful interactive input adds the submission line. Prompt preparation occurs once per question, preserving validation retry behavior and partial-state errors.",
+    "Fixed ProgressBar exposes no getOutput. Source fixtures capture $out directly; the existing native ProgressOutput helper expresses exclusive sequential borrowing."
+  ],
+  "evidence": [
+    "console_section_consumers",
+    "section-progress-oracle.json",
+    "section-questions-oracle.json",
+    "section-table-oracle.json"
+  ],
+  "remaining": [
+    "Nested OutputStyle counter delegation and component Factory",
+    "Full arbitrary output sinks and programmatic call buffer parameter",
+    "Section terminal completion/multiline variants beyond accepted normal PTY"
+  ]
+}

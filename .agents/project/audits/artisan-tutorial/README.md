@@ -391,3 +391,20 @@ Table::append_row先要求分区，按源逻辑行数清除已渲染区域，经
 正式三语正文直接提取81例编译执行，19框架目标122项、根6目标122项，共244不同父消费者通过，20个被父驱动的ignore不叠加。原有表格／问答／进度回归保留。首次严格检查指出测试显式drop非Drop借用对象，去掉多余drop、依靠原生借用结束，不加lint豁免。最终fmt、workspace all-targets严格Clippy 2m 07s、main(pail)、三语构建与12个手机／桌面／双挂载浏览器通过。实际main HTTP/up/静态/HTML与JSON404/HEAD、Artisan inspire/list/Pail过滤/-vv/timeout清理/Ctrl+C通过。第二轮严格检查期间32GB守卫停止并清理产物；已完成回归日志保留，中断Clippy不计通过，同源恢复Clippy/main/docs后实际验收。
 
 证据target/tmp/artisan-tutorial-20261125/sections-*、table-append-*，正式section-contracts.json／accepted-sections.json与两份源oracle。运行目录清理，临时PHP容器结束；保留源码／日志／可复用缓存及数据库／数据卷。分区绑定ProgressBar/get_output转发、交互输入提交行与OutputStyle章节标题等继承SDK仍明确待办；不把本批当作整个ConsoleOutputInterface、任意StreamOutput构造、整章或跨平台发布已闭合。仅核定范围本地提交，不推送，其他在途改动保留。
+
+
+## 第二十七簇：所选输出借用、分区进度与问答提交行（2026-11-25）
+
+第二十六簇已本地提交034450a529b2e41fd7619682483e24812dbd2ee8，未推送。本簇继续固定Symfony Console7.4.0 ProgressBar、SymfonyStyle、QuestionHelper、ConsoleSectionOutput及固定框架OutputStyle；旧版未提供可复用分区SDK，复用已验收输出／格式器／进度／问答。未新增依赖或并行渲染器。源码基于明确提交树隔离验收，不夹带活跃协作代码。
+
+实际修复OutputStyle::get_output丢失分区身份：新增OutputReference及原生AsOutput借用，构造器保留&mut引用式调用而不按值移动既有&mut Output；普通流、当前引用和分区走同一对象。get_output返回其可变借用，捕获缓冲仍可只读，禁止DerefMut逃逸；明确原始&mut Output类型的通用助手可改用&mut impl AsOutput。新增真实旧借用复用消费者和compile-fail逃逸消费者，不添加命名／lint豁免。Box透明借用是原生适配，不冒充完整自定义OutputInterface。
+
+ProgressBar／ProgressOutput保留同一目标：分区进度按源计算旧消息行数并实际clear，恢复后区；普通输出保留stderr／捕获既有行为，getter配置和格式器替换仍作用于所选目标。源没有ProgressBar::getOutput，初版参考夹具调用该不存在方法被拒绝；改为PHP直接捕获$out，Rust沿用get_output顺序借用，不能把本地助手虚报成源方法。288组真实固定源序列全部匹配，两种装饰、8/80宽度、quiet／normal、手动／样式构造、覆写开关、多行／尾LF、bar／颜色／消息及输出变更覆盖，stderr0。
+
+问答成功交互提交先计入返回键换行，再写后续空行。新反例发现校验重试重复准备问题前空行，在分区中多发一次实际newline，改为每个问题只准备一次，旧问答回归继续通过。普通终端编辑回显直接写原sink，不重复存为分区内容。40组源问答覆盖答案／默认／EOF／非交互、隐藏、确认、重试成功／失败与清除恢复，值、字节、内容与交互状态一致；另有取消回收消费者。真实本机80x24 PTY输入Ada，实际Artisan退出0、分区提交前后元数据与固定源一致；不宣称完整OS回显字节逐字相同。终端自动补全与多行分区变体仍保留待办。
+
+关联渲染缺口也收口：标题、纵向标签、跨度换行和列宽测量不再绕回普通流的格式器。替换分区格式器后的12组固定源表格输出／保留内容通过，默认／横／纵方向、颜色、LF与最大宽度覆盖。真实handle_command进度两种ANSI及非分区错误退出1、stdout／stderr，真实TCP HTTP200/500/200及恢复通过。
+
+最终正式三语直接提取84例编译执行，20框架目标128项、根6目标125项，共253不同父消费者通过，22个父驱动ignore不叠加；OutputReference逃逸1项compile-fail、既有TableCellOptions2项单列不叠加。既有表格、问答、双流与进度全组保留。原始构造签名／借用转发及测试布尔表达式失败均修复，最终fmt、workspace all-targets严格Clippy 5.37s、main(pail)、三语构建、12项桌面／手机／双挂载浏览器通过。实际main HTTP/up/静态/HTML与JSON404/HEAD、Artisan inspire/list/Pail过滤/-vv/timeout清理/Ctrl+C通过。期间32GB守卫停止并清理全项目编译产物；中断不算通过，恢复后按最终源码重新完成门禁，日志保留。
+
+正式证据accepted-section-consumers.json、output-reference-contracts.json和三份源oracle；原始日志target/tmp/artisan-tutorial-20261125/section-consumers-*、section-progress-*、section-questions-*、section-table-*。本批运行目录清理，PHP容器结束，保留源码／日志／可复用缓存与数据库／数据卷。一般自定义OutputInterface（含Artisan.call输出缓冲）、嵌套OutputStyle计数、组件Factory及终端自动补全／多行分区明确待核对，不把本批当完整继承SDK或整章闭合。保护其他在途改动，仅核定范围本地提交，不推送。
