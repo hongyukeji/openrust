@@ -178,6 +178,14 @@ Provider 註冊 `webhook_calls` 遷移，使用 `DatabaseWebhookStore` 前執行
 
 資料庫儲存只清理建立時間及結案時間都超過保留期的記錄。待處理記錄、仍持有租約的記錄及缺少結案標記的記錄會保留。刪除接收記錄時，會一併刪除關聯去重鍵與處理嘗試。每次指令最多處理 500 筆。`WebhookCall::prunable` 透過儲存配接器預覽候選記錄 ID。
 
+### 無簽名回呼的查詢提示 {#unverified-hints}
+
+供應商無法提供簽名時，可在 profile 將 `unverified_hint_receiver` 指向透過 `WebhookRuntime::register_unverified_hint_receiver` 註冊的實作。接收器取得 `UnverifiedHint`。預設驗證器僅在簽名欄位缺失時採用此流程。Standard 驗證器要求三個協定欄位全部缺失。帶有簽名欄位的請求沿用一般驗簽及回應流程。自訂驗證器若使用其他簽名欄位，可覆寫 `SignatureValidator::has_signature`。內建接收器要求儲存範圍與 profile 設定的 `scope` 一致。
+
+`QueuedWebhookHint` 使用與提示儲存共用連線的資料庫佇列。透過 `WebhookHintPolicy` 只關聯可信範圍內已登記的本地任務，再由獨立 `ProcessWebhookHint` 在查詢前複核。各部署節點共用限流快取。內建配接器依範圍與 profile 實施每分鐘 1–600 次的設定限額。已接受的提示及未知任務都回傳同樣的 HTTP 202。提示記錄保存本地任務引用，五分鐘後失去查詢資格，每筆提示只可領取一次，任務逾時為 15 秒。
+
+查詢處理器須依業務契約獨立驗證供應商回應。原始通知維持無簽名提示，提示任務只攜帶提示 ID 及修訂。可信接收記錄與佇列繼續處理已驗簽回呼。
+
 ## 使用邊界 {#scope}
 
 應用網路與任務執行複用既有 [HTTP 用戶端](../digging-deeper/http-client.md)與[佇列](../digging-deeper/queues.md)。持久恢復、完整投遞狀態機仍未實作。

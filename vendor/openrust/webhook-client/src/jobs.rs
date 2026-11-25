@@ -510,7 +510,7 @@ impl<'a> Receipt<'a> {
     }
 }
 
-fn queue_error(source: Error) -> QueueError {
+pub(crate) fn queue_error(source: Error) -> QueueError {
     QueueError::Execution {
         source: Arc::new(source),
     }

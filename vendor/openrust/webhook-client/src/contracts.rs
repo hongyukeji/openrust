@@ -51,6 +51,13 @@ impl WebhookRequest {
 pub trait SignatureValidator: Send + Sync {
     fn is_valid(&self, request: &WebhookRequest, config: &WebhookConfig) -> Result<bool>;
 
+    /// 无签名提示只适用于协议签名字段完全缺失的请求。
+    fn has_signature(&self, request: &WebhookRequest, config: &WebhookConfig) -> bool {
+        request
+            .headers()
+            .contains_key(config.signature_header_name())
+    }
+
     /// 仅在同一请求验签通过后调用，返回签名已覆盖的稳定业务事件 ID。
     fn verified_event_id<'a>(
         &self,

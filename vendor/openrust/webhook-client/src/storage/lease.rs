@@ -25,13 +25,7 @@ pub(crate) enum ProcessingOutcome {
 
 impl DatabaseWebhookStore {
     pub(super) fn clock(&self) -> &'static str {
-        // 与原生数据库队列使用相同的数据库时钟。
-        match self.connection.get_driver_name() {
-            "sqlite" => "unixepoch()",
-            "pgsql" => "floor(extract(epoch from statement_timestamp()))::bigint",
-            "sqlsrv" => "datediff_big(second, '19700101', sysutcdatetime())",
-            _ => "unix_timestamp()",
-        }
+        super::database_clock(&self.connection)
     }
 
     fn processing_row<'a>(&self, builder: Builder<'a>, call: &WebhookCall) -> Result<Builder<'a>> {

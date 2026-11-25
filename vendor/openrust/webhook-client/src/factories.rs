@@ -108,6 +108,12 @@ impl WebhookRuntime {
         dyn WebhookJobDispatcher
     );
 
+    registration!(
+        register_unverified_hint_receiver,
+        "unverified_hint_receiver",
+        dyn crate::hints::ReceivesUnverifiedHint
+    );
+
     /// 每次按当前应用和不可变配置快照解析，工厂代码只来自应用的 Rust 注册。
     pub async fn from_application(
         app: Arc<Application>,
@@ -153,6 +159,18 @@ impl WebhookRuntime {
         let events = container
             .get::<openrust::events::Dispatcher>("events")
             .map_err(Error::binding)?;
+        let hint = match config.options().get("unverified_hint_receiver") {
+            None | Some(serde_json::Value::Null) => None,
+            Some(serde_json::Value::String(name)) => {
+                let factory = get::<dyn crate::hints::ReceivesUnverifiedHint>(
+                    container,
+                    "unverified_hint_receiver",
+                    name,
+                )?;
+                Some((factory.create)(&config, container)?)
+            }
+            _ => return Err(Error::InvalidConfig("unverified_hint_receiver")),
+        };
         let owner = app.clone();
         let mut runtime = Self::new(
             Arc::new(DeferredStore {
@@ -172,6 +190,9 @@ impl WebhookRuntime {
         .with_signature_validator(validator)
         .with_webhook_profile(profile)
         .with_webhook_response(response);
+        if let Some(hint) = hint {
+            runtime = runtime.with_unverified_hint_receiver(hint);
+        }
         runtime.application = Some(owner);
         Ok(runtime)
     }

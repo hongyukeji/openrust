@@ -14,6 +14,9 @@ mod error;
 #[path = "../database/migrations/2026_11_25_000008_add_expiry_to_webhook_event_receipts_table.rs"]
 mod event_expiry_migration;
 mod factories;
+pub mod hints;
+#[path = "../database/migrations/2026_11_25_000009_create_webhook_hints_table.rs"]
+mod hints_migration;
 pub mod http;
 #[path = "../database/migrations/2026_11_25_000004_create_webhook_event_receipts_table.rs"]
 mod identity_migration;
@@ -157,6 +160,10 @@ impl WebhookClientServiceProvider {
             openrust::database::migrations::MigrationEntry::new(
                 "vendor/openrust/webhook-client/database/migrations/2026_11_25_000008_add_expiry_to_webhook_event_receipts_table.rs",
                 &event_expiry_migration::MIGRATION,
+            ),
+            openrust::database::migrations::MigrationEntry::new(
+                "vendor/openrust/webhook-client/database/migrations/2026_11_25_000009_create_webhook_hints_table.rs",
+                &hints_migration::MIGRATION,
             ),
         ];
         ENTRIES

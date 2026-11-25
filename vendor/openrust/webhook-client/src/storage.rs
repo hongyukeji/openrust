@@ -380,10 +380,20 @@ fn decode(row: Row) -> Result<WebhookCall> {
 }
 
 // 使用固定摘要查询，避免数据库默认不区分大小写的排序规则混同应用／租户范围。
-fn scope_key(scope: &str) -> String {
+pub(crate) fn scope_key(scope: &str) -> String {
     aws_lc_rs::digest::digest(&aws_lc_rs::digest::SHA256, scope.as_bytes())
         .as_ref()
         .iter()
         .map(|b| format!("{b:02x}"))
         .collect()
+}
+
+pub(crate) fn database_clock(connection: &Connection) -> &'static str {
+    // 与原生数据库队列使用相同的数据库时钟。
+    match connection.get_driver_name() {
+        "sqlite" => "unixepoch()",
+        "pgsql" => "floor(extract(epoch from statement_timestamp()))::bigint",
+        "sqlsrv" => "datediff_big(second, '19700101', sysutcdatetime())",
+        _ => "unix_timestamp()",
+    }
 }

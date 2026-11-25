@@ -569,6 +569,98 @@ def check_retention(binary, env, root, port, driver, sql):
     print(f"{driver}: 保留期清理 5 个真实 HTTP、4 次 Worker、7 次 Artisan；范围、终态、待处理、预演和联动清理通过")
 
 
+def check_unverified_hints(binary, env, root, port, driver, sql):
+    target = "/api/package/hint"
+    before = sql("SELECT COUNT(*) FROM webhook_calls")
+    log_path = root / "hints.log"
+
+    def send(path, expected, body=b"known", headers=None):
+        connection = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+        try:
+            connection.request("POST", path, body, {
+                "Accept": "application/json", "Content-Type": "application/octet-stream",
+                **(headers or {}),
+            })
+            response = connection.getresponse()
+            data = response.read()
+            assert response.status == expected, (path, expected, response.status, data)
+            if expected == 202:
+                assert json.loads(data) == {"message": "accepted"}
+            assert b"local-task" not in data
+        finally:
+            connection.close()
+
+    def worker(marker, **extra):
+        command(binary, env | {"FIXTURE_HINT_MARKER": str(root / marker), **extra},
+                "queue:work", "database", "--queue=webhook-hints", "--once")
+
+    with (root / "hint-missing-queue.log").open("w+") as log:
+        broken = http_helpers["serve"](binary, env | {"DB_QUEUE_TABLE": "missing_hint_jobs"}, log)
+        try:
+            send("/api/package/hint-standard", 500)
+        finally:
+            http_helpers["stop"](broken)
+    assert sql("SELECT COUNT(*) FROM webhook_hints") == "0"
+
+    with log_path.open("w+") as log:
+        server = http_helpers["serve"](binary, env, log)
+        try:
+            send("/api/package/post", 500)
+            send(target, 500, headers={"Signature": ""})
+            send(target, 500, headers={"Signature": "0" * 64})
+            send("/api/package/hint-standard", 500, headers={"Webhook-Id": "partial"})
+            send("/api/package/hint-wrong-scope", 500)
+            send(target, 202, b"foreign-task")
+            assert sql("SELECT COUNT(*) FROM webhook_hints") == "0"
+            assert sql("SELECT COUNT(*) FROM jobs") == "0"
+
+            send(target, 202)
+            stored_id = sql("SELECT id FROM webhook_hints")
+            assert re.fullmatch(r"[0-9a-f-]{36}", stored_id)
+            wire = json.loads(sql("SELECT payload FROM jobs"))
+            assert wire["name"] == "openrust_webhook_client::hints::hint"
+            assert wire["data"] == {"id": stored_id, "revision": "hint-one"}
+            assert wire["options"]["max_tries"] == 1
+            write_database(driver, sql,
+                           "INSERT INTO jobs (queue,payload,attempts,reserved_at,available_at,created_at) "
+                           "SELECT queue,payload,0,NULL,available_at,created_at FROM jobs")
+            worker("hint-handled")
+            worker("hint-duplicate")
+            assert (root / "hint-handled").read_text() == "local-task"
+            assert not (root / "hint-duplicate").exists()
+
+            send(target, 202)
+            write_database(driver, sql, "UPDATE webhook_hints SET expires_at=0 WHERE status='pending'")
+            worker("hint-expired")
+            assert not (root / "hint-expired").exists()
+            send(target, 202)
+            worker("hint-revoked", FIXTURE_HINT_REVOKED="1")
+            assert not (root / "hint-revoked").exists()
+            assert sql("SELECT status FROM webhook_hints ORDER BY status").splitlines() == [
+                "completed", "expired", "ignored",
+            ]
+            assert sql("SELECT COUNT(*) FROM webhook_calls") == before
+            assert sql("SELECT COUNT(*) FROM jobs") == "0"
+            http_helpers["stop"](server)
+            server = http_helpers["serve"](binary, env, log)
+            send(target, 429)
+            signature = hmac.new(SECRET.encode(), b"known", hashlib.sha256).hexdigest()
+            send(target, 200, headers={"Signature": signature})
+            assert int(sql("SELECT COUNT(*) FROM webhook_calls")) == int(before) + 1
+            assert sql("SELECT COUNT(*) FROM webhook_hints") == "3"
+            marker = root / "hint-signed-receipt.json"
+            command(binary, env | {"WEBHOOK_TEST_RECEIPT_OUTPUT": str(marker)},
+                    "queue:work", "database", "--queue=webhook-receipts", "--once")
+            assert json.loads(marker.read_text())["name"] == "hint"
+        except BaseException:
+            log.flush()
+            print(log_path.read_text())
+            raise
+        finally:
+            http_helpers["stop"](server)
+    print(f"{driver}: 无签名提示 12 个真实 HTTP、5 次 Worker；限额、签名和范围隔离、入队回滚、重复、过期及撤销通过")
+
+
 def main():
  driver,url=helpers["database_settings"]();binary=args.binary.resolve();requests=workers=0
  with tempfile.TemporaryDirectory(dir=ROOT/"target/tmp",prefix="webhook-routes-") as tmp:
@@ -763,9 +855,10 @@ def main():
   check_verified_event_identity(binary,env,root,port,driver,sql)
   check_deferred_processing(binary,env,root,port,driver,sql)
   check_body_deduplication(binary,env,root,port,driver,sql)
+  check_unverified_hints(binary,env,root,port,driver,sql)
   check_retention(binary,env,root,port,driver,sql)
   legacy_id=sql("SELECT id FROM webhook_calls WHERE name='default' ORDER BY id LIMIT 1")
-  assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate:rollback","--step=7","--force")
+  assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate:rollback","--step=8","--force")
   assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate","--force")
   legacy=json.loads(command(binary,env,"webhooks:record",legacy_id,"webhook-acceptance"))
   assert bytes(legacy["body"])==b"default" and legacy["payload"] is None and legacy["attachments"] is None

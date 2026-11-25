@@ -178,6 +178,14 @@ Provider 注册 `webhook_calls` 迁移，使用 `DatabaseWebhookStore` 前运行
 
 数据库存储只清理创建时间和终态时间都超过保留期的记录。待处理记录、仍持有租约的记录及缺少终态标记的记录会保留。删除接收记录会一并删除关联去重键和处理尝试。每条命令最多处理 500 条。`WebhookCall::prunable` 通过存储适配器预览候选记录 ID。
 
+### 无签名回调的查单提示 {#unverified-hints}
+
+供应商无法提供签名时，可在 profile 中将 `unverified_hint_receiver` 指向通过 `WebhookRuntime::register_unverified_hint_receiver` 注册的实现。接收器拿到 `UnverifiedHint`。默认验证器仅在签名头缺失时进入此路径。Standard 验证器要求三个协议头全部缺失。携带签名字段的请求继续走常规验签与响应。自定义验证器若使用其他签名字段，可覆盖 `SignatureValidator::has_signature`。内置接收器要求存储范围与 profile 配置的 `scope` 一致。
+
+`QueuedWebhookHint` 使用与提示存储共用连接的数据库队列。通过 `WebhookHintPolicy` 只关联可信范围内已登记的本地任务，再由独立 `ProcessWebhookHint` 在查单前复核任务。各部署节点共用限流缓存。内置适配器按范围和 profile 实施每分钟 1–600 次的配置限额。已接受的提示与未知任务均返回相同的 HTTP 202。提示记录保存本地任务引用，五分钟后失去查单资格，每条提示只可领取一次，任务超时为 15 秒。
+
+查单处理器须按业务契约独立验证供应商响应。原始通知始终保留为无签名提示，提示任务只携带提示 ID 和修订。可信接收记录和队列继续处理已验签回调。
+
 ## 使用边界 {#scope}
 
 应用网络与任务执行复用现有 [HTTP 客户端](../digging-deeper/http-client.md)和[队列](../digging-deeper/queues.md)。持久恢复、完整投递状态机仍未实现。

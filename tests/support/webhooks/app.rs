@@ -461,6 +461,58 @@ impl openrust_webhook_client::SignatureValidator for SignedBodyIdentity {
             .map(|id| std::borrow::Cow::Owned(id.to_owned())))
     }
 }
+struct FixtureHint;
+impl openrust_webhook_client::hints::WebhookHintPolicy for FixtureHint {
+    fn resolve<'a>(
+        &'a self,
+        scope: &'a str,
+        hint: openrust_webhook_client::hints::UnverifiedHint<'a>,
+    ) -> HttpFuture<'a, openrust_webhook_client::Result<Option<String>>> {
+        Box::pin(async move {
+            assert_eq!(scope, "webhook-acceptance");
+            Ok((hint.request().body() == b"known").then(|| "local-task".to_owned()))
+        })
+    }
+}
+impl openrust_webhook_client::hints::ProcessWebhookHint for FixtureHint {
+    fn is_registered<'a>(
+        &'a self,
+        hint: &'a openrust_webhook_client::hints::WebhookHint,
+    ) -> HttpFuture<'a, openrust_webhook_client::Result<bool>> {
+        Box::pin(async move {
+            Ok(hint.task_id() == "local-task"
+                && hint.scope() == "webhook-acceptance"
+                && std::env::var_os("FIXTURE_HINT_REVOKED").is_none())
+        })
+    }
+
+    fn handle<'a>(
+        &'a self,
+        hint: &'a openrust_webhook_client::hints::WebhookHint,
+    ) -> HttpFuture<'a, openrust_webhook_client::Result<()>> {
+        Box::pin(async move {
+            let marker = std::env::var_os("FIXTURE_HINT_MARKER").expect("提示任务验收标记");
+            tokio::fs::write(marker, hint.task_id())
+                .await
+                .map_err(runtime_error)
+        })
+    }
+}
+
+fn fixture_hint_queue(
+    manager: &openrust::database::DatabaseManager,
+    profile: &str,
+) -> openrust_webhook_client::Result<openrust_webhook_client::hints::QueuedWebhookHint> {
+    openrust_webhook_client::hints::QueuedWebhookHint::new(
+        manager.connection(None)?,
+        "webhook-acceptance",
+        profile,
+        profile,
+        "database",
+        "webhook-hints",
+    )
+}
+
 struct FixtureProvider;
 impl openrust::support::ServiceProvider for FixtureProvider {
     fn register<'a>(
@@ -469,6 +521,22 @@ impl openrust::support::ServiceProvider for FixtureProvider {
     ) -> HttpFuture<'a, openrust::support::ProviderResult> {
         Box::pin(async move {
             use openrust_webhook_client::WebhookRuntime;
+            WebhookRuntime::register_unverified_hint_receiver(
+                openrust::contracts::foundation::Application::container(app),
+                "fixture-hint",
+                |config, container| {
+                    use openrust::contracts::container::Container as _;
+                    let manager = container.make::<openrust::database::DatabaseManager>()?;
+                    let limiter = container.make::<openrust::cache::RateLimiter>()?;
+                    Ok(std::sync::Arc::new(
+                        fixture_hint_queue(&manager, config.name())?.receiver(
+                            limiter,
+                            4,
+                            std::sync::Arc::new(FixtureHint),
+                        )?,
+                    ))
+                },
+            )?;
             for name in [
                 "fixture",
                 "fixture-custom",
@@ -601,6 +669,10 @@ impl openrust::support::ServiceProvider for FixtureProvider {
         Box::pin(async move {
             let queue = app.make::<openrust::queue::QueueManager>().await?;
             let manager = app.make::<openrust::database::DatabaseManager>().await?;
+            for profile in ["hint", "hint-standard"] {
+                fixture_hint_queue(&manager, profile)?
+                    .register(&queue, std::sync::Arc::new(FixtureHint))?;
+            }
             for (name, scope) in [
                 ("fixture", "webhook-acceptance"),
                 ("fixture-custom", "webhook-custom"),
@@ -739,6 +811,9 @@ fn api_routes() -> Result<(), openrust::routing::RoutingError> {
         "/package/retention-digest",
         Options::new().name("retention-digest"),
     )?;
+    for profile in ["hint", "hint-standard", "hint-wrong-scope"] {
+        Route::webhooks(&format!("/package/{profile}"), Options::new().name(profile))?;
+    }
     Route::webhooks("/package/default", Options::default())?;
     Route::webhooks("/package/unregistered", Options::new().name("unregistered"))?;
     Route::webhooks("/package/discarded", Options::new().name("discarded"))?;
@@ -967,6 +1042,9 @@ async fn main() -> ExitCode {
                 {"name":"unregistered","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"unregistered","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database"},
                 {"name":"event-dedup","signing_secret":{"env":"FIXTURE_STANDARD_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"standard","webhook_profile":"process-everything","webhook_model":"database","atomic_database_queue":true,"deduplicate_verified_events":true},
                 {"name":"event-other","signing_secret":{"env":"FIXTURE_STANDARD_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"standard","webhook_profile":"process-everything","webhook_model":"database","atomic_database_queue":true,"deduplicate_verified_events":true},
+                {"name":"hint","revision":"hint-one","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"fixture","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","unverified_hint_receiver":"fixture-hint"},
+                {"name":"hint-wrong-scope","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"different-account","process_webhook_job":"fixture","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","unverified_hint_receiver":"fixture-hint"},
+                {"name":"hint-standard","signing_secret":{"env":"FIXTURE_STANDARD_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"fixture","signature_validator":"standard","webhook_profile":"process-everything","webhook_model":"database","unverified_hint_receiver":"fixture-hint"},
                 {"name":"retention-digest","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","atomic_database_queue":true,"deduplicate_body_seconds":5},
                 {"name":"digest-window","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","atomic_database_queue":true,"deduplicate_body_seconds":5},
                 {"name":"digest-invalid","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","deduplicate_body_seconds":5},

@@ -56,6 +56,7 @@ pub struct WebhookRuntime {
     validator: Arc<dyn SignatureValidator>,
     profile: Arc<dyn WebhookProfile>,
     response: Arc<dyn RespondsToWebhook>,
+    hint: Option<Arc<dyn crate::hints::ReceivesUnverifiedHint>>,
     events: Arc<dyn Dispatcher>,
 }
 impl WebhookRuntime {
@@ -69,11 +70,20 @@ impl WebhookRuntime {
             store,
             job,
             events,
+            hint: None,
             validator: Arc::new(DefaultSignatureValidator),
             profile: Arc::new(ProcessEverythingWebhookProfile),
             response: Arc::new(DefaultRespondsTo),
         }
     }
+    pub fn with_unverified_hint_receiver(
+        mut self,
+        receiver: Arc<dyn crate::hints::ReceivesUnverifiedHint>,
+    ) -> Self {
+        self.hint = Some(receiver);
+        self
+    }
+
     pub fn with_signature_validator(mut self, validator: Arc<dyn SignatureValidator>) -> Self {
         self.validator = validator;
         self
@@ -124,6 +134,20 @@ impl<'a> WebhookProcessor<'a> {
         // 资源预算由流程入口再次检查，自定义验证器不能绕过正文上限。
         if self.request.body().len() > self.config.max_body_bytes() {
             return Err(Error::PayloadTooLarge);
+        }
+        if let Some(receiver) = &self.runtime.hint
+            && !self
+                .runtime
+                .validator
+                .has_signature(self.request, self.config)
+        {
+            receiver
+                .receive(crate::hints::UnverifiedHint::new(self.request, self.config))
+                .await?;
+            return Ok(Response::json(
+                openrust::http::StatusCode::ACCEPTED,
+                serde_json::json!({"message":"accepted"}),
+            )?);
         }
         if !self.runtime.validator.is_valid(self.request, self.config)? {
             self.runtime

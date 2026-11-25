@@ -105,6 +105,12 @@ impl SignatureValidator for StandardSignatureValidator {
         )
     }
 
+    fn has_signature(&self, request: &WebhookRequest, _: &WebhookConfig) -> bool {
+        ["webhook-id", "webhook-timestamp", "webhook-signature"]
+            .iter()
+            .any(|name| request.headers().contains_key(*name))
+    }
+
     fn verified_event_id<'a>(
         &self,
         request: &'a WebhookRequest,

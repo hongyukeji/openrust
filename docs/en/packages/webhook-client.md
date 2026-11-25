@@ -178,6 +178,14 @@ The package’s `delete_after_days` defaults to 30. Set it to `null` to disable 
 
 The database store prunes receipts whose creation and terminal timestamps are both outside the retention window. Pending receipts, active leases and receipts without a terminal marker are retained. Receipt deletion also removes the associated event keys and processing attempts. Each command processes up to 500 records. `WebhookCall::prunable` previews candidate IDs through the storage adapter.
 
+### Lookup hints from unsigned callbacks {#unverified-hints}
+
+For a supplier that supplies no signature, explicitly set `unverified_hint_receiver` to an implementation registered with `WebhookRuntime::register_unverified_hint_receiver`. The receiver gets an `UnverifiedHint`. The default verifier requires its signature header to be absent for this path. The Standard verifier requires all three protocol headers to be absent. Signed requests follow the normal verification and response path. Custom verifiers with other signature fields can override `SignatureValidator::has_signature`. The built-in receiver uses the profile’s configured `scope`.
+
+Use `QueuedWebhookHint` with a database queue on the same connection as the hint store. Supply a `WebhookHintPolicy` that resolves only tasks already registered for the trusted scope, and a separate `ProcessWebhookHint` that checks the task again before looking it up. Configure a shared cache limiter across application nodes. The built-in adapter charges 1–600 requests per minute per scope and profile as configured. Accepted hints and unrecognized tasks return the same HTTP 202 response. Hint rows contain the local task reference and expire for processing after five minutes. Workers claim each hint once and get a 15-second task timeout.
+
+The lookup handler validates the supplier response in its own domain. The original notice stays an unverified hint. The hint transport carries the receipt ID and revision. The trusted receipt and processing queue continue to handle verified callbacks.
+
 ## Scope {#scope}
 
 Use the existing [HTTP client](../digging-deeper/http-client.md) and [queues](../digging-deeper/queues.md) for application networking and jobs. Persistent recovery and a complete delivery state machine remain outside the current implementation.
