@@ -353,6 +353,16 @@ Rust 1.94.0 单作业构建通过，实际运行于 Linux 7.0.14-linuxkit、Debi
 
 分钟冷却探针继续运行同一席位。正常退出仍可补位；随后再次异常退出，在原冷却期限前 1ms 仍未补位，恰好到期时依次派发两个事件并启动。证据为 `target/tmp/observability-parity/horizon-worker-cooldown-minute-upstream.log`。
 
-Rust 监督器按席位保存退出快照和冷却期限。冷却席位占用扩缩容预算，心跳的 Worker 列表仅发布存活的 PID。冷却到期后，公开的 `UnableToLaunchProcess` 在 `WorkerProcessRestarting` 之后、启动替代进程之前派发，携带监督器、队列、原 PID 与退出码。正常退出可在冷却期间补位并沿用原期限。缩容可直接取消等待补位的席位，仍存活的缩容进程走原有排空。监听器错误保留日志和补位。原生进程创建调用直接返回错误的重试语义、冷却期间的多队列缩容专项及目标平台组合仍待核对。
+Rust 监督器按席位保存退出快照和冷却期限。冷却席位占用扩缩容预算，心跳的 Worker 列表仅发布存活的 PID。冷却到期后，公开的 `UnableToLaunchProcess` 在 `WorkerProcessRestarting` 之后、启动替代进程之前派发，携带监督器、队列、原 PID 与退出码。正常退出可在冷却期间补位并沿用原期限。缩容可直接取消等待补位的席位，仍存活的缩容进程走原有排空。监听器错误保留日志和补位。原生进程创建调用直接返回错误的重试见下节。冷却期间的多队列缩容专项及目标平台组合仍待核对。
 
 基于 `53718e11c` 加本批文件的 macOS 隔离快照，真实 Artisan 和 Redis 8.10.3 验证 SIGKILL 后事件顺序与原 PID、`maxJobs` 正常退出在冷却内只派发重启事件、随后再被杀死时停止补位直至原冷却窗口满一分钟，到期后按序派发事件并补位。Horizon 默认 24 项、隔离 Redis 专项 12 项、快照全仓格式和包全目标严格 Clippy 通过。三语文档构建及 12 组浏览器检查通过。本次冷却改动的 Linux 优化构建与发布组合仍待验收。证据位于 `target/tmp/observability-parity/horizon-worker-cooldown-macos-final.log` 和 `horizon-worker-cooldown-docs.log`。
+
+### Horizon Worker 进程创建错误与恢复
+
+PHP 8.5.12 使用固定 Horizon `WorkerProcess`、Symfony Process 8.0.5 和真实不存在的工作目录。首次创建调用抛出异常，999ms 时跳过。满一秒后派发一条 `UnableToLaunchProcess`，再次创建失败。补回目录后，在同一席位的分钟期限前仍然跳过，到期时再派发一次并启动真实子进程。两次事件均无先前已启动进程，所以没有 `WorkerProcessRestarting`，退出码为空。固定 `Supervisor::loop` 报告此类异常并继续后续轮询。证据为 `target/tmp/observability-parity/horizon-worker-spawn-upstream.log`。 [固定 Supervisor](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Supervisor.php) [Symfony Process 8.0.5](https://github.com/symfony/process/blob/v8.0.5/Process.php)
+
+Rust 将进程创建错误保留在原席位的冷却周期，记日志后继续监督。缺少已启动子进程时，`UnableToLaunchProcess` 的 PID 和退出码为空。进程实际退出后继续保留原字段和事件次序。固定上游创建异常会中止当次监督循环的剩余操作，多席位同时创建失败时的处理顺序仍须独立核对。
+
+在 macOS 隔离快照中叠加两批改动。实际 Artisan 与 Redis 8.10.3 验证初次启动遇到不存在的工作目录时监督器仍正常运行，监听器收到空 PID 与空退出码，补回目录后按分钟冷却期限恢复，关闭后无残留 Worker。包含前批两种正常／异常退出分支的进程矩阵通过，包默认 24 项与独立 Redis 12 项通过，全仓格式、包全目标严格 Clippy、三语站点构建和 12 组文档浏览器检查通过。证据位于 `target/tmp/observability-parity/horizon-worker-spawn-macos.log` 和 `horizon-worker-spawn-docs.log`。
+
+Linux ARM64 首轮优化构建触及 32 GB 停线，编译产物已按项目约定清理，重跑两批合并快照。Windows ARM64 虚机正在使用项目内独立 NTFS 验收盘验证包和应用装配，共享目录的编译产物写入因 Windows 错误 87 失败。两平台结果仍待记录。

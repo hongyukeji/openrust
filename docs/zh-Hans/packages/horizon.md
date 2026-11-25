@@ -63,7 +63,7 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
 
 Horizon 在补位 Worker 启动前派发 `WorkerProcessRestarting`，提供监督器、队列、可用的原进程 PID 和退出码。
 
-每个 Worker 席位首次启动后，非零退出受一秒冷却限制。冷却到期后补位时，Horizon 在 `WorkerProcessRestarting` 之后派发 `UnableToLaunchProcess`，并开始一分钟冷却。正常退出可在冷却期间补位。
+每个 Worker 席位首次尝试启动后，非零退出和进程创建失败受一秒冷却限制。已退出的 Worker 在冷却到期后补位时，Horizon 在 `WorkerProcessRestarting` 之后派发 `UnableToLaunchProcess`，并开始一分钟冷却。正常退出可在冷却期间补位。操作系统无法创建进程时，原监督器保留席位，后续 `UnableToLaunchProcess` 的 PID 和退出码为空。
 
 匹配的环境部署计划准备好后，Horizon 派发 `MasterSupervisorDeployed`，提供 Master 名称、环境和待启动的监督器。
 

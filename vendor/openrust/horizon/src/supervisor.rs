@@ -1,7 +1,7 @@
 use crate::{AutoScaler, Error, Repository, Result, SupervisorOptions};
 use openrust::{
     contracts::events::Event,
-    process::{Factory, InvokedProcess},
+    process::{Factory, InvokedProcess, PendingProcess},
     queue::QueueManager,
 };
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc, time::Duration};
@@ -14,8 +14,8 @@ pub struct WorkerProcess {
     queue: String,
     process: Option<InvokedProcess>,
     pid: Option<u32>,
-    exit_code: i32,
-    restart_again_at: Instant,
+    exit_code: Option<i32>,
+    restart_again_at: Option<Instant>,
     stopping: Option<Instant>,
     grace: Duration,
 }
@@ -45,7 +45,7 @@ pub struct UnableToLaunchProcess {
     pub supervisor: String,
     pub queue: String,
     pub pid: Option<u32>,
-    pub exit_code: i32,
+    pub exit_code: Option<i32>,
 }
 
 impl UnableToLaunchProcess {
@@ -266,7 +266,7 @@ impl Supervisor {
                         pool.workers.remove(index);
                         continue;
                     }
-                    worker.exit_code = result.exit_code();
+                    worker.exit_code = Some(result.exit_code());
                     if result.failed() {
                         self.failures = self.failures.saturating_add(1);
                     }
@@ -343,7 +343,7 @@ impl Supervisor {
             }
             for option in options.values() {
                 for queue in option.pools() {
-                    self.restart_workers(&queue, option).await?;
+                    self.monitor_workers(&queue, option).await?;
                 }
             }
         }
@@ -428,34 +428,30 @@ impl Supervisor {
                 remaining -= 1;
             }
         } else {
-            for _ in 0..target - active {
-                let restart_again_at = Instant::now() + Duration::from_secs(1);
-                let process = self.launch_worker(queue, options)?;
-                self.pools
-                    .get_mut(queue)
-                    .expect("configured pool")
-                    .workers
-                    .push(WorkerProcess {
-                        supervisor: self.id.clone(),
-                        queue: queue.into(),
-                        pid: process.id(),
-                        process: Some(process),
-                        exit_code: 0,
-                        restart_again_at,
-                        stopping: None,
-                        grace: Duration::from_secs(u64::from(options.timeout) + 5),
-                    });
+            let pool = self.pools.get_mut(queue).expect("configured pool");
+            for _ in active..target {
+                pool.workers.push(WorkerProcess {
+                    supervisor: self.id.clone(),
+                    queue: queue.into(),
+                    pid: None,
+                    process: None,
+                    exit_code: None,
+                    restart_again_at: None,
+                    stopping: None,
+                    grace: Duration::from_secs(u64::from(options.timeout) + 5),
+                });
             }
         }
         Ok(())
     }
 
-    fn launch_worker(&self, queue: &str, options: &SupervisorOptions) -> Result<InvokedProcess> {
+    fn prepare_worker(&self, queue: &str, options: &SupervisorOptions) -> Result<PendingProcess> {
         let mut worker_options = options.with_queue(queue);
         // Worker 继承专用监督器已应用的进程优先级。
         worker_options.nice = 0;
         let args = worker_options.to_worker_command(&self.executable)?;
-        self.factory
+        Ok(self
+            .factory
             .command(args)
             .path(options.directory.as_deref().unwrap_or(&self.base))
             .env([
@@ -463,44 +459,65 @@ impl Supervisor {
                 ("APP_ENV", self.environment.clone().into()),
             ])
             .forever()
-            .quietly()
-            .start()
-            .map_err(|_| Error::Process)
+            .quietly())
     }
 
-    async fn restart_workers(&mut self, queue: &str, options: &SupervisorOptions) -> Result<()> {
+    async fn monitor_workers(&mut self, queue: &str, options: &SupervisorOptions) -> Result<()> {
         for index in 0..self.pools[queue].workers.len() {
             let worker = &self.pools[queue].workers[index];
             if worker.process.is_some()
                 || worker.stopping.is_some()
-                || (worker.exit_code != 0 && Instant::now() < worker.restart_again_at)
+                || (worker.exit_code != Some(0)
+                    && worker
+                        .restart_again_at
+                        .is_some_and(|at| Instant::now() < at))
             {
                 continue;
             }
-            dispatch_worker_event(WorkerProcessRestarting {
-                supervisor: worker.supervisor.clone(),
-                queue: worker.queue.clone(),
-                pid: worker.pid,
-                exit_code: worker.exit_code,
-            })
-            .await;
-            let mut restart_again_at = worker.restart_again_at;
-            let now = Instant::now();
-            if now >= restart_again_at {
-                restart_again_at = now + Duration::from_secs(60);
-                dispatch_worker_event(UnableToLaunchProcess {
+            if let Some(exit_code) = worker.exit_code {
+                dispatch_worker_event(WorkerProcessRestarting {
                     supervisor: worker.supervisor.clone(),
                     queue: worker.queue.clone(),
                     pid: worker.pid,
-                    exit_code: worker.exit_code,
+                    exit_code,
                 })
                 .await;
             }
-            let process = self.launch_worker(queue, options)?;
+            let now = Instant::now();
+            let restart_again_at = match worker.restart_again_at {
+                None => now + Duration::from_secs(1),
+                Some(at) if now < at => at,
+                Some(_) => {
+                    dispatch_worker_event(UnableToLaunchProcess {
+                        supervisor: worker.supervisor.clone(),
+                        queue: worker.queue.clone(),
+                        pid: worker.pid,
+                        exit_code: worker.exit_code,
+                    })
+                    .await;
+                    now + Duration::from_secs(60)
+                }
+            };
+            let result = self.prepare_worker(queue, options)?.start();
             let worker = &mut self.pools.get_mut(queue).expect("configured pool").workers[index];
-            worker.restart_again_at = restart_again_at;
-            worker.pid = process.id();
-            worker.process = Some(process);
+            worker.restart_again_at = Some(restart_again_at);
+            worker.exit_code = None;
+            worker.pid = None;
+            match result {
+                Ok(process) => {
+                    worker.pid = process.id();
+                    worker.process = Some(process);
+                }
+                Err(error) => {
+                    let _ = openrust::support::facades::Log::warning(
+                        &format!(
+                            "Horizon 无法为监督器 {} 的队列 {queue} 创建 Worker 进程: {error}",
+                            self.id
+                        ),
+                        &Default::default(),
+                    );
+                }
+            }
         }
         Ok(())
     }

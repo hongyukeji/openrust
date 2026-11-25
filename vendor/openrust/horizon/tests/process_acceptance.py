@@ -375,6 +375,35 @@ def main():
             assert master.returncode == 0, (stdout, stderr)
             assert status() == []
             assert gone(fourth_pid)
+            # A failed OS spawn retains the same supervisor and cooldown window.
+            master = subprocess.Popen(
+                [binary, 'artisan', 'horizon', '--environment=spawn'],
+                env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            )
+            state = until_master(lambda state: state['supervisors'])
+            supervisor_name = state['supervisors'][0]
+            expected = {
+                'name': 'UnableToLaunchProcess', 'supervisor': supervisor_name,
+                'queue': 'default', 'pid': None, 'exit_code': None,
+            }
+            until(lambda: restart_history(supervisor_name, None))
+            assert restart_history(supervisor_name, None) == [expected]
+            assert status()[0]['workers'] == []
+            (root / 'worker-cwd').mkdir()
+            until(lambda: 'running' in artisan('horizon:supervisor-status', supervisor_name))
+            time.sleep(2.2)
+            state = status()[0]
+            assert state['workers'] == []
+            assert state['unexpected_exits'] == 0
+            assert restart_history(supervisor_name, None) == [expected]
+            restored_pid = until(replacement, timeout=65)
+            assert restart_history(supervisor_name, None) == [expected, expected]
+            assert status()[0]['unexpected_exits'] == 0
+            master.send_signal(signal.SIGTERM)
+            stdout, stderr = master.communicate(timeout=15)
+            assert master.returncode == 0, (stdout, stderr)
+            assert status() == []
+            assert gone(restored_pid)
             # Loss of metadata terminates the master and reaps its owned workers.
             master = subprocess.Popen([binary, 'artisan', 'horizon'], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             last_master = until_master(lambda state: state['workers'])
@@ -391,7 +420,7 @@ def main():
                 except ProcessLookupError:
                     continue
                 raise AssertionError(f'orphan after metadata failure: {pid}')
-            print('PASS: native processes, worker options/backoff/nice/maintenance force, replacement and one-minute cooldown, pause/continue, retry/forget, graceful signals, terminate, HTTP authorization and redaction')
+            print('PASS: native processes, worker options/backoff/nice/maintenance force, replacement and one-minute cooldown, spawn failure recovery, pause/continue, retry/forget, graceful signals, terminate, HTTP authorization and redaction')
         finally:
             for process in [master, server]:
                 if process is not None and process.poll() is None:
