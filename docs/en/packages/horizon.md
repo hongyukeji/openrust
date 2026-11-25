@@ -53,6 +53,8 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
 
 Set `HORIZON_NAME` to show a deployment name in the dashboard title and heading.
 
+Long-wait alerts include the deployment name in the email subject, SMS body and Slack details. Pass an incoming webhook URL or a channel ID to `Horizon::route_slack_notifications_to`. A channel ID uses the Slack Bot API and requires `services.slack.notifications.bot_user_oauth_token`.
+
 Pause, continue, terminate, monitoring changes and retries require the authorization callback on every request. The browser sends `X-Horizon-Request: 1` for mutations; direct API clients must supply the same header. Cross-site browser mutations are rejected. Apply your application's authentication and middleware to the entire route group. Access to this dashboard permits inspection of job data and operational controls.
 
 ## Commands {#commands}

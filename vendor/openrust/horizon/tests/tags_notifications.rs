@@ -7,7 +7,7 @@ use openrust::{
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
     notifications::{AnonymousNotifiable, Notification, NotificationRoute, messages::MailDelivery},
     queue::Payload,
-    support::facades::{Notification as Notifications, Route},
+    support::facades::{Http, Notification as Notifications, Route},
     testing::TestApp,
 };
 use openrust_horizon::{Horizon, HorizonServiceProvider, LongWaitDetected, Repository, Tags};
@@ -143,10 +143,7 @@ fn long_wait_notification_selects_explicit_routes_and_builds_channel_messages() 
     let Some(MailDelivery::Message(mail)) = notification.to_mail(&recipient).unwrap() else {
         panic!("expected mail message")
     };
-    assert_eq!(
-        mail.envelope.subject,
-        "OpenRust Horizon: Long Queue Wait Detected"
-    );
+    assert_eq!(mail.envelope.subject, ": Long Queue Wait Detected");
     let slack = notification
         .to_legacy_slack(&recipient)
         .unwrap()
@@ -154,8 +151,8 @@ fn long_wait_notification_selects_explicit_routes_and_builds_channel_messages() 
         .to_array();
     assert_eq!(slack["username"], "OpenRust Horizon");
     assert_eq!(
-        slack["text"],
-        "The \"orders\" queue on the \"redis\" connection has a wait time of 120 seconds."
+        slack["attachments"][0]["text"],
+        "[] The \"orders\" queue on the \"redis\" connection has a wait time of 120 seconds."
     );
     let sms = serde_json::to_value(
         notification
@@ -165,7 +162,85 @@ fn long_wait_notification_selects_explicit_routes_and_builds_channel_messages() 
     )
     .unwrap();
     assert_eq!(sms["to"], "+15555550100");
-    assert_eq!(sms["content"], slack["text"]);
+    assert_eq!(sms["content"], slack["attachments"][0]["text"]);
+}
+
+fn named_notification_response(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let notification = notification();
+        let recipient = recipient();
+        let Some(MailDelivery::Message(mail)) = notification.to_mail(&recipient).unwrap() else {
+            panic!("expected mail message")
+        };
+        assert_eq!(mail.envelope.subject, "运维: Long Queue Wait Detected");
+        let content = "[运维] The \"orders\" queue on the \"redis\" connection has a wait time of 120 seconds.";
+        assert_eq!(
+            notification
+                .to_sms(&recipient, "+15555550100".into())
+                .unwrap()
+                .unwrap()
+                .content(),
+            content
+        );
+
+        Http::fake(|_| {
+            Some(openrust::http::client::Response::from_json(
+                StatusCode::OK,
+                &json!({"ok":true}),
+            ))
+        })
+        .unwrap();
+        for destination in ["https://example.test/webhook", "C123"] {
+            let slack = AnonymousNotifiable::default()
+                .route("slack", NotificationRoute::Slack(destination.into()))
+                .unwrap();
+            Notifications::send(&[&slack], &notification).await.unwrap();
+        }
+        let sent = Http::recorded().unwrap();
+        let [(webhook, _), (bot, _)] = sent.as_slice() else {
+            panic!("expected one webhook and one Bot API request")
+        };
+        assert_eq!(webhook.url.as_str(), "https://example.test/webhook");
+        assert!(!webhook.headers.contains_key(http::header::AUTHORIZATION));
+        let payload: serde_json::Value =
+            serde_json::from_slice(webhook.body.as_deref().unwrap()).unwrap();
+        assert_eq!(payload["text"], "Oh no! Something needs your attention.");
+        assert_eq!(payload["attachments"][0]["title"], "Long Wait Detected");
+        assert_eq!(payload["attachments"][0]["text"], content);
+        assert_eq!(bot.url.as_str(), "https://example.test/bot");
+        assert_eq!(
+            bot.headers[http::header::AUTHORIZATION],
+            "Bearer test-token"
+        );
+        let payload: serde_json::Value =
+            serde_json::from_slice(bot.body.as_deref().unwrap()).unwrap();
+        assert_eq!(payload["channel"], "C123");
+        assert_eq!(payload["blocks"][0]["text"]["text"], "Long Wait Detected");
+        assert_eq!(payload["blocks"][1]["text"]["text"], content);
+        Response::json(StatusCode::OK, json!({"recorded":true}))
+    })
+}
+
+#[tokio::test]
+async fn named_long_wait_notifications_reach_both_native_slack_transports() {
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(|_, _| {
+                Ok(BTreeMap::from([(
+                    "services".into(),
+                    json!({"slack":{"notifications":{
+                        "bot_user_oauth_token":"test-token","endpoint":"https://example.test/bot"
+                    }}}),
+                )]))
+            })
+            .with_providers(vec![Box::new(HorizonServiceProvider)])
+            .with_routing(
+                Routing::default().api(|| Route::get("/notification", named_notification_response)),
+            )
+    })
+    .unwrap();
+    std::fs::write(app.root().join(".env"), "HORIZON_NAME=运维\n").unwrap();
+    app.get("/api/notification").await.unwrap().assert_ok();
 }
 fn notification_response(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {

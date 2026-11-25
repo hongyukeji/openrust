@@ -5,12 +5,16 @@ use openrust::{
     notifications::{
         AnonymousNotifiable, Notifiable, Notification, NotificationResult, NotificationRoute,
         messages::{MailDelivery, MailMessage, SlackMessage},
+        slack::SlackMessage as BlockKitMessage,
         sms::SmsMessage,
     },
-    support::facades::{Facade, Notification as Notifications},
+    support::facades::{Config, Facade, Notification as Notifications},
 };
 use std::{collections::BTreeMap, sync::RwLock, time::Duration};
 use tokio::time::Instant;
+
+const WAIT_GREETING: &str = "Oh no! Something needs your attention.";
+const WAIT_TITLE: &str = "Long Wait Detected";
 
 #[derive(Default)]
 pub(crate) struct NotificationRoutes(RwLock<BTreeMap<String, NotificationRoute>>);
@@ -33,6 +37,18 @@ impl Event for LongWaitDetected {
     }
 }
 impl LongWaitDetected {
+    fn deployment_name() -> String {
+        Config::get("horizon.name")
+            .ok()
+            .flatten()
+            .and_then(|value| value.as_str().map(str::to_owned))
+            .unwrap_or_default()
+    }
+
+    fn named_content(&self) -> String {
+        format!("[{}] {}", Self::deployment_name(), self.content())
+    }
+
     fn content(&self) -> String {
         format!(
             "The \"{}\" queue on the \"{}\" connection has a wait time of {} seconds.",
@@ -51,8 +67,11 @@ impl Notification for LongWaitDetected {
         Ok(Some(MailDelivery::Message(Box::new(
             MailMessage::new()
                 .error()
-                .subject("OpenRust Horizon: Long Queue Wait Detected")
-                .greeting("Oh no! Something needs your attention.")
+                .subject(format!(
+                    "{}: Long Queue Wait Detected",
+                    Self::deployment_name()
+                ))
+                .greeting(WAIT_GREETING)
                 .line(self.content()),
         ))))
     }
@@ -61,11 +80,27 @@ impl Notification for LongWaitDetected {
             SlackMessage::new()
                 .from("OpenRust Horizon", None)
                 .error()
-                .content(self.content()),
+                .content(WAIT_GREETING)
+                .attachment(|attachment| {
+                    attachment
+                        .title(WAIT_TITLE, None)
+                        .content(self.named_content());
+                }),
+        ))
+    }
+    fn to_slack(&self, _: &dyn Notifiable) -> NotificationResult<Option<BlockKitMessage>> {
+        Ok(Some(
+            BlockKitMessage::new()
+                .username("OpenRust Horizon")
+                .text(WAIT_GREETING)
+                .header_block(WAIT_TITLE)
+                .section_block(|section| {
+                    section.text(self.named_content());
+                }),
         ))
     }
     fn to_sms(&self, _: &dyn Notifiable, to: String) -> NotificationResult<Option<SmsMessage>> {
-        SmsMessage::new(to, self.content()).map(Some)
+        SmsMessage::new(to, self.named_content()).map(Some)
     }
     fn fake_data(&self) -> serde_json::Value {
         serde_json::json!({"connection":self.connection,"queue":self.queue,"seconds":self.seconds})

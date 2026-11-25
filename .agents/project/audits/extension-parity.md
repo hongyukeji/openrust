@@ -125,4 +125,10 @@ O01 Activitylog、O02 Horizon、O03 Telescope原生范围、O04 Pennant、O05 Pu
 
 隔离 Redis 8.10.3 和真实 Artisan Master 进程验收通过。先让另一个持有者占锁，移除该锁后 Master 在 8 秒内获取。随后提前移除 Master 自己取得的锁，跨过两个循环仍无重新加锁。完整进程验收、快照全仓格式、Horizon 全目标严格 Clippy 均通过。60 秒届满后的真正重新取锁未单独等待实测，本批覆盖冷却期间与抢锁失败两条回归路径。
 
-下一项通知对账已定位到 [LongWaitDetected 事件](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Events/LongWaitDetected.php) 与 [通知实现](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Notifications/LongWaitDetected.php)。上游经容器创建可替换的通知；邮件主题、短信正文和 Slack 附件会读取 `horizon.name`，Slack 有 webhook 与频道 ID 两种路径。本地事件和通知目前共用类型，文案尚未读取配置名称，Slack 使用简化 webhook 路径。待核对原生通知契约及实际消费者。
+下一项通知对账已定位到 [LongWaitDetected 事件](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Events/LongWaitDetected.php) 与 [通知实现](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Notifications/LongWaitDetected.php)。上游经容器创建可替换的通知；邮件主题、短信正文和 Slack 附件会读取 `horizon.name`，Slack 有 webhook 与频道 ID 两种路径。本地事件和通知共用类型。本批改动前文案未读取配置名称，Slack 使用简化 Webhook 路径。
+
+### Horizon 长等待告警文案与 Slack 渠道
+
+补齐邮件主题、短信正文、Webhook 附件及 Bot API Block Kit 对部署名称的读取。上游缺省名称在邮件主题产生空前缀，短信和 Slack 详情保留空方括号，Rust 同样处理。现有 `Horizon::route_slack_notifications_to` 接受 Webhook URL 或频道 ID，复用原生 Slack 渠道。品牌采用 OpenRust Horizon，未引用 Laravel 的托管图标。
+
+隔离 Redis 8.10.3 上 Horizon 标签与通知测试 7 项、全仓格式及 Horizon 全目标严格 Clippy 通过。真实应用请求作用域内检查邮件与短信消息，通过原生通知渠道投递到 HTTP fake，断言 Webhook 附件、Bot API 授权头、频道 ID 和 Block Kit。三语文档构建和 12 组浏览器检查通过。第三方收件与实际服务投递未实测。可替换通知工厂、Webhook 可选频道覆盖及通知监听器的公开契约仍待处理。

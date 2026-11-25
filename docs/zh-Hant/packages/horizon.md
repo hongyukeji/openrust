@@ -53,6 +53,8 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
 
 設定 `HORIZON_NAME` 可在面板的頁面標題和主標題顯示部署名稱。
 
+長等待警示在郵件主旨、簡訊內文和 Slack 詳情中顯示部署名稱。`Horizon::route_slack_notifications_to` 接受傳入 Webhook 網址或頻道 ID。頻道 ID 使用 Slack Bot API，需設定 `services.slack.notifications.bot_user_oauth_token`。
+
 暫停、繼續、終止、監控變更和重試均須逐次通過授權回調。瀏覽器對寫入操作傳送 `X-Horizon-Request: 1`，直接呼叫介面也須攜帶該標頭；拒絕跨站瀏覽器寫入操作。為整個路由群組套用既有的認證與中間件。面板授權包含檢視工作資料和執行維運控制的權限。
 
 ## 命令 {#commands}
