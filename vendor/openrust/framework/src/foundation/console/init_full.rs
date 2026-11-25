@@ -27,6 +27,7 @@ pub(super) const PACKAGES: &[&str] = &[
     "scout",
     "settings",
     "telescope",
+    "translate",
 ];
 
 pub(super) const PROBE: &str = "init:verify";

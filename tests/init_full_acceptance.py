@@ -8,6 +8,7 @@ import re
 import socket
 import subprocess
 import time
+import tomllib
 import urllib.error
 import urllib.request
 import uuid
@@ -139,6 +140,8 @@ def main():
     for key in ["APP_KEY", "APP_CONFIG_CACHE", "APP_PACKAGES_CACHE", "APP_ROUTES_CACHE", "APP_EVENTS_CACHE", "DB_CONNECTION", "CACHE_STORE", "SESSION_DRIVER", "QUEUE_CONNECTION", "REDIS_URL"]:
         env.pop(key, None)
 
+    env.pop("TRANSLATE_DRIVER", None)
+
     artifacts = root.parent / ("coordination-" + signature)
     artifacts.mkdir()
     env.update(OPENRUST_INIT_TEST_ARTIFACTS=str(artifacts), REDIS_QUEUE_RETRY_AFTER="2")
@@ -179,7 +182,7 @@ def main():
     assert "--dry-run" in cli("init:full", "--help")
     plan = cli("init:full", "--dry-run")
     assert "user-web" in plan and "webhook-server" in plan and "database=mysql" in plan
-    assert "localization-database" in plan
+    assert "localization-database" in plan and "translate" in plan
     assert "dry run" in plan.lower() and not env_file.exists() and before == manifest.read_bytes()
     cli("init:full", status=None, changes={"DB_CONNECTION": "pgsql"})
     cli("init:full", status=None, changes={"APP_ENV": "production"})
@@ -195,7 +198,15 @@ def main():
         assert config in completed, config
     assert re.search(rb"^APP_KEY=.+$", completed, re.M)
     installed = manifest.read_bytes()
-    assert b'"webhook-client"' in installed and b'"localization-database"' in installed
+    declared_features = tomllib.loads(before.decode())["features"]
+    official_features = {
+        feature for feature, links in declared_features.items()
+        if any(link.startswith("dep:openrust-") for link in links)
+    } | {"sanctum"}
+    enabled_features = set(tomllib.loads(installed.decode())["features"]["default"])
+    assert not (official_features - enabled_features), official_features - enabled_features
+    assert "translate" in enabled_features and b"TRANSLATE_DRIVER=" not in completed
+    cli("init-full-test:translate")
     migration_files = sorted((root / "database/migrations").glob("*.rs"))
 
     opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))

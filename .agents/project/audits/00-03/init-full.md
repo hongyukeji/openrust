@@ -13,10 +13,13 @@
 | Reverb、Socialite、OIDC／SSO、Precognition | Reverb 和 OIDC 发布各自配置；Socialite 由特性装配，Precognition 使用核心中间件。 | 广播监听随环境启用；OAuth／OIDC 提供商、回调和本地账号绑定由应用配置；路由自行应用 `precognitive`。 |
 | Webhook 接收和发送 | 分别构建两个特性，通过包发现注册 Provider、默认配置与编译迁移。 | 业务添加回调、处理任务和签名配置，配置发送目标及消费者。 |
 | Activitylog、Cashier、Horizon、New Relic、Pail、Pay、Pennant、Pulse、Scout、Settings、Telescope | Cargo 特性、已有 Provider 和包默认配置；有编译迁移的包随原生迁移执行。 | 应用按业务使用对应门面、命令、队列及仪表盘；支付、APM 和外部索引按实际环境设置。 |
-| 数据库翻译 | 启用可直接引用的 `localization-database` 库。该库的正式契约要求应用显式创建自己的词条表并选择加载时机。 | `DatabaseLoader` 与 `Lang::load_from`。 |
+| 数据库词条 | 启用 `localization-database` 和包提供的词条迁移发布入口。采用数据库词条时，应用显式发布迁移并注册加载器及资源分组。 | `localization-database-migrations` 发布标签、`DatabaseLoader` 和 `Lang::refresh_default_source`。 |
+| 机器翻译 | 启用 `translate`，由包发现注册 Provider、默认配置及门面。 | `Translate` 门面。使用供应商前按需配置具名服务和凭据。 |
 | 内置缓存、会话、队列、锁、调度和其他核心能力 | 复用框架默认装配，完整预设共享 MySQL 与 Redis。 | 应用门面、HTTP、队列 Worker、`schedule:run`。 |
 
-SMTP、真实短信、支付和外部身份供应商按使用场景提供账户及凭据。 验收清单固定于本次集成版本；在验收基线之后新增的机器翻译 `translate` 按自身文档启用，待后续预设版本纳入。测试使用两个独立的本机应用进程共享 MySQL 与 Redis；Redis Cluster、真实生产负载均衡及 TLS、原生 Windows 和 Linux 复用各自的发布验收范围。
+SMTP、真实短信、支付、机器翻译和外部身份供应商按使用场景提供账户及凭据。测试使用两个独立的本机应用进程共享 MySQL 与 Redis；Redis Cluster、真实生产负载均衡及 TLS、原生 Windows 和 Linux 复用各自的发布验收范围。
+
+逐项核对根应用 Cargo 清单和包发现元数据后，完整预设覆盖全部 20 个官方可选包及 Sanctum。Passkeys 由 Fortify 引入，Blade 编译器和包发现由框架及构建脚本引入。广播、gRPC、Precognition、SSO 与用户套件沿用既有核心模块和应用接线。
 
 ## 运行结果
 
@@ -27,5 +30,12 @@ SMTP、真实短信、支付和外部身份供应商按使用场景提供账户�
 - 三语 VitePress 构建通过。根路径及 `/docs/` 下，三语部署指南链接在桌面和手机共 12 组浏览器校验中均打开正确的安装章节。
 
 - `cargo fmt --all --check` 通过。Cargo 回归中原 `init` 的 16 项与原生数据库会话的 2 项通过，覆盖数据库会话加密、元数据和 Guard 归属。 Fortify 浏览器设备的 7 项回归通过，包括不受支持的驱动及同名自定义处理器拒绝。 Rust 1.94.0 的工作区全目标严格 Clippy（`--workspace --all-targets --locked -- -D warnings`）通过。
+
+## 机器翻译纳入预设
+
+- 在 `699ad83cd` 的干净源码叠加本批改动，通过公开 `./artisan init:full` 入口从零安装。预览包含 `translate`，安装后的 Cargo 默认特性覆盖基线清单的 20 个可选包及 Sanctum。已安装应用通过包发现解析 `Translate` 门面，未提供供应商配置时返回 `DefaultNotConfigured`，环境文件未生成默认供应商。真实供应商调用留给采用该服务的应用验收。
+- macOS arm64 上的真实 MySQL 8.4.13、Redis 8.10.3 单机与同机双副本验收通过，覆盖注册登录、共享会话、Worker 恢复、迁移锁及调度去重。命令进程路径继续拦截 Docker 和 Docker Compose 调用。
+- 单机和双副本场景通过后，32 GB 磁盘停线中断最后一次重跑。持锁清理之后，使用同一已安装源码在新的隔离 MySQL 和 Redis 上连续运行两次 `init:full`，第二次报告没有待执行迁移。两次均保留 `.env`、应用密钥、Cargo 清单、定制路由及迁移文件内容。
+- Rust 1.94.0 格式检查、三语文档构建和 12 组浏览器检查通过。
 
 复现时用项目内干净源码和专属 Cargo 目录。先用 Rust 1.94.0 构建 `main`，从隔离源码运行 `python3 -B tests/mysql_acceptance.py -- python3 -B tests/init_full_acceptance.py`，外部通过 `OPENRUST_TEST_REDIS_HOST` 和 `OPENRUST_TEST_REDIS_PORT` 提供隔离 Redis 服务。运行日志集中于本批 `target/tmp/init-full/`。

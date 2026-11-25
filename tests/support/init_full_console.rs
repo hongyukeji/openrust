@@ -16,6 +16,25 @@ fn fixture_error(error: impl std::fmt::Display) -> ConsoleError {
 }
 
 fn init_full_acceptance_commands() -> Result<(), ConsoleError> {
+    #[cfg(feature = "translate")]
+    Artisan::command_with(
+        "init-full-test:translate",
+        AsyncCommandCallback::new(|_, _, _| {
+            Box::pin(async {
+                use openrust_translate::{Translate, TranslationError};
+
+                // 通过包发现解析门面，未配置供应商时应在发送请求前返回。
+                Translate::manager().map_err(fixture_error)?;
+                if !matches!(
+                    Translate::translate("验收", "en").await,
+                    Err(TranslationError::DefaultNotConfigured)
+                ) {
+                    return Err(ConsoleError::new("未配置机器翻译供应商时应返回配置错误"));
+                }
+                Ok(0)
+            })
+        }),
+    )?;
     Artisan::command_with(
         "init-full-test:migration-lock",
         AsyncCommandCallback::new(|_, _, _| {

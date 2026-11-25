@@ -240,7 +240,7 @@ impl Command for InitCommand {
             extensions.report(output);
             if full {
                 output.info("完整用户套件：应用 Provider、注册登录和账户页面及相关迁移。\n");
-                output.info("官方包默认配置及编译迁移随包发现加载，外部支付、邮件、短信、APM 和身份服务按需提供凭据；无需再次安装。\n");
+                output.info("官方包默认配置及编译迁移随包发现加载，外部支付、邮件、短信、机器翻译、APM 和身份服务按需提供凭据；无需再次安装。\n");
                 if let Err(error) = full::require_connections(&values) {
                     if !dry {
                         return Err(error);

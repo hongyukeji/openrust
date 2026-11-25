@@ -16,6 +16,8 @@ cargo run --locked
 
 `init:full` 全程非交互，写入文件前检查配置。它启用完整预设及网页和 API 用户套件，安装包资源，构建应用，执行迁移及 HTTP、Artisan 和 Redis Worker 自检。缓存、会话和队列使用 Redis。MySQL、Redis 和 Docker Compose 由命令外的环境管理。通过进程环境注入的凭据仍由进程环境提供，启动应用时也需要提供。已有驱动设置发生冲突时须先显式调整。`init:full --force` 用于明确授权生产迁移，并保留已有源码定制。需要交互选配时使用 `./artisan init`。
 
+`init:full` 通过包发现启用[机器翻译包](../packages/translate.md)。应用需要机器翻译时，再配置具名服务并提供对应凭据。
+
 单机和多副本使用同一套应用配置。同一部署内各运行角色共用 MySQL、Redis 和应用密钥。运行角色、迁移协调和文件共享由部署工具管理。
 
 ## 启动应用

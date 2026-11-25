@@ -16,6 +16,8 @@ cargo run --locked
 
 `init:full` is non-interactive and checks configuration before writing files. It enables the complete preset with the web and API starter kit, installs package resources, builds the application and runs migrations and HTTP, Artisan and Redis worker checks. It uses Redis for cache, sessions and queues. Docker Compose and provisioning are independent of this command. Process-injected credentials stay in the process environment, so supply them to the application as well. Existing conflicting driver settings require explicit adjustment. `--force` on `init:full` authorizes production migration while preserving existing source customizations. Use `./artisan init` for interactive selection.
 
+`init:full` enables the [machine translation package](../packages/translate.md) through package discovery. Configure a named service and supply its credentials when your application needs machine translation.
+
 Single hosts and replicas use the same application configuration. All roles in one deployment share the configured MySQL and Redis services and application key. Deployment tooling coordinates process roles, migrations and shared files.
 
 ## Starting the application
