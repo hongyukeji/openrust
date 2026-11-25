@@ -3,15 +3,17 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use hmac::{Hmac, KeyInit, Mac};
+use hmac::{Hmac, KeyInit, Mac, digest::CtOutput};
 use openrust::{container::Container, contracts::container::Container as _};
 use openrust_webhook_client::{
     Error, Result, SignatureValidator, WebhookConfig, WebhookRequest, WebhookRuntime,
 };
-use sha2::Sha256;
+use sha2::{Digest, Sha256};
 use zeroize::Zeroizing;
 
-use crate::{CredentialReference, ModerationCredentialProvider};
+use crate::{
+    CredentialReference, ModerationCredentialProvider, drivers::valid_tencent_callback_seed,
+};
 
 const HEADER: &str = "sightengine-signature";
 const TOLERANCE_SECONDS: u64 = 300;
@@ -112,59 +114,117 @@ fn signature_bytes(value: &str) -> Option<[u8; 32]> {
     Some(decoded)
 }
 
+const TENCENT_HEADER: &str = "x-signature";
+
+struct TencentSignature(Vec<Zeroizing<String>>);
+
+impl SignatureValidator for TencentSignature {
+    fn is_valid(&self, request: &WebhookRequest, config: &WebhookConfig) -> Result<bool> {
+        if request.body().len() > config.max_body_bytes() {
+            return Err(Error::PayloadTooLarge);
+        }
+        let mut signatures = request.headers().get_all(TENCENT_HEADER).iter();
+        let Some(signature) = signatures
+            .next()
+            .and_then(|value| value.to_str().ok())
+            .and_then(signature_bytes)
+        else {
+            return Ok(false);
+        };
+        if signatures.next().is_some() {
+            return Ok(false);
+        }
+        let received = CtOutput::<Sha256>::new(signature.into());
+        let mut valid = false;
+        for seed in &self.0 {
+            let mut digest = Sha256::new();
+            digest.update(seed.as_bytes());
+            digest.update(request.body());
+            valid |= CtOutput::<Sha256>::new(digest.finalize()) == received;
+        }
+        Ok(valid)
+    }
+
+    fn has_signature(&self, request: &WebhookRequest, _: &WebhookConfig) -> bool {
+        request.headers().contains_key(TENCENT_HEADER)
+    }
+}
+
+fn callback_keys(
+    config: &WebhookConfig,
+    container: &Container,
+    field: &'static str,
+    valid: impl Fn(&str) -> bool,
+) -> Result<Vec<Zeroizing<String>>> {
+    let provider = container
+        .make::<dyn ModerationCredentialProvider>()
+        .map_err(|_| Error::InvalidConfig("moderation callback credential provider"))?;
+    let parse_reference = |value: &serde_json::Value| {
+        serde_json::from_value::<CredentialReference>(value.clone())
+            .map_err(|_| Error::InvalidConfig("moderation callback credential reference"))
+    };
+    let mut references = vec![parse_reference(
+        &config.options()["moderation_callback_credential"],
+    )?];
+    if let Some(older) = config
+        .options()
+        .get("moderation_previous_callback_credentials")
+    {
+        let older = older
+            .as_array()
+            .filter(|older| older.len() <= MAX_PREVIOUS_KEYS)
+            .ok_or(Error::InvalidConfig(
+                "moderation previous callback credentials",
+            ))?;
+        for value in older {
+            let reference = parse_reference(value)?;
+            if references.contains(&reference) {
+                return Err(Error::InvalidConfig(
+                    "moderation duplicate callback credential",
+                ));
+            }
+            references.push(reference);
+        }
+    }
+    references
+        .into_iter()
+        .map(|reference| {
+            let credentials = provider
+                .resolve(&reference)
+                .map_err(|_| Error::InvalidConfig("moderation callback credential"))?;
+            credentials
+                .get(field)
+                .filter(|value| valid(value))
+                .map(|value| Zeroizing::new(value.to_owned()))
+                .ok_or(Error::InvalidConfig("moderation callback credential"))
+        })
+        .collect()
+}
+
 pub(crate) fn register(container: &Container) -> Result<()> {
     WebhookRuntime::register_signature_validator(
         container,
         "moderation-sightengine",
         |config, container| {
-            let provider = container
-                .make::<dyn ModerationCredentialProvider>()
-                .map_err(|_| Error::InvalidConfig("sightengine callback credential provider"))?;
-            let parse_reference = |value: &serde_json::Value| {
-                serde_json::from_value::<CredentialReference>(value.clone())
-                    .map_err(|_| Error::InvalidConfig("sightengine callback credential reference"))
-            };
-            let mut references = vec![parse_reference(
-                &config.options()["moderation_callback_credential"],
-            )?];
-            if let Some(older) = config
-                .options()
-                .get("moderation_previous_callback_credentials")
-            {
-                let older = older
-                    .as_array()
-                    .filter(|older| older.len() <= MAX_PREVIOUS_KEYS)
-                    .ok_or(Error::InvalidConfig(
-                        "sightengine previous callback credentials",
-                    ))?;
-                for value in older {
-                    let reference = parse_reference(value)?;
-                    if references.contains(&reference) {
-                        return Err(Error::InvalidConfig(
-                            "sightengine duplicate callback credential",
-                        ));
-                    }
-                    references.push(reference);
-                }
-            }
-            let keys = references
-                .into_iter()
-                .map(|reference| {
-                    let credentials = provider
-                        .resolve(&reference)
-                        .map_err(|_| Error::InvalidConfig("sightengine callback credential"))?;
-                    credentials
-                        .get("signing_secret")
-                        .filter(|value| {
-                            value.starts_with("casec_")
-                                && (7..=512).contains(&value.len())
-                                && value.bytes().all(|byte| byte.is_ascii_graphic())
-                        })
-                        .map(|value| Zeroizing::new(value.to_owned()))
-                        .ok_or(Error::InvalidConfig("sightengine callback credential"))
-                })
-                .collect::<Result<Vec<_>>>()?;
+            let keys = callback_keys(config, container, "signing_secret", |value| {
+                value.starts_with("casec_")
+                    && (7..=512).contains(&value.len())
+                    && value.bytes().all(|byte| byte.is_ascii_graphic())
+            })?;
             Ok(Arc::new(SightengineSignature(keys)))
+        },
+    )?;
+    WebhookRuntime::register_signature_validator(
+        container,
+        "moderation-tencent",
+        |config, container| {
+            let keys = callback_keys(
+                config,
+                container,
+                "video_callback_seed",
+                valid_tencent_callback_seed,
+            )?;
+            Ok(Arc::new(TencentSignature(keys)))
         },
     )
 }

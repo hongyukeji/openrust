@@ -116,13 +116,31 @@ pub(super) fn configuration(env: &Environment) -> Result<Value, ConfigError> {
     }
     if let Some(endpoint) = env.get_utf8("MODERATION_FIXTURE_TENCENT_VIDEO")? {
         let media = env.get_utf8("MODERATION_FIXTURE_IMAGE_ORIGIN")?;
-        configuration["drivers"]["tencent-videos"] = json!({
+        let mut profile = json!({
             "driver":"tencent", "video_base_url":endpoint, "region":"ap-guangzhou",
             "video_biz_type":env.get_utf8("MODERATION_FIXTURE_TENCENT_BIZ")?.unwrap_or("video_profile"),
             "media_disk":"s3", "media_origin":media,
             "secret_id_env":"FIXTURE_TENCENT_ID","secret_key_env":"FIXTURE_TENCENT_SECRET",
             "security_token_env":"FIXTURE_TENCENT_TOKEN","timeout_ms":500,
         });
+        if let Some(callback) = env.get_utf8("MODERATION_FIXTURE_TENCENT_CALLBACK_URL")? {
+            let fields = profile.as_object_mut().expect("腾讯点播验收配置对象");
+            for name in ["secret_id_env", "secret_key_env", "security_token_env"] {
+                fields.remove(name);
+            }
+            profile["video_callback_url"] = json!(callback);
+            profile["credential_ref"] = json!("tencent-video");
+            profile["credential_revision"] = json!("r2");
+            profile["account"] = json!("original-account");
+            profile["policy_revision"] = json!("policy-1");
+            profile["required_modalities"] = json!(["visual", "speech", "ocr"]);
+            profile["query_interval_seconds"] = json!(300);
+            profile["timeout_ms"] = json!(18_000);
+            configuration["credential_directory"] =
+                json!(env.get_utf8("MODERATION_CREDENTIAL_DIRECTORY")?);
+            configuration["profile_revisions"]["tencent-videos"]["original"] = profile.clone();
+        }
+        configuration["drivers"]["tencent-videos"] = profile;
     }
     if let Some(endpoint) = env.get_utf8("MODERATION_FIXTURE_SIGHTENGINE")? {
         let mut text = json!({

@@ -1,5 +1,8 @@
 use std::collections::BTreeMap;
 
+use serde_json::Value;
+use url::Url;
+
 use crate::{
     Assessment, Confidence, Coverage, Decision, EvidenceSpan, Finding, Modality, ModerationError,
     ModerationResult,
@@ -9,6 +12,25 @@ pub(super) struct VideoEvidence {
     pub(super) finding: Finding,
     pub(super) span: Option<EvidenceSpan>,
     pub(super) score: Option<Confidence>,
+}
+
+pub(super) fn callback_url(profile: &Value) -> ModerationResult<Option<Url>> {
+    super::field(profile, "video_callback_url")?
+        .map(|value| {
+            (value.len() <= 2048)
+                .then(|| Url::parse(value).ok())
+                .flatten()
+                .filter(|url| {
+                    url.scheme() == "https"
+                        && url.host().is_some()
+                        && url.username().is_empty()
+                        && url.password().is_none()
+                        && url.fragment().is_none()
+                        && url.query().is_none()
+                })
+                .ok_or(ModerationError::InvalidConfiguration("video_callback_url"))
+        })
+        .transpose()
 }
 
 pub(super) fn build_assessment(

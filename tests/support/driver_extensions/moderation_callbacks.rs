@@ -10,7 +10,9 @@ use openrust::{
     queue::{JobContext, JobOptions, QueueManager},
     support::{ProviderResult, ServiceProvider, facades::Route},
 };
-use openrust_content_moderation::{ModerationStore, SightengineCallbackProcessor};
+use openrust_content_moderation::{
+    ModerationStore, SightengineCallbackProcessor, TencentCallbackProcessor,
+};
 use openrust_webhook_client::{
     DatabaseWebhookStore, Error, Result, WebhookRouteOptions, WebhookRoutes as _, WebhookRuntime,
     WebhookStore,
@@ -23,6 +25,27 @@ const JOB: &str = "moderation-callback-fixture";
 const SCOPE: &str = "moderation-callback-scope";
 
 pub(super) fn configuration(env: &Environment) -> std::result::Result<Value, ConfigError> {
+    if env.get_utf8("MODERATION_CALLBACK_FIXTURE_TENCENT")? == Some("1") {
+        return Ok(json!({
+            "configs": [
+                {
+                    "name": "tencent-video", "revision": "callbacks-v1", "scope": SCOPE,
+                    "signature_validator": "moderation-tencent", "webhook_profile": "process-everything",
+                    "process_webhook_job": JOB, "webhook_model": "database",
+                    "moderation_callback_credential": {"name":"tencent-video", "revision":"r2"},
+                    "moderation_previous_callback_credentials": [{"name":"tencent-video", "revision":"r1"}],
+                    "atomic_database_queue": true, "deduplicate_body_seconds": 60, "max_body_bytes": 4096
+                },
+                {
+                    "name": "tencent-other-account", "revision": "callbacks-v1", "scope": SCOPE,
+                    "signature_validator": "moderation-tencent", "webhook_profile": "process-everything",
+                    "process_webhook_job": JOB, "webhook_model": "database",
+                    "moderation_callback_credential": {"name":"tencent-other", "revision":"r1"},
+                    "atomic_database_queue": true, "deduplicate_body_seconds": 60, "max_body_bytes": 4096
+                }
+            ]
+        }));
+    }
     let revision = env
         .get_utf8("MODERATION_CALLBACK_FIXTURE_REVISION")?
         .unwrap_or("r2");
@@ -61,6 +84,14 @@ pub(super) fn routes() -> std::result::Result<(), openrust::routing::RoutingErro
         "/drivers/moderation/callback-other",
         WebhookRouteOptions::new().name("other-account"),
     )?;
+    Route::webhooks(
+        "/drivers/moderation/tencent-callback",
+        WebhookRouteOptions::new().name("tencent-video"),
+    )?;
+    Route::webhooks(
+        "/drivers/moderation/tencent-callback-other",
+        WebhookRouteOptions::new().name("tencent-other-account"),
+    )?;
     Ok(())
 }
 
@@ -85,18 +116,30 @@ impl ServiceProvider for CallbackFixtureProvider {
             let queue = app.make::<QueueManager>().await?;
             if std::env::var_os("MODERATION_CALLBACK_FIXTURE_ASSOCIATE").is_some() {
                 let reviews = ModerationStore::new(connection, "app", "tenant")?;
-                let processor = SightengineCallbackProcessor::new(
-                    reviews,
-                    "original-account",
-                    SCOPE,
-                    "sightengine-video",
-                    "callbacks-v1",
-                )?;
+                let processor: Arc<dyn ProcessWebhookJob> =
+                    if std::env::var_os("MODERATION_CALLBACK_FIXTURE_TENCENT").is_some() {
+                        Arc::new(TencentCallbackProcessor::new(
+                            reviews,
+                            "original-account",
+                            "video_profile",
+                            SCOPE,
+                            "tencent-video",
+                            "callbacks-v1",
+                        )?)
+                    } else {
+                        Arc::new(SightengineCallbackProcessor::new(
+                            reviews,
+                            "original-account",
+                            SCOPE,
+                            "sightengine-video",
+                            "callbacks-v1",
+                        )?)
+                    };
                 QueuedWebhookJob::register_with_database_deferred_processing(
                     &queue,
                     JOB,
                     store,
-                    Arc::new(processor),
+                    processor,
                     20,
                     DeferredProcessingPolicy {
                         max_deferrals: 4,

@@ -68,7 +68,7 @@ impl Tencent {
             })
             .transpose()?;
         let image = ImageService::configured(http.clone(), storage.clone(), profile)?;
-        let video = VideoService::configured(http, storage, profile)?;
+        let video = VideoService::configured(http, credentials, storage, profile)?;
         if text.is_none() && image.is_none() && video.is_none() {
             return Err(ModerationError::InvalidConfiguration("tencent services"));
         }

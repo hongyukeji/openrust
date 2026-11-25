@@ -61,17 +61,7 @@ impl VideoService {
             model_type,
         )?;
         model.endpoint.url.set_path("/api/v2/task/async");
-        let callback = field(profile, "video_callback_url")?
-            .filter(|url| url.len() <= 2048)
-            .and_then(|url| Url::parse(url).ok())
-            .filter(|url| {
-                url.scheme() == "https"
-                    && url.host().is_some()
-                    && url.username().is_empty()
-                    && url.password().is_none()
-                    && url.fragment().is_none()
-                    && url.query().is_none()
-            })
+        let callback = super::video::callback_url(profile)?
             .ok_or(ModerationError::InvalidConfiguration("video_callback_url"))?;
         let summary = Summary::configured(&model.endpoint, model_type, profile)?;
         Ok(Some(Self {

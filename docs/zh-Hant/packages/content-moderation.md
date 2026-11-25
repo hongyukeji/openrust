@@ -92,6 +92,10 @@
 
 驅動將回應中的畫面、語音和 OCR 證據依原件時間軸轉成毫秒。缺少完整涵蓋證明時仍保留部分涵蓋。 [提交](https://cloud.tencent.com/document/api/1265/80017) · [查詢](https://cloud.tencent.com/document/product/1265/80016) · [取消](https://cloud.tencent.com/document/api/1265/80018)
 
+具名隨選設定可用 `video_callback_url` 向騰訊雲傳入固定 HTTPS 通知入口。在帳戶憑據掛載中提供 `video_callback_seed`，使用環境變數憑據時用 `video_callback_seed_env` 指定變數名稱。Seed 長度為 16–128 位元組，使用不含空白的可列印 ASCII。在 Webhook Client 對應路由設定 `moderation-tencent` 驗章器、憑據掛載引用 `moderation_callback_credential` 和 `TencentCallbackProcessor`。限制收件儲存的存取，並設定保存期限。
+
+驗章器按騰訊雲校驗和規則驗證原始本文的 `X-Signature`。處理器核對路由、帳戶、策略和工作類型。若終態通知早於原工作 ID 寫入，則延期處理；關聯後提前執行一次帶認證的查詢。審核決定採用查詢結果，並繼續要求完整涵蓋。 [騰訊雲回呼設定](https://cloud.tencent.com/document/product/1265/104001)
+
 ## Sightengine 隨選影片 {#sightengine-video}
 
 在具名 `sightengine` 設定填寫 `video_models` 和 `video_review_score`，啟用 OCR 時另填 `video_text_categories`。`video_max_duration` 預設 1,800 秒，方案允許時可設至 3,600 秒。使用 `media_disk` 與 `media_origin` 指定版本化私人素材來源。

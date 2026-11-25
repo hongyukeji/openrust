@@ -92,6 +92,10 @@ Submit with `submit_video()` and query the returned task ID through the same pro
 
 The driver reports in-response frame, speech and OCR findings in milliseconds on the source timeline. The result retains partial coverage when the API cannot prove that the whole media and its required modalities were reviewed. [Create task](https://cloud.tencent.com/document/api/1265/80017) · [Query](https://cloud.tencent.com/document/product/1265/80016) · [Cancel](https://cloud.tencent.com/document/api/1265/80018)
 
+Use `video_callback_url` to send Tencent Cloud a fixed HTTPS endpoint for the named on-demand profile. Supply `video_callback_seed` in the account credential mount, or name the environment variable with `video_callback_seed_env` when using environment credentials. The seed must contain 16–128 printable non-space ASCII bytes. Configure the matching Webhook Client route with signature validator `moderation-tencent`, the mounted `moderation_callback_credential`, and `TencentCallbackProcessor`. Keep the inbox private and configure its retention window.
+
+The validator checks `X-Signature` against the original body with the Tencent Cloud checksum. The processor checks the route, account, policy and task type. An early terminal notification waits for the original task ID. An associated notification brings forward one authenticated lookup. The review decision comes from that lookup and still requires full coverage. [Tencent Cloud callback configuration](https://cloud.tencent.com/document/product/1265/104001)
+
 ## Sightengine video {#sightengine-video}
 
 Set `video_models` and `video_review_score` for a named `sightengine` profile. Use `video_text_categories` when the OCR model is enabled. `video_max_duration` defaults to 1,800 seconds and accepts values up to 3,600 seconds where your plan permits. Configure `media_disk` and `media_origin` for the versioned private source.

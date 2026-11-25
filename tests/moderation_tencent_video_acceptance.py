@@ -32,6 +32,8 @@ class Supplier(TC3["Supplier"]):
         body, identity = self.verify(action, "vm", "2021-09-22")
         assert identity == "fixture-tencent-id"
         if action == "CreateVideoModerationTask":
+            if expected := getattr(self.server, "expected_callback", None):
+                assert (body.pop("CallbackUrl"), body.pop("Seed")) == expected
             assert set(body) == {"BizType", "Type", "Tasks"} and body["BizType"] == BIZ and body["Type"] == "VIDEO"
             task, = body["Tasks"]
             assert set(task) == {"DataId", "Input"} and uuid.UUID(task["DataId"]).version == 4
@@ -56,6 +58,10 @@ class Supplier(TC3["Supplier"]):
                 self.server.references.add(data_id)
                 self.server.submissions.append((version, payload))
                 mode = self.server.submit_mode
+            if gate := getattr(self.server, "gate", None):
+                reached, release = gate
+                reached.set()
+                assert release.wait(12), "回调夹具未释放受理凭据"
             result = {"DataId": data_id, "TaskId": TASK, "Code": "OK", "Message": PRIVATE}
             if mode == "wrong-reference":
                 result["DataId"] = "different"

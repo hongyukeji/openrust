@@ -214,3 +214,11 @@ Hive V2 建立任务页面的异步例子指向 V1 路径，公开带认证查�
 具名配置用 `video_model_type` 选择独立 `OCR_MODERATION` 或 `TRANSCRIPTION` 项目，默认仍是 `CATEGORIZATION`。原版本配置绑定项目、凭据和模型。认证查询复用有界分页、任务及缓存身份检查。OCR 按原帧时间保留每类别峰值，语音保留句子分类中原始 0–3 严重级别。语音分类仅有字符偏移时省略媒体时间。两种模式均省略完整原文、匹配原文、转录和词元，且采样结果只作为部分覆盖。 [Hive OCR](https://docs.thehive.ai/reference/ocr-moderation) · [Hive 语音](https://docs.thehive.ai/reference/speech-moderation)
 
 基线 `0643922a8`，Rust 1.94.0。SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 均通过真实 HTTP、Artisan、独立 Worker 和私有 S3 MP4 验证，在隔离供应商替身每库实发 34 次查单（视觉 23、OCR 6、语音 5）。覆盖项目／Token 隔离、模型错配、无效严重级别和时间戳、部分及空覆盖、跨页峰值和敏感原文脱敏。Hive 文本、图片、静态 OCR 回归、3 个包契约、修改范围格式与包和应用严格 Clippy 通过。三语文档构建及 Chrome 导航检查通过。Hive 正式项目权限、供应商回调以及同一父审核的多模态完整性仍待验收。
+
+## CM-03O 腾讯云 VM 点播终态通知 {#tencent-video-callback}
+
+固定腾讯云 VM `2021-09-22` 标准点播。在具名配置显式指定可信 HTTPS 地址及 Seed 时，`CreateVideoModerationTask` 在原 TC3 签名请求中附上 `CallbackUrl` 和 `Seed`。复用 Webhook Client 的独立具名入口及原文保存、去重、队列处理。按官方 `X-Signature` 对原始正文校验，支持版本挂载及有限旧种子。处理器固定路由、修订、账户、业务策略和 `VIDEO` 类型。片段通知无需立即查单，终态按原任务 ID 去重并提前触发一次带认证的查询。结果仍受原账户、模态和查询预算约束。腾讯云校验和不含时间戳，采用有限正文摘要去重、任务级单次确认和原任务查询。 [VM 创建任务](https://cloud.tencent.com/document/api/1265/80017) · [回调与验签](https://cloud.tencent.com/document/product/1265/104001) · [终态样本](https://cloud.tencent.com/document/product/1124/136574)
+
+隔离源码基线 `d31032e98`，叠加本轮审核改动，Rust 1.94.0。SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 各通过两次实际 TC3 提交、一次认证查单以及实际 HTTP、Artisan、独立 Worker 和私有 SeaweedFS 版本化 MP4。通过当前和上一版 Seed 检查提前终态、重复通知及延期唤醒。覆盖缺签名、重复头、正文变更、片段、其它账户／业务策略／直播类型、任务号歧义、迟到、样本敏感正文和配置缓存。查单返回部分覆盖，不产生放行。Sightengine 验签和关联、腾讯云仅轮询路径及 Hive 点播回归通过。修改范围格式、包及应用严格 Clippy、3 个契约和三语站点验收通过。验收脚本先修复导入时的参数解析冲突，再限定延期查询统计未处理记录，完成三库复验。
+
+生产腾讯云项目启用、公开 HTTPS 及真实样本回调仍待 CM-04。回调原文按接收包保留策略处理，测试不把已签通知本身视为审核结果。

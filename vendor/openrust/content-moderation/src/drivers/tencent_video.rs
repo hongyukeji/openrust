@@ -3,6 +3,8 @@ use std::{collections::BTreeMap, sync::Arc};
 use openrust::{filesystem::FilesystemManager, http::client::Factory, support::Str};
 use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::{Value, json};
+use url::Url;
+use zeroize::Zeroizing;
 
 use super::{
     Endpoint, field,
@@ -12,31 +14,48 @@ use super::{
 };
 use crate::{
     Assessment, Confidence, Coverage, Decision, EvidenceSpan, Modality, ModerationError,
-    ModerationResult, TaskId, TaskStatus, VideoInput,
+    ModerationResult, TaskId, TaskStatus, VideoInput, credentials::DriverCredentials,
 };
 
 pub(super) struct VideoService {
     endpoint: Endpoint,
     biz_type: String,
     storage: VersionedMediaLinks,
+    callback: Option<(Url, Zeroizing<String>)>,
+}
+
+pub(crate) fn valid_callback_seed(seed: &str) -> bool {
+    (16..=128).contains(&seed.len()) && seed.bytes().all(|byte| byte.is_ascii_graphic())
+}
+
+pub(crate) fn valid_biz_type(policy: &str) -> bool {
+    (3..=32).contains(&policy.len())
+        && policy
+            .bytes()
+            .all(|value| value.is_ascii_alphanumeric() || value == b'_')
 }
 
 impl VideoService {
     pub(super) fn configured(
         http: Arc<Factory>,
+        credentials: &DriverCredentials<'_>,
         storage: Arc<FilesystemManager>,
         profile: &Value,
     ) -> ModerationResult<Option<Self>> {
         let Some(biz_type) = field(profile, "video_biz_type")? else {
             return Ok(None);
         };
-        if !(3..=32).contains(&biz_type.len())
-            || !biz_type
-                .bytes()
-                .all(|value| value.is_ascii_alphanumeric() || value == b'_')
-        {
+        if !valid_biz_type(biz_type) {
             return Err(ModerationError::InvalidConfiguration("video_biz_type"));
         }
+        let callback = match (
+            super::video::callback_url(profile)?,
+            credentials.secret(profile, "video_callback_seed_env")?,
+        ) {
+            (None, None) => None,
+            (Some(url), Some(seed)) if valid_callback_seed(&seed) => Some((url, seed)),
+            _ => return Err(ModerationError::InvalidConfiguration("video callback seed")),
+        };
         let endpoint_profile = json!({
             "base_url": field(profile, "video_base_url")?,
             "timeout_ms": profile.get("timeout_ms").cloned().unwrap_or(json!(10_000)),
@@ -45,6 +64,7 @@ impl VideoService {
             endpoint: rpc_endpoint(http, &endpoint_profile, "https://vm.tencentcloudapi.com")?,
             biz_type: biz_type.to_owned(),
             storage: VersionedMediaLinks::new(storage, profile)?,
+            callback,
         }))
     }
 
@@ -57,14 +77,15 @@ impl VideoService {
         let reference = Str::uuid()
             .map_err(|_| ModerationError::Unavailable)?
             .to_string();
+        let mut parameters = json!({"BizType":self.biz_type,"Type":"VIDEO","Tasks":[{
+            "DataId":reference,"Input":{"Type":"URL","Url":url.as_str()},
+        }]});
+        if let Some((url, seed)) = &self.callback {
+            parameters["CallbackUrl"] = json!(url.as_str());
+            parameters["Seed"] = json!(seed.as_str());
+        }
         let result: Created = self
-            .call(
-                driver,
-                "CreateVideoModerationTask",
-                json!({"BizType":self.biz_type,"Type":"VIDEO","Tasks":[{
-                    "DataId":reference,"Input":{"Type":"URL","Url":url.as_str()},
-                }]}),
-            )
+            .call(driver, "CreateVideoModerationTask", parameters)
             .await
             .map_err(unknown_submission)?;
         let [result] = result.results.as_slice() else {

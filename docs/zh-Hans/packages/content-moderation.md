@@ -92,6 +92,10 @@
 
 驱动将响应中的画面、语音和 OCR 证据按原件时间轴转换为毫秒。没有完整覆盖证明时，仍按部分覆盖处理。 [提交](https://cloud.tencent.com/document/api/1265/80017) · [查单](https://cloud.tencent.com/document/product/1265/80016) · [取消](https://cloud.tencent.com/document/api/1265/80018)
 
+具名点播配置可用 `video_callback_url` 向腾讯云传入固定 HTTPS 通知入口。在账户凭据挂载中提供 `video_callback_seed`，使用环境变量凭据时用 `video_callback_seed_env` 指定变量名。Seed 长度为 16–128 字节，使用不含空格的可打印 ASCII。在 Webhook Client 的对应路由配置 `moderation-tencent` 验签器、凭据挂载引用 `moderation_callback_credential` 和 `TencentCallbackProcessor`。限制收件库访问并配置保留期限。
+
+验签器按腾讯云校验和规则验证原始正文的 `X-Signature`。处理器核对路由、账户、策略和任务类型。若终态通知先于原任务 ID 写入，则延期处理；关联后提前执行一次带认证的查单。审核决定采用查单结果，并继续要求完整覆盖。 [腾讯云回调配置](https://cloud.tencent.com/document/product/1265/104001)
+
 ## Sightengine 点播视频 {#sightengine-video}
 
 在具名 `sightengine` 配置填写 `video_models` 和 `video_review_score`，启用 OCR 时另填 `video_text_categories`。`video_max_duration` 默认 1,800 秒，套餐允许时可设至 3,600 秒。用 `media_disk` 和 `media_origin` 指定版本化私有素材来源。

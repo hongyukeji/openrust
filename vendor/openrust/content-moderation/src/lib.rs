@@ -21,6 +21,10 @@ mod revision;
 #[cfg(feature = "webhooks")]
 mod sightengine_callback;
 mod storage;
+#[cfg(feature = "webhooks")]
+mod tencent_callback;
+#[cfg(feature = "webhooks")]
+mod video_callback;
 mod video_service;
 
 pub use contracts::{
@@ -41,4 +45,6 @@ pub use revision::ProfileRevision;
 #[cfg(feature = "webhooks")]
 pub use sightengine_callback::SightengineCallbackProcessor;
 pub use storage::ModerationStore;
+#[cfg(feature = "webhooks")]
+pub use tencent_callback::TencentCallbackProcessor;
 pub use video_service::VideoReviewService;
