@@ -191,6 +191,7 @@ impl QueuedWebhookJob {
                         scope: &scope,
                         profile: &profile,
                         revision: &revision,
+                        replay_generation: 0,
                     };
                     receipt.validate()?;
                     let snapshot = QueueRoute::decode(&route)?;
@@ -216,6 +217,7 @@ impl QueuedWebhookJob {
             scope: call.scope(),
             profile: call.name(),
             revision: call.revision(),
+            replay_generation: 0,
         };
         receipt.validate()?;
         Ok(Payload::new(&self.name, receipt)?.with_options(self.options.clone()))
@@ -282,6 +284,8 @@ struct Receipt<'a> {
     scope: &'a str,
     profile: &'a str,
     revision: &'a str,
+    #[serde(default, skip_serializing_if = "Self::original")]
+    replay_generation: u32,
 }
 
 struct RegisteredJob {
@@ -351,8 +355,22 @@ impl RegisteredJob {
         {
             return Err(QueueError::InvalidConfiguration);
         }
+        let generation = Receipt::deserialize_from(payload)?.replay_generation;
+        if generation != 0 {
+            if store
+                .processing_replay_generation(call.id())
+                .await
+                .map_err(queue_error)?
+                != generation
+            {
+                return Ok(());
+            }
+            crate::replay::authorize_generation(store, call.id(), generation)
+                .await
+                .map_err(queue_error)?;
+        }
         let token = match store
-            .claim_processing(&call, seconds)
+            .claim_processing(&call, seconds, generation)
             .await
             .map_err(queue_error)?
         {
@@ -550,6 +568,10 @@ impl QueueRoute {
 }
 
 impl<'a> Receipt<'a> {
+    fn original(generation: &u32) -> bool {
+        *generation == 0
+    }
+
     fn deserialize_from(payload: &'a Payload) -> QueueResult<Self> {
         let receipt = <Self as serde::Deserialize>::deserialize(payload.data())
             .map_err(|_| QueueError::InvalidPayload)?;
@@ -558,11 +580,12 @@ impl<'a> Receipt<'a> {
     }
 
     fn validate(&self) -> QueueResult<()> {
-        if [self.id, self.scope, self.profile, self.revision]
-            .iter()
-            .any(|value| {
-                value.is_empty() || value.len() > 128 || value.chars().any(char::is_control)
-            })
+        if self.replay_generation > 10
+            || [self.id, self.scope, self.profile, self.revision]
+                .iter()
+                .any(|value| {
+                    value.is_empty() || value.len() > 128 || value.chars().any(char::is_control)
+                })
         {
             return Err(QueueError::InvalidPayload);
         }

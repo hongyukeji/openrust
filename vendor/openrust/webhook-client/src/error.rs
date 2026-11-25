@@ -34,6 +34,10 @@ pub enum Error {
     InvalidRecord,
     #[error("Webhook 附件存储操作失败")]
     AttachmentStorage,
+    #[error("Webhook 重放未获授权")]
+    ReplayDenied,
+    #[error("Webhook 接收记录已不可重放")]
+    ReplayUnavailable,
     #[error("Webhook 队列操作失败")]
     Queue(#[from] openrust::queue::QueueError),
     #[error("Webhook 处理任务派发失败")]

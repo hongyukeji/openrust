@@ -200,6 +200,31 @@ When the application associates the business record, it can call `QueuedWebhookJ
 
 With `recover_dispatch: true` and a separate queue backend, use `QueuedWebhookJob::register_with_database_recovery_and_deferred_processing`. The receipt transaction records the deferral and its next dispatch intent. The scheduled `webhook-client:recover` command dispatches it when due. An early wake-up updates that intent even when the broker is offline. The command retains enough state to stop expired deferrals even if the broker loses an acknowledged wake-up task and lost-task requeues are disabled. Reaching a deferral time or waking it early creates a new queue task with its own attempts and leaves the receipt’s deferral and optional lost-task requeue budgets in place.
 
+### Inspect and replay exhausted receipts {#replay-exhausted}
+
+Run `./artisan migrate` and upgrade all Webhook workers before enabling replay. `webhook-client:exhausted` lists receipt identifiers and metadata in a trusted scope, with a limit of 1–500. It selects acknowledged durable dispatches whose automatic requeue budgets and waiting windows have elapsed, and whose receipts have no active lease, scheduled deferral or terminal state.
+
+Register your application’s `ReplayPolicy` in the Provider used by the command, dispatcher and workers. The policy authenticates the operator from trusted application context, validates the receipt’s scope and current profile or credential revision, and grants limits of 1–10 replay generations and a 60–86,400 second lifetime. `--actor` and `--reason` are audited inputs to that policy.
+
+```rust
+use openrust_webhook_client::replay::{self, ReplayPolicy};
+
+pub fn register_replay_policy(
+    container: &openrust::container::Container,
+    policy: std::sync::Arc<dyn ReplayPolicy>,
+) -> openrust_webhook_client::Result<()> {
+    replay::register_policy(container, policy)
+}
+```
+
+```sh
+./artisan webhook-client:exhausted --scope=billing/site-a --limit=20
+./artisan webhook-client:replay <receipt-id> --scope=billing/site-a --actor=operator-id --reason="Receipt reviewed"
+./artisan webhook-client:recover --scope=billing/site-a
+```
+
+A successful request records one new generation and makes its intent available to `webhook-client:recover`. That command and the worker check the application policy again. Earlier queued generations cannot claim the receipt. Replay keeps the original receipt ID, verification history and payload. Audit entries follow the receipt’s retention, and business side effects still require idempotency.
+
 ### Prune old receipts {#retention}
 
 The package’s `delete_after_days` defaults to 30. Set it to `null` to disable retention cleanup. The application chooses when to run the Artisan command, for example from its scheduler. Use the trusted receipt scope and optionally select a named database connection with `--database`.

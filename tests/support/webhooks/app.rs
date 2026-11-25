@@ -590,6 +590,29 @@ impl openrust::contracts::events::Listener for ControlAfterRedisEnqueue {
         })
     }
 }
+struct FixtureReplayPolicy;
+
+impl openrust_webhook_client::replay::ReplayPolicy for FixtureReplayPolicy {
+    fn authorize<'a>(
+        &'a self,
+        request: &'a openrust_webhook_client::replay::ReplayRequest,
+    ) -> HttpFuture<
+        'a,
+        openrust_webhook_client::Result<Option<openrust_webhook_client::replay::ReplayLimits>>,
+    > {
+        Box::pin(async move {
+            Ok((request.actor == "fixture-operator"
+                && request.receipt.scope == "webhook-recovery-scope"
+                && request.receipt.profile == "processing-recovery"
+                && request.receipt.revision == "1")
+                .then_some(openrust_webhook_client::replay::ReplayLimits {
+                    max_generations: 1,
+                    lifetime_seconds: 120,
+                }))
+        })
+    }
+}
+
 struct FixtureProvider;
 impl openrust::support::ServiceProvider for FixtureProvider {
     fn register<'a>(
@@ -811,6 +834,12 @@ impl openrust::support::ServiceProvider for FixtureProvider {
                         std::sync::Arc::new(ControlAfterRedisEnqueue),
                         openrust::events::Delivery::Sync,
                     )?;
+            }
+            if std::env::var_os("FIXTURE_REPLAY_ALLOW").is_some() {
+                openrust_webhook_client::replay::register_policy(
+                    openrust::contracts::foundation::Application::container(app),
+                    std::sync::Arc::new(FixtureReplayPolicy),
+                )?;
             }
             let queue = app.make::<openrust::queue::QueueManager>().await?;
             let manager = app.make::<openrust::database::DatabaseManager>().await?;

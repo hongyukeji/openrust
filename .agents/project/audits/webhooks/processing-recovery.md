@@ -10,4 +10,4 @@
 
 三库各完成 136 次公开路由 HTTP、83 次独立 Worker 及其余接收回归。Webhook Client 包测试、双特性 workspace/all-targets 严格 Clippy、全仓格式、三语公开示例、文档站浏览器和已有包发现、签名、接收与许可回归已通过。日志保留于 `target/tmp/webhooks-processing-recovery`。
 
-跨后端持久业务延期见[后续批次](durable-deferred-recovery.md)。耗尽后的运维重放和诊断、真实多主机及托管队列仍待验收。WH-03 继续开放。
+跨后端持久业务延期见[后续批次](durable-deferred-recovery.md)。耗尽后的运维重放和诊断见[后续批次](manual-replay.md)。实际多主机及托管队列仍待验收。WH-03 继续开放。

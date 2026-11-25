@@ -274,7 +274,7 @@
       "status": "partial_processor_runtime_verified",
       "parent_classes": [],
       "declared_public_properties": [],
-      "notes": "new／process 手动入口与公开 Controller 共用验签→Profile→模型委托保存→prepare→clear_exception→dispatch→响应；构造失败与异常顺序已验。类型化 Runtime 在所属 App 上下文构造及执行并恢复调用者；HTTP 同次请求借用支持请求依赖。载荷和数据库附件读取、原生 Job、同库原子入队、可选已验签事件 ID 去重与 Worker 领取已各自验收。可选有限摘要窗口覆盖无稳定 ID 的来源。可选恢复派发在同一事务记录接收与派发意图，并由有界 Artisan 扫描尝试入列。加入可选的入列后逾期补派、处理租约与有界预算。已接入跨后端延期事务及队列离线时的提前唤醒、到期终止。耗尽后的运维重放及双拓扑仍待验，WH-02、WH-03 保持开放。",
+      "notes": "new／process 手动入口与公开 Controller 共用验签→Profile→模型委托保存→prepare→clear_exception→dispatch→响应；构造失败与异常顺序已验。类型化 Runtime 在所属 App 上下文构造及执行并恢复调用者；HTTP 同次请求借用支持请求依赖。载荷和数据库附件读取、原生 Job、同库原子入队、可选已验签事件 ID 去重与 Worker 领取已各自验收。可选有限摘要窗口覆盖无稳定 ID 的来源。可选恢复派发在同一事务记录接收与派发意图，并由有界 Artisan 扫描尝试入列。加入可选的入列后逾期补派、处理租约与有界预算。已接入跨后端延期事务及队列离线时的提前唤醒、到期终止。已接入耗尽查询与原接收身份的受控重放。终态失效范围及双拓扑仍待验，WH-02、WH-03 保持开放。",
       "evidence": [
         "vendor/openrust/webhook-client/tests/processor.rs",
         "tests/webhooks_receiver_acceptance.py",

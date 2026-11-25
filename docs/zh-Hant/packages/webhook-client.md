@@ -200,6 +200,31 @@ Provider 註冊 `webhook_calls` 遷移，使用 `DatabaseWebhookStore` 前執行
 
 使用 `recover_dispatch: true` 和獨立佇列後端時，呼叫 `QueuedWebhookJob::register_with_database_recovery_and_deferred_processing` 註冊 Worker。接收記錄交易一併保存延期狀態與下次派發意圖，定時執行的 `webhook-client:recover` 到期後派發。佇列後端離線時仍可登記提前喚醒。即使已確認入列的喚醒任務遺失且未啟用遺失補派，復原指令仍能在總期限到期後直接終止記錄。到期或提前喚醒接續的佇列任務有獨立的試行次數，保留接收記錄的延期預算及已設定的遺失補派預算。
 
+### 查詢並重放已耗盡的接收記錄 {#replay-exhausted}
+
+先執行 `./artisan migrate`，並升級所有 Webhook Worker，再啟用重放。`webhook-client:exhausted` 按可信範圍列出接收識別資料和中繼資料，每次限 1–500 筆。記錄須已確認入列、自動補派預算耗盡且等待期限已過，同時沒有活躍租約、已排定的延期或終態。
+
+在指令、派發器及 Worker 共用的 Provider 註冊應用的 `ReplayPolicy`。策略依可信應用上下文驗證操作者，核對接收範圍與設定或憑據修訂的目前許可，並給出 1–10 個重放代次和 60–86,400 秒有效期。`--actor` 和 `--reason` 是策略收到的稽核輸入。
+
+```rust
+use openrust_webhook_client::replay::{self, ReplayPolicy};
+
+pub fn register_replay_policy(
+    container: &openrust::container::Container,
+    policy: std::sync::Arc<dyn ReplayPolicy>,
+) -> openrust_webhook_client::Result<()> {
+    replay::register_policy(container, policy)
+}
+```
+
+```sh
+./artisan webhook-client:exhausted --scope=billing/site-a --limit=20
+./artisan webhook-client:replay <receipt-id> --scope=billing/site-a --actor=operator-id --reason="Receipt reviewed"
+./artisan webhook-client:recover --scope=billing/site-a
+```
+
+申請成功後會登記一個新代次，交由 `webhook-client:recover` 派發。復原指令和 Worker 都會重新核對應用策略。舊代次的佇列任務無法領取此記錄。重放沿用原接收 ID、驗簽歷程與原始酬載。稽核資料隨接收記錄保留，業務副作用仍須由消費端確保冪等。
+
 ### 清理過期接收記錄 {#retention}
 
 套件的 `delete_after_days` 預設為 30 天，設為 `null` 可停用保留期清理。應用可透過排程器定時執行 Artisan 指令。傳入接收記錄的可信 scope，可用 `--database` 選擇具名連線。

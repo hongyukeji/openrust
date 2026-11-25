@@ -5,6 +5,7 @@ mod attempts;
 mod dispatch_recovery;
 mod identity;
 mod lease;
+mod replay;
 mod retention;
 use crate::{Error, Result, VerifiedWebhook, models::WebhookCall};
 use base64::{Engine as _, engine::general_purpose::STANDARD};

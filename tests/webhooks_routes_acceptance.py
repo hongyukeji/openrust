@@ -1150,8 +1150,65 @@ def check_dispatch_recovery(binary, env, root, port, driver, sql):
     assert "可派发 0 条" in command(binary, current, *sweep, "--pretend")
     assert "已派发 0 条" in command(binary, current, *sweep)
 
+    replayed_receipt = receipt
+    exhausted = ("webhook-client:exhausted", "--scope=" + scope)
+    replay = ("webhook-client:replay", receipt, "--scope=" + scope,
+              "--actor=fixture-operator", "--reason=checked original receipt")
+    assert json.loads(command(binary, current, *exhausted)) == [{
+        "id": receipt, "scope": scope, "profile": "processing-recovery",
+        "revision": "1", "replay_generation": 0,
+    }]
+    assert json.loads(command(binary, current, "webhook-client:exhausted", "--scope=outside")) == []
+
+    def replay_result(env, *tokens):
+        return subprocess.run([str(binary), "artisan", *tokens], env=env,
+                              capture_output=True, text=True, timeout=20)
+
+    authorized = current | {"FIXTURE_REPLAY_ALLOW": "1"}
+    assert replay_result(current, *replay).returncode != 0
+    wrong_actor = tuple("--actor=unknown" if part.startswith("--actor=") else part for part in replay)
+    assert replay_result(authorized, *wrong_actor).returncode != 0
+    wrong_scope = tuple("--scope=outside" if part.startswith("--scope=") else part for part in replay)
+    assert replay_result(authorized, *wrong_scope).returncode != 0
+    assert sql("SELECT COUNT(*) FROM webhook_replays") == "0"
+    with ThreadPoolExecutor(max_workers=2) as runners:
+        requests = [runners.submit(replay_result, authorized, *replay) for _ in range(2)]
+        results = [result.result() for result in requests]
+    assert sorted(result.returncode == 0 for result in results) == [False, True], results
+    assert "重放代次 1" in next(result.stdout for result in results if result.returncode == 0)
+    assert sql(f"SELECT actor FROM webhook_replays WHERE call_id='{receipt}' AND generation=1") == "fixture-operator"
+    assert sql(f"SELECT reason FROM webhook_replays WHERE call_id='{receipt}' AND generation=1") == "checked original receipt"
+    assert sql(f"SELECT expires_at - created_at FROM webhook_replays WHERE call_id='{receipt}'") == "120"
+    assert json.loads(command(binary, current, *exhausted)) == []
+    verify_rollback_guard("2026_11_25_000015_create_webhook_replays_table.rs", "重放审计仍在保留期")
+
+    # 原始队列正在等待的旧任务被新重放代次隔离，随后再撤销派发端许可。
+    prior = root / "prior-generation-worker.json"
+    command(binary, worker_env | {"WEBHOOK_TEST_RECEIPT_OUTPUT": str(prior)}, *worker)
+    assert not prior.exists() and pending_count() == 0
+    denied = replay_result(current, *sweep)
+    assert denied.returncode != 0 and "1 条待重试" in denied.stdout, denied
+    assert pending_count() == 0
+    expire_claim()
+    deadline = int(sql(f"SELECT expires_at FROM webhook_replays WHERE call_id='{receipt}'"))
+    write_database(driver, sql, f"UPDATE webhook_replays SET expires_at=0 WHERE call_id='{receipt}'")
+    expired_replay = replay_result(authorized, *sweep)
+    assert expired_replay.returncode != 0 and pending_count() == 0, expired_replay
+    write_database(driver, sql, f"UPDATE webhook_replays SET expires_at={deadline} WHERE call_id='{receipt}'")
+    expire_claim()
+    assert "已派发 1 条" in command(binary, authorized, *sweep)
+    assert pending_count() == 1
+    expire_claim()
+    assert replay_result(authorized, *replay).returncode != 0
+    assert sql("SELECT COUNT(*) FROM webhook_replays") == "1"
+
+    denied_worker = root / "denied-replay-worker.json"
+    command(binary, worker_env | {"WEBHOOK_TEST_RECEIPT_OUTPUT": str(denied_worker)}, *worker)
+    assert not denied_worker.exists()
+    assert sql(f"SELECT COUNT(processed_at) FROM webhook_calls WHERE id='{receipt}'") == "0"
+    worker_allowed = worker_env | {"FIXTURE_REPLAY_ALLOW": "1"}
     marker = root / "processing-recovered-worker.json"
-    command(binary, worker_env | {"WEBHOOK_TEST_RECEIPT_OUTPUT": str(marker)}, *worker)
+    command(binary, worker_allowed | {"WEBHOOK_TEST_RECEIPT_OUTPUT": str(marker)}, *worker)
     record = json.loads(marker.read_text())
     assert bytes(record["body"]) == body and record["name"] == "processing-recovery"
     assert int(sql(f"SELECT processed_at FROM webhook_calls WHERE id='{receipt}'")) > 0
@@ -1275,6 +1332,14 @@ def check_dispatch_recovery(binary, env, root, port, driver, sql):
     assert sql("SELECT COUNT(*) FROM webhook_dispatch_intents") == "0" and pending_count() == 0
     print(f"{driver}: 跨后端业务延期经 {connection} 实测 3 个 HTTP、5 次 Worker；定时恢复、"
           "离线唤醒、失败补偿、到期终止与独立预算通过", flush=True)
+
+    write_database(driver, sql,
+                   f"UPDATE webhook_calls SET created_at=1,processed_at=1 WHERE id='{replayed_receipt}'")
+    assert "已清理 1 条" in command(binary, current, "webhook-client:prune", "--scope=" + scope)
+    assert replay_result(authorized, *replay).returncode != 0
+    assert sql("SELECT COUNT(*) FROM webhook_replays") == "0"
+    print(f"{driver}: 耗尽诊断与受控重放经 {connection} 实测原 HTTP 记录、3 次独立 Worker；"
+          "授权拒绝、跨范围、并发代次、撤销、旧队列隔离、预算及保留期通过", flush=True)
 
 def main():
  driver,url=helpers["database_settings"]();binary=args.binary.resolve();requests=workers=0
@@ -1476,7 +1541,7 @@ def main():
   check_retention(binary,env,root,port,driver,sql)
   check_dispatch_recovery(binary,env,root,port,driver,sql)
   legacy_id=sql("SELECT id FROM webhook_calls WHERE name='default' ORDER BY id LIMIT 1")
-  assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate:rollback","--step=13","--force")
+  assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate:rollback","--step=14","--force")
   assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate","--force")
   legacy=json.loads(command(binary,env,"webhooks:record",legacy_id,"webhook-acceptance"))
   assert bytes(legacy["body"])==b"default" and legacy["payload"] is None and legacy["attachments"] is None

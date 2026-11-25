@@ -4,7 +4,10 @@ use openrust::database::Value;
 use openrust::queue::{
     DispatchOptions, DispatchResult, Payload, QueueError, QueueFacade, QueueManager,
 };
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::Arc,
+    time::{Duration, SystemTime},
+};
 
 pub(super) const RECOVERY_JOB_PREFIX: &str = "openrust_webhook_client::dispatch_recovery::";
 const DISPATCH_TIMEOUT: Duration = Duration::from_secs(15);
@@ -109,10 +112,10 @@ impl QueuedWebhookJob {
                 Some(Value::Integer(seconds)) if (60..=86_400).contains(seconds) => Some(*seconds),
                 _ => return Err(Error::InvalidRecord),
             };
-            let Some(token) = store.claim_dispatch(id).await? else {
+            let Some(metadata) = store.dispatch_metadata(id).await? else {
                 continue;
             };
-            let Some(metadata) = store.dispatch_metadata(id).await? else {
+            let Some(token) = store.claim_dispatch(id, metadata.replay_generation).await? else {
                 continue;
             };
             let receipt = Receipt {
@@ -120,10 +123,14 @@ impl QueuedWebhookJob {
                 scope: &metadata.scope,
                 profile: &metadata.profile,
                 revision: &metadata.revision,
+                replay_generation: metadata.replay_generation,
             };
             let queued = async {
+                let replay_until =
+                    crate::replay::authorize_generation(store, id, metadata.replay_generation)
+                        .await?;
                 let route = RecoveryDispatch(QueueRoute::decode(text(&row, "route")?)?);
-                route.enqueue(queue, receipt).await
+                route.enqueue(queue, receipt, replay_until).await
             }
             .await;
             if queued.is_err() {
@@ -171,10 +178,18 @@ impl RecoveryDispatch {
         Ok(name)
     }
 
-    async fn enqueue(self, queue: &QueueManager, receipt: Receipt<'_>) -> Result<()> {
+    async fn enqueue(
+        self,
+        queue: &QueueManager,
+        receipt: Receipt<'_>,
+        replay_until: Option<SystemTime>,
+    ) -> Result<()> {
         let name = self.validate(queue)?;
         receipt.validate()?;
-        let route = self.0;
+        let mut route = self.0;
+        if replay_until.is_some() {
+            route.options.retry_until = replay_until;
+        }
         let payload = Payload::new(&name, receipt)?.with_options(route.options);
         let options = DispatchOptions {
             connection: Some(route.connection),

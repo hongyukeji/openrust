@@ -51,10 +51,19 @@ impl DatabaseWebhookStore {
             .where_raw(&format!("processing_until > {}", self.clock()), vec![]))
     }
 
+    pub(crate) async fn processing_replay_generation(&self, id: &str) -> Result<u32> {
+        let row = self
+            .row(id, &["scope", "replay_generation"])
+            .await?
+            .ok_or(Error::RecordNotFound)?;
+        super::replay::generation(&row)
+    }
+
     pub(crate) async fn claim_processing(
         &self,
         call: &WebhookCall,
         seconds: u32,
+        replay_generation: u32,
     ) -> Result<ProcessingClaim> {
         let token = Str::uuid().map_err(|_| Error::InvalidRecord)?.to_string();
         let clock = self.clock();
@@ -62,6 +71,7 @@ impl DatabaseWebhookStore {
         let result = async {
             let changed = self
                 .processing_row(transaction.table("webhook_calls"), call)?
+                .r#where("replay_generation", "=", i64::from(replay_generation))
                 .where_nested(|query| {
                     query
                         .where_null("processing_until")
@@ -103,6 +113,7 @@ impl DatabaseWebhookStore {
             }
             let expired = self
                 .processing_row(transaction.table("webhook_calls"), call)?
+                .r#where("replay_generation", "=", i64::from(replay_generation))
                 .where_raw(&format!("processing_deadline <= {clock}"), vec![])
                 .where_nested(|query| {
                     query
@@ -125,7 +136,12 @@ impl DatabaseWebhookStore {
             .connection
             .table("webhook_calls")
             .use_write_pdo()
-            .select(["scope", "processed_at", "processing_stopped_at"])
+            .select([
+                "scope",
+                "processed_at",
+                "processing_stopped_at",
+                "replay_generation",
+            ])
             .select_raw(
                 &format!("case when processing_next_at > {clock} then 1 else 0 end as deferred"),
                 vec![],
@@ -137,6 +153,9 @@ impl DatabaseWebhookStore {
             .ok_or(Error::RecordNotFound)?;
         if !matches!(row.get("scope"), Some(Value::Text(scope)) if scope == &self.scope) {
             return Err(Error::RecordNotFound);
+        }
+        if super::replay::generation(&row)? != replay_generation {
+            return Ok(ProcessingClaim::Settled);
         }
         for field in ["processed_at", "processing_stopped_at"] {
             match row.get(field) {

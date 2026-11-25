@@ -51,7 +51,26 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
                 .long("pretend")
                 .action(ArgAction::SetTrue),
         );
-    Artisan::add(Box::new(Recover(CommandDefinition::new(recover))))
+    Artisan::add(Box::new(Recover(CommandDefinition::new(recover))))?;
+    let exhausted = Syntax::new("webhook-client:exhausted")
+        .about("列出当前范围内已耗尽自动派发预算的接收记录")
+        .arg(Arg::new("scope").long("scope").required(true))
+        .arg(Arg::new("database").long("database"))
+        .arg(
+            Arg::new("limit")
+                .long("limit")
+                .default_value("100")
+                .value_parser(value_parser!(u32).range(1..=500)),
+        );
+    Artisan::add(Box::new(Exhausted(CommandDefinition::new(exhausted))))?;
+    let replay = Syntax::new("webhook-client:replay")
+        .about("申请一个受应用授权的接收重放代次")
+        .arg(Arg::new("id").required(true))
+        .arg(Arg::new("scope").long("scope").required(true))
+        .arg(Arg::new("database").long("database"))
+        .arg(Arg::new("actor").long("actor").required(true))
+        .arg(Arg::new("reason").long("reason").required(true));
+    Artisan::add(Box::new(Replay(CommandDefinition::new(replay))))
 }
 
 struct Prune(CommandDefinition);
@@ -193,4 +212,81 @@ impl Command for Recover {
             Ok(i32::from(report.failed > 0))
         })
     }
+}
+
+struct Exhausted(CommandDefinition);
+
+impl Command for Exhausted {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+
+    fn handle<'a>(
+        &'a self,
+        app: &'a Application,
+        input: &'a Input,
+        output: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            let store = operations_store(app, input).await?;
+            let limit = *input
+                .matches()
+                .get_one::<u32>("limit")
+                .expect("默认批次上限");
+            let rows = store
+                .exhausted_receipts(limit)
+                .await
+                .map_err(ConsoleError::from_source)?;
+            let json = serde_json::to_string(&rows).map_err(ConsoleError::from_source)?;
+            output
+                .write_raw(&format!("{json}\n"))
+                .map_err(ConsoleError::from_source)?;
+            Ok(0)
+        })
+    }
+}
+
+struct Replay(CommandDefinition);
+
+impl Command for Replay {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+
+    fn handle<'a>(
+        &'a self,
+        app: &'a Application,
+        input: &'a Input,
+        output: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            let store = operations_store(app, input).await?;
+            let matches = input.matches();
+            let id = matches.get_one::<String>("id").expect("必填接收 ID");
+            let actor = matches.get_one::<String>("actor").expect("必填操作身份");
+            let reason = matches.get_one::<String>("reason").expect("必填操作原因");
+            let generation = crate::replay::request(&store, id, actor, reason)
+                .await
+                .map_err(ConsoleError::from_source)?;
+            output.info(&format!("已登记 Webhook 重放代次 {generation}"));
+            Ok(0)
+        })
+    }
+}
+
+async fn operations_store(
+    app: &Application,
+    input: &Input,
+) -> Result<DatabaseWebhookStore, ConsoleError> {
+    let matches = input.matches();
+    let scope = matches.get_one::<String>("scope").expect("必填范围");
+    let connection = matches.get_one::<String>("database").map(String::as_str);
+    let manager = app
+        .make::<DatabaseManager>()
+        .await
+        .map_err(ConsoleError::from_source)?;
+    let connection = manager
+        .connection(connection)
+        .map_err(ConsoleError::from_source)?;
+    DatabaseWebhookStore::new(connection, scope).map_err(ConsoleError::from_source)
 }

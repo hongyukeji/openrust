@@ -20,6 +20,7 @@ pub(crate) struct DispatchMetadata {
     pub profile: String,
     pub revision: String,
     pub tracks_deadline: bool,
+    pub replay_generation: u32,
 }
 
 impl DatabaseWebhookStore {
@@ -151,7 +152,7 @@ impl DatabaseWebhookStore {
             return Err(Error::InvalidConfig("recover.limit"));
         }
         Ok(self
-            .due_dispatches()?
+            .due_dispatches(None)?
             .use_write_pdo()
             .select(["call_id", "route", "processing_retry_after"])
             .order_by("available_at", "asc")
@@ -161,10 +162,10 @@ impl DatabaseWebhookStore {
             .await?)
     }
 
-    pub(crate) async fn claim_dispatch(&self, id: &str) -> Result<Option<String>> {
+    pub(crate) async fn claim_dispatch(&self, id: &str, generation: u32) -> Result<Option<String>> {
         let token = Str::uuid().map_err(|_| Error::InvalidRecord)?.to_string();
         let changed = self
-            .due_dispatches()?
+            .due_dispatches(Some(generation))?
             .r#where("call_id", "=", id)
             .update_with(
                 [
@@ -242,7 +243,16 @@ impl DatabaseWebhookStore {
 
     pub(crate) async fn dispatch_metadata(&self, id: &str) -> Result<Option<DispatchMetadata>> {
         let Some(row) = self
-            .row(id, &["scope", "name", "revision", "processing_deadline"])
+            .row(
+                id,
+                &[
+                    "scope",
+                    "name",
+                    "revision",
+                    "processing_deadline",
+                    "replay_generation",
+                ],
+            )
             .await?
         else {
             return Ok(None);
@@ -251,6 +261,7 @@ impl DatabaseWebhookStore {
             scope: self.scope.clone(),
             profile: text(&row, "name")?.to_owned(),
             revision: text(&row, "revision")?.to_owned(),
+            replay_generation: super::replay::generation(&row)?,
             tracks_deadline: matches!(
                 row.get("processing_deadline"),
                 Some(Value::Integer(_) | Value::Unsigned(_))
@@ -273,7 +284,7 @@ impl DatabaseWebhookStore {
             .where_exact_text("scope", &self.scope)
     }
 
-    fn due_dispatches(&self) -> Result<Builder<'static>> {
+    fn due_dispatches(&self, generation: Option<u32>) -> Result<Builder<'static>> {
         let clock = self.clock();
         let mut ready = self
             .dispatch_receipt()
@@ -294,6 +305,9 @@ impl DatabaseWebhookStore {
                     .where_null("processing_next_at")
                     .or_where_raw(&format!("processing_next_at <= {clock}"), vec![])
             });
+        if let Some(generation) = generation {
+            ready = ready.r#where("replay_generation", "=", i64::from(generation));
+        }
         Ok(self
             .dispatch_intents()
             .where_raw(&format!("available_at <= {clock}"), vec![])
