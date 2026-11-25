@@ -231,6 +231,96 @@ def check_verified_event_identity(binary, env, root, port, driver, sql):
     print("已签名事件去重 13 个真实 HTTP、4 个独立 Worker；两进程并发、原子回滚、冲突、大小写、配置隔离和自定义验证器通过")
 
 
+def check_deferred_processing(binary, env, root, port, driver, sql):
+    current = env | {"DB_QUEUE_RETRY_AFTER": "8"}
+    failed_before = int(sql("SELECT COUNT(*) FROM failed_jobs"))
+
+    def work(marker, **extra):
+        command(binary, current | {"WEBHOOK_TEST_RECEIPT_OUTPUT": str(root / marker), **extra},
+                "queue:work", "database", "--queue=webhook-receipts", "--once")
+
+    def dispatch(body):
+        connection = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+        signature = hmac.new(SECRET.encode(), body, hashlib.sha256).hexdigest()
+        try:
+            connection.request("POST", "/api/package/deferred", body, {
+                "Signature": signature, "Content-Type": "application/octet-stream",
+            })
+            response = connection.getresponse()
+            assert response.status == 200, response.read()
+        finally:
+            connection.close()
+        payload = json.loads(sql("SELECT payload FROM jobs"))
+        assert payload["options"]["max_tries"] == 1
+        receipt = payload["data"]["id"]
+        assert re.fullmatch(r"[0-9a-f-]{36}", receipt)
+        return receipt, payload["uuid"]
+
+    def state(receipt):
+        return sql(
+            "SELECT processing_generation,processing_deferrals,"
+            "CASE WHEN processing_next_at IS NULL THEN 0 ELSE 1 END,"
+            "CASE WHEN processed_at IS NULL THEN 0 ELSE 1 END,"
+            "CASE WHEN processing_stopped_at IS NULL THEN 0 ELSE 1 END "
+            f"FROM webhook_calls WHERE id='{receipt}'"
+        )
+
+    log_path = root / "deferred-http.log"
+    with log_path.open("w+") as log:
+        server = http_helpers["serve"](binary, current, log)
+        try:
+            waiting, first = dispatch(b"deferred-wait")
+            work("wait")
+            assert state(waiting) == "1\t1\t1\t0\t0" and not (root / "wait").exists()
+            next_task = json.loads(sql("SELECT payload FROM jobs"))
+            assert next_task["uuid"] != first and next_task["data"]["id"] == waiting
+            assert sql("SELECT attempts FROM jobs") == "0"
+            write_database(driver, sql,
+                           "INSERT INTO jobs (queue,payload,attempts,reserved_at,available_at,created_at) "
+                           "SELECT queue,payload,0,NULL,0,created_at FROM jobs")
+            work("early", FIXTURE_DEFERRED_READY="1")
+            assert not (root / "early").exists() and state(waiting) == "1\t1\t1\t0\t0"
+            assert sql("SELECT COUNT(*) FROM jobs") == "1"
+            time.sleep(2.2)
+            work("ready", FIXTURE_DEFERRED_READY="1")
+            assert (root / "ready").exists() and state(waiting) == "2\t1\t0\t1\t0"
+            assert sql("SELECT COUNT(*) FROM jobs") == "0"
+
+            exhausted, _ = dispatch(b"deferred-exhaust")
+            work("exhaust")
+            assert state(exhausted) == "1\t1\t1\t0\t0"
+            time.sleep(2.2)
+            work("exhaust")
+            assert state(exhausted) == "2\t1\t0\t0\t1" and not (root / "exhaust").exists()
+            assert int(sql("SELECT COUNT(*) FROM failed_jobs")) == failed_before + 1
+            assert sql("SELECT COUNT(*) FROM jobs") == "0"
+
+            permanent, _ = dispatch(b"deferred-permanent")
+            work("permanent")
+            assert state(permanent) == "1\t0\t0\t0\t1"
+            assert int(sql("SELECT COUNT(*) FROM failed_jobs")) == failed_before + 2
+
+            retryable, _ = dispatch(b"deferred-retryable")
+            work("retryable")
+            assert state(retryable) == "1\t0\t0\t0\t0"
+            assert int(sql("SELECT COUNT(*) FROM failed_jobs")) == failed_before + 3
+
+            expired, _ = dispatch(b"deferred-expire")
+            work("expired")
+            assert state(expired) == "1\t1\t1\t0\t0"
+            time.sleep(8.2)
+            work("expired")
+            assert state(expired) == "1\t1\t0\t0\t1" and not (root / "expired").exists()
+            assert sql("SELECT COUNT(*) FROM jobs") == "0"
+        except BaseException:
+            log.flush()
+            print(log_path.read_text())
+            raise
+        finally:
+            http_helpers["stop"](server)
+    print(f"{driver}: 待关联延期 5 个真实 HTTP、9 次 Artisan Worker；跨任务预算、早到副本、领域期限及结果分类通过")
+
+
 def main():
  driver,url=helpers["database_settings"]();binary=args.binary.resolve();requests=workers=0
  with tempfile.TemporaryDirectory(dir=ROOT/"target/tmp",prefix="webhook-routes-") as tmp:
@@ -423,8 +513,9 @@ def main():
   assert sql("SELECT COUNT(*) FROM jobs")=="0"
   check_processing_lease(binary,env,root,port,driver,sql)
   check_verified_event_identity(binary,env,root,port,driver,sql)
+  check_deferred_processing(binary,env,root,port,driver,sql)
   legacy_id=sql("SELECT id FROM webhook_calls WHERE name='default' ORDER BY id LIMIT 1")
-  assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate:rollback","--step=3","--force")
+  assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate:rollback","--step=4","--force")
   assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate","--force")
   legacy=json.loads(command(binary,env,"webhooks:record",legacy_id,"webhook-acceptance"))
   assert bytes(legacy["body"])==b"default" and legacy["payload"] is None and legacy["attachments"] is None

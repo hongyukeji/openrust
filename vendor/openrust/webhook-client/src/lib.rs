@@ -3,6 +3,8 @@
 #[path = "../config/webhook_client.rs"]
 mod configuration;
 mod contracts;
+#[path = "../database/migrations/2026_11_25_000005_add_deferred_processing_to_webhook_calls_table.rs"]
+mod deferred_migration;
 mod error;
 mod factories;
 pub mod http;
@@ -131,6 +133,10 @@ impl WebhookClientServiceProvider {
             openrust::database::migrations::MigrationEntry::new(
                 "vendor/openrust/webhook-client/database/migrations/2026_11_25_000004_create_webhook_event_receipts_table.rs",
                 &identity_migration::MIGRATION,
+            ),
+            openrust::database::migrations::MigrationEntry::new(
+                "vendor/openrust/webhook-client/database/migrations/2026_11_25_000005_add_deferred_processing_to_webhook_calls_table.rs",
+                &deferred_migration::MIGRATION,
             ),
         ];
         ENTRIES

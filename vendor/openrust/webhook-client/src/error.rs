@@ -36,6 +36,8 @@ pub enum Error {
     ProcessingFailed,
     #[error("Webhook 处理租约已失效")]
     ProcessingLeaseLost,
+    #[error("Webhook 待关联通知已超出处理期限或延期次数")]
+    ProcessingDeferredExhausted,
     #[error("Webhook 存储记录不存在或不属于当前范围")]
     RecordNotFound,
     #[error("Webhook 存储适配未实现载荷读取")]

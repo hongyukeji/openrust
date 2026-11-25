@@ -9,8 +9,8 @@ use openrust::{
     contracts::queue::JobHandler,
     http::HttpFuture,
     queue::{
-        DispatchOptions, DispatchResult, JobContext, JobOptions, Payload, QueueError, QueueFacade,
-        QueueFuture, QueueManager, QueueResult,
+        Delay, DispatchOptions, DispatchResult, JobContext, JobOptions, Payload, QueueError,
+        QueueFacade, QueueFuture, QueueManager, QueueResult,
     },
 };
 use std::{sync::Arc, time::Duration};
@@ -23,6 +23,34 @@ pub trait ProcessWebhookJob: Send + Sync {
         call: &'a WebhookCall,
         store: &'a dyn WebhookStore,
     ) -> HttpFuture<'a, Result<()>>;
+
+    /// 有租约的注册调用此方法。旧处理器的成功／失败由默认实现映射。
+    fn handle_outcome<'a>(
+        &'a self,
+        context: &'a mut JobContext<'_>,
+        call: &'a WebhookCall,
+        store: &'a dyn WebhookStore,
+    ) -> HttpFuture<'a, Result<WebhookProcessingOutcome>> {
+        Box::pin(async move {
+            self.handle(context, call, store).await?;
+            Ok(WebhookProcessingOutcome::Completed)
+        })
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WebhookProcessingOutcome {
+    Completed,
+    Deferred { delay_seconds: u32 },
+    RetryableFailure,
+    PermanentFailure,
+}
+
+/// 业务延期预算独立于每个原生队列任务的尝试次数。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DeferredProcessingPolicy {
+    pub max_deferrals: u32,
+    pub max_age_seconds: u32,
 }
 
 /// 一个具名处理器的派发设置，连接、队列和尝试预算由原生队列执行。
@@ -69,6 +97,7 @@ impl QueuedWebhookJob {
                 store,
                 handler,
                 lease: None,
+                deferred: None,
             }),
         )?;
         Ok(())
@@ -82,6 +111,34 @@ impl QueuedWebhookJob {
         handler: Arc<dyn ProcessWebhookJob>,
         lease_seconds: u32,
     ) -> Result<()> {
+        Self::register_leased(queue, name, store, handler, lease_seconds, None)
+    }
+
+    /// 延期时在同一数据库事务中记录业务状态并创建下次原生队列任务。
+    pub fn register_with_database_deferred_processing(
+        queue: &QueueManager,
+        name: &str,
+        store: Arc<DatabaseWebhookStore>,
+        handler: Arc<dyn ProcessWebhookJob>,
+        lease_seconds: u32,
+        policy: DeferredProcessingPolicy,
+    ) -> Result<()> {
+        if !(1..=1000).contains(&policy.max_deferrals)
+            || !(2..=2_592_000).contains(&policy.max_age_seconds)
+        {
+            return Err(Error::InvalidConfig("deferred_processing_policy"));
+        }
+        Self::register_leased(queue, name, store, handler, lease_seconds, Some(policy))
+    }
+
+    fn register_leased(
+        queue: &QueueManager,
+        name: &str,
+        store: Arc<DatabaseWebhookStore>,
+        handler: Arc<dyn ProcessWebhookJob>,
+        lease_seconds: u32,
+        deferred: Option<DeferredProcessingPolicy>,
+    ) -> Result<()> {
         if !(3..=86_400).contains(&lease_seconds) {
             return Err(Error::InvalidConfig("processing_lease_seconds"));
         }
@@ -91,6 +148,7 @@ impl QueuedWebhookJob {
                 store: store.clone(),
                 handler,
                 lease: Some((store, lease_seconds)),
+                deferred,
             }),
         )?;
         Ok(())
@@ -168,6 +226,7 @@ struct RegisteredJob {
     store: Arc<dyn WebhookStore>,
     handler: Arc<dyn ProcessWebhookJob>,
     lease: Option<(Arc<DatabaseWebhookStore>, u32)>,
+    deferred: Option<DeferredProcessingPolicy>,
 }
 
 impl JobHandler for RegisteredJob {
@@ -236,7 +295,7 @@ impl RegisteredJob {
             .map_err(queue_error)?
         {
             ProcessingClaim::Owned(token) => token,
-            ProcessingClaim::Complete => return Ok(()),
+            ProcessingClaim::Complete | ProcessingClaim::Scheduled => return Ok(()),
             ProcessingClaim::Busy => {
                 context.release(Duration::from_secs(u64::from(seconds)));
                 return Ok(());
@@ -244,14 +303,49 @@ impl RegisteredJob {
         };
         let mut call = call;
         call.exception = None;
-        let failed = self.handler.handle(context, &call, store).await.is_err();
-        let outcome = if failed {
-            ProcessingOutcome::Failed
-        } else if context.release_delay().is_some() {
-            ProcessingOutcome::Release
-        } else {
-            ProcessingOutcome::Complete
+        let result = self
+            .handler
+            .handle_outcome(context, &call, store)
+            .await
+            .unwrap_or(WebhookProcessingOutcome::RetryableFailure);
+        let outcome = match result {
+            WebhookProcessingOutcome::Completed if context.release_delay().is_some() => {
+                ProcessingOutcome::Release
+            }
+            WebhookProcessingOutcome::Completed => ProcessingOutcome::Complete,
+            WebhookProcessingOutcome::PermanentFailure => {
+                store
+                    .stop_processing(&call, &token)
+                    .await
+                    .map_err(queue_error)?;
+                context.fail_without_retry();
+                return Err(queue_error(Error::ProcessingFailed));
+            }
+            WebhookProcessingOutcome::Deferred { delay_seconds } => {
+                if let Some(policy) = self.deferred
+                    && context.release_delay().is_none()
+                {
+                    let queued = self
+                        .schedule_deferred(
+                            context,
+                            payload,
+                            store,
+                            &call,
+                            &token,
+                            (delay_seconds, policy),
+                        )
+                        .await?;
+                    if queued {
+                        return Ok(());
+                    }
+                    context.fail_without_retry();
+                    return Err(queue_error(Error::ProcessingDeferredExhausted));
+                }
+                ProcessingOutcome::Failed
+            }
+            WebhookProcessingOutcome::RetryableFailure => ProcessingOutcome::Failed,
         };
+        let failed = matches!(outcome, ProcessingOutcome::Failed);
         store
             .finish_processing(&call, &token, outcome)
             .await
@@ -260,6 +354,40 @@ impl RegisteredJob {
             return Err(queue_error(Error::ProcessingFailed));
         }
         Ok(())
+    }
+
+    async fn schedule_deferred(
+        &self,
+        context: &JobContext<'_>,
+        payload: &Payload,
+        store: &DatabaseWebhookStore,
+        call: &WebhookCall,
+        token: &str,
+        (seconds, policy): (u32, DeferredProcessingPolicy),
+    ) -> QueueResult<bool> {
+        let manager = QueueFacade::manager()?;
+        let options = DispatchOptions {
+            connection: Some(context.connection().to_owned()),
+            queue: Some(context.queue().to_owned()),
+            delay: Some(Delay::For(Duration::from_secs(u64::from(seconds)))),
+            ..Default::default()
+        };
+        let next =
+            Payload::new(payload.name(), payload.data())?.with_options(payload.options().clone());
+        store
+            .defer_processing(call, token, seconds, policy, move |transaction| {
+                Box::pin(async move {
+                    match manager
+                        .dispatch_in_database_transaction(next, options, transaction)
+                        .await?
+                    {
+                        DispatchResult::Queued(_) => Ok(()),
+                        _ => Err(QueueError::InvalidConfiguration.into()),
+                    }
+                })
+            })
+            .await
+            .map_err(queue_error)
     }
 }
 

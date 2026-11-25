@@ -410,7 +410,8 @@ impl JobContext<'_> {
         self.release_after
     }
 
-    pub(crate) fn fail_without_retry(&mut self) {
+    /// 处理器返回错误时立即进入终态失败流程。
+    pub fn fail_without_retry(&mut self) {
         self.fail_immediately = true;
     }
 

@@ -151,6 +151,12 @@ For a profile with `atomic_database_queue: true`, enable `deduplicate_verified_e
 
 The database receives the event, stores its deduplication key and enqueues its job in the same transaction. The same ID and request content return the configured acknowledgment without a second receipt or job. Reusing an ID within the same scope and profile with a changed method, raw path/query, body or Content-Type returns HTTP 409. Signing timestamps, signatures and credential revisions may change between retries. A key is retained with its receipt, so retain receipts at least as long as the provider can redeliver. The mode is off by default.
 
+### Defer processing until a record can be matched {#deferred-processing}
+
+For jobs that can receive a notification before the matching business record exists, register the Worker with `QueuedWebhookJob::register_with_database_deferred_processing`. Use a native database queue on the same database connection as the receipt store. Set `DeferredProcessingPolicy { max_deferrals, max_age_seconds }` and keep the same lease, timeout and queue reservation settings described above. The policy accepts 1–1,000 deferrals and a maximum age of 2 seconds to 30 days, measured from the first deferral.
+
+Override `ProcessWebhookJob::handle_outcome` to return `WebhookProcessingOutcome::Deferred { delay_seconds }` when the record is still missing. Use a positive delay that fits within the remaining budget. Return `Completed` after business processing, `RetryableFailure` to apply native retry settings, or `PermanentFailure` to stop. A deferral records the next processing time and enqueues a new job in one transaction. The new job has its own queue attempt budget. The receipt remains pending until a Worker completes it or the deferral budget expires. Do not call `JobContext::release` when returning `Deferred`.
+
 ## Scope {#scope}
 
 Use the existing [HTTP client](../digging-deeper/http-client.md) and [queues](../digging-deeper/queues.md) for application networking and jobs. Persistent recovery and a complete delivery state machine remain outside the current implementation.

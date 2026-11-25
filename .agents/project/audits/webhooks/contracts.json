@@ -105,7 +105,7 @@
       "declared_public_properties": [
         "webhookCall"
       ],
-      "notes": "业务处理 trait 与 QueuedWebhookJob 通过原生 Bus／QueueManager／JobContext 装配。Worker 按 ID、范围、配置及修订核对和恢复持久记录，不序列化原模型或密钥。实际三库队列消费、异常记录、重试清除与终态失败验证。可选同库原子入队在接收配置启用，跨后端仍按后续恢复计划。可选接收 Worker 租约覆盖三库的主动释放、同一记录并发领取、终态重复任务确认和领取后退出重领。持久扫描恢复与完整 trait／生命周期裁决仍待验。",
+      "notes": "业务处理 trait 与 QueuedWebhookJob 通过原生 Bus／QueueManager／JobContext 装配。Worker 按 ID、范围、配置及修订核对和恢复持久记录，不序列化原模型或密钥。实际三库队列消费、异常记录、重试清除与终态失败验证。可选同库原子入队在接收配置启用，跨后端仍按后续恢复计划。可选接收 Worker 租约覆盖三库的主动释放、同一记录并发领取、终态重复任务确认和领取后退出重领。数据库队列可原子提交待关联延期与后继任务，业务预算与原生任务尝试分离。主动唤醒、持久扫描恢复与完整 trait／生命周期裁决仍待验。",
       "evidence": [
         "tests/support/webhooks/app.rs",
         "tests/webhooks_receiver_acceptance.py",

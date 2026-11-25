@@ -151,6 +151,12 @@ Provider 注册 `webhook_calls` 迁移，使用 `DatabaseWebhookStore` 前运行
 
 接收记录、去重键和原生队列任务在同一事务提交。相同 ID 和请求内容的重试返回配置的确认响应，只保存一条接收记录及一条任务。同一 scope 和 profile 内，已使用的 ID 携带不同的 HTTP 方法、原始路径和查询串、正文或 Content-Type 时返回 HTTP 409。签名时间戳、签名和凭据修订允许在重试时变化。去重键随接收记录保留，接收记录的保留期应覆盖供应商的重投递窗口。默认关闭。
 
+### 延期处理尚未关联的通知 {#deferred-processing}
+
+通知可能早于业务记录到达时，用 `QueuedWebhookJob::register_with_database_deferred_processing` 注册 Worker。原生数据库队列须与接收存储共用同一数据库连接。设置 `DeferredProcessingPolicy { max_deferrals, max_age_seconds }`，并沿用上文的租约、任务超时和队列保留时间。最多可配置 1–1,000 次延期，有效期为 2 秒至 30 天，从首次延期开始计时。
+
+覆盖 `ProcessWebhookJob::handle_outcome`，在业务记录尚未就绪时返回 `WebhookProcessingOutcome::Deferred { delay_seconds }`。延迟必须为正数并处于剩余期限内。业务处理成功返回 `Completed`，按原生队列策略重试返回 `RetryableFailure`，立即停止返回 `PermanentFailure`。延期时在同一事务保存下次执行时间并入队，新任务使用独立的队列尝试预算。记录保持待处理，直至 Worker 完成处理或延期预算耗尽。返回 `Deferred` 时不要同时调用 `JobContext::release`。
+
 ## 使用边界 {#scope}
 
 应用网络与任务执行复用现有 [HTTP 客户端](../digging-deeper/http-client.md)和[队列](../digging-deeper/queues.md)。持久恢复、完整投递状态机仍未实现。

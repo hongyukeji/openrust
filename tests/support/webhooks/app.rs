@@ -312,6 +312,33 @@ impl openrust_webhook_client::jobs::ProcessWebhookJob for FixtureJob {
             write_receipt(&app, &read_receipt(call, store).await?).await
         })
     }
+
+    fn handle_outcome<'a>(
+        &'a self,
+        context: &'a mut openrust::queue::JobContext<'_>,
+        call: &'a openrust_webhook_client::models::WebhookCall,
+        store: &'a dyn openrust_webhook_client::WebhookStore,
+    ) -> HttpFuture<
+        'a,
+        openrust_webhook_client::Result<openrust_webhook_client::jobs::WebhookProcessingOutcome>,
+    > {
+        Box::pin(async move {
+            use openrust_webhook_client::jobs::WebhookProcessingOutcome;
+            match call.raw_body() {
+                b"deferred-wait" if std::env::var_os("FIXTURE_DEFERRED_READY").is_none() => {
+                    return Ok(WebhookProcessingOutcome::Deferred { delay_seconds: 2 });
+                }
+                b"deferred-exhaust" | b"deferred-expire" => {
+                    return Ok(WebhookProcessingOutcome::Deferred { delay_seconds: 2 });
+                }
+                b"deferred-permanent" => return Ok(WebhookProcessingOutcome::PermanentFailure),
+                b"deferred-retryable" => return Ok(WebhookProcessingOutcome::RetryableFailure),
+                _ => {}
+            }
+            self.handle(context, call, store).await?;
+            Ok(WebhookProcessingOutcome::Completed)
+        })
+    }
 }
 struct AtomicFixtureDispatcher {
     inner: openrust_webhook_client::jobs::QueuedWebhookJob,
@@ -382,7 +409,13 @@ impl openrust::support::ServiceProvider for FixtureProvider {
     ) -> HttpFuture<'a, openrust::support::ProviderResult> {
         Box::pin(async move {
             use openrust_webhook_client::WebhookRuntime;
-            for name in ["fixture", "fixture-custom", "unregistered", "leased"] {
+            for name in [
+                "fixture",
+                "fixture-custom",
+                "unregistered",
+                "leased",
+                "deferred",
+            ] {
                 WebhookRuntime::register_job_dispatcher(
                     openrust::contracts::foundation::Application::container(app),
                     name,
@@ -396,9 +429,17 @@ impl openrust::support::ServiceProvider for FixtureProvider {
                                 })
                                 .on_queue("webhook-receipts")
                                 .with_options(openrust::queue::JobOptions {
-                                    max_tries: Some(if name == "leased" { 4 } else { 2 }),
+                                    max_tries: Some(match name {
+                                        "leased" => 4,
+                                        "deferred" => 1,
+                                        _ => 2,
+                                    }),
                                     timeout: Some(std::time::Duration::from_secs(
-                                        if name == "leased" { 4 } else { 12 },
+                                        if matches!(name, "leased" | "deferred") {
+                                            4
+                                        } else {
+                                            12
+                                        },
                                     )),
                                     ..Default::default()
                                 }),
@@ -516,6 +557,20 @@ impl openrust::support::ServiceProvider for FixtureProvider {
                 std::sync::Arc::new(FixtureJob),
                 6,
             )?;
+            openrust_webhook_client::jobs::QueuedWebhookJob::register_with_database_deferred_processing(
+                &queue,
+                "deferred",
+                std::sync::Arc::new(openrust_webhook_client::DatabaseWebhookStore::new(
+                    manager.connection(None)?,
+                    "webhook-acceptance",
+                )?),
+                std::sync::Arc::new(FixtureJob),
+                6,
+                openrust_webhook_client::jobs::DeferredProcessingPolicy {
+                    max_deferrals: 1,
+                    max_age_seconds: 8,
+                },
+            )?;
             Ok(())
         })
     }
@@ -593,6 +648,7 @@ fn api_routes() -> Result<(), openrust::routing::RoutingError> {
         "atomic-null",
         "atomic-foreign",
         "leased",
+        "deferred",
         "event-dedup",
         "event-other",
         "event-unsigned",
@@ -825,6 +881,7 @@ async fn main() -> ExitCode {
                 {"name":"event-other","signing_secret":{"env":"FIXTURE_STANDARD_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"standard","webhook_profile":"process-everything","webhook_model":"database","atomic_database_queue":true,"deduplicate_verified_events":true},
                 {"name":"event-custom","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"signed-body","webhook_profile":"process-everything","webhook_model":"database","atomic_database_queue":true,"deduplicate_verified_events":true},
                 {"name":"event-unsigned","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","atomic_database_queue":true,"deduplicate_verified_events":true},
+                {"name":"deferred","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"deferred","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database"},
                 {"name":"leased","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"leased","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database"},
                 {"name":"atomic","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","atomic_database_queue":true},
                 {"name":"atomic-null","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","atomic_database_queue":true},

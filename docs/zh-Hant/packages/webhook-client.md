@@ -151,6 +151,12 @@ Provider 註冊 `webhook_calls` 遷移，使用 `DatabaseWebhookStore` 前執行
 
 接收記錄、去重鍵及原生佇列任務在同一交易提交。相同 ID 與請求內容的重試回傳設定的確認回應，只儲存一筆接收記錄與一筆任務。同一 scope 與 profile 內，再次使用同一 ID 且 HTTP 方法、原始路徑與查詢字串、正文或 Content-Type 不同時，回傳 HTTP 409。簽名時間戳、簽名及憑證修訂可在重試時變更。去重鍵隨接收記錄保留，記錄的保留期應涵蓋供應商的重複投遞窗口。預設關閉。
 
+### 延期處理尚未關聯的通知 {#deferred-processing}
+
+通知可能早於業務記錄抵達時，使用 `QueuedWebhookJob::register_with_database_deferred_processing` 註冊 Worker。原生資料庫佇列須與接收儲存共用同一資料庫連線。設定 `DeferredProcessingPolicy { max_deferrals, max_age_seconds }`，並沿用上文的租約、任務逾時與佇列保留時間。可設定 1–1,000 次延期，有效期為 2 秒至 30 天，從首次延期開始計時。
+
+覆寫 `ProcessWebhookJob::handle_outcome`，在業務記錄尚未就緒時回傳 `WebhookProcessingOutcome::Deferred { delay_seconds }`。延遲須為正數並處於剩餘期限內。業務處理成功回傳 `Completed`，依原生佇列策略重試回傳 `RetryableFailure`，立即停止回傳 `PermanentFailure`。延期時在同一交易儲存下次執行時間與入列，新任務使用獨立的佇列嘗試額度。記錄維持待處理，直至 Worker 完成處理或延期額度耗盡。回傳 `Deferred` 時請勿同時呼叫 `JobContext::release`。
+
 ## 使用邊界 {#scope}
 
 應用網路與任務執行複用既有 [HTTP 用戶端](../digging-deeper/http-client.md)與[佇列](../digging-deeper/queues.md)。持久恢復、完整投遞狀態機仍未實作。
