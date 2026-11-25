@@ -619,7 +619,7 @@ fn register_tables() -> Result<(), ConsoleError> {
 
 `table_with` 选择 `TableStyle`；`table_with_columns` 另外接受 `(列索引, 样式)`。`TableStyle::from_name` 提供 `default`、`markdown`、`borderless`、`compact`、`symfony-style-guide`、`box` 和 `box-double`。可通过边框、填充和格式设置方法定制样式。`TablePadding::{Left, Right, Both}` 表示填充所在侧，默认 `Right`。
 
-直接渲染时使用 `Table::new(io.get_output())?`，设置表头、数据行和列样式后调用 `render()`。`TableCell::display(value)` 显式适配实现 `Display` 的业务类型；JSON 值和常用标量直接转换。多行单元格、Unicode 可见宽度、格式标签、ANSI 输出及 quiet／silent 过滤沿用原输出管线。此矩形表格接口不代表已支持跨行／跨列或整个继承辅助库。
+直接渲染时使用 `Table::new(io.get_output())?`，设置表头、数据行和列样式后调用 `render()`。`TableCell::display(value)` 显式适配实现 `Display` 的业务类型；JSON 值和常用标量直接转换。多行单元格、Unicode 可见宽度、格式标签、ANSI 输出及 quiet／silent 过滤沿用原输出管线。此矩形表格接口不代表已支持整个继承辅助库。
 
 ## 进度条 {#progress-bars}
 
@@ -953,7 +953,7 @@ fn register_layout() -> Result<(), ConsoleError> {
 
 表头／表尾标题使用 `set_header_title`、`set_footer_title`，传 `None` 清除。表头将空文本和 "0" 视为无标题，显式空表尾仍使用标题格式。`get_style_mut`、`get_column_style_mut` 提供可变访问，同时保留原来的只读 getter。未配置的列回退到表格本身的实际样式。
 
-宽度保留有符号值，非正数按渲染规则处理，不静默替换为默认值。最大宽度为零不换行；不兼容的有效宽度可能在此前已有输出后才于渲染期失败，应传播 `render` 错误。换行复用当前 `WrappableOutputFormatterInterface`，也支持自定义实现。标题按可见宽度和格式居中、截断。命名可变注册表、复杂行与合并单元格仍为单独的 SDK 入口。
+宽度保留有符号值，非正数按渲染规则处理，不静默替换为默认值。最大宽度为零不换行；不兼容的有效宽度可能在此前已有输出后才于渲染期失败，应传播 `render` 错误。换行复用当前 `WrappableOutputFormatterInterface`，也支持自定义实现。标题按可见宽度和格式居中、截断。命名样式、复杂行和合并单元格见后续对应章节。
 
 表格仅在换行结果含 LF 时采用它来拆行；否则保留原单元格，原始换行也保持原样，不展开成表格行。自定义换行接口不是通用单元格内容转换钩子。
 
@@ -1018,7 +1018,7 @@ fn register_table_styles() -> Result<(), ConsoleError> {
 }
 ```
 
-`set_style_named` 和 `set_column_style_named` 按名称解析，未定义名称返回错误；原类型 setter 也可接收借用样式。便利方法 `table` 使用应用当前默认定义，`table_named` 和 `table_with_named_columns` 支持命名表格与列样式。显式分隔单元格、跨行跨列和分区重绘仍为独立能力。
+`set_style_named` 和 `set_column_style_named` 按名称解析，未定义名称返回错误；原类型 setter 也可接收借用样式。便利方法 `table` 使用应用当前默认定义，`table_named` 和 `table_with_named_columns` 支持命名表格与列样式。分隔单元格与跨度配置见[合并单元格](#table-cell-spans)。
 
 ## 显式整行分隔线 {#table-row-separators}
 
@@ -1044,7 +1044,7 @@ fn register_separators() -> Result<(), ConsoleError> {
 }
 ```
 
-`set_rows`、`add_rows`、`add_row` 和表格便利方法接收这类异构行。`add_row`／`add_rows` 继续用 `?` 传播索引耗尽；`set_row` 可将同键分隔线替换为数据数组。开头、末尾和连续分隔线保留声明顺序。横向与纵向布局略过显式整行分隔线，纵向布局仍自行生成记录间分隔。复杂分隔单元格选项、跨行跨列和分区重绘仍为独立能力。
+`set_rows`、`add_rows`、`add_row` 和表格便利方法接收这类异构行。`add_row`／`add_rows` 继续用 `?` 传播索引耗尽；`set_row` 可将同键分隔线替换为数据数组。开头、末尾和连续分隔线保留声明顺序。横向与纵向布局略过显式整行分隔线，纵向布局仍自行生成记录间分隔。单元格分隔选项与跨度配置见[合并单元格](#table-cell-spans)。
 
 ## 单元格样式与内部分隔 {#table-cell-styles}
 
@@ -1078,6 +1078,43 @@ fn register_cell_styles() -> Result<(), ConsoleError> {
 
 用 `TableCell::with_style` 附加不可变样式，`get_style` 读取该样式。已有完整格式标签时保留其文本样式，单元格对齐仍生效；其他情况用 `cellFormat` 覆盖自动生成的颜色标签。按宽度换行与多行展开会生成普通文本行，可能丢弃原单元格样式；横向布局保留搬移的单元格样式，纵向布局将值转换为文本。
 
-将 `TableSeparator` 转换为单元格后，按该列样式绘制内部边框，与整行 `TableRow::Separator` 不同。跨行跨列、分隔构造选项和分区重绘仍单独跟踪。
+将 `TableSeparator` 转换为单元格后，按该列样式绘制内部边框，与整行 `TableRow::Separator` 不同。跨度与分隔构造选项见[合并单元格](#table-cell-spans)。
 
 每条实际输出行在开始时读取行文本格式。格式化回调的修改会影响后续边框与下一行，不会回改正在渲染的本行单元格格式。
+
+## 合并单元格与构造选项 {#table-cell-spans}
+
+使用 `with_colspan`、`with_rowspan` 合并单元格。`get_colspan`、`get_rowspan` 复用现有纯量转换并返回有符号整数，默认均为 `1`。构造选项保留传入值，含零、负值；布局在无法使用这些值进行计算时传播错误。
+
+```rust
+use openrust::{
+    console::{ConsoleError, Input, Output, Table, TableCell},
+    support::facades::Artisan,
+};
+
+fn register_spans() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:spans", |input: &Input, output: &mut Output| {
+        let headers = vec![
+            vec![TableCell::new("Summary").with_colspan(2)],
+            vec!["Name".into(), "Score".into()],
+        ];
+        let rows = vec![
+            vec![TableCell::new("Ada").with_rowspan(2), "42".into()],
+            vec!["7".into()],
+            vec![TableCell::new("Total").with_colspan(2)],
+        ];
+        let mut io = input.io(output);
+        Table::new(io.get_output())?
+            .set_headers_rows(headers)
+            .set_rows(rows)
+            .set_style_named("box-double")?
+            .render()?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
+`TableCellOptions` 汇集 `colspan`、`rowspan`、`style`，可传给单元格或分隔符的 `with_options`。跨度字段保存 JSON 值，`style` 为 `Option<TableCellStyle>`；未知字段与冒充样式对象的值由类型检查拒绝。`TableCell::default()` 创建空单元格，`TableCell::new` 包装既有单元格时重新使用默认选项。
+
+`TableSeparator` 保留选项与继承 getter，并支持 `Clone`；同一分隔符放入多个拥有所有权的行时可克隆使用。跨度参与多表头、跨行填充、方向与列宽换行。布局可能更新列最小宽度，`set_column_widths([])` 清空这些最小值并保留最大宽度约束。尚未提供 `append_row` 的控制台分区重绘。

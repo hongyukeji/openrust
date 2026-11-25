@@ -1,0 +1,340 @@
+[
+    {
+        "separator": false,
+        "value": "text",
+        "options": [],
+        "constructed": true,
+        "value_output": "text",
+        "colspan": 1,
+        "rowspan": 1,
+        "style_output": null
+    },
+    {
+        "separator": false,
+        "value": "text",
+        "options": {
+            "colspan": 2,
+            "rowspan": 3
+        },
+        "constructed": true,
+        "value_output": "text",
+        "colspan": 2,
+        "rowspan": 3,
+        "style_output": null
+    },
+    {
+        "separator": false,
+        "value": "text",
+        "options": {
+            "colspan": 0,
+            "rowspan": -1
+        },
+        "constructed": true,
+        "value_output": "text",
+        "colspan": 0,
+        "rowspan": -1,
+        "style_output": null
+    },
+    {
+        "separator": false,
+        "value": "text",
+        "options": {
+            "colspan": "2",
+            "rowspan": 2.8
+        },
+        "constructed": true,
+        "value_output": "text",
+        "colspan": 2,
+        "rowspan": 2,
+        "style_output": null
+    },
+    {
+        "separator": false,
+        "value": "text",
+        "options": {
+            "colspan": null,
+            "rowspan": false
+        },
+        "constructed": true,
+        "value_output": "text",
+        "colspan": 0,
+        "rowspan": 0,
+        "style_output": null
+    },
+    {
+        "separator": false,
+        "value": "text",
+        "options": {
+            "colspan": [],
+            "rowspan": [
+                1
+            ]
+        },
+        "constructed": true,
+        "value_output": "text",
+        "colspan": 0,
+        "rowspan": 1,
+        "style_output": null
+    },
+    {
+        "separator": false,
+        "value": "text",
+        "options": {
+            "colspan": [],
+            "rowspan": {
+                "x": 1
+            }
+        },
+        "constructed": true,
+        "value_output": "text",
+        "colspan": 0,
+        "rowspan": 1,
+        "style_output": null
+    },
+    {
+        "separator": false,
+        "value": "text",
+        "options": {
+            "colspan": "12tail",
+            "rowspan": "-2.8"
+        },
+        "constructed": true,
+        "value_output": "text",
+        "colspan": 12,
+        "rowspan": -2,
+        "style_output": null
+    },
+    {
+        "separator": false,
+        "value": "text",
+        "options": {
+            "colspan": 1.0e+100,
+            "rowspan": "1e100"
+        },
+        "constructed": true,
+        "value_output": "text",
+        "colspan": 0,
+        "rowspan": 9223372036854775807,
+        "style_output": null
+    },
+    {
+        "separator": false,
+        "value": "text",
+        "options": {
+            "style": null
+        },
+        "constructed": true,
+        "value_output": "text",
+        "colspan": 1,
+        "rowspan": 1,
+        "style_output": null
+    },
+    {
+        "separator": false,
+        "value": "text",
+        "options": {
+            "style": {
+                "fg": "blue",
+                "align": "center"
+            }
+        },
+        "constructed": true,
+        "value_output": "text",
+        "colspan": 1,
+        "rowspan": 1,
+        "style_output": {
+            "fg": "blue",
+            "bg": "default",
+            "options": null,
+            "align": "center",
+            "cellFormat": null
+        }
+    },
+    {
+        "separator": false,
+        "value": "text",
+        "options": {
+            "unknown": true
+        },
+        "constructed": false,
+        "error_type": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException"
+    },
+    {
+        "separator": false,
+        "value": "text",
+        "options": {
+            "style": "invalid"
+        },
+        "constructed": false,
+        "error_type": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException"
+    },
+    {
+        "separator": true,
+        "value": "text",
+        "options": [],
+        "constructed": true,
+        "value_output": "",
+        "colspan": 1,
+        "rowspan": 1,
+        "style_output": null
+    },
+    {
+        "separator": true,
+        "value": "text",
+        "options": {
+            "colspan": 2,
+            "rowspan": 3
+        },
+        "constructed": true,
+        "value_output": "",
+        "colspan": 2,
+        "rowspan": 3,
+        "style_output": null
+    },
+    {
+        "separator": true,
+        "value": "text",
+        "options": {
+            "colspan": 0,
+            "rowspan": -1
+        },
+        "constructed": true,
+        "value_output": "",
+        "colspan": 0,
+        "rowspan": -1,
+        "style_output": null
+    },
+    {
+        "separator": true,
+        "value": "text",
+        "options": {
+            "colspan": "2",
+            "rowspan": 2.8
+        },
+        "constructed": true,
+        "value_output": "",
+        "colspan": 2,
+        "rowspan": 2,
+        "style_output": null
+    },
+    {
+        "separator": true,
+        "value": "text",
+        "options": {
+            "colspan": null,
+            "rowspan": false
+        },
+        "constructed": true,
+        "value_output": "",
+        "colspan": 0,
+        "rowspan": 0,
+        "style_output": null
+    },
+    {
+        "separator": true,
+        "value": "text",
+        "options": {
+            "colspan": [],
+            "rowspan": [
+                1
+            ]
+        },
+        "constructed": true,
+        "value_output": "",
+        "colspan": 0,
+        "rowspan": 1,
+        "style_output": null
+    },
+    {
+        "separator": true,
+        "value": "text",
+        "options": {
+            "colspan": [],
+            "rowspan": {
+                "x": 1
+            }
+        },
+        "constructed": true,
+        "value_output": "",
+        "colspan": 0,
+        "rowspan": 1,
+        "style_output": null
+    },
+    {
+        "separator": true,
+        "value": "text",
+        "options": {
+            "colspan": "12tail",
+            "rowspan": "-2.8"
+        },
+        "constructed": true,
+        "value_output": "",
+        "colspan": 12,
+        "rowspan": -2,
+        "style_output": null
+    },
+    {
+        "separator": true,
+        "value": "text",
+        "options": {
+            "colspan": 1.0e+100,
+            "rowspan": "1e100"
+        },
+        "constructed": true,
+        "value_output": "",
+        "colspan": 0,
+        "rowspan": 9223372036854775807,
+        "style_output": null
+    },
+    {
+        "separator": true,
+        "value": "text",
+        "options": {
+            "style": null
+        },
+        "constructed": true,
+        "value_output": "",
+        "colspan": 1,
+        "rowspan": 1,
+        "style_output": null
+    },
+    {
+        "separator": true,
+        "value": "text",
+        "options": {
+            "style": {
+                "fg": "blue",
+                "align": "center"
+            }
+        },
+        "constructed": true,
+        "value_output": "",
+        "colspan": 1,
+        "rowspan": 1,
+        "style_output": {
+            "fg": "blue",
+            "bg": "default",
+            "options": null,
+            "align": "center",
+            "cellFormat": null
+        }
+    },
+    {
+        "separator": true,
+        "value": "text",
+        "options": {
+            "unknown": true
+        },
+        "constructed": false,
+        "error_type": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException"
+    },
+    {
+        "separator": true,
+        "value": "text",
+        "options": {
+            "style": "invalid"
+        },
+        "constructed": false,
+        "error_type": "Symfony\\Component\\Console\\Exception\\InvalidArgumentException"
+    }
+]

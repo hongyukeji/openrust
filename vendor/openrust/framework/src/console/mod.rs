@@ -74,8 +74,8 @@ pub use question::{
 };
 pub(crate) use table::TableDefinitions;
 pub use table::{
-    ConsoleTableError, Table, TableCell, TableCellStyle, TablePadding, TableRow, TableSeparator,
-    TableStyle,
+    ConsoleTableError, Table, TableCell, TableCellOptions, TableCellStyle, TablePadding, TableRow,
+    TableSeparator, TableStyle,
 };
 pub use terminal::Terminal;
 

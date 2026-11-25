@@ -9,6 +9,8 @@ pub enum ConsoleTableError {
     UnknownCellStyleOptions(Vec<String>),
     InvalidCellAlignment(serde_json::Value),
     InvalidCellFormat,
+    InvalidSpanLayout,
+    Allocation(std::collections::TryReserveError),
     RowIndexOverflow,
     UnsupportedWrappingFormatter,
     InvalidColumnWidth(i64),
@@ -22,6 +24,8 @@ impl fmt::Display for ConsoleTableError {
                 write!(f, "单元格样式不支持这些选项：{}", keys.join("、"))
             }
             Self::InvalidCellAlignment(value) => write!(f, "单元格对齐值无效：{value}"),
+            Self::Allocation(error) => write!(f, "表格布局容量分配失败：{error}"),
+            Self::InvalidSpanLayout => f.write_str("单元格跨度或键布局无法完成计算"),
             Self::InvalidCellFormat => f.write_str("单元格格式必须为文本或空值"),
             Self::MissingDefinitions => f.write_str("表格命名样式需要应用装配作用域"),
             Self::UndefinedStyle(name) => write!(f, "表格样式未定义：{name}"),
@@ -39,6 +43,7 @@ impl fmt::Display for ConsoleTableError {
 impl Error for ConsoleTableError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
+            Self::Allocation(error) => Some(error),
             Self::InvalidFormat(error) => Some(error),
             Self::InvalidPaddingEncoding(error) => Some(error),
             _ => None,

@@ -363,3 +363,16 @@ add_row改为Result，与新add_rows一起在数字索引耗尽时返回有来�
 正式三语正文直接提取75例执行并与源数据核对；最终17框架目标112项、根6目标116项，共228个不同父消费者，17个被父消费者驱动的ignore不叠加。旧矩形、宽度、行键、共享样式、问答与进度回归继续通过。fmt、workspace all-targets严格Clippy 75.00s、main(pail)、三语构建与12个手机／桌面／双挂载浏览器，实际main HTTP/up/静态/404/HEAD、Artisan inspire/list/Pail过滤/-vv/timeout清理/Ctrl+C通过。早期编译／夹具形状／Clippy失败保留，不计通过；最终使用gates3源码组合。round2完成后项目级32GB守卫清理产物，同源重建日志artifact-recovery保留；后续实时边框修复再次完成全部门禁和实际运行，不使用已删产物冒充验收。
 
 证据target/tmp/artisan-tutorial-20261125/table-cell-{styles,row-format,live-format}-*与accepted-table-cell-styles.json。仅本簇源码、测试、三语文档与专属账本；全局current.md和其他协作文件保持不动，避免夹带交接在途，后续以本节及section-map/table-contracts为本簇状态。临时PHP容器结束，运行目录清理，源码／日志／可复用缓存和数据卷保留。不宣称完整活跃工作区、Windows发布矩阵或整章通过；继续TableCell跨度／分隔构造选项、ConsoleSectionOutput/appendRow及其余SDK。仅本地提交，不推送。
+
+
+## 第二十五簇：完整单元格选项与跨行跨列布局（2026-11-25）
+
+第二十四簇已本地提交3c4c170ac24d853625cd6ce1a92936837448969c，未推送。本簇固定Symfony Console7.4.0 Table/TableCell/TableSeparator，旧v0.x没有对应SDK可提取；沿用当前表格／格式器／ArrayKey与input_scalars整数转换。公开TableCellOptions、with_options、with_colspan/with_rowspan、get_colspan/get_rowspan及TableSeparator继承选项／getter接通实际渲染，Display/as_str也逐项对账。Typed record用编译期拒绝未知字段及错误style类型，跨度保留JSON值及源整数转换，不把PHP警告当机器协议模拟。
+
+跨行填充、跨列占位、多表头、行键、LF/CRLF、三方向、最大宽度换行和重复渲染均复用原布局及发射机制。保留源的原列索引边框选择、跨度零／负数处理与部分输出错误；连续渲染可能改变最小宽度，set_column_widths([])仅重置最小值。TableSeparator因拥有选项由Copy改为Clone，借用转换克隆完整数据。Clippy发现普通单元格内联选项膨胀，改为按需Box存储，无配置普通文本不分配选项，不加lint豁免、不宣称性能跑分。极端跨度用检查算术／可失败分配返回错误，不panic；该安全验收不冒充PHP极端分配已测。
+
+490组真实固定PHP渲染输出逐字对照（4个预期错误）、26组getter输入（22运行时，4个形状错误分别由2项真实compile-fail消费者裁决）、2组各5步重复渲染输出通过；原始PHP stderr分别3328/250/0字节保留，不在Rust模拟VM告警。独立handle_command验证正常输出、错误退出1／stderr／部分stdout，真实TCP HTTP200/500/200验证默认回退及恢复。正式三语直接提取78例编译执行；18个框架目标118项、根6目标119项，共237不同父消费者，18个父驱动ignore不叠加。旧矩形、行键、宽度、共享样式、单元格样式、问答与进度回归均通过。
+
+验收中独立基线e4c94972自身暴露Validation异步查询深度失败，移除本批跨度文件亦复现；未使用其他人的WIP，吸收已提交cafd464d核心修复后复验通过。最终fmt通过，workspace all-targets严格Clippy 1m 30s，main(pail)及三语构建通过。中途32GB守卫安全停止并清理编译产物，已完成framework/rustdoc/root/fmt日志保留，中断Clippy不计通过；清理后同源重新完成Clippy/main/docs和实际入口。12项手机／桌面／双挂载浏览器，以及实际main HTTP/up/静态/HTML与JSON404/HEAD、Artisan inspire/list/Pail过滤/-vv/timeout清理/Ctrl+C通过。
+
+证据target/tmp/artisan-tutorial-20261125/table-spans-*及table-span-getters-*，正式accepted-table-spans.json和三份源oracle。仅本簇核定源码、测试、三语与专属账本，全局current.md及其他协作者在途保留。临时PHP容器已结束，运行目录清理；保留源码／日志／可复用缓存及数据库／数据卷。不宣称整章、完整活跃工作区或Windows发布矩阵通过；继续ConsoleSectionOutput/append_row与其余继承SDK。仅本地提交，不推送。

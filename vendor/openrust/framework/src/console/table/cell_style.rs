@@ -107,10 +107,11 @@ impl TableCellStyle {
     }
 }
 #[derive(Clone)]
-pub(super) enum Attributes {
-    Style(TableCellStyle),
-    Separator,
-    Plain,
+pub(super) struct Attributes {
+    pub(super) style: Option<TableCellStyle>,
+    pub(super) separator: bool,
+    pub(super) colspan: i64,
+    pub(super) rowspan: i64,
 }
 pub(super) type AttributeRows =
     std::collections::BTreeMap<usize, std::collections::BTreeMap<usize, Attributes>>;

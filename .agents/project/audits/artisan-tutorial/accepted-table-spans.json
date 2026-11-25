@@ -1,0 +1,75 @@
+{
+  "scope": "Artisan phase25 TableCell/TableSeparator full options, scalar getters and rowspan/colspan layout",
+  "base": "cafd464d66945cbe5131672dfe02b659218d40af",
+  "source_sha256": {
+    "docs/en/digging-deeper/artisan.md": "d3759fa1c1690c0e7a7099267d94861050dd1e13e6ee31a5ed6999833d3fd064",
+    "docs/tests/check_artisan_tutorial.mjs": "f564f652ba63b6aea7b0f1b995311463aa43405a85cabca4d425488190ad0b15",
+    "docs/zh-Hans/digging-deeper/artisan.md": "71a2a8982b3b37d78b133b3c60fa9cd7771ef374ae5e7524776929a4ca797ae0",
+    "docs/zh-Hant/digging-deeper/artisan.md": "a0bad03cf142ab316efb53f21139fbae0621d275f8ac684e593418fef9a41573",
+    "tests/artisan_tutorial_docs.py": "dcc06af293763846d9a0dcb5a4cc144aa24574ebbff5eeef4eb97767853629ca",
+    "vendor/openrust/framework/src/console/mod.rs": "261839383498460162d02d2ef7b9dea687c0b505906c1d4d46595addd07e9424",
+    "vendor/openrust/framework/src/console/table.rs": "fcec7e84c9a2b7fcf4f4d6b3126c580a5d0870ef0ef319b4f96e2a4d894dfa21",
+    "vendor/openrust/framework/src/console/table/cell.rs": "aaca9d1810c5c1c4d89bde361e0776b41f2cc9d8b5d57d53eb84757f5c479719",
+    "vendor/openrust/framework/src/console/table/cell_style.rs": "0bdf5151a24f58328bedee5cf06af2de881f30117b5f5a9b27c3a43e6037e9cb",
+    "vendor/openrust/framework/src/console/table/error.rs": "bc58f733141dc48ef45c0afaa4fe4e5c6d6a3484da7c4660e4fef90a8b9e2138",
+    "vendor/openrust/framework/src/console/table/layout.rs": "13ecd228e37abb842505d04b1949dbd09c9d776c985b1bfc0ec7843ffd1d1d27",
+    "vendor/openrust/framework/src/console/table/row.rs": "70361b0c4a6e923e06291d31715f3c1bf4eef39ccd59bf1d631862355c44dc7c",
+    "vendor/openrust/framework/src/console/table/rows.rs": "b8146663338d7161d9ada67b278c1a884dd4cae4c8140bab68402f07020115e1",
+    "vendor/openrust/framework/src/console/table/span_layout.rs": "7f0a0c34bef9a3a62fab14166c153d9ac7294bd1cfa0fa3f69132cd1e9bb2f2e",
+    "vendor/openrust/framework/tests/console_table_spans.rs": "702e5d56baa2882462113775c5f0397b2fab73c2b60a72efd618d8a4e208add0",
+    ".agents/project/audits/artisan-tutorial/table-spans-oracle.json": "933ec3584b80b1608ad87958147dffdf15f6248b82534e534d775ef5de1dab87",
+    ".agents/project/audits/artisan-tutorial/table-span-getters-oracle.json": "7bc1f4413c03cef5e8a3686bf32fbd29600b76d9246ac5fa07a7dc126abf7ff0",
+    ".agents/project/audits/artisan-tutorial/table-spans-state-oracle.json": "730da3f7337c3dd7c6232dbb025a64e93b9569d23ee445148a5097bb7a48f1fc",
+    ".agents/project/audits/artisan-tutorial/table-contracts.json": "f26561ac94c8a421e15d087081ccca94ad9a2ba99b9e88c6942caa45fdba90c0",
+    ".agents/project/audits/artisan-tutorial/io-contracts.json": "3c54ae7dc336e0af7305716d8b6ae4eba5cf698b39570bd42f9060e535e76f09",
+    ".agents/project/audits/artisan-tutorial/section-map.json": "7a25aa3b0f671eb0562ec5de288b42f95d0009fd1a31d85ea575fd6295b5ef42"
+  },
+  "passed": {
+    "framework": 118,
+    "root": 119
+  },
+  "unique_parent_tests": 237,
+  "ignored_driven_fixtures_excluded": 18,
+  "compile_fail_consumers": 2,
+  "formal_trilingual_examples": 78,
+  "fixed_render_cases": 490,
+  "expected_render_errors": 4,
+  "fixed_getter_cases": 26,
+  "getter_runtime_cases": 22,
+  "getter_rejections_native_compiletime": 4,
+  "repeated_render_vectors": 2,
+  "repeated_render_steps_per_vector": 5,
+  "source_stderr_bytes": {
+    "render": 3328,
+    "getters": 250,
+    "state": 0
+  },
+  "strict_clippy_time": "1m 30s",
+  "browser_cases": 12,
+  "real_http": true,
+  "real_artisan": true,
+  "gates_before_cleanup": [
+    "framework",
+    "rustdoc",
+    "root",
+    "fmt"
+  ],
+  "resumed_gates": [
+    {
+      "name": "final-clippy",
+      "returncode": 0
+    },
+    {
+      "name": "final-main",
+      "returncode": 0
+    },
+    {
+      "name": "final-docs",
+      "returncode": 0
+    }
+  ],
+  "limitations": [
+    "Actual ConsoleSectionOutput/appendRow and remaining Artisan SDK remain open",
+    "No complete active worktree, Windows release matrix or entire chapter acceptance claimed"
+  ]
+}

@@ -1,4 +1,4 @@
-use super::{ArrayKey, ConsoleError, Table, TableCell, TableRow, template};
+use super::{ArrayKey, ConsoleError, Table, TableCell, TableRow};
 use std::collections::BTreeSet;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(super) enum Orientation {
@@ -10,7 +10,6 @@ pub(super) enum Orientation {
 pub(super) struct OrientedRows {
     pub(super) headers: Vec<Vec<String>>,
     pub(super) rows: Vec<Vec<String>>,
-    pub(super) rules: BTreeSet<usize>,
     pub(super) header_attributes: super::AttributeRows,
     pub(super) row_attributes: super::AttributeRows,
     pub(super) separators: BTreeSet<usize>,
@@ -93,7 +92,6 @@ impl Table<'_, '_> {
         let mut result = OrientedRows {
             headers: Vec::new(),
             rows: Vec::new(),
-            rules: BTreeSet::new(),
             header_attributes: super::AttributeRows::new(),
             row_attributes: super::AttributeRows::new(),
             separators: BTreeSet::new(),
@@ -131,7 +129,7 @@ impl Table<'_, '_> {
                                     .insert(index, attributes);
                             }
                             row.push(cell.to_string());
-                        } else {
+                        } else if header.get_colspan() < 2 {
                             row.push(String::new());
                         }
                     }
@@ -152,8 +150,21 @@ impl Table<'_, '_> {
                     .map(|(_, row)| row.clone())
                     .collect();
                 for source in sources {
+                    let contains_colspan = source.iter().any(|cell| cell.get_colspan() >= 2);
                     if !result.rows.is_empty() {
-                        result.rules.insert(result.rows.len());
+                        result
+                            .row_attributes
+                            .entry(result.rows.len())
+                            .or_default()
+                            .insert(
+                                0,
+                                super::Attributes {
+                                    style: None,
+                                    separator: true,
+                                    colspan: 1,
+                                    rowspan: 1,
+                                },
+                            );
                         result.rows.push(vec![String::new()]);
                     }
                     for column in 0..headers.len().max(source.len()) {
@@ -163,7 +174,7 @@ impl Table<'_, '_> {
                             .unwrap_or_default();
                         let separator = if cell.contains("\r\n") { "\r\n" } else { "\n" };
                         for (index, part) in cell.split(separator).enumerate() {
-                            if !headers.is_empty() {
+                            if !headers.is_empty() && !contains_colspan {
                                 if index == 0 {
                                     let header = headers
                                         .get(column)
@@ -196,20 +207,6 @@ impl Table<'_, '_> {
         )
         .map_err(ConsoleError::from_source)?;
         Ok(super::width(&plain))
-    }
-    pub(super) fn rule_row(&mut self, widths: &[i64]) -> Result<(), ConsoleError> {
-        let width = widths.first().copied().unwrap_or(0);
-        let width = usize::try_from(width).map_err(ConsoleError::from_source)?;
-        let style = self.get_column_style(0).snapshot();
-        let cell = template(&style.border_format, &style.borders[2].repeat(width))?;
-        let border = template(
-            &self.style.get_border_format(),
-            &self.style.get_border_chars()[1],
-        )?;
-        self.output.writeln(
-            format!("{border}{cell}{border}").as_str(),
-            super::OutputVerbosity::Normal,
-        )
     }
 }
 

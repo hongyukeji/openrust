@@ -3,13 +3,17 @@ use std::fmt::{self, Display};
 #[derive(Clone, Debug)]
 pub struct TableCell {
     value: String,
-    style: Option<super::TableCellStyle>,
+    options: Option<Box<TableCellOptions>>,
     separator: bool,
     explicit: bool,
 }
 impl PartialEq for TableCell {
     fn eq(&self, other: &Self) -> bool {
-        self.value == other.value && self.style == other.style && self.separator == other.separator
+        self.value == other.value
+            && self.separator == other.separator
+            && self.get_style() == other.get_style()
+            && self.get_colspan() == other.get_colspan()
+            && self.get_rowspan() == other.get_rowspan()
     }
 }
 impl Eq for TableCell {}
@@ -18,7 +22,7 @@ impl TableCell {
         let value: Self = value.into();
         Self {
             value: value.value,
-            style: None,
+            options: None,
             separator: false,
             explicit: true,
         }
@@ -26,36 +30,62 @@ impl TableCell {
     fn text(value: String) -> Self {
         Self {
             value,
-            style: None,
+            options: None,
             separator: false,
             explicit: false,
         }
     }
+    fn options_mut(&mut self) -> &mut TableCellOptions {
+        self.options
+            .get_or_insert_with(|| Box::new(TableCellOptions::default()))
+    }
     pub fn with_style(mut self, style: super::TableCellStyle) -> Self {
-        self.style = Some(style);
+        self.options_mut().style = Some(style);
         self.explicit = true;
         self
     }
     pub fn get_style(&self) -> Option<&super::TableCellStyle> {
-        self.style.as_ref()
+        self.options
+            .as_deref()
+            .and_then(|options| options.style.as_ref())
+    }
+    pub fn with_options(mut self, options: TableCellOptions) -> Self {
+        self.options = Some(Box::new(options));
+        self.explicit = true;
+        self
+    }
+    pub fn with_colspan(mut self, value: impl Into<serde_json::Value>) -> Self {
+        self.options_mut().colspan = value.into();
+        self.explicit = true;
+        self
+    }
+    pub fn with_rowspan(mut self, value: impl Into<serde_json::Value>) -> Self {
+        self.options_mut().rowspan = value.into();
+        self.explicit = true;
+        self
+    }
+    pub fn get_colspan(&self) -> i64 {
+        self.options.as_ref().map_or(1, |options| {
+            crate::support::input_scalars::integer(&options.colspan)
+        })
+    }
+    pub fn get_rowspan(&self) -> i64 {
+        self.options.as_ref().map_or(1, |options| {
+            crate::support::input_scalars::integer(&options.rowspan)
+        })
     }
     pub(super) fn attributes(&self) -> Option<super::cell_style::Attributes> {
-        if self.separator {
-            Some(super::cell_style::Attributes::Separator)
-        } else {
-            self.style
-                .clone()
-                .map(super::cell_style::Attributes::Style)
-                .or_else(|| {
-                    self.explicit
-                        .then_some(super::cell_style::Attributes::Plain)
-                })
-        }
+        self.explicit.then(|| super::cell_style::Attributes {
+            style: self.get_style().cloned(),
+            separator: self.separator,
+            colspan: self.get_colspan(),
+            rowspan: self.get_rowspan(),
+        })
     }
     pub(super) fn separator() -> Self {
         Self {
             value: String::new(),
-            style: None,
+            options: None,
             separator: true,
             explicit: true,
         }
@@ -131,12 +161,45 @@ impl From<f32> for TableCell {
 }
 
 impl From<super::TableSeparator> for TableCell {
-    fn from(_: super::TableSeparator) -> Self {
-        Self::separator()
+    fn from(separator: super::TableSeparator) -> Self {
+        separator.cell
     }
 }
 impl From<&TableCell> for TableCell {
     fn from(cell: &TableCell) -> Self {
         cell.clone()
+    }
+}
+
+/// 可选构造参数；跨度复用既有纯量转换，样式通过类型系统限定为有效对象。
+///
+/// 未知选项由正式参数类型拒绝：
+/// ```compile_fail,E0560
+/// use openrust::console::TableCellOptions;
+/// let _ = TableCellOptions { unknown: serde_json::Value::Null, ..Default::default() };
+/// ```
+/// 样式必须是对应对象，不能以普通值冒充：
+/// ```compile_fail,E0308
+/// use openrust::console::TableCellOptions;
+/// let _ = TableCellOptions { style: Some(serde_json::json!("invalid")), ..Default::default() };
+/// ```
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TableCellOptions {
+    pub colspan: serde_json::Value,
+    pub rowspan: serde_json::Value,
+    pub style: Option<super::TableCellStyle>,
+}
+impl Default for TableCellOptions {
+    fn default() -> Self {
+        Self {
+            colspan: 1.into(),
+            rowspan: 1.into(),
+            style: None,
+        }
+    }
+}
+impl Default for TableCell {
+    fn default() -> Self {
+        Self::new("")
     }
 }

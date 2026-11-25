@@ -334,7 +334,7 @@
     },
     {
       "anchor": "tables",
-      "status": "verified_cell_styles_and_default_separators_rows_layout_shared_styles_remaining_spans_sections",
+      "status": "verified_full_cell_separator_options_spans_and_table_layout_remaining_section_redraw",
       "evidence": [
         "console_tables_tutorial",
         "table-oracle.json",
@@ -355,11 +355,16 @@
         "table-cell-style-getters-oracle.json",
         "table-cell-row-format-oracle.json",
         "table-cell-live-format-oracle.json",
-        "accepted-table-cell-styles.json"
+        "accepted-table-cell-styles.json",
+        "console_table_spans",
+        "table-spans-oracle.json",
+        "table-span-getters-oracle.json",
+        "table-spans-state-oracle.json",
+        "accepted-table-spans.json"
       ],
       "native": "console::CommandIo::table",
       "remaining": [
-        "完整Table SDK的宽度／标题／方向／样式注册、跨行跨列及TableSeparator继续逐项核对；不把矩形教程验收算作全部Table类型已闭合"
+        "Table::append_row需实际ConsoleSectionOutput清除／重排；其余继承组件SDK仍逐入口核对，不关闭整章。"
       ]
     },
     {

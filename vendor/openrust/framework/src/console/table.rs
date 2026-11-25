@@ -6,12 +6,13 @@ mod cell_style;
 pub use cell_style::TableCellStyle;
 use cell_style::{AttributeRows, Attributes};
 mod cell;
-pub use cell::TableCell;
+pub use cell::{TableCell, TableCellOptions};
 
 mod definitions;
 pub(crate) use definitions::Definitions as TableDefinitions;
 mod layout;
 mod row;
+mod span_layout;
 pub use row::{TableRow, TableSeparator};
 mod rows;
 use crate::support::ArrayKey;
@@ -107,19 +108,17 @@ impl<'a, 'o> Table<'a, 'o> {
     pub fn render(&mut self) -> Result<(), ConsoleError> {
         let prepared = self.prepare_layout()?;
         let (headers, rows) = (&prepared.headers, &prepared.rows);
-        let count = headers
-            .iter()
-            .chain(rows)
-            .map(Vec::len)
-            .max()
-            .unwrap_or_default();
-        if count == 0 {
+        let count = prepared.number_of_columns;
+        if count == 0 && headers.iter().chain(rows).all(Vec::is_empty) {
             return Ok(());
         }
         let widths = self.calculate_widths(&prepared, count)?;
         let mut title_pending = true;
         for (index, row) in headers.iter().enumerate() {
-            if !row.is_empty() && self.style.display_outside_border() {
+            if !row.is_empty()
+                && !prepared.header_continuations.contains(&index)
+                && self.style.display_outside_border()
+            {
                 self.separator(&widths, 0, title_pending)?;
                 title_pending = false;
             }
@@ -148,17 +147,13 @@ impl<'a, 'o> Table<'a, 'o> {
                 }
                 first_row = false;
             }
-            if prepared.rules.contains(&index) {
-                self.rule_row(&widths)?;
-            } else {
-                self.row(
-                    row,
-                    &widths,
-                    false,
-                    prepared.unsplit_rows.get(&index),
-                    prepared.row_attributes.get(&index),
-                )?;
-            }
+            self.row(
+                row,
+                &widths,
+                false,
+                prepared.unsplit_rows.get(&index),
+                prepared.row_attributes.get(&index),
+            )?;
         }
         if self.style.display_outside_border() {
             self.separator(&widths, 2, false)?;
@@ -171,6 +166,9 @@ impl<'a, 'o> Table<'a, 'o> {
         position: usize,
         include_header: bool,
     ) -> Result<(), ConsoleError> {
+        if widths.is_empty() {
+            return Ok(());
+        }
         let style = self.style.snapshot();
         let b = &style.borders;
         let c = &style.crossings;
@@ -235,25 +233,80 @@ impl<'a, 'o> Table<'a, 'o> {
             let first_format = (self.orientation == Orientation::Horizontal)
                 .then(|| self.style.get_cell_header_format());
             let mut line = self.column_separator(false)?;
-            for (column, target) in widths.iter().enumerate() {
+            let mut columns: Vec<Option<usize>> = if widths.is_empty() {
+                vec![Some(0), None]
+            } else {
+                (0..widths.len()).map(Some).collect()
+            };
+            if let Some(attributes) = attributes {
+                for (index, attribute) in attributes {
+                    if attribute.colspan > 1 {
+                        let end = index
+                            .checked_add(
+                                usize::try_from(attribute.colspan)
+                                    .map_err(ConsoleError::from_source)?,
+                            )
+                            .ok_or_else(|| {
+                                ConsoleError::from_source(ConsoleTableError::InvalidSpanLayout)
+                            })?;
+                        columns.retain(|column| {
+                            column.is_none_or(|column| column <= *index || column >= end)
+                        });
+                    }
+                }
+            }
+            let last = columns.len().saturating_sub(1);
+            for (position, column) in columns.into_iter().enumerate() {
+                let key = column.unwrap_or(usize::MAX);
                 let cell = parts
-                    .get(column)
+                    .get(key)
                     .and_then(|part| part.get(index))
                     .map(String::as_str)
                     .unwrap_or("");
+                let attribute = column.and_then(|key| attributes.and_then(|row| row.get(&key)));
+                let mut target = column
+                    .and_then(|column| widths.get(column))
+                    .copied()
+                    .unwrap_or(0);
+                if let Some(attribute) = attribute.filter(|attribute| attribute.colspan > 1) {
+                    let start = column.ok_or_else(|| {
+                        ConsoleError::from_source(ConsoleTableError::InvalidSpanLayout)
+                    })?;
+                    let border = i64::try_from(width(&self.column_separator(true)?))
+                        .map_err(ConsoleError::from_source)?;
+                    for offset in 1..attribute.colspan {
+                        let next = start
+                            .checked_add(
+                                usize::try_from(offset).map_err(ConsoleError::from_source)?,
+                            )
+                            .ok_or_else(|| {
+                                ConsoleError::from_source(ConsoleTableError::InvalidSpanLayout)
+                            })?;
+                        target = target
+                            .checked_add(border)
+                            .and_then(|value| {
+                                value.checked_add(widths.get(next).copied().unwrap_or(0))
+                            })
+                            .ok_or_else(|| {
+                                ConsoleError::from_source(ConsoleTableError::InvalidColumnWidth(
+                                    target,
+                                ))
+                            })?;
+                    }
+                }
                 let rendered = self.render_cell(
                     cell,
-                    *target,
+                    target,
                     column,
-                    if column == 0 {
+                    if position == 0 {
                         first_format.as_deref().unwrap_or(&cell_format)
                     } else {
                         &cell_format
                     },
-                    attributes.and_then(|row| row.get(&column)),
+                    attribute,
                 )?;
                 line.push_str(&rendered);
-                line.push_str(&self.column_separator(column + 1 < widths.len())?);
+                line.push_str(&self.column_separator(column.unwrap_or(position) != last)?);
             }
             self.output
                 .writeln(line.as_str(), OutputVerbosity::Normal)?;
@@ -297,15 +350,15 @@ impl<'a, 'o> Table<'a, 'o> {
                         .iter()
                         .map(|column| column.get(line).cloned().unwrap_or_default())
                         .collect::<Vec<_>>();
-                    let mut attrs = attributes.get(&index).cloned().unwrap_or_default();
-                    if body && prepared.rules.contains(&index) {
-                        attrs.insert(0, Attributes::Separator);
-                    }
+                    let attrs = attributes.get(&index).cloned().unwrap_or_default();
                     physical.push((values, attrs));
                 }
             }
         }
-        let mut widths = Vec::with_capacity(count);
+        let mut widths = Vec::new();
+        widths
+            .try_reserve(count)
+            .map_err(|error| ConsoleError::from_source(ConsoleTableError::Allocation(error)))?;
         for column in 0..count {
             let mut maximum: Option<i64> = None;
             for (row, attributes) in &physical {
@@ -314,7 +367,7 @@ impl<'a, 'o> Table<'a, 'o> {
                     row
                 } else {
                     transformed = row.clone();
-                    for index in attributes.keys() {
+                    for (index, attribute) in attributes {
                         if let Some(value) = row.get(*index) {
                             let visible = super::formatting::unformatted_text(
                                 &mut self.output.get_output().formatter,
@@ -324,7 +377,15 @@ impl<'a, 'o> Table<'a, 'o> {
                             let length = width(&visible);
                             if length > 0 {
                                 let chars: Vec<_> = visible.chars().collect();
-                                for (position, chunk) in chars.chunks(length).enumerate() {
+                                if attribute.colspan <= 0 {
+                                    return Err(ConsoleError::from_source(
+                                        ConsoleTableError::InvalidSpanLayout,
+                                    ));
+                                }
+                                let divisor = usize::try_from(attribute.colspan)
+                                    .map_err(ConsoleError::from_source)?;
+                                let split = length.div_ceil(divisor);
+                                for (position, chunk) in chars.chunks(split).enumerate() {
                                     let target = index.checked_add(position).ok_or_else(|| {
                                         ConsoleError::from_source(
                                             ConsoleTableError::InvalidColumnWidth(i64::MAX),
@@ -371,12 +432,15 @@ impl<'a, 'o> Table<'a, 'o> {
         &mut self,
         cell: &str,
         target: i64,
-        column: usize,
+        column: Option<usize>,
         cell_format: &str,
         attributes: Option<&Attributes>,
     ) -> Result<String, ConsoleError> {
-        if matches!(attributes, Some(Attributes::Separator)) {
-            let style = self.get_column_style(column).snapshot();
+        if attributes.is_some_and(|attributes| attributes.separator) {
+            let style = column
+                .map(|column| self.get_column_style(column))
+                .unwrap_or(&self.style)
+                .snapshot();
             let target = usize::try_from(target).map_err(|_| {
                 ConsoleError::from_source(ConsoleTableError::InvalidColumnWidth(target))
             })?;
@@ -385,7 +449,10 @@ impl<'a, 'o> Table<'a, 'o> {
         let visible =
             super::formatting::unformatted_text(&mut self.output.get_output().formatter, cell)
                 .map_err(ConsoleError::from_source)?;
-        let style = self.get_column_style(column).snapshot();
+        let style = column
+            .map(|column| self.get_column_style(column))
+            .unwrap_or(&self.style)
+            .snapshot();
         let mut content = template(&style.cell_row_content_format, cell)?;
         let mut target = target + i64::try_from(cell.len()).map_err(ConsoleError::from_source)?
             - i64::try_from(width(&visible)).map_err(ConsoleError::from_source)?
@@ -393,7 +460,7 @@ impl<'a, 'o> Table<'a, 'o> {
                 .map_err(ConsoleError::from_source)?;
         let mut format = cell_format.to_owned();
         let mut pad_type = style.pad_type;
-        if let Some(Attributes::Style(cell_style)) = attributes {
+        if let Some(cell_style) = attributes.and_then(|attributes| attributes.style.as_ref()) {
             if !tag_styled(cell) {
                 format = cell_style.format()?;
                 if content.contains("</>") {

@@ -619,7 +619,7 @@ fn register_tables() -> Result<(), ConsoleError> {
 
 `table_with` selects a `TableStyle`; `table_with_columns` additionally accepts `(column_index, style)` pairs. `TableStyle::from_name` provides `default`, `markdown`, `borderless`, `compact`, `symfony-style-guide`, `box`, and `box-double`. Customize a style with its border, padding and format setters. `TablePadding::{Left, Right, Both}` names the side that receives padding; `Right` is the default.
 
-For direct rendering, build `Table::new(io.get_output())?`, set headers, rows and column styles, then call `render()`. `TableCell::display(value)` explicitly adapts a business type implementing `Display`; JSON values and ordinary scalars convert directly. Multi-line cells, visible Unicode width, formatter tags, ANSI output and quiet/silent filtering share the original output pipeline. This rectangular-table interface does not claim support for cell spans or the entire inherited helper SDK.
+For direct rendering, build `Table::new(io.get_output())?`, set headers, rows and column styles, then call `render()`. `TableCell::display(value)` explicitly adapts a business type implementing `Display`; JSON values and ordinary scalars convert directly. Multi-line cells, visible Unicode width, formatter tags, ANSI output and quiet/silent filtering share the original output pipeline. This rectangular-table interface does not claim support for the entire inherited helper SDK.
 
 ## Progress Bars {#progress-bars}
 
@@ -953,7 +953,7 @@ fn register_layout() -> Result<(), ConsoleError> {
 
 Titles use `set_header_title` and `set_footer_title`; pass `None` to clear them. The header treats empty text and "0" as absent, while an explicitly empty footer still uses its title format. `get_style_mut` and `get_column_style_mut` provide mutable access without removing the existing read-only getters. An unconfigured column falls back to the table’s actual style.
 
-Widths remain signed: non-positive values follow their rendering rules rather than being silently replaced with defaults. A zero maximum does not wrap text; incompatible effective widths can fail during rendering after earlier output has already been written. Propagate `render` failures. Wrapping reuses the active `WrappableOutputFormatterInterface`, including custom implementations. Titles are centered and truncated using their visible width and configured formats. Named mutable registries, complex rows and merged cells are separate SDK entries.
+Widths remain signed: non-positive values follow their rendering rules rather than being silently replaced with defaults. A zero maximum does not wrap text; incompatible effective widths can fail during rendering after earlier output has already been written. Propagate `render` failures. Wrapping reuses the active `WrappableOutputFormatterInterface`, including custom implementations. Titles are centered and truncated using their visible width and configured formats. Named definitions and merged layouts are covered in [Named Table Styles](#table-style-definitions) and [Spanning Cells](#table-cell-spans).
 
 Table uses returned wrapping text for line expansion only when it contains LF. Otherwise it keeps the original cell; existing raw newlines remain raw rather than being expanded into table rows. Custom wrapping is not a general cell-content transformation hook.
 
@@ -983,7 +983,7 @@ fn register_rows() -> Result<(), ConsoleError> {
 }
 ```
 
-`set_headers_rows` accepts multiple header rows; the existing `set_headers` remains the single-row form. `set_horizontal(true)` transposes the first header row into leading header cells. `set_vertical(true)` formats records with labels from that same first header row and separators between records. Both setters with false restore the default orientation rather than a previous direction. Layout derives from stored rows on each render and preserves width/title settings. Named style registries, explicit separator objects, merged cells and console sections are tracked separately.
+`set_headers_rows` accepts multiple header rows; the existing `set_headers` remains the single-row form. `set_horizontal(true)` transposes the first header row into leading header cells. `set_vertical(true)` formats records with labels from that same first header row and separators between records. Both setters with false restore the default orientation rather than a previous direction. Layout derives from stored rows on each render and preserves width/title settings. See [Named Table Styles](#table-style-definitions), [Row Separators](#table-row-separators) and [Spanning Cells](#table-cell-spans) for those layout options.
 
 ## Named Table Styles {#table-style-definitions}
 
@@ -1018,7 +1018,7 @@ fn register_table_styles() -> Result<(), ConsoleError> {
 }
 ```
 
-`set_style_named` and `set_column_style_named` resolve names and return errors for undefined definitions. The typed setters also accept borrowed styles. The `table` convenience method uses the application's current default. Use `table_named` or `table_with_named_columns` for named table and column styles. Explicit separator cells, spans and section redraw are still separate capabilities.
+`set_style_named` and `set_column_style_named` resolve names and return errors for undefined definitions. The typed setters also accept borrowed styles. The `table` convenience method uses the application's current default. Use `table_named` or `table_with_named_columns` for named table and column styles. Separator cells and spans are described in [Spanning Cells](#table-cell-spans).
 
 ## Explicit Row Separators {#table-row-separators}
 
@@ -1044,7 +1044,7 @@ fn register_separators() -> Result<(), ConsoleError> {
 }
 ```
 
-`set_rows`, `add_rows`, `add_row` and the table convenience methods accept these heterogeneous rows. `add_row` and `add_rows` continue to propagate index exhaustion with `?`; `set_row` replaces a separator with a data array at the same key. Leading, trailing and consecutive separators retain their declared order. Horizontal and vertical layouts omit explicit whole-row separators; vertical layout continues to generate its own record separators. Complex separator-cell options, spans and section redraw remain separate capabilities.
+`set_rows`, `add_rows`, `add_row` and the table convenience methods accept these heterogeneous rows. `add_row` and `add_rows` continue to propagate index exhaustion with `?`; `set_row` replaces a separator with a data array at the same key. Leading, trailing and consecutive separators retain their declared order. Horizontal and vertical layouts omit explicit whole-row separators; vertical layout continues to generate its own record separators. Cell-level separator options and spans are described in [Spanning Cells](#table-cell-spans).
 
 ## Cell Styles and Inner Separators {#table-cell-styles}
 
@@ -1078,6 +1078,43 @@ fn register_cell_styles() -> Result<(), ConsoleError> {
 
 Use `TableCell::with_style` to attach an immutable style and `get_style` to inspect it. Existing complete formatter tags keep their text styling, while the cell alignment still applies. Without such tags, `cellFormat` overrides the generated color tag. Width wrapping and multi-line expansion create plain line cells and can discard the original per-cell style; horizontal layout preserves moved cell styles, while vertical layout converts values to text.
 
-A `TableSeparator` converted into a cell draws that column's inside border using its column style. It differs from a whole-row `TableRow::Separator`. Cell spans, separator constructor options and section redraw remain separately tracked capabilities.
+A `TableSeparator` converted into a cell draws that column's inside border using its column style. It differs from a whole-row `TableRow::Separator`. For spans and separator constructor options, see [Spanning Cells](#table-cell-spans).
 
 Each physical output line snapshots its row text format at the start. Formatting callbacks can change subsequent borders and the next line; a format change does not rewrite cells already being rendered.
+
+## Spanning Cells and Constructor Options {#table-cell-spans}
+
+Use `with_colspan` and `with_rowspan` for merged cells. `get_colspan` and `get_rowspan` return signed integers using the shared scalar conversion rules. Both default to `1`; constructor options retain supplied values, including zero and negative values, and the layout propagates calculation errors when those values cannot be used.
+
+```rust
+use openrust::{
+    console::{ConsoleError, Input, Output, Table, TableCell},
+    support::facades::Artisan,
+};
+
+fn register_spans() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:spans", |input: &Input, output: &mut Output| {
+        let headers = vec![
+            vec![TableCell::new("Summary").with_colspan(2)],
+            vec!["Name".into(), "Score".into()],
+        ];
+        let rows = vec![
+            vec![TableCell::new("Ada").with_rowspan(2), "42".into()],
+            vec!["7".into()],
+            vec![TableCell::new("Total").with_colspan(2)],
+        ];
+        let mut io = input.io(output);
+        Table::new(io.get_output())?
+            .set_headers_rows(headers)
+            .set_rows(rows)
+            .set_style_named("box-double")?
+            .render()?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
+`TableCellOptions` groups `colspan`, `rowspan` and `style`; pass it to `with_options` on a cell or separator. Span fields store JSON values, while `style` is `Option<TableCellStyle>`. Unknown fields and values pretending to be a style object fail type checking. `TableCell::default()` creates an empty cell; wrapping an existing cell with `TableCell::new` starts with default options again.
+
+`TableSeparator` retains its options and inherited getters, and supports `Clone`. Use a clone when reusing one separator in multiple owned rows. Spans interact with multi-row headers, row filling, orientation and column wrapping. Layout can update column minima; `set_column_widths([])` clears those minima and retains maximum-width constraints. Console-section redraw through `append_row` is not available yet.

@@ -1,12 +1,32 @@
 use super::TableCell;
 /// 整行分隔线；与空数据行区分，不参与列宽计算。
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TableSeparator {
-    _private: (),
+    pub(super) cell: TableCell,
+}
+impl Default for TableSeparator {
+    fn default() -> Self {
+        Self {
+            cell: TableCell::separator(),
+        }
+    }
 }
 impl TableSeparator {
     pub fn new() -> Self {
         Self::default()
+    }
+    pub fn with_options(mut self, options: super::TableCellOptions) -> Self {
+        self.cell = self.cell.with_options(options);
+        self
+    }
+    pub fn get_colspan(&self) -> i64 {
+        self.cell.get_colspan()
+    }
+    pub fn get_rowspan(&self) -> i64 {
+        self.cell.get_rowspan()
+    }
+    pub fn get_style(&self) -> Option<&super::TableCellStyle> {
+        self.cell.get_style()
     }
 }
 /// 异构行集合保留数据行与显式分隔线的区别。
@@ -37,6 +57,6 @@ impl From<&TableRow> for TableRow {
 }
 impl From<&TableSeparator> for TableRow {
     fn from(separator: &TableSeparator) -> Self {
-        Self::Separator(*separator)
+        Self::Separator(separator.clone())
     }
 }
