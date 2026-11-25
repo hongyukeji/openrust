@@ -154,3 +154,11 @@ Route::get("/visits", || async {
 逐条调用 `SessionManager::read_database_session(&id).await?`，复用原生解密及 Store 解码，保持只读，不保存、不刷新活动时间、不回收会话，也不替换当前请求的会话。非法 ID 返回错误；缺失、过期或 JSON 无法解码时没有认证登录属性。使用 `SessionGuard::session_belongs_to_user(config, guard, user, &attributes)?` 核对：必须具有匹配的 Guard 登录身份及当前凭据指纹，缺失、伪造或过期指纹不能通过。
 
 这些底层入口把敏感内部 ID 和属性交给受信任的服务端代码。公开设备响应须另做授权并使用不透明标识，禁止序列化整份会话或泄露原始 ID、CSRF 令牌及登录指纹。设备撤销和账户管理路由属于另外的生命周期操作。
+
+## 附加会话身份策略 {#session-identity-policies}
+
+通过 `Auth::add_session_validator("device-policy", callback)?` 注册所属应用的异步策略。回调接收实际 Guard 名称、已解析用户和只读的原生 Store，返回 `AuthFuture<AuthResult<bool>>`，原生密码／凭据检查仍须通过。返回 `false` 会拒绝认证并以401清除已解析设备状态；错误向外传播，不回退放行。remember 恢复也会在重新生成会话 ID 前执行策略，可核对原始会话。
+
+具名注册保持幂等：同名替换保留原注册位置，不同名称依次执行，遇拒绝或错误即停止。`Auth::remove_session_validator("device-policy")?` 返回是否移除了策略。注册、替换和删除只影响所属应用的 AuthManager；回调在释放注册表锁后异步执行。成功解析后，当前请求继续复用原生缓存身份。这是新认证解析的边界，不追溯取消正在执行业务的请求。
+
+策略作用于 AuthManager 创建的会话 Guard；直接使用底层 `SessionGuard::new` 不附带应用注册表。没有策略时保持原生行为。这些入口提供持久化设备规则的接线点，设备撤销仍需具有授权的持久化状态及事务规则。

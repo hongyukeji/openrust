@@ -154,3 +154,11 @@ Route::get("/visits", || async {
 逐筆呼叫 `SessionManager::read_database_session(&id).await?`，沿用原生解密及 Store 解碼，保持唯讀，不儲存、不更新活動時間、不回收工作階段，也不替換目前請求的工作階段。非法 ID 回傳錯誤；缺失、過期或 JSON 無法解碼時沒有認證登入屬性。使用 `SessionGuard::session_belongs_to_user(config, guard, user, &attributes)?` 核對：必須具有相符的 Guard 登入身分與目前憑證指紋，缺失、偽造或過期指紋不能通過。
 
 這些底層入口將敏感內部 ID 與屬性交給受信任的伺服器程式。公開裝置回應須另做授權並使用不透明識別碼，禁止序列化整份工作階段或洩漏原始 ID、CSRF 權杖與登入指紋。裝置撤銷與帳戶管理路由屬於另外的生命週期操作。
+
+## 附加工作階段身分策略 {#session-identity-policies}
+
+透過 `Auth::add_session_validator("device-policy", callback)?` 註冊所屬應用的非同步策略。回呼接收實際 Guard 名稱、已解析使用者與唯讀原生 Store，回傳 `AuthFuture<AuthResult<bool>>`，原生密碼／憑證檢查仍須通過。回傳 `false` 會拒絕認證並以401清除已解析裝置狀態；錯誤向外傳遞，不回退放行。remember 恢復也會在重新產生工作階段 ID 前執行策略，可核對原始工作階段。
+
+具名註冊保持冪等：同名替換保留原註冊位置，不同名稱依序執行，遇拒絕或錯誤即停止。`Auth::remove_session_validator("device-policy")?` 回傳是否移除了策略。註冊、替換與刪除只影響所屬應用的 AuthManager；回呼在釋放註冊表鎖後非同步執行。成功解析後，目前請求繼續沿用原生快取身分。這是新認證解析的邊界，不追溯取消正在執行業務的請求。
+
+策略套用於 AuthManager 建立的工作階段 Guard；直接使用底層 `SessionGuard::new` 不附帶應用註冊表。沒有策略時保持原生行為。這些入口提供持久化裝置規則的接線點，裝置撤銷仍需具有授權的持久化狀態及交易規則。

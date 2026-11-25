@@ -161,6 +161,7 @@ pub struct SessionGuard<'a> {
     rehash: bool,
     fingerprint_on_login: bool,
     owner: Weak<Container>,
+    managed: bool,
 }
 
 impl<'a> SessionGuard<'a> {
@@ -180,6 +181,7 @@ impl<'a> SessionGuard<'a> {
             rehash: true,
             fingerprint_on_login: false,
             owner: Weak::new(),
+            managed: false,
         }
     }
 
@@ -194,6 +196,7 @@ impl<'a> SessionGuard<'a> {
         self.rehash = rehash;
         self.fingerprint_on_login = fingerprint_on_login;
         self.owner = owner;
+        self.managed = true;
         self
     }
 
@@ -386,6 +389,38 @@ impl<'a> SessionGuard<'a> {
         session.put(&key, value).map_err(AuthError::backend)
     }
 
+    async fn additional_session_is_valid(
+        &mut self,
+        user: &dyn Authenticatable,
+    ) -> AuthResult<bool> {
+        if !self.managed {
+            return Ok(true);
+        }
+        let owner = self
+            .owner
+            .upgrade()
+            .ok_or(AuthError::Configuration("认证会话所属应用"))?;
+        owner
+            .make::<super::AuthManager>()?
+            .validate_session(&self.name, user, self.request.session()?)
+            .await
+    }
+
+    async fn reject_session(&mut self, user: Box<dyn Authenticatable>) -> AuthResult<()> {
+        self.clear_device()?;
+        self.session()?.flush();
+        AuthContext::set(self.request, &self.name, None, false);
+        self.emit(
+            CurrentDeviceLogout {
+                guard: self.name.clone(),
+                user: Some(user.into()),
+            },
+            &[],
+        )
+        .await?;
+        Err(crate::http::HttpError::Unauthenticated.into())
+    }
+
     async fn resolve(&mut self) -> AuthResult<()> {
         if self.state().is_some_and(|state| state.resolved) {
             return Ok(());
@@ -399,24 +434,19 @@ impl<'a> SessionGuard<'a> {
         if let Some(id) = id
             && let Some(user) = self.provider.retrieve_by_id(&id).await?
         {
-            if !self.login_fingerprint_matches(user.as_ref())? {
-                // 在Guard读取时拒绝旧凭据，不能依赖每条业务路由都额外声明auth.session。
-                self.clear_device()?;
-                self.session()?.flush();
-                AuthContext::set(self.request, &self.name, None, false);
-                self.emit(
-                    CurrentDeviceLogout {
-                        guard: self.name.clone(),
-                        user: Some(user.into()),
-                    },
-                    &[],
-                )
-                .await?;
-                return Err(crate::http::HttpError::Unauthenticated.into());
+            if !self.login_fingerprint_matches(user.as_ref())?
+                || !self.additional_session_is_valid(user.as_ref()).await?
+            {
+                // 在Guard解析时拒绝已失效凭据，任何业务路由都不能绕过策略。
+                return self.reject_session(user).await;
             }
             return self.set_user_async(user).await;
         }
         if let Some(user) = self.recall().await? {
+            // 必须在remember恢复轮换ID前检查原会话，防止被撤销会话借恢复获得新ID。
+            if !self.additional_session_is_valid(user.as_ref()).await? {
+                return self.reject_session(user).await;
+            }
             let user: Arc<dyn Authenticatable> = user.into();
             self.update_session(&user.get_auth_identifier()).await?;
             self.store_login_fingerprint(user.as_ref())?;

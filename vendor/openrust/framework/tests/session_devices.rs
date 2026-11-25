@@ -36,6 +36,22 @@ fn settings(encrypt: bool) -> BTreeMap<String, Json> {
         ("auth".into(),json!({"defaults":{"guard":"web"},"guards":{"web":{"driver":"session","provider":"users"},"admin":{"driver":"session","provider":"users"}},"providers":{"users":{"driver":"database","table":format!("device_users_{suffix}")}},"session_fingerprint_on_login":true,"session_credential_version_attribute":"credential_version"})),
     ].into()
 }
+async fn restored_request(id: &str, attributes: &BTreeMap<String, Json>) -> Request {
+    let mut store = Store::new(
+        "validator_cookie",
+        Box::new(ArraySessionHandler::new(Duration::from_secs(120))),
+    )
+    .unwrap();
+    store.set_id(Some(id)).unwrap();
+    store.start().await.unwrap();
+    for (key, value) in attributes {
+        store.put(key, value.clone()).unwrap();
+    }
+    let mut request: Request = http::Request::new(Body::empty()).into();
+    request.set_session(store);
+    request
+}
+
 async fn verify(encrypt: bool) {
     let builder = Application::configure(std::env::temp_dir());
     let builder = if encrypt {
@@ -152,6 +168,91 @@ async fn verify(encrypt: bool) {
             !SessionGuard::session_belongs_to_user(config.as_ref(), "admin", &user, &attributes)
                 .unwrap()
         );
+        use openrust::contracts::auth::Guard as _;
+        let order = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let first_order = order.clone();
+        Auth::add_session_validator("first", move |guard, user, session| {
+            let first_order = first_order.clone();
+            Box::pin(async move {
+                assert_eq!(guard, "web");
+                assert_eq!(user.get_auth_identifier().to_string(), "7");
+                assert_eq!(session.get_id().len(), 40);
+                tokio::task::yield_now().await;
+                first_order.lock().unwrap().push(1);
+                Ok(true)
+            })
+        })
+        .unwrap();
+        let deny_order = order.clone();
+        Auth::add_session_validator("deny", move |_, _, _| {
+            let deny_order = deny_order.clone();
+            Box::pin(async move {
+                deny_order.lock().unwrap().push(2);
+                Ok(false)
+            })
+        })
+        .unwrap();
+        let mut restored = restored_request(&id, &attributes).await;
+        assert!(
+            Auth::session_guard(&mut restored, Some("web"))
+                .unwrap()
+                .user()
+                .await
+                .is_err()
+        );
+        assert_eq!(*order.lock().unwrap(), [1, 2]);
+        assert!(!restored.session().unwrap().has("login_web"));
+        let replacement_order = order.clone();
+        order.lock().unwrap().clear();
+        Auth::add_session_validator("first", move |_, _, _| {
+            let replacement_order = replacement_order.clone();
+            Box::pin(async move {
+                replacement_order.lock().unwrap().push(3);
+                Ok(false)
+            })
+        })
+        .unwrap();
+        let mut restored = restored_request(&id, &attributes).await;
+        assert!(
+            Auth::session_guard(&mut restored, Some("web"))
+                .unwrap()
+                .user()
+                .await
+                .is_err()
+        );
+        assert_eq!(
+            *order.lock().unwrap(),
+            [3],
+            "同名替换保持顺序，拒绝后不继续调用其他规则"
+        );
+        assert!(Auth::remove_session_validator("first").unwrap());
+        assert!(!Auth::remove_session_validator("first").unwrap());
+        assert!(Auth::remove_session_validator("deny").unwrap());
+        let mut restored = restored_request(&id, &attributes).await;
+        assert!(
+            Auth::session_guard(&mut restored, Some("web"))
+                .unwrap()
+                .user()
+                .await
+                .unwrap()
+                .is_some()
+        );
+        Auth::add_session_validator("error", |_, _, _| {
+            Box::pin(async {
+                Err(openrust::auth::AuthError::Configuration("会话策略不可用"))
+            })
+        })
+        .unwrap();
+        let mut restored = restored_request(&id, &attributes).await;
+        assert!(
+            Auth::session_guard(&mut restored, Some("web"))
+                .unwrap()
+                .user()
+                .await
+                .is_err()
+        );
+        assert!(Auth::remove_session_validator("error").unwrap());
+        assert!(Auth::add_session_validator(" ", |_, _, _| Box::pin(async { Ok(true) })).is_err());
         let mut forged = attributes.clone();
         forged.remove("password_hash_web");
         assert!(

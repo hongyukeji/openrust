@@ -743,3 +743,6 @@ async fn throttled_login_reports_lockout_with_request_metadata() {
     assert!(blocked.headers.contains(&format!("retry-after: {retry}")));
     server.abort();
 }
+
+#[path = "extensions/session_validation.rs"]
+mod session_validation;

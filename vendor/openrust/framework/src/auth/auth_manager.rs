@@ -27,11 +27,19 @@ type ProviderFactory =
 type ConfiguredResolver =
     dyn for<'a> Fn(&'a mut Request, &'a str, &'a Value) -> AuthFutureConfigured<'a> + Send + Sync;
 type AuthFutureConfigured<'a> = super::AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>>;
+type SessionValidator = dyn for<'a> Fn(
+        &'a str,
+        &'a dyn Authenticatable,
+        &'a crate::session::Store,
+    ) -> AuthFuture<'a, AuthResult<bool>>
+    + Send
+    + Sync;
 type ModelMorphClass = fn(&dyn Authenticatable) -> AuthResult<&'static str>;
 type ModelSerializer = fn(&dyn Authenticatable) -> AuthResult<serde_json::Map<String, Value>>;
 
 #[derive(Default)]
 struct Extensions {
+    session_validators: Vec<(String, Arc<SessionValidator>)>,
     providers: HashMap<String, Arc<ProviderFactory>>,
     models: HashMap<String, (&'static str, Arc<ProviderFactory>)>,
     model_serializers: HashMap<std::any::TypeId, ModelSerializer>,
@@ -86,6 +94,67 @@ impl AuthManager {
         {
             model.register(self);
         }
+    }
+
+    /// 追加所属应用的会话身份校验；同名替换保持原注册顺序，false拒绝认证，错误直接传播。
+    pub fn add_session_validator(
+        &self,
+        name: impl Into<String>,
+        validate: impl for<'a> Fn(
+            &'a str,
+            &'a dyn Authenticatable,
+            &'a crate::session::Store,
+        ) -> AuthFuture<'a, AuthResult<bool>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> AuthResult<()> {
+        let name = name.into();
+        if name.trim().is_empty() {
+            return Err(AuthError::Configuration("会话校验策略名称不能为空"));
+        }
+        let mut extensions = self.extensions.write().expect("auth extensions lock");
+        let callback = Arc::new(validate) as Arc<SessionValidator>;
+        if let Some((_, existing)) = extensions
+            .session_validators
+            .iter_mut()
+            .find(|(key, _)| key == &name)
+        {
+            *existing = callback;
+        } else {
+            extensions.session_validators.push((name, callback));
+        }
+        Ok(())
+    }
+
+    /// 只移除本应用具名策略；其他验证与原生认证条件仍然有效。
+    pub fn remove_session_validator(&self, name: &str) -> bool {
+        let mut extensions = self.extensions.write().expect("auth extensions lock");
+        let before = extensions.session_validators.len();
+        extensions.session_validators.retain(|(key, _)| key != name);
+        extensions.session_validators.len() != before
+    }
+
+    pub(super) async fn validate_session(
+        &self,
+        guard: &str,
+        user: &dyn Authenticatable,
+        session: &crate::session::Store,
+    ) -> AuthResult<bool> {
+        let validators: Vec<_> = self
+            .extensions
+            .read()
+            .expect("auth extensions lock")
+            .session_validators
+            .iter()
+            .map(|(_, callback)| callback.clone())
+            .collect();
+        for validate in validators {
+            if !validate(guard, user, session).await? {
+                return Ok(false);
+            }
+        }
+        Ok(true)
     }
 
     pub fn provider(

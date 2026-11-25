@@ -24,6 +24,25 @@ impl Auth {
         Self::get_facade_root().map_err(AuthError::backend)
     }
 
+    /// 注册应用级异步会话身份策略；保留原生Guard、密码指纹和remember校验。
+    pub fn add_session_validator(
+        name: impl Into<String>,
+        validate: impl for<'a> Fn(
+            &'a str,
+            &'a dyn Authenticatable,
+            &'a crate::session::Store,
+        ) -> super::AuthFuture<'a, AuthResult<bool>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> AuthResult<()> {
+        Self::manager()?.add_session_validator(name, validate)
+    }
+
+    pub fn remove_session_validator(name: &str) -> AuthResult<bool> {
+        Ok(Self::manager()?.remove_session_validator(name))
+    }
+
     /// Resolves a request's selected guard name, including shouldUse overrides.
     pub fn guard_name(request: &Request, name: Option<&str>) -> AuthResult<String> {
         Self::manager()?.guard_name(request, name)

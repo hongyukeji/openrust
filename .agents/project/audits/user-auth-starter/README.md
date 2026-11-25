@@ -426,3 +426,13 @@ scope-sql-observer-final.log进一步通过真实SQLite查询的观察者用例1
 view-stack-renderers.log实际通过37项：新增深度测试覆盖1／16／40／64层与65层编译拒绝，及既有Blade应用、语句、表达式、翻译、原生值消费者。view-stack-final.log曾发现邮件夹具仍断言旧的单层错误文本，而已提交Worker使用attempt_exception_message完整原因链；只更新该旧断言，继续明确验证收件地址不泄露，没有修改运行时错误。view-stack-gates-resumed.log实际通过邮件33项（原2项外部测试仍ignore，不计通过）、完整用户套件50项、工作区严格Clippy及Fortify+Sanctum严格Clippy、fmt。没有重复宣称数据库矩阵或真实SMTP厂商验收。
 
 首次后续门禁因32GB磁盘守卫安全中断，view-stack-gates.log记载清理锁繁忙E35，不计通过；空间回升后重新执行成功。本批交付空间记录view-stack-delivery-space.json，没有另删共享／活跃编译缓存，源码、日志、数据库及数据卷保留。清单与最终SHA见view-stack-files.json和view-stack-final-source-sha.json；新Guard策略、事件上下文及设备管理仍在途，不计入本提交或整簇完成。未推送。
+
+## A01-03前置：原生会话身份策略（底层子单元验收通过）
+
+AuthManager及Auth门面新增add_session_validator／remove_session_validator；具名异步回调接收实际Guard、Authenticatable与只读Store。同名替换保持注册顺序，按注册顺序短路AND；回调在锁外await，错误不降级放行。只使用创建Guard的所属应用管理器，不依赖当前全局门面；原生SessionGuard::new保持不带应用注册表。正常身份解析先核原有指纹，再检查策略；remember恢复在ID轮换前核验原会话。false沿既有拒绝路径清理会话状态、派发CurrentDeviceLogout并返回401；错误传播。已执行请求不追溯取消，原生请求内身份缓存不变。
+
+session-validator-final-gates.log实际通过明文／加密SQLite会话2项，原生HTTP会话目标8项中新增真实HTTP用例验证拒绝、错误500、remember原ID拒绝／允许后原生轮换、第二应用不泄漏；其中原有MySQL入口无连接时提前返回，不将其算真实MySQL证据。完整套件50项、工作区与Fortify+Sanctum严格Clippy通过；格式检查沿冻结源码完成。新增回调排序、同名替换、移除幂等、错误及空名称行为也在session_devices的2项中实际执行。
+
+session-validator-final-matrix.log通过独立MySQL8.4.13和PostgreSQL18.7各2项明文／加密真实会话与原生Guard解析；不是模拟驱动，夹具各自移除本批容器。session-validator-docs.log三语站点构建与12组浏览器检查通过（两挂载、桌面／移动），新锚点session-identity-policies可见、公开方法文本完整、无页面异常及横向溢出。三语session正文说明原生条件、应用隔离、remember及低层构造边界。
+
+本项只是持久化设备撤销的原生接缝；HTTP测试的撤销集合属于测试内存状态，不冒充持久化设备API完成。事件上下文、设备索引与端点、头像、注销和其他A01缺口继续实现。源码SHA与清单见session-validator-final-source-sha.json／session-validator-files.json；空间和本批文档产物回收见session-validator-delivery-space.json。源码、日志、数据库、数据卷及可复用Cargo缓存保留。未推送。
