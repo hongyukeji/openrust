@@ -29,6 +29,10 @@ impl ProfileInformationController {
         request: &'a mut Request,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
+            #[cfg(feature = "sanctum")]
+            if let Some(response) = crate::starter::web::profile(request).await? {
+                return Ok(response);
+            }
             let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
             canonicalize(request, &fortify).await?;
             let user = Auth::user(request).await?.ok_or(HttpError::NotFound)?;
@@ -56,6 +60,10 @@ impl PasswordController {
         request: &'a mut Request,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
+            #[cfg(feature = "sanctum")]
+            if let Some(response) = crate::starter::web::password(request).await? {
+                return Ok(response);
+            }
             let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
             let user = Auth::user(request).await?.ok_or(HttpError::NotFound)?;
             let input = request.all().await?;

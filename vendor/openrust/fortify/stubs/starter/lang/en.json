@@ -24,5 +24,12 @@
   "verified": "Your email address has been verified.",
   "challenge_required": "Complete the additional authentication step.",
   "challenges_pruned": "Pruned :count expired authentication records.",
-  "confirmation_required": "Please confirm your identity before continuing."
+  "confirmation_required": "Please confirm your identity before continuing.",
+  "verification-link-sent": "A verification link has been sent.",
+  "profile-information-updated": "Your profile has been updated.",
+  "password-updated": "Your password has been updated.",
+  "recovery-codes-generated": "New recovery codes have been generated.",
+  "two-factor-authentication-confirmed": "Two-factor authentication has been confirmed.",
+  "two-factor-authentication-disabled": "Two-factor authentication has been disabled.",
+  "two-factor-authentication-enabled": "Your two-factor authentication settings have been saved."
 }

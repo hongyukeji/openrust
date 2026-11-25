@@ -343,3 +343,24 @@ password-token-final-gates.log已通过核心1、安装13、完整套件45、SQL
 password-token-runtime-http-fourth.log／password-token-runtime-http.json两个应用进程、独立file缓存／Session目录、本地SMTP、14次真实TCP通过：更换邮箱并由另一用户注册旧邮箱后旧链接422；新归属原密码仍可登录；新邮箱收到的新链接跨节点并发一200一422；旧PAT401、新密码登录及另一节点当前用户200。前两轮夹具复用了file缓存导致原生6/min共享限流429，CACHE_PREFIX不隔离原生file路径；改用本批独立APP_STORAGE_PATH，并等待正常限流窗口再测并发，不关闭或放宽生产限流。失败日志保留，本地SMTP捕获不代表真实供应商投递。
 
 本项仅闭合重置身份边界，未闭合整个用户套件。继续网页事务更新／确认时快照、设备枚举、头像／注销可靠清理、队列邮件、可选认证和最终安装矩阵。交付清单／源码SHA见password-token-files.json／password-token-final-source-sha.json；本批文档dist直接删除，正常增量缓存与数据保留，停线清理及实际剩余空间见password-token-delivery-space.json。
+
+
+## A01-02／03／04：网页事务更新与确认快照（本子单元验收通过）
+
+复核固定[Fortify 1.43.0 ConfirmablePasswordController](https://github.com/laravel/fortify/blob/v1.43.0/src/Http/Controllers/ConfirmablePasswordController.php)及[Framework 13.40.0 RequirePassword](https://github.com/laravel/framework/blob/v13.40.0/src/Illuminate/Auth/Middleware/RequirePassword.php)。沿用原生Session确认时间、确认Action、路由、响应和错误包；套件额外绑定确认时的身份状态，不改未装配套件的原生语义。web-sensitive-baseline.log先复现：其他设备完成邮箱变更后，旧设备仍可用旧确认修改资料，返回200而非预期423。
+
+用户套件在所属应用容器保存三个类型化回调，将原生网页资料／密码控制器接到已有同连接用户事务与Action钩子，不另建用户存储或Manager。JSON API与网页共用锁定、持久化复核及当前Session同步；网页不强制JSON，仍使用原生重定向、闪存和错误包。新增RequirePassword::challenge只提取原生挑战选择，原Middleware继续复用它；未确认HTML请求保存正确的GET返回位置，不将PUT当作确认后的跳转地址。
+
+原生密码确认成功及Cookie API确认成功时，在Session中保存确认时间和已有安全摘要，绑定当时的用户、邮箱、密码／版本与双因素状态。读取时同时验证时间及摘要；其他设备更改邮箱／因素后，旧时间戳不足以授权，旧版本没有快照的确认也须重新完成。缺失、到期或不匹配返回本地化423；浏览器跳转到原生确认页。密码账户网页还按实际选中的Fortify会话Guard验证current_password，先验证近期确认再执行这项旧密码检查，未确认会话不会通过422／423差异探测当前密码。字段验证失败不消耗PAT证明的原有约定保留。此项仅接通密码确认；Passkey近期确认及其他可选因素完整接线仍归后续单元，未宣称仅有原生时间标记即可通过套件保护。
+
+账户页增加确认入口及密码表单，关闭对应原生功能时不引用不存在的路由。保留机器可读的七种Fortify闪存状态码，在视图中映射到user语言组显示；应用可覆盖user.json条目，其他状态仍沿用原翻译键。JSON业务响应的本地化不混入这些网页状态。
+
+web-sensitive-gates-third.log：安装13、完整套件47、无Sanctum网页11通过；原生Session目标报告7，其中无MySQL参数的目标不计真实MySQL。web-sensitive-matrix-first.log对独立MySQL8.4.13／PostgreSQL18.7各4、file／Redis8.10.3各2项通过。web-sensitive-final-matrix.log再次在已提交公共依赖的组合下通过上述12项，并用独立MySQL实际执行原生accounts_http全部4项及auth_http真实数据库／Eloquent Provider1项，证明装有Sanctum但没有套件回调时仍保留原行为；先前无环境提前返回的日志不作为此证据。
+
+web-sensitive-combination-gates.log吸收4d45b5609的公共依赖（不含其他任务WIP），完整套件47、已发布Action2与原生认证目标通过；workspace严格Clippy1分01秒、Fortify+Sanctum44.46秒及fmt退出0。最后的确认顺序收口见web-sensitive-confirmation-order.log：新增2项（含未确认时正确／错误旧密码都423、确认后错误旧密码422）及feature严格Clippy3.40秒通过；web-sensitive-order-matrix.log独立MySQL／PostgreSQL、file／Redis四组各2项通过，不重复未受影响的原生目标。
+
+web-sensitive-runtime-final.log用生成full应用实际重建、真实Artisan init:resources --extensions=user-web,api,fortify --force --no-interaction发布视图并再重建，web-sensitive-app-browser.json三语及法语回退、桌面／手机共8组真实表单闭环通过：注册、确认跳转、资料更新、密码更新、当前会话保留、退出、旧密码拒绝、新密码登录、无横向溢出及无脚本错误。第一次6组通过后的手机截图暴露password-updated原样显示，已补齐三语七种状态并逐组断言；最终手机截图人工核对通过。仅在隔离应用显式force，不覆盖主仓库用户文件。web-sensitive-docs-final.log三语正文构建及两挂载／桌面手机12组浏览器通过。
+
+过程中32GB守卫停线，等待其他构建退出后持锁清理，最后一次记录释放79,840,591,872字节、清理后111,710,760,960字节；源码／日志／下载／数据库保留。因反复冷构建和多套debug信息使缓存触线，本工作流后续通过target/tmp/user-starter/accept.py仅设置CARGO_PROFILE_DEV_DEBUG=1与CARGO_PROFILE_TEST_DEBUG=1，保留增量、正常并发与调试断言；主仓库及IDE配置未改。最终清单／SHA／空间分别为web-sensitive-files.json、web-sensitive-final-source-sha.json、web-sensitive-delivery-space.json。临时数据库和Redis容器已退出，文档dist直接删除，正常工作流缓存保留。
+
+本项闭合网页资料／密码事务和密码确认时快照，尚不闭合完整A01阶段。继续可靠邮件队列、数据库设备列表、头像、DeleteUser可靠清理，以及Passkey／第三方登录／完整因素页面和S10安装矩阵。已验收且未受影响路径复用上述证据。

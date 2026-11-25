@@ -557,6 +557,7 @@ where
     use openrust::support::ServiceProvider as _;
     super::credentials::scope_for::<M>(app)?;
     super::bind_password_tokens::<M>(app)?;
+    super::web::register::<M>(app)?;
     super::StarterKitServiceProvider
         .commands(app, crate::console::prune_auth_challenges::register::<M>);
     super::StarterKitServiceProvider.load_routes_from(app, routes::<M>)

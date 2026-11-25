@@ -217,7 +217,7 @@ Accept: application/json
 
 `GET /api/user/tokens` 的 `data` 為陣列，每項僅包含 `id`、`name`、`abilities`、`created_at`、`last_used_at`、`expires_at` 和 `current`，沒有雜湊、憑據版本摘要或內部歸屬屬性。撤銷其他使用者ID回傳404；`POST /api/auth/logout` 不接受用戶端指定其他憑據代替本次驗證權杖。成功204沒有本文，撤銷後驗證回傳401，其他裝置仍可使用。
 
-第一方 Cookie／SPA 保留正常 CSRF 流程並傳送憑據。`POST /user/confirm-password` 將確認狀態記入目前 Session，原生 Passkey 確認也寫入相同狀態；隨後向 `POST /api/user/tokens` 提交 `device_name` 和 `abilities`，此模式不需要另一份不透明證明。`POST /api/auth/confirm` 也接受有狀態 Cookie 請求，成功201且不回傳 `data`。其他瀏覽器工作階段不會繼承確認；缺少或過期回傳423及本地化 code `password_confirmation_required`，缺少 CSRF 權杖仍回傳419。
+第一方 Cookie／SPA 保留正常 CSRF 流程並傳送憑據。`POST /user/confirm-password` 將確認時間與套件身分快照記入目前 Session；隨後向 `POST /api/user/tokens` 提交 `device_name` 和 `abilities`，此模式不需要另一份不透明證明。`POST /api/auth/confirm` 也接受有狀態 Cookie 請求，成功201且不回傳 `data`。其他瀏覽器工作階段不會繼承確認；缺少或過期回傳423及本地化 code `password_confirmation_required`，缺少 CSRF 權杖仍回傳419。
 
 PAT 證明在應用資料庫中僅儲存雜湊，綁定使用者、目前PAT、用途、憑據版本及有效的因素／郵箱狀態。`auth.password_timeout` 為正整數秒，預設10800；不等清理工作就會到期。錯誤裝置／用途、竄改或重放回傳401。簽發／撤銷使用共同使用者鎖及權杖列鎖，模型事件取消或提交前證明過期會回滾資料庫變更。應用確認回呼可支援自己的身分流程，沒有本機密碼不代表自動確認。無狀態 Passkey 重新驗證適配仍另列待補。
 
@@ -315,3 +315,11 @@ curl -X PUT "$APP_URL/api/user/profile-information" \
 繼續使用現有 database／cache 倉儲、郵件中的64位權杖、到期、限流和原子消費，不新增遷移或平行權杖儲存。資料庫與設定的快取驅動執行相同繫結。繫結只作用於選中使用者模型及具名密碼代理；獨立 Fortify 和其他使用者類型保留原有行為。已快取代理讀取所屬應用的同一規則表，套件重複裝配保持冪等。
 
 啟用後，先前未繫結的舊重置連結失效，需重新請求郵件；所有應用／Worker 節點須使用相同模型和繫結設定。若模型的重置能力回傳自訂包裝類型，或使用額外動態租戶範圍，應明確註冊相符規則。進階應用可透過 Password 的 `bind_user_tokens_using` 追加具名規則：不同名稱組合，同名替換，回呼錯誤直接失敗，不退回簽發未繫結權杖。規則名稱和值須在各節點穩定，不向用戶端回傳密碼或計算出的繫結；一般業務繼續呼叫既有忘記／重置密碼介面。
+
+### 網頁資料與密碼表單 {#web-user-updates}
+
+帳戶頁提供資料、密碼表單與身分確認入口。原生 `PUT /user/profile-information`、`PUT /user/password` 與上述API共用應用Action、使用者寫入鎖及同連線交易。姓名更新也需要近期確認；一般瀏覽器尚未確認時導向 `password.confirm`，確認後返回帳戶頁重新提交，密碼不會保存在舊輸入。JSON協商維持423與本地化提示。密碼帳戶的網頁密碼表單仍驗證 `current_password`，使用已設定的Fortify Guard。
+
+Cookie確認綁定確認時的使用者、信箱、憑證、雙因素狀態及Session時間。其他裝置變更信箱／因素後，舊時間標記不足以繼續授權；重新確認後才可操作。密碼變更保留目前瀏覽器，舊會話及PAT失效。更新會輪換Session與CSRF，JSON／SPA客戶端須重新讀取CSRF；一般瀏覽器跟隨重新導向讀取新表單。未裝配使用者套件的獨立Fortify應用維持原生行為。
+
+網頁保留原生快閃狀態碼，透過 `lang/<locale>/user.json` 翻譯顯示，例如 `password-updated`；覆寫對應項目即可自訂。JSON成功訊息仍使用ApiResponse本地化。升級前沒有套件快照的既有瀏覽器確認需要重新確認。

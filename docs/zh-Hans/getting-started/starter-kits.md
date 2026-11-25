@@ -217,7 +217,7 @@ Accept: application/json
 
 `GET /api/user/tokens` 的 `data` 为数组，每项只包含 `id`、`name`、`abilities`、`created_at`、`last_used_at`、`expires_at` 和 `current`；没有摘要、凭据版本摘要或内部归属属性。撤销其他用户的ID返回404；`POST /api/auth/logout` 不接受客户端指定其他凭据代替本次认证令牌。成功204没有正文，撤销后认证返回401，其他设备仍可使用。
 
-第一方 Cookie／SPA 保留正常 CSRF 流程并发送凭据。`POST /user/confirm-password` 将确认状态记入当前 Session，原生 Passkey 确认也写入相同状态；随后向 `POST /api/user/tokens` 提交 `device_name` 和 `abilities`，此模式不需要另一份不透明证明。`POST /api/auth/confirm` 也接受有状态 Cookie 请求，成功201且不返回 `data`。其他浏览器会话不会继承确认；缺失或过期返回423及本地化 code `password_confirmation_required`，缺少 CSRF 令牌仍返回419。
+第一方 Cookie／SPA 保留正常 CSRF 流程并发送凭据。`POST /user/confirm-password` 将确认时间和套件身份快照记入当前 Session；随后向 `POST /api/user/tokens` 提交 `device_name` 和 `abilities`，此模式不需要另一份不透明证明。`POST /api/auth/confirm` 也接受有状态 Cookie 请求，成功201且不返回 `data`。其他浏览器会话不会继承确认；缺失或过期返回423及本地化 code `password_confirmation_required`，缺少 CSRF 令牌仍返回419。
 
 PAT 证明在应用数据库中只保存摘要，绑定用户、当前PAT、用途、凭据版本和有效的因素／邮箱状态。`auth.password_timeout` 为正整数秒，默认10800；不等清理任务就会到期。错误设备／用途、篡改或重放返回401。签发／撤销使用共同用户锁和令牌行锁，模型事件取消或提交前证明过期会回滚数据库变更。应用确认回调可支持自己的身份流程，没有本地密码不代表自动确认。无状态 Passkey 重新认证适配仍单独待补。
 
@@ -315,3 +315,11 @@ curl -X PUT "$APP_URL/api/user/profile-information" \
 继续使用现有 database／cache 仓储、邮件中的64位令牌、到期、限流和原子消费，不新增迁移或平行令牌存储。数据库与配置的缓存驱动执行相同绑定。绑定只作用于选中用户模型及具名密码代理；独立 Fortify 和其他用户类型保留原有行为。已缓存代理读取所属应用的同一规则表，套件重复装配保持幂等。
 
 启用后，先前未绑定的旧重置链接失效，需重新请求邮件；所有应用／Worker 节点须使用相同模型和绑定配置。若模型的重置能力返回自定义包装类型，或使用额外动态租户范围，应显式注册匹配规则。高级应用可通过 Password 的 `bind_user_tokens_using` 追加具名规则：不同名称组合，同名替换，回调错误直接失败，不回退签发未绑定令牌。规则名称和值须在各节点稳定，不向客户端返回密码或计算出的绑定；普通业务继续调用既有忘记／重置密码接口。
+
+### 网页资料与密码表单 {#web-user-updates}
+
+账户页提供资料、密码表单和身份确认入口。原生 `PUT /user/profile-information`、`PUT /user/password` 与上述API共用应用Action、用户写锁和同连接事务。姓名更新也要求近期确认；普通浏览器未确认时跳转到 `password.confirm`，确认后返回账户页重新提交，密码不会被保存在旧输入。JSON协商保持423及本地化提示。密码账户的网页密码表单仍校验 `current_password`，使用配置的Fortify Guard，不写死web。
+
+当前Cookie确认绑定确认时的用户、邮箱、凭据及双因素状态和Session时间。其他设备变更邮箱／因素后，旧时间标记不足以继续授权；重新确认后方可操作。密码变更保留当前浏览器，旧会话及PAT失效。更新会轮换Session和CSRF，JSON／SPA客户端须刷新CSRF后继续；普通浏览器跟随重定向读取新表单。独立Fortify应用未装配用户套件时保持原生行为。
+
+网页保留原生闪存状态码，通过 `lang/<locale>/user.json` 翻译显示，例如 `password-updated`；覆盖对应条目即可定制。JSON成功消息仍使用ApiResponse本地化。升级前没有套件快照的既有浏览器确认需要重新确认。

@@ -5,6 +5,10 @@
 @if(config('user.email_verification', true))
 @if(!$user['email_verified_at'])<p><a href="{{ route('verification.notice') }}">{{ __('user.verify_email') }}</a></p>@endif
 @endif
+@if($can_update_profile || $can_update_password)
+<p>{{ __('user.confirmation_required') }} <a href="{{ route('password.confirm') }}">{{ __('user.confirm_password') }}</a></p>
+@endif
+@if($can_update_profile)
 <fieldset><legend>{{ __('user.profile') }}</legend>
 <form method="POST" action="{{ route('user-profile-information.update') }}">
 @csrf
@@ -14,5 +18,18 @@
 <label for="email">{{ __('user.email') }}</label><input id="email" name="email" type="email" value="{{ $user['email'] }}" autocomplete="email" required>
 @error('email', 'updateProfileInformation')<p class="error" role="alert">{{ $message }}</p>@enderror
 <button type="submit">{{ __('user.save') }}</button></form></fieldset>
+@endif
+@if($can_update_password)
+<fieldset><legend>{{ __('user.change_password') }}</legend>
+<form method="POST" action="{{ route('user-password.update') }}">
+@csrf
+@method('PUT')
+<label for="current_password">{{ __('user.current_password') }}</label><input id="current_password" name="current_password" type="password" autocomplete="current-password" required>
+@error('current_password', 'updatePassword')<p class="error" role="alert">{{ $message }}</p>@enderror
+<label for="new_password">{{ __('user.password') }}</label><input id="new_password" name="password" type="password" autocomplete="new-password" required>
+@error('password', 'updatePassword')<p class="error" role="alert">{{ $message }}</p>@enderror
+<label for="password_confirmation">{{ __('user.password_confirmation') }}</label><input id="password_confirmation" name="password_confirmation" type="password" autocomplete="new-password" required>
+<button type="submit">{{ __('user.change_password') }}</button></form></fieldset>
+@endif
 <form method="POST" action="{{ route('logout') }}">@csrf<button type="submit">{{ __('user.logout') }}</button></form>
 @endsection

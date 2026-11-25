@@ -28,6 +28,8 @@ pub mod updates;
 mod user_resource;
 mod verification_policy;
 mod views;
+#[cfg(feature = "sanctum")]
+pub(crate) mod web;
 
 pub use configuration::configure;
 pub use user_resource::UserResource;

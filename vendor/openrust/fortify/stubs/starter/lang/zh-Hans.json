@@ -24,5 +24,12 @@
   "verified": "你的邮箱已验证。",
   "challenge_required": "请完成额外身份验证。",
   "challenges_pruned": "已清理 :count 份过期认证证明。",
-  "confirmation_required": "请先确认身份，再继续操作。"
+  "confirmation_required": "请先确认身份，再继续操作。",
+  "verification-link-sent": "验证链接已发送，请查收邮件。",
+  "profile-information-updated": "个人资料已更新。",
+  "password-updated": "密码已更新。",
+  "recovery-codes-generated": "新的恢复码已生成。",
+  "two-factor-authentication-confirmed": "双因素认证已确认。",
+  "two-factor-authentication-disabled": "双因素认证已关闭。",
+  "two-factor-authentication-enabled": "双因素认证设置已保存。"
 }

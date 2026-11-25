@@ -24,5 +24,12 @@
   "verified": "你的電子郵件地址已驗證。",
   "challenge_required": "請完成額外身分驗證。",
   "challenges_pruned": "已清理 :count 份過期驗證證明。",
-  "confirmation_required": "請先確認身分，再繼續操作。"
+  "confirmation_required": "請先確認身分，再繼續操作。",
+  "verification-link-sent": "驗證連結已寄出，請查收郵件。",
+  "profile-information-updated": "個人資料已更新。",
+  "password-updated": "密碼已更新。",
+  "recovery-codes-generated": "新的復原碼已產生。",
+  "two-factor-authentication-confirmed": "雙因素驗證已確認。",
+  "two-factor-authentication-disabled": "雙因素驗證已關閉。",
+  "two-factor-authentication-enabled": "雙因素驗證設定已儲存。"
 }

@@ -683,6 +683,18 @@ async fn verification_mail_uses_signed_links_and_repeated_verification_is_idempo
     assert_eq!(server.mailer.sent().unwrap().len(), 1);
     let (status, body) = client.send("GET", "/home", "", false).await;
     assert_eq!(status, 200, "{body}");
+    assert_eq!(
+        client
+            .send(
+                "POST",
+                "/user/confirm-password",
+                r#"{"password":"long-password-123"}"#,
+                true
+            )
+            .await
+            .0,
+        201
+    );
     let (status, body) = client
         .send(
             "PUT",
@@ -819,6 +831,18 @@ async fn disabling_verification_preserves_registration_and_profile_updates_witho
     assert!(server.mailer.sent().unwrap().is_empty());
     let (status, body) = client.send("GET", "/home", "", false).await;
     assert_eq!(status, 200, "{body}");
+    assert_eq!(
+        client
+            .send(
+                "POST",
+                "/user/confirm-password",
+                r#"{"password":"long-password-123"}"#,
+                true
+            )
+            .await
+            .0,
+        201
+    );
     let (status, body) = client
         .send(
             "PUT",
@@ -829,6 +853,7 @@ async fn disabling_verification_preserves_registration_and_profile_updates_witho
         .await;
     assert_eq!(status, 200, "{body}");
     assert!(server.mailer.sent().unwrap().is_empty());
+    assert_eq!(client.send("GET", "/home", "", false).await.0, 200);
     let (status, body) = client.send("POST", "/logout", "{}", true).await;
     assert_eq!(status, 204, "{body}");
     let (status, body) = client.send("GET", "/forgot-password", "", false).await;
@@ -881,6 +906,18 @@ async fn password_update_preserves_this_session_and_rejects_an_unvisited_other_s
         .map(|(k, v)| (k.clone(), v.clone()))
         .collect();
     assert!(!remembered.cookies.is_empty());
+    assert_eq!(
+        first
+            .send(
+                "POST",
+                "/user/confirm-password",
+                r#"{"password":"long-password-123"}"#,
+                true
+            )
+            .await
+            .0,
+        201
+    );
     let(status,body)=first.send("PUT","/user/password",r#"{"current_password":"long-password-123","password":"new-password-456","password_confirmation":"new-password-456"}"#,true).await;
     assert_eq!(status, 200, "{body}");
     let (status, body) = first.send("GET", "/home", "", false).await;
@@ -1138,9 +1175,22 @@ async fn password_update_revokes_bearer_and_allows_fresh_issuance() {
     );
     assert_eq!(bearer_request(server.address, token).await, 200);
     let update = r#"{"current_password":"long-password-123","password":"changed-password-456","password_confirmation":"changed-password-456"}"#;
+    assert_eq!(
+        client
+            .send(
+                "POST",
+                "/user/confirm-password",
+                r#"{"password":"long-password-123"}"#,
+                true
+            )
+            .await
+            .0,
+        201
+    );
     let (status, body) = client.send("PUT", "/user/password", update, true).await;
     assert_eq!(status, 200, "{body}");
     assert_eq!(bearer_request(server.address, token).await, 401);
+    assert_eq!(client.send("GET", "/home", "", false).await.0, 200);
     let (status, body) = client.send("POST", "/fixture-token", "{}", true).await;
     assert_eq!(status, 201, "{body}");
     let payload: Value = serde_json::from_str(&body).unwrap();
@@ -2113,7 +2163,7 @@ async fn account_cookie_management_uses_native_session_confirmation_and_csrf() {
         },
     )
     .await;
-    // 沿用原生确认端点，不另外签发Cookie证明；Passkey确认写入同一Session标记。
+    // 原生密码确认写入Session时间及套件快照，不向Cookie客户端签发PAT证明。
     assert_eq!(
         browser
             .send(
@@ -2214,6 +2264,32 @@ async fn account_cookie_management_uses_native_session_confirmation_and_csrf() {
             .await
             .0,
         200
+    );
+    assert_eq!(
+        browser
+            .exchange_origin(
+                "POST",
+                "/api/user/tokens",
+                r#"{"device_name":"stale-factor-confirmation"}"#,
+                true,
+                true
+            )
+            .await
+            .0,
+        423,
+        "因素变化后旧确认必须失效"
+    );
+    assert_eq!(
+        browser
+            .send(
+                "POST",
+                "/user/confirm-password",
+                r#"{"password":"long-password-123"}"#,
+                true
+            )
+            .await
+            .0,
+        201
     );
     openrust::support::facades::App::set_facade_application(
         Some(server._kernel.get_application()),
@@ -4590,4 +4666,172 @@ async fn password_tokens_claimed_before_email_change_cannot_apply_after_it_commi
             .0,
         201
     );
+}
+
+#[cfg(feature = "sanctum")]
+#[tokio::test]
+async fn web_sensitive_updates_require_confirmation_and_preserve_native_html() {
+    let server = start().await;
+    let mut owner = Client {
+        address: server.address,
+        cookies: Default::default(),
+        csrf: String::new(),
+    };
+    assert_eq!(owner.send("GET", "/register", "", false).await.0, 200);
+    let registration = r#"{"name":"网页账户","email":"web-sensitive@example.test","password":"long-password-123","password_confirmation":"long-password-123"}"#;
+    assert_eq!(
+        owner.send("POST", "/register", registration, true).await.0,
+        201
+    );
+    assert_eq!(owner.send("GET", "/home", "", false).await.0, 200);
+    let update = r#"{"name":"网页新姓名","email":"web-sensitive@example.test"}"#;
+    for current in ["wrong-password", "long-password-123"] {
+        let input = json!({"current_password":current,"password":"new-web-password-456","password_confirmation":"new-web-password-456"});
+        assert_eq!(
+            owner
+                .send("PUT", "/user/password", &input.to_string(), true)
+                .await
+                .0,
+            423,
+            "尚未确认的会话不能探测当前密码是否匹配"
+        );
+    }
+
+    assert_eq!(
+        owner
+            .send("PUT", "/user/profile-information", update, true)
+            .await
+            .0,
+        423
+    );
+    let (status, headers, body) = owner
+        .exchange("PUT", "/user/profile-information", update, false)
+        .await;
+    assert_eq!(status, 302, "{body}");
+    assert!(
+        response_location(&headers).ends_with("/user/confirm-password"),
+        "{headers}"
+    );
+    assert_eq!(
+        owner
+            .send(
+                "POST",
+                "/user/confirm-password",
+                r#"{"password":"long-password-123"}"#,
+                true
+            )
+            .await
+            .0,
+        201
+    );
+    let (status, headers, body) = owner
+        .exchange("PUT", "/user/profile-information", update, false)
+        .await;
+    assert_eq!(status, 302, "{body}");
+    assert!(headers.contains("no-store"));
+    let (status, body) = owner.send("GET", "/home", "", false).await;
+    assert_eq!(status, 200, "{body}");
+    assert!(body.contains("网页新姓名"));
+    assert_eq!(
+        owner
+            .send(
+                "POST",
+                "/user/confirm-password",
+                r#"{"password":"long-password-123"}"#,
+                true
+            )
+            .await
+            .0,
+        201
+    );
+    let (status, body) = owner.send("PUT", "/user/password", r#"{"current_password":"wrong-password","password":"new-web-password-456","password_confirmation":"new-web-password-456"}"#, true).await;
+    assert_eq!(status, 422, "{body}");
+    assert!(body.contains("current_password"));
+    let(status,_,body)=owner.exchange("PUT","/user/password",r#"{"current_password":"long-password-123","password":"new-web-password-456","password_confirmation":"new-web-password-456"}"#,false).await;
+    assert_eq!(status, 302, "{body}");
+    assert_eq!(owner.send("GET", "/home", "", false).await.0, 200);
+    assert_eq!(
+        owner
+            .send("PUT", "/user/profile-information", update, true)
+            .await
+            .0,
+        423
+    );
+}
+
+#[cfg(feature = "sanctum")]
+#[tokio::test]
+async fn web_sensitive_confirmation_is_bound_to_state_when_confirmed() {
+    let server = start().await;
+    let mut owner = Client {
+        address: server.address,
+        cookies: Default::default(),
+        csrf: String::new(),
+    };
+    assert_eq!(owner.send("GET", "/register", "", false).await.0, 200);
+    assert_eq!(owner.send("POST","/register",r#"{"name":"绑定确认","email":"web-binding@example.test","password":"long-password-123","password_confirmation":"long-password-123"}"#,true).await.0,201);
+    assert_eq!(owner.send("GET", "/home", "", false).await.0, 200);
+    let mut other = Client {
+        address: server.address,
+        cookies: Default::default(),
+        csrf: String::new(),
+    };
+    assert_eq!(other.send("GET", "/login", "", false).await.0, 200);
+    assert_eq!(
+        other
+            .send(
+                "POST",
+                "/login",
+                r#"{"email":"web-binding@example.test","password":"long-password-123"}"#,
+                true
+            )
+            .await
+            .0,
+        200
+    );
+    assert_eq!(other.send("GET", "/home", "", false).await.0, 200);
+    for client in [&mut owner, &mut other] {
+        assert_eq!(
+            client
+                .send(
+                    "POST",
+                    "/user/confirm-password",
+                    r#"{"password":"long-password-123"}"#,
+                    true
+                )
+                .await
+                .0,
+            201
+        );
+    }
+    let update = r#"{"name":"已变更邮箱","email":"changed-web-binding@example.test"}"#;
+    let (status, body) = other
+        .send("PUT", "/user/profile-information", update, true)
+        .await;
+    assert_eq!(status, 200, "{body}");
+    // 密码和持久化版本未变化，旧设备仍可访问；旧确认不能授权新邮箱身份。
+    assert_eq!(owner.send("GET", "/home", "", false).await.0, 200);
+    assert_eq!(
+        owner
+            .send("PUT", "/user/profile-information", update, true)
+            .await
+            .0,
+        423
+    );
+    assert_eq!(
+        owner
+            .send(
+                "POST",
+                "/user/confirm-password",
+                r#"{"password":"long-password-123"}"#,
+                true
+            )
+            .await
+            .0,
+        201
+    );
+    let (status, body) = owner
+        .send("PUT", "/user/profile-information", update, true)
+        .await;
+    assert_eq!(status, 200, "{body}");
 }

@@ -3,7 +3,10 @@ use openrust::contracts::events::Dispatcher as _;
 use openrust::{
     foundation::Application,
     http::{Response, StatusCode},
-    support::{ProviderResult, ServiceProvider, facades::View},
+    support::{
+        ProviderResult, ServiceProvider,
+        facades::{Facade as _, View},
+    },
 };
 use std::sync::Arc;
 
@@ -139,7 +142,30 @@ fn account(
 ) -> openrust::http::HttpFuture<'_, Result<Response, openrust::http::HttpError>> {
     Box::pin(async move {
         let user = super::UserResource::current_default(request).await?;
-        let view = View::make("user.home", [("user".into(), user.into())].into())?;
+        let fortify = crate::resolver::Resolver::<Fortify>::get_facade_root()
+            .map_err(crate::resolver::internal)?;
+        let features = crate::Features::new(fortify.config.clone());
+        let view = View::make(
+            "user.home",
+            [
+                ("user".into(), user.into()),
+                (
+                    "can_update_profile".into(),
+                    features
+                        .enabled(crate::Features::update_profile_information())
+                        .map_err(crate::resolver::internal)?
+                        .into(),
+                ),
+                (
+                    "can_update_password".into(),
+                    features
+                        .enabled(crate::Features::update_passwords())
+                        .map_err(crate::resolver::internal)?
+                        .into(),
+                ),
+            ]
+            .into(),
+        )?;
         Response::view(StatusCode::OK, view, Default::default(), request).await
     })
 }

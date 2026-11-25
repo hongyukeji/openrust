@@ -21,6 +21,33 @@ impl RequirePassword {
         }
     }
 
+    /// 返回原生确认挑战；已有近期确认时返回None，供组合处理器复用同一跳转规则。
+    pub fn challenge(&self, request: &mut Request) -> Result<Option<Response>, HttpError> {
+        let confirmed = request
+            .session()?
+            .get(PASSWORD_CONFIRMED_AT)
+            .and_then(serde_json::Value::as_i64);
+        let timeout = self.timeout()?;
+        if confirmed.is_some_and(|time| confirmation_seconds().saturating_sub(time) <= timeout) {
+            return Ok(None);
+        }
+        if request.expects_json() {
+            return Response::json(
+                StatusCode::LOCKED,
+                serde_json::json!({"message": "Password confirmation required."}),
+            )
+            .map(Some);
+        }
+        let target = Url::route(
+            self.route.as_deref().unwrap_or("password.confirm"),
+            &[],
+            true,
+        )?;
+        Ok(Some(
+            Redirect::guest(request, &target, Default::default())?.into(),
+        ))
+    }
+
     pub(crate) fn parse(parameters: &str) -> Option<Self> {
         let mut parts = parameters.split(',');
         let route = parts.next();
@@ -52,27 +79,10 @@ impl Middleware for RequirePassword {
         next: Next<'a>,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            let confirmed = request
-                .session()?
-                .get(PASSWORD_CONFIRMED_AT)
-                .and_then(serde_json::Value::as_i64);
-            let timeout = self.timeout()?;
-            if confirmed.is_some_and(|time| confirmation_seconds().saturating_sub(time) <= timeout)
-            {
-                return Ok(next.run(request).await);
+            if let Some(response) = self.challenge(request)? {
+                return Ok(response);
             }
-            if request.expects_json() {
-                return Response::json(
-                    StatusCode::LOCKED,
-                    serde_json::json!({"message": "Password confirmation required."}),
-                );
-            }
-            let target = Url::route(
-                self.route.as_deref().unwrap_or("password.confirm"),
-                &[],
-                true,
-            )?;
-            Ok(Redirect::guest(request, &target, Default::default())?.into())
+            Ok(next.run(request).await)
         })
     }
 }

@@ -51,6 +51,8 @@ impl ConfirmablePasswordController {
                     .map_err(internal)?
                     .password_confirmed()
                     .map_err(internal)?;
+                #[cfg(feature = "sanctum")]
+                crate::starter::web::record_confirmation(request).await?;
                 super::respond::<dyn contracts::PasswordConfirmedResponse>(request).await
             } else {
                 super::respond::<dyn contracts::FailedPasswordConfirmationResponse>(request).await

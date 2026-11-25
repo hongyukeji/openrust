@@ -11,7 +11,17 @@
 <body>
 <main>
     <h1>@yield('title')</h1>
-    @session('status')<p role="status" class="status">{{ __($value) }}</p>@endsession
+    @session('status')
+    <p role="status" class="status">{{ __([
+        'verification-link-sent' => 'user.verification-link-sent',
+        'profile-information-updated' => 'user.profile-information-updated',
+        'password-updated' => 'user.password-updated',
+        'recovery-codes-generated' => 'user.recovery-codes-generated',
+        'two-factor-authentication-confirmed' => 'user.two-factor-authentication-confirmed',
+        'two-factor-authentication-disabled' => 'user.two-factor-authentication-disabled',
+        'two-factor-authentication-enabled' => 'user.two-factor-authentication-enabled'
+    ][$value] ?? $value) }}</p>
+    @endsession
     @yield('content')
     <footer>{{ config('app.name') }} · {{ config('app.version') }}</footer>
 </main>

@@ -87,11 +87,33 @@ pub fn profile<M>(request: &mut Request) -> HttpFuture<'_, Result<Response, Http
 where
     M: HasApiTokens + TwoFactorAuthenticatable + Clone,
 {
+    profile_inner::<M>(request, false)
+}
+pub(super) fn web_profile<M>(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
+where
+    M: HasApiTokens + TwoFactorAuthenticatable + Clone,
+{
+    profile_inner::<M>(request, true)
+}
+fn profile_inner<M>(request: &mut Request, web: bool) -> HttpFuture<'_, Result<Response, HttpError>>
+where
+    M: HasApiTokens + TwoFactorAuthenticatable + Clone,
+{
     Box::pin(async move {
-        json_only(request);
+        if !web {
+            json_only(request);
+        }
         let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
-        let mut user = account::user::<M>(request).await?;
-        let actor = account::actor(request, &user, Some("account:update"))?;
+        let mut user = if web {
+            super::web::user::<M>(request, &fortify).await?
+        } else {
+            account::user::<M>(request).await?
+        };
+        let actor = if web {
+            None
+        } else {
+            account::actor(request, &user, Some("account:update"))?
+        };
         let guard = cookie_guard(request, &user, actor.is_none(), &fortify).await?;
         let original = user.get_auth_identifier();
         let old_email = user.get_auth_attribute("email")?;
@@ -112,7 +134,11 @@ where
                 .map_err(internal)?,
         };
         updater.validate_for_transaction(&user, &input).await?;
-        let proof = confirmation::claim(request, &user, Purpose::Email, &fortify).await?;
+        let proof = if web {
+            confirmation::claim_session(request, &user, &fortify)?
+        } else {
+            confirmation::claim(request, &user, Purpose::Email, &fortify).await?
+        };
         let sanctum = App::make::<Sanctum>().await?;
         let database = App::make::<DatabaseManager>().await?;
         let policy = fortify.clone();
@@ -172,11 +198,36 @@ pub fn password<M>(request: &mut Request) -> HttpFuture<'_, Result<Response, Htt
 where
     M: HasApiTokens + TwoFactorAuthenticatable + Clone,
 {
+    password_inner::<M>(request, false)
+}
+pub(super) fn web_password<M>(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
+where
+    M: HasApiTokens + TwoFactorAuthenticatable + Clone,
+{
+    password_inner::<M>(request, true)
+}
+fn password_inner<M>(
+    request: &mut Request,
+    web: bool,
+) -> HttpFuture<'_, Result<Response, HttpError>>
+where
+    M: HasApiTokens + TwoFactorAuthenticatable + Clone,
+{
     Box::pin(async move {
-        json_only(request);
+        if !web {
+            json_only(request);
+        }
         let fortify = Resolver::<Fortify>::get_facade_root().map_err(internal)?;
-        let mut user = account::user::<M>(request).await?;
-        let actor = account::actor(request, &user, Some("account:update"))?;
+        let mut user = if web {
+            super::web::user::<M>(request, &fortify).await?
+        } else {
+            account::user::<M>(request).await?
+        };
+        let actor = if web {
+            None
+        } else {
+            account::actor(request, &user, Some("account:update"))?
+        };
         let guard = cookie_guard(request, &user, actor.is_none(), &fortify).await?;
         let original = user.get_auth_identifier();
         let input = request.all().await?;
@@ -191,7 +242,38 @@ where
                 .map_err(internal)?,
         };
         updater.validate_for_transaction(&user, &input).await?;
-        let proof = confirmation::claim(request, &user, Purpose::Password, &fortify).await?;
+        let proof = if web {
+            confirmation::claim_session(request, &user, &fortify)?
+        } else {
+            confirmation::claim(request, &user, Purpose::Password, &fortify).await?
+        };
+        if web
+            && user
+                .get_auth_password()
+                .is_some_and(|password| !password.is_empty())
+        {
+            use openrust::{
+                support::facades::Validator,
+                validation::{Data, Rule, RuleSet},
+            };
+            let rules = RuleSet::new().field(
+                "current_password",
+                [
+                    Rule::required(),
+                    Rule::string(),
+                    Rule::current_password(guard.as_deref()),
+                ],
+            )?;
+            Validator::make(Data::from_request(request).await?, rules)?
+                .validate_request(request)
+                .await
+                .map_err(|mut error| {
+                    if let openrust::validation::ValidationError::Invalid(exception) = &mut error {
+                        exception.error_bag("updatePassword");
+                    }
+                    error
+                })?;
+        }
         let sanctum = App::make::<Sanctum>().await?;
         let database = App::make::<DatabaseManager>().await?;
         let policy = fortify.clone();

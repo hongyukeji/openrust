@@ -193,6 +193,7 @@ where
                 .map_err(internal)?
                 .password_confirmed()
                 .map_err(internal)?;
+            super::web::remember(request, fresh, &fortify)?;
             limiter.clear(&key).await?;
             return Ok(client::no_store(
                 ApiResponse::empty()
@@ -256,29 +257,7 @@ where
         user.current_access_token(request),
         Some(AccessToken::Transient)
     ) {
-        let confirmed = request
-            .session()
-            .map_err(internal)?
-            .get("auth.password_confirmed_at")
-            .and_then(serde_json::Value::as_i64);
-        let now = openrust::support::facades::Date::now(None)
-            .map_err(internal)?
-            .as_date_time()
-            .timestamp()
-            .as_second();
-        let timeout = lifetime(fortify)?;
-        let deadline = confirmed.and_then(|at| at.checked_add(timeout)?.checked_add(1));
-        if deadline.is_none_or(|end| now >= end) {
-            let response =
-                ApiResponse::failure(StatusCode::LOCKED, "password_confirmation_required", "")
-                    .with_message_key("user.confirmation_required", Default::default())
-                    .into_response()?;
-            return Err(openrust::http::abort_response(client::no_store(response)));
-        }
-        return Ok(Proof {
-            deadline: deadline.expect("已核对期限"),
-            security: client::security(user, fortify)?,
-        });
+        return claim_session(request, user, fortify);
     }
     let raw = match request.header("x-auth-confirmation")? {
         Some(value) => value.to_owned(),
@@ -314,5 +293,45 @@ where
     Ok(Proof {
         deadline,
         security: pending.factor,
+    })
+}
+
+pub(super) fn claim_session<M: TwoFactorAuthenticatable>(
+    request: &mut Request,
+    user: &M,
+    fortify: &Fortify,
+) -> Result<Proof, HttpError> {
+    let confirmed = request
+        .session()
+        .map_err(internal)?
+        .get("auth.password_confirmed_at")
+        .and_then(serde_json::Value::as_i64);
+    let now = openrust::support::facades::Date::now(None)
+        .map_err(internal)?
+        .as_date_time()
+        .timestamp()
+        .as_second();
+    let timeout = lifetime(fortify)?;
+    let deadline = confirmed.and_then(|at| at.checked_add(timeout)?.checked_add(1));
+    if confirmed.is_some_and(|at| at > now)
+        || deadline.is_none_or(|end| now >= end)
+        || !super::web::confirmed(request, user, fortify)?
+    {
+        super::web::forget(request)?;
+        if !request.expects_json()
+            && let Some(response) =
+                openrust::auth::middleware::RequirePassword::default().challenge(request)?
+        {
+            return Err(openrust::http::abort_response(client::no_store(response)));
+        }
+        let response =
+            ApiResponse::failure(StatusCode::LOCKED, "password_confirmation_required", "")
+                .with_message_key("user.confirmation_required", Default::default())
+                .into_response()?;
+        return Err(openrust::http::abort_response(client::no_store(response)));
+    }
+    Ok(Proof {
+        deadline: deadline.expect("已核对期限"),
+        security: client::security(user, fortify)?,
     })
 }
