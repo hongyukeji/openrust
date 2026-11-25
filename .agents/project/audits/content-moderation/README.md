@@ -72,3 +72,11 @@
 规则保留命中类型和类别，ML 保留达到阈值的原始 0–1 分。出现命中时交由人工复审。缺少配置类别或 ML 类别、响应包含尚未识别的 ML 类别时，不能从清洁结果得出完整文本放行结论。词条原文、PII、凭据和供应商错误说明不进入公开结果或日志。
 
 基线 `7767420c1`，Rust 1.94.0，`tests/moderation_sightengine_text_acceptance.py` 通过真实 HTTP、独立 Artisan、配置及路由缓存和凭据轮换验收。替身核对 19 个表单请求的编码、原始 UTF-8、能力字段、语言与凭据。覆盖 10,000／10,001 字符、未启用语言、缺类别、词条脱敏、ML 临界分、未知类别、模型分数无效、限流、超时、权限、3xx 和伪成功。复跑阿里云与腾讯云文本真实 HTTP／Artisan。 审核包 3 个契约测试、全工作区格式、审核包及应用验收目标的严格 Clippy 和三语文档内容检查通过。实际授权账号、扩展语言、模型效果和费用继续按 CM-04 验收。
+
+## CM-02D Hive V2 文本 {#hive-text}
+
+选用 Hive V2 Enterprise 文本项目的 `POST /api/v2/task/sync`，每个具名驱动绑定独立的项目数字 ID 与环境令牌。请求使用 `Authorization: Token`、表单 `text_data`，显式语言以 `options.input_language` 传入。按 UTF-16 码元限制 1,024，补充平面的字符占两个码元。应用核对内外项目 ID、任务 ID、`TEXT_CLASSIFICATION` 及 HTTP／业务状态。 [认证](https://docs.thehive.ai/reference/authentication) · [V2 请求](https://docs.thehive.ai/docs/classification-text) · [文本响应](https://docs.thehive.ai/reference/text-moderation)
+
+必检类别在各段合并最高 0–3 严重度。分数为 -1、缺少类别或响应语言与提示不一致时保留部分覆盖；达到配置阈值仍保留复审证据。词表、PII 和自定义模式仅保留命中类别，去除原文、匹配值和供应商错误消息。
+
+基线 `004db8a9d`，Rust 1.94.0。真实 HTTP 与独立 Artisan 对接验证 18 个回环协议请求。覆盖配置及路由缓存、令牌轮换、显式语言、UTF-16 边界、跨项目／任务／模型拒绝、多段取最高分、未知覆盖、无效或重复分项及拒绝重定向。 Sightengine 文本实际 HTTP／Artisan 回归、审核包 3 个契约测试、全工作区格式、审核包及应用验收目标严格 Clippy、三语文档内容检查通过。V2 Enterprise 项目和各模型实际许可、业务效果、样本保留与费用仍需供应商验收；V2 异步查单协议继续单独核对。

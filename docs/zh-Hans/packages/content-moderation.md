@@ -2,7 +2,7 @@
 
 启用 `content-moderation` 功能，或在依赖 `openrust-content-moderation` 的应用中注册 `ModerationServiceProvider`。执行 `./artisan vendor:publish --tag=moderation-config` 发布配置模板。在应用的 Rust 配置中将 `moderation.drivers.comments.driver` 设为 `review-text`，并通过 `MODERATION_DRIVER=comments` 选择默认配置。
 
-当前包提供自定义驱动契约、阿里云文本和已存储图片审核，腾讯云文本和图片审核，以及 Sightengine 文本审核。其他供应商操作及持久化视频编排正在实施。
+当前包提供自定义驱动契约、阿里云文本和已存储图片审核，腾讯云文本和图片审核，以及 Sightengine 和 Hive 的文本审核。其他供应商操作及持久化视频编排正在实施。
 
 ## 阿里云文本 {#aliyun-text}
 
@@ -35,6 +35,12 @@
 在具名配置设置 `driver: "sightengine"`、`api_user_env` 和 `api_secret_env`，在 `text_languages` 列出启用的语言代码。`text_mode: "rules"` 使用 `text_categories`，例如 `["profanity", "personal"]`。`text_mode: "ml"` 使用 `text_models` 和 0 至 1 的 `text_review_score`。`self-harm` 模型要求 `text_languages: ["en"]`。
 
 适配器保留规则或模型标签及 ML 命中的原始分数。分数达到配置阈值时进入复审，缺少已配置类别的结果时覆盖为部分。最多接收 10,000 个 Unicode 字符，命中的原文和 API 凭据不进入结果或日志。 [规则](https://sightengine.com/docs/text-moderation-rule-based) · [ML 模型](https://sightengine.com/docs/text-moderation-ml-models)
+
+## Hive 文本 {#hive-text}
+
+在具名配置设定 `driver: "hive"`、Hive V2 Enterprise 文本项目的数字 ID `text_project`，以及引用该项目令牌的环境变量名 `token_env`。用 `text_classes` 指定必检类别，`text_review_severity` 取 1、2 或 3。如需显式传入语言提示，在 `text_languages` 列出该项目开通的语言。未传提示时由 Hive 自动检测。
+
+请求上限为 1,024 个 UTF-16 码元。适配器核对响应项目、模型类型和任务 ID。类别分数为 -1 或必检类别缺失时，文本只计为部分覆盖。多段响应取类别的最高严重级别。模式匹配证据保留来源类别，省略命中原词及个人数据。 [Hive V2 文本 API](https://docs.thehive.ai/docs/classification-text)
 
 ## 自定义驱动 {#custom-drivers}
 

@@ -2,7 +2,7 @@
 
 Enable the `content-moderation` feature or register `ModerationServiceProvider` in an application that depends on `openrust-content-moderation`. Run `./artisan vendor:publish --tag=moderation-config` to publish the configuration template. In your application's Rust configuration, set `moderation.drivers.comments.driver` to `review-text` and set `MODERATION_DRIVER=comments` for the default profile.
 
-The package provides custom driver contracts, Alibaba Cloud text and stored-image moderation, Tencent Cloud text and image moderation, and Sightengine text moderation. The other provider operations and durable video orchestration are being implemented.
+The package provides custom driver contracts, Alibaba Cloud text and stored-image moderation, Tencent Cloud text and image moderation, and text moderation from Sightengine and Hive. The other provider operations and durable video orchestration are being implemented.
 
 ## Alibaba Cloud text {#aliyun-text}
 
@@ -35,6 +35,12 @@ The adapter preserves risk findings from visual and OCR results with their origi
 Set `driver: "sightengine"`, `api_user_env` and `api_secret_env` in a named profile. Supply the language codes enabled for that profile in `text_languages`. For `text_mode: "rules"`, configure `text_categories`, such as `["profanity", "personal"]`. For `text_mode: "ml"`, set `text_models` and a `text_review_score` from 0 to 1. The `self-harm` model requires `text_languages: ["en"]`.
 
 The adapter preserves the rule or model label for each finding and the original score for ML findings. Findings at or above the configured threshold require review. Missing results for a configured category or class leave text coverage partial. The adapter accepts up to 10,000 Unicode characters and keeps matched text and API credentials out of results and logs. [Rules](https://sightengine.com/docs/text-moderation-rule-based) · [ML models](https://sightengine.com/docs/text-moderation-ml-models)
+
+## Hive text {#hive-text}
+
+For a Hive V2 Enterprise text project, set `driver: "hive"`, the numeric `text_project` ID, and `token_env` with the environment variable name for that project's token. Set `text_classes` to the categories your application requires and `text_review_severity` to 1, 2, or 3. To allow explicit language hints, list the project languages in `text_languages`. Requests without a hint use Hive's language detection.
+
+The adapter limits input to 1,024 UTF-16 code units. It checks the project, model type, and task ID in the response. A class with score -1 or a missing required class leaves coverage partial. The largest severity for each class is used across all returned sections. Pattern-match findings name the source category and omit matched words and personal data. [Hive V2 text API](https://docs.thehive.ai/docs/classification-text)
 
 ## Custom drivers {#custom-drivers}
 

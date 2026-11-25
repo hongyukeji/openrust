@@ -1,4 +1,5 @@
 mod aliyun;
+mod hive;
 mod media;
 mod sightengine;
 mod tencent;
@@ -39,6 +40,15 @@ pub(crate) fn register(
     let environment = env.clone();
     manager.extend("sightengine", move |profile| {
         Ok(Arc::new(sightengine::Sightengine::new(
+            client.clone(),
+            &environment,
+            profile,
+        )?))
+    });
+    let client = http.clone();
+    let environment = env.clone();
+    manager.extend("hive", move |profile| {
+        Ok(Arc::new(hive::Hive::new(
             client.clone(),
             &environment,
             profile,

@@ -85,6 +85,13 @@ pub(super) fn configuration(env: &Environment) -> Result<Value, ConfigError> {
         text["text_languages"] = json!(["en", "fr"]);
         configuration["drivers"]["sightengine-bad-ml"] = text;
     }
+    if let Some(endpoint) = env.get_utf8("MODERATION_FIXTURE_HIVE")? {
+        configuration["drivers"]["hive-text"] = json!({
+            "driver":"hive", "base_url":endpoint, "token_env":"FIXTURE_HIVE_TOKEN",
+            "text_project":48172, "text_classes":["hate","spam","violence"],
+            "text_languages":["es"], "text_review_severity":2, "timeout_ms":350,
+        });
+    }
     Ok(configuration)
 }
 
@@ -307,7 +314,11 @@ pub(super) fn tencent_image_route(
     })
 }
 
-async fn sightengine(text: &str, language: Option<&str>, profile: &str) -> ModerationResult<Value> {
+async fn configured_text(
+    text: &str,
+    language: Option<&str>,
+    profile: &str,
+) -> ModerationResult<Value> {
     let mut input = TextInput::new(text)?;
     if let Some(language) = language {
         input = input.with_language(language)?;
@@ -325,7 +336,19 @@ pub(super) fn sightengine_route(
         let profile = request
             .header("x-fixture-profile")?
             .unwrap_or("sightengine-rules");
-        provider_response(sightengine(text, request.header("x-fixture-language")?, profile).await)
+        provider_response(
+            configured_text(text, request.header("x-fixture-language")?, profile).await,
+        )
+    })
+}
+
+pub(super) fn hive_route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let raw = request.body_bytes().await?;
+        let text = std::str::from_utf8(&raw).map_err(|_| HttpError::InvalidRequest)?;
+        provider_response(
+            configured_text(text, request.header("x-fixture-language")?, "hive-text").await,
+        )
     })
 }
 
@@ -436,10 +459,17 @@ pub(super) fn register_command(artisan: &mut Artisan) -> Result<(), ConsoleError
                     .action(clap::ArgAction::SetTrue),
             ),
     ))))?;
-    artisan.add_command(Box::new(SightengineProbe(CommandDefinition::new(
-        clap::Command::new("drivers:moderation-sightengine")
-            .arg(clap::Arg::new("text").required(true)),
-    ))))?;
+    for (name, profile) in [
+        ("drivers:moderation-sightengine", "sightengine-rules"),
+        ("drivers:moderation-hive", "hive-text"),
+    ] {
+        artisan.add_command(Box::new(NamedTextProbe(
+            CommandDefinition::new(
+                clap::Command::new(name).arg(clap::Arg::new("text").required(true)),
+            ),
+            profile,
+        )))?;
+    }
     artisan.add_command(Box::new(TencentProbe(CommandDefinition::new(
         clap::Command::new("drivers:moderation-tencent")
             .arg(clap::Arg::new("text").required(true))
@@ -451,9 +481,9 @@ pub(super) fn register_command(artisan: &mut Artisan) -> Result<(), ConsoleError
     ))))
 }
 
-struct SightengineProbe(CommandDefinition);
+struct NamedTextProbe(CommandDefinition, &'static str);
 
-impl Command for SightengineProbe {
+impl Command for NamedTextProbe {
     fn definition(&self) -> &CommandDefinition {
         &self.0
     }
@@ -466,13 +496,9 @@ impl Command for SightengineProbe {
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
             let text = input.argument("text").expect("fixture command input");
-            let result = sightengine(
-                text.as_str().expect("fixture text"),
-                None,
-                "sightengine-rules",
-            )
-            .await
-            .map_err(ConsoleError::from_source)?;
+            let result = configured_text(text.as_str().expect("fixture text"), None, self.1)
+                .await
+                .map_err(ConsoleError::from_source)?;
             output
                 .write_raw(&format!("{result}\n"))
                 .map_err(ConsoleError::from_source)?;
