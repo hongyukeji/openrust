@@ -1,0 +1,131 @@
+[
+  {
+    "mode": "tree",
+    "shape": "L",
+    "error": false,
+    "decorated": true,
+    "level": 32,
+    "before": true,
+    "payload": "Before\r\n├── A\r\n├── Group\r\n│   ├── x\r\n│   └── leaf\r\n│      └── y\r\n└── B\r\n\r\n After\r\n",
+    "meta": {
+      "meta": null,
+      "counts": [
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "create",
+    "shape": "L",
+    "error": false,
+    "decorated": true,
+    "level": 32,
+    "before": true,
+    "payload": "Before\u001b[32mRoot\u001b[39m\r\n├── A\r\n├── Group\r\n│   ├── x\r\n│   └── leaf\r\n│      └── y\r\n└── B\r\n\r\n After\r\n",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "direct",
+    "shape": "L",
+    "error": false,
+    "decorated": true,
+    "level": 32,
+    "before": true,
+    "payload": "Before\u001b[32mRoot\u001b[39m\r\n├── A\r\n├── Group\r\n│   ├── x\r\n│   └── leaf\r\n│      └── y\r\n└── B\r\n After\r\n",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "create",
+    "shape": "B",
+    "error": false,
+    "decorated": true,
+    "level": 32,
+    "before": true,
+    "payload": "Before\u001b[32mRoot\u001b[39m\r\n├── A\r\n├── Group\r\n│   ├── x\r\n│   └── leaf\r\n│      └── y\r\n└── B\r\n\r\n After\r\n",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        null
+      ]
+    }
+  },
+  {
+    "mode": "create",
+    "shape": "LL",
+    "error": false,
+    "decorated": true,
+    "level": 32,
+    "before": true,
+    "payload": "Before\u001b[32mRoot\u001b[39m\r\n├── A\r\n├── Group\r\n│   ├── x\r\n│   └── leaf\r\n│      └── y\r\n└── B\r\n\r\n After\r\n",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "create",
+    "shape": "L",
+    "error": true,
+    "decorated": true,
+    "level": 32,
+    "before": true,
+    "payload": "Before\u001b[32mRoot\u001b[39m\r\n├── A\r\n├── Group\r\n│   ├── x\r\n│   └── leaf\r\n│      └── y\r\n└── B\r\n\r\n After\r\n",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        [
+          1,
+          false
+        ]
+      ]
+    }
+  }
+]

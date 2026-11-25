@@ -1545,3 +1545,43 @@ Node ownership uses standard `Arc`, without a cycle collector. Use `downgrade`/`
 Fallible input producers use `try_from_values` with `Result<(key, value), ConsoleError>` items; an error leaves already appended siblings intact.
 
 Nested one-shot producers use `TreeValue::iterable` or `try_iterable`. They own a `Send + 'static` iterator; the latter accepts fallible items. They are consumed in order, without collecting first, and the nested branch is attached only after it has finished successfully. `TreeValue` does not clone or replay a one-shot producer.
+
+## Trees and tree cursors {#trees}
+
+`OutputStyle` and the base `ConsoleStyle` provide `tree(values, root)` and `create_tree(values, root)`. They use the same `TreeHelper` as the direct constructor. Pass an empty string for the default empty root; even an empty tree writes its root line. Tree output does not add a blank line after rendering.
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, OutputStyle, TreeHelper, TreeNode, TreeStyle, TreeValue, TreeValues};
+use openrust::support::facades::Artisan;
+
+fn register_tree_output() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:trees", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut style = OutputStyle::new(input, output);
+            style.tree([(0_i64, "A"), (1_i64, "B")], "Project")?;
+            {
+                let mut tree = style.create_tree(
+                    [("Group", TreeValue::branch([(0_i64, "Leaf")]))], "Root",
+                )?;
+                tree.render()?;
+            }
+            let root = TreeNode::with_children("Styled", ["Leaf"]);
+            TreeHelper::create_tree(
+                &mut style, root, TreeValues::new(), Some(TreeStyle::rounded()),
+            )?.render()?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+`TreeHelper::create_tree(output, root, values, style)` accepts a root label, an existing `TreeNode` or `None`. Pass an empty `TreeValues` to keep only existing children, and `None` for the default style. Values append to the same root node. A style factory creates a section only when directly wrapping a real console; captures, existing sections and wrapped styles retain their selected output. Error styles retain their stdout/stderr selection.
+
+The helper exposes `current`, `key`, `advance`, `rewind`, `valid`, `has_children` and `get_children`. Construction primes the first child. `advance()` advances without returning a node; standard iterators keep their element-returning `next()`; `current()` returns the same shared node identity, and `key()` returns an integer. Invalid current/key access returns `ConsoleTreeError`. Numeric string keys follow the existing weak scalar rules; nonnumeric or overflowing keys fail. Use `for item in &mut helper` for direct children, or `recursive_iterator()` for depth-first `TreeEntry { node, line }` items. The latter omits the root and does not write output. `TreeStyle::apply_prefixes` configures that iterator; `render()` performs duplicate-node detection.
+
+The cursor is single-use. Rewinding is allowed before it advances past the first yield, and empty cursors remain rewindable. Rewinding an advanced nonempty cursor fails, including a second `render()`; rendering writes the root before that rewind error. Create a fresh helper for another traversal. `get_children()` borrows the selected output: end the child helper's scope before using its parent again. The last yielded node remains owned until the cursor is dropped, even when `valid()` is false.
+
+Factories may run during construction, child probing and child cursor creation, so do not assume one call per node. Child-probe failures are treated as no children by the underlying traversal; failures while advancing the iterator propagate and can leave partial output. During rendering, revisiting the same node identity raises `ConsoleTreeError::Cycle`, including reuse in a DAG. Distinct nodes with equal labels remain valid. Visited nodes stay owned throughout rendering so temporary-node allocation cannot cause false duplicate detection.
+
+`TreeStyle` offers `default`, `r#box`, `box_double`, `compact`, `light`, `minimal` and `rounded`. `r#box` uses Rust's raw identifier syntax because `box` is reserved. `TreeStyle::new` takes six immutable prefixes in this order: end-with-next, end-last, left, middle-with-next, middle-last, right. Presets use static strings; custom prefix definitions are shared when child helpers are created.

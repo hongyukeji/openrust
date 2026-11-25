@@ -1,0 +1,32 @@
+[
+    {
+        "decorated": false,
+        "level": 32,
+        "output": "Project\n├── A\n└── B\nRoot\n└── Group\n   └── Leaf\nStyled\n╰─ Leaf\n"
+    },
+    {
+        "decorated": false,
+        "level": 16,
+        "output": ""
+    },
+    {
+        "decorated": false,
+        "level": 8,
+        "output": ""
+    },
+    {
+        "decorated": true,
+        "level": 32,
+        "output": "Project\n├── A\n└── B\nRoot\n└── Group\n   └── Leaf\nStyled\n╰─ Leaf\n"
+    },
+    {
+        "decorated": true,
+        "level": 16,
+        "output": ""
+    },
+    {
+        "decorated": true,
+        "level": 8,
+        "output": ""
+    }
+]

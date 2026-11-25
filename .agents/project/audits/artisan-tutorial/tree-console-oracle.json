@@ -1,0 +1,1586 @@
+[
+  {
+    "mode": "tree",
+    "shape": "L",
+    "error": false,
+    "decorated": false,
+    "level": 32,
+    "before": true,
+    "stdout": "Before\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n",
+    "stderr": "",
+    "meta": {
+      "meta": null,
+      "counts": [
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "tree",
+    "shape": "L",
+    "error": false,
+    "decorated": false,
+    "level": 16,
+    "before": true,
+    "stdout": "",
+    "stderr": "",
+    "meta": {
+      "meta": null,
+      "counts": [
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "tree",
+    "shape": "L",
+    "error": false,
+    "decorated": true,
+    "level": 32,
+    "before": true,
+    "stdout": "Before\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n",
+    "stderr": "",
+    "meta": {
+      "meta": null,
+      "counts": [
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "tree",
+    "shape": "L",
+    "error": false,
+    "decorated": true,
+    "level": 16,
+    "before": true,
+    "stdout": "",
+    "stderr": "",
+    "meta": {
+      "meta": null,
+      "counts": [
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "tree",
+    "shape": "L",
+    "error": true,
+    "decorated": false,
+    "level": 32,
+    "before": true,
+    "stdout": "",
+    "stderr": "Before\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n",
+    "meta": {
+      "meta": null,
+      "counts": [
+        [
+          1,
+          false
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "tree",
+    "shape": "L",
+    "error": true,
+    "decorated": false,
+    "level": 16,
+    "before": true,
+    "stdout": "",
+    "stderr": "",
+    "meta": {
+      "meta": null,
+      "counts": [
+        [
+          1,
+          false
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "tree",
+    "shape": "L",
+    "error": true,
+    "decorated": true,
+    "level": 32,
+    "before": true,
+    "stdout": "",
+    "stderr": "Before\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n",
+    "meta": {
+      "meta": null,
+      "counts": [
+        [
+          1,
+          false
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "tree",
+    "shape": "L",
+    "error": true,
+    "decorated": true,
+    "level": 16,
+    "before": true,
+    "stdout": "",
+    "stderr": "",
+    "meta": {
+      "meta": null,
+      "counts": [
+        [
+          1,
+          false
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "tree",
+    "shape": "B",
+    "error": false,
+    "decorated": false,
+    "level": 32,
+    "before": true,
+    "stdout": "Before\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n",
+    "stderr": "",
+    "meta": {
+      "meta": null,
+      "counts": [
+        null
+      ]
+    }
+  },
+  {
+    "mode": "tree",
+    "shape": "B",
+    "error": false,
+    "decorated": false,
+    "level": 16,
+    "before": true,
+    "stdout": "",
+    "stderr": "",
+    "meta": {
+      "meta": null,
+      "counts": [
+        null
+      ]
+    }
+  },
+  {
+    "mode": "tree",
+    "shape": "B",
+    "error": false,
+    "decorated": true,
+    "level": 32,
+    "before": true,
+    "stdout": "Before\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n",
+    "stderr": "",
+    "meta": {
+      "meta": null,
+      "counts": [
+        null
+      ]
+    }
+  },
+  {
+    "mode": "tree",
+    "shape": "B",
+    "error": false,
+    "decorated": true,
+    "level": 16,
+    "before": true,
+    "stdout": "",
+    "stderr": "",
+    "meta": {
+      "meta": null,
+      "counts": [
+        null
+      ]
+    }
+  },
+  {
+    "mode": "tree",
+    "shape": "B",
+    "error": true,
+    "decorated": false,
+    "level": 32,
+    "before": true,
+    "stdout": "",
+    "stderr": "Before\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n",
+    "meta": {
+      "meta": null,
+      "counts": [
+        null
+      ]
+    }
+  },
+  {
+    "mode": "tree",
+    "shape": "B",
+    "error": true,
+    "decorated": false,
+    "level": 16,
+    "before": true,
+    "stdout": "",
+    "stderr": "",
+    "meta": {
+      "meta": null,
+      "counts": [
+        null
+      ]
+    }
+  },
+  {
+    "mode": "tree",
+    "shape": "B",
+    "error": true,
+    "decorated": true,
+    "level": 32,
+    "before": true,
+    "stdout": "",
+    "stderr": "Before\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n",
+    "meta": {
+      "meta": null,
+      "counts": [
+        null
+      ]
+    }
+  },
+  {
+    "mode": "tree",
+    "shape": "B",
+    "error": true,
+    "decorated": true,
+    "level": 16,
+    "before": true,
+    "stdout": "",
+    "stderr": "",
+    "meta": {
+      "meta": null,
+      "counts": [
+        null
+      ]
+    }
+  },
+  {
+    "mode": "tree",
+    "shape": "LL",
+    "error": false,
+    "decorated": false,
+    "level": 32,
+    "before": true,
+    "stdout": "Before\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n",
+    "stderr": "",
+    "meta": {
+      "meta": null,
+      "counts": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "tree",
+    "shape": "LL",
+    "error": false,
+    "decorated": false,
+    "level": 16,
+    "before": true,
+    "stdout": "",
+    "stderr": "",
+    "meta": {
+      "meta": null,
+      "counts": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "tree",
+    "shape": "LL",
+    "error": false,
+    "decorated": true,
+    "level": 32,
+    "before": true,
+    "stdout": "Before\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n",
+    "stderr": "",
+    "meta": {
+      "meta": null,
+      "counts": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "tree",
+    "shape": "LL",
+    "error": false,
+    "decorated": true,
+    "level": 16,
+    "before": true,
+    "stdout": "",
+    "stderr": "",
+    "meta": {
+      "meta": null,
+      "counts": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "tree",
+    "shape": "LL",
+    "error": true,
+    "decorated": false,
+    "level": 32,
+    "before": true,
+    "stdout": "Before\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n",
+    "stderr": "",
+    "meta": {
+      "meta": null,
+      "counts": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "tree",
+    "shape": "LL",
+    "error": true,
+    "decorated": false,
+    "level": 16,
+    "before": true,
+    "stdout": "",
+    "stderr": "",
+    "meta": {
+      "meta": null,
+      "counts": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "tree",
+    "shape": "LL",
+    "error": true,
+    "decorated": true,
+    "level": 32,
+    "before": true,
+    "stdout": "Before\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n",
+    "stderr": "",
+    "meta": {
+      "meta": null,
+      "counts": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "tree",
+    "shape": "LL",
+    "error": true,
+    "decorated": true,
+    "level": 16,
+    "before": true,
+    "stdout": "",
+    "stderr": "",
+    "meta": {
+      "meta": null,
+      "counts": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "create",
+    "shape": "L",
+    "error": false,
+    "decorated": false,
+    "level": 32,
+    "before": true,
+    "stdout": "BeforeRoot\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "create",
+    "shape": "L",
+    "error": false,
+    "decorated": false,
+    "level": 16,
+    "before": true,
+    "stdout": "",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "create",
+    "shape": "L",
+    "error": false,
+    "decorated": true,
+    "level": 32,
+    "before": true,
+    "stdout": "Before\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "create",
+    "shape": "L",
+    "error": false,
+    "decorated": true,
+    "level": 16,
+    "before": true,
+    "stdout": "",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "create",
+    "shape": "L",
+    "error": true,
+    "decorated": false,
+    "level": 32,
+    "before": true,
+    "stdout": "",
+    "stderr": "BeforeRoot\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        [
+          1,
+          false
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "create",
+    "shape": "L",
+    "error": true,
+    "decorated": false,
+    "level": 16,
+    "before": true,
+    "stdout": "",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        [
+          1,
+          false
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "create",
+    "shape": "L",
+    "error": true,
+    "decorated": true,
+    "level": 32,
+    "before": true,
+    "stdout": "",
+    "stderr": "Before\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        [
+          1,
+          false
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "create",
+    "shape": "L",
+    "error": true,
+    "decorated": true,
+    "level": 16,
+    "before": true,
+    "stdout": "",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        [
+          1,
+          false
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "create",
+    "shape": "B",
+    "error": false,
+    "decorated": false,
+    "level": 32,
+    "before": true,
+    "stdout": "BeforeRoot\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        null
+      ]
+    }
+  },
+  {
+    "mode": "create",
+    "shape": "B",
+    "error": false,
+    "decorated": false,
+    "level": 16,
+    "before": true,
+    "stdout": "",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        null
+      ]
+    }
+  },
+  {
+    "mode": "create",
+    "shape": "B",
+    "error": false,
+    "decorated": true,
+    "level": 32,
+    "before": true,
+    "stdout": "Before\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        null
+      ]
+    }
+  },
+  {
+    "mode": "create",
+    "shape": "B",
+    "error": false,
+    "decorated": true,
+    "level": 16,
+    "before": true,
+    "stdout": "",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        null
+      ]
+    }
+  },
+  {
+    "mode": "create",
+    "shape": "B",
+    "error": true,
+    "decorated": false,
+    "level": 32,
+    "before": true,
+    "stdout": "",
+    "stderr": "BeforeRoot\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        null
+      ]
+    }
+  },
+  {
+    "mode": "create",
+    "shape": "B",
+    "error": true,
+    "decorated": false,
+    "level": 16,
+    "before": true,
+    "stdout": "",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        null
+      ]
+    }
+  },
+  {
+    "mode": "create",
+    "shape": "B",
+    "error": true,
+    "decorated": true,
+    "level": 32,
+    "before": true,
+    "stdout": "",
+    "stderr": "Before\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        null
+      ]
+    }
+  },
+  {
+    "mode": "create",
+    "shape": "B",
+    "error": true,
+    "decorated": true,
+    "level": 16,
+    "before": true,
+    "stdout": "",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        null
+      ]
+    }
+  },
+  {
+    "mode": "create",
+    "shape": "LL",
+    "error": false,
+    "decorated": false,
+    "level": 32,
+    "before": true,
+    "stdout": "BeforeRoot\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "create",
+    "shape": "LL",
+    "error": false,
+    "decorated": false,
+    "level": 16,
+    "before": true,
+    "stdout": "",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "create",
+    "shape": "LL",
+    "error": false,
+    "decorated": true,
+    "level": 32,
+    "before": true,
+    "stdout": "Before\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "create",
+    "shape": "LL",
+    "error": false,
+    "decorated": true,
+    "level": 16,
+    "before": true,
+    "stdout": "",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "create",
+    "shape": "LL",
+    "error": true,
+    "decorated": false,
+    "level": 32,
+    "before": true,
+    "stdout": "BeforeRoot\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "create",
+    "shape": "LL",
+    "error": true,
+    "decorated": false,
+    "level": 16,
+    "before": true,
+    "stdout": "",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "create",
+    "shape": "LL",
+    "error": true,
+    "decorated": true,
+    "level": 32,
+    "before": true,
+    "stdout": "Before\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "create",
+    "shape": "LL",
+    "error": true,
+    "decorated": true,
+    "level": 16,
+    "before": true,
+    "stdout": "",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "direct",
+    "shape": "L",
+    "error": false,
+    "decorated": false,
+    "level": 32,
+    "before": true,
+    "stdout": "BeforeRoot\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "direct",
+    "shape": "L",
+    "error": false,
+    "decorated": false,
+    "level": 16,
+    "before": true,
+    "stdout": "",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "direct",
+    "shape": "L",
+    "error": false,
+    "decorated": true,
+    "level": 32,
+    "before": true,
+    "stdout": "Before\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "direct",
+    "shape": "L",
+    "error": false,
+    "decorated": true,
+    "level": 16,
+    "before": true,
+    "stdout": "",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "direct",
+    "shape": "L",
+    "error": true,
+    "decorated": false,
+    "level": 32,
+    "before": true,
+    "stdout": "",
+    "stderr": "BeforeRoot\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        [
+          1,
+          false
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "direct",
+    "shape": "L",
+    "error": true,
+    "decorated": false,
+    "level": 16,
+    "before": true,
+    "stdout": "",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        [
+          1,
+          false
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "direct",
+    "shape": "L",
+    "error": true,
+    "decorated": true,
+    "level": 32,
+    "before": true,
+    "stdout": "",
+    "stderr": "Before\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        [
+          1,
+          false
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "direct",
+    "shape": "L",
+    "error": true,
+    "decorated": true,
+    "level": 16,
+    "before": true,
+    "stdout": "",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        [
+          1,
+          false
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "direct",
+    "shape": "B",
+    "error": false,
+    "decorated": false,
+    "level": 32,
+    "before": true,
+    "stdout": "BeforeRoot\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        null
+      ]
+    }
+  },
+  {
+    "mode": "direct",
+    "shape": "B",
+    "error": false,
+    "decorated": false,
+    "level": 16,
+    "before": true,
+    "stdout": "",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        null
+      ]
+    }
+  },
+  {
+    "mode": "direct",
+    "shape": "B",
+    "error": false,
+    "decorated": true,
+    "level": 32,
+    "before": true,
+    "stdout": "Before\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        null
+      ]
+    }
+  },
+  {
+    "mode": "direct",
+    "shape": "B",
+    "error": false,
+    "decorated": true,
+    "level": 16,
+    "before": true,
+    "stdout": "",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        null
+      ]
+    }
+  },
+  {
+    "mode": "direct",
+    "shape": "B",
+    "error": true,
+    "decorated": false,
+    "level": 32,
+    "before": true,
+    "stdout": "",
+    "stderr": "BeforeRoot\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        null
+      ]
+    }
+  },
+  {
+    "mode": "direct",
+    "shape": "B",
+    "error": true,
+    "decorated": false,
+    "level": 16,
+    "before": true,
+    "stdout": "",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        null
+      ]
+    }
+  },
+  {
+    "mode": "direct",
+    "shape": "B",
+    "error": true,
+    "decorated": true,
+    "level": 32,
+    "before": true,
+    "stdout": "",
+    "stderr": "Before\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        null
+      ]
+    }
+  },
+  {
+    "mode": "direct",
+    "shape": "B",
+    "error": true,
+    "decorated": true,
+    "level": 16,
+    "before": true,
+    "stdout": "",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        null
+      ]
+    }
+  },
+  {
+    "mode": "direct",
+    "shape": "LL",
+    "error": false,
+    "decorated": false,
+    "level": 32,
+    "before": true,
+    "stdout": "BeforeRoot\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "direct",
+    "shape": "LL",
+    "error": false,
+    "decorated": false,
+    "level": 16,
+    "before": true,
+    "stdout": "",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "direct",
+    "shape": "LL",
+    "error": false,
+    "decorated": true,
+    "level": 32,
+    "before": true,
+    "stdout": "Before\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "direct",
+    "shape": "LL",
+    "error": false,
+    "decorated": true,
+    "level": 16,
+    "before": true,
+    "stdout": "",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "direct",
+    "shape": "LL",
+    "error": true,
+    "decorated": false,
+    "level": 32,
+    "before": true,
+    "stdout": "BeforeRoot\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "direct",
+    "shape": "LL",
+    "error": true,
+    "decorated": false,
+    "level": 16,
+    "before": true,
+    "stdout": "",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "direct",
+    "shape": "LL",
+    "error": true,
+    "decorated": true,
+    "level": 32,
+    "before": true,
+    "stdout": "Before\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  },
+  {
+    "mode": "direct",
+    "shape": "LL",
+    "error": true,
+    "decorated": true,
+    "level": 16,
+    "before": true,
+    "stdout": "",
+    "stderr": "",
+    "meta": {
+      "meta": {
+        "current": "A",
+        "key": 0,
+        "has_children": false
+      },
+      "counts": [
+        [
+          1,
+          true
+        ],
+        [
+          1,
+          true
+        ]
+      ]
+    }
+  }
+]

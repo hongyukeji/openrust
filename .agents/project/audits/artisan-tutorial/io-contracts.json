@@ -1329,6 +1329,26 @@
           "base-style-interface-oracle.json",
           "error-style-contracts.json"
         ]
+      },
+      {
+        "method": "tree",
+        "native": "console::ConsoleStyle::tree",
+        "status": "verified_actual_public_base_style_consumer",
+        "evidence": [
+          "console_tree_helpers",
+          "tree-style-oracle.json",
+          "tree-console-oracle.json"
+        ]
+      },
+      {
+        "method": "create_tree",
+        "native": "console::ConsoleStyle::create_tree",
+        "status": "verified_actual_public_base_style_consumer",
+        "evidence": [
+          "console_tree_helpers",
+          "tree-style-oracle.json",
+          "tree-console-oracle.json"
+        ]
       }
     ],
     "TreeNode": [
@@ -1399,7 +1419,9 @@
           "tree-node-failure-oracle.json",
           "tree-node-incremental-oracle.json",
           "tree-node-input-failure-oracle.json",
-          "tree-node-nested-oracle.json"
+          "tree-node-nested-oracle.json",
+          "tree-lifecycle-oracle.json",
+          "console_tree_helpers"
         ]
       },
       {
@@ -1413,7 +1435,9 @@
           "tree-node-failure-oracle.json",
           "tree-node-incremental-oracle.json",
           "tree-node-input-failure-oracle.json",
-          "tree-node-nested-oracle.json"
+          "tree-node-nested-oracle.json",
+          "tree-lifecycle-oracle.json",
+          "console_tree_helpers"
         ]
       },
       {
@@ -1442,6 +1466,253 @@
           "tree-node-incremental-oracle.json",
           "tree-node-input-failure-oracle.json",
           "tree-node-nested-oracle.json"
+        ]
+      }
+    ],
+    "TreeHelper": [
+      {
+        "method": "createTree",
+        "native": "console::TreeHelper::create_tree",
+        "status": "verified_public_entry_with_builtin_outputs",
+        "evidence": [
+          "console_tree_helpers",
+          "tree-helper-contracts.json",
+          "tree-cursor-oracle.json",
+          "tree-render-oracle.json",
+          "tree-keys-oracle.json",
+          "tree-style-oracle.json",
+          "tree-lifecycle-oracle.json",
+          "tree-console-oracle.json",
+          "tree-key-render-oracle.json",
+          "tree-docs-oracle.json",
+          "tree-pty-oracle.json"
+        ]
+      },
+      {
+        "method": "current",
+        "native": "console::TreeHelper::current",
+        "status": "verified_public_entry_with_builtin_outputs",
+        "evidence": [
+          "console_tree_helpers",
+          "tree-helper-contracts.json",
+          "tree-cursor-oracle.json",
+          "tree-render-oracle.json",
+          "tree-keys-oracle.json",
+          "tree-style-oracle.json",
+          "tree-lifecycle-oracle.json",
+          "tree-console-oracle.json",
+          "tree-key-render-oracle.json",
+          "tree-docs-oracle.json",
+          "tree-pty-oracle.json"
+        ]
+      },
+      {
+        "method": "key",
+        "native": "console::TreeHelper::key",
+        "status": "verified_public_entry_with_builtin_outputs",
+        "evidence": [
+          "console_tree_helpers",
+          "tree-helper-contracts.json",
+          "tree-cursor-oracle.json",
+          "tree-render-oracle.json",
+          "tree-keys-oracle.json",
+          "tree-style-oracle.json",
+          "tree-lifecycle-oracle.json",
+          "tree-console-oracle.json",
+          "tree-key-render-oracle.json",
+          "tree-docs-oracle.json",
+          "tree-pty-oracle.json"
+        ]
+      },
+      {
+        "method": "next",
+        "native": "console::TreeHelper::advance",
+        "status": "verified_public_entry_with_builtin_outputs",
+        "evidence": [
+          "console_tree_helpers",
+          "tree-helper-contracts.json",
+          "tree-cursor-oracle.json",
+          "tree-render-oracle.json",
+          "tree-keys-oracle.json",
+          "tree-style-oracle.json",
+          "tree-lifecycle-oracle.json",
+          "tree-console-oracle.json",
+          "tree-key-render-oracle.json",
+          "tree-docs-oracle.json",
+          "tree-pty-oracle.json"
+        ]
+      },
+      {
+        "method": "rewind",
+        "native": "console::TreeHelper::rewind",
+        "status": "verified_public_entry_with_builtin_outputs",
+        "evidence": [
+          "console_tree_helpers",
+          "tree-helper-contracts.json",
+          "tree-cursor-oracle.json",
+          "tree-render-oracle.json",
+          "tree-keys-oracle.json",
+          "tree-style-oracle.json",
+          "tree-lifecycle-oracle.json",
+          "tree-console-oracle.json",
+          "tree-key-render-oracle.json",
+          "tree-docs-oracle.json",
+          "tree-pty-oracle.json"
+        ]
+      },
+      {
+        "method": "valid",
+        "native": "console::TreeHelper::valid",
+        "status": "verified_public_entry_with_builtin_outputs",
+        "evidence": [
+          "console_tree_helpers",
+          "tree-helper-contracts.json",
+          "tree-cursor-oracle.json",
+          "tree-render-oracle.json",
+          "tree-keys-oracle.json",
+          "tree-style-oracle.json",
+          "tree-lifecycle-oracle.json",
+          "tree-console-oracle.json",
+          "tree-key-render-oracle.json",
+          "tree-docs-oracle.json",
+          "tree-pty-oracle.json"
+        ]
+      },
+      {
+        "method": "hasChildren",
+        "native": "console::TreeHelper::has_children",
+        "status": "verified_public_entry_with_builtin_outputs",
+        "evidence": [
+          "console_tree_helpers",
+          "tree-helper-contracts.json",
+          "tree-cursor-oracle.json",
+          "tree-render-oracle.json",
+          "tree-keys-oracle.json",
+          "tree-style-oracle.json",
+          "tree-lifecycle-oracle.json",
+          "tree-console-oracle.json",
+          "tree-key-render-oracle.json",
+          "tree-docs-oracle.json",
+          "tree-pty-oracle.json"
+        ]
+      },
+      {
+        "method": "getChildren",
+        "native": "console::TreeHelper::get_children",
+        "status": "verified_public_entry_with_builtin_outputs",
+        "evidence": [
+          "console_tree_helpers",
+          "tree-helper-contracts.json",
+          "tree-cursor-oracle.json",
+          "tree-render-oracle.json",
+          "tree-keys-oracle.json",
+          "tree-style-oracle.json",
+          "tree-lifecycle-oracle.json",
+          "tree-console-oracle.json",
+          "tree-key-render-oracle.json",
+          "tree-docs-oracle.json",
+          "tree-pty-oracle.json"
+        ]
+      },
+      {
+        "method": "render",
+        "native": "console::TreeHelper::render",
+        "status": "verified_public_entry_with_builtin_outputs",
+        "evidence": [
+          "console_tree_helpers",
+          "tree-helper-contracts.json",
+          "tree-cursor-oracle.json",
+          "tree-render-oracle.json",
+          "tree-keys-oracle.json",
+          "tree-style-oracle.json",
+          "tree-lifecycle-oracle.json",
+          "tree-console-oracle.json",
+          "tree-key-render-oracle.json",
+          "tree-docs-oracle.json",
+          "tree-pty-oracle.json"
+        ]
+      }
+    ],
+    "TreeStyle": [
+      {
+        "method": "__construct",
+        "native": "console::TreeStyle::new",
+        "status": "verified_public_or_internal_bridge_entry",
+        "evidence": [
+          "console_tree_helpers",
+          "tree-helper-contracts.json"
+        ]
+      },
+      {
+        "method": "box",
+        "native": "console::TreeStyle::r#box",
+        "status": "verified_public_or_internal_bridge_entry",
+        "evidence": [
+          "console_tree_helpers",
+          "tree-helper-contracts.json"
+        ]
+      },
+      {
+        "method": "boxDouble",
+        "native": "console::TreeStyle::box_double",
+        "status": "verified_public_or_internal_bridge_entry",
+        "evidence": [
+          "console_tree_helpers",
+          "tree-helper-contracts.json"
+        ]
+      },
+      {
+        "method": "compact",
+        "native": "console::TreeStyle::compact",
+        "status": "verified_public_or_internal_bridge_entry",
+        "evidence": [
+          "console_tree_helpers",
+          "tree-helper-contracts.json"
+        ]
+      },
+      {
+        "method": "default",
+        "native": "console::TreeStyle::default (std Default)",
+        "status": "verified_public_or_internal_bridge_entry",
+        "evidence": [
+          "console_tree_helpers",
+          "tree-helper-contracts.json"
+        ]
+      },
+      {
+        "method": "light",
+        "native": "console::TreeStyle::light",
+        "status": "verified_public_or_internal_bridge_entry",
+        "evidence": [
+          "console_tree_helpers",
+          "tree-helper-contracts.json"
+        ]
+      },
+      {
+        "method": "minimal",
+        "native": "console::TreeStyle::minimal",
+        "status": "verified_public_or_internal_bridge_entry",
+        "evidence": [
+          "console_tree_helpers",
+          "tree-helper-contracts.json"
+        ]
+      },
+      {
+        "method": "rounded",
+        "native": "console::TreeStyle::rounded",
+        "status": "verified_public_or_internal_bridge_entry",
+        "evidence": [
+          "console_tree_helpers",
+          "tree-helper-contracts.json"
+        ]
+      },
+      {
+        "method": "applyPrefixes",
+        "native": "console::TreeStyle::apply_prefixes (native TreeIterator bridge, source @internal)",
+        "status": "verified_public_or_internal_bridge_entry",
+        "evidence": [
+          "console_tree_helpers",
+          "tree-helper-contracts.json"
         ]
       }
     ]
@@ -1976,17 +2247,44 @@
       {
         "method": "tree",
         "source_line": 378,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_helpers_sections_selected_streams_and_cursor_semantics",
+        "native": "OutputStyle / ConsoleStyle::tree",
+        "evidence": [
+          "console_tree_helpers",
+          "tree-helper-contracts.json",
+          "tree-cursor-oracle.json",
+          "tree-render-oracle.json",
+          "tree-keys-oracle.json",
+          "tree-style-oracle.json",
+          "tree-lifecycle-oracle.json",
+          "tree-console-oracle.json",
+          "tree-key-render-oracle.json",
+          "tree-docs-oracle.json",
+          "tree-pty-oracle.json"
+        ]
       },
       {
         "method": "createTree",
         "source_line": 386,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_helpers_sections_selected_streams_and_cursor_semantics",
+        "native": "OutputStyle / ConsoleStyle::create_tree",
+        "evidence": [
+          "console_tree_helpers",
+          "tree-helper-contracts.json",
+          "tree-cursor-oracle.json",
+          "tree-render-oracle.json",
+          "tree-keys-oracle.json",
+          "tree-style-oracle.json",
+          "tree-lifecycle-oracle.json",
+          "tree-console-oracle.json",
+          "tree-key-render-oracle.json",
+          "tree-docs-oracle.json",
+          "tree-pty-oracle.json"
+        ]
       }
     ]
   },
   "remaining_output_style_behaviors": [
-    "TreeNode及原生惰性值适配已验；SymfonyStyle继承的tree/create_tree及TreeHelper/TreeStyle仍待实现与完整验收；基础样式及已有助手保持闭合。",
     "完整组件Factory继续逐类型核对，不以既有OutputStyle助手代替组件公开入口。",
     "通用OutputInterface、ConsoleOutputInterface及任意自定义输出／Artisan.call第三参数仍待完整类型与消费者；当前所选内置stderr借用不冒充完整接口。"
   ]

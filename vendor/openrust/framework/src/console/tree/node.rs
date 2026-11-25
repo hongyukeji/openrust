@@ -161,6 +161,7 @@ impl TreeNode {
             node: self.clone(),
             children: None,
             active: None,
+            retained: None,
             key: None,
             next_key: 0,
             failed: false,
@@ -297,6 +298,8 @@ pub struct TreeChildren {
     node: TreeNode,
     children: Option<std::vec::IntoIter<TreeChild>>,
     active: Option<ChildrenIterator>,
+    // 保留生成器最后的节点，直到调用方释放本次遍历。
+    retained: Option<TreeNode>,
     key: Option<ArrayKey>,
     next_key: i64,
     failed: bool,
@@ -321,6 +324,7 @@ impl Iterator for TreeChildren {
                 match active.next() {
                     Some(Ok((key, node))) => {
                         self.key = Some(key);
+                        self.retained = Some(node.clone());
                         return Some(Ok(node));
                     }
                     Some(Err(error)) => {
@@ -333,6 +337,7 @@ impl Iterator for TreeChildren {
             }
             match self.children.as_mut().expect("已初始化的子列表").next()? {
                 TreeChild::Node(node) => {
+                    self.retained = Some(node.clone());
                     self.key = Some(ArrayKey::Integer(self.next_key));
                     self.next_key = match self.next_key.checked_add(1) {
                         Some(key) => key,

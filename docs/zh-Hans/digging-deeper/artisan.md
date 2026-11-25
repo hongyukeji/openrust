@@ -1545,3 +1545,43 @@ fn register_tree_nodes() -> Result<(), ConsoleError> {
 可失败的输入生产者使用 `try_from_values`，逐项返回 `Result<(key, value), ConsoleError>`；失败前已追加的兄弟节点会保留。
 
 嵌套的一次性生产者使用 `TreeValue::iterable` 或 `try_iterable`，拥有 `Send + 'static` 迭代器，后者接受可失败的项。输入按顺序消费，不提前收集；嵌套分支只有完整成功后才附加。`TreeValue` 不克隆或重放一次性生产者。
+
+## 树输出与树游标 {#trees}
+
+`OutputStyle` 和基础 `ConsoleStyle` 均提供 `tree(values, root)` 与 `create_tree(values, root)`，同直接构造入口共用 `TreeHelper`。默认空根传入空字符串；即使空树也写出根行，渲染结束后不额外追加空白行。
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, OutputStyle, TreeHelper, TreeNode, TreeStyle, TreeValue, TreeValues};
+use openrust::support::facades::Artisan;
+
+fn register_tree_output() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:trees", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut style = OutputStyle::new(input, output);
+            style.tree([(0_i64, "A"), (1_i64, "B")], "Project")?;
+            {
+                let mut tree = style.create_tree(
+                    [("Group", TreeValue::branch([(0_i64, "Leaf")]))], "Root",
+                )?;
+                tree.render()?;
+            }
+            let root = TreeNode::with_children("Styled", ["Leaf"]);
+            TreeHelper::create_tree(
+                &mut style, root, TreeValues::new(), Some(TreeStyle::rounded()),
+            )?.render()?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+`TreeHelper::create_tree(output, root, values, style)` 接受根标签、已有 `TreeNode` 或 `None`；空 `TreeValues` 保留已有孩子，样式传 `None` 使用默认值。值会追加到同一个根节点。样式工厂只有直接包装真实控制台时才新建分区；捕获流、已有分区和嵌套样式保留所选输出，错误样式也保留 stdout／stderr 选择。
+
+助手提供 `current`、`key`、`advance`、`rewind`、`valid`、`has_children` 和 `get_children`。构造时预读首个孩子；`advance()` 仅推进，标准迭代器仍以 `next()` 返回元素，`current()` 返回共享同一身份的节点，`key()` 返回整数。无效游标的 current／key 访问返回 `ConsoleTreeError`；数字字符串键沿用已有弱标量规则，非数或溢出键失败。`for item in &mut helper` 遍历直接孩子；`recursive_iterator()` 深度优先返回 `TreeEntry { node, line }`，不包含根，也不写输出。`TreeStyle::apply_prefixes` 配置该迭代器，重复节点检测由 `render()` 执行。
+
+游标为单次消费：越过首次 yield 前可以 rewind，空游标也可反复 rewind。已推进的非空游标重绕失败，包括第二次 `render()`；渲染会先写根行再报告该错误。再次遍历请创建新助手。`get_children()` 借用所选输出，需要结束子助手的作用域后再使用父助手。即使 `valid()` 为 false，最后的节点仍由游标持有，直到游标释放。
+
+工厂可能在构造、子节点探测和创建子游标时执行，不应假设每个节点只调用一次。底层遍历将子树探测错误视为没有孩子；推进迭代器时的错误会传播，且可能已经写出部分输出。渲染中再次遇到同一节点身份会返回 `ConsoleTreeError::Cycle`，DAG 中复用节点也属于重复；不同节点可以具有相同标签。渲染期间保留已访问节点，避免临时节点分配地址复用造成误判。
+
+`TreeStyle` 提供 `default`、`r#box`、`box_double`、`compact`、`light`、`minimal` 和 `rounded`。`box` 是 Rust 保留字，因此使用原始标识符 `r#box`。`TreeStyle::new` 的六个只读前缀依次为：有下一项的末端、最后末端、左侧、有下一项的中段、最后中段、右侧。预设使用静态字符串，自定义前缀在子助手间共享。

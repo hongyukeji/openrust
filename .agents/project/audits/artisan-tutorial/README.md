@@ -561,3 +561,19 @@ OutputReference保留私有所选stderr；只有直接实际控制台切换，�
 初轮集合推导、测试接收者/JSON字段顺序和嵌套转换生命周期编译失败均已定位修复；最终完整门禁重新通过。三次32GB中断保留原始日志，恢复框架及其后未完成项；后两次清理等待占用进程后，复核正式守卫记录分别释放86,569,783,296与91,234,279,424字节并保留锁inode，恢复未完成门禁，不把中断或锁竞争当通过。提交前审查还发现泛型Into<TreeChild>转换在锁内执行的重入风险；独立子进程在5秒内真实死锁反例失败并被回收，随后把用户转换移到锁外。固定源Stringable重入亦实测0退出、节点顺序converted/outer；修复后完整12父消费者、严格门禁与实际消费者全部重新通过。Root源码与格式化隔离源码逐份核对，其他在途及索引不夹带。
 
 证据tree-node-contracts.json/accepted-tree-node.json及五份oracle；原始target/tmp/artisan-tutorial-20261125/tree-node-*保留。自己的运行目录/HTTP服务/参考--rm容器已回收；源码、日志和共享可复用缓存保留。TreeHelper/TreeStyle、tree/create_tree草案与游标对照尚未交付，接着完成，不把本簇当整棵树SDK、writing-output锚点或Artisan48锚点闭合；完整组件Factory、通用输出和其他章节仍按原账本。仅本簇本地提交，不推送。
+
+## 第三十八簇：树助手、树样式与双样式工厂（2026-11-26）
+
+固定Console7.4.0 TreeHelper九声明、TreeStyle九声明（含internal applyPrefixes桥接）与SymfonyStyle tree/createTree逐项核对；原生OutputStyle和ConsoleStyle均实际调用同一Helper。参考php-src8.5.12 SPL源码解释RecursiveCachingIterator预读与CATCH_GET_CHILD阶段，未移植C代码或要求PHP运行时，未声称移植整个SPL库。旧版无对应SDK，复用当前TreeNode/TreeValues、AsOutput/OutputReference、Formatter、Section、EnumBacking与原应用装配。
+
+实际固定源共537场景：32游标/快照/重绕、64渲染/7预设及自定义6前缀/循环/错误阶段、8弱数字键、336混合基础/派生样式及分区、5改变工厂结果/弱引用生命周期、72真实ConsoleOutput进程、8渲染键失败、6正文源样例和6真实PTY。构造预读首项，不空重建Generator；重绕失败可能current仍在但key丢失。空游标可重绕，非空游标推进后重绕失败；render先写根再rewind，无额外末尾空白行。子树探测/构造错误按源默认CATCH_GET_CHILD视作无孩子，推进预读错误传播并保留部分输出，不把失败静默包装成成功。
+
+全局visited按对象身份检测DAG复用和循环，持有已访问强引用防止临时地址重用误判；256个同名临时节点与WeakReference实测证明渲染中保留，迭代结束后最后节点留到Helper/游标释放。依据此实际消费者给TreeChildren补末项引用，不改公开名称/数据格式；原Node12父消费者完整回归。工厂探测和子游标创建可能执行两次，改变第二次结果/抛错/空结果顺序均核对。首轮生命周期测试夹具错误多记after2，修正夹具使其实际遵循源yield分支，不改源预期。
+
+Source next只推进，而Rust Iterator.next返回元素；严格Clippy实际指出should_implement_trait歧义后，按已确认原生命名裁决为TreeHelper.advance，并保留标准迭代器next、current/key/rewind/valid/has_children/get_children。没有加lint豁免或旧别名。借用IntoIterator/TreeIterator为标准遍历适配，apply_prefixes作用于真实迭代器；子Helper独占借用输出的E0499负编译实测通过。预设前缀静态保存，自定义前缀只读共享，不为每层深拷贝；无未经测量的速度声明。数字键复用EnumBacking；PHP精度弃用通道不移植，源键探测显式关闭error_reporting，仅对结果/错误及输出作真实对照。
+
+当前内置输出的真实Artisan72正常进程stdout/stderr/meta、失败OS1与部分输出，HTTP factory/direct200、Cycle JSON500、恢复200及12并发通过。三语正文直接提取117例，树代码同固定源6例对照；框架31目标188父消费者、根6目标158父消费者共346通过，51个ignored驱动位不另算功能。全workspace严格Clippy、fmt、Rustdoc、实际main(pail)和三语构建通过；6真实源/原生PTY物理字节、stdout/stderr选择与完整termios一致，main/up/静态/HTML和JSON404/HEAD/Pail过滤/超时清理/Ctrl+C0及三语12浏览器检查通过。首页缺视图的独立夹具仍按预期500供Pail消费，不声称首页200。
+
+测试HTTP参数首轮推导为Vec<String>导致编译失败，已改OsString并完整复验；命名Clippy失败保留原日志，修正advance后完整回归通过。曾触32GB时正式守卫持锁回收编译产物，源码/日志保留后恢复，不把中断当通过。最终两个独立验收二进制按原构建SHA保存到项目内临时交付目录，以免缓存清理破坏进行中的消费者；未复制整套缓存，完成验收与提交后直接删除。其他在途/索引、数据库、数据卷、下载和日志保留。
+
+正式契约tree-helper-contracts.json、accepted-tree-helper.json及九份oracle；原始target/tmp/artisan-tutorial-20261125/tree-*与源工具保留。当前Tree SDK结论限定内置AsOutput-backed输出，任意第三方OutputInterface/ConsoleOutputInterface及Artisan.call第三参数仍是显式未闭合契约，不以构造泛型掩盖；完整组件Factory及Artisan其余锚点继续，未关闭整章/全框架或Windows发布矩阵。仅本簇本地提交，不推送。

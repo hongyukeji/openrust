@@ -1,0 +1,2730 @@
+[
+    {
+        "n": 0,
+        "advance": 0,
+        "mutation": false,
+        "trace": [
+            "open",
+            "close",
+            "created"
+        ],
+        "steps": [
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "rewind",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "hasChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "getChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "next",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            }
+        ],
+        "output": "Root\nRoot\n"
+    },
+    {
+        "n": 0,
+        "advance": 0,
+        "mutation": true,
+        "trace": [
+            "open",
+            "close",
+            "created"
+        ],
+        "steps": [
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "rewind",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "hasChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "getChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "next",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            }
+        ],
+        "output": "Root\nRoot\n"
+    },
+    {
+        "n": 0,
+        "advance": 1,
+        "mutation": false,
+        "trace": [
+            "open",
+            "close",
+            "created"
+        ],
+        "steps": [
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "rewind",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "hasChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "getChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "next",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            }
+        ],
+        "output": "Root\nRoot\n"
+    },
+    {
+        "n": 0,
+        "advance": 1,
+        "mutation": true,
+        "trace": [
+            "open",
+            "close",
+            "created"
+        ],
+        "steps": [
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "rewind",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "hasChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "getChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "next",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            }
+        ],
+        "output": "Root\nRoot\n"
+    },
+    {
+        "n": 0,
+        "advance": 2,
+        "mutation": false,
+        "trace": [
+            "open",
+            "close",
+            "created"
+        ],
+        "steps": [
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "rewind",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "hasChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "getChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "next",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            }
+        ],
+        "output": "Root\nRoot\n"
+    },
+    {
+        "n": 0,
+        "advance": 2,
+        "mutation": true,
+        "trace": [
+            "open",
+            "close",
+            "created"
+        ],
+        "steps": [
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "rewind",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "hasChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "getChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "next",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            }
+        ],
+        "output": "Root\nRoot\n"
+    },
+    {
+        "n": 0,
+        "advance": 3,
+        "mutation": false,
+        "trace": [
+            "open",
+            "close",
+            "created"
+        ],
+        "steps": [
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "rewind",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "hasChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "getChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "next",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            }
+        ],
+        "output": "Root\nRoot\n"
+    },
+    {
+        "n": 0,
+        "advance": 3,
+        "mutation": true,
+        "trace": [
+            "open",
+            "close",
+            "created"
+        ],
+        "steps": [
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "rewind",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "hasChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "getChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "next",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            }
+        ],
+        "output": "Root\nRoot\n"
+    },
+    {
+        "n": 1,
+        "advance": 0,
+        "mutation": false,
+        "trace": [
+            "open",
+            "yield0",
+            "created",
+            "close"
+        ],
+        "steps": [
+            {
+                "op": "valid",
+                "value": true,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": "n0",
+                "error": null
+            },
+            {
+                "op": "key",
+                "value": 0,
+                "error": null
+            },
+            {
+                "op": "rewind",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": "n0",
+                "error": null
+            },
+            {
+                "op": "key",
+                "value": 0,
+                "error": null
+            },
+            {
+                "op": "hasChildren",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "getChildren",
+                "value": {
+                    "valid": false
+                },
+                "error": null
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "next",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            }
+        ],
+        "output": "Root\n└── n0\nRoot\n"
+    },
+    {
+        "n": 1,
+        "advance": 0,
+        "mutation": true,
+        "trace": [
+            "open",
+            "yield0",
+            "created",
+            "close"
+        ],
+        "steps": [
+            {
+                "op": "valid",
+                "value": true,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": "n0",
+                "error": null
+            },
+            {
+                "op": "key",
+                "value": 0,
+                "error": null
+            },
+            {
+                "op": "rewind",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": "n0",
+                "error": null
+            },
+            {
+                "op": "key",
+                "value": 0,
+                "error": null
+            },
+            {
+                "op": "hasChildren",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "getChildren",
+                "value": {
+                    "valid": false
+                },
+                "error": null
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "next",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            }
+        ],
+        "output": "Root\n└── n0\nRoot\n"
+    },
+    {
+        "n": 1,
+        "advance": 1,
+        "mutation": false,
+        "trace": [
+            "open",
+            "yield0",
+            "created",
+            "close"
+        ],
+        "steps": [
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "rewind",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "hasChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "getChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "next",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            }
+        ],
+        "output": "Root\nRoot\n"
+    },
+    {
+        "n": 1,
+        "advance": 1,
+        "mutation": true,
+        "trace": [
+            "open",
+            "yield0",
+            "created",
+            "close"
+        ],
+        "steps": [
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "rewind",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "hasChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "getChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "next",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            }
+        ],
+        "output": "Root\nRoot\n"
+    },
+    {
+        "n": 1,
+        "advance": 2,
+        "mutation": false,
+        "trace": [
+            "open",
+            "yield0",
+            "created",
+            "close"
+        ],
+        "steps": [
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "rewind",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "hasChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "getChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "next",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            }
+        ],
+        "output": "Root\nRoot\n"
+    },
+    {
+        "n": 1,
+        "advance": 2,
+        "mutation": true,
+        "trace": [
+            "open",
+            "yield0",
+            "created",
+            "close"
+        ],
+        "steps": [
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "rewind",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "hasChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "getChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "next",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            }
+        ],
+        "output": "Root\nRoot\n"
+    },
+    {
+        "n": 1,
+        "advance": 3,
+        "mutation": false,
+        "trace": [
+            "open",
+            "yield0",
+            "created",
+            "close"
+        ],
+        "steps": [
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "rewind",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "hasChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "getChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "next",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            }
+        ],
+        "output": "Root\nRoot\n"
+    },
+    {
+        "n": 1,
+        "advance": 3,
+        "mutation": true,
+        "trace": [
+            "open",
+            "yield0",
+            "created",
+            "close"
+        ],
+        "steps": [
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "rewind",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "hasChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "getChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "next",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            }
+        ],
+        "output": "Root\nRoot\n"
+    },
+    {
+        "n": 2,
+        "advance": 0,
+        "mutation": false,
+        "trace": [
+            "open",
+            "yield0",
+            "created",
+            "yield1",
+            "close"
+        ],
+        "steps": [
+            {
+                "op": "valid",
+                "value": true,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": "n0",
+                "error": null
+            },
+            {
+                "op": "key",
+                "value": 0,
+                "error": null
+            },
+            {
+                "op": "rewind",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": "n0",
+                "error": null
+            },
+            {
+                "op": "key",
+                "value": 0,
+                "error": null
+            },
+            {
+                "op": "hasChildren",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "getChildren",
+                "value": {
+                    "valid": false
+                },
+                "error": null
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "next",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            }
+        ],
+        "output": "Root\n├── n0\n└── n1\nRoot\n"
+    },
+    {
+        "n": 2,
+        "advance": 0,
+        "mutation": true,
+        "trace": [
+            "open",
+            "yield0",
+            "created",
+            "yield1",
+            "close"
+        ],
+        "steps": [
+            {
+                "op": "valid",
+                "value": true,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": "n0",
+                "error": null
+            },
+            {
+                "op": "key",
+                "value": 0,
+                "error": null
+            },
+            {
+                "op": "rewind",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": "n0",
+                "error": null
+            },
+            {
+                "op": "key",
+                "value": 0,
+                "error": null
+            },
+            {
+                "op": "hasChildren",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "getChildren",
+                "value": {
+                    "valid": false
+                },
+                "error": null
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "next",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            }
+        ],
+        "output": "Root\n├── n0\n└── n1\nRoot\n"
+    },
+    {
+        "n": 2,
+        "advance": 1,
+        "mutation": false,
+        "trace": [
+            "open",
+            "yield0",
+            "created",
+            "yield1",
+            "close"
+        ],
+        "steps": [
+            {
+                "op": "valid",
+                "value": true,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": "n1",
+                "error": null
+            },
+            {
+                "op": "key",
+                "value": 1,
+                "error": null
+            },
+            {
+                "op": "rewind",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "current",
+                "value": "n1",
+                "error": null
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "hasChildren",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "getChildren",
+                "value": {
+                    "valid": false
+                },
+                "error": null
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "next",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            }
+        ],
+        "output": "Root\nRoot\n"
+    },
+    {
+        "n": 2,
+        "advance": 1,
+        "mutation": true,
+        "trace": [
+            "open",
+            "yield0",
+            "created",
+            "yield1",
+            "close"
+        ],
+        "steps": [
+            {
+                "op": "valid",
+                "value": true,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": "n1",
+                "error": null
+            },
+            {
+                "op": "key",
+                "value": 1,
+                "error": null
+            },
+            {
+                "op": "rewind",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "current",
+                "value": "n1",
+                "error": null
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "hasChildren",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "getChildren",
+                "value": {
+                    "valid": false
+                },
+                "error": null
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "next",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            }
+        ],
+        "output": "Root\nRoot\n"
+    },
+    {
+        "n": 2,
+        "advance": 2,
+        "mutation": false,
+        "trace": [
+            "open",
+            "yield0",
+            "created",
+            "yield1",
+            "close"
+        ],
+        "steps": [
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "rewind",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "hasChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "getChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "next",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            }
+        ],
+        "output": "Root\nRoot\n"
+    },
+    {
+        "n": 2,
+        "advance": 2,
+        "mutation": true,
+        "trace": [
+            "open",
+            "yield0",
+            "created",
+            "yield1",
+            "close"
+        ],
+        "steps": [
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "rewind",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "hasChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "getChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "next",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            }
+        ],
+        "output": "Root\nRoot\n"
+    },
+    {
+        "n": 2,
+        "advance": 3,
+        "mutation": false,
+        "trace": [
+            "open",
+            "yield0",
+            "created",
+            "yield1",
+            "close"
+        ],
+        "steps": [
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "rewind",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "hasChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "getChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "next",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            }
+        ],
+        "output": "Root\nRoot\n"
+    },
+    {
+        "n": 2,
+        "advance": 3,
+        "mutation": true,
+        "trace": [
+            "open",
+            "yield0",
+            "created",
+            "yield1",
+            "close"
+        ],
+        "steps": [
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "rewind",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "hasChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "getChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "next",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            }
+        ],
+        "output": "Root\nRoot\n"
+    },
+    {
+        "n": 3,
+        "advance": 0,
+        "mutation": false,
+        "trace": [
+            "open",
+            "yield0",
+            "created",
+            "yield1",
+            "yield2",
+            "close"
+        ],
+        "steps": [
+            {
+                "op": "valid",
+                "value": true,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": "n0",
+                "error": null
+            },
+            {
+                "op": "key",
+                "value": 0,
+                "error": null
+            },
+            {
+                "op": "rewind",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": "n0",
+                "error": null
+            },
+            {
+                "op": "key",
+                "value": 0,
+                "error": null
+            },
+            {
+                "op": "hasChildren",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "getChildren",
+                "value": {
+                    "valid": false
+                },
+                "error": null
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "next",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            }
+        ],
+        "output": "Root\n├── n0\n├── n1\n└── n2\nRoot\n"
+    },
+    {
+        "n": 3,
+        "advance": 0,
+        "mutation": true,
+        "trace": [
+            "open",
+            "yield0",
+            "created",
+            "yield1",
+            "yield2",
+            "close"
+        ],
+        "steps": [
+            {
+                "op": "valid",
+                "value": true,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": "n0",
+                "error": null
+            },
+            {
+                "op": "key",
+                "value": 0,
+                "error": null
+            },
+            {
+                "op": "rewind",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": "n0",
+                "error": null
+            },
+            {
+                "op": "key",
+                "value": 0,
+                "error": null
+            },
+            {
+                "op": "hasChildren",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "getChildren",
+                "value": {
+                    "valid": false
+                },
+                "error": null
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "next",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            }
+        ],
+        "output": "Root\n├── n0\n├── n1\n└── n2\nRoot\n"
+    },
+    {
+        "n": 3,
+        "advance": 1,
+        "mutation": false,
+        "trace": [
+            "open",
+            "yield0",
+            "created",
+            "yield1",
+            "yield2",
+            "close"
+        ],
+        "steps": [
+            {
+                "op": "valid",
+                "value": true,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": "n1",
+                "error": null
+            },
+            {
+                "op": "key",
+                "value": 1,
+                "error": null
+            },
+            {
+                "op": "rewind",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "current",
+                "value": "n1",
+                "error": null
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "hasChildren",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "getChildren",
+                "value": {
+                    "valid": false
+                },
+                "error": null
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "next",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "valid",
+                "value": true,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": "n2",
+                "error": null
+            },
+            {
+                "op": "key",
+                "value": 2,
+                "error": null
+            }
+        ],
+        "output": "Root\nRoot\n"
+    },
+    {
+        "n": 3,
+        "advance": 1,
+        "mutation": true,
+        "trace": [
+            "open",
+            "yield0",
+            "created",
+            "yield1",
+            "yield2",
+            "close"
+        ],
+        "steps": [
+            {
+                "op": "valid",
+                "value": true,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": "n1",
+                "error": null
+            },
+            {
+                "op": "key",
+                "value": 1,
+                "error": null
+            },
+            {
+                "op": "rewind",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "current",
+                "value": "n1",
+                "error": null
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "hasChildren",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "getChildren",
+                "value": {
+                    "valid": false
+                },
+                "error": null
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "next",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "valid",
+                "value": true,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": "n2",
+                "error": null
+            },
+            {
+                "op": "key",
+                "value": 2,
+                "error": null
+            }
+        ],
+        "output": "Root\nRoot\n"
+    },
+    {
+        "n": 3,
+        "advance": 2,
+        "mutation": false,
+        "trace": [
+            "open",
+            "yield0",
+            "created",
+            "yield1",
+            "yield2",
+            "close"
+        ],
+        "steps": [
+            {
+                "op": "valid",
+                "value": true,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": "n2",
+                "error": null
+            },
+            {
+                "op": "key",
+                "value": 2,
+                "error": null
+            },
+            {
+                "op": "rewind",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "current",
+                "value": "n2",
+                "error": null
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "hasChildren",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "getChildren",
+                "value": {
+                    "valid": false
+                },
+                "error": null
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "next",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            }
+        ],
+        "output": "Root\nRoot\n"
+    },
+    {
+        "n": 3,
+        "advance": 2,
+        "mutation": true,
+        "trace": [
+            "open",
+            "yield0",
+            "created",
+            "yield1",
+            "yield2",
+            "close"
+        ],
+        "steps": [
+            {
+                "op": "valid",
+                "value": true,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": "n2",
+                "error": null
+            },
+            {
+                "op": "key",
+                "value": 2,
+                "error": null
+            },
+            {
+                "op": "rewind",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "current",
+                "value": "n2",
+                "error": null
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "hasChildren",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "getChildren",
+                "value": {
+                    "valid": false
+                },
+                "error": null
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "next",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            }
+        ],
+        "output": "Root\nRoot\n"
+    },
+    {
+        "n": 3,
+        "advance": 3,
+        "mutation": false,
+        "trace": [
+            "open",
+            "yield0",
+            "created",
+            "yield1",
+            "yield2",
+            "close"
+        ],
+        "steps": [
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "rewind",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "hasChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "getChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "next",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            }
+        ],
+        "output": "Root\nRoot\n"
+    },
+    {
+        "n": 3,
+        "advance": 3,
+        "mutation": true,
+        "trace": [
+            "open",
+            "yield0",
+            "created",
+            "yield1",
+            "yield2",
+            "close"
+        ],
+        "steps": [
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "rewind",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            },
+            {
+                "op": "hasChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "getChildren",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "render",
+                "value": null,
+                "error": "rewind"
+            },
+            {
+                "op": "next",
+                "value": null,
+                "error": null
+            },
+            {
+                "op": "valid",
+                "value": false,
+                "error": null
+            },
+            {
+                "op": "current",
+                "value": null,
+                "error": "current"
+            },
+            {
+                "op": "key",
+                "value": null,
+                "error": "key"
+            }
+        ],
+        "output": "Root\nRoot\n"
+    }
+]

@@ -1,0 +1,51 @@
+[
+    {
+        "mode": "empty",
+        "trace": [
+            "call1",
+            "close1",
+            "call2",
+            "close2"
+        ],
+        "error": null,
+        "output": "Root\n├── A\n└── B\n"
+    },
+    {
+        "mode": "second-fails",
+        "trace": [
+            "call1",
+            "close1",
+            "call2",
+            "close2"
+        ],
+        "error": null,
+        "output": "Root\n├── A\n└── B\n"
+    },
+    {
+        "mode": "two",
+        "trace": [
+            "call1",
+            "close1",
+            "call2",
+            "after2",
+            "close2"
+        ],
+        "error": null,
+        "output": "Root\n├── A\n│   └── child\n└── B\n"
+    },
+    {
+        "mode": "probe-fails",
+        "trace": [
+            "call1",
+            "close1"
+        ],
+        "error": null,
+        "output": "Root\n├── A\n└── B\n"
+    },
+    {
+        "mode": "weak",
+        "held_during_render": true,
+        "released_after_render": false,
+        "output": "Root\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n├── same\n└── same\n"
+    }
+]

@@ -216,6 +216,20 @@ impl<'output> ConsoleStyle<'output> {
     ) -> Result<(), ConsoleError> {
         self.inner.caution(messages)
     }
+    pub fn create_tree<K: Into<crate::support::ArrayKey>, V: Into<crate::console::TreeValue>>(
+        &mut self,
+        values: impl IntoIterator<Item = (K, V)>,
+        root: &str,
+    ) -> Result<crate::console::TreeHelper<'_>, ConsoleError> {
+        self.inner.create_tree(values, root)
+    }
+    pub fn tree<K: Into<crate::support::ArrayKey>, V: Into<crate::console::TreeValue>>(
+        &mut self,
+        values: impl IntoIterator<Item = (K, V)>,
+        root: &str,
+    ) -> Result<(), ConsoleError> {
+        self.inner.tree(values, root)
+    }
     pub fn create_table(&mut self) -> Result<crate::console::Table<'_>, ConsoleError> {
         self.inner.create_table()
     }

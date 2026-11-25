@@ -85,7 +85,7 @@ impl OutputReference<'_> {
             new_line_start: self.new_line_start,
         }
     }
-    pub(super) fn for_style_table(&mut self) -> OutputReference<'_> {
+    pub(super) fn for_style_component(&mut self) -> OutputReference<'_> {
         if self.parents.is_empty()
             && self.section.is_none()
             && !self.error_stream

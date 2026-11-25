@@ -1,0 +1,112 @@
+{
+  "reference": {
+    "framework": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+    "docs": "960eedf0911155ad16326ade49c0ea5d18eda0b8",
+    "console": "Symfony Console v7.4.0 Helper/TreeHelper.php, TreeStyle.php, Style/SymfonyStyle.php and their upstream tests",
+    "spl": "php-src php-8.5.12 ext/spl/spl_iterators.c: RecursiveCachingIterator, CATCH_GET_CHILD and RecursiveTreeIterator; read for behavior, no C runtime dependency",
+    "license": "vendor/openrust/framework/src/console/LICENSE.symfony",
+    "reuse": "v0.x 6d1a81924451e15f595f68c8dfb520ad6d6c44cf has no full Tree SDK; reuse current TreeNode/TreeValues, AsOutput/OutputReference, formatter, scalar EnumBacking, section engine and application/Artisan/HTTP machinery"
+  },
+  "status": "verified_tree_helpers_styles_and_concrete_style_factories_with_current_builtin_outputs",
+  "tree_helper": {
+    "createTree": "create_tree",
+    "current": "current",
+    "key": "key",
+    "next": "advance",
+    "rewind": "rewind",
+    "valid": "valid",
+    "hasChildren": "has_children",
+    "getChildren": "get_children",
+    "render": "render"
+  },
+  "tree_style": {
+    "__construct": "new",
+    "box": "r#box",
+    "boxDouble": "box_double",
+    "compact": "compact",
+    "default": "default (std Default)",
+    "light": "light",
+    "minimal": "minimal",
+    "rounded": "rounded",
+    "applyPrefixes": "apply_prefixes (native TreeIterator bridge, source @internal)"
+  },
+  "concrete_factories": [
+    "OutputStyle::tree / create_tree",
+    "ConsoleStyle::tree / create_tree"
+  ],
+  "native_iterator_adapters": [
+    "IntoIterator for &mut TreeHelper -> TreeHelperIterator yields direct Result<TreeNode,ConsoleError> items",
+    "TreeHelper::recursive_iterator -> TreeIterator yields depth-first Result<TreeEntry{node,line},ConsoleError>",
+    "TreeStyle::apply_prefixes actually changes TreeIterator output; no claim to implement the entire SPL standard library"
+  ],
+  "source_scene_counts": {
+    "cursor": 32,
+    "renderer": 64,
+    "key": 8,
+    "mixed_styles_sections": 336,
+    "factory_and_weak_lifetimes": 5,
+    "actual_console_processes": 72,
+    "key_render": 8,
+    "formal_example": 6,
+    "actual_pty_processes": 6
+  },
+  "source_total": 537,
+  "oracles": [
+    "tree-cursor-oracle.json",
+    "tree-render-oracle.json",
+    "tree-keys-oracle.json",
+    "tree-style-oracle.json",
+    "tree-lifecycle-oracle.json",
+    "tree-console-oracle.json",
+    "tree-key-render-oracle.json",
+    "tree-docs-oracle.json",
+    "tree-pty-oracle.json"
+  ],
+  "native_consumers": {
+    "helper_parents": 10,
+    "node_regression_parents": 12,
+    "actual_console": "72 independent handle_command success processes exact stdout/stderr/meta against fixed source",
+    "failure": "duplicate identity actual CLI OS1 with partial stdout; distinct nodes with equal labels render normally",
+    "http": "real HTTP factory/direct200, Cycle JSON500, recovery200 and12 concurrent requests",
+    "docs": "117 trilingual examples directly extracted and run, tree example compared to actual source",
+    "pty": "6 source/native actual PTYs, mode=create/tree/direct, base/derived/mixed, selected stderr; exact bytes/meta and full termios equality",
+    "main": "actual HTTP /up/static/HTML404/JSON404/HEAD; Artisan inspire/list/Pail filters/timeout cleanup/Ctrl+C0"
+  },
+  "counts": {
+    "framework": {
+      "targets": 31,
+      "passed": 188,
+      "ignored_drivers": 51
+    },
+    "root": {
+      "targets": 6,
+      "passed": 158,
+      "ignored_drivers": 0
+    }
+  },
+  "important_source_behaviors": [
+    "constructor primes the first child; cursor does not recreate/replay its generator",
+    "rewind after advancing a nonempty iterator fails, invalid current/key fail; failed rewind can retain current but lose key; empty cursors may rewind repeatedly",
+    "render writes root before rewinding; even empty root writes a line; no extra trailing blank line",
+    "has_children probes a fresh child iterator and get_children creates another; callbacks may run twice with changing results",
+    "only child probing/child cursor construction errors are swallowed by default CATCH_GET_CHILD behavior; next-item prefetch errors propagate with partial output",
+    "whole-render visited identity is global, so DAG object reuse also raises Cycle; visited strong node references avoid allocator-address reuse false positives; current/tail retained until iterator/helper release",
+    "numeric string keys use existing weak scalar coercion, rejected nonnumeric/overflow keys still leave the rendered root line",
+    "style factory creates a section only for directly wrapped real ConsoleOutput identity, preserving capture/section/wrapped/error output and newline counter boundaries"
+  ],
+  "rust_adaptations": [
+    "source TreeHelper.next maps to advance: source method only advances, whereas std Iterator.next returns an element; Clippy exposed actual ambiguity; no lint exemption or compatibility alias added",
+    "source RecursiveIterator protocol maps to explicit cursor methods plus native borrowed IntoIterator/TreeIterator adapters; no PHP/SPL runtime dependency or invented fully implemented global SPL type",
+    "helper and child helper exclusively borrow selected output; exact E0499 Rustdoc negative example; end child scope before reusing parent",
+    "static preset prefixes and shared immutable custom strings avoid per-depth deep copies; no measured speedup asserted",
+    "node data ownership remains Arc/Weak with explicit strong-cycle cleanup per previous unit; final iterator tail retention added based on actual source WeakReference observations",
+    "PHP precision-loss deprecation diagnostics are not a Rust engine channel; key probes run source error_reporting=0, results/errors/output actually compared; scalar rules reuse EnumBacking"
+  ],
+  "boundaries": [
+    "arbitrary third-party OutputInterface / ConsoleOutputInterface and Artisan.call third argument remain a separately tracked open contract; current Tree SDK accepts current AsOutput-backed outputs",
+    "full component Factory and remaining Artisan tutorial anchors stay open",
+    "PHPUnit source tests read but not run; source scripts/archives remain local ignored target/tmp; ordinary regression uses saved oracles",
+    "Windows/release/full cross-platform and external vendor validation not claimed"
+  ],
+  "pushed": false
+}

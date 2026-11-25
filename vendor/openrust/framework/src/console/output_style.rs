@@ -8,6 +8,7 @@ mod base;
 mod block;
 mod definition;
 mod table;
+mod tree;
 pub use base::ConsoleStyle;
 pub use definition::DefinitionListItem;
 mod text;

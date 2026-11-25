@@ -1,0 +1,56 @@
+[
+    {
+        "input": 7,
+        "key": 7,
+        "error": null,
+        "output": "root\n\u2514\u2500\u2500 child\n"
+    },
+    {
+        "input": "7",
+        "key": 7,
+        "error": null,
+        "output": "root\n\u2514\u2500\u2500 child\n"
+    },
+    {
+        "input": "07",
+        "key": 7,
+        "error": null,
+        "output": "root\n\u2514\u2500\u2500 child\n"
+    },
+    {
+        "input": " 7 ",
+        "key": 7,
+        "error": null,
+        "output": "root\n\u2514\u2500\u2500 child\n"
+    },
+    {
+        "input": "7.5",
+        "key": 7,
+        "error": null,
+        "output": "root\n\u2514\u2500\u2500 child\n"
+    },
+    {
+        "input": "1e2",
+        "key": 100,
+        "error": null,
+        "output": "root\n\u2514\u2500\u2500 child\n"
+    },
+    {
+        "input": "bad",
+        "key": null,
+        "error": [
+            "TypeError",
+            "Symfony\\Component\\Console\\Helper\\TreeHelper::key(): Return value must be of type int, string returned"
+        ],
+        "output": ""
+    },
+    {
+        "input": "9223372036854775808",
+        "key": null,
+        "error": [
+            "TypeError",
+            "Symfony\\Component\\Console\\Helper\\TreeHelper::key(): Return value must be of type int, string returned"
+        ],
+        "output": ""
+    }
+]

@@ -1,0 +1,722 @@
+[
+    {
+        "style": "default",
+        "mode": "ordinary",
+        "trace": [
+            "created"
+        ],
+        "error": null,
+        "output": "Root\n├── A\n│   └── child\n│      └── leaf\n└── B\n"
+    },
+    {
+        "style": "default",
+        "mode": "multiline",
+        "trace": [
+            "created"
+        ],
+        "error": null,
+        "output": "Root\n├── A\na2\n│   └── x\nx2\n└── \n"
+    },
+    {
+        "style": "default",
+        "mode": "empty",
+        "trace": [
+            "created"
+        ],
+        "error": null,
+        "output": "Root\n"
+    },
+    {
+        "style": "default",
+        "mode": "dag",
+        "trace": [
+            "created"
+        ],
+        "error": [
+            "LogicException",
+            "Cycle detected at node: \"<info>A<\/info>\na2\"."
+        ],
+        "output": "Root\n├── A\na2\n"
+    },
+    {
+        "style": "default",
+        "mode": "cycle",
+        "trace": [
+            "created"
+        ],
+        "error": [
+            "LogicException",
+            "Cycle detected at node: \"Root\"."
+        ],
+        "output": "Root\n└── Root\n"
+    },
+    {
+        "style": "default",
+        "mode": "lazy-error",
+        "trace": [
+            "factory",
+            "created",
+            "error"
+        ],
+        "error": [
+            "RuntimeException",
+            "failure"
+        ],
+        "output": "Root\n"
+    },
+    {
+        "style": "default",
+        "mode": "child-error",
+        "trace": [
+            "created",
+            "factory"
+        ],
+        "error": null,
+        "output": "Root\n├── A\na2\n└── last\n"
+    },
+    {
+        "style": "default",
+        "mode": "grandchild-error",
+        "trace": [
+            "created",
+            "factory",
+            "factory",
+            "error"
+        ],
+        "error": [
+            "RuntimeException",
+            "failure"
+        ],
+        "output": "Root\n├── A\na2\n"
+    },
+    {
+        "style": "box",
+        "mode": "ordinary",
+        "trace": [
+            "created"
+        ],
+        "error": null,
+        "output": "Root\n┃╸ A\n┃  ┗╸ child\n┃     ┗╸ leaf\n┗╸ B\n"
+    },
+    {
+        "style": "box",
+        "mode": "multiline",
+        "trace": [
+            "created"
+        ],
+        "error": null,
+        "output": "Root\n┃╸ A\na2\n┃  ┗╸ x\nx2\n┗╸ \n"
+    },
+    {
+        "style": "box",
+        "mode": "empty",
+        "trace": [
+            "created"
+        ],
+        "error": null,
+        "output": "Root\n"
+    },
+    {
+        "style": "box",
+        "mode": "dag",
+        "trace": [
+            "created"
+        ],
+        "error": [
+            "LogicException",
+            "Cycle detected at node: \"<info>A<\/info>\na2\"."
+        ],
+        "output": "Root\n┃╸ A\na2\n"
+    },
+    {
+        "style": "box",
+        "mode": "cycle",
+        "trace": [
+            "created"
+        ],
+        "error": [
+            "LogicException",
+            "Cycle detected at node: \"Root\"."
+        ],
+        "output": "Root\n┗╸ Root\n"
+    },
+    {
+        "style": "box",
+        "mode": "lazy-error",
+        "trace": [
+            "factory",
+            "created",
+            "error"
+        ],
+        "error": [
+            "RuntimeException",
+            "failure"
+        ],
+        "output": "Root\n"
+    },
+    {
+        "style": "box",
+        "mode": "child-error",
+        "trace": [
+            "created",
+            "factory"
+        ],
+        "error": null,
+        "output": "Root\n┃╸ A\na2\n┗╸ last\n"
+    },
+    {
+        "style": "box",
+        "mode": "grandchild-error",
+        "trace": [
+            "created",
+            "factory",
+            "factory",
+            "error"
+        ],
+        "error": [
+            "RuntimeException",
+            "failure"
+        ],
+        "output": "Root\n┃╸ A\na2\n"
+    },
+    {
+        "style": "boxDouble",
+        "mode": "ordinary",
+        "trace": [
+            "created"
+        ],
+        "error": null,
+        "output": "Root\n╠═ A\n║  ╚═ child\n║    ╚═ leaf\n╚═ B\n"
+    },
+    {
+        "style": "boxDouble",
+        "mode": "multiline",
+        "trace": [
+            "created"
+        ],
+        "error": null,
+        "output": "Root\n╠═ A\na2\n║  ╚═ x\nx2\n╚═ \n"
+    },
+    {
+        "style": "boxDouble",
+        "mode": "empty",
+        "trace": [
+            "created"
+        ],
+        "error": null,
+        "output": "Root\n"
+    },
+    {
+        "style": "boxDouble",
+        "mode": "dag",
+        "trace": [
+            "created"
+        ],
+        "error": [
+            "LogicException",
+            "Cycle detected at node: \"<info>A<\/info>\na2\"."
+        ],
+        "output": "Root\n╠═ A\na2\n"
+    },
+    {
+        "style": "boxDouble",
+        "mode": "cycle",
+        "trace": [
+            "created"
+        ],
+        "error": [
+            "LogicException",
+            "Cycle detected at node: \"Root\"."
+        ],
+        "output": "Root\n╚═ Root\n"
+    },
+    {
+        "style": "boxDouble",
+        "mode": "lazy-error",
+        "trace": [
+            "factory",
+            "created",
+            "error"
+        ],
+        "error": [
+            "RuntimeException",
+            "failure"
+        ],
+        "output": "Root\n"
+    },
+    {
+        "style": "boxDouble",
+        "mode": "child-error",
+        "trace": [
+            "created",
+            "factory"
+        ],
+        "error": null,
+        "output": "Root\n╠═ A\na2\n╚═ last\n"
+    },
+    {
+        "style": "boxDouble",
+        "mode": "grandchild-error",
+        "trace": [
+            "created",
+            "factory",
+            "factory",
+            "error"
+        ],
+        "error": [
+            "RuntimeException",
+            "failure"
+        ],
+        "output": "Root\n╠═ A\na2\n"
+    },
+    {
+        "style": "compact",
+        "mode": "ordinary",
+        "trace": [
+            "created"
+        ],
+        "error": null,
+        "output": "Root\n├ A\n│ └ child\n│   └ leaf\n└ B\n"
+    },
+    {
+        "style": "compact",
+        "mode": "multiline",
+        "trace": [
+            "created"
+        ],
+        "error": null,
+        "output": "Root\n├ A\na2\n│ └ x\nx2\n└ \n"
+    },
+    {
+        "style": "compact",
+        "mode": "empty",
+        "trace": [
+            "created"
+        ],
+        "error": null,
+        "output": "Root\n"
+    },
+    {
+        "style": "compact",
+        "mode": "dag",
+        "trace": [
+            "created"
+        ],
+        "error": [
+            "LogicException",
+            "Cycle detected at node: \"<info>A<\/info>\na2\"."
+        ],
+        "output": "Root\n├ A\na2\n"
+    },
+    {
+        "style": "compact",
+        "mode": "cycle",
+        "trace": [
+            "created"
+        ],
+        "error": [
+            "LogicException",
+            "Cycle detected at node: \"Root\"."
+        ],
+        "output": "Root\n└ Root\n"
+    },
+    {
+        "style": "compact",
+        "mode": "lazy-error",
+        "trace": [
+            "factory",
+            "created",
+            "error"
+        ],
+        "error": [
+            "RuntimeException",
+            "failure"
+        ],
+        "output": "Root\n"
+    },
+    {
+        "style": "compact",
+        "mode": "child-error",
+        "trace": [
+            "created",
+            "factory"
+        ],
+        "error": null,
+        "output": "Root\n├ A\na2\n└ last\n"
+    },
+    {
+        "style": "compact",
+        "mode": "grandchild-error",
+        "trace": [
+            "created",
+            "factory",
+            "factory",
+            "error"
+        ],
+        "error": [
+            "RuntimeException",
+            "failure"
+        ],
+        "output": "Root\n├ A\na2\n"
+    },
+    {
+        "style": "light",
+        "mode": "ordinary",
+        "trace": [
+            "created"
+        ],
+        "error": null,
+        "output": "Root\n|-- A\n|   `-- child\n|       `-- leaf\n`-- B\n"
+    },
+    {
+        "style": "light",
+        "mode": "multiline",
+        "trace": [
+            "created"
+        ],
+        "error": null,
+        "output": "Root\n|-- A\na2\n|   `-- x\nx2\n`-- \n"
+    },
+    {
+        "style": "light",
+        "mode": "empty",
+        "trace": [
+            "created"
+        ],
+        "error": null,
+        "output": "Root\n"
+    },
+    {
+        "style": "light",
+        "mode": "dag",
+        "trace": [
+            "created"
+        ],
+        "error": [
+            "LogicException",
+            "Cycle detected at node: \"<info>A<\/info>\na2\"."
+        ],
+        "output": "Root\n|-- A\na2\n"
+    },
+    {
+        "style": "light",
+        "mode": "cycle",
+        "trace": [
+            "created"
+        ],
+        "error": [
+            "LogicException",
+            "Cycle detected at node: \"Root\"."
+        ],
+        "output": "Root\n`-- Root\n"
+    },
+    {
+        "style": "light",
+        "mode": "lazy-error",
+        "trace": [
+            "factory",
+            "created",
+            "error"
+        ],
+        "error": [
+            "RuntimeException",
+            "failure"
+        ],
+        "output": "Root\n"
+    },
+    {
+        "style": "light",
+        "mode": "child-error",
+        "trace": [
+            "created",
+            "factory"
+        ],
+        "error": null,
+        "output": "Root\n|-- A\na2\n`-- last\n"
+    },
+    {
+        "style": "light",
+        "mode": "grandchild-error",
+        "trace": [
+            "created",
+            "factory",
+            "factory",
+            "error"
+        ],
+        "error": [
+            "RuntimeException",
+            "failure"
+        ],
+        "output": "Root\n|-- A\na2\n"
+    },
+    {
+        "style": "minimal",
+        "mode": "ordinary",
+        "trace": [
+            "created"
+        ],
+        "error": null,
+        "output": "Root\n. A\n. . child\n.   . leaf\n. B\n"
+    },
+    {
+        "style": "minimal",
+        "mode": "multiline",
+        "trace": [
+            "created"
+        ],
+        "error": null,
+        "output": "Root\n. A\na2\n. . x\nx2\n. \n"
+    },
+    {
+        "style": "minimal",
+        "mode": "empty",
+        "trace": [
+            "created"
+        ],
+        "error": null,
+        "output": "Root\n"
+    },
+    {
+        "style": "minimal",
+        "mode": "dag",
+        "trace": [
+            "created"
+        ],
+        "error": [
+            "LogicException",
+            "Cycle detected at node: \"<info>A<\/info>\na2\"."
+        ],
+        "output": "Root\n. A\na2\n"
+    },
+    {
+        "style": "minimal",
+        "mode": "cycle",
+        "trace": [
+            "created"
+        ],
+        "error": [
+            "LogicException",
+            "Cycle detected at node: \"Root\"."
+        ],
+        "output": "Root\n. Root\n"
+    },
+    {
+        "style": "minimal",
+        "mode": "lazy-error",
+        "trace": [
+            "factory",
+            "created",
+            "error"
+        ],
+        "error": [
+            "RuntimeException",
+            "failure"
+        ],
+        "output": "Root\n"
+    },
+    {
+        "style": "minimal",
+        "mode": "child-error",
+        "trace": [
+            "created",
+            "factory"
+        ],
+        "error": null,
+        "output": "Root\n. A\na2\n. last\n"
+    },
+    {
+        "style": "minimal",
+        "mode": "grandchild-error",
+        "trace": [
+            "created",
+            "factory",
+            "factory",
+            "error"
+        ],
+        "error": [
+            "RuntimeException",
+            "failure"
+        ],
+        "output": "Root\n. A\na2\n"
+    },
+    {
+        "style": "rounded",
+        "mode": "ordinary",
+        "trace": [
+            "created"
+        ],
+        "error": null,
+        "output": "Root\n├─ A\n│  ╰─ child\n│     ╰─ leaf\n╰─ B\n"
+    },
+    {
+        "style": "rounded",
+        "mode": "multiline",
+        "trace": [
+            "created"
+        ],
+        "error": null,
+        "output": "Root\n├─ A\na2\n│  ╰─ x\nx2\n╰─ \n"
+    },
+    {
+        "style": "rounded",
+        "mode": "empty",
+        "trace": [
+            "created"
+        ],
+        "error": null,
+        "output": "Root\n"
+    },
+    {
+        "style": "rounded",
+        "mode": "dag",
+        "trace": [
+            "created"
+        ],
+        "error": [
+            "LogicException",
+            "Cycle detected at node: \"<info>A<\/info>\na2\"."
+        ],
+        "output": "Root\n├─ A\na2\n"
+    },
+    {
+        "style": "rounded",
+        "mode": "cycle",
+        "trace": [
+            "created"
+        ],
+        "error": [
+            "LogicException",
+            "Cycle detected at node: \"Root\"."
+        ],
+        "output": "Root\n╰─ Root\n"
+    },
+    {
+        "style": "rounded",
+        "mode": "lazy-error",
+        "trace": [
+            "factory",
+            "created",
+            "error"
+        ],
+        "error": [
+            "RuntimeException",
+            "failure"
+        ],
+        "output": "Root\n"
+    },
+    {
+        "style": "rounded",
+        "mode": "child-error",
+        "trace": [
+            "created",
+            "factory"
+        ],
+        "error": null,
+        "output": "Root\n├─ A\na2\n╰─ last\n"
+    },
+    {
+        "style": "rounded",
+        "mode": "grandchild-error",
+        "trace": [
+            "created",
+            "factory",
+            "factory",
+            "error"
+        ],
+        "error": [
+            "RuntimeException",
+            "failure"
+        ],
+        "output": "Root\n├─ A\na2\n"
+    },
+    {
+        "style": "custom",
+        "mode": "ordinary",
+        "trace": [
+            "created"
+        ],
+        "error": null,
+        "output": "Root\nLE+RA\nLM+E-Rchild\nLM+M-E-Rleaf\nLE-RB\n"
+    },
+    {
+        "style": "custom",
+        "mode": "multiline",
+        "trace": [
+            "created"
+        ],
+        "error": null,
+        "output": "Root\nLE+RA\na2\nLM+E-Rx\nx2\nLE-R\n"
+    },
+    {
+        "style": "custom",
+        "mode": "empty",
+        "trace": [
+            "created"
+        ],
+        "error": null,
+        "output": "Root\n"
+    },
+    {
+        "style": "custom",
+        "mode": "dag",
+        "trace": [
+            "created"
+        ],
+        "error": [
+            "LogicException",
+            "Cycle detected at node: \"<info>A<\/info>\na2\"."
+        ],
+        "output": "Root\nLE+RA\na2\n"
+    },
+    {
+        "style": "custom",
+        "mode": "cycle",
+        "trace": [
+            "created"
+        ],
+        "error": [
+            "LogicException",
+            "Cycle detected at node: \"Root\"."
+        ],
+        "output": "Root\nLE-RRoot\n"
+    },
+    {
+        "style": "custom",
+        "mode": "lazy-error",
+        "trace": [
+            "factory",
+            "created",
+            "error"
+        ],
+        "error": [
+            "RuntimeException",
+            "failure"
+        ],
+        "output": "Root\n"
+    },
+    {
+        "style": "custom",
+        "mode": "child-error",
+        "trace": [
+            "created",
+            "factory"
+        ],
+        "error": null,
+        "output": "Root\nLE+RA\na2\nLE-Rlast\n"
+    },
+    {
+        "style": "custom",
+        "mode": "grandchild-error",
+        "trace": [
+            "created",
+            "factory",
+            "factory",
+            "error"
+        ],
+        "error": [
+            "RuntimeException",
+            "failure"
+        ],
+        "output": "Root\nLE+RA\na2\n"
+    }
+]

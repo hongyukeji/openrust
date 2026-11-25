@@ -31,7 +31,10 @@ mod table;
 pub(crate) mod task_command;
 mod terminal;
 mod tree;
-pub use tree::{TreeChild, TreeChildren, TreeNode, TreeValue, TreeValues, WeakTreeNode};
+pub use tree::{
+    ConsoleTreeError, TreeChild, TreeChildren, TreeEntry, TreeHelper, TreeHelperIterator,
+    TreeIterator, TreeNode, TreeStyle, TreeValue, TreeValues, WeakTreeNode,
+};
 
 use std::{
     env,

@@ -1,0 +1,6338 @@
+[
+    {
+        "mode": "tree",
+        "shape": "L",
+        "section": false,
+        "level": 32,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "L",
+        "section": false,
+        "level": 32,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "Before\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "L",
+        "section": false,
+        "level": 32,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "L",
+        "section": false,
+        "level": 32,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "Before\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "L",
+        "section": false,
+        "level": 16,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "L",
+        "section": false,
+        "level": 16,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "L",
+        "section": false,
+        "level": 16,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "L",
+        "section": false,
+        "level": 16,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "L",
+        "section": false,
+        "level": 8,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "L",
+        "section": false,
+        "level": 8,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "L",
+        "section": false,
+        "level": 8,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "L",
+        "section": false,
+        "level": 8,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "L",
+        "section": true,
+        "level": 32,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "L",
+        "section": true,
+        "level": 32,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "Before\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "L",
+        "section": true,
+        "level": 32,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "L",
+        "section": true,
+        "level": 32,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "Before\n\u001b[1A\u001b[0JBefore\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "L",
+        "section": true,
+        "level": 16,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "L",
+        "section": true,
+        "level": 16,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "L",
+        "section": true,
+        "level": 16,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "L",
+        "section": true,
+        "level": 16,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "L",
+        "section": true,
+        "level": 8,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "L",
+        "section": true,
+        "level": 8,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "L",
+        "section": true,
+        "level": 8,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "L",
+        "section": true,
+        "level": 8,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "B",
+        "section": false,
+        "level": 32,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            null
+        ],
+        "output": "\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "B",
+        "section": false,
+        "level": 32,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            null
+        ],
+        "output": "Before\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "B",
+        "section": false,
+        "level": 32,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            null
+        ],
+        "output": "\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "B",
+        "section": false,
+        "level": 32,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            null
+        ],
+        "output": "Before\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "B",
+        "section": false,
+        "level": 16,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "B",
+        "section": false,
+        "level": 16,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "B",
+        "section": false,
+        "level": 16,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "B",
+        "section": false,
+        "level": 16,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "B",
+        "section": false,
+        "level": 8,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "B",
+        "section": false,
+        "level": 8,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "B",
+        "section": false,
+        "level": 8,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "B",
+        "section": false,
+        "level": 8,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "B",
+        "section": true,
+        "level": 32,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            null
+        ],
+        "output": "\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "B",
+        "section": true,
+        "level": 32,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            null
+        ],
+        "output": "Before\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "B",
+        "section": true,
+        "level": 32,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            null
+        ],
+        "output": "\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "B",
+        "section": true,
+        "level": 32,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            null
+        ],
+        "output": "Before\n\u001b[1A\u001b[0JBefore\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "B",
+        "section": true,
+        "level": 16,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "B",
+        "section": true,
+        "level": 16,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "B",
+        "section": true,
+        "level": 16,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "B",
+        "section": true,
+        "level": 16,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "B",
+        "section": true,
+        "level": 8,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "B",
+        "section": true,
+        "level": 8,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "B",
+        "section": true,
+        "level": 8,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "B",
+        "section": true,
+        "level": 8,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LL",
+        "section": false,
+        "level": 32,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "LL",
+        "section": false,
+        "level": 32,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "Before\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "LL",
+        "section": false,
+        "level": 32,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "LL",
+        "section": false,
+        "level": 32,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "Before\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "LL",
+        "section": false,
+        "level": 16,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LL",
+        "section": false,
+        "level": 16,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LL",
+        "section": false,
+        "level": 16,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LL",
+        "section": false,
+        "level": 16,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LL",
+        "section": false,
+        "level": 8,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LL",
+        "section": false,
+        "level": 8,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LL",
+        "section": false,
+        "level": 8,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LL",
+        "section": false,
+        "level": 8,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LL",
+        "section": true,
+        "level": 32,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "LL",
+        "section": true,
+        "level": 32,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "Before\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "LL",
+        "section": true,
+        "level": 32,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "LL",
+        "section": true,
+        "level": 32,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "Before\n\u001b[1A\u001b[0JBefore\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "LL",
+        "section": true,
+        "level": 16,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LL",
+        "section": true,
+        "level": 16,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LL",
+        "section": true,
+        "level": 16,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LL",
+        "section": true,
+        "level": 16,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LL",
+        "section": true,
+        "level": 8,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LL",
+        "section": true,
+        "level": 8,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LL",
+        "section": true,
+        "level": 8,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LL",
+        "section": true,
+        "level": 8,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LB",
+        "section": false,
+        "level": 32,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": "\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "LB",
+        "section": false,
+        "level": 32,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": "Before\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "LB",
+        "section": false,
+        "level": 32,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": "\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "LB",
+        "section": false,
+        "level": 32,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": "Before\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "LB",
+        "section": false,
+        "level": 16,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LB",
+        "section": false,
+        "level": 16,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LB",
+        "section": false,
+        "level": 16,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LB",
+        "section": false,
+        "level": 16,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LB",
+        "section": false,
+        "level": 8,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LB",
+        "section": false,
+        "level": 8,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LB",
+        "section": false,
+        "level": 8,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LB",
+        "section": false,
+        "level": 8,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LB",
+        "section": true,
+        "level": 32,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": "\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "LB",
+        "section": true,
+        "level": 32,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": "Before\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "LB",
+        "section": true,
+        "level": 32,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": "\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "LB",
+        "section": true,
+        "level": 32,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": "Before\n\u001b[1A\u001b[0JBefore\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "LB",
+        "section": true,
+        "level": 16,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LB",
+        "section": true,
+        "level": 16,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LB",
+        "section": true,
+        "level": 16,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LB",
+        "section": true,
+        "level": 16,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LB",
+        "section": true,
+        "level": 8,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LB",
+        "section": true,
+        "level": 8,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LB",
+        "section": true,
+        "level": 8,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LB",
+        "section": true,
+        "level": 8,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "BL",
+        "section": false,
+        "level": 32,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "BL",
+        "section": false,
+        "level": 32,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "Before\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "BL",
+        "section": false,
+        "level": 32,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "BL",
+        "section": false,
+        "level": 32,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "Before\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "BL",
+        "section": false,
+        "level": 16,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "BL",
+        "section": false,
+        "level": 16,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "BL",
+        "section": false,
+        "level": 16,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "BL",
+        "section": false,
+        "level": 16,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "BL",
+        "section": false,
+        "level": 8,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "BL",
+        "section": false,
+        "level": 8,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "BL",
+        "section": false,
+        "level": 8,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "BL",
+        "section": false,
+        "level": 8,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "BL",
+        "section": true,
+        "level": 32,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "BL",
+        "section": true,
+        "level": 32,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "Before\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "BL",
+        "section": true,
+        "level": 32,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "BL",
+        "section": true,
+        "level": 32,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "Before\n\u001b[1A\u001b[0JBefore\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "BL",
+        "section": true,
+        "level": 16,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "BL",
+        "section": true,
+        "level": 16,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "BL",
+        "section": true,
+        "level": 16,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "BL",
+        "section": true,
+        "level": 16,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "BL",
+        "section": true,
+        "level": 8,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "BL",
+        "section": true,
+        "level": 8,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "BL",
+        "section": true,
+        "level": 8,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "BL",
+        "section": true,
+        "level": 8,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "BB",
+        "section": false,
+        "level": 32,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            null,
+            null
+        ],
+        "output": "\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "BB",
+        "section": false,
+        "level": 32,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            null,
+            null
+        ],
+        "output": "Before\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "BB",
+        "section": false,
+        "level": 32,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            null,
+            null
+        ],
+        "output": "\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "BB",
+        "section": false,
+        "level": 32,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            null,
+            null
+        ],
+        "output": "Before\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "BB",
+        "section": false,
+        "level": 16,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            null,
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "BB",
+        "section": false,
+        "level": 16,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            null,
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "BB",
+        "section": false,
+        "level": 16,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            null,
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "BB",
+        "section": false,
+        "level": 16,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            null,
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "BB",
+        "section": false,
+        "level": 8,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            null,
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "BB",
+        "section": false,
+        "level": 8,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            null,
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "BB",
+        "section": false,
+        "level": 8,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            null,
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "BB",
+        "section": false,
+        "level": 8,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            null,
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "BB",
+        "section": true,
+        "level": 32,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            null,
+            null
+        ],
+        "output": "\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "BB",
+        "section": true,
+        "level": 32,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            null,
+            null
+        ],
+        "output": "Before\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "BB",
+        "section": true,
+        "level": 32,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            null,
+            null
+        ],
+        "output": "\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "BB",
+        "section": true,
+        "level": 32,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            null,
+            null
+        ],
+        "output": "Before\n\u001b[1A\u001b[0JBefore\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "BB",
+        "section": true,
+        "level": 16,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            null,
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "BB",
+        "section": true,
+        "level": 16,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            null,
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "BB",
+        "section": true,
+        "level": 16,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            null,
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "BB",
+        "section": true,
+        "level": 16,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            null,
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "BB",
+        "section": true,
+        "level": 8,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            null,
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "BB",
+        "section": true,
+        "level": 8,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            null,
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "BB",
+        "section": true,
+        "level": 8,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            null,
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "BB",
+        "section": true,
+        "level": 8,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            null,
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LBL",
+        "section": false,
+        "level": 32,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "LBL",
+        "section": false,
+        "level": 32,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "Before\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "LBL",
+        "section": false,
+        "level": 32,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "LBL",
+        "section": false,
+        "level": 32,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "Before\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "LBL",
+        "section": false,
+        "level": 16,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LBL",
+        "section": false,
+        "level": 16,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LBL",
+        "section": false,
+        "level": 16,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LBL",
+        "section": false,
+        "level": 16,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LBL",
+        "section": false,
+        "level": 8,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LBL",
+        "section": false,
+        "level": 8,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LBL",
+        "section": false,
+        "level": 8,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LBL",
+        "section": false,
+        "level": 8,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LBL",
+        "section": true,
+        "level": 32,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "LBL",
+        "section": true,
+        "level": 32,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "Before\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "LBL",
+        "section": true,
+        "level": 32,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "LBL",
+        "section": true,
+        "level": 32,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "Before\n\u001b[1A\u001b[0JBefore\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "tree",
+        "shape": "LBL",
+        "section": true,
+        "level": 16,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LBL",
+        "section": true,
+        "level": 16,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LBL",
+        "section": true,
+        "level": 16,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LBL",
+        "section": true,
+        "level": 16,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LBL",
+        "section": true,
+        "level": 8,
+        "decorated": false,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LBL",
+        "section": true,
+        "level": 8,
+        "decorated": false,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LBL",
+        "section": true,
+        "level": 8,
+        "decorated": true,
+        "before": false,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "tree",
+        "shape": "LBL",
+        "section": true,
+        "level": 8,
+        "decorated": true,
+        "before": true,
+        "meta": null,
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "L",
+        "section": false,
+        "level": 32,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "Root\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "L",
+        "section": false,
+        "level": 32,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "BeforeRoot\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "L",
+        "section": false,
+        "level": 32,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "L",
+        "section": false,
+        "level": 32,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "Before\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "L",
+        "section": false,
+        "level": 16,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "L",
+        "section": false,
+        "level": 16,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "L",
+        "section": false,
+        "level": 16,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "L",
+        "section": false,
+        "level": 16,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "L",
+        "section": false,
+        "level": 8,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "L",
+        "section": false,
+        "level": 8,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "L",
+        "section": false,
+        "level": 8,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "L",
+        "section": false,
+        "level": 8,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "L",
+        "section": true,
+        "level": 32,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "Root\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "L",
+        "section": true,
+        "level": 32,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "BeforeRoot\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "L",
+        "section": true,
+        "level": 32,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "L",
+        "section": true,
+        "level": 32,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "Before\n\u001b[1A\u001b[0JBefore\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "L",
+        "section": true,
+        "level": 16,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "L",
+        "section": true,
+        "level": 16,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "L",
+        "section": true,
+        "level": 16,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "L",
+        "section": true,
+        "level": 16,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "L",
+        "section": true,
+        "level": 8,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "L",
+        "section": true,
+        "level": 8,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "L",
+        "section": true,
+        "level": 8,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "L",
+        "section": true,
+        "level": 8,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "B",
+        "section": false,
+        "level": 32,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null
+        ],
+        "output": "Root\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "B",
+        "section": false,
+        "level": 32,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null
+        ],
+        "output": "BeforeRoot\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "B",
+        "section": false,
+        "level": 32,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null
+        ],
+        "output": "\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "B",
+        "section": false,
+        "level": 32,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null
+        ],
+        "output": "Before\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "B",
+        "section": false,
+        "level": 16,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "B",
+        "section": false,
+        "level": 16,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "B",
+        "section": false,
+        "level": 16,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "B",
+        "section": false,
+        "level": 16,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "B",
+        "section": false,
+        "level": 8,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "B",
+        "section": false,
+        "level": 8,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "B",
+        "section": false,
+        "level": 8,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "B",
+        "section": false,
+        "level": 8,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "B",
+        "section": true,
+        "level": 32,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null
+        ],
+        "output": "Root\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "B",
+        "section": true,
+        "level": 32,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null
+        ],
+        "output": "BeforeRoot\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "B",
+        "section": true,
+        "level": 32,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null
+        ],
+        "output": "\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "B",
+        "section": true,
+        "level": 32,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null
+        ],
+        "output": "Before\n\u001b[1A\u001b[0JBefore\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "B",
+        "section": true,
+        "level": 16,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "B",
+        "section": true,
+        "level": 16,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "B",
+        "section": true,
+        "level": 16,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "B",
+        "section": true,
+        "level": 16,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "B",
+        "section": true,
+        "level": 8,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "B",
+        "section": true,
+        "level": 8,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "B",
+        "section": true,
+        "level": 8,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "B",
+        "section": true,
+        "level": 8,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LL",
+        "section": false,
+        "level": 32,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "Root\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "LL",
+        "section": false,
+        "level": 32,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "BeforeRoot\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "LL",
+        "section": false,
+        "level": 32,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "LL",
+        "section": false,
+        "level": 32,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "Before\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "LL",
+        "section": false,
+        "level": 16,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LL",
+        "section": false,
+        "level": 16,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LL",
+        "section": false,
+        "level": 16,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LL",
+        "section": false,
+        "level": 16,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LL",
+        "section": false,
+        "level": 8,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LL",
+        "section": false,
+        "level": 8,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LL",
+        "section": false,
+        "level": 8,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LL",
+        "section": false,
+        "level": 8,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LL",
+        "section": true,
+        "level": 32,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "Root\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "LL",
+        "section": true,
+        "level": 32,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "BeforeRoot\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "LL",
+        "section": true,
+        "level": 32,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "LL",
+        "section": true,
+        "level": 32,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "Before\n\u001b[1A\u001b[0JBefore\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "LL",
+        "section": true,
+        "level": 16,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LL",
+        "section": true,
+        "level": 16,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LL",
+        "section": true,
+        "level": 16,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LL",
+        "section": true,
+        "level": 16,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LL",
+        "section": true,
+        "level": 8,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LL",
+        "section": true,
+        "level": 8,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LL",
+        "section": true,
+        "level": 8,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LL",
+        "section": true,
+        "level": 8,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LB",
+        "section": false,
+        "level": 32,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": "Root\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "LB",
+        "section": false,
+        "level": 32,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": "BeforeRoot\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "LB",
+        "section": false,
+        "level": 32,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": "\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "LB",
+        "section": false,
+        "level": 32,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": "Before\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "LB",
+        "section": false,
+        "level": 16,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LB",
+        "section": false,
+        "level": 16,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LB",
+        "section": false,
+        "level": 16,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LB",
+        "section": false,
+        "level": 16,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LB",
+        "section": false,
+        "level": 8,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LB",
+        "section": false,
+        "level": 8,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LB",
+        "section": false,
+        "level": 8,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LB",
+        "section": false,
+        "level": 8,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LB",
+        "section": true,
+        "level": 32,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": "Root\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "LB",
+        "section": true,
+        "level": 32,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": "BeforeRoot\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "LB",
+        "section": true,
+        "level": 32,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": "\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "LB",
+        "section": true,
+        "level": 32,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": "Before\n\u001b[1A\u001b[0JBefore\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "LB",
+        "section": true,
+        "level": 16,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LB",
+        "section": true,
+        "level": 16,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LB",
+        "section": true,
+        "level": 16,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LB",
+        "section": true,
+        "level": 16,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LB",
+        "section": true,
+        "level": 8,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LB",
+        "section": true,
+        "level": 8,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LB",
+        "section": true,
+        "level": 8,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LB",
+        "section": true,
+        "level": 8,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "BL",
+        "section": false,
+        "level": 32,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "Root\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "BL",
+        "section": false,
+        "level": 32,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "BeforeRoot\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "BL",
+        "section": false,
+        "level": 32,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "BL",
+        "section": false,
+        "level": 32,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "Before\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "BL",
+        "section": false,
+        "level": 16,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "BL",
+        "section": false,
+        "level": 16,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "BL",
+        "section": false,
+        "level": 16,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "BL",
+        "section": false,
+        "level": 16,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "BL",
+        "section": false,
+        "level": 8,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "BL",
+        "section": false,
+        "level": 8,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "BL",
+        "section": false,
+        "level": 8,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "BL",
+        "section": false,
+        "level": 8,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "BL",
+        "section": true,
+        "level": 32,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "Root\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "BL",
+        "section": true,
+        "level": 32,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "BeforeRoot\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "BL",
+        "section": true,
+        "level": 32,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "BL",
+        "section": true,
+        "level": 32,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "Before\n\u001b[1A\u001b[0JBefore\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "BL",
+        "section": true,
+        "level": 16,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "BL",
+        "section": true,
+        "level": 16,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "BL",
+        "section": true,
+        "level": 16,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "BL",
+        "section": true,
+        "level": 16,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "BL",
+        "section": true,
+        "level": 8,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "BL",
+        "section": true,
+        "level": 8,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "BL",
+        "section": true,
+        "level": 8,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "BL",
+        "section": true,
+        "level": 8,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "BB",
+        "section": false,
+        "level": 32,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            null
+        ],
+        "output": "Root\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "BB",
+        "section": false,
+        "level": 32,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            null
+        ],
+        "output": "BeforeRoot\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "BB",
+        "section": false,
+        "level": 32,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            null
+        ],
+        "output": "\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "BB",
+        "section": false,
+        "level": 32,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            null
+        ],
+        "output": "Before\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "BB",
+        "section": false,
+        "level": 16,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "BB",
+        "section": false,
+        "level": 16,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "BB",
+        "section": false,
+        "level": 16,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "BB",
+        "section": false,
+        "level": 16,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "BB",
+        "section": false,
+        "level": 8,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "BB",
+        "section": false,
+        "level": 8,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "BB",
+        "section": false,
+        "level": 8,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "BB",
+        "section": false,
+        "level": 8,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "BB",
+        "section": true,
+        "level": 32,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            null
+        ],
+        "output": "Root\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "BB",
+        "section": true,
+        "level": 32,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            null
+        ],
+        "output": "BeforeRoot\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "BB",
+        "section": true,
+        "level": 32,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            null
+        ],
+        "output": "\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "BB",
+        "section": true,
+        "level": 32,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            null
+        ],
+        "output": "Before\n\u001b[1A\u001b[0JBefore\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "BB",
+        "section": true,
+        "level": 16,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "BB",
+        "section": true,
+        "level": 16,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "BB",
+        "section": true,
+        "level": 16,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "BB",
+        "section": true,
+        "level": 16,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "BB",
+        "section": true,
+        "level": 8,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "BB",
+        "section": true,
+        "level": 8,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "BB",
+        "section": true,
+        "level": 8,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "BB",
+        "section": true,
+        "level": 8,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            null,
+            null
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LBL",
+        "section": false,
+        "level": 32,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "Root\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "LBL",
+        "section": false,
+        "level": 32,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "BeforeRoot\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "LBL",
+        "section": false,
+        "level": 32,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "LBL",
+        "section": false,
+        "level": 32,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "Before\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "LBL",
+        "section": false,
+        "level": 16,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LBL",
+        "section": false,
+        "level": 16,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LBL",
+        "section": false,
+        "level": 16,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LBL",
+        "section": false,
+        "level": 16,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LBL",
+        "section": false,
+        "level": 8,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LBL",
+        "section": false,
+        "level": 8,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LBL",
+        "section": false,
+        "level": 8,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LBL",
+        "section": false,
+        "level": 8,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LBL",
+        "section": true,
+        "level": 32,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "Root\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "LBL",
+        "section": true,
+        "level": 32,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "BeforeRoot\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "LBL",
+        "section": true,
+        "level": 32,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "LBL",
+        "section": true,
+        "level": 32,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": "Before\n\u001b[1A\u001b[0JBefore\u001b[32mRoot\u001b[39m\n├── A\n├── Group\n│   ├── x\n│   └── leaf\n│      └── y\n└── B\n\n After\n"
+    },
+    {
+        "mode": "create",
+        "shape": "LBL",
+        "section": true,
+        "level": 16,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LBL",
+        "section": true,
+        "level": 16,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LBL",
+        "section": true,
+        "level": 16,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LBL",
+        "section": true,
+        "level": 16,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LBL",
+        "section": true,
+        "level": 8,
+        "decorated": false,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LBL",
+        "section": true,
+        "level": 8,
+        "decorated": false,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LBL",
+        "section": true,
+        "level": 8,
+        "decorated": true,
+        "before": false,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    },
+    {
+        "mode": "create",
+        "shape": "LBL",
+        "section": true,
+        "level": 8,
+        "decorated": true,
+        "before": true,
+        "meta": {
+            "current": "A",
+            "key": 0,
+            "has_children": false
+        },
+        "counts": [
+            [
+                1,
+                true
+            ],
+            null,
+            [
+                1,
+                true
+            ]
+        ],
+        "output": ""
+    }
+]

@@ -1,0 +1,42 @@
+[
+    {
+        "key": 7,
+        "error": null,
+        "output": "Root\n└── child\n"
+    },
+    {
+        "key": "7",
+        "error": null,
+        "output": "Root\n└── child\n"
+    },
+    {
+        "key": "07",
+        "error": null,
+        "output": "Root\n└── child\n"
+    },
+    {
+        "key": " 7 ",
+        "error": null,
+        "output": "Root\n└── child\n"
+    },
+    {
+        "key": "7.5",
+        "error": null,
+        "output": "Root\n└── child\n"
+    },
+    {
+        "key": "1e2",
+        "error": null,
+        "output": "Root\n└── child\n"
+    },
+    {
+        "key": "bad",
+        "error": "TypeError",
+        "output": "Root\n"
+    },
+    {
+        "key": "9223372036854775808",
+        "error": "TypeError",
+        "output": "Root\n"
+    }
+]

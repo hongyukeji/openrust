@@ -343,11 +343,13 @@
         "console_error_style",
         "error-style-contracts.json",
         "console_tree_nodes",
-        "tree-node-contracts.json"
+        "tree-node-contracts.json",
+        "console_tree_helpers",
+        "tree-helper-contracts.json"
       ],
       "native": "console::CommandIo",
       "remaining": [
-        "TreeNode已验；树渲染/TreeHelper/TreeStyle、完整组件Factory、通用输出及整章其他锚点继续，未关闭整章。"
+        "内置输出上的TreeNode/TreeHelper/TreeStyle与派生/基础样式tree/create_tree已验；完整组件Factory、通用输出接口/任意sink及整章其他锚点继续。"
       ]
     },
     {

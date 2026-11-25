@@ -1,0 +1,119 @@
+{
+  "source_base": "eeb858574eca0f7c0e5daa87c24012646f1240d0",
+  "source_hashes": {
+    "vendor/openrust/framework/src/console/mod.rs": "6c62e26904312f53b1416ebf33fef5ccf138ec5308d86ddcdc31ea0fcf712490",
+    "vendor/openrust/framework/src/console/output_reference.rs": "192bd7ee2845cdd3ada023f3142c4af5939775383a0854ccca8b0d85ad035f0c",
+    "vendor/openrust/framework/src/console/output_style.rs": "7ff2cb09e86ea28a2a5d9d91e8af643ba86995586f8bec12274bf16b645b03af",
+    "vendor/openrust/framework/src/console/output_style/table.rs": "a4d4b92c00373183fb9f7a4cc183fc6becb9a8aa7f22d93ab4132d506de55460",
+    "vendor/openrust/framework/src/console/output_style/base.rs": "81d6de35c191797932611224dff55509fdc48f5f76761c55de5f38c59b526141",
+    "vendor/openrust/framework/src/console/output_style/tree.rs": "1a7fdd070dd235106ec2d15013fa02e58e534686293702cda4c56cd61434f764",
+    "vendor/openrust/framework/src/console/tree/mod.rs": "54fa701fa6fbf4628095b972ac54f192f67604bd4222edb46063bfcfd8d39edb",
+    "vendor/openrust/framework/src/console/tree/style.rs": "8a5adcc060d6b8884f91b69e9e553e2bceff48c914d7aaec10f883ab1f203328",
+    "vendor/openrust/framework/src/console/tree/error.rs": "a8b6c919c9b7c35c41b9730002cfb81481386ea9c7d460b2cc140ee14b73fa15",
+    "vendor/openrust/framework/src/console/tree/helper.rs": "228f1876f51e257b610ccadd2628f34a13c46080860b5c4a3f28da5fe1ea2ad0",
+    "vendor/openrust/framework/tests/console_tree_helpers.rs": "bf21a5fe379f7c2367896f8490cf4afc2b5de41a1ab755c2b4bad50815dc0e7c",
+    ".agents/project/audits/artisan-tutorial/tree-cursor-oracle.json": "d4e8f73618f143a6dfc7538acfe78bcdb2c0117b05b496b47126abb04206e2ed",
+    ".agents/project/audits/artisan-tutorial/tree-render-oracle.json": "1b5e1cfdeb8773eef33e4e4ed0769725d3ee962c08ba33a417873914839adf05",
+    ".agents/project/audits/artisan-tutorial/tree-keys-oracle.json": "52ea061836fb68b4df144ec908906907941052b7ca98f914f56ec17a766690ec",
+    ".agents/project/audits/artisan-tutorial/tree-style-oracle.json": "3b789ffb9357722812718f1d9ce42a31b1e66bae421097e7131d5e7efa9b70d7",
+    "vendor/openrust/framework/src/console/tree/node.rs": "b5b816361e0f3c9e9fd8d0c39527e1c757490111d4261791d82bb5a99eb8615c",
+    ".agents/project/audits/artisan-tutorial/tree-lifecycle-oracle.json": "53e2b3f3d0a55d846f28c35e6a880f4704040ff6f182a15d82c2b0d31a3e1fde",
+    ".agents/project/audits/artisan-tutorial/tree-console-oracle.json": "b274aa5b0fd49aeaa80e839ad607d4238118821fcdcd801960f257dde0093dc3",
+    ".agents/project/audits/artisan-tutorial/tree-key-render-oracle.json": "b756125392f2fffc220c39c6218c3c63feeb0b46c86870f31a04c3f4d759b6e4",
+    ".agents/project/audits/artisan-tutorial/tree-docs-oracle.json": "33881b670ad6e6ec2f50b687378c2cb96ee529e67bb56633a8636275b281ae0c",
+    "tests/artisan_tutorial_docs.py": "019959d9accbc928db45ec77b04da4ed3554fa1721bf5b0d57c7cda01cece84a",
+    "docs/tests/check_artisan_tutorial.mjs": "2989c0eebd103c832784b38d7559821f8721379eba5a5de50d4eb38c6a29657a",
+    "docs/en/digging-deeper/artisan.md": "8597e2bea6294b3374ee1691ebc857f36e7db0d1aedc6bc35e80bd5f682e4684",
+    "docs/zh-Hans/digging-deeper/artisan.md": "ae7fe166bc5413d5508cda4e2f26e19de4a3623c26014942b687432d1a373a20",
+    "docs/zh-Hant/digging-deeper/artisan.md": "d89517b2c6c9e19ee411fc03e509a961b9db28902e22edd6b4d390224d57f548",
+    "tests/artisan_trees_terminal.py": "177ff5de38075d62d4a3f85fce1fbdceccc06a1a60e32996cc7d6cec140cb558",
+    ".agents/project/audits/artisan-tutorial/tree-pty-oracle.json": "30193f3b660c25f87fbbafaad2c6c680b17a4e06f1af49744c39bd14ad08be96",
+    ".agents/project/audits/artisan-tutorial/tree-helper-contracts.json": "735d84a892e14545ff1468c79570c6ea716f7404a778493aa0cd3d183bcab14f",
+    ".agents/project/audits/artisan-tutorial/io-contracts.json": "34b4bfd0ed69b2a2e3cd83e1804b74c516bf934c27d93c28bbc147ed6988fd54",
+    ".agents/project/audits/artisan-tutorial/section-map.json": "6cfc21426b2925ce2f8032c3b4efbbe15863d62b2d99e7860bd080913de301f9",
+    ".agents/project/audits/artisan-tutorial/README.md": "fe313081b3979758583bd0be4245a801acea0a8d5aedf31b0971eec6ebd24ac9",
+    ".agents/project/current.md": "f524117e835886afa87d282fece842c28e0944e893fc48359805e25e8e3df6d8"
+  },
+  "gates": [
+    {
+      "name": "format",
+      "returncode": 0
+    },
+    {
+      "name": "final-framework",
+      "returncode": 0
+    },
+    {
+      "name": "final-rustdoc-tree",
+      "returncode": 0
+    },
+    {
+      "name": "final-rustdoc",
+      "returncode": 0
+    },
+    {
+      "name": "final-rustdoc-definition",
+      "returncode": 0
+    },
+    {
+      "name": "final-rustdoc-base",
+      "returncode": 0
+    },
+    {
+      "name": "final-rustdoc-style",
+      "returncode": 0
+    },
+    {
+      "name": "final-rustdoc-reference",
+      "returncode": 0
+    },
+    {
+      "name": "final-root",
+      "returncode": 0
+    },
+    {
+      "name": "final-fmt",
+      "returncode": 0
+    },
+    {
+      "name": "final-clippy",
+      "returncode": 0
+    },
+    {
+      "name": "final-main",
+      "returncode": 0
+    },
+    {
+      "name": "final-docs",
+      "returncode": 0
+    }
+  ],
+  "delivery_gates": [
+    {
+      "name": "pty",
+      "returncode": 0
+    },
+    {
+      "name": "runtime",
+      "returncode": 0
+    },
+    {
+      "name": "browser",
+      "returncode": 0
+    }
+  ],
+  "counts": {
+    "framework": {
+      "targets": 31,
+      "passed": 188,
+      "ignored_drivers": 51
+    },
+    "root": {
+      "targets": 6,
+      "passed": 158,
+      "ignored_drivers": 0
+    }
+  },
+  "scope": "current builtin output Tree SDK only; full arbitrary output contracts and remaining chapter pending",
+  "pushed": false
+}
