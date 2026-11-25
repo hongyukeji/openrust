@@ -20,6 +20,8 @@ pub enum Error {
     LeaseLost,
     #[error("Webhook 投递已结束且未成功")]
     DeliveryFailed,
+    #[error("Webhook 暂时达到限额，重试时刻为 {retry_at}")]
+    RateLimited { retry_at: i64 },
     #[error("Webhook 端点状态或版本冲突")]
     EndpointConflict,
     #[error("Webhook 端点已暂停")]

@@ -23,7 +23,7 @@ use crate::{
     DeliveryProgress, DeliveryStore, Error, Result, TargetPolicy, WebhookJobAttempt,
     delivery_store::{AttemptResult, Claim, RetryAfter},
     events::{self, WebhookAttempt, WebhookCallEvent},
-    extensions, replay,
+    extensions, limits, replay,
     snapshot::Snapshot,
 };
 
@@ -122,12 +122,13 @@ impl DeliveryService {
         let TransportAttempt {
             result: attempt,
             response,
+            retry_at,
         } = match tokio::time::timeout_at(deadline, self.attempt(id, &claim, deadline)).await {
             Ok(outcome) => outcome,
             Err(_) => AttemptResult::transient("unknown").into(),
         };
-        if attempt.outcome == "paused" {
-            self.store.release_paused(id, &claim).await?;
+        if attempt.outcome == "paused" || retry_at.is_some() {
+            self.store.defer_claim(id, &claim, retry_at).await?;
             return Ok((DeliveryProgress::Pending, false));
         }
         let status = attempt.status;
@@ -278,6 +279,27 @@ impl DeliveryService {
         if let Some(result) = self.endpoint_stop(snapshot).await {
             return result.into();
         }
+        let Ok(limits) = limits::current() else {
+            return AttemptResult::transient("unresolved").into();
+        };
+        if limits.sends_per_scope.is_some()
+            || limits.sends_per_endpoint.is_some() && snapshot.endpoint.is_some()
+        {
+            match self.store.reserve_send(id, claim, limits).await {
+                Ok(()) => {}
+                Err(Error::RateLimited { retry_at }) => {
+                    return TransportAttempt {
+                        result: AttemptResult::failure("rate_limited"),
+                        response: None,
+                        retry_at: Some(retry_at),
+                    };
+                }
+                Err(_) => return AttemptResult::transient("unresolved").into(),
+            }
+            if let Some(result) = self.endpoint_stop(snapshot).await {
+                return result.into();
+            }
+        }
         let duration = deadline.saturating_duration_since(Instant::now());
         if duration.is_zero() {
             return AttemptResult::transient("stopped").into();
@@ -318,6 +340,7 @@ impl DeliveryService {
                 TransportAttempt {
                     result,
                     response: Some(response),
+                    retry_at: None,
                 }
             }
             Err(_) => AttemptResult::transient("unknown").into(),
@@ -328,6 +351,7 @@ impl DeliveryService {
 struct TransportAttempt {
     result: AttemptResult,
     response: Option<Response>,
+    retry_at: Option<i64>,
 }
 
 impl From<AttemptResult> for TransportAttempt {
@@ -335,6 +359,7 @@ impl From<AttemptResult> for TransportAttempt {
         Self {
             result,
             response: None,
+            retry_at: None,
         }
     }
 }

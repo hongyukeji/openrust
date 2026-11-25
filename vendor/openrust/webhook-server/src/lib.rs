@@ -18,6 +18,9 @@ mod endpoints;
 mod error;
 pub mod events;
 mod extensions;
+mod limits;
+#[path = "../database/migrations/2026_11_25_000000_create_webhook_rate_buckets_table.rs"]
+mod rate_migration;
 mod recovery;
 #[path = "../database/migrations/2026_11_25_000000_extend_webhook_deliveries_for_recovery.rs"]
 mod recovery_migration;
@@ -40,6 +43,7 @@ pub use dispatch::{QueuedDelivery, SynchronousDelivery};
 pub use endpoints::{Endpoint, EndpointState, EndpointStore};
 pub use error::{Error, Result};
 pub use extensions::{register_backoff_strategy, register_call_webhook_job, register_signer};
+pub use limits::{DeliveryLimit, DeliveryLimits, register_delivery_limits};
 pub use recovery::RecoveryReport;
 pub use replay::{
     ReplayDelivery, ReplayLimits, ReplayPhase, ReplayPolicy, ReplayRequest, register_replay_policy,
@@ -92,6 +96,10 @@ impl WebhookServerServiceProvider {
             MigrationEntry::new(
                 "vendor/openrust/webhook-server/database/migrations/2026_11_25_000000_create_webhook_endpoints_table.rs",
                 &endpoint_migration::MIGRATION,
+            ),
+            MigrationEntry::new(
+                "vendor/openrust/webhook-server/database/migrations/2026_11_25_000000_create_webhook_rate_buckets_table.rs",
+                &rate_migration::MIGRATION,
             ),
             MigrationEntry::new(
                 "vendor/openrust/webhook-server/database/migrations/2026_11_25_000000_extend_webhook_deliveries_for_recovery.rs",

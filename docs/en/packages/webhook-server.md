@@ -114,6 +114,16 @@ pub async fn prepare_endpoint_invoice(
     invoice_call()?.use_endpoint(&endpoint)
         .prepare(&openrust_webhook_server::TargetPolicy::default())
 }
+
+pub fn configure_webhook_limits(container: &openrust::container::Container) -> Result<()> {
+    use openrust_webhook_server::{DeliveryLimit, DeliveryLimits, register_delivery_limits};
+
+    register_delivery_limits(container, DeliveryLimits {
+        sends_per_scope: Some(DeliveryLimit::new(100, 60)?),
+        sends_per_endpoint: Some(DeliveryLimit::new(20, 60)?),
+        replays_per_scope: Some(DeliveryLimit::new(5, 60)?),
+    })
+}
 ```
 
 
@@ -175,6 +185,12 @@ Replay creates an audited delivery with its own attempts and deadline. It reuses
 Use `DeliveryStore::endpoints()` from an authorized application operation. Create an endpoint with a name, URL and optional credential reference. Bind a call with `.use_endpoint(&endpoint)`. `replace`, `pause`, `resume` and `delete` take an expected revision so stale administrative changes are rejected.
 
 Pause retains pending deliveries and their original deadlines. Resume allows eligible deliveries to proceed. Replacing the URL or credential creates a new revision for new deliveries. Old revisions and deleted endpoints are cancelled on execution. A request already sent may still complete at the receiver, and the attempt records the observed response. Replay also checks the current endpoint approval. Existing URL calls use the application's delivery policy.
+
+### Share delivery limits {#limits}
+
+Register `DeliveryLimits` in the application on each node. A scope limit includes direct URL calls, queued deliveries, retries and replay sends. A named endpoint also uses its own bucket, shared across its configuration revisions. Replay registration has a separate optional scope limit. Each window starts with its first reservation and uses the database clock.
+
+When a send reaches a limit, the delivery waits until the bucket resets with its original attempt budget and deadline. A limited replay registration returns an error with the next eligible Unix timestamp. Keep the limit configuration consistent on all nodes sharing the delivery database.
 
 ## Custom signers and retry timing {#customization}
 

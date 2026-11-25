@@ -12,6 +12,7 @@ use std::fmt::Write as _;
 use crate::{
     Error, PreparedWebhook, Result,
     endpoints::{EndpointPermission, EndpointStore},
+    limits::{self, DeliveryLimits},
     replay::ReplayRecord,
     snapshot::Snapshot,
 };
@@ -268,6 +269,7 @@ impl DeliveryStore {
         record: &ReplayRecord,
         snapshot: &Snapshot,
     ) -> Result<()> {
+        let limit = limits::current()?.replays_per_scope;
         let mut tx = self.connection.begin_transaction().await?;
         let result = async {
             let (inserted, _) = self.insert_delivery(&mut tx, id, snapshot).await?;
@@ -275,6 +277,9 @@ impl DeliveryStore {
                 return Err(Error::ReplayConflict);
             }
             let now = self.time_in(&mut tx).await?;
+            if let Some(limit) = limit {
+                limits::consume(&mut tx, &self.scope_key, "replay", "", limit, now).await?;
+            }
             tx.table(REPLAYS)
                 .insert(&[[
                     ("delivery_id".into(), id.into()),
@@ -456,7 +461,6 @@ impl DeliveryStore {
                 self.retire_unavailable(&mut tx, id).await?;
                 return Ok(None);
             }
-            self.mark_unknown(&mut tx, id).await?;
             let row = self
                 .owned_row(tx.table(DELIVERIES), id)
                 .select(["snapshot", "digest", "attempts", "deadline"])
@@ -471,6 +475,9 @@ impl DeliveryStore {
             }
             let handler = resolve(&snapshot)?;
             let attempt_number = number(&row, "attempts")?;
+            if attempt_number > 1 {
+                self.mark_unknown(&mut tx, id, attempt_number - 1).await?;
+            }
             let timestamp = self.time_in(&mut tx).await?;
             tx.table(ATTEMPTS)
                 .insert(&[[
@@ -498,27 +505,79 @@ impl DeliveryStore {
         settle(tx, result).await
     }
 
-    /// 已领取但尚未开始网络传输时，归还暂停端点的尝试额度。
-    pub(crate) async fn release_paused(&self, id: &str, claim: &Claim) -> Result<()> {
-        let clock = self.clock();
+    pub(crate) async fn reserve_send(
+        &self,
+        id: &str,
+        claim: &Claim,
+        limits: DeliveryLimits,
+    ) -> Result<()> {
         let mut tx = self.connection.begin_transaction().await?;
         let result = async {
-            let changed = self
+            let now = self.time_in(&mut tx).await?;
+            if let Some(limit) = limits.sends_per_scope {
+                limits::consume(&mut tx, &self.scope_key, "scope", "", limit, now).await?;
+            }
+            if let Some((limit, endpoint)) = limits
+                .sends_per_endpoint
+                .zip(claim.snapshot.endpoint.as_ref())
+            {
+                limits::consume(
+                    &mut tx,
+                    &self.scope_key,
+                    "endpoint",
+                    &endpoint.id,
+                    limit,
+                    now,
+                )
+                .await?;
+            }
+            let clock = self.clock();
+            let owned = self
                 .owned_row(tx.table(DELIVERIES), id)
                 .r#where("state", "=", "running")
                 .r#where("owner", "=", claim.token.as_str())
-                .where_raw(&format!("lease_until > {clock}"), vec![])
-                .update_with(
-                    [
-                        assignment("state", Value::from("pending")),
-                        assignment("owner", Value::Null),
-                        assignment("lease_until", Value::Null),
-                        assignment("next_wake_at", Value::Null),
-                        assignment("attempts", Value::from(i64::from(claim.number - 1))),
-                    ]
-                    .into_iter()
-                    .collect(),
+                .where_raw(
+                    &format!("lease_until > {clock} and deadline > {clock}"),
+                    vec![],
                 )
+                .select(["id"])
+                .lock_for_update()
+                .first()
+                .await?;
+            if owned.is_none() {
+                return Err(Error::LeaseLost);
+            }
+            Ok(())
+        }
+        .await;
+        settle(tx, result).await
+    }
+
+    /// 尚未开始网络传输时归还尝试额度，并按需要持久化下次可领取时间。
+    pub(crate) async fn defer_claim(
+        &self,
+        id: &str,
+        claim: &Claim,
+        retry_at: Option<i64>,
+    ) -> Result<()> {
+        let mut updates = vec![
+            assignment("state", Value::from("pending")),
+            assignment("owner", Value::Null),
+            assignment("lease_until", Value::Null),
+            assignment("next_wake_at", Value::Null),
+            assignment("attempts", Value::from(i64::from(claim.number - 1))),
+        ];
+        if let Some(retry_at) = retry_at {
+            updates.push(assignment(
+                "available_at",
+                Value::from(retry_at.min(claim.deadline)),
+            ));
+        }
+        let mut tx = self.connection.begin_transaction().await?;
+        let result = async {
+            let changed = self
+                .claimed_row(tx.table(DELIVERIES), id, claim)
+                .update_with(updates.into_iter().collect())
                 .await?;
             if changed != 1 {
                 return Err(Error::LeaseLost);
@@ -545,9 +604,22 @@ impl DeliveryStore {
         attempt: AttemptResult,
         backoff: Option<u64>,
     ) -> Result<DeliveryProgress> {
-        let clock = self.clock();
         let mut tx = self.connection.begin_transaction().await?;
         let result = async {
+            // SQLite 的延迟事务先取得写事务，再读取端点许可，避免并发写入后升级旧快照。
+            if claim.snapshot.endpoint.is_some() && self.connection.get_driver_name() == "sqlite" {
+                let owned = self
+                    .claimed_row(tx.table(DELIVERIES), id, claim)
+                    .update(
+                        [("owner".into(), claim.token.as_str().into())]
+                            .into_iter()
+                            .collect(),
+                    )
+                    .await?;
+                if owned != 1 {
+                    return Err(Error::LeaseLost);
+                }
+            }
             let now = self.time_in(&mut tx).await?;
             let next = attempt
                 .retry_after
@@ -572,10 +644,7 @@ impl DeliveryStore {
                 ("failed", DeliveryProgress::Failed)
             };
             let changed = self
-                .owned_row(tx.table(DELIVERIES), id)
-                .r#where("state", "=", "running")
-                .r#where("owner", "=", claim.token.as_str())
-                .where_raw(&format!("lease_until > {clock}"), vec![])
+                .claimed_row(tx.table(DELIVERIES), id, claim)
                 .update_with(
                     [
                         assignment("state", Value::from(state)),
@@ -644,14 +713,24 @@ impl DeliveryStore {
             )
             .await?;
         if updated == 1 {
-            self.mark_unknown(tx, id).await?;
+            let row = self
+                .owned_row(tx.table(DELIVERIES), id)
+                .select(["attempts"])
+                .first()
+                .await?
+                .ok_or(Error::InvalidRecord)?;
+            let attempt = number(&row, "attempts")?;
+            if attempt > 0 {
+                self.mark_unknown(tx, id, attempt).await?;
+            }
         }
         Ok(updated == 1)
     }
 
-    async fn mark_unknown(&self, tx: &mut Transaction, id: &str) -> Result<()> {
+    async fn mark_unknown(&self, tx: &mut Transaction, id: &str, attempt: i64) -> Result<()> {
         tx.table(ATTEMPTS)
             .r#where("delivery_id", "=", id)
+            .r#where("number", "=", attempt)
             .where_null("finished_at")
             .update_with(
                 [
@@ -663,6 +742,14 @@ impl DeliveryStore {
             )
             .await?;
         Ok(())
+    }
+
+    fn claimed_row<'a>(&self, builder: Builder<'a>, id: &str, claim: &Claim) -> Builder<'a> {
+        let clock = self.clock();
+        self.owned_row(builder, id)
+            .r#where("state", "=", "running")
+            .r#where("owner", "=", claim.token.as_str())
+            .where_raw(&format!("lease_until > {clock}"), vec![])
     }
 
     fn owned_row<'a>(&self, builder: Builder<'a>, id: &str) -> Builder<'a> {

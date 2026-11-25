@@ -114,6 +114,16 @@ pub async fn prepare_endpoint_invoice(
     invoice_call()?.use_endpoint(&endpoint)
         .prepare(&openrust_webhook_server::TargetPolicy::default())
 }
+
+pub fn configure_webhook_limits(container: &openrust::container::Container) -> Result<()> {
+    use openrust_webhook_server::{DeliveryLimit, DeliveryLimits, register_delivery_limits};
+
+    register_delivery_limits(container, DeliveryLimits {
+        sends_per_scope: Some(DeliveryLimit::new(100, 60)?),
+        sends_per_endpoint: Some(DeliveryLimit::new(20, 60)?),
+        replays_per_scope: Some(DeliveryLimit::new(5, 60)?),
+    })
+}
 ```
 
 
@@ -175,6 +185,12 @@ Builder 的 `dispatch`、`dispatch_if` 和 `dispatch_unless` 登记投递并入�
 在应用授权的操作中使用 `DeliveryStore::endpoints()`，按名称、URL 和可选凭据引用登记端点。使用 `.use_endpoint(&endpoint)` 绑定发送。`replace`、`pause`、`resume`、`delete` 需要传入预期版本，以拒绝过期的管理操作。
 
 暂停期间待处理投递保留原截止时间，恢复后符合条件的投递继续。修改 URL 或凭据创建新版本，供新投递使用。旧版本及已删除端点的投递会在执行时取消。已发出的请求仍可能在对端完成，尝试历史保留实际响应。人工重放也检查端点当前许可。直接指定 URL 的发送沿用应用投递策略。
+
+### 共享投递限额 {#limits}
+
+在各节点的应用中注册 `DeliveryLimits`。范围发送限额覆盖直接 URL、队列投递、自动重试和人工重放发送。具名端点还有独立计数，同一端点各配置版本共用。人工重放登记可设独立的范围限额。窗口从首次保留额度开始，按数据库时钟计算。
+
+发送达到限额时，投递等待窗口恢复，保留原尝试额度及截止时间。重放登记达到限额时返回带下次可申请 Unix 时间戳的错误。共享投递数据库的所有节点应使用一致的限额配置。
 
 ## 自定义签名与退避 {#customization}
 

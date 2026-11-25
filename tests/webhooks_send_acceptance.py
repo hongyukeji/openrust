@@ -135,6 +135,147 @@ def exercise(binary, env, log, receiver, driver, sql):
 
     worker = ["queue:work", env.get("FIXTURE_SEND_QUEUE", "database"), "--queue=webhook-outgoing", "--once", "--tries=7"]
 
+    if env.get("FIXTURE_SEND_LIMITS"):
+        scope_hash = hashlib.sha256(SCOPE.encode()).hexdigest()
+
+        def buckets(kind):
+            return sql(f"SELECT used FROM webhook_rate_buckets WHERE kind='{kind}' "
+                       f"AND scope_key='{scope_hash}' ORDER BY used")
+
+        def reset(*kinds):
+            selected = ",".join(f"'{kind}'" for kind in kinds)
+            routes["write_database"](driver, sql,
+                f"UPDATE webhook_rate_buckets SET reset_at=0 WHERE kind IN ({selected})")
+
+        def available(identifier):
+            return int(sql(f"SELECT available_at FROM webhook_deliveries WHERE id='{identifier}'"))
+
+        command("webhooks:fixture-endpoint", "create", "one")
+        command("webhooks:fixture-endpoint", "create", "two")
+        keys = ("limit-concurrent-one", "limit-concurrent-two")
+        identifiers = [submit(key, "endpoint-one") for key in keys]
+        peer_root = Path(env["APP_BASE_PATH"]) / "limits-peer"
+        peer_root.mkdir()
+        peer = env | {"APP_BASE_PATH": str(peer_root),
+                      "APP_CONFIG_CACHE": str(peer_root / "config.json"),
+                      "APP_ROUTES_CACHE": str(peer_root / "routes.json")}
+        command("config:cache", current=peer)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            calls = [executor.submit(send, identifier, current=node)
+                     for identifier, node in zip(identifiers, (env, peer))]
+            outcomes = [call.result() for call in calls]
+        assert sum('"succeeded"' in output for output in outcomes) == 1, outcomes
+        assert sum('"pending"' in output for output in outcomes) == 1, outcomes
+        waiting_index = next(i for i, output in enumerate(outcomes) if '"pending"' in output)
+        waiting_id, waiting_key = identifiers[waiting_index], keys[waiting_index]
+        assert read(waiting_id) == "pending\t0" and not attempts(waiting_id), (read(waiting_id), attempts(waiting_id))
+        assert buckets("scope") == "1" and buckets("endpoint") == "1"
+        assert available(waiting_id) == int(sql(
+            "SELECT reset_at FROM webhook_rate_buckets WHERE kind='endpoint'"
+        ))
+        captured(waiting_key, 0)
+        captured(keys[1 - waiting_index])
+
+        direct = submit("limit-direct")
+        assert '"succeeded"' in send(direct)
+        assert buckets("scope") == "2"
+        isolated = submit("limit-isolated", "limit-other-scope")
+        assert '"succeeded"' in send(isolated, scope="webhook-outbound-limit-alternate")
+        captured("limit-isolated")
+        assert buckets("scope") == "2"
+        blocked = submit("limit-second-endpoint", "endpoint-two")
+        assert '"pending"' in send(blocked)
+        assert read(blocked) == "pending\t0" and not attempts(blocked)
+        assert buckets("endpoint") == "1"
+        captured("limit-second-endpoint", 0)
+        output = command("webhook-server:recover", "--scope", SCOPE, "--pretend")
+        assert json.loads(re.search(r"\{[^\n]+\}", output)[0])["candidates"] == 0
+
+        short = submit("limit-short-deadline")
+        closes_at = int(sql("SELECT reset_at FROM webhook_rate_buckets WHERE kind='scope' "
+                            f"AND scope_key='{scope_hash}'")) - 15
+        update(short, f"deadline={closes_at}")
+        assert '"pending"' in send(short) and available(short) == closes_at
+        update(short, "deadline=0")
+        send(short)
+        assert read(short) == "expired\t0" and not attempts(short)
+        captured("limit-short-deadline", 0)
+
+        reset("scope", "endpoint")
+        for identifier in (waiting_id, blocked):
+            update(identifier, "available_at=0")
+        command("webhook-server:recover", "--scope", SCOPE)
+        command(*worker)
+        command(*worker)
+        assert read(waiting_id) == "succeeded\t1" and read(blocked) == "succeeded\t1"
+        assert buckets("scope") == "2" and buckets("endpoint") == "1\n1"
+        captured(waiting_key)
+        captured("limit-second-endpoint")
+
+        reset("scope")
+        command("webhooks:fixture-endpoint", "replace", "one", "--rotated")
+        version = submit("limit-version-replacement", "endpoint-one")
+        assert '"pending"' in send(version)
+        assert read(version) == "pending\t0" and not attempts(version)
+        assert buckets("scope") == "2"
+        captured("limit-version-replacement", 0)
+        reset("endpoint")
+        update(version, "available_at=0")
+        assert '"succeeded"' in send(version)
+        assert buckets("scope") == "1"
+        captured("limit-version-replacement", rotated=(0,))
+
+        reset("scope")
+        retried = submit("retry")
+        assert '"pending"' in send(retried) and read(retried) == "pending\t1"
+        filler = submit("limit-retry-filler")
+        assert '"succeeded"' in send(filler)
+        update(retried, "available_at=0")
+        assert '"pending"' in send(retried) and read(retried) == "pending\t1"
+        assert attempts(retried) == "1\thttp_failure\t503"
+        captured("retry")
+        reset("scope")
+        update(retried, "available_at=0")
+        assert '"succeeded"' in send(retried)
+        assert attempts(retried) == "1\thttp_failure\t503\n2\tsucceeded\t204"
+        captured("retry", 2)
+
+        reset("scope")
+        replay_keys = ("replay-failed-limit-one", "replay-failed-limit-two")
+        replay_sources = [submit(key, "fail-once") for key in replay_keys]
+        for identifier in replay_sources:
+            assert '"failed"' in send(identifier)
+        total = int(sql("SELECT COUNT(*) FROM webhook_deliveries"))
+        work = ["webhook-server:replay", "--scope", SCOPE,
+                "--actor=fixture-operator", "--reason=test-limits"]
+        def register_replay(identifier):
+            return subprocess.run([str(binary), "artisan", *work, identifier],
+                                  env=env, capture_output=True, text=True, timeout=20)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(executor.map(register_replay, replay_sources))
+        assert sum(result.returncode == 0 for result in results) == 1, results
+        assert "限额" in next(result.stdout + result.stderr for result in results if result.returncode)
+        admitted = json.loads(re.search(r"\{[^\n]+\}", next(
+            result.stdout for result in results if result.returncode == 0
+        ))[0])
+        assert int(sql("SELECT COUNT(*) FROM webhook_deliveries")) == total + 1
+        assert sql("SELECT COUNT(*) FROM webhook_delivery_replays") == "1" and buckets("replay") == "1"
+        child = admitted["delivery_id"]
+        replay_key = replay_keys[replay_sources.index(admitted["original_delivery_id"])]
+        assert '"pending"' in send(child)
+        assert read(child) == "pending\t0" and not attempts(child)
+        captured(replay_key)
+        reset("scope")
+        update(child, "available_at=0")
+        enqueue(child)
+        command(*worker)
+        captured(replay_key, 2, rotated=(1,))
+        assert read(child) == "succeeded\t1" and buckets("scope") == "1"
+        assert read(admitted["original_delivery_id"]) == "failed\t1"
+
+        print(f"{driver}: 跨进程发送限额、端点版本、范围隔离、窗口恢复及重放限额通过", flush=True)
+        return
+
     if env.get("FIXTURE_SEND_ENDPOINTS"):
         def endpoint(operation, name, *options, success=True):
             return command("webhooks:fixture-endpoint", operation, name, *options, success=success)
@@ -838,7 +979,7 @@ def main():
                 finally:
                     http_helpers["stop"](app)
         if not (os.environ.get("FIXTURE_SEND_SCHEDULE") or os.environ.get("FIXTURE_SEND_REPLAY")
-                or os.environ.get("FIXTURE_SEND_ENDPOINTS")):
+                or os.environ.get("FIXTURE_SEND_ENDPOINTS") or os.environ.get("FIXTURE_SEND_LIMITS")):
             print(f"{driver}: HTTP 签名和字节、事务回滚、重复领取、重试预算、撤销、超时、崩溃恢复、Builder 分支、投递事件与自定义 Job 通过")
     finally:
         receiver.shutdown()

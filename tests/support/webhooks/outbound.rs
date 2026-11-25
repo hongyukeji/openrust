@@ -33,6 +33,7 @@ use openrust_webhook_server::{ReplayLimits, ReplayPhase, ReplayPolicy, ReplayReq
 use serde_json::json;
 
 const SCOPE: &str = "webhook-outbound-test";
+const ALTERNATE_LIMIT_SCOPE: &str = "webhook-outbound-limit-alternate";
 const REFERENCE: &str = "fixture-outbound-ref";
 const SECRET: &str = "outbound-isolated-test-key";
 const ROTATED: &str = "outbound-isolated-rotated-key";
@@ -45,7 +46,10 @@ impl DeliveryPolicy for FixturePolicy {
         context: DeliveryContext<'a>,
     ) -> HttpFuture<'a, Result<Option<DeliveryPermission>>> {
         Box::pin(async move {
-            if context.scope != SCOPE || std::env::var_os("FIXTURE_SEND_REVOKED").is_some() {
+            let permitted_scope = context.scope == SCOPE
+                || context.scope == ALTERNATE_LIMIT_SCOPE
+                    && std::env::var_os("FIXTURE_SEND_LIMITS").is_some();
+            if !permitted_scope || std::env::var_os("FIXTURE_SEND_REVOKED").is_some() {
                 return Ok(None);
             }
             if context.message_id == "endpoint-late-pause"
@@ -248,8 +252,22 @@ pub(super) async fn register(app: &Application) -> ProviderResult {
     if std::env::var_os("FIXTURE_SEND_TARGET").is_some() {
         let policy = Arc::new(FixturePolicy);
         register_delivery_policy(app.container(), policy.clone())?;
+        if std::env::var_os("FIXTURE_SEND_LIMITS").is_some() {
+            use openrust_webhook_server::{
+                DeliveryLimit, DeliveryLimits, register_delivery_limits,
+            };
+            register_delivery_limits(
+                app.container(),
+                DeliveryLimits {
+                    sends_per_scope: Some(DeliveryLimit::new(2, 60)?),
+                    sends_per_endpoint: Some(DeliveryLimit::new(1, 60)?),
+                    replays_per_scope: Some(DeliveryLimit::new(1, 60)?),
+                },
+            )?;
+        }
         if (std::env::var_os("FIXTURE_SEND_REPLAY").is_some()
-            || std::env::var_os("FIXTURE_SEND_ENDPOINTS").is_some())
+            || std::env::var_os("FIXTURE_SEND_ENDPOINTS").is_some()
+            || std::env::var_os("FIXTURE_SEND_LIMITS").is_some())
             && std::env::var_os("FIXTURE_REPLAY_UNREGISTERED").is_none()
         {
             register_replay_policy(app.container(), Arc::new(FixtureReplayPolicy))?;
@@ -332,7 +350,12 @@ pub(super) fn submit(
         }
         let manager = super::Databases::get_facade_root().map_err(super::internal)?;
         let connection = manager.connection(None).map_err(super::internal)?;
-        let store = DeliveryStore::new(connection.clone(), SCOPE).map_err(super::internal)?;
+        let scope = if mode == "limit-other-scope" {
+            ALTERNATE_LIMIT_SCOPE
+        } else {
+            SCOPE
+        };
+        let store = DeliveryStore::new(connection.clone(), scope).map_err(super::internal)?;
         if let Some(name) = mode.strip_prefix("endpoint-") {
             let endpoint_store = if name == "cross-scope" {
                 DeliveryStore::new(connection.clone(), "other-endpoint-scope")
