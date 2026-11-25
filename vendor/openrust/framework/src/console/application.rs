@@ -391,7 +391,7 @@ impl Application {
                 }
                 let flags = || arguments.iter().take_while(|argument| *argument != "--");
                 let decorated = flags().any(|argument| argument == "--ansi")
-                    || (output.decorated && !flags().any(|argument| argument == "--no-ansi"));
+                    || (output.is_decorated() && !flags().any(|argument| argument == "--no-ansi"));
                 output
                     .stdout
                     .push_str(&descriptor::help(&target, decorated));
@@ -404,11 +404,9 @@ impl Application {
         };
 
         if matches.get_flag("ansi") {
-            output.decorated = true;
-            output.error_decorated = true;
+            output.set_decorated(true);
         } else if matches.get_flag("no-ansi") {
-            output.decorated = false;
-            output.error_decorated = false;
+            output.set_decorated(false);
         }
 
         let parsed_quiet = matches.get_flag("quiet");
@@ -544,7 +542,8 @@ impl Application {
                 if !suppress_stdout() {
                     let target = syntax.find_subcommand(name).expect("resolved command");
                     let decorated = flags().any(|argument| argument == "--ansi")
-                        || (output.decorated && !flags().any(|argument| argument == "--no-ansi"));
+                        || (output.is_decorated()
+                            && !flags().any(|argument| argument == "--no-ansi"));
                     output.stdout.push_str(&descriptor::help(
                         &target.clone().bin_name(format!("artisan {name}")),
                         decorated,
@@ -561,16 +560,22 @@ impl Application {
             Err(error) => return Err(ConsoleError::new(localization::argument_error(&error))),
         };
         let (stdout, stderr) = (output.stdout.len(), output.stderr.len());
-        let decorated = (output.decorated, output.error_decorated);
-        let decoration = ScopedDecoration { output, decorated };
+        let decorated = (output.is_decorated(), output.progress_is_decorated());
+        let generations = (
+            output.formatter_generation,
+            output.error_formatter_generation,
+        );
+        let decoration = ScopedDecoration {
+            output,
+            decorated,
+            generations,
+        };
         let output = &mut *decoration.output;
         let (_, matches) = parsed.remove_subcommand().expect("resolved command");
         if matches.get_flag("ansi") {
-            output.decorated = true;
-            output.error_decorated = true;
+            output.set_decorated(true);
         } else if matches.get_flag("no-ansi") {
-            output.decorated = false;
-            output.error_decorated = false;
+            output.set_decorated(false);
         }
         let result = self
             .dispatch(
@@ -892,10 +897,15 @@ fn command_position(arguments: &[OsString]) -> Option<usize> {
 struct ScopedDecoration<'a> {
     output: &'a mut Output,
     decorated: (bool, bool),
+    generations: (u64, u64),
 }
 impl Drop for ScopedDecoration<'_> {
     fn drop(&mut self) {
-        self.output.decorated = self.decorated.0;
-        self.output.error_decorated = self.decorated.1;
+        if self.output.formatter_generation == self.generations.0 {
+            self.output.formatter.set_decorated(self.decorated.0);
+        }
+        if self.output.terminal && self.output.error_formatter_generation == self.generations.1 {
+            self.output.set_progress_decorated(self.decorated.1);
+        }
     }
 }

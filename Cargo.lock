@@ -4352,6 +4352,7 @@ dependencies = [
  "oxideav-heif",
  "oxideav-jpegxl",
  "oxideav-webp",
+ "parking_lot",
  "pathdiff",
  "pcre2",
  "percent-encoding",

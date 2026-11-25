@@ -6,6 +6,7 @@ mod command_input;
 mod command_io;
 mod descriptor;
 pub mod events;
+mod formatter;
 mod formatter_style;
 mod formatting;
 pub mod generator_command;
@@ -44,8 +45,12 @@ pub use command::{
 };
 pub use command_input::CommandInput;
 pub use command_io::CommandIo;
+pub use formatter::{
+    FormatterHandle, OutputFormatter, OutputFormatterInterface, WrappableOutputFormatterInterface,
+};
 pub use formatter_style::{
     FormatterStyle, OutputFormatterStyle, OutputFormatterStyleInterface, OutputFormatterStyleStack,
+    OutputFormatterStyleStackHandle,
 };
 pub use formatting::{ConsoleFormatError, ConsoleTemplateError};
 pub use generator_command::GeneratorCommand;
@@ -108,7 +113,8 @@ impl Input {
 pub struct Output {
     pub stdout: String,
     pub stderr: String,
-    decorated: bool,
+    formatter_generation: u64,
+    error_formatter_generation: u64,
     error_decorated: bool,
     error_verbosity: Option<OutputVerbosity>,
     verbosity: u8,
@@ -127,8 +133,10 @@ impl Output {
         let forced = env::var_os("FORCE_COLOR").is_some_and(|value| !value.is_empty());
         let terminal =
             io::stdout().is_terminal() && env::var_os("TERM").as_deref() != Some("dumb".as_ref());
+        let formatter = formatting::Formatter::default();
+        formatter.set_decorated(!disabled && (forced || terminal));
         Self {
-            decorated: !disabled && (forced || terminal),
+            formatter,
             error_decorated: !disabled
                 && (forced
                     || (io::stderr().is_terminal()
@@ -139,9 +147,32 @@ impl Output {
     }
 
     pub fn is_decorated(&self) -> bool {
-        self.decorated
+        self.formatter.is_decorated()
     }
 
+    /// 获取当前对象；通过返回引用修改配置会立即影响后续写入。
+    pub fn get_formatter(&self) -> FormatterHandle {
+        self.formatter.handle()
+    }
+    /// 真实控制台的两条流使用同一个显式替换对象。
+    pub fn set_formatter(&mut self, formatter: FormatterHandle) {
+        self.formatter = formatting::Formatter::from_handle(formatter.clone());
+        self.formatter_generation = self.formatter_generation.wrapping_add(1);
+        if self.terminal {
+            self.error_formatter = Some(formatting::Formatter::from_handle(formatter));
+            self.error_formatter_generation = self.error_formatter_generation.wrapping_add(1);
+        }
+    }
+    fn set_progress_decorated(&mut self, decorated: bool) {
+        if self.terminal {
+            self.error_decorated = decorated;
+            if let Some(formatter) = &self.error_formatter {
+                formatter.set_decorated(decorated);
+            }
+        } else {
+            self.formatter.set_decorated(decorated);
+        }
+    }
     pub fn is_verbose(&self) -> bool {
         !self.suppressed && self.verbosity >= 1
     }
@@ -163,8 +194,8 @@ impl Output {
         self.error_verbosity = None;
     }
     pub fn set_decorated(&mut self, decorated: bool) {
-        self.decorated = decorated;
-        self.error_decorated = decorated;
+        self.formatter.set_decorated(decorated);
+        self.set_progress_decorated(decorated);
     }
 
     pub fn verbosity(&self) -> OutputVerbosity {
@@ -331,7 +362,7 @@ impl Output {
     }
 
     fn write_style(&mut self, text: &str, open: &str, close: &str) {
-        if self.decorated && !text.is_empty() {
+        if self.is_decorated() && !text.is_empty() {
             self.stdout.push_str(open);
             self.stdout.push_str(text);
             self.stdout.push_str(close);

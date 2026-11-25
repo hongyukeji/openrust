@@ -140,7 +140,7 @@ pub(super) fn run(
             if !raw {
                 let usage = text("usage", "Usage:");
                 let options = text("options", "Options:");
-                let global = descriptor::global_options(console, output.decorated);
+                let global = descriptor::global_options(console, output.is_decorated());
                 let title = if let Some(name) = filter {
                     text(
                         "namespace_commands",

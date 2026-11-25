@@ -112,6 +112,7 @@ pub struct OutputStyle<'a> {
 impl<'a> OutputStyle<'a> {
     pub fn new(input: &'a Input, output: &'a mut Output) -> Self {
         let history_formatter = output.formatter.clone();
+        history_formatter.set_decorated(false);
         Self {
             input,
             progress: None,
@@ -128,6 +129,12 @@ impl<'a> OutputStyle<'a> {
     }
     pub fn get_verbosity(&self) -> OutputVerbosity {
         self.output.verbosity()
+    }
+    pub fn get_formatter(&self) -> super::FormatterHandle {
+        self.output.get_formatter()
+    }
+    pub fn set_formatter(&mut self, formatter: super::FormatterHandle) {
+        self.output.set_formatter(formatter);
     }
     pub fn set_decorated(&mut self, decorated: bool) {
         self.output.set_decorated(decorated);
@@ -477,22 +484,17 @@ impl Output {
         format: OutputFormat,
         error_stream: bool,
     ) -> Result<String, ConsoleError> {
-        let decorated = if error_stream && self.terminal {
-            self.error_decorated
+        let mut rendered = if format == OutputFormat::Raw {
+            message.to_owned()
         } else {
-            self.decorated
-        };
-        let formatter = if error_stream && self.terminal {
-            self.error_formatter
-                .get_or_insert_with(super::formatting::Formatter::default)
-        } else {
-            &mut self.formatter
-        };
-        let mut rendered = match format {
-            OutputFormat::Raw => message.to_owned(),
-            OutputFormat::Normal | OutputFormat::Plain => formatter
-                .format(message, decorated)
-                .map_err(ConsoleError::from_source)?,
+            let formatter = if error_stream {
+                self.progress_formatter()
+            } else {
+                &mut self.formatter
+            };
+            formatter
+                .format_current(message)
+                .map_err(ConsoleError::from_source)?
         };
         if format == OutputFormat::Plain {
             rendered = Str::of(rendered).strip_tags(&[]).to_string().to_owned();
@@ -511,15 +513,21 @@ impl Output {
     }
     pub(super) fn progress_is_decorated(&self) -> bool {
         if self.terminal {
-            self.error_decorated
+            self.error_formatter.as_ref().map_or(
+                self.error_decorated,
+                super::formatting::Formatter::is_decorated,
+            )
         } else {
-            self.decorated
+            self.is_decorated()
         }
     }
     pub(super) fn progress_formatter(&mut self) -> &mut super::formatting::Formatter {
         if self.terminal {
-            self.error_formatter
-                .get_or_insert_with(super::formatting::Formatter::default)
+            self.error_formatter.get_or_insert_with(|| {
+                let formatter = super::formatting::Formatter::default();
+                formatter.set_decorated(self.error_decorated);
+                formatter
+            })
         } else {
             &mut self.formatter
         }

@@ -191,5 +191,8 @@ async fn formal_progress_example(){
     formatter_style_code=re.search(r'```rust\n(.*?)```',text.split('{#formatter-styles}',1)[1],re.S).group(1)
     formatter_style_checks=progress_checks.replace('formal_progress_example','formal_formatter_style_example').replace('register_progress)', 'register_formatter_styles)').replace('"reports:progress"','"reports:styles"').replace('assert!(output.stdout.contains("CSV,JSON,HTML:11"));assert_eq!(output.stdout.matches("100%").count(),2);assert!(output.stdout.contains("build"));','assert!(output.stdout.contains("\\x1b[34;1mready\\x1b[39;22m"));assert!(output.stdout.contains("stack:plain"));')
     parts.append('mod '+locale.replace('-','_').lower()+'_formatter_styles{\n'+formatter_style_code+formatter_style_checks+'}\n')
+    formatter_code=re.search(r'```rust\n(.*?)```',text.split('{#output-formatters}',1)[1],re.S).group(1)
+    formatter_checks=progress_checks.replace('formal_progress_example','formal_formatter_example').replace('register_progress)', 'register_formatter)').replace('"reports:progress"','"reports:format"').replace('assert!(output.stdout.contains("CSV,JSON,HTML:11"));assert_eq!(output.stdout.matches("100%").count(),2);assert!(output.stdout.contains("build"));','assert_eq!(output.stdout,"ready\\none two\\nthree\\n\\x1b[32;1mdone\\x1b[39;22m\\n");')
+    parts.append('mod '+locale.replace('-','_').lower()+'_formatters{\n'+formatter_code+formatter_checks+'}\n')
 target=source/'tests/artisan_docs_generated.rs';target.write_text('\n'.join(parts));subprocess.run(['rustfmt','+1.94.0','--edition','2024',str(target)],check=True)
 print('generated',len(parts),'direct formal consumers')

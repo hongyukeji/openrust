@@ -552,7 +552,12 @@ impl<'a> ProgressBar<'a> {
                     cursor.push_str("\x1b[1G\x1b[2K\x1b[1A");
                 }
                 cursor.push_str("\x1b[1G\x1b[2K");
-                self.output.emit_progress(cursor.as_str())?;
+                self.output.emit_progress_message(
+                    cursor.as_str(),
+                    false,
+                    super::OutputFormat::Raw,
+                    super::OutputVerbosity::Normal,
+                )?;
             }
         } else if self.state.step > 0 {
             message.insert(0, '\n');

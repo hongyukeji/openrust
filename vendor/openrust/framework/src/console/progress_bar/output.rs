@@ -81,12 +81,22 @@ impl ProgressOutput<'_> {
         }
     }
     pub fn set_decorated(&mut self, decorated: bool) {
+        self.output.set_progress_decorated(decorated);
+    }
+    pub fn get_formatter(&mut self) -> super::super::FormatterHandle {
+        self.output.progress_formatter().handle()
+    }
+    pub fn set_formatter(&mut self, formatter: super::super::FormatterHandle) {
         if self.output.streams_to_terminal() {
-            self.output.error_decorated = decorated;
+            self.output.error_formatter =
+                Some(super::super::formatting::Formatter::from_handle(formatter));
+            self.output.error_formatter_generation =
+                self.output.error_formatter_generation.wrapping_add(1);
         } else {
-            self.output.decorated = decorated;
+            self.output.set_formatter(formatter);
         }
     }
+
     pub fn get_verbosity(&self) -> OutputVerbosity {
         self.output.progress_verbosity()
     }

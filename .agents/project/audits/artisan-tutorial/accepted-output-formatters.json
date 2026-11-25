@@ -1,0 +1,82 @@
+{
+  "scope": "Artisan phase18 public formatter, interfaces, runtime replacement and wrapping",
+  "source_sha256": {
+    "vendor/openrust/framework/src/console/application.rs": "6c5f29574e82decd887a6e55006e083b3960165e06bb67836fdf0d298a4edebc",
+    "vendor/openrust/framework/src/console/formatter/wrapping.rs": "1c7b76ce6d7e16a8dcaf9172e2fb89a8ccb2f28f6c70b4d9d16014270bd977b9",
+    "vendor/openrust/framework/src/console/formatter.rs": "a536cc737a756bf9444da63b0987d351ec8f713ea654af250068771f78b09c8c",
+    "vendor/openrust/framework/src/console/formatter_style/stack.rs": "ef7e0f0bb197273d11ffb4b07d147dfc3936b4dd6f30298a9d65edfecdd82dc0",
+    "vendor/openrust/framework/src/console/formatter_style/stack_handle.rs": "739a6e9b3a037433416c1815699acbeb06f9895f1de7cf9662c17381bc85b9e6",
+    "vendor/openrust/framework/src/console/formatter_style.rs": "645366ce017496f30bd7dba80099d0db35615e65904b001c699dc4610b31a95c",
+    "vendor/openrust/framework/src/console/formatting/unicode.rs": "208019cf58aea5971c3ed1ef51c8031666dc2f5ab13be5ba249741eb5f8d21f7",
+    "vendor/openrust/framework/src/console/formatting.rs": "492beb8b54330aa1cb7ec8d180ce498068a4e696d6777d93433a58fb56f62939",
+    "vendor/openrust/framework/src/console/help_command.rs": "e4d9d8c5e39beaf83c910828df7ebbeb120b03723f18ebe23cb1bcc550e1b9fa",
+    "vendor/openrust/framework/src/console/list_command.rs": "6bc510e464bb29eac1564f36ff1859893a8163d4342b4e92218a57ed54b2b6b6",
+    "vendor/openrust/framework/src/console/mod.rs": "98355f6eac534265902eaf9d050694b2ff81d1ff7d97280a8e483b7ce3d37bf1",
+    "vendor/openrust/framework/src/console/output_style.rs": "3cfe1896d0ea40499e749c6ecee7aef2332732e7e9c514704899b03fe64094f8",
+    "vendor/openrust/framework/src/console/progress_bar/output.rs": "5bab0f8edbdaadd2a4220c2599603d1b766139ec813f291d542ecf0778966291",
+    "vendor/openrust/framework/src/console/progress_bar.rs": "9f75a53fcad2066afda3941a4a366db28c4c9387cfe5911b9df3aaf825ace686",
+    "Cargo.lock": "d077d1e48737cf58bfb6de701f13d09007e7a981dbda92a44421545ee61a58a6",
+    "vendor/openrust/framework/Cargo.toml": "7c3c3f86dd4f7f576a7cc028b2f90bf4473250271f5a5229799628cd161e1946",
+    "vendor/openrust/framework/tests/console_formatter_object.rs": "8da5a4a2aa53d04b83755c157bf0ecbfccc7c05d9f514f23b923ec330e080c64",
+    "vendor/openrust/framework/tests/fixtures/formatter-object-source.json": "63a3c68447d42af3b15243ae9940cab9a89b724877a0d662586b10eb48586f7f",
+    "vendor/openrust/framework/tests/fixtures/formatter-escape-source.json": "8e3233db6c136c2d220bb218325f78d8ddc3ab102e38d26df9d125f61ab4be4f",
+    "tests/artisan_tutorial_docs.py": "7fd651bf4c54eff4958cd9b9fbcac30142576d5da241f79cef6b2a201e52e33c",
+    "docs/tests/check_artisan_tutorial.mjs": "93abd5fa347b879da5b395369247674288bda724e9613dc0fe881865abe78cb0",
+    "docs/en/digging-deeper/artisan.md": "3d5997262000fa2fe195a8de0b9803f9cb9e2304eef65760c9dabcc8acead6f8",
+    "docs/zh-Hans/digging-deeper/artisan.md": "871da01d59fdf9c4c63b3496a14da327bc1f940bf3b53c7789e39cbc5b3836a1",
+    "docs/zh-Hant/digging-deeper/artisan.md": "bb902123c156e9a1df75009f6fc4860810bf566f55f93be174abe71789389d0c",
+    ".agents/project/audits/artisan-tutorial/formatter-object-oracle.json": "63a3c68447d42af3b15243ae9940cab9a89b724877a0d662586b10eb48586f7f",
+    ".agents/project/audits/artisan-tutorial/formatter-escape-oracle.json": "8e3233db6c136c2d220bb218325f78d8ddc3ab102e38d26df9d125f61ab4be4f",
+    ".agents/project/audits/artisan-tutorial/formatter-contracts.json": "7258342b26b752e6c95c9900b878bdbb12589eedd3ae8147f3b0b4864c8ab0ab"
+  },
+  "snapshot": "target/tmp/logging-tutorial-20261124/source",
+  "reference_framework": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "console": "v7.4.0",
+  "passed": {
+    "framework": 86,
+    "root": 98
+  },
+  "unique_parent_tests": 184,
+  "ignored_driven_fixtures_excluded": 11,
+  "formal_trilingual_examples": 57,
+  "fixed_source_wrap_cases": 192,
+  "fixed_source_escape_cases": 781,
+  "gates": [
+    {
+      "name": "format",
+      "returncode": 0
+    },
+    {
+      "name": "final-framework",
+      "returncode": 0
+    },
+    {
+      "name": "final-root",
+      "returncode": 0
+    },
+    {
+      "name": "final-fmt",
+      "returncode": 0
+    },
+    {
+      "name": "final-clippy",
+      "returncode": 0
+    },
+    {
+      "name": "final-main",
+      "returncode": 0
+    },
+    {
+      "name": "final-docs",
+      "returncode": 0
+    }
+  ],
+  "browser_cases": 12,
+  "runtime_log": "target/tmp/artisan-tutorial-20261125/formatter-object-runtime.log",
+  "strict_clippy_seconds": 56.69,
+  "limitations": [
+    "No release/cross-platform/full other chapter acceptance claimed",
+    "NewRelic remains separately selected vendor integration LOG-S01",
+    "Public Color/AnsiColorMode/Terminal and remaining Artisan SDK/anchors are not closed"
+  ]
+}

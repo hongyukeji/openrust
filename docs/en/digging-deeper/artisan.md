@@ -775,7 +775,7 @@ fn register_progress_output() -> Result<(), ConsoleError> {
 }
 ```
 
-The callback receives the bar; its output is borrowed only while used. This avoids overlapping mutable references to the bar and its output. Read the needed bar state before borrowing the output, then continue after that borrow ends. Writes share the existing formatter and error chain and do not update outer style newline counters. A placeholder may be evaluated repeatedly while formatting; keep business side effects outside it. This view does not claim the complete inherited output SDK: formatter replacement and output configuration setters remain separate entries.
+The callback receives the bar; its output is borrowed only while used. This avoids overlapping mutable references to the bar and its output. Read the needed bar state before borrowing the output, then continue after that borrow ends. Writes share the existing formatter and error chain and do not update outer style newline counters. A placeholder may be evaluated repeatedly while formatting; keep business side effects outside it. This view does not claim the complete inherited output SDK: formatter replacement and output configuration are described below.
 
 ## Output configuration {#output-configuration}
 
@@ -810,7 +810,7 @@ fn register_output_configuration() -> Result<(), ConsoleError> {
 }
 ```
 
-A progress output view has its own `set_verbosity` and `set_decorated`. On a real console they configure stderr independently; a primary style setter updates both streams. Captured single-stream output shares the same settings. Progress formatting reads its selected stream, and nested explicit CLI flags temporarily apply to both. The existing command scope restores parent settings on completion and cancellation. Native direct string-buffer edits remain subject to command filtering; prefer the output methods for level-aware writing. Custom formatter replacement is a separate SDK entry.
+A progress output view has its own `set_verbosity` and `set_decorated`. On a real console they configure stderr independently; a primary style setter updates both streams. Captured single-stream output shares the same settings. Progress formatting reads its selected stream, and nested explicit CLI flags temporarily apply to both. The existing command scope restores parent settings on completion and cancellation. Native direct string-buffer edits remain subject to command filtering; prefer the output methods for level-aware writing. See Output formatters for the sharing rules after explicit replacement.
 
 ## Styles and the style stack {#formatter-styles}
 
@@ -847,4 +847,42 @@ fn register_formatter_styles() -> Result<(), ConsoleError> {
 
 A cloned handle retains the same object; cloning the concrete style creates an independent configuration. `OutputFormatterStyleStack` retains references, supports ordinary and matching-style pops, and shares its styles when cloned. `reset` clears entries while keeping the configured empty style and is also available through `contracts::service::ResetInterface`. Matching uses actual empty-text style output, including hyperlink behavior.
 
-Setters return typed errors and may preserve the previous compiled display while later operations validate the latest fields. Propagate failures with `?`; `ConsoleError` retains their sources. Generic iterator and string adapters run before acquiring the default style lock. These types reuse the existing formatter pipeline. Named-style registration and whole-formatter replacement remain separate SDK entries.
+Setters return typed errors and may preserve the previous compiled display while later operations validate the latest fields. Propagate failures with `?`; `ConsoleError` retains their sources. Generic iterator and string adapters run before acquiring the default style lock. These types reuse the existing formatter pipeline. Named-style registration and whole-formatter replacement are described in Output formatters.
+
+## Output formatters {#output-formatters}
+
+`OutputFormatter` provides named style registration and lookup, escaping, optional text formatting and grapheme-based wrapping. Width zero disables wrapping. Formatting retains unclosed style state between calls; `get_style_stack()` returns a handle to that same stack. Cloning the concrete formatter deep-copies named styles while retaining stack style references.
+
+```rust
+use openrust::{
+    console::{ConsoleError, Input, Output, OutputFormat, OutputFormatter,
+        OutputFormatterStyle},
+    support::facades::Artisan,
+};
+use std::sync::Arc;
+
+fn register_formatter() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:format", |input: &Input, output: &mut Output| {
+        let formatter = Arc::new(OutputFormatter::new(false));
+        formatter.set_style("report", Arc::new(OutputFormatterStyle::new(
+            Some("green"), None, &["bold"],
+        )?));
+        let wrapped = formatter.format_and_wrap(Some("one two three"), 7)?;
+        let mut io = input.io(output);
+        let style = io.get_output();
+        style.set_formatter(formatter);
+        style.write("<report>ready</report>", true, OutputFormat::Normal)?;
+        style.write(wrapped.as_str(), true, OutputFormat::Raw)?;
+        style.get_formatter().set_decorated(true);
+        style.write("<report>done</report>", true, OutputFormat::Normal)?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
+`OutputFormatterInterface` supports custom implementations and optional output; returning `None` emits no text. Implement `WrappableOutputFormatterInterface` and return it from `as_wrappable` to expose wrapping through a type-erased handle. The native capability method avoids unsafe trait-object casts. Propagate errors with `?`; their concrete sources are retained.
+
+`Output`, `OutputStyle` and `ProgressOutput` expose `get_formatter` and `set_formatter`. Cloning the returned Arc shares the same object. Explicit primary replacement on a real console shares the object with stderr; changing decoration through either handle then affects both. Without replacement their default formatters remain independent. Replacing only the progress output affects stderr; captured commands have a single shared stream. Raw output bypasses the formatter, including progress cursor control sequences.
+
+Nested CLI flags restore decoration when their original output objects remain installed. Explicit replacement keeps the new formatter’s configuration instead of overwriting it with the previous object’s flags. Custom style callbacks can safely register styles, reset the same stack or perform finite nested formatting. Formatter calls are synchronous; no async work runs while holding the ordering lock.

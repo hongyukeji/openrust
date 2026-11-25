@@ -16,7 +16,7 @@ fn starts(text: &str) -> Result<Vec<usize>, ConsoleFormatError> {
         })
         .collect()
 }
-pub(super) fn length(text: &str) -> Result<usize, ConsoleFormatError> {
+pub(in crate::console) fn length(text: &str) -> Result<usize, ConsoleFormatError> {
     GRAPHEME
         .find_iter(text.as_bytes())
         .try_fold(0, |count, item| {
@@ -25,7 +25,7 @@ pub(super) fn length(text: &str) -> Result<usize, ConsoleFormatError> {
         })
 }
 /// 只为可见片段建立规范化字素索引，解析样式仍使用原始标签。
-pub(super) struct Slices<'a> {
+pub(in crate::console) struct Slices<'a> {
     text: Cow<'a, str>,
     original: Vec<usize>,
     normalized: Vec<usize>,

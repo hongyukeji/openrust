@@ -1,6 +1,6 @@
 use regex::Regex;
 mod template;
-mod unicode;
+pub(super) mod unicode;
 use std::{fmt, sync::LazyLock};
 pub use template::ConsoleTemplateError;
 
@@ -8,6 +8,7 @@ pub use template::ConsoleTemplateError;
 pub enum ConsoleFormatError {
     InvalidColor(String),
     InvalidOption(String),
+    UndefinedStyle(String),
     IncorrectlyNestedTag,
     UnicodeSegmentation(pcre2::Error),
     CustomSource(std::sync::Arc<dyn std::error::Error + Send + Sync>),
@@ -17,6 +18,7 @@ impl fmt::Display for ConsoleFormatError {
         match self {
             Self::InvalidColor(value) => write!(f, "控制台颜色无效：{value}"),
             Self::InvalidOption(value) => write!(f, "控制台样式选项无效：{value}"),
+            Self::UndefinedStyle(value) => write!(f, "控制台样式未定义：{value}"),
             Self::IncorrectlyNestedTag => f.write_str("控制台样式标签嵌套不匹配"),
             Self::UnicodeSegmentation(error) => write!(f, "控制台文本字素解析失败：{error}"),
             Self::CustomSource(error) => write!(f, "控制台样式处理失败：{error}"),
@@ -37,7 +39,8 @@ impl PartialEq for ConsoleFormatError {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::InvalidColor(left), Self::InvalidColor(right))
-            | (Self::InvalidOption(left), Self::InvalidOption(right)) => left == right,
+            | (Self::InvalidOption(left), Self::InvalidOption(right))
+            | (Self::UndefinedStyle(left), Self::UndefinedStyle(right)) => left == right,
             (Self::IncorrectlyNestedTag, Self::IncorrectlyNestedTag) => true,
             (Self::UnicodeSegmentation(left), Self::UnicodeSegmentation(right)) => {
                 left.code() == right.code()
@@ -106,184 +109,68 @@ impl Style {
 }
 
 pub(super) struct Formatter {
-    stack: super::OutputFormatterStyleStack,
-    styles: std::collections::BTreeMap<String, super::FormatterStyle>,
+    inner: super::FormatterHandle,
 }
 impl Default for Formatter {
     fn default() -> Self {
-        let styles = [
-            ("error", Some("white"), Some("red")),
-            ("info", Some("green"), None),
-            ("comment", Some("yellow"), None),
-            ("question", Some("black"), Some("cyan")),
-        ]
-        .into_iter()
-        .map(|(name, fg, bg)| {
-            let style: super::FormatterStyle = std::sync::Arc::new(
-                super::OutputFormatterStyle::new(fg, bg, &[]).expect("内置颜色配置有效"),
-            );
-            (name.to_owned(), style)
-        })
-        .collect();
         Self {
-            stack: super::OutputFormatterStyleStack::default(),
-            styles,
+            inner: std::sync::Arc::new(super::OutputFormatter::default()),
         }
     }
 }
 impl Clone for Formatter {
     fn clone(&self) -> Self {
         Self {
-            stack: self.stack.clone(),
-            styles: self
-                .styles
-                .iter()
-                .map(|(name, style)| {
-                    (
-                        name.clone(),
-                        std::sync::Arc::from(dyn_clone::clone_box(style.as_ref())),
-                    )
-                })
-                .collect(),
+            inner: std::sync::Arc::from(dyn_clone::clone_box(self.inner.as_ref())),
         }
     }
 }
 impl Formatter {
-    pub(super) fn escape(text: &str) -> String {
-        let mut escaped = String::new();
-        let mut previous = None;
-        for character in text.chars() {
-            if matches!(character, '<' | '>') && previous != Some('\\') {
-                escaped.push('\\');
-            }
-            escaped.push(character);
-            previous = Some(character);
-        }
-        Self::escape_trailing_backslash(&escaped)
+    pub(super) fn from_handle(inner: super::FormatterHandle) -> Self {
+        Self { inner }
     }
-    pub(super) fn escape_trailing_backslash(text: &str) -> String {
-        if !text.ends_with('\\') {
-            return text.to_owned();
-        }
-        let mut prefix = text.trim_end_matches('\\').replace('\0', "");
-        let count = text.len() - prefix.len();
-        prefix.extend(std::iter::repeat_n('\0', count));
-        prefix
+    pub(super) fn handle(&self) -> super::FormatterHandle {
+        self.inner.clone()
     }
-    pub(super) fn register_warning(&mut self) {
-        self.styles.entry("warning".into()).or_insert_with(|| {
-            std::sync::Arc::new(
-                super::OutputFormatterStyle::new(Some("yellow"), None, &[])
-                    .expect("内置警告颜色有效"),
-            )
-        });
+    pub(super) fn set_decorated(&self, decorated: bool) {
+        self.inner.set_decorated(decorated);
+    }
+    pub(super) fn is_decorated(&self) -> bool {
+        self.inner.is_decorated()
+    }
+    pub(super) fn format_current(&self, text: &str) -> Result<String, ConsoleFormatError> {
+        Ok(self.inner.format(Some(text))?.unwrap_or_default())
     }
     pub(super) fn format(
         &mut self,
         text: &str,
         decorated: bool,
     ) -> Result<String, ConsoleFormatError> {
-        static TAGS: LazyLock<Regex> = LazyLock::new(|| {
-            Regex::new(r"(?is)<([a-z](?:[^\\<>]|\\.)*|/[a-z][^<>]*|/)>")
-                .expect("合法控制台标签表达式")
-        });
-        let non_ascii = !text.is_ascii();
-        let mut unicode = None;
-        let mut output = String::new();
-        let mut offset = 0;
-        for token in TAGS.captures_iter(text) {
-            let span = token.get(0).expect("标签范围存在");
-            if span.start() > 0 && text.as_bytes()[span.start() - 1] == b'\\' {
-                continue;
-            }
-            if non_ascii && unicode.is_none() {
-                unicode = Some(unicode::Slices::new(text)?);
-            }
-            let position = unicode
-                .as_ref()
-                .map_or(span.start(), |slices| slices.prefix_length(span.start()));
-            let visible = unicode.as_ref().map_or_else(
-                || &text[offset..span.start()],
-                |slices| slices.slice(offset, Some(position)),
+        if self.is_decorated() == decorated {
+            return self.format_current(text);
+        }
+        let previous = self.is_decorated();
+        self.set_decorated(decorated);
+        let rendered = self.format_current(text)?;
+        self.set_decorated(previous);
+        Ok(rendered)
+    }
+    pub(super) fn register_warning(&mut self) {
+        if !self.inner.has_style("warning") {
+            self.inner.set_style(
+                "warning",
+                std::sync::Arc::new(
+                    super::OutputFormatterStyle::new(Some("yellow"), None, &[])
+                        .expect("内置警告颜色有效"),
+                ),
             );
-            self.append(visible, decorated, &mut output)?;
-            offset = if unicode.is_some() {
-                position + unicode::length(span.as_str())?
-            } else {
-                span.end()
-            };
-            let tag = &token[1];
-            if tag == "/" {
-                self.stack.pop()?;
-                continue;
-            }
-            let (closing, name) = tag
-                .strip_prefix('/')
-                .map_or((false, tag), |name| (true, name));
-            let Some(style) = self.style(name)? else {
-                self.append(span.as_str(), decorated, &mut output)?;
-                continue;
-            };
-            if !closing {
-                self.stack.push(style);
-            } else {
-                self.stack.pop_with_style(&style)?;
-            }
         }
-        let visible = match unicode.as_ref() {
-            Some(slices) => std::borrow::Cow::Borrowed(slices.slice(offset, None)),
-            None if non_ascii => icu_normalizer::ComposingNormalizer::new_nfc().normalize(text),
-            None => std::borrow::Cow::Borrowed(&text[offset..]),
-        };
-        self.append(visible.as_ref(), decorated, &mut output)?;
-        Ok(output
-            .replace('\0', "\\")
-            .replace("\\<", "<")
-            .replace("\\>", ">"))
     }
-    fn append(
-        &self,
-        text: &str,
-        decorated: bool,
-        target: &mut String,
-    ) -> Result<(), ConsoleFormatError> {
-        if text.is_empty() {
-            return Ok(());
-        }
-        if decorated {
-            self.stack.current_ref().append_to(text, target)?;
-        } else {
-            target.push_str(text);
-        }
-        Ok(())
+    pub(super) fn escape(text: &str) -> String {
+        super::OutputFormatter::escape(text)
     }
-    fn style(&self, name: &str) -> Result<Option<super::FormatterStyle>, ConsoleFormatError> {
-        if let Some(style) = self.styles.get(name) {
-            return Ok(Some(style.clone()));
-        }
-        static ATTRS: LazyLock<Regex> =
-            LazyLock::new(|| Regex::new(r"([^=]+)=([^;]+)(?:;|$)").expect("合法控制台属性表达式"));
-        let style = super::OutputFormatterStyle::default();
-        let mut found = false;
-        for attribute in ATTRS.captures_iter(name) {
-            found = true;
-            let value = attribute[2].to_lowercase();
-            match attribute[1].to_lowercase().as_str() {
-                "fg" => style.set_foreground(Some(&value))?,
-                "bg" => style.set_background(Some(&value))?,
-                "options" => {
-                    for option in value.split(',').filter(|option| !option.is_empty()) {
-                        style.set_option(option)?;
-                    }
-                }
-                "href" => style.set_href(attribute[2].replace("\\<", "<").replace("\\>", ">")),
-                _ => return Ok(None),
-            }
-        }
-        if !found {
-            return Ok(None);
-        }
-        Ok(Some(std::sync::Arc::new(style)))
+    pub(super) fn escape_trailing_backslash(text: &str) -> String {
+        super::OutputFormatter::escape_trailing_backslash(text)
     }
 }
 pub(super) fn hyperlinks_supported() -> bool {
@@ -408,7 +295,10 @@ pub(super) fn unformatted_text(
     formatter: &mut Formatter,
     text: &str,
 ) -> Result<String, ConsoleFormatError> {
-    let mut plain = formatter.format(text, false)?;
+    let previous = formatter.is_decorated();
+    formatter.set_decorated(false);
+    let mut plain = formatter.format_current(text)?;
+    formatter.set_decorated(previous);
     if !plain.contains('\x1b') {
         return Ok(plain);
     }

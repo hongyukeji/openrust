@@ -4,7 +4,9 @@ use super::{
 };
 use std::sync::{Arc, Mutex, OnceLock};
 mod stack;
+mod stack_handle;
 pub use stack::OutputFormatterStyleStack;
+pub use stack_handle::OutputFormatterStyleStackHandle;
 
 /// 样式对象以共享引用保留身份，设置操作仅修改该对象的配置。
 pub type FormatterStyle = Arc<dyn OutputFormatterStyleInterface>;

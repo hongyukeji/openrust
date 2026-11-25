@@ -775,7 +775,7 @@ fn register_progress_output() -> Result<(), ConsoleError> {
 }
 ```
 
-回调接收进度条，输出仅在使用期间借出，避免同时取得进度条及其内部输出的重叠可变引用。先读取所需进度状态，再借用输出，借用结束后可继续操作进度条。写入复用既有格式器与错误链，不更新外层样式换行计数。占位符在排版时可能重复求值，业务副作用应放在回调之外。本视图不代表完整继承输出 SDK；格式器替换和输出配置设置器仍为单独入口。
+回调接收进度条，输出仅在使用期间借出，避免同时取得进度条及其内部输出的重叠可变引用。先读取所需进度状态，再借用输出，借用结束后可继续操作进度条。写入复用既有格式器与错误链，不更新外层样式换行计数。占位符在排版时可能重复求值，业务副作用应放在回调之外。本视图不代表完整继承输出 SDK；格式器替换和输出配置见下文对应章节。
 
 ## 输出配置 {#output-configuration}
 
@@ -810,7 +810,7 @@ fn register_output_configuration() -> Result<(), ConsoleError> {
 }
 ```
 
-进度输出视图也有 `set_verbosity` 和 `set_decorated`。真实控制台仅配置 stderr；主样式的设置器同时更新两条流。捕获调用的单一输出共享设置。进度排版读取所选流，嵌套命令的显式 CLI 标志临时作用于两条流；既有命令作用域在结束或取消时恢复父级配置。原生直接修改字符串缓冲仍受命令过滤约束，按级别写入应使用输出方法。自定义格式器替换为单独的 SDK 入口。
+进度输出视图也有 `set_verbosity` 和 `set_decorated`。真实控制台仅配置 stderr；主样式的设置器同时更新两条流。捕获调用的单一输出共享设置。进度排版读取所选流，嵌套命令的显式 CLI 标志临时作用于两条流；既有命令作用域在结束或取消时恢复父级配置。原生直接修改字符串缓冲仍受命令过滤约束，按级别写入应使用输出方法。显式替换后的共享规则见“输出格式器”。
 
 ## 样式与样式栈 {#formatter-styles}
 
@@ -847,4 +847,42 @@ fn register_formatter_styles() -> Result<(), ConsoleError> {
 
 克隆句柄保留同一个对象，克隆具体样式得到独立配置。`OutputFormatterStyleStack` 保留样式引用，支持普通弹出和按样式匹配弹出，克隆栈仍共享原样式。`reset` 清空条目并保留配置的空样式，也可通过 `contracts::service::ResetInterface` 调用。匹配比较实际空文本样式输出，包含超链接行为。
 
-设置器返回类型化错误；显示可继续使用此前已编译样式，后续修改会重新校验最新字段。用 `?` 传播失败，`ConsoleError` 保留具体来源。泛型迭代器及字符串转换在默认样式加锁前执行。这些类型复用既有格式化管线；命名样式注册和完整格式器替换仍是单独的 SDK 入口。
+设置器返回类型化错误；显示可继续使用此前已编译样式，后续修改会重新校验最新字段。用 `?` 传播失败，`ConsoleError` 保留具体来源。泛型迭代器及字符串转换在默认样式加锁前执行。这些类型复用既有格式化管线；命名样式注册和完整格式器替换见“输出格式器”。
+
+## 输出格式器 {#output-formatters}
+
+`OutputFormatter` 提供命名样式注册和查询、转义、可选文本格式化及按字素换行。宽度为零关闭换行。未关闭的样式状态会保留到下次调用；`get_style_stack()` 返回同一个实际栈的句柄。克隆具体格式器深复制命名样式，栈内样式仍保留引用。
+
+```rust
+use openrust::{
+    console::{ConsoleError, Input, Output, OutputFormat, OutputFormatter,
+        OutputFormatterStyle},
+    support::facades::Artisan,
+};
+use std::sync::Arc;
+
+fn register_formatter() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:format", |input: &Input, output: &mut Output| {
+        let formatter = Arc::new(OutputFormatter::new(false));
+        formatter.set_style("report", Arc::new(OutputFormatterStyle::new(
+            Some("green"), None, &["bold"],
+        )?));
+        let wrapped = formatter.format_and_wrap(Some("one two three"), 7)?;
+        let mut io = input.io(output);
+        let style = io.get_output();
+        style.set_formatter(formatter);
+        style.write("<report>ready</report>", true, OutputFormat::Normal)?;
+        style.write(wrapped.as_str(), true, OutputFormat::Raw)?;
+        style.get_formatter().set_decorated(true);
+        style.write("<report>done</report>", true, OutputFormat::Normal)?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
+`OutputFormatterInterface` 支持自定义实现和可选输出；返回 `None` 不写文本。实现 `WrappableOutputFormatterInterface` 并由 `as_wrappable` 返回，便可通过类型擦除句柄访问换行能力；这个原生能力方法避免不安全的 Trait 对象转换。用 `?` 传播错误，保留具体来源。
+
+`Output`、`OutputStyle` 和 `ProgressOutput` 均提供 `get_formatter`、`set_formatter`。克隆返回的 Arc 共享同一个对象。真实控制台显式替换主格式器时，stderr 也引用该对象；随后通过任一句柄修改装饰会影响两条流。未替换时，默认格式器彼此独立。只替换进度输出则仅影响 stderr；捕获命令共享单一流。Raw 绕过格式器，进度光标控制序列也走 Raw。
+
+嵌套 CLI 标志在原输出对象仍安装时恢复装饰；显式替换则保留新格式器配置，不用旧对象标志覆盖。自定义样式回调可安全注册样式、复位同一栈或进行有限的嵌套格式化。格式器调用是同步的，排序锁期间不执行异步工作。

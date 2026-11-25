@@ -3,7 +3,7 @@
     "framework": "1449bf241017087fbd38c118ecaabef3f6797fdc",
     "console": "v7.4.0"
   },
-  "scope": "Public style class, style trait and stack with actual reset trait binding; complete formatter replacement and color/terminal SDK remain open.",
+  "scope": "Public styles, stacks, default formatter, formatter traits and runtime replacement; complete Color/Terminal and other SDK types remain open.",
   "classes": {
     "OutputFormatterStyleInterface": [
       {
@@ -237,139 +237,215 @@
       {
         "method": "__clone",
         "source_line": 30,
-        "native": null,
-        "status": "pending_public_type_trait_and_real_consumer",
-        "evidence": []
+        "native": "Clone::clone",
+        "status": "verified_public_formatter_contract",
+        "evidence": [
+          "console_formatter_object",
+          "formatter-object-oracle.json",
+          "formatter-escape-oracle.json"
+        ]
       },
       {
         "method": "escape",
         "source_line": 41,
-        "native": null,
-        "status": "pending_public_type_trait_and_real_consumer",
-        "evidence": []
+        "native": "OutputFormatter::escape",
+        "status": "verified_public_formatter_contract",
+        "evidence": [
+          "console_formatter_object",
+          "formatter-object-oracle.json",
+          "formatter-escape-oracle.json"
+        ]
       },
       {
         "method": "escapeTrailingBackslash",
         "source_line": 53,
-        "native": null,
-        "status": "pending_public_type_trait_and_real_consumer",
-        "evidence": []
+        "native": "OutputFormatter::escape_trailing_backslash",
+        "status": "verified_public_formatter_contract",
+        "evidence": [
+          "console_formatter_object",
+          "formatter-object-oracle.json",
+          "formatter-escape-oracle.json"
+        ]
       },
       {
         "method": "__construct",
         "source_line": 70,
-        "native": null,
-        "status": "pending_public_type_trait_and_real_consumer",
-        "evidence": []
+        "native": "OutputFormatter::{new,new_with_styles}",
+        "status": "verified_public_formatter_contract",
+        "evidence": [
+          "console_formatter_object",
+          "formatter-object-oracle.json",
+          "formatter-escape-oracle.json"
+        ]
       },
       {
         "method": "setDecorated",
         "source_line": 86,
-        "native": null,
-        "status": "pending_public_type_trait_and_real_consumer",
-        "evidence": []
+        "native": "set_decorated",
+        "status": "verified_public_formatter_contract",
+        "evidence": [
+          "console_formatter_object",
+          "formatter-object-oracle.json",
+          "formatter-escape-oracle.json"
+        ]
       },
       {
         "method": "isDecorated",
         "source_line": 91,
-        "native": null,
-        "status": "pending_public_type_trait_and_real_consumer",
-        "evidence": []
+        "native": "is_decorated",
+        "status": "verified_public_formatter_contract",
+        "evidence": [
+          "console_formatter_object",
+          "formatter-object-oracle.json",
+          "formatter-escape-oracle.json"
+        ]
       },
       {
         "method": "setStyle",
         "source_line": 96,
-        "native": null,
-        "status": "pending_public_type_trait_and_real_consumer",
-        "evidence": []
+        "native": "set_style",
+        "status": "verified_public_formatter_contract",
+        "evidence": [
+          "console_formatter_object",
+          "formatter-object-oracle.json",
+          "formatter-escape-oracle.json"
+        ]
       },
       {
         "method": "hasStyle",
         "source_line": 101,
-        "native": null,
-        "status": "pending_public_type_trait_and_real_consumer",
-        "evidence": []
+        "native": "has_style",
+        "status": "verified_public_formatter_contract",
+        "evidence": [
+          "console_formatter_object",
+          "formatter-object-oracle.json",
+          "formatter-escape-oracle.json"
+        ]
       },
       {
         "method": "getStyle",
         "source_line": 106,
-        "native": null,
-        "status": "pending_public_type_trait_and_real_consumer",
-        "evidence": []
+        "native": "get_style",
+        "status": "verified_public_formatter_contract",
+        "evidence": [
+          "console_formatter_object",
+          "formatter-object-oracle.json",
+          "formatter-escape-oracle.json"
+        ]
       },
       {
         "method": "format",
         "source_line": 115,
-        "native": null,
-        "status": "pending_public_type_trait_and_real_consumer",
-        "evidence": []
+        "native": "format / format_optional",
+        "status": "verified_public_formatter_contract",
+        "evidence": [
+          "console_formatter_object",
+          "formatter-object-oracle.json",
+          "formatter-escape-oracle.json"
+        ]
       },
       {
         "method": "formatAndWrap",
         "source_line": 120,
-        "native": null,
-        "status": "pending_public_type_trait_and_real_consumer",
-        "evidence": []
+        "native": "format_and_wrap",
+        "status": "verified_public_formatter_contract",
+        "evidence": [
+          "console_formatter_object",
+          "formatter-object-oracle.json",
+          "formatter-escape-oracle.json"
+        ]
       },
       {
         "method": "getStyleStack",
         "source_line": 170,
-        "native": null,
-        "status": "pending_public_type_trait_and_real_consumer",
-        "evidence": []
+        "native": "get_style_stack",
+        "status": "verified_public_formatter_contract",
+        "evidence": [
+          "console_formatter_object",
+          "formatter-object-oracle.json",
+          "formatter-escape-oracle.json"
+        ]
       }
     ],
     "WrappableOutputFormatterInterface": [
       {
         "method": "formatAndWrap",
         "source_line": 24,
-        "native": null,
-        "status": "pending_public_type_trait_and_real_consumer",
-        "evidence": []
+        "native": "format_and_wrap",
+        "status": "verified_public_formatter_contract",
+        "evidence": [
+          "console_formatter_object",
+          "formatter-object-oracle.json",
+          "formatter-escape-oracle.json"
+        ]
       }
     ],
     "OutputFormatterInterface": [
       {
         "method": "setDecorated",
         "source_line": 24,
-        "native": null,
-        "status": "pending_public_type_trait_and_real_consumer",
-        "evidence": []
+        "native": "set_decorated",
+        "status": "verified_public_formatter_contract",
+        "evidence": [
+          "console_formatter_object",
+          "formatter-object-oracle.json",
+          "formatter-escape-oracle.json"
+        ]
       },
       {
         "method": "isDecorated",
         "source_line": 29,
-        "native": null,
-        "status": "pending_public_type_trait_and_real_consumer",
-        "evidence": []
+        "native": "is_decorated",
+        "status": "verified_public_formatter_contract",
+        "evidence": [
+          "console_formatter_object",
+          "formatter-object-oracle.json",
+          "formatter-escape-oracle.json"
+        ]
       },
       {
         "method": "setStyle",
         "source_line": 34,
-        "native": null,
-        "status": "pending_public_type_trait_and_real_consumer",
-        "evidence": []
+        "native": "set_style",
+        "status": "verified_public_formatter_contract",
+        "evidence": [
+          "console_formatter_object",
+          "formatter-object-oracle.json",
+          "formatter-escape-oracle.json"
+        ]
       },
       {
         "method": "hasStyle",
         "source_line": 39,
-        "native": null,
-        "status": "pending_public_type_trait_and_real_consumer",
-        "evidence": []
+        "native": "has_style",
+        "status": "verified_public_formatter_contract",
+        "evidence": [
+          "console_formatter_object",
+          "formatter-object-oracle.json",
+          "formatter-escape-oracle.json"
+        ]
       },
       {
         "method": "getStyle",
         "source_line": 46,
-        "native": null,
-        "status": "pending_public_type_trait_and_real_consumer",
-        "evidence": []
+        "native": "get_style",
+        "status": "verified_public_formatter_contract",
+        "evidence": [
+          "console_formatter_object",
+          "formatter-object-oracle.json",
+          "formatter-escape-oracle.json"
+        ]
       },
       {
         "method": "format",
         "source_line": 51,
-        "native": null,
-        "status": "pending_public_type_trait_and_real_consumer",
-        "evidence": []
+        "native": "format / format_optional",
+        "status": "verified_public_formatter_contract",
+        "evidence": [
+          "console_formatter_object",
+          "formatter-object-oracle.json",
+          "formatter-escape-oracle.json"
+        ]
       }
     ]
   },
@@ -407,11 +483,25 @@
     {
       "url": "https://raw.githubusercontent.com/symfony/console/v7.4.0/Tests/Formatter/OutputFormatterStyleStackTest.php",
       "used": "Push/pop/empty/non-top/invalid public consumers"
+    },
+    {
+      "url": "https://docs.rs/parking_lot/0.12.5/parking_lot/type.ReentrantMutex.html",
+      "used": "Same-thread reentry and serialization; existing lock version, no new resolved package"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/symfony/console/v7.4.0/Tests/Formatter/OutputFormatterTest.php",
+      "used": "Public formatter parser and style/clone/escaping/wrapping cases"
     }
   ],
   "remaining": [
-    "Public OutputFormatter and OutputFormatterInterface / WrappableOutputFormatterInterface including setFormatter/getFormatter consumers",
     "Public Color, AnsiColorMode, Terminal color-mode lifecycle; private RGB conversion is not proof of those SDK types",
     "Other table/component/registration/signal/Tinker chapter entries remain open"
+  ],
+  "adaptations_phase18": [
+    "Arc formatter handle retains identity; concrete Clone deep-copies palette but retains stack references. get_style_stack returns a shared stack handle with the same visible mutations.",
+    "Trait formatting accepts Option<&str> and returns Result<Option<String>>; concrete format_optional handles optional input because Rust does not overload inherent methods.",
+    "as_wrappable exposes the second trait through type erasure without unsafe casting; actual custom implementation tested.",
+    "Ordering uses already locked parking_lot 0.12.5 ReentrantMutex; short data locks are released before user apply/clone/drop callbacks. No asynchronous work occurs in the formatter.",
+    "Explicit runtime formatter replacement preserves its own decoration instead of restoring flags belonging to an obsolete formatter object. Existing non-replaced nested/cancel scopes retain restoration."
   ]
 }

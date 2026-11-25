@@ -63,7 +63,7 @@ pub(super) fn run(
         "md" => descriptor::write_markdown(&mut output.stdout, &target),
         _ => output.stdout.push_str(&descriptor::help(
             &target,
-            output.decorated && !options.get_flag("raw"),
+            output.is_decorated() && !options.get_flag("raw"),
         )),
     }
     Ok(0)

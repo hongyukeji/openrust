@@ -262,3 +262,16 @@ FormatterStyle采用Arc Trait对象保留对象身份，默认样式配置同步
 新增7个父消费者通过，1个ignore实际CLI夹具由五环境／错误状态驱动调用不计通过；具体自定义Trait错误保留std::io::Error，实际HTTP200／500／后续200，真实Artisan自定义样式错误退出1并保留内容。最终10框架目标78项＋根6目标95项，共173个不同父消费者，含54个正式三语直接提取示例；540模板、前序问答／表格／进度／输出配置同时回归。workspace格式、all-targets严格Clippy11.60s、main(pail)、三语构建及12组浏览器与实际HTTP／Artisan／Pail／Ctrl+C通过。源SHA／命令见accepted-formatter-styles.json，日志formatter-style-final-*、gates-results.json、runtime.log及browser.log；失败／中断不计通过，不叠加重复次数。
 
 本簇开始前全项目守卫在其他工作流触发32GB清理：before=31983710208、after=112220024832、released=80236314624字节，源码／日志／依赖／数据／锁保留，本批从保留源码重新编译完成；不冒称自己的命令触发或把未执行计通过。结束删除本批运行夹具，无遗留服务／容器，保留共享热缓存与证据。继续公开OutputFormatter／Wrappable与替换接口、Color／AnsiColorMode／Terminal以及其余Table／组件／注册生成／信号事件／Tinker，整章和持续目标未闭合；仅本地提交本簇，不推送，其他在途保留。
+
+
+## 第十八簇：格式器对象、接口、替换与换行（2026-11-25）
+
+公开 `console::OutputFormatter` 的12个固定声明、`OutputFormatterInterface` 六入口、继承的 `WrappableOutputFormatterInterface` 换行入口逐项映射见 formatter-contracts.json。三种输出入口实际接通 get_formatter/set_formatter；返回Arc保留对象身份，具体类型Clone深复制命名样式而保留栈引用，get_style_stack 返回同一实际栈的共享句柄。未另建解析管线，原私有Formatter改为公开对象适配器；正常输出读取对象本身装饰，Raw不调用格式器，控制序列也走Raw。默认stdout/stderr对象独立，显式主替换共享同一对象，进度流可以单独替换；捕获输出保持单一流。
+
+继续复用第十七簇固定基线、旧版复用裁决和dyn-clone。新增直接声明为锁内已有parking_lot=0.12.5，只增加框架依赖边，不新增解析包。官方ReentrantMutex文档与固定OutputFormatterTest研究链接见清单；同步排序锁支持同线程重入，配置/栈数据锁不跨用户apply/clone/drop回调，真实回调复位同一栈、注册样式并嵌套格式化通过，无unsafe转换或异步持锁。Option输入/输出与Result、as_wrappable能力查询以及安全栈句柄为已说明Rust适配。嵌套输出在对象仍在时恢复原装饰；显式替换不再用旧对象标志覆盖新配置，实际消费者验证。未声称任意用户递归均能终止。
+
+实际固定PHP源192组覆盖可选/空文本、嵌套/未知/转义标签、Unicode字素、CRLF、零/正/负宽度；781组覆盖转义及末尾反斜杠。原始source/脚本仅target/tmp；正式测试夹具和本目录oracle逐字相同。发现并修复：CRLF在字素split中不是单独LF；负宽度源不抛异常；相邻尖括号的固定正则非重叠匹配不同于逐字符转义。tests1/4/6失败证据保留，后续全部通过，不改源预期掩盖差异。首轮总回归暴露表格测量应暂时切换同一个格式器装饰并保留栈状态，移除错误的克隆绕行后，tests9与最终表格149源向量回归通过；gates1保留失败退出101，后续gates2全部成功。正常写入不再每次用装饰不一致分支克隆格式器。
+
+新8个父消费者通过，1个ignore仅实际CLI夹具由父驱动且不计通过；真实handle_command验证stdout=[first]third/stderr=[second]，自定义可选输出不写入，公开样式引用/克隆、接口换行、共享配置和重入均由实际入口验证。真实TCP HTTP成功/自定义格式器失败500/后续成功通过。最终11框架目标86项＋根6目标98项，共184个不同父消费者，包含57个从正式三语正文直接提取的例子；11个ignore全部为驱动夹具，不叠加为功能计数。格式、workspace all-targets严格Clippy56.69s、main(pail)、三语站点与12组浏览器通过。实际main验收/up/静态文件/HTML及JSON404/HEAD、Artisan inspire/list/pail帮助、Pail真实错误过滤/timeout清理及Ctrl+C退出0通过。源码SHA及真实门禁见accepted-output-formatters.json；日志formatter-object-{gates2,final-*,runtime,browser}.log。
+
+运行夹具与临时PHP容器结束后清理，保留固定参考源/原始日志/共享热缓存，不清理其他工作流源码或在途。仅本簇核定文件本地提交，不推送；继续Color/AnsiColorMode/Terminal与其他继承SDK和Artisan章锚点，整章及持续目标未关闭。NewRelic按用户选择继续单列供应商集成待选型，不以通用回调冒充已支持。

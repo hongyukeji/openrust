@@ -775,7 +775,7 @@ fn register_progress_output() -> Result<(), ConsoleError> {
 }
 ```
 
-回呼接收進度條，輸出僅在使用期間借出，避免同時取得進度條及其內部輸出的重疊可變參照。先讀取所需進度狀態，再借用輸出，借用結束後可繼續操作進度條。寫入複用既有格式器與錯誤鏈，不更新外層樣式換行計數。占位符在排版時可能重複求值，業務副作用應放在回呼之外。本視圖不代表完整繼承輸出 SDK；格式器替換和輸出設定設置器仍為單獨入口。
+回呼接收進度條，輸出僅在使用期間借出，避免同時取得進度條及其內部輸出的重疊可變參照。先讀取所需進度狀態，再借用輸出，借用結束後可繼續操作進度條。寫入複用既有格式器與錯誤鏈，不更新外層樣式換行計數。占位符在排版時可能重複求值，業務副作用應放在回呼之外。本視圖不代表完整繼承輸出 SDK；格式器替換和輸出設定見下文對應章節。
 
 ## 輸出設定 {#output-configuration}
 
@@ -810,7 +810,7 @@ fn register_output_configuration() -> Result<(), ConsoleError> {
 }
 ```
 
-進度輸出視圖也有 `set_verbosity` 和 `set_decorated`。真實主控台僅設定 stderr；主樣式的設置器同時更新兩條流。擷取呼叫的單一輸出共用設定。進度排版讀取所選流，巢狀命令的明確 CLI 旗標暫時作用於兩條流；既有命令作用域在結束或取消時還原父級設定。原生直接修改字串緩衝仍受命令過濾約束，按層級寫入應使用輸出方法。自訂格式器替換為單獨的 SDK 入口。
+進度輸出視圖也有 `set_verbosity` 和 `set_decorated`。真實主控台僅設定 stderr；主樣式的設置器同時更新兩條流。擷取呼叫的單一輸出共用設定。進度排版讀取所選流，巢狀命令的明確 CLI 旗標暫時作用於兩條流；既有命令作用域在結束或取消時還原父級設定。原生直接修改字串緩衝仍受命令過濾約束，按層級寫入應使用輸出方法。明確替換後的共用規則見「輸出格式器」。
 
 ## 樣式與樣式堆疊 {#formatter-styles}
 
@@ -847,4 +847,42 @@ fn register_formatter_styles() -> Result<(), ConsoleError> {
 
 複製控制代碼保留同一個物件，複製具體樣式得到獨立設定。`OutputFormatterStyleStack` 保留樣式參照，支援一般彈出和按樣式比對彈出，複製堆疊仍共用原樣式。`reset` 清空項目並保留設定的空樣式，也可透過 `contracts::service::ResetInterface` 呼叫。比對比較實際空文字樣式輸出，包含超連結行為。
 
-設置器傳回型別化錯誤；顯示可繼續使用先前已編譯樣式，後續修改會重新驗證最新欄位。用 `?` 傳播失敗，`ConsoleError` 保留具體來源。泛型迭代器及字串轉換在預設樣式加鎖前執行。這些型別複用既有格式化管線；具名樣式註冊和完整格式器替換仍是單獨的 SDK 入口。
+設置器傳回型別化錯誤；顯示可繼續使用先前已編譯樣式，後續修改會重新驗證最新欄位。用 `?` 傳播失敗，`ConsoleError` 保留具體來源。泛型迭代器及字串轉換在預設樣式加鎖前執行。這些型別複用既有格式化管線；具名樣式註冊和完整格式器替換見「輸出格式器」。
+
+## 輸出格式器 {#output-formatters}
+
+`OutputFormatter` 提供具名樣式註冊與查詢、跳脫、可選文字格式化及按字素換行。寬度為零關閉換行。未關閉的樣式狀態會保留至下次呼叫；`get_style_stack()` 傳回同一個實際堆疊的控制代碼。複製具體格式器深複製具名樣式，堆疊內樣式仍保留參照。
+
+```rust
+use openrust::{
+    console::{ConsoleError, Input, Output, OutputFormat, OutputFormatter,
+        OutputFormatterStyle},
+    support::facades::Artisan,
+};
+use std::sync::Arc;
+
+fn register_formatter() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:format", |input: &Input, output: &mut Output| {
+        let formatter = Arc::new(OutputFormatter::new(false));
+        formatter.set_style("report", Arc::new(OutputFormatterStyle::new(
+            Some("green"), None, &["bold"],
+        )?));
+        let wrapped = formatter.format_and_wrap(Some("one two three"), 7)?;
+        let mut io = input.io(output);
+        let style = io.get_output();
+        style.set_formatter(formatter);
+        style.write("<report>ready</report>", true, OutputFormat::Normal)?;
+        style.write(wrapped.as_str(), true, OutputFormat::Raw)?;
+        style.get_formatter().set_decorated(true);
+        style.write("<report>done</report>", true, OutputFormat::Normal)?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
+`OutputFormatterInterface` 支援自訂實作及可選輸出；傳回 `None` 不寫文字。實作 `WrappableOutputFormatterInterface` 並由 `as_wrappable` 傳回，便可透過型別擦除控制代碼存取換行能力；這個原生能力方法避免不安全的 Trait 物件轉換。用 `?` 傳播錯誤，保留具體來源。
+
+`Output`、`OutputStyle` 及 `ProgressOutput` 均提供 `get_formatter`、`set_formatter`。複製傳回的 Arc 共用同一物件。真實主控台明確替換主格式器時，stderr 亦參照該物件；隨後透過任一控制代碼修改裝飾會影響兩條流。未替換時，預設格式器彼此獨立。只替換進度輸出則僅影響 stderr；擷取命令共用單一串流。Raw 繞過格式器，進度游標控制序列亦使用 Raw。
+
+巢狀 CLI 旗標在原輸出物件仍安裝時還原裝飾；明確替換則保留新格式器設定，不用舊物件旗標覆蓋。自訂樣式回呼可安全註冊樣式、重設同一堆疊或進行有限的巢狀格式化。格式器呼叫是同步的，排序鎖期間不執行非同步工作。

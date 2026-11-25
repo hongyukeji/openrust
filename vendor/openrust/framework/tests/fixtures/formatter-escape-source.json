@@ -1,0 +1,3907 @@
+[
+    {
+        "text": "",
+        "escaped": "",
+        "trailing": ""
+    },
+    {
+        "text": "x",
+        "escaped": "x",
+        "trailing": "x"
+    },
+    {
+        "text": "<",
+        "escaped": "\\<",
+        "trailing": "<"
+    },
+    {
+        "text": ">",
+        "escaped": "\\>",
+        "trailing": ">"
+    },
+    {
+        "text": "\\",
+        "escaped": "\u0000",
+        "trailing": "\u0000"
+    },
+    {
+        "text": "\u0000",
+        "escaped": "\u0000",
+        "trailing": "\u0000"
+    },
+    {
+        "text": "xx",
+        "escaped": "xx",
+        "trailing": "xx"
+    },
+    {
+        "text": "x<",
+        "escaped": "x\\<",
+        "trailing": "x<"
+    },
+    {
+        "text": "x>",
+        "escaped": "x\\>",
+        "trailing": "x>"
+    },
+    {
+        "text": "x\\",
+        "escaped": "x\u0000",
+        "trailing": "x\u0000"
+    },
+    {
+        "text": "x\u0000",
+        "escaped": "x\u0000",
+        "trailing": "x\u0000"
+    },
+    {
+        "text": "<x",
+        "escaped": "\\<x",
+        "trailing": "<x"
+    },
+    {
+        "text": "<<",
+        "escaped": "<\\<",
+        "trailing": "<<"
+    },
+    {
+        "text": "<>",
+        "escaped": "<\\>",
+        "trailing": "<>"
+    },
+    {
+        "text": "<\\",
+        "escaped": "\\<\u0000",
+        "trailing": "<\u0000"
+    },
+    {
+        "text": "<\u0000",
+        "escaped": "\\<\u0000",
+        "trailing": "<\u0000"
+    },
+    {
+        "text": ">x",
+        "escaped": "\\>x",
+        "trailing": ">x"
+    },
+    {
+        "text": "><",
+        "escaped": ">\\<",
+        "trailing": "><"
+    },
+    {
+        "text": ">>",
+        "escaped": ">\\>",
+        "trailing": ">>"
+    },
+    {
+        "text": ">\\",
+        "escaped": "\\>\u0000",
+        "trailing": ">\u0000"
+    },
+    {
+        "text": ">\u0000",
+        "escaped": "\\>\u0000",
+        "trailing": ">\u0000"
+    },
+    {
+        "text": "\\x",
+        "escaped": "\\x",
+        "trailing": "\\x"
+    },
+    {
+        "text": "\\<",
+        "escaped": "\\<",
+        "trailing": "\\<"
+    },
+    {
+        "text": "\\>",
+        "escaped": "\\>",
+        "trailing": "\\>"
+    },
+    {
+        "text": "\\\\",
+        "escaped": "\u0000\u0000",
+        "trailing": "\u0000\u0000"
+    },
+    {
+        "text": "\\\u0000",
+        "escaped": "\\\u0000",
+        "trailing": "\\\u0000"
+    },
+    {
+        "text": "\u0000x",
+        "escaped": "\u0000x",
+        "trailing": "\u0000x"
+    },
+    {
+        "text": "\u0000<",
+        "escaped": "\u0000\\<",
+        "trailing": "\u0000<"
+    },
+    {
+        "text": "\u0000>",
+        "escaped": "\u0000\\>",
+        "trailing": "\u0000>"
+    },
+    {
+        "text": "\u0000\\",
+        "escaped": "\u0000\u0000",
+        "trailing": "\u0000\u0000"
+    },
+    {
+        "text": "\u0000\u0000",
+        "escaped": "\u0000\u0000",
+        "trailing": "\u0000\u0000"
+    },
+    {
+        "text": "xxx",
+        "escaped": "xxx",
+        "trailing": "xxx"
+    },
+    {
+        "text": "xx<",
+        "escaped": "xx\\<",
+        "trailing": "xx<"
+    },
+    {
+        "text": "xx>",
+        "escaped": "xx\\>",
+        "trailing": "xx>"
+    },
+    {
+        "text": "xx\\",
+        "escaped": "xx\u0000",
+        "trailing": "xx\u0000"
+    },
+    {
+        "text": "xx\u0000",
+        "escaped": "xx\u0000",
+        "trailing": "xx\u0000"
+    },
+    {
+        "text": "x<x",
+        "escaped": "x\\<x",
+        "trailing": "x<x"
+    },
+    {
+        "text": "x<<",
+        "escaped": "x\\<<",
+        "trailing": "x<<"
+    },
+    {
+        "text": "x<>",
+        "escaped": "x\\<>",
+        "trailing": "x<>"
+    },
+    {
+        "text": "x<\\",
+        "escaped": "x\\<\u0000",
+        "trailing": "x<\u0000"
+    },
+    {
+        "text": "x<\u0000",
+        "escaped": "x\\<\u0000",
+        "trailing": "x<\u0000"
+    },
+    {
+        "text": "x>x",
+        "escaped": "x\\>x",
+        "trailing": "x>x"
+    },
+    {
+        "text": "x><",
+        "escaped": "x\\><",
+        "trailing": "x><"
+    },
+    {
+        "text": "x>>",
+        "escaped": "x\\>>",
+        "trailing": "x>>"
+    },
+    {
+        "text": "x>\\",
+        "escaped": "x\\>\u0000",
+        "trailing": "x>\u0000"
+    },
+    {
+        "text": "x>\u0000",
+        "escaped": "x\\>\u0000",
+        "trailing": "x>\u0000"
+    },
+    {
+        "text": "x\\x",
+        "escaped": "x\\x",
+        "trailing": "x\\x"
+    },
+    {
+        "text": "x\\<",
+        "escaped": "x\\<",
+        "trailing": "x\\<"
+    },
+    {
+        "text": "x\\>",
+        "escaped": "x\\>",
+        "trailing": "x\\>"
+    },
+    {
+        "text": "x\\\\",
+        "escaped": "x\u0000\u0000",
+        "trailing": "x\u0000\u0000"
+    },
+    {
+        "text": "x\\\u0000",
+        "escaped": "x\\\u0000",
+        "trailing": "x\\\u0000"
+    },
+    {
+        "text": "x\u0000x",
+        "escaped": "x\u0000x",
+        "trailing": "x\u0000x"
+    },
+    {
+        "text": "x\u0000<",
+        "escaped": "x\u0000\\<",
+        "trailing": "x\u0000<"
+    },
+    {
+        "text": "x\u0000>",
+        "escaped": "x\u0000\\>",
+        "trailing": "x\u0000>"
+    },
+    {
+        "text": "x\u0000\\",
+        "escaped": "x\u0000\u0000",
+        "trailing": "x\u0000\u0000"
+    },
+    {
+        "text": "x\u0000\u0000",
+        "escaped": "x\u0000\u0000",
+        "trailing": "x\u0000\u0000"
+    },
+    {
+        "text": "<xx",
+        "escaped": "\\<xx",
+        "trailing": "<xx"
+    },
+    {
+        "text": "<x<",
+        "escaped": "\\<x\\<",
+        "trailing": "<x<"
+    },
+    {
+        "text": "<x>",
+        "escaped": "\\<x\\>",
+        "trailing": "<x>"
+    },
+    {
+        "text": "<x\\",
+        "escaped": "\\<x\u0000",
+        "trailing": "<x\u0000"
+    },
+    {
+        "text": "<x\u0000",
+        "escaped": "\\<x\u0000",
+        "trailing": "<x\u0000"
+    },
+    {
+        "text": "<<x",
+        "escaped": "<\\<x",
+        "trailing": "<<x"
+    },
+    {
+        "text": "<<<",
+        "escaped": "<\\<<",
+        "trailing": "<<<"
+    },
+    {
+        "text": "<<>",
+        "escaped": "<\\<>",
+        "trailing": "<<>"
+    },
+    {
+        "text": "<<\\",
+        "escaped": "<\\<\u0000",
+        "trailing": "<<\u0000"
+    },
+    {
+        "text": "<<\u0000",
+        "escaped": "<\\<\u0000",
+        "trailing": "<<\u0000"
+    },
+    {
+        "text": "<>x",
+        "escaped": "<\\>x",
+        "trailing": "<>x"
+    },
+    {
+        "text": "<><",
+        "escaped": "<\\><",
+        "trailing": "<><"
+    },
+    {
+        "text": "<>>",
+        "escaped": "<\\>>",
+        "trailing": "<>>"
+    },
+    {
+        "text": "<>\\",
+        "escaped": "<\\>\u0000",
+        "trailing": "<>\u0000"
+    },
+    {
+        "text": "<>\u0000",
+        "escaped": "<\\>\u0000",
+        "trailing": "<>\u0000"
+    },
+    {
+        "text": "<\\x",
+        "escaped": "\\<\\x",
+        "trailing": "<\\x"
+    },
+    {
+        "text": "<\\<",
+        "escaped": "\\<\\<",
+        "trailing": "<\\<"
+    },
+    {
+        "text": "<\\>",
+        "escaped": "\\<\\>",
+        "trailing": "<\\>"
+    },
+    {
+        "text": "<\\\\",
+        "escaped": "\\<\u0000\u0000",
+        "trailing": "<\u0000\u0000"
+    },
+    {
+        "text": "<\\\u0000",
+        "escaped": "\\<\\\u0000",
+        "trailing": "<\\\u0000"
+    },
+    {
+        "text": "<\u0000x",
+        "escaped": "\\<\u0000x",
+        "trailing": "<\u0000x"
+    },
+    {
+        "text": "<\u0000<",
+        "escaped": "\\<\u0000\\<",
+        "trailing": "<\u0000<"
+    },
+    {
+        "text": "<\u0000>",
+        "escaped": "\\<\u0000\\>",
+        "trailing": "<\u0000>"
+    },
+    {
+        "text": "<\u0000\\",
+        "escaped": "\\<\u0000\u0000",
+        "trailing": "<\u0000\u0000"
+    },
+    {
+        "text": "<\u0000\u0000",
+        "escaped": "\\<\u0000\u0000",
+        "trailing": "<\u0000\u0000"
+    },
+    {
+        "text": ">xx",
+        "escaped": "\\>xx",
+        "trailing": ">xx"
+    },
+    {
+        "text": ">x<",
+        "escaped": "\\>x\\<",
+        "trailing": ">x<"
+    },
+    {
+        "text": ">x>",
+        "escaped": "\\>x\\>",
+        "trailing": ">x>"
+    },
+    {
+        "text": ">x\\",
+        "escaped": "\\>x\u0000",
+        "trailing": ">x\u0000"
+    },
+    {
+        "text": ">x\u0000",
+        "escaped": "\\>x\u0000",
+        "trailing": ">x\u0000"
+    },
+    {
+        "text": "><x",
+        "escaped": ">\\<x",
+        "trailing": "><x"
+    },
+    {
+        "text": "><<",
+        "escaped": ">\\<<",
+        "trailing": "><<"
+    },
+    {
+        "text": "><>",
+        "escaped": ">\\<>",
+        "trailing": "><>"
+    },
+    {
+        "text": "><\\",
+        "escaped": ">\\<\u0000",
+        "trailing": "><\u0000"
+    },
+    {
+        "text": "><\u0000",
+        "escaped": ">\\<\u0000",
+        "trailing": "><\u0000"
+    },
+    {
+        "text": ">>x",
+        "escaped": ">\\>x",
+        "trailing": ">>x"
+    },
+    {
+        "text": ">><",
+        "escaped": ">\\><",
+        "trailing": ">><"
+    },
+    {
+        "text": ">>>",
+        "escaped": ">\\>>",
+        "trailing": ">>>"
+    },
+    {
+        "text": ">>\\",
+        "escaped": ">\\>\u0000",
+        "trailing": ">>\u0000"
+    },
+    {
+        "text": ">>\u0000",
+        "escaped": ">\\>\u0000",
+        "trailing": ">>\u0000"
+    },
+    {
+        "text": ">\\x",
+        "escaped": "\\>\\x",
+        "trailing": ">\\x"
+    },
+    {
+        "text": ">\\<",
+        "escaped": "\\>\\<",
+        "trailing": ">\\<"
+    },
+    {
+        "text": ">\\>",
+        "escaped": "\\>\\>",
+        "trailing": ">\\>"
+    },
+    {
+        "text": ">\\\\",
+        "escaped": "\\>\u0000\u0000",
+        "trailing": ">\u0000\u0000"
+    },
+    {
+        "text": ">\\\u0000",
+        "escaped": "\\>\\\u0000",
+        "trailing": ">\\\u0000"
+    },
+    {
+        "text": ">\u0000x",
+        "escaped": "\\>\u0000x",
+        "trailing": ">\u0000x"
+    },
+    {
+        "text": ">\u0000<",
+        "escaped": "\\>\u0000\\<",
+        "trailing": ">\u0000<"
+    },
+    {
+        "text": ">\u0000>",
+        "escaped": "\\>\u0000\\>",
+        "trailing": ">\u0000>"
+    },
+    {
+        "text": ">\u0000\\",
+        "escaped": "\\>\u0000\u0000",
+        "trailing": ">\u0000\u0000"
+    },
+    {
+        "text": ">\u0000\u0000",
+        "escaped": "\\>\u0000\u0000",
+        "trailing": ">\u0000\u0000"
+    },
+    {
+        "text": "\\xx",
+        "escaped": "\\xx",
+        "trailing": "\\xx"
+    },
+    {
+        "text": "\\x<",
+        "escaped": "\\x\\<",
+        "trailing": "\\x<"
+    },
+    {
+        "text": "\\x>",
+        "escaped": "\\x\\>",
+        "trailing": "\\x>"
+    },
+    {
+        "text": "\\x\\",
+        "escaped": "\\x\u0000",
+        "trailing": "\\x\u0000"
+    },
+    {
+        "text": "\\x\u0000",
+        "escaped": "\\x\u0000",
+        "trailing": "\\x\u0000"
+    },
+    {
+        "text": "\\<x",
+        "escaped": "\\<x",
+        "trailing": "\\<x"
+    },
+    {
+        "text": "\\<<",
+        "escaped": "\\<\\<",
+        "trailing": "\\<<"
+    },
+    {
+        "text": "\\<>",
+        "escaped": "\\<\\>",
+        "trailing": "\\<>"
+    },
+    {
+        "text": "\\<\\",
+        "escaped": "\\<\u0000",
+        "trailing": "\\<\u0000"
+    },
+    {
+        "text": "\\<\u0000",
+        "escaped": "\\<\u0000",
+        "trailing": "\\<\u0000"
+    },
+    {
+        "text": "\\>x",
+        "escaped": "\\>x",
+        "trailing": "\\>x"
+    },
+    {
+        "text": "\\><",
+        "escaped": "\\>\\<",
+        "trailing": "\\><"
+    },
+    {
+        "text": "\\>>",
+        "escaped": "\\>\\>",
+        "trailing": "\\>>"
+    },
+    {
+        "text": "\\>\\",
+        "escaped": "\\>\u0000",
+        "trailing": "\\>\u0000"
+    },
+    {
+        "text": "\\>\u0000",
+        "escaped": "\\>\u0000",
+        "trailing": "\\>\u0000"
+    },
+    {
+        "text": "\\\\x",
+        "escaped": "\\\\x",
+        "trailing": "\\\\x"
+    },
+    {
+        "text": "\\\\<",
+        "escaped": "\\\\<",
+        "trailing": "\\\\<"
+    },
+    {
+        "text": "\\\\>",
+        "escaped": "\\\\>",
+        "trailing": "\\\\>"
+    },
+    {
+        "text": "\\\\\\",
+        "escaped": "\u0000\u0000\u0000",
+        "trailing": "\u0000\u0000\u0000"
+    },
+    {
+        "text": "\\\\\u0000",
+        "escaped": "\\\\\u0000",
+        "trailing": "\\\\\u0000"
+    },
+    {
+        "text": "\\\u0000x",
+        "escaped": "\\\u0000x",
+        "trailing": "\\\u0000x"
+    },
+    {
+        "text": "\\\u0000<",
+        "escaped": "\\\u0000\\<",
+        "trailing": "\\\u0000<"
+    },
+    {
+        "text": "\\\u0000>",
+        "escaped": "\\\u0000\\>",
+        "trailing": "\\\u0000>"
+    },
+    {
+        "text": "\\\u0000\\",
+        "escaped": "\\\u0000\u0000",
+        "trailing": "\\\u0000\u0000"
+    },
+    {
+        "text": "\\\u0000\u0000",
+        "escaped": "\\\u0000\u0000",
+        "trailing": "\\\u0000\u0000"
+    },
+    {
+        "text": "\u0000xx",
+        "escaped": "\u0000xx",
+        "trailing": "\u0000xx"
+    },
+    {
+        "text": "\u0000x<",
+        "escaped": "\u0000x\\<",
+        "trailing": "\u0000x<"
+    },
+    {
+        "text": "\u0000x>",
+        "escaped": "\u0000x\\>",
+        "trailing": "\u0000x>"
+    },
+    {
+        "text": "\u0000x\\",
+        "escaped": "x\u0000\u0000",
+        "trailing": "x\u0000\u0000"
+    },
+    {
+        "text": "\u0000x\u0000",
+        "escaped": "\u0000x\u0000",
+        "trailing": "\u0000x\u0000"
+    },
+    {
+        "text": "\u0000<x",
+        "escaped": "\u0000\\<x",
+        "trailing": "\u0000<x"
+    },
+    {
+        "text": "\u0000<<",
+        "escaped": "\u0000\\<<",
+        "trailing": "\u0000<<"
+    },
+    {
+        "text": "\u0000<>",
+        "escaped": "\u0000\\<>",
+        "trailing": "\u0000<>"
+    },
+    {
+        "text": "\u0000<\\",
+        "escaped": "\\<\u0000\u0000",
+        "trailing": "<\u0000\u0000"
+    },
+    {
+        "text": "\u0000<\u0000",
+        "escaped": "\u0000\\<\u0000",
+        "trailing": "\u0000<\u0000"
+    },
+    {
+        "text": "\u0000>x",
+        "escaped": "\u0000\\>x",
+        "trailing": "\u0000>x"
+    },
+    {
+        "text": "\u0000><",
+        "escaped": "\u0000\\><",
+        "trailing": "\u0000><"
+    },
+    {
+        "text": "\u0000>>",
+        "escaped": "\u0000\\>>",
+        "trailing": "\u0000>>"
+    },
+    {
+        "text": "\u0000>\\",
+        "escaped": "\\>\u0000\u0000",
+        "trailing": ">\u0000\u0000"
+    },
+    {
+        "text": "\u0000>\u0000",
+        "escaped": "\u0000\\>\u0000",
+        "trailing": "\u0000>\u0000"
+    },
+    {
+        "text": "\u0000\\x",
+        "escaped": "\u0000\\x",
+        "trailing": "\u0000\\x"
+    },
+    {
+        "text": "\u0000\\<",
+        "escaped": "\u0000\\<",
+        "trailing": "\u0000\\<"
+    },
+    {
+        "text": "\u0000\\>",
+        "escaped": "\u0000\\>",
+        "trailing": "\u0000\\>"
+    },
+    {
+        "text": "\u0000\\\\",
+        "escaped": "\u0000\u0000\u0000",
+        "trailing": "\u0000\u0000\u0000"
+    },
+    {
+        "text": "\u0000\\\u0000",
+        "escaped": "\u0000\\\u0000",
+        "trailing": "\u0000\\\u0000"
+    },
+    {
+        "text": "\u0000\u0000x",
+        "escaped": "\u0000\u0000x",
+        "trailing": "\u0000\u0000x"
+    },
+    {
+        "text": "\u0000\u0000<",
+        "escaped": "\u0000\u0000\\<",
+        "trailing": "\u0000\u0000<"
+    },
+    {
+        "text": "\u0000\u0000>",
+        "escaped": "\u0000\u0000\\>",
+        "trailing": "\u0000\u0000>"
+    },
+    {
+        "text": "\u0000\u0000\\",
+        "escaped": "\u0000\u0000\u0000",
+        "trailing": "\u0000\u0000\u0000"
+    },
+    {
+        "text": "\u0000\u0000\u0000",
+        "escaped": "\u0000\u0000\u0000",
+        "trailing": "\u0000\u0000\u0000"
+    },
+    {
+        "text": "xxxx",
+        "escaped": "xxxx",
+        "trailing": "xxxx"
+    },
+    {
+        "text": "xxx<",
+        "escaped": "xxx\\<",
+        "trailing": "xxx<"
+    },
+    {
+        "text": "xxx>",
+        "escaped": "xxx\\>",
+        "trailing": "xxx>"
+    },
+    {
+        "text": "xxx\\",
+        "escaped": "xxx\u0000",
+        "trailing": "xxx\u0000"
+    },
+    {
+        "text": "xxx\u0000",
+        "escaped": "xxx\u0000",
+        "trailing": "xxx\u0000"
+    },
+    {
+        "text": "xx<x",
+        "escaped": "xx\\<x",
+        "trailing": "xx<x"
+    },
+    {
+        "text": "xx<<",
+        "escaped": "xx\\<<",
+        "trailing": "xx<<"
+    },
+    {
+        "text": "xx<>",
+        "escaped": "xx\\<>",
+        "trailing": "xx<>"
+    },
+    {
+        "text": "xx<\\",
+        "escaped": "xx\\<\u0000",
+        "trailing": "xx<\u0000"
+    },
+    {
+        "text": "xx<\u0000",
+        "escaped": "xx\\<\u0000",
+        "trailing": "xx<\u0000"
+    },
+    {
+        "text": "xx>x",
+        "escaped": "xx\\>x",
+        "trailing": "xx>x"
+    },
+    {
+        "text": "xx><",
+        "escaped": "xx\\><",
+        "trailing": "xx><"
+    },
+    {
+        "text": "xx>>",
+        "escaped": "xx\\>>",
+        "trailing": "xx>>"
+    },
+    {
+        "text": "xx>\\",
+        "escaped": "xx\\>\u0000",
+        "trailing": "xx>\u0000"
+    },
+    {
+        "text": "xx>\u0000",
+        "escaped": "xx\\>\u0000",
+        "trailing": "xx>\u0000"
+    },
+    {
+        "text": "xx\\x",
+        "escaped": "xx\\x",
+        "trailing": "xx\\x"
+    },
+    {
+        "text": "xx\\<",
+        "escaped": "xx\\<",
+        "trailing": "xx\\<"
+    },
+    {
+        "text": "xx\\>",
+        "escaped": "xx\\>",
+        "trailing": "xx\\>"
+    },
+    {
+        "text": "xx\\\\",
+        "escaped": "xx\u0000\u0000",
+        "trailing": "xx\u0000\u0000"
+    },
+    {
+        "text": "xx\\\u0000",
+        "escaped": "xx\\\u0000",
+        "trailing": "xx\\\u0000"
+    },
+    {
+        "text": "xx\u0000x",
+        "escaped": "xx\u0000x",
+        "trailing": "xx\u0000x"
+    },
+    {
+        "text": "xx\u0000<",
+        "escaped": "xx\u0000\\<",
+        "trailing": "xx\u0000<"
+    },
+    {
+        "text": "xx\u0000>",
+        "escaped": "xx\u0000\\>",
+        "trailing": "xx\u0000>"
+    },
+    {
+        "text": "xx\u0000\\",
+        "escaped": "xx\u0000\u0000",
+        "trailing": "xx\u0000\u0000"
+    },
+    {
+        "text": "xx\u0000\u0000",
+        "escaped": "xx\u0000\u0000",
+        "trailing": "xx\u0000\u0000"
+    },
+    {
+        "text": "x<xx",
+        "escaped": "x\\<xx",
+        "trailing": "x<xx"
+    },
+    {
+        "text": "x<x<",
+        "escaped": "x\\<x\\<",
+        "trailing": "x<x<"
+    },
+    {
+        "text": "x<x>",
+        "escaped": "x\\<x\\>",
+        "trailing": "x<x>"
+    },
+    {
+        "text": "x<x\\",
+        "escaped": "x\\<x\u0000",
+        "trailing": "x<x\u0000"
+    },
+    {
+        "text": "x<x\u0000",
+        "escaped": "x\\<x\u0000",
+        "trailing": "x<x\u0000"
+    },
+    {
+        "text": "x<<x",
+        "escaped": "x\\<<x",
+        "trailing": "x<<x"
+    },
+    {
+        "text": "x<<<",
+        "escaped": "x\\<<\\<",
+        "trailing": "x<<<"
+    },
+    {
+        "text": "x<<>",
+        "escaped": "x\\<<\\>",
+        "trailing": "x<<>"
+    },
+    {
+        "text": "x<<\\",
+        "escaped": "x\\<<\u0000",
+        "trailing": "x<<\u0000"
+    },
+    {
+        "text": "x<<\u0000",
+        "escaped": "x\\<<\u0000",
+        "trailing": "x<<\u0000"
+    },
+    {
+        "text": "x<>x",
+        "escaped": "x\\<>x",
+        "trailing": "x<>x"
+    },
+    {
+        "text": "x<><",
+        "escaped": "x\\<>\\<",
+        "trailing": "x<><"
+    },
+    {
+        "text": "x<>>",
+        "escaped": "x\\<>\\>",
+        "trailing": "x<>>"
+    },
+    {
+        "text": "x<>\\",
+        "escaped": "x\\<>\u0000",
+        "trailing": "x<>\u0000"
+    },
+    {
+        "text": "x<>\u0000",
+        "escaped": "x\\<>\u0000",
+        "trailing": "x<>\u0000"
+    },
+    {
+        "text": "x<\\x",
+        "escaped": "x\\<\\x",
+        "trailing": "x<\\x"
+    },
+    {
+        "text": "x<\\<",
+        "escaped": "x\\<\\<",
+        "trailing": "x<\\<"
+    },
+    {
+        "text": "x<\\>",
+        "escaped": "x\\<\\>",
+        "trailing": "x<\\>"
+    },
+    {
+        "text": "x<\\\\",
+        "escaped": "x\\<\u0000\u0000",
+        "trailing": "x<\u0000\u0000"
+    },
+    {
+        "text": "x<\\\u0000",
+        "escaped": "x\\<\\\u0000",
+        "trailing": "x<\\\u0000"
+    },
+    {
+        "text": "x<\u0000x",
+        "escaped": "x\\<\u0000x",
+        "trailing": "x<\u0000x"
+    },
+    {
+        "text": "x<\u0000<",
+        "escaped": "x\\<\u0000\\<",
+        "trailing": "x<\u0000<"
+    },
+    {
+        "text": "x<\u0000>",
+        "escaped": "x\\<\u0000\\>",
+        "trailing": "x<\u0000>"
+    },
+    {
+        "text": "x<\u0000\\",
+        "escaped": "x\\<\u0000\u0000",
+        "trailing": "x<\u0000\u0000"
+    },
+    {
+        "text": "x<\u0000\u0000",
+        "escaped": "x\\<\u0000\u0000",
+        "trailing": "x<\u0000\u0000"
+    },
+    {
+        "text": "x>xx",
+        "escaped": "x\\>xx",
+        "trailing": "x>xx"
+    },
+    {
+        "text": "x>x<",
+        "escaped": "x\\>x\\<",
+        "trailing": "x>x<"
+    },
+    {
+        "text": "x>x>",
+        "escaped": "x\\>x\\>",
+        "trailing": "x>x>"
+    },
+    {
+        "text": "x>x\\",
+        "escaped": "x\\>x\u0000",
+        "trailing": "x>x\u0000"
+    },
+    {
+        "text": "x>x\u0000",
+        "escaped": "x\\>x\u0000",
+        "trailing": "x>x\u0000"
+    },
+    {
+        "text": "x><x",
+        "escaped": "x\\><x",
+        "trailing": "x><x"
+    },
+    {
+        "text": "x><<",
+        "escaped": "x\\><\\<",
+        "trailing": "x><<"
+    },
+    {
+        "text": "x><>",
+        "escaped": "x\\><\\>",
+        "trailing": "x><>"
+    },
+    {
+        "text": "x><\\",
+        "escaped": "x\\><\u0000",
+        "trailing": "x><\u0000"
+    },
+    {
+        "text": "x><\u0000",
+        "escaped": "x\\><\u0000",
+        "trailing": "x><\u0000"
+    },
+    {
+        "text": "x>>x",
+        "escaped": "x\\>>x",
+        "trailing": "x>>x"
+    },
+    {
+        "text": "x>><",
+        "escaped": "x\\>>\\<",
+        "trailing": "x>><"
+    },
+    {
+        "text": "x>>>",
+        "escaped": "x\\>>\\>",
+        "trailing": "x>>>"
+    },
+    {
+        "text": "x>>\\",
+        "escaped": "x\\>>\u0000",
+        "trailing": "x>>\u0000"
+    },
+    {
+        "text": "x>>\u0000",
+        "escaped": "x\\>>\u0000",
+        "trailing": "x>>\u0000"
+    },
+    {
+        "text": "x>\\x",
+        "escaped": "x\\>\\x",
+        "trailing": "x>\\x"
+    },
+    {
+        "text": "x>\\<",
+        "escaped": "x\\>\\<",
+        "trailing": "x>\\<"
+    },
+    {
+        "text": "x>\\>",
+        "escaped": "x\\>\\>",
+        "trailing": "x>\\>"
+    },
+    {
+        "text": "x>\\\\",
+        "escaped": "x\\>\u0000\u0000",
+        "trailing": "x>\u0000\u0000"
+    },
+    {
+        "text": "x>\\\u0000",
+        "escaped": "x\\>\\\u0000",
+        "trailing": "x>\\\u0000"
+    },
+    {
+        "text": "x>\u0000x",
+        "escaped": "x\\>\u0000x",
+        "trailing": "x>\u0000x"
+    },
+    {
+        "text": "x>\u0000<",
+        "escaped": "x\\>\u0000\\<",
+        "trailing": "x>\u0000<"
+    },
+    {
+        "text": "x>\u0000>",
+        "escaped": "x\\>\u0000\\>",
+        "trailing": "x>\u0000>"
+    },
+    {
+        "text": "x>\u0000\\",
+        "escaped": "x\\>\u0000\u0000",
+        "trailing": "x>\u0000\u0000"
+    },
+    {
+        "text": "x>\u0000\u0000",
+        "escaped": "x\\>\u0000\u0000",
+        "trailing": "x>\u0000\u0000"
+    },
+    {
+        "text": "x\\xx",
+        "escaped": "x\\xx",
+        "trailing": "x\\xx"
+    },
+    {
+        "text": "x\\x<",
+        "escaped": "x\\x\\<",
+        "trailing": "x\\x<"
+    },
+    {
+        "text": "x\\x>",
+        "escaped": "x\\x\\>",
+        "trailing": "x\\x>"
+    },
+    {
+        "text": "x\\x\\",
+        "escaped": "x\\x\u0000",
+        "trailing": "x\\x\u0000"
+    },
+    {
+        "text": "x\\x\u0000",
+        "escaped": "x\\x\u0000",
+        "trailing": "x\\x\u0000"
+    },
+    {
+        "text": "x\\<x",
+        "escaped": "x\\<x",
+        "trailing": "x\\<x"
+    },
+    {
+        "text": "x\\<<",
+        "escaped": "x\\<\\<",
+        "trailing": "x\\<<"
+    },
+    {
+        "text": "x\\<>",
+        "escaped": "x\\<\\>",
+        "trailing": "x\\<>"
+    },
+    {
+        "text": "x\\<\\",
+        "escaped": "x\\<\u0000",
+        "trailing": "x\\<\u0000"
+    },
+    {
+        "text": "x\\<\u0000",
+        "escaped": "x\\<\u0000",
+        "trailing": "x\\<\u0000"
+    },
+    {
+        "text": "x\\>x",
+        "escaped": "x\\>x",
+        "trailing": "x\\>x"
+    },
+    {
+        "text": "x\\><",
+        "escaped": "x\\>\\<",
+        "trailing": "x\\><"
+    },
+    {
+        "text": "x\\>>",
+        "escaped": "x\\>\\>",
+        "trailing": "x\\>>"
+    },
+    {
+        "text": "x\\>\\",
+        "escaped": "x\\>\u0000",
+        "trailing": "x\\>\u0000"
+    },
+    {
+        "text": "x\\>\u0000",
+        "escaped": "x\\>\u0000",
+        "trailing": "x\\>\u0000"
+    },
+    {
+        "text": "x\\\\x",
+        "escaped": "x\\\\x",
+        "trailing": "x\\\\x"
+    },
+    {
+        "text": "x\\\\<",
+        "escaped": "x\\\\<",
+        "trailing": "x\\\\<"
+    },
+    {
+        "text": "x\\\\>",
+        "escaped": "x\\\\>",
+        "trailing": "x\\\\>"
+    },
+    {
+        "text": "x\\\\\\",
+        "escaped": "x\u0000\u0000\u0000",
+        "trailing": "x\u0000\u0000\u0000"
+    },
+    {
+        "text": "x\\\\\u0000",
+        "escaped": "x\\\\\u0000",
+        "trailing": "x\\\\\u0000"
+    },
+    {
+        "text": "x\\\u0000x",
+        "escaped": "x\\\u0000x",
+        "trailing": "x\\\u0000x"
+    },
+    {
+        "text": "x\\\u0000<",
+        "escaped": "x\\\u0000\\<",
+        "trailing": "x\\\u0000<"
+    },
+    {
+        "text": "x\\\u0000>",
+        "escaped": "x\\\u0000\\>",
+        "trailing": "x\\\u0000>"
+    },
+    {
+        "text": "x\\\u0000\\",
+        "escaped": "x\\\u0000\u0000",
+        "trailing": "x\\\u0000\u0000"
+    },
+    {
+        "text": "x\\\u0000\u0000",
+        "escaped": "x\\\u0000\u0000",
+        "trailing": "x\\\u0000\u0000"
+    },
+    {
+        "text": "x\u0000xx",
+        "escaped": "x\u0000xx",
+        "trailing": "x\u0000xx"
+    },
+    {
+        "text": "x\u0000x<",
+        "escaped": "x\u0000x\\<",
+        "trailing": "x\u0000x<"
+    },
+    {
+        "text": "x\u0000x>",
+        "escaped": "x\u0000x\\>",
+        "trailing": "x\u0000x>"
+    },
+    {
+        "text": "x\u0000x\\",
+        "escaped": "xx\u0000\u0000",
+        "trailing": "xx\u0000\u0000"
+    },
+    {
+        "text": "x\u0000x\u0000",
+        "escaped": "x\u0000x\u0000",
+        "trailing": "x\u0000x\u0000"
+    },
+    {
+        "text": "x\u0000<x",
+        "escaped": "x\u0000\\<x",
+        "trailing": "x\u0000<x"
+    },
+    {
+        "text": "x\u0000<<",
+        "escaped": "x\u0000\\<<",
+        "trailing": "x\u0000<<"
+    },
+    {
+        "text": "x\u0000<>",
+        "escaped": "x\u0000\\<>",
+        "trailing": "x\u0000<>"
+    },
+    {
+        "text": "x\u0000<\\",
+        "escaped": "x\\<\u0000\u0000",
+        "trailing": "x<\u0000\u0000"
+    },
+    {
+        "text": "x\u0000<\u0000",
+        "escaped": "x\u0000\\<\u0000",
+        "trailing": "x\u0000<\u0000"
+    },
+    {
+        "text": "x\u0000>x",
+        "escaped": "x\u0000\\>x",
+        "trailing": "x\u0000>x"
+    },
+    {
+        "text": "x\u0000><",
+        "escaped": "x\u0000\\><",
+        "trailing": "x\u0000><"
+    },
+    {
+        "text": "x\u0000>>",
+        "escaped": "x\u0000\\>>",
+        "trailing": "x\u0000>>"
+    },
+    {
+        "text": "x\u0000>\\",
+        "escaped": "x\\>\u0000\u0000",
+        "trailing": "x>\u0000\u0000"
+    },
+    {
+        "text": "x\u0000>\u0000",
+        "escaped": "x\u0000\\>\u0000",
+        "trailing": "x\u0000>\u0000"
+    },
+    {
+        "text": "x\u0000\\x",
+        "escaped": "x\u0000\\x",
+        "trailing": "x\u0000\\x"
+    },
+    {
+        "text": "x\u0000\\<",
+        "escaped": "x\u0000\\<",
+        "trailing": "x\u0000\\<"
+    },
+    {
+        "text": "x\u0000\\>",
+        "escaped": "x\u0000\\>",
+        "trailing": "x\u0000\\>"
+    },
+    {
+        "text": "x\u0000\\\\",
+        "escaped": "x\u0000\u0000\u0000",
+        "trailing": "x\u0000\u0000\u0000"
+    },
+    {
+        "text": "x\u0000\\\u0000",
+        "escaped": "x\u0000\\\u0000",
+        "trailing": "x\u0000\\\u0000"
+    },
+    {
+        "text": "x\u0000\u0000x",
+        "escaped": "x\u0000\u0000x",
+        "trailing": "x\u0000\u0000x"
+    },
+    {
+        "text": "x\u0000\u0000<",
+        "escaped": "x\u0000\u0000\\<",
+        "trailing": "x\u0000\u0000<"
+    },
+    {
+        "text": "x\u0000\u0000>",
+        "escaped": "x\u0000\u0000\\>",
+        "trailing": "x\u0000\u0000>"
+    },
+    {
+        "text": "x\u0000\u0000\\",
+        "escaped": "x\u0000\u0000\u0000",
+        "trailing": "x\u0000\u0000\u0000"
+    },
+    {
+        "text": "x\u0000\u0000\u0000",
+        "escaped": "x\u0000\u0000\u0000",
+        "trailing": "x\u0000\u0000\u0000"
+    },
+    {
+        "text": "<xxx",
+        "escaped": "\\<xxx",
+        "trailing": "<xxx"
+    },
+    {
+        "text": "<xx<",
+        "escaped": "\\<xx\\<",
+        "trailing": "<xx<"
+    },
+    {
+        "text": "<xx>",
+        "escaped": "\\<xx\\>",
+        "trailing": "<xx>"
+    },
+    {
+        "text": "<xx\\",
+        "escaped": "\\<xx\u0000",
+        "trailing": "<xx\u0000"
+    },
+    {
+        "text": "<xx\u0000",
+        "escaped": "\\<xx\u0000",
+        "trailing": "<xx\u0000"
+    },
+    {
+        "text": "<x<x",
+        "escaped": "\\<x\\<x",
+        "trailing": "<x<x"
+    },
+    {
+        "text": "<x<<",
+        "escaped": "\\<x\\<<",
+        "trailing": "<x<<"
+    },
+    {
+        "text": "<x<>",
+        "escaped": "\\<x\\<>",
+        "trailing": "<x<>"
+    },
+    {
+        "text": "<x<\\",
+        "escaped": "\\<x\\<\u0000",
+        "trailing": "<x<\u0000"
+    },
+    {
+        "text": "<x<\u0000",
+        "escaped": "\\<x\\<\u0000",
+        "trailing": "<x<\u0000"
+    },
+    {
+        "text": "<x>x",
+        "escaped": "\\<x\\>x",
+        "trailing": "<x>x"
+    },
+    {
+        "text": "<x><",
+        "escaped": "\\<x\\><",
+        "trailing": "<x><"
+    },
+    {
+        "text": "<x>>",
+        "escaped": "\\<x\\>>",
+        "trailing": "<x>>"
+    },
+    {
+        "text": "<x>\\",
+        "escaped": "\\<x\\>\u0000",
+        "trailing": "<x>\u0000"
+    },
+    {
+        "text": "<x>\u0000",
+        "escaped": "\\<x\\>\u0000",
+        "trailing": "<x>\u0000"
+    },
+    {
+        "text": "<x\\x",
+        "escaped": "\\<x\\x",
+        "trailing": "<x\\x"
+    },
+    {
+        "text": "<x\\<",
+        "escaped": "\\<x\\<",
+        "trailing": "<x\\<"
+    },
+    {
+        "text": "<x\\>",
+        "escaped": "\\<x\\>",
+        "trailing": "<x\\>"
+    },
+    {
+        "text": "<x\\\\",
+        "escaped": "\\<x\u0000\u0000",
+        "trailing": "<x\u0000\u0000"
+    },
+    {
+        "text": "<x\\\u0000",
+        "escaped": "\\<x\\\u0000",
+        "trailing": "<x\\\u0000"
+    },
+    {
+        "text": "<x\u0000x",
+        "escaped": "\\<x\u0000x",
+        "trailing": "<x\u0000x"
+    },
+    {
+        "text": "<x\u0000<",
+        "escaped": "\\<x\u0000\\<",
+        "trailing": "<x\u0000<"
+    },
+    {
+        "text": "<x\u0000>",
+        "escaped": "\\<x\u0000\\>",
+        "trailing": "<x\u0000>"
+    },
+    {
+        "text": "<x\u0000\\",
+        "escaped": "\\<x\u0000\u0000",
+        "trailing": "<x\u0000\u0000"
+    },
+    {
+        "text": "<x\u0000\u0000",
+        "escaped": "\\<x\u0000\u0000",
+        "trailing": "<x\u0000\u0000"
+    },
+    {
+        "text": "<<xx",
+        "escaped": "<\\<xx",
+        "trailing": "<<xx"
+    },
+    {
+        "text": "<<x<",
+        "escaped": "<\\<x\\<",
+        "trailing": "<<x<"
+    },
+    {
+        "text": "<<x>",
+        "escaped": "<\\<x\\>",
+        "trailing": "<<x>"
+    },
+    {
+        "text": "<<x\\",
+        "escaped": "<\\<x\u0000",
+        "trailing": "<<x\u0000"
+    },
+    {
+        "text": "<<x\u0000",
+        "escaped": "<\\<x\u0000",
+        "trailing": "<<x\u0000"
+    },
+    {
+        "text": "<<<x",
+        "escaped": "<\\<<x",
+        "trailing": "<<<x"
+    },
+    {
+        "text": "<<<<",
+        "escaped": "<\\<<\\<",
+        "trailing": "<<<<"
+    },
+    {
+        "text": "<<<>",
+        "escaped": "<\\<<\\>",
+        "trailing": "<<<>"
+    },
+    {
+        "text": "<<<\\",
+        "escaped": "<\\<<\u0000",
+        "trailing": "<<<\u0000"
+    },
+    {
+        "text": "<<<\u0000",
+        "escaped": "<\\<<\u0000",
+        "trailing": "<<<\u0000"
+    },
+    {
+        "text": "<<>x",
+        "escaped": "<\\<>x",
+        "trailing": "<<>x"
+    },
+    {
+        "text": "<<><",
+        "escaped": "<\\<>\\<",
+        "trailing": "<<><"
+    },
+    {
+        "text": "<<>>",
+        "escaped": "<\\<>\\>",
+        "trailing": "<<>>"
+    },
+    {
+        "text": "<<>\\",
+        "escaped": "<\\<>\u0000",
+        "trailing": "<<>\u0000"
+    },
+    {
+        "text": "<<>\u0000",
+        "escaped": "<\\<>\u0000",
+        "trailing": "<<>\u0000"
+    },
+    {
+        "text": "<<\\x",
+        "escaped": "<\\<\\x",
+        "trailing": "<<\\x"
+    },
+    {
+        "text": "<<\\<",
+        "escaped": "<\\<\\<",
+        "trailing": "<<\\<"
+    },
+    {
+        "text": "<<\\>",
+        "escaped": "<\\<\\>",
+        "trailing": "<<\\>"
+    },
+    {
+        "text": "<<\\\\",
+        "escaped": "<\\<\u0000\u0000",
+        "trailing": "<<\u0000\u0000"
+    },
+    {
+        "text": "<<\\\u0000",
+        "escaped": "<\\<\\\u0000",
+        "trailing": "<<\\\u0000"
+    },
+    {
+        "text": "<<\u0000x",
+        "escaped": "<\\<\u0000x",
+        "trailing": "<<\u0000x"
+    },
+    {
+        "text": "<<\u0000<",
+        "escaped": "<\\<\u0000\\<",
+        "trailing": "<<\u0000<"
+    },
+    {
+        "text": "<<\u0000>",
+        "escaped": "<\\<\u0000\\>",
+        "trailing": "<<\u0000>"
+    },
+    {
+        "text": "<<\u0000\\",
+        "escaped": "<\\<\u0000\u0000",
+        "trailing": "<<\u0000\u0000"
+    },
+    {
+        "text": "<<\u0000\u0000",
+        "escaped": "<\\<\u0000\u0000",
+        "trailing": "<<\u0000\u0000"
+    },
+    {
+        "text": "<>xx",
+        "escaped": "<\\>xx",
+        "trailing": "<>xx"
+    },
+    {
+        "text": "<>x<",
+        "escaped": "<\\>x\\<",
+        "trailing": "<>x<"
+    },
+    {
+        "text": "<>x>",
+        "escaped": "<\\>x\\>",
+        "trailing": "<>x>"
+    },
+    {
+        "text": "<>x\\",
+        "escaped": "<\\>x\u0000",
+        "trailing": "<>x\u0000"
+    },
+    {
+        "text": "<>x\u0000",
+        "escaped": "<\\>x\u0000",
+        "trailing": "<>x\u0000"
+    },
+    {
+        "text": "<><x",
+        "escaped": "<\\><x",
+        "trailing": "<><x"
+    },
+    {
+        "text": "<><<",
+        "escaped": "<\\><\\<",
+        "trailing": "<><<"
+    },
+    {
+        "text": "<><>",
+        "escaped": "<\\><\\>",
+        "trailing": "<><>"
+    },
+    {
+        "text": "<><\\",
+        "escaped": "<\\><\u0000",
+        "trailing": "<><\u0000"
+    },
+    {
+        "text": "<><\u0000",
+        "escaped": "<\\><\u0000",
+        "trailing": "<><\u0000"
+    },
+    {
+        "text": "<>>x",
+        "escaped": "<\\>>x",
+        "trailing": "<>>x"
+    },
+    {
+        "text": "<>><",
+        "escaped": "<\\>>\\<",
+        "trailing": "<>><"
+    },
+    {
+        "text": "<>>>",
+        "escaped": "<\\>>\\>",
+        "trailing": "<>>>"
+    },
+    {
+        "text": "<>>\\",
+        "escaped": "<\\>>\u0000",
+        "trailing": "<>>\u0000"
+    },
+    {
+        "text": "<>>\u0000",
+        "escaped": "<\\>>\u0000",
+        "trailing": "<>>\u0000"
+    },
+    {
+        "text": "<>\\x",
+        "escaped": "<\\>\\x",
+        "trailing": "<>\\x"
+    },
+    {
+        "text": "<>\\<",
+        "escaped": "<\\>\\<",
+        "trailing": "<>\\<"
+    },
+    {
+        "text": "<>\\>",
+        "escaped": "<\\>\\>",
+        "trailing": "<>\\>"
+    },
+    {
+        "text": "<>\\\\",
+        "escaped": "<\\>\u0000\u0000",
+        "trailing": "<>\u0000\u0000"
+    },
+    {
+        "text": "<>\\\u0000",
+        "escaped": "<\\>\\\u0000",
+        "trailing": "<>\\\u0000"
+    },
+    {
+        "text": "<>\u0000x",
+        "escaped": "<\\>\u0000x",
+        "trailing": "<>\u0000x"
+    },
+    {
+        "text": "<>\u0000<",
+        "escaped": "<\\>\u0000\\<",
+        "trailing": "<>\u0000<"
+    },
+    {
+        "text": "<>\u0000>",
+        "escaped": "<\\>\u0000\\>",
+        "trailing": "<>\u0000>"
+    },
+    {
+        "text": "<>\u0000\\",
+        "escaped": "<\\>\u0000\u0000",
+        "trailing": "<>\u0000\u0000"
+    },
+    {
+        "text": "<>\u0000\u0000",
+        "escaped": "<\\>\u0000\u0000",
+        "trailing": "<>\u0000\u0000"
+    },
+    {
+        "text": "<\\xx",
+        "escaped": "\\<\\xx",
+        "trailing": "<\\xx"
+    },
+    {
+        "text": "<\\x<",
+        "escaped": "\\<\\x\\<",
+        "trailing": "<\\x<"
+    },
+    {
+        "text": "<\\x>",
+        "escaped": "\\<\\x\\>",
+        "trailing": "<\\x>"
+    },
+    {
+        "text": "<\\x\\",
+        "escaped": "\\<\\x\u0000",
+        "trailing": "<\\x\u0000"
+    },
+    {
+        "text": "<\\x\u0000",
+        "escaped": "\\<\\x\u0000",
+        "trailing": "<\\x\u0000"
+    },
+    {
+        "text": "<\\<x",
+        "escaped": "\\<\\<x",
+        "trailing": "<\\<x"
+    },
+    {
+        "text": "<\\<<",
+        "escaped": "\\<\\<\\<",
+        "trailing": "<\\<<"
+    },
+    {
+        "text": "<\\<>",
+        "escaped": "\\<\\<\\>",
+        "trailing": "<\\<>"
+    },
+    {
+        "text": "<\\<\\",
+        "escaped": "\\<\\<\u0000",
+        "trailing": "<\\<\u0000"
+    },
+    {
+        "text": "<\\<\u0000",
+        "escaped": "\\<\\<\u0000",
+        "trailing": "<\\<\u0000"
+    },
+    {
+        "text": "<\\>x",
+        "escaped": "\\<\\>x",
+        "trailing": "<\\>x"
+    },
+    {
+        "text": "<\\><",
+        "escaped": "\\<\\>\\<",
+        "trailing": "<\\><"
+    },
+    {
+        "text": "<\\>>",
+        "escaped": "\\<\\>\\>",
+        "trailing": "<\\>>"
+    },
+    {
+        "text": "<\\>\\",
+        "escaped": "\\<\\>\u0000",
+        "trailing": "<\\>\u0000"
+    },
+    {
+        "text": "<\\>\u0000",
+        "escaped": "\\<\\>\u0000",
+        "trailing": "<\\>\u0000"
+    },
+    {
+        "text": "<\\\\x",
+        "escaped": "\\<\\\\x",
+        "trailing": "<\\\\x"
+    },
+    {
+        "text": "<\\\\<",
+        "escaped": "\\<\\\\<",
+        "trailing": "<\\\\<"
+    },
+    {
+        "text": "<\\\\>",
+        "escaped": "\\<\\\\>",
+        "trailing": "<\\\\>"
+    },
+    {
+        "text": "<\\\\\\",
+        "escaped": "\\<\u0000\u0000\u0000",
+        "trailing": "<\u0000\u0000\u0000"
+    },
+    {
+        "text": "<\\\\\u0000",
+        "escaped": "\\<\\\\\u0000",
+        "trailing": "<\\\\\u0000"
+    },
+    {
+        "text": "<\\\u0000x",
+        "escaped": "\\<\\\u0000x",
+        "trailing": "<\\\u0000x"
+    },
+    {
+        "text": "<\\\u0000<",
+        "escaped": "\\<\\\u0000\\<",
+        "trailing": "<\\\u0000<"
+    },
+    {
+        "text": "<\\\u0000>",
+        "escaped": "\\<\\\u0000\\>",
+        "trailing": "<\\\u0000>"
+    },
+    {
+        "text": "<\\\u0000\\",
+        "escaped": "\\<\\\u0000\u0000",
+        "trailing": "<\\\u0000\u0000"
+    },
+    {
+        "text": "<\\\u0000\u0000",
+        "escaped": "\\<\\\u0000\u0000",
+        "trailing": "<\\\u0000\u0000"
+    },
+    {
+        "text": "<\u0000xx",
+        "escaped": "\\<\u0000xx",
+        "trailing": "<\u0000xx"
+    },
+    {
+        "text": "<\u0000x<",
+        "escaped": "\\<\u0000x\\<",
+        "trailing": "<\u0000x<"
+    },
+    {
+        "text": "<\u0000x>",
+        "escaped": "\\<\u0000x\\>",
+        "trailing": "<\u0000x>"
+    },
+    {
+        "text": "<\u0000x\\",
+        "escaped": "\\<x\u0000\u0000",
+        "trailing": "<x\u0000\u0000"
+    },
+    {
+        "text": "<\u0000x\u0000",
+        "escaped": "\\<\u0000x\u0000",
+        "trailing": "<\u0000x\u0000"
+    },
+    {
+        "text": "<\u0000<x",
+        "escaped": "\\<\u0000\\<x",
+        "trailing": "<\u0000<x"
+    },
+    {
+        "text": "<\u0000<<",
+        "escaped": "\\<\u0000\\<<",
+        "trailing": "<\u0000<<"
+    },
+    {
+        "text": "<\u0000<>",
+        "escaped": "\\<\u0000\\<>",
+        "trailing": "<\u0000<>"
+    },
+    {
+        "text": "<\u0000<\\",
+        "escaped": "\\<\\<\u0000\u0000",
+        "trailing": "<<\u0000\u0000"
+    },
+    {
+        "text": "<\u0000<\u0000",
+        "escaped": "\\<\u0000\\<\u0000",
+        "trailing": "<\u0000<\u0000"
+    },
+    {
+        "text": "<\u0000>x",
+        "escaped": "\\<\u0000\\>x",
+        "trailing": "<\u0000>x"
+    },
+    {
+        "text": "<\u0000><",
+        "escaped": "\\<\u0000\\><",
+        "trailing": "<\u0000><"
+    },
+    {
+        "text": "<\u0000>>",
+        "escaped": "\\<\u0000\\>>",
+        "trailing": "<\u0000>>"
+    },
+    {
+        "text": "<\u0000>\\",
+        "escaped": "\\<\\>\u0000\u0000",
+        "trailing": "<>\u0000\u0000"
+    },
+    {
+        "text": "<\u0000>\u0000",
+        "escaped": "\\<\u0000\\>\u0000",
+        "trailing": "<\u0000>\u0000"
+    },
+    {
+        "text": "<\u0000\\x",
+        "escaped": "\\<\u0000\\x",
+        "trailing": "<\u0000\\x"
+    },
+    {
+        "text": "<\u0000\\<",
+        "escaped": "\\<\u0000\\<",
+        "trailing": "<\u0000\\<"
+    },
+    {
+        "text": "<\u0000\\>",
+        "escaped": "\\<\u0000\\>",
+        "trailing": "<\u0000\\>"
+    },
+    {
+        "text": "<\u0000\\\\",
+        "escaped": "\\<\u0000\u0000\u0000",
+        "trailing": "<\u0000\u0000\u0000"
+    },
+    {
+        "text": "<\u0000\\\u0000",
+        "escaped": "\\<\u0000\\\u0000",
+        "trailing": "<\u0000\\\u0000"
+    },
+    {
+        "text": "<\u0000\u0000x",
+        "escaped": "\\<\u0000\u0000x",
+        "trailing": "<\u0000\u0000x"
+    },
+    {
+        "text": "<\u0000\u0000<",
+        "escaped": "\\<\u0000\u0000\\<",
+        "trailing": "<\u0000\u0000<"
+    },
+    {
+        "text": "<\u0000\u0000>",
+        "escaped": "\\<\u0000\u0000\\>",
+        "trailing": "<\u0000\u0000>"
+    },
+    {
+        "text": "<\u0000\u0000\\",
+        "escaped": "\\<\u0000\u0000\u0000",
+        "trailing": "<\u0000\u0000\u0000"
+    },
+    {
+        "text": "<\u0000\u0000\u0000",
+        "escaped": "\\<\u0000\u0000\u0000",
+        "trailing": "<\u0000\u0000\u0000"
+    },
+    {
+        "text": ">xxx",
+        "escaped": "\\>xxx",
+        "trailing": ">xxx"
+    },
+    {
+        "text": ">xx<",
+        "escaped": "\\>xx\\<",
+        "trailing": ">xx<"
+    },
+    {
+        "text": ">xx>",
+        "escaped": "\\>xx\\>",
+        "trailing": ">xx>"
+    },
+    {
+        "text": ">xx\\",
+        "escaped": "\\>xx\u0000",
+        "trailing": ">xx\u0000"
+    },
+    {
+        "text": ">xx\u0000",
+        "escaped": "\\>xx\u0000",
+        "trailing": ">xx\u0000"
+    },
+    {
+        "text": ">x<x",
+        "escaped": "\\>x\\<x",
+        "trailing": ">x<x"
+    },
+    {
+        "text": ">x<<",
+        "escaped": "\\>x\\<<",
+        "trailing": ">x<<"
+    },
+    {
+        "text": ">x<>",
+        "escaped": "\\>x\\<>",
+        "trailing": ">x<>"
+    },
+    {
+        "text": ">x<\\",
+        "escaped": "\\>x\\<\u0000",
+        "trailing": ">x<\u0000"
+    },
+    {
+        "text": ">x<\u0000",
+        "escaped": "\\>x\\<\u0000",
+        "trailing": ">x<\u0000"
+    },
+    {
+        "text": ">x>x",
+        "escaped": "\\>x\\>x",
+        "trailing": ">x>x"
+    },
+    {
+        "text": ">x><",
+        "escaped": "\\>x\\><",
+        "trailing": ">x><"
+    },
+    {
+        "text": ">x>>",
+        "escaped": "\\>x\\>>",
+        "trailing": ">x>>"
+    },
+    {
+        "text": ">x>\\",
+        "escaped": "\\>x\\>\u0000",
+        "trailing": ">x>\u0000"
+    },
+    {
+        "text": ">x>\u0000",
+        "escaped": "\\>x\\>\u0000",
+        "trailing": ">x>\u0000"
+    },
+    {
+        "text": ">x\\x",
+        "escaped": "\\>x\\x",
+        "trailing": ">x\\x"
+    },
+    {
+        "text": ">x\\<",
+        "escaped": "\\>x\\<",
+        "trailing": ">x\\<"
+    },
+    {
+        "text": ">x\\>",
+        "escaped": "\\>x\\>",
+        "trailing": ">x\\>"
+    },
+    {
+        "text": ">x\\\\",
+        "escaped": "\\>x\u0000\u0000",
+        "trailing": ">x\u0000\u0000"
+    },
+    {
+        "text": ">x\\\u0000",
+        "escaped": "\\>x\\\u0000",
+        "trailing": ">x\\\u0000"
+    },
+    {
+        "text": ">x\u0000x",
+        "escaped": "\\>x\u0000x",
+        "trailing": ">x\u0000x"
+    },
+    {
+        "text": ">x\u0000<",
+        "escaped": "\\>x\u0000\\<",
+        "trailing": ">x\u0000<"
+    },
+    {
+        "text": ">x\u0000>",
+        "escaped": "\\>x\u0000\\>",
+        "trailing": ">x\u0000>"
+    },
+    {
+        "text": ">x\u0000\\",
+        "escaped": "\\>x\u0000\u0000",
+        "trailing": ">x\u0000\u0000"
+    },
+    {
+        "text": ">x\u0000\u0000",
+        "escaped": "\\>x\u0000\u0000",
+        "trailing": ">x\u0000\u0000"
+    },
+    {
+        "text": "><xx",
+        "escaped": ">\\<xx",
+        "trailing": "><xx"
+    },
+    {
+        "text": "><x<",
+        "escaped": ">\\<x\\<",
+        "trailing": "><x<"
+    },
+    {
+        "text": "><x>",
+        "escaped": ">\\<x\\>",
+        "trailing": "><x>"
+    },
+    {
+        "text": "><x\\",
+        "escaped": ">\\<x\u0000",
+        "trailing": "><x\u0000"
+    },
+    {
+        "text": "><x\u0000",
+        "escaped": ">\\<x\u0000",
+        "trailing": "><x\u0000"
+    },
+    {
+        "text": "><<x",
+        "escaped": ">\\<<x",
+        "trailing": "><<x"
+    },
+    {
+        "text": "><<<",
+        "escaped": ">\\<<\\<",
+        "trailing": "><<<"
+    },
+    {
+        "text": "><<>",
+        "escaped": ">\\<<\\>",
+        "trailing": "><<>"
+    },
+    {
+        "text": "><<\\",
+        "escaped": ">\\<<\u0000",
+        "trailing": "><<\u0000"
+    },
+    {
+        "text": "><<\u0000",
+        "escaped": ">\\<<\u0000",
+        "trailing": "><<\u0000"
+    },
+    {
+        "text": "><>x",
+        "escaped": ">\\<>x",
+        "trailing": "><>x"
+    },
+    {
+        "text": "><><",
+        "escaped": ">\\<>\\<",
+        "trailing": "><><"
+    },
+    {
+        "text": "><>>",
+        "escaped": ">\\<>\\>",
+        "trailing": "><>>"
+    },
+    {
+        "text": "><>\\",
+        "escaped": ">\\<>\u0000",
+        "trailing": "><>\u0000"
+    },
+    {
+        "text": "><>\u0000",
+        "escaped": ">\\<>\u0000",
+        "trailing": "><>\u0000"
+    },
+    {
+        "text": "><\\x",
+        "escaped": ">\\<\\x",
+        "trailing": "><\\x"
+    },
+    {
+        "text": "><\\<",
+        "escaped": ">\\<\\<",
+        "trailing": "><\\<"
+    },
+    {
+        "text": "><\\>",
+        "escaped": ">\\<\\>",
+        "trailing": "><\\>"
+    },
+    {
+        "text": "><\\\\",
+        "escaped": ">\\<\u0000\u0000",
+        "trailing": "><\u0000\u0000"
+    },
+    {
+        "text": "><\\\u0000",
+        "escaped": ">\\<\\\u0000",
+        "trailing": "><\\\u0000"
+    },
+    {
+        "text": "><\u0000x",
+        "escaped": ">\\<\u0000x",
+        "trailing": "><\u0000x"
+    },
+    {
+        "text": "><\u0000<",
+        "escaped": ">\\<\u0000\\<",
+        "trailing": "><\u0000<"
+    },
+    {
+        "text": "><\u0000>",
+        "escaped": ">\\<\u0000\\>",
+        "trailing": "><\u0000>"
+    },
+    {
+        "text": "><\u0000\\",
+        "escaped": ">\\<\u0000\u0000",
+        "trailing": "><\u0000\u0000"
+    },
+    {
+        "text": "><\u0000\u0000",
+        "escaped": ">\\<\u0000\u0000",
+        "trailing": "><\u0000\u0000"
+    },
+    {
+        "text": ">>xx",
+        "escaped": ">\\>xx",
+        "trailing": ">>xx"
+    },
+    {
+        "text": ">>x<",
+        "escaped": ">\\>x\\<",
+        "trailing": ">>x<"
+    },
+    {
+        "text": ">>x>",
+        "escaped": ">\\>x\\>",
+        "trailing": ">>x>"
+    },
+    {
+        "text": ">>x\\",
+        "escaped": ">\\>x\u0000",
+        "trailing": ">>x\u0000"
+    },
+    {
+        "text": ">>x\u0000",
+        "escaped": ">\\>x\u0000",
+        "trailing": ">>x\u0000"
+    },
+    {
+        "text": ">><x",
+        "escaped": ">\\><x",
+        "trailing": ">><x"
+    },
+    {
+        "text": ">><<",
+        "escaped": ">\\><\\<",
+        "trailing": ">><<"
+    },
+    {
+        "text": ">><>",
+        "escaped": ">\\><\\>",
+        "trailing": ">><>"
+    },
+    {
+        "text": ">><\\",
+        "escaped": ">\\><\u0000",
+        "trailing": ">><\u0000"
+    },
+    {
+        "text": ">><\u0000",
+        "escaped": ">\\><\u0000",
+        "trailing": ">><\u0000"
+    },
+    {
+        "text": ">>>x",
+        "escaped": ">\\>>x",
+        "trailing": ">>>x"
+    },
+    {
+        "text": ">>><",
+        "escaped": ">\\>>\\<",
+        "trailing": ">>><"
+    },
+    {
+        "text": ">>>>",
+        "escaped": ">\\>>\\>",
+        "trailing": ">>>>"
+    },
+    {
+        "text": ">>>\\",
+        "escaped": ">\\>>\u0000",
+        "trailing": ">>>\u0000"
+    },
+    {
+        "text": ">>>\u0000",
+        "escaped": ">\\>>\u0000",
+        "trailing": ">>>\u0000"
+    },
+    {
+        "text": ">>\\x",
+        "escaped": ">\\>\\x",
+        "trailing": ">>\\x"
+    },
+    {
+        "text": ">>\\<",
+        "escaped": ">\\>\\<",
+        "trailing": ">>\\<"
+    },
+    {
+        "text": ">>\\>",
+        "escaped": ">\\>\\>",
+        "trailing": ">>\\>"
+    },
+    {
+        "text": ">>\\\\",
+        "escaped": ">\\>\u0000\u0000",
+        "trailing": ">>\u0000\u0000"
+    },
+    {
+        "text": ">>\\\u0000",
+        "escaped": ">\\>\\\u0000",
+        "trailing": ">>\\\u0000"
+    },
+    {
+        "text": ">>\u0000x",
+        "escaped": ">\\>\u0000x",
+        "trailing": ">>\u0000x"
+    },
+    {
+        "text": ">>\u0000<",
+        "escaped": ">\\>\u0000\\<",
+        "trailing": ">>\u0000<"
+    },
+    {
+        "text": ">>\u0000>",
+        "escaped": ">\\>\u0000\\>",
+        "trailing": ">>\u0000>"
+    },
+    {
+        "text": ">>\u0000\\",
+        "escaped": ">\\>\u0000\u0000",
+        "trailing": ">>\u0000\u0000"
+    },
+    {
+        "text": ">>\u0000\u0000",
+        "escaped": ">\\>\u0000\u0000",
+        "trailing": ">>\u0000\u0000"
+    },
+    {
+        "text": ">\\xx",
+        "escaped": "\\>\\xx",
+        "trailing": ">\\xx"
+    },
+    {
+        "text": ">\\x<",
+        "escaped": "\\>\\x\\<",
+        "trailing": ">\\x<"
+    },
+    {
+        "text": ">\\x>",
+        "escaped": "\\>\\x\\>",
+        "trailing": ">\\x>"
+    },
+    {
+        "text": ">\\x\\",
+        "escaped": "\\>\\x\u0000",
+        "trailing": ">\\x\u0000"
+    },
+    {
+        "text": ">\\x\u0000",
+        "escaped": "\\>\\x\u0000",
+        "trailing": ">\\x\u0000"
+    },
+    {
+        "text": ">\\<x",
+        "escaped": "\\>\\<x",
+        "trailing": ">\\<x"
+    },
+    {
+        "text": ">\\<<",
+        "escaped": "\\>\\<\\<",
+        "trailing": ">\\<<"
+    },
+    {
+        "text": ">\\<>",
+        "escaped": "\\>\\<\\>",
+        "trailing": ">\\<>"
+    },
+    {
+        "text": ">\\<\\",
+        "escaped": "\\>\\<\u0000",
+        "trailing": ">\\<\u0000"
+    },
+    {
+        "text": ">\\<\u0000",
+        "escaped": "\\>\\<\u0000",
+        "trailing": ">\\<\u0000"
+    },
+    {
+        "text": ">\\>x",
+        "escaped": "\\>\\>x",
+        "trailing": ">\\>x"
+    },
+    {
+        "text": ">\\><",
+        "escaped": "\\>\\>\\<",
+        "trailing": ">\\><"
+    },
+    {
+        "text": ">\\>>",
+        "escaped": "\\>\\>\\>",
+        "trailing": ">\\>>"
+    },
+    {
+        "text": ">\\>\\",
+        "escaped": "\\>\\>\u0000",
+        "trailing": ">\\>\u0000"
+    },
+    {
+        "text": ">\\>\u0000",
+        "escaped": "\\>\\>\u0000",
+        "trailing": ">\\>\u0000"
+    },
+    {
+        "text": ">\\\\x",
+        "escaped": "\\>\\\\x",
+        "trailing": ">\\\\x"
+    },
+    {
+        "text": ">\\\\<",
+        "escaped": "\\>\\\\<",
+        "trailing": ">\\\\<"
+    },
+    {
+        "text": ">\\\\>",
+        "escaped": "\\>\\\\>",
+        "trailing": ">\\\\>"
+    },
+    {
+        "text": ">\\\\\\",
+        "escaped": "\\>\u0000\u0000\u0000",
+        "trailing": ">\u0000\u0000\u0000"
+    },
+    {
+        "text": ">\\\\\u0000",
+        "escaped": "\\>\\\\\u0000",
+        "trailing": ">\\\\\u0000"
+    },
+    {
+        "text": ">\\\u0000x",
+        "escaped": "\\>\\\u0000x",
+        "trailing": ">\\\u0000x"
+    },
+    {
+        "text": ">\\\u0000<",
+        "escaped": "\\>\\\u0000\\<",
+        "trailing": ">\\\u0000<"
+    },
+    {
+        "text": ">\\\u0000>",
+        "escaped": "\\>\\\u0000\\>",
+        "trailing": ">\\\u0000>"
+    },
+    {
+        "text": ">\\\u0000\\",
+        "escaped": "\\>\\\u0000\u0000",
+        "trailing": ">\\\u0000\u0000"
+    },
+    {
+        "text": ">\\\u0000\u0000",
+        "escaped": "\\>\\\u0000\u0000",
+        "trailing": ">\\\u0000\u0000"
+    },
+    {
+        "text": ">\u0000xx",
+        "escaped": "\\>\u0000xx",
+        "trailing": ">\u0000xx"
+    },
+    {
+        "text": ">\u0000x<",
+        "escaped": "\\>\u0000x\\<",
+        "trailing": ">\u0000x<"
+    },
+    {
+        "text": ">\u0000x>",
+        "escaped": "\\>\u0000x\\>",
+        "trailing": ">\u0000x>"
+    },
+    {
+        "text": ">\u0000x\\",
+        "escaped": "\\>x\u0000\u0000",
+        "trailing": ">x\u0000\u0000"
+    },
+    {
+        "text": ">\u0000x\u0000",
+        "escaped": "\\>\u0000x\u0000",
+        "trailing": ">\u0000x\u0000"
+    },
+    {
+        "text": ">\u0000<x",
+        "escaped": "\\>\u0000\\<x",
+        "trailing": ">\u0000<x"
+    },
+    {
+        "text": ">\u0000<<",
+        "escaped": "\\>\u0000\\<<",
+        "trailing": ">\u0000<<"
+    },
+    {
+        "text": ">\u0000<>",
+        "escaped": "\\>\u0000\\<>",
+        "trailing": ">\u0000<>"
+    },
+    {
+        "text": ">\u0000<\\",
+        "escaped": "\\>\\<\u0000\u0000",
+        "trailing": "><\u0000\u0000"
+    },
+    {
+        "text": ">\u0000<\u0000",
+        "escaped": "\\>\u0000\\<\u0000",
+        "trailing": ">\u0000<\u0000"
+    },
+    {
+        "text": ">\u0000>x",
+        "escaped": "\\>\u0000\\>x",
+        "trailing": ">\u0000>x"
+    },
+    {
+        "text": ">\u0000><",
+        "escaped": "\\>\u0000\\><",
+        "trailing": ">\u0000><"
+    },
+    {
+        "text": ">\u0000>>",
+        "escaped": "\\>\u0000\\>>",
+        "trailing": ">\u0000>>"
+    },
+    {
+        "text": ">\u0000>\\",
+        "escaped": "\\>\\>\u0000\u0000",
+        "trailing": ">>\u0000\u0000"
+    },
+    {
+        "text": ">\u0000>\u0000",
+        "escaped": "\\>\u0000\\>\u0000",
+        "trailing": ">\u0000>\u0000"
+    },
+    {
+        "text": ">\u0000\\x",
+        "escaped": "\\>\u0000\\x",
+        "trailing": ">\u0000\\x"
+    },
+    {
+        "text": ">\u0000\\<",
+        "escaped": "\\>\u0000\\<",
+        "trailing": ">\u0000\\<"
+    },
+    {
+        "text": ">\u0000\\>",
+        "escaped": "\\>\u0000\\>",
+        "trailing": ">\u0000\\>"
+    },
+    {
+        "text": ">\u0000\\\\",
+        "escaped": "\\>\u0000\u0000\u0000",
+        "trailing": ">\u0000\u0000\u0000"
+    },
+    {
+        "text": ">\u0000\\\u0000",
+        "escaped": "\\>\u0000\\\u0000",
+        "trailing": ">\u0000\\\u0000"
+    },
+    {
+        "text": ">\u0000\u0000x",
+        "escaped": "\\>\u0000\u0000x",
+        "trailing": ">\u0000\u0000x"
+    },
+    {
+        "text": ">\u0000\u0000<",
+        "escaped": "\\>\u0000\u0000\\<",
+        "trailing": ">\u0000\u0000<"
+    },
+    {
+        "text": ">\u0000\u0000>",
+        "escaped": "\\>\u0000\u0000\\>",
+        "trailing": ">\u0000\u0000>"
+    },
+    {
+        "text": ">\u0000\u0000\\",
+        "escaped": "\\>\u0000\u0000\u0000",
+        "trailing": ">\u0000\u0000\u0000"
+    },
+    {
+        "text": ">\u0000\u0000\u0000",
+        "escaped": "\\>\u0000\u0000\u0000",
+        "trailing": ">\u0000\u0000\u0000"
+    },
+    {
+        "text": "\\xxx",
+        "escaped": "\\xxx",
+        "trailing": "\\xxx"
+    },
+    {
+        "text": "\\xx<",
+        "escaped": "\\xx\\<",
+        "trailing": "\\xx<"
+    },
+    {
+        "text": "\\xx>",
+        "escaped": "\\xx\\>",
+        "trailing": "\\xx>"
+    },
+    {
+        "text": "\\xx\\",
+        "escaped": "\\xx\u0000",
+        "trailing": "\\xx\u0000"
+    },
+    {
+        "text": "\\xx\u0000",
+        "escaped": "\\xx\u0000",
+        "trailing": "\\xx\u0000"
+    },
+    {
+        "text": "\\x<x",
+        "escaped": "\\x\\<x",
+        "trailing": "\\x<x"
+    },
+    {
+        "text": "\\x<<",
+        "escaped": "\\x\\<<",
+        "trailing": "\\x<<"
+    },
+    {
+        "text": "\\x<>",
+        "escaped": "\\x\\<>",
+        "trailing": "\\x<>"
+    },
+    {
+        "text": "\\x<\\",
+        "escaped": "\\x\\<\u0000",
+        "trailing": "\\x<\u0000"
+    },
+    {
+        "text": "\\x<\u0000",
+        "escaped": "\\x\\<\u0000",
+        "trailing": "\\x<\u0000"
+    },
+    {
+        "text": "\\x>x",
+        "escaped": "\\x\\>x",
+        "trailing": "\\x>x"
+    },
+    {
+        "text": "\\x><",
+        "escaped": "\\x\\><",
+        "trailing": "\\x><"
+    },
+    {
+        "text": "\\x>>",
+        "escaped": "\\x\\>>",
+        "trailing": "\\x>>"
+    },
+    {
+        "text": "\\x>\\",
+        "escaped": "\\x\\>\u0000",
+        "trailing": "\\x>\u0000"
+    },
+    {
+        "text": "\\x>\u0000",
+        "escaped": "\\x\\>\u0000",
+        "trailing": "\\x>\u0000"
+    },
+    {
+        "text": "\\x\\x",
+        "escaped": "\\x\\x",
+        "trailing": "\\x\\x"
+    },
+    {
+        "text": "\\x\\<",
+        "escaped": "\\x\\<",
+        "trailing": "\\x\\<"
+    },
+    {
+        "text": "\\x\\>",
+        "escaped": "\\x\\>",
+        "trailing": "\\x\\>"
+    },
+    {
+        "text": "\\x\\\\",
+        "escaped": "\\x\u0000\u0000",
+        "trailing": "\\x\u0000\u0000"
+    },
+    {
+        "text": "\\x\\\u0000",
+        "escaped": "\\x\\\u0000",
+        "trailing": "\\x\\\u0000"
+    },
+    {
+        "text": "\\x\u0000x",
+        "escaped": "\\x\u0000x",
+        "trailing": "\\x\u0000x"
+    },
+    {
+        "text": "\\x\u0000<",
+        "escaped": "\\x\u0000\\<",
+        "trailing": "\\x\u0000<"
+    },
+    {
+        "text": "\\x\u0000>",
+        "escaped": "\\x\u0000\\>",
+        "trailing": "\\x\u0000>"
+    },
+    {
+        "text": "\\x\u0000\\",
+        "escaped": "\\x\u0000\u0000",
+        "trailing": "\\x\u0000\u0000"
+    },
+    {
+        "text": "\\x\u0000\u0000",
+        "escaped": "\\x\u0000\u0000",
+        "trailing": "\\x\u0000\u0000"
+    },
+    {
+        "text": "\\<xx",
+        "escaped": "\\<xx",
+        "trailing": "\\<xx"
+    },
+    {
+        "text": "\\<x<",
+        "escaped": "\\<x\\<",
+        "trailing": "\\<x<"
+    },
+    {
+        "text": "\\<x>",
+        "escaped": "\\<x\\>",
+        "trailing": "\\<x>"
+    },
+    {
+        "text": "\\<x\\",
+        "escaped": "\\<x\u0000",
+        "trailing": "\\<x\u0000"
+    },
+    {
+        "text": "\\<x\u0000",
+        "escaped": "\\<x\u0000",
+        "trailing": "\\<x\u0000"
+    },
+    {
+        "text": "\\<<x",
+        "escaped": "\\<\\<x",
+        "trailing": "\\<<x"
+    },
+    {
+        "text": "\\<<<",
+        "escaped": "\\<\\<<",
+        "trailing": "\\<<<"
+    },
+    {
+        "text": "\\<<>",
+        "escaped": "\\<\\<>",
+        "trailing": "\\<<>"
+    },
+    {
+        "text": "\\<<\\",
+        "escaped": "\\<\\<\u0000",
+        "trailing": "\\<<\u0000"
+    },
+    {
+        "text": "\\<<\u0000",
+        "escaped": "\\<\\<\u0000",
+        "trailing": "\\<<\u0000"
+    },
+    {
+        "text": "\\<>x",
+        "escaped": "\\<\\>x",
+        "trailing": "\\<>x"
+    },
+    {
+        "text": "\\<><",
+        "escaped": "\\<\\><",
+        "trailing": "\\<><"
+    },
+    {
+        "text": "\\<>>",
+        "escaped": "\\<\\>>",
+        "trailing": "\\<>>"
+    },
+    {
+        "text": "\\<>\\",
+        "escaped": "\\<\\>\u0000",
+        "trailing": "\\<>\u0000"
+    },
+    {
+        "text": "\\<>\u0000",
+        "escaped": "\\<\\>\u0000",
+        "trailing": "\\<>\u0000"
+    },
+    {
+        "text": "\\<\\x",
+        "escaped": "\\<\\x",
+        "trailing": "\\<\\x"
+    },
+    {
+        "text": "\\<\\<",
+        "escaped": "\\<\\<",
+        "trailing": "\\<\\<"
+    },
+    {
+        "text": "\\<\\>",
+        "escaped": "\\<\\>",
+        "trailing": "\\<\\>"
+    },
+    {
+        "text": "\\<\\\\",
+        "escaped": "\\<\u0000\u0000",
+        "trailing": "\\<\u0000\u0000"
+    },
+    {
+        "text": "\\<\\\u0000",
+        "escaped": "\\<\\\u0000",
+        "trailing": "\\<\\\u0000"
+    },
+    {
+        "text": "\\<\u0000x",
+        "escaped": "\\<\u0000x",
+        "trailing": "\\<\u0000x"
+    },
+    {
+        "text": "\\<\u0000<",
+        "escaped": "\\<\u0000\\<",
+        "trailing": "\\<\u0000<"
+    },
+    {
+        "text": "\\<\u0000>",
+        "escaped": "\\<\u0000\\>",
+        "trailing": "\\<\u0000>"
+    },
+    {
+        "text": "\\<\u0000\\",
+        "escaped": "\\<\u0000\u0000",
+        "trailing": "\\<\u0000\u0000"
+    },
+    {
+        "text": "\\<\u0000\u0000",
+        "escaped": "\\<\u0000\u0000",
+        "trailing": "\\<\u0000\u0000"
+    },
+    {
+        "text": "\\>xx",
+        "escaped": "\\>xx",
+        "trailing": "\\>xx"
+    },
+    {
+        "text": "\\>x<",
+        "escaped": "\\>x\\<",
+        "trailing": "\\>x<"
+    },
+    {
+        "text": "\\>x>",
+        "escaped": "\\>x\\>",
+        "trailing": "\\>x>"
+    },
+    {
+        "text": "\\>x\\",
+        "escaped": "\\>x\u0000",
+        "trailing": "\\>x\u0000"
+    },
+    {
+        "text": "\\>x\u0000",
+        "escaped": "\\>x\u0000",
+        "trailing": "\\>x\u0000"
+    },
+    {
+        "text": "\\><x",
+        "escaped": "\\>\\<x",
+        "trailing": "\\><x"
+    },
+    {
+        "text": "\\><<",
+        "escaped": "\\>\\<<",
+        "trailing": "\\><<"
+    },
+    {
+        "text": "\\><>",
+        "escaped": "\\>\\<>",
+        "trailing": "\\><>"
+    },
+    {
+        "text": "\\><\\",
+        "escaped": "\\>\\<\u0000",
+        "trailing": "\\><\u0000"
+    },
+    {
+        "text": "\\><\u0000",
+        "escaped": "\\>\\<\u0000",
+        "trailing": "\\><\u0000"
+    },
+    {
+        "text": "\\>>x",
+        "escaped": "\\>\\>x",
+        "trailing": "\\>>x"
+    },
+    {
+        "text": "\\>><",
+        "escaped": "\\>\\><",
+        "trailing": "\\>><"
+    },
+    {
+        "text": "\\>>>",
+        "escaped": "\\>\\>>",
+        "trailing": "\\>>>"
+    },
+    {
+        "text": "\\>>\\",
+        "escaped": "\\>\\>\u0000",
+        "trailing": "\\>>\u0000"
+    },
+    {
+        "text": "\\>>\u0000",
+        "escaped": "\\>\\>\u0000",
+        "trailing": "\\>>\u0000"
+    },
+    {
+        "text": "\\>\\x",
+        "escaped": "\\>\\x",
+        "trailing": "\\>\\x"
+    },
+    {
+        "text": "\\>\\<",
+        "escaped": "\\>\\<",
+        "trailing": "\\>\\<"
+    },
+    {
+        "text": "\\>\\>",
+        "escaped": "\\>\\>",
+        "trailing": "\\>\\>"
+    },
+    {
+        "text": "\\>\\\\",
+        "escaped": "\\>\u0000\u0000",
+        "trailing": "\\>\u0000\u0000"
+    },
+    {
+        "text": "\\>\\\u0000",
+        "escaped": "\\>\\\u0000",
+        "trailing": "\\>\\\u0000"
+    },
+    {
+        "text": "\\>\u0000x",
+        "escaped": "\\>\u0000x",
+        "trailing": "\\>\u0000x"
+    },
+    {
+        "text": "\\>\u0000<",
+        "escaped": "\\>\u0000\\<",
+        "trailing": "\\>\u0000<"
+    },
+    {
+        "text": "\\>\u0000>",
+        "escaped": "\\>\u0000\\>",
+        "trailing": "\\>\u0000>"
+    },
+    {
+        "text": "\\>\u0000\\",
+        "escaped": "\\>\u0000\u0000",
+        "trailing": "\\>\u0000\u0000"
+    },
+    {
+        "text": "\\>\u0000\u0000",
+        "escaped": "\\>\u0000\u0000",
+        "trailing": "\\>\u0000\u0000"
+    },
+    {
+        "text": "\\\\xx",
+        "escaped": "\\\\xx",
+        "trailing": "\\\\xx"
+    },
+    {
+        "text": "\\\\x<",
+        "escaped": "\\\\x\\<",
+        "trailing": "\\\\x<"
+    },
+    {
+        "text": "\\\\x>",
+        "escaped": "\\\\x\\>",
+        "trailing": "\\\\x>"
+    },
+    {
+        "text": "\\\\x\\",
+        "escaped": "\\\\x\u0000",
+        "trailing": "\\\\x\u0000"
+    },
+    {
+        "text": "\\\\x\u0000",
+        "escaped": "\\\\x\u0000",
+        "trailing": "\\\\x\u0000"
+    },
+    {
+        "text": "\\\\<x",
+        "escaped": "\\\\<x",
+        "trailing": "\\\\<x"
+    },
+    {
+        "text": "\\\\<<",
+        "escaped": "\\\\<\\<",
+        "trailing": "\\\\<<"
+    },
+    {
+        "text": "\\\\<>",
+        "escaped": "\\\\<\\>",
+        "trailing": "\\\\<>"
+    },
+    {
+        "text": "\\\\<\\",
+        "escaped": "\\\\<\u0000",
+        "trailing": "\\\\<\u0000"
+    },
+    {
+        "text": "\\\\<\u0000",
+        "escaped": "\\\\<\u0000",
+        "trailing": "\\\\<\u0000"
+    },
+    {
+        "text": "\\\\>x",
+        "escaped": "\\\\>x",
+        "trailing": "\\\\>x"
+    },
+    {
+        "text": "\\\\><",
+        "escaped": "\\\\>\\<",
+        "trailing": "\\\\><"
+    },
+    {
+        "text": "\\\\>>",
+        "escaped": "\\\\>\\>",
+        "trailing": "\\\\>>"
+    },
+    {
+        "text": "\\\\>\\",
+        "escaped": "\\\\>\u0000",
+        "trailing": "\\\\>\u0000"
+    },
+    {
+        "text": "\\\\>\u0000",
+        "escaped": "\\\\>\u0000",
+        "trailing": "\\\\>\u0000"
+    },
+    {
+        "text": "\\\\\\x",
+        "escaped": "\\\\\\x",
+        "trailing": "\\\\\\x"
+    },
+    {
+        "text": "\\\\\\<",
+        "escaped": "\\\\\\<",
+        "trailing": "\\\\\\<"
+    },
+    {
+        "text": "\\\\\\>",
+        "escaped": "\\\\\\>",
+        "trailing": "\\\\\\>"
+    },
+    {
+        "text": "\\\\\\\\",
+        "escaped": "\u0000\u0000\u0000\u0000",
+        "trailing": "\u0000\u0000\u0000\u0000"
+    },
+    {
+        "text": "\\\\\\\u0000",
+        "escaped": "\\\\\\\u0000",
+        "trailing": "\\\\\\\u0000"
+    },
+    {
+        "text": "\\\\\u0000x",
+        "escaped": "\\\\\u0000x",
+        "trailing": "\\\\\u0000x"
+    },
+    {
+        "text": "\\\\\u0000<",
+        "escaped": "\\\\\u0000\\<",
+        "trailing": "\\\\\u0000<"
+    },
+    {
+        "text": "\\\\\u0000>",
+        "escaped": "\\\\\u0000\\>",
+        "trailing": "\\\\\u0000>"
+    },
+    {
+        "text": "\\\\\u0000\\",
+        "escaped": "\\\\\u0000\u0000",
+        "trailing": "\\\\\u0000\u0000"
+    },
+    {
+        "text": "\\\\\u0000\u0000",
+        "escaped": "\\\\\u0000\u0000",
+        "trailing": "\\\\\u0000\u0000"
+    },
+    {
+        "text": "\\\u0000xx",
+        "escaped": "\\\u0000xx",
+        "trailing": "\\\u0000xx"
+    },
+    {
+        "text": "\\\u0000x<",
+        "escaped": "\\\u0000x\\<",
+        "trailing": "\\\u0000x<"
+    },
+    {
+        "text": "\\\u0000x>",
+        "escaped": "\\\u0000x\\>",
+        "trailing": "\\\u0000x>"
+    },
+    {
+        "text": "\\\u0000x\\",
+        "escaped": "\\x\u0000\u0000",
+        "trailing": "\\x\u0000\u0000"
+    },
+    {
+        "text": "\\\u0000x\u0000",
+        "escaped": "\\\u0000x\u0000",
+        "trailing": "\\\u0000x\u0000"
+    },
+    {
+        "text": "\\\u0000<x",
+        "escaped": "\\\u0000\\<x",
+        "trailing": "\\\u0000<x"
+    },
+    {
+        "text": "\\\u0000<<",
+        "escaped": "\\\u0000\\<<",
+        "trailing": "\\\u0000<<"
+    },
+    {
+        "text": "\\\u0000<>",
+        "escaped": "\\\u0000\\<>",
+        "trailing": "\\\u0000<>"
+    },
+    {
+        "text": "\\\u0000<\\",
+        "escaped": "\\\\<\u0000\u0000",
+        "trailing": "\\<\u0000\u0000"
+    },
+    {
+        "text": "\\\u0000<\u0000",
+        "escaped": "\\\u0000\\<\u0000",
+        "trailing": "\\\u0000<\u0000"
+    },
+    {
+        "text": "\\\u0000>x",
+        "escaped": "\\\u0000\\>x",
+        "trailing": "\\\u0000>x"
+    },
+    {
+        "text": "\\\u0000><",
+        "escaped": "\\\u0000\\><",
+        "trailing": "\\\u0000><"
+    },
+    {
+        "text": "\\\u0000>>",
+        "escaped": "\\\u0000\\>>",
+        "trailing": "\\\u0000>>"
+    },
+    {
+        "text": "\\\u0000>\\",
+        "escaped": "\\\\>\u0000\u0000",
+        "trailing": "\\>\u0000\u0000"
+    },
+    {
+        "text": "\\\u0000>\u0000",
+        "escaped": "\\\u0000\\>\u0000",
+        "trailing": "\\\u0000>\u0000"
+    },
+    {
+        "text": "\\\u0000\\x",
+        "escaped": "\\\u0000\\x",
+        "trailing": "\\\u0000\\x"
+    },
+    {
+        "text": "\\\u0000\\<",
+        "escaped": "\\\u0000\\<",
+        "trailing": "\\\u0000\\<"
+    },
+    {
+        "text": "\\\u0000\\>",
+        "escaped": "\\\u0000\\>",
+        "trailing": "\\\u0000\\>"
+    },
+    {
+        "text": "\\\u0000\\\\",
+        "escaped": "\\\u0000\u0000\u0000",
+        "trailing": "\\\u0000\u0000\u0000"
+    },
+    {
+        "text": "\\\u0000\\\u0000",
+        "escaped": "\\\u0000\\\u0000",
+        "trailing": "\\\u0000\\\u0000"
+    },
+    {
+        "text": "\\\u0000\u0000x",
+        "escaped": "\\\u0000\u0000x",
+        "trailing": "\\\u0000\u0000x"
+    },
+    {
+        "text": "\\\u0000\u0000<",
+        "escaped": "\\\u0000\u0000\\<",
+        "trailing": "\\\u0000\u0000<"
+    },
+    {
+        "text": "\\\u0000\u0000>",
+        "escaped": "\\\u0000\u0000\\>",
+        "trailing": "\\\u0000\u0000>"
+    },
+    {
+        "text": "\\\u0000\u0000\\",
+        "escaped": "\\\u0000\u0000\u0000",
+        "trailing": "\\\u0000\u0000\u0000"
+    },
+    {
+        "text": "\\\u0000\u0000\u0000",
+        "escaped": "\\\u0000\u0000\u0000",
+        "trailing": "\\\u0000\u0000\u0000"
+    },
+    {
+        "text": "\u0000xxx",
+        "escaped": "\u0000xxx",
+        "trailing": "\u0000xxx"
+    },
+    {
+        "text": "\u0000xx<",
+        "escaped": "\u0000xx\\<",
+        "trailing": "\u0000xx<"
+    },
+    {
+        "text": "\u0000xx>",
+        "escaped": "\u0000xx\\>",
+        "trailing": "\u0000xx>"
+    },
+    {
+        "text": "\u0000xx\\",
+        "escaped": "xx\u0000\u0000",
+        "trailing": "xx\u0000\u0000"
+    },
+    {
+        "text": "\u0000xx\u0000",
+        "escaped": "\u0000xx\u0000",
+        "trailing": "\u0000xx\u0000"
+    },
+    {
+        "text": "\u0000x<x",
+        "escaped": "\u0000x\\<x",
+        "trailing": "\u0000x<x"
+    },
+    {
+        "text": "\u0000x<<",
+        "escaped": "\u0000x\\<<",
+        "trailing": "\u0000x<<"
+    },
+    {
+        "text": "\u0000x<>",
+        "escaped": "\u0000x\\<>",
+        "trailing": "\u0000x<>"
+    },
+    {
+        "text": "\u0000x<\\",
+        "escaped": "x\\<\u0000\u0000",
+        "trailing": "x<\u0000\u0000"
+    },
+    {
+        "text": "\u0000x<\u0000",
+        "escaped": "\u0000x\\<\u0000",
+        "trailing": "\u0000x<\u0000"
+    },
+    {
+        "text": "\u0000x>x",
+        "escaped": "\u0000x\\>x",
+        "trailing": "\u0000x>x"
+    },
+    {
+        "text": "\u0000x><",
+        "escaped": "\u0000x\\><",
+        "trailing": "\u0000x><"
+    },
+    {
+        "text": "\u0000x>>",
+        "escaped": "\u0000x\\>>",
+        "trailing": "\u0000x>>"
+    },
+    {
+        "text": "\u0000x>\\",
+        "escaped": "x\\>\u0000\u0000",
+        "trailing": "x>\u0000\u0000"
+    },
+    {
+        "text": "\u0000x>\u0000",
+        "escaped": "\u0000x\\>\u0000",
+        "trailing": "\u0000x>\u0000"
+    },
+    {
+        "text": "\u0000x\\x",
+        "escaped": "\u0000x\\x",
+        "trailing": "\u0000x\\x"
+    },
+    {
+        "text": "\u0000x\\<",
+        "escaped": "\u0000x\\<",
+        "trailing": "\u0000x\\<"
+    },
+    {
+        "text": "\u0000x\\>",
+        "escaped": "\u0000x\\>",
+        "trailing": "\u0000x\\>"
+    },
+    {
+        "text": "\u0000x\\\\",
+        "escaped": "x\u0000\u0000\u0000",
+        "trailing": "x\u0000\u0000\u0000"
+    },
+    {
+        "text": "\u0000x\\\u0000",
+        "escaped": "\u0000x\\\u0000",
+        "trailing": "\u0000x\\\u0000"
+    },
+    {
+        "text": "\u0000x\u0000x",
+        "escaped": "\u0000x\u0000x",
+        "trailing": "\u0000x\u0000x"
+    },
+    {
+        "text": "\u0000x\u0000<",
+        "escaped": "\u0000x\u0000\\<",
+        "trailing": "\u0000x\u0000<"
+    },
+    {
+        "text": "\u0000x\u0000>",
+        "escaped": "\u0000x\u0000\\>",
+        "trailing": "\u0000x\u0000>"
+    },
+    {
+        "text": "\u0000x\u0000\\",
+        "escaped": "x\u0000\u0000\u0000",
+        "trailing": "x\u0000\u0000\u0000"
+    },
+    {
+        "text": "\u0000x\u0000\u0000",
+        "escaped": "\u0000x\u0000\u0000",
+        "trailing": "\u0000x\u0000\u0000"
+    },
+    {
+        "text": "\u0000<xx",
+        "escaped": "\u0000\\<xx",
+        "trailing": "\u0000<xx"
+    },
+    {
+        "text": "\u0000<x<",
+        "escaped": "\u0000\\<x\\<",
+        "trailing": "\u0000<x<"
+    },
+    {
+        "text": "\u0000<x>",
+        "escaped": "\u0000\\<x\\>",
+        "trailing": "\u0000<x>"
+    },
+    {
+        "text": "\u0000<x\\",
+        "escaped": "\\<x\u0000\u0000",
+        "trailing": "<x\u0000\u0000"
+    },
+    {
+        "text": "\u0000<x\u0000",
+        "escaped": "\u0000\\<x\u0000",
+        "trailing": "\u0000<x\u0000"
+    },
+    {
+        "text": "\u0000<<x",
+        "escaped": "\u0000\\<<x",
+        "trailing": "\u0000<<x"
+    },
+    {
+        "text": "\u0000<<<",
+        "escaped": "\u0000\\<<\\<",
+        "trailing": "\u0000<<<"
+    },
+    {
+        "text": "\u0000<<>",
+        "escaped": "\u0000\\<<\\>",
+        "trailing": "\u0000<<>"
+    },
+    {
+        "text": "\u0000<<\\",
+        "escaped": "\\<<\u0000\u0000",
+        "trailing": "<<\u0000\u0000"
+    },
+    {
+        "text": "\u0000<<\u0000",
+        "escaped": "\u0000\\<<\u0000",
+        "trailing": "\u0000<<\u0000"
+    },
+    {
+        "text": "\u0000<>x",
+        "escaped": "\u0000\\<>x",
+        "trailing": "\u0000<>x"
+    },
+    {
+        "text": "\u0000<><",
+        "escaped": "\u0000\\<>\\<",
+        "trailing": "\u0000<><"
+    },
+    {
+        "text": "\u0000<>>",
+        "escaped": "\u0000\\<>\\>",
+        "trailing": "\u0000<>>"
+    },
+    {
+        "text": "\u0000<>\\",
+        "escaped": "\\<>\u0000\u0000",
+        "trailing": "<>\u0000\u0000"
+    },
+    {
+        "text": "\u0000<>\u0000",
+        "escaped": "\u0000\\<>\u0000",
+        "trailing": "\u0000<>\u0000"
+    },
+    {
+        "text": "\u0000<\\x",
+        "escaped": "\u0000\\<\\x",
+        "trailing": "\u0000<\\x"
+    },
+    {
+        "text": "\u0000<\\<",
+        "escaped": "\u0000\\<\\<",
+        "trailing": "\u0000<\\<"
+    },
+    {
+        "text": "\u0000<\\>",
+        "escaped": "\u0000\\<\\>",
+        "trailing": "\u0000<\\>"
+    },
+    {
+        "text": "\u0000<\\\\",
+        "escaped": "\\<\u0000\u0000\u0000",
+        "trailing": "<\u0000\u0000\u0000"
+    },
+    {
+        "text": "\u0000<\\\u0000",
+        "escaped": "\u0000\\<\\\u0000",
+        "trailing": "\u0000<\\\u0000"
+    },
+    {
+        "text": "\u0000<\u0000x",
+        "escaped": "\u0000\\<\u0000x",
+        "trailing": "\u0000<\u0000x"
+    },
+    {
+        "text": "\u0000<\u0000<",
+        "escaped": "\u0000\\<\u0000\\<",
+        "trailing": "\u0000<\u0000<"
+    },
+    {
+        "text": "\u0000<\u0000>",
+        "escaped": "\u0000\\<\u0000\\>",
+        "trailing": "\u0000<\u0000>"
+    },
+    {
+        "text": "\u0000<\u0000\\",
+        "escaped": "\\<\u0000\u0000\u0000",
+        "trailing": "<\u0000\u0000\u0000"
+    },
+    {
+        "text": "\u0000<\u0000\u0000",
+        "escaped": "\u0000\\<\u0000\u0000",
+        "trailing": "\u0000<\u0000\u0000"
+    },
+    {
+        "text": "\u0000>xx",
+        "escaped": "\u0000\\>xx",
+        "trailing": "\u0000>xx"
+    },
+    {
+        "text": "\u0000>x<",
+        "escaped": "\u0000\\>x\\<",
+        "trailing": "\u0000>x<"
+    },
+    {
+        "text": "\u0000>x>",
+        "escaped": "\u0000\\>x\\>",
+        "trailing": "\u0000>x>"
+    },
+    {
+        "text": "\u0000>x\\",
+        "escaped": "\\>x\u0000\u0000",
+        "trailing": ">x\u0000\u0000"
+    },
+    {
+        "text": "\u0000>x\u0000",
+        "escaped": "\u0000\\>x\u0000",
+        "trailing": "\u0000>x\u0000"
+    },
+    {
+        "text": "\u0000><x",
+        "escaped": "\u0000\\><x",
+        "trailing": "\u0000><x"
+    },
+    {
+        "text": "\u0000><<",
+        "escaped": "\u0000\\><\\<",
+        "trailing": "\u0000><<"
+    },
+    {
+        "text": "\u0000><>",
+        "escaped": "\u0000\\><\\>",
+        "trailing": "\u0000><>"
+    },
+    {
+        "text": "\u0000><\\",
+        "escaped": "\\><\u0000\u0000",
+        "trailing": "><\u0000\u0000"
+    },
+    {
+        "text": "\u0000><\u0000",
+        "escaped": "\u0000\\><\u0000",
+        "trailing": "\u0000><\u0000"
+    },
+    {
+        "text": "\u0000>>x",
+        "escaped": "\u0000\\>>x",
+        "trailing": "\u0000>>x"
+    },
+    {
+        "text": "\u0000>><",
+        "escaped": "\u0000\\>>\\<",
+        "trailing": "\u0000>><"
+    },
+    {
+        "text": "\u0000>>>",
+        "escaped": "\u0000\\>>\\>",
+        "trailing": "\u0000>>>"
+    },
+    {
+        "text": "\u0000>>\\",
+        "escaped": "\\>>\u0000\u0000",
+        "trailing": ">>\u0000\u0000"
+    },
+    {
+        "text": "\u0000>>\u0000",
+        "escaped": "\u0000\\>>\u0000",
+        "trailing": "\u0000>>\u0000"
+    },
+    {
+        "text": "\u0000>\\x",
+        "escaped": "\u0000\\>\\x",
+        "trailing": "\u0000>\\x"
+    },
+    {
+        "text": "\u0000>\\<",
+        "escaped": "\u0000\\>\\<",
+        "trailing": "\u0000>\\<"
+    },
+    {
+        "text": "\u0000>\\>",
+        "escaped": "\u0000\\>\\>",
+        "trailing": "\u0000>\\>"
+    },
+    {
+        "text": "\u0000>\\\\",
+        "escaped": "\\>\u0000\u0000\u0000",
+        "trailing": ">\u0000\u0000\u0000"
+    },
+    {
+        "text": "\u0000>\\\u0000",
+        "escaped": "\u0000\\>\\\u0000",
+        "trailing": "\u0000>\\\u0000"
+    },
+    {
+        "text": "\u0000>\u0000x",
+        "escaped": "\u0000\\>\u0000x",
+        "trailing": "\u0000>\u0000x"
+    },
+    {
+        "text": "\u0000>\u0000<",
+        "escaped": "\u0000\\>\u0000\\<",
+        "trailing": "\u0000>\u0000<"
+    },
+    {
+        "text": "\u0000>\u0000>",
+        "escaped": "\u0000\\>\u0000\\>",
+        "trailing": "\u0000>\u0000>"
+    },
+    {
+        "text": "\u0000>\u0000\\",
+        "escaped": "\\>\u0000\u0000\u0000",
+        "trailing": ">\u0000\u0000\u0000"
+    },
+    {
+        "text": "\u0000>\u0000\u0000",
+        "escaped": "\u0000\\>\u0000\u0000",
+        "trailing": "\u0000>\u0000\u0000"
+    },
+    {
+        "text": "\u0000\\xx",
+        "escaped": "\u0000\\xx",
+        "trailing": "\u0000\\xx"
+    },
+    {
+        "text": "\u0000\\x<",
+        "escaped": "\u0000\\x\\<",
+        "trailing": "\u0000\\x<"
+    },
+    {
+        "text": "\u0000\\x>",
+        "escaped": "\u0000\\x\\>",
+        "trailing": "\u0000\\x>"
+    },
+    {
+        "text": "\u0000\\x\\",
+        "escaped": "\\x\u0000\u0000",
+        "trailing": "\\x\u0000\u0000"
+    },
+    {
+        "text": "\u0000\\x\u0000",
+        "escaped": "\u0000\\x\u0000",
+        "trailing": "\u0000\\x\u0000"
+    },
+    {
+        "text": "\u0000\\<x",
+        "escaped": "\u0000\\<x",
+        "trailing": "\u0000\\<x"
+    },
+    {
+        "text": "\u0000\\<<",
+        "escaped": "\u0000\\<\\<",
+        "trailing": "\u0000\\<<"
+    },
+    {
+        "text": "\u0000\\<>",
+        "escaped": "\u0000\\<\\>",
+        "trailing": "\u0000\\<>"
+    },
+    {
+        "text": "\u0000\\<\\",
+        "escaped": "\\<\u0000\u0000",
+        "trailing": "\\<\u0000\u0000"
+    },
+    {
+        "text": "\u0000\\<\u0000",
+        "escaped": "\u0000\\<\u0000",
+        "trailing": "\u0000\\<\u0000"
+    },
+    {
+        "text": "\u0000\\>x",
+        "escaped": "\u0000\\>x",
+        "trailing": "\u0000\\>x"
+    },
+    {
+        "text": "\u0000\\><",
+        "escaped": "\u0000\\>\\<",
+        "trailing": "\u0000\\><"
+    },
+    {
+        "text": "\u0000\\>>",
+        "escaped": "\u0000\\>\\>",
+        "trailing": "\u0000\\>>"
+    },
+    {
+        "text": "\u0000\\>\\",
+        "escaped": "\\>\u0000\u0000",
+        "trailing": "\\>\u0000\u0000"
+    },
+    {
+        "text": "\u0000\\>\u0000",
+        "escaped": "\u0000\\>\u0000",
+        "trailing": "\u0000\\>\u0000"
+    },
+    {
+        "text": "\u0000\\\\x",
+        "escaped": "\u0000\\\\x",
+        "trailing": "\u0000\\\\x"
+    },
+    {
+        "text": "\u0000\\\\<",
+        "escaped": "\u0000\\\\<",
+        "trailing": "\u0000\\\\<"
+    },
+    {
+        "text": "\u0000\\\\>",
+        "escaped": "\u0000\\\\>",
+        "trailing": "\u0000\\\\>"
+    },
+    {
+        "text": "\u0000\\\\\\",
+        "escaped": "\u0000\u0000\u0000\u0000",
+        "trailing": "\u0000\u0000\u0000\u0000"
+    },
+    {
+        "text": "\u0000\\\\\u0000",
+        "escaped": "\u0000\\\\\u0000",
+        "trailing": "\u0000\\\\\u0000"
+    },
+    {
+        "text": "\u0000\\\u0000x",
+        "escaped": "\u0000\\\u0000x",
+        "trailing": "\u0000\\\u0000x"
+    },
+    {
+        "text": "\u0000\\\u0000<",
+        "escaped": "\u0000\\\u0000\\<",
+        "trailing": "\u0000\\\u0000<"
+    },
+    {
+        "text": "\u0000\\\u0000>",
+        "escaped": "\u0000\\\u0000\\>",
+        "trailing": "\u0000\\\u0000>"
+    },
+    {
+        "text": "\u0000\\\u0000\\",
+        "escaped": "\\\u0000\u0000\u0000",
+        "trailing": "\\\u0000\u0000\u0000"
+    },
+    {
+        "text": "\u0000\\\u0000\u0000",
+        "escaped": "\u0000\\\u0000\u0000",
+        "trailing": "\u0000\\\u0000\u0000"
+    },
+    {
+        "text": "\u0000\u0000xx",
+        "escaped": "\u0000\u0000xx",
+        "trailing": "\u0000\u0000xx"
+    },
+    {
+        "text": "\u0000\u0000x<",
+        "escaped": "\u0000\u0000x\\<",
+        "trailing": "\u0000\u0000x<"
+    },
+    {
+        "text": "\u0000\u0000x>",
+        "escaped": "\u0000\u0000x\\>",
+        "trailing": "\u0000\u0000x>"
+    },
+    {
+        "text": "\u0000\u0000x\\",
+        "escaped": "x\u0000\u0000\u0000",
+        "trailing": "x\u0000\u0000\u0000"
+    },
+    {
+        "text": "\u0000\u0000x\u0000",
+        "escaped": "\u0000\u0000x\u0000",
+        "trailing": "\u0000\u0000x\u0000"
+    },
+    {
+        "text": "\u0000\u0000<x",
+        "escaped": "\u0000\u0000\\<x",
+        "trailing": "\u0000\u0000<x"
+    },
+    {
+        "text": "\u0000\u0000<<",
+        "escaped": "\u0000\u0000\\<<",
+        "trailing": "\u0000\u0000<<"
+    },
+    {
+        "text": "\u0000\u0000<>",
+        "escaped": "\u0000\u0000\\<>",
+        "trailing": "\u0000\u0000<>"
+    },
+    {
+        "text": "\u0000\u0000<\\",
+        "escaped": "\\<\u0000\u0000\u0000",
+        "trailing": "<\u0000\u0000\u0000"
+    },
+    {
+        "text": "\u0000\u0000<\u0000",
+        "escaped": "\u0000\u0000\\<\u0000",
+        "trailing": "\u0000\u0000<\u0000"
+    },
+    {
+        "text": "\u0000\u0000>x",
+        "escaped": "\u0000\u0000\\>x",
+        "trailing": "\u0000\u0000>x"
+    },
+    {
+        "text": "\u0000\u0000><",
+        "escaped": "\u0000\u0000\\><",
+        "trailing": "\u0000\u0000><"
+    },
+    {
+        "text": "\u0000\u0000>>",
+        "escaped": "\u0000\u0000\\>>",
+        "trailing": "\u0000\u0000>>"
+    },
+    {
+        "text": "\u0000\u0000>\\",
+        "escaped": "\\>\u0000\u0000\u0000",
+        "trailing": ">\u0000\u0000\u0000"
+    },
+    {
+        "text": "\u0000\u0000>\u0000",
+        "escaped": "\u0000\u0000\\>\u0000",
+        "trailing": "\u0000\u0000>\u0000"
+    },
+    {
+        "text": "\u0000\u0000\\x",
+        "escaped": "\u0000\u0000\\x",
+        "trailing": "\u0000\u0000\\x"
+    },
+    {
+        "text": "\u0000\u0000\\<",
+        "escaped": "\u0000\u0000\\<",
+        "trailing": "\u0000\u0000\\<"
+    },
+    {
+        "text": "\u0000\u0000\\>",
+        "escaped": "\u0000\u0000\\>",
+        "trailing": "\u0000\u0000\\>"
+    },
+    {
+        "text": "\u0000\u0000\\\\",
+        "escaped": "\u0000\u0000\u0000\u0000",
+        "trailing": "\u0000\u0000\u0000\u0000"
+    },
+    {
+        "text": "\u0000\u0000\\\u0000",
+        "escaped": "\u0000\u0000\\\u0000",
+        "trailing": "\u0000\u0000\\\u0000"
+    },
+    {
+        "text": "\u0000\u0000\u0000x",
+        "escaped": "\u0000\u0000\u0000x",
+        "trailing": "\u0000\u0000\u0000x"
+    },
+    {
+        "text": "\u0000\u0000\u0000<",
+        "escaped": "\u0000\u0000\u0000\\<",
+        "trailing": "\u0000\u0000\u0000<"
+    },
+    {
+        "text": "\u0000\u0000\u0000>",
+        "escaped": "\u0000\u0000\u0000\\>",
+        "trailing": "\u0000\u0000\u0000>"
+    },
+    {
+        "text": "\u0000\u0000\u0000\\",
+        "escaped": "\u0000\u0000\u0000\u0000",
+        "trailing": "\u0000\u0000\u0000\u0000"
+    },
+    {
+        "text": "\u0000\u0000\u0000\u0000",
+        "escaped": "\u0000\u0000\u0000\u0000",
+        "trailing": "\u0000\u0000\u0000\u0000"
+    }
+]

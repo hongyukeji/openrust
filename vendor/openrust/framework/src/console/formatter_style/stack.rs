@@ -3,8 +3,8 @@ use std::sync::Arc;
 /// 样式栈保留对象引用；克隆栈不复制其中的样式对象。
 #[derive(Clone)]
 pub struct OutputFormatterStyleStack {
-    styles: Vec<FormatterStyle>,
-    empty: FormatterStyle,
+    pub(super) styles: Vec<FormatterStyle>,
+    pub(super) empty: FormatterStyle,
 }
 impl Default for OutputFormatterStyleStack {
     fn default() -> Self {
