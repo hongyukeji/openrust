@@ -54,5 +54,6 @@
   "revoke_api_token": "撤销令牌",
   "tokens_empty": "暂无 API 令牌。",
   "token_revoked": "API 令牌已撤销。",
-  "tokens_creation_disabled": "当前没有可授予的令牌能力，仍可撤销已有令牌。"
+  "tokens_creation_disabled": "当前没有可授予的令牌能力，仍可撤销已有令牌。",
+  "resources_pruned": "已清理 :count 条已完成的用户资源清理记录。"
 }

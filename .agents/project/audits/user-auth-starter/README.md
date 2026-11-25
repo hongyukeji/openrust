@@ -474,3 +474,20 @@ GET页面仅含安全元数据。POST原生表单创建后201展示一次明文�
 - token-web-docs-final.log：三语站点构建及12组两挂载／桌面移动检查通过，token-management-page可见、正文与公开路径完整、无页面异常／横向溢出。
 
 本批仅闭合个人令牌网页的上述入口，不把整个A01-03／04计完成。无Sanctum实际HTTP在本批仅复用前单元12项及本批默认feature编译证据，最终S10组合仍须复核；头像、可恢复注销、可选因素及完整安装矩阵继续。生产账号／设备验收独立跟踪。显式清单／SHA及空间记录为token-web-files.json、token-web-final-source-sha.json、token-web-delivery-space.json；保留源码、证据、数据和正常复用缓存，未推送。
+
+## A01-03／05 用户资源清理前置
+
+复用主线已提交def7278d7的QueueManager::dispatch_in_database_transaction，不重建outbox／轮询器／租约。旧版同名foundation::ResourceCleanup负责进程内资源作用域结束，不是用户文件清理，不能因同名而移植；未找到旧版同契约DeleteUser／profile_photo流程。本单元提供已安装套件的ResourceCleanup服务、000024账本迁移、专用任务及auth:prune-user-cleanups，头像与注销HTTP动作尚未消费，仍不能标记A01-03闭合。
+
+清理账本和原生数据库队列在同一用户事务写入，专用user.cleanup.connection默认database／queue默认user-resources，不改变全应用默认队列（其他任务仍可用Redis）。严格派发拒绝同步、Redis、自定义替换或其他连接冒充同库原子。保存随机收据摘要，原文只交付一次；队列仅含操作ID、连接名称和范围摘要，Worker读取自己的数据库／磁盘配置。收据七天有效，仅返回有限pending／failed／completed及文件数，不依赖用户仍存在；文件路径不能作为公开状态返回。只接受profile-photos目录内独占随机文件名，禁止重新使用路径。所有账本读取显式use_write_pdo，避免副本延迟误判任务不存在；本批没有配置真实只读副本端点，不冒称副本专项实测。
+
+Native Worker删除幂等，完成后重复任务为no-op；文件失败由原生重试／失败记录恢复，failed回调不覆盖已完成状态。只有completed且收据已到期的记录可被prune移除，pending／failed继续保留，命令不删除外部文件或用户。独立应用共用jobs表需具名队列隔离；同一应用节点须共享存储和数据库配置。生成config/user.rs包含USER_CLEANUP_CONNECTION／USER_CLEANUP_QUEUE默认值，既有配置需手动合并。
+
+实际证据target/tmp/user-starter：
+
+- resource-cleanup-final-regression.log：64项套件、13项安装、6项配置通过及fmt。resource-cleanup-delivery-gates.log：新增3项、workspace与Fortify+Sanctum两组严格Clippy通过。
+- resource-cleanup-delivery-gates.log的SQLite／MySQL8.4.13／PostgreSQL18.7各3项实跑，包含实际迁移模板经公开Migrator首次、重复、回滚、重建（不是镜像Schema），原生Artisan::call(queue:work)实际消费、账本与jobs一起回滚、凭据／路径不进队列、错误收据拒绝、重复派发、已删除User后失败收据仍可查、恢复后重投完成，以及原生prune命令。Worker为真实原生消费但在测试进程内，尚不是新进程强制终止验收；提交前后强杀将在头像／注销最终消费者中继续。
+- MySQL曾真实复现1059：长DB_PREFIX使自动owner_hash索引名称超过64字符。resource-cleanup-mysql-diagnostic.log保留原错；仅迁移使用Blueprint::get_prefix()配合短显式索引名，保留PostgreSQL前缀隔离，不修改全局Schema命名。native Migrator测试首轮传入相对过滤路径而筛掉全部迁移，已改为根目录下的绝对路径；上述最终矩阵使用修正后测试。
+- resource-cleanup-docs.log：三语站点构建及12组两挂载／桌面移动页面通过，无页面异常或横向溢出，说明后台Worker、升级配置、范围及尚未交付的消费者。
+
+冻结组合基于38285b7c1及此前已提交主线83个路径更新，未吸收Root在途Pulse／Webhooks／Cargo.lock。实际通过不代表其他协作者未提交功能已通过。源码清单／SHA及清理空间见resource-cleanup-files.json、resource-cleanup-final-source-sha.json、resource-cleanup-delivery-space.json。只清理本批文档输出，保留记录、源码、数据库／数据卷和可复用Cargo缓存，不推送。

@@ -16,6 +16,8 @@ pub mod confirmation;
 mod mail_queue;
 mod messages;
 #[cfg(feature = "sanctum")]
+pub mod resource_cleanup;
+#[cfg(feature = "sanctum")]
 mod token_web;
 pub use mail_queue::configure_mail_queue;
 mod password_tokens;

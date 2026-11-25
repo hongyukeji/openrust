@@ -429,3 +429,22 @@ curl -X DELETE "$APP_URL/api/user/sessions/<opaque-device-id>"   -H "Authorizati
 每个令牌含撤销表单，通过标准方法覆盖请求 `DELETE /user/api-tokens/{token}`。撤销同样要求近期确认及 CSRF，在用户锁内核对本人归属后重定向并显示本地化状态，不退出当前浏览器。应用可修改发布的 `resources/views/user/api-tokens.blade.html`，不必替换底层认证契约。
 
 服务端能力白名单为空时，页面关闭新建令牌，仍保留已有令牌的撤销入口。
+
+## 可靠资源清理 {#resource-cleanup}
+
+安装的套件提供 `openrust_fortify::starter::resource_cleanup::ResourceCleanup`，供可信的应用 Action 使用。这是头像替换与账户注销共用的后端；对应 HTTP 操作仍按[支持状态](#support-status)继续开发，单独安装此服务不会增加那些操作。
+
+清理账本和原生数据库队列任务在本人事务中一起写入；回滚会保留原有资源。sync、Redis、被替换的 database 处理器或其他数据库连接无法提供该保证，该清理队列会明确拒绝，不修改应用默认队列，其他任务仍可使用 Redis。生成的 `config/user.rs` 默认选择 `USER_CLEANUP_CONNECTION=database`、`USER_CLEANUP_QUEUE=user-resources`。User 数据库须具有标准 jobs 表；自定义 User 连接时，配置专用的同库数据库队列连接。
+
+```sh
+./artisan queue:work database --queue=user-resources --tries=3 --backoff=5
+./artisan auth:prune-user-cleanups
+# 队列配置变化后，可显式指定记录所属连接：
+./artisan auth:prune-user-cleanups --database=mysql
+```
+
+Worker 命令须使用配置后的连接和队列名称。多个独立应用共用 jobs 表时应使用不同队列名；同一应用的多个节点须共享存储和数据库配置。Worker 从自己的文件系统配置读取凭据，队列载荷不含凭据。升级时保留应用配置，须先合并新 `cleanup` 配置组，再使用对应环境变量覆盖。
+
+Action 先核对本人归属与近期认证，再在提供的用户事务内调用 `ResourceCleanup::enqueue`。仅接受套件 `profile-photos/` 目录中的独占随机文件名，不能把同一路径重新用于另一张图片。返回的收据明文只交付一次，数据库只保存摘要。`ResourceCleanup::status` 只返回 `pending`、`failed` 或 `completed` 等有限状态，不公开用户资料或内部文件路径，也不依赖 User 仍然存在。收据七天后过期。存储删除失败仍可追踪，可用原生 Worker 重试或 `queue:retry` 恢复；重复投递保持幂等，不假装 SQL 和对象存储拥有共同事务。
+
+记录清理命令只删除收据已过期的完成记录，保留待处理和失败任务、用户、令牌及外部文件。命令幂等，可由正常调度器定期执行。真正注销、文件存储故障恢复及 HTTP 收据交付，还会随消费此服务的 Action 单独验收。

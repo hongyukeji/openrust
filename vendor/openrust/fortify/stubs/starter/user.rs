@@ -43,6 +43,20 @@ pub(super) fn load(env: &Environment) -> Result<Value, ConfigError> {
         "devices": {"enabled": get(env, "USER_DEVICES", true)?},
         /*
         |--------------------------------------------------------------------------
+        | 用户资源清理
+        |--------------------------------------------------------------------------
+        |
+        | 头像替换与账户注销的清理任务使用同库数据库队列，和用户更改一起提交。
+        | USER_CLEANUP_CONNECTION默认database，USER_CLEANUP_QUEUE默认user-resources。
+        | 不改变应用默认队列；使用该连接和具名队列启动Worker。
+        |
+        */
+        "cleanup": {
+            "connection": get(env, "USER_CLEANUP_CONNECTION", "database")?,
+            "queue": get(env, "USER_CLEANUP_QUEUE", "user-resources")?,
+        },
+        /*
+        |--------------------------------------------------------------------------
         | 认证邮件队列
         |--------------------------------------------------------------------------
         |

@@ -6,6 +6,9 @@ mod installed;
 #[path = "../stubs/fortify_service_provider.rs"]
 mod installed_provider;
 #[cfg(feature = "sanctum")]
+#[path = "../stubs/starter/migrations/resource-cleanups.rs"]
+mod resource_cleanup_migration;
+#[cfg(feature = "sanctum")]
 #[path = "../stubs/starter/migrations/token-credentials.rs"]
 mod token_credential_migration;
 #[cfg(feature = "sanctum")]
@@ -1156,6 +1159,7 @@ fn published_credential_migrations_implement_native_migration_contract() {
     migration(user_credential_migration::Definition);
     migration(token_credential_migration::Definition);
     migration(auth_challenge_migration::Definition);
+    migration(resource_cleanup_migration::Definition);
 }
 
 #[cfg(feature = "sanctum")]
@@ -5236,3 +5240,7 @@ async fn form_request(client: &mut Client, path: &str, body: &str) -> (u16, Stri
         (status,headers.into(),body.into())
     }).await.unwrap()
 }
+
+#[cfg(feature = "sanctum")]
+#[path = "starter_ui/resource_cleanup.rs"]
+mod resource_cleanup;

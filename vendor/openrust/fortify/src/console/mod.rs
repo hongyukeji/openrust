@@ -9,3 +9,6 @@ pub(crate) mod prune_auth_challenges;
 
 #[cfg(feature = "sanctum")]
 pub(crate) mod prune_browser_sessions;
+
+#[cfg(feature = "sanctum")]
+pub(crate) mod prune_user_cleanups;

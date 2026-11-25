@@ -429,3 +429,22 @@ The resulting page displays the plain-text token once. Copy it immediately and s
 Each token has a revoke form targeting `DELETE /user/api-tokens/{token}` through the standard method override. It requires the same recent confirmation and CSRF protection, verifies ownership under the user lock, then redirects with a localized status. Revocation does not log out the current browser. Applications may customize the published `resources/views/user/api-tokens.blade.html` without replacing the underlying authentication contract.
 
 An empty server ability whitelist disables new token creation on the page while leaving existing-token revocation available.
+
+## Reliable resource cleanup {#resource-cleanup}
+
+The installed kit includes `openrust_fortify::starter::resource_cleanup::ResourceCleanup` for trusted application actions. This is the shared backend for profile-photo replacement and account deletion; their HTTP actions remain under development as described in [support status](#support-status). Installing this service alone does not add those operations.
+
+The cleanup ledger and a native database queue job are written in the same user transaction. A rollback preserves the previous resources. Sync, Redis, a replaced database handler or a different database connection cannot provide this guarantee and are rejected for this queue. This does not change the application's default queue: other jobs may continue using Redis. Generated `config/user.rs` selects `USER_CLEANUP_CONNECTION=database` and `USER_CLEANUP_QUEUE=user-resources` by default; create the normal jobs table on the User database and use a dedicated same-database queue connection for custom User connections.
+
+```sh
+./artisan queue:work database --queue=user-resources --tries=3 --backoff=5
+./artisan auth:prune-user-cleanups
+# Explicit connection when the queue configuration has changed:
+./artisan auth:prune-user-cleanups --database=mysql
+```
+
+Use the configured connection and queue names in the Worker command. Separate applications sharing a jobs table must use separate queue names; nodes of the same application must share their storage and database configuration. Workers read their own filesystem credentials, not credentials from a queue payload. Published application configuration is preserved on upgrades: merge the new `cleanup` group before overriding its environment variables.
+
+An action calls `ResourceCleanup::enqueue` only after checking ownership and recent authentication, inside the supplied user transaction. Only independently named files in the kit's `profile-photos/` namespace are accepted; do not reuse their paths for another upload. The returned receipt is shown once, while only its hash is stored. `ResourceCleanup::status` returns limited `pending`, `failed` or `completed` state without personal information or file paths, and does not need a still-existing User. Receipts expire after seven days. A failed storage deletion remains trackable; native Worker retries or `queue:retry` can complete it. Duplicate delivery is safe because the operation and file deletion are idempotent. This is not a transaction across SQL and object storage.
+
+The prune command only removes completed records after receipt expiry; it keeps pending and failed work, users, tokens and external files. It is idempotent and may be scheduled through the normal scheduler. Actual account deletion, file-store failure recovery and HTTP receipt delivery are verified separately with the actions that consume this service.

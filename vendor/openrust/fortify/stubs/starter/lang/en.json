@@ -54,5 +54,6 @@
   "revoke_api_token": "Revoke token",
   "tokens_empty": "No API tokens.",
   "token_revoked": "API token revoked.",
-  "tokens_creation_disabled": "No token abilities are available. You can still revoke existing tokens."
+  "tokens_creation_disabled": "No token abilities are available. You can still revoke existing tokens.",
+  "resources_pruned": "Pruned :count completed user resource cleanup records."
 }

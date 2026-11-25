@@ -429,3 +429,22 @@ curl -X DELETE "$APP_URL/api/user/sessions/<opaque-device-id>"   -H "Authorizati
 每個權杖含撤銷表單，透過標準方法覆寫請求 `DELETE /user/api-tokens/{token}`。撤銷同樣要求近期確認及 CSRF，在使用者鎖內核對本人歸屬後重新導向並顯示本地化狀態，不登出目前瀏覽器。應用可修改發布的 `resources/views/user/api-tokens.blade.html`，不必替換底層認證契約。
 
 伺服器能力白名單為空時，頁面關閉新建權杖，仍保留已有權杖的撤銷入口。
+
+## 可靠資源清理 {#resource-cleanup}
+
+安裝的套件提供 `openrust_fortify::starter::resource_cleanup::ResourceCleanup`，供可信的應用 Action 使用。這是頭像替換與帳戶註銷共用的後端；對應 HTTP 操作仍按[支援狀態](#support-status)繼續開發，單獨安裝此服務不會增加那些操作。
+
+清理帳本和原生資料庫佇列任務在本人交易中一起寫入；回滾會保留原有資源。sync、Redis、被替換的 database 處理器或其他資料庫連線無法提供該保證，該清理佇列會明確拒絕，不修改應用預設佇列，其他任務仍可使用 Redis。產生的 `config/user.rs` 預設選擇 `USER_CLEANUP_CONNECTION=database`、`USER_CLEANUP_QUEUE=user-resources`。User 資料庫須具有標準 jobs 資料表；自訂 User 連線時，設定專用的同庫資料庫佇列連線。
+
+```sh
+./artisan queue:work database --queue=user-resources --tries=3 --backoff=5
+./artisan auth:prune-user-cleanups
+# 佇列設定變化後，可明確指定紀錄所屬連線：
+./artisan auth:prune-user-cleanups --database=mysql
+```
+
+Worker 命令須使用設定後的連線和佇列名稱。多個獨立應用共用 jobs 資料表時應使用不同佇列名稱；同一應用的多個節點須共用儲存和資料庫設定。Worker 從自己的檔案系統設定讀取憑據，佇列載荷不含憑據。升級時保留應用設定，須先合併新 `cleanup` 設定群組，再使用對應環境變數覆寫。
+
+Action 先核對本人歸屬與近期認證，再在提供的使用者交易內呼叫 `ResourceCleanup::enqueue`。僅接受套件 `profile-photos/` 目錄中的獨占隨機檔名，不能把同一路徑重新用於另一張圖片。回傳的收據明文只交付一次，資料庫只保存摘要。`ResourceCleanup::status` 只回傳 `pending`、`failed` 或 `completed` 等有限狀態，不公開使用者資料或內部檔案路徑，也不依賴 User 仍然存在。收據七天後過期。儲存刪除失敗仍可追蹤，可用原生 Worker 重試或 `queue:retry` 恢復；重複投遞保持冪等，不假裝 SQL 和物件儲存擁有共同交易。
+
+紀錄清理命令只刪除收據已過期的完成紀錄，保留待處理和失敗任務、使用者、權杖及外部檔案。命令冪等，可由正常排程器定期執行。真正註銷、檔案儲存故障恢復及 HTTP 收據交付，還會隨消費此服務的 Action 單獨驗收。

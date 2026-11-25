@@ -571,6 +571,7 @@ where
     use openrust::support::ServiceProvider as _;
     super::configure_mail_queue::<M>(app)?;
     super::credentials::scope_for::<M>(app)?;
+    super::resource_cleanup::configure::<M>(app)?;
     super::devices::configure::<M>(app)?;
     super::bind_password_tokens::<M>(app)?;
     super::web::register::<M>(app)?;

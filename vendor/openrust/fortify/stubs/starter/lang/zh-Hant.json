@@ -54,5 +54,6 @@
   "revoke_api_token": "撤銷權杖",
   "tokens_empty": "暫無 API 權杖。",
   "token_revoked": "API 權杖已撤銷。",
-  "tokens_creation_disabled": "目前沒有可授予的權杖能力，仍可撤銷已有權杖。"
+  "tokens_creation_disabled": "目前沒有可授予的權杖能力，仍可撤銷已有權杖。",
+  "resources_pruned": "已清理 :count 筆已完成的使用者資源清理紀錄。"
 }
