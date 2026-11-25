@@ -935,6 +935,18 @@ pub(super) fn group_route(request: &mut Request) -> HttpFuture<'_, Result<Respon
                         .unwrap_or("content-v1");
                     withdraw_revision("app", tenant, content, revision).await
                 }
+                Some("purge") => {
+                    let actor = request.header("x-fixture-actor")?;
+                    if actor != Some("moderator-withdraw") {
+                        return provider_response(Err(ModerationError::Unauthorized));
+                    }
+                    let target = if request.header("x-fixture-review-unit")? == Some("single") {
+                        VideoReviewTarget::Single(id)
+                    } else {
+                        VideoReviewTarget::Group(id)
+                    };
+                    purge_review("app", tenant, target).await
+                }
                 Some("decision" | "record") => match decision_operation(request, tenant, id) {
                     Ok(operation) => operation.await,
                     Err(error) => Err(error),
@@ -1179,6 +1191,16 @@ async fn withdraw_revision(
     let store = review_store(application, tenant)?;
     let withdrawn_at = store.withdraw_video_revision(content_id, revision).await?;
     Ok(json!({"withdrawn_at": withdrawn_at}))
+}
+
+async fn purge_review(
+    application: &str,
+    tenant: &str,
+    target: VideoReviewTarget<'_>,
+) -> ModerationResult<Value> {
+    let store = review_store(application, tenant)?;
+    let deleted = store.purge_withdrawn_video(target, 120).await?;
+    Ok(json!({"deleted": deleted}))
 }
 
 async fn stage_review(
@@ -1446,6 +1468,8 @@ pub(super) fn register_command(artisan: &mut Artisan) -> Result<(), ConsoleError
                 "group-decision",
                 "review-decision",
                 "withdraw-revision",
+                "purge-review",
+                "purge-group",
             ]))
             .arg(clap::Arg::new("application").required(true))
             .arg(clap::Arg::new("tenant").required(true))
@@ -1641,6 +1665,16 @@ impl Command for ReviewProbe {
                 )
                 .await
                 .map_err(ConsoleError::from_source)?,
+                "purge-review" | "purge-group" => {
+                    let target = if action == "purge-group" {
+                        VideoReviewTarget::Group(&reference.id)
+                    } else {
+                        VideoReviewTarget::Single(&reference.id)
+                    };
+                    purge_review(&reference.application, &reference.tenant, target)
+                        .await
+                        .map_err(ConsoleError::from_source)?
+                }
                 "submit" => submit_review(&reference.application, &reference.tenant, &reference.id)
                     .await
                     .map_err(ConsoleError::from_source)?,

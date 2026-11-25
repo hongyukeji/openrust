@@ -56,6 +56,14 @@ impl CallbackConfirmation {
         task: TaskId,
     ) -> Result<WebhookProcessingOutcome> {
         use WebhookProcessingOutcome::{Completed, Deferred, PermanentFailure};
+        if self
+            .store
+            .has_video_tombstone(self.driver, &self.account, &task)
+            .await
+            .map_err(storage_error)?
+        {
+            return Ok(Completed);
+        }
         let review = match self
             .store
             .find_provider_task(self.driver, &self.account, &task)

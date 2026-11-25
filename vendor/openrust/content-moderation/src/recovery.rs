@@ -129,6 +129,35 @@ pub(crate) fn register_command() -> Result<(), ConsoleError> {
             })
         }),
     )?;
+    Artisan::command_with(
+        "moderation:prune-tombstones {application} {tenant} {--database=} {--limit=100}",
+        AsyncCommandCallback::new(|_, input, output| {
+            Box::pin(async move {
+                let application = argument(input, "application")?;
+                let tenant = argument(input, "tenant")?;
+                let limit = option(input, "limit")
+                    .as_deref()
+                    .unwrap_or("100")
+                    .parse::<u32>()
+                    .ok()
+                    .filter(|limit| (1..=1000).contains(limit))
+                    .ok_or_else(|| ConsoleError::new("内容审核墓碑清理数量必须为 1 至 1000"))?;
+                let database = option(input, "database");
+                let connection = Db::connection(database.as_deref())
+                    .map_err(|_| ConsoleError::from_source(ModerationError::ReviewStorage))?;
+                let store = ModerationStore::new(connection, &application, &tenant)
+                    .map_err(ConsoleError::from_source)?;
+                let deleted = store
+                    .prune_video_tombstones(limit)
+                    .await
+                    .map_err(ConsoleError::from_source)?;
+                output
+                    .write_raw(&format!("{{\"deleted\":{deleted}}}\n"))
+                    .map_err(ConsoleError::from_source)?;
+                Ok(0)
+            })
+        }),
+    )?;
     Ok(())
 }
 

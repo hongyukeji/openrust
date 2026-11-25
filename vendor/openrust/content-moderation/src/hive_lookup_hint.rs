@@ -104,6 +104,14 @@ impl WebhookHintPolicy for HiveLookupHint {
                 return Ok(None);
             }
             let task = TaskId::new(notification.id).map_err(storage_error)?;
+            if self
+                .store
+                .has_video_tombstone("hive", self.profile.account(), &task)
+                .await
+                .map_err(storage_error)?
+            {
+                return Ok(None);
+            }
             let result = self
                 .store
                 .find_provider_task("hive", self.profile.account(), &task)

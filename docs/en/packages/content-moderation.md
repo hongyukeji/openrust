@@ -230,6 +230,8 @@ Call `effective_decision` for the same target and the current content ID and rev
 
 When withdrawing or deleting a content revision, authorize the request in the application and call `ModerationStore::withdraw_video_revision` with its exact content ID and revision. A repeated call returns the original withdrawal time. All reviews for that revision in the same application and tenant lose their effective publication decision. Their assessments remain available to authorized audit readers. A new content revision can proceed through its own review. Use cancellation to stop active checks during withdrawal.
 
+To erase the audit data for a withdrawn revision, first let its checks reach a terminal state or cancel them. Then call `ModerationStore::purge_withdrawn_video` with the review target and a retention period of 60 to 604,800 seconds. Select the group when clearing its member checks. Purging removes the assessments, decisions and diagnostics. The store keeps a temporary digest for each known provider task so a late callback can be acknowledged while the digest is retained. Schedule `./artisan moderation:prune-tombstones app tenant --limit=100` to remove expired digests. Webhook Client receipts follow their own retention settings. The revision stays withdrawn.
+
 ### Cancelling a stored video check {#video-review-cancellation}
 
 Call `VideoReviewService::cancel(id)` to freeze a pending or running check. Cancellation uses the database clock and version. A check that has already reached its deadline becomes expired. Late workers cannot replace the cancelled result.

@@ -47,6 +47,8 @@ mod segment_plan_migration;
 mod submission_lease_migration;
 #[path = "../database/migrations/2026_11_26_000014_add_moderation_video_duration.rs"]
 mod video_duration_migration;
+#[path = "../database/migrations/2026_11_26_000018_create_moderation_video_tombstones_table.rs"]
+mod video_tombstones_migration;
 
 pub struct ModerationServiceProvider;
 
@@ -119,6 +121,7 @@ openrust::compiled_migration_assets!("content-moderation";
     "2026_11_26_000015_create_moderation_late_notices_table.rs" => late_notices_migration,
     "2026_11_26_000016_add_moderation_video_segment_plan.rs" => segment_plan_migration,
     "2026_11_26_000017_create_moderation_revision_controls_table.rs" => revision_controls_migration,
+    "2026_11_26_000018_create_moderation_video_tombstones_table.rs" => video_tombstones_migration,
 );
 
 impl ModerationServiceProvider {

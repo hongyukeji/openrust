@@ -230,6 +230,8 @@ let recommendation = result.decision(&[Modality::Text]);
 
 撤回或删除内容修订时，应用鉴权后用准确的内容 ID 和修订调用 `ModerationStore::withdraw_video_revision`。重复调用返回首次撤回时间。同一应用和租户内，该修订的所有审核立即失去有效发布决定，原始评估仍可供授权审计。新内容修订按自身审核结果发布。撤回时需要停止在途检查，可同时调用取消接口。
 
+需要清除已撤回修订的审核数据时，先取消检查或等待终态，再调用 `ModerationStore::purge_withdrawn_video`，传入审核对象和 60–604,800 秒的保留时长。清理子检查时选择整个审核组。清理会删除评估、人工裁决和诊断。已知供应商任务的摘要暂时保留，用于确认迟到回调。可调度 `./artisan moderation:prune-tombstones app tenant --limit=100` 按批删除过期摘要。Webhook Client 接收记录继续遵循自己的保留规则。修订仍处于撤回状态。
+
 ### 取消已保存的点播检查 {#video-review-cancellation}
 
 调用 `VideoReviewService::cancel(id)`，冻结待处理或进行中的检查。取消使用数据库时钟和记录版本，已越过截止时间的检查标记为过期。晚到的 Worker 无法改写取消结果。

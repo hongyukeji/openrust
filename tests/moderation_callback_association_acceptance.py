@@ -29,7 +29,7 @@ ALIYUN_SEEDS = ("aliyun_video_seed_01", "aliyun_video_seed_02", "aliyun_video_se
 ALIYUN_UIDS = ("1234500000000000", "9999900000000000")
 
 
-def exercise(binary, driver, url, root, storage_env, storage, mode, *, test_late=False):
+def exercise(binary, driver, url, root, storage_env, storage, mode, *, test_late=False, test_purge=False):
     version, _, original, _ = VIDEO["versioned_clips"](root, storage)
     tencent, aliyun = mode == "tencent", mode == "aliyun"
     cloud = tencent or aliyun
@@ -124,11 +124,11 @@ def exercise(binary, driver, url, root, storage_env, storage, mode, *, test_late
     else:
         env.pop("DB_URL", None)
 
-    def artisan(*tokens):
+    def artisan(*tokens, successful=True):
         result = subprocess.run([str(binary), "artisan", *tokens], env=env,
                                 capture_output=True, text=True, timeout=35)
         assert all(secret not in result.stdout + result.stderr for secret in protected)
-        assert result.returncode == 0, result.stdout + result.stderr
+        assert (result.returncode == 0) == successful, result.stdout + result.stderr
         return result.stdout
 
     def read(review):
@@ -225,6 +225,64 @@ def exercise(binary, driver, url, root, storage_env, storage, mode, *, test_late
         artisan("schedule:run")
         assert sql("SELECT COUNT(*) FROM jobs") == "0"
 
+    def purge_callback(review):
+        artisan(REVIEW, "purge-review", "app", "tenant", review["id"], successful=False)
+        submitted = json.loads(artisan(REVIEW, "submit", "app", "tenant", review["id"]))
+        assert submitted["submission"]["task"] == task
+        artisan(REVIEW, "withdraw-revision", "app", "tenant", "影片/1", "content-v1")
+        artisan(REVIEW, "purge-review", "app", "tenant", review["id"], successful=False)
+        sql("UPDATE moderation_checks SET available_at = 1 "
+            f"WHERE id = '{review['check_id']}'")
+        assert json.loads(artisan("moderation:recover", "app", "tenant",
+                                  "--queue=moderation-recovery", "--limit=1")) == {"dispatched": 1}
+        cancelled = json.loads(artisan(REVIEW, "cancel", "app", "tenant", review["id"]))
+        assert cancelled["state"] == "Cancelled" and cancelled["provider_cancellation"] == "acknowledged"
+        callback("finished", "before-purge")
+        consume()
+        assert sql("SELECT COUNT(*) FROM moderation_late_notices") == "1"
+        assert json.loads(artisan(REVIEW, "purge-review", "app", "Tenant", review["id"])) == {"deleted": 0}
+        assert json.loads(artisan(REVIEW, "purge-review", "app", "tenant", review["id"])) == {"deleted": 1}
+        assert json.loads(artisan(REVIEW, "purge-review", "app", "tenant", review["id"])) == {"deleted": 0}
+        assert json.loads(artisan(REVIEW, "find", "app", "tenant", review["id"])) is None
+        artisan(REVIEW, "stage", "app", "tenant", "early-callback", version, successful=False)
+        assert sql("SELECT COUNT(*) FROM moderation_late_notices") == "0"
+        assert sql("SELECT COUNT(*) FROM moderation_checks") == sql("SELECT COUNT(*) FROM moderation_reviews") == "0"
+        id_digest, scope = sql("SELECT id, scope_key FROM moderation_video_tombstones").split()
+        assert len(id_digest) == len(scope) == 64 and task not in id_digest
+        artisan("migrate:rollback", "--force",
+                "--path=vendor/openrust/content-moderation/database/migrations/"
+                "2026_11_26_000018_create_moderation_video_tombstones_table.rs", successful=False)
+
+        consume("moderation-recovery")
+        callback("finished", "after-purge-first")
+        consume()
+        callback("finished", "after-purge-again")
+        consume()
+        assert sql("SELECT COUNT(*) FROM webhook_calls WHERE processed_at IS NOT NULL") == "3"
+        assert sql("SELECT COUNT(*) FROM moderation_reviews") == "0" and not queried()
+
+        other = json.loads(artisan(REVIEW, "stage", "app", "Tenant", "other-scope", version))
+        artisan(REVIEW, "submit", "app", "Tenant", other["id"])
+        artisan(REVIEW, "withdraw-revision", "app", "Tenant", "影片/1", "content-v1")
+        artisan(REVIEW, "cancel", "app", "Tenant", other["id"])
+        assert json.loads(artisan(REVIEW, "purge-review", "app", "Tenant", other["id"])) == {"deleted": 1}
+        assert sql("SELECT COUNT(*) FROM moderation_video_tombstones") == "2"
+        artisan("moderation:prune-tombstones", "app", "tenant", "--limit=0", successful=False)
+        assert json.loads(artisan("moderation:prune-tombstones", "app", "tenant")) == {"deleted": 0}
+
+        sql(f"UPDATE moderation_video_tombstones SET expires_at = 1 WHERE scope_key = '{scope}'")
+        sql("INSERT INTO moderation_video_tombstones (id, scope_key, expires_at) "
+            f"VALUES ('{'f' * 64}', '{scope}', 2)")
+        assert json.loads(artisan("moderation:prune-tombstones", "app", "tenant", "--limit=1")) == {"deleted": 1}
+        assert json.loads(artisan("moderation:prune-tombstones", "app", "tenant")) == {"deleted": 1}
+        assert sql("SELECT COUNT(*) FROM moderation_video_tombstones") == "1"
+        callback("finished", "after-prune")
+        consume()
+        assert sql("SELECT COUNT(*) FROM webhook_calls WHERE processing_next_at IS NOT NULL") == "1"
+        assert sql("SELECT COUNT(*) FROM moderation_reviews") == "0" and not queried()
+        assert sql("SELECT COUNT(*) FROM failed_jobs") == "0"
+        artisan(REVIEW, "stage", "app", "tenant", "unrelated-new-intent", version, successful=False)
+
     try:
         artisan("migrate", "--force")
         artisan("config:cache")
@@ -237,6 +295,9 @@ def exercise(binary, driver, url, root, storage_env, storage, mode, *, test_late
             try:
                 if test_late:
                     late_callback(early)
+                    return
+                if test_purge:
+                    purge_callback(early)
                     return
                 with ThreadPoolExecutor(max_workers=1) as executor:
                     reached, release = supplier.gate = (threading.Event(), threading.Event())
@@ -359,13 +420,16 @@ if __name__ == "__main__":
     if mode not in {"sightengine", "tencent", "aliyun"}:
         parser.error("未知的回调供应商")
     test_late = os.environ.get("MODERATION_TEST_LATE_CALLBACK") == "1"
-    if test_late and mode != "sightengine":
-        parser.error("迟到回调夹具使用 Sightengine")
+    test_purge = os.environ.get("MODERATION_TEST_PURGE_CALLBACK") == "1"
+    if ((test_late or test_purge) and mode != "sightengine") or (test_late and test_purge):
+        parser.error("迟到或清理回调夹具单独使用 Sightengine")
     with tempfile.TemporaryDirectory(dir=ROOT / "target/tmp", prefix="moderation-callback-association-") as root, \
             VIDEO["VIDEO"]["OBJECTS"]["TOPOLOGY"]["object_storage"](True) as (env, storage):
-        exercise(args.binary.resolve(), driver, url, Path(root), env, storage, mode, test_late=test_late)
+        exercise(args.binary.resolve(), driver, url, Path(root), env, storage, mode, test_late=test_late, test_purge=test_purge)
     provider = {"tencent": "腾讯云", "aliyun": "阿里云", "sightengine": "Sightengine"}[mode]
-    if test_late:
+    if test_purge:
+        print(f"{driver}: {provider} 实际 HTTP、Artisan、Worker 删除、回调墓碑、到期清理及陈旧任务隔离通过")
+    elif test_late:
         print(f"{driver}: {provider} 实际 HTTP、Artisan、Worker 迟到签名回调、诊断去重与终态隔离通过")
     else:
         print(f"{driver}: {provider} 实际 HTTP、Artisan、Worker 提前回调、延期唤醒、范围、查单与覆盖通过")

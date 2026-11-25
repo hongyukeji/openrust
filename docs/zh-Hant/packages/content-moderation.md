@@ -230,6 +230,8 @@ let recommendation = result.decision(&[Modality::Text]);
 
 撤回或刪除內容修訂時，應用程式授權後用確切的內容 ID 和修訂呼叫 `ModerationStore::withdraw_video_revision`。重複呼叫會傳回首次撤回時間。同一應用程式和租戶內，該修訂的所有審核立即失去有效發布決定，原始評估仍可供授權稽核。新內容修訂依其審核結果發布。撤回時如需停止執行中的檢查，可一併呼叫取消介面。
 
+需要清除已撤回修訂的審核資料時，先取消檢查或等待終態，再呼叫 `ModerationStore::purge_withdrawn_video`，傳入審核對象和 60–604,800 秒的保留時長。清除子檢查時選擇整個審核群組。清除會刪除評估、人工裁決和診斷。已知供應商工作的摘要會暫時保留，用於確認遲到回呼。可排程 `./artisan moderation:prune-tombstones app tenant --limit=100` 分批刪除過期摘要。Webhook Client 接收記錄繼續依自己的保留規則運作。修訂仍處於撤回狀態。
+
 ### 取消已保存的隨選檢查 {#video-review-cancellation}
 
 呼叫 `VideoReviewService::cancel(id)`，凍結待處理或進行中的檢查。取消使用資料庫時鐘和記錄版本，已超過截止時間的檢查會標記為過期。晚到的 Worker 無法改寫取消結果。

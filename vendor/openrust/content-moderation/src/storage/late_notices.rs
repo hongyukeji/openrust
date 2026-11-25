@@ -8,7 +8,7 @@ use crate::{
     VideoReview, credentials::valid_identifier,
 };
 
-const NOTICES: &str = "moderation_late_notices";
+pub(super) const NOTICES: &str = "moderation_late_notices";
 
 impl ModerationStore {
     /// 返回作用域内每个来源的首次迟到观察，诊断不包含远端响应正文。

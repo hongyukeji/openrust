@@ -110,6 +110,12 @@ def exercise(binary, driver, database_url, root):
             "X-Fixture-Content-Revision": "content-v1",
         })
 
+    def purge(target, expected=200, *, single=False, actor="moderator-withdraw", tenant="tenant"):
+        headers = {"X-Fixture-Operation": "purge", "X-Fixture-Actor": actor}
+        if single:
+            headers["X-Fixture-Review-Unit"] = "single"
+        return post(None, group=target, tenant=tenant, expected=expected, extra=headers)
+
     def work(action, check):
         if action == "query":
             time.sleep(1.05)
@@ -303,9 +309,48 @@ def exercise(binary, driver, database_url, root):
                 assert work("query", child)["decision"] == "allow"
             assert gate(current["id"], revision="content-v2") == {"decision": "allow", "revision": 0}
             assert permit(current["id"], "content-v2", 0, 200)
+            assert purge(current["id"], expected=409)["error"] == "ReviewConflict"
+            assert purge(first["id"], actor="viewer", expected=401)["error"] == "Unauthorized"
+            assert purge(first["checks"][0]["id"], single=True, expected=409)["error"] == "ReviewConflict"
+            assert purge(first["id"], tenant="Tenant") == {"deleted": 0}
+            second_id = first["checks"][1]["id"]
+            if driver == "sqlite":
+                sql("CREATE TRIGGER reject_group_purge BEFORE DELETE ON moderation_reviews "
+                    f"WHEN OLD.id = '{second_id}' BEGIN SELECT RAISE(ABORT, 'purge rollback'); END")
+                cleanup_purge = "DROP TRIGGER reject_group_purge"
+            else:
+                encoding = ""
+                if driver == "mysql":
+                    charset, collation = sql(
+                        "SELECT CHARACTER_SET_NAME, COLLATION_NAME FROM information_schema.COLUMNS "
+                        "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'moderation_reviews' "
+                        "AND COLUMN_NAME = 'id'"
+                    ).split()
+                    assert all(value.replace("_", "").isalnum() for value in (charset, collation))
+                    encoding = f" CHARACTER SET {charset} COLLATE {collation}"
+                sql(f"CREATE TABLE moderation_purge_fixture (id VARCHAR(36){encoding} PRIMARY KEY, "
+                    "FOREIGN KEY (id) REFERENCES moderation_reviews(id))")
+                sql(f"INSERT INTO moderation_purge_fixture VALUES ('{second_id}')")
+                cleanup_purge = "DROP TABLE moderation_purge_fixture"
+            try:
+                assert purge(first["id"], expected=502)["error"] == "ReviewStorage"
+                assert published == post(None, group=first["id"])
+                assert sql("SELECT COUNT(*) FROM moderation_review_decisions") == str(recorded)
+                assert sql("SELECT COUNT(*) FROM moderation_video_tombstones") == "0"
+            finally:
+                sql(cleanup_purge)
+
+            with ThreadPoolExecutor(max_workers=8) as executor:
+                purges = list(executor.map(lambda _: purge(first["id"]), range(8)))
+            assert sorted(item["deleted"] for item in purges) == [0] * 7 + [2]
+            assert post(None, group=first["id"], expected=404)["error"] == "ReviewNotFound"
+            assert json.loads(artisan(COMMAND, "purge-group", "app", "tenant", first["id"])) == {"deleted": 0}
+            for child in first["checks"]:
+                assert json.loads(artisan(COMMAND, "find", "app", "tenant", child["id"])) is None
+            assert post("complete", expected=409)["error"] == "ReviewConflict"
             assert sql("SELECT COUNT(*) FROM moderation_revision_controls WHERE withdrawn_at IS NOT NULL") == "2"
-            assert sql("SELECT COUNT(*) FROM moderation_review_groups") == "7"
-            assert sql("SELECT COUNT(*) FROM moderation_checks") == "15"
+            assert sql("SELECT COUNT(*) FROM moderation_review_groups") == "6"
+            assert sql("SELECT COUNT(*) FROM moderation_checks") == "13"
             assert sql("SELECT COUNT(*) FROM jobs") == sql("SELECT COUNT(*) FROM failed_jobs") == "0"
         finally:
             HTTP["stop"](app)
@@ -318,8 +363,8 @@ def exercise(binary, driver, database_url, root):
     artisan("migrate:rollback", "--force",
             "--path=vendor/openrust/content-moderation/database/migrations/"
             "2026_11_26_000017_create_moderation_revision_controls_table.rs", successful=False)
-    assert sql("SELECT COUNT(*) FROM moderation_review_groups") == "7"
-    assert sql("SELECT COUNT(*) FROM moderation_review_decisions") == str(recorded)
+    assert sql("SELECT COUNT(*) FROM moderation_review_groups") == "6"
+    assert sql("SELECT COUNT(*) FROM moderation_review_decisions") == "2"
 
 
 if __name__ == "__main__":
@@ -329,4 +374,4 @@ if __name__ == "__main__":
     driver, url = DATABASE["database_settings"]()
     with tempfile.TemporaryDirectory(dir=ROOT / "target/tmp", prefix="moderation-groups-") as root:
         exercise(args.binary.resolve(), driver, url, Path(root))
-    print(f"{driver}: 复合审核并发落单、取消及裁决、事务回滚、30 个独立 Worker 和修订撤回门禁通过")
+    print(f"{driver}: 复合审核并发落单、取消及裁决、事务回滚、30 个独立 Worker、修订撤回和显式清理门禁通过")

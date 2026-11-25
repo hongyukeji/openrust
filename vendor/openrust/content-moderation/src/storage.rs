@@ -24,10 +24,12 @@ pub(crate) use callback::ProviderTask;
 mod query;
 mod rates;
 pub(crate) use rates::RateBudget;
+mod purge;
 mod recovery;
 mod remote_leases;
 mod segment_record;
 mod submission;
+mod tombstones;
 mod withdrawals;
 
 const REVIEWS: &str = "moderation_reviews";
@@ -62,6 +64,7 @@ impl ModerationStore {
         let ids = ReviewIds::generate()?;
         let id = ids.review.clone();
         let record = Arc::new(request.clone());
+        let control = self.revision_control(&request.content_id, &request.content_revision);
         let scope_key = self.scope_key.clone();
         let saved_intent = intent_key.clone();
         let clock = database_clock_query(&self.connection);
@@ -73,8 +76,12 @@ impl ModerationStore {
                     let scope_key = scope_key.clone();
                     let intent_key = saved_intent.clone();
                     let ids = ids.clone();
+                    let control = control.clone();
                     let clock = clock.clone();
                     Box::pin(async move {
+                        if control.lock(transaction).await?.is_some() {
+                            return Err(DatabaseError::InvalidQuery(withdrawals::WITHDRAWN));
+                        }
                         let created_at = read_clock(transaction, &clock).await?;
                         write_check(
                             transaction,
@@ -92,6 +99,12 @@ impl ModerationStore {
             .await;
         if transaction.is_ok() {
             return self.find(&id).await?.ok_or(ModerationError::ReviewStorage);
+        }
+        if matches!(
+            transaction,
+            Err(DatabaseError::InvalidQuery(withdrawals::WITHDRAWN))
+        ) {
+            return Err(ModerationError::ReviewConflict);
         }
         // 有竞争请求先提交时，重新读取并核对身份及所有模式字段。
         self.read("intent_key", &intent_key)

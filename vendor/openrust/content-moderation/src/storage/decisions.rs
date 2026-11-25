@@ -8,7 +8,7 @@ use crate::{
     VideoReviewTarget, credentials::valid_identifier, review::valid_content_identifier,
 };
 
-const DECISIONS: &str = "moderation_review_decisions";
+pub(super) const DECISIONS: &str = "moderation_review_decisions";
 
 impl ModerationStore {
     pub(crate) async fn latest_decision(

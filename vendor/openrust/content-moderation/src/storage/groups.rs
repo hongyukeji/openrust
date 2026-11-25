@@ -4,7 +4,7 @@ use openrust::database::{DatabaseError, Row, Transaction, Value};
 
 use super::{
     ModerationStore, REVIEWS, ReviewIds, database_clock_query, decode, digest, new_id, read_clock,
-    segment_record, write_check,
+    segment_record, withdrawals::WITHDRAWN, write_check,
 };
 use crate::{
     Modality, ModerationError, ModerationResult, VideoReview, VideoReviewGroup,
@@ -15,7 +15,7 @@ use crate::{
 };
 use std::sync::Arc;
 
-const GROUPS: &str = "moderation_review_groups";
+pub(super) const GROUPS: &str = "moderation_review_groups";
 
 impl ModerationStore {
     /// 同一数据库事务登记父审核和所有必检任务。
@@ -27,6 +27,8 @@ impl ModerationStore {
         if let Some(group) = self.read_group("intent_key", &intent).await? {
             return existing(group, request);
         }
+        let original = &request.checks[0];
+        let control = self.revision_control(&original.content_id, &original.content_revision);
         let id = new_id()?;
         let ids = request
             .checks
@@ -56,8 +58,16 @@ impl ModerationStore {
                         scope.clone(),
                         clock.clone(),
                     );
-                    let (checks, members, plan) = (checks.clone(), members.clone(), plan.clone());
+                    let (checks, members, plan, control) = (
+                        checks.clone(),
+                        members.clone(),
+                        plan.clone(),
+                        control.clone(),
+                    );
                     Box::pin(async move {
+                        if control.lock(transaction).await?.is_some() {
+                            return Err(DatabaseError::InvalidQuery(WITHDRAWN));
+                        }
                         let now = read_clock(transaction, &clock).await?;
                         insert_group(transaction, &id, &scope, &intent, &members, plan.as_deref())
                             .await?;
@@ -77,6 +87,9 @@ impl ModerationStore {
                 .find_video_group(&id)
                 .await?
                 .ok_or(ModerationError::ReviewStorage);
+        }
+        if matches!(saved, Err(DatabaseError::InvalidQuery(WITHDRAWN))) {
+            return Err(ModerationError::ReviewConflict);
         }
         self.read_group("intent_key", &intent)
             .await?
@@ -147,11 +160,23 @@ impl ModerationStore {
             ordered.insert(review.id().to_owned(), review);
         }
         for member in members {
-            checks.push(
-                ordered
-                    .remove(&member)
-                    .ok_or(ModerationError::ReviewStorage)?,
-            );
+            let Some(check) = ordered.remove(&member) else {
+                let present = self
+                    .connection
+                    .table(GROUPS)
+                    .use_write_pdo()
+                    .r#where("scope_key", "=", self.scope_key.as_str())
+                    .where_exact_text("id", id)
+                    .exists()
+                    .await
+                    .map_err(|_| ModerationError::ReviewStorage)?;
+                return if present {
+                    Err(ModerationError::ReviewStorage)
+                } else {
+                    Ok(None)
+                };
+            };
+            checks.push(check);
         }
         let original = &checks[0];
         if checks.iter().any(|check| {
