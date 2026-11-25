@@ -110,6 +110,11 @@ def run_case(binary, transport_type):
             dispatched = run(HORIZON_PROBE_DISPATCH='{}', HORIZON_PROBE_DISPATCH_UUID='1')
             log = root / 'completed.log'
             until(lambda: log.exists() and dispatched in log.read_text(encoding='utf-8'))
+            print(run(HORIZON_PROBE_SUPERVISOR_MONITOR=name))
+            until(lambda: any(
+                worker['supervisor'] == name + ':monitor-reprovision' and worker['queue'] == 'wrapper-monitor'
+                for row in statuses() for worker in row['workers']
+            ))
 
             # 独占 Redis 模拟同名接管。文件后端保留正在进行的领取。
             if transport_type == 'file':

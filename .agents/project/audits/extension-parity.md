@@ -145,6 +145,8 @@ Master 和 Supervisor 已接通容器中可替换的命令队列。验收覆盖�
 
 WorkerProcess 与 SupervisorProcess 的公开控制接通原生信号、排空和终止状态。独立 Worker 的监控与受管路径共用冷却及补位逻辑。 [进程包装器控制审计](horizon/README.md#workerprocess-与-supervisorprocess-控制)
 
+独立 `SupervisorProcess::monitor` 已接通默认退出码判定、冷却、旧心跳清理及基于原选项的重部署。上游可覆盖的 `dontRestartOn` 已补实测对照，Rust 的覆盖入口仍待接入。 [独立监控审计](horizon/README.md#supervisorprocess-独立监控与重部署)
+
 ### Horizon 分组等待时间与 HTTP 排序
 
 固定上游 [RedisWorkloadRepository::get](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Repositories/RedisWorkloadRepository.php) 与 [WaitTimeCalculator::calculateTimeToClear](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/WaitTimeCalculator.php) 分别确定各分队列先取整再累加、整组以原始总量独立取整的行为。[WorkloadController::index](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Http/Controllers/WorkloadController.php) 对 HTTP 结果按名称排序，仓储按等待时间降序供监控消费。Rust 已补齐两处规则。

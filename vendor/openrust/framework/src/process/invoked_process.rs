@@ -175,6 +175,11 @@ impl InvokedProcess {
         self.running().then_some(self.id).flatten()
     }
 
+    /// 返回启动时的进程 ID，供退出后识别该进程。
+    pub fn spawned_id(&self) -> Option<u32> {
+        self.playback().map(|fake| fake.id).or(self.id)
+    }
+
     pub fn running(&self) -> bool {
         if let Some(mut fake) = self.playback() {
             if fake.remaining_polls == 0 {

@@ -25,6 +25,84 @@ async fn until(mut check: impl FnMut() -> bool) {
     .unwrap();
 }
 
+pub async fn run_supervisor_monitor(repository: &openrust_horizon::Repository, master: &str) {
+    use serde_json::json;
+
+    for (mode, stale) in [
+        ("ok", false),
+        ("terminal", false),
+        ("duplicate", false),
+        ("reprovision", false),
+        ("reprovision", true),
+    ] {
+        let suffix = if stale {
+            "monitor-stale".into()
+        } else {
+            format!("monitor-{mode}")
+        };
+        let name = format!("{master}:{suffix}");
+        let mut wrapper = SupervisorProcess::new(
+            SupervisorOptions {
+                name: name.clone(),
+                queue: vec!["wrapper-monitor".into()],
+                max_processes: 1,
+                timeout: 5,
+                ..Default::default()
+            },
+            None,
+        );
+        wrapper
+            .monitor(child(mode), repository, master)
+            .await
+            .unwrap();
+        let pid = wrapper.process().unwrap().spawned_id().unwrap();
+        assert!(wrapper.cooling_down());
+        until(|| !wrapper.process().unwrap().running()).await;
+
+        if mode == "reprovision" {
+            repository
+                .heartbeat_supervisor(
+                    &name,
+                    &json!({
+                        "pid": if stale { pid + 1 } else { pid }, "master": master,
+                        "host": "monitor-probe", "status": "running",
+                    }),
+                )
+                .await
+                .unwrap();
+        }
+        wrapper
+            .monitor(child("fail"), repository, master)
+            .await
+            .unwrap();
+        assert!(wrapper.process().is_none());
+        assert_eq!(wrapper.is_dead(), mode == "duplicate");
+        if !wrapper.is_dead() {
+            until(|| !wrapper.cooling_down()).await;
+            wrapper
+                .monitor(child("fail"), repository, master)
+                .await
+                .unwrap();
+        }
+        assert!(wrapper.is_dead());
+        // 监控旧包装器不会重复入队，也不会清除继任进程的心跳。
+        wrapper
+            .monitor(child("fail"), repository, master)
+            .await
+            .unwrap();
+        if stale {
+            assert_eq!(
+                repository.supervisor(&name).await.unwrap().unwrap()["pid"],
+                pid + 1
+            );
+            repository.forget_supervisor(&name).await.unwrap();
+        }
+    }
+    println!(
+        "PASS: independent Supervisor monitor classifies exit codes and preserves a replacement heartbeat"
+    );
+}
+
 pub async fn run() {
     let mut invalid = WorkerProcess::new("probe", "default", Duration::from_secs(2));
     let missing = Factory::new().command(Vec::<std::ffi::OsString>::new());
@@ -156,6 +234,9 @@ fn line(message: &str) {
 
 pub async fn run_child(action: &str) -> u8 {
     match action {
+        "duplicate" => return 13,
+        "terminal" => return 2,
+        "reprovision" => return 1,
         "ok" => return 0,
         "fail" => return 11,
         "controls" => {}

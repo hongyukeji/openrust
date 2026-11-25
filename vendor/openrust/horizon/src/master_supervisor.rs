@@ -18,6 +18,7 @@ pub struct SupervisorProcess {
     options: SupervisorOptions,
     process: Option<InvokedProcess>,
     restart_again_at: Instant,
+    exit: Option<(i32, Option<u32>)>,
     dead: bool,
     from_command: bool,
     restarting: bool,
@@ -31,6 +32,7 @@ impl SupervisorProcess {
             options,
             process,
             restart_again_at: Instant::now(),
+            exit: None,
             dead: false,
             from_command: false,
             restarting: false,
@@ -66,7 +68,90 @@ impl SupervisorProcess {
 
     /// 启动已配置的子进程，复用当前输出回调。
     pub fn start(&mut self, process: PendingProcess) -> openrust::process::Result<()> {
-        crate::process_output::start_child(&mut self.process, process, self.output.as_ref())
+        if self.process.is_none() {
+            self.restart_again_at = Instant::now() + Duration::from_secs(1);
+        }
+        crate::process_output::start_child(&mut self.process, process, self.output.as_ref())?;
+        self.exit = None;
+        self.dead = false;
+        Ok(())
+    }
+
+    pub fn cooling_down(&self) -> bool {
+        Instant::now() < self.restart_again_at
+    }
+
+    /// 监控独立包装器。异常退出后向指定 Master 提交原部署选项。
+    pub async fn monitor(
+        &mut self,
+        process: PendingProcess,
+        repository: &Repository,
+        master: &str,
+    ) -> Result<()> {
+        if crate::master_names::supervisor_suffix(master, &self.name).is_none()
+            || !crate::master_names::valid_process_name(&self.name)
+            || !crate::master_names::valid_process_name(master)
+        {
+            return Err(Error::InvalidConfiguration);
+        }
+        if self.dead {
+            return Ok(());
+        }
+        if let Some(exit) = self.poll_exit().await? {
+            if !Self::terminal(exit.0)
+                && let Err(error) = self.reprovision(repository, master, exit.1).await
+            {
+                self.exit = Some(exit);
+                return Err(error);
+            }
+            self.dead = true;
+        } else if self.process.is_none() && self.exit.is_none() && !self.cooling_down() {
+            self.start(process).map_err(|_| Error::Process)?;
+        }
+        Ok(())
+    }
+
+    async fn poll_exit(&mut self) -> Result<Option<(i32, Option<u32>)>> {
+        if self
+            .process
+            .as_ref()
+            .is_some_and(|process| !process.running())
+        {
+            let process = self.take_process().expect("observed child");
+            let pid = process.spawned_id();
+            let result = process.wait().await.map_err(|_| Error::Process)?;
+            self.exit = Some((result.exit_code(), pid));
+        }
+        if self
+            .exit
+            .is_some_and(|(status, _)| status == 13 || !self.cooling_down())
+        {
+            return Ok(self.exit.take());
+        }
+        Ok(None)
+    }
+
+    fn terminal(status: i32) -> bool {
+        matches!(status, 0 | 2 | 13)
+    }
+
+    async fn reprovision(
+        &self,
+        repository: &Repository,
+        master: &str,
+        pid: Option<u32>,
+    ) -> Result<()> {
+        let options = self.options.to_array()?;
+        let target = MasterSupervisor::command_queue_for(Some(master))?;
+        if repository
+            .forget_exited_supervisor(&self.name, master, pid)
+            .await?
+        {
+            repository
+                .push_structured_command(&target, AddSupervisor::NAME, options)
+                .await?;
+        }
+        Ok(())
     }
 
     pub async fn pause(&self) -> Result<()> {
@@ -93,15 +178,9 @@ impl SupervisorProcess {
     pub async fn terminate_with_status(&self, repository: &Repository, status: u8) -> Result<()> {
         let command = crate::supervisor_commands::TERMINATE;
         let options = serde_json::json!({"status": status});
-        if let Some(queue) = crate::repository::command_queue::configured()? {
-            let target = repository.command_target(&self.name).await?;
-            queue.push(&target, command, options).await
-        } else {
-            repository
-                .command_queue()
-                .push(&self.name, command, options)
-                .await
-        }
+        repository
+            .push_structured_command(&self.name, command, options)
+            .await
     }
 
     pub fn is_dead(&self) -> bool {
@@ -368,19 +447,8 @@ impl MasterSupervisor {
     /// 向本 Master 的监控循环提交重启请求。
     pub async fn restart(&self) -> Result<()> {
         let target = Self::command_queue_for(Some(&self.id))?;
-        if let Some(queue) = crate::repository::command_queue::configured()? {
-            let target = self.repository.command_target(&target).await?;
-            return queue
-                .push(
-                    &target,
-                    crate::supervisor_commands::RESTART,
-                    serde_json::json!([]),
-                )
-                .await;
-        }
         self.repository
-            .command_queue()
-            .push(
+            .push_structured_command(
                 &target,
                 crate::supervisor_commands::RESTART,
                 serde_json::json!([]),
@@ -519,20 +587,9 @@ impl MasterSupervisor {
         }
         let paused = masters.paused(&self.id).await?;
         for supervisor in &mut self.supervisors {
-            if supervisor
-                .process
-                .as_ref()
-                .is_some_and(|process| !process.running())
-            {
-                let result = supervisor
-                    .take_process()
-                    .expect("observed child")
-                    .wait()
-                    .await
-                    .map_err(|_| Error::Process)?;
+            if let Some((exit, _)) = supervisor.poll_exit().await? {
                 let restarted = std::mem::take(&mut supervisor.restarting);
-                let exit = result.exit_code();
-                supervisor.dead = matches!(exit, 0 | 2 | 13);
+                supervisor.dead = SupervisorProcess::terminal(exit);
                 if !(supervisor.dead || restarted && exit == 1) {
                     self.failures = self.failures.saturating_add(1);
                 }
@@ -545,8 +602,9 @@ impl MasterSupervisor {
             }
             if supervisor.dead
                 || supervisor.process.is_some()
+                || supervisor.exit.is_some()
                 || (paused && supervisor.from_command)
-                || Instant::now() < supervisor.restart_again_at
+                || supervisor.cooling_down()
             {
                 continue;
             }
@@ -581,8 +639,6 @@ impl MasterSupervisor {
                 }
                 Err(_) => return Err(Error::Process),
             }
-            // Failed children cannot spin in a tight restart loop.
-            supervisor.restart_again_at = Instant::now() + Duration::from_secs(1);
         }
         let states = self.repository.supervisors().await?;
         let states: Vec<_> = states

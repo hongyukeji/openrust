@@ -500,6 +500,18 @@ async fn main() -> std::process::ExitCode {
         wrapper_control::run().await;
         return std::process::ExitCode::SUCCESS;
     }
+    if let Ok(master) = std::env::var("HORIZON_PROBE_SUPERVISOR_MONITOR") {
+        use openrust::support::facades::{App, Facade as _};
+        let mut app = create().unwrap();
+        app.boot().await.unwrap();
+        let repository = app.make::<openrust_horizon::Repository>().await.unwrap();
+        App::set_facade_application(
+            Some(&app),
+            wrapper_control::run_supervisor_monitor(&repository, &master),
+        )
+        .await;
+        return std::process::ExitCode::SUCCESS;
+    }
     if let Ok(probe) = std::env::var("HORIZON_PROBE_WRAPPER_TERMINATE") {
         use openrust::support::facades::{App, Facade as _};
         let mut app = create().unwrap();

@@ -138,6 +138,18 @@ def main():
             assert completed.read_text().splitlines().index(active_job) < completed.read_text().splitlines().index(pending_job)
             print('PASS: Master restart resumes a paused deployment, drains a real job and replaces both Supervisor and Worker trees')
 
+            print(run(HORIZON_PROBE_SUPERVISOR_MONITOR=name))
+            rebuilt = name + ':monitor-reprovision'
+            until(lambda: any(
+                worker['supervisor'] == rebuilt and worker['queue'] == 'wrapper-monitor'
+                for row in statuses() for worker in row['workers']
+            ))
+            rebuilt_job = run(HORIZON_PROBE_DISPATCH='{}', HORIZON_PROBE_DISPATCH_UUID='1',
+                              HORIZON_PROBE_DISPATCH_QUEUE='wrapper-monitor')
+            until(lambda: rebuilt_job in completed.read_text())
+            assert statuses()[0]['supervisors'] == [child, planned, rebuilt], statuses()
+            print('PASS: independent monitor reprovisions the original options through the real Master queue')
+
             run('artisan', 'horizon:terminate')
             stdout, stderr = master.communicate(timeout=15)
             assert master.returncode == 0, (stdout, stderr)

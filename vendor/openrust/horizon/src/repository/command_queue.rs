@@ -99,6 +99,20 @@ impl Repository {
         RedisHorizonCommandQueue::new(self.clone())
     }
 
+    pub(crate) async fn push_structured_command(
+        &self,
+        name: &str,
+        command: &str,
+        options: Json,
+    ) -> Result<()> {
+        if let Some(queue) = configured()? {
+            let target = self.command_target(name).await?;
+            queue.push(&target, command, options).await
+        } else {
+            self.command_queue().push(name, command, options).await
+        }
+    }
+
     pub(super) fn command_queue_key(&self, name: &str) -> String {
         self.key(&format!("commands:queued:{name}"))
     }

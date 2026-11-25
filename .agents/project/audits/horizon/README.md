@@ -134,7 +134,17 @@ Rust 的 Worker 公开 `monitor` 及 `cooling_down`，和受管 Worker 共用退
 
 macOS 和 Linux ARM64 的原生子进程验证暂停、继续、终止、排空和冷却。真实 Redis 验证默认及替代队列的公开终止入口，独立 Supervisor 以状态码 23 退出。Windows ARM64 验证真实关停管道、冷却和完整受管进程树。macOS 框架进程测试 18 项、Horizon 原生进程矩阵、相关严格 Clippy、格式及三语正文检查通过。证据为 `target/tmp/observability-parity/horizon-wrapper-control-{owned-macos,owned-linux,owned-windows,framework-final,docs}.log`。
 
-独立 SupervisorProcess 自行监控及重部署的入口仍待接入。固定上游的真实 Symfony 子进程与 Redis 验证退出码 13 立即标为死亡，0／2 满冷却后标为死亡并结束，1 满冷却后删除旧心跳并按原选项发出 `AddSupervisor`。证据为 `target/tmp/observability-parity/horizon-supervisor-wrapper-monitor-upstream.log`。
+### SupervisorProcess 独立监控与重部署
+
+固定上游的真实 Symfony 子进程与 Redis 验证退出码 13 立即标为死亡，0／2 满冷却后标为死亡并结束，1 满冷却后删除旧心跳并按原选项发出 `AddSupervisor`。证据为 `target/tmp/observability-parity/horizon-supervisor-wrapper-monitor-upstream.log`。 [固定 SupervisorProcess](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/SupervisorProcess.php)
+
+Rust 的 `SupervisorProcess::monitor` 接收目标 Master 的完整名称，并复用受管监控的退出判定和冷却逻辑。框架的 `InvokedProcess::spawned_id` 保存退出清理需要的启动 PID。独立包装器只删除匹配其已退出子进程的心跳，然后通过当前应用的命令队列提交原选项。同名替代进程的心跳仍归新进程。受管 Master 在现有所有权租约下直接维护其子进程。
+
+macOS 与 Linux ARM64 的真实 Redis 8.10.3 验收覆盖默认及替代 Redis、文件命令队列。0／2／13 退出不触发重部署，异常退出后同一包装器只发起一次恢复，运行中的 Master 用原队列选项部署真实 Worker。验收向恢复的 Worker 派发任务并取得执行结果。同名替代心跳保留。框架进程测试 18 项、对应严格 Clippy、全仓格式、三语站点构建及两种挂载路径的浏览器检查通过。
+
+Windows 11 ARM64 的默认 Redis 及文件命令队列均验证独立包装器的退出分类、同名替代心跳与实际重部署，并通过正常终止、排空、快速终止、父进程丢失、结构化命令和命名处理器回归。证据为 `target/tmp/observability-parity/horizon-supervisor-wrapper-monitor-{macos-final,linux-final,windows-final,framework,fmt,docs-final}.log`。
+
+上游的 `dontRestartOn` 可由调用方覆盖。固定 PHP 实测将 1 加入列表后保留心跳且不重部署，清空列表后退出码 2 可重部署，退出码 13 始终立即标为死亡。Rust 本批使用默认清单，自定义清单仍待接入。证据为 `target/tmp/observability-parity/horizon-supervisor-restart-codes-upstream.log`。
 
 ### Windows 原生进程树
 

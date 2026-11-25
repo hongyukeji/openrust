@@ -244,6 +244,21 @@ foreach ($mode in @('idle', 'wait', 'fast', 'parent-exit', 'handlers', 'queue', 
             'PASS: Windows native named Master handler and Supervisor Pause override'
         }
 
+        if ($mode -in @('handlers', 'file-queue')) {
+            $env:HORIZON_PROBE_SUPERVISOR_MONITOR = $active.name
+            try {
+                & $Binary
+                if ($LASTEXITCODE -ne 0) { throw 'The supervisor monitor failed.' }
+            } finally {
+                Remove-Item Env:HORIZON_PROBE_SUPERVISOR_MONITOR
+            }
+            Wait-For 'supervisor reprovisioned by its independent monitor' {
+                $rebuilt = @((Status).workers | Where-Object {$_.supervisor -ceq ($active.name + ':monitor-reprovision')})
+                $rebuilt.Count -eq 1 -and $rebuilt[0].queue -eq 'wrapper-monitor'
+            } | Out-Null
+            'PASS: Windows native Supervisor monitor reprovisioned original options'
+        }
+
         if (!$emptyPlan) {
             $job = Dispatch 12000
             Wait-For 'job in progress' { Recorded 'started.log' $job } | Out-Null

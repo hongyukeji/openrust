@@ -49,6 +49,35 @@ impl Repository {
     pub async fn forget_supervisor(&self, name: &str) -> Result<()> {
         self.forget_supervisor_for_master(name, None).await
     }
+
+    pub(crate) async fn forget_exited_supervisor(
+        &self,
+        name: &str,
+        master: &str,
+        pid: Option<u32>,
+    ) -> Result<bool> {
+        let [heartbeat, active, ..] = self.supervisor_keys(name);
+        match self.eval(
+            r#"
+local status = redis.call('GET',KEYS[1])
+if status then
+    local record = cjson.decode(status)
+    if tostring(record.pid) ~= ARGV[3] or (type(record.master) == 'string' and record.master ~= ARGV[2]) then
+        return 0
+    end
+end
+redis.call('DEL',KEYS[1])
+redis.call('ZREM',KEYS[2],ARGV[1])
+return 1
+"#,
+            vec![heartbeat, active],
+            vec![name.into(), master.into(), pid.map(|pid|pid.to_string()).unwrap_or_default()],
+        ).await? {
+            Value::Int(1) => Ok(true),
+            Value::Int(0) => Ok(false),
+            _ => Err(Error::Redis),
+        }
+    }
     pub(crate) async fn forget_supervisor_for_master(
         &self,
         name: &str,
