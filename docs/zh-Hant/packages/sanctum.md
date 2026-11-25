@@ -106,3 +106,19 @@ fn register() -> Result<(), RoutingError> {
 自訂工作流程可用 `PersonalAccessTokens::create_token_in_transaction`，傳入交易、歸屬類型、歸屬識別碼和 `TokenOptions::new(name)`；建構器提供 `abilities`、`expires_at`、`attributes`、`secret`。交易必須屬於同一連線。額外屬性不能覆寫憑據欄位、時間戳記或所設定的主鍵，包括 JSON 路徑寫法。此儲存操作不能取代應用授權、近期驗證或套件的使用者列鎖／版本策略。一般呼叫繼續使用標準 `create_token`。期限檢查與清理使用應用時鐘，包括 `Date` 的測試時鐘覆寫。
 
 帳戶操作需要共同交易時，`PersonalAccessTokens::find_owned_in_transaction` 僅鎖定並讀取本人權杖；`revoke_token_in_transaction` 透過設定的模型刪除，保留 Scope、屬性轉換及模型事件。兩者拒絕不同連線的交易；模型取消刪除會回傳錯誤，由呼叫方回滾整筆操作。鎖內重新檢查權杖時，`Sanctum::validate_token_for_owner(token, owner, now)` 重用有效期及應用回呼；呼叫方須傳入已驗證的歸屬身分、核對精確歸屬／Provider，並使用所屬應用時鐘。一般應用優先使用[使用者套件介面](../getting-started/starter-kits.md#account-tokens)。
+
+## 交易內帳戶憑據清理 {#transactional-account-cleanup}
+
+已完成授權的帳戶 Action 可在本人使用者交易內清理個人權杖：
+
+```rust
+use openrust::sanctum::HasApiTokens;
+
+// user 與已取得寫入鎖的 transaction 由帳戶 Action 提供。
+let removed = user.tokens(&sanctum, &database)?
+    .purge_in_transaction(transaction).await?;
+```
+
+`TokenRelation::purge_in_transaction` 轉發到 `PersonalAccessTokens::purge_owned_in_transaction`。這是用於帳戶註銷的 Rust 交易擴充：保留精確的多型歸屬及所設定權杖模型的資料表／連線，包括被全域 Scope 或軟刪除隱藏的憑據，並透過每個模型的強制刪除生命週期實際清理。自訂模型取消或失敗會回傳錯誤，呼叫端須回滾整筆交易。支援整數、UUID、ULID 權杖主鍵；不同交易連線在寫入前拒絕，不代替呼叫端提交交易。
+
+原有關係 `delete` 繼續按 Scope 批次刪除，模型事件行為保持原契約。帳戶 Action 應先檢查本人歸屬、能力和近期認證，再清理憑據；帳戶交易提交後[重設請求認證快取](../security/authentication.md#request-auth-cache)，使後續消費者不再重用舊使用者快照。

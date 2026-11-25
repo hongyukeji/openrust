@@ -169,3 +169,16 @@ let providers = serde_json::json!({
 對於透過 `AuthManager::register_model` 註冊的身分，`manager.user_morph_class(user)?` 回傳真實 Eloquent 多型識別，遵循模型連線及自訂 `get_morph_class`。此 Rust 適配入口保留多型對應錯誤，未註冊身分回傳 `None`；非模型操作者應明確設定，不猜測資料表或型別名稱。
 
 同步回呼可用 `manager.resolved_user(None)` 或 `Auth::resolved_user(None)?` 讀取目前 HTTP 請求中已解析的身分，無需啟用日誌監聽。`None` 遵循 `should_use` 和預設 Guard，`Some("web")` 明確選擇指定 Guard。這些 Rust 適配入口不會觸發非同步驗證或查詢使用者提供器；尚未解析、訪客或處於所屬請求作用域之外時回傳 `None`。需要惰性驗證的回呼應先在非同步中介軟體中解析 Guard。
+
+## 請求認證快取 {#request-auth-cache}
+
+身分變更提交後，可以清理已解析的 Guard，再重新取得目前使用者：
+
+```rust
+use openrust::support::facades::Auth;
+
+Auth::forget_guards(request)?;
+let current = Auth::user(request).await?;
+```
+
+此入口對應固定基線的 `AuthManager::forgetGuards`。Rust 將快取放在傳入請求中，保留 `should_use` 選擇、應用預設驅動及正在解析的重入保護；已快取的使用者或訪客會按需重新解析，不影響其他請求或應用。也可直接呼叫 `AuthManager::forget_guards`。此操作本身不會退出工作階段、輪換 CSRF／Cookie 或撤銷權杖；帳戶 Action 明確完成這些變更後再清理快取。

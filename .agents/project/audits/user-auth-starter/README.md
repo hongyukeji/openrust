@@ -527,3 +527,13 @@ avatar-delivery-space.json记录直接删除本批文档dist／cache及独占模
 ### 后续S04参考固定
 
 注销Action分工另外固定参考[Jetstream v5.5.3](https://github.com/laravel/jetstream/tree/61cac5cde455311890f6981fb2da47acd298e4e2)，SHA61cac5cde455311890f6981fb2da47acd298e4e2；实际读取DeletesUsers、DeleteUser、CurrentUserController、HasProfilePhoto和composer.json，快照与SHA在target/tmp/user-starter/reference/jetstream-5.5.3/。仅借鉴可替换应用Action及近期确认；不把Jetstream的先删外部头像再删用户顺序直接照搬为事务保证，也不引入团队或Inertia依赖。固定Laravel／Fortify／Sanctum基线保持原版本。
+
+## S04前置：事务令牌物理清理与请求Guard缓存重置
+
+沿用固定Sanctum模型与当前原生事务／Eloquent生命周期，新增TokenRelation::purge_in_transaction及PersonalAccessTokens::purge_owned_in_transaction。属于注销所需的Rust事务扩展，不冒称PHP有同名方法；原delete的全局Scope／批量删除行为保持。新入口要求同一连接、调用方持有用户锁并在错误后回滚，按真正主键、精确owner/type分批100锁定，包含Scope隐藏与软删除凭据，逐模型force_delete事件。模型拒绝、回滚及伪成功不物理删除均报错，不能无限循环或虚报完成。旧版无此事务凭据生命周期契约，复用现有模型适配器与事件。
+
+AuthManager／Auth::forget_guards对应固定Laravel AuthManager::forgetGuards（固定SHA下src/Illuminate/Auth/AuthManager.php），清理当前请求已解析Guard缓存，保留选定Guard、配置和正在解析标记，不清Cookie、Session或CSRF、不代替注销／撤销。不同请求及应用隔离。已有内部reset_request用于完整分派边界，不能机械替代这个公开入口。
+
+实际证据位于target/tmp/user-starter：token-purge-mysql-final.log、token-purge-postgres-final.log分别通过真实MySQL8.4.13／PostgreSQL18.7的软删除自定义模型专项和既有Bearer／SPA矩阵；token-purge-sqlite-final.log通过SQLite既有矩阵。各矩阵包括整数／UUID／ULID、scope隐藏、精确归属、错误连接、事件与取消回滚。sanctum_purge每库验证105个本人凭据跨批处理、软删除、模型伪成功和取消全部回滚、他人及大小写归属保留、重复清理0。token-purge-cache-final.log的3个缓存与2个既有扩展测试通过，覆盖HTTP正式门面、同请求刷新、选定Guard、跨请求／应用隔离、会话不变及解析中重入保护。
+
+最终workspace all-targets及Fortify+Sanctum严格Clippy、fmt通过（token-purge-workspace-clippy.log／token-purge-feature-clippy.log／token-purge-fmt.log）；三语教程构建与24组双挂载桌面／移动页面检查在token-purge-docs-first.log通过。冻结源码沿用S09的15c9c1248基线与已验本批覆盖，其他在途Horizon／Webhook不混入。初期夹具失败均保留且不计通过。这是注销前置能力，未完成DeleteUser／Passkeys清理及最终安装组合，A01各阶段仍未整簇闭合。

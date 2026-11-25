@@ -169,3 +169,16 @@ let providers = serde_json::json!({
 对于通过 `AuthManager::register_model` 注册的身份，`manager.user_morph_class(user)?` 返回真实 Eloquent 多态标识，遵循模型连接及自定义 `get_morph_class`。此 Rust 适配入口保留多态映射错误，未注册身份返回 `None`；非模型操作者应显式配置，不猜测表名或类型名。
 
 同步回调可用 `manager.resolved_user(None)` 或 `Auth::resolved_user(None)?` 读取当前 HTTP 请求中已解析的身份，无需启用日志监听。`None` 遵循 `should_use` 和默认 Guard，`Some("web")` 显式选择指定 Guard。这些 Rust 适配入口不会触发异步认证或查询用户提供器；尚未解析、访客或处于所属请求作用域之外时返回 `None`。需要惰性认证的回调应先在异步中间件中解析 Guard。
+
+## 请求认证缓存 {#request-auth-cache}
+
+身份变更提交后，可以清理已解析的 Guard，再重新取得当前用户：
+
+```rust
+use openrust::support::facades::Auth;
+
+Auth::forget_guards(request)?;
+let current = Auth::user(request).await?;
+```
+
+此入口对应固定基线的 `AuthManager::forgetGuards`。Rust 将缓存放在传入请求中，保留 `should_use` 选择、应用默认驱动及正在解析的重入保护；已缓存的用户或访客会按需重新解析，不影响其他请求或应用。也可直接调用 `AuthManager::forget_guards`。此操作本身不会退出会话、轮换 CSRF／Cookie 或撤销令牌；账户 Action 显式完成这些变更后再清理缓存。

@@ -347,6 +347,23 @@ impl PersonalAccessTokens {
             .map_err(AuthError::backend)
     }
 
+    /// 注销专用的同库清理：包括Scope隐藏与软删除令牌，并逐模型触发强制删除生命周期。
+    /// 不提交外层事务；任一模型拒绝时，调用方必须回滚整笔操作。
+    pub async fn purge_owned_in_transaction(
+        &self,
+        transaction: &mut crate::database::Transaction,
+        owner: &str,
+        owner_id: impl Into<AuthIdentifier>,
+    ) -> AuthResult<u64> {
+        if !transaction.belongs_to(&self.connection) {
+            return Err(AuthError::Configuration("令牌与账户必须使用同一事务连接"));
+        }
+        self.model
+            .purge_owned_in_transaction(transaction, owner, owner_id.into())
+            .await
+            .map_err(AuthError::backend)
+    }
+
     /// 原子撤销本人令牌；模型事件取消会返回错误，由调用者回滚整笔安全操作。
     pub async fn revoke_token_in_transaction(
         &self,

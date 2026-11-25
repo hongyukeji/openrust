@@ -160,6 +160,16 @@ impl TokenRelation {
             .await
     }
 
+    /// 注销账户时原子清理全部本人令牌；保留模型生命周期，错误须回滚调用方事务。
+    pub async fn purge_in_transaction(
+        &self,
+        transaction: &mut crate::database::Transaction,
+    ) -> AuthResult<u64> {
+        self.store
+            .purge_owned_in_transaction(transaction, self.owner_type, self.owner_id.clone())
+            .await
+    }
+
     pub async fn delete(&self) -> AuthResult<u64> {
         self.store
             .delete_related(self.owner_type, self.owner_id.clone(), None)

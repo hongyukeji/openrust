@@ -53,6 +53,12 @@ pub(super) trait ModelStore: Send + Sync {
         owner_id: AuthIdentifier,
         id: Option<AuthIdentifier>,
     ) -> DatabaseFuture<'a, DatabaseResult<u64>>;
+    fn purge_owned_in_transaction<'a>(
+        &'a self,
+        transaction: &'a mut Transaction,
+        owner: &'a str,
+        owner_id: AuthIdentifier,
+    ) -> DatabaseFuture<'a, DatabaseResult<u64>>;
     fn owned_in_transaction<'a>(
         &'a self,
         transaction: &'a mut Transaction,
@@ -244,6 +250,77 @@ impl<M: PersonalAccessTokenModel> ModelStore for EloquentTokenStore<M> {
                 query.where_key(key);
             }
             query.delete().await
+        })
+    }
+
+    fn purge_owned_in_transaction<'a>(
+        &'a self,
+        transaction: &'a mut Transaction,
+        owner: &'a str,
+        owner_id: AuthIdentifier,
+    ) -> DatabaseFuture<'a, DatabaseResult<u64>> {
+        Box::pin(async move {
+            let expected_owner = identifier(&Value::from(owner_id.clone()))?;
+            // 注销清理不能遗漏被Scope或软删除隐藏、以后可能重新可见的凭据。
+            // 不可放宽的多态归属条件仍由owner_query单独保留。
+            let mut deleted = 0;
+            let key_name = self.key_name();
+            loop {
+                let models = self
+                    .owner_query(owner, owner_id.clone())
+                    .without_global_scopes()
+                    .with_trashed()
+                    .lock_for_update()
+                    .limit(100)
+                    .get_in_transaction(transaction)
+                    .await?;
+                if models.is_empty() {
+                    break;
+                }
+                let keys = models
+                    .iter()
+                    .map(|model| {
+                        model
+                            .get_raw_original(&key_name)
+                            .cloned()
+                            .ok_or_else(invalid_row)
+                    })
+                    .collect::<DatabaseResult<Vec<_>>>()?;
+                for mut model in models {
+                    if identifier(
+                        model
+                            .get_raw_original("tokenable_id")
+                            .ok_or_else(invalid_row)?,
+                    )? != expected_owner
+                        || model.get_raw_original("tokenable_type") != Some(&Value::from(owner))
+                        || model.get_key_name() != key_name
+                        || model.get_key() != model.get_raw_original(model.get_key_name())
+                        || !lock_token(transaction, &model).await?
+                    {
+                        return Err(DatabaseError::InvalidQuery(
+                            "令牌清理模型改变了真实主键或归属",
+                        ));
+                    }
+                    if !model.force_delete_in_transaction(transaction).await? {
+                        return Err(DatabaseError::InvalidQuery(
+                            "令牌模型取消注销清理，须回滚调用方事务",
+                        ));
+                    }
+                    deleted += 1;
+                }
+                // 防止自定义force_delete虚报成功，或删除钩子重新插入同一凭据。
+                if transaction
+                    .table(&self.table_name())
+                    .where_in(&key_name, keys)
+                    .exists()
+                    .await?
+                {
+                    return Err(DatabaseError::InvalidQuery(
+                        "令牌模型未完成物理清理，须回滚调用方事务",
+                    ));
+                }
+            }
+            Ok(deleted)
         })
     }
 

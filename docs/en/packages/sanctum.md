@@ -104,3 +104,19 @@ The optional [user starter](../getting-started/starter-kits.md#credential-lifecy
 For a custom workflow, `PersonalAccessTokens::create_token_in_transaction` accepts a transaction, owner type, owner identifier and `TokenOptions::new(name)`. The builder provides `abilities`, `expires_at`, `attributes` and `secret`. The transaction must belong to the same connection. Extra attributes cannot override credential fields, timestamps or the configured primary key, including JSON-path variants. This storage operation does not replace application authorization, recent authentication or the starter's user-row lock/version policy. Standard `create_token` remains sufficient for ordinary callers. Expiration and pruning use the application-owned clock, including `Date` test-clock overrides.
 
 For account operations that share a transaction, `PersonalAccessTokens::find_owned_in_transaction` locks and reads only an owned token; `revoke_token_in_transaction` deletes through the configured model, preserving scopes, casts and model events. Both reject a different transaction connection. A cancelled deletion returns an error so the caller can roll back the complete operation. `Sanctum::validate_token_for_owner(token, owner, now)` reuses expiry and application callbacks when checking the freshly locked token; callers must supply the authenticated owner, verify exact ownership/provider and use their application clock. Normal applications should use the [user-kit endpoints](../getting-started/starter-kits.md#account-tokens).
+
+## Account cleanup in a transaction {#transactional-account-cleanup}
+
+An authorized account action can purge its user's personal tokens inside the user transaction:
+
+```rust
+use openrust::sanctum::HasApiTokens;
+
+// The account action supplies the authenticated user and its locked transaction.
+let removed = user.tokens(&sanctum, &database)?
+    .purge_in_transaction(transaction).await?;
+```
+
+`TokenRelation::purge_in_transaction` forwards to `PersonalAccessTokens::purge_owned_in_transaction`. This Rust transaction extension is intended for account destruction. It retains exact polymorphic ownership and the configured token model's table/connection, includes credentials hidden by global scopes or soft deletion, and physically removes each model through its force-delete lifecycle. Custom-model cancellation or failure returns an error; roll back the caller's entire transaction. Integer, UUID and ULID token keys are supported. A different transaction connection is rejected before writing; the method does not commit the caller's transaction.
+
+The existing relationship `delete` remains a scoped bulk delete with its existing model-event behavior. Use the account action to perform ownership, ability and recent-authentication checks before credential cleanup. After the account transaction commits, [clear request authentication caches](../security/authentication.md#request-auth-cache) so later consumers cannot reuse a resolved user snapshot.

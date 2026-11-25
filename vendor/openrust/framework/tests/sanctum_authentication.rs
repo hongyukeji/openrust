@@ -912,6 +912,155 @@ async fn verify_with_fingerprints<const KEY: u8>(
             .await
             .unwrap();
     }
+    // 注销清理走公开关系入口，覆盖整数／UUID／ULID、自定义Scope及事务回滚。
+    let mut purge_user = User::<false, KEY>::from_state(ModelState::default());
+    purge_user.set_attribute("id", SqlValue::from(owner(9999)));
+    let purge_relation = purge_user.tokens(&sanctum, &database).unwrap();
+    let purge_visible = purge_relation
+        .create_token("purge-visible", &[], None)
+        .await
+        .unwrap();
+    let purge_hidden = purge_relation
+        .create_token("hidden", &[], None)
+        .await
+        .unwrap();
+    let neighbour = tokens
+        .create_token("users_alias", owner(9998), "purge-neighbour", &[], None)
+        .await
+        .unwrap();
+    config
+        .set(
+            "database.connections.purge_mismatch",
+            json!({"driver":"sqlite","database":":memory:"}),
+        )
+        .unwrap();
+    let wrong = database.connection(Some("purge_mismatch")).unwrap();
+    let mut transaction = wrong.begin_transaction().await.unwrap();
+    assert!(
+        purge_relation
+            .purge_in_transaction(&mut transaction)
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("同一事务连接")
+    );
+    transaction.roll_back(None).await.unwrap();
+    let mut transaction = transaction_connection.begin_transaction().await.unwrap();
+    assert_eq!(
+        tokens
+            .purge_owned_in_transaction(&mut transaction, "USERS_ALIAS", owner(9999))
+            .await
+            .unwrap(),
+        0
+    );
+    assert_eq!(
+        purge_relation
+            .purge_in_transaction(&mut transaction)
+            .await
+            .unwrap(),
+        2
+    );
+    transaction.roll_back(None).await.unwrap();
+    assert!(
+        tokens
+            .find_token(&purge_visible.plain_text_token)
+            .await
+            .unwrap()
+            .is_some()
+    );
+    let key_column = if KEY == 0 { "id" } else { "token_id" };
+    assert_eq!(
+        transaction_connection
+            .table(token_table)
+            .r#where(
+                key_column,
+                "=",
+                SqlValue::from(purge_hidden.access_token.id.clone())
+            )
+            .count("*")
+            .await
+            .unwrap(),
+        1
+    );
+    model_events.take();
+    let mut transaction = transaction_connection.begin_transaction().await.unwrap();
+    assert_eq!(
+        purge_relation
+            .purge_in_transaction(&mut transaction)
+            .await
+            .unwrap(),
+        2
+    );
+    transaction.commit().await.unwrap();
+    let purged = model_events.take();
+    assert_eq!(
+        purged
+            .iter()
+            .filter(|event| **event == ModelEvent::Deleting)
+            .count(),
+        2
+    );
+    assert_eq!(
+        purged
+            .iter()
+            .filter(|event| **event == ModelEvent::Deleted)
+            .count(),
+        2
+    );
+    assert!(
+        tokens
+            .find_token(&purge_visible.plain_text_token)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert_eq!(
+        transaction_connection
+            .table(token_table)
+            .r#where(
+                key_column,
+                "=",
+                SqlValue::from(purge_hidden.access_token.id)
+            )
+            .count("*")
+            .await
+            .unwrap(),
+        0
+    );
+    assert!(
+        tokens
+            .find_token(&neighbour.plain_text_token)
+            .await
+            .unwrap()
+            .is_some()
+    );
+    if custom_csrf {
+        let allowed = purge_relation
+            .create_token("purge-before-cancel", &[], None)
+            .await
+            .unwrap();
+        let cancelled = purge_relation
+            .create_token("read", &[], None)
+            .await
+            .unwrap();
+        let mut transaction = transaction_connection.begin_transaction().await.unwrap();
+        assert!(
+            purge_relation
+                .purge_in_transaction(&mut transaction)
+                .await
+                .is_err()
+        );
+        transaction.roll_back(None).await.unwrap();
+        for issued in [&allowed, &cancelled] {
+            assert!(
+                tokens
+                    .find_token(&issued.plain_text_token)
+                    .await
+                    .unwrap()
+                    .is_some()
+            );
+        }
+    }
     model_events.take();
 
     assert!(

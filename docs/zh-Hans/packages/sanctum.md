@@ -106,3 +106,19 @@ fn register() -> Result<(), RoutingError> {
 自定义工作流可用 `PersonalAccessTokens::create_token_in_transaction`，传入事务、归属类型、归属标识和 `TokenOptions::new(name)`；构造器提供 `abilities`、`expires_at`、`attributes`、`secret`。事务必须属于同一连接。额外属性不能覆盖凭据字段、时间戳或所配置的主键，包括 JSON 路径写法。此存储操作不能替代应用授权、近期认证或套件的用户行锁／版本策略。普通调用继续使用标准 `create_token`。期限校验与清理使用应用时钟，包括 `Date` 的测试时钟覆写。
 
 账户操作需要共同事务时，`PersonalAccessTokens::find_owned_in_transaction` 只锁定并读取本人令牌；`revoke_token_in_transaction` 通过配置的模型删除，保留 Scope、属性转换及模型事件。两者拒绝不同连接的事务；模型取消删除会返回错误，由调用者回滚整笔操作。锁内重新检查令牌时，`Sanctum::validate_token_for_owner(token, owner, now)` 复用有效期和应用回调；调用者须传入已认证的归属身份、核对精确归属／Provider，并使用所属应用时钟。普通应用优先使用[用户套件接口](../getting-started/starter-kits.md#account-tokens)。
+
+## 事务内账户凭据清理 {#transactional-account-cleanup}
+
+已完成授权的账户 Action 可在本人用户事务内清理个人令牌：
+
+```rust
+use openrust::sanctum::HasApiTokens;
+
+// user 与已取得写锁的 transaction 由账户 Action 提供。
+let removed = user.tokens(&sanctum, &database)?
+    .purge_in_transaction(transaction).await?;
+```
+
+`TokenRelation::purge_in_transaction` 转发到 `PersonalAccessTokens::purge_owned_in_transaction`。这是用于账户注销的 Rust 事务扩展：保留精确的多态归属及所配置令牌模型的表／连接，包括被全局 Scope 或软删除隐藏的凭据，并通过每个模型的强制删除生命周期物理清理。自定义模型取消或失败会返回错误，调用方须回滚整笔事务。支持整数、UUID、ULID 令牌主键；不同事务连接在写入前拒绝，不代替调用方提交事务。
+
+原有关系 `delete` 继续按 Scope 批量删除，模型事件行为保持原契约。账户 Action 应先检查本人归属、能力和近期认证，再清理凭据；账户事务提交后[重置请求认证缓存](../security/authentication.md#request-auth-cache)，使后续消费者不再复用旧用户快照。

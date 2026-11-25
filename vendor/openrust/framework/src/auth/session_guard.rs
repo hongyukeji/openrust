@@ -85,6 +85,12 @@ impl AuthContext {
         Self::get(request)?.guards.get(name)
     }
 
+    pub(super) fn forget_guards(request: &mut Request) {
+        // 保留选择的Guard和正在解析的重入保护，只清理当前请求的身份缓存。
+        Self::mutable(request).guards.clear();
+        Self::publish(request);
+    }
+
     pub(super) fn publish(request: &Request) {
         if let Some(context) = Self::get(request) {
             request.attributes().insert(

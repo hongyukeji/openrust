@@ -385,6 +385,11 @@ impl AuthManager {
         self.config.as_ref()
     }
 
+    /// 重置本请求的驱动身份缓存；不退出登录，也不修改会话、Cookie或默认驱动。
+    pub fn forget_guards(&self, request: &mut Request) {
+        AuthContext::forget_guards(request);
+    }
+
     pub fn should_use(&self, request: &mut Request, name: &str) -> AuthResult<()> {
         <Self as Factory>::should_use(self, request, name)
     }

@@ -48,6 +48,12 @@ impl Auth {
         Self::manager()?.guard_name(request, name)
     }
 
+    /// 清理当前请求的认证驱动缓存，供已提交的身份变更后重新解析。
+    pub fn forget_guards(request: &mut Request) -> AuthResult<()> {
+        Self::manager()?.forget_guards(request);
+        Ok(())
+    }
+
     pub fn guard<'a>(
         request: &'a mut Request,
         name: Option<&str>,

@@ -169,3 +169,16 @@ Declare `Admin` in your application's models module before using it. Adding a mo
 For an identity registered with `AuthManager::register_model`, `manager.user_morph_class(user)?` returns its actual Eloquent morph discriminator, including the model’s connection and custom `get_morph_class` behavior. This Rust adapter preserves morph-map errors and returns `None` for unregistered identities. Configure non-model causers explicitly instead of guessing a table or type name.
 
 Synchronous callbacks can use `manager.resolved_user(None)` or `Auth::resolved_user(None)?` to read an identity already resolved in the current HTTP request, without enabling log listeners. `None` follows `should_use` and the default guard; `Some("web")` selects that guard explicitly. These Rust adapters do not run asynchronous authentication or query a user provider. An unresolved guard, guest, or call outside the owning request scope returns `None`; callbacks needing lazy authentication must resolve the guard first in asynchronous middleware.
+
+## Request authentication caches {#request-auth-cache}
+
+After committing an identity change, reset resolved guards before resolving the user again:
+
+```rust
+use openrust::support::facades::Auth;
+
+Auth::forget_guards(request)?;
+let current = Auth::user(request).await?;
+```
+
+This follows the pinned `AuthManager::forgetGuards` contract. Rust keeps these caches on the supplied request, preserving the selected `should_use` guard, application default and in-progress resolver protection. Cached users and cached guests are resolved again on demand; other requests and applications are unaffected. `AuthManager::forget_guards` is also available directly. The operation itself does not log out a session, rotate CSRF/Cookies or revoke tokens. Account actions perform those changes explicitly, then reset the cache.
