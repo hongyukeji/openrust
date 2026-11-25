@@ -27,7 +27,7 @@ pub(super) fn load(env: &Environment) -> Result<Loaded<'_>, ConfigError> {
             expected: "a non-empty directory path",
         });
     }
-    let (url, url_explicit) = resolve_url(env, env_host, port)?;
+    let (url, prefer_app_url) = resolve_url(env, env_host, port)?;
     let port = port
         .parse::<u16>()
         .map_or_else(|_| json!(port), |port| json!(port));
@@ -66,7 +66,7 @@ pub(super) fn load(env: &Environment) -> Result<Loaded<'_>, ConfigError> {
         "host": host,
         "port": port,
         "url": url,
-        "url_explicit": url_explicit,
+        "prefer_app_url": prefer_app_url,
         // 根路由的首页跳转目标。
         "home_url": get(env, "APP_HOME_URL", "/index.html")?,
         "frontend_url": get(env, "FRONTEND_URL", "http://localhost:3000")?,

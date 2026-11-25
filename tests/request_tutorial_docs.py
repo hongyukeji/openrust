@@ -34,7 +34,7 @@ async fn call(kernel:&Kernel,method:&str,path:&str,body:&str)->(StatusCode,Value
 }
 async fn verify(register:fn(&Application)->Result<Router,RoutingError>) {
  let root=tempfile::tempdir().unwrap();std::fs::create_dir_all(root.path().join("lang/fr")).unwrap();std::fs::write(root.path().join("lang/fr/rules.json"),r#"{"invalid":"Le champ :attribute est invalide (:token)."}"#).unwrap();let app=Application::configure(root.path().to_owned()).with_config(|_,_|Ok(std::collections::BTreeMap::from([
- ("app".into(),json!({"key":"a".repeat(32),"locale":"en","supported_locales":[],"url":"http://tutorial.test","url_explicit":false})),
+ ("app".into(),json!({"key":"a".repeat(32),"locale":"en","supported_locales":[],"url":"http://tutorial.test","prefer_app_url":false})),
  ]))).with_routing(Routing::new(register)).create().unwrap();
  let mut kernel=Kernel::new(app);kernel.bootstrap().await.unwrap();
  assert_eq!(call(&kernel,"GET","http://tutorial.test/unsubscribe?email=signed@example.test", "").await.0,StatusCode::UNAUTHORIZED);

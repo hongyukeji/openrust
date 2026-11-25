@@ -461,7 +461,13 @@ impl UrlGenerator {
     fn root(&self, secure: Option<bool>) -> UrlResult<::url::Url> {
         let mut root = if let Some(root) = &self.force_root {
             valid_http_url(root)?
-        } else if self.config.get("app.url_explicit") == Some(Value::Bool(true)) {
+        } else if self
+            .config
+            .get("app.prefer_app_url")
+            // 兼容仍使用旧键的配置缓存。
+            .or_else(|| self.config.get("app.url_explicit"))
+            == Some(Value::Bool(true))
+        {
             self.configured_root()?
         } else {
             self.request_root()

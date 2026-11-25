@@ -737,6 +737,18 @@ async fn signs_and_redirects_over_real_http() {
     let links: serde_json::Value =
         serde_json::from_str(response.split_once("\r\n\r\n").unwrap().1).unwrap();
     assert_eq!(links["named"], "http://canonical.test/page/default");
+
+    config.set("app.prefer_app_url", json!(false)).unwrap();
+    let response = exchange(address, "/links", &host, 200).await;
+    let links: serde_json::Value =
+        serde_json::from_str(response.split_once("\r\n\r\n").unwrap().1).unwrap();
+    assert_eq!(links["named"], format!("http://{host}/page/default"));
+
+    config.set("app.prefer_app_url", json!(true)).unwrap();
+    let response = exchange(address, "/links", &host, 200).await;
+    let links: serde_json::Value =
+        serde_json::from_str(response.split_once("\r\n\r\n").unwrap().1).unwrap();
+    assert_eq!(links["named"], "http://canonical.test/page/default");
     let signed = links["absolute"]
         .as_str()
         .unwrap()

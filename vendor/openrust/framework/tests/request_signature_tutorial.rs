@@ -112,7 +112,7 @@ async fn start(
     old: Option<&str>,
 ) -> (tempfile::TempDir, SocketAddr, tokio::task::JoinHandle<()>) {
     let root = tempfile::tempdir().unwrap();
-    std::fs::write(root.path().join("app.json"), serde_json::to_vec(&json!({"env":"testing","url":"http://localhost","url_explicit":false,"key":key,"previous_keys":old.into_iter().collect::<Vec<_>>(),"locale":"en","supported_locales":[]})).unwrap()).unwrap();
+    std::fs::write(root.path().join("app.json"), serde_json::to_vec(&json!({"env":"testing","url":"http://localhost","prefer_app_url":false,"key":key,"previous_keys":old.into_iter().collect::<Vec<_>>(),"locale":"en","supported_locales":[]})).unwrap()).unwrap();
     let app = Application::configure(root.path().to_owned())
         .with_config(|base, _| {
             Ok(BTreeMap::from([
