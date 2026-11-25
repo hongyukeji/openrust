@@ -1045,3 +1045,39 @@ fn register_separators() -> Result<(), ConsoleError> {
 ```
 
 `set_rows`, `add_rows`, `add_row` and the table convenience methods accept these heterogeneous rows. `add_row` and `add_rows` continue to propagate index exhaustion with `?`; `set_row` replaces a separator with a data array at the same key. Leading, trailing and consecutive separators retain their declared order. Horizontal and vertical layouts omit explicit whole-row separators; vertical layout continues to generate its own record separators. Complex separator-cell options, spans and section redraw remain separate capabilities.
+
+## Cell Styles and Inner Separators {#table-cell-styles}
+
+Create `TableCellStyle` from option pairs, or use `Default` for `fg=default`, `bg=default`, no text options, left alignment and no custom format. Supported keys are `fg`, `bg`, `options`, `align` and `cellFormat`; the last key retains its configuration spelling. `align` accepts `left`, `center` or `right`. Unknown keys and invalid non-null alignment fail during construction.
+
+`get_options` and `get_tag_options` return independent maps; null tag values are omitted. `get_pad_by_align` and `get_cell_format` return `Result`, preserving delayed failures for explicit null alignment and invalid format types. Scalar formats follow the existing string conversion. `DEFAULT_ALIGN` is `left`.
+
+```rust
+use openrust::{
+    console::{ConsoleError, Input, Output, TableCell, TableCellStyle, TableSeparator},
+    support::facades::Artisan,
+};
+
+fn register_cell_styles() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:cell-styles", |input: &Input, output: &mut Output| {
+        let style = TableCellStyle::new([
+            ("fg", serde_json::json!("green")),
+            ("align", serde_json::json!("right")),
+        ])?;
+        let rows = vec![
+            vec![TableCell::new("Ada").with_style(style), "42".into()],
+            vec![TableSeparator::new().into(), TableSeparator::new().into()],
+            vec!["Li".into(), "7".into()],
+        ];
+        input.io(output).table_named(["Name", "Score"], rows, "box-double")?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
+Use `TableCell::with_style` to attach an immutable style and `get_style` to inspect it. Existing complete formatter tags keep their text styling, while the cell alignment still applies. Without such tags, `cellFormat` overrides the generated color tag. Width wrapping and multi-line expansion create plain line cells and can discard the original per-cell style; horizontal layout preserves moved cell styles, while vertical layout converts values to text.
+
+A `TableSeparator` converted into a cell draws that column's inside border using its column style. It differs from a whole-row `TableRow::Separator`. Cell spans, separator constructor options and section redraw remain separately tracked capabilities.
+
+Each physical output line snapshots its row text format at the start. Formatting callbacks can change subsequent borders and the next line; a format change does not rewrite cells already being rendered.

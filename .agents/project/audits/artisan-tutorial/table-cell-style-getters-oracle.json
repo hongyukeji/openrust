@@ -1,0 +1,378 @@
+[
+    {
+        "input": [],
+        "constructed": true,
+        "options": {
+            "fg": "default",
+            "bg": "default",
+            "options": null,
+            "align": "left",
+            "cellFormat": null
+        },
+        "tags": {
+            "fg": "default",
+            "bg": "default"
+        },
+        "pad": 1,
+        "format": null
+    },
+    {
+        "input": {
+            "fg": "red"
+        },
+        "constructed": true,
+        "options": {
+            "fg": "red",
+            "bg": "default",
+            "options": null,
+            "align": "left",
+            "cellFormat": null
+        },
+        "tags": {
+            "fg": "red",
+            "bg": "default"
+        },
+        "pad": 1,
+        "format": null
+    },
+    {
+        "input": {
+            "fg": "green",
+            "bg": "blue",
+            "options": "bold"
+        },
+        "constructed": true,
+        "options": {
+            "fg": "green",
+            "bg": "blue",
+            "options": "bold",
+            "align": "left",
+            "cellFormat": null
+        },
+        "tags": {
+            "fg": "green",
+            "bg": "blue",
+            "options": "bold"
+        },
+        "pad": 1,
+        "format": null
+    },
+    {
+        "input": {
+            "align": "right"
+        },
+        "constructed": true,
+        "options": {
+            "fg": "default",
+            "bg": "default",
+            "options": null,
+            "align": "right",
+            "cellFormat": null
+        },
+        "tags": {
+            "fg": "default",
+            "bg": "default"
+        },
+        "pad": 0,
+        "format": null
+    },
+    {
+        "input": {
+            "align": "center"
+        },
+        "constructed": true,
+        "options": {
+            "fg": "default",
+            "bg": "default",
+            "options": null,
+            "align": "center",
+            "cellFormat": null
+        },
+        "tags": {
+            "fg": "default",
+            "bg": "default"
+        },
+        "pad": 2,
+        "format": null
+    },
+    {
+        "input": {
+            "fg": null,
+            "bg": null,
+            "options": null
+        },
+        "constructed": true,
+        "options": {
+            "fg": null,
+            "bg": null,
+            "options": null,
+            "align": "left",
+            "cellFormat": null
+        },
+        "tags": [],
+        "pad": 1,
+        "format": null
+    },
+    {
+        "input": {
+            "cellFormat": "[%s]",
+            "align": "right"
+        },
+        "constructed": true,
+        "options": {
+            "fg": "default",
+            "bg": "default",
+            "options": null,
+            "align": "right",
+            "cellFormat": "[%s]"
+        },
+        "tags": {
+            "fg": "default",
+            "bg": "default"
+        },
+        "pad": 0,
+        "format": "[%s]"
+    },
+    {
+        "input": {
+            "cellFormat": "<error>%s<\/error>",
+            "align": "center"
+        },
+        "constructed": true,
+        "options": {
+            "fg": "default",
+            "bg": "default",
+            "options": null,
+            "align": "center",
+            "cellFormat": "<error>%s<\/error>"
+        },
+        "tags": {
+            "fg": "default",
+            "bg": "default"
+        },
+        "pad": 2,
+        "format": "<error>%s<\/error>"
+    },
+    {
+        "input": {
+            "fg": "#ff0"
+        },
+        "constructed": true,
+        "options": {
+            "fg": "#ff0",
+            "bg": "default",
+            "options": null,
+            "align": "left",
+            "cellFormat": null
+        },
+        "tags": {
+            "fg": "#ff0",
+            "bg": "default"
+        },
+        "pad": 1,
+        "format": null
+    },
+    {
+        "input": {
+            "fg": "red blue"
+        },
+        "constructed": true,
+        "options": {
+            "fg": "red blue",
+            "bg": "default",
+            "options": null,
+            "align": "left",
+            "cellFormat": null
+        },
+        "tags": {
+            "fg": "red blue",
+            "bg": "default"
+        },
+        "pad": 1,
+        "format": null
+    },
+    {
+        "input": {
+            "options": "bold,underscore"
+        },
+        "constructed": true,
+        "options": {
+            "fg": "default",
+            "bg": "default",
+            "options": "bold,underscore",
+            "align": "left",
+            "cellFormat": null
+        },
+        "tags": {
+            "fg": "default",
+            "bg": "default",
+            "options": "bold,underscore"
+        },
+        "pad": 1,
+        "format": null
+    },
+    {
+        "input": {
+            "align": null
+        },
+        "constructed": true,
+        "options": {
+            "fg": "default",
+            "bg": "default",
+            "options": null,
+            "align": null,
+            "cellFormat": null
+        },
+        "tags": {
+            "fg": "default",
+            "bg": "default"
+        },
+        "pad_error": true,
+        "format": null
+    },
+    {
+        "input": {
+            "cellFormat": []
+        },
+        "constructed": true,
+        "options": {
+            "fg": "default",
+            "bg": "default",
+            "options": null,
+            "align": "left",
+            "cellFormat": []
+        },
+        "tags": {
+            "fg": "default",
+            "bg": "default"
+        },
+        "pad": 1,
+        "format_error": true
+    },
+    {
+        "input": {
+            "cellFormat": false
+        },
+        "constructed": true,
+        "options": {
+            "fg": "default",
+            "bg": "default",
+            "options": null,
+            "align": "left",
+            "cellFormat": false
+        },
+        "tags": {
+            "fg": "default",
+            "bg": "default"
+        },
+        "pad": 1,
+        "format": ""
+    },
+    {
+        "input": {
+            "unknown": true
+        },
+        "constructed": false
+    },
+    {
+        "input": {
+            "align": "LEFT"
+        },
+        "constructed": false
+    },
+    {
+        "input": {
+            "align": []
+        },
+        "constructed": false
+    },
+    {
+        "input": {
+            "fg": true
+        },
+        "constructed": true,
+        "options": {
+            "fg": true,
+            "bg": "default",
+            "options": null,
+            "align": "left",
+            "cellFormat": null
+        },
+        "tags": {
+            "fg": true,
+            "bg": "default"
+        },
+        "pad": 1,
+        "format": null
+    },
+    {
+        "input": {
+            "fg": [
+                "blue",
+                "red"
+            ]
+        },
+        "constructed": true,
+        "options": {
+            "fg": [
+                "blue",
+                "red"
+            ],
+            "bg": "default",
+            "options": null,
+            "align": "left",
+            "cellFormat": null
+        },
+        "tags": {
+            "fg": [
+                "blue",
+                "red"
+            ],
+            "bg": "default"
+        },
+        "pad": 1,
+        "format": null
+    },
+    {
+        "input": {
+            "cellFormat": 12
+        },
+        "constructed": true,
+        "options": {
+            "fg": "default",
+            "bg": "default",
+            "options": null,
+            "align": "left",
+            "cellFormat": 12
+        },
+        "tags": {
+            "fg": "default",
+            "bg": "default"
+        },
+        "pad": 1,
+        "format": "12"
+    },
+    {
+        "input": {
+            "cellFormat": {
+                "x": 1
+            }
+        },
+        "constructed": true,
+        "options": {
+            "fg": "default",
+            "bg": "default",
+            "options": null,
+            "align": "left",
+            "cellFormat": {
+                "x": 1
+            }
+        },
+        "tags": {
+            "fg": "default",
+            "bg": "default"
+        },
+        "pad": 1,
+        "format_error": true
+    }
+]

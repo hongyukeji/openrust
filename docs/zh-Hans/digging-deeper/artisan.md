@@ -1045,3 +1045,39 @@ fn register_separators() -> Result<(), ConsoleError> {
 ```
 
 `set_rows`、`add_rows`、`add_row` 和表格便利方法接收这类异构行。`add_row`／`add_rows` 继续用 `?` 传播索引耗尽；`set_row` 可将同键分隔线替换为数据数组。开头、末尾和连续分隔线保留声明顺序。横向与纵向布局略过显式整行分隔线，纵向布局仍自行生成记录间分隔。复杂分隔单元格选项、跨行跨列和分区重绘仍为独立能力。
+
+## 单元格样式与内部分隔 {#table-cell-styles}
+
+使用选项键值对创建 `TableCellStyle`，或用 `Default` 取得 `fg=default`、`bg=default`、无文本选项、左对齐和无自定义格式。支持键为 `fg`、`bg`、`options`、`align` 和 `cellFormat`，最后一项保留配置拼写。`align` 接收 `left`、`center` 或 `right`；未知键和无效的非空对齐值在构造时失败。
+
+`get_options`、`get_tag_options` 返回独立的映射，空值标签选项被略去。`get_pad_by_align`、`get_cell_format` 返回 `Result`，保留显式空对齐与非法格式类型延迟到读取时失败的行为；格式的普通标量沿用既有字符串转换。`DEFAULT_ALIGN` 为 `left`。
+
+```rust
+use openrust::{
+    console::{ConsoleError, Input, Output, TableCell, TableCellStyle, TableSeparator},
+    support::facades::Artisan,
+};
+
+fn register_cell_styles() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:cell-styles", |input: &Input, output: &mut Output| {
+        let style = TableCellStyle::new([
+            ("fg", serde_json::json!("green")),
+            ("align", serde_json::json!("right")),
+        ])?;
+        let rows = vec![
+            vec![TableCell::new("Ada").with_style(style), "42".into()],
+            vec![TableSeparator::new().into(), TableSeparator::new().into()],
+            vec!["Li".into(), "7".into()],
+        ];
+        input.io(output).table_named(["Name", "Score"], rows, "box-double")?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
+用 `TableCell::with_style` 附加不可变样式，`get_style` 读取该样式。已有完整格式标签时保留其文本样式，单元格对齐仍生效；其他情况用 `cellFormat` 覆盖自动生成的颜色标签。按宽度换行与多行展开会生成普通文本行，可能丢弃原单元格样式；横向布局保留搬移的单元格样式，纵向布局将值转换为文本。
+
+将 `TableSeparator` 转换为单元格后，按该列样式绘制内部边框，与整行 `TableRow::Separator` 不同。跨行跨列、分隔构造选项和分区重绘仍单独跟踪。
+
+每条实际输出行在开始时读取行文本格式。格式化回调的修改会影响后续边框与下一行，不会回改正在渲染的本行单元格格式。

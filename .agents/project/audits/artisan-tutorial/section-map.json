@@ -334,7 +334,7 @@
     },
     {
       "anchor": "tables",
-      "status": "verified_text_rows_explicit_row_separators_layout_and_shared_styles_remaining_complex_cells_sections",
+      "status": "verified_cell_styles_and_default_separators_rows_layout_shared_styles_remaining_spans_sections",
       "evidence": [
         "console_tables_tutorial",
         "table-oracle.json",
@@ -350,7 +350,12 @@
         "table-definitions-callback-oracle.json",
         "accepted-table-definitions.json",
         "table-separators-oracle.json",
-        "accepted-table-separators.json"
+        "accepted-table-separators.json",
+        "table-cell-styles-oracle.json",
+        "table-cell-style-getters-oracle.json",
+        "table-cell-row-format-oracle.json",
+        "table-cell-live-format-oracle.json",
+        "accepted-table-cell-styles.json"
       ],
       "native": "console::CommandIo::table",
       "remaining": [

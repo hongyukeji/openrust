@@ -11,6 +11,8 @@ pub(super) struct OrientedRows {
     pub(super) headers: Vec<Vec<String>>,
     pub(super) rows: Vec<Vec<String>>,
     pub(super) rules: BTreeSet<usize>,
+    pub(super) header_attributes: super::AttributeRows,
+    pub(super) row_attributes: super::AttributeRows,
     pub(super) separators: BTreeSet<usize>,
 }
 impl Table<'_, '_> {
@@ -41,7 +43,7 @@ impl Table<'_, '_> {
         let row = match row {
             TableRow::Cells(cells) => {
                 self.separators.remove(&index);
-                cells.into_iter().map(|cell| cell.to_string()).collect()
+                cells
             }
             TableRow::Separator(_) => {
                 self.separators.insert(index);
@@ -67,11 +69,7 @@ impl Table<'_, '_> {
     {
         self.headers = rows
             .into_iter()
-            .map(|row| {
-                row.into_iter()
-                    .map(|cell| cell.into().to_string())
-                    .collect()
-            })
+            .map(|row| row.into_iter().map(Into::into).collect())
             .collect();
         self
     }
@@ -96,24 +94,46 @@ impl Table<'_, '_> {
             headers: Vec::new(),
             rows: Vec::new(),
             rules: BTreeSet::new(),
+            header_attributes: super::AttributeRows::new(),
+            row_attributes: super::AttributeRows::new(),
             separators: BTreeSet::new(),
         };
         match self.orientation {
             Orientation::Default => {
-                result.headers = self.headers.clone();
-                result.rows = self.rows.clone();
+                result.headers = project_cells(&self.headers, &mut result.header_attributes);
+                result.rows = project_cells(&self.rows, &mut result.row_attributes);
                 result.separators = self.separators.clone();
             }
             Orientation::Horizontal => {
                 for (column, header) in self.headers.first().into_iter().flatten().enumerate() {
-                    let mut row = vec![header.clone()];
+                    let row_index = result.rows.len();
+                    let mut row = vec![header.to_string()];
+                    if let Some(attributes) = header.attributes() {
+                        result
+                            .row_attributes
+                            .entry(row_index)
+                            .or_default()
+                            .insert(0, attributes);
+                    }
                     for (_, source) in self
                         .rows
                         .iter()
                         .enumerate()
                         .filter(|(index, _)| !self.separators.contains(index))
                     {
-                        row.push(source.get(column).cloned().unwrap_or_default());
+                        let index = row.len();
+                        if let Some(cell) = source.get(column) {
+                            if let Some(attributes) = cell.attributes() {
+                                result
+                                    .row_attributes
+                                    .entry(row_index)
+                                    .or_default()
+                                    .insert(index, attributes);
+                            }
+                            row.push(cell.to_string());
+                        } else {
+                            row.push(String::new());
+                        }
                     }
                     result.rows.push(row);
                 }
@@ -122,7 +142,7 @@ impl Table<'_, '_> {
                 let headers = self.headers.first().cloned().unwrap_or_default();
                 let mut maximum = 0;
                 for header in &headers {
-                    maximum = maximum.max(self.visible_width(header)?);
+                    maximum = maximum.max(self.visible_width(header.as_str())?);
                 }
                 let sources: Vec<_> = self
                     .rows
@@ -137,13 +157,18 @@ impl Table<'_, '_> {
                         result.rows.push(vec![String::new()]);
                     }
                     for column in 0..headers.len().max(source.len()) {
-                        let cell = source.get(column).map(String::as_str).unwrap_or_default();
+                        let cell = source
+                            .get(column)
+                            .map(TableCell::as_str)
+                            .unwrap_or_default();
                         let separator = if cell.contains("\r\n") { "\r\n" } else { "\n" };
                         for (index, part) in cell.split(separator).enumerate() {
                             if !headers.is_empty() {
                                 if index == 0 {
-                                    let header =
-                                        headers.get(column).map(String::as_str).unwrap_or_default();
+                                    let header = headers
+                                        .get(column)
+                                        .map(TableCell::as_str)
+                                        .unwrap_or_default();
                                     let length = self.visible_width(header)?;
                                     result.rows.push(vec![format!(
                                         "<comment>{}{header}</>: {part}",
@@ -186,4 +211,27 @@ impl Table<'_, '_> {
             super::OutputVerbosity::Normal,
         )
     }
+}
+
+fn project_cells(
+    rows: &[Vec<TableCell>],
+    attributes: &mut super::AttributeRows,
+) -> Vec<Vec<String>> {
+    rows.iter()
+        .enumerate()
+        .map(|(row_index, row)| {
+            row.iter()
+                .enumerate()
+                .map(|(column, cell)| {
+                    if let Some(attribute) = cell.attributes() {
+                        attributes
+                            .entry(row_index)
+                            .or_default()
+                            .insert(column, attribute);
+                    }
+                    cell.to_string()
+                })
+                .collect()
+        })
+        .collect()
 }

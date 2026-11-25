@@ -6,6 +6,9 @@ pub enum ConsoleTableError {
     UndefinedStyle(String),
     MissingDefinitions,
     EmptyPadding,
+    UnknownCellStyleOptions(Vec<String>),
+    InvalidCellAlignment(serde_json::Value),
+    InvalidCellFormat,
     RowIndexOverflow,
     UnsupportedWrappingFormatter,
     InvalidColumnWidth(i64),
@@ -15,6 +18,11 @@ pub enum ConsoleTableError {
 impl fmt::Display for ConsoleTableError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::UnknownCellStyleOptions(keys) => {
+                write!(f, "单元格样式不支持这些选项：{}", keys.join("、"))
+            }
+            Self::InvalidCellAlignment(value) => write!(f, "单元格对齐值无效：{value}"),
+            Self::InvalidCellFormat => f.write_str("单元格格式必须为文本或空值"),
             Self::MissingDefinitions => f.write_str("表格命名样式需要应用装配作用域"),
             Self::UndefinedStyle(name) => write!(f, "表格样式未定义：{name}"),
             Self::UnsupportedWrappingFormatter => f.write_str("当前格式器不支持列宽换行"),

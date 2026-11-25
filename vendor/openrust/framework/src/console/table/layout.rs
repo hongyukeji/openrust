@@ -7,6 +7,8 @@ pub(super) struct PreparedLayout {
     pub(super) rows: TextRows,
     pub(super) unsplit_headers: ColumnMasks,
     pub(super) rules: BTreeSet<usize>,
+    pub(super) header_attributes: super::AttributeRows,
+    pub(super) row_attributes: super::AttributeRows,
     pub(super) separators: BTreeSet<usize>,
     pub(super) unsplit_rows: ColumnMasks,
 }
@@ -61,49 +63,71 @@ impl Table<'_, '_> {
             headers: oriented.headers,
             rows: oriented.rows,
             rules: oriented.rules,
+            header_attributes: oriented.header_attributes,
+            row_attributes: oriented.row_attributes,
             separators: oriented.separators,
             unsplit_headers: ColumnMasks::new(),
             unsplit_rows: ColumnMasks::new(),
         };
         let formatter = self.output.get_formatter();
-        for (is_body, rows, masks) in [
-            (false, &mut prepared.headers, &mut prepared.unsplit_headers),
-            (true, &mut prepared.rows, &mut prepared.unsplit_rows),
+        for (is_body, rows, masks, attributes) in [
+            (
+                false,
+                &mut prepared.headers,
+                &mut prepared.unsplit_headers,
+                &mut prepared.header_attributes,
+            ),
+            (
+                true,
+                &mut prepared.rows,
+                &mut prepared.unsplit_rows,
+                &mut prepared.row_attributes,
+            ),
         ] {
             for (row_index, row) in rows.iter_mut().enumerate() {
                 for (column, cell) in row.iter_mut().enumerate() {
+                    let visible = super::super::formatting::unformatted_text(
+                        &mut self.output.get_output().formatter,
+                        cell,
+                    )
+                    .map_err(ConsoleError::from_source)?;
+                    let cell_width =
+                        i64::try_from(width(&visible)).map_err(ConsoleError::from_source)?;
                     if let Some(maximum) = self
                         .column_max_widths
                         .get(&column)
                         .copied()
                         .filter(|width| *width != 0)
+                        && cell_width > maximum
                     {
-                        let visible = super::super::formatting::unformatted_text(
-                            &mut self.output.get_output().formatter,
-                            cell,
-                        )
-                        .map_err(ConsoleError::from_source)?;
-                        if i64::try_from(width(&visible)).map_err(ConsoleError::from_source)?
-                            > maximum
-                        {
-                            let wrapper = formatter.as_wrappable().ok_or_else(|| {
-                                ConsoleError::from_source(
-                                    ConsoleTableError::UnsupportedWrappingFormatter,
-                                )
-                            })?;
-                            let wrapped = wrapper
-                                .format_and_wrap(Some(cell), maximum)
-                                .map_err(ConsoleError::from_source)?;
-                            // 只有带换行的结果进入拆行；其他结果保留原单元格与原始换行。
-                            if wrapped.contains('\n') {
-                                *cell = wrapped;
-                                if is_body {
-                                    prepared.rules.remove(&row_index);
-                                }
-                            } else if cell.contains('\n') {
-                                masks.entry(row_index).or_default().insert(column);
+                        let wrapper = formatter.as_wrappable().ok_or_else(|| {
+                            ConsoleError::from_source(
+                                ConsoleTableError::UnsupportedWrappingFormatter,
+                            )
+                        })?;
+                        let wrapped = wrapper
+                            .format_and_wrap(Some(cell), maximum)
+                            .map_err(ConsoleError::from_source)?;
+                        // 只有带换行的结果进入拆行；其他结果保留原单元格与原始换行。
+                        if wrapped.contains('\n') {
+                            *cell = wrapped;
+                            if let Some(row) = attributes.get_mut(&row_index) {
+                                row.remove(&column);
                             }
+                            if is_body {
+                                prepared.rules.remove(&row_index);
+                            }
+                        } else if cell.contains('\n') {
+                            masks.entry(row_index).or_default().insert(column);
                         }
+                    }
+                    if cell.contains('\n')
+                        && !masks
+                            .get(&row_index)
+                            .is_some_and(|columns| columns.contains(&column))
+                        && let Some(row) = attributes.get_mut(&row_index)
+                    {
+                        row.remove(&column);
                     }
                 }
             }

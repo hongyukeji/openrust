@@ -1,41 +1,95 @@
 use std::fmt::{self, Display};
-/// 文本单元格；JSON标量沿用框架的标量转换，业务类型可显式使用Display适配。
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct TableCell(String);
+/// 保留文本、样式及分隔标记；普通纯量与显式对象沿用同一个渲染管线。
+#[derive(Clone, Debug)]
+pub struct TableCell {
+    value: String,
+    style: Option<super::TableCellStyle>,
+    separator: bool,
+    explicit: bool,
+}
+impl PartialEq for TableCell {
+    fn eq(&self, other: &Self) -> bool {
+        self.value == other.value && self.style == other.style && self.separator == other.separator
+    }
+}
+impl Eq for TableCell {}
 impl TableCell {
     pub fn new(value: impl Into<Self>) -> Self {
-        value.into()
+        let value: Self = value.into();
+        Self {
+            value: value.value,
+            style: None,
+            separator: false,
+            explicit: true,
+        }
+    }
+    fn text(value: String) -> Self {
+        Self {
+            value,
+            style: None,
+            separator: false,
+            explicit: false,
+        }
+    }
+    pub fn with_style(mut self, style: super::TableCellStyle) -> Self {
+        self.style = Some(style);
+        self.explicit = true;
+        self
+    }
+    pub fn get_style(&self) -> Option<&super::TableCellStyle> {
+        self.style.as_ref()
+    }
+    pub(super) fn attributes(&self) -> Option<super::cell_style::Attributes> {
+        if self.separator {
+            Some(super::cell_style::Attributes::Separator)
+        } else {
+            self.style
+                .clone()
+                .map(super::cell_style::Attributes::Style)
+                .or_else(|| {
+                    self.explicit
+                        .then_some(super::cell_style::Attributes::Plain)
+                })
+        }
+    }
+    pub(super) fn separator() -> Self {
+        Self {
+            value: String::new(),
+            style: None,
+            separator: true,
+            explicit: true,
+        }
     }
     pub fn display(value: impl Display) -> Self {
-        Self(value.to_string())
+        Self::text(value.to_string())
     }
     pub fn as_str(&self) -> &str {
-        &self.0
+        &self.value
     }
 }
 impl Display for TableCell {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0)
+        f.write_str(&self.value)
     }
 }
 impl From<String> for TableCell {
     fn from(value: String) -> Self {
-        Self(value)
+        Self::text(value)
     }
 }
 impl From<&String> for TableCell {
     fn from(value: &String) -> Self {
-        Self(value.clone())
+        Self::text(value.clone())
     }
 }
 impl From<&str> for TableCell {
     fn from(value: &str) -> Self {
-        Self(value.to_owned())
+        Self::text(value.to_owned())
     }
 }
 impl From<serde_json::Value> for TableCell {
     fn from(value: serde_json::Value) -> Self {
-        Self(crate::support::input_scalars::string(value))
+        Self::text(crate::support::input_scalars::string(value))
     }
 }
 impl From<&serde_json::Value> for TableCell {
@@ -51,9 +105,9 @@ scalar!(bool, i8, i16, i32, i64, isize, u8, u16, u32, u64, usize);
 impl From<f64> for TableCell {
     fn from(value: f64) -> Self {
         if value.is_nan() {
-            Self("NAN".into())
+            Self::text("NAN".into())
         } else if value.is_infinite() {
-            Self(
+            Self::text(
                 if value.is_sign_negative() {
                     "-INF"
                 } else {
@@ -73,5 +127,16 @@ impl From<f32> for TableCell {
         } else {
             f64::from(value).into()
         }
+    }
+}
+
+impl From<super::TableSeparator> for TableCell {
+    fn from(_: super::TableSeparator) -> Self {
+        Self::separator()
+    }
+}
+impl From<&TableCell> for TableCell {
+    fn from(cell: &TableCell) -> Self {
+        cell.clone()
     }
 }

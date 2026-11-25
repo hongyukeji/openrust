@@ -1,0 +1,14 @@
+[
+    {
+        "mode": "border",
+        "output": "+-------+------+\n| A     | B    |\n+-------+------+\n| one   ! two  !\n![ third ]![ last ]!\n+-------+------+\n",
+        "fired": true,
+        "seen": 3
+    },
+    {
+        "mode": "line",
+        "output": "+------+------+\n| A    | B    |\n+------+------+\n| one  | two  |\n![ next ]![ last ]!\n+------+------+\n",
+        "fired": true,
+        "seen": 0
+    }
+]

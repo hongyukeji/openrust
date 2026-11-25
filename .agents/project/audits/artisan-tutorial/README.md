@@ -346,3 +346,20 @@ add_row改为Result，与新add_rows一起在数字索引耗尽时返回有来�
 严格workspace all-targets Clippy52.12s、fmt和main初次通过；文档构建期间守卫触及32GB，安全退出75并持锁清理全项目编译产物119573581824字节，恢复约151.6GB。中断文档不算通过；源码不变，保留此前通过日志，之后实际重建main与三语文档并完成12个桌面／手机／双挂载浏览器，真实main HTTP/up/静态/404/HEAD、Artisan inspire/list/Pail过滤/-vv/timeout清理/Ctrl+C通过。清理前已完成的检查未伪称被中断，原始gates1与恢复gates2和-resumed日志均保留。没有复验其他协作者活跃Webhook／邮件／供应商组合或Windows发布矩阵。
 
 原始与正式证据table-separators-{source,tests*,gates1,gates2,final-*,runtime,browser}.log/json、accepted-table-separators.json。清理本批运行目录，临时PHP容器自动删除；源码、验收日志、可复用缓存和数据／数据卷保留。TableSeparator的继承单元格选项、放在单元格内的分隔、TableCellStyle／跨行跨列仍未完成，账本明确保留；appendRow仍须实际ConsoleSectionOutput，不用普通重绘冒充。继续下一簇，不关闭整章／持续目标，其他协作改动保留，仅核定范围本地提交，不推送。
+
+
+## 第二十四簇：单元格样式、内部分隔与实时格式回调（2026-11-25）
+
+第二十三簇本地提交be4cf61a0a81c62dfbf37682e229c58970f81741，未推送。本簇以其提交树继续，固定Symfony Console7.4.0 Helper/TableCellStyle.php、TableCell.php和Table.php；旧v0.x没有对应类型可提取，沿用当前Table、ArrayKey、格式器和Arr::query，不创建平行渲染器或查询序列化器。源码冻结对账只有核定文件差异，未复制其他协作者在途。
+
+新增公开TableCellStyle全部5个构造／getter入口及DEFAULT_ALIGN，实际接通TableCell.with_style/get_style、带样式表头／数据和转换为单元格的TableSeparator。配置保留fg/bg/options/align/cellFormat，后者是数据拼写，不能按Rust命名替换；未知键与非空非法align在构造时失败，显式null延后至get_pad_by_align/实际使用失败。get_cell_format保留普通标量字符串转换，数组／对象延迟返回错误。Map副本避免外部修改原配置，空PHP关联数组按空字典比较，不伪称JSON的[]与{}逐字相同；无既有线协议更名。
+
+行集合现在保留单元格信息，避免先to_string丢失全部样式。原生借用getter、Result、配置键值对与Default具体表达PHP对应方法；显式对象与普通纯量的私有标记供宽度回调顺序使用，不改变原文本值相等比较。颜色／对齐／自定义格式复用当前模板、颜色、填充与错误链；已有完整标签优先保留文本格式，对齐仍生效。实际源按宽度与多行展开会丢弃原样式，横向保留对象、纵向转换文本，均按源落实，不自行“修正”。单元格分隔按列的inside边框输出，与整行分隔区分。
+
+关联反例已处理：旧版漏掉预处理阶段的格式化调用，回调改变行格式后后续数据行仍使用旧格式；原始table-cell-row-format-before.log保留。实时边框反例也发现缓存过久，table-cell-live-format-before.log保留。修复后文本格式在每条物理输出行开始捕获，边框在相应阶段读取当前对象，回调影响后续分隔和下一行。宽度采用源的列优先对象投影，measurement与emission复用row_parts，没有另一套显示算法、unsafe或用户回调下的样式锁。
+
+776个实际源渲染向量（88个预期错误及部分输出）、21个构造／getter向量、3个实际格式器回调向量全部通过：颜色／背景／选项、左右中对齐、已有标签、自定义格式、空值／类型错误、Unicode／CRLF、最大宽度、横纵向与内部分隔。PHP渲染5496字节、getter229字节VM告警原样保留，原生不模拟VM告警。独立handle_command验证样式正文及错误退出1／stderr／部分stdout，真实HTTP200／500／200与JSON默认回退通过，错误未污染后续请求。
+
+正式三语正文直接提取75例执行并与源数据核对；最终17框架目标112项、根6目标116项，共228个不同父消费者，17个被父消费者驱动的ignore不叠加。旧矩形、宽度、行键、共享样式、问答与进度回归继续通过。fmt、workspace all-targets严格Clippy 75.00s、main(pail)、三语构建与12个手机／桌面／双挂载浏览器，实际main HTTP/up/静态/404/HEAD、Artisan inspire/list/Pail过滤/-vv/timeout清理/Ctrl+C通过。早期编译／夹具形状／Clippy失败保留，不计通过；最终使用gates3源码组合。round2完成后项目级32GB守卫清理产物，同源重建日志artifact-recovery保留；后续实时边框修复再次完成全部门禁和实际运行，不使用已删产物冒充验收。
+
+证据target/tmp/artisan-tutorial-20261125/table-cell-{styles,row-format,live-format}-*与accepted-table-cell-styles.json。仅本簇源码、测试、三语文档与专属账本；全局current.md和其他协作文件保持不动，避免夹带交接在途，后续以本节及section-map/table-contracts为本簇状态。临时PHP容器结束，运行目录清理，源码／日志／可复用缓存和数据卷保留。不宣称完整活跃工作区、Windows发布矩阵或整章通过；继续TableCell跨度／分隔构造选项、ConsoleSectionOutput/appendRow及其余SDK。仅本地提交，不推送。
