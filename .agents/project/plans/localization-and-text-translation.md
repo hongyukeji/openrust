@@ -1,6 +1,6 @@
 # 本地化与文本机器翻译拆分计划
 
-2026-11-25 审计修订。用户确认按职责彻底拆分应用本地化、词条来源与文本机器翻译。本计划覆盖 DRV-03 与 DRV-06，当前状态为待实施。
+2026-11-25 审计修订。用户确认按职责彻底拆分应用本地化、词条来源与文本机器翻译，并确认七个内置驱动的交付范围。本计划覆盖 DRV-03 与 DRV-06，当前状态为待实施。
 
 ## 调研及裁决
 
@@ -10,11 +10,22 @@
 | [Spatie Laravel Translation Loader 2.8.3](https://github.com/spatie/laravel-translation-loader/releases/tag/2.8.3) · [加载实现](https://raw.githubusercontent.com/spatie/laravel-translation-loader/2.8.3/src/TranslationLoaderManager.php) | MIT。复用现有 `DatabaseLoader::with_fallback` 的文件基础、数据库同键覆盖和包命名空间文件规则。Spatie 在同步查找里读取数据库，OpenRust 将异步查询放在显式装配／刷新阶段，查找仍同步。 |
 | [OpenRust v0.x 来源组合](https://github.com/hongyukeji/openrust/blob/6d1a81924/vendor/openrust/framework/src/translation/composite_loader.rs) | 参考来源优先级、先校验后发布的场景。当前 `load_from` 已有精确组加载、异步 I/O 和并发版本检查，优先扩展这些现有机制。完整刷新会话和轮询体系留在旧实现。 |
 | [Laravel-Lang/translator 固定提交](https://github.com/Laravel-Lang/translator/tree/67fcb9386aa0a368af8718939d4a46f7c4fd282b) · [overworks/laravel-translator 固定提交](https://github.com/overworks/laravel-translator/tree/f536b5ce9007e6948a454f3966406af9034f7218) | Laravel 生态已有独立文本翻译包。借鉴门面、提供商驱动及语言参数的组织方式。项目内 `SmsManager` 和 `FilesystemManager` 已有 Rust 工厂注册、具名配置与应用隔离，优先沿用其生命周期。 |
-| [DeepL 官方 PHP SDK v1.21.0](https://raw.githubusercontent.com/DeepL/deepl-php/v1.21.0/README.md) · [DeepL v2 协议](https://developers.deepl.com/api-reference/translate/request-translation) | 官方 SDK 为 MIT，作为错误及协议参考。首批托管驱动建议用 DeepL v2 纯文本 REST，通过现有 HTTP Client 发送请求。API 认证、服务区与配额按官方契约验收。 |
-| [LibreTranslate v1.9.6](https://raw.githubusercontent.com/LibreTranslate/LibreTranslate/v1.9.6/README.md) · [翻译协议](https://docs.libretranslate.com/api/operations/translate/) | 首批自托管驱动建议实现独立服务的 `/translate` HTTP 客户端，验收显式源语言、`auto`、可选 API key 和响应结构。服务端为 AGPL-3.0，按外部服务接入，框架发行组合采用自有 HTTP 适配。 |
-| [Azure Translator v3](https://learn.microsoft.com/en-us/azure/ai-services/translator/text-translation/reference/v3/translate) · [Google Cloud Translation v3](https://docs.cloud.google.com/translate/docs/reference/rest/v3/projects.locations/translateText) | 作为后续驱动对照。现有接口需要分别处理 Azure 的区域／密钥及 Google 的项目、地点和授权。等实际集成需求明确后，再加入对应接线。 |
+| [DeepL 官方 PHP SDK v1.21.0](https://raw.githubusercontent.com/DeepL/deepl-php/v1.21.0/README.md) | 官方 SDK 为 MIT，作为协议及错误映射参考。OpenRust 的适配器复用现有 HTTP Client。 |
+| [LibreTranslate v1.9.6](https://raw.githubusercontent.com/LibreTranslate/LibreTranslate/v1.9.6/README.md) | 服务端为 AGPL-3.0，按外部自托管服务接入，OpenRust 提供独立 HTTP 客户端。 |
 
-建议用 **DeepL + LibreTranslate** 验证同一公开契约在两种部署方式下都成立。首批交付单条纯文本。文档、HTML、批量、术语表、自动切换供应商、译文缓存、LLM 和队列编排属于独立范围。两家首批选型是本次审计建议，真实账号与对外请求单独安排。
+## 七个内置驱动
+
+| 驱动键 | 服务与正式入口 | 专项验收 |
+| --- | --- | --- |
+| `deepl` | [DeepL v2 Translate](https://developers.deepl.com/api-reference/translate/request-translation) | API Free／Pro 地址与鉴权、区域语言码、配额和源语言识别。 |
+| `libretranslate` | [LibreTranslate `/translate`](https://docs.libretranslate.com/api/operations/translate/) | 自托管地址、可选 API key、显式源语言和 `auto`。 |
+| `azure` | [Azure Translator v3 Translate](https://learn.microsoft.com/en-us/azure/ai-services/translator/text-translation/reference/v3/translate) | 区域和密钥装配、`from` 缺省、单目标语言、响应结构与错误码。 |
+| `google` | [Google Cloud Translation Advanced v3 `translateText`](https://docs.cloud.google.com/translate/docs/reference/rest/v3/projects.locations/translateText) | 项目和地点、官方凭据接线、访问令牌刷新以及 Google API 错误。 |
+| `tencent` | [腾讯云 TokenHub 混元专用翻译接口](https://cloud.tencent.com/document/product/1823/132252) | `/v1/api/translations` 的非流式单文本请求、专用翻译模型配置、Bearer 鉴权和语言码。按[腾讯云退市公告](https://cloud.tencent.com/announce/detail/2482)选用官方推荐替代接口。 |
+| `aliyun` | [阿里云机器翻译 `TranslateGeneral`，2018-10-12](https://help.aliyun.com/zh/machine-translation/developer-reference/api-alimt-2018-10-12-translategeneral) | 通用纯文本场景、区域和 RAM 权限、官方 RPC 鉴权、业务状态码与 `auto` 识别结果。优先核对已有阿里云请求签名能否复用。 |
+| `baidu` | [百度翻译开放平台通用文本翻译 API](https://fanyi-api.baidu.com/product/11) | APP ID 和密钥签名、`auto`、语言码、分段译文按顺序还原及业务错误。实现前核对官方接入文档的请求编码和 HTTPS POST。 |
+
+七个驱动均为本轮计划交付项。分批实现以控制验收范围，每个驱动统一交付单条纯文本翻译并支持具名配置，继续开放外部 crate 自定义驱动。腾讯云接入混元翻译专用接口。文档、HTML、批量、术语表、自动切换供应商、译文缓存、通用 LLM 驱动和队列编排属于独立范围。
 
 ## 模块与公开命名
 
@@ -71,6 +82,6 @@ let translation = Translate::driver("office")?
 | L10N-01 核心迁移 | 先完成拆分命名与所有直接消费者。比较迁移前后独立 Artisan／HTTP 的行为和生成应用。覆盖 Blade、验证、中间件、邮件／通知、BCP 47、locale 作用域、内置 18 语和 `lang:publish`。校验旧服务键退出以及包资源注册。 |
 | L10N-02 词条来源 | 迁移数据库词条包，完成异步来源接线。用外部 crate 注册一次默认 Loader，验证 HTTP、独立 Artisan 和 Worker 的普通 `Lang` 调用。以 SQLite、MySQL、PostgreSQL 核对原数据、发布迁移和失败恢复。用真实分组验证并发刷新、资源删除、应用隔离、文件回退与运行时覆盖。 |
 | TR-01 驱动底座 | 让外部 crate 的测试驱动经正式默认、具名、工厂注册和配置缓存入口运行。验证工厂失败、并发、重配、跨应用及 HTTP／独立 Artisan／Worker。验证扩展启停和 `Lang` 缺词条时均不会意外发出翻译请求。 |
-| TR-02 首批适配器 | 用合成文本驱动真实程序访问本地 HTTP 夹具，分别验收两种协议的请求、成功／失败响应、鉴权、语言映射、限流、超时，以及 POST 单次发送。LibreTranslate 的真实译文可在隔离自托管服务复验。DeepL 真实服务的译文、地区、账号及配额由授权发布验收确认。 |
+| TR-02 七个内置适配器 | TR-02A 实施 DeepL、LibreTranslate，用两种协议验证统一契约。TR-02B 实施腾讯云、阿里云、百度。TR-02C 实施 Azure、Google。每家用合成文本驱动真实程序访问协议夹具，分别验收鉴权、语言映射、成功／错误响应、限流、超时、请求单次发送和脱敏。LibreTranslate 的真实译文可在隔离自托管服务复验。其余六家真实译文、地区、账号、权限及配额由授权发布验收逐家确认。 |
 
 每批使用 Rust 1.94.0，提交对应回归、格式、定向严格 Clippy 和三语开发者文档证据。记录实际跑过的入口、数据及环境，区分协议模拟、实际翻译效果与发布条件。按批次本地提交，默认不推送。
