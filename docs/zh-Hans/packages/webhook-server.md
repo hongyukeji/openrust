@@ -377,7 +377,7 @@ Builder 的 `dispatch`、`dispatch_if` 和 `dispatch_unless` 登记投递并入�
 
 ### 单机与多副本 {#deployment}
 
-多个副本使用同一个可写 PostgreSQL 或 MySQL 数据库保存投递状态和限额，各 Worker 使用同一套 database 或 Redis 队列。所有 Worker 都须能读取凭据引用和已授权的配置版本。恢复任务使用 `on_one_server()` 时，需要共享 database 或 Redis 缓存。SQLite 适用于单机。上述 database 与 Redis 组合已在一台主机的独立应用进程中验收，跨主机部署前须验证实际基础设施。
+多个副本使用同一个可写 PostgreSQL 或 MySQL 数据库保存投递状态和限额，各 Worker 使用同一套 database 或 Redis 队列。所有 Worker 都须能读取凭据引用和已授权的配置版本。多个副本上的调度器使用 `on_one_server()` 时，需要共享 database 或 Redis 缓存。单机上同一应用的调度进程可以使用同一个本地目录中的 file 缓存。SQLite 适用于单机。上述 database 与 Redis 组合已在一台主机的独立应用进程中验收，跨主机部署前须验证实际基础设施。
 
 投递数据库不可达时，登记及发送均失败。Redis 恢复连接且补偿领取窗口到期后，定时恢复可继续处理待投递记录，任务仍使用原先配置的队列。
 

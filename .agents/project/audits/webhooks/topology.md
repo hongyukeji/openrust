@@ -23,4 +23,8 @@
 
 基线 `699ad83cd`，Rust 1.94.0，macOS ARM64。上表五种本地组合均通过，包括 SQLite 单节点、PostgreSQL 18.7／MySQL 8.4.13 双节点，以及后两者分别搭配 Redis 8.10.3。每组执行三次同步 HTTP 调用并验证两笔真实发送，既有迁移、独立 Artisan／Worker、缓存、异步发送及故障恢复同次复跑。冻结源码通过全工作区格式检查，以及启用收发包后应用和两包所有目标的严格 Clippy。本批仅调整验收和文档。
 
-此验收覆盖 WH-V25、WH-V26 和 WH-V27 的上述路径。WH-V25 的单机 file 缓存仍需独立覆盖。WH-V26 已补[同主机双节点共享 S3 附件](shared-object-storage.md)，真实跨主机、托管对象存储、生产入口和目标操作系统仍待验。WH-V27 已补[共享主写库和 Redis 断连与恢复](backend-interruption.md)及[Scheduler 退出、旧 Worker 回归、端点撤销与凭据缺失](cluster-ownership.md)。[同主机两版本滚动升级](rolling-upgrade.md)已覆盖选定的增量迁移。节点时差、真实跨主机与生产升级仍待验收。完整 Webhook 门禁保持开放。
+## 单机 file 缓存 {#local-file-cache}
+
+使用同一个 Rust 1.94.0 制品，设置 `OPENRUST_TEST_WEBHOOK_TOPOLOGY_FILE_CACHE=1`，分别在内嵌 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 启动一个 HTTP 节点，以 database 队列和同一应用目录下的 file 缓存运行。每库由两个独立 `schedule:run` 进程在同一分钟竞争，只有一个进程执行恢复扫描并推送唯一任务。独立 Worker 完成发送，真实收件端验签。各库同时复跑缓存前后同步、接收记录、HTTP／Worker 退出恢复及共享投递额度。file 缓存覆盖依据为当前应用的本地文件目录与同一主机的进程，跨主机配置见上表。
+
+此验收覆盖 WH-V25、WH-V26 和 WH-V27 的上述路径。WH-V26 已补[同主机双节点共享 S3 附件](shared-object-storage.md)，真实跨主机、托管对象存储、生产入口和目标操作系统仍待验。WH-V27 已补[共享主写库和 Redis 断连与恢复](backend-interruption.md)及[Scheduler 退出、旧 Worker 回归、端点撤销与凭据缺失](cluster-ownership.md)。[同主机两版本滚动升级](rolling-upgrade.md)已覆盖选定的增量迁移。节点时差、真实跨主机与生产升级仍待验收。完整 Webhook 门禁保持开放。

@@ -251,9 +251,11 @@ def object_storage(enabled):
         docker_command("rm", "-f", name)
 
 
-def exercise(binary, driver, url, redis, redis_url, interruption, storage_env, object_request, ownership):
-    count = 1 if driver == "sqlite" else 2
+def exercise(binary, driver, url, redis, redis_url, interruption, storage_env, object_request, ownership,
+             local_file_cache=False):
+    count = 1 if driver == "sqlite" or local_file_cache else 2
     queue = "redis" if redis else "database"
+    cache = "file" if local_file_cache else queue
     with ExitStack() as stack:
         root = Path(stack.enter_context(tempfile.TemporaryDirectory(
             dir=ROOT / "target/tmp", prefix="webhooks-topology-")))
@@ -276,7 +278,7 @@ def exercise(binary, driver, url, redis, redis_url, interruption, storage_env, o
             "APP_URL": f"http://127.0.0.1:{lb.server_port}", "APP_SUPPORTED_LOCALES": "",
             "APP_KEY": "base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
             "DB_CONNECTION": driver, "DB_DATABASE": os.environ.get("OPENRUST_SMS_SQLITE_PATH", "openrust_acceptance"),
-            "CACHE_STORE": "redis" if redis else "database", "CACHE_PREFIX": root.name + ":cache:",
+            "CACHE_STORE": cache, "CACHE_PREFIX": root.name + ":cache:",
             "SESSION_DRIVER": "array", "APP_DISABLED_RUNNERS": "queue,schedule",
             "QUEUE_CONNECTION": queue, "FIXTURE_RECOVERY_QUEUE": queue, "FIXTURE_SEND_QUEUE": queue,
             "DB_QUEUE_RETRY_AFTER": "8",
@@ -534,7 +536,12 @@ def exercise(binary, driver, url, redis, redis_url, interruption, storage_env, o
         remaining = 60 - time.time() % 60
         if remaining < 6:
             time.sleep(remaining + .1)
-        scheduler_outputs = parallel(lambda node: artisan(node, "schedule:run"))
+        if local_file_cache:
+            # 同一台主机的两个调度进程竞争同一个本地文件锁。
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                scheduler_outputs = list(pool.map(lambda _: artisan(0, "schedule:run"), range(2)))
+        else:
+            scheduler_outputs = parallel(lambda node: artisan(node, "schedule:run"))
         reports = [json.loads(line[line.index("{"):]) for output in scheduler_outputs
                    for line in output.splitlines() if "{" in line]
         assert reports == [{"candidates": count, "queued": count, "retired": 0,
@@ -831,6 +838,8 @@ def exercise(binary, driver, url, redis, redis_url, interruption, storage_env, o
         lb.cursor = 0
         check_synchronous_send("cached", [0, count - 1])
         print(f"{driver}/{queue}: {count} 个 HTTP 节点，缓存前后 HTTP、独立 Artisan/Worker、共享附件、HTTP 与 Worker 退出后恢复、调度选举、同步／异步投递及共享限额通过")
+        if local_file_cache:
+            print(f"{driver}/file: 两个本机 Artisan 调度进程共享文件锁，仅一次扫描和一次入队", flush=True)
 
 
 if __name__ == "__main__":
@@ -839,10 +848,12 @@ if __name__ == "__main__":
     interruption = os.environ.get("OPENRUST_TEST_WEBHOOK_TOPOLOGY_OUTAGE") == "1"
     use_storage = os.environ.get("OPENRUST_TEST_WEBHOOK_TOPOLOGY_S3") == "1"
     ownership = os.environ.get("OPENRUST_TEST_WEBHOOK_TOPOLOGY_OWNERSHIP") == "1"
+    local_file_cache = os.environ.get("OPENRUST_TEST_WEBHOOK_TOPOLOGY_FILE_CACHE") == "1"
     assert database != "sqlite" or not (use_redis or interruption or use_storage or ownership)
+    assert not local_file_cache or not (use_redis or interruption or use_storage or ownership)
     with redis_backend(use_redis) as (container, endpoint, version), \
             object_storage(use_storage) as (storage_env, object_request):
         if version:
             print(version, flush=True)
         exercise(routes["args"].binary.resolve(), database, database_url, container, endpoint,
-                 interruption, storage_env, object_request, ownership)
+                 interruption, storage_env, object_request, ownership, local_file_cache)
