@@ -644,3 +644,71 @@ async fn user_resource_inline_module_is_rejected_before_user_files_are_modified(
     assert!(!root.0.join("config/user.rs").exists());
     assert!(!root.0.join("app/http/resources/user_resource.rs").exists());
 }
+
+#[test]
+fn transactional_action_upgrade_preserves_comments_and_rejects_custom_legacy_actions() {
+    use openrust::foundation::console::source_edit::add_generated_trait_methods;
+    let template = "struct Update; impl Action for Update { fn update(&self) { work(); } fn validate_for_transaction(&self) {} fn update_in_transaction(&self) {} }";
+    let original = "struct Update; impl Action for Update { // 业务解释保留\r\n fn update(&self) { work(); } }";
+    let updated = add_generated_trait_methods(
+        original,
+        template,
+        "Action",
+        &["validate_for_transaction", "update_in_transaction"],
+    )
+    .unwrap();
+    assert!(updated.contains("业务解释保留"));
+    assert!(updated.contains("\r\n"));
+    assert!(updated.contains("fn validate_for_transaction"));
+    assert_eq!(
+        add_generated_trait_methods(
+            &updated,
+            template,
+            "Action",
+            &["validate_for_transaction", "update_in_transaction"]
+        )
+        .unwrap(),
+        updated
+    );
+    assert!(
+        add_generated_trait_methods(
+            &original.replace("work();", "business();"),
+            template,
+            "Action",
+            &["validate_for_transaction", "update_in_transaction"]
+        )
+        .is_err()
+    );
+    assert!(
+        add_generated_trait_methods(
+            &updated.replace("fn update_in_transaction", "fn custom_transaction"),
+            template,
+            "Action",
+            &["validate_for_transaction", "update_in_transaction"]
+        )
+        .is_err()
+    );
+    let attributed = template.replace(
+        "fn validate_for_transaction",
+        "#[inline] fn validate_for_transaction",
+    );
+    let upgrade = add_generated_trait_methods(
+        original,
+        &attributed,
+        "Action",
+        &["validate_for_transaction", "update_in_transaction"],
+    )
+    .unwrap();
+    assert!(upgrade.contains("#[inline]"));
+    let customized = updated.replace("work();", "business();");
+    assert_eq!(
+        add_generated_trait_methods(
+            &customized,
+            template,
+            "Action",
+            &["validate_for_transaction", "update_in_transaction"]
+        )
+        .unwrap(),
+        customized
+    );
+}

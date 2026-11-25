@@ -73,6 +73,31 @@ pub trait UpdatesUserProfileInformation: Send + Sync {
         user: &'a dyn openrust::contracts::auth::Authenticatable,
         input: &'a openrust::http::RequestValue,
     ) -> HttpFuture<'a, Result<Box<dyn User>, openrust::http::HttpError>>;
+    /// 用户套件事务前验证；已有Action须显式接入，不在锁内另取池连接。
+    fn validate_for_transaction<'a>(
+        &'a self,
+        _user: &'a dyn openrust::contracts::auth::Authenticatable,
+        _input: &'a openrust::http::RequestValue,
+    ) -> HttpFuture<'a, Result<(), openrust::http::HttpError>> {
+        Box::pin(async {
+            Err(openrust::http::HttpError::from(std::io::Error::other(
+                "资料Action尚未实现用户套件的事务验证入口",
+            )))
+        })
+    }
+    /// 仅在提供的用户事务中保存；近期证明与凭据撤销由套件协调。
+    fn update_in_transaction<'a>(
+        &'a self,
+        _user: &'a dyn openrust::contracts::auth::Authenticatable,
+        _input: &'a openrust::http::RequestValue,
+        _transaction: &'a mut openrust::database::Transaction,
+    ) -> HttpFuture<'a, Result<Box<dyn User>, openrust::http::HttpError>> {
+        Box::pin(async {
+            Err(openrust::http::HttpError::from(std::io::Error::other(
+                "资料Action尚未实现用户套件的事务保存入口",
+            )))
+        })
+    }
 }
 /// Application action responsible for validating and persisting a password change.
 pub trait UpdatesUserPasswords: Send + Sync {
@@ -89,6 +114,31 @@ pub trait UpdatesUserPasswords: Send + Sync {
         input: &'a openrust::http::RequestValue,
     ) -> HttpFuture<'a, Result<Box<dyn User>, openrust::http::HttpError>> {
         self.update(user, input)
+    }
+    /// 用户套件事务前验证；已有Action须显式接入，不在锁内另取池连接。
+    fn validate_for_transaction<'a>(
+        &'a self,
+        _user: &'a dyn openrust::contracts::auth::Authenticatable,
+        _input: &'a openrust::http::RequestValue,
+    ) -> HttpFuture<'a, Result<(), openrust::http::HttpError>> {
+        Box::pin(async {
+            Err(openrust::http::HttpError::from(std::io::Error::other(
+                "密码Action尚未实现用户套件的事务验证入口",
+            )))
+        })
+    }
+    /// 仅在提供的用户事务中保存；近期证明与凭据撤销由套件协调。
+    fn update_in_transaction<'a>(
+        &'a self,
+        _user: &'a dyn openrust::contracts::auth::Authenticatable,
+        _input: &'a openrust::http::RequestValue,
+        _transaction: &'a mut openrust::database::Transaction,
+    ) -> HttpFuture<'a, Result<Box<dyn User>, openrust::http::HttpError>> {
+        Box::pin(async {
+            Err(openrust::http::HttpError::from(std::io::Error::other(
+                "密码Action尚未实现用户套件的事务保存入口",
+            )))
+        })
     }
 }
 

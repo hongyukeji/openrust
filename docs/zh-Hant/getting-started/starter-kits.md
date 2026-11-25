@@ -284,3 +284,26 @@ openrust_fortify::starter::UserResource::use_resource::<
 JSON 註冊／登入、雙因素完成、目前使用者，以及個人權杖簽發中的使用者資料共用該資源。資源接收真實請求，先執行原生 `prepare_response`，再呼叫 `to_array`；回傳值必須為 JSON 物件，準備或序列化錯誤向外傳遞。這是嵌入認證回應的資料，資源的 `wrap`、`with`、狀態和 HTTP 回應掛鉤不會改變外層認證回應；要替換整個回應，繼續繫結現有 Fortify 回應契約。網頁帳戶與郵件頁面保留內部安全欄位，API 欄位改名不會破壞頁面。
 
 重複安裝保留該檔案，`--force` 會替換。已有獨立檔案模組會重用；行內或條件不相符的資源模組會在套件寫入前報錯，提示手動接線。選擇儲存在所屬應用中，不使用程序全域回呼。
+
+## 資料與密碼 API {#user-updates}
+
+兩種預設都提供 `PUT /api/user/profile-information` 和 `PUT /api/user/password`，路徑跟隨 API 前綴。需要選中的使用者模型及 `account:update` 能力。資料更新（包括僅改姓名）使用 `email` 用途的近期確認；修改密碼使用 `password` 用途。PAT 證明繫結目前實際權杖、使用者和用途，有期限且單次消費，不能放在 URL 中。
+
+```shell
+# 先用目前密碼取得 email 用途證明：
+curl -X POST "$APP_URL/api/auth/confirm" \
+  -H "Accept: application/json" -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"purpose":"email","password":"current-password"}'
+# 將 data.proof 儲存到 PROOF，再更新資料：
+curl -X PUT "$APP_URL/api/user/profile-information" \
+  -H "Accept: application/json" -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" -H "X-Auth-Confirmation: $PROOF" \
+  -d '{"name":"Alice","email":"alice@example.test"}'
+```
+
+修改密碼時重新取得 `purpose: "password"` 的證明，再向 `/api/user/password` 提交 `password` 和 `password_confirmation`。此 API 使用近期證明，不重複要求 `current_password`。成功200，回傳正常本地化的空載荷回應。密碼變化後舊 PAT 失效，權杖用戶端須用新密碼重新登入。瀏覽器使用原生 Session 近期確認與 CSRF，無需 PAT 證明；目前工作階段同步並輪換，其他舊工作階段與 remember Cookie 失效。輪換後重新取得 CSRF 權杖，下次敏感操作須重新確認。設定的 Fortify 工作階段 Guard 必須認證該瀏覽器身分。
+
+信箱變化會清空驗證狀態，向新地址傳送原生驗證通知，舊信箱連結失效。儲存期間證明到期、模型取消或交易錯誤都會回滾資料庫變更。錯誤／已用 PAT 證明回傳401，缺少能力403，欄位錯誤422，瀏覽器未近期確認423，CSRF錯誤419。失敗可以消費證明，重試前重新確認。通知傳送和密碼代理清理在使用者交易提交後執行，沿用原生流程：此時失敗不會撤回已提交的資料／密碼，重試前先核對目前狀態。SMTP 投遞保證遵循設定的郵件驅動。
+
+應用 Action 繼續可替換。API 在取得使用者鎖前呼叫 `validate_for_transaction`，再將同一個交易傳給 `update_in_transaction`，不會呼叫可能另取連線池連線儲存的舊 Action。預設資料驗證器使用實際模型的表和連線。自訂密碼 Action 應使用 `credentials` 中的 `change_password_in_transaction` 儲存摘要、遞增持久化憑據版本並清空 remember token；所有寫入使用傳入交易，回傳同一使用者／模型／連線。套件提交前複核證明期限。安裝器給標準 Action 追加方法並保留註解；自訂舊 Action 會停止並提示手動接線，已完整實作的自訂交易方法保持原樣。獨立 Fortify 保留原入口。

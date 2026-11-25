@@ -275,7 +275,8 @@ impl Transaction {
         &self.connection
     }
 
-    pub(crate) fn belongs_to(&self, connection: &Connection) -> bool {
+    /// 核对事务的实际查询来源，包含相同名称下不同作用域的连接。
+    pub fn belongs_to(&self, connection: &Connection) -> bool {
         self.connection.same_query_source(connection)
     }
 

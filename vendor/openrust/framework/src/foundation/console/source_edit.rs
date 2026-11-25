@@ -1,5 +1,7 @@
 mod generated_function;
-pub use generated_function::{replace_generated_function, replace_generated_method};
+pub use generated_function::{
+    add_generated_trait_methods, replace_generated_function, replace_generated_method,
+};
 mod middleware;
 pub use middleware::enable_stateful_api;
 mod user_model;

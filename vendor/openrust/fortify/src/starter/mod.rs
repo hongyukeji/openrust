@@ -21,6 +21,8 @@ pub use jiff::Timestamp as TokenTimestamp;
 pub mod credentials;
 pub(crate) mod install;
 mod responses;
+#[cfg(feature = "sanctum")]
+pub mod updates;
 mod user_resource;
 mod verification_policy;
 mod views;

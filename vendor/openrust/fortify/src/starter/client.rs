@@ -654,6 +654,16 @@ where
                 .middleware(Arc::new(super::client_middleware::UserModel::<M>::new()))
                 .name("user.devices.logout-all");
             router
+                .put("/user/profile-information", super::updates::profile::<M>)?
+                .middleware_name("auth:sanctum")
+                .middleware(Arc::new(super::client_middleware::UserModel::<M>::new()))
+                .name("user.api.profile.update");
+            router
+                .put("/user/password", super::updates::password::<M>)?
+                .middleware_name("auth:sanctum")
+                .middleware(Arc::new(super::client_middleware::UserModel::<M>::new()))
+                .name("user.api.password.update");
+            router
                 .get("/user/tokens", super::account::tokens::<M>)?
                 .middleware_name("auth:sanctum")
                 .middleware(Arc::new(super::client_middleware::UserModel::<M>::new()))

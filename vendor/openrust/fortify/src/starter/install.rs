@@ -269,6 +269,32 @@ fn initialize<'a>(
         } else {
             None
         };
+        let mut transaction_edits = Vec::new();
+        for (relative, template, contract) in [
+            (
+                "app/actions/fortify/update_user_profile_information.rs",
+                include_str!("../../stubs/update_user_profile_information.rs"),
+                "UpdatesUserProfileInformation",
+            ),
+            (
+                "app/actions/fortify/update_user_password.rs",
+                include_str!("../../stubs/update_user_password.rs"),
+                "UpdatesUserPasswords",
+            ),
+        ] {
+            let path = root.join(relative);
+            if path.exists() && !options.force {
+                let previous = read(&path)?;
+                let updated =
+                    openrust::foundation::console::source_edit::add_generated_trait_methods(
+                        &previous,
+                        template,
+                        contract,
+                        &["validate_for_transaction", "update_in_transaction"],
+                    )?;
+                transaction_edits.push((path, previous, updated));
+            }
+        }
         let bootstrap = root.join("bootstrap/app.rs");
         let middleware_edit = if bootstrap.exists() {
             let previous = read(&bootstrap)?;
@@ -384,6 +410,9 @@ fn initialize<'a>(
                     "{previous}{newline}#[cfg(feature = \"fortify\")]{newline}pub(crate) mod user_service_provider;{newline}"
                 ),
             )?;
+        }
+        for (path, previous, updated) in transaction_edits {
+            replace(&path, &previous, &updated)?;
         }
         if let Some((previous, updated)) = provider_edit {
             replace(&provider_path, &previous, &updated)?;

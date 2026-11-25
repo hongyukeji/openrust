@@ -304,3 +304,21 @@ API路径跟随既有`api.prefix`；端点由显式套件Provider注册，不改
 `resource-runtime-second.log`生成full应用用真实`main artisan init:resources --extensions=user-web,api,fortify --no-interaction`发布并注册资源、再构建通过；初轮main遗漏artisan子命令的usage退出不计通过。`resource-runtime-http.log`生成应用两进程file会话21次TCP回归通过，默认资源与全设备退出／凭据隔离保持；自定义字段以三库原生套件HTTP证据为准。`resource-docs-first.log`三语构建及正文两挂载／桌面手机12组浏览器通过。最终`resource-delivery-gates.log`切回冻结源码并触碰首方入口确认实际重检，Fortify+Sanctum及workspace严格Clippy、格式全部退出0。
 
 交付清单／SHA：`resource-files.json`／`resource-final-source-sha.json`。本批文档dist直接删除，保留正常增量缓存、数据和验收记录，实际空间`resource-delivery-space.json`。仅闭合资源装配；账户敏感更新、设备枚举、头像、注销／可靠清理、队列邮件、可选因素及最终安装矩阵继续开发。
+
+## A01-02／03：事务化资料与密码API（本子单元验收通过）
+
+延续固定Fortify的UpdatesUserProfileInformation／UpdatesUserPasswords、原生响应、密码代理和邮件通知；新增路由是用户套件扩展，独立Fortify入口保持。两种预设增加PUT `/api/user/profile-information`、`/api/user/password`，跟随API前缀，仅所选模型及account:update。资料（包括仅姓名）统一要求email用途近期证明，密码要求password用途；Cookie使用Session确认与CSRF，PAT使用绑定用户／实际令牌／用途的单次证明。
+
+应用Action新增显式validate_for_transaction／update_in_transaction：先验证（默认Unique从真实模型选择表／连接），再在共享用户写锁的传入事务中保存，拒绝退回可能另取池连接的旧Action。默认密码Action通过公开credentials::change_password_in_transaction复用写锁、哈希和持久化版本撤销。新增Transaction::belongs_to的公开可见性，核对实际查询来源而非仅比较连接名。返回模型须同类型／主键／连接并重新从事务水合；密码必须已持久化变更、递增版本且清空remember，资料不许借机更改密码／版本；邮箱变化必须未验证。保存后提交前用锁定快照复查证明期限，允许已授权邮箱／密码改变安全摘要，不错误拒绝合法变更。
+
+Cookie在提交前核对配置的Fortify会话Guard与本人类型／身份，提交后以SessionGuard::synchronize_user更新已解析当前设备的身份／指纹及轮换，不重新写remember token或派发Login；同时同步本次Sanctum身份。其他旧会话／PAT失效，当前Session保留并清除旧近期确认。邮件与密码代理清理按原生顺序在用户提交之后执行，其失败不会虚假回滚已提交数据，三语教程明确此边界。默认更新200本地化空载荷；能力、验证、证明及CSRF失败保留真实状态与no-store。
+
+安装器用add_generated_trait_methods升级仍为标准实现的Action，保留原函数和注释／换行及新增方法属性；自定义旧方法在套件写入前报错，完整自定义事务实现保留，force沿用已有明确覆盖契约。未加入历史模板备份。此项未把原生网页更新改成新事务路径；网页近期确认与账户页面继续下一批接线，不能据API通过标记A01-02／03整簇闭合。
+
+证据：`profile-matrix-second.log`SQLite、独立MySQL8.4.13、PostgreSQL18.7各9项真实TCP／事务通过（含原有资料回归1）。覆盖邮箱验证清空／旧链接拒绝、新邮箱登录、字段错误后证明仍可使用、错误用途／其他用户／重复证明、只读能力、模型取消及异步保存到期回滚、自定义Action、旧Action禁止绕行、并发同证明一胜一拒；两个应用同连接名的实际来源不同，密码事务拒绝且显式rollback／closed事务检查通过。`profile-session-gates.log`另有file和Redis8.10.3各Cookie生命周期1项，完整套件40、安装13、原生Action2通过，feature严格Clippy通过；临时Redis使用tmpfs且已退出，数据库容器亦已退出。
+
+`profile-final-gates-first.log`补充SMTP451发生在邮箱提交后：HTTP500且no-store、旧邮箱登录失败／新邮箱可登录、显式重发202才增长收件箱；完整套件40／安装13、无Sanctum网页11／原生Action2通过，workspace与feature严格Clippy及fmt通过。`profile-docs-first.log`三语站构建与两挂载／桌面手机12组浏览器通过。初轮fixture的Builder借用、roll_back名称、JSON验证204与CSRF刷新错误均已修正，失败日志保留。
+
+`profile-runtime-first.log`已有生成full应用实际重建，真实Artisan init:resources无force给旧标准Action追加方法，再重建及两进程file会话24次TCP通过：跨节点资料更新／证明重放、Cookie当前设备保留、PAT密码变更撤销旧凭据、新密码登录。无需覆盖业务或修改现有用户数据库Schema。最终吸收其间已提交Console依赖并重检，`profile-delivery-gates.log`workspace33.36秒及feature16.08秒严格Clippy、格式退出0。
+
+交付清单／SHA为profile-files.json／profile-final-source-sha.json；原始输出均在target/tmp/user-starter，文档dist直接删除、正常增量缓存与数据保留，实际空间profile-delivery-space.json。下一单元优先实证并强化密码重置链接在邮箱再分配、密码变化并发旧快照时的身份绑定；原生按邮箱定位／提交后删除不等于这些边界已闭合。已核对固定Laravel DatabaseTokenRepository及Django6.0 PasswordResetTokenGenerator的身份／凭据绑定设计作为参考，不将尚未实现的强化计通过。随后继续网页、设备枚举、头像／注销可靠清理、队列邮件及可选因素。

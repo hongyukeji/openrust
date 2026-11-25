@@ -284,3 +284,26 @@ openrust_fortify::starter::UserResource::use_resource::<
 JSON 注册／登录、双因素完成、当前用户，以及个人令牌签发中的用户数据共用该资源。资源接收真实请求，先运行原生 `prepare_response`，再调用 `to_array`；返回值必须为 JSON 对象，准备或序列化错误向外传递。这是嵌入认证响应的数据，资源的 `wrap`、`with`、状态和 HTTP 响应钩子不会改变外层认证响应；要替换整个响应，继续绑定现有 Fortify 响应契约。网页账户与邮件页面保留内部安全字段，API 字段改名不会破坏页面。
 
 重复安装保留该文件，`--force` 会替换。已有独立文件模块会复用；内联或条件不匹配的资源模块会在套件写入前报错，提示手动接线。选择保存在所属应用中，不使用进程全局回调。
+
+## 资料与密码 API {#user-updates}
+
+两种预设都提供 `PUT /api/user/profile-information` 和 `PUT /api/user/password`，路径跟随 API 前缀。需要选中的用户模型及 `account:update` 能力。资料更新（包括仅改姓名）使用 `email` 用途的近期确认；修改密码使用 `password` 用途。PAT 证明绑定当前实际令牌、用户和用途，有期限且单次消费，不能放在 URL 中。
+
+```shell
+# 先用当前密码获取 email 用途证明：
+curl -X POST "$APP_URL/api/auth/confirm" \
+  -H "Accept: application/json" -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"purpose":"email","password":"current-password"}'
+# 将 data.proof 保存到 PROOF，再更新资料：
+curl -X PUT "$APP_URL/api/user/profile-information" \
+  -H "Accept: application/json" -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" -H "X-Auth-Confirmation: $PROOF" \
+  -d '{"name":"Alice","email":"alice@example.test"}'
+```
+
+修改密码时重新获取 `purpose: "password"` 的证明，再向 `/api/user/password` 提交 `password` 和 `password_confirmation`。此 API 使用近期证明，不重复要求 `current_password`。成功200，返回正常本地化的空载荷响应。密码变化后旧 PAT 失效，令牌客户端须用新密码重新登录。浏览器使用原生 Session 近期确认与 CSRF，无需 PAT 证明；当前会话同步并轮换，其他旧会话与 remember Cookie 失效。轮换后刷新 CSRF 令牌，下次敏感操作须重新确认。配置的 Fortify 会话 Guard 必须认证该浏览器身份。
+
+邮箱变化会清空验证状态，向新地址发送原生验证通知，旧邮箱链接失效。保存期间证明到期、模型取消或事务错误都会回滚数据库变更。错误／已用 PAT 证明返回401，缺少能力403，字段错误422，浏览器未近期确认423，CSRF错误419。失败可以消费证明，重试前重新确认。通知发送和密码代理清理在用户事务提交后执行，沿用原生流程：此时失败不会撤回已提交的资料／密码，重试前先核对当前状态。SMTP 投递保证遵循配置的邮件驱动。
+
+应用 Action 继续可替换。API 在取得用户锁前调用 `validate_for_transaction`，再将同一个事务传给 `update_in_transaction`，不会调用可能另取池连接保存的旧 Action。默认资料验证器使用实际模型的表和连接。自定义密码 Action 应使用 `credentials` 中的 `change_password_in_transaction` 保存摘要、递增持久化凭据版本并清空 remember token；所有写入使用传入事务，返回同一用户／模型／连接。套件提交前复核证明期限。安装器给标准 Action 追加方法并保留注释；自定义旧 Action 会停止并提示手动接线，已完整实现的自定义事务方法保持原样。独立 Fortify 保留原入口。

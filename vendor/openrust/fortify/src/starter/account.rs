@@ -19,7 +19,7 @@ use openrust::{
 };
 use serde_json::json;
 
-async fn user<M: HasApiTokens + Clone>(request: &mut Request) -> Result<M, HttpError> {
+pub(super) async fn user<M: HasApiTokens + Clone>(request: &mut Request) -> Result<M, HttpError> {
     let user = Auth::user(request)
         .await?
         .ok_or(HttpError::Unauthenticated)?;
@@ -28,7 +28,7 @@ async fn user<M: HasApiTokens + Clone>(request: &mut Request) -> Result<M, HttpE
         .cloned()
         .ok_or_else(|| internal(std::io::Error::other("用户套件与认证Provider模型不一致")))
 }
-fn actor<M: HasApiTokens>(
+pub(super) fn actor<M: HasApiTokens>(
     request: &Request,
     user: &M,
     ability: Option<&str>,
@@ -54,7 +54,7 @@ fn owner_id<M: HasApiTokens>(user: &M) -> AuthResult<AuthIdentifier> {
             .ok_or(openrust::auth::AuthError::InvalidIdentity)?,
     )
 }
-async fn check_actor<M: HasApiTokens>(
+pub(super) async fn check_actor<M: HasApiTokens>(
     user: &M,
     transaction: &mut Transaction,
     sanctum: &Sanctum,

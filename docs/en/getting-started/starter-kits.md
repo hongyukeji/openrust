@@ -284,3 +284,26 @@ openrust_fortify::starter::UserResource::use_resource::<
 The same resource transforms JSON registration/login, two-factor completion, current-user responses and the user inside personal-token grants. It receives the real request and runs native `prepare_response` before `to_array`. It must return a JSON object; preparation/serialization errors propagate. This is nested resource data: resource `wrap`, `with`, status and HTTP response hooks do not change the surrounding authentication response. Replace the existing Fortify response contract to customize that entire response. HTML account and mail pages retain their internal safe fields, so renaming API fields does not break the pages.
 
 Repeat installation preserves this file; `--force` replaces it. Existing standalone file modules are reused. Inline or incompatible conditional resource modules stop installation before user-suite writes with a manual wiring error. Each application keeps its own selection; there is no process-global callback.
+
+## Profile and password API {#user-updates}
+
+Both presets provide `PUT /api/user/profile-information` and `PUT /api/user/password`; the API prefix is configurable. They require the selected user model and `account:update`. Profile updates, including name-only changes, require recent confirmation for `email`; password changes use `password`. A PAT proof is bound to the actual token, user and purpose, expires, and is single-use. It is never a URL parameter.
+
+```shell
+# First obtain an email-purpose proof with the current password:
+curl -X POST "$APP_URL/api/auth/confirm" \
+  -H "Accept: application/json" -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"purpose":"email","password":"current-password"}'
+# Copy data.proof into PROOF, then update the profile:
+curl -X PUT "$APP_URL/api/user/profile-information" \
+  -H "Accept: application/json" -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" -H "X-Auth-Confirmation: $PROOF" \
+  -d '{"name":"Alice","email":"alice@example.test"}'
+```
+
+To change a password, obtain a new proof with `purpose: "password"` and PUT `password` plus `password_confirmation` to `/api/user/password`. This API uses the proof instead of asking for `current_password` a second time. Success is 200 with the normal localized empty-payload response. Password changes invalidate old PATs, so token clients must sign in with the new password. Browser clients use native Session confirmation and CSRF instead of a PAT proof. Their current session is synchronized and rotated; other old sessions and remember cookies fail. Refresh the CSRF token after rotation and confirm again before the next sensitive operation. The configured Fortify session guard must authenticate that browser identity.
+
+Changing an email clears verification and sends the native verification notification to the new address; old email links fail. Proof expiry during a save, cancellation and transaction errors roll back the database mutation. Wrong or reused PAT proofs return 401, missing ability 403, field errors 422, unconfirmed browser sessions 423, and invalid CSRF 419. A failed mutation may consume its proof; confirm again to retry. Notification delivery and password-broker cleanup happen after the user transaction, as in the native flow: an error there does not undo the already committed profile/password. Check the current state before retrying. SMTP delivery guarantees remain those of the configured mail driver.
+
+Existing app Actions remain replaceable. The API calls `validate_for_transaction` before taking the user lock, then `update_in_transaction` using the supplied transaction; it does not call a legacy Action that could save through another pool connection. The default profile validator uses the actual model table/connection. A custom password Action must use `change_password_in_transaction` from `credentials` to save the hash, increment the persistent credential version and clear the remember token. All writes must use the supplied transaction and return the same user/model/connection. The suite commits only after rechecking the proof deadline. The installer appends these methods to stock Actions while preserving comments; custom legacy Actions stop with manual wiring instructions, and complete custom transaction methods are preserved. Standalone Fortify Actions keep their original entry points.

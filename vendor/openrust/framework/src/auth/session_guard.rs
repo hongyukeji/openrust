@@ -221,6 +221,35 @@ impl<'a> SessionGuard<'a> {
         self.authenticate(user).await
     }
 
+    /// 安全变更提交后同步已认证的当前设备；不重新写remember token，也不派发Login。
+    /// 调用者须先解析当前Guard，并提供变更前身份，不能借此恢复已失效会话。
+    pub async fn synchronize_user(
+        &mut self,
+        previous: &AuthIdentifier,
+        user: Box<dyn Authenticatable>,
+    ) -> AuthResult<()> {
+        let current = self
+            .state()
+            .and_then(|state| state.user.as_ref())
+            .ok_or(AuthError::InvalidIdentity)?;
+        if current.get_auth_identifier() != *previous
+            || (current.as_ref() as &dyn std::any::Any).type_id()
+                != (user.as_ref() as &dyn std::any::Any).type_id()
+        {
+            return Err(AuthError::InvalidIdentity);
+        }
+        let id = user.get_auth_identifier();
+        self.update_session(&id).await?;
+        self.store_login_fingerprint(user.as_ref())?;
+        if (id != *previous || user.get_remember_token().is_none())
+            && self.request.cookie_is_protected(&self.recaller)
+        {
+            Cookie::expire(&self.recaller, None, None)?;
+        }
+        AuthContext::set(self.request, &self.name, Some(user), false);
+        Ok(())
+    }
+
     async fn authenticate(&mut self, user: Arc<dyn Authenticatable>) -> AuthResult<()> {
         AuthContext::set_shared(self.request, &self.name, Some(user.clone()), false);
         self.emit(

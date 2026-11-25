@@ -61,4 +61,48 @@ impl UpdatesUserPasswords for UpdateUserPassword {
             Ok(Box::new(user) as Box<dyn User>)
         })
     }
+    // 纯令牌客户端使用绑定当前凭据的password用途近期证明，不伪造web Guard。
+    fn validate_for_transaction<'a>(
+        &'a self,
+        _user: &'a dyn Authenticatable,
+        input: &'a RequestValue,
+    ) -> HttpFuture<'a, Result<(), HttpError>> {
+        Box::pin(async move {
+            let rules = RuleSet::new().field(
+                "password",
+                super::password_validation_rules::password_rules(),
+            )?;
+            super::validator(input, rules, Default::default())?
+                .validate_with_bag("updatePassword")
+                .await?;
+            Ok(())
+        })
+    }
+    fn update_in_transaction<'a>(
+        &'a self,
+        user: &'a dyn Authenticatable,
+        input: &'a RequestValue,
+        transaction: &'a mut openrust::database::Transaction,
+    ) -> HttpFuture<'a, Result<Box<dyn User>, HttpError>> {
+        Box::pin(async move {
+            #[cfg(feature = "sanctum")]
+            {
+                let mut user = super::user(user)?;
+                openrust_fortify::starter::credentials::change_password_in_transaction(
+                    &mut user,
+                    transaction,
+                    super::text(input, "password")?,
+                )
+                .await?;
+                Ok(Box::new(user) as Box<dyn User>)
+            }
+            #[cfg(not(feature = "sanctum"))]
+            {
+                let _ = (user, input, transaction);
+                Err(HttpError::from(std::io::Error::other(
+                    "套件密码事务需要Sanctum功能",
+                )))
+            }
+        })
+    }
 }

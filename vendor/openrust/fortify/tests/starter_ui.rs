@@ -2656,9 +2656,55 @@ async fn mail_api_smtp_failure_is_reported_and_explicit_resend_delivers_to_local
         .0,
         200
     );
+    {
+        let inbox = inbox.lock().unwrap();
+        assert_eq!(inbox.len(), 3);
+        assert!(inbox[2].contains("/reset-password/"));
+    }
+    let proof = confirmation(&server, token, "email").await;
+    reject.store(true, std::sync::atomic::Ordering::SeqCst);
+    let (status, headers, _) = account_request_with_proof(
+        server.address,
+        token,
+        "PUT",
+        "/api/user/profile-information",
+        json!({"name":"SMTP资料变更","email":"changed-smtp@example.test"}),
+        Some(&proof),
+    )
+    .await;
+    assert_eq!(status, 500);
+    assert!(headers.contains("no-store"));
+    assert_eq!(inbox.lock().unwrap().len(), 3);
+    assert_eq!(
+        token_client_request(server.address, "/api/auth/token", device_login())
+            .await
+            .0,
+        422
+    );
+    let mut changed = device_login();
+    changed["email"] = json!("changed-smtp@example.test");
+    assert_eq!(
+        token_client_request(server.address, "/api/auth/token", changed)
+            .await
+            .0,
+        201,
+        "提交后的SMTP失败不会撤回邮箱变更"
+    );
+    assert_eq!(
+        account_request(
+            server.address,
+            token,
+            "POST",
+            "/api/auth/email/verification-notification",
+            json!({})
+        )
+        .await
+        .0,
+        202
+    );
     let inbox = inbox.lock().unwrap();
-    assert_eq!(inbox.len(), 3);
-    assert!(inbox[2].contains("/reset-password/"));
+    assert_eq!(inbox.len(), 4);
+    assert!(inbox[3].contains("changed-smtp@example.test"));
 }
 
 #[cfg(feature = "sanctum")]
@@ -3506,4 +3552,658 @@ async fn custom_native_resource_is_used_by_registration_login_and_pat_responses(
     .await;
     assert_eq!(status, 201, "{value}");
     assert_eq!(value["data"]["user"]["endpoint"], "api/user/tokens");
+}
+
+#[cfg(feature = "sanctum")]
+#[tokio::test]
+async fn profile_api_requires_email_proof_and_keeps_validation_and_verification_consistent() {
+    use openrust::database::eloquent::Model as _;
+    use openrust::support::facades::{App, Facade as _};
+    let server = start().await;
+    register_token_user(&server).await;
+    let (status, _, body) =
+        token_client_request(server.address, "/api/auth/token", device_login()).await;
+    assert_eq!(status, 201, "{}", token_failure(&body));
+    let token = body["data"]["token"].as_str().unwrap();
+    let old_link = server.mail_link("/email/verify/");
+    assert_eq!(
+        account_wire_request(server.address, token, "GET", &old_link, Value::Null, None)
+            .await
+            .0,
+        204
+    );
+    let update = json!({"name":"更新后的姓名","email":"updated@example.test"});
+    assert_eq!(
+        account_request(
+            server.address,
+            token,
+            "PUT",
+            "/api/user/profile-information",
+            update.clone()
+        )
+        .await
+        .0,
+        401
+    );
+    let wrong = confirmation(&server, token, "tokens").await;
+    assert_eq!(
+        account_request_with_proof(
+            server.address,
+            token,
+            "PUT",
+            "/api/user/profile-information",
+            update.clone(),
+            Some(&wrong)
+        )
+        .await
+        .0,
+        401
+    );
+    let proof = confirmation(&server, token, "email").await;
+    let (status, _, body) = account_request_with_proof(
+        server.address,
+        token,
+        "PUT",
+        "/api/user/profile-information",
+        json!({"name":"", "email":"bad-address"}),
+        Some(&proof),
+    )
+    .await;
+    assert_eq!(status, 422, "{body}");
+    assert!(body["errors"]["email"].is_array());
+    let (status, headers, body) = account_request_with_proof(
+        server.address,
+        token,
+        "PUT",
+        "/api/user/profile-information",
+        update.clone(),
+        Some(&proof),
+    )
+    .await;
+    assert_eq!(status, 200, "{body}");
+    assert!(body.get("data").is_none());
+    assert!(headers.contains("no-store"));
+    App::set_facade_application(Some(server._kernel.get_application()), async {
+        let mut query = app::models::User::query().unwrap();
+        query.r#where("email", "=", "updated@example.test");
+        let user = query.first().await.unwrap().unwrap();
+        assert_eq!(
+            user.get_attribute("name"),
+            Some(&openrust::database::Value::Text("更新后的姓名".into()))
+        );
+        assert!(matches!(
+            user.get_attribute("email_verified_at"),
+            None | Some(openrust::database::Value::Null)
+        ));
+    })
+    .await;
+    assert_eq!(
+        account_wire_request(server.address, token, "GET", &old_link, Value::Null, None)
+            .await
+            .0,
+        403
+    );
+    assert_eq!(
+        account_request_with_proof(
+            server.address,
+            token,
+            "PUT",
+            "/api/user/profile-information",
+            update,
+            Some(&proof)
+        )
+        .await
+        .0,
+        401
+    );
+    assert_eq!(
+        token_client_request(server.address, "/api/auth/token", device_login())
+            .await
+            .0,
+        422
+    );
+    let mut changed = device_login();
+    changed["email"] = json!("updated@example.test");
+    assert_eq!(
+        token_client_request(server.address, "/api/auth/token", changed)
+            .await
+            .0,
+        201
+    );
+    let new_link = server.mail_link("/email/verify/");
+    assert_ne!(old_link, new_link);
+    assert_eq!(
+        account_wire_request(server.address, token, "GET", &new_link, Value::Null, None)
+            .await
+            .0,
+        204
+    );
+}
+
+#[cfg(feature = "sanctum")]
+#[tokio::test]
+async fn profile_password_api_scopes_and_mutation_failures_do_not_change_credentials() {
+    use openrust::database::eloquent::{Model as _, concerns::ModelEvent};
+    let server = start().await;
+    register_token_user(&server).await;
+    let (_, _, body) =
+        token_client_request(server.address, "/api/auth/token", device_login()).await;
+    let token = body["data"]["token"].as_str().unwrap();
+    let mut limited = device_login();
+    limited["abilities"] = json!(["account:read"]);
+    let (_, _, limited) = token_client_request(server.address, "/api/auth/token", limited).await;
+    let limited = limited["data"]["token"].as_str().unwrap();
+    for path in ["/api/user/profile-information", "/api/user/password"] {
+        assert_eq!(
+            account_request(server.address, limited, "PUT", path, json!({}))
+                .await
+                .0,
+            403
+        );
+    }
+    let password =
+        json!({"password":"new-long-password-456","password_confirmation":"new-long-password-456"});
+    let wrong = confirmation(&server, token, "email").await;
+    assert_eq!(
+        account_request_with_proof(
+            server.address,
+            token,
+            "PUT",
+            "/api/user/password",
+            password.clone(),
+            Some(&wrong)
+        )
+        .await
+        .0,
+        401
+    );
+    let proof = confirmation(&server, token, "password").await;
+    let (status, _, body) = account_request_with_proof(
+        server.address,
+        token,
+        "PUT",
+        "/api/user/password",
+        json!({"password":"short","password_confirmation":"different"}),
+        Some(&proof),
+    )
+    .await;
+    assert_eq!(status, 422, "{body}");
+    app::models::User::register_model_event(
+        server._kernel.get_application(),
+        ModelEvent::Saving,
+        RejectCredentialRotation(std::sync::atomic::AtomicBool::new(true)),
+    )
+    .unwrap();
+    let (status, _, body) = account_request_with_proof(
+        server.address,
+        token,
+        "PUT",
+        "/api/user/password",
+        password,
+        Some(&proof),
+    )
+    .await;
+    assert_eq!(status, 500, "{body}");
+    assert_eq!(bearer_request(server.address, token).await, 200);
+    assert_eq!(
+        token_client_request(server.address, "/api/auth/token", device_login())
+            .await
+            .0,
+        201
+    );
+}
+
+#[cfg(feature = "sanctum")]
+#[tokio::test]
+async fn profile_password_api_revokes_old_pat_and_expired_during_save_rolls_back() {
+    use openrust::database::eloquent::{Model as _, concerns::ModelEvent};
+    let server = start().await;
+    register_token_user(&server).await;
+    let (_, _, body) =
+        token_client_request(server.address, "/api/auth/token", device_login()).await;
+    let token = body["data"]["token"].as_str().unwrap();
+    let proof = confirmation(&server, token, "password").await;
+    let clock = server
+        ._kernel
+        .get_application()
+        .make::<openrust::support::DateFactory>()
+        .await
+        .unwrap();
+    app::models::User::register_model_event(
+        server._kernel.get_application(),
+        ModelEvent::Saving,
+        ExpireCredentialRotation {
+            clock: clock.clone(),
+            at: jiff::Timestamp::now() + jiff::SignedDuration::from_secs(10801),
+        },
+    )
+    .unwrap();
+    let password =
+        json!({"password":"new-long-password-456","password_confirmation":"new-long-password-456"});
+    let (status, _, body) = account_request_with_proof(
+        server.address,
+        token,
+        "PUT",
+        "/api/user/password",
+        password.clone(),
+        Some(&proof),
+    )
+    .await;
+    assert_eq!(status, 401, "{body}");
+    assert_eq!(bearer_request(server.address, token).await, 200);
+    let proof = confirmation(&server, token, "password").await;
+    let (status, headers, body) = account_request_with_proof(
+        server.address,
+        token,
+        "PUT",
+        "/api/user/password",
+        password,
+        Some(&proof),
+    )
+    .await;
+    assert_eq!(status, 200, "{body}");
+    assert!(headers.contains("no-store"));
+    assert!(body.get("data").is_none());
+    assert_eq!(bearer_request(server.address, token).await, 401);
+    assert_eq!(
+        token_client_request(server.address, "/api/auth/token", device_login())
+            .await
+            .0,
+        422
+    );
+    let mut login = device_login();
+    login["password"] = json!("new-long-password-456");
+    assert_eq!(
+        token_client_request(server.address, "/api/auth/token", login)
+            .await
+            .0,
+        201
+    );
+}
+
+#[cfg(feature = "sanctum")]
+#[tokio::test]
+async fn profile_password_cookie_api_preserves_this_device_and_rejects_other_devices() {
+    let server = start().await;
+    let mut owner = Client {
+        address: server.address,
+        cookies: Default::default(),
+        csrf: String::new(),
+    };
+    assert_eq!(owner.send("GET", "/register", "", false).await.0, 200);
+    let registration = r#"{"name":"Cookie账户","email":"cookie-updates@example.test","password":"long-password-123","password_confirmation":"long-password-123"}"#;
+    assert_eq!(
+        owner.send("POST", "/register", registration, true).await.0,
+        201
+    );
+    assert_eq!(owner.send("GET", "/home", "", false).await.0, 200);
+    let mut other = Client {
+        address: server.address,
+        cookies: Default::default(),
+        csrf: String::new(),
+    };
+    assert_eq!(other.send("GET", "/login", "", false).await.0, 200);
+    assert_eq!(other.send("POST","/login",r#"{"email":"cookie-updates@example.test","password":"long-password-123","remember":true}"#,true).await.0,200);
+    let password = r#"{"password":"new-cookie-password-456","password_confirmation":"new-cookie-password-456"}"#;
+    assert_eq!(
+        owner
+            .exchange_origin("PUT", "/api/user/password", password, true, true)
+            .await
+            .0,
+        423
+    );
+    assert_eq!(
+        owner
+            .send(
+                "POST",
+                "/user/confirm-password",
+                r#"{"password":"long-password-123"}"#,
+                true
+            )
+            .await
+            .0,
+        201
+    );
+    let (status, _, body) = owner
+        .exchange_origin("PUT", "/api/user/password", password, true, true)
+        .await;
+    assert_eq!(status, 200, "{body}");
+    assert_eq!(owner.send("GET", "/home", "", false).await.0, 200);
+    assert_eq!(other.send("GET", "/home", "", true).await.0, 401);
+    assert_eq!(
+        owner
+            .exchange_origin(
+                "PUT",
+                "/api/user/profile-information",
+                r#"{"name":"修改姓名","email":"cookie-updates@example.test"}"#,
+                true,
+                true
+            )
+            .await
+            .0,
+        423,
+        "密码变化必须清除旧近期确认"
+    );
+    assert_eq!(
+        owner
+            .send(
+                "POST",
+                "/user/confirm-password",
+                r#"{"password":"new-cookie-password-456"}"#,
+                true
+            )
+            .await
+            .0,
+        201
+    );
+    let (status, _, body) = owner
+        .exchange_origin(
+            "PUT",
+            "/api/user/profile-information",
+            r#"{"name":"修改姓名","email":"cookie-updates@example.test"}"#,
+            true,
+            true,
+        )
+        .await;
+    assert_eq!(status, 200, "{body}");
+    let (status, body) = owner.send("GET", "/home", "", false).await;
+    assert_eq!(status, 200, "{body}");
+    assert!(body.contains("修改姓名"));
+}
+
+#[cfg(feature = "sanctum")]
+struct TimedProfileAction {
+    clock: Arc<openrust::support::DateFactory>,
+    expire: std::sync::atomic::AtomicBool,
+    saved: std::sync::atomic::AtomicUsize,
+}
+#[cfg(feature = "sanctum")]
+impl openrust_fortify::contracts::UpdatesUserProfileInformation for TimedProfileAction {
+    fn update<'a>(
+        &'a self,
+        user: &'a dyn openrust::contracts::auth::Authenticatable,
+        input: &'a openrust::http::RequestValue,
+    ) -> openrust::http::HttpFuture<
+        'a,
+        Result<Box<dyn openrust_fortify::contracts::User>, openrust::http::HttpError>,
+    > {
+        installed::UpdateUserProfileInformation.update(user, input)
+    }
+    fn validate_for_transaction<'a>(
+        &'a self,
+        user: &'a dyn openrust::contracts::auth::Authenticatable,
+        input: &'a openrust::http::RequestValue,
+    ) -> openrust::http::HttpFuture<'a, Result<(), openrust::http::HttpError>> {
+        installed::UpdateUserProfileInformation.validate_for_transaction(user, input)
+    }
+    fn update_in_transaction<'a>(
+        &'a self,
+        user: &'a dyn openrust::contracts::auth::Authenticatable,
+        input: &'a openrust::http::RequestValue,
+        tx: &'a mut openrust::database::Transaction,
+    ) -> openrust::http::HttpFuture<
+        'a,
+        Result<Box<dyn openrust_fortify::contracts::User>, openrust::http::HttpError>,
+    > {
+        Box::pin(async move {
+            let result = installed::UpdateUserProfileInformation
+                .update_in_transaction(user, input, tx)
+                .await?;
+            self.saved.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            if self.expire.load(std::sync::atomic::Ordering::SeqCst) {
+                self.clock
+                    .set_test_now(Some(openrust::support::Date::from_utc(
+                        jiff::Timestamp::now() + jiff::SignedDuration::from_secs(10801),
+                        jiff::tz::TimeZone::UTC,
+                    )));
+            }
+            Ok(result)
+        })
+    }
+}
+#[cfg(feature = "sanctum")]
+#[tokio::test]
+async fn profile_custom_transaction_action_expiration_rolls_back_before_mail() {
+    let server = start().await;
+    register_token_user(&server).await;
+    let (_, _, body) =
+        token_client_request(server.address, "/api/auth/token", device_login()).await;
+    let token = body["data"]["token"].as_str().unwrap();
+    let app = server._kernel.get_application();
+    let action = Arc::new(TimedProfileAction {
+        clock: app.make().await.unwrap(),
+        expire: std::sync::atomic::AtomicBool::new(true),
+        saved: std::sync::atomic::AtomicUsize::new(0),
+    });
+    app.make::<openrust_fortify::Fortify>()
+        .await
+        .unwrap()
+        .update_user_profile_information_using(action.clone());
+    let count = server.mailer.sent().unwrap().len();
+    let proof = confirmation(&server, token, "email").await;
+    let update = json!({"name":"自定义事务","email":"custom-profile@example.test"});
+    assert_eq!(
+        account_request_with_proof(
+            server.address,
+            token,
+            "PUT",
+            "/api/user/profile-information",
+            update.clone(),
+            Some(&proof)
+        )
+        .await
+        .0,
+        401
+    );
+    assert_eq!(server.mailer.sent().unwrap().len(), count);
+    assert_eq!(
+        token_client_request(server.address, "/api/auth/token", device_login())
+            .await
+            .0,
+        201
+    );
+    assert_eq!(action.saved.load(std::sync::atomic::Ordering::SeqCst), 1);
+    action
+        .expire
+        .store(false, std::sync::atomic::Ordering::SeqCst);
+    let proof = confirmation(&server, token, "email").await;
+    let (status, _, body) = account_request_with_proof(
+        server.address,
+        token,
+        "PUT",
+        "/api/user/profile-information",
+        update,
+        Some(&proof),
+    )
+    .await;
+    assert_eq!(status, 200, "{body}");
+    assert_eq!(action.saved.load(std::sync::atomic::Ordering::SeqCst), 2);
+    assert_eq!(server.mailer.sent().unwrap().len(), count + 1);
+}
+
+#[cfg(feature = "sanctum")]
+#[tokio::test]
+async fn profile_password_proofs_reject_cross_user_and_concurrent_updates_have_one_winner() {
+    let server = start().await;
+    register_token_user(&server).await;
+    let (_, _, body) =
+        token_client_request(server.address, "/api/auth/token", device_login()).await;
+    let token = body["data"]["token"].as_str().unwrap();
+    let proof = confirmation(&server, token, "password").await;
+    let register = json!({"name":"其他用户","email":"other-profile@example.test","password":"long-password-123","password_confirmation":"long-password-123"});
+    assert_eq!(
+        token_client_request(server.address, "/api/auth/register", register)
+            .await
+            .0,
+        201
+    );
+    let mut login = device_login();
+    login["email"] = json!("other-profile@example.test");
+    let (_, _, other) =
+        token_client_request(server.address, "/api/auth/token", login.clone()).await;
+    let other = other["data"]["token"].as_str().unwrap();
+    let password = json!({"password":"concurrent-password-456","password_confirmation":"concurrent-password-456"});
+    assert_eq!(
+        account_request_with_proof(
+            server.address,
+            other,
+            "PUT",
+            "/api/user/password",
+            password.clone(),
+            Some(&proof)
+        )
+        .await
+        .0,
+        401
+    );
+    assert_eq!(
+        token_client_request(server.address, "/api/auth/token", login)
+            .await
+            .0,
+        201
+    );
+    let (a, b) = tokio::join!(
+        account_request_with_proof(
+            server.address,
+            token,
+            "PUT",
+            "/api/user/password",
+            password.clone(),
+            Some(&proof)
+        ),
+        account_request_with_proof(
+            server.address,
+            token,
+            "PUT",
+            "/api/user/password",
+            password,
+            Some(&proof)
+        ),
+    );
+    let mut codes = [a.0, b.0];
+    codes.sort();
+    assert_eq!(codes, [200, 401]);
+    assert_eq!(bearer_request(server.address, token).await, 401);
+}
+
+#[cfg(feature = "sanctum")]
+#[tokio::test]
+async fn profile_password_transaction_rejects_other_application_connections_and_honors_rollback() {
+    use openrust::database::{DatabaseManager, eloquent::Model as _};
+    use openrust::support::facades::{App, Facade as _};
+    let a = start().await;
+    let b = start().await;
+    register_token_user(&a).await;
+    register_token_user(&b).await;
+    let app = a._kernel.get_application();
+    let first = app
+        .make::<DatabaseManager>()
+        .await
+        .unwrap()
+        .connection(None)
+        .unwrap();
+    let second = b
+        ._kernel
+        .get_application()
+        .make::<DatabaseManager>()
+        .await
+        .unwrap()
+        .connection(None)
+        .unwrap();
+    assert_eq!(first.get_name(), second.get_name());
+    App::set_facade_application(Some(app), async {
+        let mut user = app::models::User::query_on(&first)
+            .first()
+            .await
+            .unwrap()
+            .unwrap();
+        let hash = user.get_attribute("password").cloned();
+        let mut foreign = second.begin_transaction().await.unwrap();
+        assert!(!foreign.belongs_to(&first));
+        assert!(
+            openrust_fortify::starter::credentials::change_password_in_transaction(
+                &mut user,
+                &mut foreign,
+                "not-persisted"
+            )
+            .await
+            .is_err()
+        );
+        foreign.commit().await.unwrap();
+        let mut tx = first.begin_transaction().await.unwrap();
+        assert!(tx.belongs_to(&first));
+        openrust_fortify::starter::credentials::change_password_in_transaction(
+            &mut user,
+            &mut tx,
+            "not-persisted",
+        )
+        .await
+        .unwrap();
+        tx.roll_back(None).await.unwrap();
+        let mut original = app::models::User::query_on(&first)
+            .first()
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(original.get_attribute("password"), hash.as_ref());
+        assert!(
+            openrust_fortify::starter::credentials::change_password_in_transaction(
+                &mut original,
+                &mut tx,
+                "closed"
+            )
+            .await
+            .is_err()
+        );
+    })
+    .await;
+}
+
+#[cfg(feature = "sanctum")]
+struct LegacyProfileAction;
+#[cfg(feature = "sanctum")]
+impl openrust_fortify::contracts::UpdatesUserProfileInformation for LegacyProfileAction {
+    fn update<'a>(
+        &'a self,
+        _: &'a dyn openrust::contracts::auth::Authenticatable,
+        _: &'a openrust::http::RequestValue,
+    ) -> openrust::http::HttpFuture<
+        'a,
+        Result<Box<dyn openrust_fortify::contracts::User>, openrust::http::HttpError>,
+    > {
+        panic!("套件不能绕过事务入口调用旧Action")
+    }
+}
+#[cfg(feature = "sanctum")]
+#[tokio::test]
+async fn profile_legacy_action_is_rejected_without_falling_back_to_nontransactional_save() {
+    let server = start().await;
+    register_token_user(&server).await;
+    let (_, _, body) =
+        token_client_request(server.address, "/api/auth/token", device_login()).await;
+    let token = body["data"]["token"].as_str().unwrap();
+    server
+        ._kernel
+        .get_application()
+        .make::<openrust_fortify::Fortify>()
+        .await
+        .unwrap()
+        .update_user_profile_information_using(Arc::new(LegacyProfileAction));
+    let proof = confirmation(&server, token, "email").await;
+    let (status, _, body) = account_request_with_proof(
+        server.address,
+        token,
+        "PUT",
+        "/api/user/profile-information",
+        json!({"name":"旧Action","email":"legacy@example.test"}),
+        Some(&proof),
+    )
+    .await;
+    assert_eq!(status, 500, "{body}");
+    assert_eq!(
+        token_client_request(server.address, "/api/auth/token", device_login())
+            .await
+            .0,
+        201
+    );
 }

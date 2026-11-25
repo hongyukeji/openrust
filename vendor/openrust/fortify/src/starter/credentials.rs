@@ -471,3 +471,23 @@ pub(crate) fn scope_for<M: Model + Authenticatable>(
     configure_for::<M>(app.container().make::<Sanctum>()?.as_ref());
     Ok(())
 }
+
+/// 在调用者的同一连接事务中变更密码，复用共享用户锁和版本撤销；提交由调用者负责。
+pub async fn change_password_in_transaction<M: Model + Authenticatable + Clone>(
+    user: &mut M,
+    transaction: &mut Transaction,
+    password: &str,
+) -> AuthResult<()> {
+    if transaction.transaction_level() == 0 {
+        return Err(DatabaseError::TransactionClosed.into());
+    }
+    if !transaction.belongs_to(&user.get_connection()?) {
+        return Err(DatabaseError::InvalidQuery("密码更新与用户必须使用同一连接事务").into());
+    }
+    let mut locked = user.clone();
+    lock(&mut locked, transaction).await?;
+    let hash = Hash::make(password, &HashOptions::new()).await?;
+    rotate_locked(&mut locked, transaction, Some(hash)).await?;
+    *user = locked;
+    Ok(())
+}

@@ -134,3 +134,102 @@ fn attributes<'a>(function: &Function<'a>) -> Vec<&'a syn::Attribute> {
         .filter(|attribute| !attribute.path().is_ident("doc"))
         .collect()
 }
+
+/// 向仍为内置实现的Action追加事务方法；显式自定义的完整事务接线保持原样。
+pub fn add_generated_trait_methods(
+    source: &str,
+    template: &str,
+    trait_name: &str,
+    methods: &[&str],
+) -> Result<String, ConsoleError> {
+    fn find<'a>(file: &'a syn::File, name: &str) -> Result<&'a syn::ItemImpl, ConsoleError> {
+        let items = file
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                syn::Item::Impl(value)
+                    if value
+                        .trait_
+                        .as_ref()
+                        .and_then(|(_, path, _)| path.segments.last())
+                        .is_some_and(|segment| segment.ident == name) =>
+                {
+                    Some(value)
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        if items.len() != 1 {
+            return Err(ConsoleError::new(format!("Action契约{name}不存在或不唯一")));
+        }
+        Ok(items[0])
+    }
+    let parse = |source: &str| {
+        syn::parse_file(source).map_err(|_| ConsoleError::new("无法解析应用Action源码"))
+    };
+    let file = parse(source)?;
+    let stock = parse(template)?;
+    let actual = find(&file, trait_name)?;
+    find(&stock, trait_name)?;
+    let named = |item: &syn::ImplItem| matches!(item,syn::ImplItem::Fn(value) if methods.iter().any(|name|value.sig.ident==*name));
+    let present = actual.items.iter().filter(|item| named(item)).count();
+    if present == methods.len() {
+        for name in methods {
+            function(&file, name, Some(trait_name))?;
+        }
+        return Ok(source.to_owned());
+    }
+    let mut legacy = parse(template)?
+        .items
+        .into_iter()
+        .find_map(|item| match item {
+            syn::Item::Impl(value)
+                if value
+                    .trait_
+                    .as_ref()
+                    .and_then(|(_, path, _)| path.segments.last())
+                    .is_some_and(|segment| segment.ident == trait_name) =>
+            {
+                Some(value)
+            }
+            _ => None,
+        })
+        .ok_or_else(|| ConsoleError::new("找不到Action模板"))?;
+    legacy.items.retain(|item| !named(item));
+    if present != 0 || actual != &legacy {
+        return Err(ConsoleError::new(format!(
+            "{trait_name}已自定义；请先实现validate_for_transaction和update_in_transaction，不会覆盖业务代码"
+        )));
+    }
+    let newline = if source.contains("\r\n") {
+        "\r\n"
+    } else {
+        "\n"
+    };
+    let mut addition = String::new();
+    for name in methods {
+        let value = function(&stock, name, Some(trait_name))?;
+        let begin = value
+            .attributes
+            .iter()
+            .map(|attribute| attribute.pound_token.span.byte_range().start)
+            .chain(std::iter::once(signature_start(value.signature)))
+            .min()
+            .expect("方法声明存在");
+        let end = value.body.brace_token.span.close().byte_range().end;
+        addition.push_str(newline);
+        addition.push_str("    ");
+        addition.push_str(
+            &template[begin..end]
+                .replace("\r\n", "\n")
+                .replace('\n', newline),
+        );
+        addition.push_str(newline);
+    }
+    let mut updated = source.to_owned();
+    updated.insert_str(
+        actual.brace_token.span.close().byte_range().start,
+        &addition,
+    );
+    Ok(updated)
+}
