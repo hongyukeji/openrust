@@ -333,7 +333,17 @@ Rust 1.94.0 单作业构建通过，实际运行于 Linux 7.0.14-linuxkit、Debi
 
 固定 `MasterSupervisorReviving` 和 `SupervisorProcessRestarting` 保留公开类型。当前固定源码只找到前者的定义和后者的定义与事件映射，移植前须保留该区别。已接入的 `WorkerProcessRestarting`、`MasterSupervisorDeployed` 和 `UnableToLaunchProcess` 见下文。 [固定进程代码](https://github.com/laravel/horizon/tree/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src) [固定 EventMap](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/EventMap.php)
 
-固定队列事件另有 `JobPending`、`JobPushed`、`JobReserved`、`JobReleased`、`JobDeleted`、`JobsMigrated` 与包内 `JobFailed`。Rust 的 Provider 当前经核心队列事件更新仓储。须逐项对照公开字段、Redis 运输边界、派发顺序和内置监听器，再决定原生核心事件桥接与包公开事件的对应关系。
+Rust 的 Provider 当前经核心队列事件更新仓储。下列固定上游 Redis 运输事件均待补齐公开契约，现有仓储更新仅证明对应消费者的一部分行为。共同字段为连接、队列和载荷，`JobsMigrated` 提供载荷序列。 [固定 RedisQueue](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/RedisQueue.php) [固定失败事件桥接](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Listeners/MarshalFailedEvent.php)
+
+| 固定事件 | 运输边界与上游消费者 |
+|---|---|
+| `JobPending` | 即时与延迟写入 Redis 前派发，接入 `StoreJob`。需验证写入失败时仍可观察到此前事件。 |
+| `JobPushed` | 即时与延迟写入完成后派发，存储被监控标签。需分别核对普通、延迟及事务后提交。 |
+| `JobReserved` | Redis 取出任务并成功保留后，以保留态载荷派发，早于 Worker 执行业务；登记保留状态并开始计时。 |
+| `JobReleased` | Redis 删除保留记录并重新入队后派发，携带延迟秒数，更新释放状态。 |
+| `JobDeleted` | Redis 删除保留记录后派发，携带 Job 与保留态载荷，触发完成状态和指标监听器。需核对正常删除、手动删除和失败路径。 |
+| `JobsMigrated` | 从延迟或保留集合迁回 Ready 后派发，固定实现将 Redis 返回的 `false` 映射为空数组。需验证实际迁移、空批和任务详情更新。 |
+| `JobFailed` | 固定监听器仅将底层的 Redis Job 失败事件转换为 Horizon 事件，携带异常、Job 和保留态载荷；分包监听器负责失败状态与标签。 |
 
 ### Horizon WorkerProcessRestarting 公开事件
 
@@ -365,4 +375,10 @@ Rust 将进程创建错误保留在原席位的冷却周期，记日志后继续
 
 在 macOS 隔离快照中叠加两批改动。实际 Artisan 与 Redis 8.10.3 验证初次启动遇到不存在的工作目录时监督器仍正常运行，监听器收到空 PID 与空退出码，补回目录后按分钟冷却期限恢复，关闭后无残留 Worker。包含前批两种正常／异常退出分支的进程矩阵通过，包默认 24 项与独立 Redis 12 项通过，全仓格式、包全目标严格 Clippy、三语站点构建和 12 组文档浏览器检查通过。证据位于 `target/tmp/observability-parity/horizon-worker-spawn-macos.log` 和 `horizon-worker-spawn-docs.log`。
 
+在新的独占 Redis 8.10.3 容器上，使用同一 macOS 二进制开启浏览器选项重跑真实进程矩阵。Chrome 桌面和移动视口验证授权、任务详情、监控标签写入、指标、CSP 刷新与布局，进程矩阵也通过。证据为 `target/tmp/observability-parity/horizon-worker-spawn-browser.log`。
+
 Linux ARM64 首轮优化构建触及 32 GB 停线，编译产物已按项目约定清理，重跑两批合并快照。Windows ARM64 虚机正在使用项目内独立 NTFS 验收盘验证包和应用装配，共享目录的编译产物写入因 Windows 错误 87 失败。两平台结果仍待记录。
+
+### 三个扩展同时启用时的 Artisan 配置验收
+
+三个根应用隔离验收原先从已经迁入框架的根 `lang/` 目录复制迁移注释，导致测试在运行 Artisan 前失败。按当前框架翻译资源位置修正三份夹具。macOS 同时启用 `horizon,pulse,telescope` 后，默认骨架两项及三个扩展的配置入口各一项通过，实际覆盖包发现、配置发布、有缓存时的读取及清缓存。Pulse 另在 SQLite、独占 PostgreSQL 18.7 和 MySQL 8.4.13 下执行真实迁移和命令。证据为 `target/tmp/observability-parity/observability-combined-artisan-*.log`。
