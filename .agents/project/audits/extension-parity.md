@@ -152,3 +152,9 @@ O01 Activitylog、O02 Horizon、O03 Telescope原生范围、O04 Pennant、O05 Pu
 固定 [Supervisor::loop](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Supervisor.php) 在持久化状态后派发 `SupervisorLooped`，由 `MonitorWaitTimes` 处理；暂停 Supervisor 仍走持久化与派发。本地将等待监控、成功取锁的进程内时钟以及监控失败后的日志移到 Supervisor 状态持久化之后。Master 不再尝试监控锁，Redis 锁继续协调不同 Supervisor。Rust 当前在 Supervisor 循环直接调用监控，公开 `SupervisorLooped` 事件及可注册的内置监听器仍待与其他进程生命周期事件一起实现。
 
 构建守卫内沿用隔离快照与 Redis 8.10.3。标签与通知 9 项、快照全仓格式、Horizon 全目标严格 Clippy 和独立 Artisan 进程验收通过。同一组超阈值数据下，先运行无子进程的 Master 并确认状态已持久化，HTTP fake 没有告警；随后运行暂停 Supervisor，实际取得锁并发出配置的 Slack Webhook 请求。独立进程回归覆盖锁竞争失败后的重试与抢锁成功后的冷却。第三方收件、其他平台和公开生命周期事件仍未验收。
+
+### Horizon SupervisorLooped 公开事件
+
+固定 [SupervisorLooped](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Events/SupervisorLooped.php) 和 [EventMap](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/EventMap.php) 的派发点及等待监控注册已接通。Rust 事件公开 Supervisor 名称及暂停状态，应用可经仓储读取该循环已经持久化的记录。原生异步事件派发传递拥有所有权的数据，运行中的 Supervisor 进程池仍由 Supervisor 持有。内置 `MonitorWaitTimes` 在 Provider 同步注册，沿用每个 Supervisor 的冷却状态及跨进程 Redis 锁。取得锁并标记之后才查询负载并派发通知，应用监听器报错经日志记录并保留后续循环。
+
+隔离 Redis 8.10.3 上标签与通知 9 项、独立 Artisan 进程验收、快照全仓格式、Horizon 全目标严格 Clippy、三语文档构建和 12 组浏览器检查通过。应用监听器读取同一循环已持久化的暂停心跳，首次返回错误后收到下一循环事件；内置监听器只发出一条 Slack HTTP fake 请求。其他进程生命周期事件、各自的内置监听器与生产平台矩阵继续待逐项对账。

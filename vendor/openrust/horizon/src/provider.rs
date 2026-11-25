@@ -99,6 +99,11 @@ impl ServiceProvider for HorizonServiceProvider {
             self.load_routes_from(app, crate::dashboard::configured_routes)?;
             let dispatcher = app.make::<openrust::events::Dispatcher>().await?;
             dispatcher.listen(
+                crate::SupervisorLooped::NAME,
+                Arc::new(crate::MonitorWaitTimes),
+                Delivery::Sync,
+            )?;
+            dispatcher.listen(
                 crate::LongWaitDetected::NAME,
                 Arc::new(crate::SendNotification),
                 Delivery::Sync,

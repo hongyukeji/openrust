@@ -1,4 +1,4 @@
-use crate::{Error, Repository, Result};
+use crate::SupervisorLooped;
 use openrust::{
     container::ServiceKey,
     contracts::{
@@ -187,22 +187,41 @@ impl crate::Horizon {
         Ok(())
     }
 }
-pub(crate) async fn monitor(
-    repository: &Repository,
-    last_monitored: &mut Option<Instant>,
-) -> Result<()> {
-    if last_monitored.is_some_and(|last| last.elapsed() < Duration::from_secs(60))
-        || !repository
-            .metrics_repository()
-            .acquire_wait_time_monitor_lock()
-            .await?
-    {
-        return Ok(());
+pub struct MonitorWaitTimes;
+
+impl Listener for MonitorWaitTimes {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn Event,
+        _: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            let Some(event) = event.downcast_ref::<SupervisorLooped>() else {
+                return Ok(None);
+            };
+            monitor(event).await?;
+            Ok(None)
+        })
     }
-    *last_monitored = Some(Instant::now());
-    let config =
-        openrust::support::facades::Config::get_facade_root().map_err(|_| Error::Unavailable)?;
-    for workload in repository.workload().get().await? {
+}
+
+async fn monitor(event: &SupervisorLooped) -> EventResult<()> {
+    let repository = &event.repository;
+    {
+        let mut last_monitored = event.last_wait_monitor.lock().await;
+        if last_monitored.is_some_and(|last| last.elapsed() < Duration::from_secs(60))
+            || !repository
+                .metrics_repository()
+                .acquire_wait_time_monitor_lock()
+                .await
+                .map_err(listener_error)?
+        {
+            return Ok(());
+        }
+        *last_monitored = Some(Instant::now());
+    }
+    let config = Config::get_facade_root()?;
+    for workload in repository.workload().get().await.map_err(listener_error)? {
         let Some(queue) = workload["name"].as_str() else {
             continue;
         };
@@ -223,9 +242,7 @@ pub(crate) async fn monitor(
             queue: queue.into(),
             seconds,
         };
-        openrust::support::facades::Event::dispatch(event)
-            .await
-            .map_err(|_| Error::Unavailable)?;
+        openrust::support::facades::Event::dispatch(event).await?;
     }
     Ok(())
 }

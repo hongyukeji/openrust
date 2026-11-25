@@ -59,6 +59,8 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
 
 如需自訂長等待警示，在應用程式服務提供者中繫結 `dyn LongWaitNotificationFactory`。工廠接收 `LongWaitDetected` 事件並回傳 `LongWaitDetectedNotification`。回傳值的 `signature()` 決定五分鐘去重視窗的歸屬。
 
+為 `SupervisorLooped::NAME` 註冊同步監聽器，可在 Supervisor 持久化心跳後觀察其狀態。`SupervisorLooped` 提供 Supervisor 名稱和暫停狀態，Horizon 為該事件註冊 `MonitorWaitTimes`。
+
 暫停、繼續、終止、監控變更和重試均須逐次通過授權回調。瀏覽器對寫入操作傳送 `X-Horizon-Request: 1`，直接呼叫介面也須攜帶該標頭；拒絕跨站瀏覽器寫入操作。為整個路由群組套用既有的認證與中間件。面板授權包含檢視工作資料和執行維運控制的權限。
 
 ## 命令 {#commands}

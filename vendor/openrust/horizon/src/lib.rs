@@ -13,7 +13,8 @@ mod signals;
 mod supervisor;
 mod tags;
 pub use notifications::{
-    LongWaitDetected, LongWaitDetectedNotification, LongWaitNotificationFactory, SendNotification,
+    LongWaitDetected, LongWaitDetectedNotification, LongWaitNotificationFactory, MonitorWaitTimes,
+    SendNotification,
 };
 pub use tags::{TagCallback, Tags};
 mod master_supervisor;
@@ -26,7 +27,7 @@ pub use repository::{
     JobDetails, JobRecord, JobRepository, MasterSupervisorRepository, Metrics, MetricsRepository,
     ProcessRepository, Repository, SupervisorRepository, TagRepository, WorkloadRepository,
 };
-pub use supervisor::{ProcessPool, Supervisor, WorkerProcess};
+pub use supervisor::{ProcessPool, Supervisor, SupervisorLooped, WorkerProcess};
 
 pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug)]

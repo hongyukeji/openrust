@@ -1,9 +1,11 @@
 use crate::{AutoScaler, Error, Repository, Result, SupervisorOptions};
 use openrust::{
+    contracts::events::Event,
     process::{Factory, InvokedProcess},
     queue::QueueManager,
 };
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc, time::Duration};
+use tokio::sync::Mutex;
 use tokio::time::Instant;
 use tokio_util::sync::CancellationToken;
 
@@ -31,8 +33,36 @@ pub struct Supervisor {
     targets: BTreeMap<String, Vec<usize>>,
     failures: u64,
     fast_termination: bool,
-    last_wait_monitor: Option<Instant>,
+    last_wait_monitor: Arc<Mutex<Option<Instant>>>,
 }
+
+/// Supervisor state observed after its heartbeat has been persisted.
+pub struct SupervisorLooped {
+    pub name: String,
+    pub paused: bool,
+    pub(crate) repository: Arc<Repository>,
+    pub(crate) last_wait_monitor: Arc<Mutex<Option<Instant>>>,
+}
+
+impl SupervisorLooped {
+    pub const NAME: &str = "SupervisorLooped";
+
+    pub fn new(supervisor: &Supervisor, paused: bool) -> Self {
+        Self {
+            name: supervisor.id.clone(),
+            paused,
+            repository: supervisor.repository.clone(),
+            last_wait_monitor: supervisor.last_wait_monitor.clone(),
+        }
+    }
+}
+
+impl Event for SupervisorLooped {
+    fn name(&self) -> &str {
+        Self::NAME
+    }
+}
+
 impl Supervisor {
     pub fn new(
         repository: Arc<Repository>,
@@ -84,7 +114,7 @@ impl Supervisor {
             targets: BTreeMap::new(),
             failures: 0,
             fast_termination: false,
-            last_wait_monitor: None,
+            last_wait_monitor: Arc::default(),
         })
     }
     pub fn fast_termination(mut self, enabled: bool) -> Self {
@@ -279,10 +309,10 @@ impl Supervisor {
         let workers:Vec<_>=self.pools.values().flat_map(|pool| &pool.workers).map(|w|serde_json::json!({"supervisor":w.supervisor,"queue":w.queue,"pid":w.process.id(),"terminating":w.stopping.is_some()})).collect();
         self.repository.heartbeat_supervisor(&self.id,&serde_json::json!({"name":self.id,"master":self.id.rsplit_once(':').map(|(master,_)|master),"pid":std::process::id(),"status":if paused{"paused"}else{"running"},"workers":workers,"targets":self.targets,"unexpected_exits":self.failures,"options":self.options.values().next(),"processes":self.pools.iter().map(|(queue,pool)|(format!("{}:{queue}",self.options.values().next().expect("validated options").connection),pool.active_process_count())).collect::<BTreeMap<_,_>>() })).await?;
         if let Err(error) =
-            crate::notifications::monitor(&self.repository, &mut self.last_wait_monitor).await
+            openrust::support::facades::Event::dispatch(SupervisorLooped::new(self, paused)).await
         {
             let _ = openrust::support::facades::Log::warning(
-                &format!("Horizon wait time monitor failed: {error}"),
+                &format!("Horizon supervisor loop listener failed: {error}"),
                 &Default::default(),
             );
         }

@@ -1,9 +1,14 @@
 use openrust::{
-    contracts::{container::Container as _, foundation::Application as _},
+    contracts::{
+        container::Container as _,
+        events::{Event as EventContract, Listener},
+        foundation::Application as _,
+    },
     database::{
         Value,
         eloquent::{Model, ModelMetadata, ModelState},
     },
+    events::{Delivery, EventContext, EventError, EventFuture, EventResult, ListenerResponse},
     foundation::configuration::Routing,
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
     notifications::{
@@ -19,9 +24,11 @@ use openrust::{
 };
 use openrust_horizon::{
     Horizon, HorizonServiceProvider, LongWaitDetected, LongWaitDetectedNotification,
-    LongWaitNotificationFactory, MasterSupervisor, Repository, Supervisor, SupervisorOptions, Tags,
+    LongWaitNotificationFactory, MasterSupervisor, Repository, Supervisor, SupervisorLooped,
+    SupervisorOptions, Tags,
 };
 use serde_json::json;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{collections::BTreeMap, sync::Arc};
 
 fn first_tags(_: &Payload) -> Vec<String> {
@@ -276,6 +283,32 @@ async fn named_long_wait_notifications_reach_both_native_slack_transports() {
     app.get("/api/notification").await.unwrap().assert_ok();
 }
 
+#[derive(Default)]
+struct SupervisorLoopObserver(AtomicUsize);
+
+impl Listener for SupervisorLoopObserver {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn EventContract,
+        _: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            let event = event
+                .downcast_ref::<SupervisorLooped>()
+                .expect("typed Supervisor event");
+            assert!(event.paused);
+            assert_eq!(event.name, "probe-supervisor");
+            let repository = App::make::<Repository>().await?;
+            let snapshot = repository.supervisor(&event.name).await.unwrap().unwrap();
+            assert_eq!(snapshot["status"], "paused");
+            if self.0.fetch_add(1, Ordering::Relaxed) == 0 {
+                return Err(EventError::InvalidPayload);
+            }
+            Ok(None)
+        })
+    }
+}
+
 fn supervisor_webhook_response(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
         let repository = App::make::<Repository>().await.unwrap();
@@ -329,6 +362,8 @@ fn supervisor_webhook_response(_: &mut Request) -> HttpFuture<'_, Result<Respons
         heartbeat.unwrap();
         assert!(Http::recorded().unwrap().is_empty());
 
+        let observer = Arc::new(SupervisorLoopObserver::default());
+        Event::listen(SupervisorLooped::NAME, observer.clone(), Delivery::Sync).unwrap();
         let supervisor = Supervisor::new(
             repository,
             queues,
@@ -351,7 +386,7 @@ fn supervisor_webhook_response(_: &mut Request) -> HttpFuture<'_, Result<Respons
         let shutdown = tokio_util::sync::CancellationToken::new();
         let (result, seen) = tokio::join!(supervisor.run(&shutdown), async {
             let seen = tokio::time::timeout(std::time::Duration::from_secs(5), async {
-                while Http::recorded().unwrap().is_empty() {
+                while observer.0.load(Ordering::Relaxed) < 2 {
                     tokio::time::sleep(std::time::Duration::from_millis(10)).await;
                 }
             })

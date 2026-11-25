@@ -59,6 +59,8 @@ Use `Horizon::route_slack_webhook_notifications_to(url, channel)` to include a c
 
 To customize these alerts, bind `dyn LongWaitNotificationFactory` in an application service provider. The factory receives each `LongWaitDetected` event and returns a `LongWaitDetectedNotification`. Its `signature()` controls the five-minute deduplication window.
 
+Register a synchronous listener for `SupervisorLooped::NAME` to observe a Supervisor after it persists its heartbeat. `SupervisorLooped` exposes the Supervisor name and paused state. Horizon registers `MonitorWaitTimes` for this event.
+
 Pause, continue, terminate, monitoring changes and retries require the authorization callback on every request. The browser sends `X-Horizon-Request: 1` for mutations; direct API clients must supply the same header. Cross-site browser mutations are rejected. Apply your application's authentication and middleware to the entire route group. Access to this dashboard permits inspection of job data and operational controls.
 
 ## Commands {#commands}
