@@ -13,6 +13,109 @@ def command(binary,env,*tokens):
  assert result.returncode==0,result.stdout+result.stderr
  return result.stdout
 
+def check_processing_lease(binary, env, root, port, driver, sql):
+    current = env | {"DB_QUEUE_RETRY_AFTER": "8"}
+    command(binary, current, "route:clear")
+    work = [str(binary), "artisan", "queue:work", "database",
+            "--queue=webhook-receipts", "--once", "--tries=1"]
+
+    def worker(marker, **extra):
+        return current | {"WEBHOOK_TEST_RECEIPT_OUTPUT": str(root / marker), **extra}
+
+    def run(marker, **extra):
+        result = subprocess.run(work, env=worker(marker, **extra),
+                                capture_output=True, text=True, timeout=20)
+        expected = 79 if "FIXTURE_LEASE_CRASH" in extra else 0
+        assert result.returncode == expected, result.stdout + result.stderr
+
+    def dispatch(body):
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+        try:
+            signature = hmac.new(SECRET.encode(), body, hashlib.sha256).hexdigest()
+            conn.request("POST", "/api/package/leased", body, {
+                "Signature": signature, "Content-Type": "application/octet-stream",
+            })
+            response = conn.getresponse()
+            assert response.status == 200, response.read()
+        finally:
+            conn.close()
+        return json.loads(sql("SELECT payload FROM jobs"))["data"]["id"]
+
+    def state(receipt):
+        assert re.fullmatch(r"[0-9a-f-]{36}", receipt)
+        return sql(
+            "SELECT processing_generation,"
+            "CASE WHEN processing_token IS NULL THEN 0 ELSE 1 END,"
+            "CASE WHEN processed_at IS NULL THEN 0 ELSE 1 END "
+            f"FROM webhook_calls WHERE id='{receipt}'"
+        )
+
+    log_path = root / "processing-lease.log"
+    with log_path.open("w+") as log:
+        server = http_helpers["serve"](binary, current, log)
+        try:
+            released = dispatch(b"leased-release")
+            run("release")
+            assert state(released) == "1\t0\t0" and not (root / "release").exists()
+            run("release")
+            assert state(released) == "2\t0\t1" and (root / "release").exists()
+
+            concurrent = dispatch(b"leased-concurrent")
+            duplicate = (
+                "INSERT INTO jobs (queue,payload,attempts,reserved_at,available_at,created_at) "
+                "SELECT queue,payload,0,NULL,available_at,created_at FROM jobs"
+            )
+            if driver == "sqlite":
+                import sqlite3
+                from contextlib import closing
+                with closing(sqlite3.connect(helpers["database_container"]())) as connection:
+                    connection.execute(duplicate)
+                    connection.commit()
+            else:
+                sql(duplicate)
+            entered = root / "first-entered"
+            first = subprocess.Popen(
+                work, env=worker("first", FIXTURE_LEASE_ENTERED=str(entered)), stdout=log, stderr=log,
+            )
+            try:
+                deadline = time.monotonic() + 10
+                while not entered.exists() and first.poll() is None and time.monotonic() < deadline:
+                    time.sleep(.025)
+                assert entered.exists()
+                assert state(concurrent) == "1\t1\t0"
+                second = root / "second-entered"
+                run("second", FIXTURE_LEASE_ENTERED=str(second))
+                assert not second.exists()
+                assert first.wait(timeout=10) == 0
+                assert (root / "first").exists() and state(concurrent) == "1\t0\t1"
+                assert sql("SELECT COUNT(*) FROM jobs") == "1"
+            finally:
+                if first.poll() is None:
+                    first.kill()
+                    first.wait(timeout=10)
+            time.sleep(6.2)
+            run("second", FIXTURE_LEASE_ENTERED=str(second))
+            assert sql("SELECT COUNT(*) FROM jobs") == "0"
+            assert not second.exists() and state(concurrent) == "1\t0\t1"
+
+            crashed = dispatch(b"leased-crash")
+            run("crash", FIXTURE_LEASE_CRASH="1")
+            assert state(crashed) == "1\t1\t0" and not (root / "crash").exists()
+            run("recovered")
+            assert state(crashed) == "1\t1\t0" and not (root / "recovered").exists()
+            time.sleep(8.2)
+            run("recovered")
+            assert state(crashed) == "2\t0\t1" and (root / "recovered").exists()
+            assert sql("SELECT COUNT(*) FROM jobs") == "0"
+        except BaseException:
+            log.flush()
+            print(log_path.read_text())
+            raise
+        finally:
+            http_helpers["stop"](server)
+    print(f"{driver}: 接收处理租约 3 个真实 HTTP、8 个独立 Worker；主动释放、并发重复投递、终态去重、进程崩溃重领通过")
+
+
 def main():
  driver,url=helpers["database_settings"]();binary=args.binary.resolve();requests=workers=0
  with tempfile.TemporaryDirectory(dir=ROOT/"target/tmp",prefix="webhook-routes-") as tmp:
@@ -203,8 +306,9 @@ def main():
     http_helpers["stop"](server)
   assert set(sql("SELECT id FROM webhook_calls").split())==original
   assert sql("SELECT COUNT(*) FROM jobs")=="0"
+  check_processing_lease(binary,env,root,port,driver,sql)
   legacy_id=sql("SELECT id FROM webhook_calls WHERE name='default' ORDER BY id LIMIT 1")
-  assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate:rollback","--step=1","--force")
+  assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate:rollback","--step=2","--force")
   assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate","--force")
   legacy=json.loads(command(binary,env,"webhooks:record",legacy_id,"webhook-acceptance"))
   assert bytes(legacy["body"])==b"default" and legacy["payload"] is None and legacy["attachments"] is None

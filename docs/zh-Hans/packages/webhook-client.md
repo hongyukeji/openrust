@@ -137,7 +137,13 @@ Provider 注册 `webhook_calls` 迁移，使用 `DatabaseWebhookStore` 前运行
 
 ### 同事务保存接收记录与数据库队列任务 {#atomic-database-queue}
 
-在配置中设置 `atomic_database_queue: true`，或在运行时调用 `with_atomic_database_queue(true)`。让 `DatabaseWebhookStore` 和 `QueuedWebhookJob` 使用同一应用数据库连接。接收记录和队列任务一起提交后才返回 HTTP 确认，队列写入失败时一并回滚。其他驱动或分开的连接实例会被拒绝，即使指向同一个数据库。该选项默认关闭，开启后覆盖入队前的进程退出窗口。HTTP 重试去重和队列重复投递处理仍需另行实现。
+在配置中设置 `atomic_database_queue: true`，或在运行时调用 `with_atomic_database_queue(true)`。让 `DatabaseWebhookStore` 和 `QueuedWebhookJob` 使用同一应用数据库连接。接收记录和队列任务一起提交后才返回 HTTP 确认，队列写入失败时一并回滚。其他驱动或分开的连接实例会被拒绝，即使指向同一个数据库。该选项默认关闭，开启后覆盖入队前的进程退出窗口。重试 HTTP 请求仍可能创建独立接收记录。
+
+### 多 Worker 领取接收记录 {#processing-lease}
+
+先运行 `./artisan migrate`，再用 `QueuedWebhookJob::register_with_database_lease(&queue, name, store, handler, lease_seconds)` 注册处理器。存储参数为 `Arc<DatabaseWebhookStore>`。协调重启消费该队列的各个 Worker，使它们使用同一注册。例如任务超时 20 秒、租约 30 秒、数据库队列 `retry_after` 60 秒。租约范围为 3–86,400 秒，任务必须显式设置正数超时且至少比租约短两秒。应为数据库操作留出余量，并让队列保留时间或可见性超时长于租约。竞争中的任务通过原生队列释放，可能消耗一次队列尝试预算。
+
+租约有效时，仅领取者进入业务处理器。已完成记录被重复投递时直接确认，处理器也可以主动释放任务以便再次执行。进程退出后，队列保留和记录租约都过期时可重新领取。业务端应按接收记录 ID 做外部操作幂等，因为进程可能在外部操作生效后、记录完成前退出。
 
 ## 使用边界 {#scope}
 

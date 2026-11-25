@@ -405,6 +405,11 @@ impl JobContext<'_> {
         self.release_after = Some(delay);
     }
 
+    /// 获取处理器显式请求的重新投递延迟。
+    pub fn release_delay(&self) -> Option<Duration> {
+        self.release_after
+    }
+
     pub(crate) fn fail_without_retry(&mut self) {
         self.fail_immediately = true;
     }

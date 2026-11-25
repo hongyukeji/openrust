@@ -1,9 +1,11 @@
+mod lease;
 use crate::{Error, Result, VerifiedWebhook, models::WebhookCall};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use http::{
     HeaderMap,
     header::{HeaderName, HeaderValue},
 };
+pub(crate) use lease::{ProcessingClaim, ProcessingOutcome};
 use openrust::{
     database::{Connection, Row, Value},
     http::HttpFuture,
@@ -62,6 +64,7 @@ impl DatabaseWebhookStore {
         let row = self
             .connection
             .table("webhook_calls")
+            .use_write_pdo()
             .select(columns.iter().copied())
             .r#where("scope_key", "=", scope_key(&self.scope))
             .r#where("id", "=", id)

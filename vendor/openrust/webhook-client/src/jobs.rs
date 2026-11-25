@@ -1,4 +1,8 @@
 //! 通过原生队列在独立 Worker 中重新读取接收记录。
+use crate::{
+    DatabaseWebhookStore,
+    storage::{ProcessingClaim, ProcessingOutcome},
+};
 use crate::{Error, Result, WebhookJobDispatcher, WebhookStore, models::WebhookCall};
 use openrust::{
     bus::Bus,
@@ -9,7 +13,7 @@ use openrust::{
         QueueFuture, QueueManager, QueueResult,
     },
 };
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 /// 应用业务处理器从其注册的存储读取载荷及附件。
 pub trait ProcessWebhookJob: Send + Sync {
@@ -59,9 +63,39 @@ impl QueuedWebhookJob {
         store: Arc<dyn WebhookStore>,
         handler: Arc<dyn ProcessWebhookJob>,
     ) -> Result<()> {
-        queue.register(&job_name(name)?, Arc::new(RegisteredJob { store, handler }))?;
+        queue.register(
+            &job_name(name)?,
+            Arc::new(RegisteredJob {
+                store,
+                handler,
+                lease: None,
+            }),
+        )?;
         Ok(())
     }
+    /// 以数据库记录保护业务处理，可由多个共享数据库的 Worker 竞争。
+    /// 有租约的任务必须设置比租约短至少两秒的显式超时。
+    pub fn register_with_database_lease(
+        queue: &QueueManager,
+        name: &str,
+        store: Arc<DatabaseWebhookStore>,
+        handler: Arc<dyn ProcessWebhookJob>,
+        lease_seconds: u32,
+    ) -> Result<()> {
+        if !(3..=86_400).contains(&lease_seconds) {
+            return Err(Error::InvalidConfig("processing_lease_seconds"));
+        }
+        queue.register(
+            &job_name(name)?,
+            Arc::new(RegisteredJob {
+                store: store.clone(),
+                handler,
+                lease: Some((store, lease_seconds)),
+            }),
+        )?;
+        Ok(())
+    }
+
     fn payload(&self, call: &WebhookCall) -> Result<Payload> {
         let receipt = Receipt {
             id: call.id(),
@@ -133,6 +167,7 @@ struct Receipt<'a> {
 struct RegisteredJob {
     store: Arc<dyn WebhookStore>,
     handler: Arc<dyn ProcessWebhookJob>,
+    lease: Option<(Arc<DatabaseWebhookStore>, u32)>,
 }
 
 impl JobHandler for RegisteredJob {
@@ -156,22 +191,75 @@ impl JobHandler for RegisteredJob {
                 return Err(QueueError::InvalidPayload);
             }
 
+            if let Some((database, seconds)) = &self.lease {
+                return self
+                    .handle_leased(context, payload, call, database, *seconds)
+                    .await;
+            }
             call.clear_exception(store).await.map_err(queue_error)?;
             if self.handler.handle(context, &call, store).await.is_err() {
-                call.save_exception(
-                    store,
-                    serde_json::json!({
-                        "code": 0,
-                        "message": "Webhook 处理任务执行失败"
-                    }),
-                )
-                .await
-                .map_err(queue_error)?;
+                call.save_exception(store, processing_exception())
+                    .await
+                    .map_err(queue_error)?;
                 // 业务错误可能携带凭据或原文，队列失败记录只保留固定分类。
                 return Err(queue_error(Error::ProcessingFailed));
             }
             Ok(())
         })
+    }
+}
+
+pub(crate) fn processing_exception() -> serde_json::Value {
+    serde_json::json!({"code":0,"message":"Webhook 处理任务执行失败"})
+}
+
+impl RegisteredJob {
+    async fn handle_leased(
+        &self,
+        context: &mut JobContext<'_>,
+        payload: &Payload,
+        call: WebhookCall,
+        store: &DatabaseWebhookStore,
+        seconds: u32,
+    ) -> QueueResult<()> {
+        let max_timeout = Duration::from_secs(u64::from(seconds - 2));
+        if payload
+            .options()
+            .timeout
+            .is_none_or(|value| value.is_zero() || value > max_timeout)
+        {
+            return Err(QueueError::InvalidConfiguration);
+        }
+        let token = match store
+            .claim_processing(&call, seconds)
+            .await
+            .map_err(queue_error)?
+        {
+            ProcessingClaim::Owned(token) => token,
+            ProcessingClaim::Complete => return Ok(()),
+            ProcessingClaim::Busy => {
+                context.release(Duration::from_secs(u64::from(seconds)));
+                return Ok(());
+            }
+        };
+        let mut call = call;
+        call.exception = None;
+        let failed = self.handler.handle(context, &call, store).await.is_err();
+        let outcome = if failed {
+            ProcessingOutcome::Failed
+        } else if context.release_delay().is_some() {
+            ProcessingOutcome::Release
+        } else {
+            ProcessingOutcome::Complete
+        };
+        store
+            .finish_processing(&call, &token, outcome)
+            .await
+            .map_err(queue_error)?;
+        if failed {
+            return Err(queue_error(Error::ProcessingFailed));
+        }
+        Ok(())
     }
 }
 

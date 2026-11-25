@@ -10,6 +10,8 @@ pub mod jobs;
 mod routes;
 pub use routes::{WebhookRouteOptions, WebhookRouter, WebhookRoutes};
 pub mod events;
+#[path = "../database/migrations/2026_11_25_000003_add_processing_lease_to_webhook_calls_table.rs"]
+mod lease_migration;
 #[path = "../database/migrations/2026_11_25_000001_create_webhook_calls_table.rs"]
 mod migration;
 pub mod models;
@@ -119,6 +121,10 @@ impl WebhookClientServiceProvider {
             openrust::database::migrations::MigrationEntry::new(
                 "vendor/openrust/webhook-client/database/migrations/2026_11_25_000002_add_payload_to_webhook_calls_table.rs",
                 &payload_migration::MIGRATION,
+            ),
+            openrust::database::migrations::MigrationEntry::new(
+                "vendor/openrust/webhook-client/database/migrations/2026_11_25_000003_add_processing_lease_to_webhook_calls_table.rs",
+                &lease_migration::MIGRATION,
             ),
         ];
         ENTRIES

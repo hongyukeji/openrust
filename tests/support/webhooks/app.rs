@@ -292,6 +292,22 @@ impl openrust_webhook_client::jobs::ProcessWebhookJob for FixtureJob {
                     "private-business-error-sentinel",
                 )));
             }
+            if call.raw_body() == b"leased-crash"
+                && std::env::var_os("FIXTURE_LEASE_CRASH").is_some()
+            {
+                std::process::exit(79);
+            }
+            if call.raw_body() == b"leased-release" && context.attempts() == 1 {
+                context.release(std::time::Duration::ZERO);
+                return Ok(());
+            }
+            if call.raw_body() == b"leased-concurrent" {
+                let marker = std::env::var_os("FIXTURE_LEASE_ENTERED").expect("领取验收标记");
+                tokio::fs::write(marker, b"entered")
+                    .await
+                    .map_err(runtime_error)?;
+                tokio::time::sleep(std::time::Duration::from_millis(1900)).await;
+            }
             let app = openrust::support::facades::App::get_facade_root()?;
             write_receipt(&app, &read_receipt(call, store).await?).await
         })
@@ -336,7 +352,7 @@ impl openrust::support::ServiceProvider for FixtureProvider {
     ) -> HttpFuture<'a, openrust::support::ProviderResult> {
         Box::pin(async move {
             use openrust_webhook_client::WebhookRuntime;
-            for name in ["fixture", "fixture-custom", "unregistered"] {
+            for name in ["fixture", "fixture-custom", "unregistered", "leased"] {
                 WebhookRuntime::register_job_dispatcher(
                     openrust::contracts::foundation::Application::container(app),
                     name,
@@ -350,8 +366,10 @@ impl openrust::support::ServiceProvider for FixtureProvider {
                                 })
                                 .on_queue("webhook-receipts")
                                 .with_options(openrust::queue::JobOptions {
-                                    max_tries: Some(2),
-                                    timeout: Some(std::time::Duration::from_secs(12)),
+                                    max_tries: Some(if name == "leased" { 4 } else { 2 }),
+                                    timeout: Some(std::time::Duration::from_secs(
+                                        if name == "leased" { 4 } else { 12 },
+                                    )),
                                     ..Default::default()
                                 }),
                         ))
@@ -453,6 +471,16 @@ impl openrust::support::ServiceProvider for FixtureProvider {
                     std::sync::Arc::new(FixtureJob),
                 )?;
             }
+            openrust_webhook_client::jobs::QueuedWebhookJob::register_with_database_lease(
+                &queue,
+                "leased",
+                std::sync::Arc::new(openrust_webhook_client::DatabaseWebhookStore::new(
+                    manager.connection(None)?,
+                    "webhook-acceptance",
+                )?),
+                std::sync::Arc::new(FixtureJob),
+                6,
+            )?;
             Ok(())
         })
     }
@@ -525,7 +553,7 @@ fn api_routes() -> Result<(), openrust::routing::RoutingError> {
     use openrust_webhook_client::{WebhookRouteOptions as Options, WebhookRouter, WebhookRoutes};
     Route::post("/webhooks/{profile}", verify)?;
     Route::post("/received/{profile}", receive)?;
-    for route in ["atomic", "atomic-null", "atomic-foreign"] {
+    for route in ["atomic", "atomic-null", "atomic-foreign", "leased"] {
         Route::webhooks(&format!("/package/{route}"), Options::new().name(route))?;
     }
     Route::webhooks("/package/default", Options::default())?;
@@ -749,6 +777,7 @@ async fn main() -> ExitCode {
                 {"name":"package-ignored","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"webhook_profile":"ignored","webhook_model":"missing","process_webhook_job":"fixture","signature_validator":"default"},
                 {"name":"discarded","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"fixture","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database"},
                 {"name":"unregistered","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"unregistered","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database"},
+                {"name":"leased","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"leased","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database"},
                 {"name":"atomic","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","atomic_database_queue":true},
                 {"name":"atomic-null","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","atomic_database_queue":true},
                 {"name":"atomic-foreign","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","atomic_database_queue":true},

@@ -137,7 +137,13 @@ Set connection and queue on the dispatcher. The native `JobOptions` controls att
 
 ### Commit the receipt with its database queue task {#atomic-database-queue}
 
-Set `atomic_database_queue: true` on a profile, or use `with_atomic_database_queue(true)` for a runtime configuration. Use `DatabaseWebhookStore` and `QueuedWebhookJob` with the same application database connection. The receipt and native queue task commit together before the HTTP acknowledgment. Queue insertion failure rolls both back. Other drivers and distinct connection instances are rejected, even when they refer to the same database. The default remains off. This option closes the pre-enqueue process exit window for that deployment. It does not deduplicate retried HTTP requests or stop the queue from redelivering a task.
+Set `atomic_database_queue: true` on a profile, or use `with_atomic_database_queue(true)` for a runtime configuration. Use `DatabaseWebhookStore` and `QueuedWebhookJob` with the same application database connection. The receipt and native queue task commit together before the HTTP acknowledgment. Queue insertion failure rolls both back. Other drivers and distinct connection instances are rejected, even when they refer to the same database. The default remains off. This option closes the pre-enqueue process exit window for that deployment. Retried HTTP requests can still create separate receipts.
+
+### Claim a receipt across Workers {#processing-lease}
+
+Run `./artisan migrate` and register the handler with `QueuedWebhookJob::register_with_database_lease(&queue, name, store, handler, lease_seconds)`. The store must be an `Arc<DatabaseWebhookStore>`. Deploy the same registration to every Worker serving that queue during a coordinated restart. For example, use a 20-second job timeout, a 30-second lease and a database queue `retry_after` of 60 seconds. The lease accepts 3–86,400 seconds and requires a positive job timeout at least two seconds shorter than the lease. Allow additional time for database work and configure the queue’s reservation or visibility timeout to exceed the lease. A competing job is released through the native queue and can use an attempt from its configured budget.
+
+An active lease permits one Worker to enter the handler. A completed receipt is acknowledged on redelivery without another handler call. A handler can explicitly release its job for another attempt. After process exit, a reserved task can be reclaimed when both the queue reservation and the receipt lease expire. Make external effects idempotent using the receipt ID because a process can exit after an effect has occurred and before marking the receipt complete.
 
 ## Scope {#scope}
 
