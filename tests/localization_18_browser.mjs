@@ -29,12 +29,12 @@ try {
   const response=await page.goto(base);assert.equal(response.status(),200);assert.equal(response.headers()['content-language'],locale);
   assert.equal(await page.locator('html').getAttribute('lang'),locale);
   assert.equal(await page.locator('html').getAttribute('dir'),locale==='ar'?'rtl':null);
-  const welcome=JSON.parse(fs.readFileSync(path.join(root,`vendor/openrust/framework/src/translation/lang/${locale}/welcome.json`),'utf8'));
+  const welcome=JSON.parse(fs.readFileSync(path.join(root,`vendor/openrust/framework/src/localization/lang/${locale}/welcome.json`),'utf8'));
   assert.equal(await page.locator('h1').innerText(),welcome.heading);
   const docs=['en','zh-Hans','zh-Hant'].includes(locale)?locale:'en';assert((await page.locator('.steps a').first().getAttribute('href')).includes(`/docs/${docs}/README.md`));
   const summary=page.locator('.language-switcher').locator('..').locator('summary');
   if(mobile)await summary.tap();else {await summary.focus();await page.keyboard.press('Enter');}
-  for(const choice of locales){const name=JSON.parse(fs.readFileSync(path.join(root,`vendor/openrust/framework/src/translation/lang/${choice}/languages.json`),'utf8')).name;assert.equal(await page.locator(`.language-switcher button[value="${choice}"]`).innerText(),name);}
+  for(const choice of locales){const name=JSON.parse(fs.readFileSync(path.join(root,`vendor/openrust/framework/src/localization/lang/${choice}/languages.json`),'utf8')).name;assert.equal(await page.locator(`.language-switcher button[value="${choice}"]`).innerText(),name);}
   assert.equal(await page.locator('.language-switcher').evaluate(e=>getComputedStyle(e).overflowY),'auto');
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
   const selected=locale==='ja'?'fr':'ja';

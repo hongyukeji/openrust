@@ -1,4 +1,4 @@
-use openrust::translation::__;
+use openrust::localization::__;
 // Translated from the framework Passport v13.10.0 (MIT, Taylor Otwell).
 use openrust::{
     contracts::config::Repository,

@@ -37,7 +37,7 @@ try:
         with urllib.request.urlopen(request, timeout=10) as response:
             html = response.read().decode()
             assert response.headers['Content-Language'] == locale
-            assert json.loads((root / f'vendor/openrust/framework/src/translation/lang/{locale}/welcome.json').read_text())['heading'] in html
+            assert json.loads((root / f'vendor/openrust/framework/src/localization/lang/{locale}/welcome.json').read_text())['heading'] in html
             docs = locale if locale in ['en', 'zh-Hans', 'zh-Hant'] else 'en'
             assert f'/docs/{docs}/README.md' in html
         print(locale, 'Linux runtime resource delivery PASS', flush=True)

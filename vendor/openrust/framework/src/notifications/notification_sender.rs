@@ -249,7 +249,7 @@ impl<'a> NotificationSender<'a> {
             .map(str::to_owned)
             .or_else(|| Lang::get_locale().ok())
             .as_deref()
-            .map(crate::translation::canonical_locale)
+            .map(crate::localization::canonical_locale)
             .transpose()
             .map_err(delivery)
     }

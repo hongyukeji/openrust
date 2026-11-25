@@ -4,7 +4,7 @@ Rust 型別和 trait 使用 `UpperCamelCase`，方法與欄位使用 `snake_case
 
 使用指南介紹應用程式行為。Rustdoc 列出建置快照中公開的 Rust 模組、型別、方法、feature 條件及原始碼連結。
 
-`openrust-translation-database` 提供 `DatabaseLoader`，可明確將資料庫翻譯載入既有翻譯器。裝配、檔案回退及資料庫支援範圍見[資料庫翻譯](../digging-deeper/localization.md#database-translation-loader)。
+`openrust-localization-database` 提供 `DatabaseLoader`，可明確將資料庫翻譯載入既有翻譯器。裝配、檔案回退及資料庫支援範圍見[資料庫翻譯](../digging-deeper/localization.md#database-translation-loader)。
 
 `openrust-settings` 提供 `Settings<T>`、`SettingsGroup` 與 `SettingsServiceProvider`，用於型別化資料庫設定。註冊、遷移、加密及交易與作用域行為見[資料庫設定](../packages/settings.md)。
 

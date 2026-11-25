@@ -264,7 +264,7 @@ async fn create_customers() -> DatabaseResult<()> {
 ```rust
 use openrust::{
     database::{DatabaseResult, schema::Schema},
-    translation::__,
+    localization::__,
 };
 
 async fn create_users() -> DatabaseResult<()> {

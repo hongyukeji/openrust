@@ -2,7 +2,7 @@ use openrust::database::{
     DatabaseFuture, DatabaseResult,
     migrations::{Migration, MigrationContext},
 };
-use openrust::translation::__;
+use openrust::localization::__;
 
 pub struct Definition;
 

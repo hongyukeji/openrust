@@ -473,11 +473,11 @@ async fn start(settings: Json, callbacks: bool, configure: impl FnOnce(&Applicat
         ("auth".into(),json!({"defaults":{"guard":"web","passwords":"users"},"guards":{"web":{"driver":"session","provider":"users"}},"providers":{"users":{"driver":"eloquent","model":"AccountUser"}},"passwords":{"users":{"driver":"database","provider":"users","table":"fortify_default_resets","expire":60,"throttle":60},"accounts":{"driver":"database","provider":"users","table":"fortify_named_resets","expire":60,"throttle":60}}})),
     ].into())).with_providers(vec![Box::new(Settings(settings)),Box::new(FortifyServiceProvider)]).with_routing(Routing::default().web(routes)).create().unwrap();
     app.boot().await.unwrap();
-    let passwords: BTreeMap<String, openrust::translation::Line> = serde_json::from_str(
-        include_str!("../../../framework/src/translation/stubs/passwords.json"),
+    let passwords: BTreeMap<String, openrust::localization::Line> = serde_json::from_str(
+        include_str!("../../../framework/src/localization/stubs/passwords.json"),
     )
     .unwrap();
-    app.make::<openrust::translation::Translator>()
+    app.make::<openrust::localization::Localizer>()
         .await
         .unwrap()
         .add_lines(

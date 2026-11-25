@@ -6,11 +6,11 @@ use openrust::{
     http::{
         Body, HttpError, HttpFuture, Request, Response, StatusCode, middleware::LocaleSelection,
     },
+    localization::FileLoader,
     support::{
         ProviderResult, ServiceProvider,
         facades::{App, Route},
     },
-    translation::FileLoader,
 };
 
 fn write(root: &Path, path: &str) {
@@ -210,7 +210,7 @@ async fn explicit_candidates_preserve_order_include_non_file_languages_and_empty
 struct ExtraSource(std::path::PathBuf);
 impl ServiceProvider for ExtraSource {
     fn boot(&mut self, app: &Application) -> HttpFuture<'_, ProviderResult> {
-        let loader = app.container().get::<FileLoader>("translation.loader");
+        let loader = app.container().make::<FileLoader>();
         let path = self.0.clone();
         Box::pin(async move {
             loader?.add_path(path);

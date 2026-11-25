@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use super::{Expression, ViewData, ViewResult, ViewValue, invalid, separators};
 use crate::{
+    localization::{Line, PluralCount},
     support::facades::{Facade, Lang},
-    translation::{Line, PluralCount},
     view::{ViewError, rendering::render_error},
 };
 

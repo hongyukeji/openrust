@@ -231,7 +231,7 @@ async fn regex_array_rules_keep_pipe_alternatives_and_unicode_classes() {
 
 #[tokio::test]
 async fn standard_rules_preserve_missing_null_wildcards_and_translated_conditional_values() {
-    use openrust::translation::{FileLoader, Translator};
+    use openrust::localization::{FileLoader, Localizer};
     use std::{collections::BTreeMap, sync::Arc};
     let root = tempfile::tempdir().unwrap();
     std::fs::create_dir(root.path().join("zh-Hans")).unwrap();
@@ -247,7 +247,7 @@ async fn standard_rules_preserve_missing_null_wildcards_and_translated_condition
     )
     .unwrap();
     let factory = Factory::new(Arc::new(
-        Translator::new(
+        Localizer::new(
             FileLoader::new(root.path().to_owned()),
             "zh-Hans".into(),
             "en".into(),

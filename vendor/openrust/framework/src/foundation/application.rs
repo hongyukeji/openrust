@@ -565,7 +565,7 @@ impl Application {
             Box::new(crate::view::ViewServiceProvider),
             Box::new(super::vite::ViteServiceProvider),
             Box::new(crate::pagination::PaginationServiceProvider),
-            Box::new(crate::translation::TranslationServiceProvider),
+            Box::new(crate::localization::LocalizationServiceProvider),
             Box::new(crate::mail::MailServiceProvider),
             Box::new(crate::notifications::NotificationServiceProvider),
             Box::new(crate::validation::ValidationServiceProvider),
@@ -1115,6 +1115,9 @@ impl Application {
                 })?;
         }
         deferred.boot_registered().await?;
+        crate::localization::default_source::boot(&self.shared.container)
+            .await
+            .map_err(|source| BootstrapError::LocalizationFailed { source })?;
         let routing_failed = |source| BootstrapError::RoutingFailed { source };
         let routing = self
             .shared

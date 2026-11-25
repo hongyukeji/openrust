@@ -161,8 +161,8 @@ impl MigrationRepositoryInterface for DatabaseMigrationRepository {
 
     fn create_repository(&mut self) -> DatabaseFuture<'_, DatabaseResult<()>> {
         Box::pin(async move {
-            let translator = self.manager.translator()?;
-            let translate = |key| translator.string(key, &Default::default(), None);
+            let localizer = self.manager.localizer()?;
+            let translate = |key| localizer.string(key, &Default::default(), None);
             self.connection()?
                 .get_schema_builder()
                 .create(&self.table, |table| -> DatabaseResult<()> {

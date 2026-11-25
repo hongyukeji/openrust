@@ -557,9 +557,9 @@ assert_eq!(errors.count(), 0);
 
 用 `get_data`、`get_value` 和 `get_rules` 讀取輸入及展開後的規則。`get_rules` 按宣告順序傳回 `(欄位路徑, 規則)`，路徑使用原生跳脫。`set_value` 更新一個具體路徑，拒絕萬用字元。`set_data` 替換輸入，並恢復最近一次 `set_rules` 或工廠建立時的規則。`add_rules` 合併暫時規則；`append_rules` 同時將合併後的宣告作為下次重設的基準。
 
-`set_custom_messages` 合併訊息。`set_attribute_names`、`set_value_names` 替換對應映射；`add_custom_attributes`、`add_custom_values` 按欄位合併。`get_translator`、`set_translator` 讀取或替換錯誤訊息使用的譯器。在驗證執行之外修改後，會捨棄快取的成功結果和錯誤，需要重新執行 `validate().await`，再讀取 `validated()` 或 `safe()`。
+`set_custom_messages` 合併訊息。`set_attribute_names`、`set_value_names` 替換對應映射；`add_custom_attributes`、`add_custom_values` 按欄位合併。`get_localizer`、`set_localizer` 讀取或替換錯誤訊息使用的譯器。在驗證執行之外修改後，會捨棄快取的成功結果和錯誤，需要重新執行 `validate().await`，再讀取 `validated()` 或 `safe()`。
 
-`get_exception`、`set_exception` 使用型別化函式 `fn(MessageBag, Option<&Translator>) -> ValidationException`，可自訂實際拒絕回應的狀態、錯誤包及重新導向。固定回傳型別替代執行期例外類別名稱及繼承，每個驗證器獨立保存工廠。
+`get_exception`、`set_exception` 使用型別化函式 `fn(MessageBag, Option<&Localizer>) -> ValidationException`，可自訂實際拒絕回應的狀態、錯誤包及重新導向。固定回傳型別替代執行期例外類別名稱及繼承，每個驗證器獨立保存工廠。
 
 ## 註冊驗證擴充
 

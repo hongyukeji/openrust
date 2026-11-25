@@ -259,6 +259,15 @@ impl Transport<'_> {
             snapshot.diagnostic_source = None;
             snapshot.body = None;
             snapshot.headers.remove(header::AUTHORIZATION);
+            let sensitive = snapshot
+                .headers
+                .iter()
+                .filter(|(_, value)| value.is_sensitive())
+                .map(|(name, _)| name.clone())
+                .collect::<Vec<_>>();
+            for name in sensitive {
+                snapshot.headers.remove(name);
+            }
         } else if let Some((fields, content_type)) = &self.multipart
             && request.body().is_some_and(|body| body.as_bytes().is_none())
             && request.headers().get(header::CONTENT_TYPE) == Some(content_type)

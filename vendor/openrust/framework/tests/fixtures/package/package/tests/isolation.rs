@@ -5,7 +5,7 @@ use openrust::{
     contracts::{console::Kernel as _, foundation::Application as _},
     foundation::{Application, console::Kernel},
     testing::TestApp,
-    translation::Translator,
+    localization::Localizer,
     view::Factory,
 };
 use package_probe::ProbeProvider;
@@ -45,17 +45,17 @@ async fn boot_keeps_package_services_and_commands_in_their_application() {
     );
     let key = "probe::messages.title";
     for (application, expected) in [(app, "Package title"), (uninstalled, key)] {
-        let translator = application.make::<Translator>().await.unwrap();
+        let localizer = application.make::<Localizer>().await.unwrap();
         assert_eq!(
-            translator.string(key, &Default::default(), None).unwrap(),
+            localizer.string(key, &Default::default(), None).unwrap(),
             expected
         );
     }
     let literal = "JSON package only";
     for (application, expected) in [(app, "Package JSON fallback"), (uninstalled, literal)] {
-        let translator = application.make::<Translator>().await.unwrap();
+        let localizer = application.make::<Localizer>().await.unwrap();
         assert_eq!(
-            translator
+            localizer
                 .string(literal, &Default::default(), None)
                 .unwrap(),
             expected

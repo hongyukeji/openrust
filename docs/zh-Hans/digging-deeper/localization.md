@@ -1,5 +1,9 @@
 # 本地化
 
+Rust 应用从 `openrust::localization` 导入 `Lang`、`__` 和 `trans_choice`。具体服务和 trait 都称为 `Localizer`，分别位于 `openrust::localization` 和 `openrust::contracts::localization`。更新旧 Rust 导入时，将 `Translator` 改为 `Localizer`，容器键 `translator`、`translation.loader` 分别改为 `lang`、`lang.loader`。注册文件路径时按类型解析 `FileLoader`。应用 `lang/` 目录和模板助手沿用原有写法。
+
+翻译用户输入的文本时，使用[文本机器翻译](../packages/translate.md)。
+
 ## 配置语言
 
 通过 `config/app.rs` 的 `locale`、`fallback_locale` 配置默认语言及缺失分组词条的回退语言，对应根 `.env`：
@@ -73,7 +77,7 @@ fn greeting(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 
 ### 框架默认译文与应用覆盖 {#default-translations}
 
-18语默认资源位于 `vendor/openrust/framework/src/translation/lang/`，随二进制编译交付；默认应用在 `lang/` 保留英语、简体中文、繁体中文三份可编辑的 `welcome.json`；其他默认词典无需复制到应用。只创建需要覆盖的键，例如 `lang/fr/validation.json`：
+18语默认资源位于 `vendor/openrust/framework/src/localization/lang/`，随二进制编译交付；默认应用在 `lang/` 保留英语、简体中文、繁体中文三份可编辑的 `welcome.json`；其他默认词典无需复制到应用。只创建需要覆盖的键，例如 `lang/fr/validation.json`：
 
 ```json
 {"required": "自定义提示：:attribute 必填", "min": {"string": "至少输入 :min 个字符"}}
@@ -286,7 +290,7 @@ use std::path::PathBuf;
 
 use openrust::{
     support::facades::Lang,
-    translation::{Line, TranslationResult},
+    localization::{Line, TranslationResult},
 };
 
 pub fn register_translations(directory: PathBuf) -> TranslationResult<()> {
@@ -306,9 +310,9 @@ pub fn register_translations(directory: PathBuf) -> TranslationResult<()> {
 
 ```rust
 use openrust::{
-    contracts::translation::Loader,
+    contracts::localization::Loader,
     support::facades::Lang,
-    translation::{TranslationResource, TranslationResult},
+    localization::{TranslationResource, TranslationResult},
 };
 
 pub async fn load_notice(source: &dyn Loader) -> TranslationResult<()> {
@@ -326,7 +330,9 @@ pub async fn load_notice(source: &dyn Loader) -> TranslationResult<()> {
 
 ### 数据库翻译源（扩展） {#database-translation-loader}
 
-在应用 Cargo 依赖中通过 `path = "vendor/openrust/translation-database"` 添加 `openrust-translation-database`。`DatabaseLoader` 接收显式的框架 `Connection`，可从当前应用的数据库管理器或 `Db::connection` 获取。支持 PostgreSQL 18、MySQL 8.4 和 SQLite 的数据库词条加载，其他数据库目标须分别验证行为。
+在应用 Cargo 依赖中通过 `path = "vendor/openrust/localization-database"` 添加 `openrust-localization-database`。`DatabaseLoader` 接收显式的框架 `Connection`，可从当前应用的数据库管理器或 `Db::connection` 获取。支持 PostgreSQL 18、MySQL 8.4 和 SQLite 的数据库词条加载，其他数据库目标须分别验证行为。
+
+从 `openrust-translation-database` 升级时，将 Cargo 依赖改为 `openrust-localization-database`，根应用 feature 改为 `localization-database`，Rust 导入改为 `openrust_localization_database`。继续使用原有的 `language_lines` 表和迁移记录。
 
 先通过应用迁移创建表，再加载翻译。可使用以下最小结构：
 
@@ -353,9 +359,9 @@ use std::{path::PathBuf, sync::Arc};
 use openrust::{
     database::Connection,
     support::facades::Lang,
-    translation::{FileLoader, TranslationResource, TranslationResult},
+    localization::{FileLoader, TranslationResource, TranslationResult},
 };
-use openrust_translation_database::DatabaseLoader;
+use openrust_localization_database::DatabaseLoader;
 
 pub async fn load_database_translations(
     connection: Connection,
@@ -383,6 +389,61 @@ pub async fn load_database_translations(
 
 与 Spatie 的 PHP 模型不同，本来源读取每行时不执行语言回退；翻译器在加载精确语言后按自身配置回退，也因此保留所选语言的文件词条。缺表会返回错误，避免显式重载失败时静默用文件替换已发布的数据库目录。
 
+### 默认数据库来源
+
+新应用先在文件模式下发布并运行迁移。已有该表的应用沿用自己的迁移标识和数据。
+
+```sh
+./artisan vendor:publish --tag=localization-database-migrations
+./artisan migrate
+```
+
+在应用 Provider 的 `register` 中绑定默认来源。本例使用默认数据库连接，文件回退复用应用和包语言路径共用的 `FileLoader`。
+
+```rust
+use std::sync::Arc;
+use openrust::{
+    contracts::{container::{BindingResolutionError, Container as _}, foundation::Application as _, localization::Loader},
+    database::DatabaseManager,
+    foundation::Application,
+    http::HttpFuture,
+    localization::FileLoader,
+    support::{ProviderResult, ServiceProvider},
+};
+use openrust_localization_database::DatabaseLoader;
+
+struct LanguageSource;
+
+impl ServiceProvider for LanguageSource {
+    fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            app.container().singleton_named::<dyn Loader, _>("lang.loader", |container| {
+                let files = container.make::<FileLoader>()?;
+                let connection = container.make::<DatabaseManager>()?.connection(None).map_err(|source| {
+                    BindingResolutionError::FactoryFailed { service: "lang.loader", source: Box::new(source) }
+                })?;
+                Ok(Arc::new(DatabaseLoader::new(connection).with_fallback(files)))
+            })?;
+            Ok(())
+        })
+    }
+}
+```
+
+将 `LanguageSource` 实例加入应用 Provider 列表，并把 `resources` 值以 `lang` 为键加入应用配置加载器返回的映射。
+
+```rust
+use serde_json::json;
+
+let resources = json!({"resources":[
+    {"locale":"fr","group":"messages"},
+    {"locale":"en","group":"messages"},
+    {"locale":"fr","group":"*"}
+]});
+```
+
+应用在 Provider 引导结束后读取声明的分组，`Lang` 查询保持同步。数据库修改在应用调用 `Lang::refresh_default_source().await` 或重启后生效。刷新失败保留上一次成功快照。`add_lines` 和 `load_from` 加入的运行时词条优先。将 `lang.resources` 设为空数组即可切回文件模式。如果故障时配置缓存导致无法启动，先部署空列表，再让 `APP_CONFIG_CACHE` 指向一个未使用的绝对路径后启动。恢复后重建实际部署使用的缓存。缓存保存资源声明，运行进程在启动时读取词条。
+
 ## 获取翻译字符串
 
 使用 `__` 读取文本。占位符支持 `:name`、`:Name` 和 `:NAME`。分组和列表使用 `Lang::array` 读取。缺失翻译返回键本身。JSON 字面键在所选语言内查找，分组键可以回退到配置的语言。
@@ -392,7 +453,7 @@ pub async fn load_database_translations(
 使用 `Lang::has(key, locale, true)` 检查包含回退语言的翻译，使用 `Lang::has_for_locale(key, locale)` 仅检查指定语言。两种检查都会跳过缺键回调。在应用作用域内登记钩子后，可调整分组翻译的回退顺序，JSON 字面键仍优先。缺键回调返回的文本会继续处理占位符，返回 `None` 时使用原键。
 
 ```rust
-use openrust::{support::facades::Lang, translation::TranslationResult};
+use openrust::{support::facades::Lang, localization::TranslationResult};
 
 pub fn register_lookup_hooks() -> TranslationResult<()> {
     Lang::determine_locales_using(|locales| {
@@ -426,7 +487,7 @@ pub fn register_lookup_hooks() -> TranslationResult<()> {
 ```rust
 use openrust::{
     support::facades::Lang,
-    translation::{Replacement, TranslationResult},
+    localization::{Replacement, TranslationResult},
 };
 
 pub struct Amount(pub u32);
@@ -456,7 +517,7 @@ use std::collections::BTreeMap;
 
 use openrust::{
     support::facades::Lang,
-    translation::{TranslationResult, __, trans_choice},
+    localization::{TranslationResult, __, trans_choice},
 };
 
 pub async fn summary(locale: &str) -> TranslationResult<(String, String)> {
@@ -493,7 +554,7 @@ APP_LOCALE=zh-Hant ./artisan help list
 
 ## 契约语言设置
 
-Translator 契约、具体实现和 Lang Facade 均提供 `get_locale`、`set_locale`、`get_fallback`、`set_fallback`。启动时设置应用默认值；请求／队列作用域内设置只影响当前执行。`with_locale` 支持嵌套并在离开后恢复，回退语言独立设置。Rust 方法采用原生 snake_case 命名；旧 camelCase Rust 消费者改用上述方法。模板表达式保持各自既有名称。
+Localizer 契约、具体实现和 Lang Facade 均提供 `get_locale`、`set_locale`、`get_fallback`、`set_fallback`。启动时设置应用默认值；请求／队列作用域内设置只影响当前执行。`with_locale` 支持嵌套并在离开后恢复，回退语言独立设置。Rust 方法采用原生 snake_case 命名；旧 camelCase Rust 消费者改用上述方法。模板表达式保持各自既有名称。
 
 ## 语言设置的所有权
 
@@ -513,14 +574,14 @@ Translator 契约、具体实现和 Lang Facade 均提供 `get_locale`、`set_lo
 
 替换旧二进制前，使用旧版本执行 `./main artisan config:clear`、`./main artisan view:clear`，源码方式可用既有 `./artisan` 入口。新代码、资源和配置同时部署，再执行 `config:cache`、`view:cache` 重建缓存并重启所有常驻进程；进程内翻译目录缓存随重启清除。旧邮件／通知队列应先排空；无法排空时，由应用专用工具检查序列化 `locale` 字段，加密任务还需要旧应用密钥。不要在队列、共享缓存或设置 JSON 中做通用文本替换。
 
-数据库翻译先只读盘点 `language_lines.text` 的 JSON 语言键，以及应用自有设置或语言列。`vendor/openrust/translation-database/database/upgrade-bcp47/`提供独立只读盘点及 PostgreSQL、MySQL、SQLite 事务，映射默认两种中文及 `en_US`／`en_GB`；审阅后按实际情况调整表名和其他旧语言映射。未列入映射的下划线键、任意新旧键碰撞（包括相同值或 null）均使事务失败，不覆盖内容。默认末尾为 **ROLLBACK**，核对结果和备份后，才显式改为 **COMMIT**。发生错误需回滚并关闭该专属数据库会话。成功后重复执行为空操作；已提交后的回退需要恢复备份，不能凭新键名判断哪些内容来自迁移。
+数据库翻译先只读盘点 `language_lines.text` 的 JSON 语言键，以及应用自有设置或语言列。`vendor/openrust/localization-database/database/upgrade-bcp47/`提供独立只读盘点及 PostgreSQL、MySQL、SQLite 事务，映射默认两种中文及 `en_US`／`en_GB`；审阅后按实际情况调整表名和其他旧语言映射。未列入映射的下划线键、任意新旧键碰撞（包括相同值或 null）均使事务失败，不覆盖内容。默认末尾为 **ROLLBACK**，核对结果和备份后，才显式改为 **COMMIT**。发生错误需回滚并关闭该专属数据库会话。成功后重复执行为空操作；已提交后的回退需要恢复备份，不能凭新键名判断哪些内容来自迁移。
 
 Faker 原生 provider 键仅保留在私有边界，`locale()`、`random_locale()` 输出 BCP 47；仅有文字体系的 `zh-Hans`／`zh-Hant` 使用已有对应中文 provider，公开标签仍保留原地区与扩展。微信原生 `lang=zh_CN` 等第三方协议字段保持不变。
 
 
 ## 替换复数选择器
 
-`Translator::get_selector()` 返回当前 `Arc<dyn Selector>`。实现 `openrust::translation::Selector` 后传入 `set_selector`，即可自定义复数分支选择。其 `choose` 接收原始文案、`PluralCount` 和解析后的语言，返回 `TranslationResult<String>`，之后才替换 `:count` 等占位符。通过 `set_selector(MessageSelector)` 恢复默认选择器。`get_loader()` 返回实际共享的 `Arc<FileLoader>`；先前取出的选择器和加载器句柄仍然有效。
+`Localizer::get_selector()` 返回当前 `Arc<dyn Selector>`。实现 `openrust::localization::Selector` 后传入 `set_selector`，即可自定义复数分支选择。其 `choose` 接收原始文案、`PluralCount` 和解析后的语言，返回 `TranslationResult<String>`，之后才替换 `:count` 等占位符。通过 `set_selector(MessageSelector)` 恢复默认选择器。`get_loader()` 返回实际共享的 `Arc<FileLoader>`；先前取出的选择器和加载器句柄仍然有效。
 
 ## 随附语言资源 {#bundled-locales}
 

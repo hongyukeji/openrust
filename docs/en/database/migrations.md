@@ -264,7 +264,7 @@ Use `.comment(...)` for short, readable database descriptions, such as â€œUsersâ
 ```rust
 use openrust::{
     database::{DatabaseResult, schema::Schema},
-    translation::__,
+    localization::__,
 };
 
 async fn create_users() -> DatabaseResult<()> {

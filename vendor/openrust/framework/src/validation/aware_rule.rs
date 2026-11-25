@@ -4,13 +4,13 @@ use super::{
 };
 use crate::{
     contracts::validation::{DataAwareRule, ValidationRule, ValidatorAwareRule},
-    translation::Translator,
+    localization::Localizer,
 };
 use std::{collections::BTreeMap, sync::Arc};
 
 pub(super) struct Snapshot {
     pub data: Arc<Data>,
-    pub translator: Option<Arc<Translator>>,
+    pub localizer: Option<Arc<Localizer>>,
     pub messages: BTreeMap<String, String>,
     pub attributes: BTreeMap<String, String>,
 }
@@ -19,7 +19,7 @@ impl Snapshot {
         RuleContext {
             data: &self.data,
             original_data: Some(original_data),
-            translator: self.translator.as_deref(),
+            localizer: self.localizer.as_deref(),
             attribute,
             messages: &self.messages,
             attributes: &self.attributes,

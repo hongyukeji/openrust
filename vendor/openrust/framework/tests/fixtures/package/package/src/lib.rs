@@ -13,7 +13,7 @@ use openrust::{
         ProviderResult, ServiceProvider,
         facades::{Artisan, Route},
     },
-    translation::__,
+    localization::__,
     view::{Component, ComponentOutput, ViewResult, view},
 };
 use serde_json::json;
@@ -52,11 +52,11 @@ impl ServiceProvider for ProbeProvider {
                 "probe.recursive",
             )?;
             // Resolve an untranslated key before boot to exercise namespace cache invalidation.
-            let translator = app.make::<openrust::translation::Translator>().await?;
+            let localizer = app.make::<openrust::localization::Localizer>().await?;
             let key = "probe::messages.title";
-            assert_eq!(translator.string(key, &Default::default(), None)?, key);
+            assert_eq!(localizer.string(key, &Default::default(), None)?, key);
             let literal = "JSON package only";
-            let _ = translator.string(literal, &Default::default(), None)?;
+            let _ = localizer.string(literal, &Default::default(), None)?;
             Ok(())
         })
     }

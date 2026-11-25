@@ -4861,7 +4861,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
-## vendor/openrust/framework/src/translation/LICENSE-Unicode.txt
+## vendor/openrust/framework/src/localization/LICENSE-Unicode.txt
 
 UNICODE LICENSE V3
 
@@ -4904,7 +4904,7 @@ dealings in these Data Files or Software without prior written
 authorization of the copyright holder.
 
 
-## vendor/openrust/framework/src/translation/LICENSE-Zend.txt
+## vendor/openrust/framework/src/localization/LICENSE-Zend.txt
 
 Zend Framework rules used by the Laravel MessageSelector, as attributed by Laravel:
 Copyright (c) 2005-2010 - Zend Technologies USA Inc.
@@ -4940,7 +4940,7 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-## vendor/openrust/framework/src/translation/stubs/NOTICE
+## vendor/openrust/framework/src/localization/stubs/NOTICE
 
 The MIT License (MIT)
 
@@ -5339,7 +5339,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 
-## vendor/openrust/translation-database/LICENSE.spatie.md
+## vendor/openrust/localization-database/LICENSE.spatie.md
 
 The MIT License (MIT)
 

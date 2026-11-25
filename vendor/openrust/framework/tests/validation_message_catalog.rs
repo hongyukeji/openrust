@@ -1,6 +1,6 @@
 use openrust::{
     contracts::validation::{Factory as _, Validator as _},
-    translation::{FileLoader, Translator},
+    localization::{FileLoader, Localizer},
     validation::{Data, Factory, Rule, RuleBuilder, RuleSet},
 };
 use serde_json::{Value, json};
@@ -54,7 +54,7 @@ fn factory(case: &Value) -> (tempfile::TempDir, Factory) {
     std::fs::create_dir(root.path().join("en")).unwrap();
     let locale = case["locale"].as_str().unwrap_or("en");
     let mut catalog: Value =
-        serde_json::from_str(include_str!("../src/translation/lang/en/validation.json")).unwrap();
+        serde_json::from_str(include_str!("../src/localization/lang/en/validation.json")).unwrap();
     merge(
         &mut catalog,
         if locale == "en" {
@@ -72,15 +72,15 @@ fn factory(case: &Value) -> (tempfile::TempDir, Factory) {
         )
         .unwrap();
     }
-    let translator = Arc::new(
-        Translator::new(
+    let localizer = Arc::new(
+        Localizer::new(
             FileLoader::new(root.path().into()),
             locale.into(),
             "en".into(),
         )
         .unwrap(),
     );
-    (root, Factory::new(translator))
+    (root, Factory::new(localizer))
 }
 fn rules(case: &Value) -> RuleSet {
     let mut rules = RuleSet::new();

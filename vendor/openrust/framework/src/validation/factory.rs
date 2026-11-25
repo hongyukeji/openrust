@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use crate::{contracts::validation::Factory as Contract, translation::Translator};
+use crate::{contracts::validation::Factory as Contract, localization::Localizer};
 
 use super::extensions::name;
 use super::{
@@ -27,7 +27,7 @@ struct Registrations {
 /// 扩展按验证器创建时取得注册快照；工厂克隆共享注册表和DNS测试策略。
 #[derive(Clone, Default)]
 pub struct Factory {
-    translator: Option<Arc<Translator>>,
+    localizer: Option<Arc<Localizer>>,
     pub(super) owner: std::sync::Weak<crate::container::Container>,
     presence: Option<DatabasePresenceVerifier>,
     registrations: Arc<RwLock<Registrations>>,
@@ -35,9 +35,9 @@ pub struct Factory {
 }
 
 impl Factory {
-    pub fn new(translator: Arc<Translator>) -> Self {
+    pub fn new(localizer: Arc<Localizer>) -> Self {
         Self {
-            translator: Some(translator),
+            localizer: Some(localizer),
             ..Default::default()
         }
     }
@@ -162,7 +162,7 @@ impl Factory {
         let mut validator = Validator::from_shared(
             data,
             rules,
-            self.translator.clone(),
+            self.localizer.clone(),
             None,
             messages,
             attributes,
