@@ -186,8 +186,7 @@ impl DeliveryStore {
             if text(&row, "fingerprint")? != input.fingerprint {
                 return Err(Error::IdempotencyConflict);
             }
-            let delivery_ids = serde_json::from_str(text(&row, "delivery_ids")?)
-                .map_err(|_| Error::InvalidRecord)?;
+            let delivery_ids = read_delivery_manifest(text(&row, "delivery_ids")?)?;
             return Ok(PublishedMessage {
                 message_id: input.id,
                 delivery_ids,
@@ -281,6 +280,7 @@ impl DeliveryStore {
         let row = query
             .r#where("scope_key", "=", self.scope_key.as_str())
             .r#where("id", "=", reference.id.as_str())
+            .where_null("body_pruned_at")
             .select(["body", "body_digest"])
             .first()
             .await?
@@ -296,6 +296,20 @@ impl DeliveryStore {
         snapshot.hydrated_body = Some(body.into());
         Ok(snapshot)
     }
+}
+
+pub(crate) fn read_delivery_manifest(manifest: &str) -> Result<Vec<String>> {
+    if manifest.len() > MAX_ENDPOINTS * 67 + 2 {
+        return Err(Error::InvalidRecord);
+    }
+    let ids = serde_json::from_str::<Vec<String>>(manifest).map_err(|_| Error::InvalidRecord)?;
+    if ids.len() > MAX_ENDPOINTS {
+        return Err(Error::InvalidRecord);
+    }
+    for id in &ids {
+        crate::delivery_store::check_id(id)?;
+    }
+    Ok(ids)
 }
 
 struct Publication<'a> {

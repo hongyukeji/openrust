@@ -20,7 +20,7 @@ use crate::{
 
 pub(crate) const DELIVERIES: &str = "webhook_deliveries";
 pub(crate) const ATTEMPTS: &str = "webhook_delivery_attempts";
-const REPLAYS: &str = "webhook_delivery_replays";
+pub(crate) const REPLAYS: &str = "webhook_delivery_replays";
 const WAKE_COOLDOWN_SECONDS: u32 = 60;
 
 pub(crate) enum WakeClaim {

@@ -176,6 +176,13 @@ pub async fn preview_invoice_pruning(
     store.prune(openrust_webhook_server::DeliveryRetention::Payloads, 30, 100, true).await
 }
 
+pub async fn preview_shared_body_pruning(
+    store: &openrust_webhook_server::DeliveryStore,
+    after: Option<&str>,
+) -> Result<openrust_webhook_server::PublicationPruneReport> {
+    store.prune_publication_bodies(30, 100, after, true).await
+}
+
 ```
 
 
@@ -266,7 +273,9 @@ Results include state, timing, HTTP status and bounded attempt outcomes. Publish
 
 Run `./artisan webhook-server:prune --scope=<scope> --days=30 --pretend` to preview candidates. Remove `--pretend` to clear the stored request snapshot while retaining the delivery ID, state and idempotency digest. The cutoff is measured from the delivery deadline. Add `--attempts` to prune finished attempt rows separately using their completion time. Each invocation handles up to 500 rows, with 100 by default. `--database` selects a named connection.
 
-Apply migrations and upgrade all processes that can register replays before enabling pruning. Only terminal deliveries qualify. A pruned original can no longer be used to register a replay. Replays already registered can still send their own stored request. Diagnostics expose `payload_pruned_at` in Unix seconds after pruning. Shared publication bodies and idempotency tombstones remain available.
+Apply migrations and upgrade all processes that can register replays before enabling pruning. Only terminal deliveries qualify. A pruned original can no longer be used to register a replay. Replays already registered can still send their own stored request. Diagnostics expose `payload_pruned_at` in Unix seconds after pruning.
+
+Use `--messages` to prune shared publication bodies after the publication retention period. A message qualifies once every original and replay delivery has had its request snapshot pruned. Supply the returned `next_after` to `--after` to scan the next page. Start again without a cursor to recheck previously blocked messages. The message ID, original delivery IDs and idempotency digest remain available. `webhook-server:inspect --message` shows `body_pruned_at` after cleanup.
 
 ### Publish to subscriptions {#subscriptions}
 

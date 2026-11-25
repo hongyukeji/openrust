@@ -22,6 +22,9 @@ mod extensions;
 mod limits;
 #[path = "../database/migrations/2026_11_25_000000_create_webhook_messages_table.rs"]
 mod message_migration;
+mod message_retention;
+#[path = "../database/migrations/2026_11_25_000000_extend_webhook_messages_for_retention.rs"]
+mod message_retention_migration;
 mod publication;
 #[path = "../database/migrations/2026_11_25_000000_create_webhook_rate_buckets_table.rs"]
 mod rate_migration;
@@ -56,6 +59,7 @@ pub use endpoints::{Endpoint, EndpointState, EndpointStore};
 pub use error::{Error, Result};
 pub use extensions::{register_backoff_strategy, register_call_webhook_job, register_signer};
 pub use limits::{DeliveryLimit, DeliveryLimits, register_delivery_limits};
+pub use message_retention::PublicationPruneReport;
 pub use publication::{EventType, PublishOptions, PublishedMessage};
 pub use recovery::RecoveryReport;
 pub use replay::{
@@ -134,6 +138,10 @@ impl WebhookServerServiceProvider {
             MigrationEntry::new(
                 "vendor/openrust/webhook-server/database/migrations/2026_11_25_000000_extend_webhook_deliveries_for_retention.rs",
                 &retention_migration::MIGRATION,
+            ),
+            MigrationEntry::new(
+                "vendor/openrust/webhook-server/database/migrations/2026_11_25_000000_extend_webhook_messages_for_retention.rs",
+                &message_retention_migration::MIGRATION,
             ),
         ];
         ENTRIES

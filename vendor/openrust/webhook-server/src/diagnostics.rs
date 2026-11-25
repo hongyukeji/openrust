@@ -3,7 +3,7 @@ use openrust::database::{Row, Value};
 use crate::{
     DeliveryStore, Error, EventType, Result,
     delivery_store::{ATTEMPTS, DELIVERIES, check_id, number, text},
-    publication::{MAX_ENDPOINTS, MESSAGES},
+    publication::{MESSAGES, read_delivery_manifest},
 };
 
 #[derive(Debug, serde::Serialize)]
@@ -26,6 +26,8 @@ pub struct MessageDiagnostics {
     pub schema_version: u32,
     pub created_at: i64,
     pub delivery_ids: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub body_pruned_at: Option<i64>,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -93,31 +95,27 @@ impl DeliveryStore {
             .table(MESSAGES)
             .r#where("scope_key", "=", self.scope_key.as_str())
             .r#where("id", "=", id)
-            .select(["topic", "schema_version", "created_at", "delivery_ids"])
+            .select([
+                "topic",
+                "schema_version",
+                "created_at",
+                "delivery_ids",
+                "body_pruned_at",
+            ])
             .first()
             .await?
             .map(|row| {
                 let event_type = text(&row, "topic")?;
                 let schema_version = unsigned(&row, "schema_version")?;
                 EventType::new(event_type, schema_version).map_err(|_| Error::InvalidRecord)?;
-                let manifest = text(&row, "delivery_ids")?;
-                if manifest.len() > MAX_ENDPOINTS * 67 + 2 {
-                    return Err(Error::InvalidRecord);
-                }
-                let delivery_ids = serde_json::from_str::<Vec<String>>(manifest)
-                    .map_err(|_| Error::InvalidRecord)?;
-                if delivery_ids.len() > MAX_ENDPOINTS {
-                    return Err(Error::InvalidRecord);
-                }
-                for child in &delivery_ids {
-                    check_id(child)?;
-                }
+                let delivery_ids = read_delivery_manifest(text(&row, "delivery_ids")?)?;
                 Ok(MessageDiagnostics {
                     id: id.to_owned(),
                     event_type: event_type.to_owned(),
                     schema_version,
                     created_at: number(&row, "created_at")?,
                     delivery_ids,
+                    body_pruned_at: optional_number(&row, "body_pruned_at")?,
                 })
             })
             .transpose()

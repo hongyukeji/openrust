@@ -176,6 +176,13 @@ pub async fn preview_invoice_pruning(
     store.prune(openrust_webhook_server::DeliveryRetention::Payloads, 30, 100, true).await
 }
 
+pub async fn preview_shared_body_pruning(
+    store: &openrust_webhook_server::DeliveryStore,
+    after: Option<&str>,
+) -> Result<openrust_webhook_server::PublicationPruneReport> {
+    store.prune_publication_bodies(30, 100, after, true).await
+}
+
 ```
 
 
@@ -266,7 +273,9 @@ Builder 的 `dispatch`、`dispatch_if` 和 `dispatch_unless` 登记投递并入�
 
 先用 `./artisan webhook-server:prune --scope=<scope> --days=30 --pretend` 预演候选记录。移除 `--pretend` 后清理已保存的请求快照，保留投递 ID、状态和幂等摘要。从投递截止时间起算保留期。添加 `--attempts` 单独清理已完成的尝试，保留期按完成时间计算。每批最多 500 条，默认 100 条。使用 `--database` 选择具名连接。
 
-启用清理前先执行迁移，并升级所有可登记重放的进程。仅清理终态投递。清理后，原始记录无法再登记新重放，已有重放仍可使用自身保存的请求。诊断结果以 Unix 秒返回 `payload_pruned_at`。共享发布正文和幂等墓碑继续保留。
+启用清理前先执行迁移，并升级所有可登记重放的进程。仅清理终态投递。清理后，原始记录无法再登记新重放，已有重放仍可使用自身保存的请求。诊断结果以 Unix 秒返回 `payload_pruned_at`。
+
+使用 `--messages` 回收达到发布留存期限的共享正文。首次投递及所有已登记重放的请求快照都已清理后，该正文才可回收。下一页通过 `--after` 传入返回的 `next_after`，下一轮从头检查此前未满足回收条件的消息。消息 ID、原始投递 ID 和幂等摘要继续保留。`webhook-server:inspect --message` 在清理后显示 `body_pruned_at`。
 
 ### 按订阅发布 {#subscriptions}
 

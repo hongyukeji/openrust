@@ -90,7 +90,7 @@ pub(super) fn register() -> Result<(), ConsoleError> {
         );
     Artisan::add(Box::new(Inspect(CommandDefinition::new(inspect))))?;
     let prune = Syntax::new("webhook-server:prune")
-        .about("分批清理已过保留期的出站快照或尝试")
+        .about("分批清理已过保留期的出站快照、尝试或共享正文")
         .arg(Arg::new("scope").long("scope").required(true))
         .arg(Arg::new("database").long("database"))
         .arg(
@@ -98,6 +98,13 @@ pub(super) fn register() -> Result<(), ConsoleError> {
                 .long("attempts")
                 .action(ArgAction::SetTrue),
         )
+        .arg(
+            Arg::new("messages")
+                .long("messages")
+                .conflicts_with("attempts")
+                .action(ArgAction::SetTrue),
+        )
+        .arg(Arg::new("after").long("after").requires("messages"))
         .arg(
             Arg::new("pretend")
                 .long("pretend")
@@ -310,11 +317,24 @@ impl Command for Prune {
             };
             let days = *args.get_one::<u32>("days").expect("必填保留天数");
             let limit = *args.get_one::<u32>("limit").expect("默认批次大小");
-            let report = store
-                .prune(artifact, days, limit, args.get_flag("pretend"))
-                .await
-                .map_err(ConsoleError::from_source)?;
-            let json = serde_json::to_string(&report).map_err(ConsoleError::from_source)?;
+            let pretend = args.get_flag("pretend");
+            let json = if args.get_flag("messages") {
+                let after = args.get_one::<String>("after").map(String::as_str);
+                serde_json::to_string(
+                    &store
+                        .prune_publication_bodies(days, limit, after, pretend)
+                        .await
+                        .map_err(ConsoleError::from_source)?,
+                )
+            } else {
+                serde_json::to_string(
+                    &store
+                        .prune(artifact, days, limit, pretend)
+                        .await
+                        .map_err(ConsoleError::from_source)?,
+                )
+            }
+            .map_err(ConsoleError::from_source)?;
             output
                 .write_raw(&format!("{json}\n"))
                 .map_err(ConsoleError::from_source)?;

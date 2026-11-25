@@ -281,7 +281,7 @@ def exercise(binary, env, log, receiver, driver, sql):
 
         migration = ("--path=vendor/openrust/webhook-server/database/migrations/"
                      "2026_11_25_000000_extend_webhook_deliveries_for_retention.rs")
-        assert "extend_webhook_deliveries_for_retention" in command("migrate:rollback", migration, "--force")
+        assert "extend_webhook_deliveries_for_retention" in command("migrate:rollback", migration, "--step=1000", "--force")
         assert "extend_webhook_deliveries_for_retention" in command("migrate", migration, "--force")
 
         saved = command(*replay_args(winner))
@@ -326,20 +326,73 @@ def exercise(binary, env, log, receiver, driver, sql):
         assert not attempts(winner) and not attempts(loser)
         assert prune("--days=1", "--attempts")["pruned"] == 0
 
+        empty = publish("retention-empty")
+        assert empty["delivery_ids"] == []
         admin("create", "primary")
         admin("subscribe", "primary", "--topic=invoice.paid", "--schema=1")
         published = publish("retention-fanout")
+        message_id = published["message_id"]
         fanout = published["delivery_ids"][0]
+        message_migration = ("--path=vendor/openrust/webhook-server/database/migrations/"
+                             "2026_11_25_000000_extend_webhook_messages_for_retention.rs")
+        assert "extend_webhook_messages_for_retention" in command("migrate:rollback", message_migration, "--step=1000", "--force")
+        assert "extend_webhook_messages_for_retention" in command("migrate", message_migration, "--force")
+        for receipt in (empty, published):
+            routes["write_database"](driver, sql,
+                f"UPDATE webhook_messages SET created_at=1 WHERE id='{receipt['message_id']}'")
+        assert prune("--days=0", "--messages", scope="different-scope")["scanned"] == 0
+        assert prune("--days=0", "--messages", "--after=bad", success=False) is None
+        assert prune("--days=0", "--after=" + message_id, success=False) is None
+        first = prune("--days=0", "--messages", "--limit=1", "--pretend")
+        cursor = first["next_after"]
+        second = prune("--days=0", "--messages", "--limit=1", "--pretend", f"--after={cursor}")
+        assert cursor == min(empty["message_id"], message_id) and second["next_after"] is None
+        assert first["scanned"] == second["scanned"] == 1
+        assert first["pruned"] == second["pruned"] == 0
+        assert first["candidates"] + second["candidates"] == 1
+        assert prune("--days=0", "--messages")["pruned"] == 1
+        assert publish("retention-empty") == empty
+        assert sql(f"SELECT count(*) FROM webhook_messages WHERE id='{message_id}' AND body<>''") == "1"
+
         enqueue(fanout)
         command(*worker)
         assert read(fanout) == "succeeded\t1"
+        assert prune("--days=0", "--messages")["candidates"] == 0
+        replay_env = env | {"FIXTURE_REPLAY_KEEP_ORIGINAL": "1"}
+        saved = command("webhook-server:replay", fanout, "--scope", SCOPE,
+                        "--actor=fixture-supervisor", "--reason=test-retention-fanout", "--include-succeeded",
+                        current=replay_env)
+        replayed_fanout = json.loads(re.search(r"\{[^\n]+\}", saved)[0])["delivery_id"]
         age(fanout)
         assert prune("--days=0")["pruned"] == 1
-        assert sql(f"SELECT count(*) FROM webhook_messages WHERE id='{published['message_id']}' AND body<>''") == "1"
+        assert prune("--days=0", "--messages")["candidates"] == 0
+        enqueue(replayed_fanout)
+        command(*worker, current=replay_env)
+        assert read(replayed_fanout) == "succeeded\t1"
+        with receiver.mutex:
+            original, replayed = receiver.received[message_id]
+        assert original[2] == replayed[2]
+        assert replayed[1]["Signature"] == hmac.new(SECRET, original[2], hashlib.sha256).hexdigest()
+        assert prune("--days=0", "--messages")["candidates"] == 0
+        age(replayed_fanout)
+        assert prune("--days=0")["pruned"] == 1
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
+            tasks = [pool.submit(prune, "--days=0", "--messages") for _ in range(2)]
+            receipt = pool.submit(publish, "retention-fanout")
+            assert sum(task.result()["pruned"] for task in tasks) == 1
+            assert receipt.result() == published
+        assert sql(f"SELECT count(*) FROM webhook_messages WHERE id='{message_id}' AND body='' AND body_pruned_at IS NOT NULL") == "1"
         assert publish("retention-fanout") == published
-        command("migrate:rollback", migration, "--force", success=False)
+        publish("retention-fanout", {"different": True}, expected=409)
+        inspected = json.loads(command("webhook-server:inspect", message_id, "--scope", SCOPE, "--message"))
+        assert inspected["body_pruned_at"] > 0 and inspected["delivery_ids"] == [fanout]
+        command("webhook-server:replay", fanout, "--scope", SCOPE, "--actor=fixture-supervisor",
+                "--reason=test-retention-fanout", "--include-succeeded", success=False)
+        command("migrate:rollback", migration, "--step=1000", "--force", success=False)
+        command("migrate:rollback", message_migration, "--step=1000", "--force", success=False)
         assert prune("--days=0")["pruned"] == 0
-        print(f"{driver}: 终态隔离、分批留存、墓碑去重、并发重放和共享正文保护通过")
+        assert prune("--days=0", "--messages")["scanned"] == 0
+        print(f"{driver}: 出站留存、共享正文引用、游标分页、并发回收和墓碑去重通过")
         return
 
     if env.get("FIXTURE_SEND_DIAGNOSTICS"):
