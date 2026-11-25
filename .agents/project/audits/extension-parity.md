@@ -327,6 +327,10 @@ Rust 在 BelongsToMany 的中间表入口传播调用位置，覆盖带属性及
 
 基于 `42bca1a84` 加本批文件的隔离快照，在 SQLite、PostgreSQL 18.7 与 MySQL 8.4.13 的真实应用路由验证五个入口的九条 SQL 与精确行号，同时检查更新行数、同步和切换的附加／移除集合及最终移除行数。Telescope 默认 38 项、框架关系 6 项、MySQL 两项显式连接原生回归、快照全仓格式、严格 Clippy、三语文档构建及 12 组浏览器检查通过。Release 与其他目标平台留在发布组合验收。证据位于 `target/tmp/observability-parity/query-pivot-*.log`。
 
+### Telescope Query 关联模型写入调用来源
+
+固定 Laravel 的 `HasMany` 与固定 Telescope 在真实 SQLite 上核对 `create`、未命中的 `firstOrCreate`、命中后的 `updateOrCreate`、`saveQuietly` 和 `createMany`。共八条 SQL 归到五个应用调用位置，读写复合操作的 SQL 归到同一行，同时验证了写入的外键。Rust 关系查询和中间表写入已有来源传播，关联模型的创建、保存与读后写入口仍待补齐。证据为 `target/tmp/observability-parity/query-relationship-write-upstream.log`。 [固定 HasOneOrMany](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/HasOneOrMany.php)
+
 ### Telescope Query Schema 调用来源
 
 PHP 8.5.12、固定 Laravel 和固定 Telescope、真实 SQLite 连接。`Schema` Builder 的 `create`、`hasTable`、`table`、`hasColumn`、`dropIfExists` 以及删除后再查表，共七条 SQL 落到对应六行，其中 `hasColumn` 发出两条目录查询。证据为 `target/tmp/observability-parity/query-schema-source-upstream.log`。 [固定 Schema Builder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Builder.php)
