@@ -2,7 +2,7 @@
 
 ## Support status {#support-status}
 
-The optional `openrust-webhook-client` package supplies named configuration, typed implementation factories, explicit callback routing, `WebhookController`, a manual `WebhookProcessor` and scoped database receipt storage. Applications provide the job dispatcher. Parsed payloads/attachments, deduplication and recovery remain unavailable. A saved receipt and successful dispatch do not prove business completion. No public callback route is installed automatically.
+The optional `openrust-webhook-client` package supplies named configuration, typed implementation factories, explicit callback routing, `WebhookController`, a manual `WebhookProcessor` and scoped database receipt storage. Applications provide the job dispatcher. Deduplication, recovery and Storage disk references remain pending. A saved receipt and successful dispatch do not prove business completion. No public callback route is installed automatically.
 
 ## Enable and configure {#configuration}
 
@@ -119,6 +119,8 @@ Configuration caching keeps credential references, so `config:show webhook-clien
 
 ### Store and dispatch a receipt {#receipts}
 
+The database store saves parsed input after signature verification and profile acceptance. Use `call.payload(&store).await?` for JSON, form fields and query parameters. Body fields take precedence over query fields. Reads of pre-upgrade records return `None` for parsed input. Use `call.get_attachments(&store).await?` for native, keyed upload groups reconstructed from the saved original bytes. No server upload path is persisted. `store_attachments=false` disables the attachment view. The original multipart body still contains file bytes.
+
 The provider registers the `webhook_calls` migration. Run `./artisan migrate` before using `DatabaseWebhookStore`. Supply a stable application/tenant scope of at most 128 bytes, shared by every node for that same scope. Reads and exception updates are scoped; a digest key prevents database collation from mixing differently cased scopes. This is storage isolation, not caller authorization: derive the scope from trusted application context.
 
 `WebhookProcessor::process` validates, applies the profile, stores the receipt, clears the previous exception, dispatches the job, then creates the response. Invalid signatures dispatch the typed `InvalidWebhookSignatureEvent` before returning an error; that event gives trusted application listeners access to the request and configuration and has no automatic serializable diagnostic properties. Validator errors remain errors. Ignored valid requests only receive the configured response. Failed storage or dispatch does not return a success response. Dispatch errors leave a bounded, generic exception record, without arbitrary third-party error text or stack traces.
@@ -131,4 +133,4 @@ The provided `WebhookJobDispatcher` implementation must enqueue only a receipt i
 
 ## Scope {#scope}
 
-Use the existing [HTTP client](../digging-deeper/http-client.md) and [queues](../digging-deeper/queues.md) for application networking and jobs. Persistent recovery, parsed form/attachment handling, the public route/controller and a complete delivery state machine remain outside the current implementation.
+Use the existing [HTTP client](../digging-deeper/http-client.md) and [queues](../digging-deeper/queues.md) for application networking and jobs. Persistent recovery and a complete delivery state machine remain outside the current implementation.

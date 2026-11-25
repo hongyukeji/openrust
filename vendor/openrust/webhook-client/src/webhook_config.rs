@@ -65,6 +65,23 @@ impl WebhookConfig {
     pub fn max_body_bytes(&self) -> usize {
         self.max_body_bytes
     }
+    /// 是否为持久附件读取保存 multipart 元数据。
+    pub fn store_attachments(&self) -> Result<bool> {
+        match self.options.get("store_attachments") {
+            None | Some(Value::Null) => Ok(true),
+            Some(Value::Bool(value)) => Ok(*value),
+            _ => Err(Error::InvalidConfig("store_attachments")),
+        }
+    }
+
+    pub fn with_store_attachments(mut self, enabled: bool) -> Self {
+        if self.options.is_null() {
+            self.options = serde_json::json!({});
+        }
+        self.options["store_attachments"] = Value::Bool(enabled);
+        self
+    }
+
     /// 仅含安全配置元数据，环境变量引用不会被替换为密钥内容。
     pub fn options(&self) -> &Value {
         &self.options
@@ -264,6 +281,7 @@ impl WebhookConfig {
             )?;
         }
         config.options = value.clone();
+        config.store_attachments()?;
         if let Some(names) = value.get("store_headers").filter(|names| !names.is_null()) {
             if names.as_str() == Some("*") {
                 config = config.with_store_headers(&["*"])?;

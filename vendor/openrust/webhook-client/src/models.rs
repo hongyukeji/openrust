@@ -67,6 +67,19 @@ impl WebhookCall {
     pub async fn find(store: &dyn WebhookStore, id: &str) -> Result<Option<Self>> {
         store.find(id).await
     }
+    /// 已保存的输入；升级前的原文记录没有解析快照。
+    pub async fn payload(&self, store: &dyn WebhookStore) -> Result<Option<Value>> {
+        store.payload(self.id()).await
+    }
+
+    /// 从当前范围的持久原文读取附件，返回框架原生上传对象。
+    pub async fn get_attachments(
+        &self,
+        store: &dyn WebhookStore,
+    ) -> Result<openrust::http::UploadedFileValue> {
+        store.get_attachments(self.id()).await
+    }
+
     pub async fn clear_exception(&mut self, store: &dyn WebhookStore) -> Result<&mut Self> {
         store.set_exception(self, None).await?;
         self.exception = None;

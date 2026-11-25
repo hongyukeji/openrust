@@ -81,6 +81,32 @@ async fn provider_is_lazy_scoped_and_keeps_credential_references_out_of_configur
         })
         .await;
     let env = first.make::<openrust::config::Environment>().await.unwrap();
+    for (policy, enabled) in [
+        (json!(null), true),
+        (json!(true), true),
+        (json!(false), false),
+    ] {
+        let config = WebhookConfig::from_config(
+            &json!({"name":"attachments","store_attachments":policy}),
+            &env,
+        )
+        .unwrap();
+        assert_eq!(config.store_attachments().unwrap(), enabled);
+        assert_eq!(
+            config
+                .with_store_attachments(!enabled)
+                .store_attachments()
+                .unwrap(),
+            !enabled
+        );
+    }
+    assert!(
+        WebhookConfig::from_config(
+            &json!({"name":"attachments","store_attachments":"false"}),
+            &env,
+        )
+        .is_err()
+    );
     for policy in [
         json!(["*"]),
         json!(true),

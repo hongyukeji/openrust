@@ -17,6 +17,15 @@ pub trait WebhookStore: Send + Sync {
         &'a self,
         webhook: &'a VerifiedWebhook<'_>,
     ) -> HttpFuture<'a, Result<WebhookCall>>;
+    fn payload<'a>(&'a self, _id: &'a str) -> HttpFuture<'a, Result<Option<Json>>> {
+        Box::pin(async { Err(Error::PayloadUnsupported) })
+    }
+    fn get_attachments<'a>(
+        &'a self,
+        _id: &'a str,
+    ) -> HttpFuture<'a, Result<openrust::http::UploadedFileValue>> {
+        Box::pin(async { Err(Error::PayloadUnsupported) })
+    }
     fn find<'a>(&'a self, id: &'a str) -> HttpFuture<'a, Result<Option<WebhookCall>>>;
     fn set_exception<'a>(
         &'a self,
@@ -39,6 +48,22 @@ impl DatabaseWebhookStore {
         }
         Ok(Self { connection, scope })
     }
+    async fn row(&self, id: &str, columns: &[&str]) -> Result<Option<Row>> {
+        if id.len() != 36 {
+            return Ok(None);
+        }
+        let row = self
+            .connection
+            .table("webhook_calls")
+            .select(columns.iter().copied())
+            .r#where("scope_key", "=", scope_key(&self.scope))
+            .r#where("id", "=", id)
+            .first()
+            .await?;
+        Ok(row.filter(
+            |row| matches!(row.get("scope"), Some(Value::Text(scope)) if scope == &self.scope),
+        ))
+    }
 }
 impl WebhookStore for DatabaseWebhookStore {
     fn store_webhook<'a>(
@@ -50,6 +75,7 @@ impl WebhookStore for DatabaseWebhookStore {
             if url.len() > 8192 || webhook.request().method().as_str().len() > 32 {
                 return Err(Error::InvalidRecord);
             }
+            let payload = crate::payload::ReceiptPayload::prepare(webhook).await?;
             let headers = WebhookCall::headers_to_store(webhook.config(), webhook.request())?;
             let encoded_headers: Vec<_> = headers
                 .iter()
@@ -92,6 +118,18 @@ impl WebhookStore for DatabaseWebhookStore {
                     ("raw_body".into(), STANDARD.encode(&call.raw_body).into()),
                     ("created_at".into(), created_at.into()),
                     ("exception".into(), Value::Null),
+                    (
+                        "payload".into(),
+                        serde_json::to_string(&payload.input)
+                            .map_err(|_| Error::InvalidRecord)?
+                            .into(),
+                    ),
+                    (
+                        "attachment_media_type".into(),
+                        payload
+                            .attachment_media_type
+                            .map_or(Value::Null, Value::Text),
+                    ),
                 ]
                 .into_iter()
                 .collect()])
@@ -100,21 +138,55 @@ impl WebhookStore for DatabaseWebhookStore {
         })
     }
     fn find<'a>(&'a self, id: &'a str) -> HttpFuture<'a, Result<Option<WebhookCall>>> {
+        Box::pin(async move { self.row(id, &["*"]).await?.map(decode).transpose() })
+    }
+
+    fn payload<'a>(&'a self, id: &'a str) -> HttpFuture<'a, Result<Option<Json>>> {
         Box::pin(async move {
-            if id.len() != 36 {
-                return Ok(None);
-            }
-            self.connection
-                .table("webhook_calls")
-                .r#where("scope_key", "=", scope_key(&self.scope))
-                .r#where("id", "=", id)
-                .first()
+            let row = self
+                .row(id, &["scope", "payload"])
                 .await?
-                .map(decode)
-                .transpose()
-                .map(|call| call.filter(|call| call.scope == self.scope))
+                .ok_or(Error::RecordNotFound)?;
+            match row.get("payload") {
+                Some(Value::Null) => Ok(None),
+                Some(Value::Text(value)) => Ok(Some(
+                    serde_json::from_str(value).map_err(|_| Error::InvalidRecord)?,
+                )),
+                _ => Err(Error::InvalidRecord),
+            }
         })
     }
+
+    fn get_attachments<'a>(
+        &'a self,
+        id: &'a str,
+    ) -> HttpFuture<'a, Result<openrust::http::UploadedFileValue>> {
+        Box::pin(async move {
+            let row = self
+                .row(
+                    id,
+                    &[
+                        "scope",
+                        "attachment_media_type",
+                        "raw_body",
+                        "method",
+                        "url",
+                    ],
+                )
+                .await?
+                .ok_or(Error::RecordNotFound)?;
+            let media_type = match row.get("attachment_media_type") {
+                Some(Value::Null) => return Ok(openrust::http::UploadedFileValue::Null),
+                Some(Value::Text(value)) if value.len() <= 64 * 1024 => value.clone(),
+                _ => return Err(Error::InvalidRecord),
+            };
+            let method = http::Method::from_bytes(text(&row, "method")?.as_bytes())
+                .map_err(|_| Error::InvalidRecord)?;
+            crate::payload::attachments(&method, text(&row, "url")?, &raw_body(&row)?, &media_type)
+                .await
+        })
+    }
+
     fn set_exception<'a>(
         &'a self,
         call: &'a WebhookCall,
@@ -152,27 +224,33 @@ impl WebhookStore for DatabaseWebhookStore {
         })
     }
 }
-fn decode(row: Row) -> Result<WebhookCall> {
-    fn text(row: &Row, key: &str) -> Result<String> {
-        match row.get(key) {
-            Some(Value::Text(value)) => Ok(value.clone()),
-            _ => Err(Error::InvalidRecord),
-        }
+fn text<'a>(row: &'a Row, key: &str) -> Result<&'a str> {
+    match row.get(key) {
+        Some(Value::Text(value)) => Ok(value),
+        _ => Err(Error::InvalidRecord),
     }
-    let wire = text(&row, "raw_body")?;
+}
+
+fn raw_body(row: &Row) -> Result<Vec<u8>> {
+    let wire = text(row, "raw_body")?;
     if wire.len() > 16 * 1024 * 1024 * 4 / 3 + 4 {
         return Err(Error::InvalidRecord);
     }
-    let raw_body = STANDARD.decode(wire).map_err(|_| Error::InvalidRecord)?;
-    if raw_body.len() > 16 * 1024 * 1024 {
+    let bytes = STANDARD.decode(wire).map_err(|_| Error::InvalidRecord)?;
+    if bytes.len() > 16 * 1024 * 1024 {
         return Err(Error::InvalidRecord);
     }
+    Ok(bytes)
+}
+
+fn decode(row: Row) -> Result<WebhookCall> {
+    let raw_body = raw_body(&row)?;
     let wire = text(&row, "headers")?;
     if wire.len() > 256 * 1024 {
         return Err(Error::InvalidRecord);
     }
     let pairs: Vec<(String, String)> =
-        serde_json::from_str(&wire).map_err(|_| Error::InvalidRecord)?;
+        serde_json::from_str(wire).map_err(|_| Error::InvalidRecord)?;
     if pairs.len() > 128 {
         return Err(Error::InvalidRecord);
     }
@@ -203,11 +281,11 @@ fn decode(row: Row) -> Result<WebhookCall> {
         _ => return Err(Error::InvalidRecord),
     };
     Ok(WebhookCall {
-        id: text(&row, "id")?,
-        scope: text(&row, "scope")?,
-        name: text(&row, "name")?,
-        revision: text(&row, "revision")?,
-        url: text(&row, "url")?,
+        id: text(&row, "id")?.to_owned(),
+        scope: text(&row, "scope")?.to_owned(),
+        name: text(&row, "name")?.to_owned(),
+        revision: text(&row, "revision")?.to_owned(),
+        url: text(&row, "url")?.to_owned(),
         method: http::Method::from_bytes(text(&row, "method")?.as_bytes())
             .map_err(|_| Error::InvalidRecord)?,
         headers,

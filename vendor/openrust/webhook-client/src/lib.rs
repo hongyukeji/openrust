@@ -12,6 +12,10 @@ pub mod events;
 #[path = "../database/migrations/2026_11_25_000001_create_webhook_calls_table.rs"]
 mod migration;
 pub mod models;
+mod payload;
+#[path = "../database/migrations/2026_11_25_000002_add_payload_to_webhook_calls_table.rs"]
+mod payload_migration;
+pub use payload_migration::AddPayloadToWebhookCallsTable;
 mod processor;
 mod signature_validator;
 mod storage;
@@ -110,6 +114,10 @@ impl WebhookClientServiceProvider {
             openrust::database::migrations::MigrationEntry::new(
                 "vendor/openrust/webhook-client/database/migrations/2026_11_25_000001_create_webhook_calls_table.rs",
                 &migration::MIGRATION,
+            ),
+            openrust::database::migrations::MigrationEntry::new(
+                "vendor/openrust/webhook-client/database/migrations/2026_11_25_000002_add_payload_to_webhook_calls_table.rs",
+                &payload_migration::MIGRATION,
             ),
         ];
         ENTRIES

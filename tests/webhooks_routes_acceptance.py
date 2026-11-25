@@ -85,11 +85,25 @@ def main():
        assert json.loads(marker.read_text())==record;workers+=1
       else:assert record["exception"]=={"code":0,"message":"Webhook 处理任务派发失败"}
       assert sql("SELECT COUNT(*) FROM jobs")=="0"
+      return record
      send("/api/package/default",b"default",expected_name="default")
      send("/api/package/post",b" post\0\xff\n",expected_name="spatie")
-     send("/api/package/post",b' { "text": "  keep  ", "empty": "" }\n',content_type="application/json",expected_name="spatie")
-     send("/api/package/post",b'a=1&a=2&message=%20keep%20',content_type="application/x-www-form-urlencoded",expected_name="spatie")
-     send("/api/package/post",b'--sample\r\nContent-Disposition: form-data; name="message"\r\n\r\nvalue\r\n--sample--\r\n',content_type="multipart/form-data; boundary=sample",expected_name="spatie")
+     record=send("/api/package/post?text=query&source=external",b' { "text": "  keep  ", "empty": "" }\n',content_type="application/json",expected_name="spatie")
+     assert record["payload"]=={"text":"  keep  ","empty":"","source":"external"} and record["attachments"] is None
+     record=send("/api/package/post",b'a=1&a=2&message=%20keep%20',content_type="application/x-www-form-urlencoded",expected_name="spatie")
+     assert record["payload"]=={"a":"2","message":" keep "} and record["attachments"] is None
+     multipart=(
+      b'--sample\r\nContent-Disposition: form-data; name="message"\r\n\r\nvalue\r\n'
+      b'--sample\r\nContent-Disposition: form-data; name="files[]"; filename="../sample.bin"\r\n'
+      b'Content-Type: application/octet-stream\r\n\r\n\x00\xfffile\r\n--sample--\r\n'
+     )
+     media="multipart/form-data; boundary=sample"
+     record=send("/api/package/post",multipart,content_type=media,expected_name="spatie")
+     assert record["payload"]=={"message":"value"} and record["attachments"]=={
+      "files":{"0":{"name":"sample.bin","mime":"application/octet-stream","bytes":list(b"\x00\xfffile")}}
+     },record
+     record=send("/api/package/no-attachments",multipart,content_type=media,expected_name="no-attachments")
+     assert record["payload"]=={"message":"value"} and record["attachments"] is None
      send("/api/package/post",b"wrong-signature",valid=False,status=500,stored=False)
      send("/api/package/unknown",status=500,stored=False)
      send("/api/package/ignored",b"ignored-valid",stored=False)
@@ -121,5 +135,11 @@ def main():
      log.flush();print((root/f"http-{phase}.log").read_text());raise
     finally:http_helpers["stop"](server)
   assert sql("SELECT COUNT(*) FROM failed_jobs")=="0"
+  legacy_id=sql("SELECT id FROM webhook_calls WHERE name='default' ORDER BY id LIMIT 1")
+  assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate:rollback","--step=1","--force")
+  assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate","--force")
+  legacy=json.loads(command(binary,env,"webhooks:record",legacy_id,"webhook-acceptance"))
+  assert bytes(legacy["body"])==b"default" and legacy["payload"] is None and legacy["attachments"] is None
+
   print(f"{driver}: 公开路由／控制器 {requests} 个真实 HTTP、{workers} 个独立 Worker；方法／HEAD／Allow／组／覆盖／参数／约束／局部 CSRF／工厂／缓存与唯一名称通过")
 if __name__=="__main__":main()

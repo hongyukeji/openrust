@@ -169,6 +169,23 @@ fn receive(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
         }
     })
 }
+fn attachment_json(value: openrust::http::UploadedFileValue) -> serde_json::Value {
+    use openrust::http::UploadedFileValue;
+    match value {
+        UploadedFileValue::Null => serde_json::Value::Null,
+        UploadedFileValue::File(file) => json!({
+            "name": file.get_client_original_name(),
+            "mime": file.get_client_mime_type(),
+            "bytes": file.get().as_ref(),
+        }),
+        UploadedFileValue::Files(files) => serde_json::Value::Object(
+            files
+                .into_iter()
+                .map(|(key, file)| (key, attachment_json(file)))
+                .collect(),
+        ),
+    }
+}
 struct Record(CommandDefinition);
 impl Command for Record {
     fn definition(&self) -> &CommandDefinition {
@@ -213,7 +230,16 @@ impl Command for Record {
                 .iter()
                 .map(|(name, value)| json!([name.as_str(), value.as_bytes()]))
                 .collect();
-            let value = json!({"id":call.id(),"scope":call.scope(),"name":call.name(),"revision":call.revision(),"url":call.url(),"method":call.method().as_str(),"body":call.raw_body(),"headers":headers,"exception":call.exception()});
+            let payload = call
+                .payload(&store)
+                .await
+                .map_err(ConsoleError::from_source)?;
+            let attachments = attachment_json(
+                call.get_attachments(&store)
+                    .await
+                    .map_err(ConsoleError::from_source)?,
+            );
+            let value = json!({"payload":payload,"attachments":attachments,"id":call.id(),"scope":call.scope(),"name":call.name(),"revision":call.revision(),"url":call.url(),"method":call.method().as_str(),"body":call.raw_body(),"headers":headers,"exception":call.exception()});
             let env = application
                 .make::<openrust::config::Environment>()
                 .await
@@ -365,6 +391,10 @@ fn api_routes() -> Result<(), openrust::routing::RoutingError> {
     Route::post("/received/{profile}", receive)?;
     Route::webhooks("/package/default", Options::default())?;
     Route::webhooks("/package/post", Options::new().name("spatie"))?;
+    Route::webhooks(
+        "/package/no-attachments",
+        Options::new().name("no-attachments"),
+    )?;
     Route::webhooks("/package/standard", Options::new().name("standard"))?;
     Route::webhooks(
         "/package/methods",
@@ -563,6 +593,7 @@ async fn main() -> ExitCode {
             let mut config=config::load(root,env)?;
             config.insert("webhook-client".into(),json!({"add_unique_token_to_route_name": env.get_utf8("FIXTURE_UNIQUE_ROUTES")?==Some("true"),"configs":[
                 {"name":"spatie","revision":"one","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"fixture","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database"},
+                {"name":"no-attachments","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"fixture","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","store_attachments":false},
                 {"name":"standard","revision":"one","signing_secret":{"env":"FIXTURE_STANDARD_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"fixture","signature_validator":"standard","webhook_profile":"process-everything","webhook_model":"database"},
                 {"name":"ignored","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"}},
                 {"name":"dispatch-fails","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"}},

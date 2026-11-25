@@ -133,10 +133,11 @@
       "declared_public_properties": [
         "guarded"
       ],
-      "notes": "store_webhook／headers_to_store／header_bag／headers／save_exception／clear_exception 已有模型公开入口，具体 SQL 独立 storage；find 为 Rust 消费者入口。当前只保存 raw bytes／URI／method／revision／选定原始头，不实现父 Eloquent Model、解析 payload／附件、getAttachments／prunable 或可恢复状态。UUID／unix seconds／base64 持久字节及受限通用异常是明确适配；不持久化任意第三方异常堆栈／文本。",
+      "notes": "store_webhook／headers_to_store／header_bag／headers／save_exception／clear_exception 与 find 保留，具体 SQL 独立 storage。UUID／unix seconds／base64 原文字节与受限异常诊断仍为 Rust 适配。本批持久化 JSON／form／query 输入，get_attachments 从持久 multipart 原文返回原生上传对象分组。Storage 引用、旧 PHP 内嵌载荷导入、Eloquent 继承与 prunable、可恢复状态仍待核定实现。",
       "evidence": [
         "vendor/openrust/webhook-client/tests/processor.rs",
-        "tests/webhooks_receiver_acceptance.py"
+        "tests/webhooks_receiver_acceptance.py",
+        "tests/webhooks_routes_acceptance.py"
       ],
       "rust_source": "vendor/openrust/webhook-client/src/models.rs"
     },
@@ -226,7 +227,7 @@
         "storeAttachments",
         "processWebhookJobClass"
       ],
-      "notes": "名称／凭据引用／头／预算／快照及运行时 Builder 已验。签名验证器／Profile／模型／Job 派发引用必填，Response 缺失或 null 默认；store_headers 的省略／null／列表／明确字符串 * 已验。五类类型化 Factory 与生命周期 Runtime 保持不可变配置元数据不缓存跨请求对象，工厂对象不按配置或任务序列化。storeAttachments、完整模型／可排队 Job 及配置字段／错误继承最终裁决仍待完成；不把 Runtime 的对象当该源类型全部公开字段已对齐。",
+      "notes": "名称／凭据引用／头／预算／快照及运行时 Builder 已验。签名验证器／Profile／模型／Job 派发引用必填，Response 缺失或 null 默认；store_headers 的省略／null／列表／明确字符串 * 已验。五类类型化 Factory 与生命周期 Runtime 保持不可变配置元数据不缓存跨请求对象，工厂对象不按配置或任务序列化。storeAttachments 布尔／缺省／null 已验。完整模型／可排队 Job 及配置字段／错误继承最终裁决仍待完成；不把 Runtime 的对象当该源类型全部公开字段已对齐。",
       "evidence": [
         "vendor/openrust/webhook-client/tests/contracts.rs",
         "vendor/openrust/webhook-client/tests/provider.rs",

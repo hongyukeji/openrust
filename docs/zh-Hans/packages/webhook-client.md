@@ -2,7 +2,7 @@
 
 ## 支持状态 {#support-status}
 
-可选包 `openrust-webhook-client` 提供具名配置、类型化实现工厂、显式回调路由、`WebhookController`、手动 `WebhookProcessor` 和按范围隔离的数据库接收记录。应用提供任务派发实现。解析后的载荷／附件、去重和恢复尚未提供。保存记录及派发成功不代表业务完成，包不会自动安装公开回调路由。
+可选包 `openrust-webhook-client` 提供具名配置、类型化实现工厂、显式回调路由、`WebhookController`、手动 `WebhookProcessor` 和按范围隔离的数据库接收记录。应用提供任务派发实现。去重、恢复及 Storage 磁盘引用尚未提供。保存记录及派发成功不代表业务完成，包不会自动安装公开回调路由。
 
 ## 启用与配置 {#configuration}
 
@@ -119,6 +119,8 @@ pub async fn process_named(
 
 ### 保存与派发接收记录 {#receipts}
 
+数据库存储仅在验签及 Profile 通过后保存解析输入。用 `call.payload(&store).await?` 读取 JSON、表单及查询参数，同名字段以正文为准。升级前保存的原文记录返回 `None`。用 `call.get_attachments(&store).await?` 读取从持久原文重建的原生上传对象分组，数据库不保存服务器上传路径。`store_attachments=false` 关闭附件视图，原始 multipart 正文仍包含文件字节。
+
 Provider 注册 `webhook_calls` 迁移，使用 `DatabaseWebhookStore` 前运行 `./artisan migrate`。传入最多128字节的稳定应用／租户范围，同一范围的各节点使用相同值。读取和异常更新按该范围隔离，摘要键避免数据库排序规则混同大小写不同的范围。这是存储隔离，不是调用者授权；范围必须从可信应用上下文取得。
 
 `WebhookProcessor::process` 依次验签、Profile 筛选、保存、清除旧异常、派发任务、生成响应。无效签名先派发强类型 `InvalidWebhookSignatureEvent` 再返回错误；事件让应用内可信监听器读取请求和配置，不自动提供可序列化的诊断属性。验证器报错仍是错误。有效但忽略的请求只生成约定响应。存储或派发失败不会返回成功响应；派发错误保存有界的通用异常记录，不保存任意第三方错误文本或堆栈。
@@ -131,4 +133,4 @@ Provider 注册 `webhook_calls` 迁移，使用 `DatabaseWebhookStore` 前运行
 
 ## 使用边界 {#scope}
 
-应用网络与任务执行复用现有 [HTTP 客户端](../digging-deeper/http-client.md)和[队列](../digging-deeper/queues.md)。持久恢复、form／附件解析、公开路由／控制器及完整投递状态机仍未实现。
+应用网络与任务执行复用现有 [HTTP 客户端](../digging-deeper/http-client.md)和[队列](../digging-deeper/queues.md)。持久恢复、完整投递状态机仍未实现。

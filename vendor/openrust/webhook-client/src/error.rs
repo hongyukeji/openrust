@@ -28,6 +28,8 @@ pub enum Error {
     InvalidRecord,
     #[error("Webhook 存储记录不存在或不属于当前范围")]
     RecordNotFound,
+    #[error("Webhook 存储适配未实现载荷读取")]
+    PayloadUnsupported,
     #[error("Webhook 运行操作失败")]
     Runtime {
         #[source]
