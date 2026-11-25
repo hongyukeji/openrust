@@ -32,6 +32,7 @@ class Collector(ThreadingHTTPServer):
         self.requests = []
         self.responses = {}
         self.received_traceparents = []
+        self.redirect_to = None
         self.lock = threading.Lock()
 
 
@@ -39,7 +40,10 @@ class CollectorHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         with self.server.lock:
             self.server.received_traceparents.append(self.headers.get("traceparent"))
-        self.send_response(204)
+        location = self.server.redirect_to if self.path == "/redirect" else None
+        self.send_response(302 if location else 204)
+        if location:
+            self.send_header("Location", location)
         self.send_header("Content-Length", "0")
         self.end_headers()
 
@@ -175,6 +179,7 @@ def main(binary, driver, queue):
         dir=ROOT / "target/tmp", prefix="new-relic-runtime-"
     ) as temp:
         root = Path(temp)
+        collector.redirect_to = f"http://127.0.0.1:{other.server_port}/redirected"
         env = {key: value for key, value in os.environ.items()
                if not key.startswith(("NEW_RELIC_", "OTEL_", "DB_", "APP_", "QUEUE_"))}
         env |= {
@@ -183,6 +188,7 @@ def main(binary, driver, queue):
             "DB_CONNECTION": driver, "DB_DATABASE": str(root / "db.sqlite"),
             "NEW_RELIC_TEST_ALLOWED_UPSTREAM": f"http://127.0.0.1:{collector.server_port}/private-url-id?token=private-query",
             "NEW_RELIC_TEST_OTHER_UPSTREAM": f"http://127.0.0.1:{other.server_port}/private-url-id",
+            "NEW_RELIC_TEST_REDIRECT_UPSTREAM": f"http://127.0.0.1:{collector.server_port}/redirect",
             "NEW_RELIC_PROPAGATE_ORIGINS": f"http://127.0.0.1:{collector.server_port}",
             "CACHE_STORE": "file", "SESSION_DRIVER": "array", "QUEUE_CONNECTION": queue,
             "NEW_RELIC_TEST_QUEUE": queue,
@@ -237,12 +243,14 @@ def main(binary, driver, queue):
                     and span.parent_span_id == parent.span_id and span.trace_id == parent.trace_id]
         http_children = [span for span in children if attrs(span.attributes).get("http.request.method") == "GET"]
         db_children = [span for span in children if attrs(span.attributes).get("db.system.name")]
-        assert len(http_children) == 2 and len(db_children) >= 4
+        assert len(http_children) == 4 and len(db_children) >= 4
         assert any(span.status.code == 2 for span in db_children), db_children
-        assert collector.received_traceparents and collector.received_traceparents[0].split("-")[1] == parent.trace_id.hex()
-        assert other.received_traceparents == [None]
+        assert len(collector.received_traceparents) == 2
+        assert all(header and header.split("-")[1] == parent.trace_id.hex()
+                   for header in collector.received_traceparents)
+        assert other.received_traceparents == [None, None]
         assert {"http.client.request.duration", "db.client.operation.duration"} <= {metric.name for _, metric in metrics}
-        print(f"{driver} 出站 HTTP 与 SQL 子链路、失败及传播白名单通过", flush=True)
+        print(f"{driver} 出站 HTTP 与 SQL 子链路、查询失败、跨 Origin 重定向及传播白名单通过", flush=True)
         http_metric = next(metric for _, metric in metrics if metric.name == "http.server.request.duration")
         assert http_metric.unit == "s" and http_metric.histogram.aggregation_temporality == 1
         points = [attrs(point.attributes) for point in http_metric.histogram.data_points]
@@ -264,9 +272,9 @@ def main(binary, driver, queue):
         spans, metrics, logs = decode(collector.requests.copy())
         assert any(name == "acceptance-artisan" and span.name == "artisan telemetry:probe"
                    and span.status.code == 2 for name, span in spans)
-        assert any(name == "acceptance-worker" and span.name.startswith("queue ")
+        assert any(name == "acceptance-worker" and span.kind == 5
                    and attrs(span.attributes)["openrust.queue.result"] == "success" for name, span in spans)
-        assert any(name == "acceptance-worker" and span.name.startswith("queue ")
+        assert any(name == "acceptance-worker" and span.kind == 5
                    and span.status.code == 2
                    and attrs(span.attributes)["openrust.queue.result"] == "error" for name, span in spans)
         assert any(name == "acceptance-worker" and metric.name == "openrust.queue.job.duration"
@@ -282,7 +290,10 @@ def main(binary, driver, queue):
                        if name == "acceptance-batch" and span.name == "queue create"}
         worker_links = {(link.trace_id, link.span_id) for span in worker_spans for link in span.links}
         assert len(batch_links) == 2 and batch_links <= worker_links
-        print(f"独立 Artisan、{queue}/{driver} Worker 的生产者／批量关联、嵌套链路、拒收和退出刷新通过", flush=True)
+        isolated = next(span for span in worker_spans if span.name == "queue execute telemetry.batch.item")
+        assert any(span.kind == 5 and span.span_id == isolated.parent_span_id
+                   and span.trace_id == isolated.trace_id for span in worker_spans)
+        print(f"独立 Artisan、{queue}/{driver} Worker 的生产者／批量关联、隔离子进程、拒收和退出刷新通过", flush=True)
 
         start = len(collector.requests)
         cli(binary, enabled | {"NEW_RELIC_TEST_QUEUE": "sync"}, "telemetry:enqueue")

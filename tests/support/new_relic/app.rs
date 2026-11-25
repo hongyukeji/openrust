@@ -7,7 +7,7 @@ mod migrations;
 #[path = "../../../bootstrap/packages.rs"]
 mod packages;
 
-use std::{process::ExitCode, sync::Arc};
+use std::{process::ExitCode, sync::Arc, time::Duration};
 
 use openrust::{
     console::{
@@ -17,7 +17,7 @@ use openrust::{
     contracts::queue::JobHandler,
     foundation::{Application, configuration::Routing, run_application},
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
-    queue::{JobContext, Payload, QueueFuture, QueueResult},
+    queue::{JobContext, JobOptions, Payload, QueueFuture, QueueResult},
     support::{
         ProviderResult, ServiceProvider,
         facades::{Bus, Queue, Route},
@@ -67,7 +67,12 @@ impl Command for Probe {
                     Payload::new("telemetry.batch.item", "private-job-input")
                         .map_err(ConsoleError::from_source)
                 };
-                Bus::batch([make()?, make()?])
+                let isolated = make()?.with_options(JobOptions {
+                    hard_timeout: true,
+                    timeout: Some(Duration::from_secs(10)),
+                    ..Default::default()
+                });
+                Bus::batch([make()?, isolated])
                     .on_connection(
                         std::env::var("NEW_RELIC_TEST_QUEUE").unwrap_or_else(|_| "database".into()),
                     )
@@ -169,6 +174,7 @@ fn probe(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
                 for variable in [
                     "NEW_RELIC_TEST_ALLOWED_UPSTREAM",
                     "NEW_RELIC_TEST_OTHER_UPSTREAM",
+                    "NEW_RELIC_TEST_REDIRECT_UPSTREAM",
                 ] {
                     let url = std::env::var(variable).expect("local test endpoint");
                     let connected =

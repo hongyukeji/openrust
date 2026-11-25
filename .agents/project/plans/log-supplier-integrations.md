@@ -81,4 +81,5 @@ Rust 1.94.0 冻结快照使用真实 HTTP、两个回环下游和独立 Artisan�
 - 同一个实际可执行程序经回环 TCP、独立 Artisan、队列生产者与 Worker 生成 OTLP protobuf。SQLite、MySQL 8.4.13、PostgreSQL 18.7、Redis 8.10.3 和同步队列覆盖主路径。验证异常去敏、日志关联、信号启闭、采样与指标独立、配置缓存、许可排除、400／503／超时、主动及退出刷新。后续矩阵和相关日志保存在项目内 `target/tmp/new-relic-full/`。
 - Rust 1.94.0 的全仓格式、框架库与扩展及应用验收目标的定向严格 Clippy 通过。三语正文检查、VitePress 构建、两种部署路径的 12 个浏览器组合及全部导航页面检查通过。各验收容器已回收，复用构建缓存与日志保留在批次目录。
 - 批量派发为每个入队任务单独生成创建 Span，独立 Worker 分别关联对应的 Span。成功的 OTLP 响应若携带部分拒收计数，应用可从 `NewRelic::export_stats().rejected_items` 读取。SQLite、MySQL 8.4.13、PostgreSQL 18.7、Redis 8.10.3 实测双任务批量关联和部分拒收响应。三语使用说明、文档构建和浏览器检查已复验。
-- **未闭合。** 队列生命周期回调、SQS、Beanstalkd、隔离 Worker 强杀／重启，Artisan 快捷路径，出站 HTTP 正文计时和重定向／超时专项，堆栈与缓冲／堆叠日志回归，SDK 过载丢弃统计仍待补齐或补验。真实 New Relic 摄取、APM 页面和跨平台验收待执行。本地没有用到真实供应商密钥或发送付费遥测。
+- 两个实际回环 HTTP 服务验证从允许的 Origin 重定向到未允许的 Origin 时，每跳各有客户端 Span，未允许的目标未收到自动注入的追踪头。真实 Worker 的隔离子进程正常退出时刷新执行 Span，保留 Worker 尝试的 Trace ID 与父 Span ID。
+- **未闭合。** 队列生命周期回调、SQS、Beanstalkd、隔离 Worker 强杀／重启，Artisan 快捷路径，出站 HTTP 正文计时和全程超时分类，堆栈与缓冲／堆叠日志回归，SDK 过载丢弃统计仍待补齐或补验。真实 New Relic 摄取、APM 页面和跨平台验收待执行。本地没有用到真实供应商密钥或发送付费遥测。
