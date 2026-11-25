@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import re
 import runpy
+import secrets
 import select
 import socket
 import socketserver
@@ -35,6 +36,8 @@ ATTACHMENT = (
     b'Content-Type: application/octet-stream\r\n\r\n\x00\xffsample\r\n--disk--\r\n'
 )
 BODY = b"shared receipt\x00\xff"
+ATTACHMENT_SCOPE = "webhook-acceptance"
+S3_IMAGE = "chrislusf/seaweedfs@sha256:ccad23e18639c8b98cee17e7100b95830a06077b56d8e5b006d6dcf8ec5e94a0"
 
 
 class RoundRobin(http.server.BaseHTTPRequestHandler):
@@ -147,7 +150,7 @@ def interruptible_backend(stack, url):
     return gate, parsed._replace(netloc=f"{authority}:{gate.server_address[1]}").geturl()
 
 
-def redis_command(*tokens):
+def docker_command(*tokens):
     return subprocess.check_output(["docker", *tokens], text=True, timeout=30).strip()
 
 
@@ -156,27 +159,98 @@ def redis_backend(enabled):
     if not enabled:
         yield None, None, None
         return
-    image = redis_command("image", "inspect", "redis:8", "--format", "{{.Id}}")
+    image = docker_command("image", "inspect", "redis:8", "--format", "{{.Id}}")
     name = f"openrust-webhook-topology-{uuid.uuid4().hex}"
-    redis_command("run", "-d", "--rm", "--name", name, "--tmpfs", "/data",
+    docker_command("run", "-d", "--rm", "--name", name, "--tmpfs", "/data",
                   "--publish", "127.0.0.1::6379", image,
                   "redis-server", "--save", "", "--appendonly", "no")
     try:
         deadline = time.monotonic() + 15
         while time.monotonic() < deadline:
-            if redis_command("exec", name, "redis-cli", "ping") == "PONG":
+            if docker_command("exec", name, "redis-cli", "ping") == "PONG":
                 break
             time.sleep(.1)
         else:
             raise AssertionError("Redis 夹具未就绪")
-        port = redis_command("port", name, "6379/tcp").rsplit(":", 1)[1]
-        version = redis_command("exec", name, "redis-server", "--version")
+        port = docker_command("port", name, "6379/tcp").rsplit(":", 1)[1]
+        version = docker_command("exec", name, "redis-server", "--version")
         yield name, f"redis://127.0.0.1:{port}", version
     finally:
-        redis_command("rm", "-f", name)
+        docker_command("rm", "-f", name)
 
 
-def exercise(binary, driver, url, redis, redis_url, interruption):
+@contextmanager
+def object_storage(enabled):
+    if not enabled:
+        yield None, None
+        return
+    name = f"openrust-webhook-storage-{uuid.uuid4().hex}"
+    access, secret = secrets.token_hex(12), secrets.token_hex(20)
+    docker_env = os.environ | {"AWS_ACCESS_KEY_ID": access, "AWS_SECRET_ACCESS_KEY": secret}
+    image = docker_command("image", "inspect", S3_IMAGE, "--format", "{{.Id}}")
+    subprocess.check_output([
+        "docker", "run", "-d", "--rm", "--name", name,
+        "--tmpfs", "/data", "--publish", "127.0.0.1::8333",
+        "--env", "AWS_ACCESS_KEY_ID", "--env", "AWS_SECRET_ACCESS_KEY",
+        image, "mini", "-dir=/data",
+    ], env=docker_env, timeout=45)
+    try:
+        port = int(docker_command("port", name, "8333/tcp").rsplit(":", 1)[1])
+        endpoint = f"http://127.0.0.1:{port}"
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            probe = http.client.HTTPConnection("127.0.0.1", port, timeout=2)
+            try:
+                probe.request("GET", "/")
+                if probe.getresponse().status == 403:
+                    break
+            except OSError:
+                pass
+            finally:
+                probe.close()
+            time.sleep(.2)
+        else:
+            raise AssertionError("SeaweedFS 夹具未就绪")
+
+        bucket = "webhook-attachments"
+
+        def request(method, key="", *, content=None, status=200, signed=True, query=""):
+            headers = f'user = "{access}:{secret}"\naws-sigv4 = "aws:amz:us-east-1:s3"\n'
+            with ExitStack() as stack:
+                command = ["curl", "--silent", "--show-error", "--noproxy", "*", "--max-time", "10",
+                           "--request", method, "--write-out", "\n%{http_code}"]
+                if signed:
+                    command += ["--config", "-"]
+                if content is not None:
+                    data = stack.enter_context(tempfile.NamedTemporaryFile(dir=ROOT / "target/tmp"))
+                    data.write(content)
+                    data.flush()
+                    command += ["--data-binary", f"@{data.name}"]
+                address = f"{endpoint}/{bucket}" + (f"/{key}" if key else "")
+                if query:
+                    address += "?" + query
+                result = subprocess.run(command + [address], input=headers.encode() if signed else b"",
+                                        capture_output=True, timeout=12, check=True)
+                body, code = result.stdout.rsplit(b"\n", 1)
+                assert int(code) == status, (method, key, code, body[:300])
+                return body
+
+        request("PUT", content=b"")
+        request("PUT", query="ownershipControls", status=200, content=(
+            b'<OwnershipControls xmlns="http://s3.amazonaws.com/doc/2006-03-01/">'
+            b'<Rule><ObjectOwnership>ObjectWriter</ObjectOwnership></Rule></OwnershipControls>'
+        ))
+        yield {
+            "AWS_ACCESS_KEY_ID": access, "AWS_SECRET_ACCESS_KEY": secret, "AWS_SESSION_TOKEN": "",
+            "AWS_DEFAULT_REGION": "us-east-1", "AWS_BUCKET": bucket,
+            "AWS_ENDPOINT": endpoint, "AWS_USE_PATH_STYLE_ENDPOINT": "true",
+            "FIXTURE_ATTACHMENT_DISK": "s3",
+        }, request
+    finally:
+        docker_command("rm", "-f", name)
+
+
+def exercise(binary, driver, url, redis, redis_url, interruption, storage_env, object_request):
     count = 1 if driver == "sqlite" else 2
     queue = "redis" if redis else "database"
     with ExitStack() as stack:
@@ -211,7 +285,10 @@ def exercise(binary, driver, url, redis, redis_url, interruption):
             "FIXTURE_SEND_TARGET": f"http://outgoing-fixture.invalid:{receiver.server_port}/receiver",
             "FIXTURE_SEND_ADDRESS": f"127.0.0.1:{receiver.server_port}",
         }
-        database_gate = redis_gate = None
+        database_gate = redis_gate = storage_gate = None
+        if storage_env:
+            storage_gate, endpoint = interruptible_backend(stack, storage_env["AWS_ENDPOINT"])
+            common |= storage_env | {"AWS_ENDPOINT": endpoint}
         if interruption:
             database_gate, url = interruptible_backend(stack, url)
             separator = "&" if urlsplit(url).query else "?"
@@ -237,9 +314,9 @@ def exercise(binary, driver, url, redis, redis_url, interruption):
         def artisan(node, *tokens, **extra):
             return routes["command"](binary, nodes[node] | extra, *tokens)
 
-        def start(node, crash=False):
+        def start(node, crash=False, **extra):
             log = stack.enter_context((Path(nodes[node]["APP_BASE_PATH"]) / "http.log").open("a+"))
-            env = nodes[node] | ({"FIXTURE_CRASH_AFTER_DURABLE_COMMIT": "1"} if crash else {})
+            env = nodes[node] | extra | ({"FIXTURE_CRASH_AFTER_DURABLE_COMMIT": "1"} if crash else {})
             process = http_helpers["serve"](binary, env, log)
             stack.callback(http_helpers["stop"], process)
             return process
@@ -260,7 +337,7 @@ def exercise(binary, driver, url, redis, redis_url, interruption):
 
         def ready_jobs(connection, name):
             if connection == "redis":
-                return int(redis_command("exec", redis, "redis-cli", "LLEN",
+                return int(docker_command("exec", redis, "redis-cli", "LLEN",
                                          common["REDIS_PREFIX"] + f"queues:{name}"))
             return int(sql(f"SELECT COUNT(*) FROM jobs WHERE queue='{name}'"))
 
@@ -290,13 +367,37 @@ def exercise(binary, driver, url, redis, redis_url, interruption):
             artisan(node, "config:cache")
             artisan(node, "route:cache")
             assert "webhook-server:recover" in artisan(node, "schedule:list")
+
+        def attach(status=200, body=ATTACHMENT):
+            return post("package/attachment-disk", body, status,
+                        "multipart/form-data; boundary=disk")[0]
+
+        def object_key(identifier):
+            assert re.fullmatch("[0-9a-f-]{36}", identifier), identifier
+            scope = hashlib.sha256(ATTACHMENT_SCOPE.encode()).hexdigest()
+            return f"webhook-client/{scope}/{identifier}.multipart"
+
+        def stage_cleanup():
+            sql("UPDATE webhook_attachment_staging SET created_at=1")
+            command_output = artisan(1, "webhook-client:prune", "--attachment-staging",
+                                     "--scope=" + ATTACHMENT_SCOPE)
+            assert "0 个待重试" in command_output, command_output
+            assert sql("SELECT COUNT(*) FROM webhook_attachment_staging") == "0"
+
+        if storage_gate:
+            process = start(0, FIXTURE_ATOMIC_CRASH="after-enqueue")
+            assert attach(502) == 0 and process.wait(timeout=10) == 78
+            assert sql("SELECT COUNT(*) FROM webhook_calls WHERE name='attachment-disk'") == "0"
+            assert ready_jobs("database", "webhook-receipts") == 0
+            orphan = object_key(sql("SELECT id FROM webhook_attachment_staging"))
+            assert object_request("GET", orphan) == ATTACHMENT
+            stage_cleanup()
+            object_request("GET", orphan, status=404)
+            lb.cursor = 0
+
         first = start(0, crash=True)
         if count == 2:
             start(1)
-
-        def attach():
-            return post("package/attachment-disk", ATTACHMENT, 200,
-                        "multipart/form-data; boundary=disk")[0]
 
         assert attach() == 0
         attachment_id = receipt("attachment-disk")
@@ -304,14 +405,61 @@ def exercise(binary, driver, url, redis, redis_url, interruption):
             assert attach() == 1
             assert receipt("attachment-disk") == attachment_id
         assert ready_jobs("database", "webhook-receipts") == 1
-        object_path, = shared_disk.rglob("*.multipart")
-        assert object_path.read_bytes() == ATTACHMENT
+        if storage_gate:
+            key = object_key(attachment_id)
+            assert object_request("GET", key) == ATTACHMENT
+            object_request("GET", key, status=403, signed=False)
+            reference = sql(f"SELECT attachment_reference FROM webhook_calls WHERE id='{attachment_id}'")
+            assert json.loads(reference) == {
+                "disk": "s3", "length": len(ATTACHMENT), "digest": hashlib.sha256(ATTACHMENT).hexdigest(),
+            }
+            assert sql(f"SELECT length(raw_body) FROM webhook_calls WHERE id='{attachment_id}'") == "0"
+
+            def no_read():
+                result = subprocess.run([str(binary), "artisan", "webhooks:record", attachment_id, ATTACHMENT_SCOPE],
+                                        env=nodes[1], capture_output=True, timeout=25)
+                assert result.returncode != 0 and b"sample.bin" not in result.stdout
+
+            object_request("PUT", key, content=b"!" + ATTACHMENT[1:])
+            try:
+                no_read()
+            finally:
+                object_request("PUT", key, content=ATTACHMENT)
+            retry_body = ATTACHMENT.replace(b"stored", b"offline")
+            with storage_gate.interrupted():
+                no_read()
+                failures = parallel(lambda _: attach(500, retry_body))
+                assert sorted(failures) == [0, 1], failures
+                assert receipt("attachment-disk") == attachment_id
+                assert ready_jobs("database", "webhook-receipts") == 1
+                assert sql("SELECT COUNT(*) FROM webhook_attachment_staging") == "2"
+            stage_cleanup()
+        else:
+            object_path, = shared_disk.rglob("*.multipart")
+            assert object_path.read_bytes() == ATTACHMENT
         attachment_marker = Path(nodes[-1]["APP_BASE_PATH"]) / "attachment.json"
         work(count - 1, "webhook-receipts", "database", attachment_marker)
         record = json.loads(attachment_marker.read_text())
         assert record["id"] == attachment_id and bytes(record["body"]) == ATTACHMENT
         assert bytes(record["attachments"]["files"]["0"]["bytes"]) == b"\x00\xffsample"
         assert ready_jobs("database", "webhook-receipts") == 0
+        if storage_gate:
+            sql(f"UPDATE webhook_calls SET created_at=1,processed_at=1 WHERE id='{attachment_id}'")
+            assert "已清理 1 条" in artisan(0, "webhook-client:prune", "--scope=" + ATTACHMENT_SCOPE)
+            assert sql(f"SELECT COUNT(*) FROM webhook_calls WHERE id='{attachment_id}'") == "0"
+            assert object_request("GET", key) == ATTACHMENT
+            stage_cleanup()
+            object_request("GET", key, status=404)
+            assert attach(body=retry_body) == 0 and attach(body=retry_body) == 1
+            retried = receipt("attachment-disk")
+            assert retried != attachment_id and ready_jobs("database", "webhook-receipts") == 1
+            assert object_request("GET", object_key(retried)) == retry_body
+            retry_marker = attachment_marker.with_name("attachment-retry.json")
+            work(1, "webhook-receipts", "database", retry_marker)
+            record = json.loads(retry_marker.read_text())
+            assert record["id"] == retried and bytes(record["body"]) == retry_body
+            assert not list(shared_disk.rglob("*.multipart"))
+            print(f"{driver}/{queue}: SeaweedFS 私有对象、跨节点读取、断连与篡改拒绝、崩溃补偿及到期删除通过", flush=True)
 
         sent_at = str(int(time.time()))
         event = "topology-shared-event"
@@ -518,8 +666,11 @@ if __name__ == "__main__":
     database, database_url = helpers["database_settings"]()
     use_redis = os.environ.get("OPENRUST_TEST_WEBHOOK_TOPOLOGY_REDIS") == "1"
     interruption = os.environ.get("OPENRUST_TEST_WEBHOOK_TOPOLOGY_OUTAGE") == "1"
-    assert database != "sqlite" or not (use_redis or interruption)
-    with redis_backend(use_redis) as (container, endpoint, version):
+    use_storage = os.environ.get("OPENRUST_TEST_WEBHOOK_TOPOLOGY_S3") == "1"
+    assert database != "sqlite" or not (use_redis or interruption or use_storage)
+    with redis_backend(use_redis) as (container, endpoint, version), \
+            object_storage(use_storage) as (storage_env, object_request):
         if version:
             print(version, flush=True)
-        exercise(routes["args"].binary.resolve(), database, database_url, container, endpoint, interruption)
+        exercise(routes["args"].binary.resolve(), database, database_url, container, endpoint,
+                 interruption, storage_env, object_request)

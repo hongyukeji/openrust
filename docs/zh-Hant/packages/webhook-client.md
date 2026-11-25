@@ -133,6 +133,8 @@ Provider 註冊 `webhook_calls` 遷移，使用 `DatabaseWebhookStore` 前執行
 
 將 `attachment_disk` 設為已設定的私有磁碟名稱，並執行 `./artisan migrate`。手動建構 profile 時可呼叫 `with_attachment_disk("local")`。啟用附件儲存後，接受的含檔案 multipart 請求會作為一個私有物件寫入。接收記錄保存磁碟、長度與 SHA-256 摘要。物件名稱由可信範圍與接收 ID 產生。Worker 核對長度與摘要後讀取原始正文並還原原生上傳檔案。各 Worker 必須能透過已保存的磁碟名稱讀取同一儲存。
 
+使用共用儲存時，為各節點的 `attachment_disk` 設定同名 S3 磁碟。使用私有儲存貯體，並確認後端支援設定與驗證私有物件 ACL。啟用 ACL 的 SeaweedFS 4.53 已通過雙節點驗收。儲存失聯時，新的附件接收會在確認前失敗，復原後可重試並保留原始位元組。
+
 既有內嵌記錄與設定了 `store_attachments: false` 的請求繼續使用資料庫儲存。資料庫明確回滾時，接收器會嘗試刪除暫存物件。提交前崩潰或儲存結果不確定時，可能留下待清理的暫存登記。清理過期接收記錄時，會在同一資料庫交易中刪除記錄，並登記解除引用的物件。
 
 定期執行 `./artisan webhook-client:prune --scope=payments --attachment-staging`，清理已解除引用的物件及暫存至少一小時的物件。使用 `--pretend` 查看候選數量。刪除失敗時會保留登記，租約到期後可重試，指令以錯誤狀態結束。接收器、Worker 和清理程序應將已保存的磁碟名稱對應至同一私有儲存。即使停用了接收記錄保留期清理，也可以執行附件清理。

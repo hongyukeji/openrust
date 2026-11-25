@@ -1355,6 +1355,7 @@ async fn main() -> ExitCode {
         Application::configure(root).with_config(|root,env| {
             let mut config=config::load(root,env)?;
             let database=config["database"]["default"].as_str().unwrap().to_owned();
+            let attachment_disk = env.get_utf8("FIXTURE_ATTACHMENT_DISK")?.unwrap_or("local");
             let alias=config["database"]["connections"][&database].clone();
             config.get_mut("database").unwrap()["connections"]["fixture-foreign"]=alias;
             // 原子派发须覆盖普通连接的提交后派发默认值。
@@ -1379,7 +1380,7 @@ async fn main() -> ExitCode {
                 {"name":"deferred-recovery-tracked","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-recovery-scope","process_webhook_job":"recovery","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","recover_dispatch":true,"recover_processing":{"after_seconds":60,"max_requeues":2}},
                 {"name":"recovery-null","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-recovery-scope","process_webhook_job":"recovery","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","recover_dispatch":true},
                 {"name":"recovery-failover","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-recovery-scope","process_webhook_job":"recovery","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","recover_dispatch":true},
-                {"name":"attachment-disk","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","atomic_database_queue":true,"attachment_disk":"local","deduplicate_body_seconds":30},
+                {"name":"attachment-disk","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","atomic_database_queue":true,"attachment_disk":attachment_disk,"deduplicate_body_seconds":30},
                 {"name":"attachment-plain","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"fixture","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","attachment_disk":"local"},
                 {"name":"attachment-disabled","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"fixture","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","attachment_disk":"local","store_attachments":false},
                 {"name":"audit-required","revision":"audit-v1","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"fixture","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","verification_audit":true},

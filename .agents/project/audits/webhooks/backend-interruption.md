@@ -12,4 +12,4 @@
 
 Rust 验收制品从 `c851d1e8a` 的隔离源码重新编译。PostgreSQL 18.7 和 MySQL 8.4.13 分别搭配 database 和 Redis 8.10.3 的四种配置均通过断连及原有拓扑用例，SQLite 单机回归通过。`openrust` 及两个 Webhook 包的格式检查、实际验收应用的严格 Clippy 和 Python 脚本语法检查均通过。该源码快照的全工作区格式检查报告既有差异，位于 `fortify/tests/two_factor_provider.rs`、`framework/src/database/events.rs` 和 `framework/src/queue/events.rs`。
 
-真实跨主机网络分区、主库主备切换、Redis 数据丢失、远端对象存储断连和部署滚动升级仍在 WH-V27。当前夹具保留共享服务进程及已有数据。
+对象存储断连已在[共享 S3 附件](shared-object-storage.md)补验；真实跨主机网络分区、主库主备切换、Redis 数据丢失、托管对象存储和部署滚动升级仍在 WH-V27。当前夹具保留共享服务进程及已有数据。
