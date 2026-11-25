@@ -245,7 +245,7 @@ impl JobRepository {
         payload: &Payload,
         tags: &[String],
     ) -> Result<()> {
-        self.store_push(id, connection, queue, payload, tags, "pending")
+        self.store_push(id, connection, queue, payload, (tags, false), "pending")
             .await
     }
     pub(crate) async fn queueing(
@@ -255,8 +255,9 @@ impl JobRepository {
         queue: &str,
         payload: &Payload,
         tags: &[String],
+        silenced: bool,
     ) -> Result<()> {
-        self.store_push(id, connection, queue, payload, tags, "queueing")
+        self.store_push(id, connection, queue, payload, (tags, silenced), "queueing")
             .await
     }
     async fn store_push(
@@ -265,7 +266,7 @@ impl JobRepository {
         connection: &str,
         queue: &str,
         payload: &Payload,
-        tags: &[String],
+        (tags, silenced): (&[String], bool),
         phase: &str,
     ) -> Result<()> {
         let record = JobRecord {
@@ -278,7 +279,8 @@ impl JobRepository {
             duration: 0.,
             updated_at: 0,
         };
-        self.store(record, payload, tags, false, None, phase).await
+        self.store(record, payload, tags, silenced, None, phase)
+            .await
     }
     pub(crate) async fn monitor_pushed(&self, id: &str, tags: &[String]) -> Result<()> {
         let tags = self.0.tags().monitored(tags).await?;
@@ -455,6 +457,7 @@ impl JobRepository {
                 text(&stored)?
             };
             let mut details = if stored.is_empty() {
+                let metadata = crate::JobPayload::from_payload(payload)?;
                 JobDetails {
                     record: JobRecord {
                         id: id.into(),
@@ -467,9 +470,11 @@ impl JobRepository {
                         updated_at: now,
                     },
                     payload: Json::Null,
-                    tags: Vec::new(),
+                    tags: metadata
+                        .as_ref()
+                        .map_or_else(Vec::new, |snapshot| snapshot.tags().to_vec()),
                     exception: None,
-                    silenced: false,
+                    silenced: metadata.is_some_and(|snapshot| snapshot.is_silenced()),
                     created_at: now,
                     reserved_at: None,
                     release_delay_ms: None,

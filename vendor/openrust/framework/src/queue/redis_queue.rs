@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -168,6 +169,8 @@ impl RedisQueue {
         let queue = self.queue_name(queue)?;
         let [ready, delayed, _] = self.keys(queue);
         let notify = format!("{ready}:notify");
+        let manager = self.registry.manager()?;
+        let payload = manager.prepare_redis_payload(payload).await?;
         let job = RedisJob {
             id: new_id()?,
             payload: payload.encode()?,
@@ -184,14 +187,13 @@ impl RedisQueue {
             ),
         };
         command.arg(raw).arg(milliseconds(duration)?).arg(mode);
-        let manager = self.registry.manager()?;
         if manager.observes_worker_event(RedisJobQueueing::NAME)? {
             manager
                 .emit_control_event(RedisJobQueueing {
                     connection_name: self.name.clone(),
                     queue: queue.into(),
                     id: job.id.clone(),
-                    job: payload.clone(),
+                    job: payload.as_ref().clone(),
                 })
                 .await?;
         }
@@ -205,7 +207,7 @@ impl RedisQueue {
                     connection_name: self.name.clone(),
                     queue: queue.into(),
                     id: job.id.clone(),
-                    job: payload.clone(),
+                    job: payload.into_owned(),
                 })
                 .await?;
         }
@@ -523,13 +525,17 @@ impl Reservation for RedisReservation {
             );
             let delayed = format!("{ready}:delayed");
             let notify = format!("{ready}:notify");
+            let manager = self.registry.manager().ok();
+            let next = match &manager {
+                Some(manager) => manager.prepare_redis_payload(next).await?,
+                None => Cow::Borrowed(next),
+            };
             let (command, id) = chain_enqueue_command(
                 [&self.reserved, &ready, &delayed, &notify],
                 &self.raw,
-                next,
+                &next,
                 delay,
             )?;
-            let manager = self.registry.manager().ok();
             if let Some(manager) = &manager
                 && matches!(
                     manager.observes_worker_event(RedisJobQueueing::NAME),
@@ -541,7 +547,7 @@ impl Reservation for RedisReservation {
                         connection_name: self.connection_name.clone(),
                         queue: target.into(),
                         id: id.clone(),
-                        job: next.clone(),
+                        job: next.as_ref().clone(),
                     })
                     .await?;
             }
@@ -554,7 +560,7 @@ impl Reservation for RedisReservation {
                         connection_name: self.connection_name.clone(),
                         queue: target.into(),
                         id,
-                        job: next.clone(),
+                        job: next.into_owned(),
                     })
                     .await;
             }

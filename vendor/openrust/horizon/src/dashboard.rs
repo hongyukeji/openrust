@@ -458,7 +458,13 @@ fn api(request: &mut Request) -> HttpFuture<'_, std::result::Result<Response, Ht
                             continue;
                         }
                         if let Some(retry_id) = manager
-                            .retry_failed_with_id(failures.as_ref(), uuid, &job)
+                            .retry_failed_with_reference(
+                                failures.as_ref(),
+                                uuid,
+                                &job,
+                                &monitored.record.id,
+                                crate::JobPayload::retry_deadline(&job.payload)?,
+                            )
                             .await
                             .map_err(|_| HttpError::from(Error::Queue))?
                         {

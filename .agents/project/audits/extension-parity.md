@@ -351,9 +351,17 @@ Rust 1.94.0 单作业构建通过，实际运行于 Linux 7.0.14-linuxkit、Debi
 
 基于 `0621a67a3` 加本批文件的 macOS 隔离快照，在独占 Redis 8.10.3 上经公开事件监听器逐次读取 Ready、延迟、保留队列、任务详情和监控标签。已验即时与延迟入队、Redis 写入错误、SQLite 事务提交和回滚、直接保留与尝试次数。Horizon 默认 24 项和 Redis 13 项、Pulse 默认 21 项和 Redis 1 项、Telescope 默认 38 项和 Redis 1 项通过。实际 Artisan 进程矩阵与核心不启用 Horizon 的 Redis HTTP／阻塞取任务通过。快照全仓格式、Horizon 全目标严格 Clippy、三语站点和 12 组浏览器检查通过。证据为 `target/tmp/observability-parity/horizon-redis-transport-*.log`。本批 Linux、Windows 和全仓发布组合待验。
 
-固定 `JobPayload::prepare` 在 Redis 写入前一次生成 `type`、`tags`、`silenced` 与 `pushedAt`，后续监听器读取事件载荷中的结果。Rust 目前在待处理、入队成功及后续生命周期分别解析标签，并在进入 Worker 状态投影时读取静默配置。待核对并补齐单次生成、后续读取、重试关联和既有记录兼容，另需核对任务类型分类以及投递 ID 与 UUID 的公开映射。 [固定 JobPayload](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/JobPayload.php)
+固定 `JobPayload::prepare` 在 Redis 写入前一次生成 `type`、`tags`、`silenced` 与 `pushedAt`，后续监听器读取事件载荷中的结果。 [固定 JobPayload](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/JobPayload.php)
 
 PHP 8.5.12 探针执行固定 `JobPayload::prepare`、`JobPushed` 与 `RetryFailedJob` 的重投递载荷构造。普通投递调用对象标签方法一次，原载荷标签与对象标签按顺序合并。公开 ID 优先使用 UUID，旧载荷用 `id` 回退。静默标签与 `Silenced` 标记均生效，`pushedAt` 为数字字符串。无任务对象的原始重投递沿用标签，重置尝试次数和 ID，写入 `retry_of` 并按原期限的相对时长重算截止时间，重新准备时静默为 `false`。证据为 `target/tmp/observability-parity/horizon-job-payload-upstream.log`。 [固定重投递](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Jobs/RetryFailedJob.php)
+
+Rust Horizon 在应用自己的 Redis 写入入口生成观测元数据。即时、延迟与同一连接上的原子任务链均在写入前计算一次标签与静默标志，保存十进制投递时间，后续公开事件和仓储读取同一份载荷。旧任务无该字段时保留原有读取路径。Artisan 与 HTTP 的 Horizon 重试在新投递中保留标签、清除静默、携带原监控投递 ID，并按截止时间相对于原投递时刻的间隔重算。没有投递时刻的旧记录继续使用已保存的绝对期限。Rust 保留各次 Redis 投递 ID 和核心任务 UUID 的既有职责，详见[专项审计](horizon/README.md#必要-rust-适配)。公开 `JobPayload` 的任务类型、`Silenced` 标记、显式预置标签合并及其余上游访问器仍需逐项落实。
+
+固定 Horizon 的 `later` 在交给事务延后逻辑之前生成载荷。Rust 的延迟投递随实际 Redis 写入准备，延迟投递同时使用 `after_commit` 时的求值与观察时机仍需专项对照。旧失败载荷缺少保存的标签元数据时，Rust 在重投递时使用应用登记的标签回调生成一次。 [固定延迟入队路径](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/RedisQueue.php)
+
+下一组载荷契约分开验收。分类以 `BroadcastEvent`、`CallQueuedListener`、`SendQueuedMailable`、`SendQueuedNotifications` 和普通任务五种真实生产者为入口。显式静默标记按任务或其包装中的底层对象核对。标记、配置名称和标签命中的结果须在启用观察时保存到实际 Redis 载荷。原始重试还须单验分类重置及显式标签合并。公开载荷访问器需逐一核对值、解码、名称、ID 回退和可变字段操作。
+
+基于 `eb189cfb1` 加已提交 Redis 事件与本批文件的 macOS 隔离快照，独占 Redis 8.10.3 和 SQLite 验证 `JobPending`、`JobPushed`、保留和结算读取相同的标签及静默结果。原生 Artisan 验证标签回调仅在入队执行一次、成功完成后保留原静默结果、Horizon 重试保留标签及原投递引用并重算截止时间。授权 HTTP 验证旧失败任务的重投递和标签回退。Horizon Redis 18 项与三包默认 84 项、无 Horizon 的框架 Redis Worker、真实 Artisan 进程矩阵、全仓格式、Horizon 全目标严格 Clippy、三语站点和 12 组浏览器检查通过。新载荷行为的 Linux、Windows 和完整发布组合待验。验证日志位于 `target/tmp/observability-parity/horizon-payload-{verified,core,process,docs}.log`。
 
 ### Horizon Redis 原子任务链入队事件
 

@@ -224,6 +224,10 @@ pub struct Payload {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     delivery_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    retry_of: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    redis_metadata: Option<std::sync::Arc<std::collections::BTreeMap<String, serde_json::Value>>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) batch_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     chain: Option<JobChain>,
@@ -261,6 +265,8 @@ impl Payload {
             context: Default::default(),
             trace_context: None,
             delivery_id: None,
+            retry_of: None,
+            redis_metadata: None,
             batch_id: None,
             chain: None,
             chained_batch: None,
@@ -320,18 +326,36 @@ impl Payload {
         &self.options
     }
 
+    /// 返回此次重新投递对应的原失败记录标识。
+    pub fn retry_of(&self) -> Option<&str> {
+        self.retry_of.as_deref()
+    }
+
+    /// 判断载荷是否由核心失败队列重新投递。
+    pub fn is_retry_delivery(&self) -> bool {
+        self.delivery_id.is_some()
+    }
+
+    /// 读取 Redis 入队时由应用扩展生成并随任务保存的元数据。
+    pub fn redis_metadata(&self, key: &str) -> Option<&serde_json::Value> {
+        self.redis_metadata.as_ref()?.get(key)
+    }
+
     pub(crate) fn for_scheduled_dispatch(&self) -> QueueResult<Self> {
         Ok(Self {
             uuid: new_id()?,
             delivery_id: None,
+            retry_of: None,
+            redis_metadata: None,
             context: Default::default(),
             ..self.clone()
         })
     }
 
-    pub(super) fn renewed(mut self) -> QueueResult<Self> {
+    pub(super) fn renewed(mut self, retry_of: Option<&str>) -> QueueResult<Self> {
         self.unique_lock = None;
         self.delivery_id = Some(new_id()?);
+        self.retry_of = retry_of.map(str::to_owned);
         Ok(self)
     }
 

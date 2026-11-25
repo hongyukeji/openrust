@@ -6,6 +6,7 @@ mod configuration;
 pub mod console;
 mod dashboard;
 mod events;
+mod job_payload;
 mod job_trim;
 mod notifications;
 mod options;
@@ -26,6 +27,7 @@ pub use dashboard::{Dashboard, Horizon};
 pub use events::{
     JobDeleted, JobFailed, JobPending, JobPushed, JobReleased, JobReserved, JobsMigrated,
 };
+pub use job_payload::JobPayload;
 pub use job_trim::{TrimFailedJobs, TrimMonitoredJobs, TrimRecentJobs};
 pub use master_supervisor::{
     ExpireSupervisors, MasterSupervisor, MasterSupervisorDeployed, MasterSupervisorLooped,

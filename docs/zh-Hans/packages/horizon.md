@@ -63,6 +63,8 @@ Redis 将保留任务放回延迟队列后派发 `JobReleased::NAME`。`delay` �
 
 `JobFailed::NAME` 提供失败 Redis 投递的连接、保留快照和异常文本。Worker 失败时，事件在 Redis 确认和失败回调执行后派发，监听器可读取失败任务详情和标签。直接调用 `Job::fail` 时，也会在 Redis 确认后派发。
 
+通过 `JobPayload::from_payload` 读取 Redis 任务上的 Horizon 元数据。Horizon 在写入前计算标签和静默状态，将结果和以十进制秒表示的投递时间一并保存。Horizon 重试沿用已保存的标签，清除静默标志，并通过 `retry_of()` 提供原投递 ID。原投递保存了重试截止时间和投递时间时，新投递沿用相同的重试时长。旧任务的载荷可能没有 Horizon 元数据。
+
 监督器队列名称遵循原生 Redis 传输的 255 字节上限，保留空格、Unicode 字符和冒号。监督器队列列表以逗号分隔。以 `:delayed`、`:reserved` 或 `:notify` 结尾的名称由传输保留。
 
 长等待告警在邮件主题、短信正文和 Slack 详情中显示部署名称。`Horizon::route_slack_notifications_to` 接受传入 Webhook 地址或频道 ID。频道 ID 使用 Slack Bot API，需配置 `services.slack.notifications.bot_user_oauth_token`。

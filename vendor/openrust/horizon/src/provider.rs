@@ -1,6 +1,6 @@
 use crate::{
-    Dashboard, Error, JobDeleted, JobFailed, JobPending, JobPushed, JobRecord, JobReleased,
-    JobReserved, JobsMigrated, Repository,
+    Dashboard, Error, JobDeleted, JobFailed, JobPayload, JobPending, JobPushed, JobRecord,
+    JobReleased, JobReserved, JobsMigrated, Repository,
 };
 use openrust::support::facades::Facade;
 use openrust::{
@@ -100,6 +100,7 @@ impl ServiceProvider for HorizonServiceProvider {
             )?;
             self.commands(app, crate::console::register);
             self.load_routes_from(app, crate::dashboard::configured_routes)?;
+            JobPayload::register(app.make::<openrust::queue::QueueManager>().await?.as_ref());
             let dispatcher = app.make::<openrust::events::Dispatcher>().await?;
             for listener in [
                 Arc::new(crate::TrimRecentJobs) as Arc<dyn Listener>,
@@ -259,11 +260,12 @@ impl Listener for JobListener {
             }
             if let Some(event) = event.downcast_ref::<JobPending>() {
                 let repository = crate::dashboard::Store::get_facade_root()?;
-                let tags = crate::Tags::for_payload(&event.payload).map_err(|source| {
-                    EventError::Listener {
-                        source: Box::new(source),
-                    }
-                })?;
+                let (tags, silenced) =
+                    JobPayload::tags_and_silence(&event.payload).map_err(|source| {
+                        EventError::Listener {
+                            source: Box::new(source),
+                        }
+                    })?;
                 repository
                     .jobs()
                     .queueing(
@@ -272,6 +274,7 @@ impl Listener for JobListener {
                         &event.queue,
                         &event.payload,
                         &tags,
+                        silenced,
                     )
                     .await
                     .map_err(|source| EventError::Listener {
@@ -281,7 +284,7 @@ impl Listener for JobListener {
             }
             if let Some(event) = event.downcast_ref::<JobPushed>() {
                 let repository = crate::dashboard::Store::get_facade_root()?;
-                let tags = crate::Tags::for_payload(&event.payload).map_err(|source| {
+                let (tags, _) = JobPayload::tags_and_silence(&event.payload).map_err(|source| {
                     EventError::Listener {
                         source: Box::new(source),
                     }
@@ -353,31 +356,12 @@ impl Listener for JobListener {
                 return Ok(None);
             }
             let repository = crate::dashboard::Store::get_facade_root()?;
-            let tags =
-                crate::Tags::for_payload(&job.payload).map_err(|source| EventError::Listener {
-                    source: Box::new(source),
+            let (tags, silenced) =
+                JobPayload::tags_and_silence(&job.payload).map_err(|source| {
+                    EventError::Listener {
+                        source: Box::new(source),
+                    }
                 })?;
-            let silenced = config
-                .get("horizon.silenced")
-                .and_then(|value| {
-                    value.as_array().map(|names| {
-                        names
-                            .iter()
-                            .any(|name| name.as_str() == Some(job.payload.name()))
-                    })
-                })
-                .unwrap_or(false)
-                || config
-                    .get("horizon.silenced_tags")
-                    .and_then(|value| {
-                        value.as_array().map(|silenced| {
-                            silenced
-                                .iter()
-                                .filter_map(|tag| tag.as_str())
-                                .any(|tag| tags.iter().any(|value| value == tag))
-                        })
-                    })
-                    .unwrap_or(false);
             let record = JobRecord {
                 id: job.id.clone(),
                 name: job.payload.name().into(),

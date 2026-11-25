@@ -1,6 +1,6 @@
 use std::{
     borrow::Cow,
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     sync::{
         Arc, Mutex, RwLock, Weak,
         atomic::{AtomicBool, Ordering},
@@ -52,12 +52,14 @@ pub struct QueueManager {
     batch_callbacks: RwLock<HashMap<String, BatchCallback>>,
     chain_callbacks: RwLock<HashMap<String, ChainCallback>>,
     pop_callbacks: RwLock<HashMap<String, JobPopCallback>>,
+    redis_payload_metadata: RwLock<BTreeMap<&'static str, RedisPayloadMetadata>>,
     interruption_polling: AtomicBool,
     clear_prohibited: AtomicBool,
     failed_flush_prohibited: AtomicBool,
 }
 
 type Connector = dyn Fn(&Container, &str, &Value) -> QueueResult<Arc<dyn Contract>> + Send + Sync;
+type RedisPayloadMetadata = fn(&Payload) -> QueueResult<Value>;
 
 struct ConfiguredQueue {
     queue: Arc<dyn Contract>,
@@ -178,6 +180,7 @@ impl QueueManager {
             batch_callbacks: RwLock::default(),
             chain_callbacks: RwLock::default(),
             pop_callbacks: RwLock::default(),
+            redis_payload_metadata: RwLock::default(),
             interruption_polling: AtomicBool::new(true),
             clear_prohibited: AtomicBool::new(false),
             failed_flush_prohibited: AtomicBool::new(false),
@@ -205,6 +208,46 @@ impl QueueManager {
 
     pub fn register(&self, name: &str, handler: Arc<dyn JobHandler>) -> QueueResult<()> {
         self.registry.register(name, handler)
+    }
+
+    /// 注册 Redis 投递的扩展元数据生成器。相同键以最后一次注册为准。
+    pub fn register_redis_payload_metadata(
+        &self,
+        key: &'static str,
+        callback: RedisPayloadMetadata,
+    ) {
+        self.redis_payload_metadata
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(key, callback);
+    }
+
+    pub(super) async fn prepare_redis_payload<'a>(
+        &self,
+        payload: &'a Payload,
+    ) -> QueueResult<Cow<'a, Payload>> {
+        let callbacks = self
+            .redis_payload_metadata
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+        if callbacks.is_empty() {
+            return Ok(Cow::Borrowed(payload));
+        }
+        let owner = self
+            .owner
+            .upgrade()
+            .ok_or(QueueError::InvalidConfiguration)?;
+        application_scope(owner, async move {
+            let mut prepared = payload.clone();
+            let metadata =
+                Arc::make_mut(prepared.redis_metadata.get_or_insert_with(Default::default));
+            for (key, callback) in callbacks {
+                metadata.insert(key.into(), callback(payload)?);
+            }
+            Ok(Cow::Owned(prepared))
+        })
+        .await
     }
 
     /// 检查当前应用是否已注册可执行该名称的队列处理器。
@@ -627,7 +670,7 @@ impl QueueManager {
         key: &str,
         job: &FailedJob,
     ) -> QueueResult<bool> {
-        self.retry_failed_result(failures, key, job)
+        self.retry_failed_result(failures, key, job, None)
             .await
             .map(|(claimed, _)| claimed)
     }
@@ -638,15 +681,31 @@ impl QueueManager {
         key: &str,
         job: &FailedJob,
     ) -> QueueResult<Option<String>> {
-        self.retry_failed_result(failures, key, job)
+        self.retry_failed_result(failures, key, job, None)
             .await
             .map(|(_, id)| id)
     }
+
+    /// 按扩展计算的截止时间重新投递，并记录原失败投递的标识。
+    pub async fn retry_failed_with_reference(
+        &self,
+        failures: &dyn FailedJobProviderInterface,
+        key: &str,
+        job: &FailedJob,
+        retry_of: &str,
+        retry_until: Option<std::time::SystemTime>,
+    ) -> QueueResult<Option<String>> {
+        self.retry_failed_result(failures, key, job, Some((retry_of, retry_until)))
+            .await
+            .map(|(_, id)| id)
+    }
+
     async fn retry_failed_result(
         &self,
         failures: &dyn FailedJobProviderInterface,
         key: &str,
         job: &FailedJob,
+        reference: Option<(&str, Option<std::time::SystemTime>)>,
     ) -> QueueResult<(bool, Option<String>)> {
         if self.observes_worker_event(JobRetryRequested::NAME)? {
             self.emit_control_event(JobRetryRequested { job: job.clone() })
@@ -654,8 +713,14 @@ impl QueueManager {
         }
         let configured = self.resolve(Some(&job.connection))?;
         let mut payload = job.payload.clone();
-        self.registry.refresh_retry_deadline(&mut payload).await?;
-        let payload = payload.renewed()?;
+        let retry_of = if let Some((id, retry_until)) = reference {
+            payload.options.retry_until = retry_until;
+            Some(id)
+        } else {
+            self.registry.refresh_retry_deadline(&mut payload).await?;
+            None
+        };
+        let payload = payload.renewed(retry_of)?;
         let claim = if key == job.id {
             Cow::Borrowed(job)
         } else {
@@ -1403,6 +1468,8 @@ fn prepare_batch_jobs(jobs: &mut [BatchJob], renew: bool) -> QueueResult<u32> {
             if renew {
                 job.uuid = new_id()?;
                 job.delivery_id = None;
+                job.retry_of = None;
+                job.redis_metadata = None;
                 job.context = Default::default();
             } else if !ids.insert(job.uuid()) {
                 return Err(QueueError::InvalidPayload);

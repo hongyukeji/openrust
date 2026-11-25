@@ -249,7 +249,13 @@ impl Command for HorizonCommand {
                         .await
                         .map_err(error)?;
                     if let Some(retry_id) = manager
-                        .retry_failed_with_id(provider.as_ref(), failure_id, &record)
+                        .retry_failed_with_reference(
+                            provider.as_ref(),
+                            failure_id,
+                            &record,
+                            &id,
+                            crate::JobPayload::retry_deadline(&record.payload).map_err(error)?,
+                        )
                         .await
                         .map_err(error)?
                     {

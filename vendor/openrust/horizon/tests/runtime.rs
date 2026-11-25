@@ -325,6 +325,11 @@ impl openrust::contracts::events::Listener for TransportListener {
                 )
             });
             let details = self.repository.jobs().find(id).await.unwrap().unwrap();
+            let snapshot = openrust_horizon::JobPayload::from_payload(payload)
+                .unwrap()
+                .unwrap();
+            assert_eq!(details.tags, snapshot.tags());
+            assert_eq!(details.silenced, snapshot.is_silenced());
             let monitored = self
                 .repository
                 .tags()
@@ -1644,11 +1649,39 @@ async fn redis_public_failure_follows_confirmation_and_worker_failed_callback() 
 #[tokio::test]
 #[ignore = "requires dedicated Redis 8 acceptance wrapper"]
 async fn native_retries_keep_transport_ids_separate_from_the_failed_payload_uuid() {
-    use openrust::contracts::{container::Container as _, foundation::Application as _};
+    use openrust::{
+        contracts::{container::Container as _, foundation::Application as _},
+        queue::{JobOptions, Payload},
+    };
+    use openrust_horizon::JobPayload;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    static TAG_CALLS: AtomicUsize = AtomicUsize::new(0);
+    fn tags(_: &Payload) -> Vec<String> {
+        let call = TAG_CALLS.fetch_add(1, Ordering::SeqCst);
+        vec!["quiet".into(), format!("call-{call}")]
+    }
+    fn snapshot_config(
+        base: &Path,
+        env: &Environment,
+    ) -> Result<BTreeMap<String, Value>, ConfigError> {
+        let mut settings = retry_config(base, env)?;
+        settings.get_mut("horizon").unwrap()["silenced_tags"] = json!(["quiet"]);
+        Ok(settings)
+    }
+    fn snapshot(details: &openrust_horizon::JobDetails) -> JobPayload {
+        let payload: Payload = serde_json::from_value(details.payload.clone()).unwrap();
+        JobPayload::from_payload(&payload).unwrap().unwrap()
+    }
+
     let mut app = TestApp::create(|builder| {
         builder
-            .with_config(retry_config)
+            .with_config(snapshot_config)
             .with_providers(vec![Box::new(HorizonServiceProvider)])
+            .with_routing(Routing::default().api(|| {
+                Horizon::tag(tags).unwrap();
+                authorized_routes()
+            }))
     })
     .unwrap();
     app.boot().await.unwrap();
@@ -1678,7 +1711,14 @@ async fn native_retries_keep_transport_ids_separate_from_the_failed_payload_uuid
         .await
         .unwrap();
     manager.register("fail", Arc::new(Handler("fail"))).unwrap();
-    let payload = openrust::queue::Payload::new("fail", json!({"private":"retry-data"})).unwrap();
+    let deadline = std::time::SystemTime::now() + Duration::from_secs(600);
+    let payload = Payload::new("fail", json!({"private":"retry-data"}))
+        .unwrap()
+        .with_options(JobOptions {
+            retry_until: Some(deadline),
+            max_exceptions: Some(1),
+            ..JobOptions::default()
+        });
     let id = manager
         .connection(Some("redis"))
         .unwrap()
@@ -1687,6 +1727,16 @@ async fn native_retries_keep_transport_ids_separate_from_the_failed_payload_uuid
         .unwrap()
         .unwrap();
     assert_ne!(id, payload.uuid());
+    let repository = app.app().make::<Repository>().await.unwrap();
+    let jobs = repository.jobs();
+    let pending = jobs.find(&id).await.unwrap().unwrap();
+    let queued_snapshot = snapshot(&pending);
+    assert_eq!(queued_snapshot.tags(), ["quiet", "call-0"]);
+    assert!(queued_snapshot.is_silenced());
+    assert!(queued_snapshot.pushed_at().parse::<f64>().unwrap() > 0.0);
+    assert!(!queued_snapshot.is_retry());
+    assert_eq!(pending.tags, queued_snapshot.tags());
+    assert_eq!(TAG_CALLS.load(Ordering::SeqCst), 1);
     app.artisan([
         "queue:work",
         "redis",
@@ -1698,11 +1748,13 @@ async fn native_retries_keep_transport_ids_separate_from_the_failed_payload_uuid
     ])
     .await
     .assert_successful();
-    let repository = app.app().make::<Repository>().await.unwrap();
-    let jobs = repository.jobs();
     let original = jobs.find_failed(&id).await.unwrap().unwrap();
     assert_eq!(original.payload_uuid().unwrap(), payload.uuid());
+    assert_eq!(original.tags, queued_snapshot.tags());
+    assert_eq!(snapshot(&original).pushed_at(), queued_snapshot.pushed_at());
+    assert_eq!(TAG_CALLS.load(Ordering::SeqCst), 1);
     assert!(jobs.find(payload.uuid()).await.unwrap().is_none());
+    tokio::time::sleep(Duration::from_millis(1100)).await;
     app.artisan(["horizon:retry", &id])
         .await
         .assert_successful();
@@ -1710,15 +1762,17 @@ async fn native_retries_keep_transport_ids_separate_from_the_failed_payload_uuid
     let retry = original.retried_by[0]["id"].as_str().unwrap().to_owned();
     assert_ne!(retry, id);
     assert_ne!(retry, payload.uuid());
-    assert_eq!(
-        jobs.find(&retry)
-            .await
-            .unwrap()
-            .unwrap()
-            .payload_uuid()
-            .unwrap(),
-        payload.uuid()
-    );
+    let retried = jobs.find(&retry).await.unwrap().unwrap();
+    assert_eq!(retried.payload_uuid().unwrap(), payload.uuid());
+    let retry_snapshot = snapshot(&retried);
+    assert_eq!(retry_snapshot.retry_of(), Some(id.as_str()));
+    assert!(retry_snapshot.is_retry());
+    assert_eq!(retry_snapshot.tags(), queued_snapshot.tags());
+    assert!(!retry_snapshot.is_silenced());
+    assert!(!retried.silenced);
+    assert_eq!(TAG_CALLS.load(Ordering::SeqCst), 1);
+    let retried_payload: Payload = serde_json::from_value(retried.payload).unwrap();
+    assert!(retried_payload.options().retry_until.unwrap() > deadline);
     app.artisan([
         "queue:work",
         "redis",
@@ -1744,6 +1798,7 @@ async fn native_retries_keep_transport_ids_separate_from_the_failed_payload_uuid
         retry
     );
     assert_eq!(jobs.count_failed().await.unwrap(), 2);
+    assert_eq!(TAG_CALLS.load(Ordering::SeqCst), 1);
     // Removing the historical parent must not erase the retry's native failure.
     app.artisan(["horizon:forget", &id])
         .await
@@ -1761,6 +1816,113 @@ async fn native_retries_keep_transport_ids_separate_from_the_failed_payload_uuid
     assert!(failures.find(payload.uuid()).await.unwrap().is_none());
     assert_eq!(jobs.count_failed().await.unwrap(), 0);
     assert!(repository.recent(100).await.unwrap().is_empty());
+
+    manager
+        .register("success", Arc::new(Handler("success")))
+        .unwrap();
+    let success = Payload::new("success", json!({})).unwrap();
+    let queue = manager.connection(Some("redis")).unwrap();
+    let quiet = queue.push(&success, Some("quiet")).await.unwrap().unwrap();
+    assert!(snapshot(&jobs.find(&quiet).await.unwrap().unwrap()).is_silenced());
+    app.app()
+        .config()
+        .unwrap()
+        .set("horizon.silenced_tags", json!([]))
+        .unwrap();
+    app.artisan([
+        "horizon:work",
+        "redis",
+        "--queue=quiet",
+        "--once",
+        "--force",
+        "--memory=1024",
+    ])
+    .await
+    .assert_successful();
+    let silenced = jobs.get_silenced(None).await.unwrap();
+    assert_eq!(silenced.len(), 1);
+    assert_eq!(silenced[0].record.id, quiet);
+    assert_eq!(TAG_CALLS.load(Ordering::SeqCst), 2);
+
+    // 旧版 Redis 投递不含扩展元数据，仍可由当前 Worker 保留并完成。
+    let redis = app
+        .app()
+        .make::<openrust::redis::RedisManager>()
+        .await
+        .unwrap();
+    let redis = redis.connection(None).unwrap();
+    let raw = json!({
+        "id": "legacy-delivery",
+        "payload": serde_json::to_string(&success).unwrap(),
+        "attempts": 0
+    })
+    .to_string();
+    let key = redis.key("queues:legacy");
+    redis
+        .command("RPUSH", &[key.as_bytes(), raw.as_bytes()])
+        .await
+        .unwrap();
+    app.artisan([
+        "horizon:work",
+        "redis",
+        "--queue=legacy",
+        "--once",
+        "--force",
+        "--memory=1024",
+    ])
+    .await
+    .assert_successful();
+    let legacy = jobs.find("legacy-delivery").await.unwrap().unwrap();
+    assert_eq!(legacy.record.status, "completed");
+    assert!(!legacy.silenced);
+    let legacy_payload: Payload = serde_json::from_value(legacy.payload).unwrap();
+    assert!(JobPayload::from_payload(&legacy_payload).unwrap().is_none());
+
+    let old_failure = Payload::new("fail", json!({})).unwrap();
+    let raw = json!({
+        "id": "legacy-failure",
+        "payload": serde_json::to_string(&old_failure).unwrap(),
+        "attempts": 0
+    })
+    .to_string();
+    redis
+        .command("RPUSH", &[key.as_bytes(), raw.as_bytes()])
+        .await
+        .unwrap();
+    app.artisan([
+        "horizon:work",
+        "redis",
+        "--queue=legacy",
+        "--once",
+        "--tries=1",
+        "--force",
+        "--memory=1024",
+    ])
+    .await
+    .assert_successful();
+    let tag_calls = TAG_CALLS.load(Ordering::SeqCst);
+    let request = http::Request::builder()
+        .method("POST")
+        .uri("/api/horizon/api/jobs/retry/legacy-failure")
+        .header("x-test-operator", "operator")
+        .header("x-horizon-request", "1")
+        .body(openrust::http::Body::empty())
+        .unwrap();
+    let response = app.call(request).await.unwrap();
+    response.assert_ok();
+    assert_eq!(
+        serde_json::from_slice::<Value>(response.body()).unwrap(),
+        json!({"retried":1})
+    );
+    let legacy_failure = jobs.find_failed("legacy-failure").await.unwrap().unwrap();
+    let new_id = legacy_failure.retried_by[0]["id"].as_str().unwrap();
+    let metadata = snapshot(&jobs.find(new_id).await.unwrap().unwrap());
+    assert_eq!(metadata.retry_of(), Some("legacy-failure"));
+    assert_eq!(
+        metadata.tags(),
+        ["quiet".to_owned(), format!("call-{tag_calls}")]
+    );
+    assert_eq!(TAG_CALLS.load(Ordering::SeqCst), tag_calls + 1);
 }
 
 #[tokio::test]
