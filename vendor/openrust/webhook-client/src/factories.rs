@@ -265,6 +265,15 @@ impl WebhookStore for DeferredStore {
     fn find<'a>(&'a self, id: &'a str) -> HttpFuture<'a, Result<Option<WebhookCall>>> {
         Box::pin(async move { self.resolve()?.find(id).await })
     }
+    fn payload<'a>(&'a self, id: &'a str) -> HttpFuture<'a, Result<Option<serde_json::Value>>> {
+        Box::pin(async move { self.resolve()?.payload(id).await })
+    }
+    fn get_attachments<'a>(
+        &'a self,
+        id: &'a str,
+    ) -> HttpFuture<'a, Result<openrust::http::UploadedFileValue>> {
+        Box::pin(async move { self.resolve()?.get_attachments(id).await })
+    }
     fn set_exception<'a>(
         &'a self,
         call: &'a WebhookCall,

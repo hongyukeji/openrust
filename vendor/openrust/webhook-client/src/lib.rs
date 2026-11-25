@@ -6,6 +6,7 @@ mod contracts;
 mod error;
 mod factories;
 pub mod http;
+pub mod jobs;
 mod routes;
 pub use routes::{WebhookRouteOptions, WebhookRouter, WebhookRoutes};
 pub mod events;

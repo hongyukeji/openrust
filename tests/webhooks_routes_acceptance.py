@@ -42,7 +42,7 @@ def main():
    with (root/f"http-{phase}.log").open("w+") as log:
     server=http_helpers["serve"](binary,current,log)
     try:
-     def send(path,body=b"",method="POST",status=200,valid=True,standard=False,custom=False,expected_name=None,scope="webhook-acceptance",stored=True,queued=True,header=None,content_type="application/octet-stream",host=None):
+     def send(path,body=b"",method="POST",status=200,valid=True,standard=False,custom=False,expected_name=None,scope="webhook-acceptance",stored=True,queued=True,header=None,content_type="application/octet-stream",host=None,attempt_failure=False,terminal=False):
       nonlocal requests,workers
       before=set(sql("SELECT id FROM webhook_calls").split())
       signature=hmac.new(SECRET.encode(),body,hashlib.sha256).hexdigest()
@@ -78,15 +78,40 @@ def main():
        uri=urlsplit(record["url"]);assert uri.scheme=="http" and uri.netloc.lower()==host.lower() and uri.path==path
       else:assert record["url"]==f"http://127.0.0.1:{port}{path}",record
       if queued:
-       payload=sql("SELECT payload FROM jobs");assert receipt in payload and SECRET not in payload and STANDARD not in payload
+       wire=sql("SELECT payload FROM jobs")
+       assert SECRET not in wire and STANDARD not in wire
+       payload=json.loads(wire)
+       assert payload["name"].startswith("openrust_webhook_client::jobs::fixture")
+       assert payload["data"]=={"id":receipt,"scope":scope,"profile":expected_name,"revision":record["revision"]}
+       assert payload["options"]["max_tries"]==2 and payload["options"]["timeout"]["secs"]==12
        assert record["exception"] is None
        marker=root/f"worker-{receipt}.json"
-       command(binary,current|{"WEBHOOK_TEST_RECEIPT_OUTPUT":str(marker)},"queue:work","database","--queue=webhook-receipts","--once","--tries=1")
-       assert json.loads(marker.read_text())==record;workers+=1
+       worker_env=current|{"WEBHOOK_TEST_RECEIPT_OUTPUT":str(marker),"FIXTURE_SPATIE_SECRET":"other-worker-secret","FIXTURE_STANDARD_SECRET":"unused"}
+       def work():
+        nonlocal workers
+        command(binary,worker_env,"queue:work","database","--queue=webhook-receipts","--once","--tries=1")
+        workers+=1
+       if attempt_failure or terminal:
+        work()
+        assert not marker.exists() and sql("SELECT COUNT(*) FROM jobs")=="1"
+        failed=json.loads(command(binary,current,"webhooks:record",receipt,scope))
+        assert failed["exception"]=={"code":0,"message":"Webhook 处理任务执行失败"}
+       work()
+       if terminal:
+        assert not marker.exists()
+        failed=json.loads(command(binary,current,"webhooks:record",receipt,scope))
+        assert failed["exception"]=={"code":0,"message":"Webhook 处理任务执行失败"}
+        assert "private-business-error-sentinel" not in sql("SELECT exception FROM failed_jobs")
+        assert sql("SELECT COUNT(*) FROM failed_jobs")=="1"
+       else:
+        assert json.loads(marker.read_text())==record
       else:assert record["exception"]=={"code":0,"message":"Webhook 处理任务派发失败"}
       assert sql("SELECT COUNT(*) FROM jobs")=="0"
       return record
      send("/api/package/default",b"default",expected_name="default")
+     send("/api/package/post",b"retry-binary-receipt",expected_name="spatie",attempt_failure=True)
+     if phase=="unique":
+      send("/api/package/post",b"terminal-binary-receipt",expected_name="spatie",terminal=True)
      send("/api/package/post",b" post\0\xff\n",expected_name="spatie")
      record=send("/api/package/post?text=query&source=external",b' { "text": "  keep  ", "empty": "" }\n',content_type="application/json",expected_name="spatie")
      assert record["payload"]=={"text":"  keep  ","empty":"","source":"external"} and record["attachments"] is None
@@ -107,6 +132,8 @@ def main():
      send("/api/package/post",b"wrong-signature",valid=False,status=500,stored=False)
      send("/api/package/unknown",status=500,stored=False)
      send("/api/package/ignored",b"ignored-valid",stored=False)
+     send("/api/package/discarded",b"null-connection",status=500,expected_name="discarded",queued=False)
+     send("/api/package/unregistered",b"missing-handler",status=500,expected_name="unregistered",queued=False)
      send("/api/package/factory-fails",b"constructor-failure",status=500,expected_name="factory-fails",queued=False)
      send("/api/package/custom",b"custom",status=202,custom=True,scope="webhook-custom",expected_name="custom")
      send("/api/package/standard","中文🙂".encode(),standard=True,expected_name="standard")
@@ -134,7 +161,7 @@ def main():
     except BaseException:
      log.flush();print((root/f"http-{phase}.log").read_text());raise
     finally:http_helpers["stop"](server)
-  assert sql("SELECT COUNT(*) FROM failed_jobs")=="0"
+  assert sql("SELECT COUNT(*) FROM failed_jobs")=="1"
   legacy_id=sql("SELECT id FROM webhook_calls WHERE name='default' ORDER BY id LIMIT 1")
   assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate:rollback","--step=1","--force")
   assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate","--force")

@@ -101,7 +101,7 @@ pub async fn process_named(
 
 在应用 Provider 中调用 `WebhookRuntime::register_signature_validator`、`register_webhook_profile`、`register_webhook_response`、`register_webhook_store` 或 `register_job_dispatcher`。工厂接收不可变 `WebhookConfig` 和当前应用 `Container`，返回对应 trait 的 `Arc`。`WebhookRuntime::from_application` 需要 await；构造与处理使用指定应用的原生上下文，结束后恢复调用者。HTTP 控制器让请求依赖工厂与处理共用一次请求借用，请求句柄不能带出该借用。注册名区分大小写，最多128字节，只允许 ASCII 字母、数字及 `-`、`_`、`.`、`:`。未知或类型错误的绑定会失败，不回退到其他应用或账号。
 
-配置字段依次为 `signature_validator`、`webhook_profile`、`webhook_response`、`webhook_model`、`process_webhook_job`。内置验证器为 `default`／`standard`，Profile 为 `process-everything`，响应为 `default`，存储为 `database`。任务派发器必须显式注册；目前 `process_webhook_job` 选择派发器，完整上游可排队处理 Job API 仍待补齐。数据库配置还需要可信稳定 `scope`，可选 `connection` 为数据库连接名，`null` 使用应用默认连接。发布模板保留空 scope 和空任务名，未配置的接收端会报错，不会假确认。 必须显式选择 `signature_validator`、`webhook_profile`、`webhook_model`、`process_webhook_job`，缺失字段会被拒绝；只有 `webhook_response` 可省略或为 null，并使用默认响应。
+配置字段依次为 `signature_validator`、`webhook_profile`、`webhook_response`、`webhook_model`、`process_webhook_job`。内置验证器为 `default`／`standard`，Profile 为 `process-everything`，响应为 `default`，存储为 `database`。任务派发器必须显式注册；目前 `process_webhook_job` 选择派发器，原生队列处理可用 `QueuedWebhookJob`。数据库配置还需要可信稳定 `scope`，可选 `connection` 为数据库连接名，`null` 使用应用默认连接。发布模板保留空 scope 和空任务名，未配置的接收端会报错，不会假确认。 必须显式选择 `signature_validator`、`webhook_profile`、`webhook_model`、`process_webhook_job`，缺失字段会被拒绝；只有 `webhook_response` 可省略或为 null，并使用默认响应。
 
 例如具名 `payments` 配置可使用 `scope="billing/site-a"`、`signing_secret={"env":"PAYMENT_WEBHOOK_SECRET"}`、内置默认验证器／Profile／响应、database 存储及 `process_webhook_job="payments"`。将这些字段写入发布后的配置，并在 Provider 注册 payments 派发器。手动消费者也可通过 `WebhookConfig` 的 `with_signature_validator`、`with_webhook_profile`、`with_webhook_response`、`with_webhook_model`、`with_process_webhook_job`、`with_scope`、`with_connection` Builder 创建配置。
 
@@ -129,7 +129,11 @@ Provider 注册 `webhook_calls` 迁移，使用 `DatabaseWebhookStore` 前运行
 
 默认不保存请求头。`with_store_headers(&["X-Source"])` 不区分头名大小写，`with_store_headers(&["*"])` 明确保存全部头，可能包含敏感值。配置文件的全选值使用字符串 `"*"`，不能写成包含 `"*"` 的数组。异常 JSON 最多8192字节，请求目标最多8192字节，持久方法名最多32字节；手动传入的异常详情须由应用脱敏。
 
-应用实现的 `WebhookJobDispatcher` 应仅把记录 ID 和可信范围入队，在 Worker 中重新读取记录，不序列化密钥或整个模型。已接收的排队记录不应因签名时间窗过期而重新验签。本入口尚未补齐提交后派发崩溃窗口、请求去重、处理租约和自动注册的业务 Job，使用时须保留这些限制。
+### 在 Worker 中处理接收记录 {#processing-jobs}
+
+实现 `jobs::ProcessWebhookJob` 处理已保存的接收记录。在 HTTP 和 Worker 共用的应用 Provider 中，调用 `QueuedWebhookJob::register`，传入原生 `QueueManager`、稳定名称、可信范围的存储及处理器。再按 `process_webhook_job` 选择的名称注册 `QueuedWebhookJob` 派发器。不同存储范围使用各自的注册名。Worker 对照原记录核对 ID、范围、配置名和修订号后才调用处理器。
+
+派发器可指定队列连接和名称，原生 `JobOptions` 控制尝试次数、退避及超时。业务策略由处理器决定。队列载荷保存接收记录标识，Worker 直接读取已验收的记录，无需接收方的验签密钥。处理器失败时记录固定异常，下次尝试清除上次诊断。保存至派发之间的崩溃窗口、幂等及恢复仍待完成。请选择由 Worker 消费的连接。派发器拒绝内置 sync、null、deferred 和 background 连接，并要求队列返回已入队结果。
 
 ## 使用边界 {#scope}
 

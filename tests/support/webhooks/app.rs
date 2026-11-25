@@ -225,39 +225,75 @@ impl Command for Record {
                     .await
                     .map_err(ConsoleError::from_source)?;
             }
-            let headers: Vec<_> = call
-                .headers()
-                .iter()
-                .map(|(name, value)| json!([name.as_str(), value.as_bytes()]))
-                .collect();
-            let payload = call
-                .payload(&store)
+            let value = read_receipt(&call, &store)
                 .await
                 .map_err(ConsoleError::from_source)?;
-            let attachments = attachment_json(
-                call.get_attachments(&store)
-                    .await
-                    .map_err(ConsoleError::from_source)?,
-            );
-            let value = json!({"payload":payload,"attachments":attachments,"id":call.id(),"scope":call.scope(),"name":call.name(),"revision":call.revision(),"url":call.url(),"method":call.method().as_str(),"body":call.raw_body(),"headers":headers,"exception":call.exception()});
-            let env = application
-                .make::<openrust::config::Environment>()
+            write_receipt(application, &value)
                 .await
                 .map_err(ConsoleError::from_source)?;
-            if let Some(path) = env
-                .get_utf8("WEBHOOK_TEST_RECEIPT_OUTPUT")
-                .map_err(ConsoleError::from_source)?
-            {
-                std::fs::write(
-                    path,
-                    serde_json::to_vec(&value).map_err(ConsoleError::from_source)?,
-                )
-                .map_err(ConsoleError::from_source)?;
-            }
             output
                 .write_raw(&format!("{value}\n"))
                 .map_err(ConsoleError::from_source)?;
             Ok(0)
+        })
+    }
+}
+async fn read_receipt(
+    call: &openrust_webhook_client::models::WebhookCall,
+    store: &dyn openrust_webhook_client::WebhookStore,
+) -> openrust_webhook_client::Result<serde_json::Value> {
+    let headers: Vec<_> = call
+        .headers()
+        .iter()
+        .map(|(name, value)| json!([name.as_str(), value.as_bytes()]))
+        .collect();
+    let payload = call.payload(store).await?;
+    let attachments = attachment_json(call.get_attachments(store).await?);
+    Ok(
+        json!({"payload":payload,"attachments":attachments,"id":call.id(),"scope":call.scope(),"name":call.name(),"revision":call.revision(),"url":call.url(),"method":call.method().as_str(),"body":call.raw_body(),"headers":headers,"exception":call.exception()}),
+    )
+}
+async fn write_receipt(
+    application: &Application,
+    value: &serde_json::Value,
+) -> openrust_webhook_client::Result<()> {
+    let env = application.make::<openrust::config::Environment>().await?;
+    if let Some(path) = env
+        .get_utf8("WEBHOOK_TEST_RECEIPT_OUTPUT")
+        .map_err(runtime_error)?
+    {
+        std::fs::write(path, serde_json::to_vec(value).map_err(runtime_error)?)
+            .map_err(runtime_error)?;
+    }
+    Ok(())
+}
+fn runtime_error(
+    source: impl std::error::Error + Send + Sync + 'static,
+) -> openrust_webhook_client::Error {
+    openrust_webhook_client::Error::Runtime {
+        source: Box::new(source),
+    }
+}
+struct FixtureJob;
+impl openrust_webhook_client::jobs::ProcessWebhookJob for FixtureJob {
+    fn handle<'a>(
+        &'a self,
+        context: &'a mut openrust::queue::JobContext<'_>,
+        call: &'a openrust_webhook_client::models::WebhookCall,
+        store: &'a dyn openrust_webhook_client::WebhookStore,
+    ) -> HttpFuture<'a, openrust_webhook_client::Result<()>> {
+        Box::pin(async move {
+            assert_eq!(context.connection(), "database");
+            assert_eq!(context.queue(), "webhook-receipts");
+            if (call.raw_body() == b"retry-binary-receipt" && context.attempts() == 1)
+                || call.raw_body() == b"terminal-binary-receipt"
+            {
+                return Err(runtime_error(std::io::Error::other(
+                    "private-business-error-sentinel",
+                )));
+            }
+            let app = openrust::support::facades::App::get_facade_root()?;
+            write_receipt(&app, &read_receipt(call, store).await?).await
         })
     }
 }
@@ -269,11 +305,28 @@ impl openrust::support::ServiceProvider for FixtureProvider {
     ) -> HttpFuture<'a, openrust::support::ProviderResult> {
         Box::pin(async move {
             use openrust_webhook_client::WebhookRuntime;
-            WebhookRuntime::register_job_dispatcher(
-                openrust::contracts::foundation::Application::container(app),
-                "fixture",
-                |_, _| Ok(std::sync::Arc::new(ReceiveJob { fail: false })),
-            )?;
+            for name in ["fixture", "fixture-custom", "unregistered"] {
+                WebhookRuntime::register_job_dispatcher(
+                    openrust::contracts::foundation::Application::container(app),
+                    name,
+                    move |config, _| {
+                        Ok(std::sync::Arc::new(
+                            openrust_webhook_client::jobs::QueuedWebhookJob::new(name)?
+                                .on_connection(if config.name() == "discarded" {
+                                    "null"
+                                } else {
+                                    "database"
+                                })
+                                .on_queue("webhook-receipts")
+                                .with_options(openrust::queue::JobOptions {
+                                    max_tries: Some(2),
+                                    timeout: Some(std::time::Duration::from_secs(12)),
+                                    ..Default::default()
+                                }),
+                        ))
+                    },
+                )?;
+            }
             WebhookRuntime::register_job_dispatcher(
                 openrust::contracts::foundation::Application::container(app),
                 "factory-fails",
@@ -317,6 +370,31 @@ impl openrust::support::ServiceProvider for FixtureProvider {
                     ))
                 },
             )?;
+            Ok(())
+        })
+    }
+    fn boot<'a>(
+        &'a mut self,
+        app: &'a Application,
+    ) -> HttpFuture<'a, openrust::support::ProviderResult> {
+        Box::pin(async move {
+            let queue = app.make::<openrust::queue::QueueManager>().await?;
+            let manager = app.make::<openrust::database::DatabaseManager>().await?;
+            for (name, scope) in [
+                ("fixture", "webhook-acceptance"),
+                ("fixture-custom", "webhook-custom"),
+            ] {
+                let store = openrust_webhook_client::DatabaseWebhookStore::new(
+                    manager.connection(None)?,
+                    scope,
+                )?;
+                openrust_webhook_client::jobs::QueuedWebhookJob::register(
+                    &queue,
+                    name,
+                    std::sync::Arc::new(store),
+                    std::sync::Arc::new(FixtureJob),
+                )?;
+            }
             Ok(())
         })
     }
@@ -390,6 +468,8 @@ fn api_routes() -> Result<(), openrust::routing::RoutingError> {
     Route::post("/webhooks/{profile}", verify)?;
     Route::post("/received/{profile}", receive)?;
     Route::webhooks("/package/default", Options::default())?;
+    Route::webhooks("/package/unregistered", Options::new().name("unregistered"))?;
+    Route::webhooks("/package/discarded", Options::new().name("discarded"))?;
     Route::webhooks("/package/post", Options::new().name("spatie"))?;
     Route::webhooks(
         "/package/no-attachments",
@@ -598,8 +678,10 @@ async fn main() -> ExitCode {
                 {"name":"ignored","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"}},
                 {"name":"dispatch-fails","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"}},
                 {"name":"default","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"fixture","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database"},
-                {"name":"custom","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"signature_header_name":"X-Webhook","scope":"webhook-custom","process_webhook_job":"fixture","signature_validator":"custom","webhook_model":"custom","webhook_response":"custom","webhook_profile":"process-everything"},
+                {"name":"custom","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"signature_header_name":"X-Webhook","scope":"webhook-custom","process_webhook_job":"fixture-custom","signature_validator":"custom","webhook_model":"custom","webhook_response":"custom","webhook_profile":"process-everything"},
                 {"name":"package-ignored","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"webhook_profile":"ignored","webhook_model":"missing","process_webhook_job":"fixture","signature_validator":"default"},
+                {"name":"discarded","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"fixture","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database"},
+                {"name":"unregistered","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"unregistered","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database"},
                 {"name":"factory-fails","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"factory-fails","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database"}
             ]}));
             Ok(config)

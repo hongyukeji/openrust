@@ -206,6 +206,11 @@ impl QueueManager {
         self.registry.register(name, handler)
     }
 
+    /// 检查当前应用是否已注册可执行该名称的队列处理器。
+    pub fn has_handler(&self, name: &str) -> bool {
+        self.registry.handler(name).is_some()
+    }
+
     pub(crate) fn command_handler(&self, name: &str) -> Option<Arc<dyn JobHandler>> {
         self.registry.handler(name)
     }
@@ -309,7 +314,12 @@ impl QueueManager {
     }
 
     pub(crate) fn default_is_synchronous(&self) -> QueueResult<bool> {
-        Ok(self.resolve(None)?.synchronous)
+        self.connection_is_synchronous(None)
+    }
+
+    /// 检查连接是否使用内联或仅限当前进程生命周期的驱动。
+    pub fn connection_is_synchronous(&self, name: Option<&str>) -> QueueResult<bool> {
+        Ok(self.resolve(name)?.synchronous)
     }
 
     pub fn without_interruption_polling(&self) {

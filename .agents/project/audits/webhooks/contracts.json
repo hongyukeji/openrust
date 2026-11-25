@@ -100,16 +100,18 @@
       "public_methods": [
         "__construct"
       ],
-      "status": "pending_queueable_job_adapter",
+      "status": "partial_native_worker_adapter",
       "parent_classes": [],
       "declared_public_properties": [
         "webhookCall"
       ],
-      "notes": "Rust WebhookJobDispatcher 只表达派发接缝，名称与上游 ProcessWebhookJob 分开，不能证明上游 ShouldQueue／Dispatchable／Queueable／InteractsWithQueue／SerializesModels 抽象处理 Job 已实现。已有 Artisan Queue 消费者验证仅 ID／可信范围入队及独立 Worker 读取；正式可注册业务处理 Job 与继承契约仍待补齐。",
+      "notes": "业务处理 trait 与 QueuedWebhookJob 通过原生 Bus／QueueManager／JobContext 装配。Worker 按 ID、范围、配置及修订核对和恢复持久记录，不序列化原模型或密钥。实际三库队列消费、异常记录、重试清除与终态失败验证。持久恢复与完整 trait／生命周期裁决仍待验。",
       "evidence": [
         "tests/support/webhooks/app.rs",
-        "tests/webhooks_receiver_acceptance.py"
-      ]
+        "tests/webhooks_receiver_acceptance.py",
+        "tests/webhooks_routes_acceptance.py"
+      ],
+      "rust_source": "vendor/openrust/webhook-client/src/jobs.rs"
     },
     {
       "package": "client",
