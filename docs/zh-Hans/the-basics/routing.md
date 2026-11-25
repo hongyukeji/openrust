@@ -2,7 +2,7 @@
 
 在 `routes/web.rs` 声明 Web 路由。应用启动时通过 `openrust::routing::Router` 注册这些路由和 `/up` 健康检查。需要读取请求的处理器接收可变的 `Request` 并返回异步 HTTP 结果。框架调用 Web 路由模块的 `register()` 时绑定当前应用的 Router。导入 `openrust::support::facades::Route` 后，可以用 `Route::get("/", || view("welcome"))` 声明命名视图。
 
-默认应用已经预设并注册 `routes/api.rs` 和 `config/api.rs`，编写普通 API 不需要 Sanctum。需要 API 认证时再运行 `./artisan install:api`，安装 Sanctum 并向未改动的空 API 骨架加入受保护的 `/user`。已有业务路由默认保留，只有显式 `--force` 才覆盖；保留自定义路由文件时，手动追加受保护入口。在 `routes/api.rs` 中定义 API 路由。应用从 `config/api.rs` 加载 `api.prefix`，并应用 `api` 中间件组。默认前缀为 `/api`。在 `.env` 中设置 `API_PREFIX=api/admin` 可挂载到 `/api/admin`，设置 `API_PREFIX=` 可省略前缀。在 `with_routing` 中显式调用 `Routing::api_prefix(...)` 时，以该调用为准。 重复安装时保留已有的 `config/api.rs`，包括使用 `--force` 时。
+默认应用已经预设并注册 `routes/api.rs` 和 `config/api.rs`，编写普通 API 不需要 Sanctum。需要 API 认证时再运行 `./artisan install:api`，安装 Sanctum 并向未改动的空 API 骨架加入受保护的 `/user`。已有业务路由默认保留，只有显式 `--force` 才覆盖；保留自定义路由文件时，手动追加受保护入口。在 `routes/api.rs` 中定义 API 路由。应用从 `config/api.rs` 加载 `api.prefix`，并应用 `api` 中间件组。未设置 `API_PREFIX` 时，前缀默认为 `/api`。在 `.env` 中设置 `API_PREFIX=api/admin` 可挂载到 `/api/admin`，设置 `API_PREFIX=` 可省略前缀。在 `with_routing` 中显式调用 `Routing::api_prefix(...)` 时，以该调用为准。 重复安装时保留已有的 `config/api.rs`，包括使用 `--force` 时。
 
 在 `routes/api.rs` 的无参 `register() -> Result<(), RoutingError>` 中使用 `Route` Facade 声明 API 端点。路由路径相对于 API 前缀。GET 路由需要命名、模型绑定或路由级中间件时，可使用 `Route::get_with`。
 
