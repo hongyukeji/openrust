@@ -213,7 +213,8 @@ def main():
                 supervisor_name, killed, 128 + signal.SIGKILL, expired=True,
             )
             # Backlog grows the pool within its cap; maxJobs also recycles workers.
-            for _ in range(4):
+            dispatch(sleep_ms=1500, probe_output='recovered-worker')
+            for _ in range(3):
                 dispatch(sleep_ms=1500)
             scaled = until_master(lambda state: len(state['workers']) == 2)
             child_pids.update(w['pid'] for w in scaled['workers'])
@@ -269,6 +270,8 @@ def main():
             master.send_signal(signal.SIGTERM)
             stdout, stderr = master.communicate(timeout=15)
             assert master.returncode == 0, (stdout, stderr)
+            assert stdout.count('worker-out-東京-recovered-worker'.encode()) == 1, stdout
+            assert stdout.count(b'worker-err-recovered-worker') == 1, stdout
             assert status() == []
             until(lambda: stats()['queues'][0]['metrics']['completed'] == before + 2)
             for pid in child_pids:

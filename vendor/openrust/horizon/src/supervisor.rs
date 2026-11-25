@@ -1,10 +1,10 @@
 use crate::{
-    AutoScaler, Error, Repository, Result, SupervisorOptions, repository::MasterOwnership,
-    supervisor_commands::Command,
+    AutoScaler, Error, Repository, Result, SupervisorOptions, process_output::OutputHandler,
+    repository::MasterOwnership, supervisor_commands::Command,
 };
 use openrust::{
     contracts::events::Event,
-    process::{Factory, InvokedProcess, PendingProcess},
+    process::{Factory, InvokedProcess, OutputStream, PendingProcess},
     queue::QueueManager,
 };
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc, time::Duration};
@@ -29,6 +29,49 @@ pub struct WorkerProcess {
     restart_again_at: Option<Instant>,
     stopping: Option<Instant>,
     grace: Duration,
+    output: Option<OutputHandler>,
+}
+
+impl WorkerProcess {
+    /// 创建一个 Worker 包装器。排空时使用指定的宽限期。
+    pub fn new(supervisor: impl Into<String>, queue: impl Into<String>, grace: Duration) -> Self {
+        Self {
+            supervisor: supervisor.into(),
+            queue: queue.into(),
+            process: None,
+            pid: None,
+            exit_code: None,
+            restart_again_at: None,
+            stopping: None,
+            grace,
+            output: None,
+        }
+    }
+
+    /// 设置后续启动使用的原始输出回调。
+    pub fn handle_output_using(
+        &mut self,
+        handler: impl Fn(OutputStream, &[u8]) + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.output = Some(Arc::new(handler));
+        self
+    }
+
+    /// 启动已配置的子进程，复用当前输出回调。
+    pub fn start(&mut self, process: PendingProcess) -> openrust::process::Result<()> {
+        crate::process_output::start_child(&mut self.process, process, self.output.as_ref())?;
+        self.pid = self.process.as_ref().and_then(InvokedProcess::id);
+        Ok(())
+    }
+
+    pub fn process(&self) -> Option<&InvokedProcess> {
+        self.process.as_ref()
+    }
+
+    /// 将本次子进程交给调用方等待或关闭。
+    pub fn take_process(&mut self) -> Option<InvokedProcess> {
+        self.process.take()
+    }
 }
 
 /// 即将补位的 Worker 退出时的快照。
@@ -655,16 +698,13 @@ impl Supervisor {
         } else {
             let pool = self.pools.get_mut(queue).expect("configured pool");
             for _ in active..target {
-                pool.workers.push(WorkerProcess {
-                    supervisor: self.id.clone(),
-                    queue: queue.into(),
-                    pid: None,
-                    process: None,
-                    exit_code: None,
-                    restart_again_at: None,
-                    stopping: None,
-                    grace: Duration::from_secs(u64::from(options.timeout) + 5),
-                });
+                let mut worker = WorkerProcess::new(
+                    self.id.clone(),
+                    queue,
+                    Duration::from_secs(u64::from(options.timeout) + 5),
+                );
+                worker.output = self.output.clone();
+                pool.workers.push(worker);
             }
         }
         Ok(())
@@ -728,19 +768,13 @@ impl Supervisor {
                     now + Duration::from_secs(60)
                 }
             };
-            let result = crate::process_output::start(
-                self.prepare_worker(queue, options)?,
-                self.output.as_ref(),
-            );
+            let process = self.prepare_worker(queue, options)?;
             let worker = &mut self.pools.get_mut(queue).expect("configured pool").workers[index];
             worker.restart_again_at = Some(restart_again_at);
             worker.exit_code = None;
             worker.pid = None;
-            match result {
-                Ok(process) => {
-                    worker.pid = process.id();
-                    worker.process = Some(process);
-                }
+            match worker.start(process) {
+                Ok(()) => {}
                 Err(error) => {
                     let _ = openrust::support::facades::Log::warning(
                         &format!(

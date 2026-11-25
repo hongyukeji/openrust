@@ -148,6 +148,8 @@ Master 名稱由主機名稱轉換出的短名和程序內固定的四字元權�
 
 `horizon` 會即時將受管程序的輸出寫到 Artisan。從應用程式程式碼執行 `MasterSupervisor` 或 `Supervisor` 時，可用 `handle_output_using` 接收直接子程序的輸出。回呼接收 `openrust::process::OutputStream` 與位元組片段，可區分該子程序的 stdout 與 stderr。`horizon:supervisor` 會將 Worker 的兩個資料流都寫入自己的 stdout，因此 Master 收到合併後的輸出。
 
+直接使用 `WorkerProcess` 或 `SupervisorProcess` 時，透過 `handle_output_using` 註冊回呼，將已設定的 `PendingProcess` 傳給 `start`。透過 `take_process` 取得目前的控制代碼，再等候或停止程序。後續啟動會繼續使用已註冊的回呼，直到呼叫端替換它。
+
 Horizon 工作 ID 識別獨立的 Redis 投遞，由佇列推送和面板回傳。`horizon:retry` 與 `horizon:forget` 使用此 ID。重試取得新 ID，原失敗監控記錄保留並記錄重試結果。原生 `queue:retry` 和失敗工作儲存使用承載資料 UUID，由 Horizon 內部轉換；批次重試也會將這些 UUID 解析為目前失敗投遞。
 
 按[佇列](../digging-deeper/queues.md)設定持久失敗儲存，重試重用原生領取與重新派發機制。`horizon:forget` 刪除監控失敗記錄與原生失敗記錄，`--all` 分頁處理全部 Horizon 失敗記錄。`horizon:clear` 清空指定佇列和待處理監控記錄，`horizon:purge` 處理孤立程序。透過[工作排程](../digging-deeper/scheduling.md)定期執行 `horizon:snapshot` 保存指標歷史；`horizon:clear-metrics` 清理指標並保留工作記錄。

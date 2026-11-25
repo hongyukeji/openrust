@@ -73,6 +73,14 @@ function Supervisor-Command($Name, $Command, $Options, [switch]$MasterQueue) {
     }
 }
 
+$env:HORIZON_PROBE_WRAPPER_OUTPUT = '1'
+try {
+    & $Binary
+    if ($LASTEXITCODE -ne 0) { throw 'The native process wrapper probe failed.' }
+} finally {
+    Remove-Item Env:HORIZON_PROBE_WRAPPER_OUTPUT
+}
+
 foreach ($mode in @('idle', 'wait', 'fast', 'parent-exit', 'handlers', 'queue', 'file-queue')) {
     $customQueue = $mode -in @('queue', 'file-queue')
     $emptyPlan = $customQueue -or $mode -in @('idle', 'handlers')

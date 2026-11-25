@@ -112,7 +112,7 @@ def main():
             until(lambda: started.exists() and active_job in started.read_text())
             run('artisan', 'horizon:pause')
             until(lambda: statuses()[0]['status'] == 'paused')
-            pending_job = run(HORIZON_PROBE_DISPATCH='{"record_start":true}',
+            pending_job = run(HORIZON_PROBE_DISPATCH='{"record_start":true,"probe_output":"master-replacement"}',
                               HORIZON_PROBE_DISPATCH_UUID='1', HORIZON_PROBE_DISPATCH_QUEUE='added')
             command = 'Laravel\\Horizon\\SupervisorCommands\\Restart'
             queue('push', name, master=True, command=command, options=[])
@@ -143,6 +143,8 @@ def main():
             assert master.returncode == 0, (stdout, stderr)
             assert stdout.count('worker-out-東京-master-native') == 1, stdout
             assert stdout.count('worker-err-master-native') == 1, stdout
+            assert stdout.count('worker-out-東京-master-replacement') == 1, stdout
+            assert stdout.count('worker-err-master-replacement') == 1, stdout
             assert 'worker-err-master-native' not in stderr, stderr
             assert statuses() == []
             print('PASS: public FIFO queue, startup flush, paused dynamic deployment, actual Worker and scoped shutdown')

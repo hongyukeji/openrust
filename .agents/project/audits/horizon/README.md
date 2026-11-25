@@ -108,13 +108,23 @@ macOS 和 Linux ARM64 在真实 Redis 8.10.3 上验证暂停恢复、执行中�
 
 Rust 的 `MasterSupervisor` 和 `Supervisor` 提供 `handle_output_using` 与 `output`，按直接子进程的流类型传回原始字节。Rust 使用可在线程间共享的回调，调用方自行处理跨子进程的并发。真实 Artisan 实时写出两个流，`horizon:supervisor` 将 Worker 的两个流写入自己的 stdout。文件监听命令实时转发重启前后的进程输出，保留自身的错误流。框架进程的 `start_with_streamed_output` 在调用回调时跳过历史留存。显式捕获的进程内 Artisan 结果仍按原模型收集输出。
 
-Symfony Console 8.0.6 的实测覆盖 `<info>`、跨输出片段的样式、未知标签和强制 ANSI。Rust 的 Artisan 复用同一个控制台格式器处理有效 UTF-8 输出片段。已知标签按当前装饰选项显示，未知标签保留原文。程序直接注册的回调仍接收原始字节。无效 UTF-8 或格式器报错的片段继续按字节转发，文件监听命令保留 Cargo 的独立诊断。独立的 `WorkerProcess::handleOutputUsing` 及其通过 `SupervisorProcess` 继承的入口仍待按所属类型核对。
+Symfony Console 8.0.6 的实测覆盖 `<info>`、跨输出片段的样式、未知标签和强制 ANSI。Rust 的 Artisan 复用同一个控制台格式器处理有效 UTF-8 输出片段。已知标签按当前装饰选项显示，未知标签保留原文。程序直接注册的回调仍接收原始字节。无效 UTF-8 或格式器报错的片段继续按字节转发，文件监听命令保留 Cargo 的独立诊断。
 
 macOS 和 Linux ARM64 的实际 Artisan／Worker 验证强制 ANSI、跨写入的样式、未知标签及原始回调。Windows ARM64 用真实 Redis 验证普通标签格式、未知标签和原生进程树回归。Horizon 严格 Clippy、格式及三语正文检查通过。证据为 `target/tmp/observability-parity/horizon-output-format-{upstream,macos-final,linux,windows,docs}.log`。
 
 macOS 与 Linux ARM64 用真实 Redis 和 Worker 核对公开回调、实时输出和静默模式。macOS 文件监听在源码变动前后都收到实际任务的输出，框架进程测试 17 项通过，其中真实子进程输出 64 MiB，回调收到完整字节，结果无保留副本。框架和 Horizon 所涉严格 Clippy、格式及三语正文检查通过。
 
 Windows ARM64 首轮使用默认子进程输出管道时，快速终止等待了正在执行的任务。流式模式改用 Tokio 异步命名管道之后，真实 Redis 复验通过双流输出、Master 重启、默认终止、`--wait`、快速终止先退出 Master 以及父进程意外退出后的排空。证据为 `target/tmp/observability-parity/horizon-output-{macos-final,macos-pipes,framework-clippy,linux-final,windows,windows-final,docs}.log`。 [Tokio 异步命名管道](https://docs.rs/tokio/latest/tokio/net/windows/named_pipe/struct.ServerOptions.html)
+
+### WorkerProcess 与 SupervisorProcess 输出回调
+
+固定 WorkerProcess 与 SupervisorProcess 的原生 Symfony 子进程验证 `handleOutputUsing` 返回包装器，并注册 stdout／stderr 回调。已启动子进程保留启动时的回调。Worker 后续受 `monitor` 重启时使用更新后的回调，并在连续重启后保持注册。Supervisor 的受管重部署由 Master 决定。证据为 `target/tmp/observability-parity/horizon-wrapper-output-upstream.log`。 [固定 WorkerProcess](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/WorkerProcess.php) [固定 SupervisorProcess](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/SupervisorProcess.php)
+
+Rust 的两个包装器提供 `handle_output_using`、`start(PendingProcess)`、`process` 与 `take_process`。包装器拥有当前的进程句柄，显式取句柄后可启动下一次。注册或替换回调影响后续启动，输出仍按原始流和字节转发。受管路径从 Master 和 Supervisor 继承回调，并通过相同包装器启动。PHP 的动态方法转发在 Rust 使用显式进程句柄。
+
+macOS、Linux ARM64 和 Windows ARM64 均运行实际子进程验证独立包装器连续启动、回调替换、重复启动保护和两路字节传输。macOS 复验真实 Worker SIGKILL 补位后的双流输出，Linux ARM64 核对 Master 重部署后真实任务继续输出，Windows ARM64 的完整进程树及两种自定义命令后端通过。Horizon 全目标严格 Clippy、格式和三语文档正文检查通过。证据为 `target/tmp/observability-parity/horizon-wrapper-output-{macos,linux,windows,docs}.log`。
+
+独立包装器的监控、冷却和进程控制入口仍待对齐。Linux 的固定 PHP 探针用系统信号编号和真实 shell 子进程核对 Worker 包装器的 `pause`、`continue`、`terminate`，观察到 USR2、CONT、TERM 的顺序及终止状态码，并确认首次 `start` 启动冷却。该探针对应启用 PCNTL 时由该扩展提供的信号常量。证据为 `target/tmp/observability-parity/horizon-wrapper-control-upstream.log`。
 
 ### Windows 原生进程树
 

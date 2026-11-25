@@ -1,6 +1,7 @@
 //! Dedicated process acceptance application; never registered in the default app.
 mod command_handlers;
 mod file_command_queue;
+mod wrapper_output;
 
 use openrust::{
     config::{ConfigError, Environment, Value},
@@ -491,6 +492,14 @@ async fn run_output_probe(role: &str) {
 
 #[tokio::main]
 async fn main() -> std::process::ExitCode {
+    if let Ok(name) = std::env::var("HORIZON_PROBE_WRAPPER_CHILD") {
+        wrapper_output::run_child(&name).await;
+        return std::process::ExitCode::SUCCESS;
+    }
+    if std::env::var_os("HORIZON_PROBE_WRAPPER_OUTPUT").is_some() {
+        wrapper_output::run().await;
+        return std::process::ExitCode::SUCCESS;
+    }
     if let Ok(role) = std::env::var("HORIZON_PROBE_OUTPUT_CALLBACK")
         && std::env::args_os().len() == 1
     {

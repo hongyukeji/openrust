@@ -137,7 +137,7 @@ Supervisor 的结构化命令已接入同一 Redis 队列服务，覆盖暂停�
 
 Horizon 增加 Master 公开重启。恢复暂停后，原 Master 按之前的部署选项替换 Supervisor 与 Worker，已开始的任务继续执行。 [Master 公开重启审计](horizon/README.md#master-公开重启)
 
-Horizon 的 Master 和 Supervisor 增加公开输出回调，Artisan 与文件监听命令接通子进程的实时输出和控制台标签格式。使用真实任务核对 stdout、stderr、静默模式和文件重启前后的输出。独立进程包装器回调仍在对齐。 [输出回调审计](horizon/README.md#master-与-supervisor-输出回调)
+Horizon 的 Master 和 Supervisor 增加公开输出回调，Artisan 与文件监听命令接通子进程的实时输出和控制台标签格式。使用真实任务核对 stdout、stderr、静默模式和文件重启前后的输出。WorkerProcess 和 SupervisorProcess 接通独立输出注册及后续启动。 [输出回调审计](horizon/README.md#master-与-supervisor-输出回调) [进程包装器回调](horizon/README.md#workerprocess-与-supervisorprocess-输出回调)
 
 Horizon 的结构化命令可按名称解析应用容器中的 Master 或 Supervisor 处理器。真实 Artisan 进程验证自定义部署、同名命令覆盖、选项传递、排空退出码和应用隔离。 [命令处理器审计](horizon/README.md#应用容器中的命令处理器)
 

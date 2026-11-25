@@ -5,7 +5,7 @@ use crate::{
 use openrust::{
     contracts::events::{Event, Listener},
     events::{EventContext, EventError, EventFuture, EventResult, ListenerResponse},
-    process::{Factory, InvokedProcess, OutputStream},
+    process::{Factory, InvokedProcess, OutputStream, PendingProcess},
     queue::QueueManager,
 };
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc, time::Duration};
@@ -21,6 +21,7 @@ pub struct SupervisorProcess {
     dead: bool,
     from_command: bool,
     restarting: bool,
+    output: Option<OutputHandler>,
 }
 
 impl SupervisorProcess {
@@ -33,6 +34,7 @@ impl SupervisorProcess {
             dead: false,
             from_command: false,
             restarting: false,
+            output: None,
         }
     }
 
@@ -46,6 +48,25 @@ impl SupervisorProcess {
 
     pub fn process(&self) -> Option<&InvokedProcess> {
         self.process.as_ref()
+    }
+
+    /// 将本次子进程交给调用方等待或关闭。
+    pub fn take_process(&mut self) -> Option<InvokedProcess> {
+        self.process.take()
+    }
+
+    /// 设置后续启动使用的原始输出回调。
+    pub fn handle_output_using(
+        &mut self,
+        handler: impl Fn(OutputStream, &[u8]) + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.output = Some(Arc::new(handler));
+        self
+    }
+
+    /// 启动已配置的子进程，复用当前输出回调。
+    pub fn start(&mut self, process: PendingProcess) -> openrust::process::Result<()> {
+        crate::process_output::start_child(&mut self.process, process, self.output.as_ref())
     }
 
     pub fn is_dead(&self) -> bool {
@@ -85,6 +106,7 @@ impl AddSupervisor {
         }
         let mut child = SupervisorProcess::new(options, None);
         child.from_command = true;
+        child.output = master.output.clone();
         if let Some(existing) = existing {
             *existing = child;
         } else {
@@ -372,7 +394,9 @@ impl MasterSupervisor {
         for (name, mut options) in self.options.clone() {
             options.name = format!("{}:{name}", self.id);
             options.parent_id = std::process::id();
-            self.supervisors.push(SupervisorProcess::new(options, None));
+            let mut child = SupervisorProcess::new(options, None);
+            child.output = self.output.clone();
+            self.supervisors.push(child);
         }
         let mut control = crate::signals::ControlSignals::new()?;
         let paused = self.repository.paused().await?;
@@ -466,8 +490,7 @@ impl MasterSupervisor {
                 .is_some_and(|process| !process.running())
             {
                 let result = supervisor
-                    .process
-                    .take()
+                    .take_process()
                     .expect("observed child")
                     .wait()
                     .await
@@ -512,8 +535,8 @@ impl MasterSupervisor {
                 .forever();
             #[cfg(windows)]
             let child = child.with_shutdown_pipe();
-            match crate::process_output::start(child, self.output.as_ref()) {
-                Ok(process) => supervisor.process = Some(process),
+            match supervisor.start(child) {
+                Ok(()) => {}
                 Err(error) if supervisor.from_command => {
                     self.failures = self.failures.saturating_add(1);
                     let _ = openrust::support::facades::Log::warning(
