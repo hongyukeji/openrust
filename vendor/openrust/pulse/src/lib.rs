@@ -1,6 +1,8 @@
 #![doc = include_str!("../README.md")]
 #![forbid(unsafe_code)]
 
+extern crate self as openrust_pulse;
+
 mod entry;
 mod migration;
 mod value;

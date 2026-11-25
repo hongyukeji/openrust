@@ -52,7 +52,7 @@ gate.define_guest("viewPulse", |user, _| Box::pin(async move {
 
 慢查詢 `location` 使用資料庫事件擷取的呼叫位置，Release 建置也可記錄。沒有可用位置時寫入空字串，關閉 `location` 時寫入空值。`Exceptions` 接收原生帶型別的例外日誌、工作例外與 `Pulse::report`，一般 JSON 日誌內容不視為例外。Rust 錯誤未必帶有呼叫堆疊，需要時明確傳入位置。
 
-`Servers` 預設每個實例 15 秒取樣一次，儲存 CPU、記憶體與磁碟快照；`PULSE_SERVER_NAME` 與 `PULSE_SERVER_DIRECTORIES` 自訂名稱及冒號分隔的目錄。`Servers::detect_cpu_using`、`detect_memory_using` 可替換偵測器。
+`Servers` 預設每個實例 15 秒取樣一次，儲存 CPU、記憶體與磁碟快照；載入設定時預設讀取作業系統主機名稱，建立設定快取時會儲存該值。`PULSE_SERVER_NAME` 可覆寫主機名稱，`PULSE_SERVER_DIRECTORIES` 設定以冒號分隔的目錄。`Servers::detect_cpu_using`、`detect_memory_using` 可替換偵測器。
 
 ## 自訂指標 {#custom-metrics}
 

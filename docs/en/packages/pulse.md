@@ -52,7 +52,7 @@ Use ordered `[[pattern, value], ...]` arrays for `groups` and pattern-specific `
 
 Slow query `location` uses call sites captured by the database event, including in release builds. An unavailable call site is recorded as an empty string, while disabling `location` records a null value. `Exceptions` handles native typed exception logs, job failures and `Pulse::report`. Plain JSON log context is not treated as an exception. Rust errors do not necessarily contain a trace; provide an explicit location when needed.
 
-`Servers` samples each instance at most once every 15 seconds, retaining CPU, memory and disk snapshots. `PULSE_SERVER_NAME` and `PULSE_SERVER_DIRECTORIES` customize the name and colon-separated directories. Override detectors with `Servers::detect_cpu_using` and `detect_memory_using`.
+`Servers` samples each instance at most once every 15 seconds, retaining CPU, memory and disk snapshots. Configuration defaults to the operating system hostname and captures it when building the configuration cache. `PULSE_SERVER_NAME` overrides the hostname, and `PULSE_SERVER_DIRECTORIES` sets the colon-separated directories. Override detectors with `Servers::detect_cpu_using` and `detect_memory_using`.
 
 ## Custom Metrics {#custom-metrics}
 

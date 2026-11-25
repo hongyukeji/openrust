@@ -6,6 +6,9 @@ use openrust::{
     support::{ProviderResult, ServiceProvider, facades::Route},
 };
 use serde_json::json;
+
+#[path = "../../config/pulse.rs"]
+mod published_pulse;
 struct Operator;
 impl openrust::contracts::auth::Authenticatable for Operator {
     fn get_auth_identifier_name(&self) -> &str {
@@ -98,7 +101,8 @@ fn interrupted_stream(request: &mut Request) -> HttpFuture<'_, Result<Response, 
     })
 }
 fn create() -> Result<Application, Box<dyn std::error::Error + Send + Sync>> {
-    Ok(Application::configure(std::env::var("APP_BASE_PATH")?.into()).with_config(|base,_|Ok(std::collections::BTreeMap::from([
+    Ok(Application::configure(std::env::var("APP_BASE_PATH")?.into()).with_config(|base,env| {
+        let mut config = std::collections::BTreeMap::from([
         ("app".into(),json!({"env":"production","debug":false,"key":"01234567890123456789012345678901","cipher":"AES-256-CBC"})),
         ("database".into(),json!({"default":"sqlite","connections":{"sqlite":{"driver":"sqlite","database":base.join("database.sqlite")}}})),
         ("cache".into(),json!({"default":"file","stores":{"file":{"driver":"file","path":base.join("cache"),"lock_path":base.join("locks")}}})),
@@ -109,7 +113,14 @@ fn create() -> Result<Application, Box<dyn std::error::Error + Send + Sync>> {
         } else {
             json!({"Servers":false,"SlowQueries":false})
         },"ingest":{"driver":"storage","buffer":5000,"trim":{"lottery":[0,1]}}})),
-    ]))).with_providers(vec![Box::new(openrust_pulse::PulseServiceProvider),Box::new(Access)]).with_routing(Routing::default().api(||{Route::get("/probe",probe)?;Route::get("/stream",interrupted_stream)?;Ok(())})).create()?)
+    ]);
+        match env.get("PULSE_PROBE_CONFIG") {
+            Some("provider") => { config.remove("pulse"); }
+            Some("published") => { config.insert("pulse".into(), published_pulse::load(env)?); }
+            _ => {}
+        }
+        Ok(config)
+    }).with_providers(vec![Box::new(openrust_pulse::PulseServiceProvider),Box::new(Access)]).with_routing(Routing::default().api(||{Route::get("/probe",probe)?;Route::get("/stream",interrupted_stream)?;Ok(())})).create()?)
 }
 #[tokio::main]
 async fn main() -> std::process::ExitCode {

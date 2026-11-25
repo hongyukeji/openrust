@@ -78,7 +78,7 @@ O01 Activitylog、O02 Horizon、O03 Telescope原生范围、O04 Pennant、O05 Pu
 | Telescope `ClientRequestWatcher::input` | 已捕获构建器提供的 multipart 普通字段及 `attach_body` 附件的文件名、长度、头部。普通字段先于附件发送，同名取最后一项，复用请求字段／头部脱敏。原生 `attach` 保留发送契约。 | 原生 reqwest `Part` 元数据和中间件替换流的边界见[包审计](telescope/README.md#出站-multipart)。 |
 | Telescope 非 multipart 出站载荷 | 诊断从原始 GET 地址或结构化正文选择载荷，并与线上 URL 分别记录。已核对 JSON／表单 POST、GET 查询覆盖、HEAD、原始正文、自定义媒体类型与表单标量快照。成功重定向保留原始输入，连接失败从实际缓冲正文解码。 | multipart 重定向、重试回调改写与其他中间件组合仍需对账。 |
 | Telescope `FetchesStackTrace`、`QueryWatcher`、`GateWatcher` | 固定上游按路径子串跳过被忽略的帧，再选第一处合格来源。找不到合格帧时 Query 不入库，Gate 仍入库且行号和文件为空。Gate 已提供授权入口位置，Query 已从核心 SQL、分页、模型写入、直接关系读取及多对多中间表入口收集候选。 | Gate 外层候选、关联模型写入和读取时创建的变体、schema、懒加载入口，以及发布构建路径重映射仍须逐项核对。 |
-| Pulse 默认 Recorder 清单 | 固定配置的十个 Recorder 均可映射到本地配置。已核对采样率 1、慢操作阈值 1000、异常和慢查询位置开关、默认存储及采集驱动。SlowQueries 现使用数据库事件的调用位置。 | 逐 Recorder 核对触发事件、筛选、采样、聚合、配置覆盖和扩展入口，再核对命令和面板。Servers 主机名上游在配置加载时求值，本地在记录时回退，配置缓存边界待裁决。 |
+| Pulse 默认 Recorder 清单 | 固定配置的十个 Recorder 均可映射到本地配置。已核对采样率 1、慢操作阈值 1000、异常和慢查询位置开关、默认存储及采集驱动。SlowQueries 现使用数据库事件的调用位置。Servers 默认主机名随配置加载求值。 | 逐 Recorder 核对触发事件、筛选、采样、聚合、配置覆盖和扩展入口，再核对命令和面板。 |
 | Horizon `horizon:listen` 的 `watch` | 上游发布配置提供默认监听列表。Rust 配置补充应用、启动、配置、数据库、路由、视图、公开目录及资源目录中的 Rust 文件和 Cargo 构建入口的对应监听路径。真实 Artisan 使用默认配置监控 `routes/web.rs`，文件更新后重建 Master 和 Worker，SIGTERM 后子树退出。 | 补 Linux／Windows 目标平台验收。 |
 | Horizon 其余配置 | 固定上游含 `name`、`waits`、`silenced`、`silenced_tags` 及 Supervisor `nice`。本地已读静默配置并具备 `nice` 运行时默认；配置形状、面板名称、等待时间入口仍须逐项核对。 | 对照发布配置及实际命令、Redis 和面板消费者，分别核对默认、覆盖及非法值。 |
 
@@ -312,3 +312,9 @@ Rust 在 BelongsToMany 的中间表入口传播调用位置，覆盖带属性及
 Rust 使用原生 `QueryExecuted.callers` 已捕获的位置，跳过框架、Pulse 及启动入口，无需解析本地调试符号。默认保留第三方包的候选，符合 Pulse 对内部来源较窄的排除范围。来源不可用时写空字符串，禁用时写 `null`。移除 Pulse 唯一的 `backtrace` 依赖及其孤立依赖。未接入调用来源的数据库入口和自定义路径重映射仍继续核对。
 
 基于 `d987d7fa9` 加本批文件的隔离快照，SQLite 真实路由验证有来源与关闭来源的条目键。Pulse 默认 21 项、独立 Redis 8.10.3 Stream 用例、Pulse 与 Telescope 的运行时组合、快照全仓格式、Pulse 全目标严格 Clippy、三语文档构建及 12 组浏览器检查通过。同一 macOS Release 二进制分别验证 SQLite、PostgreSQL 18.7、MySQL 8.4.13 的慢查询来源和关闭开关。Linux／Windows 与部署组合仍需验收。证据位于 `target/tmp/observability-parity/pulse-query-source-*.log`。
+
+### Pulse Servers 默认主机名与配置缓存
+
+固定 [Pulse 配置](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/config/pulse.php) 在载入时求值默认主机名，显式 `PULSE_SERVER_NAME` 覆盖默认。PHP 8.5.12 探针直接载入固定配置，确认两种名称和先前已载入值的稳定性。Rust 包默认配置与发布配置共用现有原生主机名检测。缺少名称的历史快照和手写 Recorder 配置沿用采样时的回退，系统查询失败保留 `unknown`。
+
+基于 `38285b7c1` 加本批文件的隔离快照，使用真实 Artisan `config:cache`、`config:show`、`config:clear` 验证包默认配置与发布配置。两种配置均可缓存本机主机名或显式覆盖，缓存期间修改环境变量仍读取原值。Pulse 默认 21 项、快照格式、全目标严格 Clippy、三语构建和 12 组浏览器检查通过。证据位于 `target/tmp/observability-parity/pulse-server-*.log`。

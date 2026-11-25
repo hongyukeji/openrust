@@ -28,6 +28,12 @@ pub struct Servers {
     memory: RwLock<Option<Arc<MemoryDetector>>>,
 }
 impl Servers {
+    /// 为包默认配置和发布后的应用配置读取本机名称。
+    #[doc(hidden)]
+    pub fn default_server_name() -> String {
+        sysinfo::System::host_name().unwrap_or_else(|| "unknown".into())
+    }
+
     pub fn new(config: Arc<dyn Repository>) -> Self {
         Self {
             config,
@@ -99,8 +105,7 @@ impl Servers {
             .get("server_name")
             .and_then(|v| v.as_str())
             .map(str::to_owned)
-            .or_else(sysinfo::System::host_name)
-            .unwrap_or_else(|| "unknown".into());
+            .unwrap_or_else(Self::default_server_name);
         let slug = Str::slug(&name);
         pulse
             .record("cpu", &slug, Some(cpu), Some(event.time))

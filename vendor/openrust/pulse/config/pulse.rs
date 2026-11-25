@@ -1,4 +1,5 @@
 use openrust::config::{ConfigError, Environment, Value};
+use openrust_pulse::recorders::Servers;
 /*
 |--------------------------------------------------------------------------
 | Pulse 监控入口与开关
@@ -78,7 +79,11 @@ pub fn load(env: &Environment) -> Result<Value, ConfigError> {
     for name in ["SlowRequests", "UserRequests"] {
         recorders[name]["ignore"] = serde_json::json!([format!("#^/{path}$#"), "#^/telescope#"]);
     }
-    recorders.insert("Servers".into(),serde_json::json!({"server_name":env.get_utf8("PULSE_SERVER_NAME")?,"directories":env.get_utf8("PULSE_SERVER_DIRECTORIES")?.unwrap_or("/").split(':').collect::<Vec<_>>()}));
+    let server_name = env
+        .get_utf8("PULSE_SERVER_NAME")?
+        .map(str::to_owned)
+        .unwrap_or_else(Servers::default_server_name);
+    recorders.insert("Servers".into(),serde_json::json!({"server_name":server_name,"directories":env.get_utf8("PULSE_SERVER_DIRECTORIES")?.unwrap_or("/").split(':').collect::<Vec<_>>()}));
     /*
     |--------------------------------------------------------------------------
     | Pulse 数据存储与采集
