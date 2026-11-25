@@ -520,6 +520,9 @@ impl Application {
         container
             .instance(Arc::new(crate::console::ProgressDefinitions::default()))
             .expect("进度条定义初始未绑定");
+        container
+            .instance(Arc::new(crate::console::TableDefinitions::default()))
+            .expect("表格样式定义初始未绑定");
         let paths = Arc::new(super::Paths::new(base_path.clone()));
         container
             .instance(paths.clone())

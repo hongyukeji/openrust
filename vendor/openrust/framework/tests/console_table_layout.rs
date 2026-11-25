@@ -99,7 +99,7 @@ fn register() -> Result<(), ConsoleError> {
                 )));
             }
             let mut io = input.io(output);
-            let mut table = Table::new(io.get_output());
+            let mut table = Table::new(io.get_output()).unwrap();
             let rows: Vec<Vec<Value>> = case["rows"]
                 .as_array()
                 .unwrap()
@@ -172,7 +172,7 @@ fn register() -> Result<(), ConsoleError> {
                 answer: case["answer"].as_str().unwrap().to_owned(),
             }));
             let mut io = input.io(output);
-            let mut table = Table::new(io.get_output());
+            let mut table = Table::new(io.get_output()).unwrap();
             table
                 .set_headers(["A"])
                 .set_rows([[case["text"].as_str().unwrap()]]);

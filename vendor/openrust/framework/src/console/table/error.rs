@@ -4,6 +4,7 @@ use std::{error::Error, fmt, string::FromUtf8Error};
 #[derive(Debug)]
 pub enum ConsoleTableError {
     UndefinedStyle(String),
+    MissingDefinitions,
     EmptyPadding,
     RowIndexOverflow,
     UnsupportedWrappingFormatter,
@@ -14,6 +15,7 @@ pub enum ConsoleTableError {
 impl fmt::Display for ConsoleTableError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::MissingDefinitions => f.write_str("表格命名样式需要应用装配作用域"),
             Self::UndefinedStyle(name) => write!(f, "表格样式未定义：{name}"),
             Self::UnsupportedWrappingFormatter => f.write_str("当前格式器不支持列宽换行"),
             Self::InvalidColumnWidth(width) => write!(f, "表格有效列宽无效：{width}"),

@@ -1,0 +1,79 @@
+{
+  "scope": "Artisan phase22 named mutable table styles and application registry lifecycle",
+  "base_snapshot": {
+    "head": "45e0ce74baf3f5802f17e842ea73d232658e44b3"
+  },
+  "source_sha256": {
+    "vendor/openrust/framework/src/console/table.rs": "9737078c08aae43c4101b2b8d0a5830bc9ae537386398aef88e07890aceda205",
+    "vendor/openrust/framework/src/console/table/rows.rs": "64d24a896f24274b0ba85cffd81ab9a9bec86936572f8fcdab59401ae21dbbac",
+    "vendor/openrust/framework/src/console/table/style.rs": "9e64499cbcd3cabb8e675ba762baa676bdc414d37d778350ce0a0c6c1c4dec84",
+    "vendor/openrust/framework/src/console/table/error.rs": "93e9232f8abc04ac81a38e0f5663e1db8f24d5a83076f407103368996459d8f1",
+    "vendor/openrust/framework/src/console/table/definitions.rs": "1cf899392d620a9eca4db81d87cc298e41dc9bf8dc588128c9743bc63b413a78",
+    "vendor/openrust/framework/src/console/mod.rs": "a0acf99c0fa28e29c23e6465257e0a5a95ca54aba61e584776e34177d2c2d21e",
+    "vendor/openrust/framework/src/foundation/application.rs": "5b5093bf8143f19b6ab186377ace92761c040d2682a0d9d8da843a370873e9af",
+    "vendor/openrust/framework/tests/console_table_rows.rs": "42fba1f1fbc003a35872622826fbbfd52434579168acd56bd931578244a55e9c",
+    "vendor/openrust/framework/tests/console_table_layout.rs": "01be5b6e11dea2d50439583969c919065d049b7331cd186f2e6318ddf9277d7d",
+    "vendor/openrust/framework/tests/console_tables_tutorial.rs": "50f46078167ca047096733ef8463617eb75cd3537464839ca43f5690c6de7a9e",
+    "vendor/openrust/framework/tests/console_table_definitions.rs": "e6704357114647d2644b70e9c95230af388362d528c1eb5a9d82b6c8424226e3",
+    "tests/artisan_tutorial_docs.py": "0285fcf8091e83e663bec3d6186d9bbd2aca743f63a65b230ca2bed45e010b78",
+    "docs/tests/check_artisan_tutorial.mjs": "2f042b0fb96a5b8f5295b89ddcb502cd6e3d8fd739a4a9059202264913a7cad8",
+    "docs/en/digging-deeper/artisan.md": "c354f73f43f2736ed96bed167abf5b43fc7ce803e232c779e415797c0d05a371",
+    "docs/zh-Hans/digging-deeper/artisan.md": "814f93591933684599fe74ef68b0cb1907589b4dfb703891fe8de0a815abc923",
+    "docs/zh-Hant/digging-deeper/artisan.md": "0637be6c535c9512861391a45db244e9c6801dd90ec3ad7b6110a28a738fe3de",
+    ".agents/project/audits/artisan-tutorial/table-definitions-oracle.json": "c0eaf00240da5762b17fed2ef6f371b88a73a6399687249b4c5342f9f4ad9017",
+    ".agents/project/audits/artisan-tutorial/table-definitions-callback-oracle.json": "9b3cd886c70595bc1bad5cffdf42871959e2530ca6558069affd7ccf0dfd9c18",
+    ".agents/project/audits/artisan-tutorial/table-contracts.json": "0feac7b683eaa876ee78f4cc0996116894f44ada0764468516e9443f1b50200b",
+    ".agents/project/audits/artisan-tutorial/io-contracts.json": "1dc9c44fb4b36dbd10d8db701444e7e05cc18cfc0c04dda67016972827678dbb",
+    ".agents/project/audits/artisan-tutorial/section-map.json": "0088e9a497480b0e9ca56bcad9a4f8086ed8f538acd97cde6833c61b99afe7da"
+  },
+  "gates": [
+    {
+      "name": "format",
+      "returncode": 0
+    },
+    {
+      "name": "final-framework",
+      "returncode": 0
+    },
+    {
+      "name": "final-root",
+      "returncode": 0
+    },
+    {
+      "name": "final-fmt",
+      "returncode": 0
+    },
+    {
+      "name": "final-clippy",
+      "returncode": 0
+    },
+    {
+      "name": "final-main",
+      "returncode": 0
+    },
+    {
+      "name": "final-docs",
+      "returncode": 0
+    }
+  ],
+  "final_gates_log": "target/tmp/artisan-tutorial-20261125/table-definitions-gates1.log",
+  "passed": {
+    "framework": 103,
+    "root": 110
+  },
+  "unique_parent_tests": 213,
+  "ignored_driven_fixtures_excluded": 15,
+  "formal_trilingual_examples": 69,
+  "fixed_style_source_cases": 34,
+  "fixed_callback_source_cases": 2,
+  "source_stderr_bytes": 0,
+  "strict_clippy_seconds": 69,
+  "browser_cases": 12,
+  "real_http": true,
+  "real_artisan": true,
+  "limitations": [
+    "Explicit separator/spanning cells and ConsoleSectionOutput remain open",
+    "No complete Artisan closure or all active-worktree acceptance claimed",
+    "Application-scoped registry and fallible constructor/owned getter snapshots are explicit native adaptations; no process-global mutable PHP-style registry"
+  ]
+}

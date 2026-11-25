@@ -1,0 +1,1086 @@
+[
+    {
+        "decorated": false,
+        "ops": [
+            [
+                "external",
+                "box"
+            ],
+            [
+                "define_external",
+                "report"
+            ],
+            [
+                "named",
+                "report"
+            ],
+            [
+                "external_mutate",
+                "!"
+            ],
+            [
+                "render"
+            ],
+            [
+                "replace",
+                "report",
+                "compact"
+            ],
+            [
+                "render"
+            ],
+            [
+                "named",
+                "report"
+            ],
+            [
+                "render"
+            ]
+        ],
+        "trace": [
+            "",
+            "",
+            "",
+            "",
+            "┌!!!!!┬!!!!!┐\n│ A   │ B   │\n├!!!!!┼!!!!!┤\n│ one │ two │\n└!!!!!┴!!!!!┘\n",
+            "",
+            "┌!!!!!┬!!!!!┐\n│ A   │ B   │\n├!!!!!┼!!!!!┤\n│ one │ two │\n└!!!!!┴!!!!!┘\n",
+            "",
+            "A   B   \none two \n"
+        ],
+        "errors": [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "decorated": false,
+        "ops": [
+            [
+                "render"
+            ]
+        ],
+        "trace": [
+            "+-----+-----+\n| A   | B   |\n+-----+-----+\n| one | two |\n+-----+-----+\n"
+        ],
+        "errors": [
+            false
+        ]
+    },
+    {
+        "decorated": false,
+        "ops": [
+            [
+                "define",
+                "custom",
+                "box"
+            ],
+            [
+                "named",
+                "custom"
+            ],
+            [
+                "render"
+            ],
+            [
+                "mutate",
+                "custom",
+                "!"
+            ],
+            [
+                "render"
+            ]
+        ],
+        "trace": [
+            "",
+            "",
+            "┌─────┬─────┐\n│ A   │ B   │\n├─────┼─────┤\n│ one │ two │\n└─────┴─────┘\n",
+            "",
+            "┌!!!!!┬!!!!!┐\n│ A   │ B   │\n├!!!!!┼!!!!!┤\n│ one │ two │\n└!!!!!┴!!!!!┘\n"
+        ],
+        "errors": [
+            false,
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "decorated": false,
+        "ops": [
+            [
+                "define",
+                "custom",
+                "box"
+            ],
+            [
+                "named",
+                "custom"
+            ],
+            [
+                "replace",
+                "custom",
+                "compact"
+            ],
+            [
+                "render"
+            ],
+            [
+                "named",
+                "custom"
+            ],
+            [
+                "render"
+            ]
+        ],
+        "trace": [
+            "",
+            "",
+            "",
+            "┌─────┬─────┐\n│ A   │ B   │\n├─────┼─────┤\n│ one │ two │\n└─────┴─────┘\n",
+            "",
+            "A   B   \none two \n"
+        ],
+        "errors": [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "decorated": false,
+        "ops": [
+            [
+                "named",
+                "default"
+            ],
+            [
+                "mutate",
+                "default",
+                "~"
+            ],
+            [
+                "render"
+            ]
+        ],
+        "trace": [
+            "",
+            "",
+            "+~~~~~+~~~~~+\n| A   | B   |\n+~~~~~+~~~~~+\n| one | two |\n+~~~~~+~~~~~+\n"
+        ],
+        "errors": [
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "decorated": false,
+        "ops": [
+            [
+                "external",
+                "box"
+            ],
+            [
+                "render"
+            ],
+            [
+                "external_mutate",
+                "!"
+            ],
+            [
+                "render"
+            ]
+        ],
+        "trace": [
+            "",
+            "┌─────┬─────┐\n│ A   │ B   │\n├─────┼─────┤\n│ one │ two │\n└─────┴─────┘\n",
+            "",
+            "┌!!!!!┬!!!!!┐\n│ A   │ B   │\n├!!!!!┼!!!!!┤\n│ one │ two │\n└!!!!!┴!!!!!┘\n"
+        ],
+        "errors": [
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "decorated": false,
+        "ops": [
+            [
+                "external",
+                "box"
+            ],
+            [
+                "clone"
+            ],
+            [
+                "external_mutate",
+                "!"
+            ],
+            [
+                "render"
+            ]
+        ],
+        "trace": [
+            "",
+            "",
+            "",
+            "┌─────┬─────┐\n│ A   │ B   │\n├─────┼─────┤\n│ one │ two │\n└─────┴─────┘\n"
+        ],
+        "errors": [
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "decorated": false,
+        "ops": [
+            [
+                "named",
+                "missing"
+            ],
+            [
+                "render"
+            ]
+        ],
+        "trace": [
+            "",
+            "+-----+-----+\n| A   | B   |\n+-----+-----+\n| one | two |\n+-----+-----+\n"
+        ],
+        "errors": [
+            true,
+            false
+        ]
+    },
+    {
+        "decorated": false,
+        "ops": [
+            [
+                "column",
+                0,
+                "missing"
+            ],
+            [
+                "render"
+            ]
+        ],
+        "trace": [
+            "",
+            "+-----+-----+\n| A   | B   |\n+-----+-----+\n| one | two |\n+-----+-----+\n"
+        ],
+        "errors": [
+            true,
+            false
+        ]
+    },
+    {
+        "decorated": false,
+        "ops": [
+            [
+                "define",
+                "custom",
+                "box"
+            ],
+            [
+                "column",
+                0,
+                "custom"
+            ],
+            [
+                "mutate",
+                "custom",
+                "!"
+            ],
+            [
+                "render"
+            ]
+        ],
+        "trace": [
+            "",
+            "",
+            "",
+            "+-----+-----+\n| A   | B   |\n+-----+-----+\n| one | two |\n+-----+-----+\n"
+        ],
+        "errors": [
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "decorated": false,
+        "ops": [
+            [
+                "alias_global"
+            ],
+            [
+                "alias_mutate",
+                "."
+            ],
+            [
+                "render"
+            ]
+        ],
+        "trace": [
+            "",
+            "",
+            "+-----+-----+\n|.. A |.. B |\n+-----+-----+\n| one | two |\n+-----+-----+\n"
+        ],
+        "errors": [
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "decorated": false,
+        "ops": [
+            [
+                "alias_column",
+                2
+            ],
+            [
+                "alias_mutate",
+                "."
+            ],
+            [
+                "render"
+            ]
+        ],
+        "trace": [
+            "",
+            "",
+            "+-----+-----+\n|.. A |.. B |\n+-----+-----+\n| one | two |\n+-----+-----+\n"
+        ],
+        "errors": [
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "decorated": false,
+        "ops": [
+            [
+                "column",
+                0,
+                "compact"
+            ],
+            [
+                "alias_column",
+                0
+            ],
+            [
+                "alias_mutate",
+                "."
+            ],
+            [
+                "render"
+            ]
+        ],
+        "trace": [
+            "",
+            "",
+            "",
+            "+-----+-----+\n|...A | B   |\n+-----+-----+\n|.one | two |\n+-----+-----+\n"
+        ],
+        "errors": [
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "decorated": false,
+        "ops": [
+            [
+                "define",
+                "",
+                "box"
+            ],
+            [
+                "named",
+                ""
+            ],
+            [
+                "render"
+            ]
+        ],
+        "trace": [
+            "",
+            "",
+            "┌─────┬─────┐\n│ A   │ B   │\n├─────┼─────┤\n│ one │ two │\n└─────┴─────┘\n"
+        ],
+        "errors": [
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "decorated": false,
+        "ops": [
+            [
+                "define",
+                "0",
+                "markdown"
+            ],
+            [
+                "named",
+                "0"
+            ],
+            [
+                "render"
+            ]
+        ],
+        "trace": [
+            "",
+            "",
+            "| A   | B   |\n|-----|-----|\n| one | two |\n"
+        ],
+        "errors": [
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "decorated": false,
+        "ops": [
+            [
+                "define",
+                "custom",
+                "box"
+            ],
+            [
+                "named",
+                "custom"
+            ],
+            [
+                "clone_definition",
+                "custom"
+            ],
+            [
+                "clone_mutate",
+                "."
+            ],
+            [
+                "render"
+            ]
+        ],
+        "trace": [
+            "",
+            "",
+            "",
+            "",
+            "┌─────┬─────┐\n│ A   │ B   │\n├─────┼─────┤\n│ one │ two │\n└─────┴─────┘\n"
+        ],
+        "errors": [
+            false,
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "decorated": false,
+        "ops": [
+            [
+                "define",
+                "custom",
+                "box"
+            ],
+            [
+                "named",
+                "custom"
+            ],
+            [
+                "replace",
+                "custom",
+                "compact"
+            ],
+            [
+                "mutate",
+                "custom",
+                "!"
+            ],
+            [
+                "render"
+            ]
+        ],
+        "trace": [
+            "",
+            "",
+            "",
+            "",
+            "┌─────┬─────┐\n│ A   │ B   │\n├─────┼─────┤\n│ one │ two │\n└─────┴─────┘\n"
+        ],
+        "errors": [
+            false,
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "decorated": true,
+        "ops": [
+            [
+                "external",
+                "box"
+            ],
+            [
+                "define_external",
+                "report"
+            ],
+            [
+                "named",
+                "report"
+            ],
+            [
+                "external_mutate",
+                "!"
+            ],
+            [
+                "render"
+            ],
+            [
+                "replace",
+                "report",
+                "compact"
+            ],
+            [
+                "render"
+            ],
+            [
+                "named",
+                "report"
+            ],
+            [
+                "render"
+            ]
+        ],
+        "trace": [
+            "",
+            "",
+            "",
+            "",
+            "┌!!!!!┬!!!!!┐\n│\u001b[32m A   \u001b[39m│\u001b[32m B   \u001b[39m│\n├!!!!!┼!!!!!┤\n│ one │ two │\n└!!!!!┴!!!!!┘\n",
+            "",
+            "┌!!!!!┬!!!!!┐\n│\u001b[32m A   \u001b[39m│\u001b[32m B   \u001b[39m│\n├!!!!!┼!!!!!┤\n│ one │ two │\n└!!!!!┴!!!!!┘\n",
+            "",
+            "\u001b[32mA   \u001b[39m\u001b[32mB   \u001b[39m\none two \n"
+        ],
+        "errors": [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "decorated": true,
+        "ops": [
+            [
+                "render"
+            ]
+        ],
+        "trace": [
+            "+-----+-----+\n|\u001b[32m A   \u001b[39m|\u001b[32m B   \u001b[39m|\n+-----+-----+\n| one | two |\n+-----+-----+\n"
+        ],
+        "errors": [
+            false
+        ]
+    },
+    {
+        "decorated": true,
+        "ops": [
+            [
+                "define",
+                "custom",
+                "box"
+            ],
+            [
+                "named",
+                "custom"
+            ],
+            [
+                "render"
+            ],
+            [
+                "mutate",
+                "custom",
+                "!"
+            ],
+            [
+                "render"
+            ]
+        ],
+        "trace": [
+            "",
+            "",
+            "┌─────┬─────┐\n│\u001b[32m A   \u001b[39m│\u001b[32m B   \u001b[39m│\n├─────┼─────┤\n│ one │ two │\n└─────┴─────┘\n",
+            "",
+            "┌!!!!!┬!!!!!┐\n│\u001b[32m A   \u001b[39m│\u001b[32m B   \u001b[39m│\n├!!!!!┼!!!!!┤\n│ one │ two │\n└!!!!!┴!!!!!┘\n"
+        ],
+        "errors": [
+            false,
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "decorated": true,
+        "ops": [
+            [
+                "define",
+                "custom",
+                "box"
+            ],
+            [
+                "named",
+                "custom"
+            ],
+            [
+                "replace",
+                "custom",
+                "compact"
+            ],
+            [
+                "render"
+            ],
+            [
+                "named",
+                "custom"
+            ],
+            [
+                "render"
+            ]
+        ],
+        "trace": [
+            "",
+            "",
+            "",
+            "┌─────┬─────┐\n│\u001b[32m A   \u001b[39m│\u001b[32m B   \u001b[39m│\n├─────┼─────┤\n│ one │ two │\n└─────┴─────┘\n",
+            "",
+            "\u001b[32mA   \u001b[39m\u001b[32mB   \u001b[39m\none two \n"
+        ],
+        "errors": [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "decorated": true,
+        "ops": [
+            [
+                "named",
+                "default"
+            ],
+            [
+                "mutate",
+                "default",
+                "~"
+            ],
+            [
+                "render"
+            ]
+        ],
+        "trace": [
+            "",
+            "",
+            "+~~~~~+~~~~~+\n|\u001b[32m A   \u001b[39m|\u001b[32m B   \u001b[39m|\n+~~~~~+~~~~~+\n| one | two |\n+~~~~~+~~~~~+\n"
+        ],
+        "errors": [
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "decorated": true,
+        "ops": [
+            [
+                "external",
+                "box"
+            ],
+            [
+                "render"
+            ],
+            [
+                "external_mutate",
+                "!"
+            ],
+            [
+                "render"
+            ]
+        ],
+        "trace": [
+            "",
+            "┌─────┬─────┐\n│\u001b[32m A   \u001b[39m│\u001b[32m B   \u001b[39m│\n├─────┼─────┤\n│ one │ two │\n└─────┴─────┘\n",
+            "",
+            "┌!!!!!┬!!!!!┐\n│\u001b[32m A   \u001b[39m│\u001b[32m B   \u001b[39m│\n├!!!!!┼!!!!!┤\n│ one │ two │\n└!!!!!┴!!!!!┘\n"
+        ],
+        "errors": [
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "decorated": true,
+        "ops": [
+            [
+                "external",
+                "box"
+            ],
+            [
+                "clone"
+            ],
+            [
+                "external_mutate",
+                "!"
+            ],
+            [
+                "render"
+            ]
+        ],
+        "trace": [
+            "",
+            "",
+            "",
+            "┌─────┬─────┐\n│\u001b[32m A   \u001b[39m│\u001b[32m B   \u001b[39m│\n├─────┼─────┤\n│ one │ two │\n└─────┴─────┘\n"
+        ],
+        "errors": [
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "decorated": true,
+        "ops": [
+            [
+                "named",
+                "missing"
+            ],
+            [
+                "render"
+            ]
+        ],
+        "trace": [
+            "",
+            "+-----+-----+\n|\u001b[32m A   \u001b[39m|\u001b[32m B   \u001b[39m|\n+-----+-----+\n| one | two |\n+-----+-----+\n"
+        ],
+        "errors": [
+            true,
+            false
+        ]
+    },
+    {
+        "decorated": true,
+        "ops": [
+            [
+                "column",
+                0,
+                "missing"
+            ],
+            [
+                "render"
+            ]
+        ],
+        "trace": [
+            "",
+            "+-----+-----+\n|\u001b[32m A   \u001b[39m|\u001b[32m B   \u001b[39m|\n+-----+-----+\n| one | two |\n+-----+-----+\n"
+        ],
+        "errors": [
+            true,
+            false
+        ]
+    },
+    {
+        "decorated": true,
+        "ops": [
+            [
+                "define",
+                "custom",
+                "box"
+            ],
+            [
+                "column",
+                0,
+                "custom"
+            ],
+            [
+                "mutate",
+                "custom",
+                "!"
+            ],
+            [
+                "render"
+            ]
+        ],
+        "trace": [
+            "",
+            "",
+            "",
+            "+-----+-----+\n|\u001b[32m A   \u001b[39m|\u001b[32m B   \u001b[39m|\n+-----+-----+\n| one | two |\n+-----+-----+\n"
+        ],
+        "errors": [
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "decorated": true,
+        "ops": [
+            [
+                "alias_global"
+            ],
+            [
+                "alias_mutate",
+                "."
+            ],
+            [
+                "render"
+            ]
+        ],
+        "trace": [
+            "",
+            "",
+            "+-----+-----+\n|\u001b[32m.. A \u001b[39m|\u001b[32m.. B \u001b[39m|\n+-----+-----+\n| one | two |\n+-----+-----+\n"
+        ],
+        "errors": [
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "decorated": true,
+        "ops": [
+            [
+                "alias_column",
+                2
+            ],
+            [
+                "alias_mutate",
+                "."
+            ],
+            [
+                "render"
+            ]
+        ],
+        "trace": [
+            "",
+            "",
+            "+-----+-----+\n|\u001b[32m.. A \u001b[39m|\u001b[32m.. B \u001b[39m|\n+-----+-----+\n| one | two |\n+-----+-----+\n"
+        ],
+        "errors": [
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "decorated": true,
+        "ops": [
+            [
+                "column",
+                0,
+                "compact"
+            ],
+            [
+                "alias_column",
+                0
+            ],
+            [
+                "alias_mutate",
+                "."
+            ],
+            [
+                "render"
+            ]
+        ],
+        "trace": [
+            "",
+            "",
+            "",
+            "+-----+-----+\n|\u001b[32m...A \u001b[39m|\u001b[32m B   \u001b[39m|\n+-----+-----+\n|.one | two |\n+-----+-----+\n"
+        ],
+        "errors": [
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "decorated": true,
+        "ops": [
+            [
+                "define",
+                "",
+                "box"
+            ],
+            [
+                "named",
+                ""
+            ],
+            [
+                "render"
+            ]
+        ],
+        "trace": [
+            "",
+            "",
+            "┌─────┬─────┐\n│\u001b[32m A   \u001b[39m│\u001b[32m B   \u001b[39m│\n├─────┼─────┤\n│ one │ two │\n└─────┴─────┘\n"
+        ],
+        "errors": [
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "decorated": true,
+        "ops": [
+            [
+                "define",
+                "0",
+                "markdown"
+            ],
+            [
+                "named",
+                "0"
+            ],
+            [
+                "render"
+            ]
+        ],
+        "trace": [
+            "",
+            "",
+            "|\u001b[32m A   \u001b[39m|\u001b[32m B   \u001b[39m|\n|-----|-----|\n| one | two |\n"
+        ],
+        "errors": [
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "decorated": true,
+        "ops": [
+            [
+                "define",
+                "custom",
+                "box"
+            ],
+            [
+                "named",
+                "custom"
+            ],
+            [
+                "clone_definition",
+                "custom"
+            ],
+            [
+                "clone_mutate",
+                "."
+            ],
+            [
+                "render"
+            ]
+        ],
+        "trace": [
+            "",
+            "",
+            "",
+            "",
+            "┌─────┬─────┐\n│\u001b[32m A   \u001b[39m│\u001b[32m B   \u001b[39m│\n├─────┼─────┤\n│ one │ two │\n└─────┴─────┘\n"
+        ],
+        "errors": [
+            false,
+            false,
+            false,
+            false,
+            false
+        ]
+    },
+    {
+        "decorated": true,
+        "ops": [
+            [
+                "define",
+                "custom",
+                "box"
+            ],
+            [
+                "named",
+                "custom"
+            ],
+            [
+                "replace",
+                "custom",
+                "compact"
+            ],
+            [
+                "mutate",
+                "custom",
+                "!"
+            ],
+            [
+                "render"
+            ]
+        ],
+        "trace": [
+            "",
+            "",
+            "",
+            "",
+            "┌─────┬─────┐\n│\u001b[32m A   \u001b[39m│\u001b[32m B   \u001b[39m│\n├─────┼─────┤\n│ one │ two │\n└─────┴─────┘\n"
+        ],
+        "errors": [
+            false,
+            false,
+            false,
+            false,
+            false
+        ]
+    }
+]

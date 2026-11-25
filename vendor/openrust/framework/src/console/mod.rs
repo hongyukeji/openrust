@@ -72,6 +72,7 @@ pub use question::{
     ChoiceKey, ChoiceLabel, ChoiceQuestion, CompletionCallback, ConfirmationQuestion,
     ConsoleInputStream, ConsoleQuestionError, ConsoleReader, Question, QuestionCallback,
 };
+pub(crate) use table::TableDefinitions;
 pub use table::{ConsoleTableError, Table, TableCell, TablePadding, TableStyle};
 pub use terminal::Terminal;
 

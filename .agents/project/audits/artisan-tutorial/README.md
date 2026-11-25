@@ -318,3 +318,18 @@ add_row改为Result，与新add_rows一起在数字索引耗尽时返回有来�
 新增3个父消费者通过，1个ignore真实Artisan驱动夹具不计通过；实际handle_command逐字验证水平／垂直／多表头输出，索引耗尽退出1；真实TCP验证200／溢出500／后续200，任务状态不泄漏。66份三语正文直接提取样例，以对应真实源输出对照四种CLI标志。最终14框架目标97项＋根6目标107项，共204个不同父消费者，14个驱动夹具不叠加。格式、workspace all-targets严格Clippy50.50s、main(pail)、三语构建与12组浏览器，实际main HTTP/up/静态/404/HEAD、Artisan/Pail/Ctrl+C通过。证据table-rows-gates1/final-*/runtime/browser.log及accepted-table-rows.json；声明／参数／状态与余项更新table-contracts与section-map。
 
 清理本批运行目录，临时PHP容器已结束，保留源码／日志和可复用缓存；没有修改开发数据库或数据卷。方向转换中的内部记录分隔只表示本簇真实功能，不冒称公开TableSeparator/复杂单元格已完成。继续共享命名样式注册、显式分隔符与跨行跨列、ConsoleSection/appendRow及其他组件／注册／信号／Tinker；整章与持续目标未闭合。仅核定范围本地提交，不推送，其他协作在途保留。
+
+
+## 第二十二簇：表格共享命名样式与应用生命周期（2026-11-25）
+
+第二十一簇已本地提交45e0ce74baf3f5802f17e842ea73d232658e44b3，未推送。本簇固定Symfony Console7.4.0 Helper/Table.php与TableStyle.php（框架固定1449bf241017087fbd38c118ecaabef3f6797fdc），另复核[正式源码](https://github.com/symfony/console/blob/v7.4.0/Helper/Table.php)与[标准RwLock](https://doc.rust-lang.org/std/sync/struct.RwLock.html)。旧v0.x未提供可复用Table/样式SDK，复用现有表格渲染、格式器和应用级ProgressDefinitions装配；不创建第二渲染器、不新增依赖。
+
+实际补齐Table set/get_style_definition、set_style_named、set_column_style_named。TableStyle借用转入共享同一对象，显式Clone独立复制；已选样式的表格跟随对象修改，同名替换仅影响以后查找。列样式未配置时仍共享表格样式，外部句柄及两类getter可以保留引用。修复table便利方法绕过已注册default的问题，新增table_named/table_with_named_columns处理源的字符串重载，保持类型版本。
+
+原生适配逐项说明：沿用应用容器定义，进程内多个应用互不污染；实例捕获创建应用的注册表，外部作用域切换与Application释放后仍可用，不引入容器环。静态注册／读取需要当前应用，独立Table有自身内置定义；Table::new因此返回Result，传播解析失败，仓库消费者和三语真实示例同步?或unwrap。共享修改下String与数组getter改为拥有所有权快照，禁止以不安全指针或长期泄漏保留旧借用返回；只克隆需要字段，布局阶段少量完整快照，不持锁执行格式化／用户回调。公开CLI、数据、预设名与事件字符串不变。未宣称性能提升。
+
+34个实际源操作向量（共享／替换／克隆／全局与列别名／未知与空名／default变更、两种装饰）全部通过；另外2个实际格式器回调边渲染边修改样式向量逐字通过，并设5秒防死锁测试。独立handle_command输出及退出0通过；真实HTTP24并发请求跨两个应用验证定义隔离；无应用错误、作用域切换及实例保留生命周期通过。早期验收2项失败来自测试夹具未创建合法应用目录，已修复重跑，不计早期失败为通过。
+
+正式三语正文直接提取69例编译执行（新样例使用对应源向量逐字对照），受影响15个框架目标103项与根6目标110项，共213个不同父消费者通过；15个被父消费者驱动的ignore不叠加。原149矩形、204布局、230行键／方向及其他格式器／交互／进度回归保留。workspace all-targets严格Clippy69s、fmt、main(pail)、三语构建与12个桌面／手机／双挂载浏览器通过；实际main HTTP/up/静态/HTML与JSON404/HEAD、Artisan inspire/list/Pail过滤/-vv/timeout清理/Ctrl+C通过。没有运行完整活跃Webhook、Fortify或其他协作者在途，未声称全仓当前组合通过；未新验数据库／Windows。
+
+证据target/tmp/artisan-tutorial-20261125/table-definitions-{gates1,final-*,runtime,browser}.log、原始源输出及正式accepted-table-definitions.json；本批运行目录直接删除，临时PHP容器已自动删除，保留源码／日志／可复用缓存，数据与数据卷未变。共享命名样式本簇闭合；仍继续显式TableSeparator、合并单元格／TableCellStyle、ConsoleSectionOutput/appendRow及其他继承组件／注册／信号等，不关闭整章／持续目标。NewRelic供应商选型仍按真人裁决独立跟踪，不将其在途视作本簇交付。仅核定范围本地提交，不推送。

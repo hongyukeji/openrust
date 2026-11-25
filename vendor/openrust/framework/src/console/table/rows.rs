@@ -148,9 +148,12 @@ impl Table<'_, '_> {
     pub(super) fn rule_row(&mut self, widths: &[i64]) -> Result<(), ConsoleError> {
         let width = widths.first().copied().unwrap_or(0);
         let width = usize::try_from(width).map_err(ConsoleError::from_source)?;
-        let style = self.get_column_style(0);
+        let style = self.get_column_style(0).snapshot();
         let cell = template(&style.border_format, &style.borders[2].repeat(width))?;
-        let border = template(&self.style.border_format, &self.style.borders[1])?;
+        let border = template(
+            &self.style.get_border_format(),
+            &self.style.get_border_chars()[1],
+        )?;
         self.output.writeln(
             format!("{border}{cell}{border}").as_str(),
             super::OutputVerbosity::Normal,

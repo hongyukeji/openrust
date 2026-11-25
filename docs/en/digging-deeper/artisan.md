@@ -619,7 +619,7 @@ fn register_tables() -> Result<(), ConsoleError> {
 
 `table_with` selects a `TableStyle`; `table_with_columns` additionally accepts `(column_index, style)` pairs. `TableStyle::from_name` provides `default`, `markdown`, `borderless`, `compact`, `symfony-style-guide`, `box`, and `box-double`. Customize a style with its border, padding and format setters. `TablePadding::{Left, Right, Both}` names the side that receives padding; `Right` is the default.
 
-For direct rendering, build `Table::new(io.get_output())`, set headers, rows and column styles, then call `render()`. `TableCell::display(value)` explicitly adapts a business type implementing `Display`; JSON values and ordinary scalars convert directly. Multi-line cells, visible Unicode width, formatter tags, ANSI output and quiet/silent filtering share the original output pipeline. This rectangular-table interface does not claim support for cell spans, row separators, titles or the entire inherited helper SDK.
+For direct rendering, build `Table::new(io.get_output())?`, set headers, rows and column styles, then call `render()`. `TableCell::display(value)` explicitly adapts a business type implementing `Display`; JSON values and ordinary scalars convert directly. Multi-line cells, visible Unicode width, formatter tags, ANSI output and quiet/silent filtering share the original output pipeline. This rectangular-table interface does not claim support for cell spans, row separators or the entire inherited helper SDK.
 
 ## Progress Bars {#progress-bars}
 
@@ -936,7 +936,7 @@ use openrust::{
 fn register_layout() -> Result<(), ConsoleError> {
     Artisan::command_with("reports:layout", |input: &Input, output: &mut Output| {
         let mut io = input.io(output);
-        let mut table = Table::new(io.get_output());
+        let mut table = Table::new(io.get_output())?;
         table.set_headers(["Name", "Count"])
             .set_rows([["longer name", "42"]])
             .set_column_widths([12, 8])
@@ -970,7 +970,7 @@ use openrust::{
 fn register_rows() -> Result<(), ConsoleError> {
     Artisan::command_with("reports:rows", |input: &Input, output: &mut Output| {
         let mut io = input.io(output);
-        let mut table = Table::new(io.get_output());
+        let mut table = Table::new(io.get_output())?;
         table.set_headers(["Name", "Value"])
             .set_rows([["alpha", "1"]]);
         table.add_rows([["beta", "2"]])?;
@@ -984,3 +984,38 @@ fn register_rows() -> Result<(), ConsoleError> {
 ```
 
 `set_headers_rows` accepts multiple header rows; the existing `set_headers` remains the single-row form. `set_horizontal(true)` transposes the first header row into leading header cells. `set_vertical(true)` formats records with labels from that same first header row and separators between records. Both setters with false restore the default orientation rather than a previous direction. Layout derives from stored rows on each render and preserves width/title settings. Named style registries, explicit separator objects, merged cells and console sections are tracked separately.
+
+## Named Table Styles {#table-style-definitions}
+
+Use `Table::set_style_definition` and `get_style_definition` inside the current application scope. Each application has its own built-in and custom definitions; they persist across commands and requests in that application. A table keeps its creating application's definitions even after the outer scope changes. A standalone table has private built-ins; changing named definitions without an application returns an error.
+
+Pass `&style` to share one mutable style object; `style.clone()` explicitly copies its configuration. Modifying a shared definition also changes tables already using it. Replacing a definition by name affects subsequent lookups, while existing tables keep the original object. `TableStyle::from_name` remains an independent copy of a built-in preset.
+
+`Table::new` returns `Result` because resolving application services can fail. Style text and array getters return owned snapshots, so shared mutation cannot invalidate a borrowed reference. Use `TableStyle::from(table.get_style())` or the column getter to retain a shared handle. Formatting callbacks run outside style locks.
+
+```rust
+use openrust::{
+    console::{ConsoleError, Input, Output, Table, TableStyle},
+    support::facades::Artisan,
+};
+
+fn register_table_styles() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:table-styles", |input: &Input, output: &mut Output| {
+        let mut style = TableStyle::from_name("box")?;
+        Table::set_style_definition("report", &style)?;
+        let mut io = input.io(output);
+        let mut table = Table::new(io.get_output())?;
+        table.set_headers(["A", "B"]).set_rows([["one", "two"]]);
+        table.set_style_named("report")?;
+        style.set_horizontal_border_chars("!", None);
+        table.render()?;
+        Table::set_style_definition("report", TableStyle::from_name("compact")?)?;
+        table.render()?;
+        table.set_style_named("report")?.render()?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
+`set_style_named` and `set_column_style_named` resolve names and return errors for undefined definitions. The typed setters also accept borrowed styles. The `table` convenience method uses the application's current default. Use `table_named` or `table_with_named_columns` for named table and column styles. Explicit separator cells, spans and section redraw are still separate capabilities.

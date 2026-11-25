@@ -19,7 +19,7 @@ fn register() -> Result<(), ConsoleError> {
                 .map(|row| row.as_array().unwrap().clone())
                 .collect();
             let mut io = input.io(output);
-            let mut table = Table::new(io.get_output());
+            let mut table = Table::new(io.get_output()).unwrap();
             table
                 .set_headers(headers)
                 .set_rows(rows)
@@ -85,7 +85,7 @@ fn table_builder_reuses_output_and_validates_style() {
         .unwrap();
     let mut output = Output::default();
     let mut io = input.io(&mut output);
-    let mut table = Table::new(io.get_output());
+    let mut table = Table::new(io.get_output()).unwrap();
     assert_eq!(table.get_style(), &TableStyle::default());
     table
         .set_headers(["Number"])

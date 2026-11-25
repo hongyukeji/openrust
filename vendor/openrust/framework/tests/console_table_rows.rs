@@ -37,7 +37,7 @@ fn register() -> Result<(), ConsoleError> {
             let case: Value =
                 serde_json::from_str(input.argument("case").unwrap().as_str().unwrap()).unwrap();
             let mut io = input.io(output);
-            let mut table = Table::new(io.get_output());
+            let mut table = Table::new(io.get_output()).unwrap();
             headers(&mut table, &case["headers"]);
             table
                 .set_rows(rows(&case["rows"]))
@@ -110,7 +110,7 @@ fn register() -> Result<(), ConsoleError> {
     )?;
     Artisan::command_with("tables:overflow", |input: &Input, output: &mut Output| {
         let mut io = input.io(output);
-        let mut table = Table::new(io.get_output());
+        let mut table = Table::new(io.get_output()).unwrap();
         table.set_row(i64::MAX, ["last"]);
         table.add_row(["overflow"])?;
         table.render()?;

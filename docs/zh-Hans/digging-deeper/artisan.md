@@ -619,7 +619,7 @@ fn register_tables() -> Result<(), ConsoleError> {
 
 `table_with` 选择 `TableStyle`；`table_with_columns` 另外接受 `(列索引, 样式)`。`TableStyle::from_name` 提供 `default`、`markdown`、`borderless`、`compact`、`symfony-style-guide`、`box` 和 `box-double`。可通过边框、填充和格式设置方法定制样式。`TablePadding::{Left, Right, Both}` 表示填充所在侧，默认 `Right`。
 
-直接渲染时使用 `Table::new(io.get_output())`，设置表头、数据行和列样式后调用 `render()`。`TableCell::display(value)` 显式适配实现 `Display` 的业务类型；JSON 值和常用标量直接转换。多行单元格、Unicode 可见宽度、格式标签、ANSI 输出及 quiet／silent 过滤沿用原输出管线。此矩形表格接口不代表已支持跨行／跨列、行分隔符、标题或整个继承辅助库。
+直接渲染时使用 `Table::new(io.get_output())?`，设置表头、数据行和列样式后调用 `render()`。`TableCell::display(value)` 显式适配实现 `Display` 的业务类型；JSON 值和常用标量直接转换。多行单元格、Unicode 可见宽度、格式标签、ANSI 输出及 quiet／silent 过滤沿用原输出管线。此矩形表格接口不代表已支持跨行／跨列、行分隔符或整个继承辅助库。
 
 ## 进度条 {#progress-bars}
 
@@ -936,7 +936,7 @@ use openrust::{
 fn register_layout() -> Result<(), ConsoleError> {
     Artisan::command_with("reports:layout", |input: &Input, output: &mut Output| {
         let mut io = input.io(output);
-        let mut table = Table::new(io.get_output());
+        let mut table = Table::new(io.get_output())?;
         table.set_headers(["Name", "Count"])
             .set_rows([["longer name", "42"]])
             .set_column_widths([12, 8])
@@ -970,7 +970,7 @@ use openrust::{
 fn register_rows() -> Result<(), ConsoleError> {
     Artisan::command_with("reports:rows", |input: &Input, output: &mut Output| {
         let mut io = input.io(output);
-        let mut table = Table::new(io.get_output());
+        let mut table = Table::new(io.get_output())?;
         table.set_headers(["Name", "Value"])
             .set_rows([["alpha", "1"]]);
         table.add_rows([["beta", "2"]])?;
@@ -984,3 +984,38 @@ fn register_rows() -> Result<(), ConsoleError> {
 ```
 
 `set_headers_rows` 接收多行表头，原 `set_headers` 保留单行形式。`set_horizontal(true)` 将第一行表头转成各行首部，`set_vertical(true)` 用同一行表头生成字段标签并在记录间绘制分隔。两个设置器传 false 都恢复默认布局，不恢复此前方向。每次渲染从保存的行派生布局，并保留列宽和标题设置。命名样式注册、显式分隔符对象、合并单元格和控制台分区另行跟踪。
+
+## 命名表格样式 {#table-style-definitions}
+
+在当前应用作用域内使用 `Table::set_style_definition` 和 `get_style_definition`。每个应用独立保存内置及自定义定义，同一应用内跨命令和请求保留。表格始终使用创建它的应用定义，不随外层作用域切换；独立表格具有自己的内置定义，应用外修改命名定义返回错误。
+
+传入 `&style` 共享同一个可变样式对象，`style.clone()` 显式复制配置。修改共享定义也影响已使用它的表格；同名替换只影响后续查找，现有表格继续持有原对象。`TableStyle::from_name` 仍返回独立的内置预设副本。
+
+`Table::new` 返回 `Result`，传播应用服务解析失败。样式文本及数组 getter 返回拥有所有权的快照，避免共享修改使借用失效。使用 `TableStyle::from(table.get_style())` 或列 getter 保留共享句柄；格式化回调在样式锁外执行。
+
+```rust
+use openrust::{
+    console::{ConsoleError, Input, Output, Table, TableStyle},
+    support::facades::Artisan,
+};
+
+fn register_table_styles() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:table-styles", |input: &Input, output: &mut Output| {
+        let mut style = TableStyle::from_name("box")?;
+        Table::set_style_definition("report", &style)?;
+        let mut io = input.io(output);
+        let mut table = Table::new(io.get_output())?;
+        table.set_headers(["A", "B"]).set_rows([["one", "two"]]);
+        table.set_style_named("report")?;
+        style.set_horizontal_border_chars("!", None);
+        table.render()?;
+        Table::set_style_definition("report", TableStyle::from_name("compact")?)?;
+        table.render()?;
+        table.set_style_named("report")?.render()?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
+`set_style_named` 和 `set_column_style_named` 按名称解析，未定义名称返回错误；原类型 setter 也可接收借用样式。便利方法 `table` 使用应用当前默认定义，`table_named` 和 `table_with_named_columns` 支持命名表格与列样式。显式分隔单元格、跨行跨列和分区重绘仍为独立能力。

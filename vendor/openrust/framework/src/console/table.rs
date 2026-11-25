@@ -5,6 +5,8 @@ pub use error::ConsoleTableError;
 mod cell;
 pub use cell::TableCell;
 
+mod definitions;
+pub(crate) use definitions::Definitions as TableDefinitions;
 mod layout;
 mod rows;
 use crate::support::ArrayKey;
@@ -15,6 +17,7 @@ pub use style::{TablePadding, TableStyle};
 
 /// 标准矩形表格；输入转成文本后按可见宽度布局，标签交给原格式器处理。
 pub struct Table<'a, 'o> {
+    definitions: std::sync::Arc<definitions::Definitions>,
     output: &'a mut OutputStyle<'o>,
     headers: Vec<Vec<String>>,
     rows: Vec<Vec<String>>,
@@ -29,21 +32,24 @@ pub struct Table<'a, 'o> {
     footer_title: Option<String>,
 }
 impl<'a, 'o> Table<'a, 'o> {
-    pub fn new(output: &'a mut OutputStyle<'o>) -> Self {
-        Self {
+    pub fn new(output: &'a mut OutputStyle<'o>) -> Result<Self, ConsoleError> {
+        let definitions = definitions::current(false)?;
+        let style = definitions.get("default")?;
+        Ok(Self {
+            definitions,
             output,
             headers: Vec::new(),
             rows: Vec::new(),
             row_keys: Vec::new(),
             max_integer_key: None,
             orientation: Orientation::Default,
-            style: TableStyle::default(),
+            style,
             column_styles: BTreeMap::new(),
             column_widths: BTreeMap::new(),
             column_max_widths: BTreeMap::new(),
             header_title: None,
             footer_title: None,
-        }
+        })
     }
     pub fn set_headers<I, T>(&mut self, headers: I) -> &mut Self
     where
@@ -96,15 +102,15 @@ impl<'a, 'o> Table<'a, 'o> {
         self.set_row(key, row);
         Ok(self)
     }
-    pub fn set_style(&mut self, style: TableStyle) -> &mut Self {
-        self.style = style;
+    pub fn set_style(&mut self, style: impl Into<TableStyle>) -> &mut Self {
+        self.style = style.into();
         self
     }
     pub fn get_style(&self) -> &TableStyle {
         &self.style
     }
-    pub fn set_column_style(&mut self, column: usize, style: TableStyle) -> &mut Self {
-        self.column_styles.insert(column, style);
+    pub fn set_column_style(&mut self, column: usize, style: impl Into<TableStyle>) -> &mut Self {
+        self.column_styles.insert(column, style.into());
         self
     }
     pub fn get_column_style(&self, column: usize) -> &TableStyle {
@@ -145,7 +151,7 @@ impl<'a, 'o> Table<'a, 'o> {
                 }
             }
         }
-        let padding = i64::try_from(width(&self.style.cell_row_content_format))
+        let padding = i64::try_from(width(&self.style.get_cell_row_content_format()))
             .map_err(ConsoleError::from_source)?
             - 2;
         for (column, value) in widths.iter_mut().enumerate() {
@@ -193,8 +199,9 @@ impl<'a, 'o> Table<'a, 'o> {
         position: usize,
         include_header: bool,
     ) -> Result<(), ConsoleError> {
-        let b = &self.style.borders;
-        let c = &self.style.crossings;
+        let style = self.style.snapshot();
+        let b = &style.borders;
+        let c = &style.crossings;
         if b[0].is_empty() && b[2].is_empty() && c[0].is_empty() {
             return Ok(());
         }
@@ -217,20 +224,20 @@ impl<'a, 'o> Table<'a, 'o> {
         let title = if position == 2 {
             self.footer_title
                 .clone()
-                .map(|title| (title, self.style.footer_title_format.clone()))
+                .map(|title| (title, self.style.get_footer_title_format()))
         } else if include_header {
             self.header_title
                 .as_ref()
                 .filter(|title| !title.is_empty() && title.as_str() != "0")
                 .cloned()
-                .map(|title| (title, self.style.header_title_format.clone()))
+                .map(|title| (title, self.style.get_header_title_format()))
         } else {
             None
         };
         if let Some((title, format)) = title {
             line = self.with_title(&line, &title, &format)?;
         }
-        let line = template(&self.style.border_format, &line)?;
+        let line = template(&self.style.get_border_format(), &line)?;
         self.output.writeln(line.as_str(), OutputVerbosity::Normal)
     }
     fn row(
@@ -266,8 +273,14 @@ impl<'a, 'o> Table<'a, 'o> {
             })
             .collect();
         let height = parts.iter().map(Vec::len).max().unwrap_or_default();
-        let border = template(&self.style.border_format, &self.style.borders[1])?;
-        let inside = template(&self.style.border_format, &self.style.borders[3])?;
+        let border = template(
+            &self.style.get_border_format(),
+            &self.style.get_border_chars()[1],
+        )?;
+        let inside = template(
+            &self.style.get_border_format(),
+            &self.style.get_border_chars()[3],
+        )?;
         for index in 0..height {
             let mut line = border.clone();
             for (column, target) in widths.iter().enumerate() {
@@ -281,7 +294,7 @@ impl<'a, 'o> Table<'a, 'o> {
                     cell,
                 )
                 .map_err(ConsoleError::from_source)?;
-                let style = self.get_column_style(column);
+                let style = self.get_column_style(column).snapshot();
                 let content = template(&style.cell_row_content_format, cell)?;
                 let target = *target
                     + i64::try_from(cell.len()).map_err(ConsoleError::from_source)?
@@ -307,14 +320,13 @@ impl<'a, 'o> Table<'a, 'o> {
                     content,
                     padding(&style.padding_char, right)?
                 );
-                line.push_str(&template(
-                    if header || self.orientation == Orientation::Horizontal && column == 0 {
-                        &self.style.cell_header_format
-                    } else {
-                        &self.style.cell_row_format
-                    },
-                    &content,
-                )?);
+                let format = if header || self.orientation == Orientation::Horizontal && column == 0
+                {
+                    self.style.get_cell_header_format()
+                } else {
+                    self.style.get_cell_row_format()
+                };
+                line.push_str(&template(&format, &content)?);
                 line.push_str(if column + 1 < widths.len() {
                     &inside
                 } else {
@@ -347,7 +359,48 @@ impl super::CommandIo<'_> {
         RT: IntoIterator<Item = C>,
         C: Into<TableCell>,
     {
-        self.table_with(headers, rows, TableStyle::default())
+        let mut table = Table::new(self.get_output())?;
+        table.set_headers(headers).set_rows(rows).render()
+    }
+    pub fn table_named<H, HT, R, RT, C>(
+        &mut self,
+        headers: H,
+        rows: R,
+        style: &str,
+    ) -> Result<(), ConsoleError>
+    where
+        H: IntoIterator<Item = HT>,
+        HT: Into<TableCell>,
+        R: IntoIterator<Item = RT>,
+        RT: IntoIterator<Item = C>,
+        C: Into<TableCell>,
+    {
+        self.table_with_named_columns(headers, rows, style, std::iter::empty())
+    }
+    pub fn table_with_named_columns<'s, H, HT, R, RT, C, S>(
+        &mut self,
+        headers: H,
+        rows: R,
+        style: &str,
+        column_styles: S,
+    ) -> Result<(), ConsoleError>
+    where
+        H: IntoIterator<Item = HT>,
+        HT: Into<TableCell>,
+        R: IntoIterator<Item = RT>,
+        RT: IntoIterator<Item = C>,
+        C: Into<TableCell>,
+        S: IntoIterator<Item = (usize, &'s str)>,
+    {
+        let mut table = Table::new(self.get_output())?;
+        table
+            .set_headers(headers)
+            .set_rows(rows)
+            .set_style_named(style)?;
+        for (column, name) in column_styles {
+            table.set_column_style_named(column, name)?;
+        }
+        table.render()
     }
     pub fn table_with<H, HT, R, RT, C>(
         &mut self,
@@ -379,7 +432,7 @@ impl super::CommandIo<'_> {
         C: Into<TableCell>,
         S: IntoIterator<Item = (usize, TableStyle)>,
     {
-        let mut table = Table::new(self.get_output());
+        let mut table = Table::new(self.get_output())?;
         table.set_headers(headers).set_rows(rows).set_style(style);
         for (column, style) in column_styles {
             table.set_column_style(column, style);

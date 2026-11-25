@@ -334,7 +334,7 @@
     },
     {
       "anchor": "tables",
-      "status": "verified_text_rows_orientation_titles_widths_remaining_shared_styles_and_complex_cells",
+      "status": "verified_text_rows_orientation_layout_and_shared_styles_remaining_complex_cells_sections",
       "evidence": [
         "console_tables_tutorial",
         "table-oracle.json",
@@ -345,7 +345,10 @@
         "table-wrappable-oracle.json",
         "accepted-table-layout.json",
         "table-rows-oracle.json",
-        "accepted-table-rows.json"
+        "accepted-table-rows.json",
+        "table-definitions-oracle.json",
+        "table-definitions-callback-oracle.json",
+        "accepted-table-definitions.json"
       ],
       "native": "console::CommandIo::table",
       "remaining": [

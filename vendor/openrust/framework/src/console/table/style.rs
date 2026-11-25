@@ -1,4 +1,5 @@
 use super::{ConsoleError, ConsoleTableError};
+use std::sync::{Arc, RwLock};
 /// 单元格填充位置，编译期排除无效的整数标志。
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum TablePadding {
@@ -7,9 +8,8 @@ pub enum TablePadding {
     Right,
     Both,
 }
-/// 表格及列的样式配置，不修改进程级默认值。
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct TableStyle {
+pub(super) struct State {
     pub(super) padding_char: String,
     pub(super) borders: [String; 4],
     pub(super) crossings: [String; 12],
@@ -22,7 +22,7 @@ pub struct TableStyle {
     pub(super) header_title_format: String,
     pub(super) footer_title_format: String,
 }
-impl Default for TableStyle {
+impl Default for State {
     fn default() -> Self {
         Self {
             padding_char: " ".into(),
@@ -39,7 +39,41 @@ impl Default for TableStyle {
         }
     }
 }
+/// 可共享的样式引用；显式 clone 复制配置，借用转换保留同一对象。
+#[derive(Debug)]
+pub struct TableStyle(Arc<RwLock<State>>);
+impl Default for TableStyle {
+    fn default() -> Self {
+        Self(Arc::new(RwLock::new(State::default())))
+    }
+}
+impl Clone for TableStyle {
+    fn clone(&self) -> Self {
+        Self(Arc::new(RwLock::new(self.snapshot())))
+    }
+}
+impl PartialEq for TableStyle {
+    fn eq(&self, other: &Self) -> bool {
+        self.snapshot() == other.snapshot()
+    }
+}
+impl Eq for TableStyle {}
+impl From<&TableStyle> for TableStyle {
+    fn from(style: &TableStyle) -> Self {
+        style.shared_reference()
+    }
+}
 impl TableStyle {
+    pub(super) fn snapshot(&self) -> State {
+        self.0
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
+    }
+    pub(super) fn shared_reference(&self) -> Self {
+        Self(Arc::clone(&self.0))
+    }
+
     pub fn new() -> Self {
         Self::default()
     }
@@ -103,98 +137,187 @@ impl TableStyle {
         if value.is_empty() {
             return Err(ConsoleError::from_source(ConsoleTableError::EmptyPadding));
         }
-        self.padding_char = value;
+        self.0
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .padding_char = value;
         Ok(self)
     }
-    pub fn get_padding_char(&self) -> &str {
-        &self.padding_char
+    pub fn get_padding_char(&self) -> String {
+        self.0
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .padding_char
+            .clone()
     }
     pub fn set_horizontal_border_chars(
         &mut self,
         outside: &str,
         inside: Option<&str>,
     ) -> &mut Self {
-        self.borders[0] = outside.into();
-        self.borders[2] = inside.unwrap_or(outside).into();
+        let mut state = self
+            .0
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        state.borders[0] = outside.into();
+        state.borders[2] = inside.unwrap_or(outside).into();
+        drop(state);
         self
     }
     pub fn set_vertical_border_chars(&mut self, outside: &str, inside: Option<&str>) -> &mut Self {
-        self.borders[1] = outside.into();
-        self.borders[3] = inside.unwrap_or(outside).into();
+        let mut state = self
+            .0
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        state.borders[1] = outside.into();
+        state.borders[3] = inside.unwrap_or(outside).into();
+        drop(state);
         self
     }
-    pub fn get_border_chars(&self) -> &[String; 4] {
-        &self.borders
+    pub fn get_border_chars(&self) -> [String; 4] {
+        self.0
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .borders
+            .clone()
     }
     /// 顺序与交叉点定义一致；末三项为表头与正文之间的交叉点。
     pub fn set_crossing_chars(&mut self, chars: [&str; 12]) -> &mut Self {
-        self.crossings = chars.map(str::to_owned);
+        self.0
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .crossings = chars.map(str::to_owned);
         self
     }
     pub fn set_default_crossing_char(&mut self, value: &str) -> &mut Self {
-        self.crossings = std::array::from_fn(|_| value.to_owned());
+        self.0
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .crossings = std::array::from_fn(|_| value.to_owned());
         self
     }
-    pub fn get_crossing_char(&self) -> &str {
-        &self.crossings[0]
+    pub fn get_crossing_char(&self) -> String {
+        self.0
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .crossings[0]
+            .clone()
     }
-    pub fn get_crossing_chars(&self) -> &[String; 12] {
-        &self.crossings
+    pub fn get_crossing_chars(&self) -> [String; 12] {
+        self.0
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .crossings
+            .clone()
     }
     pub fn set_pad_type(&mut self, value: TablePadding) -> &mut Self {
-        self.pad_type = value;
+        self.0
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .pad_type = value;
         self
     }
     pub fn get_pad_type(&self) -> TablePadding {
-        self.pad_type
+        self.0
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .pad_type
     }
     pub fn set_display_outside_border(&mut self, value: bool) -> &mut Self {
-        self.outside = value;
+        self.0
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .outside = value;
         self
     }
     pub fn display_outside_border(&self) -> bool {
-        self.outside
+        self.0
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .outside
     }
     pub fn set_cell_header_format(&mut self, value: impl Into<String>) -> &mut Self {
-        self.cell_header_format = value.into();
+        self.0
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .cell_header_format = value.into();
         self
     }
-    pub fn get_cell_header_format(&self) -> &str {
-        &self.cell_header_format
+    pub fn get_cell_header_format(&self) -> String {
+        self.0
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .cell_header_format
+            .clone()
     }
     pub fn set_cell_row_format(&mut self, value: impl Into<String>) -> &mut Self {
-        self.cell_row_format = value.into();
+        self.0
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .cell_row_format = value.into();
         self
     }
-    pub fn get_cell_row_format(&self) -> &str {
-        &self.cell_row_format
+    pub fn get_cell_row_format(&self) -> String {
+        self.0
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .cell_row_format
+            .clone()
     }
     pub fn set_cell_row_content_format(&mut self, value: impl Into<String>) -> &mut Self {
-        self.cell_row_content_format = value.into();
+        self.0
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .cell_row_content_format = value.into();
         self
     }
-    pub fn get_cell_row_content_format(&self) -> &str {
-        &self.cell_row_content_format
+    pub fn get_cell_row_content_format(&self) -> String {
+        self.0
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .cell_row_content_format
+            .clone()
     }
     pub fn set_border_format(&mut self, value: impl Into<String>) -> &mut Self {
-        self.border_format = value.into();
+        self.0
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .border_format = value.into();
         self
     }
-    pub fn get_border_format(&self) -> &str {
-        &self.border_format
+    pub fn get_border_format(&self) -> String {
+        self.0
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .border_format
+            .clone()
     }
     pub fn set_header_title_format(&mut self, value: impl Into<String>) -> &mut Self {
-        self.header_title_format = value.into();
+        self.0
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .header_title_format = value.into();
         self
     }
-    pub fn get_header_title_format(&self) -> &str {
-        &self.header_title_format
+    pub fn get_header_title_format(&self) -> String {
+        self.0
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .header_title_format
+            .clone()
     }
     pub fn set_footer_title_format(&mut self, value: impl Into<String>) -> &mut Self {
-        self.footer_title_format = value.into();
+        self.0
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .footer_title_format = value.into();
         self
     }
-    pub fn get_footer_title_format(&self) -> &str {
-        &self.footer_title_format
+    pub fn get_footer_title_format(&self) -> String {
+        self.0
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .footer_title_format
+            .clone()
     }
 }

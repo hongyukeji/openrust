@@ -1,58 +1,84 @@
 {
   "reference": "Symfony Console v7.4.0 and fixed framework 1449bf241017087fbd38c118ecaabef3f6797fdc",
-  "scope": "Rectangular tutorial, text row keys/mutations/multiple headers/orientation, owned styles and width/title SDK verified; named shared styles, explicit separator/spanning cells/sections and inherited style remain open.",
+  "scope": "Text rows, orientation, widths/titles, mutable style SDK and named shared style lifecycle verified. Explicit separator/spanning cells/sections and inherited style remain open.",
   "classes": {
     "Table": [
       {
         "method": "__construct",
         "source_line": 57,
-        "status": "verified_rectangular_tutorial_scope",
-        "native": "console::Table::new"
+        "status": "verified_application_owned_default_registry_result_constructor",
+        "native": "console::Table::new",
+        "evidence": [
+          "console_table_definitions",
+          "console_tables_tutorial"
+        ]
       },
       {
         "method": "setStyleDefinition",
         "source_line": 68,
-        "status": "pending_sdk_entry_and_consumer_review",
-        "native": null
+        "status": "verified_shared_named_styles_and_application_lifecycle",
+        "native": "console::Table::set_style_definition",
+        "evidence": [
+          "console_table_definitions",
+          "table-definitions-oracle.json",
+          "table-definitions-callback-oracle.json"
+        ]
       },
       {
         "method": "getStyleDefinition",
         "source_line": 78,
-        "status": "pending_sdk_entry_and_consumer_review",
-        "native": null
+        "status": "verified_shared_named_styles_and_application_lifecycle",
+        "native": "console::Table::get_style_definition",
+        "evidence": [
+          "console_table_definitions",
+          "table-definitions-oracle.json",
+          "table-definitions-callback-oracle.json"
+        ]
       },
       {
         "method": "setStyle",
         "source_line": 90,
-        "status": "verified_rectangular_tutorial_scope",
-        "native": "console::Table::set_style"
+        "status": "verified_shared_named_styles_and_application_lifecycle",
+        "native": "console::Table::set_style / set_style_named",
+        "evidence": [
+          "console_table_definitions",
+          "table-definitions-oracle.json",
+          "table-definitions-callback-oracle.json"
+        ]
       },
       {
         "method": "getStyle",
         "source_line": 100,
-        "status": "verified_readonly_and_mutable_table_owned_style",
-        "native": "console::Table::get_style",
+        "status": "verified_shared_named_styles_and_application_lifecycle",
+        "native": "console::Table::get_style / get_style_mut",
         "native_mut": "console::Table::get_style_mut",
         "evidence": [
-          "console_tables_tutorial",
-          "console_table_layout"
+          "console_table_definitions",
+          "table-definitions-oracle.json",
+          "table-definitions-callback-oracle.json"
         ]
       },
       {
         "method": "setColumnStyle",
         "source_line": 112,
-        "status": "verified_rectangular_tutorial_scope",
-        "native": "console::Table::set_column_style"
+        "status": "verified_shared_named_styles_and_application_lifecycle",
+        "native": "console::Table::set_column_style / set_column_style_named",
+        "evidence": [
+          "console_table_definitions",
+          "table-definitions-oracle.json",
+          "table-definitions-callback-oracle.json"
+        ]
       },
       {
         "method": "getColumnStyle",
         "source_line": 124,
-        "status": "verified_readonly_and_mutable_table_owned_style",
-        "native": "console::Table::get_column_style",
+        "status": "verified_shared_named_styles_and_application_lifecycle",
+        "native": "console::Table::get_column_style / get_column_style_mut",
         "native_mut": "console::Table::get_column_style_mut",
         "evidence": [
-          "console_tables_tutorial",
-          "console_table_layout"
+          "console_table_definitions",
+          "table-definitions-oracle.json",
+          "table-definitions-callback-oracle.json"
         ]
       },
       {
@@ -202,151 +228,176 @@
         "method": "setPaddingChar",
         "source_line": 57,
         "status": "verified_rectangular_style_scope",
-        "native": "console::TableStyle::set_padding_char"
+        "native": "console::TableStyle::set_padding_char",
+        "native_return_adaptation": "Owned String/array snapshots for getters; typed enum for padding, shared borrow handles and explicit deep Clone."
       },
       {
         "method": "getPaddingChar",
         "source_line": 71,
         "status": "verified_rectangular_style_scope",
-        "native": "console::TableStyle::get_padding_char"
+        "native": "console::TableStyle::get_padding_char",
+        "native_return_adaptation": "Owned String/array snapshots for getters; typed enum for padding, shared borrow handles and explicit deep Clone."
       },
       {
         "method": "setHorizontalBorderChars",
         "source_line": 92,
         "status": "verified_rectangular_style_scope",
-        "native": "console::TableStyle::set_horizontal_border_chars"
+        "native": "console::TableStyle::set_horizontal_border_chars",
+        "native_return_adaptation": "Owned String/array snapshots for getters; typed enum for padding, shared borrow handles and explicit deep Clone."
       },
       {
         "method": "setVerticalBorderChars",
         "source_line": 117,
         "status": "verified_rectangular_style_scope",
-        "native": "console::TableStyle::set_vertical_border_chars"
+        "native": "console::TableStyle::set_vertical_border_chars",
+        "native_return_adaptation": "Owned String/array snapshots for getters; typed enum for padding, shared borrow handles and explicit deep Clone."
       },
       {
         "method": "getBorderChars",
         "source_line": 130,
         "status": "verified_rectangular_style_scope",
-        "native": "console::TableStyle::get_border_chars"
+        "native": "console::TableStyle::get_border_chars",
+        "native_return_adaptation": "Owned String/array snapshots for getters; typed enum for padding, shared borrow handles and explicit deep Clone."
       },
       {
         "method": "setCrossingChars",
         "source_line": 171,
         "status": "verified_rectangular_style_scope",
-        "native": "console::TableStyle::set_crossing_chars"
+        "native": "console::TableStyle::set_crossing_chars",
+        "native_return_adaptation": "Owned String/array snapshots for getters; typed enum for padding, shared borrow handles and explicit deep Clone."
       },
       {
         "method": "setDefaultCrossingChar",
         "source_line": 194,
         "status": "verified_rectangular_style_scope",
-        "native": "console::TableStyle::set_default_crossing_char"
+        "native": "console::TableStyle::set_default_crossing_char",
+        "native_return_adaptation": "Owned String/array snapshots for getters; typed enum for padding, shared borrow handles and explicit deep Clone."
       },
       {
         "method": "getCrossingChar",
         "source_line": 202,
         "status": "verified_rectangular_style_scope",
-        "native": "console::TableStyle::get_crossing_char"
+        "native": "console::TableStyle::get_crossing_char",
+        "native_return_adaptation": "Owned String/array snapshots for getters; typed enum for padding, shared borrow handles and explicit deep Clone."
       },
       {
         "method": "getCrossingChars",
         "source_line": 212,
         "status": "verified_rectangular_style_scope",
-        "native": "console::TableStyle::get_crossing_chars"
+        "native": "console::TableStyle::get_crossing_chars",
+        "native_return_adaptation": "Owned String/array snapshots for getters; typed enum for padding, shared borrow handles and explicit deep Clone."
       },
       {
         "method": "setCellHeaderFormat",
         "source_line": 235,
         "status": "verified_rectangular_style_scope",
-        "native": "console::TableStyle::set_cell_header_format"
+        "native": "console::TableStyle::set_cell_header_format",
+        "native_return_adaptation": "Owned String/array snapshots for getters; typed enum for padding, shared borrow handles and explicit deep Clone."
       },
       {
         "method": "getCellHeaderFormat",
         "source_line": 245,
         "status": "verified_rectangular_style_scope",
-        "native": "console::TableStyle::get_cell_header_format"
+        "native": "console::TableStyle::get_cell_header_format",
+        "native_return_adaptation": "Owned String/array snapshots for getters; typed enum for padding, shared borrow handles and explicit deep Clone."
       },
       {
         "method": "setCellRowFormat",
         "source_line": 255,
         "status": "verified_rectangular_style_scope",
-        "native": "console::TableStyle::set_cell_row_format"
+        "native": "console::TableStyle::set_cell_row_format",
+        "native_return_adaptation": "Owned String/array snapshots for getters; typed enum for padding, shared borrow handles and explicit deep Clone."
       },
       {
         "method": "getCellRowFormat",
         "source_line": 265,
         "status": "verified_rectangular_style_scope",
-        "native": "console::TableStyle::get_cell_row_format"
+        "native": "console::TableStyle::get_cell_row_format",
+        "native_return_adaptation": "Owned String/array snapshots for getters; typed enum for padding, shared borrow handles and explicit deep Clone."
       },
       {
         "method": "setCellRowContentFormat",
         "source_line": 275,
         "status": "verified_rectangular_style_scope",
-        "native": "console::TableStyle::set_cell_row_content_format"
+        "native": "console::TableStyle::set_cell_row_content_format",
+        "native_return_adaptation": "Owned String/array snapshots for getters; typed enum for padding, shared borrow handles and explicit deep Clone."
       },
       {
         "method": "getCellRowContentFormat",
         "source_line": 285,
         "status": "verified_rectangular_style_scope",
-        "native": "console::TableStyle::get_cell_row_content_format"
+        "native": "console::TableStyle::get_cell_row_content_format",
+        "native_return_adaptation": "Owned String/array snapshots for getters; typed enum for padding, shared borrow handles and explicit deep Clone."
       },
       {
         "method": "setBorderFormat",
         "source_line": 295,
         "status": "verified_rectangular_style_scope",
-        "native": "console::TableStyle::set_border_format"
+        "native": "console::TableStyle::set_border_format",
+        "native_return_adaptation": "Owned String/array snapshots for getters; typed enum for padding, shared borrow handles and explicit deep Clone."
       },
       {
         "method": "getBorderFormat",
         "source_line": 305,
         "status": "verified_rectangular_style_scope",
-        "native": "console::TableStyle::get_border_format"
+        "native": "console::TableStyle::get_border_format",
+        "native_return_adaptation": "Owned String/array snapshots for getters; typed enum for padding, shared borrow handles and explicit deep Clone."
       },
       {
         "method": "setPadType",
         "source_line": 315,
         "status": "verified_rectangular_style_scope",
-        "native": "console::TableStyle::set_pad_type"
+        "native": "console::TableStyle::set_pad_type",
+        "native_return_adaptation": "Owned String/array snapshots for getters; typed enum for padding, shared borrow handles and explicit deep Clone."
       },
       {
         "method": "getPadType",
         "source_line": 329,
         "status": "verified_rectangular_style_scope",
-        "native": "console::TableStyle::get_pad_type"
+        "native": "console::TableStyle::get_pad_type",
+        "native_return_adaptation": "Owned String/array snapshots for getters; typed enum for padding, shared borrow handles and explicit deep Clone."
       },
       {
         "method": "getHeaderTitleFormat",
         "source_line": 334,
         "status": "configuration_only_titles_not_rendered",
-        "native": "console::TableStyle::get_header_title_format"
+        "native": "console::TableStyle::get_header_title_format",
+        "native_return_adaptation": "Owned String/array snapshots for getters; typed enum for padding, shared borrow handles and explicit deep Clone."
       },
       {
         "method": "setHeaderTitleFormat",
         "source_line": 342,
         "status": "configuration_only_titles_not_rendered",
-        "native": "console::TableStyle::set_header_title_format"
+        "native": "console::TableStyle::set_header_title_format",
+        "native_return_adaptation": "Owned String/array snapshots for getters; typed enum for padding, shared borrow handles and explicit deep Clone."
       },
       {
         "method": "getFooterTitleFormat",
         "source_line": 349,
         "status": "configuration_only_titles_not_rendered",
-        "native": "console::TableStyle::get_footer_title_format"
+        "native": "console::TableStyle::get_footer_title_format",
+        "native_return_adaptation": "Owned String/array snapshots for getters; typed enum for padding, shared borrow handles and explicit deep Clone."
       },
       {
         "method": "setFooterTitleFormat",
         "source_line": 357,
         "status": "configuration_only_titles_not_rendered",
-        "native": "console::TableStyle::set_footer_title_format"
+        "native": "console::TableStyle::set_footer_title_format",
+        "native_return_adaptation": "Owned String/array snapshots for getters; typed enum for padding, shared borrow handles and explicit deep Clone."
       },
       {
         "method": "setDisplayOutsideBorder",
         "source_line": 364,
         "status": "verified_rectangular_style_scope",
-        "native": "console::TableStyle::set_display_outside_border"
+        "native": "console::TableStyle::set_display_outside_border",
+        "native_return_adaptation": "Owned String/array snapshots for getters; typed enum for padding, shared borrow handles and explicit deep Clone."
       },
       {
         "method": "displayOutsideBorder",
         "source_line": 371,
         "status": "verified_rectangular_style_scope",
-        "native": "console::TableStyle::display_outside_border"
+        "native": "console::TableStyle::display_outside_border",
+        "native_return_adaptation": "Owned String/array snapshots for getters; typed enum for padding, shared borrow handles and explicit deep Clone."
       }
     ],
     "TableCell": [
@@ -428,16 +479,18 @@
     "Native Result propagates typed configuration, formatting and invalid UTF-8 padding errors; invalid bytes cannot be returned as a Rust String.",
     "The public symfony-style-guide preset name is retained as a compatibility identifier.",
     "PHP engine diagnostics such as NAN-to-string warnings are retained in reference evidence; the native typed scalar conversion returns NAN without emulating VM warnings.",
-    "Keep existing read-only style getters and add _mut variants for safe mutable borrowing; no return-type break or dynamic mutable alias.",
     "Column indices remain native usize like existing column-style methods; signed i64 widths retain zero/negative rendering behavior. Sequential and indexed bulk variants express source array shapes without changing CLI/data formats.",
     "Propagate typed ConsoleTableError for unsupported wrapping or invalid effective widths, preserving source failure stage and already emitted output. Header Option<&str> clearing maps source nullable strings.",
     "PreparedLayout is private derived data, not another renderer. Source Table only expands a formatter result containing LF; otherwise original text, including raw newlines, is retained. Actual custom interface calls and output compared to source.",
     "Reuse support::ArrayKey canonical integer/string keys; preserve insertion position, negative-index next-key and checked i64 exhaustion. add_row now returns Result and add_rows propagates partial success; the existing in-repo caller is migrated to unwrap/?, CLI/data names unchanged.",
     "set_headers_rows is the native multiple-header counterpart of overloaded source array shape. Boolean direction setters explicitly restore Default when false; layout never destroys stored input rows.",
-    "Vertical record separators are private derived cell markers with actual column style and wrapping behavior. They do not claim public TableSeparator/merged-cell options have been implemented."
+    "Vertical record separators are private derived cell markers with actual column style and wrapping behavior. They do not claim public TableSeparator/merged-cell options have been implemented.",
+    "TableStyle stores shared Arc<RwLock<State>> references. From<&TableStyle> preserves identity, explicit Clone deep-copies state; text/array getters now return owned snapshots, avoiding invalidated borrows. No lock crosses formatter callbacks; two actual source callback mutation vectors match output.",
+    "Table::new returns Result to propagate current application service resolution. Definitions use the existing application container lifecycle, not process-global mutable state; standalone tables own isolated built-ins, static registry access requires application scope. Existing constructor consumers and all three formal docs migrate to ?/unwrap.",
+    "Named overloads use set_style_named / set_column_style_named; table_named / table_with_named_columns resolve actual names. Default table convenience method now resolves current registered default instead of silently constructing a fresh style. Unknown names fail before changing the chosen object.",
+    "Existing tables retain selected objects when a definition is replaced; later named lookups use replacement. Each table retains its creating registry even if outer scope changes or original Application drops; no app-container cycle is introduced."
   ],
   "remaining_sdk": [
-    "Named mutable style definitions and shared reference lifecycle",
     "appendRow with actual ConsoleSectionOutput",
     "Explicit TableSeparator inputs, colspan/rowspan and per-cell style",
     "OutputStyle inherited table/create_table layout/counters and other component SDK remain separately reviewed in io-contracts"
