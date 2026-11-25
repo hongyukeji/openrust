@@ -99,7 +99,9 @@ O01 Activitylog、O02 Horizon、O03 Telescope原生范围、O04 Pennant、O05 Pu
 | Horizon | 继续核对 `Tags`、其余管理命令、监督器与 Worker、进程恢复、仓储、指标和面板操作。Redis Cluster 沿用固定上游支持边界。 |
 | 发布验收 | 跟踪 Fortify 三个测试目标编译深度溢出，复验最终交付快照的全仓门禁。锁定提交、依赖、目标平台和实际数据库／Redis／Worker 组合，验收迁移、正常关停、故障恢复、业务端到端及容量。平台与供应商所需真实条件按[发布待办](../todo.md#平台与发布条件)记录。 |
 
-Pulse 命令复核发现独立的调度差异。固定 `CheckCommand::handle` 以本轮采样时刻加一秒为下一次采样时间，`WorkCommand::handle` 则在完成 digest、清理和 Telescope 收集后固定等待一秒。Rust `commands.rs` 两条路径目前都从等待时间扣除本轮处理耗时，慢 digest 可能结束后立即再读。待通过真实 Artisan 命令、可控耗时的 Ingest 和共享缓存重启信号验证各自节奏。 [固定 CheckCommand](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Commands/CheckCommand.php) [固定 WorkCommand](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Commands/WorkCommand.php)
+Pulse 命令复核发现独立的调度差异。固定 `CheckCommand::handle` 以本轮采样时刻加一秒为下一次采样时间，`WorkCommand::handle` 则在完成 digest、清理和 Telescope 收集后固定等待一秒。修复前，Rust `commands.rs` 两条路径都从等待时间扣除本轮处理耗时，慢 digest 可能结束后立即再读。 [固定 CheckCommand](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Commands/CheckCommand.php) [固定 WorkCommand](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Commands/WorkCommand.php)
+
+Rust 修复在检查命令内以采样时的单调时钟为准，在工作命令内把一秒等待放到本轮全部处理之后。新增的真实 Artisan 回归以 Tokio 可控时钟模拟耗时两秒的 Ingest 和耗时 400 毫秒的检查监听器，并通过共享缓存重启信号自然结束两条命令。修正用例先在应用启动前登记自定义 Ingest，再通过命令自身作用域解析缓存。macOS 的 cache 2 项、Telescope 命令联动 1 项、Pulse 所涉严格 Clippy 和三语内容检查通过。证据为 `target/tmp/observability-parity/pulse-work-cadence-macos-rebound.log`。跨平台、Redis 实例上长期运行及完整发布组合继续验收。
 
 2026-11-26 阶段组合包含 Telescope 关联写入、关系加载和 Gate 回退，Pulse 异常报告入口，以及 Horizon 显式监督器事件。三个扩展的同一隔离源码快照默认 94 项通过、23 项按环境条件跳过，仓库格式通过。证据为 `target/tmp/observability-parity/observability-combined-verified.log`。Release、各扩展剩余公开契约和实际部署组合继续验收。
 

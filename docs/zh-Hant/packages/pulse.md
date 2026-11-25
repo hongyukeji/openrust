@@ -92,4 +92,4 @@ let totals = Pulse::aggregate_total(&["orders".into()], "sum", 3600).await?;
 ./artisan pulse:purge --force
 ```
 
-`pulse:check` 每秒發送檢查事件，伺服器記錄器按取樣週期工作；Vapor 環境或 `--once` 執行一次。`pulse:work` 消費 Redis 串流並定期清理舊指標；直接儲存模式不需要該程序。`pulse:restart` 通知長期執行的兩類命令結束，由程序管理器重新啟動。`pulse:clear` 與 `pulse:purge` 清理指定型別或全部指標，正式環境需要確認或 `--force`。部署後使用 `./main artisan`。
+`pulse:check` 將下一次檢查安排在本次檢查開始一秒後，伺服器記錄器按取樣週期工作。Vapor 環境或 `--once` 執行一次。`pulse:work` 消費 Redis 串流並定期清理舊指標，每輪處理完成後等待一秒。直接儲存模式無須執行該程序。`pulse:restart` 通知長期執行的兩類命令結束，由程序管理器重新啟動。`pulse:clear` 與 `pulse:purge` 清理指定型別或全部指標，正式環境需要確認或 `--force`。部署後使用 `./main artisan`。

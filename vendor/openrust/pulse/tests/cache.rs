@@ -183,3 +183,148 @@ async fn native_cache_driver_throttles_by_instance_and_shares_restart_signal() {
             .unwrap();
     }
 }
+
+#[tokio::test(start_paused = true)]
+async fn pulse_work_and_check_use_their_own_iteration_schedules() {
+    use openrust::{
+        contracts::{
+            cache::Repository as _,
+            container::Container as _,
+            events::{Dispatcher as _, Event, Listener},
+            foundation::Application as _,
+        },
+        events::{Delivery, EventContext, EventFuture, EventResult, ListenerResponse},
+        support::facades::Cache,
+    };
+    use openrust_pulse::{
+        Item, PulseFuture,
+        contracts::{Ingest, Storage},
+    };
+    use std::{sync::Mutex, time::Duration};
+    use tokio::time::{Instant, sleep};
+
+    struct CadenceProbe {
+        starts: Mutex<Vec<Instant>>,
+    }
+
+    impl CadenceProbe {
+        async fn record(
+            &self,
+            delay: Duration,
+            restart_value: i64,
+        ) -> Result<(), openrust::cache::CacheError> {
+            let pass = {
+                let mut starts = self.starts.lock().unwrap();
+                starts.push(Instant::now());
+                starts.len()
+            };
+            sleep(delay).await;
+            if pass == 2 {
+                Cache::store(Some("array"))?
+                    .forever(
+                        "openrust:pulse:restart",
+                        &openrust::cache::Value::from(restart_value),
+                    )
+                    .await?;
+            }
+            Ok(())
+        }
+
+        fn assert_interval(&self, expected: Duration) {
+            let starts = self.starts.lock().unwrap();
+            assert_eq!(starts.len(), 2);
+            let interval = starts[1] - starts[0];
+            assert!((expected..expected + Duration::from_millis(10)).contains(&interval));
+        }
+    }
+
+    impl Ingest for CadenceProbe {
+        fn ingest<'a>(&'a self, _: &'a [Item]) -> PulseFuture<'a, ()> {
+            Box::pin(async { Ok(()) })
+        }
+
+        fn trim(&self) -> PulseFuture<'_, ()> {
+            Box::pin(async { Ok(()) })
+        }
+
+        fn digest<'a>(&'a self, _: &'a dyn Storage) -> PulseFuture<'a, usize> {
+            Box::pin(async {
+                self.record(Duration::from_secs(2), 1).await?;
+                Ok(0)
+            })
+        }
+    }
+
+    impl Listener for CadenceProbe {
+        fn handle<'a>(
+            &'a self,
+            _: &'a dyn Event,
+            _: &'a mut EventContext<'_>,
+        ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+            Box::pin(async {
+                self.record(Duration::from_millis(400), 2).await.unwrap();
+                Ok(None)
+            })
+        }
+    }
+
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(|root, env| {
+                let mut settings = config(root, env)?;
+                let cache = settings.get_mut("cache").unwrap();
+                cache["default"] = json!("array");
+                cache["stores"]["array"] = json!({"driver":"array"});
+                let pulse = settings.get_mut("pulse").unwrap();
+                pulse["cache"] = json!("array");
+                pulse["recorders"]["Servers"] = json!(false);
+                Ok(settings)
+            })
+            .with_providers(vec![Box::new(PulseServiceProvider)])
+    })
+    .unwrap();
+    let ingest = Arc::new(CadenceProbe {
+        starts: Mutex::default(),
+    });
+    app.app()
+        .container()
+        .instance::<dyn Ingest>(ingest.clone())
+        .unwrap();
+    app.boot().await.unwrap();
+    tokio::time::timeout(Duration::from_secs(12), app.artisan(["pulse:work"]))
+        .await
+        .unwrap_or_else(|_| {
+            panic!(
+                "pulse:work 未退出，已读次数为 {}",
+                ingest.starts.lock().unwrap().len()
+            )
+        })
+        .assert_successful();
+    ingest.assert_interval(Duration::from_secs(3));
+
+    let listener = Arc::new(CadenceProbe {
+        starts: Mutex::default(),
+    });
+    let dispatcher = app
+        .app()
+        .make::<openrust::events::Dispatcher>()
+        .await
+        .unwrap();
+    let beat = SharedBeat {
+        time: 0,
+        instance: String::new(),
+    };
+    dispatcher
+        .listen(beat.name(), listener.clone(), Delivery::Sync)
+        .unwrap();
+    tokio::time::timeout(Duration::from_secs(12), app.artisan(["pulse:check"]))
+        .await
+        .unwrap_or_else(|_| {
+            panic!(
+                "pulse:check 未退出，已检查次数为 {}",
+                listener.starts.lock().unwrap().len()
+            )
+        })
+        .assert_successful();
+    listener.assert_interval(Duration::from_secs(1));
+}

@@ -9,10 +9,8 @@ use openrust::{
     foundation::Application,
     support::facades::Artisan,
 };
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{sync::Arc, time::Duration};
+use tokio::time::Instant;
 struct PulseCommand(CommandDefinition, Kind);
 #[derive(Clone, Copy)]
 enum Kind {
@@ -152,12 +150,13 @@ impl Command for PulseCommand {
                         None
                     };
                     loop {
-                        let started = Instant::now();
                         let now = jiff::Timestamp::now().as_second();
                         if cache.get("openrust:pulse:restart").await.map_err(error)? != restart {
                             return Ok(0);
                         }
                         if matches!(kind, Kind::Check) {
+                            let started = Instant::now();
+                            let now = jiff::Timestamp::now().as_second();
                             if let Some(lock) = &mut lock
                                 && lock.get().await.map_err(error)?
                             {
@@ -184,6 +183,7 @@ impl Command for PulseCommand {
                             if vapor || input.matches().get_flag("once") {
                                 break;
                             }
+                            tokio::time::sleep_until(started + Duration::from_secs(1)).await;
                         } else {
                             pulse.digest().await.map_err(error)?;
                             if now - 600 > trimmed {
@@ -194,11 +194,8 @@ impl Command for PulseCommand {
                             if input.matches().get_flag("stop-when-empty") {
                                 break;
                             }
+                            tokio::time::sleep(Duration::from_secs(1)).await;
                         }
-                        tokio::time::sleep(
-                            Duration::from_secs(1).saturating_sub(started.elapsed()),
-                        )
-                        .await;
                     }
                 }
             }
