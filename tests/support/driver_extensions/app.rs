@@ -172,6 +172,7 @@ async fn main() -> ExitCode {
                         {
                             Route::get("/drivers/moderation", moderation::route)?;
                             Route::post("/drivers/moderation/group", moderation::group_route)?;
+                            Route::post("/drivers/moderation/cancel", moderation::cancel_route)?;
                             Route::post("/drivers/moderation/aliyun", moderation::aliyun_route)?;
                             Route::post(
                                 "/drivers/moderation/aliyun-image",

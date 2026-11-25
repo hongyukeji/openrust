@@ -145,7 +145,7 @@ def exercise(binary, driver, database_url, root):
             assert sql("SELECT COUNT(*) FROM jobs") == sql("SELECT COUNT(*) FROM failed_jobs") == "0"
         finally:
             HTTP["stop"](app)
-    artisan("migrate:rollback", "--step=1", "--force", successful=False)
+    artisan("migrate:rollback", "--step=2", "--force", successful=False)
     assert sql("SELECT COUNT(*) FROM moderation_review_groups") == "4"
 
 

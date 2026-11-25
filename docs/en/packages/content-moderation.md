@@ -206,6 +206,12 @@ Use `VideoReviewGroupRequest::new` and `ModerationStore::stage_video_group` to s
 
 Each child has its own submission and lookup state and can progress through the existing Worker and recovery commands. Read the aggregate with `find_video_group`. It yields a publication decision only after every required check succeeds with complete coverage. It uses the highest recommendation among complete checks, with Block taking priority over Review and Allow. Keep the application’s publication authorization bound to the current content revision.
 
+### Cancelling a stored video check {#video-review-cancellation}
+
+Call `VideoReviewService::cancel(id)` to freeze a pending or running check. Cancellation uses the database clock and version. A check that has already reached its deadline becomes expired. Late workers cannot replace the cancelled result.
+
+For a confirmed task ID, the service attempts to stop the remote task with the original profile when the provider supports cancellation. Read `provider_cancellation()` separately for acknowledgment, rejection, lack of support, or an unconfirmed outcome. A repeated request returns the stored state. Investigate unknown task IDs and unconfirmed stops with the provider before taking another action.
+
 ## Recovering scheduled reviews {#review-recovery}
 
 Schedule `moderation:recover` to run every minute for each application and tenant you manage. Use a shared database and queue so schedulers and workers see the same review state. The command claims up to `--limit` due reviews (100 by default, 1–500), and queues their local IDs and versions.

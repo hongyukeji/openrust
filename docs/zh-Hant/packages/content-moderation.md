@@ -206,6 +206,12 @@ let recommendation = result.decision(&[Modality::Text]);
 
 每個子檢查獨立提交和查詢，可由原有 Worker 與復原指令推進。用 `find_video_group` 讀取彙總結果。每個必查項成功且涵蓋完整後才產生決定，並採用最嚴格的建議，優先順序依次為 Block、Review、Allow。應用程式仍應根據目前內容修訂執行發布授權。
 
+### 取消已保存的隨選檢查 {#video-review-cancellation}
+
+呼叫 `VideoReviewService::cancel(id)`，凍結待處理或進行中的檢查。取消使用資料庫時鐘和記錄版本，已超過截止時間的檢查會標記為過期。晚到的 Worker 無法改寫取消結果。
+
+已有確認的工作 ID 且供應商支援停止時，服務會用原設定嘗試遠端取消。透過 `provider_cancellation()` 分別查看供應商確認、拒絕、不支援或結果未確認等狀態。重複請求會傳回已儲存的狀態。工作編號未知或停止結果未確認時，應先向供應商核對再繼續處理。
+
 ## 定時復原影片審核 {#review-recovery}
 
 對每個需要管理的應用程式和租戶，將 `moderation:recover` 加入每分鐘排程。排程程序和 Worker 共用資料庫與佇列。命令領取最多 `--limit` 筆到期審核，預設 100，範圍 1–500，只將本機審核 ID 和版本等定位資訊加入佇列。

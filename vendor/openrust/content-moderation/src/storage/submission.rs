@@ -160,6 +160,9 @@ impl ModerationStore {
 }
 
 fn next_state(review: &VideoReview, action: Action, now: i64) -> Option<VideoReview> {
+    if !matches!(review.state, ReviewState::Pending | ReviewState::Running) {
+        return None;
+    }
     let expired = review.deadline_at <= now;
     let (state, submission, lease) = match action {
         Action::Claim if !expired && review.submission == VideoSubmission::Ready => (
@@ -191,19 +194,15 @@ fn next_state(review: &VideoReview, action: Action, now: i64) -> Option<VideoRev
                 None,
             )
         }
-        Action::Recover
-            if expired && matches!(review.state, ReviewState::Pending | ReviewState::Running) =>
-        {
-            (
-                ReviewState::Expired,
-                if review.submission == VideoSubmission::Ready {
-                    VideoSubmission::Expired
-                } else {
-                    review.submission.clone()
-                },
-                None,
-            )
-        }
+        Action::Recover if expired => (
+            ReviewState::Expired,
+            if review.submission == VideoSubmission::Ready {
+                VideoSubmission::Expired
+            } else {
+                review.submission.clone()
+            },
+            None,
+        ),
         _ => return None,
     };
     let available_at = if matches!(submission, VideoSubmission::Submitted(_))

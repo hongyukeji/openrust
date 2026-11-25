@@ -48,7 +48,8 @@ pub use result::{
     Assessment, Confidence, Coverage, Decision, EvidenceSpan, Finding, Modality, TaskStatus,
 };
 pub use review::{
-    QueryFailure, ReviewState, SubmissionFailure, VideoReview, VideoReviewRequest, VideoSubmission,
+    ProviderCancellation, QueryFailure, ReviewState, SubmissionFailure, VideoReview,
+    VideoReviewRequest, VideoSubmission,
 };
 pub use review_group::{VideoReviewGroup, VideoReviewGroupRequest};
 pub use revision::ProfileRevision;

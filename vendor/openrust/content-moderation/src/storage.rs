@@ -12,6 +12,8 @@ use crate::{
 };
 
 mod assessment_record;
+mod cancellation;
+pub(crate) use cancellation::Cancellation;
 #[cfg(feature = "webhooks")]
 mod callback;
 mod groups;
@@ -140,6 +142,7 @@ impl ModerationStore {
                 "assessment",
                 "confirmation_callback_id",
                 "lookup_hint_id",
+                "provider_cancellation",
             ])
             .r#where("moderation_reviews.scope_key", "=", self.scope_key.as_str())
             .r#where("moderation_checks.kind", "=", "video")
@@ -287,6 +290,10 @@ fn decode(row: Row) -> ModerationResult<VideoReview> {
             .transpose()?,
         confirmation_callback_id: optional_text("confirmation_callback_id")?.map(str::to_owned),
         lookup_hint_id: optional_text("lookup_hint_id")?.map(str::to_owned),
+        provider_cancellation: optional_text("provider_cancellation")?
+            .map(|value| serde_json::from_value(serde_json::Value::String(value.into())))
+            .transpose()
+            .map_err(|_| ModerationError::ReviewStorage)?,
     })
 }
 

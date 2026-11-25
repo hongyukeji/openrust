@@ -206,6 +206,12 @@ let recommendation = result.decision(&[Modality::Text]);
 
 每个子检查独立提交和查单，可由原有 Worker 与恢复命令推进。用 `find_video_group` 读取汇总结果。每个必检项成功且覆盖完整后才生成决定，并采用最严格的建议，优先级依次为 Block、Review、Allow。应用仍应根据当前内容修订执行发布授权。
 
+### 取消已保存的点播检查 {#video-review-cancellation}
+
+调用 `VideoReviewService::cancel(id)`，冻结待处理或进行中的检查。取消使用数据库时钟和记录版本，已越过截止时间的检查标记为过期。晚到的 Worker 无法改写取消结果。
+
+已有确认的任务 ID 且厂商支持停止时，服务用原配置尝试远端取消。分别通过 `provider_cancellation()` 查看供应商确认、拒绝、不支持或结果未确认等状态。重复请求返回已保存的状态。任务号未知或停止结果未确认时，应先与供应商核对再继续处理。
+
 ## 定时恢复视频审核 {#review-recovery}
 
 对每个需要托管的应用和租户，将 `moderation:recover` 加入每分钟调度。调度进程和 Worker 共用数据库与队列。命令领取不超过 `--limit` 条到期审核，默认 100，范围 1–500，只将本地审核 ID 和版本等定位信息入列。

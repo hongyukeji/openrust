@@ -2,8 +2,9 @@ use std::sync::Arc;
 
 use crate::{
     Coverage, ModerationDriver, ModerationError, ModerationManager, ModerationResult,
-    ModerationStore, Operation, QueryFailure, ReviewState, SubmissionFailure, TaskId, TaskStatus,
-    VideoInput, VideoReview, VideoSubmission, review::QueryOutcome,
+    ModerationStore, Operation, ProviderCancellation, QueryFailure, ReviewState, SubmissionFailure,
+    TaskId, TaskStatus, VideoInput, VideoReview, VideoSubmission, review::QueryOutcome,
+    storage::Cancellation,
 };
 
 /// 点播送审流程，使用已落库的对象版本、配置修订和租约。
@@ -48,6 +49,45 @@ impl VideoReviewService {
         let review = self.find(id).await?;
         self.query_review(&review).await?;
         self.find(id).await
+    }
+
+    /// 先冻结本地审核，再按原配置尝试取消已确认的供应商任务。
+    pub async fn cancel(&self, id: &str) -> ModerationResult<VideoReview> {
+        for _ in 0..4 {
+            let review = self.find(id).await?;
+            if !matches!(review.state(), ReviewState::Pending | ReviewState::Running) {
+                return Ok(review);
+            }
+            match self.store.cancel_active(&review).await? {
+                Some(Cancellation::Frozen) => return self.find(id).await,
+                Some(Cancellation::Provider { version, task }) => {
+                    let result = self.cancel_provider(&review, &task).await;
+                    self.store
+                        .finish_cancellation(&review, version, result)
+                        .await?;
+                    return self.find(id).await;
+                }
+                None => {}
+            }
+        }
+        Err(ModerationError::ReviewConflict)
+    }
+
+    async fn cancel_provider(&self, review: &VideoReview, task: &TaskId) -> ProviderCancellation {
+        let Ok(driver) = self.manager.driver_for_revision(review.profile()) else {
+            return ProviderCancellation::Unavailable;
+        };
+        if !driver.supports(Operation::CancelVideo) {
+            return ProviderCancellation::Unsupported;
+        }
+        match driver.cancel_video(task).await {
+            Ok(()) => ProviderCancellation::Acknowledged,
+            Err(ModerationError::Rejected | ModerationError::Unauthorized) => {
+                ProviderCancellation::Rejected
+            }
+            Err(ModerationError::Unsupported(_)) => ProviderCancellation::Unsupported,
+            Err(_) => ProviderCancellation::Unconfirmed,
+        }
     }
 
     pub(crate) async fn advance(&self, review: &VideoReview) -> ModerationResult<()> {

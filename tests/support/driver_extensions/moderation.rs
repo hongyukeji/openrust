@@ -966,6 +966,7 @@ fn render_review(review: VideoReview) -> Value {
         "query_attempts":review.query_attempts(), "query_failure":review.query_failure(),
         "next_query_at":review.next_query_at(), "assessment":assessment, "decision":review.decision(),
         "callback_receipt":review.confirmation_callback_id(), "lookup_hint":review.lookup_hint_id(),
+        "provider_cancellation":review.provider_cancellation(),
     })
 }
 
@@ -981,6 +982,23 @@ async fn query_review(application: &str, tenant: &str, id: &str) -> ModerationRe
     let service =
         openrust_content_moderation::VideoReviewService::new(store, Moderation::manager()?);
     Ok(render_review(service.query(id).await?))
+}
+
+pub(super) fn cancel_route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let id = request
+            .header("x-fixture-review-id")?
+            .ok_or(HttpError::InvalidRequest)?;
+        let tenant = request.header("x-fixture-tenant")?.unwrap_or("tenant");
+        provider_response(cancel_review("app", tenant, id).await)
+    })
+}
+
+async fn cancel_review(application: &str, tenant: &str, id: &str) -> ModerationResult<Value> {
+    let store = review_store(application, tenant)?;
+    let service =
+        openrust_content_moderation::VideoReviewService::new(store, Moderation::manager()?);
+    Ok(render_review(service.cancel(id).await?))
 }
 
 #[derive(Deserialize, Serialize)]
@@ -1146,6 +1164,7 @@ pub(super) fn register_command(artisan: &mut Artisan) -> Result<(), ConsoleError
                 "submit",
                 "queue-submit",
                 "query",
+                "cancel",
                 "queue-query",
                 "stage-group",
                 "find-group",
@@ -1282,6 +1301,9 @@ impl Command for ReviewProbe {
                 .await
                 .map_err(ConsoleError::from_source)?,
                 "find" => reference.read().await.map_err(ConsoleError::from_source)?,
+                "cancel" => cancel_review(&reference.application, &reference.tenant, &reference.id)
+                    .await
+                    .map_err(ConsoleError::from_source)?,
                 "stage-group" => stage_group(
                     &reference.application,
                     &reference.tenant,

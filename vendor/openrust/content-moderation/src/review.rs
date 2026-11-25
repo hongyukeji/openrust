@@ -81,6 +81,34 @@ pub enum SubmissionFailure {
     Throttled,
 }
 
+/// 本地取消提交后，远端取消请求的结果。
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum ProviderCancellation {
+    NoTask,
+    TaskUnknown,
+    Unconfirmed,
+    Unavailable,
+    Unsupported,
+    Rejected,
+    Acknowledged,
+}
+
+impl ProviderCancellation {
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::NoTask => "no_task",
+            Self::TaskUnknown => "task_unknown",
+            Self::Unconfirmed => "unconfirmed",
+            Self::Unavailable => "unavailable",
+            Self::Unsupported => "unsupported",
+            Self::Rejected => "rejected",
+            Self::Acknowledged => "acknowledged",
+        }
+    }
+}
+
 #[derive(Clone, Eq, PartialEq)]
 pub enum VideoSubmission {
     Ready,
@@ -175,6 +203,7 @@ pub struct VideoReview {
     pub(crate) assessment: Option<Assessment>,
     pub(crate) confirmation_callback_id: Option<String>,
     pub(crate) lookup_hint_id: Option<String>,
+    pub(crate) provider_cancellation: Option<ProviderCancellation>,
 }
 
 impl VideoReview {
@@ -245,6 +274,10 @@ impl VideoReview {
     /// 未认证查单提示的记录 ID。其出现仅表示请求提前查单。
     pub fn lookup_hint_id(&self) -> Option<&str> {
         self.lookup_hint_id.as_deref()
+    }
+
+    pub fn provider_cancellation(&self) -> Option<ProviderCancellation> {
+        self.provider_cancellation
     }
 
     /// 成功审核的必检覆盖可交给应用继续作发布决定。
