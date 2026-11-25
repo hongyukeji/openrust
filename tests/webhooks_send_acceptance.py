@@ -224,26 +224,113 @@ def exercise(binary, env, log, receiver, driver, sql):
         print(f"{driver}: TLS {profile} HTTP、Artisan、Worker 及固定连接通过")
         return
 
-    if env.get("FIXTURE_SEND_FANOUT"):
-        def admin(operation, name, *options):
-            return command("webhooks:fixture-endpoint", operation, name, *options)
+    def admin(operation, name, *options):
+        return command("webhooks:fixture-endpoint", operation, name, *options)
 
-        def publish(key, payload=None, mode="publish", expected=202):
+    def publish(key, payload=None, mode="publish", expected=202):
+        connection = http.client.HTTPConnection("127.0.0.1", int(env["APP_PORT"]), timeout=20)
+        try:
+            connection.request("POST", f"/api/outbound/{mode}/{key}",
+                json.dumps(payload if payload is not None else {"status": "retry"}).encode(),
+                {"Accept": "application/json", "Content-Type": "application/json"})
+            response = connection.getresponse()
+            result = json.loads(response.read())
+            assert response.status == expected, (response.status, result)
+            if expected == 202:
+                assert re.fullmatch("[0-9a-f]{64}", result["message_id"])
+                assert all(re.fullmatch("[0-9a-f]{64}", item) for item in result["delivery_ids"])
+            return result
+        finally:
+            connection.close()
+
+    if env.get("FIXTURE_SEND_DIAGNOSTICS"):
+        def inspect(kind, identifier, expected=200, scope=SCOPE, auth=True, **options):
             connection = http.client.HTTPConnection("127.0.0.1", int(env["APP_PORT"]), timeout=20)
+            headers = {f"x-fixture-{name}": str(value) for name, value in options.items()}
+            if auth:
+                headers["x-fixture-inspector"] = "fixture-operator"
             try:
-                connection.request("POST", f"/api/outbound/{mode}/{key}",
-                    json.dumps(payload if payload is not None else {"status": "retry"}).encode(),
-                    {"Accept": "application/json", "Content-Type": "application/json"})
+                connection.request("GET", f"/api/outbound-inspect/{scope}/{kind}/{identifier}",
+                                   headers=headers)
                 response = connection.getresponse()
-                result = json.loads(response.read())
-                assert response.status == expected, (response.status, result)
-                if expected == 202:
-                    assert re.fullmatch("[0-9a-f]{64}", result["message_id"])
-                    assert all(re.fullmatch("[0-9a-f]{64}", item) for item in result["delivery_ids"])
-                return result
+                raw = response.read()
+                assert response.status == expected, (response.status, raw)
+                return json.loads(raw)
             finally:
                 connection.close()
 
+        def inspect_cli(identifier, *args, scope=SCOPE, success=True):
+            result = command("webhook-server:inspect", identifier, "--scope", scope, *args,
+                             success=success)
+            return json.loads(result) if success else None
+
+        private_payload = b"diagnostic-fixture-hidden-content"
+        identifier = submit("retry", body=private_payload)
+        pending = inspect("delivery", identifier)
+        assert pending == inspect_cli(identifier)
+        assert pending == inspect_cli(identifier, f"--database={driver}")
+        assert set(pending) == {"id", "state", "attempts", "maximum_tries", "available_at",
+                                "deadline", "lease_until"}
+        assert pending["state"] == "pending" and pending["attempts"] == 0
+        assert pending["id"] == identifier and pending["lease_until"] is None
+        assert pending["available_at"] < pending["deadline"]
+        empty = {"data": [], "next_after": None}
+        assert inspect("attempts", identifier) == empty
+        assert inspect_cli(identifier, scope="another-tenant") is None
+        assert inspect_cli(identifier, "--attempts", scope="another-tenant") == empty
+        assert inspect("delivery", identifier, expected=403, auth=False) == {}
+        assert inspect("delivery", identifier, expected=403, scope="another-tenant") == {}
+        assert inspect("delivery", "0" * 64, expected=404) == {}
+        assert inspect("delivery", "invalid", expected=422) == {}
+        assert inspect("attempts", identifier, expected=422, limit=101) == {}
+        inspect_cli(identifier, "--attempts", "--limit=0", success=False)
+        inspect_cli(identifier, "--after=1", success=False)
+
+        enqueue(identifier)
+        command(*worker)
+        assert inspect("delivery", identifier)["state"] == "pending"
+        update(identifier, "available_at=0")
+        enqueue(identifier)
+        command(*worker)
+        complete = inspect("delivery", identifier)
+        assert complete == inspect_cli(identifier)
+        assert complete["state"] == "succeeded" and complete["attempts"] == 2
+        first = inspect("attempts", identifier, limit=1)
+        assert first == inspect_cli(identifier, "--attempts", "--limit=1")
+        assert first["next_after"] == 1
+        assert len(first["data"]) == 1
+        failed = first["data"][0]
+        assert set(failed) == {"number", "outcome", "http_status", "started_at", "finished_at"}
+        assert (failed["number"], failed["outcome"], failed["http_status"]) == (1, "http_failure", 503)
+        assert failed["finished_at"] >= failed["started_at"]
+        second = inspect("attempts", identifier, limit=1, after=first["next_after"])
+        assert second == inspect_cli(identifier, "--attempts", "--limit=1", "--after=1")
+        assert second["next_after"] is None and len(second["data"]) == 1
+        assert (second["data"][0]["number"], second["data"][0]["http_status"]) == (2, 204)
+        assert inspect("attempts", identifier, after=2) == empty
+        assert inspect("attempts", identifier, after=4294967295) == empty
+        assert inspect_cli(identifier, "--attempts", scope="another-tenant") == empty
+
+        missing = publish("diag-no-subs", {"secret": private_payload.decode()})
+        admin("create", "primary")
+        admin("subscribe", "primary", "--topic=invoice.paid", "--schema=1")
+        published = publish("diag-message", {"secret": private_payload.decode()})
+        assert len(published["delivery_ids"]) == 1
+        for receipt in (missing, published):
+            mid = receipt["message_id"]
+            metadata = inspect("message", mid)
+            assert metadata == inspect_cli(mid, "--message")
+            assert set(metadata) == {"id", "event_type", "schema_version", "created_at", "delivery_ids"}
+            assert metadata["id"] == mid and metadata["delivery_ids"] == receipt["delivery_ids"]
+            assert (metadata["event_type"], metadata["schema_version"]) == ("invoice.paid", 1)
+            assert inspect_cli(mid, "--message", scope="another-tenant") is None
+            assert inspect("message", mid, expected=403, auth=False) == {}
+            assert private_payload.decode() not in json.dumps(metadata)
+        assert inspect("delivery", published["delivery_ids"][0])["state"] == "pending"
+        print(f"{driver}: 出站诊断 HTTP、Artisan、Worker、分页、范围隔离与脱敏通过")
+        return
+
+    if env.get("FIXTURE_SEND_FANOUT"):
         def verify_requests(message, expected_paths, payload=None, schema=1, topic="invoice.paid"):
             with receiver.mutex:
                 hits = list(receiver.received.get(message["message_id"], []))
@@ -1337,7 +1424,8 @@ def main():
                     http_helpers["stop"](app)
         if not (os.environ.get("FIXTURE_SEND_SCHEDULE") or os.environ.get("FIXTURE_SEND_REPLAY")
                 or os.environ.get("FIXTURE_SEND_ENDPOINTS") or os.environ.get("FIXTURE_SEND_LIMITS")
-                or os.environ.get("FIXTURE_SEND_FANOUT") or os.environ.get("FIXTURE_SEND_TLS")):
+                or os.environ.get("FIXTURE_SEND_FANOUT") or os.environ.get("FIXTURE_SEND_TLS")
+                or os.environ.get("FIXTURE_SEND_DIAGNOSTICS")):
             print(f"{driver}: HTTP 签名和字节、事务回滚、重复领取、重试预算、撤销、超时、崩溃恢复、Builder 分支、投递事件与自定义 Job 通过")
     finally:
         if proxy_thread is not None:

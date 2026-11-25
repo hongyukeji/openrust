@@ -57,7 +57,36 @@ pub(super) fn register() -> Result<(), ConsoleError> {
                 .long("include-succeeded")
                 .action(ArgAction::SetTrue),
         );
-    Artisan::add(Box::new(Replay(CommandDefinition::new(replay))))
+    Artisan::add(Box::new(Replay(CommandDefinition::new(replay))))?;
+    let inspect = Syntax::new("webhook-server:inspect")
+        .about("查询指定范围内的脱敏投递、消息或尝试")
+        .arg(Arg::new("id").required(true))
+        .arg(Arg::new("scope").long("scope").required(true))
+        .arg(Arg::new("database").long("database"))
+        .arg(
+            Arg::new("message")
+                .long("message")
+                .conflicts_with("attempts")
+                .action(ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::new("attempts")
+                .long("attempts")
+                .action(ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::new("after")
+                .long("after")
+                .requires("attempts")
+                .value_parser(value_parser!(u32)),
+        )
+        .arg(
+            Arg::new("limit")
+                .long("limit")
+                .requires("attempts")
+                .value_parser(value_parser!(u32).range(1..=100)),
+        );
+    Artisan::add(Box::new(Inspect(CommandDefinition::new(inspect))))
 }
 
 struct Send(CommandDefinition);
@@ -179,10 +208,69 @@ impl Command for Replay {
     }
 }
 
+struct Inspect(CommandDefinition);
+
+impl Command for Inspect {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+
+    fn handle<'a>(
+        &'a self,
+        app: &'a Application,
+        input: &'a Input,
+        output: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            let store = delivery_store(app, input).await?;
+            let args = input.matches();
+            let id = args.get_one::<String>("id").expect("必填 ID");
+            let json = if args.get_flag("message") {
+                serde_json::to_string(
+                    &store
+                        .inspect_message(id)
+                        .await
+                        .map_err(ConsoleError::from_source)?,
+                )
+            } else if args.get_flag("attempts") {
+                let after = args.get_one::<u32>("after").copied().unwrap_or(0);
+                let limit = args.get_one::<u32>("limit").copied().unwrap_or(50);
+                serde_json::to_string(
+                    &store
+                        .inspect_attempts(id, after, limit)
+                        .await
+                        .map_err(ConsoleError::from_source)?,
+                )
+            } else {
+                serde_json::to_string(
+                    &store
+                        .inspect_delivery(id)
+                        .await
+                        .map_err(ConsoleError::from_source)?,
+                )
+            }
+            .map_err(ConsoleError::from_source)?;
+            output
+                .write_raw(&format!("{json}\n"))
+                .map_err(ConsoleError::from_source)?;
+            Ok(0)
+        })
+    }
+}
+
 async fn delivery_service(
     app: &Application,
     input: &Input,
 ) -> Result<DeliveryService, ConsoleError> {
+    let store = delivery_store(app, input).await?;
+    let policy = app
+        .make::<RegisteredDeliveryPolicy>()
+        .await
+        .map_err(|_| ConsoleError::from_source(Error::InvalidConfig("delivery.policy")))?;
+    Ok(DeliveryService::new(store, policy.0.clone()))
+}
+
+async fn delivery_store(app: &Application, input: &Input) -> Result<DeliveryStore, ConsoleError> {
     let args = input.matches();
     let scope = args.get_one::<String>("scope").expect("必填范围");
     let database = args.get_one::<String>("database").map(String::as_str);
@@ -193,10 +281,5 @@ async fn delivery_service(
     let connection = manager
         .connection(database)
         .map_err(ConsoleError::from_source)?;
-    let policy = app
-        .make::<RegisteredDeliveryPolicy>()
-        .await
-        .map_err(|_| ConsoleError::from_source(Error::InvalidConfig("delivery.policy")))?;
-    let store = DeliveryStore::new(connection, scope).map_err(ConsoleError::from_source)?;
-    Ok(DeliveryService::new(store, policy.0.clone()))
+    DeliveryStore::new(connection, scope).map_err(ConsoleError::from_source)
 }

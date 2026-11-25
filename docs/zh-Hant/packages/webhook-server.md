@@ -160,6 +160,15 @@ pub fn grant_invoice_proxy(
     permission.with_proxy("corp-egress", proxy)
 }
 
+
+pub async fn inspect_invoice_attempts(
+    store: &openrust_webhook_server::DeliveryStore,
+    id: &str,
+    after: u32,
+) -> Result<openrust_webhook_server::DeliveryAttemptsPage> {
+    store.inspect_attempts(id, after, 25).await
+}
+
 ```
 
 
@@ -239,6 +248,12 @@ Builder 的 `dispatch`、`dispatch_if` 和 `dispatch_unless` 登記投遞並入�
 在各節點的應用中註冊 `DeliveryLimits`。範圍發送限額涵蓋直接 URL、佇列投遞、自動重試和人工重放發送。具名端點另外獨立計數，同一端點的各設定版本共用。人工重放登記可另設範圍限額。視窗自首次保留額度起，依資料庫時鐘計算。
 
 發送達到限額時，投遞等待視窗恢復，保留原嘗試額度及截止時間。重放登記達到限額時會回傳下一次可申請的 Unix 時間戳錯誤。共用投遞資料庫的所有節點應使用一致的限額設定。
+
+### 查詢投遞與嘗試 {#inspect}
+
+使用 `./artisan webhook-server:inspect <id> --scope=<scope>` 查詢投遞 ID。查詢 `publish` 回傳的內部訊息 ID 時加入 `--message`。加入 `--attempts --limit=25` 讀取一頁嘗試，下一頁透過 `--after` 傳入回傳的 `next_after`。時間欄位以 Unix 秒表示。使用 `--database` 選擇具名資料庫連線。
+
+查詢回傳狀態、時間、HTTP 狀態碼與有限的嘗試結果。已發布訊息的摘要另包含事件類型、schema 版本和首次投遞 ID。套件不註冊診斷 HTTP 路由，應用程式授權範圍後可呼叫 `DeliveryStore` 的唯讀方法。Artisan 允許選擇資料庫及範圍，僅交由可信維運人員。診斷輸出不包含請求 URL、本文、Header、簽章材料或遠端回應本文。
 
 ### 依訂閱發布 {#subscriptions}
 

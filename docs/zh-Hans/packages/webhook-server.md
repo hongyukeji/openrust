@@ -160,6 +160,15 @@ pub fn grant_invoice_proxy(
     permission.with_proxy("corp-egress", proxy)
 }
 
+
+pub async fn inspect_invoice_attempts(
+    store: &openrust_webhook_server::DeliveryStore,
+    id: &str,
+    after: u32,
+) -> Result<openrust_webhook_server::DeliveryAttemptsPage> {
+    store.inspect_attempts(id, after, 25).await
+}
+
 ```
 
 
@@ -239,6 +248,12 @@ Builder 的 `dispatch`、`dispatch_if` 和 `dispatch_unless` 登记投递并入�
 在各节点的应用中注册 `DeliveryLimits`。范围发送限额覆盖直接 URL、队列投递、自动重试和人工重放发送。具名端点还有独立计数，同一端点各配置版本共用。人工重放登记可设独立的范围限额。窗口从首次保留额度开始，按数据库时钟计算。
 
 发送达到限额时，投递等待窗口恢复，保留原尝试额度及截止时间。重放登记达到限额时返回带下次可申请 Unix 时间戳的错误。共享投递数据库的所有节点应使用一致的限额配置。
+
+### 查询投递与尝试 {#inspect}
+
+使用 `./artisan webhook-server:inspect <id> --scope=<scope>` 查询投递 ID。查询 `publish` 返回的内部消息 ID 时添加 `--message`。添加 `--attempts --limit=25` 读取一页尝试，下一页通过 `--after` 传入返回的 `next_after`。时间字段以 Unix 秒表示。使用 `--database` 选择具名数据库连接。
+
+查询返回状态、时间、HTTP 状态码及有限的尝试结果。已发布消息的摘要还包含事件类型、schema 版本和首次投递 ID。包不注册诊断 HTTP 路由，应用授权范围后可调用 `DeliveryStore` 的只读方法。Artisan 允许选择数据库和范围，仅交给可信运维人员。诊断输出不包含请求 URL、正文、Header、签名材料或远端响应正文。
 
 ### 按订阅发布 {#subscriptions}
 

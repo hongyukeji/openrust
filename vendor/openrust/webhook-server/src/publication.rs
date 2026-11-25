@@ -14,7 +14,7 @@ use crate::{
 
 pub(crate) const MESSAGES: &str = "webhook_messages";
 const SUBSCRIPTIONS: &str = "webhook_subscriptions";
-const MAX_ENDPOINTS: usize = 32;
+pub(crate) const MAX_ENDPOINTS: usize = 32;
 const MAX_MESSAGE_BYTES: usize = 1024 * 1024;
 
 pub struct EventType {

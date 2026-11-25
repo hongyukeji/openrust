@@ -11,6 +11,7 @@ mod delivery;
 mod delivery_migration;
 mod delivery_store;
 mod destination;
+mod diagnostics;
 mod dispatch;
 #[path = "../database/migrations/2026_11_25_000000_create_webhook_endpoints_table.rs"]
 mod endpoint_migration;
@@ -44,6 +45,9 @@ pub use delivery::{
 };
 pub use delivery_store::{DeliveryProgress, DeliveryStore};
 pub use destination::{BoundTarget, TargetPolicy};
+pub use diagnostics::{
+    DeliveryAttemptDiagnostics, DeliveryAttemptsPage, DeliveryDiagnostics, MessageDiagnostics,
+};
 pub use dispatch::{QueuedDelivery, SynchronousDelivery};
 pub use endpoints::{Endpoint, EndpointState, EndpointStore};
 pub use error::{Error, Result};

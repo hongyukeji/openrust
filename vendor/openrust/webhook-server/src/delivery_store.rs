@@ -18,8 +18,8 @@ use crate::{
     snapshot::Snapshot,
 };
 
-const DELIVERIES: &str = "webhook_deliveries";
-const ATTEMPTS: &str = "webhook_delivery_attempts";
+pub(crate) const DELIVERIES: &str = "webhook_deliveries";
+pub(crate) const ATTEMPTS: &str = "webhook_delivery_attempts";
 const REPLAYS: &str = "webhook_delivery_replays";
 const WAKE_COOLDOWN_SECONDS: u32 = 60;
 
@@ -875,7 +875,7 @@ pub(crate) fn check_text(field: &'static str, text: &str) -> Result<()> {
     Ok(())
 }
 
-fn check_id(id: &str) -> Result<()> {
+pub(crate) fn check_id(id: &str) -> Result<()> {
     if id.len() != 64
         || !id
             .bytes()

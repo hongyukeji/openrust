@@ -777,3 +777,61 @@ impl Command for FixtureEndpointCommand {
         })
     }
 }
+
+pub(super) fn inspect(
+    request: &mut Request,
+) -> HttpFuture<'_, std::result::Result<Response, HttpError>> {
+    Box::pin(async move {
+        let scope = request.route("scope").ok_or(HttpError::NotFound)?;
+        if scope != SCOPE
+            || request
+                .headers()
+                .get("x-fixture-inspector")
+                .and_then(|v| v.to_str().ok())
+                != Some("fixture-operator")
+        {
+            return Response::json(StatusCode::FORBIDDEN, json!({}));
+        }
+        let id = request.route("id").ok_or(HttpError::NotFound)?;
+        let operation = request.route("kind").ok_or(HttpError::NotFound)?;
+        let manager = super::Databases::get_facade_root().map_err(super::internal)?;
+        let store = DeliveryStore::new(manager.connection(None).map_err(super::internal)?, scope)
+            .map_err(super::internal)?;
+        let headers = request.headers();
+        let options = |header, default| {
+            headers.get(header).map_or(Ok(default), |value| {
+                value
+                    .to_str()
+                    .ok()
+                    .and_then(|value| value.parse::<u32>().ok())
+                    .ok_or(Error::InvalidConfig("fixture"))
+            })
+        };
+        let result = async {
+            let result = match operation {
+                "delivery" => serde_json::to_value(store.inspect_delivery(id).await?),
+                "message" => serde_json::to_value(store.inspect_message(id).await?),
+                "attempts" => serde_json::to_value(
+                    store
+                        .inspect_attempts(
+                            id,
+                            options("x-fixture-after", 0)?,
+                            options("x-fixture-limit", 50)?,
+                        )
+                        .await?,
+                ),
+                _ => return Err(Error::InvalidConfig("fixture")),
+            };
+            result.map_err(|_| Error::InvalidRecord)
+        }
+        .await;
+        match result {
+            Ok(serde_json::Value::Null) => Response::json(StatusCode::NOT_FOUND, json!({})),
+            Ok(value) => Response::json(StatusCode::OK, value),
+            Err(Error::InvalidConfig(_) | Error::InvalidRecord) => {
+                Response::json(StatusCode::UNPROCESSABLE_ENTITY, json!({}))
+            }
+            Err(error) => Err(super::internal(error)),
+        }
+    })
+}

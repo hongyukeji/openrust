@@ -160,6 +160,15 @@ pub fn grant_invoice_proxy(
     permission.with_proxy("corp-egress", proxy)
 }
 
+
+pub async fn inspect_invoice_attempts(
+    store: &openrust_webhook_server::DeliveryStore,
+    id: &str,
+    after: u32,
+) -> Result<openrust_webhook_server::DeliveryAttemptsPage> {
+    store.inspect_attempts(id, after, 25).await
+}
+
 ```
 
 
@@ -239,6 +248,12 @@ Pause retains pending deliveries and their original deadlines. Resume allows eli
 Register `DeliveryLimits` in the application on each node. A scope limit includes direct URL calls, queued deliveries, retries and replay sends. A named endpoint also uses its own bucket, shared across its configuration revisions. Replay registration has a separate optional scope limit. Each window starts with its first reservation and uses the database clock.
 
 When a send reaches a limit, the delivery waits until the bucket resets with its original attempt budget and deadline. A limited replay registration returns an error with the next eligible Unix timestamp. Keep the limit configuration consistent on all nodes sharing the delivery database.
+
+### Inspect deliveries and attempts {#inspect}
+
+Use `./artisan webhook-server:inspect <id> --scope=<scope>` for a delivery ID. Add `--message` for the internal message ID returned by `publish`. Add `--attempts --limit=25` for an attempt page, then pass the returned `next_after` to `--after` if another page exists. All timestamps are Unix seconds. `--database` selects a named database connection.
+
+Results include state, timing, HTTP status and bounded attempt outcomes. Published message summaries include the event type, schema version and original delivery IDs. The package does not mount a diagnostics HTTP route. Authorize the scope in the application before calling the read-only `DeliveryStore` methods. Give Artisan access to trusted operators because the command accepts a database and scope. Diagnostics contain no request URL, body, headers, signing material or remote response body.
 
 ### Publish to subscriptions {#subscriptions}
 

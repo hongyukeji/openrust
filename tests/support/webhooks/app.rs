@@ -1009,6 +1009,7 @@ fn api_routes() -> Result<(), openrust::routing::RoutingError> {
     Route::post("/webhooks/{profile}", verify)?;
     Route::post("/received/{profile}", receive)?;
     Route::post("/outbound/{mode}/{key}", outbound::submit)?;
+    Route::get("/outbound-inspect/{scope}/{kind}/{id}", outbound::inspect)?;
     for route in [
         "atomic",
         "atomic-null",
