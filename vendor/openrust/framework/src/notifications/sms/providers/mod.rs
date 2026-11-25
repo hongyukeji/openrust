@@ -6,10 +6,8 @@ mod twilio;
 mod vonage;
 mod yunpian;
 
-use std::{fmt::Write as _, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
-use aws_lc_rs::{digest, hmac};
-use http::{HeaderMap, HeaderValue, header::AUTHORIZATION};
 use serde_json::Value;
 use url::Url;
 
@@ -252,42 +250,4 @@ fn response(result: crate::http::client::Result<Response>) -> NotificationResult
     checked_response(result)?
         .json()
         .map_err(|_| unknown("The SMS provider returned an invalid JSON response."))
-}
-
-fn signed_headers(
-    values: &[(&'static str, &str)],
-    authorization: &str,
-) -> NotificationResult<HeaderMap> {
-    let mut headers = HeaderMap::new();
-    let parse = |value: &str| {
-        HeaderValue::from_str(value)
-            .map_err(|_| delivery("The SMS profile contains an invalid request header."))
-    };
-    for (name, value) in values {
-        headers.insert(*name, parse(value)?);
-    }
-    let mut value = parse(authorization)?;
-    value.set_sensitive(true);
-    headers.insert(AUTHORIZATION, value);
-    Ok(headers)
-}
-
-fn hex(bytes: &[u8]) -> String {
-    let mut output = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        write!(output, "{byte:02x}").expect("writing to String");
-    }
-    output
-}
-
-fn sha256(value: &[u8]) -> String {
-    hex(digest::digest(&digest::SHA256, value).as_ref())
-}
-
-fn sign(key: &[u8], value: &str) -> hmac::Tag {
-    hmac::sign(&hmac::Key::new(hmac::HMAC_SHA256, key), value.as_bytes())
-}
-
-fn now() -> jiff::Timestamp {
-    jiff::Timestamp::now()
 }

@@ -1,5 +1,6 @@
 mod aliyun;
 mod media;
+mod tencent;
 
 use std::{net::IpAddr, sync::Arc, time::Duration};
 
@@ -21,11 +22,20 @@ pub(crate) fn register(
     env: Arc<Environment>,
     storage: Arc<FilesystemManager>,
 ) {
+    let client = http.clone();
+    let environment = env.clone();
     manager.extend("aliyun", move |profile| {
         Ok(Arc::new(aliyun::Aliyun::new(
+            client.clone(),
+            &environment,
+            storage.clone(),
+            profile,
+        )?))
+    });
+    manager.extend("tencent", move |profile| {
+        Ok(Arc::new(tencent::Tencent::new(
             http.clone(),
             &env,
-            storage.clone(),
             profile,
         )?))
     });

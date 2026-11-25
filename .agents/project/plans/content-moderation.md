@@ -407,7 +407,7 @@ CM-01只验外部契约、注册／解析、公开调用、任务句柄序列化
 |---|---|---|---|
 | CM-00 | 按已确认四家与架构落实公开签名、D-04逐家API／能力映射、D-03审核状态／存储与D-05凭据接线及验收清单；补齐实际部署参数 | 不得重新改成二选一或跳过Hive；没有新增范围不再要求用户逐项批准技术细节 | 工程核对中，见[已核对的协议和公共接缝](../audits/content-moderation/README.md#protocols) |
 | CM-01 | 可选包、配置／Provider、Manager／外部自定义驱动接缝、模拟后端与任务句柄序列化 | CM-00工程契约落实；基础独立消费者、应用隔离、HTTP／Artisan／Worker装配与配置缓存通过；持久异步恢复留CM-03，骨架不计完整实现 | 本地底座通过，见[工程核对和外部消费者](../audits/content-moderation/README.md#external-drivers) |
-| CM-02 | 阿里云、腾讯云、Sightengine、Hive四家的文本／图片协议、分类／证据映射、错误与覆盖检查；可按上述顺序分CM-02A／B／C／D提交 | CM-01；真实 HTTP 协议模拟、公开入口及关键反例通过；真实供应商另记 | 进行中，[阿里云通用文本](../audits/content-moderation/README.md#aliyun-text)和[私有图片](../audits/content-moderation/README.md#aliyun-image)本地通过 |
+| CM-02 | 阿里云、腾讯云、Sightengine、Hive四家的文本／图片协议、分类／证据映射、错误与覆盖检查；可按上述顺序分CM-02A／B／C／D提交 | CM-01；真实 HTTP 协议模拟、公开入口及关键反例通过；真实供应商另记 | 进行中，[阿里云通用文本](../audits/content-moderation/README.md#aliyun-text)、[阿里云私有图片](../audits/content-moderation/README.md#aliyun-image)及[腾讯云标准文本](../audits/content-moderation/README.md#tencent-text)本地通过 |
 | CM-03 | 四家必接后端分别完成视频任务、私有对象送审、查询／回调、模态覆盖、D-01至D-06持久化／配置绑定／接收补偿／状态聚合／限流与业务发布接缝 | CM-02、Webhook接收WH-03可复用门禁与D-03存储落实；CM-V13至CM-V18和自定义异步跨进程恢复、实际数据库验收通过 | 未开始 |
 | CM-04 | 对阿里云、腾讯云、Sightengine、Hive分别验收业务样本效果、时延、费用和实际部署场景 | 授权账号、受控样本及预算就绪；按验收范围收尾，未验项保留 | 未开始 |
 | CM-05 | 必接四家后端之外的额外供应商、本地文本预检、自托管、ClamAV／PII／哈希等 | 分项需求和收益确认后单独实施，不作为首版默认依赖 | 条件性后续 |

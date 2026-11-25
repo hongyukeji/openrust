@@ -4331,6 +4331,7 @@ dependencies = [
 name = "openrust-content-moderation"
 version = "0.0.0"
 dependencies = [
+ "base64 0.22.1",
  "http 1.5.0",
  "openrust-framework",
  "serde",

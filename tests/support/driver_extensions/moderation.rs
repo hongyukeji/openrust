@@ -44,6 +44,16 @@ pub(super) fn configuration(env: &Environment) -> Result<Value, ConfigError> {
             });
         }
     }
+    if let Some(endpoint) = env.get_utf8("MODERATION_FIXTURE_TENCENT")? {
+        configuration["drivers"]["tencent-default"] = json!({
+            "driver":"tencent", "base_url":endpoint, "region":"ap-guangzhou", "biz_type":"comments",
+            "secret_id_env":"FIXTURE_TENCENT_ID", "secret_key_env":"FIXTURE_TENCENT_SECRET",
+            "security_token_env":"FIXTURE_TENCENT_TOKEN", "timeout_ms":350,
+        });
+        let mut english = configuration["drivers"]["tencent-default"].clone();
+        english["english_text"] = json!(true);
+        configuration["drivers"]["tencent-english"] = english;
+    }
     Ok(configuration)
 }
 
@@ -201,7 +211,7 @@ pub(super) fn aliyun_route(request: &mut Request) -> HttpFuture<'_, Result<Respo
     Box::pin(async move {
         let raw = request.body_bytes().await?;
         let text = std::str::from_utf8(&raw).map_err(|_| HttpError::InvalidRequest)?;
-        aliyun_response(aliyun(text, request.header("x-fixture-language")?).await)
+        provider_response(aliyun(text, request.header("x-fixture-language")?).await)
     })
 }
 
@@ -213,11 +223,31 @@ pub(super) fn aliyun_image_route(
             .header("x-fixture-version")?
             .ok_or(HttpError::InvalidRequest)?;
         let disk = request.header("x-fixture-disk")?.unwrap_or("s3");
-        aliyun_response(aliyun_image(version, disk).await)
+        provider_response(aliyun_image(version, disk).await)
     })
 }
 
-fn aliyun_response(result: ModerationResult<Value>) -> Result<Response, HttpError> {
+async fn tencent(text: &str, language: Option<&str>, profile: &str) -> ModerationResult<Value> {
+    let mut input = TextInput::new(text)?;
+    if let Some(language) = language {
+        input = input.with_language(language)?;
+    }
+    let result = Moderation::driver(profile)?.text(&input).await?;
+    Ok(render_assessment(result, Modality::Text))
+}
+
+pub(super) fn tencent_route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let raw = request.body_bytes().await?;
+        let text = std::str::from_utf8(&raw).map_err(|_| HttpError::InvalidRequest)?;
+        let profile = request
+            .header("x-fixture-profile")?
+            .unwrap_or("tencent-default");
+        provider_response(tencent(text, request.header("x-fixture-language")?, profile).await)
+    })
+}
+
+fn provider_response(result: ModerationResult<Value>) -> Result<Response, HttpError> {
     match result {
         Ok(value) => Response::json(StatusCode::OK, value),
         Err(error) => {
@@ -323,7 +353,40 @@ pub(super) fn register_command(artisan: &mut Artisan) -> Result<(), ConsoleError
                     .long("image")
                     .action(clap::ArgAction::SetTrue),
             ),
+    ))))?;
+    artisan.add_command(Box::new(TencentProbe(CommandDefinition::new(
+        clap::Command::new("drivers:moderation-tencent").arg(clap::Arg::new("text").required(true)),
     ))))
+}
+
+struct TencentProbe(CommandDefinition);
+
+impl Command for TencentProbe {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+
+    fn handle<'a>(
+        &'a self,
+        _: &'a Application,
+        input: &'a Input,
+        output: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            let text = input.argument("text").expect("fixture command input");
+            let result = tencent(
+                text.as_str().expect("fixture text"),
+                None,
+                "tencent-default",
+            )
+            .await
+            .map_err(ConsoleError::from_source)?;
+            output
+                .write_raw(&format!("{result}\n"))
+                .map_err(ConsoleError::from_source)?;
+            Ok(0)
+        })
+    }
 }
 
 struct AliyunProbe(CommandDefinition);

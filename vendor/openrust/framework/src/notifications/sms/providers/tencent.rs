@@ -1,12 +1,14 @@
 use serde_json::{Value, json};
-use url::{Position, Url};
+use url::Url;
 
-use crate::notifications::{NotificationFuture, NotificationResult, delivery};
+use crate::{
+    http::client::tencent_rpc::{CONTENT_TYPE, TencentRpcOperation, TencentRpcSigner},
+    notifications::{NotificationFuture, NotificationResult, delivery},
+};
 
 use super::{
     super::{SmsDriver, SmsMessage, SmsTemplateParameters},
-    hex, now, rejected, request, required, response, rpc_endpoint, setting, sha256, sign,
-    signed_headers, unknown,
+    rejected, request, required, response, rpc_endpoint, setting, unknown,
 };
 
 pub(super) struct Tencent {
@@ -55,39 +57,25 @@ impl SmsDriver for Tencent {
                 body["SignName"] = json!(name);
             }
             let body = serde_json::to_string(&body).map_err(delivery)?;
-            let now = now();
-            let timestamp = crate::support::timestamp_seconds(now).to_string();
-            let date = now.strftime("%Y-%m-%d").to_string();
-            let host = &self.endpoint[Position::BeforeHost..Position::AfterPort];
-            const CONTENT_TYPE: &str = "application/json; charset=utf-8";
-            let signed = "content-type;host";
-            let canonical = format!(
-                "POST\n/\n\ncontent-type:{CONTENT_TYPE}\nhost:{host}\n\n{signed}\n{}",
-                sha256(body.as_bytes())
-            );
-            let scope = format!("{date}/sms/tc3_request");
-            let to_sign = format!(
-                "TC3-HMAC-SHA256\n{timestamp}\n{scope}\n{}",
-                sha256(canonical.as_bytes())
-            );
-            let key = sign(format!("TC3{}", self.secret_key).as_bytes(), &date);
-            let service = sign(key.as_ref(), "sms");
-            let signing = sign(service.as_ref(), "tc3_request");
-            let signature = hex(sign(signing.as_ref(), &to_sign).as_ref());
-            let authorization = format!(
-                "TC3-HMAC-SHA256 Credential={}/{scope}, SignedHeaders={signed}, Signature={signature}",
-                self.secret_id
-            );
-            let headers = [
-                ("host", host),
-                ("x-tc-action", "SendSms"),
-                ("x-tc-version", "2021-01-11"),
-                ("x-tc-timestamp", timestamp.as_str()),
-                ("x-tc-region", self.region.as_str()),
-            ];
+            let headers = TencentRpcSigner {
+                secret_id: &self.secret_id,
+                secret_key: self.secret_key.as_bytes(),
+                security_token: None,
+            }
+            .sign_post(
+                &self.endpoint,
+                TencentRpcOperation {
+                    service: "sms",
+                    action: "SendSms",
+                    version: "2021-01-11",
+                    region: &self.region,
+                },
+                body.as_bytes(),
+            )
+            .map_err(|_| delivery("The SMS profile contains an invalid request header."))?;
             let payload = response(
                 request()?
-                    .with_headers(signed_headers(&headers, &authorization)?)
+                    .with_headers(headers)
                     .with_body(body, http::HeaderValue::from_static(CONTENT_TYPE))
                     .post(self.endpoint.as_str(), &())
                     .await,

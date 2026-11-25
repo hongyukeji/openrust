@@ -2,7 +2,7 @@
 
 啟用 `content-moderation` 功能，或在依賴 `openrust-content-moderation` 的應用程式中註冊 `ModerationServiceProvider`。執行 `./artisan vendor:publish --tag=moderation-config` 發布設定範本。在應用程式的 Rust 設定中將 `moderation.drivers.comments.driver` 設為 `review-text`，並透過 `MODERATION_DRIVER=comments` 選擇預設設定。
 
-目前套件提供自訂驅動契約、阿里雲文字和已儲存圖片審核。其他供應商操作及持久化影片編排正在實作。
+目前套件提供自訂驅動契約、阿里雲文字及已儲存圖片審核，以及騰訊雲文字審核。其他供應商操作及持久化影片編排正在實作。
 
 ## 阿里雲文字 {#aliyun-text}
 
@@ -17,6 +17,12 @@
 審核已儲存圖片時，設定 `image_service`（例如 `baselineCheck`），以 `media_disk` 指定私有 S3 磁碟，並將 `media_origin` 設為該磁碟的 HTTPS 下載來源。向具名驅動傳入 `ImageInput::stored(StoredMedia::new(disk, key, version_id)?)`，其中 `version_id` 是不可變的 S3 物件版本。驅動向阿里雲送出繫結該版本、有效期五分鐘的簽章網址。來源或磁碟不相符、物件未版本化時，會在提交前拒絕。
 
 此操作提供視覺涵蓋。擷取畫格取樣或語義不明確的 `nonLabel` 只計部分涵蓋。若回應含有置信分，透過 `Assessment::confidence` 讀取原值與 0–100 量程。業務還要求 OCR 時應檢查涵蓋欄位。 [阿里雲 ImageModeration](https://help.aliyun.com/zh/document_detail/2528742.html)
+
+## 騰訊雲文字 {#tencent-text}
+
+在具名設定指定 `driver: "tencent"`、騰訊雲開通的 `region` 和 `biz_type`，並填寫環境變數名稱 `secret_id_env`、`secret_key_env`。臨時憑證另設 `security_token_env`。介接器使用 UTF-8 Base64 呼叫標準 `TextModeration`，最多接受 10,000 個 Unicode 字元。
+
+中文提示對應 `zh`。騰訊雲確認帳號支援英文選項後設定 `english_text: true`，純英文文字的提示才會轉為 `en`。介接器核對回應策略與設定的 `biz_type`。明細可提高總建議的風險級別，未識別標籤無法得到 `Allow`。 [騰訊雲 TextModeration](https://cloud.tencent.com.cn/document/api/1124/51860)
 
 ## 自訂驅動 {#custom-drivers}
 

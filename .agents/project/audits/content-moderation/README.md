@@ -48,3 +48,11 @@
 基线 `c774e1e2`，Rust 1.94.0。`tests/moderation_aliyun_image_acceptance.py` 使用固定 SeaweedFS 4.53 镜像和阿里云 HTTP 协议替身。在同一个私有 S3 对象写入两个不同 PNG 版本，匿名下载返回 403。真实 Artisan 和应用 HTTP 发送签名请求，替身独立复算 ACS3 并把已签名路径转发到实际 SeaweedFS，分别读取和核对原、最新版本的像素原文。另验无效置信分、欠缺结果、采样与 `nonLabel`、不存在的版本、配置／路由缓存、跨磁盘和来源拒绝。复跑阿里云文本及 SQLite 外部驱动 HTTP／Artisan／Worker。首次本机无固定镜像，拉取该摘要后完成验收。
 
 全工作区格式、内容审核包和验收应用的严格 Clippy、三语文档内容检查与 Python 语法通过。协议替身将 HTTPS 下载入口的签名路径转发到隔离回环 S3，生产 HTTPS 和真实阿里云下载、图片效果、OCR 以及托管存储仍待各自验收。
+
+## CM-02B 腾讯云标准文本 {#tencent-text}
+
+固定产品版本 `2020-12-29`，在 `tms` 服务作用域调用 `TextModeration`。从短信已有 TC3 代码提取 `TencentRpcSigner`，保留 `content-type;host` 及短信的 `sms`、`SendSms`、`2021-01-11`。审核新增具名区域／策略和临时令牌，凭据由各进程从配置引用解析。 [TC3 签名](https://intl.cloud.tencent.com/document/product/1145/50458) · [标准文本动作](https://cloud.tencent.com.cn/document/api/1124/51860)
+
+请求发送原文的 UTF-8 Base64，按 10,000 Unicode 字符限长，明确 `Type=TEXT`。中文提示映射 `zh`，英文提示要求具名配置显式启用；正式开通按腾讯云业务要求核对。结果与原 `BizType` 匹配，合并总体及明细建议时保留风险较高的裁决，保留原始标签／子标签和 0–100 原始分。未知标签不会给出 Allow，缺字段及未知建议按协议错误处理。原始关键词和厂商错误消息不进入返回和日志。
+
+基线 `950f5bbb`，Rust 1.94.0。`tests/moderation_tencent_text_acceptance.py` 的独立 HTTP 替身复算 19 个请求的 TC3 签名，核对时间、作用域、Action、版本、Token、策略、源语言和原始字节。运行真实应用 HTTP 与独立 Artisan，覆盖配置／路由缓存、凭据轮换、语言及 10,000／10,001 字符门禁、风险明细、未知标签、跨策略结果、限流、超时、重定向、权限及脱敏。复跑阿里云文本及私有 S3 图片 HTTP／Artisan。真实腾讯云账号、英文授权、检测效果和费用仍待供应商验收。 独立的短信供应商 TCP 协议回归、审核包 3 个契约测试、全工作区格式检查、框架短信／审核包／生成应用严格 Clippy 和三语文档检查通过。

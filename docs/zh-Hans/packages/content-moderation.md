@@ -2,7 +2,7 @@
 
 启用 `content-moderation` 功能，或在依赖 `openrust-content-moderation` 的应用中注册 `ModerationServiceProvider`。执行 `./artisan vendor:publish --tag=moderation-config` 发布配置模板。在应用的 Rust 配置中将 `moderation.drivers.comments.driver` 设为 `review-text`，并通过 `MODERATION_DRIVER=comments` 选择默认配置。
 
-当前包提供自定义驱动契约、阿里云文本和已存储图片审核。其他供应商操作及持久化视频编排正在实施。
+当前包提供自定义驱动契约、阿里云文本和已存储图片审核，以及腾讯云文本审核。其他供应商操作及持久化视频编排正在实施。
 
 ## 阿里云文本 {#aliyun-text}
 
@@ -17,6 +17,12 @@
 审核已存储图片时，配置 `image_service`（例如 `baselineCheck`），以 `media_disk` 指定私有 S3 磁盘，并将 `media_origin` 设为该磁盘的 HTTPS 下载来源。向具名驱动传入 `ImageInput::stored(StoredMedia::new(disk, key, version_id)?)`，其中 `version_id` 是不可变的 S3 对象版本。驱动向阿里云发送绑定该版本、有效期五分钟的签名地址。来源或磁盘不匹配、对象未版本化时，在提交前拒绝。
 
 此操作提供视觉覆盖。截帧采样或语义不明确的 `nonLabel` 只计部分覆盖。若响应含有置信分，通过 `Assessment::confidence` 读取原值与 0–100 量程。业务还要求 OCR 时应检查覆盖字段。 [阿里云 ImageModeration](https://help.aliyun.com/zh/document_detail/2528742.html)
+
+## 腾讯云文本 {#tencent-text}
+
+在具名配置设置 `driver: "tencent"`、腾讯云开通的 `region` 和 `biz_type`，并填写环境变量名 `secret_id_env`、`secret_key_env`。临时凭据另设 `security_token_env`。适配器使用 UTF-8 Base64 调用标准 `TextModeration`，最多接受 10,000 个 Unicode 字符。
+
+中文提示映射为 `zh`。腾讯云确认账号支持英文选项后设置 `english_text: true`，纯英文文本的提示才会转换为 `en`。适配器核对响应策略与配置的 `biz_type`。明细可提高总建议的风险级别，未识别标签无法得到 `Allow`。 [腾讯云 TextModeration](https://cloud.tencent.com.cn/document/api/1124/51860)
 
 ## 自定义驱动 {#custom-drivers}
 

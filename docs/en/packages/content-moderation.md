@@ -2,7 +2,7 @@
 
 Enable the `content-moderation` feature or register `ModerationServiceProvider` in an application that depends on `openrust-content-moderation`. Run `./artisan vendor:publish --tag=moderation-config` to publish the configuration template. In your application's Rust configuration, set `moderation.drivers.comments.driver` to `review-text` and set `MODERATION_DRIVER=comments` for the default profile.
 
-The package provides custom driver contracts and Alibaba Cloud text and stored-image moderation. The other provider operations and durable video orchestration are being implemented.
+The package provides custom driver contracts, Alibaba Cloud text and stored-image moderation, and Tencent Cloud text moderation. The other provider operations and durable video orchestration are being implemented.
 
 ## Alibaba Cloud text {#aliyun-text}
 
@@ -17,6 +17,12 @@ To use a language hint, list the tags supported by the chosen service in `text_l
 For stored images, configure `image_service` such as `baselineCheck`, select a private S3 `media_disk`, and set `media_origin` to the HTTPS download origin for that disk. Pass `ImageInput::stored(StoredMedia::new(disk, key, version_id)?)` to the named driver. `version_id` must be an immutable S3 object version. The driver sends Alibaba Cloud a five-minute URL signed for that version. A mismatched origin, disk, or unversioned object is rejected before submission.
 
 This operation supplies visual coverage. Frame samples and ambiguous `nonLabel` responses count as partial coverage. When the response contains confidence scores, `Assessment::confidence` returns the original value on a 0–100 scale. Use the coverage field when your policy also requires OCR. [Alibaba Cloud ImageModeration](https://help.aliyun.com/zh/document_detail/2528742.html)
+
+## Tencent Cloud text {#tencent-text}
+
+For a named profile, set `driver: "tencent"`, the `region` and `biz_type` configured in Tencent Cloud, and the environment variable names `secret_id_env` and `secret_key_env`. Add `security_token_env` for temporary credentials. The adapter calls standard `TextModeration` with UTF-8 Base64 text and accepts up to 10,000 Unicode characters.
+
+Chinese hints map to `zh`. Set `english_text: true` once Tencent Cloud has enabled the English option for your account. An English hint then uses `en` for pure English text. The adapter checks that the returned policy matches the configured `biz_type`. A detail can increase the severity of the overall recommendation, and an unrecognized label cannot lead to `Allow`. [Tencent Cloud TextModeration](https://cloud.tencent.com.cn/document/api/1124/51860)
 
 ## Custom drivers {#custom-drivers}
 

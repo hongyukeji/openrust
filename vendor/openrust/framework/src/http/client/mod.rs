@@ -13,6 +13,7 @@ mod pending_request;
 mod pool;
 mod response;
 mod sink;
+pub mod tencent_rpc;
 mod transport;
 mod uri_template;
 
