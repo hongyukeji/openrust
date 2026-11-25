@@ -677,3 +677,29 @@ The factory uses the existing output: captured command calls retain progress in 
 Customize a bar with its format, message, bar characters, width, redraw-frequency and placeholder methods. Shared named formats and placeholder definitions belong to the current application; set them during command registration or execution. A bar retains its owning application definitions. A standalone bar can use literal formats and instance placeholders. A placeholder callback borrows the actual bar and returns `Result<String, ConsoleError>`. The memory placeholder reports native process resident memory; it does not report a language VM heap.
 
 The numeric and collection helpers have separate Rust methods so their callback and return types remain explicit. Passing `&items` preserves caller ownership on failure. This section verifies synchronous collection and manual progress; lazy iterator adapters, asynchronous/mutable task callbacks and the remaining inherited output contracts are tracked separately.
+
+## Lazy progress iteration {#lazy-progress-iteration}
+
+Use `OutputStyle::progress_iterate(items)` to iterate through tasks. It starts on the first `next()`, advances when the next item is requested, and finishes only on natural exhaustion. Each item is a `Result`: propagate output errors with `?`. Early `break`, callback failure, or dropping the iterator does not add a completed frame or the final two style newlines.
+
+```rust
+use openrust::{
+    console::{ConsoleError, Input, Output},
+    support::facades::Artisan,
+};
+
+fn register_progress_iteration() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:iterate", |input: &Input, output: &mut Output| {
+        let mut io = input.io(output);
+        let mut sum = 0;
+        for number in io.get_output().progress_iterate([2, 4, 6]) {
+            sum += number?;
+        }
+        io.info(&format!("sum:{sum}"))?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
+Manual bars provide `iterate(items)` and `iterate_with_max(items, max)`; use `iterator.progress_bar()` to access that same bar between items. The style variants include `progress_iterate_with_max`. `None` and `Some(0)` infer the total from an exact iterator size hint; otherwise the total remains unknown or the existing manual maximum is retained. A positive explicit total overrides inference. Items, tuple keys, and borrowed model identities remain unchanged; conversion to the underlying iterator is also deferred. An empty exact iterator finishes without a start frame. Asynchronous and mutable callback helpers are separate work; these entries do not block or run tasks in the background.

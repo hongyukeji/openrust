@@ -677,3 +677,29 @@ fn register_progress() -> Result<(), ConsoleError> {
 可设置格式、消息、进度字符、宽度、刷新频率及占位符。共享命名格式和占位符定义属于当前应用，在命令注册或执行作用域内设置；进度条保留创建时所属应用的定义。独立进度条可直接使用字面格式及实例占位符。占位符回调借用实际进度条，返回 `Result<String, ConsoleError>`。内存占位符显示原生进程驻留内存，不是语言虚拟机堆大小。
 
 数字与集合帮助方法拆开命名，使回调及返回类型明确。传入 `&items` 可在失败时保留调用方所有权。本节验收同步集合及手动进度；惰性迭代器适配、异步／可变任务回调和其余继承输出契约继续单独核对。
+
+## 惰性进度迭代 {#lazy-progress-iteration}
+
+使用 `OutputStyle::progress_iterate(items)` 逐项处理任务。首次 `next()` 才启动，取下一项时才推进，自然耗尽后才完成。每项返回 `Result`，用 `?` 传播输出错误。提前 `break`、处理失败或丢弃迭代器，不补写完成帧及样式末尾的两个换行。
+
+```rust
+use openrust::{
+    console::{ConsoleError, Input, Output},
+    support::facades::Artisan,
+};
+
+fn register_progress_iteration() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:iterate", |input: &Input, output: &mut Output| {
+        let mut io = input.io(output);
+        let mut sum = 0;
+        for number in io.get_output().progress_iterate([2, 4, 6]) {
+            sum += number?;
+        }
+        io.info(&format!("sum:{sum}"))?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
+手动进度条提供 `iterate(items)` 和 `iterate_with_max(items, max)`，可在项之间通过 `iterator.progress_bar()` 访问同一条进度。样式入口另有 `progress_iterate_with_max`。`None` 与 `Some(0)` 从迭代器精确长度提示推导总数；无精确提示时保持未知，或保留手动进度条已有总数。显式正总数覆盖推导。元素、元组键及借用模型身份保持不变，转成底层迭代器的动作也推迟到首次取值。精确空迭代器直接完成，不绘制启动帧。异步和可变回调帮助方法仍待单独实现与验收；这些入口不会阻塞执行异步任务或把任务放到后台。

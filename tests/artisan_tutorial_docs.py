@@ -175,5 +175,8 @@ async fn formal_progress_example(){
 }
 """
     parts.append('mod '+locale.replace('-','_').lower()+'_progress{\n'+progress_code+progress_checks+'}\n')
+    iteration_code=re.search(r'```rust\n(.*?)```',text.split('{#lazy-progress-iteration}',1)[1],re.S).group(1)
+    iteration_checks=progress_checks.replace('formal_progress_example','formal_progress_iteration_example').replace('register_progress)', 'register_progress_iteration)').replace('"reports:progress"','"reports:iterate"').replace('assert!(output.stdout.contains("CSV,JSON,HTML:11"));assert_eq!(output.stdout.matches("100%").count(),2);assert!(output.stdout.contains("build"));','assert!(output.stdout.contains("sum:12"));assert_eq!(output.stdout.matches("100%").count(),1);')
+    parts.append('mod '+locale.replace('-','_').lower()+'_progress_iteration{\n'+iteration_code+iteration_checks+'}\n')
 target=source/'tests/artisan_docs_generated.rs';target.write_text('\n'.join(parts));subprocess.run(['rustfmt','+1.94.0','--edition','2024',str(target)],check=True)
 print('generated',len(parts),'direct formal consumers')

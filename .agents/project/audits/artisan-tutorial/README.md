@@ -193,3 +193,16 @@ workspace all-targets严格Clippy、fmt、实际main重建、三语站点构建�
 最终5个框架目标50项＋根6目标80项，共130个不同父消费者，其中39个示例直接从三语正式Markdown提取编译运行；5个ignore子进程夹具不计通过，均有实际驱动。格式、workspace all-targets严格Clippy（55.93s）、main(pail)重建、三语站点及12组浏览器通过。实际最终main验收/up、静态文件、HTML／JSON404、HEAD、inspire／list、Pail帮助与错误过滤／超时清理、Ctrl+C退出0。进度CLI另由真实handle_command子进程逐帧核对stderr及终端宽度。命令及源SHA见accepted-progress-core.json，日志progress-core-final-*、progress-core-browser.log、progress-core-runtime.log；边界修复后整组均重跑，不叠加重复次数。
 
 组合基于b17ad6525已提交内容，未取其他在途认证实现；随后c119e6e1a仅改认证身份相关文件，不属于本簇核定源，不宣称已经复验其专项。一次早期组合被错误覆盖的私有进度定义装配及时发现并终止，不计通过；恢复该精确hunk后完成本次门禁。共享32GB守卫曾清理全项目编译profile，before=32025718784、after=113389518848、released=81363800064字节；源码／日志／依赖／数据／锁保留，恢复后继续完成，不把其他清理触发者算成本批失败。结束删除本批运行夹具，保留热缓存与证据，无本批遗留进程／容器。继续惰性迭代与异步真实任务及其余公开入口，本地提交，不推送。
+
+
+## 第十三簇：惰性进度迭代（2026-11-25）
+
+第十二簇653919636已本地提交。本簇按固定Console7.4 ProgressBar::iterate与SymfonyStyle::progressIterate逐行核对，继续复用同一个ProgressBar／ProgressState与OutputStyle，不另建输出／后台执行器。新增ProgressIterator、ProgressStyleIterator、ProgressBar::{iterate,iterate_with_max}和OutputStyle::{progress_iterate,progress_iterate_with_max}。第一次next才转换原始IntoIterator并启动；恢复yield后先advance，再取下一项；自然耗尽才finish，样式再写两个换行。提前break／未开始即丢弃不消费原始源、不补完成；输出错误只产生一个Result错误项并终止。手动进度条允许经iterator.progress_bar访问原实例。
+
+真实固定源码48份生命周期向量覆盖普通／有键／空集合、未知长度与空生成器、显式零／负／正总数、已有最大步数、完整／提前退出／未启动及装饰开关，见progress-iterator-oracle.json。源生成器opened／resumed／ended效果及进度时机、空集合无start的特殊stepWidth和percent均实际对照。Rust使用精确size_hint代替PHP Countable，非精确提示保持未知或保留手动总数；原始元素／键元组／借用身份不变，不复制模型，不用unsafe。
+
+独立Artisan首次比较发现测试将BufferedOutput合并流的末尾换行误归stderr；保持失败日志progress-iterator-tests3.log，未改生产行为以迎合夹具。补用真正ConsoleOutput逐场景运行固定源码，额外48份双流数据见progress-iterator-cli-oracle.json：进度帧stderr、样式结束两换行stdout，原生handle_command子进程逐路完全匹配。只去掉测试运行器已知stdout前缀，不裁剪命令内容。初轮JSON整数1／浮点1.0断言改为数值比较，明确是夹具类型问题，不作为框架修复。测试函数借用结束改词法作用域，通过严格Clippy，不加drop_non_drop豁免或空Drop。
+
+4个新增父消费者通过，1个ignore子进程由实际驱动调用不计通过；覆盖源全部48份、非Clone元素原指针／原借用、错误后迭代终止及重新创建成功，真实TCP六请求核对200／格式错误500／后续200。最终6框架目标54项、根6目标83项，共137个不同父消费者，含42个直接提取正式三语示例。workspace格式、all-targets严格Clippy、main(pail)、三语构建和12组浏览器通过；真实main／HTTP／Artisan／Pail／Ctrl+C复验见progress-iterator-runtime.log。命令／源SHA见accepted-progress-iteration.json；早期生命周期返回内部借用的编译错误已按准确输出生命周期修正，路由消费者用正式HttpFuture函数签名，未降低公开入口验收。
+
+结束删除本批运行夹具，保留热缓存、原始源对照与日志，不遗留服务／容器。完整异步／可变任务帮助回调、安全占位符输出适配、Table继承SDK及其余Artisan章节继续；本簇不关闭整章或总目标，不推送，其他在途保留。

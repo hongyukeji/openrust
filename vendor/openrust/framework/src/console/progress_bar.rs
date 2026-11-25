@@ -11,7 +11,9 @@ pub use error::ConsoleProgressError;
 mod definitions;
 pub(crate) use definitions::Definitions as ProgressDefinitions;
 mod iterable;
+mod iterator;
 pub use iterable::ProgressIterable;
+pub use iterator::{ProgressIterator, ProgressStyleIterator};
 
 /// 占位符回调借用当前进度条，允许读取和修改同一个实例。
 pub type ProgressFormatter =

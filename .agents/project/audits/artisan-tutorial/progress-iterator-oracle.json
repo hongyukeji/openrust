@@ -1,0 +1,1748 @@
+[
+    {
+        "items": "list",
+        "consume": "full",
+        "max": null,
+        "initial": 0,
+        "decorated": false,
+        "styled": false,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": 0,
+            "max": 0
+        },
+        "seen": [
+            [
+                0,
+                "A"
+            ],
+            [
+                1,
+                "B"
+            ],
+            [
+                2,
+                "C"
+            ]
+        ],
+        "steps": [
+            [
+                0,
+                3
+            ],
+            [
+                1,
+                3
+            ],
+            [
+                2,
+                3
+            ]
+        ],
+        "effects": [],
+        "output": " 0\/3 [>---------------------------]   0%\n 3\/3 [============================] 100%",
+        "progress": 3,
+        "max_after": 3,
+        "percent": 1,
+        "new_lines": 1,
+        "new_line": false,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "list",
+        "consume": "full",
+        "max": 0,
+        "initial": 5,
+        "decorated": false,
+        "styled": false,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": 0,
+            "max": 5
+        },
+        "seen": [
+            [
+                0,
+                "A"
+            ],
+            [
+                1,
+                "B"
+            ],
+            [
+                2,
+                "C"
+            ]
+        ],
+        "steps": [
+            [
+                0,
+                3
+            ],
+            [
+                1,
+                3
+            ],
+            [
+                2,
+                3
+            ]
+        ],
+        "effects": [],
+        "output": " 0\/3 [>---------------------------]   0%\n 3\/3 [============================] 100%",
+        "progress": 3,
+        "max_after": 3,
+        "percent": 1,
+        "new_lines": 1,
+        "new_line": false,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "list",
+        "consume": "full",
+        "max": 5,
+        "initial": 0,
+        "decorated": false,
+        "styled": false,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": 0,
+            "max": 0
+        },
+        "seen": [
+            [
+                0,
+                "A"
+            ],
+            [
+                1,
+                "B"
+            ],
+            [
+                2,
+                "C"
+            ]
+        ],
+        "steps": [
+            [
+                0,
+                5
+            ],
+            [
+                1,
+                5
+            ],
+            [
+                2,
+                5
+            ]
+        ],
+        "effects": [],
+        "output": " 0\/5 [>---------------------------]   0%\n 5\/5 [============================] 100%",
+        "progress": 5,
+        "max_after": 5,
+        "percent": 1,
+        "new_lines": 1,
+        "new_line": false,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "list",
+        "consume": "full",
+        "max": -2,
+        "initial": 0,
+        "decorated": false,
+        "styled": false,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": 0,
+            "max": 0
+        },
+        "seen": [
+            [
+                0,
+                "A"
+            ],
+            [
+                1,
+                "B"
+            ],
+            [
+                2,
+                "C"
+            ]
+        ],
+        "steps": [
+            [
+                0,
+                0
+            ],
+            [
+                1,
+                0
+            ],
+            [
+                2,
+                0
+            ]
+        ],
+        "effects": [],
+        "output": " 0 [>---------------------------] 0 [============================]",
+        "progress": 0,
+        "max_after": 0,
+        "percent": 1,
+        "new_lines": 1,
+        "new_line": false,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "map",
+        "consume": "full",
+        "max": null,
+        "initial": 0,
+        "decorated": false,
+        "styled": false,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": 0,
+            "max": 0
+        },
+        "seen": [
+            [
+                "a",
+                "A"
+            ],
+            [
+                7,
+                "B"
+            ]
+        ],
+        "steps": [
+            [
+                0,
+                2
+            ],
+            [
+                1,
+                2
+            ]
+        ],
+        "effects": [],
+        "output": " 0\/2 [>---------------------------]   0%\n 2\/2 [============================] 100%",
+        "progress": 2,
+        "max_after": 2,
+        "percent": 1,
+        "new_lines": 1,
+        "new_line": false,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "empty",
+        "consume": "full",
+        "max": null,
+        "initial": 5,
+        "decorated": false,
+        "styled": false,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": 0,
+            "max": 5
+        },
+        "seen": [],
+        "steps": [],
+        "effects": [],
+        "output": "",
+        "progress": 0,
+        "max_after": 0,
+        "percent": 0,
+        "new_lines": 1,
+        "new_line": false,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "generator",
+        "consume": "full",
+        "max": null,
+        "initial": 5,
+        "decorated": false,
+        "styled": false,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": 0,
+            "max": 5
+        },
+        "seen": [
+            [
+                "a",
+                "A"
+            ],
+            [
+                7,
+                "B"
+            ]
+        ],
+        "steps": [
+            [
+                0,
+                5
+            ],
+            [
+                1,
+                5
+            ]
+        ],
+        "effects": [
+            "opened",
+            "resumed-a",
+            "resumed-b",
+            "ended"
+        ],
+        "output": " 0\/5 [>---------------------------]   0%\n 5\/5 [============================] 100%",
+        "progress": 5,
+        "max_after": 5,
+        "percent": 1,
+        "new_lines": 1,
+        "new_line": false,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "empty-generator",
+        "consume": "full",
+        "max": null,
+        "initial": 0,
+        "decorated": false,
+        "styled": false,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": 0,
+            "max": 0
+        },
+        "seen": [],
+        "steps": [],
+        "effects": [
+            "opened",
+            "ended"
+        ],
+        "output": "    0 [>---------------------------]",
+        "progress": 0,
+        "max_after": 0,
+        "percent": 0,
+        "new_lines": 1,
+        "new_line": false,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "generator",
+        "consume": "full",
+        "max": 2,
+        "initial": 0,
+        "decorated": false,
+        "styled": false,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": 0,
+            "max": 0
+        },
+        "seen": [
+            [
+                "a",
+                "A"
+            ],
+            [
+                7,
+                "B"
+            ]
+        ],
+        "steps": [
+            [
+                0,
+                2
+            ],
+            [
+                1,
+                2
+            ]
+        ],
+        "effects": [
+            "opened",
+            "resumed-a",
+            "resumed-b",
+            "ended"
+        ],
+        "output": " 0\/2 [>---------------------------]   0%\n 2\/2 [============================] 100%",
+        "progress": 2,
+        "max_after": 2,
+        "percent": 1,
+        "new_lines": 1,
+        "new_line": false,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "list",
+        "consume": "break",
+        "max": null,
+        "initial": 0,
+        "decorated": false,
+        "styled": false,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": 0,
+            "max": 0
+        },
+        "seen": [
+            [
+                0,
+                "A"
+            ]
+        ],
+        "steps": [
+            [
+                0,
+                3
+            ]
+        ],
+        "effects": [],
+        "output": " 0\/3 [>---------------------------]   0%",
+        "progress": 0,
+        "max_after": 3,
+        "percent": 0,
+        "new_lines": 1,
+        "new_line": false,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "list",
+        "consume": "unstarted",
+        "max": null,
+        "initial": 0,
+        "decorated": false,
+        "styled": false,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": 0,
+            "max": 0
+        },
+        "seen": [],
+        "steps": [],
+        "effects": [],
+        "output": "",
+        "progress": 0,
+        "max_after": 0,
+        "percent": 0,
+        "new_lines": 1,
+        "new_line": false,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "generator",
+        "consume": "break",
+        "max": null,
+        "initial": 0,
+        "decorated": false,
+        "styled": false,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": 0,
+            "max": 0
+        },
+        "seen": [
+            [
+                "a",
+                "A"
+            ]
+        ],
+        "steps": [
+            [
+                0,
+                0
+            ]
+        ],
+        "effects": [
+            "opened"
+        ],
+        "output": "    0 [>---------------------------]",
+        "progress": 0,
+        "max_after": 0,
+        "percent": 0,
+        "new_lines": 1,
+        "new_line": false,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "list",
+        "consume": "full",
+        "max": null,
+        "initial": 0,
+        "decorated": false,
+        "styled": true,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": null,
+            "max": null
+        },
+        "seen": [
+            [
+                0,
+                "A"
+            ],
+            [
+                1,
+                "B"
+            ],
+            [
+                2,
+                "C"
+            ]
+        ],
+        "steps": [],
+        "effects": [],
+        "output": " 0\/3 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0%\n 3\/3 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓] 100%\n\n",
+        "progress": null,
+        "max_after": null,
+        "percent": null,
+        "new_lines": 3,
+        "new_line": true,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "list",
+        "consume": "full",
+        "max": 0,
+        "initial": 5,
+        "decorated": false,
+        "styled": true,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": null,
+            "max": null
+        },
+        "seen": [
+            [
+                0,
+                "A"
+            ],
+            [
+                1,
+                "B"
+            ],
+            [
+                2,
+                "C"
+            ]
+        ],
+        "steps": [],
+        "effects": [],
+        "output": " 0\/3 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0%\n 3\/3 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓] 100%\n\n",
+        "progress": null,
+        "max_after": null,
+        "percent": null,
+        "new_lines": 3,
+        "new_line": true,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "list",
+        "consume": "full",
+        "max": 5,
+        "initial": 0,
+        "decorated": false,
+        "styled": true,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": null,
+            "max": null
+        },
+        "seen": [
+            [
+                0,
+                "A"
+            ],
+            [
+                1,
+                "B"
+            ],
+            [
+                2,
+                "C"
+            ]
+        ],
+        "steps": [],
+        "effects": [],
+        "output": " 0\/5 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0%\n 5\/5 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓] 100%\n\n",
+        "progress": null,
+        "max_after": null,
+        "percent": null,
+        "new_lines": 3,
+        "new_line": true,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "list",
+        "consume": "full",
+        "max": -2,
+        "initial": 0,
+        "decorated": false,
+        "styled": true,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": null,
+            "max": null
+        },
+        "seen": [
+            [
+                0,
+                "A"
+            ],
+            [
+                1,
+                "B"
+            ],
+            [
+                2,
+                "C"
+            ]
+        ],
+        "steps": [],
+        "effects": [],
+        "output": " 0 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░] 0 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓]\n\n",
+        "progress": null,
+        "max_after": null,
+        "percent": null,
+        "new_lines": 3,
+        "new_line": true,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "map",
+        "consume": "full",
+        "max": null,
+        "initial": 0,
+        "decorated": false,
+        "styled": true,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": null,
+            "max": null
+        },
+        "seen": [
+            [
+                "a",
+                "A"
+            ],
+            [
+                7,
+                "B"
+            ]
+        ],
+        "steps": [],
+        "effects": [],
+        "output": " 0\/2 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0%\n 2\/2 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓] 100%\n\n",
+        "progress": null,
+        "max_after": null,
+        "percent": null,
+        "new_lines": 3,
+        "new_line": true,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "empty",
+        "consume": "full",
+        "max": null,
+        "initial": 5,
+        "decorated": false,
+        "styled": true,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": null,
+            "max": null
+        },
+        "seen": [],
+        "steps": [],
+        "effects": [],
+        "output": "\n\n",
+        "progress": null,
+        "max_after": null,
+        "percent": null,
+        "new_lines": 3,
+        "new_line": true,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "generator",
+        "consume": "full",
+        "max": null,
+        "initial": 5,
+        "decorated": false,
+        "styled": true,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": null,
+            "max": null
+        },
+        "seen": [
+            [
+                "a",
+                "A"
+            ],
+            [
+                7,
+                "B"
+            ]
+        ],
+        "steps": [],
+        "effects": [
+            "opened",
+            "resumed-a",
+            "resumed-b",
+            "ended"
+        ],
+        "output": "    0 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]\n\n",
+        "progress": null,
+        "max_after": null,
+        "percent": null,
+        "new_lines": 3,
+        "new_line": true,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "empty-generator",
+        "consume": "full",
+        "max": null,
+        "initial": 0,
+        "decorated": false,
+        "styled": true,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": null,
+            "max": null
+        },
+        "seen": [],
+        "steps": [],
+        "effects": [
+            "opened",
+            "ended"
+        ],
+        "output": "    0 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]\n\n",
+        "progress": null,
+        "max_after": null,
+        "percent": null,
+        "new_lines": 3,
+        "new_line": true,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "generator",
+        "consume": "full",
+        "max": 2,
+        "initial": 0,
+        "decorated": false,
+        "styled": true,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": null,
+            "max": null
+        },
+        "seen": [
+            [
+                "a",
+                "A"
+            ],
+            [
+                7,
+                "B"
+            ]
+        ],
+        "steps": [],
+        "effects": [
+            "opened",
+            "resumed-a",
+            "resumed-b",
+            "ended"
+        ],
+        "output": " 0\/2 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0%\n 2\/2 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓] 100%\n\n",
+        "progress": null,
+        "max_after": null,
+        "percent": null,
+        "new_lines": 3,
+        "new_line": true,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "list",
+        "consume": "break",
+        "max": null,
+        "initial": 0,
+        "decorated": false,
+        "styled": true,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": null,
+            "max": null
+        },
+        "seen": [
+            [
+                0,
+                "A"
+            ]
+        ],
+        "steps": [],
+        "effects": [],
+        "output": " 0\/3 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0%",
+        "progress": null,
+        "max_after": null,
+        "percent": null,
+        "new_lines": 1,
+        "new_line": false,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "list",
+        "consume": "unstarted",
+        "max": null,
+        "initial": 0,
+        "decorated": false,
+        "styled": true,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": null,
+            "max": null
+        },
+        "seen": [],
+        "steps": [],
+        "effects": [],
+        "output": "",
+        "progress": null,
+        "max_after": null,
+        "percent": null,
+        "new_lines": 1,
+        "new_line": false,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "generator",
+        "consume": "break",
+        "max": null,
+        "initial": 0,
+        "decorated": false,
+        "styled": true,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": null,
+            "max": null
+        },
+        "seen": [
+            [
+                "a",
+                "A"
+            ]
+        ],
+        "steps": [],
+        "effects": [
+            "opened"
+        ],
+        "output": "    0 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]",
+        "progress": null,
+        "max_after": null,
+        "percent": null,
+        "new_lines": 1,
+        "new_line": false,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "list",
+        "consume": "full",
+        "max": null,
+        "initial": 0,
+        "decorated": true,
+        "styled": false,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": 0,
+            "max": 0
+        },
+        "seen": [
+            [
+                0,
+                "A"
+            ],
+            [
+                1,
+                "B"
+            ],
+            [
+                2,
+                "C"
+            ]
+        ],
+        "steps": [
+            [
+                0,
+                3
+            ],
+            [
+                1,
+                3
+            ],
+            [
+                2,
+                3
+            ]
+        ],
+        "effects": [],
+        "output": " 0\/3 [>---------------------------]   0%\u001b[1G\u001b[2K 3\/3 [============================] 100%",
+        "progress": 3,
+        "max_after": 3,
+        "percent": 1,
+        "new_lines": 1,
+        "new_line": false,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "list",
+        "consume": "full",
+        "max": 0,
+        "initial": 5,
+        "decorated": true,
+        "styled": false,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": 0,
+            "max": 5
+        },
+        "seen": [
+            [
+                0,
+                "A"
+            ],
+            [
+                1,
+                "B"
+            ],
+            [
+                2,
+                "C"
+            ]
+        ],
+        "steps": [
+            [
+                0,
+                3
+            ],
+            [
+                1,
+                3
+            ],
+            [
+                2,
+                3
+            ]
+        ],
+        "effects": [],
+        "output": " 0\/3 [>---------------------------]   0%\u001b[1G\u001b[2K 3\/3 [============================] 100%",
+        "progress": 3,
+        "max_after": 3,
+        "percent": 1,
+        "new_lines": 1,
+        "new_line": false,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "list",
+        "consume": "full",
+        "max": 5,
+        "initial": 0,
+        "decorated": true,
+        "styled": false,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": 0,
+            "max": 0
+        },
+        "seen": [
+            [
+                0,
+                "A"
+            ],
+            [
+                1,
+                "B"
+            ],
+            [
+                2,
+                "C"
+            ]
+        ],
+        "steps": [
+            [
+                0,
+                5
+            ],
+            [
+                1,
+                5
+            ],
+            [
+                2,
+                5
+            ]
+        ],
+        "effects": [],
+        "output": " 0\/5 [>---------------------------]   0%\u001b[1G\u001b[2K 5\/5 [============================] 100%",
+        "progress": 5,
+        "max_after": 5,
+        "percent": 1,
+        "new_lines": 1,
+        "new_line": false,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "list",
+        "consume": "full",
+        "max": -2,
+        "initial": 0,
+        "decorated": true,
+        "styled": false,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": 0,
+            "max": 0
+        },
+        "seen": [
+            [
+                0,
+                "A"
+            ],
+            [
+                1,
+                "B"
+            ],
+            [
+                2,
+                "C"
+            ]
+        ],
+        "steps": [
+            [
+                0,
+                0
+            ],
+            [
+                1,
+                0
+            ],
+            [
+                2,
+                0
+            ]
+        ],
+        "effects": [],
+        "output": " 0 [>---------------------------]\u001b[1G\u001b[2K 0 [============================]",
+        "progress": 0,
+        "max_after": 0,
+        "percent": 1,
+        "new_lines": 1,
+        "new_line": false,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "map",
+        "consume": "full",
+        "max": null,
+        "initial": 0,
+        "decorated": true,
+        "styled": false,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": 0,
+            "max": 0
+        },
+        "seen": [
+            [
+                "a",
+                "A"
+            ],
+            [
+                7,
+                "B"
+            ]
+        ],
+        "steps": [
+            [
+                0,
+                2
+            ],
+            [
+                1,
+                2
+            ]
+        ],
+        "effects": [],
+        "output": " 0\/2 [>---------------------------]   0%\u001b[1G\u001b[2K 2\/2 [============================] 100%",
+        "progress": 2,
+        "max_after": 2,
+        "percent": 1,
+        "new_lines": 1,
+        "new_line": false,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "empty",
+        "consume": "full",
+        "max": null,
+        "initial": 5,
+        "decorated": true,
+        "styled": false,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": 0,
+            "max": 5
+        },
+        "seen": [],
+        "steps": [],
+        "effects": [],
+        "output": "  0 [============================]",
+        "progress": 0,
+        "max_after": 0,
+        "percent": 1,
+        "new_lines": 1,
+        "new_line": false,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "generator",
+        "consume": "full",
+        "max": null,
+        "initial": 5,
+        "decorated": true,
+        "styled": false,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": 0,
+            "max": 5
+        },
+        "seen": [
+            [
+                "a",
+                "A"
+            ],
+            [
+                7,
+                "B"
+            ]
+        ],
+        "steps": [
+            [
+                0,
+                5
+            ],
+            [
+                1,
+                5
+            ]
+        ],
+        "effects": [
+            "opened",
+            "resumed-a",
+            "resumed-b",
+            "ended"
+        ],
+        "output": " 0\/5 [>---------------------------]   0%\u001b[1G\u001b[2K 5\/5 [============================] 100%",
+        "progress": 5,
+        "max_after": 5,
+        "percent": 1,
+        "new_lines": 1,
+        "new_line": false,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "empty-generator",
+        "consume": "full",
+        "max": null,
+        "initial": 0,
+        "decorated": true,
+        "styled": false,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": 0,
+            "max": 0
+        },
+        "seen": [],
+        "steps": [],
+        "effects": [
+            "opened",
+            "ended"
+        ],
+        "output": "    0 [>---------------------------]\u001b[1G\u001b[2K    0 [============================]",
+        "progress": 0,
+        "max_after": 0,
+        "percent": 1,
+        "new_lines": 1,
+        "new_line": false,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "generator",
+        "consume": "full",
+        "max": 2,
+        "initial": 0,
+        "decorated": true,
+        "styled": false,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": 0,
+            "max": 0
+        },
+        "seen": [
+            [
+                "a",
+                "A"
+            ],
+            [
+                7,
+                "B"
+            ]
+        ],
+        "steps": [
+            [
+                0,
+                2
+            ],
+            [
+                1,
+                2
+            ]
+        ],
+        "effects": [
+            "opened",
+            "resumed-a",
+            "resumed-b",
+            "ended"
+        ],
+        "output": " 0\/2 [>---------------------------]   0%\u001b[1G\u001b[2K 2\/2 [============================] 100%",
+        "progress": 2,
+        "max_after": 2,
+        "percent": 1,
+        "new_lines": 1,
+        "new_line": false,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "list",
+        "consume": "break",
+        "max": null,
+        "initial": 0,
+        "decorated": true,
+        "styled": false,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": 0,
+            "max": 0
+        },
+        "seen": [
+            [
+                0,
+                "A"
+            ]
+        ],
+        "steps": [
+            [
+                0,
+                3
+            ]
+        ],
+        "effects": [],
+        "output": " 0\/3 [>---------------------------]   0%",
+        "progress": 0,
+        "max_after": 3,
+        "percent": 0,
+        "new_lines": 1,
+        "new_line": false,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "list",
+        "consume": "unstarted",
+        "max": null,
+        "initial": 0,
+        "decorated": true,
+        "styled": false,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": 0,
+            "max": 0
+        },
+        "seen": [],
+        "steps": [],
+        "effects": [],
+        "output": "",
+        "progress": 0,
+        "max_after": 0,
+        "percent": 0,
+        "new_lines": 1,
+        "new_line": false,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "generator",
+        "consume": "break",
+        "max": null,
+        "initial": 0,
+        "decorated": true,
+        "styled": false,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": 0,
+            "max": 0
+        },
+        "seen": [
+            [
+                "a",
+                "A"
+            ]
+        ],
+        "steps": [
+            [
+                0,
+                0
+            ]
+        ],
+        "effects": [
+            "opened"
+        ],
+        "output": "    0 [>---------------------------]",
+        "progress": 0,
+        "max_after": 0,
+        "percent": 0,
+        "new_lines": 1,
+        "new_line": false,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "list",
+        "consume": "full",
+        "max": null,
+        "initial": 0,
+        "decorated": true,
+        "styled": true,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": null,
+            "max": null
+        },
+        "seen": [
+            [
+                0,
+                "A"
+            ],
+            [
+                1,
+                "B"
+            ],
+            [
+                2,
+                "C"
+            ]
+        ],
+        "steps": [],
+        "effects": [],
+        "output": " 0\/3 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0%\u001b[1G\u001b[2K 3\/3 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓] 100%\n\n",
+        "progress": null,
+        "max_after": null,
+        "percent": null,
+        "new_lines": 3,
+        "new_line": true,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "list",
+        "consume": "full",
+        "max": 0,
+        "initial": 5,
+        "decorated": true,
+        "styled": true,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": null,
+            "max": null
+        },
+        "seen": [
+            [
+                0,
+                "A"
+            ],
+            [
+                1,
+                "B"
+            ],
+            [
+                2,
+                "C"
+            ]
+        ],
+        "steps": [],
+        "effects": [],
+        "output": " 0\/3 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0%\u001b[1G\u001b[2K 3\/3 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓] 100%\n\n",
+        "progress": null,
+        "max_after": null,
+        "percent": null,
+        "new_lines": 3,
+        "new_line": true,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "list",
+        "consume": "full",
+        "max": 5,
+        "initial": 0,
+        "decorated": true,
+        "styled": true,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": null,
+            "max": null
+        },
+        "seen": [
+            [
+                0,
+                "A"
+            ],
+            [
+                1,
+                "B"
+            ],
+            [
+                2,
+                "C"
+            ]
+        ],
+        "steps": [],
+        "effects": [],
+        "output": " 0\/5 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0%\u001b[1G\u001b[2K 5\/5 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓] 100%\n\n",
+        "progress": null,
+        "max_after": null,
+        "percent": null,
+        "new_lines": 3,
+        "new_line": true,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "list",
+        "consume": "full",
+        "max": -2,
+        "initial": 0,
+        "decorated": true,
+        "styled": true,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": null,
+            "max": null
+        },
+        "seen": [
+            [
+                0,
+                "A"
+            ],
+            [
+                1,
+                "B"
+            ],
+            [
+                2,
+                "C"
+            ]
+        ],
+        "steps": [],
+        "effects": [],
+        "output": " 0 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]\u001b[1G\u001b[2K 0 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓]\n\n",
+        "progress": null,
+        "max_after": null,
+        "percent": null,
+        "new_lines": 3,
+        "new_line": true,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "map",
+        "consume": "full",
+        "max": null,
+        "initial": 0,
+        "decorated": true,
+        "styled": true,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": null,
+            "max": null
+        },
+        "seen": [
+            [
+                "a",
+                "A"
+            ],
+            [
+                7,
+                "B"
+            ]
+        ],
+        "steps": [],
+        "effects": [],
+        "output": " 0\/2 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0%\u001b[1G\u001b[2K 2\/2 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓] 100%\n\n",
+        "progress": null,
+        "max_after": null,
+        "percent": null,
+        "new_lines": 3,
+        "new_line": true,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "empty",
+        "consume": "full",
+        "max": null,
+        "initial": 5,
+        "decorated": true,
+        "styled": true,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": null,
+            "max": null
+        },
+        "seen": [],
+        "steps": [],
+        "effects": [],
+        "output": "  0 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓]\n\n",
+        "progress": null,
+        "max_after": null,
+        "percent": null,
+        "new_lines": 3,
+        "new_line": true,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "generator",
+        "consume": "full",
+        "max": null,
+        "initial": 5,
+        "decorated": true,
+        "styled": true,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": null,
+            "max": null
+        },
+        "seen": [
+            [
+                "a",
+                "A"
+            ],
+            [
+                7,
+                "B"
+            ]
+        ],
+        "steps": [],
+        "effects": [
+            "opened",
+            "resumed-a",
+            "resumed-b",
+            "ended"
+        ],
+        "output": "    0 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]\u001b[1G\u001b[2K    2 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓]\n\n",
+        "progress": null,
+        "max_after": null,
+        "percent": null,
+        "new_lines": 3,
+        "new_line": true,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "empty-generator",
+        "consume": "full",
+        "max": null,
+        "initial": 0,
+        "decorated": true,
+        "styled": true,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": null,
+            "max": null
+        },
+        "seen": [],
+        "steps": [],
+        "effects": [
+            "opened",
+            "ended"
+        ],
+        "output": "    0 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]\u001b[1G\u001b[2K    0 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓]\n\n",
+        "progress": null,
+        "max_after": null,
+        "percent": null,
+        "new_lines": 3,
+        "new_line": true,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "generator",
+        "consume": "full",
+        "max": 2,
+        "initial": 0,
+        "decorated": true,
+        "styled": true,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": null,
+            "max": null
+        },
+        "seen": [
+            [
+                "a",
+                "A"
+            ],
+            [
+                7,
+                "B"
+            ]
+        ],
+        "steps": [],
+        "effects": [
+            "opened",
+            "resumed-a",
+            "resumed-b",
+            "ended"
+        ],
+        "output": " 0\/2 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0%\u001b[1G\u001b[2K 2\/2 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓] 100%\n\n",
+        "progress": null,
+        "max_after": null,
+        "percent": null,
+        "new_lines": 3,
+        "new_line": true,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "list",
+        "consume": "break",
+        "max": null,
+        "initial": 0,
+        "decorated": true,
+        "styled": true,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": null,
+            "max": null
+        },
+        "seen": [
+            [
+                0,
+                "A"
+            ]
+        ],
+        "steps": [],
+        "effects": [],
+        "output": " 0\/3 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]   0%",
+        "progress": null,
+        "max_after": null,
+        "percent": null,
+        "new_lines": 1,
+        "new_line": false,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "list",
+        "consume": "unstarted",
+        "max": null,
+        "initial": 0,
+        "decorated": true,
+        "styled": true,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": null,
+            "max": null
+        },
+        "seen": [],
+        "steps": [],
+        "effects": [],
+        "output": "",
+        "progress": null,
+        "max_after": null,
+        "percent": null,
+        "new_lines": 1,
+        "new_line": false,
+        "fixture_min_seconds": 1000
+    },
+    {
+        "items": "generator",
+        "consume": "break",
+        "max": null,
+        "initial": 0,
+        "decorated": true,
+        "styled": true,
+        "before": {
+            "output": "",
+            "effects": [],
+            "progress": null,
+            "max": null
+        },
+        "seen": [
+            [
+                "a",
+                "A"
+            ]
+        ],
+        "steps": [],
+        "effects": [
+            "opened"
+        ],
+        "output": "    0 [░░░░░░░░░░░░░░░░░░░░░░░░░░░░]",
+        "progress": null,
+        "max_after": null,
+        "percent": null,
+        "new_lines": 1,
+        "new_line": false,
+        "fixture_min_seconds": 1000
+    }
+]

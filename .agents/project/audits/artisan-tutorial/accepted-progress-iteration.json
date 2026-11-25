@@ -1,0 +1,38 @@
+{
+  "base": "653919636f006a87edff58efd8b660280443de55",
+  "source": "target/tmp/logging-tutorial-20261124/source",
+  "source_sha256": {
+    "vendor/openrust/framework/src/console/mod.rs": "a370fc3d177673a1bde7e2eedc44d8ae6599c77045b80f5ecb653ec1497825d8",
+    "vendor/openrust/framework/src/console/progress_bar.rs": "8e8328822c62a3ad593fbb6646a0e084b8c9fbfbdaa5eadb143588ffa40e491e",
+    "vendor/openrust/framework/src/console/progress_bar/iterator.rs": "9db930b66e74641a0f00b95fc36f95e4c1903bad75b2e70aa7d470d28ac4e7c0",
+    "vendor/openrust/framework/tests/console_progress_iteration.rs": "928674320671362a5a8e75248af2b2fad6e66f0a2acbb4d8b4a7dc83dd564cbf",
+    "docs/en/digging-deeper/artisan.md": "67cd75caccfa3aadd832478d690f0b6875850c3c48dd9e7332cc1faf28cbb03c",
+    "docs/zh-Hans/digging-deeper/artisan.md": "17a0e453058271ecd673135bed9ca72d249b512bdf62899965f09b05bf3431d3",
+    "docs/zh-Hant/digging-deeper/artisan.md": "9d32bdb5866d9a282aca202bdea3d87b41992461ddeff020f8ada7b5629c8958",
+    "docs/tests/check_artisan_tutorial.mjs": "103809f5ccd5ee3dfc017772521ad45831297b62c3fa65a2313359731d8513f4",
+    "tests/artisan_tutorial_docs.py": "3ae221b4b09db45c98f8630552a5cddac151a1a8d76208634401f90865091415"
+  },
+  "reference": {
+    "framework": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+    "console": "v7.4.0",
+    "lazy_lifecycle_vectors": 48,
+    "actual_console_output_stream_vectors": 48
+  },
+  "acceptance": {
+    "framework_parent_tests": 54,
+    "root_parent_tests": 83,
+    "total_distinct_parent_tests": 137,
+    "formal_docs_consumers": 42,
+    "ignored_fixture_parents_excluded": 6,
+    "browser_groups": 12,
+    "gates": "progress-iterator-gates-results.json",
+    "runtime": "progress-iterator-runtime.log",
+    "browser": "progress-iterator-browser.log"
+  },
+  "remaining": [
+    "Async/mutable task callbacks",
+    "Safe placeholder output view",
+    "Inherited OutputInterface and Table SDK",
+    "Other open Artisan anchors"
+  ]
+}

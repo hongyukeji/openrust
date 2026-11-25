@@ -293,9 +293,13 @@
       {
         "method": "iterate",
         "source_line": 316,
-        "native": null,
-        "status": "pending_lazy_lifecycle_consumer",
-        "evidence": []
+        "native": "console::ProgressBar::{iterate,iterate_with_max}",
+        "status": "verified_lazy_lifecycle_native_result_items",
+        "evidence": [
+          "console_progress_iteration",
+          "progress-iterator-oracle.json",
+          "progress-iterator-cli-oracle.json"
+        ]
       },
       {
         "method": "start",
@@ -394,13 +398,18 @@
       "contract": "integer and UTF-8 error boundaries",
       "reason": "Result preserves concrete sources; invalid UTF-8 and unrepresentable native counts fail explicitly. PHP VM warnings are retained in source evidence, not emitted by Rust.",
       "evidence": "progress-operations-source2.json; progress-extreme-before-fix.log; progress-boundary-tests1.log"
+    },
+    {
+      "contract": "Lazy iteration count and errors",
+      "reason": "IntoIterator conversion is deferred to first next. Exact size_hint infers total; no exact hint leaves unknown or retains existing manual max. Errors are terminal Result items; early drop does not finish.",
+      "evidence": "console_progress_iteration"
     }
   ],
   "remaining": [
     {
       "contract": "ProgressBar::iterate / OutputStyle::progressIterate",
-      "status": "pending_implementation_and_real_consumers",
-      "requirements": "Lazy start/yield/advance/finish, early drop, empty/countable/unknown max, original keys."
+      "status": "verified_lazy_lifecycle",
+      "requirements": "48 source lifecycle cases and 48 real ConsoleOutput dual-stream cases; real HTTP and original non-Clone item consumers passed."
     },
     {
       "contract": "Native asynchronous and mutable task callbacks",

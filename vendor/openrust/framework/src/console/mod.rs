@@ -49,7 +49,10 @@ pub(crate) use isolation::IsolatedCommand;
 pub(crate) use localization::text as localized_text;
 pub use output_style::{OutputFormat, OutputMessages, OutputOptions, OutputStyle, OutputVerbosity};
 pub(crate) use progress_bar::ProgressDefinitions;
-pub use progress_bar::{ConsoleProgressError, ProgressBar, ProgressFormatter, ProgressIterable};
+pub use progress_bar::{
+    ConsoleProgressError, ProgressBar, ProgressFormatter, ProgressIterable, ProgressIterator,
+    ProgressStyleIterator,
+};
 pub use prompting::{CommandRegistration, MissingInputPrompt};
 pub use question::{
     ChoiceKey, ChoiceLabel, ChoiceQuestion, CompletionCallback, ConfirmationQuestion,

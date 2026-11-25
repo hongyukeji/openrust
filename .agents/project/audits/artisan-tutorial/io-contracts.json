@@ -518,7 +518,12 @@
       {
         "method": "createProgressBar",
         "source_line": 36,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_native_progress_contract",
+        "native": "console::OutputStyle::create_progress_bar",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-contracts.json"
+        ]
       },
       {
         "method": "write",
@@ -696,27 +701,52 @@
       {
         "method": "progressStart",
         "source_line": 250,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_native_progress_contract",
+        "native": "console::OutputStyle::progress_start",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-contracts.json"
+        ]
       },
       {
         "method": "progressAdvance",
         "source_line": 256,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_native_progress_contract",
+        "native": "console::OutputStyle::progress_advance / progress_advance_by",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-contracts.json"
+        ]
       },
       {
         "method": "progressFinish",
         "source_line": 261,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_native_progress_contract",
+        "native": "console::OutputStyle::progress_finish",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-contracts.json"
+        ]
       },
       {
         "method": "createProgressBar",
         "source_line": 268,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_native_progress_contract",
+        "native": "console::OutputStyle::create_progress_bar",
+        "evidence": [
+          "console_progress_tutorial",
+          "progress-contracts.json"
+        ]
       },
       {
         "method": "progressIterate",
         "source_line": 292,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_native_progress_contract",
+        "native": "console::OutputStyle::progress_iterate / progress_iterate_with_max",
+        "evidence": [
+          "console_progress_iteration",
+          "progress-contracts.json"
+        ]
       },
       {
         "method": "askQuestion",
