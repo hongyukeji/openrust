@@ -61,6 +61,8 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
 
 為 `SupervisorLooped::NAME` 註冊同步監聽器，可在 Supervisor 持久化心跳後觀察其狀態。`SupervisorLooped` 提供 Supervisor 名稱和暫停狀態，Horizon 為該事件註冊 `MonitorWaitTimes`。
 
+Master 持久化心跳後也會派發 `MasterSupervisorLooped::NAME`，事件提供 Master 名稱和暫停狀態。Horizon 註冊 `ExpireSupervisors`，清理兩個程序索引中的過期項目。
+
 暫停、繼續、終止、監控變更和重試均須逐次通過授權回調。瀏覽器對寫入操作傳送 `X-Horizon-Request: 1`，直接呼叫介面也須攜帶該標頭；拒絕跨站瀏覽器寫入操作。為整個路由群組套用既有的認證與中間件。面板授權包含檢視工作資料和執行維運控制的權限。
 
 ## 命令 {#commands}

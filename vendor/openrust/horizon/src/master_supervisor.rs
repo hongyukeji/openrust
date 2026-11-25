@@ -1,6 +1,8 @@
 use crate::{Error, Repository, Result, SupervisorOptions};
 use openrust::support::facades::Facade;
 use openrust::{
+    contracts::events::{Event, Listener},
+    events::{EventContext, EventError, EventFuture, EventResult, ListenerResponse},
     process::{Factory, InvokedProcess},
     queue::QueueManager,
 };
@@ -29,6 +31,65 @@ pub struct MasterSupervisor {
     failures: u64,
     fast_termination: bool,
 }
+
+/// Master state observed after its heartbeat has been persisted.
+pub struct MasterSupervisorLooped {
+    pub name: String,
+    pub paused: bool,
+    repository: Arc<Repository>,
+}
+
+impl MasterSupervisorLooped {
+    pub const NAME: &str = "MasterSupervisorLooped";
+
+    pub fn new(master: &MasterSupervisor, paused: bool) -> Self {
+        Self {
+            name: master.id.clone(),
+            paused,
+            repository: master.repository.clone(),
+        }
+    }
+}
+
+impl Event for MasterSupervisorLooped {
+    fn name(&self) -> &str {
+        Self::NAME
+    }
+}
+
+pub struct ExpireSupervisors;
+
+impl Listener for ExpireSupervisors {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn Event,
+        _: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            let Some(event) = event.downcast_ref::<MasterSupervisorLooped>() else {
+                return Ok(None);
+            };
+            async {
+                event
+                    .repository
+                    .master_supervisors()
+                    .flush_expired()
+                    .await?;
+                event
+                    .repository
+                    .supervisor_repository()
+                    .flush_expired()
+                    .await
+            }
+            .await
+            .map_err(|source| EventError::Listener {
+                source: Box::new(source),
+            })?;
+            Ok(None)
+        })
+    }
+}
+
 impl MasterSupervisor {
     pub fn new(
         repository: Arc<Repository>,
@@ -176,6 +237,15 @@ impl MasterSupervisor {
             })
             .collect();
         self.repository.heartbeat(&self.id, &serde_json::json!({"name":self.id,"pid":std::process::id(),"status":if paused {"paused"} else {"running"},"environment":self.environment,"supervisors":self.supervisors.iter().filter(|s| !s.dead).map(|s| &s.name).collect::<Vec<_>>(),"workers":workers,"targets":targets,"unexpected_exits":self.failures + states.iter().filter_map(|state| state["unexpected_exits"].as_u64()).sum::<u64>()})).await?;
+        if let Err(error) =
+            openrust::support::facades::Event::dispatch(MasterSupervisorLooped::new(self, paused))
+                .await
+        {
+            let _ = openrust::support::facades::Log::warning(
+                &format!("Horizon master loop listener failed: {error}"),
+                &Default::default(),
+            );
+        }
         Ok(true)
     }
     async fn stop(&mut self) -> Result<()> {

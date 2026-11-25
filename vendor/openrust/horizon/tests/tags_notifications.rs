@@ -18,14 +18,14 @@ use openrust::{
     queue::Payload,
     support::{
         ProviderResult, ServiceProvider,
-        facades::{App, Event, Http, Notification as Notifications, Route},
+        facades::{App, Config, Event, Http, Notification as Notifications, Route},
     },
     testing::TestApp,
 };
 use openrust_horizon::{
     Horizon, HorizonServiceProvider, LongWaitDetected, LongWaitDetectedNotification,
-    LongWaitNotificationFactory, MasterSupervisor, Repository, Supervisor, SupervisorLooped,
-    SupervisorOptions, Tags,
+    LongWaitNotificationFactory, MasterSupervisor, MasterSupervisorLooped, Repository, Supervisor,
+    SupervisorLooped, SupervisorOptions, Tags,
 };
 use serde_json::json;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -286,6 +286,36 @@ async fn named_long_wait_notifications_reach_both_native_slack_transports() {
 #[derive(Default)]
 struct SupervisorLoopObserver(AtomicUsize);
 
+#[derive(Default)]
+struct MasterLoopObserver(AtomicUsize);
+
+impl Listener for MasterLoopObserver {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn EventContract,
+        _: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            let event = event
+                .downcast_ref::<MasterSupervisorLooped>()
+                .expect("typed Master event");
+            assert!(event.paused);
+            let repository = App::make::<Repository>().await?;
+            let snapshot = repository
+                .master_supervisors()
+                .find(&event.name)
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(snapshot["status"], "paused");
+            if self.0.fetch_add(1, Ordering::Relaxed) == 0 {
+                return Err(EventError::InvalidPayload);
+            }
+            Ok(None)
+        })
+    }
+}
+
 impl Listener for SupervisorLoopObserver {
     fn handle<'a>(
         &'a self,
@@ -338,6 +368,23 @@ fn supervisor_webhook_response(_: &mut Request) -> HttpFuture<'_, Result<Respons
             })
         })
         .unwrap();
+        let redis = App::make::<openrust::redis::RedisManager>()
+            .await
+            .unwrap()
+            .connection(None)
+            .unwrap();
+        let prefix = Config::get("horizon.prefix").unwrap().unwrap();
+        let stale_indices = ["masters", "supervisors"]
+            .map(|kind| redis.key(&format!("{}{{horizon}}:{kind}", prefix.as_str().unwrap())));
+        for key in &stale_indices {
+            assert_eq!(
+                redis
+                    .command("ZADD", &[key.as_bytes(), b"0", b"probe-stale"])
+                    .await
+                    .unwrap(),
+                openrust::redis::Value::Int(1)
+            );
+        }
         let master = MasterSupervisor::new(
             repository.clone(),
             queues.clone(),
@@ -347,10 +394,18 @@ fn supervisor_webhook_response(_: &mut Request) -> HttpFuture<'_, Result<Respons
             "testing".into(),
         )
         .unwrap();
+        repository.pause().await.unwrap();
+        let master_observer = Arc::new(MasterLoopObserver::default());
+        Event::listen(
+            MasterSupervisorLooped::NAME,
+            master_observer.clone(),
+            Delivery::Sync,
+        )
+        .unwrap();
         let shutdown = tokio_util::sync::CancellationToken::new();
         let (result, heartbeat) = tokio::join!(master.run(&shutdown), async {
             let heartbeat = tokio::time::timeout(std::time::Duration::from_secs(5), async {
-                while repository.masters().await.unwrap().is_empty() {
+                while master_observer.0.load(Ordering::Relaxed) < 2 {
                     tokio::time::sleep(std::time::Duration::from_millis(10)).await;
                 }
             })
@@ -360,7 +415,17 @@ fn supervisor_webhook_response(_: &mut Request) -> HttpFuture<'_, Result<Respons
         });
         result.unwrap();
         heartbeat.unwrap();
+        for key in &stale_indices {
+            assert_eq!(
+                redis
+                    .command("ZSCORE", &[key.as_bytes(), b"probe-stale"])
+                    .await
+                    .unwrap(),
+                openrust::redis::Value::Nil
+            );
+        }
         assert!(Http::recorded().unwrap().is_empty());
+        repository.r#continue().await.unwrap();
 
         let observer = Arc::new(SupervisorLoopObserver::default());
         Event::listen(SupervisorLooped::NAME, observer.clone(), Delivery::Sync).unwrap();

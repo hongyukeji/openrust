@@ -20,7 +20,9 @@ pub use tags::{TagCallback, Tags};
 mod master_supervisor;
 
 pub use dashboard::{Dashboard, Horizon};
-pub use master_supervisor::{MasterSupervisor, SupervisorProcess};
+pub use master_supervisor::{
+    ExpireSupervisors, MasterSupervisor, MasterSupervisorLooped, SupervisorProcess,
+};
 pub use options::{AutoScaler, SupervisorOptions};
 pub use provider::HorizonServiceProvider;
 pub use repository::{

@@ -61,6 +61,8 @@ To customize these alerts, bind `dyn LongWaitNotificationFactory` in an applicat
 
 Register a synchronous listener for `SupervisorLooped::NAME` to observe a Supervisor after it persists its heartbeat. `SupervisorLooped` exposes the Supervisor name and paused state. Horizon registers `MonitorWaitTimes` for this event.
 
+`MasterSupervisorLooped::NAME` likewise fires after the Master heartbeat is persisted. `MasterSupervisorLooped` exposes the Master name and paused state. Horizon registers `ExpireSupervisors` to prune expired entries from both process indexes.
+
 Pause, continue, terminate, monitoring changes and retries require the authorization callback on every request. The browser sends `X-Horizon-Request: 1` for mutations; direct API clients must supply the same header. Cross-site browser mutations are rejected. Apply your application's authentication and middleware to the entire route group. Access to this dashboard permits inspection of job data and operational controls.
 
 ## Commands {#commands}
