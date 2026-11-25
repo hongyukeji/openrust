@@ -58,6 +58,17 @@ impl MigrationContext {
         }
     }
 
+    /// 真实迁移从当前事务或写连接读取，预演时跳过数据查询。
+    pub fn query_table(&mut self, table: &str) -> Option<super::super::query::Builder<'_>> {
+        if self.statements.is_some() {
+            return None;
+        }
+        Some(match &mut self.transaction {
+            Some(transaction) => transaction.table(table),
+            None => self.connection.table(table).use_write_pdo(),
+        })
+    }
+
     pub async fn statement(&mut self, sql: &str, bindings: &[Value]) -> DatabaseResult<bool> {
         if let Some(statements) = &mut self.statements {
             statements.push(sql.to_owned());

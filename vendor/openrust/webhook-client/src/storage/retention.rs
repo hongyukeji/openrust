@@ -17,6 +17,7 @@ impl DatabaseWebhookStore {
             .r#where("scope_key", "=", scope_key(&self.scope))
             .where_exact_text("scope", &self.scope)
             .where_null("processing_token")
+            .where_null("attachment_reference")
             .where_raw(&format!("created_at < {cutoff}"), vec![seconds.clone()])
             .where_nested(|query| {
                 query.where_raw(

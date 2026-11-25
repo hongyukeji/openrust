@@ -853,6 +853,9 @@ fn api_routes() -> Result<(), openrust::routing::RoutingError> {
     for profile in ["audit-required", "audit-error"] {
         Route::webhooks(&format!("/package/{profile}"), Options::new().name(profile))?;
     }
+    for profile in ["attachment-disk", "attachment-plain", "attachment-disabled"] {
+        Route::webhooks(&format!("/package/{profile}"), Options::new().name(profile))?;
+    }
     Route::webhooks("/package/default", Options::default())?;
     Route::webhooks("/package/unregistered", Options::new().name("unregistered"))?;
     Route::webhooks("/package/discarded", Options::new().name("discarded"))?;
@@ -1081,6 +1084,9 @@ async fn main() -> ExitCode {
                 {"name":"unregistered","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"unregistered","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database"},
                 {"name":"event-dedup","signing_secret":{"env":"FIXTURE_STANDARD_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"standard","webhook_profile":"process-everything","webhook_model":"database","atomic_database_queue":true,"deduplicate_verified_events":true},
                 {"name":"event-other","signing_secret":{"env":"FIXTURE_STANDARD_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"standard","webhook_profile":"process-everything","webhook_model":"database","atomic_database_queue":true,"deduplicate_verified_events":true},
+                {"name":"attachment-disk","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"atomic","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","atomic_database_queue":true,"attachment_disk":"local","deduplicate_body_seconds":30},
+                {"name":"attachment-plain","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"fixture","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","attachment_disk":"local"},
+                {"name":"attachment-disabled","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"fixture","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","attachment_disk":"local","store_attachments":false},
                 {"name":"audit-required","revision":"audit-v1","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"fixture","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","verification_audit":true},
                 {"name":"audit-error","revision":"audit-error-v1","signing_secret":{"env":"FIXTURE_EMPTY_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"fixture","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","verification_audit":true},
                 {"name":"hint","revision":"hint-one","signing_secret":{"env":"FIXTURE_SPATIE_SECRET"},"scope":"webhook-acceptance","process_webhook_job":"fixture","signature_validator":"default","webhook_profile":"process-everything","webhook_model":"database","unverified_hint_receiver":"fixture-hint","verification_audit":true},

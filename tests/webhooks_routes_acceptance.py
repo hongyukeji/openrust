@@ -743,6 +743,167 @@ def check_verification_audit(binary, env, root, port, driver, sql):
     print(f"{driver}: 验签证据 6 个真实 HTTP、1 次 Worker、3 次清理命令；三类判定、合并、脱敏与配置缓存通过")
 
 
+def check_attachment_storage(binary, env, root, port, driver, sql):
+    from concurrent.futures import ThreadPoolExecutor
+
+    scope = "webhook-acceptance"
+    disk_root = root / "attachment-disk"
+    current = env | {"FILESYSTEM_LOCAL_ROOT": disk_root.name}
+    atomic = "attachment-disk"
+    body = (
+        b'--disk\r\nContent-Disposition: form-data; name="message"\r\n\r\nstored\r\n'
+        b'--disk\r\nContent-Disposition: form-data; name="files[]"; filename="../sample.bin"\r\n'
+        b'Content-Type: application/octet-stream\r\n\r\n\x00\xffsample\r\n--disk--\r\n'
+    )
+    initial = sql("SELECT COUNT(*) FROM webhook_calls")
+
+    def send(profile, expected=200, value=body):
+        connection = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+        try:
+            signature = hmac.new(SECRET.encode(), value, hashlib.sha256).hexdigest()
+            connection.request("POST", f"/api/package/{profile}", value, {
+                "Signature": signature, "Accept": "application/json",
+                "Content-Type": "multipart/form-data; boundary=disk",
+            })
+            response = connection.getresponse()
+            assert response.status == expected, (expected, response.status, response.read())
+        finally:
+            connection.close()
+
+    def reject_record(receipt, selected_scope):
+        result = subprocess.run([str(binary), "artisan", "webhooks:record", receipt, selected_scope],
+                                env=current, capture_output=True, timeout=15)
+        assert result.returncode != 0 and b"sample.bin" not in result.stdout
+
+    def id_for(profile):
+        receipt = sql(f"SELECT id FROM webhook_calls WHERE name='{profile}'")
+        assert re.fullmatch(r"[0-9a-f-]{36}", receipt)
+        return receipt
+
+    def work(profile, attachment=True):
+        marker = root / f"{profile}.json"
+        command(binary, current | {"WEBHOOK_TEST_RECEIPT_OUTPUT": str(marker)},
+                "queue:work", "database", "--queue=webhook-receipts", "--once")
+        record = json.loads(marker.read_text())
+        assert record["name"] == profile and bytes(record["body"]) == body
+        assert record["payload"] == {"message": "stored"}
+        expected = {"files": {"0": {"name": "sample.bin", "mime": "application/octet-stream",
+                                   "bytes": list(b"\x00\xffsample")}}}
+        assert record["attachments"] == (expected if attachment else None)
+
+    for checkpoint, configuration in (
+        ("missing-queue", {"DB_QUEUE_TABLE": "missing_attachment_jobs"}),
+        ("broken-disk", {"FILESYSTEM_LOCAL_ROOT": "not-a-directory"}),
+    ):
+        (root / "not-a-directory").write_text("sentinel")
+        with (root / f"attachment-{checkpoint}.log").open("w+") as log:
+            server = http_helpers["serve"](binary, current | configuration, log)
+            try:
+                send(atomic, 500)
+            finally:
+                http_helpers["stop"](server)
+        assert sql("SELECT COUNT(*) FROM webhook_calls") == initial
+        assert sql("SELECT COUNT(*) FROM jobs") == "0"
+        assert not list(disk_root.rglob("*.multipart"))
+        if checkpoint == "missing-queue":
+            assert sql("SELECT COUNT(*) FROM webhook_attachment_staging") == "0"
+
+    def expect_guarded_rollback():
+        result = subprocess.run([str(binary), "artisan", "migrate:rollback", "--step=1", "--force"],
+                                env=current, capture_output=True, text=True, timeout=20)
+        assert result.returncode != 0, result.stdout + result.stderr
+
+    staged_before_crash = int(sql("SELECT COUNT(*) FROM webhook_attachment_staging"))
+    with (root / "attachment-crash.log").open("w+") as log:
+        server = http_helpers["serve"](binary, current | {"FIXTURE_ATOMIC_CRASH": "after-enqueue"}, log)
+        try:
+            try:
+                send(atomic)
+            except http.client.RemoteDisconnected:
+                pass
+            else:
+                raise AssertionError("预期派发事务提交前退出")
+            assert server.wait(timeout=10) == 78
+        finally:
+            if server.poll() is None:
+                http_helpers["stop"](server)
+    assert sql("SELECT COUNT(*) FROM webhook_calls") == initial
+    assert sql("SELECT COUNT(*) FROM jobs") == "0"
+    assert int(sql("SELECT COUNT(*) FROM webhook_attachment_staging")) == staged_before_crash + 1
+    expect_guarded_rollback()
+    orphan, = disk_root.rglob("*.multipart")
+
+    with (root / "attachment-live.log").open("w+") as log:
+        server = http_helpers["serve"](binary, current, log)
+        try:
+            with ThreadPoolExecutor(max_workers=2) as callers:
+                requests = [callers.submit(send, atomic) for _ in range(2)]
+                for request in requests:
+                    request.result()
+            receipt = id_for(atomic)
+            assert sql("SELECT COUNT(*) FROM jobs") == "1"
+            assert int(sql("SELECT COUNT(*) FROM webhook_attachment_staging")) == staged_before_crash + 1
+            scope_hash = hashlib.sha256(scope.encode()).hexdigest()
+            obj = disk_root / "webhook-client" / scope_hash / f"{receipt}.multipart"
+            assert set(disk_root.rglob("*.multipart")) == {orphan, obj}
+            assert obj.read_bytes() == body and obj.stat().st_mode & 0o077 == 0
+            assert sql(f"SELECT length(raw_body) FROM webhook_calls WHERE id='{receipt}'") == "0"
+            assert json.loads(sql(f"SELECT attachment_reference FROM webhook_calls WHERE id='{receipt}'")) == {
+                "disk": "local", "digest": hashlib.sha256(body).hexdigest(), "length": len(body),
+            }
+            reject_record(receipt, "webhook-custom")
+            obj.write_bytes(b"!" + body[1:])
+            reject_record(receipt, scope)
+            obj.write_bytes(body)
+            moved = obj.with_suffix(".held")
+            obj.rename(moved)
+            try:
+                reject_record(receipt, scope)
+            finally:
+                moved.rename(obj)
+            work(atomic)
+            write_database(driver, sql,
+                           f"UPDATE webhook_calls SET created_at=1,processed_at=1 WHERE id='{receipt}'")
+            assert "可清理 0 条" in command(binary, current, "webhook-client:prune",
+                                         "--scope=" + scope, "--pretend")
+            assert obj.exists()
+
+            send("attachment-plain")
+            ordinary = id_for("attachment-plain")
+            assert (obj.parent / f"{ordinary}.multipart").read_bytes() == body
+            work("attachment-plain")
+            send("attachment-disabled")
+            disabled = id_for("attachment-disabled")
+            assert sql(f"SELECT COUNT(attachment_reference) FROM webhook_calls WHERE id='{disabled}'") == "0"
+            assert not (obj.parent / f"{disabled}.multipart").exists()
+            work("attachment-disabled", attachment=False)
+            assert sql("SELECT COUNT(*) FROM jobs") == "0"
+            # 清除本隔离夹具的暂存行，单独验证活动引用的回滚保护。
+            orphan.unlink()
+            write_database(driver, sql, "DELETE FROM webhook_attachment_staging")
+            expect_guarded_rollback()
+            preview = command(binary, current, "migrate:rollback", "--step=1", "--pretend", "--force")
+            assert "webhook_attachment_staging" in preview
+            record = json.loads(command(binary, current, "webhooks:record", receipt, scope))
+            assert bytes(record["body"]) == body
+            encoded = base64.b64encode(body).decode()
+            for linked in (receipt, ordinary):
+                write_database(driver, sql,
+                               "UPDATE webhook_calls SET attachment_reference=NULL,"
+                               f"raw_body='{encoded}' WHERE id='{linked}'")
+                (obj.parent / f"{linked}.multipart").unlink()
+            # 后续保留期用例需要独立候选手工老化。
+            write_database(driver, sql,
+                           f"UPDATE webhook_calls SET processed_at=NULL WHERE id='{receipt}'")
+        except BaseException:
+            log.flush()
+            print((root / "attachment-live.log").read_text())
+            raise
+        finally:
+            http_helpers["stop"](server)
+    print(f"{driver}: 附件 Storage 7 个真实 HTTP、3 次 Worker；私有对象、并发去重、篡改拒绝、回滚保护与崩溃登记通过")
+
+
 def main():
  driver,url=helpers["database_settings"]();binary=args.binary.resolve();requests=workers=0
  with tempfile.TemporaryDirectory(dir=ROOT/"target/tmp",prefix="webhook-routes-") as tmp:
@@ -939,9 +1100,10 @@ def main():
   check_body_deduplication(binary,env,root,port,driver,sql)
   check_unverified_hints(binary,env,root,port,driver,sql)
   check_verification_audit(binary,env,root,port,driver,sql)
+  check_attachment_storage(binary,env,root,port,driver,sql)
   check_retention(binary,env,root,port,driver,sql)
   legacy_id=sql("SELECT id FROM webhook_calls WHERE name='default' ORDER BY id LIMIT 1")
-  assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate:rollback","--step=9","--force")
+  assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate:rollback","--step=10","--force")
   assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate","--force")
   legacy=json.loads(command(binary,env,"webhooks:record",legacy_id,"webhook-acceptance"))
   assert bytes(legacy["body"])==b"default" and legacy["payload"] is None and legacy["attachments"] is None

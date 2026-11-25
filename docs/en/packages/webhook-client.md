@@ -129,6 +129,14 @@ The provider registers the `webhook_calls` migration. Run `./artisan migrate` be
 
 No headers are stored by default. `with_store_headers(&["X-Source"])` selects names case-insensitively; `with_store_headers(&["*"])` explicitly stores all headers, including potentially sensitive values. The config-file equivalent is the string `"*"`, not an array containing `"*"`. Exception JSON is limited to 8192 bytes, request targets to 8192 bytes and stored methods to 32 bytes. Applications must redact manually supplied exception details.
 
+#### Keep multipart attachments on a private Storage disk {#attachment-disk}
+
+Set `attachment_disk` to a configured private disk name and run `./artisan migrate`. A manually constructed profile can use `with_attachment_disk("local")`. With attachment storage enabled, an accepted multipart request containing files is written as one private object. The receipt stores the disk, length and SHA-256 digest. The object name derives from the trusted scope and receipt ID. Workers verify length and digest when reading the original body and recreating native uploads. All workers must be able to read the same disk under the saved name.
+
+Established inline receipts and requests with `store_attachments: false` continue using database storage. On a confirmed database rollback, the receiver attempts to delete the staged object. A crash before commit or an uncertain storage failure can leave a staging record for cleanup. Routine receipt pruning preserves disk-backed receipts until storage-aware pruning is available.
+
+Stop Webhook writers before rolling back the attachment migration. The rollback refuses to remove live references or staging records.
+
 ### Process receipts in a Worker {#processing-jobs}
 
 Implement `jobs::ProcessWebhookJob` to process a saved receipt. In an application Provider shared by HTTP and Workers, call `QueuedWebhookJob::register` with the native `QueueManager`, a stable name, a store for the trusted scope and your handler. Register a `QueuedWebhookJob` dispatcher under the name selected by `process_webhook_job`. Use distinct registrations for distinct storage scopes. The Worker checks the receipt ID, scope, profile and revision against the stored record before calling your handler.

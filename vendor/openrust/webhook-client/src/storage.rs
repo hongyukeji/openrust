@@ -1,3 +1,4 @@
+mod attachments;
 mod attempts;
 mod identity;
 mod lease;
@@ -81,11 +82,14 @@ impl DatabaseWebhookStore {
         ))
     }
 }
+struct PreparedReceipt {
+    call: WebhookCall,
+    row: openrust::database::query::Record,
+    attachment: Option<attachments::AttachmentReference>,
+}
+
 impl DatabaseWebhookStore {
-    async fn prepare(
-        &self,
-        webhook: &VerifiedWebhook<'_>,
-    ) -> Result<(WebhookCall, openrust::database::query::Record)> {
+    async fn prepare(&self, webhook: &VerifiedWebhook<'_>) -> Result<PreparedReceipt> {
         let url = webhook.request().uri().to_string();
         if url.len() > 8192 || webhook.request().method().as_str().len() > 32 {
             return Err(Error::InvalidRecord);
@@ -114,7 +118,7 @@ impl DatabaseWebhookStore {
             created_at,
             exception: None,
         };
-        let row = [
+        let mut row: openrust::database::query::Record = [
             ("id".into(), call.id.clone().into()),
             ("scope".into(), self.scope.clone().into()),
             ("scope_key".into(), scope_key(&self.scope).into()),
@@ -146,7 +150,46 @@ impl DatabaseWebhookStore {
         ]
         .into_iter()
         .collect();
-        Ok((call, row))
+        let attachment = if matches!(row.get("attachment_media_type"), Some(Value::Text(_)))
+            && let Some(disk) = webhook.config().attachment_disk()?
+        {
+            let reference = self.stage_attachment(&call, disk).await?;
+            row.insert(
+                "attachment_reference".into(),
+                serde_json::to_string(&reference)
+                    .map_err(|_| Error::InvalidRecord)?
+                    .into(),
+            );
+            row.insert("raw_body".into(), "".into());
+            Some(reference)
+        } else {
+            None
+        };
+        Ok(PreparedReceipt {
+            call,
+            row,
+            attachment,
+        })
+    }
+
+    async fn rollback_receipt(
+        &self,
+        transaction: &mut openrust::database::Transaction,
+        id: &str,
+        attachment: Option<&attachments::AttachmentReference>,
+    ) -> Result<()> {
+        transaction.roll_back(None).await?;
+        if let Some(attachment) = attachment {
+            self.discard_attachment(id, attachment).await;
+        }
+        Ok(())
+    }
+
+    async fn read_body(&self, row: &Row) -> Result<Vec<u8>> {
+        match self.disk_body(row).await? {
+            Some(body) => Ok(body),
+            None => raw_body(row),
+        }
     }
 }
 impl WebhookStore for DatabaseWebhookStore {
@@ -155,11 +198,30 @@ impl WebhookStore for DatabaseWebhookStore {
         webhook: &'a VerifiedWebhook<'_>,
     ) -> HttpFuture<'a, Result<WebhookCall>> {
         Box::pin(async move {
-            let (call, row) = self.prepare(webhook).await?;
-            self.connection
-                .table("webhook_calls")
-                .insert(&[row])
-                .await?;
+            let PreparedReceipt {
+                call,
+                row,
+                attachment,
+            } = self.prepare(webhook).await?;
+            if let Some(attachment) = &attachment {
+                let mut transaction = self.connection.begin_transaction().await?;
+                let persisted = async {
+                    transaction.table("webhook_calls").insert(&[row]).await?;
+                    self.finish_attachment(&mut transaction, call.id()).await
+                }
+                .await;
+                if let Err(error) = persisted {
+                    self.rollback_receipt(&mut transaction, call.id(), Some(attachment))
+                        .await?;
+                    return Err(error);
+                }
+                transaction.commit().await?;
+            } else {
+                self.connection
+                    .table("webhook_calls")
+                    .insert(&[row])
+                    .await?;
+            }
             Ok(call)
         })
     }
@@ -177,10 +239,15 @@ impl WebhookStore for DatabaseWebhookStore {
             {
                 return Ok(());
             }
-            let (call, row) = self.prepare(webhook).await?;
+            let PreparedReceipt {
+                call,
+                row,
+                attachment,
+            } = self.prepare(webhook).await?;
             let mut transaction = self.connection.begin_transaction().await?;
             if let Err(error) = transaction.table("webhook_calls").insert(&[row]).await {
-                transaction.roll_back(None).await?;
+                self.rollback_receipt(&mut transaction, call.id(), attachment.as_ref())
+                    .await?;
                 return Err(error.into());
             }
             if let Some(identity) = &identity {
@@ -194,7 +261,8 @@ impl WebhookStore for DatabaseWebhookStore {
                 }
                 .await;
                 if let Err(error) = persisted {
-                    transaction.roll_back(None).await?;
+                    self.rollback_receipt(&mut transaction, call.id(), attachment.as_ref())
+                        .await?;
                     if identity.already_received(&self.connection, clock).await? {
                         return Ok(());
                     }
@@ -202,6 +270,9 @@ impl WebhookStore for DatabaseWebhookStore {
                 }
             }
             let queued = async {
+                if attachment.is_some() {
+                    self.finish_attachment(&mut transaction, call.id()).await?;
+                }
                 dispatcher.prepare(&call)?;
                 dispatcher
                     .dispatch_in_transaction(&call, &mut transaction)
@@ -211,7 +282,8 @@ impl WebhookStore for DatabaseWebhookStore {
             match queued {
                 Ok(()) => transaction.commit().await.map_err(Into::into),
                 Err(error) => {
-                    transaction.roll_back(None).await?;
+                    self.rollback_receipt(&mut transaction, call.id(), attachment.as_ref())
+                        .await?;
                     Err(error)
                 }
             }
@@ -222,7 +294,13 @@ impl WebhookStore for DatabaseWebhookStore {
     }
 
     fn find<'a>(&'a self, id: &'a str) -> HttpFuture<'a, Result<Option<WebhookCall>>> {
-        Box::pin(async move { self.row(id, &["*"]).await?.map(decode).transpose() })
+        Box::pin(async move {
+            let Some(row) = self.row(id, &["*"]).await? else {
+                return Ok(None);
+            };
+            let body = self.read_body(&row).await?;
+            Ok(Some(decode(row, body)?))
+        })
     }
 
     fn payload<'a>(&'a self, id: &'a str) -> HttpFuture<'a, Result<Option<Json>>> {
@@ -251,6 +329,8 @@ impl WebhookStore for DatabaseWebhookStore {
                     id,
                     &[
                         "scope",
+                        "id",
+                        "attachment_reference",
                         "attachment_media_type",
                         "raw_body",
                         "method",
@@ -266,8 +346,13 @@ impl WebhookStore for DatabaseWebhookStore {
             };
             let method = http::Method::from_bytes(text(&row, "method")?.as_bytes())
                 .map_err(|_| Error::InvalidRecord)?;
-            crate::payload::attachments(&method, text(&row, "url")?, &raw_body(&row)?, &media_type)
-                .await
+            crate::payload::attachments(
+                &method,
+                text(&row, "url")?,
+                &self.read_body(&row).await?,
+                &media_type,
+            )
+            .await
         })
     }
 
@@ -301,7 +386,7 @@ impl WebhookStore for DatabaseWebhookStore {
                 )
                 .await?;
             // MySQL 的无变化更新可能报告零行；存在性仍按相同 scope 确认。
-            if changed == 0 && self.find(&call.id).await?.is_none() {
+            if changed == 0 && self.row(&call.id, &["scope"]).await?.is_none() {
                 return Err(Error::RecordNotFound);
             }
             Ok(())
@@ -327,8 +412,7 @@ fn raw_body(row: &Row) -> Result<Vec<u8>> {
     Ok(bytes)
 }
 
-fn decode(row: Row) -> Result<WebhookCall> {
-    let raw_body = raw_body(&row)?;
+fn decode(row: Row, raw_body: Vec<u8>) -> Result<WebhookCall> {
     let wire = text(&row, "headers")?;
     if wire.len() > 256 * 1024 {
         return Err(Error::InvalidRecord);

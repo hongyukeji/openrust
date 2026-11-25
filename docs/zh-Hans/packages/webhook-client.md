@@ -129,6 +129,14 @@ Provider 注册 `webhook_calls` 迁移，使用 `DatabaseWebhookStore` 前运行
 
 默认不保存请求头。`with_store_headers(&["X-Source"])` 不区分头名大小写，`with_store_headers(&["*"])` 明确保存全部头，可能包含敏感值。配置文件的全选值使用字符串 `"*"`，不能写成包含 `"*"` 的数组。异常 JSON 最多8192字节，请求目标最多8192字节，持久方法名最多32字节；手动传入的异常详情须由应用脱敏。
 
+#### 将 multipart 附件保存在私有 Storage 磁盘 {#attachment-disk}
+
+将 `attachment_disk` 设为已配置的私有磁盘名，并运行 `./artisan migrate`。手动构造 profile 时可调用 `with_attachment_disk("local")`。开启附件保存后，接受的含文件 multipart 请求会作为一个私有对象写入。接收记录保存磁盘、长度和 SHA-256 摘要。对象名由可信范围和接收 ID 生成。Worker 核对长度和摘要后读取原始正文并还原原生上传文件。各 Worker 必须能通过已保存的磁盘名读取同一存储。
+
+已有内联记录和配置了 `store_attachments: false` 的请求继续使用数据库存储。数据库明确回滚时，接收器尝试删除暂存对象。提交前崩溃或存储结果不确定时，可能留下待清理的暂存登记。常规记录清理会保留磁盘存储的接收记录，直到有对应的存储清理能力。
+
+回滚附件迁移前先停止 Webhook 写入。存在有效引用或暂存登记时，迁移拒绝回滚。
+
 ### 在 Worker 中处理接收记录 {#processing-jobs}
 
 实现 `jobs::ProcessWebhookJob` 处理已保存的接收记录。在 HTTP 和 Worker 共用的应用 Provider 中，调用 `QueuedWebhookJob::register`，传入原生 `QueueManager`、稳定名称、可信范围的存储及处理器。再按 `process_webhook_job` 选择的名称注册 `QueuedWebhookJob` 派发器。不同存储范围使用各自的注册名。Worker 对照原记录核对 ID、范围、配置名和修订号后才调用处理器。

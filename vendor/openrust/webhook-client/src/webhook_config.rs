@@ -133,6 +133,21 @@ impl WebhookConfig {
         Ok(self)
     }
 
+    pub fn attachment_disk(&self) -> Result<Option<&str>> {
+        match self.options.get("attachment_disk") {
+            None | Some(Value::Null) => Ok(None),
+            Some(Value::String(disk)) => {
+                crate::factories::validate_reference("attachment_disk", disk)?;
+                Ok(Some(disk))
+            }
+            _ => Err(Error::InvalidConfig("attachment_disk")),
+        }
+    }
+
+    pub fn with_attachment_disk(self, disk: impl Into<String>) -> Result<Self> {
+        self.with_implementation("attachment_disk", disk)
+    }
+
     pub fn with_store_attachments(mut self, enabled: bool) -> Self {
         if self.options.is_null() {
             self.options = serde_json::json!({});
@@ -341,6 +356,7 @@ impl WebhookConfig {
         }
         config.options = value.clone();
         config.store_attachments()?;
+        config.attachment_disk()?;
         config.atomic_database_queue()?;
         config.deduplicate_verified_events()?;
         config.body_deduplication_window()?;

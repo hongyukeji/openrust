@@ -1,5 +1,7 @@
 #![doc = include_str!("../README.md")]
 #![forbid(unsafe_code)]
+#[path = "../database/migrations/2026_11_25_000011_add_webhook_attachment_storage.rs"]
+mod attachment_migration;
 #[path = "../database/migrations/2026_11_25_000006_create_webhook_processing_attempts_table.rs"]
 mod attempt_migration;
 #[path = "../config/webhook_client.rs"]
@@ -171,6 +173,10 @@ impl WebhookClientServiceProvider {
             openrust::database::migrations::MigrationEntry::new(
                 "vendor/openrust/webhook-client/database/migrations/2026_11_25_000010_create_webhook_verification_audits_table.rs",
                 &verification_migration::MIGRATION,
+            ),
+            openrust::database::migrations::MigrationEntry::new(
+                "vendor/openrust/webhook-client/database/migrations/2026_11_25_000011_add_webhook_attachment_storage.rs",
+                &attachment_migration::MIGRATION,
             ),
         ];
         ENTRIES

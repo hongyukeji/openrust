@@ -32,6 +32,8 @@ pub enum Error {
     Database(#[from] openrust::database::DatabaseError),
     #[error("Webhook 存储记录无效")]
     InvalidRecord,
+    #[error("Webhook 附件存储操作失败")]
+    AttachmentStorage,
     #[error("Webhook 队列操作失败")]
     Queue(#[from] openrust::queue::QueueError),
     #[error("Webhook 处理任务执行失败")]

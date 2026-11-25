@@ -129,6 +129,14 @@ Provider 註冊 `webhook_calls` 遷移，使用 `DatabaseWebhookStore` 前執行
 
 預設不儲存請求頭。`with_store_headers(&["X-Source"])` 不區分頭名大小寫，`with_store_headers(&["*"])` 明確儲存全部頭，可能包含敏感值。設定檔的全選值使用字串 `"*"`，不能寫成包含 `"*"` 的陣列。異常 JSON 最多8192位元組，請求目標最多8192位元組，持久方法名最多32位元組；手動傳入的異常詳情須由應用脫敏。
 
+#### 將 multipart 附件保存在私有 Storage 磁碟 {#attachment-disk}
+
+將 `attachment_disk` 設為已設定的私有磁碟名稱，並執行 `./artisan migrate`。手動建構 profile 時可呼叫 `with_attachment_disk("local")`。啟用附件儲存後，接受的含檔案 multipart 請求會作為一個私有物件寫入。接收記錄保存磁碟、長度與 SHA-256 摘要。物件名稱由可信範圍與接收 ID 產生。Worker 核對長度與摘要後讀取原始正文並還原原生上傳檔案。各 Worker 必須能透過已保存的磁碟名稱讀取同一儲存。
+
+既有內嵌記錄與設定了 `store_attachments: false` 的請求繼續使用資料庫儲存。資料庫明確回滾時，接收器會嘗試刪除暫存物件。提交前崩潰或儲存結果不確定時，可能留下待清理的暫存登記。一般記錄清理會保留磁碟儲存的接收記錄，直到有對應的儲存清理能力。
+
+回復附件遷移前先停止 Webhook 寫入。存在有效引用或暫存登記時，遷移拒絕回復。
+
 ### 在 Worker 中處理接收記錄 {#processing-jobs}
 
 實作 `jobs::ProcessWebhookJob` 處理已儲存的接收記錄。在 HTTP 和 Worker 共用的應用 Provider 中，呼叫 `QueuedWebhookJob::register`，傳入原生 `QueueManager`、穩定名稱、可信範圍的儲存及處理器。再按 `process_webhook_job` 選擇的名稱註冊 `QueuedWebhookJob` 派發器。不同儲存範圍使用各自的註冊名。Worker 對照原記錄核對 ID、範圍、設定名和修訂號後才呼叫處理器。
