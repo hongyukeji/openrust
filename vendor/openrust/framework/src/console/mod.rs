@@ -1,6 +1,8 @@
 //! Artisan command registration, input, output, and generation.
 
+mod ansi_color_mode;
 mod application;
+mod color;
 mod command;
 mod command_input;
 mod command_io;
@@ -24,6 +26,7 @@ pub mod scheduling;
 mod signature;
 mod table;
 pub(crate) mod task_command;
+mod terminal;
 
 use std::{
     env,
@@ -38,7 +41,9 @@ use std::{
 use clap::ArgMatches;
 use regex::Regex;
 
+pub use ansi_color_mode::AnsiColorMode;
 pub use application::Application;
+pub use color::Color;
 pub use command::{
     AsyncCommandCallback, ClosureCommand, Command, CommandCallback, CommandDefinition,
     IntoCommandCallback,
@@ -68,6 +73,7 @@ pub use question::{
     ConsoleInputStream, ConsoleQuestionError, ConsoleReader, Question, QuestionCallback,
 };
 pub use table::{ConsoleTableError, Table, TableCell, TablePadding, TableStyle};
+pub use terminal::Terminal;
 
 /// A future for a console command or lifecycle hook.
 pub type ConsoleFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;

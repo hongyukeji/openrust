@@ -411,20 +411,7 @@ impl<'a> ProgressBar<'a> {
             .map_err(ConsoleError::from_source)?;
             width = width.max(super::formatting::display_width(&plain));
         }
-        let terminal = std::env::var("COLUMNS").map_or_else(
-            |_| {
-                i64::from(
-                    if self.output.streams_to_terminal() {
-                        ::console::Term::stderr()
-                    } else {
-                        ::console::Term::stdout()
-                    }
-                    .size()
-                    .1,
-                )
-            },
-            |s| crate::support::input_scalars::integer_string(s.trim()),
-        );
+        let terminal = super::Terminal::new().get_width();
         if width as i64 > terminal {
             let delta = i64::try_from(self.state.width).map_err(ConsoleError::from_source)?
                 - i64::try_from(width).map_err(ConsoleError::from_source)?;

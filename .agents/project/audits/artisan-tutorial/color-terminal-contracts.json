@@ -1,0 +1,181 @@
+{
+  "reference": {
+    "framework": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+    "console": "v7.4.0"
+  },
+  "classes": {
+    "Color": [
+      {
+        "method": "__construct",
+        "source_line": 56,
+        "native": "console::Color::new",
+        "evidence": [
+          "console_color_terminal",
+          "color-oracle.json",
+          "terminal-oracle.json",
+          "terminal-pty-native-result.json",
+          "terminal-recovery-native-result.json"
+        ],
+        "status": "verified_native_host_public_behavior"
+      },
+      {
+        "method": "apply",
+        "source_line": 70,
+        "native": "console::Color::apply",
+        "evidence": [
+          "console_color_terminal",
+          "color-oracle.json",
+          "terminal-oracle.json",
+          "terminal-pty-native-result.json",
+          "terminal-recovery-native-result.json"
+        ],
+        "status": "verified_native_host_public_behavior"
+      },
+      {
+        "method": "set",
+        "source_line": 75,
+        "native": "console::Color::set",
+        "evidence": [
+          "console_color_terminal",
+          "color-oracle.json",
+          "terminal-oracle.json",
+          "terminal-pty-native-result.json",
+          "terminal-recovery-native-result.json"
+        ],
+        "status": "verified_native_host_public_behavior"
+      },
+      {
+        "method": "unset",
+        "source_line": 94,
+        "native": "console::Color::unset",
+        "evidence": [
+          "console_color_terminal",
+          "color-oracle.json",
+          "terminal-oracle.json",
+          "terminal-pty-native-result.json",
+          "terminal-recovery-native-result.json"
+        ],
+        "status": "verified_native_host_public_behavior"
+      }
+    ],
+    "AnsiColorMode": [
+      {
+        "method": "convertFromHexToAnsiColorCode",
+        "source_line": 45,
+        "native": "console::AnsiColorMode::convert_from_hex_to_ansi_color_code",
+        "evidence": [
+          "console_color_terminal",
+          "color-oracle.json",
+          "terminal-oracle.json",
+          "terminal-pty-native-result.json",
+          "terminal-recovery-native-result.json"
+        ],
+        "status": "verified_native_host_public_behavior"
+      }
+    ],
+    "Terminal": [
+      {
+        "method": "getColorMode",
+        "source_line": 29,
+        "native": "console::Terminal::get_color_mode",
+        "evidence": [
+          "console_color_terminal",
+          "color-oracle.json",
+          "terminal-oracle.json",
+          "terminal-pty-native-result.json",
+          "terminal-recovery-native-result.json"
+        ],
+        "status": "verified_native_host_public_behavior"
+      },
+      {
+        "method": "setColorMode",
+        "source_line": 78,
+        "native": "console::Terminal::set_color_mode",
+        "evidence": [
+          "console_color_terminal",
+          "color-oracle.json",
+          "terminal-oracle.json",
+          "terminal-pty-native-result.json",
+          "terminal-recovery-native-result.json"
+        ],
+        "status": "verified_native_host_public_behavior"
+      },
+      {
+        "method": "getWidth",
+        "source_line": 86,
+        "native": "console::Terminal::get_width",
+        "evidence": [
+          "console_color_terminal",
+          "color-oracle.json",
+          "terminal-oracle.json",
+          "terminal-pty-native-result.json",
+          "terminal-recovery-native-result.json"
+        ],
+        "status": "verified_native_host_public_behavior"
+      },
+      {
+        "method": "getHeight",
+        "source_line": 103,
+        "native": "console::Terminal::get_height",
+        "evidence": [
+          "console_color_terminal",
+          "color-oracle.json",
+          "terminal-oracle.json",
+          "terminal-pty-native-result.json",
+          "terminal-recovery-native-result.json"
+        ],
+        "status": "verified_native_host_public_behavior"
+      },
+      {
+        "method": "hasSttyAvailable",
+        "source_line": 120,
+        "native": "console::Terminal::has_stty_available",
+        "evidence": [
+          "console_color_terminal",
+          "color-oracle.json",
+          "terminal-oracle.json",
+          "terminal-pty-native-result.json",
+          "terminal-recovery-native-result.json"
+        ],
+        "status": "verified_native_host_public_behavior"
+      }
+    ]
+  },
+  "status": "verified_native_public_contracts_platform_release_pending",
+  "constants": {
+    "Terminal::DEFAULT_COLOR_MODE": {
+      "native": "console::Terminal::DEFAULT_COLOR_MODE",
+      "value": "Ansi4",
+      "verified": true
+    },
+    "AnsiColorMode cases": {
+      "native": [
+        "Ansi4",
+        "Ansi8",
+        "Ansi24"
+      ],
+      "verified": true
+    }
+  },
+  "adaptations": [
+    "Reuse compiled Style and the existing hex/color/option parser; public Color retains compiled sequences after process mode changes.",
+    "Reuse existing rustix 1.1.6 with termios/stdio features: native stdin device queries instead of repeated stty subprocess parsing; stdio enables the real recovery consumer without unsafe descriptor manipulation. Only successful dimensions are cached.",
+    "The terminal color mode is process-wide and may be forced/reset; no per-request or per-application mode pretending. COLUMNS/LINES override dimensions on each call.",
+    "Public flat console exports follow existing native SDK layout. Explicit new arguments and Default replace optional constructor arguments.",
+    "Windows ANSICON/native console and real Windows tty execution remain in release acceptance; no Windows execution claimed by Darwin/PTY results."
+  ],
+  "research": [
+    {
+      "url": "https://raw.githubusercontent.com/symfony/console/v7.4.0/Tests/TerminalTest.php",
+      "used": "Environment, cache, zero values and forced/reset color modes"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/symfony/console/v7.4.0/Tests/ColorTest.php",
+      "used": "Immutable compiled colors and palette conversion"
+    },
+    {
+      "source": "Cargo.lock rustix1.1.6 / console0.16.6 downloaded registry source",
+      "used": "Safe tcgetwinsize/dup2_stdin and native Windows size_checked; versioned docs endpoint unavailable during lookup, local official source read and real APIs tested"
+    }
+  ]
+}

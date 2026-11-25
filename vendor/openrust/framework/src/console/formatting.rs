@@ -78,23 +78,7 @@ impl Style {
             target.push_str(text);
             return;
         }
-        let mut open = Vec::new();
-        let mut close = Vec::new();
-        if !self.fg.is_empty() {
-            open.push(self.fg.clone());
-            close.push("39".into());
-        }
-        if !self.bg.is_empty() {
-            open.push(self.bg.clone());
-            close.push("49".into());
-        }
-        for (start, end) in &self.options {
-            open.push(start.to_string());
-            close.push(end.to_string());
-        }
-        if !open.is_empty() {
-            target.push_str(&format!("\x1b[{}m", open.join(";")));
-        }
+        target.push_str(&self.set());
         if let Some(href) = &self.href {
             target.push_str(&format!("\x1b]8;;{href}\x1b\\"));
         }
@@ -102,9 +86,41 @@ impl Style {
         if self.href.is_some() {
             target.push_str("\x1b]8;;\x1b\\");
         }
-        if !close.is_empty() {
-            target.push_str(&format!("\x1b[{}m", close.join(";")));
+        target.push_str(&self.unset());
+    }
+    pub(super) fn set(&self) -> String {
+        let mut codes = Vec::new();
+        if !self.fg.is_empty() {
+            codes.push(self.fg.clone());
         }
+        if !self.bg.is_empty() {
+            codes.push(self.bg.clone());
+        }
+        for (start, _) in &self.options {
+            codes.push(start.to_string());
+        }
+        ansi_sequence(codes)
+    }
+    pub(super) fn unset(&self) -> String {
+        let mut codes = Vec::new();
+        if !self.fg.is_empty() {
+            codes.push("39".into());
+        }
+        if !self.bg.is_empty() {
+            codes.push("49".into());
+        }
+        for (_, end) in &self.options {
+            codes.push(end.to_string());
+        }
+        ansi_sequence(codes)
+    }
+}
+
+fn ansi_sequence(codes: Vec<String>) -> String {
+    if codes.is_empty() {
+        String::new()
+    } else {
+        format!("\x1b[{}m", codes.join(";"))
     }
 }
 
@@ -183,58 +199,11 @@ pub(super) fn hyperlinks_supported() -> bool {
 pub(super) fn color(value: &str, background: bool) -> Result<String, ConsoleFormatError> {
     let base = if background { 40 } else { 30 };
     if value.starts_with('#') {
-        let mut hex = value.replace('#', "");
-        if hex.len() == 3 {
-            hex = hex.chars().flat_map(|ch| [ch, ch]).collect();
-        }
-        if hex.len() != 6 {
-            return Err(ConsoleFormatError::InvalidColor(value.into()));
-        }
-        // 固定数值转换会忽略非十六进制字符；VM弃用告警不属于原生输出协议。
-        let digits: String = hex.chars().filter(char::is_ascii_hexdigit).collect();
-        let rgb = if digits.is_empty() {
-            0
-        } else {
-            u32::from_str_radix(&digits, 16).expect("已过滤的六位十六进制位于整数范围内")
-        };
-        let (r, g, b) = ((rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255);
-        let mode = ["COLORTERM", "TERM"]
-            .into_iter()
-            .filter_map(|key| std::env::var(key).ok())
-            .map(|value| value.to_lowercase())
-            .find_map(|value| {
-                if value.contains("truecolor") {
-                    Some(24)
-                } else if value.contains("256color") {
-                    Some(8)
-                } else {
-                    None
-                }
-            })
-            .unwrap_or(4);
-        return Ok(match mode {
-            24 => format!("{};2;{r};{g};{b}", if background { 48 } else { 38 }),
-            8 => {
-                let index = if r == g && g == b {
-                    if r < 8 {
-                        16
-                    } else if r > 248 {
-                        231
-                    } else {
-                        232 + ((r - 8) * 24 + 123) / 247
-                    }
-                } else {
-                    16 + 36 * ((r * 5 + 127) / 255)
-                        + 6 * ((g * 5 + 127) / 255)
-                        + (b * 5 + 127) / 255
-                };
-                format!("{};5;{index}", if background { 48 } else { 38 })
-            }
-            _ => (base
-                + ((u32::from(b >= 128) << 2) | (u32::from(g >= 128) << 1) | u32::from(r >= 128)))
-            .to_string(),
-        });
+        let converted =
+            super::Terminal::get_color_mode().convert_from_hex_to_ansi_color_code(value)?;
+        return Ok(format!("{}{converted}", if background { 4 } else { 3 }));
     }
+
     if let Some(index) = [
         "black", "red", "green", "yellow", "blue", "magenta", "cyan", "white",
     ]

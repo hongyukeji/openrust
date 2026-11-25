@@ -1,0 +1,81 @@
+{
+  "scope": "Artisan phase19 public colors/terminal plus selected formatter setter followup",
+  "source_sha256": {
+    "vendor/openrust/framework/Cargo.toml": "3e8859699e8787dfaa41f2c8364ce74759f419a54df972df2f21e250f5501421",
+    "vendor/openrust/framework/tests/console_color_terminal.rs": "eb75ed243cd97718df86d804d64cb9e0538e0d9324111c63ad4aad8706abd381",
+    "vendor/openrust/framework/tests/console_formatter_object.rs": "5570dbba43c1728fc7e4e755247db1f61be9f7e2c6efd8ad15de86af73ad9bd3",
+    "tests/artisan_tutorial_docs.py": "9885b6a65e1516e01a3678d3c994a7e0c668ca5713de5eee99dc32aeeda189a7",
+    "docs/tests/check_artisan_tutorial.mjs": "2038fa992672c79e4a33733402eafa434a1a8e6930afc633b80b89e3e93848ca",
+    "docs/en/digging-deeper/artisan.md": "a000b09a746a6c3f8f883f0062055ea9380bd4466be784bf15e6e40ed475e7f6",
+    "docs/zh-Hans/digging-deeper/artisan.md": "459fe28e75829174521b3234fbdc62882343b512bc8d2541a542c118c42cec12",
+    "docs/zh-Hant/digging-deeper/artisan.md": "43ffff190a0519878060d4f6a1ea808834a69624b261d492ebca2de03f1ff317",
+    "vendor/openrust/framework/src/console/ansi_color_mode.rs": "91f77e2f9d982c61ab2c10cfdab482f8afb9702b12145bfe2ad01569aa3d49be",
+    "vendor/openrust/framework/src/console/color.rs": "53a6a5003fed4dac0537728463cb70747b95fa72647de0918fa004494337414f",
+    "vendor/openrust/framework/src/console/terminal.rs": "633dbc00d87b4fc97adcd86ba702c1f54a7505f4b97aae21eabd63ce9f30c4fd",
+    "vendor/openrust/framework/src/console/formatting.rs": "01823e9b3b53e1aea32067122dd9451493cd0a30f807ee4a4f2871dfe8333685",
+    "vendor/openrust/framework/src/console/mod.rs": "b29d446578a165cd2b81b2bba2044caa11c83bedefb0d0a5e497d85422947069",
+    "vendor/openrust/framework/src/console/progress_bar.rs": "40a7d82d3c8ed29954b2f183a4831c46f6dfd2514afebde21a39841af6d01df5",
+    ".agents/project/audits/artisan-tutorial/color-oracle.json": "158b74d0dc6acda011d3ff81b9f19b599d93e76bc5fef6157c693600c15a82a3",
+    ".agents/project/audits/artisan-tutorial/terminal-oracle.json": "30ceaa005984798964b280dbff7cf84236f49f7b344d96dfffca94aca8b61518",
+    ".agents/project/audits/artisan-tutorial/formatter-selected-oracle.json": "6347f90383e4edd033043506b00ae1b8b77059d7b27e2b6f4ac1908b2726d8c6",
+    ".agents/project/audits/artisan-tutorial/color-terminal-contracts.json": "9c23ddb1df2885bf9bfca3029a3ec5aa4ab01ea806556371c8efbab51efa1969",
+    ".agents/project/audits/artisan-tutorial/progress-contracts.json": "7536466cd3d5be3eba15c7060372331d5bcc04cc9adc1927612ffaf65db8ad8c",
+    ".agents/project/audits/artisan-tutorial/io-contracts.json": "888d50c63438b11f9d8b35af4da873b49ee3ab73a758e6ceb3a1148f418acb9a",
+    ".agents/project/audits/artisan-tutorial/formatter-contracts.json": "e69d37b06ae4d16da06418a8db9e20ac6cea3ae8006e93e2dccb98a1b19a569b",
+    ".agents/project/audits/artisan-tutorial/section-map.json": "7311f07e0d48c10dad835267049de53f2872c959ed207430721eab0908b00c5f"
+  },
+  "gates": [
+    {
+      "name": "format",
+      "returncode": 0
+    },
+    {
+      "name": "final-framework",
+      "returncode": 0
+    },
+    {
+      "name": "final-root",
+      "returncode": 0
+    },
+    {
+      "name": "final-fmt",
+      "returncode": 0
+    },
+    {
+      "name": "final-clippy",
+      "returncode": 0
+    },
+    {
+      "name": "final-main",
+      "returncode": 0
+    },
+    {
+      "name": "final-docs",
+      "returncode": 0
+    }
+  ],
+  "final_gates_log": "target/tmp/artisan-tutorial-20261125/color-terminal-gates7.log",
+  "passed": {
+    "framework": 90,
+    "root": 101
+  },
+  "unique_parent_tests": 191,
+  "ignored_driven_fixtures_excluded": 12,
+  "formal_trilingual_examples": 60,
+  "color_cases": 318,
+  "hex_cases": 48,
+  "terminal_environment_cases": 23,
+  "selected_formatter_source_cases": 2,
+  "additional_real_pty_cases": [
+    "113x37 stdin tty with stdout/stderr redirected",
+    "unavailable device fallback80x50 then available tty recovery113x37"
+  ],
+  "strict_clippy_seconds": 26.5,
+  "browser_cases": 12,
+  "actual_binary_http_and_artisan": true,
+  "limitations": [
+    "Windows runtime and release/platform matrix not executed",
+    "Complete inherited SymfonyStyle/components/Table and other chapter anchors remain open",
+    "No whole-chapter closure or push"
+  ]
+}

@@ -580,12 +580,24 @@
       {
         "method": "setFormatter",
         "source_line": 71,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_actual_formatter_replacement",
+        "native": "console::OutputStyle::set_formatter",
+        "evidence": [
+          "console_formatter_object::selected_stream_replacement_and_mutation_match_actual_source_objects",
+          "formatter-selected-oracle.json",
+          "accepted-colors-terminal.json"
+        ]
       },
       {
         "method": "getFormatter",
         "source_line": 76,
-        "status": "pending_entry_and_behavior_review"
+        "status": "verified_actual_formatter_replacement",
+        "native": "console::OutputStyle::get_formatter",
+        "evidence": [
+          "console_formatter_object::selected_stream_replacement_and_mutation_match_actual_source_objects",
+          "formatter-selected-oracle.json",
+          "accepted-colors-terminal.json"
+        ]
       },
       {
         "method": "isSilent",

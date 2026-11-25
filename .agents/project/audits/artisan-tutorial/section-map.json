@@ -314,7 +314,7 @@
     },
     {
       "anchor": "writing-output",
-      "status": "verified_messages_and_style_core_remaining_interactive_table_progress",
+      "status": "verified_messages_styles_formatters_colors_remaining_components_and_table_sdk",
       "evidence": [
         "console_io_tutorial",
         "artisan_docs_generated",
@@ -322,7 +322,10 @@
         "accepted-output-style.json",
         "console_formatter_styles",
         "accepted-formatter-styles.json",
-        "formatter-contracts.json"
+        "formatter-contracts.json",
+        "color-terminal-contracts.json",
+        "accepted-output-formatters.json",
+        "accepted-colors-terminal.json"
       ],
       "native": "console::CommandIo",
       "remaining": [

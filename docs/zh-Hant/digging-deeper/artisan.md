@@ -886,3 +886,39 @@ fn register_formatter() -> Result<(), ConsoleError> {
 `Output`、`OutputStyle` 及 `ProgressOutput` 均提供 `get_formatter`、`set_formatter`。複製傳回的 Arc 共用同一物件。真實主控台明確替換主格式器時，stderr 亦參照該物件；隨後透過任一控制代碼修改裝飾會影響兩條流。未替換時，預設格式器彼此獨立。只替換進度輸出則僅影響 stderr；擷取命令共用單一串流。Raw 繞過格式器，進度游標控制序列亦使用 Raw。
 
 巢狀 CLI 旗標在原輸出物件仍安裝時還原裝飾；明確替換則保留新格式器設定，不用舊物件旗標覆蓋。自訂樣式回呼可安全註冊樣式、重設同一堆疊或進行有限的巢狀格式化。格式器呼叫是同步的，排序鎖期間不執行非同步工作。
+
+## 色彩與終端能力 {#colors-terminal}
+
+`Color::new(foreground, background, options)` 編譯 ANSI 序列；`set`、`unset` 傳回起止序列，`apply` 與文字組合。`Color::default()` 為空樣式。這些低層方法不讀取輸出裝飾旗標；用 Raw 寫入預先繪製文字前應尊重實際輸出開關。無效色彩和選項傳回型別化錯誤。
+
+```rust
+use openrust::{
+    console::{Color, ConsoleError, Input, Output, OutputFormat, Terminal},
+    support::facades::Artisan,
+};
+
+fn register_colors() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:colors", |input: &Input, output: &mut Output| {
+        let color = Color::new("green", "", &["bold"])?;
+        let terminal = Terminal::new();
+        let mut io = input.io(output);
+        let style = io.get_output();
+        let text = if style.is_decorated() {
+            color.apply("ready")
+        } else {
+            "ready".to_owned()
+        };
+        style.write(text.as_str(), true, OutputFormat::Raw)?;
+        style.write(
+            format!("terminal:{}x{}", terminal.get_width(), terminal.get_height()).as_str(),
+            true, OutputFormat::Raw,
+        )?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
+`AnsiColorMode::{Ansi4, Ansi8, Ansi24}` 提供 `convert_from_hex_to_ansi_color_code`。`Terminal::get_color_mode()` 優先辨識 COLORTERM，再辨識 TERM，並快取首次結果；預設 `Terminal::DEFAULT_COLOR_MODE` 為 Ansi4。`Terminal::set_color_mode(Some(mode))` 強制處理程序層級模式，傳 `None` 重設辨識。應在啟動時設定，不要按請求切換。已有 Color 物件保留已編譯序列，後續建立物件或重建樣式時使用目前模式。
+
+`Terminal::get_width`、`get_height` 每次讀取 COLUMNS、LINES，包括零、負數與數值前綴。沒有覆蓋值時快取原生裝置尺寸，缺失則分別回退至 80 欄、50 列。Unix 直接讀取標準輸入終端裝置，即使 stdout、stderr 被重新導向亦可取得；Windows 優先使用設定的 ANSICON，否則讀取原生主控台。`has_stty_available()` 單獨快取 stty 查詢結果，一般尺寸讀取不啟動外部命令。Windows 實際執行仍歸平台發行驗收。

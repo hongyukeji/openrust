@@ -886,3 +886,39 @@ fn register_formatter() -> Result<(), ConsoleError> {
 `Output`, `OutputStyle` and `ProgressOutput` expose `get_formatter` and `set_formatter`. Cloning the returned Arc shares the same object. Explicit primary replacement on a real console shares the object with stderr; changing decoration through either handle then affects both. Without replacement their default formatters remain independent. Replacing only the progress output affects stderr; captured commands have a single shared stream. Raw output bypasses the formatter, including progress cursor control sequences.
 
 Nested CLI flags restore decoration when their original output objects remain installed. Explicit replacement keeps the new formatter’s configuration instead of overwriting it with the previous object’s flags. Custom style callbacks can safely register styles, reset the same stack or perform finite nested formatting. Formatter calls are synchronous; no async work runs while holding the ordering lock.
+
+## Colors and terminal capabilities {#colors-terminal}
+
+`Color::new(foreground, background, options)` compiles ANSI sequences. `set` and `unset` expose the opening and closing sequences; `apply` combines them with text. `Color::default()` is empty. These low-level methods do not read output decoration: respect the output flag before writing pre-rendered text with Raw. Invalid colors and options return typed errors.
+
+```rust
+use openrust::{
+    console::{Color, ConsoleError, Input, Output, OutputFormat, Terminal},
+    support::facades::Artisan,
+};
+
+fn register_colors() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:colors", |input: &Input, output: &mut Output| {
+        let color = Color::new("green", "", &["bold"])?;
+        let terminal = Terminal::new();
+        let mut io = input.io(output);
+        let style = io.get_output();
+        let text = if style.is_decorated() {
+            color.apply("ready")
+        } else {
+            "ready".to_owned()
+        };
+        style.write(text.as_str(), true, OutputFormat::Raw)?;
+        style.write(
+            format!("terminal:{}x{}", terminal.get_width(), terminal.get_height()).as_str(),
+            true, OutputFormat::Raw,
+        )?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
+`AnsiColorMode::{Ansi4, Ansi8, Ansi24}` provides `convert_from_hex_to_ansi_color_code`. `Terminal::get_color_mode()` detects COLORTERM before TERM and caches the first result. The default is `Terminal::DEFAULT_COLOR_MODE` (Ansi4). `Terminal::set_color_mode(Some(mode))` forces a process-wide mode; `None` resets detection. Configure it during startup rather than per request. Existing Color objects keep their compiled sequences; future objects and rebuilt styles use the current mode.
+
+`Terminal::get_width` and `get_height` read COLUMNS and LINES on every call, including zero, negative and numeric-prefix values. Without overrides they cache native device dimensions, falling back to 80 columns and 50 rows. Unix reads the stdin terminal device directly, including when stdout and stderr are redirected; Windows uses ANSICON when configured and the native console otherwise. `has_stty_available()` separately caches the result of querying stty; ordinary dimension reads do not launch it. Windows execution remains part of platform release acceptance.

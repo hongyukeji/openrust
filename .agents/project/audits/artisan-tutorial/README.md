@@ -275,3 +275,18 @@ FormatterStyle采用Arc Trait对象保留对象身份，默认样式配置同步
 新8个父消费者通过，1个ignore仅实际CLI夹具由父驱动且不计通过；真实handle_command验证stdout=[first]third/stderr=[second]，自定义可选输出不写入，公开样式引用/克隆、接口换行、共享配置和重入均由实际入口验证。真实TCP HTTP成功/自定义格式器失败500/后续成功通过。最终11框架目标86项＋根6目标98项，共184个不同父消费者，包含57个从正式三语正文直接提取的例子；11个ignore全部为驱动夹具，不叠加为功能计数。格式、workspace all-targets严格Clippy56.69s、main(pail)、三语站点与12组浏览器通过。实际main验收/up/静态文件/HTML及JSON404/HEAD、Artisan inspire/list/pail帮助、Pail真实错误过滤/timeout清理及Ctrl+C退出0通过。源码SHA及真实门禁见accepted-output-formatters.json；日志formatter-object-{gates2,final-*,runtime,browser}.log。
 
 运行夹具与临时PHP容器结束后清理，保留固定参考源/原始日志/共享热缓存，不清理其他工作流源码或在途。仅本簇核定文件本地提交，不推送；继续Color/AnsiColorMode/Terminal与其他继承SDK和Artisan章锚点，整章及持续目标未关闭。NewRelic按用户选择继续单列供应商集成待选型，不以通用回调冒充已支持。
+
+
+## 第十九簇：Color／AnsiColorMode／Terminal与所选流替换复核（2026-11-25）
+
+固定公开Color四声明、AnsiColorMode一方法与三case、Terminal五方法及DEFAULT_COLOR_MODE逐项映射见color-terminal-contracts.json。旧v0.x无同名SDK实现可提取；继续复用当前Style编译／数值转换／选项校验／既有console和rustix，不保留平行颜色解析器。Color提供new/Default、apply/set/unset；终端模式按COLORTERM／TERM顺序首次缓存，支持强制及None重置。已有Color保持编译结果，后续构造与重建读取当前模式，实际消费者验证。进度宽度接入同一公开Terminal，不再各自探测尺寸。
+
+Unix用已锁定rustix1.1.6原生tcgetwinsize读取stdin设备，启用termios／stdio以安全查询和驱动真实恢复测试，不增加解析包，不在普通尺寸查询启动外部进程；has_stty_available单独实际查询并缓存该工具结果。未发布性能数字。静态环境与尺寸生命周期沿固定源，只有读取成功才缓存尺寸；失败默认80×50后仍可恢复。真实PHP源PTY与实际Artisan证明stdout/stderr重定向时113×37，且stdin起初不可用时80×50、接入专用PTY后113×37；stdio安全dup2没有unsafe描述符操作，设备与应用运行目录均独占并已关闭删除。
+
+固定源码318组Color、48组hex、23组终端环境，覆盖基础／亮色／4/8/24bit、空值／无效／重复选项、灰度、非十六进制字符、空／零／负／科学计数法／溢出／Unicode空白、模式强制重置及已编译对象。补充发现Rust trim会裁掉NBSP／EM SPACE，真实现象12/-12而固定源为0，terminal-unicode-before.json保留两处反例；改为固定ASCII trim后23组通过，不扩大接受值。源VM数值弃用告警5148字节保留color-terminal-source1.stderr，不模拟VM告警或更改源预期。首轮三语示例断言遗漏ANSI分支，保留first-final-root.log并按实际输出修复验收代码；恢复测试首次未显式转换I/O错误的编译失败也保留，改为from_source，没有放宽错误类型或lint。
+
+另补验上一簇ProgressOutput的set_formatter实际调用，不仅检索同名声明：独立固定ConsoleOutput/BufferedOutput源输出形成formatter-selected-oracle.json；真实命令证明只替换stderr对象时stdout仍使用原自定义格式器，捕获调用则替换同一缓冲后端；返回对象身份、后续装饰修改和最终两个流逐字相同。更新progress/io继承清单中两组getter/setter状态及章节映射，不把尚未核对的getErrorStyle、组件与表格SDK算作完成。
+
+最终12框架目标90项＋根6目标101项，191个不同父消费者通过；含60份正式三语直接提取示例，12个ignore驱动夹具不计通过。另有两个实际PTY过程，不能把子过程数量当额外功能数。真实HTTP Color成功／类型化错误500／后续成功、实际main的/up/静态/HTML与JSON404/HEAD、Artisan inspire/list/pail帮助、Pail真实500过滤及timeout清理、Ctrl+C退出0通过。最终格式、workspace all-targets严格Clippy26.50s、main(pail)、三语构建、12组浏览器通过，accepted-colors-terminal.json固定SHA与命令；最后门禁color-terminal-gates7.log，前述失败不计通过。
+
+第六轮前全项目磁盘守卫触线，记录before31943688192、after112106188800、释放80162500608字节，保留源码／日志／下载／数据／锁，编译产物与文档dist安全清理；本批随后实际冷编译完成，再完成Unicode修复最终门禁，不因可恢复清理停工。运行夹具／专用PTY／临时PHP容器均结束，热缓存与日志按规则保留。Windows ANSICON／原生控制台实机、跨平台与发布验收明确未验，不用Darwin／Linux源对照冒充。仅核定范围本地提交不推送；继续其余Table／组件／命令注册生成／信号事件／Tinker等，整章和持续目标未关闭。

@@ -886,3 +886,39 @@ fn register_formatter() -> Result<(), ConsoleError> {
 `Output`、`OutputStyle` 和 `ProgressOutput` 均提供 `get_formatter`、`set_formatter`。克隆返回的 Arc 共享同一个对象。真实控制台显式替换主格式器时，stderr 也引用该对象；随后通过任一句柄修改装饰会影响两条流。未替换时，默认格式器彼此独立。只替换进度输出则仅影响 stderr；捕获命令共享单一流。Raw 绕过格式器，进度光标控制序列也走 Raw。
 
 嵌套 CLI 标志在原输出对象仍安装时恢复装饰；显式替换则保留新格式器配置，不用旧对象标志覆盖。自定义样式回调可安全注册样式、复位同一栈或进行有限的嵌套格式化。格式器调用是同步的，排序锁期间不执行异步工作。
+
+## 颜色与终端能力 {#colors-terminal}
+
+`Color::new(foreground, background, options)` 编译 ANSI 序列；`set`、`unset` 返回起止序列，`apply` 与文本组合。`Color::default()` 为空样式。这些低层方法不读取输出装饰标志；用 Raw 写入预渲染文本前应尊重实际输出开关。无效颜色和选项返回类型化错误。
+
+```rust
+use openrust::{
+    console::{Color, ConsoleError, Input, Output, OutputFormat, Terminal},
+    support::facades::Artisan,
+};
+
+fn register_colors() -> Result<(), ConsoleError> {
+    Artisan::command_with("reports:colors", |input: &Input, output: &mut Output| {
+        let color = Color::new("green", "", &["bold"])?;
+        let terminal = Terminal::new();
+        let mut io = input.io(output);
+        let style = io.get_output();
+        let text = if style.is_decorated() {
+            color.apply("ready")
+        } else {
+            "ready".to_owned()
+        };
+        style.write(text.as_str(), true, OutputFormat::Raw)?;
+        style.write(
+            format!("terminal:{}x{}", terminal.get_width(), terminal.get_height()).as_str(),
+            true, OutputFormat::Raw,
+        )?;
+        Ok(0)
+    })?;
+    Ok(())
+}
+```
+
+`AnsiColorMode::{Ansi4, Ansi8, Ansi24}` 提供 `convert_from_hex_to_ansi_color_code`。`Terminal::get_color_mode()` 优先识别 COLORTERM，再识别 TERM，并缓存首次结果；默认 `Terminal::DEFAULT_COLOR_MODE` 为 Ansi4。`Terminal::set_color_mode(Some(mode))` 强制进程级模式，传 `None` 重置识别。应在启动时配置，不要按请求切换。已有 Color 对象保留已编译序列，后续创建对象或重建样式时使用当前模式。
+
+`Terminal::get_width`、`get_height` 每次读取 COLUMNS、LINES，包括零、负数和数值前缀。没有覆盖值时缓存原生设备尺寸，缺失则分别回退到 80 列、50 行。Unix 直接读取标准输入终端设备，即使 stdout、stderr 被重定向也可获取；Windows 优先使用配置的 ANSICON，否则读取原生控制台。`has_stty_available()` 单独缓存 stty 查询结果，普通尺寸读取不启动外部命令。Windows 实际执行仍归平台发布验收。

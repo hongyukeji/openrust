@@ -164,6 +164,34 @@ fn register() -> Result<(), ConsoleError> {
         );
         Ok(0)
     })?;
+    Artisan::command_with(
+        "formatter:selected",
+        |input: &Input, output: &mut Output| {
+            let terminal = output.streams_to_terminal();
+            let custom: FormatterHandle = Arc::new(Custom {
+                inner: OutputFormatter::new(false),
+                calls: Arc::new(Mutex::new(Vec::new())),
+            });
+            let mut io = input.io(output);
+            let style = io.get_output();
+            style.set_formatter(custom.clone());
+            style.write("primary", false, OutputFormat::Normal)?;
+            {
+                let mut bar = style.create_progress_bar(1)?;
+                let mut selected = bar.get_output();
+                let replacement: FormatterHandle = Arc::new(OutputFormatter::new(false));
+                selected.set_formatter(replacement.clone());
+                assert!(Arc::ptr_eq(&selected.get_formatter(), &replacement));
+                selected.write("<info>secondary</info>", false, OutputFormat::Normal)?;
+                selected.set_decorated(true);
+                assert!(replacement.is_decorated());
+                assert!(!custom.is_decorated());
+            }
+            assert_eq!(style.is_decorated(), !terminal);
+            style.write("<info>after</info>", false, OutputFormat::Normal)?;
+            Ok(0)
+        },
+    )?;
     Artisan::command_with("formatter:failure", |input: &Input, output: &mut Output| {
         let custom: FormatterHandle = Arc::new(Custom {
             inner: OutputFormatter::new(false),
@@ -224,8 +252,9 @@ fn formatter_cli_fixture() {
     .create()
     .unwrap();
     rt.block_on(app.boot()).unwrap();
+    let command = std::env::var("FORMATTER_COMMAND").unwrap_or_else(|_| "formatter:custom".into());
     let code = rt
-        .block_on(app.handle_command(&["formatter:custom".into(), "--no-ansi".into()]))
+        .block_on(app.handle_command(&[command.into(), "--no-ansi".into()]))
         .unwrap();
     std::process::exit(code);
 }
@@ -375,4 +404,58 @@ async fn real_http_uses_the_replaced_formatter_and_recovers_after_failure() {
     }
     server.abort();
     let _ = server.await;
+}
+
+#[tokio::test]
+async fn selected_stream_replacement_and_mutation_match_actual_source_objects() {
+    let rows: Vec<serde_json::Value> = serde_json::from_str(include_str!(
+        "../../../../.agents/project/audits/artisan-tutorial/formatter-selected-oracle.json"
+    ))
+    .unwrap();
+    let root = tempfile::tempdir().unwrap();
+    let mut app = Application::configure(root.path().into())
+        .with_routing(Routing::default().commands(register))
+        .create()
+        .unwrap();
+    app.boot().await.unwrap();
+    App::set_facade_application(Some(&app), async {
+        let mut output = Output::default();
+        assert_eq!(
+            Artisan::call("formatter:selected", &[], &mut output)
+                .await
+                .unwrap(),
+            0
+        );
+        assert_eq!(output.stdout, rows[1]["stdout"].as_str().unwrap());
+        assert_eq!(output.stderr, rows[1]["stderr"].as_str().unwrap());
+    })
+    .await;
+    let child = std::process::Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "formatter_cli_fixture",
+            "--ignored",
+            "--nocapture",
+        ])
+        .env("FORMATTER_ROOT", root.path())
+        .env("FORMATTER_COMMAND", "formatter:selected")
+        .output()
+        .unwrap();
+    assert_eq!(
+        child.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&child.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(child.stdout)
+            .unwrap()
+            .strip_prefix("\nrunning 1 test\n")
+            .unwrap(),
+        rows[0]["stdout"].as_str().unwrap()
+    );
+    assert_eq!(
+        String::from_utf8(child.stderr).unwrap(),
+        rows[0]["stderr"].as_str().unwrap()
+    );
 }

@@ -532,15 +532,23 @@
     },
     {
       "method": "setFormatter",
-      "native": null,
-      "status": "pending_inherited_sdk_formatter_contract",
-      "evidence": []
+      "native": "console::ProgressOutput::set_formatter",
+      "status": "verified_actual_selected_stream_replacement",
+      "evidence": [
+        "console_formatter_object::selected_stream_replacement_and_mutation_match_actual_source_objects",
+        "formatter-selected-oracle.json",
+        "accepted-colors-terminal.json"
+      ]
     },
     {
       "method": "getFormatter",
-      "native": null,
-      "status": "pending_inherited_sdk_formatter_contract",
-      "evidence": []
+      "native": "console::ProgressOutput::get_formatter",
+      "status": "verified_actual_selected_stream_replacement",
+      "evidence": [
+        "console_formatter_object::selected_stream_replacement_and_mutation_match_actual_source_objects",
+        "formatter-selected-oracle.json",
+        "accepted-colors-terminal.json"
+      ]
     }
   ]
 }

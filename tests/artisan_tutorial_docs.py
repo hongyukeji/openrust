@@ -194,5 +194,8 @@ async fn formal_progress_example(){
     formatter_code=re.search(r'```rust\n(.*?)```',text.split('{#output-formatters}',1)[1],re.S).group(1)
     formatter_checks=progress_checks.replace('formal_progress_example','formal_formatter_example').replace('register_progress)', 'register_formatter)').replace('"reports:progress"','"reports:format"').replace('assert!(output.stdout.contains("CSV,JSON,HTML:11"));assert_eq!(output.stdout.matches("100%").count(),2);assert!(output.stdout.contains("build"));','assert_eq!(output.stdout,"ready\\none two\\nthree\\n\\x1b[32;1mdone\\x1b[39;22m\\n");')
     parts.append('mod '+locale.replace('-','_').lower()+'_formatters{\n'+formatter_code+formatter_checks+'}\n')
+    color_code=re.search(r'```rust\n(.*?)```',text.split('{#colors-terminal}',1)[1],re.S).group(1)
+    color_checks=progress_checks.replace('formal_progress_example','formal_color_example').replace('register_progress)', 'register_colors)').replace('"reports:progress"','"reports:colors"').replace('assert!(output.stdout.contains("CSV,JSON,HTML:11"));assert_eq!(output.stdout.matches("100%").count(),2);assert!(output.stdout.contains("build"));','let expected=if flag=="--ansi" {"\\x1b[32;1mready\\x1b[39;22m\\nterminal:"}else{"ready\\nterminal:"};assert!(output.stdout.starts_with(expected),"{flag}: {:?}",output.stdout);')
+    parts.append('mod '+locale.replace('-','_').lower()+'_colors{\n'+color_code+color_checks+'}\n')
 target=source/'tests/artisan_docs_generated.rs';target.write_text('\n'.join(parts));subprocess.run(['rustfmt','+1.94.0','--edition','2024',str(target)],check=True)
 print('generated',len(parts),'direct formal consumers')

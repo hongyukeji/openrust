@@ -3,7 +3,7 @@
     "framework": "1449bf241017087fbd38c118ecaabef3f6797fdc",
     "console": "v7.4.0"
   },
-  "scope": "Public styles, stacks, default formatter, formatter traits and runtime replacement; complete Color/Terminal and other SDK types remain open.",
+  "scope": "Public styles, stacks, formatter/interfaces/replacement, Color, AnsiColorMode and Terminal mapped; platform release and other SDK types remain open.",
   "classes": {
     "OutputFormatterStyleInterface": [
       {
@@ -494,7 +494,6 @@
     }
   ],
   "remaining": [
-    "Public Color, AnsiColorMode, Terminal color-mode lifecycle; private RGB conversion is not proof of those SDK types",
     "Other table/component/registration/signal/Tinker chapter entries remain open"
   ],
   "adaptations_phase18": [
@@ -503,5 +502,6 @@
     "as_wrappable exposes the second trait through type erasure without unsafe casting; actual custom implementation tested.",
     "Ordering uses already locked parking_lot 0.12.5 ReentrantMutex; short data locks are released before user apply/clone/drop callbacks. No asynchronous work occurs in the formatter.",
     "Explicit runtime formatter replacement preserves its own decoration instead of restoring flags belonging to an obsolete formatter object. Existing non-replaced nested/cancel scopes retain restoration."
-  ]
+  ],
+  "related_public_types": "color-terminal-contracts.json"
 }

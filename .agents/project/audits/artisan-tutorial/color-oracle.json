@@ -1,0 +1,4628 @@
+[
+    {
+        "mode": "Ansi4",
+        "colors": [
+            {
+                "args": [
+                    "",
+                    "",
+                    []
+                ],
+                "set": "",
+                "unset": "",
+                "output": "sample",
+                "empty": "",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[1;4m",
+                "unset": "\u001b[22;24m",
+                "output": "\u001b[1;4msample\u001b[22;24m",
+                "empty": "\u001b[1;4m\u001b[22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[44;1;7m",
+                "unset": "\u001b[49;22;27m",
+                "output": "\u001b[44;1;7msample\u001b[49;22;27m",
+                "empty": "\u001b[44;1;7m\u001b[49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "black",
+                    "",
+                    []
+                ],
+                "set": "\u001b[30m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[30msample\u001b[39m",
+                "empty": "\u001b[30m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "black",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[40;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[40;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[40;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "black",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[30;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[30;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[30;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "red",
+                    "",
+                    []
+                ],
+                "set": "\u001b[31m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[31msample\u001b[39m",
+                "empty": "\u001b[31m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "red",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[41;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[41;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[41;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "red",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[31;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[31;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[31;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "green",
+                    "",
+                    []
+                ],
+                "set": "\u001b[32m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[32msample\u001b[39m",
+                "empty": "\u001b[32m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "green",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[42;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[42;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[42;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "green",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[32;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[32;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[32;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "yellow",
+                    "",
+                    []
+                ],
+                "set": "\u001b[33m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[33msample\u001b[39m",
+                "empty": "\u001b[33m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "yellow",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[43;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[43;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[43;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "yellow",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[33;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[33;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[33;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "blue",
+                    "",
+                    []
+                ],
+                "set": "\u001b[34m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[34msample\u001b[39m",
+                "empty": "\u001b[34m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "blue",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[44;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[44;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[44;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "blue",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[34;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[34;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[34;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "magenta",
+                    "",
+                    []
+                ],
+                "set": "\u001b[35m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[35msample\u001b[39m",
+                "empty": "\u001b[35m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "magenta",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[45;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[45;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[45;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "magenta",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[35;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[35;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[35;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "cyan",
+                    "",
+                    []
+                ],
+                "set": "\u001b[36m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[36msample\u001b[39m",
+                "empty": "\u001b[36m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "cyan",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[46;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[46;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[46;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "cyan",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[36;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[36;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[36;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "white",
+                    "",
+                    []
+                ],
+                "set": "\u001b[37m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[37msample\u001b[39m",
+                "empty": "\u001b[37m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "white",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[47;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[47;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[47;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "white",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[37;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[37;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[37;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "default",
+                    "",
+                    []
+                ],
+                "set": "\u001b[39m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[39msample\u001b[39m",
+                "empty": "\u001b[39m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "default",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[49;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[49;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[49;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "default",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[39;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[39;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[39;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "gray",
+                    "",
+                    []
+                ],
+                "set": "\u001b[90m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[90msample\u001b[39m",
+                "empty": "\u001b[90m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "gray",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[100;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[100;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[100;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "gray",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[90;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[90;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[90;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-red",
+                    "",
+                    []
+                ],
+                "set": "\u001b[91m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[91msample\u001b[39m",
+                "empty": "\u001b[91m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "bright-red",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[101;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[101;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[101;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-red",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[91;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[91;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[91;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-green",
+                    "",
+                    []
+                ],
+                "set": "\u001b[92m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[92msample\u001b[39m",
+                "empty": "\u001b[92m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "bright-green",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[102;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[102;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[102;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-green",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[92;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[92;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[92;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-yellow",
+                    "",
+                    []
+                ],
+                "set": "\u001b[93m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[93msample\u001b[39m",
+                "empty": "\u001b[93m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "bright-yellow",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[103;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[103;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[103;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-yellow",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[93;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[93;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[93;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-blue",
+                    "",
+                    []
+                ],
+                "set": "\u001b[94m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[94msample\u001b[39m",
+                "empty": "\u001b[94m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "bright-blue",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[104;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[104;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[104;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-blue",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[94;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[94;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[94;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-magenta",
+                    "",
+                    []
+                ],
+                "set": "\u001b[95m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[95msample\u001b[39m",
+                "empty": "\u001b[95m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "bright-magenta",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[105;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[105;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[105;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-magenta",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[95;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[95;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[95;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-cyan",
+                    "",
+                    []
+                ],
+                "set": "\u001b[96m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[96msample\u001b[39m",
+                "empty": "\u001b[96m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "bright-cyan",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[106;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[106;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[106;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-cyan",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[96;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[96;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[96;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-white",
+                    "",
+                    []
+                ],
+                "set": "\u001b[97m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[97msample\u001b[39m",
+                "empty": "\u001b[97m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "bright-white",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[107;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[107;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[107;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-white",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[97;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[97;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[97;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#fff",
+                    "",
+                    []
+                ],
+                "set": "\u001b[37m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[37msample\u001b[39m",
+                "empty": "\u001b[37m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "#fff",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[47;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[47;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[47;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#fff",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[37;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[37;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[37;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#000",
+                    "",
+                    []
+                ],
+                "set": "\u001b[30m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[30msample\u001b[39m",
+                "empty": "\u001b[30m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "#000",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[40;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[40;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[40;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#000",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[30;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[30;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[30;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#808080",
+                    "",
+                    []
+                ],
+                "set": "\u001b[37m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[37msample\u001b[39m",
+                "empty": "\u001b[37m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "#808080",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[47;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[47;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[47;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#808080",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[37;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[37;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[37;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#080808",
+                    "",
+                    []
+                ],
+                "set": "\u001b[30m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[30msample\u001b[39m",
+                "empty": "\u001b[30m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "#080808",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[40;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[40;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[40;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#080808",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[30;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[30;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[30;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#f57255",
+                    "",
+                    []
+                ],
+                "set": "\u001b[31m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[31msample\u001b[39m",
+                "empty": "\u001b[31m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "#f57255",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[41;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[41;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[41;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#f57255",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[31;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[31;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[31;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#8993c0",
+                    "",
+                    []
+                ],
+                "set": "\u001b[37m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[37msample\u001b[39m",
+                "empty": "\u001b[37m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "#8993c0",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[47;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[47;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[47;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#8993c0",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[37;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[37;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[37;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#fafafa",
+                    "",
+                    []
+                ],
+                "set": "\u001b[37m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[37msample\u001b[39m",
+                "empty": "\u001b[37m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "#fafafa",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[47;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[47;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[47;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#fafafa",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[37;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[37;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[37;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#ggg",
+                    "",
+                    []
+                ],
+                "set": "\u001b[30m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[30msample\u001b[39m",
+                "empty": "\u001b[30m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "#ggg",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[40;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[40;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[40;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#ggg",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[30;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[30;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[30;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#zzzzzz",
+                    "",
+                    []
+                ],
+                "set": "\u001b[30m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[30msample\u001b[39m",
+                "empty": "\u001b[30m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "#zzzzzz",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[40;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[40;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[40;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#zzzzzz",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[30;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[30;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[30;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#a#b#c",
+                    "",
+                    []
+                ],
+                "set": "\u001b[37m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[37msample\u001b[39m",
+                "empty": "\u001b[37m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "#a#b#c",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[47;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[47;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[47;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#a#b#c",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[37;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[37;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[37;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#éa",
+                    "",
+                    []
+                ],
+                "set": "\u001b[34m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[34msample\u001b[39m",
+                "empty": "\u001b[34m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "#éa",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[44;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[44;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[44;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#éa",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[34;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[34;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[34;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "RED",
+                    "",
+                    []
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "",
+                    "RED",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "RED",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "0",
+                    "",
+                    []
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "",
+                    "0",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "0",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "unknown",
+                    "",
+                    []
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "",
+                    "unknown",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "unknown",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "#ffff",
+                    "",
+                    []
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "",
+                    "#ffff",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "#ffff",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "red",
+                    "yellow",
+                    []
+                ],
+                "set": "\u001b[31;43m",
+                "unset": "\u001b[39;49m",
+                "output": "\u001b[31;43msample\u001b[39;49m",
+                "empty": "\u001b[31;43m\u001b[39;49m",
+                "error": false
+            },
+            {
+                "args": [
+                    "red",
+                    "yellow",
+                    [
+                        "bold"
+                    ]
+                ],
+                "set": "\u001b[31;43;1m",
+                "unset": "\u001b[39;49;22m",
+                "output": "\u001b[31;43;1msample\u001b[39;49;22m",
+                "empty": "\u001b[31;43;1m\u001b[39;49;22m",
+                "error": false
+            },
+            {
+                "args": [
+                    "red",
+                    "yellow",
+                    [
+                        "blink",
+                        "conceal"
+                    ]
+                ],
+                "set": "\u001b[31;43;5;8m",
+                "unset": "\u001b[39;49;25;28m",
+                "output": "\u001b[31;43;5;8msample\u001b[39;49;25;28m",
+                "empty": "\u001b[31;43;5;8m\u001b[39;49;25;28m",
+                "error": false
+            },
+            {
+                "args": [
+                    "red",
+                    "yellow",
+                    [
+                        "underscore",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[31;43;4;7m",
+                "unset": "\u001b[39;49;24;27m",
+                "output": "\u001b[31;43;4;7msample\u001b[39;49;24;27m",
+                "empty": "\u001b[31;43;4;7m\u001b[39;49;24;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "red",
+                    "yellow",
+                    [
+                        "invalid"
+                    ]
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "red",
+                    "yellow",
+                    [
+                        "bold",
+                        "unknown"
+                    ]
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "red",
+                    "yellow",
+                    [
+                        "",
+                        "bold"
+                    ]
+                ],
+                "error": true
+            }
+        ],
+        "hexes": [
+            {
+                "hex": "",
+                "error": true
+            },
+            {
+                "hex": "0",
+                "error": true
+            },
+            {
+                "hex": "fff",
+                "output": "7",
+                "error": false
+            },
+            {
+                "hex": "#fff",
+                "output": "7",
+                "error": false
+            },
+            {
+                "hex": "ff0000",
+                "output": "1",
+                "error": false
+            },
+            {
+                "hex": "#808080",
+                "output": "7",
+                "error": false
+            },
+            {
+                "hex": "#070707",
+                "output": "0",
+                "error": false
+            },
+            {
+                "hex": "#080808",
+                "output": "0",
+                "error": false
+            },
+            {
+                "hex": "#f8f8f8",
+                "output": "7",
+                "error": false
+            },
+            {
+                "hex": "#f9f9f9",
+                "output": "7",
+                "error": false
+            },
+            {
+                "hex": "#a#b#c",
+                "output": "7",
+                "error": false
+            },
+            {
+                "hex": "#ggg",
+                "output": "0",
+                "error": false
+            },
+            {
+                "hex": "#zzzzzz",
+                "output": "0",
+                "error": false
+            },
+            {
+                "hex": "#éa",
+                "output": "4",
+                "error": false
+            },
+            {
+                "hex": "#ffff",
+                "error": true
+            },
+            {
+                "hex": "#123456789",
+                "error": true
+            }
+        ]
+    },
+    {
+        "mode": "Ansi8",
+        "colors": [
+            {
+                "args": [
+                    "",
+                    "",
+                    []
+                ],
+                "set": "",
+                "unset": "",
+                "output": "sample",
+                "empty": "",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[1;4m",
+                "unset": "\u001b[22;24m",
+                "output": "\u001b[1;4msample\u001b[22;24m",
+                "empty": "\u001b[1;4m\u001b[22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[44;1;7m",
+                "unset": "\u001b[49;22;27m",
+                "output": "\u001b[44;1;7msample\u001b[49;22;27m",
+                "empty": "\u001b[44;1;7m\u001b[49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "black",
+                    "",
+                    []
+                ],
+                "set": "\u001b[30m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[30msample\u001b[39m",
+                "empty": "\u001b[30m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "black",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[40;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[40;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[40;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "black",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[30;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[30;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[30;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "red",
+                    "",
+                    []
+                ],
+                "set": "\u001b[31m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[31msample\u001b[39m",
+                "empty": "\u001b[31m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "red",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[41;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[41;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[41;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "red",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[31;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[31;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[31;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "green",
+                    "",
+                    []
+                ],
+                "set": "\u001b[32m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[32msample\u001b[39m",
+                "empty": "\u001b[32m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "green",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[42;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[42;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[42;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "green",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[32;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[32;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[32;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "yellow",
+                    "",
+                    []
+                ],
+                "set": "\u001b[33m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[33msample\u001b[39m",
+                "empty": "\u001b[33m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "yellow",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[43;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[43;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[43;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "yellow",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[33;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[33;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[33;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "blue",
+                    "",
+                    []
+                ],
+                "set": "\u001b[34m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[34msample\u001b[39m",
+                "empty": "\u001b[34m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "blue",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[44;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[44;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[44;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "blue",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[34;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[34;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[34;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "magenta",
+                    "",
+                    []
+                ],
+                "set": "\u001b[35m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[35msample\u001b[39m",
+                "empty": "\u001b[35m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "magenta",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[45;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[45;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[45;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "magenta",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[35;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[35;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[35;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "cyan",
+                    "",
+                    []
+                ],
+                "set": "\u001b[36m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[36msample\u001b[39m",
+                "empty": "\u001b[36m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "cyan",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[46;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[46;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[46;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "cyan",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[36;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[36;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[36;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "white",
+                    "",
+                    []
+                ],
+                "set": "\u001b[37m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[37msample\u001b[39m",
+                "empty": "\u001b[37m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "white",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[47;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[47;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[47;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "white",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[37;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[37;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[37;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "default",
+                    "",
+                    []
+                ],
+                "set": "\u001b[39m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[39msample\u001b[39m",
+                "empty": "\u001b[39m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "default",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[49;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[49;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[49;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "default",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[39;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[39;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[39;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "gray",
+                    "",
+                    []
+                ],
+                "set": "\u001b[90m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[90msample\u001b[39m",
+                "empty": "\u001b[90m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "gray",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[100;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[100;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[100;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "gray",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[90;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[90;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[90;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-red",
+                    "",
+                    []
+                ],
+                "set": "\u001b[91m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[91msample\u001b[39m",
+                "empty": "\u001b[91m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "bright-red",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[101;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[101;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[101;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-red",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[91;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[91;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[91;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-green",
+                    "",
+                    []
+                ],
+                "set": "\u001b[92m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[92msample\u001b[39m",
+                "empty": "\u001b[92m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "bright-green",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[102;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[102;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[102;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-green",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[92;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[92;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[92;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-yellow",
+                    "",
+                    []
+                ],
+                "set": "\u001b[93m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[93msample\u001b[39m",
+                "empty": "\u001b[93m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "bright-yellow",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[103;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[103;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[103;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-yellow",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[93;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[93;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[93;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-blue",
+                    "",
+                    []
+                ],
+                "set": "\u001b[94m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[94msample\u001b[39m",
+                "empty": "\u001b[94m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "bright-blue",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[104;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[104;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[104;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-blue",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[94;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[94;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[94;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-magenta",
+                    "",
+                    []
+                ],
+                "set": "\u001b[95m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[95msample\u001b[39m",
+                "empty": "\u001b[95m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "bright-magenta",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[105;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[105;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[105;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-magenta",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[95;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[95;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[95;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-cyan",
+                    "",
+                    []
+                ],
+                "set": "\u001b[96m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[96msample\u001b[39m",
+                "empty": "\u001b[96m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "bright-cyan",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[106;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[106;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[106;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-cyan",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[96;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[96;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[96;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-white",
+                    "",
+                    []
+                ],
+                "set": "\u001b[97m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[97msample\u001b[39m",
+                "empty": "\u001b[97m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "bright-white",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[107;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[107;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[107;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-white",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[97;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[97;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[97;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#fff",
+                    "",
+                    []
+                ],
+                "set": "\u001b[38;5;231m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[38;5;231msample\u001b[39m",
+                "empty": "\u001b[38;5;231m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "#fff",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[48;5;231;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[48;5;231;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[48;5;231;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#fff",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[38;5;231;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[38;5;231;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[38;5;231;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#000",
+                    "",
+                    []
+                ],
+                "set": "\u001b[38;5;16m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[38;5;16msample\u001b[39m",
+                "empty": "\u001b[38;5;16m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "#000",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[48;5;16;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[48;5;16;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[48;5;16;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#000",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[38;5;16;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[38;5;16;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[38;5;16;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#808080",
+                    "",
+                    []
+                ],
+                "set": "\u001b[38;5;244m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[38;5;244msample\u001b[39m",
+                "empty": "\u001b[38;5;244m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "#808080",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[48;5;244;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[48;5;244;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[48;5;244;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#808080",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[38;5;244;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[38;5;244;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[38;5;244;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#080808",
+                    "",
+                    []
+                ],
+                "set": "\u001b[38;5;232m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[38;5;232msample\u001b[39m",
+                "empty": "\u001b[38;5;232m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "#080808",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[48;5;232;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[48;5;232;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[48;5;232;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#080808",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[38;5;232;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[38;5;232;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[38;5;232;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#f57255",
+                    "",
+                    []
+                ],
+                "set": "\u001b[38;5;210m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[38;5;210msample\u001b[39m",
+                "empty": "\u001b[38;5;210m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "#f57255",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[48;5;210;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[48;5;210;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[48;5;210;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#f57255",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[38;5;210;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[38;5;210;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[38;5;210;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#8993c0",
+                    "",
+                    []
+                ],
+                "set": "\u001b[38;5;146m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[38;5;146msample\u001b[39m",
+                "empty": "\u001b[38;5;146m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "#8993c0",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[48;5;146;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[48;5;146;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[48;5;146;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#8993c0",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[38;5;146;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[38;5;146;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[38;5;146;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#fafafa",
+                    "",
+                    []
+                ],
+                "set": "\u001b[38;5;231m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[38;5;231msample\u001b[39m",
+                "empty": "\u001b[38;5;231m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "#fafafa",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[48;5;231;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[48;5;231;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[48;5;231;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#fafafa",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[38;5;231;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[38;5;231;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[38;5;231;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#ggg",
+                    "",
+                    []
+                ],
+                "set": "\u001b[38;5;16m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[38;5;16msample\u001b[39m",
+                "empty": "\u001b[38;5;16m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "#ggg",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[48;5;16;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[48;5;16;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[48;5;16;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#ggg",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[38;5;16;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[38;5;16;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[38;5;16;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#zzzzzz",
+                    "",
+                    []
+                ],
+                "set": "\u001b[38;5;16m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[38;5;16msample\u001b[39m",
+                "empty": "\u001b[38;5;16m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "#zzzzzz",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[48;5;16;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[48;5;16;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[48;5;16;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#zzzzzz",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[38;5;16;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[38;5;16;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[38;5;16;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#a#b#c",
+                    "",
+                    []
+                ],
+                "set": "\u001b[38;5;152m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[38;5;152msample\u001b[39m",
+                "empty": "\u001b[38;5;152m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "#a#b#c",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[48;5;152;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[48;5;152;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[48;5;152;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#a#b#c",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[38;5;152;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[38;5;152;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[38;5;152;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#éa",
+                    "",
+                    []
+                ],
+                "set": "\u001b[38;5;19m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[38;5;19msample\u001b[39m",
+                "empty": "\u001b[38;5;19m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "#éa",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[48;5;19;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[48;5;19;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[48;5;19;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#éa",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[38;5;19;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[38;5;19;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[38;5;19;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "RED",
+                    "",
+                    []
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "",
+                    "RED",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "RED",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "0",
+                    "",
+                    []
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "",
+                    "0",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "0",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "unknown",
+                    "",
+                    []
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "",
+                    "unknown",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "unknown",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "#ffff",
+                    "",
+                    []
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "",
+                    "#ffff",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "#ffff",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "red",
+                    "yellow",
+                    []
+                ],
+                "set": "\u001b[31;43m",
+                "unset": "\u001b[39;49m",
+                "output": "\u001b[31;43msample\u001b[39;49m",
+                "empty": "\u001b[31;43m\u001b[39;49m",
+                "error": false
+            },
+            {
+                "args": [
+                    "red",
+                    "yellow",
+                    [
+                        "bold"
+                    ]
+                ],
+                "set": "\u001b[31;43;1m",
+                "unset": "\u001b[39;49;22m",
+                "output": "\u001b[31;43;1msample\u001b[39;49;22m",
+                "empty": "\u001b[31;43;1m\u001b[39;49;22m",
+                "error": false
+            },
+            {
+                "args": [
+                    "red",
+                    "yellow",
+                    [
+                        "blink",
+                        "conceal"
+                    ]
+                ],
+                "set": "\u001b[31;43;5;8m",
+                "unset": "\u001b[39;49;25;28m",
+                "output": "\u001b[31;43;5;8msample\u001b[39;49;25;28m",
+                "empty": "\u001b[31;43;5;8m\u001b[39;49;25;28m",
+                "error": false
+            },
+            {
+                "args": [
+                    "red",
+                    "yellow",
+                    [
+                        "underscore",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[31;43;4;7m",
+                "unset": "\u001b[39;49;24;27m",
+                "output": "\u001b[31;43;4;7msample\u001b[39;49;24;27m",
+                "empty": "\u001b[31;43;4;7m\u001b[39;49;24;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "red",
+                    "yellow",
+                    [
+                        "invalid"
+                    ]
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "red",
+                    "yellow",
+                    [
+                        "bold",
+                        "unknown"
+                    ]
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "red",
+                    "yellow",
+                    [
+                        "",
+                        "bold"
+                    ]
+                ],
+                "error": true
+            }
+        ],
+        "hexes": [
+            {
+                "hex": "",
+                "error": true
+            },
+            {
+                "hex": "0",
+                "error": true
+            },
+            {
+                "hex": "fff",
+                "output": "8;5;231",
+                "error": false
+            },
+            {
+                "hex": "#fff",
+                "output": "8;5;231",
+                "error": false
+            },
+            {
+                "hex": "ff0000",
+                "output": "8;5;196",
+                "error": false
+            },
+            {
+                "hex": "#808080",
+                "output": "8;5;244",
+                "error": false
+            },
+            {
+                "hex": "#070707",
+                "output": "8;5;16",
+                "error": false
+            },
+            {
+                "hex": "#080808",
+                "output": "8;5;232",
+                "error": false
+            },
+            {
+                "hex": "#f8f8f8",
+                "output": "8;5;255",
+                "error": false
+            },
+            {
+                "hex": "#f9f9f9",
+                "output": "8;5;231",
+                "error": false
+            },
+            {
+                "hex": "#a#b#c",
+                "output": "8;5;152",
+                "error": false
+            },
+            {
+                "hex": "#ggg",
+                "output": "8;5;16",
+                "error": false
+            },
+            {
+                "hex": "#zzzzzz",
+                "output": "8;5;16",
+                "error": false
+            },
+            {
+                "hex": "#éa",
+                "output": "8;5;19",
+                "error": false
+            },
+            {
+                "hex": "#ffff",
+                "error": true
+            },
+            {
+                "hex": "#123456789",
+                "error": true
+            }
+        ]
+    },
+    {
+        "mode": "Ansi24",
+        "colors": [
+            {
+                "args": [
+                    "",
+                    "",
+                    []
+                ],
+                "set": "",
+                "unset": "",
+                "output": "sample",
+                "empty": "",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[1;4m",
+                "unset": "\u001b[22;24m",
+                "output": "\u001b[1;4msample\u001b[22;24m",
+                "empty": "\u001b[1;4m\u001b[22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[44;1;7m",
+                "unset": "\u001b[49;22;27m",
+                "output": "\u001b[44;1;7msample\u001b[49;22;27m",
+                "empty": "\u001b[44;1;7m\u001b[49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "black",
+                    "",
+                    []
+                ],
+                "set": "\u001b[30m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[30msample\u001b[39m",
+                "empty": "\u001b[30m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "black",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[40;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[40;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[40;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "black",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[30;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[30;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[30;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "red",
+                    "",
+                    []
+                ],
+                "set": "\u001b[31m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[31msample\u001b[39m",
+                "empty": "\u001b[31m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "red",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[41;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[41;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[41;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "red",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[31;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[31;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[31;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "green",
+                    "",
+                    []
+                ],
+                "set": "\u001b[32m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[32msample\u001b[39m",
+                "empty": "\u001b[32m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "green",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[42;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[42;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[42;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "green",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[32;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[32;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[32;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "yellow",
+                    "",
+                    []
+                ],
+                "set": "\u001b[33m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[33msample\u001b[39m",
+                "empty": "\u001b[33m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "yellow",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[43;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[43;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[43;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "yellow",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[33;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[33;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[33;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "blue",
+                    "",
+                    []
+                ],
+                "set": "\u001b[34m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[34msample\u001b[39m",
+                "empty": "\u001b[34m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "blue",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[44;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[44;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[44;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "blue",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[34;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[34;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[34;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "magenta",
+                    "",
+                    []
+                ],
+                "set": "\u001b[35m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[35msample\u001b[39m",
+                "empty": "\u001b[35m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "magenta",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[45;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[45;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[45;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "magenta",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[35;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[35;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[35;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "cyan",
+                    "",
+                    []
+                ],
+                "set": "\u001b[36m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[36msample\u001b[39m",
+                "empty": "\u001b[36m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "cyan",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[46;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[46;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[46;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "cyan",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[36;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[36;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[36;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "white",
+                    "",
+                    []
+                ],
+                "set": "\u001b[37m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[37msample\u001b[39m",
+                "empty": "\u001b[37m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "white",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[47;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[47;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[47;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "white",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[37;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[37;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[37;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "default",
+                    "",
+                    []
+                ],
+                "set": "\u001b[39m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[39msample\u001b[39m",
+                "empty": "\u001b[39m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "default",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[49;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[49;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[49;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "default",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[39;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[39;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[39;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "gray",
+                    "",
+                    []
+                ],
+                "set": "\u001b[90m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[90msample\u001b[39m",
+                "empty": "\u001b[90m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "gray",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[100;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[100;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[100;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "gray",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[90;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[90;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[90;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-red",
+                    "",
+                    []
+                ],
+                "set": "\u001b[91m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[91msample\u001b[39m",
+                "empty": "\u001b[91m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "bright-red",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[101;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[101;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[101;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-red",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[91;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[91;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[91;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-green",
+                    "",
+                    []
+                ],
+                "set": "\u001b[92m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[92msample\u001b[39m",
+                "empty": "\u001b[92m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "bright-green",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[102;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[102;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[102;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-green",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[92;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[92;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[92;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-yellow",
+                    "",
+                    []
+                ],
+                "set": "\u001b[93m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[93msample\u001b[39m",
+                "empty": "\u001b[93m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "bright-yellow",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[103;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[103;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[103;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-yellow",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[93;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[93;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[93;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-blue",
+                    "",
+                    []
+                ],
+                "set": "\u001b[94m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[94msample\u001b[39m",
+                "empty": "\u001b[94m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "bright-blue",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[104;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[104;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[104;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-blue",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[94;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[94;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[94;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-magenta",
+                    "",
+                    []
+                ],
+                "set": "\u001b[95m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[95msample\u001b[39m",
+                "empty": "\u001b[95m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "bright-magenta",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[105;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[105;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[105;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-magenta",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[95;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[95;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[95;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-cyan",
+                    "",
+                    []
+                ],
+                "set": "\u001b[96m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[96msample\u001b[39m",
+                "empty": "\u001b[96m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "bright-cyan",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[106;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[106;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[106;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-cyan",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[96;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[96;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[96;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-white",
+                    "",
+                    []
+                ],
+                "set": "\u001b[97m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[97msample\u001b[39m",
+                "empty": "\u001b[97m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "bright-white",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[107;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[107;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[107;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "bright-white",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[97;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[97;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[97;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#fff",
+                    "",
+                    []
+                ],
+                "set": "\u001b[38;2;255;255;255m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[38;2;255;255;255msample\u001b[39m",
+                "empty": "\u001b[38;2;255;255;255m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "#fff",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[48;2;255;255;255;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[48;2;255;255;255;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[48;2;255;255;255;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#fff",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[38;2;255;255;255;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[38;2;255;255;255;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[38;2;255;255;255;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#000",
+                    "",
+                    []
+                ],
+                "set": "\u001b[38;2;0;0;0m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[38;2;0;0;0msample\u001b[39m",
+                "empty": "\u001b[38;2;0;0;0m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "#000",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[48;2;0;0;0;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[48;2;0;0;0;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[48;2;0;0;0;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#000",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[38;2;0;0;0;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[38;2;0;0;0;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[38;2;0;0;0;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#808080",
+                    "",
+                    []
+                ],
+                "set": "\u001b[38;2;128;128;128m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[38;2;128;128;128msample\u001b[39m",
+                "empty": "\u001b[38;2;128;128;128m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "#808080",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[48;2;128;128;128;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[48;2;128;128;128;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[48;2;128;128;128;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#808080",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[38;2;128;128;128;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[38;2;128;128;128;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[38;2;128;128;128;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#080808",
+                    "",
+                    []
+                ],
+                "set": "\u001b[38;2;8;8;8m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[38;2;8;8;8msample\u001b[39m",
+                "empty": "\u001b[38;2;8;8;8m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "#080808",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[48;2;8;8;8;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[48;2;8;8;8;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[48;2;8;8;8;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#080808",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[38;2;8;8;8;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[38;2;8;8;8;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[38;2;8;8;8;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#f57255",
+                    "",
+                    []
+                ],
+                "set": "\u001b[38;2;245;114;85m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[38;2;245;114;85msample\u001b[39m",
+                "empty": "\u001b[38;2;245;114;85m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "#f57255",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[48;2;245;114;85;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[48;2;245;114;85;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[48;2;245;114;85;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#f57255",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[38;2;245;114;85;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[38;2;245;114;85;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[38;2;245;114;85;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#8993c0",
+                    "",
+                    []
+                ],
+                "set": "\u001b[38;2;137;147;192m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[38;2;137;147;192msample\u001b[39m",
+                "empty": "\u001b[38;2;137;147;192m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "#8993c0",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[48;2;137;147;192;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[48;2;137;147;192;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[48;2;137;147;192;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#8993c0",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[38;2;137;147;192;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[38;2;137;147;192;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[38;2;137;147;192;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#fafafa",
+                    "",
+                    []
+                ],
+                "set": "\u001b[38;2;250;250;250m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[38;2;250;250;250msample\u001b[39m",
+                "empty": "\u001b[38;2;250;250;250m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "#fafafa",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[48;2;250;250;250;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[48;2;250;250;250;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[48;2;250;250;250;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#fafafa",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[38;2;250;250;250;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[38;2;250;250;250;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[38;2;250;250;250;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#ggg",
+                    "",
+                    []
+                ],
+                "set": "\u001b[38;2;0;0;0m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[38;2;0;0;0msample\u001b[39m",
+                "empty": "\u001b[38;2;0;0;0m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "#ggg",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[48;2;0;0;0;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[48;2;0;0;0;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[48;2;0;0;0;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#ggg",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[38;2;0;0;0;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[38;2;0;0;0;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[38;2;0;0;0;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#zzzzzz",
+                    "",
+                    []
+                ],
+                "set": "\u001b[38;2;0;0;0m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[38;2;0;0;0msample\u001b[39m",
+                "empty": "\u001b[38;2;0;0;0m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "#zzzzzz",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[48;2;0;0;0;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[48;2;0;0;0;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[48;2;0;0;0;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#zzzzzz",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[38;2;0;0;0;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[38;2;0;0;0;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[38;2;0;0;0;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#a#b#c",
+                    "",
+                    []
+                ],
+                "set": "\u001b[38;2;170;187;204m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[38;2;170;187;204msample\u001b[39m",
+                "empty": "\u001b[38;2;170;187;204m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "#a#b#c",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[48;2;170;187;204;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[48;2;170;187;204;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[48;2;170;187;204;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#a#b#c",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[38;2;170;187;204;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[38;2;170;187;204;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[38;2;170;187;204;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#éa",
+                    "",
+                    []
+                ],
+                "set": "\u001b[38;2;0;0;170m",
+                "unset": "\u001b[39m",
+                "output": "\u001b[38;2;0;0;170msample\u001b[39m",
+                "empty": "\u001b[38;2;0;0;170m\u001b[39m",
+                "error": false
+            },
+            {
+                "args": [
+                    "",
+                    "#éa",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "set": "\u001b[48;2;0;0;170;1;4m",
+                "unset": "\u001b[49;22;24m",
+                "output": "\u001b[48;2;0;0;170;1;4msample\u001b[49;22;24m",
+                "empty": "\u001b[48;2;0;0;170;1;4m\u001b[49;22;24m",
+                "error": false
+            },
+            {
+                "args": [
+                    "#éa",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[38;2;0;0;170;44;1;7m",
+                "unset": "\u001b[39;49;22;27m",
+                "output": "\u001b[38;2;0;0;170;44;1;7msample\u001b[39;49;22;27m",
+                "empty": "\u001b[38;2;0;0;170;44;1;7m\u001b[39;49;22;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "RED",
+                    "",
+                    []
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "",
+                    "RED",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "RED",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "0",
+                    "",
+                    []
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "",
+                    "0",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "0",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "unknown",
+                    "",
+                    []
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "",
+                    "unknown",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "unknown",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "#ffff",
+                    "",
+                    []
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "",
+                    "#ffff",
+                    [
+                        "bold",
+                        "underscore"
+                    ]
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "#ffff",
+                    "blue",
+                    [
+                        "bold",
+                        "bold",
+                        "reverse"
+                    ]
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "red",
+                    "yellow",
+                    []
+                ],
+                "set": "\u001b[31;43m",
+                "unset": "\u001b[39;49m",
+                "output": "\u001b[31;43msample\u001b[39;49m",
+                "empty": "\u001b[31;43m\u001b[39;49m",
+                "error": false
+            },
+            {
+                "args": [
+                    "red",
+                    "yellow",
+                    [
+                        "bold"
+                    ]
+                ],
+                "set": "\u001b[31;43;1m",
+                "unset": "\u001b[39;49;22m",
+                "output": "\u001b[31;43;1msample\u001b[39;49;22m",
+                "empty": "\u001b[31;43;1m\u001b[39;49;22m",
+                "error": false
+            },
+            {
+                "args": [
+                    "red",
+                    "yellow",
+                    [
+                        "blink",
+                        "conceal"
+                    ]
+                ],
+                "set": "\u001b[31;43;5;8m",
+                "unset": "\u001b[39;49;25;28m",
+                "output": "\u001b[31;43;5;8msample\u001b[39;49;25;28m",
+                "empty": "\u001b[31;43;5;8m\u001b[39;49;25;28m",
+                "error": false
+            },
+            {
+                "args": [
+                    "red",
+                    "yellow",
+                    [
+                        "underscore",
+                        "reverse"
+                    ]
+                ],
+                "set": "\u001b[31;43;4;7m",
+                "unset": "\u001b[39;49;24;27m",
+                "output": "\u001b[31;43;4;7msample\u001b[39;49;24;27m",
+                "empty": "\u001b[31;43;4;7m\u001b[39;49;24;27m",
+                "error": false
+            },
+            {
+                "args": [
+                    "red",
+                    "yellow",
+                    [
+                        "invalid"
+                    ]
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "red",
+                    "yellow",
+                    [
+                        "bold",
+                        "unknown"
+                    ]
+                ],
+                "error": true
+            },
+            {
+                "args": [
+                    "red",
+                    "yellow",
+                    [
+                        "",
+                        "bold"
+                    ]
+                ],
+                "error": true
+            }
+        ],
+        "hexes": [
+            {
+                "hex": "",
+                "error": true
+            },
+            {
+                "hex": "0",
+                "error": true
+            },
+            {
+                "hex": "fff",
+                "output": "8;2;255;255;255",
+                "error": false
+            },
+            {
+                "hex": "#fff",
+                "output": "8;2;255;255;255",
+                "error": false
+            },
+            {
+                "hex": "ff0000",
+                "output": "8;2;255;0;0",
+                "error": false
+            },
+            {
+                "hex": "#808080",
+                "output": "8;2;128;128;128",
+                "error": false
+            },
+            {
+                "hex": "#070707",
+                "output": "8;2;7;7;7",
+                "error": false
+            },
+            {
+                "hex": "#080808",
+                "output": "8;2;8;8;8",
+                "error": false
+            },
+            {
+                "hex": "#f8f8f8",
+                "output": "8;2;248;248;248",
+                "error": false
+            },
+            {
+                "hex": "#f9f9f9",
+                "output": "8;2;249;249;249",
+                "error": false
+            },
+            {
+                "hex": "#a#b#c",
+                "output": "8;2;170;187;204",
+                "error": false
+            },
+            {
+                "hex": "#ggg",
+                "output": "8;2;0;0;0",
+                "error": false
+            },
+            {
+                "hex": "#zzzzzz",
+                "output": "8;2;0;0;0",
+                "error": false
+            },
+            {
+                "hex": "#éa",
+                "output": "8;2;0;0;170",
+                "error": false
+            },
+            {
+                "hex": "#ffff",
+                "error": true
+            },
+            {
+                "hex": "#123456789",
+                "error": true
+            }
+        ]
+    }
+]

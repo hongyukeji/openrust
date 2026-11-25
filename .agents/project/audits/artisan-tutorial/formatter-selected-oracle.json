@@ -1,0 +1,12 @@
+[
+  {
+    "mode": "terminal",
+    "stdout": "[primary][after]",
+    "stderr": "secondary"
+  },
+  {
+    "mode": "buffer",
+    "stdout": "[primary]secondary\u001b[32mafter\u001b[39m",
+    "stderr": ""
+  }
+]
