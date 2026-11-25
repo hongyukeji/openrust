@@ -85,6 +85,19 @@ pub(super) fn configuration(env: &Environment) -> Result<Value, ConfigError> {
         text["text_languages"] = json!(["en", "fr"]);
         configuration["drivers"]["sightengine-bad-ml"] = text;
     }
+    if let Some(endpoint) = env.get_utf8("MODERATION_FIXTURE_SIGHTENGINE_IMAGE")? {
+        let mut image = json!({
+            "driver":"sightengine", "base_url":endpoint, "api_user_env":"FIXTURE_SIGHTENGINE_USER",
+            "api_secret_env":"FIXTURE_SIGHTENGINE_SECRET", "timeout_ms":3000,
+            "image_models":["violence","nudity-2.1","text-content-2.0"],
+            "image_review_score":0.8, "image_text_categories":["email","insult"],
+        });
+        if let Some(origin) = env.get_utf8("MODERATION_FIXTURE_IMAGE_ORIGIN")? {
+            image["media_disk"] = json!("s3");
+            image["media_origin"] = json!(origin);
+        }
+        configuration["drivers"]["sightengine-images"] = image;
+    }
     if let Some(endpoint) = env.get_utf8("MODERATION_FIXTURE_HIVE")? {
         configuration["drivers"]["hive-text"] = json!({
             "driver":"hive", "base_url":endpoint, "token_env":"FIXTURE_HIVE_TOKEN",
@@ -285,8 +298,8 @@ pub(super) fn tencent_route(request: &mut Request) -> HttpFuture<'_, Result<Resp
     })
 }
 
-async fn tencent_image(input: ImageInput) -> ModerationResult<Value> {
-    let result = Moderation::driver("tencent-images")?.image(&input).await?;
+async fn configured_image(profile: &str, input: ImageInput) -> ModerationResult<Value> {
+    let result = Moderation::driver(profile)?.image(&input).await?;
     let visual = format!("{:?}", result.coverage(Modality::Visual));
     let ocr = format!("{:?}", result.coverage(Modality::Ocr));
     let combined = result.decision(&[Modality::Visual, Modality::Ocr]);
@@ -297,9 +310,22 @@ async fn tencent_image(input: ImageInput) -> ModerationResult<Value> {
     Ok(value)
 }
 
+pub(super) fn sightengine_image_route(
+    request: &mut Request,
+) -> HttpFuture<'_, Result<Response, HttpError>> {
+    image_route(request, "sightengine-images")
+}
+
 pub(super) fn tencent_image_route(
     request: &mut Request,
 ) -> HttpFuture<'_, Result<Response, HttpError>> {
+    image_route(request, "tencent-images")
+}
+
+fn image_route<'a>(
+    request: &'a mut Request,
+    profile: &'static str,
+) -> HttpFuture<'a, Result<Response, HttpError>> {
     Box::pin(async move {
         let input = if let Some(version) = request.header("x-fixture-version")? {
             let disk = request.header("x-fixture-disk")?.unwrap_or("s3");
@@ -308,7 +334,7 @@ pub(super) fn tencent_image_route(
             ImageInput::inline(request.body_bytes().await?.to_vec())
         };
         provider_response(match input {
-            Ok(input) => tencent_image(input).await,
+            Ok(input) => configured_image(profile, input).await,
             Err(error) => Err(error),
         })
     })
@@ -470,6 +496,10 @@ pub(super) fn register_command(artisan: &mut Artisan) -> Result<(), ConsoleError
             profile,
         )))?;
     }
+    artisan.add_command(Box::new(SightengineImageProbe(CommandDefinition::new(
+        clap::Command::new("drivers:moderation-sightengine-image")
+            .arg(clap::Arg::new("object-version").required(true)),
+    ))))?;
     artisan.add_command(Box::new(TencentProbe(CommandDefinition::new(
         clap::Command::new("drivers:moderation-tencent")
             .arg(clap::Arg::new("text").required(true))
@@ -507,6 +537,37 @@ impl Command for NamedTextProbe {
     }
 }
 
+struct SightengineImageProbe(CommandDefinition);
+
+impl Command for SightengineImageProbe {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+
+    fn handle<'a>(
+        &'a self,
+        _: &'a Application,
+        input: &'a Input,
+        output: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            let argument = input
+                .argument("object-version")
+                .expect("fixture image argument");
+            let version = argument.as_str().expect("fixture image version");
+            let source = StoredMedia::new("s3", "versions/image.png", version)
+                .map_err(ConsoleError::from_source)?;
+            let result = configured_image("sightengine-images", ImageInput::stored(source))
+                .await
+                .map_err(ConsoleError::from_source)?;
+            output
+                .write_raw(&format!("{result}\n"))
+                .map_err(ConsoleError::from_source)?;
+            Ok(0)
+        })
+    }
+}
+
 struct TencentProbe(CommandDefinition);
 
 impl Command for TencentProbe {
@@ -526,7 +587,7 @@ impl Command for TencentProbe {
             let result = if input.option("image").and_then(|value| value.as_bool()) == Some(true) {
                 let source = StoredMedia::new("s3", "versions/image.png", text)
                     .map_err(ConsoleError::from_source)?;
-                tencent_image(ImageInput::stored(source)).await
+                configured_image("tencent-images", ImageInput::stored(source)).await
             } else {
                 tencent(text, None, "tencent-default").await
             }

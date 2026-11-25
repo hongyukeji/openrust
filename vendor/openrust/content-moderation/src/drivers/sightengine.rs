@@ -1,13 +1,13 @@
 use std::{collections::BTreeMap, sync::Arc};
 
-use openrust::{config::Environment, http::client::Factory};
+use openrust::{config::Environment, filesystem::FilesystemManager, http::client::Factory};
 use serde::Deserialize;
 use serde_json::Value;
 use zeroize::Zeroizing;
 
-use super::{Endpoint, field, http_status, secret};
+use super::{Endpoint, field, http_status, secret, sightengine_image::ImageService};
 use crate::{
-    Assessment, Confidence, Coverage, Decision, Finding, Modality, ModerationDriver,
+    Assessment, Confidence, Coverage, Decision, Finding, ImageInput, Modality, ModerationDriver,
     ModerationError, ModerationFuture, ModerationResult, Operation, TextInput,
 };
 
@@ -34,9 +34,14 @@ const ML_MODELS: &[&str] = &["general", "self-harm"];
 const GENERAL_CLASSES: &[&str] = &["sexual", "discriminatory", "insulting", "violent", "toxic"];
 
 pub(super) struct Sightengine {
-    endpoint: Endpoint,
     user: Zeroizing<String>,
     secret: Zeroizing<String>,
+    text: Option<TextService>,
+    image: Option<ImageService>,
+}
+
+struct TextService {
+    endpoint: Endpoint,
     languages: Vec<String>,
     mode: TextMode,
 }
@@ -53,9 +58,44 @@ impl Sightengine {
     pub(super) fn new(
         http: Arc<Factory>,
         env: &Environment,
+        storage: Arc<FilesystemManager>,
         profile: &Value,
     ) -> ModerationResult<Self> {
+        let text = TextService::configured(http.clone(), profile)?;
+        let image = ImageService::configured(http, storage, profile)?;
+        if text.is_none() && image.is_none() {
+            return Err(ModerationError::InvalidConfiguration(
+                "sightengine services",
+            ));
+        }
+        Ok(Self {
+            user: secret(env, profile, "api_user_env")?
+                .ok_or(ModerationError::InvalidConfiguration("api_user_env"))?,
+            secret: secret(env, profile, "api_secret_env")?
+                .ok_or(ModerationError::InvalidConfiguration("api_secret_env"))?,
+            text,
+            image,
+        })
+    }
+}
+
+pub(super) fn endpoint(
+    http: Arc<Factory>,
+    profile: &Value,
+    path: &str,
+) -> ModerationResult<Endpoint> {
+    let mut endpoint = Endpoint::new(http, profile, "https://api.sightengine.com")?;
+    if endpoint.url.path() != "/" {
+        return Err(ModerationError::InvalidConfiguration("base_url"));
+    }
+    endpoint.url.set_path(path);
+    Ok(endpoint)
+}
+
+impl TextService {
+    fn configured(http: Arc<Factory>, profile: &Value) -> ModerationResult<Option<Self>> {
         let (mode, supported_languages) = match field(profile, "text_mode")? {
+            None => return Ok(None),
             Some("rules") => (
                 TextMode::Rules(options(profile, "text_categories", RULE_CATEGORIES)?),
                 RULE_LANGUAGES,
@@ -83,20 +123,11 @@ impl Sightengine {
         {
             return Err(ModerationError::InvalidConfiguration("text_languages"));
         }
-        let mut endpoint = Endpoint::new(http, profile, "https://api.sightengine.com")?;
-        if endpoint.url.path() != "/" {
-            return Err(ModerationError::InvalidConfiguration("base_url"));
-        }
-        endpoint.url.set_path("/1.0/text/check.json");
-        Ok(Self {
-            endpoint,
-            user: secret(env, profile, "api_user_env")?
-                .ok_or(ModerationError::InvalidConfiguration("api_user_env"))?,
-            secret: secret(env, profile, "api_secret_env")?
-                .ok_or(ModerationError::InvalidConfiguration("api_secret_env"))?,
+        Ok(Some(Self {
+            endpoint: endpoint(http, profile, "/1.0/text/check.json")?,
             languages,
             mode,
-        })
+        }))
     }
 
     fn languages(&self, hint: Option<&str>) -> ModerationResult<String> {
@@ -117,15 +148,23 @@ impl Sightengine {
 
 impl ModerationDriver for Sightengine {
     fn supports(&self, operation: Operation) -> bool {
-        operation == Operation::Text
+        match operation {
+            Operation::Text => self.text.is_some(),
+            Operation::Image => self.image.is_some(),
+            _ => false,
+        }
     }
 
     fn text<'a>(&'a self, input: &'a TextInput) -> ModerationFuture<'a, Assessment> {
         Box::pin(async move {
+            let text = self
+                .text
+                .as_ref()
+                .ok_or(ModerationError::Unsupported(Operation::Text))?;
             if input.text().chars().count() > 10_000 {
                 return Err(ModerationError::InvalidInput("sightengine text length"));
             }
-            let lang = self.languages(input.language())?;
+            let lang = text.languages(input.language())?;
             let body = {
                 let mut form = url::form_urlencoded::Serializer::new(String::new());
                 form.extend_pairs([
@@ -134,7 +173,7 @@ impl ModerationDriver for Sightengine {
                     ("api_user", self.user.as_str()),
                     ("api_secret", self.secret.as_str()),
                 ]);
-                match &self.mode {
+                match &text.mode {
                     TextMode::Rules(categories) => {
                         form.append_pair("mode", "rules")
                             .append_pair("categories", &categories.join(","));
@@ -146,7 +185,7 @@ impl ModerationDriver for Sightengine {
                 }
                 form.finish()
             };
-            let response = self
+            let response = text
                 .endpoint
                 .post_encoded(
                     http::HeaderMap::new(),
@@ -159,12 +198,22 @@ impl ModerationDriver for Sightengine {
             if output.status != "success" {
                 return Err(ModerationError::Protocol);
             }
-            finish(output, &self.mode)
+            finish(output, &text.mode)
+        })
+    }
+
+    fn image<'a>(&'a self, input: &'a ImageInput) -> ModerationFuture<'a, Assessment> {
+        Box::pin(async move {
+            let image = self
+                .image
+                .as_ref()
+                .ok_or(ModerationError::Unsupported(Operation::Image))?;
+            image.assess(&self.user, &self.secret, input).await
         })
     }
 }
 
-fn options(
+pub(super) fn options(
     profile: &Value,
     field: &'static str,
     allowed: &[&str],
@@ -303,7 +352,7 @@ fn finish(output: TextOutput, mode: &TextMode) -> ModerationResult<Assessment> {
     Ok(result)
 }
 
-fn provider_tag(value: &str) -> bool {
+pub(super) fn provider_tag(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= 64
         && value

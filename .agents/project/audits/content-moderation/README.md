@@ -80,3 +80,11 @@
 必检类别在各段合并最高 0–3 严重度。分数为 -1、缺少类别或响应语言与提示不一致时保留部分覆盖；达到配置阈值仍保留复审证据。词表、PII 和自定义模式仅保留命中类别，去除原文、匹配值和供应商错误消息。
 
 基线 `004db8a9d`，Rust 1.94.0。真实 HTTP 与独立 Artisan 对接验证 18 个回环协议请求。覆盖配置及路由缓存、令牌轮换、显式语言、UTF-16 边界、跨项目／任务／模型拒绝、多段取最高分、未知覆盖、无效或重复分项及拒绝重定向。 Sightengine 文本实际 HTTP／Artisan 回归、审核包 3 个契约测试、全工作区格式、审核包及应用验收目标严格 Clippy、三语文档内容检查通过。V2 Enterprise 项目和各模型实际许可、业务效果、样本保留与费用仍需供应商验收；V2 异步查单协议继续单独核对。
+
+## CM-02C Sightengine 图片 {#sightengine-image}
+
+使用 `/1.0/check.json` 的 POST 表单。内联走框架既有 multipart，版本化私有图片复用短时 HTTPS S3 下载链接。具名 profile 选择 `nudity-2.1`、`violence`、`gore-2.0` 和 `text-content-2.0`，OCR 类别显式配置。HTTP 请求共用响应上限、无重定向和脱敏设置。 [API](https://sightengine.com/docs/reference) · [视觉模型](https://sightengine.com/docs/models) · [OCR](https://sightengine.com/docs/ocr-text-moderation-in-images-2.0)
+
+对返回的单图或采样帧提取风险标签及各标签最高 0–1 分。OCR 按类别给出证据，丢弃正文、邮箱和命中详情。响应不能证明原件的完整帧覆盖，已有视觉／OCR 结果标记为部分覆盖，未返回的模态保持缺失，已发现的风险仍可进入复审。
+
+基线 `7ff196e9c`，Rust 1.94.0。真实 HTTP 和 Artisan 向替身发出 7 个请求，替身解析 multipart 内联 PNG／双帧 GIF，另经固定 SeaweedFS 4.53 读取同一私有对象的两个版本并核对字节。确认匿名 403、拒绝跨盘／null 版本／越权来源、无效分数、缺模型、缓存及敏感数据脱敏。替身构造选定帧及其 OCR 响应以复核最高分及部分覆盖。初次构建夹具的借用声明不完整，且 Artisan 位置参数与自动 `--version` 重名，均修正后重测。Sightengine／Hive 文本和腾讯云／阿里云图片回归、3 个包契约、全工作区格式、包和验收应用严格 Clippy、三语文档检查通过。真实 Sightengine 项目、支持的模型与 OCR 语言、动画采样质量和实际费用仍待 CM-04 验收。

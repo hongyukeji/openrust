@@ -2,7 +2,7 @@
 
 啟用 `content-moderation` 功能，或在依賴 `openrust-content-moderation` 的應用程式中註冊 `ModerationServiceProvider`。執行 `./artisan vendor:publish --tag=moderation-config` 發布設定範本。在應用程式的 Rust 設定中將 `moderation.drivers.comments.driver` 設為 `review-text`，並透過 `MODERATION_DRIVER=comments` 選擇預設設定。
 
-目前套件提供自訂驅動契約、阿里雲文字及已儲存圖片審核，騰訊雲文字及圖片審核，以及 Sightengine 和 Hive 的文字審核。其他供應商操作及持久化影片編排正在實作。
+目前套件提供自訂驅動契約、阿里雲文字及已儲存圖片審核，騰訊雲文字及圖片審核，Sightengine 文字及圖片審核，以及 Hive 文字審核。其他供應商操作及持久化影片編排正在實作。
 
 ## 阿里雲文字 {#aliyun-text}
 
@@ -35,6 +35,12 @@
 在具名設定指定 `driver: "sightengine"`、`api_user_env` 和 `api_secret_env`，在 `text_languages` 列出啟用的語言代碼。`text_mode: "rules"` 使用 `text_categories`，例如 `["profanity", "personal"]`。`text_mode: "ml"` 使用 `text_models` 和 0 至 1 的 `text_review_score`。`self-harm` 模型需要 `text_languages: ["en"]`。
 
 介接器保留規則或模型標籤及 ML 命中的原始分數。分數達到設定門檻時進入複審，缺少已設定類別的結果時涵蓋為部分。最多接受 10,000 個 Unicode 字元，命中的原文和 API 憑證均不出現在結果或日誌。 [規則](https://sightengine.com/docs/text-moderation-rule-based) · [ML 模型](https://sightengine.com/docs/text-moderation-ml-models)
+
+## Sightengine 圖片 {#sightengine-image}
+
+在 `image_models` 選擇具名設定使用的模型，並將 `image_review_score` 設為 0 至 1 的視覺複審門檻。支援 `nudity-2.1`、`violence`、`gore-2.0`、`text-content-2.0`。啟用 OCR 時用 `image_text_categories` 指定查核類別，例如 `["email", "insult"]`。
+
+內嵌圖片經 multipart 上傳。已儲存的圖片使用 `media_disk` 和 `media_origin` 產生固定私人 S3 物件版本的短時 HTTPS 連結。介接器保留傳回影格中每個視覺標籤的最高分及 OCR 類別，省略命中原文。無法確認完整涵蓋時標為部分，結果無法放行。 [Sightengine 圖片 API](https://sightengine.com/docs/reference) · [OCR](https://sightengine.com/docs/ocr-text-moderation-in-images-2.0)
 
 ## Hive 文字 {#hive-text}
 

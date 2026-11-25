@@ -2,7 +2,7 @@
 
 Enable the `content-moderation` feature or register `ModerationServiceProvider` in an application that depends on `openrust-content-moderation`. Run `./artisan vendor:publish --tag=moderation-config` to publish the configuration template. In your application's Rust configuration, set `moderation.drivers.comments.driver` to `review-text` and set `MODERATION_DRIVER=comments` for the default profile.
 
-The package provides custom driver contracts, Alibaba Cloud text and stored-image moderation, Tencent Cloud text and image moderation, and text moderation from Sightengine and Hive. The other provider operations and durable video orchestration are being implemented.
+The package provides custom driver contracts, Alibaba Cloud text and stored-image moderation, Tencent Cloud text and image moderation, Sightengine text and image moderation, and Hive text moderation. The other provider operations and durable video orchestration are being implemented.
 
 ## Alibaba Cloud text {#aliyun-text}
 
@@ -35,6 +35,12 @@ The adapter preserves risk findings from visual and OCR results with their origi
 Set `driver: "sightengine"`, `api_user_env` and `api_secret_env` in a named profile. Supply the language codes enabled for that profile in `text_languages`. For `text_mode: "rules"`, configure `text_categories`, such as `["profanity", "personal"]`. For `text_mode: "ml"`, set `text_models` and a `text_review_score` from 0 to 1. The `self-harm` model requires `text_languages: ["en"]`.
 
 The adapter preserves the rule or model label for each finding and the original score for ML findings. Findings at or above the configured threshold require review. Missing results for a configured category or class leave text coverage partial. The adapter accepts up to 10,000 Unicode characters and keeps matched text and API credentials out of results and logs. [Rules](https://sightengine.com/docs/text-moderation-rule-based) · [ML models](https://sightengine.com/docs/text-moderation-ml-models)
+
+## Sightengine images {#sightengine-image}
+
+Set `image_models` to the models needed for a profile and `image_review_score` to the visual review threshold from 0 to 1. Supported models are `nudity-2.1`, `violence`, `gore-2.0`, and `text-content-2.0`. For OCR, set `image_text_categories` to the categories you want checked, such as `["email", "insult"]`.
+
+Inline images are uploaded as multipart. Stored images use `media_disk` and `media_origin` to provide a short-lived HTTPS URL pinned to the private S3 object version. The adapter keeps the highest visual score per label across returned frames and reports OCR categories without matched text. Results with unproven coverage remain partial and cannot authorize an Allow decision. [Sightengine image API](https://sightengine.com/docs/reference) · [OCR](https://sightengine.com/docs/ocr-text-moderation-in-images-2.0)
 
 ## Hive text {#hive-text}
 

@@ -2,6 +2,7 @@ mod aliyun;
 mod hive;
 mod media;
 mod sightengine;
+mod sightengine_image;
 mod tencent;
 mod tencent_image;
 
@@ -11,7 +12,7 @@ use http::{HeaderMap, HeaderValue, Method};
 use openrust::{
     config::Environment,
     filesystem::FilesystemManager,
-    http::client::{Error as HttpError, Factory, Response},
+    http::client::{Error as HttpError, Factory, Part, PendingRequest, Response},
 };
 use serde_json::Value;
 use url::Url;
@@ -38,10 +39,12 @@ pub(crate) fn register(
     });
     let client = http.clone();
     let environment = env.clone();
+    let media = storage.clone();
     manager.extend("sightengine", move |profile| {
         Ok(Arc::new(sightengine::Sightengine::new(
             client.clone(),
             &environment,
+            media.clone(),
             profile,
         )?))
     });
@@ -109,9 +112,36 @@ impl Endpoint {
         body: String,
         media_type: &'static str,
     ) -> ModerationResult<Response> {
+        self.post(headers, |request| {
+            request.with_body(body, HeaderValue::from_static(media_type))
+        })
+        .await
+    }
+
+    async fn post_parts(
+        &self,
+        headers: HeaderMap,
+        parts: Vec<(&'static str, Part)>,
+    ) -> ModerationResult<Response> {
+        self.post(headers, |request| {
+            parts
+                .into_iter()
+                .fold(request.as_multipart(), |request, (name, part)| {
+                    request.attach(name, part)
+                })
+        })
+        .await
+    }
+
+    async fn post(
+        &self,
+        headers: HeaderMap,
+        payload: impl FnOnce(PendingRequest) -> PendingRequest,
+    ) -> ModerationResult<Response> {
         self.http
             .without_global_configuration_async(async {
-                self.http
+                let request = self
+                    .http
                     .pending_request()
                     .accept_json()
                     .redact_payload()
@@ -119,10 +149,8 @@ impl Endpoint {
                     .connect_timeout(self.timeout)
                     .timeout(self.timeout)
                     .max_response_bytes(1024 * 1024)
-                    .with_headers(headers)
-                    .with_body(body, HeaderValue::from_static(media_type))
-                    .send(Method::POST, self.url.as_str())
-                    .await
+                    .with_headers(headers);
+                payload(request).send(Method::POST, self.url.as_str()).await
             })
             .await
             .map_err(|error| match error {
