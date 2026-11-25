@@ -264,3 +264,5 @@ Use the existing [HTTP client](../digging-deeper/http-client.md) and [queues](..
 ### Single host and replicas {#deployment}
 
 Point every replica at the same writable PostgreSQL or MySQL database. Use the database queue for atomic receipt and enqueue, or configure durable dispatch recovery when jobs go to Redis. Keep the queue names, application key, and authorized profile revisions consistent across HTTP nodes and Workers. Use private storage accessible to all Workers for persisted attachments. The local acceptance runs used a shared directory and independent node directories on one host. Validate your shared storage and deployment before using replicas across hosts.
+
+A receipt configured for durable dispatch recovery can be acknowledged during a queue outage once its database commit succeeds. Schedule recovery on the selected queue connection. When the receipt database is unreachable, the request fails so the sender can retry.

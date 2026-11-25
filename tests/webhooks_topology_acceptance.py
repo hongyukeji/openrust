@@ -1,7 +1,7 @@
 """用同一个验收应用验证单节点、独立节点目录与共享后端。"""
 
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import ExitStack, contextmanager
+from contextlib import ExitStack, contextmanager, suppress
 import base64
 import hashlib
 import hmac
@@ -12,12 +12,15 @@ import os
 from pathlib import Path
 import re
 import runpy
+import select
 import socket
+import socketserver
 import subprocess
 import tempfile
 import threading
 import time
 import uuid
+from urllib.parse import urlsplit
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -80,6 +83,70 @@ def reserve_ports(count):
         return [listener.getsockname()[1] for listener in sockets]
 
 
+class BackendGate(socketserver.ThreadingTCPServer):
+    """断开应用的现有及新连接，保留隔离后端供验收断言读取。"""
+
+    daemon_threads = True
+
+    def __init__(self, port):
+        super().__init__(("127.0.0.1", 0), BackendRelay)
+        self.upstream = ("127.0.0.1", port)
+        self.mutex = threading.Lock()
+        self.sockets = set()
+        self.offline = False
+
+    def disconnect(self):
+        with self.mutex:
+            self.offline = True
+            for client in self.sockets:
+                with suppress(OSError):
+                    client.shutdown(socket.SHUT_RDWR)
+
+    @contextmanager
+    def interrupted(self):
+        self.disconnect()
+        try:
+            yield
+        finally:
+            with self.mutex:
+                self.offline = False
+
+
+class BackendRelay(socketserver.BaseRequestHandler):
+    def handle(self):
+        gate, client = self.server, self.request
+        with gate.mutex:
+            if gate.offline:
+                return
+            gate.sockets.add(client)
+        try:
+            with socket.create_connection(gate.upstream, timeout=3) as backend:
+                backend.settimeout(None)
+                peers = {client: backend, backend: client}
+                while True:
+                    ready, _, _ = select.select(list(peers), [], [])
+                    for source in ready:
+                        data = source.recv(65536)
+                        if not data:
+                            return
+                        peers[source].sendall(data)
+        except OSError:
+            return
+        finally:
+            with gate.mutex:
+                gate.sockets.remove(client)
+
+
+def interruptible_backend(stack, url):
+    parsed = urlsplit(url)
+    assert parsed.hostname == "127.0.0.1" and parsed.port
+    gate = stack.enter_context(BackendGate(parsed.port))
+    serve_in_thread(stack, gate)
+    stack.callback(gate.disconnect)
+    authority, _ = parsed.netloc.rsplit(":", 1)
+    return gate, parsed._replace(netloc=f"{authority}:{gate.server_address[1]}").geturl()
+
+
 def redis_command(*tokens):
     return subprocess.check_output(["docker", *tokens], text=True, timeout=30).strip()
 
@@ -109,7 +176,7 @@ def redis_backend(enabled):
         redis_command("rm", "-f", name)
 
 
-def exercise(binary, driver, url, redis, redis_url):
+def exercise(binary, driver, url, redis, redis_url, interruption):
     count = 1 if driver == "sqlite" else 2
     queue = "redis" if redis else "database"
     with ExitStack() as stack:
@@ -144,6 +211,13 @@ def exercise(binary, driver, url, redis, redis_url):
             "FIXTURE_SEND_TARGET": f"http://outgoing-fixture.invalid:{receiver.server_port}/receiver",
             "FIXTURE_SEND_ADDRESS": f"127.0.0.1:{receiver.server_port}",
         }
+        database_gate = redis_gate = None
+        if interruption:
+            database_gate, url = interruptible_backend(stack, url)
+            separator = "&" if urlsplit(url).query else "?"
+            url += separator + "acquire_timeout=2"
+            if redis:
+                redis_gate, redis_url = interruptible_backend(stack, redis_url)
         if url:
             common["DB_URL"] = url
         else:
@@ -300,6 +374,103 @@ def exercise(binary, driver, url, redis, redis_url):
             assert body == send["BODY"]
             assert hmac.compare_digest(headers["Signature"], hmac.new(send["SECRET"], body, hashlib.sha256).hexdigest())
 
+        def check_interruption():
+            if database_gate is None:
+                return
+
+            def failing_command(node, *tokens):
+                result = subprocess.run([str(binary), "artisan", *tokens], env=nodes[node],
+                                        capture_output=True, text=True, timeout=35)
+                assert result.returncode != 0, (tokens, result.stdout, result.stderr)
+                return result.stdout
+
+            def pending_delivery(key):
+                _, result = post(f"outbound/normal/{key}", send["BODY"], 202)
+                identifier = result["id"]
+                assert re.fullmatch("[0-9a-f]{64}", identifier)
+                return identifier
+
+            def delivery_state(identifier):
+                return sql(f"SELECT state,attempts FROM webhook_deliveries WHERE id='{identifier}'")
+
+            def verify_delivered(identifier, key):
+                assert delivery_state(identifier) == "succeeded\t1"
+                (_, headers, body), = receiver.received[key]
+                assert body == send["BODY"] and headers["webhook-id"] == key
+                assert hmac.compare_digest(headers["Signature"], hmac.new(send["SECRET"], body, hashlib.sha256).hexdigest())
+
+            database_key = "topology-db-outage"
+            database_delivery = pending_delivery(database_key)
+            original_calls = sql("SELECT COUNT(*) FROM webhook_calls")
+            original_deliveries = sql("SELECT COUNT(*) FROM webhook_deliveries")
+            with database_gate.interrupted():
+                affected = parallel(lambda _: post("package/default", b"database unavailable", 500)[0])
+                assert sorted(affected) == list(range(count)), affected
+                post("outbound/normal/topology-outage-new", send["BODY"], 500)
+                failing_command(1, "webhook-server:send", database_delivery, "--scope=" + send["SCOPE"])
+                assert sql("SELECT COUNT(*) FROM webhook_calls") == original_calls
+                assert sql("SELECT COUNT(*) FROM webhook_deliveries") == original_deliveries
+                assert ready_jobs("database", "webhook-receipts") == 0
+                assert delivery_state(database_delivery) == "pending\t0"
+                assert database_key not in receiver.received
+
+            returned = parallel(lambda index: post("package/default", f"restored-{index}".encode(), 200)[0])
+            assert sorted(returned) == list(range(count)), returned
+            assert ready_jobs("database", "webhook-receipts") == count
+            restored_bodies = set()
+            for node in range(count):
+                marker = attachment_marker.with_name(f"database-restored-{node}.json")
+                work(node, "webhook-receipts", "database", marker)
+                restored_bodies.add(bytes(json.loads(marker.read_text())["body"]))
+            assert restored_bodies == {b"restored-0", b"restored-1"}
+            assert ready_jobs("database", "webhook-receipts") == 0
+            artisan(0, "webhook-server:send", database_delivery, "--scope=" + send["SCOPE"])
+            verify_delivered(database_delivery, database_key)
+            print(f"{driver}/{queue}: 主写库失联时两节点拒绝接收和新登记，既有投递保持零尝试，恢复后原 HTTP 进程继续工作", flush=True)
+
+            if redis_gate is None:
+                return
+            redis_key = "topology-redis-outage"
+            redis_delivery = pending_delivery(redis_key)
+            receive_sweep = ("webhook-client:recover", "--scope=" + RECOVERY_SCOPE, "--limit=1")
+            send_sweep = ("webhook-server:recover", "--scope=" + send["SCOPE"], "--limit=1")
+            prior_recovery = int(sql("SELECT COUNT(*) FROM webhook_calls WHERE name='recovery'"))
+            with redis_gate.interrupted():
+                recovered_nodes = parallel(lambda _: post("package/recovery", b"redis unavailable", 200)[0])
+                assert sorted(recovered_nodes) == list(range(count))
+                assert int(sql("SELECT COUNT(*) FROM webhook_calls WHERE name='recovery'")) == prior_recovery + 1
+                redis_receipt = sql("SELECT call_id FROM webhook_dispatch_intents")
+                assert re.fullmatch("[0-9a-f-]{36}", redis_receipt)
+                failing_command(0, "schedule:run")
+                assert "1 条待重试" in failing_command(1, *receive_sweep)
+                output = failing_command(0, *send_sweep)
+                assert '"queued":0' in output and '"failed":1' in output, output
+                assert ready_jobs("redis", "webhook-recovery") == ready_jobs("redis", "webhook-outgoing") == 0
+                assert ready_jobs("database", "webhook-recovery") == ready_jobs("database", "webhook-outgoing") == 0
+                assert delivery_state(redis_delivery) == "pending\t0"
+                assert redis_key not in receiver.received
+
+            # 保留真实冷却窗口，让两个恢复命令从持久时钟自然取得领取资格。
+            ready_at = max(int(sql("SELECT available_at FROM webhook_dispatch_intents")),
+                           int(sql(f"SELECT coalesce(next_wake_at,0) FROM webhook_deliveries WHERE id='{redis_delivery}'")))
+            wait = ready_at - time.time()
+            assert wait <= 61
+            if wait > 0:
+                time.sleep(wait + .15)
+            parallel(lambda node: artisan(node, *receive_sweep))
+            parallel(lambda node: artisan(node, *send_sweep))
+            assert ready_jobs("redis", "webhook-recovery") == ready_jobs("redis", "webhook-outgoing") == 1
+            marker = recovery_marker.with_name("redis-restored.json")
+            work(0, "webhook-recovery", marker=marker)
+            record = json.loads(marker.read_text())
+            assert record["id"] == redis_receipt and bytes(record["body"]) == b"redis unavailable"
+            work(1, "webhook-outgoing")
+            verify_delivered(redis_delivery, redis_key)
+            assert ready_jobs("redis", "webhook-recovery") == ready_jobs("redis", "webhook-outgoing") == 0
+            print(f"{driver}/redis: Redis 失联时持久收件、缓存选举拒绝、无数据库回退，还原后各领取一次", flush=True)
+
+        check_interruption()
+
         def deliver(node, identifier, scope=send["SCOPE"]):
             return artisan(node, "webhook-server:send", identifier, "--scope=" + scope,
                            FIXTURE_SEND_LIMITS="1")
@@ -346,8 +517,9 @@ def exercise(binary, driver, url, redis, redis_url):
 if __name__ == "__main__":
     database, database_url = helpers["database_settings"]()
     use_redis = os.environ.get("OPENRUST_TEST_WEBHOOK_TOPOLOGY_REDIS") == "1"
-    assert not use_redis or database != "sqlite"
+    interruption = os.environ.get("OPENRUST_TEST_WEBHOOK_TOPOLOGY_OUTAGE") == "1"
+    assert database != "sqlite" or not (use_redis or interruption)
     with redis_backend(use_redis) as (container, endpoint, version):
         if version:
             print(version, flush=True)
-        exercise(routes["args"].binary.resolve(), database, database_url, container, endpoint)
+        exercise(routes["args"].binary.resolve(), database, database_url, container, endpoint, interruption)

@@ -370,3 +370,5 @@ Use the existing [HTTP client](../digging-deeper/http-client.md) and [queues](..
 ### Single host and replicas {#deployment}
 
 Use one writable PostgreSQL or MySQL database for delivery state and limits, and point every Worker at the same database or Redis queue. Keep credential references and authorized revisions available on every Worker. A recovery schedule using `on_one_server()` needs a shared database or Redis cache. SQLite is a single-host option. The database and Redis combinations were exercised with independent application processes on one host. Validate your infrastructure before deploying across hosts.
+
+If the delivery database is unreachable, registration and sending fail. When Redis is unavailable, scheduled recovery can resume pending deliveries after Redis reconnects and the recovery reservation expires. Each delivery stays on its configured queue.

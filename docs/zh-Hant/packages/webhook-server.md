@@ -370,3 +370,5 @@ Builder 的 `dispatch`、`dispatch_if` 和 `dispatch_unless` 登記投遞並入�
 ### 單機與多副本 {#deployment}
 
 多個副本使用同一個可寫入的 PostgreSQL 或 MySQL 資料庫儲存投遞狀態和限額，各 Worker 使用同一套 database 或 Redis 佇列。所有 Worker 都須能讀取憑據參照和已授權的設定版本。復原任務使用 `on_one_server()` 時，需要共用 database 或 Redis 快取。SQLite 適用於單機。上述 database 與 Redis 組合已在一台主機的獨立應用行程中驗收，跨主機部署前須驗證實際基礎設施。
+
+投遞資料庫無法連線時，登記與傳送均失敗。Redis 恢復連線且補償領取時段到期後，定時復原可繼續處理待投遞記錄，任務仍使用原先設定的佇列。
