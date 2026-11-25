@@ -24,7 +24,8 @@ mod master_supervisor;
 pub use dashboard::{Dashboard, Horizon};
 pub use job_trim::{TrimFailedJobs, TrimMonitoredJobs, TrimRecentJobs};
 pub use master_supervisor::{
-    ExpireSupervisors, MasterSupervisor, MasterSupervisorLooped, SupervisorProcess,
+    ExpireSupervisors, MasterSupervisor, MasterSupervisorDeployed, MasterSupervisorLooped,
+    SupervisorProcess,
 };
 pub use options::{AutoScaler, SupervisorOptions};
 pub use process_memory::{

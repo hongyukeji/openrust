@@ -95,6 +95,30 @@ def main():
                     return json.load(response)
             assert stats()['masters'] == []
             artisan('horizon:status', code=2)
+            deployment_events = root / 'deployment-events.jsonl'
+            def deployments():
+                if not deployment_events.exists():
+                    return []
+                return [json.loads(line) for line in deployment_events.read_text().splitlines()]
+            for environment in ('unmatched', 'empty', 'disabled'):
+                environment_env = dict(env, HORIZON_PROBE_EMPTY_DEFAULTS='1') if environment == 'empty' else env
+                master = subprocess.Popen(
+                    [binary, 'artisan', 'horizon', f'--environment={environment}'],
+                    env=environment_env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                )
+                state = until_master(lambda state: state['environment'] == environment)
+                assert state['supervisors'] == []
+                expected = [] if environment == 'unmatched' else [{
+                    'name': 'MasterSupervisorDeployed',
+                    'master': state['name'],
+                    'environment': environment,
+                    'supervisors': [],
+                }]
+                assert [event for event in deployments() if event['master'] == state['name']] == expected
+                master.send_signal(signal.SIGTERM)
+                stdout, stderr = master.communicate(timeout=15)
+                assert master.returncode == 0, (stdout, stderr)
+                assert status() == []
             # Pause before startup: no child may reserve queued work.
             artisan('horizon:pause')
             dispatch(password='secret-never-exported')
@@ -123,6 +147,12 @@ def main():
                 assert argument in command, (argument, command)
             assert int(subprocess.check_output(['ps', '-p', str(worker_pid), '-o', 'ni='], text=True).strip()) >= 1
             supervisor_name = initial['name'] + ':supervisor-1'
+            assert [event for event in deployments() if event['master'] == initial['name']] == [{
+                'name': 'MasterSupervisorDeployed',
+                'master': initial['name'],
+                'environment': 'testing',
+                'supervisors': [supervisor_name],
+            }]
             supervisor_pid = int(subprocess.check_output(['ps', '-p', str(worker_pid), '-o', 'ppid='], text=True))
             assert int(subprocess.check_output(['ps', '-p', str(supervisor_pid), '-o', 'ppid='], text=True)) == master.pid
             assert 'artisan horizon:supervisor ' + supervisor_name in subprocess.check_output(['ps', '-p', str(supervisor_pid), '-o', 'command='], text=True)

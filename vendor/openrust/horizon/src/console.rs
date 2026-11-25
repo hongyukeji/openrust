@@ -97,11 +97,9 @@ impl Command for HorizonCommand {
                                 .and_then(|v| v.as_str().map(str::to_owned))
                         })
                         .ok_or_else(|| error(Error::InvalidConfiguration))?;
-                    let options = SupervisorOptions::from_config_for_environment(
-                        config.as_ref(),
-                        &environment,
-                    )
-                    .map_err(error)?;
+                    let (options, configured) =
+                        SupervisorOptions::provisioning_plan(config.as_ref(), &environment)
+                            .map_err(error)?;
                     let queues = app
                         .make::<openrust::queue::QueueManager>()
                         .await
@@ -115,6 +113,7 @@ impl Command for HorizonCommand {
                         environment,
                     )
                     .map_err(error)?
+                    .with_deployment_plan(configured)
                     .fast_termination(
                         config
                             .get("horizon.fast_termination")

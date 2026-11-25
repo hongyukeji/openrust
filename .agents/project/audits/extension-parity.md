@@ -331,7 +331,7 @@ Rust 1.94.0 单作业构建通过，实际运行于 Linux 7.0.14-linuxkit、Debi
 
 ### Horizon 待补齐的公开进程与队列事件
 
-固定 `MasterSupervisorDeployed` 在 `ProvisioningPlan::deploy` 结束时派发，`UnableToLaunchProcess` 在进程启动异常达到条件时派发。Rust 具备部署与启动错误路径，仍缺这两个公开事件及其实际派发验收。固定 `MasterSupervisorReviving` 和 `SupervisorProcessRestarting` 保留公开类型。当前固定源码只找到前者的定义和后者的定义与事件映射，移植前须保留该区别。`WorkerProcessRestarting` 的实现与验收见下节。 [固定进程代码](https://github.com/laravel/horizon/tree/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src) [固定 EventMap](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/EventMap.php)
+固定 `UnableToLaunchProcess` 在进程启动异常达到条件时派发。Rust 具备启动错误路径，仍缺对应公开事件及实际派发验收。固定 `MasterSupervisorReviving` 和 `SupervisorProcessRestarting` 保留公开类型。当前固定源码只找到前者的定义和后者的定义与事件映射，移植前须保留该区别。已接入的 `WorkerProcessRestarting` 和 `MasterSupervisorDeployed` 见下文。 [固定进程代码](https://github.com/laravel/horizon/tree/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src) [固定 EventMap](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/EventMap.php)
 
 固定队列事件另有 `JobPending`、`JobPushed`、`JobReserved`、`JobReleased`、`JobDeleted`、`JobsMigrated` 与包内 `JobFailed`。Rust 的 Provider 当前经核心队列事件更新仓储。须逐项对照公开字段、Redis 运输边界、派发顺序和内置监听器，再决定原生核心事件桥接与包公开事件的对应关系。
 
@@ -340,3 +340,9 @@ Rust 1.94.0 单作业构建通过，实际运行于 Linux 7.0.14-linuxkit、Debi
 固定 `WorkerProcess::restart` 仅在原进程已经启动过时派发 `WorkerProcessRestarting`，然后启动该 Worker。固定 `ProcessPool::restart` 则缩容到零再扩容。Rust 在已退出 Worker 实际补位前派发公开事件，保留排队期间的退出信息。事件提供监督器、队列、原 PID（可用时）及退出码。Rust 事件传递拥有所有权的快照，进程句柄继续由监督器拥有。初次启动、扩容新增和主动停止不派发。监听器失败记录日志并继续补位。旧版 OpenRust 提供原生队列 Worker，未提供 Horizon 监督器事件。 [固定 WorkerProcess](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/WorkerProcess.php) [固定 ProcessPool](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/ProcessPool.php)
 
 基于 `ebeb57315` 加本批文件的 macOS 隔离快照。真实 Artisan 进程和 Redis 8.10.3 验证首次启动无事件；向实际 Worker 发送 SIGKILL 后，监听器恰收到一条包含旧 PID、退出码 137、正确监督器和队列的事件。监听器返回错误后，新 Worker 正常补位。Horizon 默认 24 项、隔离 Redis 专项 12 项、全目标严格 Clippy、全仓格式和三语文档及 12 组浏览器检查通过。Linux ARM64 Release 复验另行运行。正常退出的冷却规则及连续启动失败事件仍需对账。证据位于 `target/tmp/observability-parity/horizon-worker-restart*.log`。
+
+### Horizon MasterSupervisorDeployed 公开事件
+
+固定 `ProvisioningPlan::deploy` 先为每个启用的监督器入队，再派发 `MasterSupervisorDeployed`。PHP 8.5.12 参考探针实际执行固定计划与事件派发，确认未匹配环境无事件、匹配的空计划和全停用计划均派发事件，普通计划先登记监督器再派发。Rust 在原生监督器描述准备后、主循环启动前派发事件，供应用读取 Master 名称、环境和待启动监督器。Artisan 读取环境配置时保留匹配状态，避免在过滤掉停用监督器后丢失事件；手工构造 Master 时根据传入的监督器计划派发。默认启动和恢复行为沿用现有进程流程。 [固定 ProvisioningPlan](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/ProvisioningPlan.php) [固定部署事件](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Events/MasterSupervisorDeployed.php)
+
+基于 `936c84133` 加本批文件的 macOS 隔离快照，真实 Artisan 与 Redis 8.10.3 验证四种计划及公开事件字段。应用监听器返回错误后，匹配计划仍进入主循环并可正常关停；有监督器的计划正常启动 Worker。Horizon 默认 24 项、Redis 专项 12 项、全目标严格 Clippy、全仓格式、三语文档及 12 组浏览器检查通过。本批未运行该事件的 Linux／Windows 或发布组合。证据位于 `target/tmp/observability-parity/horizon-master-deployed*.log`。

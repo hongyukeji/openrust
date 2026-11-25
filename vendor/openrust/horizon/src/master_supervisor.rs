@@ -22,6 +22,7 @@ pub struct SupervisorProcess {
 pub struct MasterSupervisor {
     repository: Arc<Repository>,
     options: BTreeMap<String, SupervisorOptions>,
+    has_deployment_plan: bool,
     executable: PathBuf,
     base: PathBuf,
     environment: String,
@@ -30,6 +31,24 @@ pub struct MasterSupervisor {
     failures: u64,
     fast_termination: bool,
     job_trim_schedule: Arc<crate::job_trim::JobTrimSchedule>,
+}
+
+/// Master 已准备好部署计划中的监督器。
+#[derive(Clone, Debug)]
+pub struct MasterSupervisorDeployed {
+    pub master: String,
+    pub environment: String,
+    pub supervisors: Vec<String>,
+}
+
+impl MasterSupervisorDeployed {
+    pub const NAME: &str = "MasterSupervisorDeployed";
+}
+
+impl Event for MasterSupervisorDeployed {
+    fn name(&self) -> &str {
+        Self::NAME
+    }
 }
 
 /// Master state observed after its heartbeat has been persisted.
@@ -112,6 +131,7 @@ impl MasterSupervisor {
         }
         Ok(Self {
             repository,
+            has_deployment_plan: !options.is_empty(),
             options,
             executable,
             base,
@@ -122,6 +142,10 @@ impl MasterSupervisor {
             fast_termination: false,
             job_trim_schedule: Arc::default(),
         })
+    }
+    pub(crate) fn with_deployment_plan(mut self, configured: bool) -> Self {
+        self.has_deployment_plan = configured;
+        self
     }
     pub fn fast_termination(mut self, enabled: bool) -> Self {
         self.fast_termination = enabled;
@@ -147,6 +171,23 @@ impl MasterSupervisor {
             });
         }
         let mut control = crate::signals::ControlSignals::new()?;
+        if self.has_deployment_plan {
+            let event = MasterSupervisorDeployed {
+                master: self.id.clone(),
+                environment: self.environment.clone(),
+                supervisors: self
+                    .supervisors
+                    .iter()
+                    .map(|child| child.name.clone())
+                    .collect(),
+            };
+            if let Err(error) = openrust::support::facades::Event::dispatch(event).await {
+                let _ = openrust::support::facades::Log::warning(
+                    &format!("Horizon Master 部署监听器失败: {error}"),
+                    &Default::default(),
+                );
+            }
+        }
         let mut ticker = tokio::time::interval(Duration::from_secs(1));
         let result = loop {
             tokio::select! { _ = shutdown.cancelled() => break Ok(()), _ = ticker.tick() => {}, paused=control.next()=>{ if paused {self.repository.pause().await?;}else{self.repository.r#continue().await?;}continue; } }

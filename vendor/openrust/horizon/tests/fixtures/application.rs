@@ -11,13 +11,18 @@ use openrust::{
     support::{ProviderResult, ServiceProvider},
 };
 use openrust_horizon::{
-    Horizon, HorizonServiceProvider, MasterSupervisorLooped, MasterSupervisorOutOfMemory,
-    SupervisorLooped, SupervisorOutOfMemory, WorkerProcessRestarting,
+    Horizon, HorizonServiceProvider, MasterSupervisorDeployed, MasterSupervisorLooped,
+    MasterSupervisorOutOfMemory, SupervisorLooped, SupervisorOutOfMemory, WorkerProcessRestarting,
 };
 use serde_json::json;
 use std::{collections::BTreeMap, path::Path, sync::Arc, time::Duration};
 fn config(base: &Path, _: &Environment) -> Result<BTreeMap<String, Value>, ConfigError> {
     assert_eq!(std::env::var("HORIZON_REQUIRE_REDIS").as_deref(), Ok("1"));
+    let defaults = if std::env::var("HORIZON_PROBE_EMPTY_DEFAULTS").as_deref() == Ok("1") {
+        json!({})
+    } else {
+        json!({"supervisor-1":{"timeout":5,"sleep":1,"balanceCooldown":1,"memory":1024,"maxProcesses":2,"maxJobs":3,"workersName":"horizon-probe","tries":2,"backoff":[1,2],"rest":1,"force":true,"json":true,"nice":1}})
+    };
     Ok(BTreeMap::from([
         ("app".into(), json!({"env":"testing","debug":false})),
         (
@@ -34,7 +39,7 @@ fn config(base: &Path, _: &Environment) -> Result<BTreeMap<String, Value>, Confi
         ),
         (
             "horizon".into(),
-            json!({"retention":3600,"fast_termination":std::env::var("HORIZON_PROBE_FAST_TERMINATION").as_deref()==Ok("1"),"memory_limit":std::env::var("HORIZON_PROBE_MEMORY_LIMIT").ok().and_then(|value|value.parse::<u64>().ok()).unwrap_or(64),"defaults":{"supervisor-1":{"timeout":5,"sleep":1,"balanceCooldown":1,"memory":1024,"maxProcesses":2,"maxJobs":3,"workersName":"horizon-probe","tries":2,"backoff":[1,2],"rest":1,"force":true,"json":true,"nice":1}},"environments":{"testing":{}}}),
+            json!({"retention":3600,"fast_termination":std::env::var("HORIZON_PROBE_FAST_TERMINATION").as_deref()==Ok("1"),"memory_limit":std::env::var("HORIZON_PROBE_MEMORY_LIMIT").ok().and_then(|value|value.parse::<u64>().ok()).unwrap_or(64),"defaults":defaults,"environments":{"testing":{},"empty":{},"disabled":{"supervisor-1":{"maxProcesses":0}}}}),
         ),
     ]))
 }
@@ -73,31 +78,46 @@ struct ProbeProvider;
 
 struct MemoryEventRecorder(std::path::PathBuf);
 
-struct RestartEventRecorder(std::path::PathBuf);
+struct ProcessEventRecorder(std::path::PathBuf);
 
-impl Listener for RestartEventRecorder {
+impl Listener for ProcessEventRecorder {
     fn handle<'a>(
         &'a self,
         event: &'a dyn Event,
         _: &'a mut EventContext<'_>,
     ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
         Box::pin(async move {
-            let restart = event
-                .downcast_ref::<WorkerProcessRestarting>()
-                .ok_or(EventError::InvalidPayload)?;
             use std::io::Write as _;
-            let row = json!({
-                "name": event.name(),
-                "supervisor": restart.supervisor,
-                "queue": restart.queue,
-                "pid": restart.pid,
-                "exit_code": restart.exit_code,
-            });
+            let (file, row) = if let Some(restart) = event.downcast_ref::<WorkerProcessRestarting>()
+            {
+                (
+                    "restart-events.jsonl",
+                    json!({
+                        "name": event.name(),
+                        "supervisor": restart.supervisor,
+                        "queue": restart.queue,
+                        "pid": restart.pid,
+                        "exit_code": restart.exit_code,
+                    }),
+                )
+            } else if let Some(deployment) = event.downcast_ref::<MasterSupervisorDeployed>() {
+                (
+                    "deployment-events.jsonl",
+                    json!({
+                        "name": event.name(),
+                        "master": deployment.master,
+                        "environment": deployment.environment,
+                        "supervisors": deployment.supervisors,
+                    }),
+                )
+            } else {
+                return Ok(None);
+            };
             writeln!(
                 std::fs::OpenOptions::new()
                     .create(true)
                     .append(true)
-                    .open(&self.0)
+                    .open(self.0.join(file))
                     .unwrap(),
                 "{row}"
             )
@@ -181,13 +201,13 @@ impl ServiceProvider for ProbeProvider {
                 Delivery::Sync,
             )?;
             dispatcher.listen(SupervisorOutOfMemory::NAME, recorder, Delivery::Sync)?;
+            let recorder = Arc::new(ProcessEventRecorder(app.base_path().to_owned()));
             dispatcher.listen(
                 WorkerProcessRestarting::NAME,
-                Arc::new(RestartEventRecorder(
-                    app.base_path().join("restart-events.jsonl"),
-                )),
+                recorder.clone(),
                 Delivery::Sync,
             )?;
+            dispatcher.listen(MasterSupervisorDeployed::NAME, recorder, Delivery::Sync)?;
             if std::env::var("HORIZON_PROBE_FAIL_LOOP_DISPATCH").as_deref() == Ok("1") {
                 let listener =
                     Arc::new(LoopDispatchFailure(app.base_path().join("loop-errors.log")));

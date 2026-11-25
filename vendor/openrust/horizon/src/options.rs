@@ -257,6 +257,13 @@ impl SupervisorOptions {
         config: &dyn openrust::contracts::config::Repository,
         environment: &str,
     ) -> Result<BTreeMap<String, Self>> {
+        Self::provisioning_plan(config, environment).map(|(options, _)| options)
+    }
+
+    pub(crate) fn provisioning_plan(
+        config: &dyn openrust::contracts::config::Repository,
+        environment: &str,
+    ) -> Result<(BTreeMap<String, Self>, bool)> {
         let defaults = config
             .get("horizon.defaults")
             .unwrap_or(serde_json::json!({}));
@@ -273,7 +280,7 @@ impl SupervisorOptions {
             .map(|(_, value)| value);
         let defaults = defaults.as_object().ok_or(Error::InvalidConfiguration)?;
         let Some(overrides) = overrides else {
-            return Ok(BTreeMap::new());
+            return Ok((BTreeMap::new(), false));
         };
         let mut values = defaults.clone();
         for (name, value) in overrides.as_object().ok_or(Error::InvalidConfiguration)? {
@@ -347,7 +354,7 @@ impl SupervisorOptions {
             }
             result.insert(name, options);
         }
-        Ok(result)
+        Ok((result, true))
     }
 }
 
