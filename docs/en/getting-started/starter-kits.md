@@ -44,6 +44,23 @@ The API preset also has minimal browser login, reset and verification pages. Whe
 
 For the installed starter, login and valid remember-cookie recovery immediately record the existing password fingerprint. The Guard rejects a missing or outdated fingerprint on subsequent authentication reads. Password changes preserve the current browser session and reject other password-backed sessions; reset also rotates the remember token. Standalone authentication keeps its existing defaults.
 
+
+### Verification identifiers and model keys
+
+Signed verification URLs use the model primary key, which can differ from the authentication identifier. The default User implements `get_email_verification_identifier` on `MustVerifyEmail`; non-Eloquent implementations retain the authentication-identifier default. If your model authenticates by email or another field, add this method to its existing `MustVerifyEmail` implementation, returning the actual Eloquent key:
+
+```rust
+fn get_email_verification_identifier(
+    &self,
+) -> openrust::auth::AuthResult<openrust::auth::AuthIdentifier> {
+    self.get_key()
+        .ok_or(openrust::auth::AuthError::InvalidIdentity)?
+        .try_into()
+}
+```
+
+`VerifyEmail::send` and `VerifyEmail::url` use this identifier. `EmailVerificationRequest` checks the authenticated concrete identity, route key and current email hash; another model with the same authentication identifier is not interchangeable. The existing `auth::email_verification::set_verification` helper updates by the actual model primary key on its own connection, with an exact current-email and verification-state condition. `EmailVerificationRequest` dispatches `Verified` only for the successful transition; the helper itself does not dispatch save events. Concurrent valid requests remain idempotent. The application Date clock also supplies the persisted verification timestamp. No change to the signature algorithm is required.
+
 ## Credential lifecycle {#credential-lifecycle}
 
 The explicit starter provides two additional migration templates (publication uses Laravel-style timestamped names): `0001_01_01_000020_add_credential_version_to_users_table.rs` and `0001_01_01_000021_add_credential_stamp_to_personal_access_tokens_table.rs`. They follow the configured user and token model tables/connections. Run the normal migrations before serving the upgraded application. Existing sessions must authenticate again and existing personal tokens must be reissued when enabling this policy. Do not manually reset the credential version.

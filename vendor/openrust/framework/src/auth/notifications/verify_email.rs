@@ -75,7 +75,7 @@ impl VerifyEmail {
             "verification.verify",
             expiry,
             &[
-                RouteParameter::named("id", route_id(&user.get_auth_identifier())),
+                RouteParameter::named("id", route_id(&user.get_email_verification_identifier()?)),
                 RouteParameter::named("hash", email_hash(user.get_email_for_verification())),
             ],
             SignatureMode::Absolute,

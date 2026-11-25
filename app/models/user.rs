@@ -114,6 +114,11 @@ impl CanResetPassword for User {
 }
 
 impl MustVerifyEmail for User {
+    fn get_email_verification_identifier(&self) -> AuthResult<AuthIdentifier> {
+        self.get_key()
+            .ok_or(openrust::auth::AuthError::InvalidIdentity)?
+            .try_into()
+    }
     fn has_verified_email(&self) -> bool {
         self.get_attribute(Self::EMAIL_VERIFIED_AT)
             .is_some_and(|value| *value != Value::Null)

@@ -278,3 +278,15 @@ API路径跟随既有`api.prefix`；端点由显式套件Provider注册，不改
 `scope-final-gates.log`：新增4种格式错误作用域的真实HTTP失败／恢复检查，与原Scope回归共2项通过；最终feature严格Clippy11.73秒及格式退出0。`scope-runtime.log`：生成full应用重建、两进程file会话21次TCP通过。`scope-docs.log`：三语站构建及两前缀／桌面手机12组浏览器通过。先前测试夹具的trait import、类型推断及HashOptions构造错误已修正，失败日志保留。
 
 闭合范围是已选身份的策略隔离，不是完整A01-03或S10。下一步核对已有源码中验证邮件使用认证标识而非模型主键的组合，随后继续资料、头像、设备列表、注销与可选因素；队列及最终组合门禁不变。
+
+## A01-02／05：验证邮件的自定义模型身份（本子单元验收通过）
+
+固定Laravel13.40.0的VerifyEmail使用可验证用户的模型主键。实际发现本地通知和条件更新曾使用认证标识，认证标识为邮箱而模型主键为整数／字符串UUID／ULID时会选错身份。复用既有MustVerifyEmail、邮件通知、EmailVerificationRequest及Fortify控制器，不新增验证路由或通知管理器。
+
+新增默认能力`MustVerifyEmail::get_email_verification_identifier`，保持原有非Eloquent实现兼容；默认User以实际模型主键覆写。通知路由ID与授权使用该标识；验证状态更新使用模型真实连接、主键、当前邮箱及条件状态，并使用所属应用Date时钟。请求还核对实际认证用户与可验证对象的具体类型，拒绝相同认证ID的其他模型。EmailVerificationRequest只在首次成功更新后派发Verified；重复访问保持幂等，不假造模型save事件。自定义邮箱认证模型须按三语教程覆写主键能力，Rust trait对象不隐式具有Eloquent模型能力。既有自定义URL回调优先级保留。
+
+证据：`verification-key-consumers-second.log` SQLite原生Core和Fortify两项各遍历整数／字符串UUID／ULID，通过共60次真实TCP；`verification-key-final-matrix.log`独立MySQL8.4.13、PostgreSQL18.7各同样两项、60次TCP。覆盖签名ID、不同用户／模型拒绝、并发与重复Verified只一次、换邮箱旧链接失效、新链接、应用时钟和过期；不使用Controller单元调用冒充HTTP。`verification-key-resumed-gates.log`根User命名连接持久化1项及邮件回归10项通过，workspace和Fortify+Sanctum严格Clippy通过；共享fixture重构后最终矩阵日志再次通过两组Clippy及全workspace格式。初轮fixture缺cache导致原生限流500，已补齐夹具配置后通过，失败日志保留。
+
+`verification-key-docs-final.log`三语文档构建及两挂载／桌面手机12组浏览器通过。沿用既有本地SMTP标准User证据，本轮不宣称新增供应商投递、原生PostgreSQL uuid列或生成应用自定义模型全矩阵通过。收口范围仅此身份差异，完整账户中心、头像、设备枚举、注销、队列邮件和可选认证仍未闭合。
+
+过程中磁盘守卫安全持锁清理编译profile释放81,363,800,064字节，清理后可用113,389,518,848字节；保留源码、日志、下载和数据，仅恢复未完成命令。交付清单／SHA为`verification-key-files.json`／`verification-key-final-source-sha.json`，文档dist直接删除、正常增量缓存保留，实际空间见`verification-key-delivery-space.json`。

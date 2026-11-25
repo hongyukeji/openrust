@@ -23,9 +23,12 @@ impl EmailVerificationRequest {
             return Err(HttpError::Unauthenticated);
         };
         let id = user.get_auth_identifier();
-        let valid = authenticated.get_auth_identifier() == id
+        let key = user.get_email_verification_identifier()?;
+        let valid = (authenticated.as_ref() as &dyn std::any::Any).type_id()
+            == (user as &dyn std::any::Any).type_id()
+            && authenticated.get_auth_identifier() == id
             && request.route("id").is_some_and(|parameter| {
-                bool::from(parameter.as_bytes().ct_eq(route_id(&id).as_bytes()))
+                bool::from(parameter.as_bytes().ct_eq(route_id(&key).as_bytes()))
             })
             && request.route("hash").is_some_and(|parameter| {
                 bool::from(

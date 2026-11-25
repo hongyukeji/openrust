@@ -44,6 +44,23 @@ API 预设也提供最小登录、密码重置与验证网页。未登录浏览�
 
 已安装套件在登录和有效 remember Cookie 恢复时立即保存现有密码指纹，Guard 在后续认证读取中拒绝缺失或过时指纹。修改密码保留当前浏览器会话并拒绝其他密码会话；重置还会轮换 remember token。独立认证的默认行为不变。
 
+
+### 验证身份与模型主键
+
+签名验证 URL 使用模型主键，它可以与认证标识不同。默认 User 在 `MustVerifyEmail` 中声明 `get_email_verification_identifier`，非 Eloquent 实现保留沿用认证标识的默认值。自定义模型按邮箱或其他字段认证时，在现有 `MustVerifyEmail` 实现中加入以下方法，返回真实 Eloquent 主键：
+
+```rust
+fn get_email_verification_identifier(
+    &self,
+) -> openrust::auth::AuthResult<openrust::auth::AuthIdentifier> {
+    self.get_key()
+        .ok_or(openrust::auth::AuthError::InvalidIdentity)?
+        .try_into()
+}
+```
+
+`VerifyEmail::send` 与 `VerifyEmail::url` 使用这个身份。`EmailVerificationRequest` 核对已认证的具体身份、路由主键及当前邮箱哈希，认证标识相同的其他模型不能互换。原有 `auth::email_verification::set_verification` 辅助方法在模型自身连接上按真实主键、精确当前邮箱和验证状态做条件更新；`EmailVerificationRequest` 只为实际成功转换派发 `Verified`，辅助方法自身不派发保存事件，并发有效请求保持幂等。验证时间也使用应用 Date 时钟，不改变签名算法。
+
 ## 凭据生命周期 {#credential-lifecycle}
 
 显式安装套件提供两份迁移模板（发布时按 Laravel 机制生成时间戳文件名）：`0001_01_01_000020_add_credential_version_to_users_table.rs` 和 `0001_01_01_000021_add_credential_stamp_to_personal_access_tokens_table.rs`，跟随所配置的用户及令牌模型表名和连接。升级应用开始服务前先执行正常迁移。启用此策略后，既有会话须重新认证，既有个人令牌须重新签发；不要手动重置凭据版本。

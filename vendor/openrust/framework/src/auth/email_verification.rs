@@ -1,9 +1,9 @@
 //! Eloquent 邮箱验证状态的条件更新，供模型的验证能力委托使用。
 
 use crate::{
-    auth::AuthResult,
+    auth::{AuthError, AuthResult},
     contracts::auth::MustVerifyEmail,
-    database::{Db, Value, eloquent::Model},
+    database::{Connection, Value, eloquent::Model},
 };
 
 /// 仅更新主键、邮箱及原验证状态均匹配的记录。
@@ -17,21 +17,20 @@ pub async fn set_verification<M: Model + MustVerifyEmail>(
     verified_at_column: &str,
     updated_at_column: &str,
 ) -> AuthResult<bool> {
-    let now = jiff::Timestamp::now()
-        .strftime("%Y-%m-%d %H:%M:%S")
-        .to_string();
+    let connection = model.get_connection()?;
+    let key = model.get_key().cloned().ok_or(AuthError::InvalidIdentity)?;
+    let now =
+        crate::support::utc_now_for(Connection::model_container(Some(&connection)).as_deref())
+            .strftime("%Y-%m-%d %H:%M:%S")
+            .to_string();
     let value = if verified {
         Value::Text(now.clone())
     } else {
         Value::Null
     };
-    let query = Db::connection(model.get_connection_name())?
+    let query = connection
         .table(model.get_table())
-        .r#where(
-            model.get_key_name(),
-            "=",
-            Value::from(model.get_auth_identifier()),
-        )
+        .r#where(model.get_key_name(), "=", key)
         .where_exact_text(email_column, model.get_email_for_verification());
     let query = if verified {
         query.where_null(verified_at_column)
