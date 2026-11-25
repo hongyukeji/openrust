@@ -86,7 +86,7 @@
       "status": "controller_entry_verified",
       "parent_classes": [],
       "declared_public_properties": [],
-      "notes": "公开 invoke 与原生 Handler 共用已实现 Processor；当前匹配路由配置由 Provider 解析。普通签名／配置错误默认500，原始正文413；显式应用 CSRF 排除，三库真实 HTTP／Artisan Worker 与缓存前后已验。解析载荷／附件、正式处理 Job／恢复仍属于未完成的相邻类型，不据本入口关闭 WH-02。",
+      "notes": "公开 invoke 与原生 Handler 共用已实现 Processor；当前匹配路由配置由 Provider 解析。普通签名／配置错误默认500，原始正文413；显式应用 CSRF 排除，三库真实 HTTP／Artisan Worker 与缓存前后已验。解析载荷和附件、原生处理 Job 已分批验收。跨后端恢复及远端附件清理仍待验，不据本入口关闭 WH-02。",
       "evidence": [
         "tests/webhooks_routes_acceptance.py"
       ],
@@ -135,7 +135,7 @@
       "declared_public_properties": [
         "guarded"
       ],
-      "notes": "store_webhook／headers_to_store／header_bag／headers／save_exception／clear_exception 与 find 保留，具体 SQL 独立 storage。UUID／unix seconds／base64 原文字节与受限异常诊断仍为 Rust 适配。本批持久化 JSON／form／query 输入，get_attachments 从持久 multipart 原文返回原生上传对象分组。Storage 引用、旧 PHP 内嵌载荷导入、Eloquent 继承与 prunable、可恢复状态仍待核定实现。 保留期清理由独立包命令及模型存储委托提供，三库核对范围、已终态、活跃和预演。可选私有 Storage 引用支持按范围读回原文和上传组。通用 model:prune、附件清理及暂存补偿仍开放。",
+      "notes": "store_webhook／headers_to_store／header_bag／headers／save_exception／clear_exception 与 find 保留，具体 SQL 独立 storage。UUID／unix seconds／base64 原文字节与受限异常诊断仍为 Rust 适配。本批持久化 JSON／form／query 输入，get_attachments 从持久 multipart 原文返回原生上传对象分组。旧 PHP 内嵌载荷导入、Eloquent 继承及可恢复状态仍待核定。保留期清理由独立包命令及模型 prunable 存储委托提供，三库核对范围、已终态、活跃和预演。可选私有 Storage 引用支持按范围读回原文和上传组。同事务登记过期对象并由有界、可重试的附件清理命令回收，三库已验本地磁盘。通用 model:prune 及远端／跨主机附件仍开放。",
       "evidence": [
         "vendor/openrust/webhook-client/tests/processor.rs",
         "tests/webhooks_receiver_acceptance.py",

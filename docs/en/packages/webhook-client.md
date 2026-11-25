@@ -133,7 +133,9 @@ No headers are stored by default. `with_store_headers(&["X-Source"])` selects na
 
 Set `attachment_disk` to a configured private disk name and run `./artisan migrate`. A manually constructed profile can use `with_attachment_disk("local")`. With attachment storage enabled, an accepted multipart request containing files is written as one private object. The receipt stores the disk, length and SHA-256 digest. The object name derives from the trusted scope and receipt ID. Workers verify length and digest when reading the original body and recreating native uploads. All workers must be able to read the same disk under the saved name.
 
-Established inline receipts and requests with `store_attachments: false` continue using database storage. On a confirmed database rollback, the receiver attempts to delete the staged object. A crash before commit or an uncertain storage failure can leave a staging record for cleanup. Routine receipt pruning preserves disk-backed receipts until storage-aware pruning is available.
+Established inline receipts and requests with `store_attachments: false` continue using database storage. On a confirmed database rollback, the receiver attempts to delete the staged object. A crash before commit or an uncertain storage failure can leave a staging record for cleanup. Receipt pruning removes an expired receipt and records its detached object for cleanup in the same database transaction.
+
+Schedule `./artisan webhook-client:prune --scope=payments --attachment-staging` to delete detached objects and staging objects that have remained for at least one hour. Use `--pretend` to count candidates. A failed deletion leaves its staging record for retry after the lease expires and makes the command exit with an error. Keep the saved disk name mapped to the same private storage on receivers, workers and cleanup processes. Attachment cleanup also runs when receipt retention is disabled.
 
 Stop Webhook writers before rolling back the attachment migration. The rollback refuses to remove live references or staging records.
 

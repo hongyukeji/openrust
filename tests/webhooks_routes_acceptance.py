@@ -832,6 +832,9 @@ def check_attachment_storage(binary, env, root, port, driver, sql):
     assert int(sql("SELECT COUNT(*) FROM webhook_attachment_staging")) == staged_before_crash + 1
     expect_guarded_rollback()
     orphan, = disk_root.rglob("*.multipart")
+    sweep = ("webhook-client:prune", "--attachment-staging", "--scope=" + scope)
+    assert "可清理 0 个" in command(binary, current, *sweep, "--pretend")
+    assert orphan.exists()
 
     with (root / "attachment-live.log").open("w+") as log:
         server = http_helpers["serve"](binary, current, log)
@@ -864,44 +867,89 @@ def check_attachment_storage(binary, env, root, port, driver, sql):
             work(atomic)
             write_database(driver, sql,
                            f"UPDATE webhook_calls SET created_at=1,processed_at=1 WHERE id='{receipt}'")
-            assert "可清理 0 条" in command(binary, current, "webhook-client:prune",
-                                         "--scope=" + scope, "--pretend")
+            prune = ("webhook-client:prune", "--scope=" + scope)
+            assert "可清理 1 条" in command(binary, current, *prune, "--pretend")
             assert obj.exists()
 
             send("attachment-plain")
             ordinary = id_for("attachment-plain")
             assert (obj.parent / f"{ordinary}.multipart").read_bytes() == body
-            work("attachment-plain")
+            # 即使创建日期已过保留期，尚未完成的接收记录仍保留。
+            write_database(driver, sql,
+                           f"UPDATE webhook_calls SET created_at=1 WHERE id='{ordinary}'")
             send("attachment-disabled")
             disabled = id_for("attachment-disabled")
             assert sql(f"SELECT COUNT(attachment_reference) FROM webhook_calls WHERE id='{disabled}'") == "0"
             assert not (obj.parent / f"{disabled}.multipart").exists()
+            assert "可清理 1 条" in command(binary, current, *prune, "--pretend")
+            work("attachment-plain")
             work("attachment-disabled", attachment=False)
             assert sql("SELECT COUNT(*) FROM jobs") == "0"
-            # 清除本隔离夹具的暂存行，单独验证活动引用的回滚保护。
-            orphan.unlink()
-            write_database(driver, sql, "DELETE FROM webhook_attachment_staging")
+            write_database(driver, sql, "UPDATE webhook_attachment_staging SET created_at=1")
+            assert "可清理 0 个" in command(
+                binary, current, "webhook-client:prune", "--attachment-staging",
+                "--scope=webhook-custom", "--pretend",
+            )
+            assert f"可清理 {staged_before_crash + 1} 个" in command(
+                binary, current, *sweep, "--pretend",
+            )
+
+            # 用真实文件删除失败验证租约、失败退出状态及补偿重试。
+            orphan_id = orphan.stem
+            held = orphan.with_suffix(".held")
+            orphan.rename(held)
+            orphan.mkdir()
+            result = subprocess.run([str(binary), "artisan", *sweep], env=current,
+                                    capture_output=True, text=True, timeout=20)
+            assert result.returncode != 0 and "1 个待重试" in result.stdout, result
+            assert sql(f"SELECT COUNT(cleanup_token) FROM webhook_attachment_staging WHERE id='{orphan_id}'") == "1"
+            assert "可清理 0 个" in command(binary, current, *sweep, "--pretend")
+            orphan.rmdir()
+            held.rename(orphan)
+            write_database(driver, sql, f"UPDATE webhook_attachment_staging SET cleanup_until=0 WHERE id='{orphan_id}'")
+            with ThreadPoolExecutor(max_workers=2) as callers:
+                cleaners = [callers.submit(command, binary, current, *sweep) for _ in range(2)]
+                outcomes = sorted(int(re.search(r"已清理 (\d+) 个", cleaner.result())[1]) for cleaner in cleaners)
+            assert outcomes == [0, 1] and not orphan.exists()
+            assert sql("SELECT COUNT(*) FROM webhook_attachment_staging") == "0"
+
             expect_guarded_rollback()
             preview = command(binary, current, "migrate:rollback", "--step=1", "--pretend", "--force")
             assert "webhook_attachment_staging" in preview
             record = json.loads(command(binary, current, "webhooks:record", receipt, scope))
             assert bytes(record["body"]) == body
-            encoded = base64.b64encode(body).decode()
-            for linked in (receipt, ordinary):
-                write_database(driver, sql,
-                               "UPDATE webhook_calls SET attachment_reference=NULL,"
-                               f"raw_body='{encoded}' WHERE id='{linked}'")
-                (obj.parent / f"{linked}.multipart").unlink()
-            # 后续保留期用例需要独立候选手工老化。
+
+            # 加入冲突登记，使删除后的登记插入失败，接收记录应随事务回滚。
             write_database(driver, sql,
-                           f"UPDATE webhook_calls SET processed_at=NULL WHERE id='{receipt}'")
+                           "INSERT INTO webhook_attachment_staging (id,scope_key,disk,created_at) "
+                           f"VALUES ('{receipt}','{scope_hash}','local',1)")
+            result = subprocess.run([str(binary), "artisan", *prune, "--limit=1"], env=current,
+                                    capture_output=True, text=True, timeout=20)
+            assert result.returncode != 0 and obj.exists(), result
+            assert sql(f"SELECT COUNT(*) FROM webhook_calls WHERE id='{receipt}'") == "1"
+            write_database(driver, sql, f"DELETE FROM webhook_attachment_staging WHERE id='{receipt}'")
+
+            assert "已清理 1 条" in command(binary, current, *prune, "--limit=1")
+            assert sql(f"SELECT COUNT(*) FROM webhook_calls WHERE id='{receipt}'") == "0"
+            assert sql(f"SELECT COUNT(*) FROM webhook_attachment_staging WHERE id='{receipt}'") == "1"
+            assert obj.exists()
+            no_retention = current | {"FIXTURE_PRUNE_POLICY": "null"}
+            assert "保留期清理已停用" in command(binary, no_retention, *prune)
+            assert "已清理 1 个 Webhook 附件对象，0 个待重试" in command(binary, no_retention, *sweep)
+            assert not obj.exists() and (obj.parent / f"{ordinary}.multipart").exists()
+
+            write_database(driver, sql, f"UPDATE webhook_calls SET processed_at=1 WHERE id='{ordinary}'")
+            assert "已清理 1 条" in command(binary, current, *prune)
+            assert "已清理 1 个" in command(binary, current, *sweep)
+            assert sql("SELECT COUNT(*) FROM webhook_attachment_staging") == "0"
+            assert not list(disk_root.rglob("*.multipart"))
         except BaseException:
             log.flush()
             print((root / "attachment-live.log").read_text())
             raise
         finally:
             http_helpers["stop"](server)
-    print(f"{driver}: 附件 Storage 7 个真实 HTTP、3 次 Worker；私有对象、并发去重、篡改拒绝、回滚保护与崩溃登记通过")
+    print(f"{driver}: 附件 Storage 7 个真实 HTTP、3 次 Worker；私有对象、并发去重、篡改拒绝、事务解绑、崩溃补偿、并发清理与回滚保护通过")
 
 
 def main():
@@ -1103,7 +1151,7 @@ def main():
   check_attachment_storage(binary,env,root,port,driver,sql)
   check_retention(binary,env,root,port,driver,sql)
   legacy_id=sql("SELECT id FROM webhook_calls WHERE name='default' ORDER BY id LIMIT 1")
-  assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate:rollback","--step=10","--force")
+  assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate:rollback","--step=11","--force")
   assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate","--force")
   legacy=json.loads(command(binary,env,"webhooks:record",legacy_id,"webhook-acceptance"))
   assert bytes(legacy["body"])==b"default" and legacy["payload"] is None and legacy["attachments"] is None

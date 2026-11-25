@@ -1,5 +1,7 @@
 #![doc = include_str!("../README.md")]
 #![forbid(unsafe_code)]
+#[path = "../database/migrations/2026_11_25_000012_add_webhook_attachment_cleanup_lease.rs"]
+mod attachment_cleanup_migration;
 #[path = "../database/migrations/2026_11_25_000011_add_webhook_attachment_storage.rs"]
 mod attachment_migration;
 #[path = "../database/migrations/2026_11_25_000006_create_webhook_processing_attempts_table.rs"]
@@ -45,7 +47,7 @@ mod webhook_config;
 
 pub use migration::CreateWebhookCallsTable;
 pub use processor::{VerifiedWebhook, WebhookJobDispatcher, WebhookProcessor, WebhookRuntime};
-pub use storage::{DatabaseWebhookStore, WebhookStore};
+pub use storage::{AttachmentCleanupReport, DatabaseWebhookStore, WebhookStore};
 
 pub use contracts::{
     DefaultRespondsTo, ProcessEverythingWebhookProfile, RespondsToWebhook, SignatureValidator,
@@ -177,6 +179,10 @@ impl WebhookClientServiceProvider {
             openrust::database::migrations::MigrationEntry::new(
                 "vendor/openrust/webhook-client/database/migrations/2026_11_25_000011_add_webhook_attachment_storage.rs",
                 &attachment_migration::MIGRATION,
+            ),
+            openrust::database::migrations::MigrationEntry::new(
+                "vendor/openrust/webhook-client/database/migrations/2026_11_25_000012_add_webhook_attachment_cleanup_lease.rs",
+                &attachment_cleanup_migration::MIGRATION,
             ),
         ];
         ENTRIES

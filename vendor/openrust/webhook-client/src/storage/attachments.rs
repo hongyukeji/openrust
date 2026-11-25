@@ -68,6 +68,7 @@ impl DatabaseWebhookStore {
     ) -> Result<()> {
         let changed = self
             .staging(transaction.table("webhook_attachment_staging"), id)
+            .where_null("cleanup_token")
             .delete()
             .await?;
         if changed != 1 {
@@ -78,14 +79,10 @@ impl DatabaseWebhookStore {
 
     pub(super) async fn discard_attachment(&self, id: &str, reference: &AttachmentReference) {
         let result = async {
-            let path = object_path(&self.scope, id)?;
-            let disk =
-                Storage::disk(Some(&reference.disk)).map_err(|_| Error::AttachmentStorage)?;
-            if tokio::time::timeout(IO_TIMEOUT, disk.delete(&path))
+            if self
+                .remove_attachment_object(id, &reference.disk)
                 .await
-                .ok()
-                .and_then(std::result::Result::ok)
-                == Some(true)
+                .is_ok()
             {
                 self.staging(self.connection.table("webhook_attachment_staging"), id)
                     .delete()
@@ -98,24 +95,30 @@ impl DatabaseWebhookStore {
         let _ = result;
     }
 
-    fn staging<'a>(&self, builder: Builder<'a>, id: &str) -> Builder<'a> {
+    pub(super) async fn remove_attachment_object(&self, id: &str, disk: &str) -> Result<()> {
+        validate_reference("attachment_disk", disk)?;
+        let path = object_path(&self.scope, id)?;
+        let disk = Storage::disk(Some(disk)).map_err(|_| Error::AttachmentStorage)?;
+        let deleted = tokio::time::timeout(IO_TIMEOUT, disk.delete(&path))
+            .await
+            .map_err(|_| Error::AttachmentStorage)?
+            .map_err(|_| Error::AttachmentStorage)?;
+        if !deleted {
+            return Err(Error::AttachmentStorage);
+        }
+        Ok(())
+    }
+
+    pub(super) fn staging<'a>(&self, builder: Builder<'a>, id: &str) -> Builder<'a> {
         builder
             .r#where("id", "=", id)
             .r#where("scope_key", "=", scope_key(&self.scope))
     }
 
     pub(super) async fn disk_body(&self, row: &Row) -> Result<Option<Vec<u8>>> {
-        let reference = match row.get("attachment_reference") {
-            Some(Value::Null) => return Ok(None),
-            Some(Value::Text(value)) if value.len() <= 512 => value,
-            _ => return Err(Error::InvalidRecord),
+        let Some(reference) = AttachmentReference::from_row(row)? else {
+            return Ok(None);
         };
-        let reference: AttachmentReference =
-            serde_json::from_str(reference).map_err(|_| Error::InvalidRecord)?;
-        validate_reference("attachment_disk", &reference.disk)?;
-        if !(1..=MAX_BYTES).contains(&reference.length) || reference.digest.len() != 64 {
-            return Err(Error::InvalidRecord);
-        }
         let path = object_path(&self.scope, text(row, "id")?)?;
         let disk = Storage::disk(Some(&reference.disk)).map_err(|_| Error::AttachmentStorage)?;
         let bytes = tokio::time::timeout(IO_TIMEOUT, async {
@@ -138,6 +141,26 @@ impl DatabaseWebhookStore {
             return Err(Error::InvalidRecord);
         }
         Ok(Some(bytes))
+    }
+}
+
+impl AttachmentReference {
+    pub(super) fn from_row(row: &Row) -> Result<Option<Self>> {
+        let reference = match row.get("attachment_reference") {
+            Some(Value::Null) => return Ok(None),
+            Some(Value::Text(value)) if value.len() <= 512 => value,
+            _ => return Err(Error::InvalidRecord),
+        };
+        let reference: Self = serde_json::from_str(reference).map_err(|_| Error::InvalidRecord)?;
+        validate_reference("attachment_disk", &reference.disk)?;
+        if !(1..=MAX_BYTES).contains(&reference.length) || reference.digest.len() != 64 {
+            return Err(Error::InvalidRecord);
+        }
+        Ok(Some(reference))
+    }
+
+    pub(super) fn disk(&self) -> &str {
+        &self.disk
     }
 }
 

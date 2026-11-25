@@ -1,4 +1,6 @@
+mod attachment_cleanup;
 mod attachments;
+pub use attachment_cleanup::AttachmentCleanupReport;
 mod attempts;
 mod identity;
 mod lease;

@@ -9,7 +9,7 @@ use openrust::{
 
 pub(crate) fn register() -> Result<(), ConsoleError> {
     let syntax = Syntax::new("webhook-client:prune")
-        .about("清理当前范围内超过保留期的已终结 Webhook 接收记录")
+        .about("清理当前范围内的过期 Webhook 记录或附件暂存对象")
         .arg(Arg::new("scope").long("scope").required(true))
         .arg(Arg::new("database").long("database"))
         .arg(
@@ -21,6 +21,12 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
         .arg(
             Arg::new("verification-audit")
                 .long("verification-audit")
+                .action(ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::new("attachment-staging")
+                .long("attachment-staging")
+                .conflicts_with("verification-audit")
                 .action(ArgAction::SetTrue),
         )
         .arg(
@@ -45,23 +51,28 @@ impl Command for Prune {
         output: &'a mut Output,
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
-            let value = Config::get("webhook-client.delete_after_days")
-                .map_err(ConsoleError::from_source)?;
-            let days = match value {
-                None => 30,
-                Some(serde_json::Value::Null) => {
-                    output.info("Webhook 接收记录保留期清理已停用");
-                    return Ok(0);
-                }
-                Some(value) => value
-                    .as_u64()
-                    .filter(|days| *days <= 36_500)
-                    .and_then(|days| u32::try_from(days).ok())
-                    .ok_or_else(|| {
-                        ConsoleError::from_source(Error::InvalidConfig("delete_after_days"))
-                    })?,
-            };
             let matches = input.matches();
+            let staging = matches.get_flag("attachment-staging");
+            let days = if staging {
+                0
+            } else {
+                let value = Config::get("webhook-client.delete_after_days")
+                    .map_err(ConsoleError::from_source)?;
+                match value {
+                    None => 30,
+                    Some(serde_json::Value::Null) => {
+                        output.info("Webhook 接收记录保留期清理已停用");
+                        return Ok(0);
+                    }
+                    Some(value) => value
+                        .as_u64()
+                        .filter(|days| *days <= 36_500)
+                        .and_then(|days| u32::try_from(days).ok())
+                        .ok_or_else(|| {
+                            ConsoleError::from_source(Error::InvalidConfig("delete_after_days"))
+                        })?,
+                }
+            };
             let scope = matches.get_one::<String>("scope").expect("必填范围");
             let connection = matches.get_one::<String>("database").map(String::as_str);
             let limit = *matches.get_one::<u32>("limit").expect("默认批次上限");
@@ -86,6 +97,22 @@ impl Command for Prune {
             }
             let store =
                 DatabaseWebhookStore::new(connection, scope).map_err(ConsoleError::from_source)?;
+            if staging {
+                let pretend = matches.get_flag("pretend");
+                let report = store
+                    .prune_attachment_staging(limit, pretend)
+                    .await
+                    .map_err(ConsoleError::from_source)?;
+                if pretend {
+                    output.info(&format!("可清理 {} 个 Webhook 附件对象", report.candidates));
+                } else {
+                    output.info(&format!(
+                        "已清理 {} 个 Webhook 附件对象，{} 个待重试",
+                        report.removed, report.failed
+                    ));
+                }
+                return Ok(i32::from(report.failed > 0));
+            }
             if matches.get_flag("pretend") {
                 let ids = WebhookCall::prunable(&store, days, limit)
                     .await
