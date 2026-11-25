@@ -66,6 +66,27 @@ impl TargetPolicy {
         }
         Ok(BoundTarget { url, addresses })
     }
+
+    pub(crate) async fn resolve(&self, value: &str) -> Result<BoundTarget> {
+        let url = parse_target(value)?;
+        self.validate_target(&url)?;
+        let port = url.port_or_known_default().ok_or(Error::TargetDenied)?;
+        let addresses = if let Some((_, addresses)) = &self.trusted {
+            addresses.clone()
+        } else if let Some(ip) = literal_ip(&url) {
+            vec![SocketAddr::new(ip, port)]
+        } else {
+            let Some(Host::Domain(domain)) = url.host() else {
+                return Err(Error::TargetDenied);
+            };
+            tokio::net::lookup_host((domain, port))
+                .await
+                .map_err(|_| Error::TargetResolutionFailed)?
+                .take(MAX_ADDRESSES + 1)
+                .collect()
+        };
+        self.bind(value, addresses)
+    }
 }
 
 pub(crate) fn parse_target(value: &str) -> Result<Url> {

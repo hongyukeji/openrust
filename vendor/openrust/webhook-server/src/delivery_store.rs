@@ -1,0 +1,488 @@
+//! 投递状态、领取租约及单次尝试的数据库边界。
+use aws_lc_rs::digest::{SHA256, digest};
+use openrust::{
+    database::{
+        Connection, Row, Transaction, Value,
+        query::{Builder, Expression, UpdateValue, ValueOperand},
+    },
+    support::Str,
+};
+use std::fmt::Write as _;
+
+use crate::{Error, PreparedWebhook, Result, snapshot::Snapshot};
+
+const DELIVERIES: &str = "webhook_deliveries";
+const ATTEMPTS: &str = "webhook_delivery_attempts";
+
+#[derive(Clone)]
+pub struct DeliveryStore {
+    connection: Connection,
+    scope: String,
+    scope_key: String,
+}
+
+pub(crate) struct Claim {
+    pub token: String,
+    pub number: u32,
+    pub timestamp: i64,
+    pub deadline: i64,
+    pub snapshot: Snapshot,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DeliveryProgress {
+    Unavailable,
+    Pending,
+    Succeeded,
+    Failed,
+    Expired,
+}
+
+pub(crate) struct AttemptResult {
+    pub outcome: &'static str,
+    pub status: Option<u16>,
+    pub retry_after: Option<RetryAfter>,
+}
+
+pub(crate) enum RetryAfter {
+    Seconds(u64),
+    Timestamp(i64),
+}
+
+impl RetryAfter {
+    fn earliest(&self, now: i64) -> i64 {
+        match *self {
+            Self::Seconds(seconds) => future_time(now, seconds),
+            Self::Timestamp(timestamp) => timestamp,
+        }
+    }
+}
+
+impl AttemptResult {
+    pub fn transient(outcome: &'static str) -> Self {
+        Self {
+            outcome,
+            status: None,
+            retry_after: Some(RetryAfter::Seconds(0)),
+        }
+    }
+
+    pub fn failure(outcome: &'static str) -> Self {
+        Self {
+            outcome,
+            status: None,
+            retry_after: None,
+        }
+    }
+}
+
+impl DeliveryStore {
+    pub fn new(connection: Connection, scope: &str) -> Result<Self> {
+        check_text("scope", scope)?;
+        Ok(Self {
+            connection,
+            scope: scope.into(),
+            scope_key: hash(scope.as_bytes()),
+        })
+    }
+
+    pub fn scope(&self) -> &str {
+        &self.scope
+    }
+
+    pub(super) fn worker_key(&self) -> String {
+        let identity = (
+            self.connection.get_driver_name(),
+            self.connection.get_name(),
+            self.connection.get_database_name(),
+            &self.scope_key,
+        );
+        hash(&serde_json::to_vec(&identity).expect("编码数据库与投递范围标识"))
+    }
+
+    pub async fn submit(
+        &self,
+        key: &str,
+        webhook: &PreparedWebhook,
+        lifetime: u32,
+    ) -> Result<String> {
+        let mut tx = self.connection.begin_transaction().await?;
+        let result = self
+            .submit_in_transaction(&mut tx, key, webhook, lifetime)
+            .await;
+        settle(tx, result).await
+    }
+
+    /// 同库业务事务可以登记发送意图，发送入口只会领取已提交的记录。
+    pub async fn submit_in_transaction(
+        &self,
+        tx: &mut Transaction,
+        key: &str,
+        webhook: &PreparedWebhook,
+        lifetime: u32,
+    ) -> Result<String> {
+        if !tx.belongs_to(&self.connection) || tx.transaction_level() == 0 {
+            return Err(Error::InvalidConfig("delivery.transaction"));
+        }
+        check_text("idempotency_key", key)?;
+        if !(1..=2_592_000).contains(&lifetime) {
+            return Err(Error::InvalidConfig("delivery.lifetime"));
+        }
+        let snapshot = webhook.freeze(lifetime)?;
+        let bytes = snapshot.encode()?;
+        let fingerprint = hash(bytes.as_bytes());
+        let id = hash(format!("{}:{key}", self.scope_key).as_bytes());
+        let now = self.time_in(tx).await?;
+        tx.table(DELIVERIES)
+            .insert_or_ignore(&[[
+                ("id".into(), id.as_str().into()),
+                ("scope_key".into(), self.scope_key.as_str().into()),
+                ("snapshot".into(), bytes.into()),
+                ("digest".into(), fingerprint.as_str().into()),
+                ("state".into(), "pending".into()),
+                ("maximum_tries".into(), i64::from(snapshot.tries).into()),
+                ("timeout_seconds".into(), i64::from(snapshot.timeout).into()),
+                ("available_at".into(), now.into()),
+                ("deadline".into(), (now + i64::from(lifetime)).into()),
+            ]
+            .into_iter()
+            .collect()])
+            .await?;
+        let row = self
+            .owned_row(tx.table(DELIVERIES), &id)
+            .select(["digest"])
+            .first()
+            .await?
+            .ok_or(Error::InvalidRecord)?;
+        if text(&row, "digest")? != fingerprint {
+            return Err(Error::IdempotencyConflict);
+        }
+        Ok(id)
+    }
+
+    pub(crate) async fn snapshot(&self, id: &str) -> Result<Option<Snapshot>> {
+        check_id(id)?;
+        self.owned_row(self.connection.table(DELIVERIES), id)
+            .use_write_pdo()
+            .select(["snapshot", "digest"])
+            .first()
+            .await?
+            .as_ref()
+            .map(decode)
+            .transpose()
+    }
+
+    pub(crate) async fn due_ids(&self, limit: u32) -> Result<Vec<String>> {
+        if !(1..=500).contains(&limit) {
+            return Err(Error::InvalidConfig("delivery.limit"));
+        }
+        let rows = self
+            .reclaimable(self.connection.table(DELIVERIES))
+            .r#where("scope_key", "=", self.scope_key.as_str())
+            .use_write_pdo()
+            .select(["id"])
+            .order_by("available_at", "asc")
+            .order_by("id", "asc")
+            .limit(u64::from(limit))
+            .get()
+            .await?;
+        rows.iter()
+            .map(|row| Ok(text(row, "id")?.to_owned()))
+            .collect()
+    }
+
+    pub(crate) async fn claim(&self, id: &str) -> Result<Option<Claim>> {
+        check_id(id)?;
+        let token = Str::uuid().map_err(|_| Error::InvalidRecord)?.to_string();
+        let clock = self.clock();
+        let mut tx = self.connection.begin_transaction().await?;
+        let result = async {
+            let changed = self
+                .reclaimable(self.owned_row(tx.table(DELIVERIES), id))
+                .where_raw(&format!("deadline > {clock}"), vec![])
+                .where_column("attempts", "<", "maximum_tries")
+                .update_with(
+                    [
+                        assignment("state", Value::from("running")),
+                        assignment("owner", Value::from(token.clone())),
+                        assignment("attempts", Expression::new("attempts + 1")),
+                        assignment(
+                            "lease_until",
+                            Expression::new(format!("{clock} + timeout_seconds + 5")),
+                        ),
+                    ]
+                    .into_iter()
+                    .collect(),
+                )
+                .await?;
+            if changed != 1 {
+                self.retire_unavailable(&mut tx, id).await?;
+                return Ok(None);
+            }
+            self.mark_unknown(&mut tx, id).await?;
+            let row = self
+                .owned_row(tx.table(DELIVERIES), id)
+                .select(["snapshot", "digest", "attempts", "deadline"])
+                .first()
+                .await?
+                .ok_or(Error::InvalidRecord)?;
+            let attempt_number = number(&row, "attempts")?;
+            let timestamp = self.time_in(&mut tx).await?;
+            tx.table(ATTEMPTS)
+                .insert(&[[
+                    ("id".into(), token.as_str().into()),
+                    ("delivery_id".into(), id.into()),
+                    ("number".into(), attempt_number.into()),
+                    ("outcome".into(), "running".into()),
+                    ("started_at".into(), timestamp.into()),
+                ]
+                .into_iter()
+                .collect()])
+                .await?;
+            Ok(Some(Claim {
+                token,
+                number: u32::try_from(attempt_number).map_err(|_| Error::InvalidRecord)?,
+                timestamp,
+                deadline: number(&row, "deadline")?,
+                snapshot: decode(&row)?,
+            }))
+        }
+        .await;
+        settle(tx, result).await
+    }
+
+    pub(crate) async fn finish(
+        &self,
+        id: &str,
+        claim: &Claim,
+        attempt: AttemptResult,
+        backoff: Option<u64>,
+    ) -> Result<DeliveryProgress> {
+        let clock = self.clock();
+        let mut tx = self.connection.begin_transaction().await?;
+        let result = async {
+            let now = self.time_in(&mut tx).await?;
+            let next = attempt
+                .retry_after
+                .zip(backoff)
+                .filter(|_| claim.number < claim.snapshot.tries)
+                .map(|(retry_after, delay)| retry_after.earliest(now).max(future_time(now, delay)))
+                .filter(|next| *next < claim.deadline);
+            let (state, progress) = if now >= claim.deadline {
+                ("expired", DeliveryProgress::Expired)
+            } else if attempt.outcome == "succeeded" {
+                ("succeeded", DeliveryProgress::Succeeded)
+            } else if next.is_some() {
+                ("pending", DeliveryProgress::Pending)
+            } else {
+                ("failed", DeliveryProgress::Failed)
+            };
+            let changed = self
+                .owned_row(tx.table(DELIVERIES), id)
+                .r#where("state", "=", "running")
+                .r#where("owner", "=", claim.token.as_str())
+                .where_raw(&format!("lease_until > {clock}"), vec![])
+                .update_with(
+                    [
+                        assignment("state", Value::from(state)),
+                        assignment("owner", Value::Null),
+                        assignment("lease_until", Value::Null),
+                        assignment("available_at", Value::from(next.unwrap_or(now))),
+                    ]
+                    .into_iter()
+                    .collect(),
+                )
+                .await?;
+            if changed != 1 {
+                return Err(Error::LeaseLost);
+            }
+            let written = tx
+                .table(ATTEMPTS)
+                .r#where("id", "=", claim.token.as_str())
+                .where_null("finished_at")
+                .update_with(
+                    [
+                        assignment("outcome", Value::from(attempt.outcome)),
+                        assignment(
+                            "http_status",
+                            attempt
+                                .status
+                                .map_or(Value::Null, |code| i64::from(code).into()),
+                        ),
+                        assignment("finished_at", Value::from(now)),
+                    ]
+                    .into_iter()
+                    .collect(),
+                )
+                .await?;
+            if written != 1 {
+                return Err(Error::LeaseLost);
+            }
+            Ok(progress)
+        }
+        .await;
+        settle(tx, result).await
+    }
+
+    async fn retire_unavailable(&self, tx: &mut Transaction, id: &str) -> Result<()> {
+        let clock = self.clock();
+        let updated = self
+            .reclaimable(self.owned_row(tx.table(DELIVERIES), id))
+            .where_nested(|query| {
+                query
+                    .where_raw(&format!("deadline <= {clock}"), vec![])
+                    .or_where_raw("attempts >= maximum_tries", vec![])
+            })
+            .update_with(
+                [
+                    assignment(
+                        "state",
+                        Expression::new(format!(
+                            "case when deadline <= {clock} then 'expired' else 'failed' end"
+                        )),
+                    ),
+                    assignment("owner", Value::Null),
+                    assignment("lease_until", Value::Null),
+                ]
+                .into_iter()
+                .collect(),
+            )
+            .await?;
+        if updated == 1 {
+            self.mark_unknown(tx, id).await?;
+        }
+        Ok(())
+    }
+
+    async fn mark_unknown(&self, tx: &mut Transaction, id: &str) -> Result<()> {
+        tx.table(ATTEMPTS)
+            .r#where("delivery_id", "=", id)
+            .where_null("finished_at")
+            .update_with(
+                [
+                    assignment("outcome", Value::from("unknown")),
+                    assignment("finished_at", Expression::new(self.clock())),
+                ]
+                .into_iter()
+                .collect(),
+            )
+            .await?;
+        Ok(())
+    }
+
+    fn owned_row<'a>(&self, builder: Builder<'a>, id: &str) -> Builder<'a> {
+        builder
+            .r#where("id", "=", id)
+            .r#where("scope_key", "=", self.scope_key.as_str())
+    }
+
+    fn reclaimable<'a>(&self, builder: Builder<'a>) -> Builder<'a> {
+        let clock = self.clock();
+        builder.where_nested(|query| {
+            query
+                .where_nested(|pending| {
+                    pending.r#where("state", "=", "pending").where_raw(
+                        &format!("(available_at <= {clock} or deadline <= {clock})"),
+                        vec![],
+                    )
+                })
+                .or_where_nested(|running| {
+                    running
+                        .r#where("state", "=", "running")
+                        .where_raw(&format!("lease_until <= {clock}"), vec![])
+                })
+        })
+    }
+
+    fn clock(&self) -> &'static str {
+        match self.connection.get_driver_name() {
+            "sqlite" => "unixepoch()",
+            "pgsql" => "floor(extract(epoch from statement_timestamp()))::bigint",
+            "sqlsrv" => "datediff_big(second, '19700101', sysutcdatetime())",
+            _ => "unix_timestamp()",
+        }
+    }
+
+    async fn time_in(&self, tx: &mut Transaction) -> Result<i64> {
+        let row = tx
+            .select_one(&format!("select {} as now", self.clock()), &[])
+            .await?
+            .ok_or(Error::InvalidRecord)?;
+        number(&row, "now")
+    }
+}
+
+async fn settle<T>(mut tx: Transaction, result: Result<T>) -> Result<T> {
+    match result {
+        Ok(value) => {
+            tx.commit().await?;
+            Ok(value)
+        }
+        Err(error) => {
+            tx.roll_back(None).await?;
+            Err(error)
+        }
+    }
+}
+
+fn assignment(
+    name: &str,
+    value: impl Into<ValueOperand>,
+) -> (String, UpdateValue<'static, 'static>) {
+    (name.into(), UpdateValue::Operand(value.into()))
+}
+
+fn decode(row: &Row) -> Result<Snapshot> {
+    let snapshot = text(row, "snapshot")?;
+    let expected = text(row, "digest")?;
+    if hash(snapshot.as_bytes()) != expected {
+        return Err(Error::InvalidRecord);
+    }
+    Snapshot::decode(snapshot)
+}
+
+fn future_time(now: i64, seconds: u64) -> i64 {
+    now.saturating_add(i64::try_from(seconds).unwrap_or(i64::MAX))
+}
+
+fn number(row: &Row, key: &str) -> Result<i64> {
+    match row.get(key) {
+        Some(Value::Integer(value)) => Ok(*value),
+        Some(Value::Unsigned(value)) => i64::try_from(*value).map_err(|_| Error::InvalidRecord),
+        _ => Err(Error::InvalidRecord),
+    }
+}
+
+fn text<'a>(row: &'a Row, key: &str) -> Result<&'a str> {
+    match row.get(key) {
+        Some(Value::Text(value)) => Ok(value),
+        _ => Err(Error::InvalidRecord),
+    }
+}
+
+fn hash(value: &[u8]) -> String {
+    let mut output = String::with_capacity(64);
+    for byte in digest(&SHA256, value).as_ref() {
+        write!(output, "{byte:02x}").expect("写入字符串");
+    }
+    output
+}
+
+fn check_text(field: &'static str, text: &str) -> Result<()> {
+    if text.trim().is_empty() || text.len() > 128 || text.chars().any(char::is_control) {
+        return Err(Error::InvalidConfig(field));
+    }
+    Ok(())
+}
+
+fn check_id(id: &str) -> Result<()> {
+    if id.len() != 64
+        || !id
+            .bytes()
+            .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
+    {
+        return Err(Error::InvalidRecord);
+    }
+    Ok(())
+}

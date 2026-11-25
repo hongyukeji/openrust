@@ -10,4 +10,4 @@
 
 真实回环 HTTP 验证固定地址连通、Host 保留、重定向保留 307、拒绝连接其他端口、中间件修改及 Host 覆盖，并验证响应上限。TLS 夹具验证固定连接保留 SNI、自签名证书在默认配置下被拒绝。HTTP Client 四组共 38 个测试、Webhook Server 八个测试均通过。独立 Artisan 在配置缓存前后分别准备 JSON、GET、原始二进制及具名签名／退避快照，并拒绝回环目的地。签名由 Python 独立 HMAC 核对。现有真实接收 HTTP、SQLite Worker、配置发布和许可证回归通过。全仓格式、双特性 workspace/all-targets 严格 Clippy、三语示例及文档站浏览器通过。日志在 `target/tmp/webhooks-send-builder`。
 
-下一批接入统一领取、持久尝试记录和有界连接后才验收首次 Webhook 投递。WS-08 的代理、mTLS 与自定义 CA，WS-09 的真实 Job，WS-10 至 WS-12 的派发、事件和失败策略仍开放。WH-04 保持开放。
+此后[持久领取与首次安全投递](first-delivery.md)已接入。WS-08 的代理、mTLS 与自定义 CA，以及 WS-09 至 WS-12 的完整任务扩展、Builder 派发变体、事件和失败钩子继续核对。WH-04 保持开放。

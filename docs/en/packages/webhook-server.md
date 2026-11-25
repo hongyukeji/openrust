@@ -2,7 +2,7 @@
 
 ## Support status {#support-status}
 
-The optional `openrust-webhook-server` package provides request preparation, target validation, named signers and backoff strategies. Durable sending, retries and endpoint management remain in development.
+The optional `openrust-webhook-server` package provides request preparation, target validation, named signers, backoff strategies and durable delivery attempts. Scheduling, replay and endpoint management are still in development.
 
 ## Enable and configure {#configuration}
 
@@ -47,9 +47,14 @@ pub fn prepare_invoice() -> Result<openrust_webhook_server::PreparedWebhook> {
 
     WebhookCall::new()?
         .url("https://billing.example.com/callback")
+        .uuid("invoice-issued-inv-123")
         .payload(serde_json::json!({"invoice_id": "inv-123"}))
         .use_secret_reference("billing-v1")
         .prepare(&TargetPolicy::default())
+}
+
+pub async fn submit_invoice(store: &openrust_webhook_server::DeliveryStore) -> Result<String> {
+    store.submit("invoice-issued-inv-123", &prepare_invoice()?, 3600).await
 }
 ```
 
@@ -60,7 +65,21 @@ Use `WebhookCall::create()` in a booted application to load the package configur
 
 POST and other body methods use the prepared bytes. GET sends an RFC 3986 query and uses the prepared JSON for the Spatie signature. The raw body option preserves arbitrary bytes. The snapshot is bounded to 16 MiB of body data and 64 KiB of headers. Register external implementations in the application container with `register_signer` and `register_backoff_strategy`.
 
-The default target policy requires HTTPS and validates every resolved socket address. Use a policy built from trusted endpoint configuration for an internal route with a fixed origin, path and addresses. Applications can use `PreparedWebhook::bind_target` to validate an address list for one attempt. The HTTP client provides a pinned transport that preserves Host and SNI and disables redirects and proxy routing. HTTPS certificate verification remains the default. Durable claims and attempt records remain prerequisites for package dispatch.
+The default target policy requires HTTPS and validates every resolved socket address. Use a policy built from trusted endpoint configuration for an internal route with a fixed origin, path and addresses. Applications can use `PreparedWebhook::bind_target` to validate an address list for one attempt. The HTTP client provides a pinned transport that preserves Host and SNI and disables redirects and proxy routing. HTTPS certificate verification remains the default.
+
+### Submit and send a delivery {#delivery}
+
+Run `./artisan migrate` after enabling the package. Create a `DeliveryStore` with the application’s database connection and delivery scope. Use `submit_in_transaction` to record an outgoing delivery in the same database transaction as a business change. Use `submit` when the delivery has its own transaction. The same key and identical snapshot return the existing delivery ID. Changing the snapshot for that key returns a conflict. Assign a stable message ID before preparing repeated submissions.
+
+Enable `register_delivery_policy` in the application. The policy evaluates the current delivery scope, URL and credential reference for each attempt. Resolve secrets at runtime. The saved snapshot excludes inline secrets and sensitive headers. Queue payloads contain only the delivery ID. Keep sensitive values out of the URL, body and metadata wherever possible.
+
+For queued sending, register the prepared Job name with `DeliveryService::register_worker` in each Worker process. Use the same named database, scope and policy on all Workers, and configure a direct Worker queue connection such as `database`. Each command or Worker can claim only one attempt for a given delivery at a time. HTTP 2xx succeeds. Other statuses follow the configured retry rules. Timeouts and interrupted attempts can leave the remote result unknown. Use the stable message ID for receiver-side deduplication.
+
+```sh
+./artisan webhook-server:send <delivery-id> --scope=billing
+./artisan webhook-server:send <delivery-id> --scope=billing --queue
+./artisan webhook-server:send --scope=billing --limit=100
+```
 
 ## Custom signers and retry timing {#customization}
 
@@ -71,4 +90,4 @@ Implement `Signer` in an external crate. `SigningContext` supplies immutable bod
 
 ## Scope {#scope}
 
-Use the existing [HTTP client](../digging-deeper/http-client.md) and [queues](../digging-deeper/queues.md) for application networking and jobs. These package primitives do not provide durable processing or a delivery state machine.
+Use the existing [HTTP client](../digging-deeper/http-client.md) and [queues](../digging-deeper/queues.md) for networking and jobs. Pending deliveries may need another queue wake-up or a bounded scan after their next attempt time.

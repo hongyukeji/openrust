@@ -2,7 +2,7 @@
 
 ## 支援狀態 {#support-status}
 
-可選套件 `openrust-webhook-server` 提供請求快照、目的地驗證、具名簽名器和退避策略。持久投遞、重試排程與端點管理仍在開發。
+可選套件 `openrust-webhook-server` 提供請求快照、目的地驗證、具名簽名器、退避策略及持久投遞嘗試。自動排程、重放與端點管理仍在開發。
 
 ## 啟用與設定 {#configuration}
 
@@ -47,9 +47,14 @@ pub fn prepare_invoice() -> Result<openrust_webhook_server::PreparedWebhook> {
 
     WebhookCall::new()?
         .url("https://billing.example.com/callback")
+        .uuid("invoice-issued-inv-123")
         .payload(serde_json::json!({"invoice_id": "inv-123"}))
         .use_secret_reference("billing-v1")
         .prepare(&TargetPolicy::default())
+}
+
+pub async fn submit_invoice(store: &openrust_webhook_server::DeliveryStore) -> Result<String> {
+    store.submit("invoice-issued-inv-123", &prepare_invoice()?, 3600).await
 }
 ```
 
@@ -60,7 +65,21 @@ pub fn prepare_invoice() -> Result<openrust_webhook_server::PreparedWebhook> {
 
 POST 等正文方法使用已準備的位元組。GET 將載荷編碼為 RFC 3986 查詢字串，Spatie 簽名繼續使用已準備的 JSON。原始正文模式可保留任意位元組。快照限制正文為 16 MiB、Header 為 64 KiB。透過 `register_signer` 和 `register_backoff_strategy` 將外部實作註冊到應用容器。
 
-預設目的地策略要求 HTTPS，並重新核對解析所得的全部 Socket 位址。內部端點使用應用可信設定提供固定來源、路徑及位址。`PreparedWebhook::bind_target` 可驗證單次試行的位址清單。HTTP 用戶端固定實際連線位址，保留 Host 與 SNI，禁止重新導向和代理轉送，HTTPS 預設驗證憑證。套件派發仍需接入持久領取與試行記錄。
+預設目的地策略要求 HTTPS，並重新核對解析所得的全部 Socket 位址。內部端點使用應用可信設定提供固定來源、路徑及位址。`PreparedWebhook::bind_target` 可驗證單次試行的位址清單。HTTP 用戶端固定實際連線位址，保留 Host 與 SNI，禁止重新導向和代理轉送，HTTPS 預設驗證憑證。
+
+### 登記與投遞 {#delivery}
+
+啟用套件後執行 `./artisan migrate`。用應用資料庫連線和投遞範圍建構 `DeliveryStore`。業務變更需要與投遞登記原子提交時，使用同庫的 `submit_in_transaction`。個別登記則呼叫 `submit`。同一鍵與相同快照會回傳既有投遞 ID，同一鍵搭配不同快照會回傳衝突。需要重複登記時，先為快照指定穩定的訊息 ID。
+
+透過 `register_delivery_policy` 註冊應用策略。每次嘗試都按目前設定核對投遞範圍、URL 和憑據引用，在執行時解析金鑰。保存的快照拒絕內嵌金鑰與敏感請求頭，佇列載荷只含投遞 ID。避免把敏感值放進 URL、本文與中繼資料。
+
+佇列發送需要在各 Worker 程序用 `DeliveryService::register_worker` 註冊準備時選定的 Job 名稱，統一具名資料庫、投遞範圍和策略，並設定 `database` 等直接供 Worker 使用的佇列連線。同一投遞同一時間只允許一個領取。HTTP 2xx 視為成功，其餘狀態按設定重試。請求逾時或程序中斷可能使遠端結果未知，接收端可按穩定的訊息 ID 去重。
+
+```sh
+./artisan webhook-server:send <delivery-id> --scope=billing
+./artisan webhook-server:send <delivery-id> --scope=billing --queue
+./artisan webhook-server:send --scope=billing --limit=100
+```
 
 ## 自訂簽名與退避 {#customization}
 
@@ -71,4 +90,4 @@ POST 等正文方法使用已準備的位元組。GET 將載荷編碼為 RFC 398
 
 ## 使用邊界 {#scope}
 
-應用網路與任務執行重用既有 [HTTP 用戶端](../digging-deeper/http-client.md)和[佇列](../digging-deeper/queues.md)。這些套件基礎契約不提供可靠業務處理或投遞狀態機。
+網路和任務執行重用既有 [HTTP 用戶端](../digging-deeper/http-client.md)與[佇列](../digging-deeper/queues.md)。待重試的投遞到期後，可再次喚醒佇列任務或使用有界掃描。

@@ -416,7 +416,7 @@
         "getWebhookUrl",
         "failed"
       ],
-      "status": "pending",
+      "status": "partial_delivery_verified",
       "parent_classes": [],
       "declared_public_properties": [
         "webhookUrl",
@@ -445,8 +445,11 @@
         "uuid",
         "outputType"
       ],
-      "notes": "仅直接声明清单；继承／trait／配置／实际消费者须逐项裁决，不以同名或扫描认定完整兼容。",
-      "evidence": []
+      "notes": "首次 HTTP 请求、2xx 成功、状态码允许列表、独立重试预算、Retry-After、数据库领取、旧令牌写回隔离与 Worker 路由已接入。响应访问器、任务定制、事件、自动调度、完整失败钩子及双拓扑仍开放。",
+      "evidence": [
+        "tests/webhooks_send_acceptance.py"
+      ],
+      "rust_source": "vendor/openrust/webhook-server/src/worker.rs"
     },
     {
       "package": "server",
@@ -708,15 +711,16 @@
         "dispatchSyncUnless",
         "sendRawBody"
       ],
-      "status": "foundation_verified",
+      "status": "partial_delivery_verified",
       "parent_classes": [],
       "declared_public_properties": [],
-      "notes": "已验请求准备、目的地与固定连接地址、稳定 ID、正文和 GET 查询、具名签名及退避、请求头与元数据。任务／队列、重试及异常设置在快照中保留，实际处理、代理、mTLS、自定义 CA、派发及其事件仍开放。",
+      "notes": "已验请求准备、稳定 ID、正文／GET 查询、具名签名及退避、目的地和固定连接地址；持久登记、同步尝试与 Worker 派发通过 DeliveryStore／DeliveryService 接入。Builder 的公开派发变体、事件、代理、mTLS、自定义 CA 仍开放。",
       "rust_source": "vendor/openrust/webhook-server/src/webhook_call.rs",
       "evidence": [
         "vendor/openrust/webhook-server/tests/builder.rs",
         "vendor/openrust/framework/tests/http_client_options.rs",
-        "tests/webhooks_acceptance.py"
+        "tests/webhooks_acceptance.py",
+        "tests/webhooks_send_acceptance.py"
       ]
     },
     {

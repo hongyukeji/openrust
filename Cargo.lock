@@ -4662,7 +4662,11 @@ name = "openrust-webhook-server"
 version = "0.0.0"
 dependencies = [
  "aws-lc-rs",
+ "base64 0.22.1",
+ "clap",
+ "fastrand",
  "http 1.5.0",
+ "httpdate",
  "openrust-framework",
  "serde",
  "serde_json",

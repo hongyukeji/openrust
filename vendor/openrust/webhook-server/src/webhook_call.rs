@@ -426,6 +426,48 @@ impl PreparedWebhook {
     pub fn backoff_seconds(&self, attempt: u32) -> u64 {
         self.backoff.wait_in_seconds_after_attempt(attempt)
     }
+    pub(crate) fn freeze(&self, lifetime: u32) -> Result<crate::snapshot::Snapshot> {
+        use base64::{Engine as _, engine::general_purpose::STANDARD};
+        if matches!(self.signing, Some((Secret::Inline(_), _))) {
+            return Err(Error::InvalidConfig("signing_secret_reference"));
+        }
+        if self.headers.iter().any(|(name, value)| {
+            value.is_sensitive() || matches!(*name, header::AUTHORIZATION | header::COOKIE)
+        }) {
+            return Err(Error::InvalidConfig("persistent_headers"));
+        }
+        Ok(crate::snapshot::Snapshot {
+            version: 1,
+            uuid: self.uuid.clone(),
+            url: self.target.as_str().into(),
+            signing_url: self.signing_url.as_str().into(),
+            method: self.method.as_str().into(),
+            body: STANDARD.encode(&self.bytes),
+            headers: self
+                .headers
+                .iter()
+                .map(|(name, value)| (name.as_str().into(), STANDARD.encode(value.as_bytes())))
+                .collect(),
+            credential: self.credential_reference().map(str::to_owned),
+            signer: self.config.signer.clone(),
+            signature_header: self.config.signature_header_name.clone(),
+            timestamp_header: self.timestamp_header.as_ref().map(HeaderName::to_string),
+            timeout: self.config.timeout_in_seconds,
+            tries: self.config.tries,
+            retryable: self.config.retryable_status_codes.clone(),
+            backoff: self.config.backoff_strategy.clone(),
+            respect_retry_after: self.config.respect_retry_after,
+            jitter: self.config.retry_with_jitter,
+            throws_on_failure: self.config.throw_exception_on_failure,
+            queue: self.config.queue.clone(),
+            connection: self.config.connection.clone(),
+            job: self.config.webhook_job.clone(),
+            tags: self.config.tags.clone(),
+            meta: self.meta.clone(),
+            lifetime,
+        })
+    }
+
     pub fn credential_reference(&self) -> Option<&str> {
         match &self.signing {
             Some((Secret::Reference(name), _)) => Some(name),
@@ -475,7 +517,7 @@ fn parse_header(field: &'static str, name: &str) -> Result<HeaderName> {
     HeaderName::from_bytes(name.as_bytes()).map_err(|_| Error::InvalidConfig(field))
 }
 
-fn validate_secret(value: &str) -> Result<()> {
+pub(crate) fn validate_secret(value: &str) -> Result<()> {
     if value.is_empty() || value == "0" || value.len() > 8192 {
         return Err(Error::InvalidConfig("signing_secret"));
     }
@@ -494,7 +536,7 @@ fn validate_message_id(id: &str) -> Result<()> {
     Ok(())
 }
 
-fn validate_headers(headers: &HeaderMap) -> Result<()> {
+pub(crate) fn validate_headers(headers: &HeaderMap) -> Result<()> {
     let bytes = headers
         .iter()
         .map(|(name, value)| name.as_str().len() + value.as_bytes().len())

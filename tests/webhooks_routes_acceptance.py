@@ -969,10 +969,11 @@ def check_dispatch_recovery(binary, env, root, port, driver, sql):
     sweep = ("webhook-client:recover", "--scope=" + scope, "--limit=1")
     body = b"durable exact bytes\x00\xff"
     initial = sql(f"SELECT COUNT(*) FROM webhook_calls WHERE scope='{scope}'")
+    unrelated_queues = sql("SELECT queue,COUNT(*) FROM jobs WHERE queue <> 'webhook-recovery' GROUP BY queue ORDER BY queue")
 
     def pending_count():
         if not redis:
-            return int(sql("SELECT COUNT(*) FROM jobs"))
+            return int(sql("SELECT COUNT(*) FROM jobs WHERE queue = 'webhook-recovery'"))
         count = subprocess.check_output(
             ["docker", "exec", redis_container, "redis-cli", "LLEN",
              current["REDIS_PREFIX"] + "queues:webhook-recovery"], text=True, timeout=15,
@@ -1330,6 +1331,7 @@ def check_dispatch_recovery(binary, env, root, port, driver, sql):
     assert sql(f"SELECT COUNT(processing_stopped_at) FROM webhook_calls WHERE id='{expired}'") == "1"
     assert sql(f"SELECT COUNT(processed_at) FROM webhook_calls WHERE id='{expired}'") == "0"
     assert sql("SELECT COUNT(*) FROM webhook_dispatch_intents") == "0" and pending_count() == 0
+    assert sql("SELECT queue,COUNT(*) FROM jobs WHERE queue <> 'webhook-recovery' GROUP BY queue ORDER BY queue") == unrelated_queues
     print(f"{driver}: 跨后端业务延期经 {connection} 实测 3 个 HTTP、5 次 Worker；定时恢复、"
           "离线唤醒、失败补偿、到期终止与独立预算通过", flush=True)
 

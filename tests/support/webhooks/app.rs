@@ -4,6 +4,7 @@ mod app;
 mod config;
 #[path = "../../../database/migrations/mod.rs"]
 mod migrations;
+mod outbound;
 #[path = "../../../bootstrap/packages.rs"]
 mod packages;
 use openrust::{
@@ -807,6 +808,7 @@ impl openrust::support::ServiceProvider for FixtureProvider {
         app: &'a Application,
     ) -> HttpFuture<'a, openrust::support::ProviderResult> {
         Box::pin(async move {
+            outbound::register(app).await?;
             if std::env::var_os("FIXTURE_AUDIT_LISTENER_FAIL").is_some() {
                 use openrust::contracts::{
                     container::Container as _, events::Dispatcher as _,
@@ -1006,6 +1008,7 @@ fn api_routes() -> Result<(), openrust::routing::RoutingError> {
     use openrust_webhook_client::{WebhookRouteOptions as Options, WebhookRouter, WebhookRoutes};
     Route::post("/webhooks/{profile}", verify)?;
     Route::post("/received/{profile}", receive)?;
+    Route::post("/outbound/{mode}/{key}", outbound::submit)?;
     for route in [
         "atomic",
         "atomic-null",

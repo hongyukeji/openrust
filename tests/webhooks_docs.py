@@ -12,7 +12,7 @@ for locale in ["en","zh-Hans","zh-Hant"]:
         blocks=re.findall(r"```rust\n(.*?)\n```",text,re.S)
         assert len(blocks)==(2 if kind=="client" else 1),(locale,kind)
         name=f"{locale}_{kind}".lower().replace("-","_")
-        uses="let _ = verify_signature; let _ = receive; let _ = register_routes; let _ = register_dispatcher; let _ = process_named; let _ = register_replay_policy;" if kind=="client" else "let _ = spatie_signature; let _ = standard_headers; let _ = prepare_invoice;"
+        uses="let _ = verify_signature; let _ = receive; let _ = register_routes; let _ = register_dispatcher; let _ = process_named; let _ = register_replay_policy;" if kind=="client" else "let _ = spatie_signature; let _ = standard_headers; let _ = prepare_invoice; let _ = submit_invoice;"
         examples="\n".join(blocks)
         parts.append(f"mod {name} {{\n{examples}\n#[test] fn examples_compile() {{ {uses} }}\n}}")
 (source/"tests/webhooks_docs_generated.rs").write_text("\n\n".join(parts)+"\n")
