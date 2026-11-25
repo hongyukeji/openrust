@@ -32,6 +32,7 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
     Route::get("/page-callers", page_callers)?;
     Route::get("/model-write-callers", model_write_callers)?;
     Route::get("/relationship-callers", relationship_callers)?;
+    Route::get("/pivot-callers", pivot_callers)?;
     for path in ["/json", "/plain", "/boundary", "/large", "/opaque"] {
         Route::get(path, response_handler)?;
     }
@@ -223,6 +224,73 @@ fn model_write_callers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpE
     })
 }
 
+fn pivot_callers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    use openrust::database::{
+        Value,
+        eloquent::{Attributes, Model as _, relations::BelongsToMany},
+    };
+
+    Box::pin(async {
+        let connection = seed_relationship_source().await;
+        connection
+            .get_schema_builder()
+            .create("query_pivot_probe", |table| {
+                table.big_integer("owner_id");
+                table.big_integer("related_id");
+                table.string("label", None).nullable();
+            })
+            .await
+            .unwrap();
+        let relation = BelongsToMany::<PageProbe, PageProbe>::new(
+            "query_pivot_probe",
+            "owner_id",
+            "related_id",
+            "id",
+            "id",
+        );
+        let parent = PageProbe::query_on(&connection)
+            .find_or_fail(1)
+            .await
+            .unwrap();
+        let first = [Value::Integer(2)];
+        let second = [Value::Integer(3)];
+        let attach = line!() + 1;
+        relation.attach(&parent, &first).await.unwrap();
+        let attrs = Attributes::from([("label".into(), "updated".into())]);
+        let update = line!() + 2;
+        let updated = relation
+            .update_existing_pivot_or_fail(&parent, &first[0], attrs)
+            .await
+            .unwrap();
+        assert_eq!(updated, 1);
+        let sync = line!() + 1;
+        let changes = relation.sync(&parent, &second).await.unwrap();
+        assert_eq!(changes.attached, second);
+        assert_eq!(changes.detached, first);
+        let both = [Value::Integer(2), Value::Integer(3)];
+        let toggle = line!() + 1;
+        let changes = relation.toggle_or_fail(&parent, &both).await.unwrap();
+        assert_eq!(changes.attached, first);
+        assert_eq!(changes.detached, second);
+        let detach = line!() + 2;
+        let detached = relation
+            .detach_or_fail(&parent, Some(&first))
+            .await
+            .unwrap();
+        assert_eq!(detached, 1);
+        Response::json(
+            http::StatusCode::OK,
+            json!([
+                [attach, 1],
+                [update, 1],
+                [sync, 3],
+                [toggle, 3],
+                [detach, 1]
+            ]),
+        )
+    })
+}
+
 fn query_callers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     use futures_util::TryStreamExt as _;
     Box::pin(async {
@@ -263,13 +331,14 @@ fn query_callers(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
 
 #[tokio::test]
 async fn query_watcher_attributes_pagination_queries_to_the_public_entry() {
-    assert_query_source_lines("/api/page-callers", &["select "]).await;
+    assert_query_source_lines("/api/page-callers", "query_page_probe", &["select "]).await;
 }
 
 #[tokio::test]
 async fn query_watcher_attributes_model_writes_to_the_public_entry() {
     assert_query_source_lines(
         "/api/model-write-callers",
+        "query_page_probe",
         &["insert ", "update ", "delete "],
     )
     .await;
@@ -277,10 +346,25 @@ async fn query_watcher_attributes_model_writes_to_the_public_entry() {
 
 #[tokio::test]
 async fn query_watcher_attributes_relationship_reads_to_the_public_entry() {
-    assert_query_source_lines("/api/relationship-callers", &["select "]).await;
+    assert_query_source_lines(
+        "/api/relationship-callers",
+        "query_page_probe",
+        &["select "],
+    )
+    .await;
 }
 
-async fn assert_query_source_lines(path: &str, statements: &[&str]) {
+#[tokio::test]
+async fn query_watcher_attributes_pivot_writes_to_the_public_entry() {
+    assert_query_source_lines(
+        "/api/pivot-callers",
+        "query_pivot_probe",
+        &["select ", "insert ", "update ", "delete "],
+    )
+    .await;
+}
+
+async fn assert_query_source_lines(path: &str, table: &str, statements: &[&str]) {
     let mut app = application();
     app.artisan(["migrate", "--force"])
         .await
@@ -306,7 +390,7 @@ async fn assert_query_source_lines(path: &str, statements: &[&str]) {
     let mut actual = std::collections::BTreeMap::new();
     for entry in entries.iter().filter(|entry| {
         let sql = entry.content["sql"].as_str().unwrap();
-        statements.iter().any(|verb| sql.starts_with(verb)) && sql.contains("query_page_probe")
+        statements.iter().any(|verb| sql.starts_with(verb)) && sql.contains(table)
     }) {
         assert_eq!(entry.content["file"], file!());
         *actual

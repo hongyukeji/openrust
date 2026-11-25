@@ -1130,27 +1130,40 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         Ok(())
     }
 
-    pub async fn attach(&self, parent: &P, keys: &[Value]) -> DatabaseResult<()> {
-        self.attach_with(parent, keys, Attributes::new()).await
+    #[track_caller]
+    pub fn attach<'a>(
+        &'a self,
+        parent: &'a P,
+        keys: &'a [Value],
+    ) -> DatabaseFuture<'a, DatabaseResult<()>> {
+        self.attach_with(parent, keys, Attributes::new())
     }
 
+    #[track_caller]
     pub fn attach_with<'a>(
         &'a self,
         parent: &'a P,
         keys: &'a [Value],
         attributes: Attributes,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
-        self.attach_records(parent, keys, attributes, AttachmentMode::Default)
+        Box::pin(with_query_caller(
+            std::panic::Location::caller(),
+            self.attach_records(parent, keys, attributes, AttachmentMode::Default),
+        ))
     }
 
     /// Runs the pivot write and any model events in a single transaction.
+    #[track_caller]
     pub fn attach_or_fail<'a>(
         &'a self,
         parent: &'a P,
         keys: &'a [Value],
         attributes: Attributes,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
-        self.attach_records(parent, keys, attributes, AttachmentMode::Transactional)
+        Box::pin(with_query_caller(
+            std::panic::Location::caller(),
+            self.attach_records(parent, keys, attributes, AttachmentMode::Transactional),
+        ))
     }
 
     fn attach_records<'a>(
@@ -1212,23 +1225,31 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         })
     }
 
+    #[track_caller]
     pub fn update_existing_pivot<'a>(
         &'a self,
         parent: &'a P,
         related: &'a Value,
         attributes: Attributes,
     ) -> DatabaseFuture<'a, DatabaseResult<u64>> {
-        self.update_pivot(parent, related, attributes, false)
+        Box::pin(with_query_caller(
+            std::panic::Location::caller(),
+            self.update_pivot(parent, related, attributes, false),
+        ))
     }
 
     /// Runs the pivot write and any model events in a single transaction.
+    #[track_caller]
     pub fn update_existing_pivot_or_fail<'a>(
         &'a self,
         parent: &'a P,
         related: &'a Value,
         attributes: Attributes,
     ) -> DatabaseFuture<'a, DatabaseResult<u64>> {
-        self.update_pivot(parent, related, attributes, true)
+        Box::pin(with_query_caller(
+            std::panic::Location::caller(),
+            self.update_pivot(parent, related, attributes, true),
+        ))
     }
 
     fn update_pivot<'a>(
@@ -1342,21 +1363,29 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         Ok(())
     }
 
+    #[track_caller]
     pub fn detach<'a>(
         &'a self,
         parent: &'a P,
         keys: Option<&'a [Value]>,
     ) -> DatabaseFuture<'a, DatabaseResult<u64>> {
-        self.detach_records(parent, keys, false)
+        Box::pin(with_query_caller(
+            std::panic::Location::caller(),
+            self.detach_records(parent, keys, false),
+        ))
     }
 
     /// Runs the pivot write and any model events in a single transaction.
+    #[track_caller]
     pub fn detach_or_fail<'a>(
         &'a self,
         parent: &'a P,
         keys: Option<&'a [Value]>,
     ) -> DatabaseFuture<'a, DatabaseResult<u64>> {
-        self.detach_records(parent, keys, true)
+        Box::pin(with_query_caller(
+            std::panic::Location::caller(),
+            self.detach_records(parent, keys, true),
+        ))
     }
 
     fn detach_records<'a>(
@@ -1449,105 +1478,127 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         })
     }
 
-    pub async fn sync(&self, parent: &P, keys: &[Value]) -> DatabaseResult<SyncChanges> {
-        self.sync_with_pivot_values(parent, keys, Attributes::new(), true)
-            .await
-    }
-
-    pub async fn sync_without_detaching(
+    #[track_caller]
+    pub fn sync(
         &self,
         parent: &P,
         keys: &[Value],
-    ) -> DatabaseResult<SyncChanges> {
-        self.sync_with_pivot_values(parent, keys, Attributes::new(), false)
-            .await
+    ) -> impl Future<Output = DatabaseResult<SyncChanges>> {
+        self.sync_with_pivot_values(parent, keys, Attributes::new(), true)
     }
 
-    pub async fn sync_with_pivot_values(
+    #[track_caller]
+    pub fn sync_without_detaching(
+        &self,
+        parent: &P,
+        keys: &[Value],
+    ) -> impl Future<Output = DatabaseResult<SyncChanges>> {
+        self.sync_with_pivot_values(parent, keys, Attributes::new(), false)
+    }
+
+    #[track_caller]
+    pub fn sync_with_pivot_values(
         &self,
         parent: &P,
         keys: &[Value],
         attributes: Attributes,
         detach: bool,
-    ) -> DatabaseResult<SyncChanges> {
-        self.synchronize(
-            parent,
-            keys.iter().cloned().map(|key| (key, attributes.clone())),
-            PivotOperation::Sync { detach },
-        )
-        .await
+    ) -> impl Future<Output = DatabaseResult<SyncChanges>> {
+        with_query_caller(std::panic::Location::caller(), async move {
+            self.synchronize(
+                parent,
+                keys.iter().cloned().map(|key| (key, attributes.clone())),
+                PivotOperation::Sync { detach },
+            )
+            .await
+        })
     }
 
     /// Synchronizes in the same transaction used by all sync variants.
-    pub async fn sync_or_fail(
+    #[track_caller]
+    pub fn sync_or_fail(
         &self,
         parent: &P,
         keys: &[Value],
         detach: bool,
-    ) -> DatabaseResult<SyncChanges> {
+    ) -> impl Future<Output = DatabaseResult<SyncChanges>> {
         self.sync_with_pivot_values_or_fail(parent, keys, Attributes::new(), detach)
-            .await
     }
 
-    pub async fn sync_without_detaching_or_fail(
+    #[track_caller]
+    pub fn sync_without_detaching_or_fail(
         &self,
         parent: &P,
         keys: &[Value],
-    ) -> DatabaseResult<SyncChanges> {
-        self.sync_or_fail(parent, keys, false).await
+    ) -> impl Future<Output = DatabaseResult<SyncChanges>> {
+        self.sync_or_fail(parent, keys, false)
     }
 
-    pub async fn sync_with_pivot_values_or_fail(
+    #[track_caller]
+    pub fn sync_with_pivot_values_or_fail(
         &self,
         parent: &P,
         keys: &[Value],
         attributes: Attributes,
         detach: bool,
-    ) -> DatabaseResult<SyncChanges> {
+    ) -> impl Future<Output = DatabaseResult<SyncChanges>> {
         self.sync_with_pivot_values(parent, keys, attributes, detach)
-            .await
     }
 
     /// Synchronizes related keys with a distinct set of pivot values for each key.
-    pub async fn sync_with_pivot_attributes(
+    #[track_caller]
+    pub fn sync_with_pivot_attributes(
         &self,
         parent: &P,
         records: &[(Value, Attributes)],
         detach: bool,
-    ) -> DatabaseResult<SyncChanges> {
-        self.synchronize(
-            parent,
-            records.iter().cloned(),
-            PivotOperation::Sync { detach },
-        )
-        .await
+    ) -> impl Future<Output = DatabaseResult<SyncChanges>> {
+        with_query_caller(std::panic::Location::caller(), async move {
+            self.synchronize(
+                parent,
+                records.iter().cloned(),
+                PivotOperation::Sync { detach },
+            )
+            .await
+        })
     }
 
     /// Switches only the requested links in a single transaction.
-    pub async fn toggle(&self, parent: &P, keys: &[Value]) -> DatabaseResult<ToggleChanges> {
-        self.toggle_records(
-            parent,
-            keys.iter().cloned().map(|key| (key, Attributes::new())),
-        )
-        .await
-    }
-
-    /// Switches links, applying per-key attributes when a link is inserted.
-    pub async fn toggle_with_pivot_attributes(
-        &self,
-        parent: &P,
-        records: &[(Value, Attributes)],
-    ) -> DatabaseResult<ToggleChanges> {
-        self.toggle_records(parent, records.iter().cloned()).await
-    }
-
-    /// Switches links transactionally, rolling back all changes on error.
-    pub async fn toggle_or_fail(
+    #[track_caller]
+    pub fn toggle(
         &self,
         parent: &P,
         keys: &[Value],
-    ) -> DatabaseResult<ToggleChanges> {
-        self.toggle(parent, keys).await
+    ) -> impl Future<Output = DatabaseResult<ToggleChanges>> {
+        with_query_caller(std::panic::Location::caller(), async move {
+            self.toggle_records(
+                parent,
+                keys.iter().cloned().map(|key| (key, Attributes::new())),
+            )
+            .await
+        })
+    }
+
+    /// Switches links, applying per-key attributes when a link is inserted.
+    #[track_caller]
+    pub fn toggle_with_pivot_attributes(
+        &self,
+        parent: &P,
+        records: &[(Value, Attributes)],
+    ) -> impl Future<Output = DatabaseResult<ToggleChanges>> {
+        with_query_caller(std::panic::Location::caller(), async move {
+            self.toggle_records(parent, records.iter().cloned()).await
+        })
+    }
+
+    /// Switches links transactionally, rolling back all changes on error.
+    #[track_caller]
+    pub fn toggle_or_fail(
+        &self,
+        parent: &P,
+        keys: &[Value],
+    ) -> impl Future<Output = DatabaseResult<ToggleChanges>> {
+        self.toggle(parent, keys)
     }
 
     async fn toggle_records(
