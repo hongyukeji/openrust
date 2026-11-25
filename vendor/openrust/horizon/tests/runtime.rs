@@ -230,6 +230,106 @@ fn config(base: &Path, _: &Environment) -> Result<BTreeMap<String, Value>, Confi
         ),
     ]))
 }
+
+#[tokio::test]
+#[ignore = "requires dedicated Redis 8 acceptance wrapper"]
+async fn artisan_supervisor_commands_select_the_local_host_and_report_master_status() {
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(config)
+            .with_providers(vec![Box::new(HorizonServiceProvider)])
+    })
+    .unwrap();
+    app.boot().await.unwrap();
+    let repository = app.app().make::<Repository>().await.unwrap();
+    let host = hostname::get().unwrap().into_string().unwrap();
+    let peer = format!("{host}-peer");
+
+    let inactive = app.artisan(["horizon:status"]).await;
+    inactive.assert_exit_code(2);
+    assert!(inactive.stdout.contains("ERROR") && inactive.stdout.contains("Horizon is inactive."));
+
+    let masters = repository.master_supervisors();
+    masters
+        .update(
+            "local-master",
+            &json!({"name":"local-master","host":host,"status":"running"}),
+        )
+        .await
+        .unwrap();
+    for index in 0..100 {
+        let name = format!("local-master-{index:03}");
+        masters
+            .update(&name, &json!({"name": name,"host":host,"status":"running"}))
+            .await
+            .unwrap();
+    }
+    masters
+        .update(
+            "remote-master",
+            &json!({"name":"remote-master","host":peer,"status":"paused"}),
+        )
+        .await
+        .unwrap();
+    assert!(!repository.paused().await.unwrap());
+    let paused = app.artisan(["horizon:status"]).await;
+    paused.assert_exit_code(1);
+    assert!(paused.stdout.contains("WARN") && paused.stdout.contains("Horizon is paused."));
+    let json_status = app.artisan(["horizon:status", "--json"]).await;
+    json_status.assert_exit_code(1);
+    assert_eq!(
+        serde_json::from_str::<Vec<Value>>(&json_status.stdout)
+            .unwrap()
+            .len(),
+        102
+    );
+    let list = app.artisan(["horizon:list"]).await;
+    list.assert_successful();
+    assert!(list.stdout.contains("remote-master"));
+    masters.forget("remote-master").await.unwrap();
+    let running = app.artisan(["horizon:status"]).await;
+    running.assert_successful();
+    assert!(running.stdout.contains("INFO") && running.stdout.contains("Horizon is running."));
+
+    for (name, state) in [
+        (
+            "first:shared-high",
+            json!({"host":peer,"status":"paused","pid":1}),
+        ),
+        (
+            "second:shared-high",
+            json!({"host":host,"status":"running","pid":1}),
+        ),
+        (
+            "third:remote-only",
+            json!({"host":peer,"status":"running","pid":1}),
+        ),
+        ("fourth:legacy-only", json!({"status":"running","pid":1})),
+    ] {
+        repository.heartbeat_supervisor(name, &state).await.unwrap();
+    }
+    let local = app.artisan(["horizon:supervisor-status", "high"]).await;
+    local.assert_successful();
+    assert!(local.stdout.contains("high is running"));
+    for (name, key) in [
+        ("remote-only", "third:remote-only"),
+        ("legacy-only", "fourth:legacy-only"),
+    ] {
+        app.artisan(["horizon:supervisor-status", name])
+            .await
+            .assert_exit_code(1);
+        app.artisan(["horizon:pause-supervisor", name])
+            .await
+            .assert_exit_code(1);
+        assert!(!repository.supervisor_paused(key).await.unwrap());
+        repository.pause_supervisor(key).await.unwrap();
+        app.artisan(["horizon:continue-supervisor", name])
+            .await
+            .assert_exit_code(1);
+        assert!(repository.supervisor_paused(key).await.unwrap());
+    }
+}
+
 struct Handler(&'static str);
 impl openrust::contracts::queue::JobHandler for Handler {
     fn handle<'a>(

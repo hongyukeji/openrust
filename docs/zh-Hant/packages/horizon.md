@@ -126,7 +126,7 @@ Master 也會清理過期的工作索引。最近、待處理、已完成、靜�
 ./artisan horizon:purge
 ```
 
-`horizon:status` 在執行時傳回 0、暫停時傳回 1、無存活 Master 時傳回 2。暫停阻止領取新工作，已執行工作可完成；繼續恢復領取；終止使目前 Master 優雅結束，新啟動的 Master 使用新代次。監督器命令操作具名監督器，控制命令作用於共用元資料前綴。
+`horizon:status` 根據所有活躍 Master 的心跳傳回狀態。執行時傳回 0，任一 Master 暫停時傳回 1，無存活 Master 時傳回 2。暫停阻止領取新工作，已執行工作可完成；繼續恢復領取；終止使目前 Master 優雅結束，新啟動的 Master 使用新代次。具名監督器命令依目前主機及名稱後綴選擇目標。升級後重新啟動舊監督器以發佈主機資訊。Master 層級的暫停、繼續和結束仍作用於共用元資料前綴。
 
 Horizon 工作 ID 識別獨立的 Redis 投遞，由佇列推送和面板回傳。`horizon:retry` 與 `horizon:forget` 使用此 ID。重試取得新 ID，原失敗監控記錄保留並記錄重試結果。原生 `queue:retry` 和失敗工作儲存使用承載資料 UUID，由 Horizon 內部轉換；批次重試也會將這些 UUID 解析為目前失敗投遞。
 

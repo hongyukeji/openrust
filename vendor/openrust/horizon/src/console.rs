@@ -156,28 +156,27 @@ impl Command for HorizonCommand {
                     output.info("Horizon termination requested.");
                 }
                 "horizon:status" => {
-                    let masters = repository.masters().await.map_err(error)?;
+                    let masters = repository.master_supervisors().all().await.map_err(error)?;
+                    let status = if masters.is_empty() {
+                        2
+                    } else if masters.iter().any(|master| master["status"] == "paused") {
+                        1
+                    } else {
+                        0
+                    };
                     if input.matches().get_flag("json") {
                         output
                             .stdout
                             .push_str(&serde_json::to_string(&masters).map_err(error)?);
                         output.stdout.push('\n');
                     } else {
-                        output.info(if masters.is_empty() {
-                            "Horizon is inactive."
-                        } else if repository.paused().await.map_err(error)? {
-                            "Horizon is paused."
-                        } else {
-                            "Horizon is running."
-                        });
+                        match status {
+                            2 => output.error("Horizon is inactive."),
+                            1 => output.warning("Horizon is paused."),
+                            _ => output.info("Horizon is running."),
+                        }
                     }
-                    return Ok(if masters.is_empty() {
-                        2
-                    } else if masters.iter().any(|master| master["status"] == "paused") {
-                        1
-                    } else {
-                        0
-                    });
+                    return Ok(status);
                 }
                 "horizon:failed" => {
                     let records: Vec<_> = repository

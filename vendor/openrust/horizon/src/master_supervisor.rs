@@ -97,6 +97,7 @@ pub struct MasterSupervisor {
     base: PathBuf,
     environment: String,
     id: String,
+    host: String,
     supervisors: Vec<SupervisorProcess>,
     failures: u64,
     fast_termination: bool,
@@ -207,6 +208,7 @@ impl MasterSupervisor {
             base,
             environment,
             id: uuid::Uuid::now_v7().to_string(),
+            host: crate::supervisor::hostname()?,
             supervisors: Vec::new(),
             failures: 0,
             fast_termination: false,
@@ -227,6 +229,7 @@ impl MasterSupervisor {
     pub fn name(&self) -> &str {
         &self.id
     }
+
     pub async fn run(mut self, shutdown: &CancellationToken) -> Result<()> {
         let generation = self.repository.generation().await?;
         for (name, mut options) in self.options.clone() {
@@ -339,7 +342,18 @@ impl MasterSupervisor {
                 ))
             })
             .collect();
-        self.repository.heartbeat(&self.id, &serde_json::json!({"name":self.id,"pid":std::process::id(),"status":if paused {"paused"} else {"running"},"environment":self.environment,"supervisors":self.supervisors.iter().filter(|s| !s.dead).map(|s| &s.name).collect::<Vec<_>>(),"workers":workers,"targets":targets,"unexpected_exits":self.failures + states.iter().filter_map(|state| state["unexpected_exits"].as_u64()).sum::<u64>()})).await?;
+        let status = serde_json::json!({
+            "name": self.id,
+            "host": self.host,
+            "pid": std::process::id(),
+            "status": if paused { "paused" } else { "running" },
+            "environment": self.environment,
+            "supervisors": self.supervisors.iter().filter(|s| !s.dead).map(|s| &s.name).collect::<Vec<_>>(),
+            "workers": workers,
+            "targets": targets,
+            "unexpected_exits": self.failures + states.iter().filter_map(|state| state["unexpected_exits"].as_u64()).sum::<u64>(),
+        });
+        self.repository.heartbeat(&self.id, &status).await?;
         let event = MasterSupervisorLooped::new(self, paused);
         if let Err(error) = openrust::support::facades::Event::dispatch(event.clone()).await {
             let _ = openrust::support::facades::Log::warning(

@@ -126,7 +126,7 @@ Master 也会清理过期的任务索引。最近、待处理、已完成、静�
 ./artisan horizon:purge
 ```
 
-`horizon:status` 在运行时返回 0、暂停时返回 1、无存活 Master 时返回 2。暂停阻止领取新任务，已运行任务可完成；继续恢复领取；终止使当前 Master 优雅退出，新启动的 Master 使用新代次。监督器命令操作具名监督器，控制命令作用于共享元数据前缀。
+`horizon:status` 根据所有活跃 Master 的心跳返回状态。运行时返回 0，任一 Master 暂停时返回 1，无存活 Master 时返回 2。暂停阻止领取新任务，已运行任务可完成；继续恢复领取；终止使当前 Master 优雅退出，新启动的 Master 使用新代次。具名监督器命令按当前主机及名称后缀选择目标。升级后重启旧监督器以发布主机信息。Master 级别的暂停、继续和终止仍作用于共享元数据前缀。
 
 Horizon 任务 ID 标识独立的 Redis 投递，由队列推送和面板返回。`horizon:retry` 与 `horizon:forget` 使用此 ID。重试获得新 ID，原失败监控记录保留并记录重试结果。原生 `queue:retry` 和失败任务存储使用载荷 UUID，由 Horizon 内部转换；批次重试也会将这些 UUID 解析为当前失败投递。
 

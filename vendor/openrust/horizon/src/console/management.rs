@@ -118,7 +118,7 @@ impl Command for Management {
             match self.1 {
                 "horizon:list" | "horizon:supervisors" => {
                     let values = if self.1 == "horizon:list" {
-                        repository.masters().await
+                        repository.master_supervisors().all().await
                     } else {
                         repository.supervisors().await
                     }
@@ -188,15 +188,17 @@ impl Command for Management {
                 | "horizon:pause-supervisor"
                 | "horizon:continue-supervisor" => {
                     let suffix = input.matches().get_one::<String>("name").expect("required");
+                    let host = crate::supervisor::hostname().map_err(error)?;
                     let selected = repository
                         .supervisors()
                         .await
                         .map_err(error)?
                         .into_iter()
                         .find(|value| {
-                            value["name"].as_str().is_some_and(|name| {
-                                name == suffix || name.ends_with(&format!(":{suffix}"))
-                            })
+                            value["host"].as_str() == Some(host.as_str())
+                                && value["name"]
+                                    .as_str()
+                                    .is_some_and(|name| name.ends_with(suffix))
                         });
                     let Some(selected) = selected else {
                         output.error(if self.1 == "horizon:supervisor-status" {

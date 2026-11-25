@@ -9,6 +9,14 @@ use tokio::sync::Mutex;
 use tokio::time::Instant;
 use tokio_util::sync::CancellationToken;
 
+pub(crate) fn hostname() -> Result<String> {
+    hostname::get()
+        .ok()
+        .and_then(|name| name.into_string().ok())
+        .filter(|name| !name.is_empty())
+        .ok_or(Error::InvalidConfiguration)
+}
+
 pub struct WorkerProcess {
     supervisor: String,
     queue: String,
@@ -68,6 +76,7 @@ pub struct Supervisor {
     environment: String,
     factory: Factory,
     id: String,
+    host: String,
     pools: BTreeMap<String, ProcessPool>,
     parent: u32,
     initially_paused: bool,
@@ -158,6 +167,7 @@ impl Supervisor {
             environment,
             factory: Factory::new(),
             id,
+            host: hostname()?,
             pools,
             parent,
             initially_paused: false,
@@ -361,7 +371,32 @@ impl Supervisor {
                 }))
             })
             .collect();
-        self.repository.heartbeat_supervisor(&self.id,&serde_json::json!({"name":self.id,"master":self.id.rsplit_once(':').map(|(master,_)|master),"pid":std::process::id(),"status":if paused{"paused"}else{"running"},"workers":workers,"targets":self.targets,"unexpected_exits":self.failures,"options":self.options.values().next(),"processes":self.pools.iter().map(|(queue,pool)|(format!("{}:{queue}",self.options.values().next().expect("validated options").connection),pool.active_process_count())).collect::<BTreeMap<_,_>>() })).await?;
+        let options = self.options.values().next().expect("validated options");
+        let processes = self
+            .pools
+            .iter()
+            .map(|(queue, pool)| {
+                (
+                    format!("{}:{queue}", options.connection),
+                    pool.active_process_count(),
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
+        let status = serde_json::json!({
+            "name": self.id,
+            "master": self.id.rsplit_once(':').map(|(master, _)| master),
+            "host": self.host,
+            "pid": std::process::id(),
+            "status": if paused { "paused" } else { "running" },
+            "workers": workers,
+            "targets": self.targets,
+            "unexpected_exits": self.failures,
+            "options": options,
+            "processes": processes,
+        });
+        self.repository
+            .heartbeat_supervisor(&self.id, &status)
+            .await?;
         let event = SupervisorLooped::new(self, paused);
         if let Err(error) = openrust::support::facades::Event::dispatch(event.clone()).await {
             let _ = openrust::support::facades::Log::warning(

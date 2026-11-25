@@ -113,6 +113,16 @@ Rust 修复在检查命令内以采样时的单调时钟为准，在工作命令
 
 隔离快照沿用 `8041ae15a` 与前批文件，叠加本批。配置消费者 5 项及隔离 Redis 8.10.3 的双应用配置隔离 1 项通过。真实 Redis 8.10.3 进程／HTTP／Artisan 回归、全仓格式、Horizon 全目标严格 Clippy、三语文档构建及 12 组浏览器检查通过。发布组合与其他目标平台仍待专项复验。
 
+### Horizon Artisan 本机监督器选择与状态类别
+
+PHP 8.5.12 用固定 Horizon、Laravel 和 Symfony Console 8.0.6 实跑 `StatusCommand::handle` 与 `SupervisorStatusCommand::handle`。无 Master 返回 2 并输出错误类别；只要有一个暂停的 Master 就返回 1 并输出警告，其余返回 0 和信息类别。监督器状态先选当前机器前缀，再匹配名称后缀。固定暂停和继续命令源码也采用这一选择规则，后续向选中 PID 发送本机信号。证据为 `target/tmp/observability-parity/horizon-supervisor-local-upstream.log`。 [固定 StatusCommand](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Console/StatusCommand.php) [固定 SupervisorStatusCommand](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Console/SupervisorStatusCommand.php)
+
+Rust 利用锁定的 hostname 0.4.2 读取系统主机名，Master 和 Supervisor 心跳登记主机。具名状态、暂停和继续命令先核对完整主机名，再按后缀匹配。共享 Redis 上名称相似的其他主机及升级前缺少主机字段的心跳不会成为本机信号目标。Master 现有 UUID 和 Redis 键格式继续使用。默认名称前缀、可替换名称解析器及 Master 级全局控制与上游本机控制的差异另待对账。`horizon:status` 的退出码和文本类别使用同一份 Master 心跳。真实 Redis 回归覆盖多主机与缺主机字段选择、状态类别和无跨主机写入，现有 Unix 进程矩阵验证本机信号。
+
+固定 `RedisMasterSupervisorRepository::names` 读取 14 秒窗口内全部 Master，并以最近心跳为先。`horizon:status` 与 `horizon:list` 均使用该仓储契约，Rust 修复也改走已有的无条数上限的 Master 仓储。新增用例登记 102 条心跳，确认唯一暂停节点仍影响退出码，JSON 和文本列表均可见。 [固定 Master 仓储](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Repositories/RedisMasterSupervisorRepository.php)
+
+macOS 初轮独占 Redis 8.10.3 的主机选择、状态类别和无跨主机写入用例、Horizon 严格 Clippy 以及原生进程矩阵均通过。矩阵覆盖监督器恢复、重试及忘记、暂停、继续、正常终止、面板授权与脱敏。三语文档构建及 12 组浏览器检查通过。初轮证据为 `target/tmp/observability-parity/horizon-local-supervisor-{macos,docs}.log`。包含 102 条心跳的 Mac Redis 回归和相同源码的 Horizon 库及运行时目标严格 Clippy 通过，证据为 `target/tmp/observability-parity/horizon-pulse-lifecycle-macos.log`。Linux 初轮源码和目标平台的最终快照继续独立复验。
+
 ### Horizon 分组等待时间与 HTTP 排序
 
 固定上游 [RedisWorkloadRepository::get](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Repositories/RedisWorkloadRepository.php) 与 [WaitTimeCalculator::calculateTimeToClear](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/WaitTimeCalculator.php) 分别确定各分队列先取整再累加、整组以原始总量独立取整的行为。[WorkloadController::index](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Http/Controllers/WorkloadController.php) 对 HTTP 结果按名称排序，仓储按等待时间降序供监控消费。Rust 已补齐两处规则。
