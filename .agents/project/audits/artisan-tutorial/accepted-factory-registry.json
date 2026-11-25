@@ -1,0 +1,31 @@
+{
+  "source_base": "863d46900fad9b74ad512b80122b9e8f01c0d700",
+  "contract": "factory-registry-contracts.json",
+  "gates": [
+    "target/tmp/artisan-tutorial-20261125/factory-registry-gates-repaired.log",
+    "target/tmp/artisan-tutorial-20261125/factory-registry-site.log"
+  ],
+  "test_summaries": [
+    "test result: ok. 8 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.77s",
+    "test result: ok. 8 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.78s",
+    "test result: ok. 11 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.22s",
+    "test result: ok. 13 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.27s",
+    "test result: ok. 147 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.42s"
+  ],
+  "runtime": {
+    "real_custom_artisan_processes": 3,
+    "real_custom_http_requests": 26,
+    "application_servers": 2,
+    "docs_consumers": 147,
+    "browser_checks": 12
+  },
+  "first_failures_retained": [
+    "factory-registry-gates-first.log: fixture missing HRTB annotation",
+    "factory-registry-gates-final.log: missing borrowed String output conversion, repaired in product"
+  ],
+  "remaining": [
+    "Command容器解析/覆盖Factory本身及其构造时机仍需专用服务类型和实际消费者，不能由ComponentRegistry注册代替。",
+    "抽象Component的compile/renderView/mutate/usingQuestionHelper及继承SDK仍开放；不宣称Factory类或Artisan整章已闭合。"
+  ],
+  "pushed": false
+}

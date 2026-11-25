@@ -1,0 +1,36 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "status": "verified_compiled_custom_component_construction_registry_and_application_ownership",
+  "native": [
+    "ComponentContext::{Output,Style}/AsOutput/question_style",
+    "RenderableComponent::render",
+    "ComponentConstructor::make",
+    "ComponentRegistry::default/register",
+    "Factory::with_registry",
+    "ComponentOutput::component_context",
+    "Box<ComponentOutput> context forwarding",
+    "Application default registry binding"
+  ],
+  "source_oracles": {
+    "factory-registry-oracle.json": 4
+  },
+  "runtime": {
+    "real_custom_artisan_processes": 3,
+    "real_custom_http_requests": 26,
+    "application_servers": 2,
+    "docs_consumers": 147,
+    "browser_checks": 12
+  },
+  "adaptations": [
+    "用显式编译注册构造器替代解释器按类名字串加载源文件；不添加PHP运行时。应用Container沿现有Definitions装配方式保存Registry，不使用全局可变注册表。",
+    "每次调用都make新RenderableComponent，再等待render；Builder为Send+Sync共享元数据，组件实例只需Send，不跨调用共享。返回错误或取消均释放组件。",
+    "命名空间和ASCII大小写规则保留；内置类、非法及重复名称拒绝，不能静默替换已有类。构造器及被拒绝构造器析构均在锁外。",
+    "Factory保留创建时Container作注册查找归属，显式with_registry允许独立消费者；不将此声明扩展为切换所有环境Facade作用域。",
+    "ComponentContext借出原样式/输出；自定义适配器投影Style时默认question_style随之工作，原有question_style覆盖仍用于内置问答。",
+    "文档真实消费暴露OutputMessages缺From<&String>，增加零复制Text借用转换，不改正文绕行、不改默认值/数据格式。"
+  ],
+  "remaining": [
+    "Command容器解析/覆盖Factory本身及其构造时机仍需专用服务类型和实际消费者，不能由ComponentRegistry注册代替。",
+    "抽象Component的compile/renderView/mutate/usingQuestionHelper及继承SDK仍开放；不宣称Factory类或Artisan整章已闭合。"
+  ]
+}

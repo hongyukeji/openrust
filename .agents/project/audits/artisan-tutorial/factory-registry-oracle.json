@@ -1,0 +1,46 @@
+[
+  {
+    "label": "one",
+    "answer": {
+      "owner": "A",
+      "label": "one",
+      "index": 1
+    },
+    "error": null,
+    "output": "badge:A:one:1\n",
+    "created": 1,
+    "dropped": 1
+  },
+  {
+    "label": "two",
+    "answer": {
+      "owner": "A",
+      "label": "two",
+      "index": 1
+    },
+    "error": null,
+    "output": "badge:A:two:1\n",
+    "created": 2,
+    "dropped": 2
+  },
+  {
+    "label": "fail",
+    "answer": null,
+    "error": "RuntimeException",
+    "output": "",
+    "created": 3,
+    "dropped": 3
+  },
+  {
+    "label": "recovered",
+    "answer": {
+      "owner": "A",
+      "label": "recovered",
+      "index": 1
+    },
+    "error": null,
+    "output": "badge:A:recovered:1\n",
+    "created": 4,
+    "dropped": 4
+  }
+]

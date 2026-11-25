@@ -1851,3 +1851,65 @@ fn register_dynamic_components() -> Result<(), ConsoleError> {
 `ComponentArgument::Value` 承载 JSON 数据。显示调用返回 JSON null，问答返回既有值，确认返回 JSON 布尔值。`Completion` 接收现有 `CompletionCallback`；`ComponentArgument::task` 持有编译后的 `FnOnce` 回调，可在调用期间借用 `Send` 状态。回调只执行一次，错误传播前仍完成任务显示收尾。字符串是数据，不作为可执行函数名。`Options` 接收 `OutputOptions`。整数选项接受文档常量中的单个详细级别与单个格式标志；冲突位掩码和非法参数返回错误。既有所有权、问答取消及临时帮助器恢复规则仍适用。
 
 文本参数误传数组时在渲染前拒绝，不会因错误把未完成编译的 HTML 模板遗留在进程输出缓冲中。
+
+
+### 自定义控制台组件 {#custom-console-components}
+
+在应用 Provider 中注册编译后的构造器。每次动态调用都新建 `RenderableComponent`，借出原输出上下文，等待 `render` 后释放实例。构造器由所属应用的 `ComponentRegistry` 共享，可变组件实例不共享。将 `BadgeProvider` 加入正常 Provider 清单，将 `register_custom_components` 接入控制台路由。
+
+```rust
+use openrust::{
+    console::{AsOutput as _, AsyncCommandCallback, ConsoleError, ConsoleFuture, OutputFormat,
+        view::components::{ComponentArgument, ComponentConstructor, ComponentContext, ComponentRegistry, RenderableComponent}},
+    contracts::{container::Container as _, foundation::Application as _},
+    foundation::Application,
+    support::{ProviderResult, ServiceProvider, facades::Artisan},
+};
+use serde_json::{Value, json};
+use std::sync::Arc;
+struct Badge<'a>(ComponentContext<'a>);
+struct BadgeConstructor;
+impl ComponentConstructor for BadgeConstructor {
+    fn make<'a>(&'a self, output: ComponentContext<'a>) -> Result<Box<dyn RenderableComponent + 'a>, ConsoleError> {
+        Ok(Box::new(Badge(output)))
+    }
+}
+impl RenderableComponent for Badge<'_> {
+    fn render<'a>(&'a mut self, parameters: Vec<ComponentArgument<'a>>) -> ConsoleFuture<'a, Result<Value, ConsoleError>> {
+        Box::pin(async move {
+            let label = match parameters.first() {
+                Some(ComponentArgument::Value(Value::String(label))) => label,
+                _ => return Err(ConsoleError::new("需要文本标签")),
+            };
+            self.0.as_output().writeln(&format!("Badge:{label}"), OutputFormat::Raw)?;
+            Ok(json!({"label": label}))
+        })
+    }
+}
+struct BadgeProvider;
+impl ServiceProvider for BadgeProvider {
+    fn register<'a>(&'a mut self, app: &'a Application) -> std::pin::Pin<Box<dyn std::future::Future<Output = ProviderResult> + Send + 'a>> {
+        Box::pin(async move {
+            app.container().make::<ComponentRegistry>()?.register("Badge", Arc::new(BadgeConstructor))?;
+            Ok(())
+        })
+    }
+}
+fn register_custom_components() -> Result<(), ConsoleError> {
+    Artisan::command_with("components:badge", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut io = input.io(output);
+            let result = io.components().call("Badge", vec!["Ready".into()]).await?;
+            io.line(&result.to_string())?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+名称可以包含命名空间分隔符，例如 `Widgets\Badge`。注册不区分大小写；重复、非法及已有内置组件名称会被拒绝。构造器和其析构器在注册表锁外执行。构造及渲染错误继续传播；取消调用后释放组件及输出借用。
+
+`Factory::new` 记录当前应用容器，用于查找自定义组件；进入另一个应用作用域不会更换这项注册归属。独立消费者可用 `Factory::with_registry(&mut output, registry)` 显式传入 `Arc<ComponentRegistry>`。数据与回调继续通过 `ComponentArgument` 传递。
+
+`ComponentContext` 实现 `AsOutput`。`question_style()` 返回原问答样式，或在打印提示前返回运行时错误。自定义输出适配器实现 `ComponentOutput::component_context`：返回 `ComponentContext::Style` 保留问答输入，普通流返回 `ComponentContext::Output`。默认 `ComponentOutput::question_style` 跟随该上下文；已有显式问答样式覆盖仍适用于内置问答组件。

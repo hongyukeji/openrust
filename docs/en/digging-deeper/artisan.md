@@ -1851,3 +1851,65 @@ fn register_dynamic_components() -> Result<(), ConsoleError> {
 `ComponentArgument::Value` carries JSON data. Display calls return JSON null, questions return their existing values, and confirmation returns a JSON boolean. `Completion` accepts the existing `CompletionCallback`; `ComponentArgument::task` owns a compiled `FnOnce` callback, including borrowed `Send` state for the duration of the call. It runs once and retains task finalization before error propagation. Strings are data, not executable function names. `Options` accepts `OutputOptions`. Integer options accept one verbosity and one format flag from the documented constants; conflicting masks and invalid arguments return errors. Existing ownership, question cancellation and temporary-helper restoration rules still apply.
 
 Invalid text arrays are rejected before rendering. An error cannot leave a partially compiled HTML template in a process output buffer.
+
+
+### Custom console components {#custom-console-components}
+
+Register compiled constructors in your application's Provider. Each dynamic call constructs a new `RenderableComponent`, gives it the original output context, awaits `render` and then releases the instance. The constructor is shared within its application's `ComponentRegistry`; the mutable component instance is not shared. Register `BadgeProvider` in the normal Provider list and `register_custom_components` in console routes.
+
+```rust
+use openrust::{
+    console::{AsOutput as _, AsyncCommandCallback, ConsoleError, ConsoleFuture, OutputFormat,
+        view::components::{ComponentArgument, ComponentConstructor, ComponentContext, ComponentRegistry, RenderableComponent}},
+    contracts::{container::Container as _, foundation::Application as _},
+    foundation::Application,
+    support::{ProviderResult, ServiceProvider, facades::Artisan},
+};
+use serde_json::{Value, json};
+use std::sync::Arc;
+struct Badge<'a>(ComponentContext<'a>);
+struct BadgeConstructor;
+impl ComponentConstructor for BadgeConstructor {
+    fn make<'a>(&'a self, output: ComponentContext<'a>) -> Result<Box<dyn RenderableComponent + 'a>, ConsoleError> {
+        Ok(Box::new(Badge(output)))
+    }
+}
+impl RenderableComponent for Badge<'_> {
+    fn render<'a>(&'a mut self, parameters: Vec<ComponentArgument<'a>>) -> ConsoleFuture<'a, Result<Value, ConsoleError>> {
+        Box::pin(async move {
+            let label = match parameters.first() {
+                Some(ComponentArgument::Value(Value::String(label))) => label,
+                _ => return Err(ConsoleError::new("需要文本标签")),
+            };
+            self.0.as_output().writeln(&format!("Badge:{label}"), OutputFormat::Raw)?;
+            Ok(json!({"label": label}))
+        })
+    }
+}
+struct BadgeProvider;
+impl ServiceProvider for BadgeProvider {
+    fn register<'a>(&'a mut self, app: &'a Application) -> std::pin::Pin<Box<dyn std::future::Future<Output = ProviderResult> + Send + 'a>> {
+        Box::pin(async move {
+            app.container().make::<ComponentRegistry>()?.register("Badge", Arc::new(BadgeConstructor))?;
+            Ok(())
+        })
+    }
+}
+fn register_custom_components() -> Result<(), ConsoleError> {
+    Artisan::command_with("components:badge", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut io = input.io(output);
+            let result = io.components().call("Badge", vec!["Ready".into()]).await?;
+            io.line(&result.to_string())?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+Names may contain namespace separators, for example `Widgets\Badge`. Registration is case insensitive and rejects duplicate names, invalid names and existing built-in component names. Constructors and their destructors run outside registry locks. Constructor and render errors propagate; cancellation releases the component and its output borrow.
+
+`Factory::new` records the current application container for custom-component lookup. Entering another application's scope does not change that registration owner. Standalone consumers can use `Factory::with_registry(&mut output, registry)` with an explicit `Arc<ComponentRegistry>`. Data and callbacks still use `ComponentArgument`.
+
+`ComponentContext` implements `AsOutput`. `question_style()` returns the original question style or a runtime error before a prompt is printed. Custom output adapters implement `ComponentOutput::component_context`: return `ComponentContext::Style` to retain question input, or `ComponentContext::Output` for an ordinary stream. The default `ComponentOutput::question_style` follows this context; existing explicit question-style overrides remain valid for built-in questions.

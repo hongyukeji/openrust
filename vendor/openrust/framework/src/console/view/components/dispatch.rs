@@ -131,6 +131,9 @@ impl<T: ComponentOutput + ?Sized> Factory<'_, T> {
         name: &str,
         parameters: Vec<ComponentArgument<'a>>,
     ) -> Result<Value, ConsoleError> {
+        if !super::registry::builtin(name) {
+            return super::registry::render_custom(self, name, parameters).await;
+        }
         let mut args = Arguments(parameters.into_iter());
         match name.to_ascii_lowercase().as_str() {
             "info" | "success" | "warn" | "error" | "alert" => {

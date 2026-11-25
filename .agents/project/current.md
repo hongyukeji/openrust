@@ -6,6 +6,8 @@ Git 默认流程已于 2026-11-23 更新：已授权任务完成并通过相关�
 
 ## 正在推进与等待条件
 
+- 2026-11-26 Artisan第48簇自定义组件构造/应用隔离注册已验：固定源4构造生命周期、3实际Artisan、双应用26HTTP、锁重入/取消/重绑与147三语消费者及严格门禁通过。见[契约](audits/artisan-tutorial/factory-registry-contracts.json)。补OutputMessages零复制&String输入；继续抽象Component及Factory容器覆盖，整章未闭合，不推送。
+
 - 2026-11-26 Artisan第47簇14内置Factory动态分发已验：134问答/108显示/26边界源向量、41实际Artisan、18HTTP、10PTY、三语144直接消费者和严格门禁通过。见[契约](audits/artisan-tutorial/factory-dispatch-contracts.json)。动态字符串不改为蛇形；继续自定义注册/容器覆盖、抽象Component与其余SDK，整章未闭合，不推送。
 
 - 2026-11-26 Artisan第46簇类型化Factory/CommandIo原样式绑定已验：134问答/108显示源码向量、1双替换绑定、41实际Artisan、18HTTP、10PTY、三语141直接消费者及严格门禁。见[契约](audits/artisan-tutorial/factory-typed-contracts.json)。继续动态分发/自定义注册/容器覆盖与抽象Component，整章未闭合，不推送。

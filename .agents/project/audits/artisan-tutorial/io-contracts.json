@@ -318,11 +318,12 @@
         "evidence": [
           "console_component_factory",
           "factory-typed-contracts.json",
-          "factory-dispatch-contracts.json"
+          "factory-dispatch-contracts.json",
+          "factory-registry-contracts.json"
         ],
         "remaining": [
-          "Factory自定义编译注册、组件名字空间及容器Factory覆盖仍需公开类型与真实消费者。",
-          "抽象Component所属compile/renderView/mutate/usingQuestionHelper、一般输出和Helper/HelperSet/Time其余入口仍开放；不宣称Factory或Artisan整章已闭合。"
+          "Command容器解析/覆盖Factory本身及其构造时机仍需专用服务类型和实际消费者，不能由ComponentRegistry注册代替。",
+          "抽象Component的compile/renderView/mutate/usingQuestionHelper及继承SDK仍开放；不宣称Factory类或Artisan整章已闭合。"
         ]
       }
     ],

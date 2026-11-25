@@ -687,3 +687,14 @@ Factory::call及ComponentArgument/ComponentTaskCallback正式接通14内置组�
 41实际Artisan进程逐字比物理stdout/stderr；HTTP18请求含五问答类型、500及12并发恢复；10真实PTY涵盖原生输入、数组/回调补全、多行、隐藏不回显、Ctrl+C130和回调失败1，终端状态恢复，无外部stty。原生初轮多行夹具误用Text，源期望Name，改正夹具后全通过；未修改产品迎合断言。最终29框架父消费者(驱动另由父进程执行)和三语源码直接提取144消费者通过；workspace/all-targets严格Clippy、格式、三语构建和12浏览器通过。命令/日志见accepted-factory-dispatch.json。独立PTY二进制验后SHA核对回收，保留源码/日志/共享缓存。
 
 Factory自定义编译注册、组件名字空间与容器Factory覆盖仍开放，不能把内置分发表当作整个源Factory。抽象Component及其余继承SDK继续；不重复实现既有组件，不以单簇通过宣布整章闭合。仅本地提交，不推送。
+
+
+## 48. 自定义组件构造与应用隔离注册（2026-11-26）
+
+固定Factory::__call对类名执行class_exists并每次new组件，不是复用一个有可变成员的回调。原生提供正式ComponentConstructor::make、RenderableComponent::render和ComponentContext，构造器元数据按应用ComponentRegistry保存，实际渲染实例每次新建。复用现有Container/Definitions和锁外回调模式；旧版无该Factory类可移植。不添加解释器依赖、全局注册表或平行渲染器。Source自定义Widget类继承Component的真实PHP4场景核对构造/析构计数和实例索引：每次index1，失败后也释放，再恢复成功；native通过对应Trait/Registry/Factory正式入口逐项比较。
+
+Root Application初始绑定独立Registry，Provider在普通register期间注册编译构造器，Factory记录创建时Container查找归属；两应用同名组件互不串用，显式with_registry支持独立消费者。命名空间、ASCII大小写和重复类规则实测；内置/非法/重复注册不替换既有类。注册表查找释放锁后执行make，被拒绝构造器Drop也在锁外；构造器及析构器内再次register的实际消费者通过3秒有界线程检查。未知组件/构造失败不写输出，渲染失败/取消释放实例，绑定错误来源保留且重绑可恢复。Context/AsOutput投影原样式，自定义Box输出适配器仅投影Style即可用于内置及自定义问答；普通流缺问答时打印前返回运行时错误。
+
+真实Artisan3进程分别验证退出0/1/0和恢复输出；两个实际HTTP Kernel服务26请求，含各自500及各12并发恢复，全部owner与index正确。内置静态/动态Factory和CommandIo外围回归一并通过。HTTP夹具首次闭包未形成for<'a>函数约束，经现有Handler blanket impl源码核对后增加显式高阶fn类型，无路由行为修改；不是缺失公开路由能力。正式三语教程直接提取147消费者曾暴露OutputMessages只接受&str而不能直接接&String，补零复制From<&String>后保留原示例并全部实跑通过，不以改.as_str掩盖易用性缺口。40框架父消费者及147文档消费者、workspace/all-targets严格Clippy、格式、三语构建和12浏览器通过，见accepted-factory-registry.json。日志/源码/共享增量缓存保留，无本批数据库/容器/长期服务或独立PTY二进制；共享守卫期间安全清理profile的65,326,354,432字节记录仅为观察到的公共事件，不冒认本批触发。
+
+应用注册不等于容器覆盖Factory本身：Command.run的容器构造/生命周期仍保持待实现。抽象Component的compile/renderView/mutate/usingQuestionHelper、Helper/HelperSet/Time剩余SDK继续，不将构造和自定义render当作抽象基类已实现。仅核定本地提交，不推送。

@@ -11,3 +11,7 @@ mod factory;
 pub use factory::{ComponentOutput, Factory};
 mod dispatch;
 pub use dispatch::{ComponentArgument, ComponentTaskCallback};
+mod registry;
+pub use registry::{
+    ComponentConstructor, ComponentContext, ComponentRegistry, RenderableComponent,
+};

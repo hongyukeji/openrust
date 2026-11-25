@@ -286,6 +286,11 @@ async fn formal_progress_example(){
     parts.append('mod '+locale.replace('-','_').lower()+'_dynamic_components{\n'+dynamic_code+dynamic_checks+'}\n')
 
 
+    registry_code=re.search(r'```rust\n(.*?)```',text.split('{#custom-console-components}',1)[1],re.S).group(1)
+    registry_checks='use openrust::console::Output;\n'+progress_checks.replace('formal_progress_example','formal_custom_component_example').replace('register_progress)', 'register_custom_components)').replace('.with_routing(','.with_providers(vec![Box::new(BadgeProvider)]).with_routing(').replace('"reports:progress"','"components:badge"').replace('assert!(output.stdout.contains("CSV,JSON,HTML:11"));assert_eq!(output.stdout.matches("100%").count(),2);assert!(output.stdout.contains("build"));','assert!(output.stdout.contains("Badge:Ready"));assert!(output.stdout.contains("label"));')
+    parts.append('mod '+locale.replace('-','_').lower()+'_custom_components{\n'+registry_code+registry_checks+'}\n')
+
+
 
 
 

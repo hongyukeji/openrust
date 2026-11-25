@@ -3,32 +3,50 @@ use super::{
     Alert, Ask, AskWithCompletion, BulletList, Choice, Confirm, Error, Info, Line, Secret, Success,
     Task, TwoColumnDetail, Warn,
 };
+use super::{ComponentContext, ComponentRegistry};
 use crate::console::{
     AsOutput, ChoiceKey, CompletionCallback, ConsoleError, OutputOptions, OutputReference,
     QuestionStyle,
 };
+use crate::contracts::container::Container as _;
 use serde_json::Value;
+use std::sync::Arc;
 
 /// 组件工厂所需的输出能力；普通流可显示组件，问答还需保留原样式输入。
 pub trait ComponentOutput: AsOutput {
+    fn component_context(&mut self) -> ComponentContext<'_> {
+        ComponentContext::Output(self.as_output())
+    }
     fn question_style(&mut self) -> Option<&mut (dyn QuestionStyle + '_)> {
-        None
+        match self.component_context() {
+            ComponentContext::Style(style) => Some(style),
+            ComponentContext::Output(_) => None,
+        }
     }
 }
 impl ComponentOutput for crate::console::Output {}
 impl ComponentOutput for OutputReference<'_> {}
 impl ComponentOutput for crate::console::ConsoleSectionOutput<'_> {}
 impl ComponentOutput for crate::console::OutputStyle<'_> {
+    fn component_context(&mut self) -> ComponentContext<'_> {
+        ComponentContext::Style(self)
+    }
     fn question_style(&mut self) -> Option<&mut (dyn QuestionStyle + '_)> {
         Some(self)
     }
 }
 impl ComponentOutput for crate::console::ConsoleStyle<'_> {
+    fn component_context(&mut self) -> ComponentContext<'_> {
+        ComponentContext::Style(self)
+    }
     fn question_style(&mut self) -> Option<&mut (dyn QuestionStyle + '_)> {
         Some(self)
     }
 }
 impl<T: ComponentOutput + ?Sized> ComponentOutput for Box<T> {
+    fn component_context(&mut self) -> ComponentContext<'_> {
+        (**self).component_context()
+    }
     fn question_style(&mut self) -> Option<&mut (dyn QuestionStyle + '_)> {
         (**self).question_style()
     }
@@ -36,10 +54,45 @@ impl<T: ComponentOutput + ?Sized> ComponentOutput for Box<T> {
 /// 每次借用同一输出的组件门面；不重新构造样式、复制输入或保存全局渲染器。
 pub struct Factory<'a, T: ComponentOutput + ?Sized> {
     output: &'a mut T,
+    registry_source: RegistrySource,
+}
+enum RegistrySource {
+    Application(Arc<crate::container::Container>),
+    Explicit(Arc<ComponentRegistry>),
+    None,
 }
 impl<'a, T: ComponentOutput + ?Sized> Factory<'a, T> {
     pub fn new(output: &'a mut T) -> Self {
-        Self { output }
+        Self {
+            output,
+            registry_source: crate::support::facades::current_container()
+                .map_or(RegistrySource::None, RegistrySource::Application),
+        }
+    }
+    pub fn with_registry(output: &'a mut T, registry: Arc<ComponentRegistry>) -> Self {
+        Self {
+            output,
+            registry_source: RegistrySource::Explicit(registry),
+        }
+    }
+    pub(super) fn registry(&self) -> Result<Option<Arc<ComponentRegistry>>, ConsoleError> {
+        match &self.registry_source {
+            RegistrySource::None => Ok(None),
+            RegistrySource::Explicit(registry) => Ok(Some(registry.clone())),
+            RegistrySource::Application(container) => {
+                if container.bound::<ComponentRegistry>() {
+                    container
+                        .make::<ComponentRegistry>()
+                        .map(Some)
+                        .map_err(ConsoleError::from_source)
+                } else {
+                    Ok(None)
+                }
+            }
+        }
+    }
+    pub(super) fn component_context(&mut self) -> ComponentContext<'_> {
+        self.output.component_context()
     }
     pub fn get_output(&mut self) -> OutputReference<'_> {
         self.output.as_output()

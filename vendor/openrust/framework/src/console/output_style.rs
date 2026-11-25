@@ -80,6 +80,11 @@ pub enum OutputMessages<'a> {
     Text(&'a str),
     Lines(&'a [&'a str]),
 }
+impl<'a> From<&'a String> for OutputMessages<'a> {
+    fn from(message: &'a String) -> Self {
+        Self::Text(message.as_str())
+    }
+}
 impl<'a> From<&'a str> for OutputMessages<'a> {
     fn from(message: &'a str) -> Self {
         Self::Text(message)
