@@ -42,6 +42,8 @@ The dashboard uses native HTML, JavaScript and JSON. Publish its template with `
 
 Configure `pulse.recorders` using the type names `CacheInteractions`, `Exceptions`, `Queues`, `SlowJobs`, `SlowOutgoingRequests`, `SlowQueries`, `SlowRequests`, `UserJobs`, `UserRequests` and `Servers`. Set a recorder to `false` or `enabled=false` to disable registration at startup. `sample_rate` ranges from 0 to 1. Slow recorder `threshold` values use milliseconds; `ignore` accepts PCRE patterns with PHP-style delimiters.
 
+For named routes ending in `livewire.update`, `SlowRequests` and `UserRequests` use `memo.path` from the decoded `components[0].snapshot` JSON when it is available. Slow-request entries keep the handling route in the `via` field. Pulse uses the request snapshot already available to the kernel and leaves opaque bodies unread.
+
 Use ordered `[[pattern, value], ...]` arrays for `groups` and pattern-specific `threshold` values. For example, `[["/^orders:\\d+$/", "orders:*"]]` preserves first-match precedence; object forms follow JSON object key order. Job sampling uses UUIDs consistently across their lifecycle. Request keys use matched routes instead of individual dynamic IDs. Outgoing HTTP URLs omit usernames and passwords.
 
 Slow query `location` attempts to resolve application source locations; builds without debug symbols may return an empty location. `Exceptions` handles native typed exception logs, job failures and `Pulse::report`. Plain JSON log context is not treated as an exception. Rust errors do not necessarily contain a trace; provide an explicit location when needed.

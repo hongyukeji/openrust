@@ -80,20 +80,31 @@ impl Recorders {
         duration: Option<i64>,
         seed: Option<&str>,
     ) -> Result<bool> {
+        let Some(options) = self.sampled_options(name, seed)? else {
+            return Ok(false);
+        };
+        Self::matches_options(&options, key, duration)
+    }
+
+    fn sampled_options(&self, name: &str, seed: Option<&str>) -> Result<Option<Value>> {
         let options = self.options(name);
         if options == Value::Bool(false)
             || options.get("enabled").and_then(Value::as_bool) == Some(false)
         {
-            return Ok(false);
+            return Ok(None);
         }
-        if !concerns::sample(
+        Ok(concerns::sample(
             options
                 .get("sample_rate")
                 .and_then(Value::as_f64)
                 .unwrap_or(1.0),
             seed,
-        )? || concerns::ignored(options.get("ignore").unwrap_or(&Value::Null), key)?
-        {
+        )?
+        .then_some(options))
+    }
+
+    fn matches_options(options: &Value, key: &str, duration: Option<i64>) -> Result<bool> {
+        if concerns::ignored(options.get("ignore").unwrap_or(&Value::Null), key)? {
             return Ok(false);
         }
         if let Some(duration) = duration {
@@ -162,29 +173,54 @@ impl Recorders {
             else {
                 return Ok(());
             };
-            let path = format!(
-                "{}{}",
-                route.domain.as_deref().unwrap_or(""),
-                if route.uri.starts_with('/') {
-                    route.uri.clone()
-                } else {
-                    format!("/{}", route.uri)
-                }
-            );
             let user = pulse.resolve_authenticated_user_id();
+            let slow_options = self.sampled_options("SlowRequests", None)?;
+            let user_options = if user.is_some() {
+                self.sampled_options("UserRequests", None)?
+            } else {
+                None
+            };
+            if slow_options.is_none() && user_options.is_none() {
+                return Ok(());
+            }
+            let mut path = format!(
+                "{}/{}",
+                route.domain.as_deref().unwrap_or(""),
+                route.uri.trim_start_matches('/')
+            );
+            let mut via = route.action.clone();
+            if e.route_name
+                .as_deref()
+                .is_some_and(|name| name.ends_with("livewire.update"))
+                && let Some(snapshot) = e
+                    .payload
+                    .as_ref()
+                    .and_then(|payload| payload.pointer("/components/0/snapshot"))
+                    .and_then(Value::as_str)
+                    .filter(|snapshot| !matches!(*snapshot, "" | "0"))
+            {
+                let snapshot: Value = serde_json::from_str(snapshot)?;
+                if let Some(component_path) = snapshot.pointer("/memo/path").and_then(Value::as_str)
+                {
+                    via = format!("via {path}");
+                    path = format!("/{}", component_path.trim_start_matches('/'));
+                }
+            }
             let duration = e.duration.as_millis() as i64;
-            if self.accepts("SlowRequests", &path, Some(duration), None)? {
+            if let Some(options) = slow_options
+                && Self::matches_options(&options, &path, Some(duration))?
+            {
                 pulse
                     .record(
                         "slow_request",
-                        json!([e.request.method.as_str(), path, route.action]).to_string(),
+                        json!([e.request.method.as_str(), path, via]).to_string(),
                         Some(duration),
                         Some(e.request_started_at / 1000),
                     )
                     .await
                     .max()
                     .count();
-                if let Some(user) = &user {
+                if let Some(user) = user.as_deref().filter(|user| !matches!(*user, "" | "0")) {
                     pulse
                         .record(
                             "slow_user_request",
@@ -197,7 +233,8 @@ impl Recorders {
                 }
             }
             if let Some(user) = user
-                && self.accepts("UserRequests", &path, None, None)?
+                && let Some(options) = user_options
+                && Self::matches_options(&options, &path, None)?
             {
                 pulse
                     .record(

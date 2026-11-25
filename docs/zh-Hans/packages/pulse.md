@@ -42,6 +42,8 @@ gate.define_guest("viewPulse", |user, _| Box::pin(async move {
 
 `pulse.recorders` 按类型名称配置 `CacheInteractions`、`Exceptions`、`Queues`、`SlowJobs`、`SlowOutgoingRequests`、`SlowQueries`、`SlowRequests`、`UserJobs`、`UserRequests` 和 `Servers`。`false` 或 `enabled=false` 在启动时关闭该记录器。`sample_rate` 为 0–1，慢记录的 `threshold` 单位为毫秒；`ignore` 接受 PHP 分隔符形式的 PCRE 模式。
 
+对于路由名以 `livewire.update` 结尾的请求，`SlowRequests` 和 `UserRequests` 使用已解码的 `components[0].snapshot` JSON 中的 `memo.path`。慢请求记录的 `via` 字段保留处理路由。Pulse 使用 HTTP 内核已有的请求快照，保留不透明请求体的未读取状态。
+
 `groups` 和按模式设置的 `threshold` 用有序的 `[[pattern, value], ...]` 表达首次匹配规则。例如 `[["/^orders:\\d+$/", "orders:*"]]`；对象形式按 JSON 对象的键顺序匹配。任务采样以任务 UUID 保持生命周期一致。请求指标使用匹配路由，避免为每个动态 ID 创建指标键；外部 HTTP 去掉 URL 用户名和密码。
 
 慢查询 `location` 尝试恢复应用源码位置；不含调试符号的构建可能返回空位置。`Exceptions` 接收原生带类型的异常日志、任务异常以及 `Pulse::report`，普通 JSON 日志上下文不冒充异常。Rust 错误未必携带调用栈，需要时显式传入位置。

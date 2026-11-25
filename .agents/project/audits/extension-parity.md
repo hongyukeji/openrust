@@ -186,3 +186,11 @@ Provider 按固定 [ExpireSupervisors](https://github.com/laravel/horizon/blob/b
 固定 `MonitorMasterSupervisorMemory` 与 `MonitorSupervisorMemory` 在对应循环事件上的同步注册已补齐。Supervisor 先判断是否超限，再执行等待监控。每个循环事件与进程共享一次检测结果；内置监听器触发超限事件后停止后续循环监听器，进程读取结果并清理退出。如果更早的应用监听器中断派发，原生循环仍使用同一个检查入口完成保护。检测与事件派发之间不持有同步锁。此处保留 Rust 的强制内存保护，避免应用监听器错误绕过退出码 12。
 
 隔离 Redis 8.10.3 上通过运行时与通知共 18 项和独立 Artisan 进程验收。Master 与 Supervisor 分别在正常注册顺序、应用监听器在前且主动报错两种情形下运行；四次超限各收到一个事件并以 12 退出，提前报错的两类循环事件有单独记录。快照全仓格式、Horizon 全目标严格 Clippy、三语文档构建及 12 组浏览器检查通过。生产平台矩阵与其他生命周期事件仍需验收。
+
+### Pulse 命名更新请求的页面归因
+
+固定 [LivewireRoutes](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Recorders/Concerns/LivewireRoutes.php)、[SlowRequests](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Recorders/SlowRequests.php) 和 [UserRequests](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Recorders/UserRequests.php) 在采样后检查 `*livewire.update`。两个原生记录器现使用已解码输入的 `components[0].snapshot.memo.path` 归因并应用过滤，慢请求记录在第三项保留原始路由的 `via`。未提供快照路径时继续使用常规路由。已认证用户键 `0` 计入普通用户请求，按上游规则不产生慢用户计数。
+
+隔离快照从真实应用 HTTP、认证和 SQLite 原生存储验证命名更新、路径规范化、忽略路径、坏快照、缺少路径、未提供已解码快照、普通路由及用户键 `0`。首次用普通 JSON 请求模拟未解码输入时，框架已提前解码；改用不透明媒体类型后验证了正确的回退。Provider 10 项、快照全仓格式、Pulse 全目标严格 Clippy、三语文档构建及 12 组浏览器检查通过。
+
+当前使用原生 `RequestHandled` 已有快照，观察阶段不主动解码不透明的请求体。未运行 Laravel Livewire 客户端，PHP 请求终止回调与 Rust HTTP 事件的计时边界、异常请求与其他 Recorder 仍需独立对账。

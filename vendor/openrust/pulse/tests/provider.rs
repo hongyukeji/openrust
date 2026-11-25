@@ -46,6 +46,132 @@ fn routes() -> Result<(), openrust::routing::RoutingError> {
 fn item(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async { Ok(Response::from("ok")) })
 }
+
+fn livewire_routes() -> Result<(), openrust::routing::RoutingError> {
+    Route::group(openrust::routing::RouteGroup::new(), |router| {
+        router
+            .post("/update", decoded_request)?
+            .name("app.livewire.update");
+        router.post("/unread", item)?.name("unread.livewire.update");
+        router
+            .post("/ordinary", decoded_request)?
+            .name("ordinary.update");
+        Ok(())
+    })
+}
+
+fn decoded_request(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        openrust::support::facades::Auth::user(request).await?;
+        request.json(None).await?;
+        Ok(Response::from("ok"))
+    })
+}
+
+#[tokio::test]
+async fn request_recorders_attribute_named_livewire_updates_to_the_decoded_page() {
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(|root, env| {
+                let mut values = config(root, env)?;
+                values.get_mut("pulse").unwrap()["recorders"] = json!({
+                    "SlowRequests":{"threshold":0,"ignore":["#^/ignored$#"]},
+                    "UserRequests":{"ignore":["#^/ignored$#"]}
+                });
+                Ok(values)
+            })
+            .with_providers(vec![Box::new(PulseServiceProvider), Box::new(AuthProvider)])
+            .with_routing(Routing::default().api(livewire_routes))
+    })
+    .unwrap();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    for (route, snapshot, user) in [
+        ("update", r#"{"memo":{"path":"//orders"}}"#, 1),
+        ("update", r#"{"memo":{"path":"ignored"}}"#, 1),
+        ("update", "malformed", 1),
+        ("update", r#"{"memo":{}}"#, 1),
+        ("unread", r#"{"memo":{"path":"never-read"}}"#, 1),
+        ("ordinary", r#"{"memo":{"path":"also-unused"}}"#, 1),
+        ("update", r#"{"memo":{"path":"zero"}}"#, 0),
+    ] {
+        app.call(
+            http::Request::builder()
+                .method("POST")
+                .uri(format!("/api/{route}?user={user}"))
+                .header(
+                    "content-type",
+                    if route == "unread" {
+                        "application/octet-stream"
+                    } else {
+                        "application/json"
+                    },
+                )
+                .body(openrust::http::Body::from(
+                    json!({"components":[{"snapshot":snapshot}]}).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+        .assert_ok();
+    }
+    let store = app.app().make::<DatabaseStorage>().await.unwrap();
+    let connection = store.connection();
+    let rows = connection
+        .table("pulse_entries")
+        .r#where("type", "=", "slow_request")
+        .get()
+        .await
+        .unwrap();
+    let actual = rows
+        .iter()
+        .map(|row| {
+            let Some(openrust::database::Value::Text(key)) = row.get("key") else {
+                panic!("missing slow request key")
+            };
+            serde_json::from_str::<serde_json::Value>(key).unwrap()
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(actual.len(), 5);
+    for expected in [
+        json!(["POST", "/orders", "via /api/update"]),
+        json!(["POST", "/api/update", "provider::decoded_request"]),
+        json!(["POST", "/api/unread", "provider::item"]),
+        json!(["POST", "/api/ordinary", "provider::decoded_request"]),
+        json!(["POST", "/zero", "via /api/update"]),
+    ] {
+        assert!(
+            actual.contains(&expected),
+            "missing {expected} in {actual:?}"
+        );
+    }
+    for kind in ["user_request", "slow_user_request"] {
+        assert_eq!(
+            connection
+                .table("pulse_entries")
+                .r#where("type", "=", kind)
+                .r#where("key", "=", "42")
+                .count("*")
+                .await
+                .unwrap(),
+            3
+        );
+    }
+    for (kind, count) in [("user_request", 1), ("slow_user_request", 0)] {
+        assert_eq!(
+            connection
+                .table("pulse_entries")
+                .r#where("type", "=", kind)
+                .r#where("key", "=", "0")
+                .count("*")
+                .await
+                .unwrap(),
+            count
+        );
+    }
+}
 struct AuthProvider;
 impl openrust::support::ServiceProvider for AuthProvider {
     fn boot<'a>(
@@ -59,9 +185,17 @@ impl openrust::support::ServiceProvider for AuthProvider {
                     let user = request
                         .uri()
                         .query()
-                        .is_some_and(|q| q.contains("user=1"))
-                        .then(|| {
-                            Box::new(Identity)
+                        .and_then(|query| {
+                            if query.contains("user=1") {
+                                Some(42)
+                            } else if query.contains("user=0") {
+                                Some(0)
+                            } else {
+                                None
+                            }
+                        })
+                        .map(|id| {
+                            Box::new(Identity(id))
                                 as Box<dyn openrust::contracts::auth::Authenticatable>
                         });
                     Box::pin(async move { Ok(user) })
@@ -298,13 +432,13 @@ async fn native_server_beats_throttle_and_commands_use_configured_cache() {
     assert!(storage.values("system", None).await.unwrap().is_empty());
 }
 
-struct Identity;
+struct Identity(u64);
 impl openrust::contracts::auth::Authenticatable for Identity {
     fn get_auth_identifier_name(&self) -> &str {
         "id"
     }
     fn get_auth_identifier(&self) -> openrust::auth::AuthIdentifier {
-        42_u64.into()
+        self.0.into()
     }
     fn get_auth_password_name(&self) -> &str {
         "password"
