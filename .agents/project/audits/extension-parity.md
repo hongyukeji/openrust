@@ -99,6 +99,8 @@ O01 Activitylog、O02 Horizon、O03 Telescope原生范围、O04 Pennant、O05 Pu
 | Horizon | 继续核对 `Tags`、其余管理命令、监督器与 Worker、进程恢复、仓储、指标和面板操作。Redis Cluster 沿用固定上游支持边界。 |
 | 发布验收 | 跟踪 Fortify 三个测试目标编译深度溢出，复验最终交付快照的全仓门禁。锁定提交、依赖、目标平台和实际数据库／Redis／Worker 组合，验收迁移、正常关停、故障恢复、业务端到端及容量。平台与供应商所需真实条件按[发布待办](../todo.md#平台与发布条件)记录。 |
 
+2026-11-26 阶段组合包含 Telescope 关联写入、关系加载和 Gate 回退，Pulse 异常报告入口，以及 Horizon 显式监督器事件。三个扩展的同一隔离源码快照默认 94 项通过、23 项按环境条件跳过，仓库格式通过。证据为 `target/tmp/observability-parity/observability-combined-verified.log`。Release、各扩展剩余公开契约和实际部署组合继续验收。
+
 ### Horizon 面板名称与配置默认值
 
 固定上游[配置](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/config/horizon.php)与[面板模板](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/resources/views/layout.blade.php)均已核对。补齐 `HORIZON_NAME`，将可选名称作为文本显示于页面标题与主标题，同时发布 `waits.redis:default=60`、空静默清单以及 Supervisor 的 `nice=0`。现有等待时间监控、静默行为及进程参数的完整行为对账继续保留。
@@ -399,9 +401,9 @@ Rust 1.94.0 单作业构建通过，实际运行于 Linux 7.0.14-linuxkit、Debi
 
 本批验证 Linux ARM64 容器中的 Artisan 和 HTTP 接口。Linux x86_64、部署主机资源与信号配置、正式 Redis 拓扑、浏览器及完整发布组合仍需按目标环境验收。
 
-### Horizon 待补齐的公开进程与队列事件
+### Horizon 公开进程与队列事件
 
-固定 `MasterSupervisorReviving` 和 `SupervisorProcessRestarting` 保留公开类型。当前固定源码只找到前者的定义和后者的定义与事件映射，移植前须保留该区别。已接入的 `WorkerProcessRestarting`、`MasterSupervisorDeployed` 和 `UnableToLaunchProcess` 见下文。 [固定进程代码](https://github.com/laravel/horizon/tree/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src) [固定 EventMap](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/EventMap.php)
+固定 `MasterSupervisorReviving` 和 `SupervisorProcessRestarting` 可由应用显式派发。固定 EventMap 仅为后者登记空监听器列表。Rust 公开构造及真实进程消费已验收，见[显式派发的监督器事件](horizon/README.md#显式派发的监督器事件)。自动派发的 `WorkerProcessRestarting`、`MasterSupervisorDeployed` 和 `UnableToLaunchProcess` 见下文。 [固定进程代码](https://github.com/laravel/horizon/tree/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src) [固定 EventMap](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/EventMap.php)
 
 固定 Redis 运输事件的共同字段为连接、队列和载荷，`JobsMigrated` 提供载荷序列。公开的入队、保留、释放、删除、迁移与失败事件，以及原子任务链后继投递的通知时机见下节。 [固定 RedisQueue](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/RedisQueue.php) [固定失败事件桥接](https://github.com/laravel/horizon/blob/b86d5aa87ca474db352ea2668bdd1df3a90bf8aa/src/Listeners/MarshalFailedEvent.php)
 
