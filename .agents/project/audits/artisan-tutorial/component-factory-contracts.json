@@ -99,12 +99,15 @@
         "__call"
       ],
       "protected": [],
-      "status": "partial_typed_factory_verified_dynamic_and_container_pending",
+      "status": "partial_builtin_typed_and_dynamic_verified_custom_and_container_pending",
       "native": "console::view::components::{Factory,ComponentOutput}",
-      "evidence": "factory-typed-contracts.json",
+      "evidence": [
+        "factory-typed-contracts.json",
+        "factory-dispatch-contracts.json"
+      ],
       "remaining": [
-        "Factory::__call动态名称及参数分发、未知组件错误和显式编译注册扩展待实现。",
-        "Command容器解析Factory覆盖及装配生命周期待实际消费者。"
+        "Factory自定义编译注册、组件名字空间及容器Factory覆盖仍需公开类型与真实消费者。",
+        "抽象Component所属compile/renderView/mutate/usingQuestionHelper、一般输出和Helper/HelperSet/Time其余入口仍开放；不宣称Factory或Artisan整章已闭合。"
       ]
     },
     {
@@ -197,5 +200,9 @@
   "typed_factory": {
     "status": "verified_typed_factory_and_command_io_original_style_binding",
     "evidence": "factory-typed-contracts.json"
+  },
+  "dynamic_factory": {
+    "status": "verified_builtin_dynamic_factory_dispatch_native_parameters",
+    "evidence": "factory-dispatch-contracts.json"
   }
 }

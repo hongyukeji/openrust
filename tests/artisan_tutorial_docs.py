@@ -281,6 +281,11 @@ async fn formal_progress_example(){
     parts.append('mod '+locale.replace('-','_').lower()+'_component_factories{\n'+factory_code+factory_checks+'}\n')
 
 
+    dynamic_code=re.search(r'```rust\n(.*?)```',text.split('{#dynamic-component-calls}',1)[1],re.S).group(1)
+    dynamic_checks='use openrust::console::Output;\n'+progress_checks.replace('formal_progress_example','formal_dynamic_components_example').replace('register_progress)', 'register_dynamic_components)').replace('"reports:progress"','"components:dynamic"').replace('assert!(output.stdout.contains("CSV,JSON,HTML:11"));assert_eq!(output.stdout.matches("100%").count(),2);assert!(output.stdout.contains("build"));','assert!(output.stdout.contains("Saved"));assert!(output.stdout.contains("red"));assert!(output.stdout.contains("DONE"));')
+    parts.append('mod '+locale.replace('-','_').lower()+'_dynamic_components{\n'+dynamic_code+dynamic_checks+'}\n')
+
+
 
 
 

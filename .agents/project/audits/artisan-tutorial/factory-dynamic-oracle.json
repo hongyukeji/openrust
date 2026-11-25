@@ -1,0 +1,295 @@
+[
+  {
+    "leaked_stdout": "",
+    "name": "INFO",
+    "args": [
+      "Saved"
+    ],
+    "answer": null,
+    "error": null,
+    "output": "\n   INFO  Saved.  \n\n"
+  },
+  {
+    "leaked_stdout": "",
+    "name": "Info",
+    "args": [
+      "Saved"
+    ],
+    "answer": null,
+    "error": null,
+    "output": "\n   INFO  Saved.  \n\n"
+  },
+  {
+    "leaked_stdout": "",
+    "name": "info",
+    "args": [
+      "Saved",
+      "32",
+      "ignored"
+    ],
+    "answer": null,
+    "error": null,
+    "output": "\n   INFO  Saved.  \n\n"
+  },
+  {
+    "leaked_stdout": "",
+    "name": "warn",
+    "args": [
+      "Saved"
+    ],
+    "answer": null,
+    "error": null,
+    "output": "\n   WARN  Saved.  \n\n"
+  },
+  {
+    "leaked_stdout": "",
+    "name": "warning",
+    "args": [
+      "Saved"
+    ],
+    "answer": null,
+    "error": "InvalidArgumentException",
+    "output": ""
+  },
+  {
+    "leaked_stdout": "",
+    "name": "twoColumnDetail",
+    "args": [
+      "Key",
+      "Value"
+    ],
+    "answer": null,
+    "error": null,
+    "output": "  Key .................................................................. Value  \n"
+  },
+  {
+    "leaked_stdout": "",
+    "name": "two_column_detail",
+    "args": [
+      "Key",
+      "Value"
+    ],
+    "answer": null,
+    "error": "InvalidArgumentException",
+    "output": ""
+  },
+  {
+    "leaked_stdout": "",
+    "name": "unknown",
+    "args": [],
+    "answer": null,
+    "error": "InvalidArgumentException",
+    "output": ""
+  },
+  {
+    "leaked_stdout": "",
+    "name": "askWithCompletion",
+    "args": [
+      "Color",
+      [
+        "red",
+        "green"
+      ],
+      "red"
+    ],
+    "answer": "red",
+    "error": null,
+    "output": ""
+  },
+  {
+    "leaked_stdout": "",
+    "name": "ASKWITHCOMPLETION",
+    "args": [
+      "Color",
+      [
+        "red",
+        "green"
+      ],
+      "red"
+    ],
+    "answer": "red",
+    "error": null,
+    "output": ""
+  },
+  {
+    "leaked_stdout": "",
+    "name": "ask_with_completion",
+    "args": [
+      "Color",
+      [
+        "red",
+        "green"
+      ],
+      "red"
+    ],
+    "answer": null,
+    "error": "InvalidArgumentException",
+    "output": ""
+  },
+  {
+    "leaked_stdout": "",
+    "name": "info",
+    "args": [],
+    "answer": null,
+    "error": "ArgumentCountError",
+    "output": ""
+  },
+  {
+    "leaked_stdout": "",
+    "name": "line",
+    "args": [
+      "info"
+    ],
+    "answer": null,
+    "error": "ArgumentCountError",
+    "output": ""
+  },
+  {
+    "leaked_stdout": "<div class=\"mx-2 mb-1 mt-1\">\n    <span class=\"px-1 bg-blue text-white uppercase\">info</span>\n    <span class=\"ml-1\">\n        ",
+    "name": "info",
+    "args": [
+      [
+        1,
+        2
+      ]
+    ],
+    "answer": null,
+    "error": "TypeError",
+    "output": ""
+  },
+  {
+    "leaked_stdout": "",
+    "name": "choice",
+    "args": [
+      "Color",
+      [],
+      null,
+      null,
+      false
+    ],
+    "answer": null,
+    "error": "LogicException",
+    "output": ""
+  },
+  {
+    "leaked_stdout": "",
+    "name": "task",
+    "args": [
+      "Task",
+      false
+    ],
+    "answer": null,
+    "error": null,
+    "output": "  Task .................................................................. DONE\n"
+  },
+  {
+    "leaked_stdout": "",
+    "name": "task",
+    "args": [
+      "Task",
+      0
+    ],
+    "answer": null,
+    "error": null,
+    "output": "  Task .................................................................. DONE\n"
+  },
+  {
+    "leaked_stdout": "",
+    "name": "task",
+    "args": [
+      "Task",
+      "0"
+    ],
+    "answer": null,
+    "error": null,
+    "output": "  Task .................................................................. DONE\n"
+  },
+  {
+    "leaked_stdout": "",
+    "name": "task",
+    "args": [
+      "Task",
+      []
+    ],
+    "answer": null,
+    "error": null,
+    "output": "  Task .................................................................. DONE\n"
+  },
+  {
+    "leaked_stdout": "",
+    "name": "confirm",
+    "args": [
+      "Continue",
+      "false"
+    ],
+    "answer": true,
+    "error": null,
+    "output": ""
+  },
+  {
+    "leaked_stdout": "",
+    "name": "confirm",
+    "args": [
+      "Continue",
+      "0"
+    ],
+    "answer": false,
+    "error": null,
+    "output": ""
+  },
+  {
+    "leaked_stdout": "",
+    "name": "bulletList",
+    "args": [
+      {
+        "a": "One",
+        "b": "Two"
+      }
+    ],
+    "answer": null,
+    "error": null,
+    "output": "  ⇂ One  \n  ⇂ Two  \n"
+  },
+  {
+    "leaked_stdout": "",
+    "name": "info",
+    "args": [
+      123
+    ],
+    "answer": null,
+    "error": null,
+    "output": "\n   INFO  123.  \n\n"
+  },
+  {
+    "leaked_stdout": "",
+    "name": "info",
+    "args": [
+      true
+    ],
+    "answer": null,
+    "error": null,
+    "output": "\n   INFO  1.  \n\n"
+  },
+  {
+    "leaked_stdout": "",
+    "name": "info",
+    "args": [
+      null
+    ],
+    "answer": null,
+    "error": null,
+    "output": "\n   INFO  .  \n\n"
+  },
+  {
+    "leaked_stdout": "",
+    "name": "twoColumnDetail",
+    "args": [
+      "Key",
+      null,
+      16
+    ],
+    "answer": null,
+    "error": null,
+    "output": "  Key ........................................................................  \n"
+  }
+]

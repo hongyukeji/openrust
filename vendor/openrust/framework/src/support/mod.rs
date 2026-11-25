@@ -1,6 +1,7 @@
 //! Shared framework extension points.
 
 mod arr;
+pub(crate) use arr::truthy;
 mod backed_enum;
 mod benchmark;
 pub(crate) mod calendar;

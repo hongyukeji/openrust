@@ -346,11 +346,12 @@
         "tree-node-contracts.json",
         "console_tree_helpers",
         "tree-helper-contracts.json",
-        "factory-typed-contracts.json"
+        "factory-typed-contracts.json",
+        "factory-dispatch-contracts.json"
       ],
       "native": "console::CommandIo",
       "remaining": [
-        "14具体组件及类型化Factory/CommandIo原样式绑定已验；Factory动态分发与容器覆盖、抽象Component、通用输出接口及其余SDK继续。"
+        "14内置组件的类型化和动态Factory及原样式绑定已验；自定义注册/容器覆盖、抽象Component及其余SDK继续。"
       ]
     },
     {
@@ -534,9 +535,16 @@
     "status": "verified_typed_factory_and_command_io_original_style_binding",
     "contract": "factory-typed-contracts.json",
     "remaining": [
-      "Factory::__call动态名称及参数分发、未知组件错误和显式编译注册扩展待实现。",
-      "Command容器解析Factory覆盖及装配生命周期待实际消费者。",
-      "抽象Component所属compile/renderView/mutate/usingQuestionHelper、一般输出接口及Helper/HelperSet/Time其余入口保持开放；不宣称Factory类或Artisan整章已闭合。"
+      "Factory自定义编译注册、组件名字空间及容器Factory覆盖仍需公开类型与真实消费者。",
+      "抽象Component所属compile/renderView/mutate/usingQuestionHelper、一般输出和Helper/HelperSet/Time其余入口仍开放；不宣称Factory或Artisan整章已闭合。"
+    ]
+  },
+  "dynamic_component_factory": {
+    "status": "verified_builtin_dynamic_factory_dispatch_native_parameters",
+    "contract": "factory-dispatch-contracts.json",
+    "remaining": [
+      "Factory自定义编译注册、组件名字空间及容器Factory覆盖仍需公开类型与真实消费者。",
+      "抽象Component所属compile/renderView/mutate/usingQuestionHelper、一般输出和Helper/HelperSet/Time其余入口仍开放；不宣称Factory或Artisan整章已闭合。"
     ]
   }
 }

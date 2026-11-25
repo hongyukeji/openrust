@@ -1,0 +1,32 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "status": "verified_builtin_dynamic_factory_dispatch_native_parameters",
+  "native": [
+    "console::view::components::Factory::call",
+    "console::view::components::{ComponentArgument,ComponentTaskCallback}"
+  ],
+  "source_oracles": {
+    "factory-questions-oracle.json": 134,
+    "factory-display-oracle.json": 108,
+    "factory-dynamic-oracle.json": 26
+  },
+  "runtime": {
+    "real_artisan_processes": 41,
+    "http_requests": 18,
+    "pty_scenarios": 10,
+    "docs_consumers": 144,
+    "browser_checks": 12
+  },
+  "adaptations": [
+    "Rust标识符仍为蛇形；动态字符串保留源askWithCompletion/bulletList/twoColumnDetail和ASCII大小写不敏感规则，不添加下划线别名。",
+    "数据按既有JSON参数边界，回调为编译后的CompletionCallback或拥有Send借用的FnOnce；不解释函数名或PHP全局函数文本。",
+    "输出选项沿已验OutputOptions：允许单个详细级别及单个格式标志的组合，拒绝相冲突／未定义组合，不默默截断或正规化；无任意PHP对象和整数位掩码SDK声明。",
+    "错误消息使用中文ConsoleError，不伪造PHP异常类。非法数组文本在渲染前拒绝，不复制源TypeError造成ob模板泄漏；实际泄漏字节保留在26场景oracle。",
+    "空/false/0/字符串0/空数组任务参数沿源走无回调成功，不添加耗时；真值非回调仍先显示失败收尾再传播错误。",
+    "复用既有Arr真值函数，仅扩大crate内部可见性，不新增公开转换接口或改变已有数据格式。"
+  ],
+  "remaining": [
+    "Factory自定义编译注册、组件名字空间及容器Factory覆盖仍需公开类型与真实消费者。",
+    "抽象Component所属compile/renderView/mutate/usingQuestionHelper、一般输出和Helper/HelperSet/Time其余入口仍开放；不宣称Factory或Artisan整章已闭合。"
+  ]
+}

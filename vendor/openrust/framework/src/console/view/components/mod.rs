@@ -9,3 +9,5 @@ mod questions;
 pub use questions::{Ask, AskWithCompletion, Choice, Confirm, Secret};
 mod factory;
 pub use factory::{ComponentOutput, Factory};
+mod dispatch;
+pub use dispatch::{ComponentArgument, ComponentTaskCallback};

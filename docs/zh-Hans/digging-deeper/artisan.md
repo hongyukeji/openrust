@@ -1818,3 +1818,36 @@ fn register_component_factories() -> Result<(), ConsoleError> {
 ```
 
 工厂保留命令最初的输出样式和问答输入。`set_output` 只替换普通输出，多次替换不会迁移组件输出或问答输入；`set_input` 更换命令输入访问，不替换原样式。独立的 `Factory::new(&mut output)` 可在 `Output`、输出引用和分区上显示组件。问答需要 `OutputStyle`、`ConsoleStyle` 或自定义 `ComponentOutput::question_style` 实现；普通流会在打印问题前返回运行时错误。任务回调接收同一所选输出引用，保留任务失败显示与错误传播行为。
+
+
+### 动态组件调用 {#dynamic-component-calls}
+
+组件名称在运行时确定时使用 `Factory::call(name, parameters).await`。名称保留动态字符串契约：`askWithCompletion`、`bulletList` 和 `twoColumnDetail`，不区分大小写，但不把下划线名称作为别名。未知名称返回 `ConsoleError`。普通 Rust 方法继续使用蛇形命名。
+
+```rust
+use openrust::{
+    console::{AsyncCommandCallback, CompletionCallback, ConsoleError, view::components::ComponentArgument},
+    support::facades::Artisan,
+};
+use serde_json::json;
+fn register_dynamic_components() -> Result<(), ConsoleError> {
+    Artisan::command_with("components:dynamic", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut io = input.io(output);
+            let color = io.components().call("askWithCompletion", vec![
+                "Color".into(), CompletionCallback::sync(|_| Ok(vec!["red".into(), "green".into()])).into(),
+                json!("red").into(),
+            ]).await?;
+            io.components().call("info", vec!["Saved".into()]).await?;
+            io.components().call("task", vec!["Index".into(), ComponentArgument::task(|_| Ok(true))]).await?;
+            io.line(&format!("Choice:{color}"))?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+`ComponentArgument::Value` 承载 JSON 数据。显示调用返回 JSON null，问答返回既有值，确认返回 JSON 布尔值。`Completion` 接收现有 `CompletionCallback`；`ComponentArgument::task` 持有编译后的 `FnOnce` 回调，可在调用期间借用 `Send` 状态。回调只执行一次，错误传播前仍完成任务显示收尾。字符串是数据，不作为可执行函数名。`Options` 接收 `OutputOptions`。整数选项接受文档常量中的单个详细级别与单个格式标志；冲突位掩码和非法参数返回错误。既有所有权、问答取消及临时帮助器恢复规则仍适用。
+
+文本参数误传数组时在渲染前拒绝，不会因错误把未完成编译的 HTML 模板遗留在进程输出缓冲中。

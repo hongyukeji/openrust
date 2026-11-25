@@ -674,3 +674,16 @@ Factory正式类型及14内置组件方法接通，CommandIo::components/output_
 固定PHP Factory直接产生134问答、108显示及1绑定向量；实际Artisan进程41例对照已验物理流，HTTP18请求含五问答类型、500与12并发恢复，真实PTY10例含Unicode、数组/回调补全、多行、隐藏不回显、禁止回退、Ctrl+C130和回调错误1。termios/fd恢复且无外部stty。工厂可选输出参数与既有组件消费者逐字比较，原错误/任务回调/原始输出继续可用。三语示例直接提取141个消费者；三语构建与12浏览器检查通过。完整命令和最终门禁见accepted-factory-typed.json，证据target/tmp/artisan-tutorial-20261125/factory-*。首次测试夹具保留了Secret旧类型名、Alert断言误用小写，均修正测试后重跑；运行中32GB中断不计通过，守卫清理75,102,064,640字节，恢复后原验收继续。
 
 这里只关闭类型化内置工厂和CommandIo原样式绑定。源Factory::__call、类名/未知组件/自定义编译注册和容器Factory覆盖仍开放，不能将14转发方法包装为完整Factory类。抽象Component及Helper/HelperSet/Time其余SDK继续；Artisan整章未闭合。仅提交核定范围到本地，不推送。
+
+
+## 47. 内置组件动态名称与参数分发（2026-11-26）
+
+Factory::call及ComponentArgument/ComponentTaskCallback正式接通14内置组件，复用其类型化方法及全部原显示/问答/任务引擎。动态字符串保留源类名规则：ASCII大小写不敏感，askWithCompletion/bulletList/twoColumnDetail不偷偷接受snake_case别名。未知名称、缺参、类型错误、空选择、零尝试均从正式call实测。源码返回void为JSON null；确认bool、其他问答既有JSON值，未改序列化。额外参数按源忽略。数据字符串不解释为可执行函数名，使用编译回调；FnOnce可借用Send状态，真实一次调用/失败收尾/恢复、补全回调、超时取消后Helper Arc及原输入恢复均通过。
+
+134问答和108显示Factory源码向量经新的动态入口再实测，新增26源码场景核对大小写、未知/下划线别名、缺参、标量、关联列表、bool弱值、任务false/0/字符串0/空数组、额外参数与显式级别。源非法数组文本会在TypeError后遗留未关闭ob中的模板片段，原始字节保存在factory-dynamic-oracle.json；原生渲染前检查并拒绝，不复制解释器缓冲泄漏。最初探测JSON被泄漏污染，添加外层ob实收各层泄漏后重跑，没有丢弃缺陷证据或修改源实现。原生错误为中文ConsoleError，不假装PHP异常类。
+
+沿用已确认OutputOptions边界：单个格式和单个详细级别，可传Options或对应整数；冲突mask48等明确拒绝，不默默改为另一级别。不宣称任意PHP整数掩码SDK或任意对象图。Source任务真值非回调在写描述后失败收尾，原生同样执行已验Task路径；Callback typed/Completion真实消费者而非只传JSON占位。
+
+41实际Artisan进程逐字比物理stdout/stderr；HTTP18请求含五问答类型、500及12并发恢复；10真实PTY涵盖原生输入、数组/回调补全、多行、隐藏不回显、Ctrl+C130和回调失败1，终端状态恢复，无外部stty。原生初轮多行夹具误用Text，源期望Name，改正夹具后全通过；未修改产品迎合断言。最终29框架父消费者(驱动另由父进程执行)和三语源码直接提取144消费者通过；workspace/all-targets严格Clippy、格式、三语构建和12浏览器通过。命令/日志见accepted-factory-dispatch.json。独立PTY二进制验后SHA核对回收，保留源码/日志/共享缓存。
+
+Factory自定义编译注册、组件名字空间与容器Factory覆盖仍开放，不能把内置分发表当作整个源Factory。抽象Component及其余继承SDK继续；不重复实现既有组件，不以单簇通过宣布整章闭合。仅本地提交，不推送。

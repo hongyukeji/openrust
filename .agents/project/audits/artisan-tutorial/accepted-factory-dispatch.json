@@ -1,0 +1,28 @@
+{
+  "source_base": "01948881c703f3eca542c82fffe0e1aebd97ac88",
+  "contract": "factory-dispatch-contracts.json",
+  "gates": [
+    "target/tmp/artisan-tutorial-20261125/factory-dispatch-gates-first.log",
+    "target/tmp/artisan-tutorial-20261125/factory-dispatch-gates-final.log",
+    "target/tmp/artisan-tutorial-20261125/factory-dispatch-site.log",
+    "target/tmp/artisan-tutorial-20261125/factory-dispatch-tty-results.json"
+  ],
+  "test_summaries": [
+    "test result: ok. 8 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.86s",
+    "test result: ok. 8 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.88s",
+    "test result: ok. 13 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.28s",
+    "test result: ok. 144 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.44s"
+  ],
+  "runtime": {
+    "real_artisan_processes": 41,
+    "http_requests": 18,
+    "pty_scenarios": 10,
+    "docs_consumers": 144,
+    "browser_checks": 12
+  },
+  "remaining": [
+    "Factory自定义编译注册、组件名字空间及容器Factory覆盖仍需公开类型与真实消费者。",
+    "抽象Component所属compile/renderView/mutate/usingQuestionHelper、一般输出和Helper/HelperSet/Time其余入口仍开放；不宣称Factory或Artisan整章已闭合。"
+  ],
+  "pushed": false
+}

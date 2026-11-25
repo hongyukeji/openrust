@@ -1818,3 +1818,36 @@ fn register_component_factories() -> Result<(), ConsoleError> {
 ```
 
 The factory retains the command's original output style and its question input. `set_output` replaces the ordinary output only; repeated replacements do not move component output or question input. `set_input` changes command input access without replacing that original style. A standalone `Factory::new(&mut output)` supports display on `Output`, output references and sections. Questions require an `OutputStyle`, `ConsoleStyle`, or a custom `ComponentOutput::question_style` implementation; a plain stream returns a runtime error before printing a question. Task callbacks receive the same selected output reference and retain task failure and error propagation behavior.
+
+
+### Dynamic component calls {#dynamic-component-calls}
+
+Use `Factory::call(name, parameters).await` for a component name chosen at runtime. Names preserve the dynamic string contract: `askWithCompletion`, `bulletList` and `twoColumnDetail`; case is ignored, but underscore spellings are not aliases. Unknown names return `ConsoleError`. The ordinary Rust methods continue to use snake case.
+
+```rust
+use openrust::{
+    console::{AsyncCommandCallback, CompletionCallback, ConsoleError, view::components::ComponentArgument},
+    support::facades::Artisan,
+};
+use serde_json::json;
+fn register_dynamic_components() -> Result<(), ConsoleError> {
+    Artisan::command_with("components:dynamic", AsyncCommandCallback::new(|_, input, output| {
+        Box::pin(async move {
+            let mut io = input.io(output);
+            let color = io.components().call("askWithCompletion", vec![
+                "Color".into(), CompletionCallback::sync(|_| Ok(vec!["red".into(), "green".into()])).into(),
+                json!("red").into(),
+            ]).await?;
+            io.components().call("info", vec!["Saved".into()]).await?;
+            io.components().call("task", vec!["Index".into(), ComponentArgument::task(|_| Ok(true))]).await?;
+            io.line(&format!("Choice:{color}"))?;
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```
+
+`ComponentArgument::Value` carries JSON data. Display calls return JSON null, questions return their existing values, and confirmation returns a JSON boolean. `Completion` accepts the existing `CompletionCallback`; `ComponentArgument::task` owns a compiled `FnOnce` callback, including borrowed `Send` state for the duration of the call. It runs once and retains task finalization before error propagation. Strings are data, not executable function names. `Options` accepts `OutputOptions`. Integer options accept one verbosity and one format flag from the documented constants; conflicting masks and invalid arguments return errors. Existing ownership, question cancellation and temporary-helper restoration rules still apply.
+
+Invalid text arrays are rejected before rendering. An error cannot leave a partially compiled HTML template in a process output buffer.
