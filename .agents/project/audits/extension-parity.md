@@ -204,3 +204,9 @@ Provider 按固定 [ExpireSupervisors](https://github.com/laravel/horizon/blob/b
 ### Pulse 响应传输中断验收
 
 从独立 Artisan 启动真实 HTTP 服务，以 SQLite 存储和原生请求认证发送请求。夹具返回持续打开的分块流，客户端读到首段后继续连接至少 150ms；在流仍打开时没有请求指标。客户端提前关闭 TCP 后，数据库收到一条不少于 150ms 的慢请求、一个普通用户计数和一个慢用户计数，用户 ID 均为 42。夹具首次发现未显式启用普通用户 Recorder，补齐测试配置后通过；生产配置与采集实现无需改动。使用内核分配的端口，测试结束关闭子进程。相同快照的 Provider 11 项、全仓格式和 Pulse 全目标严格 Clippy 通过。仍需最终生产组合、其他平台及外部 Livewire 客户端验收。
+
+### Pulse 慢出站请求的公开记录入口
+
+固定 [SlowOutgoingRequests](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Recorders/SlowOutgoingRequests.php) 在完成和异常两条路径记请求，用完成时刻作为条目时间戳，并在采样、忽略、阈值及分组前去除 URL 用户凭据。Rust 的原生 HTTP 中间件和公开 `SlowOutgoingRequests::record_outgoing` 共用记录与脱敏入口，已有 `Recorders::outgoing` 也经同一规范化函数。公开 `normalize_url` 接受有效绝对 URL，无遮蔽需求时保留原拼写；校验错误不回显地址。Native 传输使用单调时钟计时，保留已有完成时刻时间戳。
+
+真实回环 HTTP 覆盖先返回 500 后重试成功、已接收请求后断开以及带用户凭据的直接记录。SQLite 应用数据库中两次重试分别按脱敏地址分组，断开单列一条，直接记录保留查询字符串和明确的 25ms 耗时。Provider 12 项、快照全仓格式、Pulse 全目标严格 Clippy、三语文档构建及 12 组浏览器检查通过。PHP Guzzle 重定向统计、跨协议 URI 细节及生产组合仍需对账。

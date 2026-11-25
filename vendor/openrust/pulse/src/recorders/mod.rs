@@ -429,9 +429,9 @@ impl Recorders {
         duration: i64,
     ) -> Result<()> {
         let recorder = self.clone();
-        let method = method.to_owned();
-        let url = url.to_owned();
         let timestamp = jiff::Timestamp::now().as_second();
+        let method = method.to_owned();
+        let url = SlowOutgoingRequests::normalize_url(url)?;
         pulse
             .lazy(move |pulse| {
                 Box::pin(async move {
@@ -579,6 +579,30 @@ recorder!(UserJobs, ["JobQueued"]);
 recorder!(SlowJobs, ["JobAttempted"]);
 recorder!(Exceptions, ["OpenRust\\Pulse\\Events\\ExceptionReported"]);
 recorder!(SlowOutgoingRequests, []);
+impl SlowOutgoingRequests {
+    /// Removes HTTP URL user information before sampling, grouping and storage.
+    pub fn normalize_url(url: &str) -> Result<String> {
+        let mut parsed = url::Url::parse(url).map_err(|_| {
+            crate::Error::InvalidConfiguration("出站请求地址必须是有效的绝对 URL".into())
+        })?;
+        if parsed.username().is_empty() && parsed.password().is_none() {
+            return Ok(url.into());
+        }
+        let _ = parsed.set_password(None);
+        let _ = parsed.set_username("");
+        Ok(parsed.into())
+    }
+
+    pub async fn record_outgoing(
+        &self,
+        pulse: &Pulse,
+        method: &str,
+        url: &str,
+        duration: i64,
+    ) -> Result<()> {
+        self.0.outgoing(pulse, method, url, duration).await
+    }
+}
 impl Recorder for Servers {
     fn name(&self) -> &'static str {
         "Servers"
@@ -647,7 +671,7 @@ pub(crate) fn register(
     base_path: std::path::PathBuf,
     options: Arc<crate::pulse::Options>,
 ) -> EventResult<()> {
-    let recorders = Arc::new(Recorders::new(config.clone()).with_base_path(base_path.clone()));
+    let outgoing = Arc::new(SlowOutgoingRequests::new(config.clone()));
     let defaults: Vec<Arc<dyn Recorder>> = vec![
         Arc::new(SlowQueries::new(config.clone()).with_base_path(base_path)),
         Arc::new(CacheInteractions::new(config.clone())),
@@ -657,7 +681,7 @@ pub(crate) fn register(
         Arc::new(UserJobs::new(config.clone())),
         Arc::new(SlowJobs::new(config.clone())),
         Arc::new(Exceptions::new(config.clone())),
-        Arc::new(SlowOutgoingRequests::new(config.clone())),
+        outgoing.clone(),
         servers,
     ];
     for recorder in defaults {
@@ -671,13 +695,11 @@ pub(crate) fn register(
         }
     }
     client.global_middleware(move |request, next| {
-        let recorders = recorders.clone();
+        let outgoing = outgoing.clone();
         let options = options.clone();
         Box::pin(async move {
             let method = request.method().to_string();
-            let mut url = request.url().clone();
-            let _ = url.set_username("");
-            let _ = url.set_password(None);
+            let url = request.url().to_string();
             let started = std::time::Instant::now();
             let result = next.run(request).await;
             if !Pulse::is_ignoring(&options)
@@ -686,13 +708,8 @@ pub(crate) fn register(
                     .automatic_recording
                     .load(std::sync::atomic::Ordering::Relaxed)
                 && pulse.is_recording()
-                && let Err(e) = recorders
-                    .outgoing(
-                        &pulse,
-                        &method,
-                        url.as_str(),
-                        started.elapsed().as_millis() as i64,
-                    )
+                && let Err(e) = outgoing
+                    .record_outgoing(&pulse, &method, &url, started.elapsed().as_millis() as i64)
                     .await
             {
                 pulse.report_error(&e);

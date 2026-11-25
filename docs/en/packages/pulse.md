@@ -44,6 +44,8 @@ Configure `pulse.recorders` using the type names `CacheInteractions`, `Exception
 
 For named routes ending in `livewire.update`, `SlowRequests` and `UserRequests` use `memo.path` from the decoded `components[0].snapshot` JSON when it is available. Slow-request entries keep the handling route in the `via` field. Pulse uses the request snapshot already available to the kernel and leaves opaque bodies unread.
 
+`SlowOutgoingRequests` measures native HTTP client attempts, including failed attempts and retries. URL credentials are removed before ignore and grouping rules run. Custom transports can pass an absolute URL and millisecond duration to `SlowOutgoingRequests::record_outgoing`, which uses the same rules.
+
 Slow request timing includes response termination middleware and deferred work, including on error responses. User attribution is captured within the request scope before termination.
 
 Use ordered `[[pattern, value], ...]` arrays for `groups` and pattern-specific `threshold` values. For example, `[["/^orders:\\d+$/", "orders:*"]]` preserves first-match precedence; object forms follow JSON object key order. Job sampling uses UUIDs consistently across their lifecycle. Request keys use matched routes instead of individual dynamic IDs. Outgoing HTTP URLs omit usernames and passwords.

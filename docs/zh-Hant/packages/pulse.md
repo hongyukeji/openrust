@@ -44,6 +44,8 @@ gate.define_guest("viewPulse", |user, _| Box::pin(async move {
 
 對於路由名稱以 `livewire.update` 結尾的請求，`SlowRequests` 和 `UserRequests` 使用已解碼的 `components[0].snapshot` JSON 中的 `memo.path`。慢請求記錄的 `via` 欄位保留處理路由。Pulse 使用 HTTP 核心已有的請求快照，保持不透明請求本文的未讀取狀態。
 
+`SlowOutgoingRequests` 記錄原生 HTTP 用戶端的每次嘗試，包括失敗及重試。忽略與分組規則在移除 URL 使用者憑證之後執行。自訂傳輸可向 `SlowOutgoingRequests::record_outgoing` 提供絕對 URL 和毫秒耗時，沿用相同規則。
+
 慢請求耗時包含回應終止中介層及延後執行的工作，錯誤回應也會計入。使用者歸因在終止前的請求作用域中取得。
 
 `groups` 與按模式設定的 `threshold` 使用有序的 `[[pattern, value], ...]` 表達首次符合規則。例如 `[["/^orders:\\d+$/", "orders:*"]]`；物件形式按 JSON 物件的鍵順序比對。工作取樣以工作 UUID 保持生命週期一致。請求指標使用符合的路由，避免為每個動態 ID 建立指標鍵；外部 HTTP 移除 URL 使用者名稱與密碼。

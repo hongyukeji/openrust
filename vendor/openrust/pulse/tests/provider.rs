@@ -702,6 +702,128 @@ async fn native_recorders_capture_real_client_sql_cache_and_typed_errors_without
     }
 }
 
+fn outgoing_attempts(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        use openrust::support::facades::{Config, Facade, Http};
+        let config = Config::get_facade_root()?;
+        let base = config.get("probe.url").unwrap();
+        let base = base.as_str().unwrap();
+        let response = Http::pending_request()
+            .unwrap()
+            .retry(2, std::time::Duration::ZERO)
+            .get(&format!("{base}/attempt"))
+            .await
+            .unwrap();
+        assert!(response.successful());
+        assert!(Http::get(&format!("{base}/disconnect")).await.is_err());
+        let pulse = openrust_pulse::facades::Pulse::get_facade_root()?;
+        openrust_pulse::recorders::SlowOutgoingRequests::new(config)
+            .record_outgoing(&pulse, "GET", &format!("{base}/manual?keep=yes"), 25)
+            .await
+            .unwrap();
+        Ok(Response::from("ok"))
+    })
+}
+
+#[tokio::test]
+async fn slow_outgoing_records_retry_attempts_failures_and_sanitized_direct_calls() {
+    use openrust::contracts::foundation::Application as _;
+    use openrust_pulse::recorders::SlowOutgoingRequests;
+    use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+    let original = "https://EXAMPLE.test/item?q=%40";
+    assert_eq!(
+        SlowOutgoingRequests::normalize_url(original).unwrap(),
+        original
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let peer = tokio::spawn(async move {
+        for status in [Some("500 Internal Server Error"), Some("200 OK"), None] {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = [0; 2048];
+            assert!(socket.read(&mut request).await.unwrap() > 0);
+            if let Some(status) = status {
+                socket
+                    .write_all(
+                        format!(
+                            "HTTP/1.1 {status}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                        )
+                        .as_bytes(),
+                    )
+                    .await
+                    .unwrap();
+            }
+        }
+    });
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_config(recorder_config)
+            .with_providers(vec![Box::new(PulseServiceProvider)])
+            .with_routing(Routing::default().api(|| Route::get("/outgoing", outgoing_attempts)))
+    })
+    .unwrap();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    let config = app.app().config().unwrap();
+    config
+        .set(
+            "probe.url",
+            json!(format!("http://client:private@{address}")),
+        )
+        .unwrap();
+    config
+        .set(
+            "pulse.recorders.SlowOutgoingRequests",
+            json!({
+                "threshold":0,
+                "groups":[[r"#^http://127\.0\.0\.1:\d+/attempt$#", "retry-attempt"]]
+            }),
+        )
+        .unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(5), app.get("/api/outgoing"))
+        .await
+        .unwrap()
+        .unwrap()
+        .assert_ok();
+    peer.await.unwrap();
+    let store = app.app().make::<DatabaseStorage>().await.unwrap();
+    let rows = store
+        .connection()
+        .table("pulse_entries")
+        .r#where("type", "=", "slow_outgoing_request")
+        .get()
+        .await
+        .unwrap();
+    let mut keys = rows
+        .iter()
+        .map(|row| {
+            let Some(openrust::database::Value::Text(key)) = row.get("key") else {
+                panic!("missing outgoing request key");
+            };
+            let [method, url] = serde_json::from_str::<[String; 2]>(key).unwrap();
+            assert_eq!(method, "GET");
+            if url.contains("/manual") {
+                assert_eq!(
+                    row.get("value"),
+                    Some(&openrust::database::Value::Integer(25))
+                );
+            }
+            url
+        })
+        .collect::<Vec<_>>();
+    keys.sort();
+    assert_eq!(
+        keys,
+        [
+            format!("http://{address}/disconnect"),
+            format!("http://{address}/manual?keep=yes"),
+            "retry-attempt".into(),
+            "retry-attempt".into(),
+        ]
+    );
+}
+
 #[tokio::test]
 async fn cancelled_nested_ignore_restores_recording_and_rescues_failed_lazy_callbacks() {
     use std::sync::atomic::{AtomicUsize, Ordering};
