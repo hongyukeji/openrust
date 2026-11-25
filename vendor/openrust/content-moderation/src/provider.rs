@@ -14,6 +14,8 @@ use crate::{
 
 #[path = "../database/migrations/2026_11_26_000002_create_moderation_checks_table.rs"]
 mod checks_migration;
+#[path = "../database/migrations/2026_11_26_000004_add_moderation_query_budget.rs"]
+mod query_budget_migration;
 #[path = "../database/migrations/2026_11_26_000001_create_moderation_reviews_table.rs"]
 mod reviews_migration;
 #[path = "../database/migrations/2026_11_26_000003_add_moderation_submission_lease.rs"]
@@ -69,6 +71,7 @@ openrust::compiled_migration_assets!("content-moderation";
     "2026_11_26_000001_create_moderation_reviews_table.rs" => reviews_migration,
     "2026_11_26_000002_create_moderation_checks_table.rs" => checks_migration,
     "2026_11_26_000003_add_moderation_submission_lease.rs" => submission_lease_migration,
+    "2026_11_26_000004_add_moderation_query_budget.rs" => query_budget_migration,
 );
 
 impl ModerationServiceProvider {

@@ -25,11 +25,16 @@ COMMAND = "drivers:moderation-review"
 
 class PausedSupplier(VIDEO["Supplier"]):
     def respond(self, status, payload):
-        gate = getattr(self.server, "gate", None)
-        if self.command == "POST" and gate:
+        gate = self.server.gate if self.command == "POST" else self.server.query_gate
+        if gate:
             reached, release = gate
             reached.set()
             assert release.wait(timeout=20)
+        if self.command == "GET" and status == 200:
+            if self.server.query_mode == "wait":
+                payload["output"]["data"]["status"] = "ongoing"
+            elif self.server.query_mode == "quota":
+                status, payload = 429, {"status": "failure", "error": {"message": VIDEO["PRIVATE"]}}
         try:
             super().respond(status, payload)
         except (BrokenPipeError, ConnectionResetError):
@@ -42,6 +47,7 @@ def exercise(binary, driver, url, root, storage_env, storage):
     supplier = http.server.ThreadingHTTPServer(("127.0.0.1", 0), PausedSupplier)
     supplier.lock, supplier.mode = threading.Lock(), "accepted"
     supplier.expected_secret, supplier.gate = VIDEO["SECRET"], None
+    supplier.query_mode, supplier.query_gate = "finished", None
     supplier.posted, supplier.queried, supplier.stops = [], [], []
     supplier.storage = urlsplit(storage_env["AWS_ENDPOINT"])
     supply = threading.Thread(target=supplier.serve_forever, daemon=True)
@@ -71,6 +77,7 @@ def exercise(binary, driver, url, root, storage_env, storage):
         "MODERATION_CREDENTIAL_DIRECTORY": str(mount), "MODERATION_FIXTURE_PIN_ENDPOINT": endpoint,
         "MODERATION_FIXTURE_SIGHTENGINE_VIDEO": endpoint, "MODERATION_FIXTURE_SIGHTENGINE_VIDEO_TIMEOUT": "18000",
         "AWS_TEMPORARY_URL": VIDEO["ORIGIN"], "MODERATION_FIXTURE_IMAGE_ORIGIN": VIDEO["ORIGIN"],
+        "MODERATION_FIXTURE_QUERY_INTERVAL": "20", "MODERATION_FIXTURE_QUERY_ATTEMPTS": "2",
     }
     if url:
         env["DB_URL"] = url
@@ -84,8 +91,8 @@ def exercise(binary, driver, url, root, storage_env, storage):
         assert result.returncode == 0, result.stdout + result.stderr
         return result.stdout
 
-    def stage(intent, version=first):
-        return json.loads(artisan(env, COMMAND, "stage", "app", "tenant", intent, version))
+    def stage(intent, version=first, current=env):
+        return json.loads(artisan(current, COMMAND, "stage", "app", "tenant", intent, version))
 
     def submit(review, current=env):
         return json.loads(artisan(current, COMMAND, "submit", "app", "tenant", review["id"]))
@@ -96,11 +103,12 @@ def exercise(binary, driver, url, root, storage_env, storage):
                 return "\n".join("\t".join(map(str, row)) for row in connection.execute(query))
         return DATABASE["database_rows"](DATABASE["database_container"](), query).strip()
 
-    def post(review, expected=200):
+    def post(review, expected=200, *, query=False):
         connection = http.client.HTTPConnection("127.0.0.1", port, timeout=25)
         try:
+            header = "X-Fixture-Query-Review" if query else "X-Fixture-Submit-Review"
             connection.request("POST", "/api/drivers/moderation/sightengine-video", headers={
-                "Accept": "application/json", "X-Fixture-Submit-Review": review["id"],
+                "Accept": "application/json", header: review["id"],
             })
             response = connection.getresponse()
             data = response.read()
@@ -112,6 +120,12 @@ def exercise(binary, driver, url, root, storage_env, storage):
 
     def expire_lease(review):
         sql(f"UPDATE moderation_checks SET submit_lease_until = 1 WHERE id = '{review['check_id']}'")
+
+    def query(review, current=env):
+        return json.loads(artisan(current, COMMAND, "query", "app", "tenant", review["id"]))
+
+    def due(review, timestamp=1):
+        sql(f"UPDATE moderation_checks SET available_at = {timestamp} WHERE id = '{review['check_id']}'")
 
     accepted = {"state": "Submitted", "task": VIDEO["TASK"]}
     try:
@@ -211,6 +225,112 @@ def exercise(binary, driver, url, root, storage_env, storage):
                                    (first, original), (first, original), (first, original)]
         assert not supplier.queried
         assert "sightengine" not in sql("SELECT remote_task_id FROM moderation_checks WHERE remote_task_id IS NOT NULL")
+
+        artisan(env, "config:clear")
+        artisan(env, "config:cache")
+        supplier.mode = "accepted"
+        assert query(ambiguous)["query_attempts"] == 0
+        assert sent["next_query_at"] > sent["created_at"]
+        due(first_review, sent["deadline_at"])
+        assert query(first_review)["query_attempts"] == 0
+        due(first_review)
+        supplier.query_mode = "wait"
+        with (root / "query-http.log").open("w+") as log:
+            app = HTTP["serve"](binary, env, log)
+            try:
+                with ThreadPoolExecutor(max_workers=1) as executor:
+                    reached, release = supplier.query_gate = (threading.Event(), threading.Event())
+                    querying = executor.submit(post, first_review, query=True)
+                    try:
+                        assert reached.wait(8)
+                        concurrent = query(first_review)
+                        assert concurrent["query_attempts"] == 1 and concurrent["state"] == "Running"
+                    finally:
+                        release.set()
+                    waiting = querying.result(15)
+                    supplier.query_gate = None
+                assert waiting["state"] == "Running" and waiting["query_attempts"] == 1
+                assert query(first_review) == waiting and supplier.queried == [VIDEO["TASK"]]
+            finally:
+                HTTP["stop"](app)
+        due(first_review)
+        supplier.query_mode = "finished"
+        assert json.loads(artisan(env, COMMAND, "queue-query", "app", "tenant", first_review["id"])) == {"queued": True}
+        assert first_review["id"] in sql("SELECT payload FROM jobs")
+        output.unlink()
+        artisan(env | {"MODERATION_FIXTURE_RESULT": str(output)}, "queue:work", "database", "--once")
+        partial = json.loads(output.read_text())
+        assert partial["state"] == "Failed" and partial["query_failure"] == "incomplete_coverage"
+        assert partial["query_attempts"] == 2 and partial["decision"] is None
+        assert partial["assessment"]["coverage"] == {"Ocr": "Partial", "Speech": "Unavailable", "Visual": "Partial"}
+        labels = {finding["provider"]: finding for finding in partial["assessment"]["labels"]}
+        assert labels["violence/prob"]["span_ms"] == [1125, 1125]
+        assert labels["violence/prob"]["confidence"] == {"value": .96, "maximum": 1.0}
+        assert VIDEO["PRIVATE"] not in sql("SELECT assessment FROM moderation_checks WHERE assessment IS NOT NULL")
+        assert query(first_review) == partial
+
+        rate = stage("query-throttled")
+        submit(rate)
+        due(rate)
+        supplier.query_mode = "quota"
+        deferred = query(rate)
+        assert deferred["state"] == "Running" and deferred["query_failure"] == "throttled"
+        assert deferred["query_attempts"] == 1
+        assert query(rate) == deferred
+        due(rate)
+        exhausted = query(rate)
+        assert exhausted["state"] == "Failed" and exhausted["query_failure"] == "budget_exhausted"
+        assert query(rate) == exhausted and exhausted["query_attempts"] == 2
+
+        crashed_query = stage("crashed-query")
+        submit(crashed_query)
+        due(crashed_query)
+        supplier.query_mode = "wait"
+        reached, release = supplier.query_gate = (threading.Event(), threading.Event())
+        with subprocess.Popen([str(binary), "artisan", COMMAND, "query", "app", "tenant", crashed_query["id"]],
+                              env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) as process:
+            try:
+                assert reached.wait(8)
+                process.kill()
+                process.wait(timeout=5)
+                sql(f"UPDATE moderation_checks SET query_lease_until = 1 WHERE id = '{crashed_query['check_id']}'")
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                    process.wait(timeout=5)
+                release.set()
+        supplier.query_gate = None
+        recovered_query = query(crashed_query)
+        assert recovered_query["query_attempts"] == 2 and recovered_query["query_failure"] == "budget_exhausted"
+
+        deadline = stage("late-query")
+        submit(deadline)
+        due(deadline)
+        supplier.query_mode = "finished"
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            reached, release = supplier.query_gate = (threading.Event(), threading.Event())
+            checking = executor.submit(query, deadline)
+            try:
+                assert reached.wait(8)
+                sql(f"UPDATE moderation_reviews SET deadline_at = 1 WHERE id = '{deadline['id']}'")
+                expired_after_query = query(deadline)
+                assert expired_after_query["state"] == "Expired" and expired_after_query["decision"] is None
+            finally:
+                release.set()
+            assert checking.result(15) == expired_after_query
+            supplier.query_gate = None
+
+        external = env | {"MODERATION_FIXTURE_QUERY_EXTERNAL": "1"}
+        artisan(external, "config:clear")
+        artisan(external, "config:cache")
+        first_party = stage("external-complete-visual", "revision-2", external)
+        submit(first_party, external)
+        due(first_party)
+        complete = query(first_party, external)
+        assert complete["state"] == "Succeeded" and complete["decision"] == "allow"
+        assert complete["assessment"]["coverage"]["Visual"] == "Complete"
+        assert len(supplier.queried) == 7
+        assert sql("SELECT COUNT(*) FROM jobs") == sql("SELECT COUNT(*) FROM failed_jobs") == "0"
     finally:
         supplier.shutdown()
         supplier.server_close()
@@ -225,4 +345,4 @@ if __name__ == "__main__":
     with tempfile.TemporaryDirectory(dir=ROOT / "target/tmp", prefix="moderation-submission-") as root, \
             VIDEO["VIDEO"]["OBJECTS"]["TOPOLOGY"]["object_storage"](True) as (env, storage):
         exercise(args.binary.resolve(), driver, url, Path(root), env, storage)
-    print(f"{driver}: 真实 HTTP／Artisan／Worker 领取、独立对象版本、失联与过期通过")
+    print(f"{driver}: 真实 HTTP／Artisan／Worker 送审、查单预算、失联、覆盖与过期通过")

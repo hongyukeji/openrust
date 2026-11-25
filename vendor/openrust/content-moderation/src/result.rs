@@ -13,14 +13,16 @@ pub enum Modality {
     Ocr,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Coverage {
     Complete,
     Partial,
     Unavailable,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Decision {
     Allow,
     Review,
@@ -99,6 +101,10 @@ pub struct Assessment {
 }
 
 impl Assessment {
+    pub(crate) fn recommendation(&self) -> Decision {
+        self.decision
+    }
+
     pub fn new(
         decision: Decision,
         coverage: BTreeMap<Modality, Coverage>,

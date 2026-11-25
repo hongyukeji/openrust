@@ -11,6 +11,7 @@ mod input;
 mod manager;
 mod moderation;
 mod provider;
+mod query_policy;
 mod result;
 mod review;
 mod revision;
@@ -29,7 +30,7 @@ pub use result::{
     Assessment, Confidence, Coverage, Decision, EvidenceSpan, Finding, Modality, TaskStatus,
 };
 pub use review::{
-    ReviewState, SubmissionFailure, VideoReview, VideoReviewRequest, VideoSubmission,
+    QueryFailure, ReviewState, SubmissionFailure, VideoReview, VideoReviewRequest, VideoSubmission,
 };
 pub use revision::ProfileRevision;
 pub use storage::ModerationStore;

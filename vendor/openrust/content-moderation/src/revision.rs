@@ -7,6 +7,7 @@ use sha2::{Digest as _, Sha256};
 use crate::{
     CredentialReference, Modality, ModerationError, ModerationResult,
     credentials::{uses_environment, valid_identifier},
+    query_policy::QueryPolicy,
 };
 
 const FORMAT: u8 = 1;
@@ -23,6 +24,8 @@ pub struct ProfileRevision {
     policy_revision: String,
     credential: CredentialReference,
     required_modalities: BTreeSet<Modality>,
+    #[serde(default)]
+    pub(crate) query: QueryPolicy,
     digest: [u8; 32],
 }
 
@@ -67,6 +70,7 @@ impl ProfileRevision {
             policy_revision: identifier("policy_revision")?,
             credential,
             required_modalities: unique_modalities,
+            query: QueryPolicy::configured(profile)?,
             digest: Sha256::digest(&encoded).into(),
         })
     }

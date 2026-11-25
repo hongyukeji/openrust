@@ -11,6 +11,8 @@ use crate::{
     VideoReviewRequest, VideoSubmission, credentials::valid_identifier,
 };
 
+mod assessment_record;
+mod query;
 mod submission;
 
 const REVIEWS: &str = "moderation_reviews";
@@ -159,6 +161,11 @@ impl ModerationStore {
                 "submit_lease_until",
                 "remote_task_id",
                 "submit_failure",
+                "available_at",
+                "query_attempts",
+                "query_lease_until",
+                "query_failure",
+                "assessment",
             ])
             .r#where("moderation_reviews.scope_key", "=", self.scope_key.as_str())
             .r#where(&format!("{REVIEWS}.{key}"), "=", value)
@@ -184,6 +191,11 @@ fn decode(row: Row) -> ModerationResult<VideoReview> {
         _ => Err(ModerationError::ReviewStorage),
     };
     let number = |column| integer(&row, column).ok_or(ModerationError::ReviewStorage);
+    let optional_text = |column| match row.get(column) {
+        Some(Value::Text(value)) => Ok(Some(value.as_str())),
+        Some(Value::Null) => Ok(None),
+        _ => Err(ModerationError::ReviewStorage),
+    };
     Ok(VideoReview {
         id: text("review_id")?.into(),
         check_id: text("check_id")?.into(),
@@ -212,6 +224,17 @@ fn decode(row: Row) -> ModerationResult<VideoReview> {
             _ => return Err(ModerationError::ReviewStorage),
         },
         submit_lease_until: integer(&row, "submit_lease_until"),
+        available_at: number("available_at")?,
+        query_attempts: u16::try_from(number("query_attempts")?)
+            .map_err(|_| ModerationError::ReviewStorage)?,
+        query_lease_until: integer(&row, "query_lease_until"),
+        query_failure: optional_text("query_failure")?
+            .map(|value| serde_json::from_value(serde_json::Value::String(value.into())))
+            .transpose()
+            .map_err(|_| ModerationError::ReviewStorage)?,
+        assessment: optional_text("assessment")?
+            .map(assessment_record::decode)
+            .transpose()?,
     })
 }
 

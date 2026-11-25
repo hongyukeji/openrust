@@ -139,6 +139,7 @@ impl ModerationStore {
                                     ),
                                     ("remote_task_id".into(), remote_id),
                                     ("submit_failure".into(), failure),
+                                    ("available_at".into(), next.available_at.into()),
                                 ]
                                 .into_iter()
                                 .collect(),
@@ -204,10 +205,18 @@ fn next_state(review: &VideoReview, action: Action, now: i64) -> Option<VideoRev
         }
         _ => return None,
     };
+    let available_at = if matches!(submission, VideoSubmission::Submitted(_))
+        && review.submission == VideoSubmission::Submitting
+    {
+        (now + review.profile.query.interval()).min(review.deadline_at)
+    } else {
+        review.available_at
+    };
     Some(VideoReview {
         state,
         submission,
         submit_lease_until: lease,
+        available_at,
         version: review.version.checked_add(1)?,
         ..review.clone()
     })

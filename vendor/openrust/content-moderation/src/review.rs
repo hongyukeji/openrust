@@ -1,13 +1,16 @@
 use crate::{
-    ModerationError, ModerationResult, ProfileRevision, StoredMedia, TaskId,
-    credentials::valid_identifier,
+    Assessment, Coverage, Decision, ModerationError, ModerationResult, ProfileRevision,
+    StoredMedia, TaskId, credentials::valid_identifier,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum ReviewState {
     Pending,
     Running,
+    Succeeded,
     Failed,
+    Cancelled,
     Expired,
 }
 
@@ -16,7 +19,9 @@ impl ReviewState {
         match self {
             Self::Pending => "Pending",
             Self::Running => "Running",
+            Self::Succeeded => "Succeeded",
             Self::Failed => "Failed",
+            Self::Cancelled => "Cancelled",
             Self::Expired => "Expired",
         }
     }
@@ -25,11 +30,41 @@ impl ReviewState {
         match value {
             "Pending" => Ok(Self::Pending),
             "Running" => Ok(Self::Running),
+            "Succeeded" => Ok(Self::Succeeded),
             "Failed" => Ok(Self::Failed),
+            "Cancelled" => Ok(Self::Cancelled),
             "Expired" => Ok(Self::Expired),
             _ => Err(ModerationError::ReviewStorage),
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum QueryFailure {
+    BudgetExhausted,
+    IncompleteCoverage,
+    RevisionUnavailable,
+    RevisionChanged,
+    Configuration,
+    Unsupported,
+    Unauthorized,
+    Rejected,
+    Throttled,
+    Timeout,
+    Protocol,
+    ServiceUnavailable,
+    ProviderFailed,
+}
+
+pub(crate) enum QueryOutcome {
+    Waiting,
+    Retry(QueryFailure),
+    Stop {
+        state: ReviewState,
+        failure: Option<QueryFailure>,
+        assessment: Option<Assessment>,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
@@ -133,6 +168,11 @@ pub struct VideoReview {
     pub(crate) state: ReviewState,
     pub(crate) submission: VideoSubmission,
     pub(crate) submit_lease_until: Option<i64>,
+    pub(crate) available_at: i64,
+    pub(crate) query_attempts: u16,
+    pub(crate) query_lease_until: Option<i64>,
+    pub(crate) query_failure: Option<QueryFailure>,
+    pub(crate) assessment: Option<Assessment>,
 }
 
 impl VideoReview {
@@ -170,6 +210,46 @@ impl VideoReview {
 
     pub fn submission(&self) -> &VideoSubmission {
         &self.submission
+    }
+
+    pub fn query_attempts(&self) -> u16 {
+        self.query_attempts
+    }
+
+    pub fn next_query_at(&self) -> Option<i64> {
+        if self.state != ReviewState::Running
+            || !matches!(self.submission, VideoSubmission::Submitted(_))
+        {
+            return None;
+        }
+        Some(
+            self.available_at
+                .max(self.query_lease_until.unwrap_or(self.available_at)),
+        )
+    }
+
+    pub fn query_failure(&self) -> Option<QueryFailure> {
+        self.query_failure
+    }
+
+    pub fn assessment(&self) -> Option<&Assessment> {
+        self.assessment.as_ref()
+    }
+
+    /// 成功审核的必检覆盖可交给应用继续作发布决定。
+    pub fn decision(&self) -> Option<Decision> {
+        let result = self.assessment()?;
+        if self.state != ReviewState::Succeeded
+            || self.profile.required_modalities().is_empty()
+            || self
+                .profile
+                .required_modalities()
+                .iter()
+                .any(|&kind| result.coverage(kind) != Coverage::Complete)
+        {
+            return None;
+        }
+        Some(result.recommendation())
     }
 
     pub(crate) fn matches(&self, request: &VideoReviewRequest) -> bool {
