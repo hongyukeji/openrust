@@ -52,7 +52,13 @@
 
 將 `image_project` 設為 V2 Enterprise 視覺專案的數字 ID，`image_token_env` 設為保存該專案權杖的環境變數名稱。`image_model_type` 使用專案傳回的模型類型，`image_classes` 列出需要檢查的風險類別，`image_review_score` 是 0 至 1 的複審門檻。同一具名設定可啟用文字和視覺，各自使用獨立的專案 ID 與權杖。
 
-內嵌圖片經 multipart 上傳。已儲存圖片依 `media_disk`、`media_origin` 產生固定私人 S3 物件版本的短時 HTTPS 連結。介接器保留取樣結果中每個已設定類別的最高分。供應商未證明整個影像序列已處理時，視覺維持部分涵蓋。視覺專案提供視覺證據，OCR 對應 Hive 的獨立模型。 [Hive 視覺審核](https://docs.thehive.ai/docs/visual-content-moderation)
+內嵌圖片經 multipart 上傳。已儲存圖片依 `media_disk`、`media_origin` 產生固定私人 S3 物件版本的短時 HTTPS 連結。介接器保留取樣結果中每個已設定類別的最高分。供應商未證明整個影像序列已處理時，視覺維持部分涵蓋。OCR 可透過單獨的 Hive 專案設定。 [Hive 視覺審核](https://docs.thehive.ai/docs/visual-content-moderation)
+
+## Hive OCR {#hive-ocr}
+
+在具名 `hive` 設定填寫 `ocr_project`、`ocr_token_env`、`ocr_classes` 和 `ocr_review_severity`。OCR 專案使用 Hive 的 `OCR_MODERATION` 模型。對該設定呼叫 `image()`，判斷結果時指定 `Modality::Ocr`。如果業務同時需要視覺與 OCR，呼叫兩個具名專案並檢查各自的結果。
+
+回應確認靜態圖僅一個影格、審核時間戳為零，且每個辨識區塊都具備必查類別的結果時，可算完整涵蓋。動態圖與證據不完整時仍為部分涵蓋。介接器保留類別層級的證據和原始嚴重度，省略 OCR 原文、命中值與座標。 [Hive OCR 審核](https://docs.thehive.ai/reference/ocr-moderation)
 
 ## 自訂驅動 {#custom-drivers}
 

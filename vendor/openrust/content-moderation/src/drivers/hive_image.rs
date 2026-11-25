@@ -1,15 +1,12 @@
 use std::{collections::BTreeMap, sync::Arc};
 
-use openrust::{
-    filesystem::FilesystemManager,
-    http::client::{Factory, Part},
-};
+use openrust::{filesystem::FilesystemManager, http::client::Factory};
 use serde::Deserialize;
 use serde_json::Value;
 
 use super::{
     field,
-    hive::{Model, configured_set, provider_class},
+    hive::{Model, ModelResult, configured_set, media_links, provider_class},
     media::VersionedMediaLinks,
 };
 use crate::{
@@ -40,7 +37,7 @@ impl ImageService {
                     && value.bytes().all(|byte| {
                         byte.is_ascii_uppercase() || byte.is_ascii_digit() || byte == b'_'
                     })
-                    && *value != "TEXT_CLASSIFICATION"
+                    && !matches!(*value, "TEXT_CLASSIFICATION" | "OCR_MODERATION")
             })
             .ok_or(ModerationError::InvalidConfiguration("image_model_type"))?;
         let model = Model::new(
@@ -57,13 +54,7 @@ impl ImageService {
             .and_then(Value::as_f64)
             .filter(|score| (0.0..=1.0).contains(score))
             .ok_or(ModerationError::InvalidConfiguration("image_review_score"))?;
-        let media = match (
-            field(profile, "media_disk")?,
-            field(profile, "media_origin")?,
-        ) {
-            (None, None) => None,
-            _ => Some(VersionedMediaLinks::new(storage, profile)?),
-        };
+        let media = media_links(storage, profile)?;
         Ok(Some(Self {
             model,
             review_score,
@@ -73,28 +64,12 @@ impl ImageService {
     }
 
     pub(super) async fn assess(&self, input: &ImageInput) -> ModerationResult<Assessment> {
-        let (id, result): (_, ImageOutput) = if let Some(bytes) = input.as_bytes() {
-            self.model
-                .submit_parts(vec![(
-                    "media",
-                    Part::bytes(bytes.to_vec()).file_name("image"),
-                )])
-                .await?
-        } else if let (Some(media), Some(source)) = (&self.media, input.as_stored()) {
-            let url = media.create(source).await?;
-            let payload = url::form_urlencoded::Serializer::new(String::new())
-                .append_pair("url", url.as_str())
-                .finish();
-            self.model.submit(payload).await?
-        } else {
-            return Err(ModerationError::InvalidInput("hive stored image"));
-        };
-        self.result(id, result)
-    }
-
-    fn result(&self, id: String, result: ImageOutput) -> ModerationResult<Assessment> {
+        let result: ModelResult<ImageOutput> =
+            self.model.submit_image(input, self.media.as_ref()).await?;
+        let complete = result.single_still_frame()
+            && matches!(result.output.output.as_slice(), [frame] if frame.time == Some(0.0));
         let mut maximum = BTreeMap::new();
-        for frame in &result.output {
+        for frame in &result.output.output {
             let mut scores = BTreeMap::new();
             for prediction in &frame.classes {
                 if !(0.0..=1.0).contains(&prediction.score)
@@ -111,7 +86,9 @@ impl ImageService {
             }
         }
         // 图片提交也可包含动图。供应商返回的结果描述采样帧，缺少原件总帧数。
-        let coverage = if maximum.is_empty() {
+        let coverage = if complete && maximum.len() == self.classes.len() {
+            Coverage::Complete
+        } else if maximum.is_empty() {
             Coverage::Unavailable
         } else {
             Coverage::Partial
@@ -138,7 +115,7 @@ impl ImageService {
             BTreeMap::from([(Modality::Visual, coverage)]),
             findings,
         )
-        .with_request_id(id)
+        .with_request_id(result.id)
         .map_err(|_| ModerationError::Protocol)?;
         for (index, confidence) in scores.into_iter().enumerate() {
             result = result.with_confidence(index, confidence)?;
@@ -154,6 +131,7 @@ struct ImageOutput {
 
 #[derive(Deserialize)]
 struct Frame {
+    time: Option<f64>,
     classes: Vec<Prediction>,
 }
 

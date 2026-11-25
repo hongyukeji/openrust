@@ -119,6 +119,18 @@ pub(super) fn configuration(env: &Environment) -> Result<Value, ConfigError> {
         }
         configuration["drivers"]["hive-images"] = profiles;
     }
+    if let Some(endpoint) = env.get_utf8("MODERATION_FIXTURE_HIVE_OCR")? {
+        let mut profile = json!({
+            "driver":"hive", "base_url":endpoint, "ocr_token_env":"FIXTURE_HIVE_OCR_TOKEN",
+            "ocr_project":48174, "ocr_classes":["spam","hate"], "ocr_review_severity":2,
+            "timeout_ms":3000,
+        });
+        if let Some(origin) = env.get_utf8("MODERATION_FIXTURE_IMAGE_ORIGIN")? {
+            profile["media_disk"] = json!("s3");
+            profile["media_origin"] = json!(origin);
+        }
+        configuration["drivers"]["hive-ocr"] = profile;
+    }
     Ok(configuration)
 }
 
@@ -317,7 +329,12 @@ async fn configured_image(profile: &str, input: ImageInput) -> ModerationResult<
     let visual = format!("{:?}", result.coverage(Modality::Visual));
     let ocr = format!("{:?}", result.coverage(Modality::Ocr));
     let combined = result.decision(&[Modality::Visual, Modality::Ocr]);
-    let mut value = render_assessment(result, Modality::Visual);
+    let modality = if profile == "hive-ocr" {
+        Modality::Ocr
+    } else {
+        Modality::Visual
+    };
+    let mut value = render_assessment(result, modality);
     value["visual"] = json!(visual);
     value["ocr"] = json!(ocr);
     value["combined"] = json!(combined.map(|decision| format!("{decision:?}")));
@@ -340,6 +357,10 @@ pub(super) fn hive_image_route(
     request: &mut Request,
 ) -> HttpFuture<'_, Result<Response, HttpError>> {
     image_route(request, "hive-images")
+}
+
+pub(super) fn hive_ocr_route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    image_route(request, "hive-ocr")
 }
 
 fn image_route<'a>(
@@ -520,6 +541,7 @@ pub(super) fn register_command(artisan: &mut Artisan) -> Result<(), ConsoleError
     for (name, profile) in [
         ("drivers:moderation-sightengine-image", "sightengine-images"),
         ("drivers:moderation-hive-image", "hive-images"),
+        ("drivers:moderation-hive-ocr", "hive-ocr"),
     ] {
         artisan.add_command(Box::new(NamedImageProbe(
             CommandDefinition::new(

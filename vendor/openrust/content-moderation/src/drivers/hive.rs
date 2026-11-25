@@ -13,7 +13,10 @@ use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::{Value, json};
 use zeroize::Zeroizing;
 
-use super::{Endpoint, hive_image::ImageService, http_status, secret};
+use super::{
+    Endpoint, field, hive_image::ImageService, hive_ocr::OcrService, http_status,
+    media::VersionedMediaLinks, secret,
+};
 use crate::{
     Assessment, Confidence, Coverage, Decision, Finding, ImageInput, Modality, ModerationDriver,
     ModerationError, ModerationFuture, ModerationResult, Operation, TextInput,
@@ -22,6 +25,7 @@ use crate::{
 pub(super) struct Hive {
     text: Option<TextService>,
     image: Option<ImageService>,
+    ocr: Option<OcrService>,
 }
 
 impl Hive {
@@ -32,11 +36,15 @@ impl Hive {
         profile: &Value,
     ) -> ModerationResult<Self> {
         let text = TextService::configured(http.clone(), env, profile)?;
-        let image = ImageService::configured(http, env, storage, profile)?;
-        if text.is_none() && image.is_none() {
+        let image = ImageService::configured(http.clone(), env, storage.clone(), profile)?;
+        let ocr = OcrService::configured(http, env, storage, profile)?;
+        if image.is_some() && ocr.is_some() {
+            return Err(ModerationError::InvalidConfiguration("hive media project"));
+        }
+        if text.is_none() && image.is_none() && ocr.is_none() {
             return Err(ModerationError::InvalidConfiguration("hive services"));
         }
-        Ok(Self { text, image })
+        Ok(Self { text, image, ocr })
     }
 }
 
@@ -84,10 +92,7 @@ impl Model {
         HeaderMap::from_iter([(AUTHORIZATION, self.authorization.clone())])
     }
 
-    pub(super) async fn submit<T: DeserializeOwned>(
-        &self,
-        body: String,
-    ) -> ModerationResult<(String, T)> {
+    async fn submit<T: DeserializeOwned>(&self, body: String) -> ModerationResult<ModelResult<T>> {
         let response = self
             .endpoint
             .post_encoded(self.headers(), body, "application/x-www-form-urlencoded")
@@ -95,15 +100,33 @@ impl Model {
         self.validate(response)
     }
 
-    pub(super) async fn submit_parts<T: DeserializeOwned>(
+    pub(super) async fn submit_image<T: DeserializeOwned>(
         &self,
-        parts: Vec<(&'static str, Part)>,
-    ) -> ModerationResult<(String, T)> {
-        let response = self.endpoint.post_parts(self.headers(), parts).await?;
-        self.validate(response)
+        input: &ImageInput,
+        storage: Option<&VersionedMediaLinks>,
+    ) -> ModerationResult<ModelResult<T>> {
+        if let Some(bytes) = input.as_bytes() {
+            let part = Part::bytes(bytes.to_vec()).file_name("image");
+            let response = self
+                .endpoint
+                .post_parts(self.headers(), vec![("media", part)])
+                .await?;
+            self.validate(response)
+        } else if let (Some(storage), Some(source)) = (storage, input.as_stored()) {
+            let url = storage.create(source).await?;
+            let payload = url::form_urlencoded::Serializer::new(String::new())
+                .append_pair("url", url.as_str())
+                .finish();
+            self.submit(payload).await
+        } else {
+            Err(ModerationError::InvalidInput("hive stored image"))
+        }
     }
 
-    fn validate<T: DeserializeOwned>(&self, response: Response) -> ModerationResult<(String, T)> {
+    fn validate<T: DeserializeOwned>(
+        &self,
+        response: Response,
+    ) -> ModerationResult<ModelResult<T>> {
         http_status(response.status().as_u16())?;
         let task: TaskOutput<T> = response.json().map_err(|_| ModerationError::Protocol)?;
         http_status(task.code)?;
@@ -129,7 +152,11 @@ impl Model {
         {
             return Err(ModerationError::Protocol);
         }
-        Ok((task.id, output.result))
+        Ok(ModelResult {
+            id: task.id,
+            output: output.result,
+            media: output.input.media,
+        })
     }
 }
 
@@ -167,18 +194,12 @@ impl TextService {
                         .all(|character| character.is_ascii_lowercase())
             })?,
         };
-        let review_severity = profile
-            .get("text_review_severity")
-            .and_then(Value::as_i64)
-            .filter(|value| (1..=3).contains(value))
-            .ok_or(ModerationError::InvalidConfiguration(
-                "text_review_severity",
-            ))?;
+        let review_severity = severity_threshold(profile, "text_review_severity")?;
         Ok(Some(Self {
             model,
             classes,
             languages,
-            review_severity: review_severity as i8,
+            review_severity,
         }))
     }
 
@@ -209,8 +230,8 @@ impl TextService {
             }
             form.finish()
         };
-        let (id, result) = self.model.submit(body).await?;
-        self.assessment(id, result, language)
+        let result = self.model.submit(body).await?;
+        self.assessment(result.id, result.output, language)
     }
 
     fn assessment(
@@ -233,16 +254,9 @@ impl TextService {
                 .all(|class| result.moderated_classes.contains(class));
         let mut maximums = BTreeMap::new();
         for section in &result.output {
-            let mut parsed = BTreeMap::new();
-            for entry in &section.classes {
-                if !(-1..=3).contains(&entry.score)
-                    || parsed.insert(&entry.class, entry.score).is_some()
-                {
-                    return Err(ModerationError::Protocol);
-                }
-            }
+            let parsed = severity_scores(&section.classes)?;
             for class in &self.classes {
-                if let Some(score) = parsed.get(class).filter(|score| **score >= 0) {
+                if let Some(score) = parsed.get(class.as_str()).filter(|score| **score >= 0) {
                     let maximum = maximums.entry(class).or_insert(0);
                     *maximum = (*maximum).max(*score);
                 } else {
@@ -262,20 +276,7 @@ impl TextService {
                 });
             }
         }
-        // 词表证据只保留该类命中，避免暴露匹配词、个人信息或自定义词表名称。
-        for (hits, label, category) in [
-            (result.text_filters, "text_filters", "profanity"),
-            (result.pii_entities, "pii_entities", "personal_information"),
-            (result.custom_classes, "custom_classes", "custom"),
-        ] {
-            if hits.is_some_and(|hits| !hits.is_empty()) {
-                findings.push(Finding {
-                    modality: Modality::Text,
-                    category: category.to_owned(),
-                    provider_label: label.to_owned(),
-                });
-            }
-        }
+        findings.extend(result.patterns.findings(Modality::Text));
         let decision = if findings.is_empty() {
             Decision::Allow
         } else {
@@ -304,7 +305,7 @@ impl ModerationDriver for Hive {
     fn supports(&self, operation: Operation) -> bool {
         match operation {
             Operation::Text => self.text.is_some(),
-            Operation::Image => self.image.is_some(),
+            Operation::Image => self.image.is_some() || self.ocr.is_some(),
             _ => false,
         }
     }
@@ -321,11 +322,15 @@ impl ModerationDriver for Hive {
 
     fn image<'a>(&'a self, input: &'a ImageInput) -> ModerationFuture<'a, Assessment> {
         Box::pin(async move {
-            let image = self
-                .image
-                .as_ref()
-                .ok_or(ModerationError::Unsupported(Operation::Image))?;
-            image.assess(input).await
+            if let Some(ocr) = &self.ocr {
+                ocr.assess(input).await
+            } else {
+                let image = self
+                    .image
+                    .as_ref()
+                    .ok_or(ModerationError::Unsupported(Operation::Image))?;
+                image.assess(input).await
+            }
         })
     }
 }
@@ -375,9 +380,33 @@ struct TextOutput {
     language: String,
     moderated_classes: BTreeSet<String>,
     output: Vec<Section>,
+    #[serde(flatten)]
+    patterns: PatternMatches,
+}
+
+#[derive(Deserialize)]
+pub(super) struct PatternMatches {
     text_filters: Option<Vec<serde::de::IgnoredAny>>,
     pii_entities: Option<Vec<serde::de::IgnoredAny>>,
     custom_classes: Option<Vec<serde::de::IgnoredAny>>,
+}
+
+impl PatternMatches {
+    pub(super) fn findings(&self, modality: Modality) -> impl Iterator<Item = Finding> {
+        // 只保留命中类别，避免暴露匹配值或自定义词表名称。
+        [
+            (&self.text_filters, "text_filters", "profanity"),
+            (&self.pii_entities, "pii_entities", "personal_information"),
+            (&self.custom_classes, "custom_classes", "custom"),
+        ]
+        .into_iter()
+        .filter(|(matches, _, _)| matches.as_ref().is_some_and(|hits| !hits.is_empty()))
+        .map(move |(_, label, category)| Finding {
+            modality,
+            category: category.to_owned(),
+            provider_label: label.to_owned(),
+        })
+    }
 }
 
 #[derive(Deserialize)]
@@ -385,6 +414,31 @@ struct JobInput {
     model_type: String,
     project_id: u64,
     id: String,
+    media: Option<JobMedia>,
+}
+
+#[derive(Deserialize)]
+pub(super) struct JobMedia {
+    #[serde(rename = "type")]
+    kind: Option<String>,
+    num_frames: Option<u64>,
+    duration: Option<f64>,
+}
+
+pub(super) struct ModelResult<T> {
+    pub(super) id: String,
+    pub(super) output: T,
+    media: Option<JobMedia>,
+}
+
+impl<T> ModelResult<T> {
+    pub(super) fn single_still_frame(&self) -> bool {
+        self.media.as_ref().is_some_and(|media| {
+            media.kind.as_deref() == Some("PHOTO")
+                && media.num_frames == Some(1)
+                && media.duration == Some(0.0)
+        })
+    }
 }
 
 #[derive(Deserialize)]
@@ -393,9 +447,43 @@ struct Section {
 }
 
 #[derive(Deserialize)]
-struct ScoredClass {
+pub(super) struct ScoredClass {
     class: String,
     score: i8,
+}
+
+pub(super) fn severity_scores(classes: &[ScoredClass]) -> ModerationResult<BTreeMap<&str, i8>> {
+    let mut entries = BTreeMap::new();
+    for entry in classes {
+        if !(-1..=3).contains(&entry.score)
+            || entries.insert(entry.class.as_str(), entry.score).is_some()
+        {
+            return Err(ModerationError::Protocol);
+        }
+    }
+    Ok(entries)
+}
+
+pub(super) fn severity_threshold(profile: &Value, key: &'static str) -> ModerationResult<i8> {
+    profile
+        .get(key)
+        .and_then(Value::as_i64)
+        .filter(|value| (1..=3).contains(value))
+        .map(|value| value as i8)
+        .ok_or(ModerationError::InvalidConfiguration(key))
+}
+
+pub(super) fn media_links(
+    storage: Arc<FilesystemManager>,
+    profile: &Value,
+) -> ModerationResult<Option<VersionedMediaLinks>> {
+    match (
+        field(profile, "media_disk")?,
+        field(profile, "media_origin")?,
+    ) {
+        (None, None) => Ok(None),
+        _ => VersionedMediaLinks::new(storage, profile).map(Some),
+    }
 }
 
 pub(super) fn configured_set(
@@ -429,7 +517,7 @@ pub(super) fn provider_class(class: &str) -> bool {
             .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
 }
 
-fn category(class: &str) -> &str {
+pub(super) fn category(class: &str) -> &str {
     match class {
         "hate" => "discriminatory",
         "bullying" => "harassment",

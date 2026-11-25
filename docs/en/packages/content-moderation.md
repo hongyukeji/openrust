@@ -52,7 +52,13 @@ The adapter limits input to 1,024 UTF-16 code units. It checks the project, mode
 
 Set `image_project` to the numeric ID of the V2 Enterprise visual project and `image_token_env` to the environment variable holding that project's token. Set `image_model_type` to the value reported by that project, `image_classes` to the positive classes to evaluate, and `image_review_score` to the review threshold from 0 to 1. A profile can enable visual and text moderation with separate project IDs and tokens.
 
-Inline images use multipart upload. For stored images, `media_disk` and `media_origin` provide a short-lived HTTPS URL pinned to a private S3 object version. Hive returns the highest score per configured class across the sampled results. Coverage remains partial when the service cannot establish that it processed the entire image sequence. This visual project reports visual findings. OCR uses a separate Hive model. [Hive visual moderation](https://docs.thehive.ai/docs/visual-content-moderation)
+Inline images use multipart upload. For stored images, `media_disk` and `media_origin` provide a short-lived HTTPS URL pinned to a private S3 object version. The adapter keeps the highest score per configured class across the sampled results. Coverage remains partial when the service cannot establish that it processed the entire image sequence. You can also configure a separate Hive OCR project. [Hive visual moderation](https://docs.thehive.ai/docs/visual-content-moderation)
+
+## Hive OCR {#hive-ocr}
+
+Set `ocr_project`, `ocr_token_env`, `ocr_classes`, and `ocr_review_severity` in a named `hive` profile. The OCR project uses Hive's `OCR_MODERATION` model. Call `image()` on that profile and request `Modality::Ocr` when checking its decision. To require both visual and OCR results, call the two named projects and check both decisions.
+
+Hive can establish complete coverage for a confirmed still image with one frame at timestamp zero and results for every required class in each detected block. Animation or incomplete evidence remains partial. The adapter preserves category-level findings and their original severity, without returning recognized text, matched values, or coordinates. [Hive OCR moderation](https://docs.thehive.ai/reference/ocr-moderation)
 
 ## Custom drivers {#custom-drivers}
 

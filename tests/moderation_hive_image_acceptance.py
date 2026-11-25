@@ -108,6 +108,8 @@ class Supplier(http.server.BaseHTTPRequestHandler):
             scores.append(scores[0])
         elif mode == "missing":
             data["output"] = []
+        elif mode == "still":
+            data["input"]["media"].update({"type": "PHOTO", "num_frames": 1, "duration": 0})
         self.respond(200, result)
 
     def respond(self, status, result):
@@ -207,6 +209,8 @@ def exercise(binary, work, storage_env, storage):
                     assert request(502, body=changed) == {"error": "Protocol"}
                 supplier.mode = "missing"
                 assert request(body=changed) == partial | {"visual": "Unavailable"}
+                supplier.mode = "still"
+                assert request(body=original) == partial | {"visual": "Complete", "decision": "Allow"}
                 assert request(400, version=unknown) == {"error": "Rejected"}
             finally:
                 TEXT["HTTP"]["stop"](application)
@@ -215,7 +219,7 @@ def exercise(binary, work, storage_env, storage):
             assert all(value not in traces for value in (PRIVATE, IMAGE_TOKEN, TEXT_TOKEN, "X-Amz-Signature"))
         assert supplier.text_calls == 1
         assert supplier.calls == [(first, 200, original), (None, 200, original), (latest, 200, changed),
-                                  (None, 200, IMAGES["ANIMATION"])] + [(None, 200, changed)] * 5 + [(unknown, 404, None)]
+                                  (None, 200, IMAGES["ANIMATION"])] + [(None, 200, changed)] * 5 + [(None, 200, original), (unknown, 404, None)]
     finally:
         supplier.shutdown()
         supplier.server_close()

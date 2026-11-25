@@ -52,7 +52,13 @@
 
 将 `image_project` 设为 V2 Enterprise 视觉项目的数字 ID，`image_token_env` 设为保存该项目令牌的环境变量名。`image_model_type` 使用项目报告的模型类型，`image_classes` 列出需要检查的风险类别，`image_review_score` 是 0 至 1 的复审阈值。同一具名配置可启用文本和视觉，各自使用独立的项目 ID 与令牌。
 
-内联图片经 multipart 发送。存储图片根据 `media_disk`、`media_origin` 生成固定私有 S3 对象版本的短时 HTTPS 链接。适配器保留采样结果中每个已配置类别的最高分。供应商未证明整个图像序列已处理时，视觉覆盖保持部分。视觉项目给出视觉证据，OCR 对应 Hive 的独立模型。 [Hive 视觉审核](https://docs.thehive.ai/docs/visual-content-moderation)
+内联图片经 multipart 发送。存储图片根据 `media_disk`、`media_origin` 生成固定私有 S3 对象版本的短时 HTTPS 链接。适配器保留采样结果中每个已配置类别的最高分。供应商未证明整个图像序列已处理时，视觉覆盖保持部分。OCR 可通过单独的 Hive 项目配置。 [Hive 视觉审核](https://docs.thehive.ai/docs/visual-content-moderation)
+
+## Hive OCR {#hive-ocr}
+
+在具名 `hive` 配置填写 `ocr_project`、`ocr_token_env`、`ocr_classes` 和 `ocr_review_severity`。OCR 项目使用 Hive 的 `OCR_MODERATION` 模型。对该配置调用 `image()`，判断结果时指定 `Modality::Ocr`。如果业务同时要求视觉和 OCR，调用两个具名项目并检查各自的结果。
+
+响应确认静态图仅一帧、审核时间戳为零，且每个识别块都有所有必检类别结果时，可计为完整覆盖。动图和证据不全时保持部分覆盖。适配器保留类别级证据和原始严重度，省略 OCR 原文、命中值和坐标。 [Hive OCR 审核](https://docs.thehive.ai/reference/ocr-moderation)
 
 ## 自定义驱动 {#custom-drivers}
 
