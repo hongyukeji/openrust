@@ -271,6 +271,8 @@ For queued sending, register the prepared Job name with `DeliveryService::regist
 
 Use the Builder’s `dispatch` / `dispatch_if` / `dispatch_unless` methods to save and enqueue a delivery. The `dispatch_sync` variants save the delivery and attempt it in the current process. Pass a Rust boolean to the conditional variants. A skipped call returns `None` before preparing a request. A synchronous call with `throw_exception_on_failure(true)` returns a typed error with the delivery ID on terminal failure. Queued terminal failures use the native failed-job mechanism.
 
+When retrying a synchronous call after a successful delivery, reuse the same scoped idempotency key and snapshot. The call returns the existing delivery ID without sending another request, including when a different application instance handles the retry against the same database.
+
 Register synchronous listeners for these events under `openrust_webhook_server::events`. `DispatchingWebhookCallEvent` runs after the delivery record commits and before the queue push. `WebhookCallSucceededEvent` and `WebhookCallFailedEvent` report committed attempts. A terminal failure also emits `FinalWebhookCallFailedEvent` after the attempt failure. The shared payload exposes message and delivery IDs, request method, URL path, body and metadata accessors, and the attempt’s status. Request header values and response contents stay out of the event, and the URL omits its query string. Dispatch-time listener errors leave a recoverable record. A result listener error leaves the recorded result intact.
 
 ```sh

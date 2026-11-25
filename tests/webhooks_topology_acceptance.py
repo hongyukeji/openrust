@@ -358,9 +358,31 @@ def exercise(binary, driver, url, redis, redis_url, interruption, storage_env, o
             with ThreadPoolExecutor(max_workers=count) as pool:
                 return list(pool.map(call, range(count)))
 
+        def check_synchronous_send(phase, expected_nodes):
+            key = f"topology-sync-{phase}"
+            route = f"outbound/builder-sync-if/{key}"
+            initial_queue_count = ready_jobs(queue, "webhook-outgoing")
+            identifier = None
+            for expected_node in expected_nodes:
+                node, result = post(route, send["BODY"], 202)
+                assert node == expected_node
+                if identifier is None:
+                    identifier = result["id"]
+                    assert re.fullmatch("[0-9a-f]{64}", identifier)
+                assert result == {"id": identifier}
+                assert sql(f"SELECT state,attempts FROM webhook_deliveries WHERE id='{identifier}'") == "succeeded\t1"
+                assert sql("SELECT number,outcome,http_status FROM webhook_delivery_attempts "
+                           f"WHERE delivery_id='{identifier}'") == "1\tsucceeded\t204"
+                assert ready_jobs(queue, "webhook-outgoing") == initial_queue_count
+                (path, headers, body), = receiver.received[key]
+                assert path == "/receiver" and headers["webhook-id"] == key and body == send["BODY"]
+                assert hmac.compare_digest(headers["Signature"], hmac.new(send["SECRET"], body, hashlib.sha256).hexdigest())
+
         artisan(0, "migrate", "--force")
         uncached = start(0)
         serve_in_thread(stack, lb)
+        check_synchronous_send("uncached", [0])
+        lb.cursor = 0
         assert post("package/default", BODY, 200)[0] == 0
         plain_marker = Path(nodes[0]["APP_BASE_PATH"]) / "uncached.json"
         work(0, "webhook-receipts", "database", plain_marker)
@@ -806,7 +828,9 @@ def exercise(binary, driver, url, redis, redis_url, interruption, storage_env, o
         assert attempts() == "1\texpired\n2\tcompleted"
         assert json.loads(lease_marker.read_text())["id"] == leased
         assert ready_jobs("database", "webhook-receipts") == 0
-        print(f"{driver}/{queue}: {count} 个 HTTP 节点，缓存前后 HTTP、独立 Artisan/Worker、共享附件、HTTP 与 Worker 退出后恢复、调度选举、投递及共享限额通过")
+        lb.cursor = 0
+        check_synchronous_send("cached", [0, count - 1])
+        print(f"{driver}/{queue}: {count} 个 HTTP 节点，缓存前后 HTTP、独立 Artisan/Worker、共享附件、HTTP 与 Worker 退出后恢复、调度选举、同步／异步投递及共享限额通过")
 
 
 if __name__ == "__main__":

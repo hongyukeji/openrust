@@ -17,4 +17,10 @@
 
 `tests/webhooks_topology_acceptance.py` 接收实际编译的 `webhooks_app` 路径。SQLite 用 `OPENRUST_TEST_SMS_SQLITE=1`，PostgreSQL 和 MySQL 使用各自隔离验收包装器。额外设 `OPENRUST_TEST_WEBHOOK_TOPOLOGY_REDIS=1` 验证 Redis。验收制品通过 `cargo fmt --all -- --check` 及两包 feature 下的 `cargo clippy --test webhooks_app -- -D warnings`。数据库、Redis 和临时应用目录已清理。
 
-该证据覆盖 WH-V25、WH-V26 和 WH-V27 的上述路径。WH-V25 仍须补齐拓扑级同步派发及受影响缓存组合；WH-V26 已补[同主机双节点共享 S3 附件](shared-object-storage.md)，真实跨主机、托管对象存储、生产入口和目标操作系统仍待验；WH-V27 已补[共享主写库和 Redis 断连与恢复](backend-interruption.md)。已补[Scheduler 退出、旧 Worker 回归、端点撤销与凭据缺失](cluster-ownership.md)。[同主机两版本滚动升级](rolling-upgrade.md)已覆盖选定的增量迁移。节点时差、真实跨主机与生产升级仍待验收。完整 Webhook 门禁保持开放。
+## 拓扑中的同步派发 {#synchronous-dispatch}
+
+沿用固定 Spatie 源码中同步条件派发当场执行的行为，复用 OpenRust 已有 Builder、投递记录、统一领取和验签收件端。在缓存前由节点 0 派发，缓存后由节点 0 派发，再将相同幂等键和快照交给负载均衡后的下一节点重试。SQLite 的重试由同一节点处理。测试核对 HTTP 返回前已有一次 `succeeded` 尝试及 204 的远端状态、出站队列计数未增加，再次调用返回同一个投递 ID，收件端仅看到一次含正确签名的原始正文。 [固定 Spatie `WebhookCall`](https://github.com/spatie/laravel-webhook-server/blob/6da6be3a721190bcdedcdef32d31d5980b77eb0e/src/WebhookCall.php)
+
+基线 `699ad83cd`，Rust 1.94.0，macOS ARM64。上表五种本地组合均通过，包括 SQLite 单节点、PostgreSQL 18.7／MySQL 8.4.13 双节点，以及后两者分别搭配 Redis 8.10.3。每组执行三次同步 HTTP 调用并验证两笔真实发送，既有迁移、独立 Artisan／Worker、缓存、异步发送及故障恢复同次复跑。冻结源码通过全工作区格式检查，以及启用收发包后应用和两包所有目标的严格 Clippy。本批仅调整验收和文档。
+
+此验收覆盖 WH-V25、WH-V26 和 WH-V27 的上述路径。WH-V25 的单机 file 缓存仍需独立覆盖。WH-V26 已补[同主机双节点共享 S3 附件](shared-object-storage.md)，真实跨主机、托管对象存储、生产入口和目标操作系统仍待验。WH-V27 已补[共享主写库和 Redis 断连与恢复](backend-interruption.md)及[Scheduler 退出、旧 Worker 回归、端点撤销与凭据缺失](cluster-ownership.md)。[同主机两版本滚动升级](rolling-upgrade.md)已覆盖选定的增量迁移。节点时差、真实跨主机与生产升级仍待验收。完整 Webhook 门禁保持开放。

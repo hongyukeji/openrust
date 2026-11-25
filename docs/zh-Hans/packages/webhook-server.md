@@ -271,6 +271,8 @@ POST 等正文方法使用已准备的字节。GET 将载荷编码为 RFC 3986 �
 
 Builder 的 `dispatch`、`dispatch_if` 和 `dispatch_unless` 登记投递并入队。对应的 `dispatch_sync` 系列登记后在当前进程尝试。条件方法传入 Rust 布尔值，跳过时直接返回 `None`。开启 `throw_exception_on_failure(true)` 后，同步投递最终失败会返回带投递 ID 的类型化错误，队列投递则交由原生 Worker 记录失败任务。
 
+投递成功后重试同步调用时，沿用同一范围的幂等键和快照。即使重试由使用同一数据库的另一个应用实例处理，也会返回已有投递 ID，且不会再次发送请求。
+
 在 `openrust_webhook_server::events` 下注册同步监听器。`DispatchingWebhookCallEvent` 在投递记录提交后、入队前触发。`WebhookCallSucceededEvent` 和 `WebhookCallFailedEvent` 在尝试结果提交后触发，最终失败随后还会派发 `FinalWebhookCallFailedEvent`。共享载荷提供消息与投递 ID、请求方法、URL 路径、正文和元数据的访问器，以及尝试状态。事件省略 URL 查询串、请求头的值和响应内容。入队前监听器失败时可从持久记录继续投递，结果监听器失败时以已提交的结果为准。
 
 ```sh
