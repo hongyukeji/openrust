@@ -2,7 +2,7 @@ use crate::{Error, Result};
 use pcre2::bytes::Regex;
 use serde_json::Value;
 
-fn expression(pattern: &str) -> Result<Regex> {
+fn expression(pattern: &str) -> Result<(Regex, bool)> {
     let pattern = pattern.trim_start_matches(|c| matches!(c, '\t'..='\r' | ' '));
     let delimiter = pattern
         .chars()
@@ -45,6 +45,7 @@ fn expression(pattern: &str) -> Result<Regex> {
         }
     };
     let mut builder = pcre2::bytes::RegexBuilder::new();
+    let mut utf_modifier = false;
     for modifier in body[end + 1..].chars() {
         match modifier {
             'i' => builder.caseless(true),
@@ -56,7 +57,10 @@ fn expression(pattern: &str) -> Result<Regex> {
             'J' => builder.duplicate_names(true),
             'n' => builder.no_auto_capture(true),
             'U' => builder.ungreedy(true),
-            'u' => builder.ucp(true).never_backslash_c(true),
+            'u' => {
+                utf_modifier = true;
+                builder.ucp(true).never_backslash_c(true)
+            }
             'r' => builder.caseless_restrict(true),
             // PHP 接受这两个修饰符，固定运行时的 PCRE2 行为保持默认。
             'S' | 'X' | ' ' | '\n' | '\r' => &mut builder,
@@ -69,10 +73,12 @@ fn expression(pattern: &str) -> Result<Regex> {
     }
     builder
         .build(&body[..end])
+        .map(|regex| (regex, utf_modifier))
         .map_err(|e| Error::InvalidConfiguration(e.to_string()))
 }
 pub fn matches(pattern: &str, value: &str) -> Result<bool> {
     expression(pattern)?
+        .0
         .is_match(value.as_bytes())
         .map_err(|e| Error::InvalidConfiguration(e.to_string()))
 }
@@ -122,21 +128,50 @@ pub fn group(groups: &Value, value: &str) -> Result<String> {
                 "group replacement must be a string".into(),
             ));
         };
-        let regex = expression(pattern)?;
+        let (regex, utf_modifier) = expression(pattern)?;
+        let subject = value.as_bytes();
+        let mut captures = regex.capture_locations();
         let mut output = Vec::new();
         let mut last = 0;
         let mut changed = false;
-        for capture in regex.captures_iter(value.as_bytes()) {
-            let capture = capture.map_err(|e| Error::InvalidConfiguration(e.to_string()))?;
-            let found = capture.get(0).ok_or(Error::StateUnavailable)?;
-            output.extend_from_slice(&value.as_bytes()[last..found.start()]);
+        let mut search_start = 0;
+        let mut retry_nonempty = false;
+        loop {
+            let found = if retry_nonempty {
+                regex.captures_read_nonempty_at(&mut captures, subject, search_start)
+            } else {
+                regex.captures_read_at(&mut captures, subject, search_start)
+            }
+            .map_err(|e| Error::InvalidConfiguration(e.to_string()))?;
+            let Some(found) = found else {
+                if !retry_nonempty || search_start == subject.len() {
+                    break;
+                }
+                // PHP 仅在同一位置的非空重试失败后推进搜索位置。
+                search_start += 1;
+                while utf_modifier && !value.is_char_boundary(search_start) {
+                    search_start += 1;
+                }
+                retry_nonempty = false;
+                continue;
+            };
+            output.extend_from_slice(
+                subject
+                    .get(last..found.start())
+                    .ok_or(Error::StateUnavailable)?,
+            );
             let replacement = replacement.as_bytes();
             let mut i = 0;
             while i < replacement.len() {
                 if (replacement[i] == b'$' || replacement[i] == b'\\') && i + 1 < replacement.len()
                 {
                     let mut start = i + 1;
-                    let brace = replacement[start] == b'{';
+                    if replacement[i] == b'\\' && matches!(replacement[start], b'\\' | b'$') {
+                        output.push(replacement[start]);
+                        i += 2;
+                        continue;
+                    }
+                    let brace = replacement[i] == b'$' && replacement[start] == b'{';
                     if brace {
                         start += 1;
                     }
@@ -152,15 +187,10 @@ pub fn group(groups: &Value, value: &str) -> Result<String> {
                             .ok()
                             .and_then(|v| v.parse::<usize>().ok())
                             .ok_or(Error::StateUnavailable)?;
-                        if let Some(v) = capture.get(n) {
-                            output.extend_from_slice(v.as_bytes());
+                        if let Some((start, end)) = captures.get(n) {
+                            output.extend_from_slice(&subject[start..end]);
                         }
                         i = end + usize::from(brace);
-                        continue;
-                    }
-                    if replacement[i] == b'\\' && replacement[i + 1] == b'\\' {
-                        output.push(b'\\');
-                        i += 2;
                         continue;
                     }
                 }
@@ -168,10 +198,12 @@ pub fn group(groups: &Value, value: &str) -> Result<String> {
                 i += 1;
             }
             last = found.end();
+            search_start = last;
+            retry_nonempty = found.start() == found.end();
             changed = true;
         }
         if changed {
-            output.extend_from_slice(&value.as_bytes()[last..]);
+            output.extend_from_slice(&subject[last..]);
             return String::from_utf8(output).map_err(|_| Error::StateUnavailable);
         }
     }

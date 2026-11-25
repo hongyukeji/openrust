@@ -70,4 +70,12 @@ Rust 直接设置 PCRE2 编译选项并按固定分隔符规则解析。真实 H
 
 Linux 7.0.14 ARM64 与 Windows 11 ARM64 使用相同源码通过模式专测及实际 HTTP 消费者。Linux 的 SQLite 专项确认动态链接系统 PCRE2 10.42，并核对该版本对 `r` 返回配置错误。同平台的静态 PCRE2 10.45 探针验证该选项的匹配行为。使用 `r` 需要 PCRE2 10.43 或更新版本。证据为 `target/tmp/observability-parity/pulse-php-pcre-{accepted,accepted-linux,bundled-linux-final,system-linkage,docs}.log` 和 `target/tmp/observability-windows/pulse-php-pcre-accepted-arm64.log`。 [PCRE2 版本记录](https://github.com/PCRE2Project/pcre2/blob/pcre2-10.43/NEWS)
 
-PHP `preg_replace` 在零宽匹配后会在同一位置再次尝试非空匹配。例 `/(?=a)|a/` 对 `a` 替换为 `X` 得到 `XX`，Rust 当前 `concerns::group` 得到 `Xa`。后续须按匹配起始位置重试的规则修复分组的全局替换，并覆盖 UTF 字符边界。证据为 `target/tmp/observability-parity/pulse-pcre-zero-width-{upstream,native}.log`。
+### 分组的零宽匹配与替换转义
+
+Rust 分组在零宽匹配后先在同一位置锚定重试非空匹配。重试失败时，`u` 修饰符按 UTF-8 码点推进，字节模式按字节推进，末尾零宽匹配只替换一次。PHP 8.5.12 探针核对 `/(?=a)|a/` 得到 `XX`、`/a*?/` 得到 `XXX`，以及多字节字符、CRLF、重试时的捕获组和替换转义。反斜杠转义的美元符号保留字面意义，花括号引用采用 `${1}` 形式。修复前后对照与新增用例的上游证据为 `target/tmp/observability-parity/pulse-pcre-zero-width-{upstream,native,oracle}.log`。 [固定 PHP 替换循环](https://github.com/php/php-src/blob/php-8.5.12/ext/pcre/php_pcre.c#L1757-L1819)
+
+macOS 隔离快照通过 PCRE2 库 24 项、三扩展默认 97 项、快照全仓格式和框架及三扩展选定目标严格 Clippy。真实 HTTP 文件缓存消费者在 SQLite、PostgreSQL 18.7、MySQL 8.4.13 均保存分组键 `zero-width:XX`，原命中、未命中与动态采样行为同时通过。证据为 `target/tmp/observability-parity/pulse-pcre-zero-width-macos-verified.log`。
+
+同源码在 Linux 7.0.14 ARM64 和 Windows 11 ARM64 各通过 Pulse 模式 4 项和 Provider 15 项，覆盖 SQLite 上的真实文件缓存行为。Linux 同批通过 Telescope Provider 15 项，按条件跳过 1 项。证据为 `target/tmp/observability-parity/pulse-pcre-zero-width-{linux,windows}-verified.log`。
+
+分组键仍使用 UTF-8 文本。PHP 字节模式可在 UTF-8 码点中间插入替换内容。仅写 `(*UTF)` 而未用 `u` 修饰符时，PHP 的替换循环也按字节推进。实际固定 Pulse 缓存 Recorder 及 SQLite 存储保留两种模式产生的非 UTF-8 字节键，正常聚合并按原始字节计算哈希。同输入经 Rust 公开分组函数在字节模式返回文本转换错误，在仅写 `(*UTF)` 时返回 PCRE2 起始偏移错误。这两种输入的 Rust 存储表示、MySQL 与 PostgreSQL 的上游结果及面板序列化仍待对账。证据为 `target/tmp/observability-parity/pulse-pcre-zero-width-{oracle,storage-oracle,inline-native}.log`。

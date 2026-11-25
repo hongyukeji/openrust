@@ -2,6 +2,30 @@ use openrust_pulse::recorders::concerns::*;
 use serde_json::json;
 
 #[test]
+fn php_pcre_groups_retry_empty_matches_and_preserve_replacement_escaping() {
+    for (pattern, subject, replacement, expected) in [
+        (r"/(?=a)|a/", "a", "X", "XX"),
+        (r"/a*?/", "a", "X", "XXX"),
+        (r"/(?=é)|é/u", "é", "X", "XX"),
+        (r"/(?=)/u", "é", "X", "XéX"),
+        (r"/(*CRLF)(?=)/", "\r\n", "X", "X\rX\nX"),
+        (r"/(?=(a))|(a)/", "a", "[${1}:${2}]", "[a:][:a]"),
+        (r"/(a)/", "a", r"\{1}", r"\{1}"),
+        (r"/(a)/", "a", r"\$1", "$1"),
+        (r"/(a)/", "a", r"\q", r"\q"),
+        (r"/(a)/", "a", "$$1", "$a"),
+    ] {
+        assert_eq!(
+            group(&json!([[pattern, replacement]]), subject).unwrap(),
+            expected,
+            "{pattern:?} {replacement:?}"
+        );
+    }
+    // 字节模式能匹配 UTF-8 码点内部，无法将该替换结果用作文本存储键。
+    assert!(group(&json!([[r"/(?=)/", "X"]]), "é").is_err());
+}
+
+#[test]
 fn php_pcre_modifiers_preserve_compilation_and_matching_options() {
     for (pattern, subject, expected) in [
         (r"/(*UTF)foo/A", "foo", true),

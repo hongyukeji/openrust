@@ -871,6 +871,7 @@ fn observed(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
         Auth::user(request).await?;
         Db::select("select 1 as probe", &[]).await?;
         Cache::get("feature:123").await?;
+        Cache::get("zero-width:a").await?;
         Cache::get("secret:skip").await?;
         Cache::get("中文").await?;
         Cache::put("feature:123", &openrust::cache::Value::from("cached"), None).await?;
@@ -920,7 +921,11 @@ fn recorder_config(
         "SlowOutgoingRequests": {"threshold": 0},
         "CacheInteractions": {
             "ignore": [r"/secret:/A", r"/^\w+$/u"],
-            "groups": [[r"/feature:\d+\z/A", "feature:*"], [r"/feature/", "second"]]
+            "groups": [
+                [r"/feature:\d+\z/A", "feature:*"],
+                [r"/feature/", "second"],
+                [r"/(?<=zero-width:)(?=a)|(?<=zero-width:)a/", "X"]
+            ]
         },
         "Exceptions": {"location": false},
         "UserRequests": {}
@@ -1133,13 +1138,14 @@ async fn native_recorders_capture_real_client_sql_cache_and_typed_errors_without
         .get()
         .await
         .unwrap();
-    assert_eq!(rows.len(), 2);
-    for row in rows {
-        assert_eq!(
-            row.get("key"),
-            Some(&openrust::database::Value::Text("feature:*".into()))
-        );
-    }
+    let key_count = |key: &str| {
+        rows.iter()
+            .filter(|row| row.get("key") == Some(&openrust::database::Value::Text(key.into())))
+            .count()
+    };
+    assert_eq!(rows.len(), 3);
+    assert_eq!(key_count("feature:*"), 2);
+    assert_eq!(key_count("zero-width:XX"), 1);
 }
 
 fn outgoing_attempts(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {

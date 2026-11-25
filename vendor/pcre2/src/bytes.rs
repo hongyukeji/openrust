@@ -8,8 +8,8 @@ use pcre2_sys::{
     PCRE2_ANCHORED, PCRE2_CASELESS, PCRE2_DOLLAR_ENDONLY, PCRE2_DOTALL,
     PCRE2_DUPNAMES, PCRE2_EXTENDED, PCRE2_EXTRA_CASELESS_RESTRICT,
     PCRE2_MATCH_INVALID_UTF, PCRE2_MULTILINE, PCRE2_NEVER_BACKSLASH_C,
-    PCRE2_NEWLINE_ANYCRLF, PCRE2_NO_AUTO_CAPTURE, PCRE2_UCP, PCRE2_UNGREEDY,
-    PCRE2_UNSET, PCRE2_UTF,
+    PCRE2_NEWLINE_ANYCRLF, PCRE2_NO_AUTO_CAPTURE, PCRE2_NOTEMPTY_ATSTART,
+    PCRE2_UCP, PCRE2_UNGREEDY, PCRE2_UNSET, PCRE2_UTF,
 };
 
 use crate::{
@@ -757,6 +757,32 @@ impl Regex {
         subject: &'s [u8],
         start: usize,
     ) -> Result<Option<Match<'s>>, Error> {
+        self.captures_read_at_with_options(locs, subject, start, 0)
+    }
+
+    /// Retries a match at the given offset, disallowing an empty match there.
+    /// Like `captures_read_at`, this retains the full subject for lookarounds.
+    pub fn captures_read_nonempty_at<'s>(
+        &self,
+        locs: &mut CaptureLocations,
+        subject: &'s [u8],
+        start: usize,
+    ) -> Result<Option<Match<'s>>, Error> {
+        self.captures_read_at_with_options(
+            locs,
+            subject,
+            start,
+            PCRE2_ANCHORED | PCRE2_NOTEMPTY_ATSTART,
+        )
+    }
+
+    fn captures_read_at_with_options<'s>(
+        &self,
+        locs: &mut CaptureLocations,
+        subject: &'s [u8],
+        start: usize,
+        options: u32,
+    ) -> Result<Option<Match<'s>>, Error> {
         assert!(
             start <= subject.len(),
             "start ({}) must be <= subject.len() ({})",
@@ -764,8 +790,7 @@ impl Regex {
             subject.len()
         );
 
-        let options = 0;
-        // SAFETY: We don't use any dangerous PCRE2 options.
+        // SAFETY: The options are either zero or the safe retry flags above.
         if unsafe { !locs.data.find(&self.code, subject, start, options)? } {
             return Ok(None);
         }
