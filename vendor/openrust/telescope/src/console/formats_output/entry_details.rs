@@ -1,6 +1,9 @@
 mod generic;
 
-use super::{basename, limit, more, single_line, text, unit, write_row};
+use super::{
+    basename, color_cell, job_color, limit, more, single_line, status_color, text, unit,
+    write_rendered_row, write_row,
+};
 use crate::{EntryResult, EntryType};
 use openrust::{console::Output, support::php_value_truthy};
 use serde_json::Value;
@@ -84,9 +87,14 @@ fn exception(output: &mut Output, c: &Value) {
             ("Class", text(c, "class")),
             ("File", format!("{}:{}", text(c, "file"), text(c, "line"))),
             ("Occurrences", text_or(c, "occurrences", "1")),
-            ("Resolved", text_or(c, "resolved_at", "No")),
         ],
     );
+    let resolved = if c["resolved_at"].is_null() {
+        color_cell("No", "yellow", output.is_decorated())
+    } else {
+        single_line(&text(c, "resolved_at"))
+    };
+    detail(output, "Resolved", &resolved);
     output.error(&single_line(&text(c, "message")));
     if let Some(preview) = c["line_preview"]
         .as_object()
@@ -94,8 +102,7 @@ fn exception(output: &mut Output, c: &Value) {
     {
         output.info("Code Context");
         for (number, line) in preview {
-            let location = mark_line(number, c);
-            write_row(output, [&location, line.as_str().unwrap_or_default()]);
+            code_line(output, number, line.as_str().unwrap_or_default(), c);
         }
     } else if let Some(preview) = c["line_preview"]
         .as_array()
@@ -103,26 +110,37 @@ fn exception(output: &mut Output, c: &Value) {
     {
         output.info("Code Context");
         for (number, line) in preview.iter().enumerate() {
-            let location = mark_line(&number.to_string(), c);
-            write_row(output, [&location, line.as_str().unwrap_or_default()]);
+            code_line(
+                output,
+                &number.to_string(),
+                line.as_str().unwrap_or_default(),
+                c,
+            );
         }
     }
     trace(output, &c["trace"], 15);
 }
 
-fn mark_line(number: &str, c: &Value) -> String {
-    if number == text(c, "line") {
-        format!("{number} >")
+fn code_line(output: &mut Output, number: &str, line: &str, content: &Value) {
+    let number = if number == text(content, "line") {
+        color_cell(
+            &format!("{} >", single_line(number)),
+            "red",
+            output.is_decorated(),
+        )
     } else {
-        number.to_owned()
-    }
+        single_line(number)
+    };
+    write_rendered_row(output, [&number, &single_line(line)]);
 }
 
 fn job(output: &mut Output, c: &Value, full: bool) {
+    let status = single_line(&text_or(c, "status", "pending"));
+    let status = color_cell(&status, job_color(&status), output.is_decorated());
+    detail(output, "Status", &status);
     details(
         output,
         [
-            ("Status", text_or(c, "status", "pending")),
             ("Queue", text(c, "queue")),
             ("Connection", text(c, "connection")),
             ("Tries", text(c, "tries")),
@@ -160,9 +178,13 @@ fn trace(output: &mut Output, value: &Value, max: usize) {
 
 fn details<const N: usize>(output: &mut Output, fields: [(&str, String); N]) {
     for (label, value) in fields {
-        if !value.is_empty() {
-            write_row(output, [label, &value]);
-        }
+        detail(output, label, &single_line(&value));
+    }
+}
+
+fn detail(output: &mut Output, label: &str, rendered: &str) {
+    if !rendered.is_empty() {
+        write_rendered_row(output, [label, rendered]);
     }
 }
 

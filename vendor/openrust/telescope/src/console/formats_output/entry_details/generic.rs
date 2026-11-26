@@ -1,4 +1,6 @@
-use super::{basename, block, details, text, unit, write_row};
+use super::{
+    basename, block, color_cell, detail, details, single_line, status_color, text, unit, write_row,
+};
 use crate::{EntryResult, EntryType};
 use openrust::{
     console::Output,
@@ -50,19 +52,14 @@ pub(super) fn render(output: &mut Output, entry: &EntryResult, full: bool) {
     let t = |key| text(c, key);
     match entry.r#type {
         EntryType::Query => {
-            let mut duration = unit(c, "time", "ms");
+            let mut duration = single_line(&unit(c, "time", "ms"));
             if php_value_truthy(&c["slow"]) {
-                duration.push_str("  SLOW");
+                duration.push_str("  ");
+                duration.push_str(&color_cell("SLOW", "red", output.is_decorated()));
             }
-            details(
-                output,
-                [
-                    ("Connection", t("connection")),
-                    ("Duration", duration),
-                    ("Source", source(c)),
-                    ("SQL", t("sql")),
-                ],
-            );
+            details(output, [("Connection", t("connection"))]);
+            detail(output, "Duration", &duration);
+            details(output, [("Source", source(c)), ("SQL", t("sql"))]);
             block(output, "Bindings", &c["bindings"], 500, full);
         }
         EntryType::Cache => {
@@ -123,12 +120,15 @@ pub(super) fn render(output: &mut Output, entry: &EntryResult, full: bool) {
             let status = if c["response_status"].is_null() {
                 "N/A".to_owned()
             } else {
-                php_integer_cast(&c["response_status"]).to_string()
+                let status = php_integer_cast(&c["response_status"]);
+                color_cell(
+                    &status.to_string(),
+                    status_color(status),
+                    output.is_decorated(),
+                )
             };
-            details(
-                output,
-                [("Status", status), ("Duration", unit(c, "duration", "ms"))],
-            );
+            detail(output, "Status", &status);
+            details(output, [("Duration", unit(c, "duration", "ms"))]);
             block(output, "Payload", &c["payload"], 500, full);
             block(output, "Response", &c["response"], 500, full);
         }

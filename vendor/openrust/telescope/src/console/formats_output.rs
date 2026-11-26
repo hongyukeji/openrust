@@ -316,7 +316,10 @@ pub(super) fn show(
     output.info(&single_line(&entry_details::heading(entry)));
     let created = single_line(&entry.created_at);
     let time = human_time(&created, now)
-        .map(|relative| format!("{relative}  ({created})"))
+        .map(|relative| {
+            let timestamp = color_cell(&format!("({created})"), "gray", output.is_decorated());
+            format!("{relative}  {timestamp}")
+        })
         .unwrap_or(created);
     output.stdout.push_str(&format!(
         "UUID\t{}\nTime\t{time}\nBatch\t{}\n",
@@ -397,11 +400,13 @@ fn show_batch(
                     output.info(&format!("Logs - {count}"));
                     write_row(output, ["Level", "Message"]);
                     for entry in rows.iter().take(10) {
-                        write_row(
+                        let level = single_line(&text(&entry.content, "level"));
+                        let level = color_cell(&level, level_color(&level), output.is_decorated());
+                        write_rendered_row(
                             output,
                             [
-                                &text(&entry.content, "level"),
-                                &limit(&text(&entry.content, "message"), 80, full),
+                                &level,
+                                &single_line(&limit(&text(&entry.content, "message"), 80, full)),
                             ],
                         );
                     }
@@ -462,21 +467,21 @@ fn show_batch_queries(output: &mut Output, rows: &[&EntryResult], full: bool) {
         let duplicate = duplicates
             .get(&query_identity(c))
             .is_some_and(|count| *count > 1);
-        let flags = match (slow, duplicate) {
-            (true, true) => "SLOW DUP",
-            (true, false) => "SLOW",
-            (false, true) => "DUP",
-            (false, false) => "",
-        };
-        write_row(
+        let flags = [(slow, "SLOW", "red"), (duplicate, "DUP", "yellow")]
+            .into_iter()
+            .filter(|(visible, _, _)| *visible)
+            .map(|(_, label, color)| color_cell(label, color, output.is_decorated()))
+            .collect::<Vec<_>>()
+            .join(" ");
+        write_rendered_row(
             output,
             [
                 &(index + 1).to_string(),
                 &entry.id.to_string()[..8],
                 &format!("{time}ms"),
-                &limit(&text(c, "sql"), 60, full),
-                &source,
-                flags,
+                &single_line(&limit(&text(c, "sql"), 60, full)),
+                &single_line(&source),
+                &flags,
             ],
         );
     }
@@ -503,12 +508,15 @@ fn show_batch_cache(output: &mut Output, rows: &[&EntryResult], full: bool) {
     write_row(output, ["Action", "Key"]);
     for entry in rows.iter().take(10) {
         let c = &entry.content;
-        write_row(
+        let action = single_line(&text(c, "type"));
+        let action = color_cell(
+            cache_action(&action),
+            cache_color(&action),
+            output.is_decorated(),
+        );
+        write_rendered_row(
             output,
-            [
-                cache_action(&text(c, "type")),
-                &limit(&text(c, "key"), 60, full),
-            ],
+            [&action, &single_line(&limit(&text(c, "key"), 60, full))],
         );
     }
     more(output, rows.len(), 10, "cache entries");
@@ -525,7 +533,12 @@ fn cache_action(action: &str) -> &str {
 }
 
 fn write_row<const N: usize>(output: &mut Output, values: [&str; N]) {
-    output.stdout.push_str(&values.map(single_line).join("\t"));
+    let values = values.map(single_line);
+    write_rendered_row(output, values.each_ref().map(String::as_str));
+}
+
+fn write_rendered_row<const N: usize>(output: &mut Output, values: [&str; N]) {
+    output.stdout.push_str(&values.join("\t"));
     output.stdout.push('\n');
 }
 

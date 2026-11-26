@@ -3747,3 +3747,99 @@ async fn console_list_uses_upstream_colors_only_in_decorated_output() {
         assert_eq!(entries[0]["content"], expected_content);
     }
 }
+
+#[tokio::test]
+async fn console_show_uses_upstream_colors_for_details_and_batch_fields() {
+    let mut app = application();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
+    let batch = uuid::Uuid::now_v7();
+    let cases = [
+        (
+            EntryType::Request,
+            json!({"method":"GET","uri":"/observed","response_status":200}),
+        ),
+        (
+            EntryType::Query,
+            json!({"sql":"select 1","time":"3","slow":true,"hash":"repeat"}),
+        ),
+        (
+            EntryType::Query,
+            json!({"sql":"select 1","time":"1","hash":"repeat"}),
+        ),
+        (EntryType::Cache, json!({"type":"hit","key":"report"})),
+        (
+            EntryType::Log,
+            json!({"level":"debug","message":"diagnostic"}),
+        ),
+        (
+            EntryType::Job,
+            json!({"name":"App::Test","status":"failed"}),
+        ),
+        (
+            EntryType::Exception,
+            json!({"class":"App::Error","line":7,"line_preview":{"7":"<fg=green>literal</>\u{1b}[5m"}}),
+        ),
+        (
+            EntryType::ClientRequest,
+            json!({"method":"GET","uri":"https://example.test","response_status":503}),
+        ),
+    ];
+    let entries = cases.map(|(kind, content)| {
+        let mut entry = IncomingEntry::make(content.as_object().unwrap().clone())
+            .unwrap()
+            .r#type(kind)
+            .batch_id(batch);
+        entry.recorded_at = "2026-11-26T12:00:00Z".parse().unwrap();
+        entry
+    });
+    repository.store(&entries).await.unwrap();
+    for (entry, expected) in [
+        (
+            &entries[0],
+            &[
+                "  \x1b[90m(2026-11-26 12:00:00)\x1b[39m",
+                "\x1b[31mSLOW\x1b[39m \x1b[33mDUP\x1b[39m",
+                "\x1b[32mHIT\x1b[39m\treport",
+                "\x1b[90mdebug\x1b[39m\tdiagnostic",
+            ][..],
+        ),
+        (&entries[1], &["Duration\t3ms  \x1b[31mSLOW\x1b[39m"][..]),
+        (&entries[5], &["Status\t\x1b[31mfailed\x1b[39m"][..]),
+        (
+            &entries[6],
+            &[
+                "Resolved\t\x1b[33mNo\x1b[39m",
+                "\x1b[31m7 >\x1b[39m\t<fg=green>literal</> [5m",
+            ][..],
+        ),
+        (&entries[7], &["Status\t\x1b[31m503\x1b[39m"][..]),
+    ] {
+        let id = entry.uuid.to_string();
+        let ansi = app.artisan(["telescope:show", &id, "--ansi"]).await;
+        ansi.assert_successful();
+        for expected in expected {
+            assert!(
+                ansi.stdout.contains(expected),
+                "{expected:?} in {:?}",
+                ansi.stdout
+            );
+        }
+        assert!(!ansi.stdout.contains("\x1b[5m"));
+
+        let plain = app.artisan(["telescope:show", &id, "--no-ansi"]).await;
+        plain.assert_successful();
+        assert!(!plain.stdout.contains('\x1b'));
+        let json = app
+            .artisan(["telescope:show", &id, "--json", "--ansi"])
+            .await;
+        json.assert_successful();
+        let value: serde_json::Value = serde_json::from_str(&json.stdout).unwrap();
+        assert_eq!(
+            value["entry"]["content"],
+            serde_json::Value::Object(entry.content.clone())
+        );
+    }
+}
