@@ -45,9 +45,7 @@ pub trait HasStructuredOutput: Agent {
         Self: Sized,
     {
         Box::pin(async move {
-            let schema = Type::from(self.schema(JsonSchemaTypeFactory))
-                .to_array()
-                .map_err(|_| AiError::InvalidSchema)?;
+            let schema = schema_for(self)?;
             let response = Ai::manager()?
                 .prompt_with_schema(
                     self,
@@ -71,9 +69,7 @@ pub trait HasStructuredOutput: Agent {
         Self: Sized,
     {
         Box::pin(async move {
-            let schema = Type::from(self.schema(JsonSchemaTypeFactory))
-                .to_array()
-                .map_err(|_| AiError::InvalidSchema)?;
+            let schema = schema_for(self)?;
             Ai::manager()?
                 .stream_with_schema(
                     self,
@@ -87,6 +83,12 @@ pub trait HasStructuredOutput: Agent {
                 .await
         })
     }
+}
+
+pub(crate) fn schema_for(agent: &impl HasStructuredOutput) -> AiResult<Value> {
+    Type::from(agent.schema(JsonSchemaTypeFactory))
+        .to_array()
+        .map_err(|_| AiError::InvalidSchema)
 }
 
 pub struct StructuredAnonymousAgent {

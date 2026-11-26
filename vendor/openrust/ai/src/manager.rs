@@ -456,12 +456,24 @@ impl AiManager {
         options: PromptOptions<'_>,
         structured_output: Option<StructuredOutput<'_>>,
     ) -> AiResult<StreamableAgentResponse> {
+        self.stream_with_history(agent, prompt, options, structured_output, agent.messages())
+            .await
+    }
+
+    pub(crate) async fn stream_with_history<A: Agent>(
+        &self,
+        agent: &A,
+        prompt: &str,
+        options: PromptOptions<'_>,
+        structured_output: Option<StructuredOutput<'_>>,
+        messages: &[crate::Message],
+    ) -> AiResult<StreamableAgentResponse> {
         if prompt.trim().is_empty() {
             return Err(AiError::InvalidPrompt);
         }
         if self.text_fake::<A>().is_some() {
             return self
-                .prompt_with_schema(agent, prompt, options, structured_output)
+                .prompt_with_history(agent, prompt, options, structured_output, messages)
                 .await
                 .map(StreamableAgentResponse::from_text);
         }
@@ -478,7 +490,7 @@ impl AiManager {
                 model,
                 timeout: options.timeout,
             },
-            messages: agent.messages(),
+            messages,
             structured_output,
         };
         if tools.is_empty() {

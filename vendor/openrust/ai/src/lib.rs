@@ -17,6 +17,7 @@ mod configuration;
 mod connection;
 mod console;
 mod conversation_store;
+mod conversation_stream;
 mod conversations;
 mod embedding_cache;
 mod embeddings;

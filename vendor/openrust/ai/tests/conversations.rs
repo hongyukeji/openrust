@@ -1,12 +1,17 @@
+use futures_util::StreamExt;
 use openrust::{
     database::migrations::MigrationEntry,
     foundation::configuration::Routing,
     http::{HttpError, Response, StatusCode},
+    json_schema::{JsonSchemaTypeFactory, types::ObjectType},
     pagination::Cursor,
     support::facades::{Config, Route},
     testing::TestApp,
 };
-use openrust_ai::{Agent, Ai, AiError, ConversationParticipant, Message, RemembersConversations};
+use openrust_ai::{
+    Agent, Ai, AiError, ConversationParticipant, HasStructuredOutput, Message, PromptOptions,
+    RemembersConversations, StreamEventData,
+};
 use serde_json::json;
 
 #[path = "../database/migrations/2026_01_11_000001_create_agent_conversations_table.rs"]
@@ -26,6 +31,12 @@ impl Agent for Support {
 }
 
 impl RemembersConversations for Support {}
+
+impl HasStructuredOutput for Support {
+    fn schema(&self, schema: JsonSchemaTypeFactory) -> ObjectType {
+        schema.object([("answer", schema.string().required(true).into())])
+    }
+}
 
 #[tokio::test]
 async fn conversation_history_is_owned_and_paginates_newest_first()
@@ -109,6 +120,84 @@ async fn conversation_history_is_owned_and_paginates_newest_first()
                             .is_none()
                     );
                     Ok::<_, HttpError>(Response::empty(StatusCode::OK))
+                })?;
+                Route::get("/conversation-stream", || async {
+                    let fake = Support::fake(
+                        [
+                            r#"{"answer":"one"}"#,
+                            r#"{"answer":"two"}"#,
+                            "aborted",
+                            "invalid",
+                        ]
+                        .map(str::to_owned),
+                    )
+                    .unwrap();
+                    let owner = ConversationParticipant::new("Customer", "StreamAccount");
+                    let prompt = Support
+                        .for_participant(owner.clone())
+                        .prompt_structured("first")
+                        .await
+                        .unwrap();
+                    assert_eq!(prompt.response.structured["answer"], "one");
+                    let id = prompt.conversation_id;
+                    let response = Support
+                        .r#continue(&id, owner.clone())
+                        .stream_structured("second", PromptOptions::default())
+                        .await
+                        .unwrap();
+                    assert_eq!(response.conversation_id, id);
+                    let mut events = response.response.into_stream();
+                    let store = Ai::conversation_store().unwrap();
+                    let mut ended = false;
+                    while let Some(event) = events.next().await {
+                        let event = event.unwrap();
+                        let history = store
+                            .get_latest_conversation_messages(&id, &owner, 10)
+                            .await
+                            .unwrap()
+                            .unwrap();
+                        if matches!(event.data, StreamEventData::StreamEnd { .. }) {
+                            assert_eq!(history[3], Message::assistant(r#"{"answer":"two"}"#));
+                            ended = true;
+                        } else {
+                            assert_eq!(history.len(), 2);
+                        }
+                    }
+                    assert!(ended);
+                    let response = Support
+                        .for_participant(owner.clone())
+                        .stream("aborted")
+                        .await
+                        .unwrap();
+                    let mut events = response.response.into_stream();
+                    assert!(events.next().await.unwrap().is_ok());
+                    drop(events);
+                    assert!(
+                        !store
+                            .conversation_belongs_to(&response.conversation_id, &owner)
+                            .await
+                            .unwrap()
+                    );
+                    assert!(matches!(
+                        Support
+                            .r#continue(&id, owner.clone())
+                            .prompt_structured("invalid")
+                            .await,
+                        Err(AiError::InvalidStructuredResponse)
+                    ));
+                    assert_eq!(
+                        store
+                            .get_latest_conversation_messages(&id, &owner, 10)
+                            .await
+                            .unwrap()
+                            .unwrap()
+                            .len(),
+                        4
+                    );
+                    let recorded = fake.recorded();
+                    assert_eq!(recorded[1].messages.len(), 2);
+                    assert!(recorded[0].schema.is_some() && recorded[1].schema.is_some());
+                    Ok::<_, HttpError>(Response::empty(StatusCode::OK))
                 })
             }))
     })?;
@@ -120,6 +209,10 @@ async fn conversation_history_is_owned_and_paginates_newest_first()
         .await
         .assert_successful();
     assert_eq!(app.get("/conversation").await?.status(), StatusCode::OK);
+    assert_eq!(
+        app.get("/conversation-stream").await?.status(),
+        StatusCode::OK
+    );
     app.artisan(["migrate:rollback", "--force"])
         .await
         .assert_successful();

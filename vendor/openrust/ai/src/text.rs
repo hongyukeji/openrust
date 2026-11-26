@@ -39,6 +39,20 @@ pub struct Usage {
     pub completion_tokens: Option<u64>,
 }
 
+impl Usage {
+    pub(crate) fn combine(mut self, previous: &Self) -> Self {
+        self.prompt_tokens = previous
+            .prompt_tokens
+            .zip(self.prompt_tokens)
+            .map(|(previous, current)| previous.saturating_add(current));
+        self.completion_tokens = previous
+            .completion_tokens
+            .zip(self.completion_tokens)
+            .map(|(previous, current)| previous.saturating_add(current));
+        self
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AgentResponse {
     pub text: String,

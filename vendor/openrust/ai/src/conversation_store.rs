@@ -200,24 +200,24 @@ impl DatabaseConversationStore {
 
     pub(crate) async fn store_turn(
         &self,
-        existing: Option<&str>,
+        id: &str,
+        existing: bool,
         participant: &ConversationParticipant,
         agent: &str,
         prompt: &str,
         response: &AgentResponse,
-    ) -> DatabaseResult<Option<String>> {
+    ) -> DatabaseResult<bool> {
         participant.validate()?;
         if !valid_field(agent) {
             return Err(DatabaseError::InvalidQuery("AI 会话 Agent 名称无效"));
         }
-        let id = existing.map_or_else(uuid, str::to_owned);
         let user_id = uuid();
         let assistant_id = uuid();
         let timestamp = now();
         let rows = [
             message_record(
                 &user_id,
-                &id,
+                id,
                 participant,
                 agent,
                 Message::user(prompt),
@@ -225,7 +225,7 @@ impl DatabaseConversationStore {
             ),
             message_record(
                 &assistant_id,
-                &id,
+                id,
                 participant,
                 agent,
                 Message::assistant(&response.text),
@@ -249,24 +249,24 @@ impl DatabaseConversationStore {
             ),
         ]);
         let mut transaction = self.connection.begin_transaction().await?;
-        if existing.is_some() {
+        if existing {
             let Some(row) = transaction
                 .table(CONVERSATIONS)
                 .select(["participant_type", "participant_id"])
-                .r#where("id", "=", id.as_str())
+                .r#where("id", "=", id)
                 .first()
                 .await?
             else {
                 transaction.roll_back(None).await?;
-                return Ok(None);
+                return Ok(false);
             };
             if !owns(&row, participant)? {
                 transaction.roll_back(None).await?;
-                return Ok(None);
+                return Ok(false);
             }
             transaction
                 .table(CONVERSATIONS)
-                .r#where("id", "=", id.as_str())
+                .r#where("id", "=", id)
                 .update(Record::from([("updated_at".into(), timestamp.into())]))
                 .await?;
         } else {
@@ -280,7 +280,7 @@ impl DatabaseConversationStore {
             if !transaction
                 .table(CONVERSATIONS)
                 .insert(&[Record::from([
-                    ("id".into(), id.as_str().into()),
+                    ("id".into(), id.into()),
                     ("participant_type".into(), participant.kind().into()),
                     ("participant_id".into(), participant.id().into()),
                     ("title".into(), title.into()),
@@ -296,7 +296,7 @@ impl DatabaseConversationStore {
             return Err(DatabaseError::InvalidQuery("AI 会话消息未保存"));
         }
         transaction.commit().await?;
-        Ok(Some(id))
+        Ok(true)
     }
 }
 

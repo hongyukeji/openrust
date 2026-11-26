@@ -198,14 +198,7 @@ fn payload(value: Value) -> Result<String, Infallible> {
 
 fn record_completion(completion: &mut Option<(String, Usage)>, reason: String, mut usage: Usage) {
     if let Some((_, previous)) = completion.as_ref() {
-        usage.prompt_tokens = previous
-            .prompt_tokens
-            .zip(usage.prompt_tokens)
-            .map(|(a, b)| a.saturating_add(b));
-        usage.completion_tokens = previous
-            .completion_tokens
-            .zip(usage.completion_tokens)
-            .map(|(a, b)| a.saturating_add(b));
+        usage = usage.combine(previous);
     }
     *completion = Some((reason, usage));
 }

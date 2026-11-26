@@ -169,3 +169,9 @@ Anthropic Messages 与 Gemini GenerateContent 的 `Agent::stream` 接入现有 `
 `ai.conversations.connection` 沿用框架 Database 连接，可通过 `AI_CONVERSATIONS_CONNECTION` 选择。应用通过 `vendor:publish --tag=ai-migrations` 发布迁移，重新编译后迁移和回滚。无状态 SDK 启动不查询会话表。独立 Artisan 创建、独立 HTTP 恢复对话，使用协议模拟上游和真实 SQLite、MySQL 8.4.13 与 PostgreSQL 18.7 验证持久化、大小写不同参与者拒绝访问、游标、用量与回滚。包测试另外覆盖历史裁剪与上一会话。
 
 本批选择把完成的一轮原子持久化，并从第一条提示生成短标题。固定 Laravel 的单独落库及队列标题、可替换存储契约、可配置表名、流式和结构化会话、附件与原始工具历史重建、审批暂停／恢复与并发语义仍待补齐。
+
+## AI-03 流式与结构化持久会话
+
+沿用 `for_participant` 和 `r#continue` 的归属校验与历史构造。持久会话的 `stream` 与 `stream_structured` 在返回流时提供会话 ID，采用任一已有 SSE 渲染器。流式正文照常交付。最后的完成事件在成功落库后发送，截断或客户端提前丢弃的流不会生成半轮记录。工具流的各步用量按已报告的值合并，结构化调用使用现有 Schema 和 JSON 对象解析后再写入。
+
+包测试验证 Fake 的会话输入、结构化输出、流内可见的持久化边界和取消。独立 Artisan 从结构化入口创建会话，独立 HTTP 进程恢复历史、实时发送首段文本、提供存储后的最终事件，并对截断流返回错误。三种真实数据库 SQLite、MySQL 8.4.13 和 PostgreSQL 18.7 均通过 HTTP／Artisan 与迁移回滚。可替换存储、附件、原始工具步骤重放及审批暂停／恢复仍待相应批次。

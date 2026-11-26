@@ -118,7 +118,7 @@ let next = agent.r#continue(first.conversation_id, participant).prompt("Continue
 
 繼續對話時傳入已驗證參與者的類型和 ID。`for_user(&user)` 可直接為已驗證的使用者開啟對話。`continue_last_conversation(participant)` 查詢該參與者與同一 Agent 類型的上一段對話，沒有歷史時則開啟新對話。
 
-SDK 將已完成的使用者訊息和助理訊息一起儲存。下一次提示依時間順序讀取最近 100 則訊息，可在 `config/ai.rs` 中調整 `conversations.max_messages`。資料庫預設沿用應用程式連線，也可用 `AI_CONVERSATIONS_CONNECTION` 指定具名連線。歷史頁面使用 `Ai::conversation_store()?.paginate_conversation_messages(id, &participant, 15, cursor)` 從最新訊息開始游標分頁。持久對話目前使用一般文字生成入口。
+SDK 將已完成的使用者訊息和助理訊息一起儲存。下一次提示依時間順序讀取最近 100 則訊息，可在 `config/ai.rs` 中調整 `conversations.max_messages`。資料庫預設沿用應用程式連線，也可用 `AI_CONVERSATIONS_CONNECTION` 指定具名連線。歷史頁面使用 `Ai::conversation_store()?.paginate_conversation_messages(id, &participant, 15, cursor)` 從最新訊息開始游標分頁。串流對話使用 `stream()`，將回傳的 `response` 交給 SSE 轉譯器。呼叫開始後即可讀取對話 ID。SDK 在傳送最終完成事件前儲存該輪訊息，串流中斷時不會新增對話訊息。宣告了回應結構的 Agent 可使用 `prompt_structured()` 或 `stream_structured()`。
 
 ## Agent 工具 {#agent-tools}
 
