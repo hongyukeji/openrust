@@ -45,6 +45,8 @@ AI 命令帮助使用应用当前语言。运行 `./artisan help ai:select-model
 
 在 `to_response()` 之前调用 `using_vercel_data_protocol(message_id)` 可返回 Vercel AI SDK UI 文本事件，调用 `using_agent_user_interaction_protocol(thread_id, run_id)` 可返回 AG-UI 文本事件。传入 `None` 时由 SDK 提供 ID。两种格式都会附上结束状态和上游报告的 Token 用量。应用可用 `using_protocol` 自定义同一批 Agent 事件的输出格式。
 
+Vercel 和 AG-UI 流式适配器使用当前应用语言显示生成失败提示。可在 `lang/vendor/ai/<locale>/errors.json` 下覆写 `stream` 文案。
+
 使用 `agent(instructions).with_schema(schema).prompt(text)` 请求 JSON 对象。Schema 用框架已有的 `JsonSchema` 构建。可读取 `response.structured`，或通过 `response.decode::<YourType>()` 转为 Rust 类型。所选模型须支持连接的原生结构化输出格式。结构化流将 JSON 作为文本增量发出。可用 `./artisan ai:prompt` 的 `--schema` 传入 JSON 对象 Schema 试调用。 SDK 会在出站 Schema 中禁用对象的额外属性，包括嵌套对象。如果模型执行 OpenAI 严格 Schema 校验，请将所有属性标记为必填。
 
 当前请求或命令需要临时连接时，可用 `Ai::build(config)`，字段沿用具名连接配置。通过返回的 `name()` 在提示词调用中指定连接，或在同一作用域内通过 `Ai::text_provider` 查找。框架保留名及应用已有名称不能用作临时连接。`Ai::flush_state()` 会清除当前作用域的临时连接。

@@ -7,7 +7,7 @@ use openrust::{
 };
 use serde_json::{Value, json};
 
-use crate::{AgentEventStream, PendingApproval, StreamEventData, Usage};
+use crate::{AgentEventStream, PendingApproval, StreamEventData, Usage, localization};
 
 /// 将 Agent 事件封装成公开 HTTP 流。
 pub trait StreamProtocol: Send {
@@ -31,6 +31,7 @@ impl StreamProtocol for VercelDataProtocol {
             "x-vercel-ai-ui-message-stream",
             "v1".parse().expect("valid header"),
         );
+        let error_text = stream_error_message();
         let body = async_stream::stream! {
             let mut started = false;
             let mut completion = None;
@@ -94,7 +95,7 @@ impl StreamProtocol for VercelDataProtocol {
                             yield payload(json!({"type":"start","messageId":id}));
                             yield payload(json!({"type":"start-step"}));
                         }
-                        yield payload(json!({"type":"error","errorText":"发生错误"}));
+                        yield payload(json!({"type":"error","errorText":error_text}));
                         yield Ok("data: [DONE]\n\n".into());
                         return;
                     }
@@ -131,6 +132,7 @@ impl AgentUserInteractionProtocol {
 
 impl StreamProtocol for AgentUserInteractionProtocol {
     fn response(mut self: Box<Self>, mut events: AgentEventStream) -> Response {
+        let error_text = stream_error_message();
         let body = async_stream::stream! {
             let mut step = 0_u64;
             let mut destination = None;
@@ -187,7 +189,7 @@ impl StreamProtocol for AgentUserInteractionProtocol {
                             yield payload(json!({"type":"RUN_STARTED","threadId":self.thread_id,"runId":run_id}));
                             yield payload(json!({"type":"STEP_STARTED","stepName":"1"}));
                         }
-                        yield payload(json!({"type":"RUN_ERROR","message":"发生错误"}));
+                        yield payload(json!({"type":"RUN_ERROR","message":error_text}));
                         return;
                     }
                 }
@@ -209,6 +211,11 @@ impl StreamProtocol for AgentUserInteractionProtocol {
         };
         Response::stream(StatusCode::OK, body).with_headers(headers())
     }
+}
+
+fn stream_error_message() -> String {
+    // 在构造响应时读取请求语言，正文可能在该作用域退出后才开始读取。
+    localization::text("ai::errors.stream", &Default::default(), "发生错误")
 }
 
 pub(super) fn headers() -> HeaderMap {

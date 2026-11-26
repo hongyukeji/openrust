@@ -545,6 +545,12 @@ AI 服务提供者将 18 种 BCP 47 语言的默认工具文案作为包资源�
 
 实际 Artisan 逐语言检查 11 个命令的 JSON 帮助，覆盖 `--help`、`list`、法语应用覆写、未知语言回退以及 SDK 与网关各自的语言资源。真实 HTTP 在同一应用进程并发通过 `Artisan::call` 检查全部 18 语。AI 与网关包测试、框架 Artisan 回归、严格 Clippy 和三语文档通过。网关运行时错误文案继续按国际化计划审计。
 
+### AI-02 流式 UI 错误文案
+
+Vercel 和 AG-UI 在构造 HTTP 响应时解析当前语言，异步消费正文期间使用该译文。上游错误仍以通用提示显示，Vercel 的 `error`、`errorText` 和 `[DONE]` 以及 AG-UI 的 `RUN_ERROR`、`message` 和运行标识沿用协议约定。应用可覆写 `ai::errors.stream`。
+
+实际 Artisan 检查消费应用路由。真实 HTTP 对两个协议并发实测 18 语、法语覆写、未知语言回退、上游错误脱敏及终帧。SDK `ui_stream` 回归、严格 Clippy 和三语文档通过。
+
 ### AI-02 DeepSeek 直连与阿里云 Token Plan 交互核对
 
 DeepSeek 官方 `/v1` 基础地址通过 SDK Artisan 发现 `deepseek-flash` 和 `deepseek-v4-pro`。选用 `deepseek-flash`，分别用 `openai-compatible` 和 `openai` 连接实测 Chat Completions 与 Responses。Chat 普通响应、流式响应和自动工具选择两轮通过。Chat 严格 JSON Schema 返回 400，原生 Responses 的严格结构化输出通过。Responses 普通和工具响应通过，独立应用 HTTP 经 SDK 读取实际 Responses 流并核对结束用量。

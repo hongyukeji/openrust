@@ -8,6 +8,7 @@ macro_rules! resources {
             $(
                 (concat!($locale, "/tools.json"), include_str!(concat!("../lang/", $locale, "/tools.json"))),
                 (concat!($locale, "/console.json"), include_str!(concat!("../lang/", $locale, "/console.json"))),
+                (concat!($locale, "/errors.json"), include_str!(concat!("../lang/", $locale, "/errors.json"))),
             )*
         ]
     };
