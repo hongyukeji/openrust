@@ -663,6 +663,10 @@ Anthropic Messages 依固定驱动处理 529 和额度正文。实际 Artisan �
 
 - [固定 Laravel AnthropicGateway](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Anthropic/AnthropicGateway.php) · [Anthropic Messages 错误](https://platform.claude.com/docs/en/api/errors)
 
+按计划收紧 SDK 的重发边界。核心 HTTP 客户端可单独报告首次发送前的建连失败，SDK 的内置文本请求据此切换。已发出请求但结果未知、耗尽超时、已收到成功响应但正文中断时结束本次调用。此裁决替代上文初版对首帧前传输中断的切换行为。已有状态码重试策略仍生效。
+
+实际 Artisan 与 HTTP 核对端口拒绝连接可切换、明确指定连接收到类型化错误、上游读到请求后断开或超时只发出一次请求，以及 200 头后正文中断返回错误。监听器仅收到已确认建连失败的切换事件。40 项框架 HTTP 客户端回归、13 项 SDK 回归、SDK 严格 Clippy 和三语站点通过。
+
 待补其余供应商错误正文分类、应用中间件的故障转移，以及剩余供应商和入口的逐项验收。
 
 - [固定 Laravel Promptable](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Promptable.php) · [供应商与模型列表](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Providers/Provider.php) · [故障分类和重试](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Concerns/HandlesFailoverErrors.php)

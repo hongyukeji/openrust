@@ -48,6 +48,7 @@ pub enum Error {
     DestinationMismatch,
     InvalidUriTemplate,
     Connection,
+    ConnectionNotEstablished,
     Timeout,
     BodyTooLarge,
     InvalidJson(serde_json::Error),
@@ -74,6 +75,7 @@ impl fmt::Display for Error {
                 formatter.write_str("invalid HTTP URI template or parameter")
             }
             Self::Connection => formatter.write_str("outgoing HTTP connection failed"),
+            Self::ConnectionNotEstablished => formatter.write_str("出站 HTTP 连接未能建立"),
             Self::Timeout => formatter.write_str("outgoing HTTP request timed out"),
             Self::BodyTooLarge => {
                 formatter.write_str("outgoing HTTP response exceeded its body limit")

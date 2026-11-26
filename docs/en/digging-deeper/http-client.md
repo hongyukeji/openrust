@@ -14,6 +14,8 @@ Request and response callbacks use Rust types. Select transport settings through
 
 Use `with_basic_auth` for Basic credentials and `with_token` for Bearer tokens. Use `with_digest_auth` to answer a Digest challenge from the original origin. Digest replays buffered requests, and can retry once when a server reports a stale nonce. Only the terminal response reaches `after_response`. The example uses a local `GET /digest` endpoint configured with the sample credentials and an `authenticated` response body.
 
+Use `distinguish_connection_setup_failure()` on a pending request when the caller needs to distinguish a failed connection setup. The transport returns `Error::ConnectionNotEstablished` when it identifies the setup failure before the first send. Disconnects after transmission, body errors, and timeouts with an unknown outcome retain their existing error types.
+
 ```rust
 use openrust::support::facades::Http;
 

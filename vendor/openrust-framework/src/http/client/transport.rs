@@ -76,6 +76,7 @@ pub(super) struct Transport<'a> {
     pub max_redirects: Option<usize>,
     pub destination: Option<&'a super::destination::PinnedDestination>,
     pub timeout: Duration,
+    pub distinguish_connection_setup_failure: bool,
     pub body_limit: usize,
     pub sink: Option<&'a super::Sink>,
     pub stream: bool,
@@ -150,29 +151,38 @@ impl Transport<'_> {
                             .unwrap_or(Err(Error::Timeout))?;
                     }
                     let remaining = remaining.saturating_sub(transfer_started.elapsed());
+                    let distinguish_setup = self.distinguish_connection_setup_failure
+                        && redirects == 0
+                        && authentications == 0;
                     let (mut response, network) = self
                         .factory
-                        .dispatch(self.client, request, remaining, |incoming| async {
-                            // Redirect/authentication bodies remain unbuffered, as in the original transport.
-                            let following = (incoming.status() == StatusCode::UNAUTHORIZED
-                                && replay
-                                    .as_ref()
-                                    .and_then(Request::try_clone)
-                                    .and_then(|request| {
-                                        self.digest?.authenticate(
-                                            request,
-                                            incoming.headers(),
-                                            authentications > 0,
-                                        )
-                                    })
-                                    .is_some())
-                                || redirect.as_ref().is_some_and(|redirect| {
-                                    redirect.can_follow(incoming.status(), incoming.headers())
-                                });
-                            incoming
-                                .finish(self.body_limit, following, sink, stream_deadline)
-                                .await
-                        })
+                        .dispatch(
+                            self.client,
+                            request,
+                            remaining,
+                            distinguish_setup,
+                            |incoming| async {
+                                // Redirect/authentication bodies remain unbuffered, as in the original transport.
+                                let following = (incoming.status() == StatusCode::UNAUTHORIZED
+                                    && replay
+                                        .as_ref()
+                                        .and_then(Request::try_clone)
+                                        .and_then(|request| {
+                                            self.digest?.authenticate(
+                                                request,
+                                                incoming.headers(),
+                                                authentications > 0,
+                                            )
+                                        })
+                                        .is_some())
+                                    || redirect.as_ref().is_some_and(|redirect| {
+                                        redirect.can_follow(incoming.status(), incoming.headers())
+                                    });
+                                incoming
+                                    .finish(self.body_limit, following, sink, stream_deadline)
+                                    .await
+                            },
+                        )
                         .await?;
                     let measured = super::TransferStats {
                         duration: if network {

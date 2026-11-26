@@ -14,6 +14,8 @@
 
 使用 `with_basic_auth` 配置 Basic 凭据，使用 `with_token` 配置 Bearer 令牌。使用 `with_digest_auth` 响应原始源站的 Digest 挑战。Digest 会重放已缓冲的请求，服务端报告 nonce 过期时可再尝试一次。只有最终响应进入 `after_response`。下例使用本地 `GET /digest`，该端点使用示例凭据并返回正文 `authenticated`。
 
+调用方需要区分建连失败时，可在当前请求上调用 `distinguish_connection_setup_failure()`。传输层在首次发送前报告的建连失败返回 `Error::ConnectionNotEstablished`。已发送后的断连、响应正文错误和结果不明的超时沿用原错误类型。
+
 ```rust
 use openrust::support::facades::Http;
 

@@ -339,3 +339,45 @@ async fn pinned_destination_uses_only_checked_addresses_and_preserves_host() {
     );
     server.abort();
 }
+
+#[tokio::test]
+async fn reports_connection_setup_separately_only_when_requested() {
+    use tokio::io::AsyncReadExt;
+
+    let closed = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}/", closed.local_addr().unwrap());
+    drop(closed);
+    let factory = Factory::new().unwrap();
+    let default_failure = factory.pending_request().get(&url).await;
+    assert!(
+        matches!(default_failure, Err(Error::Connection)),
+        "{default_failure:?}"
+    );
+    assert!(matches!(
+        factory
+            .pending_request()
+            .distinguish_connection_setup_failure()
+            .get(&url)
+            .await,
+        Err(Error::ConnectionNotEstablished)
+    ));
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}/", listener.local_addr().unwrap());
+    let peer = tokio::spawn(async move {
+        let (mut connection, _) = listener.accept().await.unwrap();
+        let mut bytes = [0u8; 7];
+        connection.read_exact(&mut bytes).await.unwrap();
+        assert_eq!(&bytes, b"GET / H");
+    });
+    assert!(matches!(
+        factory
+            .pending_request()
+            .distinguish_connection_setup_failure()
+            .timeout(Duration::from_secs(2))
+            .get(&url)
+            .await,
+        Err(Error::Connection)
+    ));
+    peer.await.unwrap();
+}

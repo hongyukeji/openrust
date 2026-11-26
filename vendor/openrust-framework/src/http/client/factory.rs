@@ -553,6 +553,7 @@ impl Factory {
         client: &reqwest::Client,
         mut request: reqwest::Request,
         remaining: Duration,
+        distinguish_connection_setup_failure: bool,
         finish: impl FnOnce(Incoming) -> F,
     ) -> Result<(Response, bool)> {
         let stubs = self.testing().stubs.clone();
@@ -591,7 +592,12 @@ impl Factory {
                         } else {
                             "transport"
                         };
-                        (super::transport_error(error), kind)
+                        let error = if distinguish_connection_setup_failure && error.is_connect() {
+                            Error::ConnectionNotEstablished
+                        } else {
+                            super::transport_error(error)
+                        };
+                        (error, kind)
                     })?;
                     finish(Incoming::Network(response)).await.map_err(|error| {
                         let kind = match &error {

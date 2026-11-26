@@ -101,6 +101,7 @@ pub struct PendingRequest {
     redact_payload: bool,
     redact_response: bool,
     connect_timeout: Duration,
+    distinguish_connection_setup_failure: bool,
     verify_tls: bool,
     tls_ca: Option<Vec<super::TlsCertificate>>,
     tls_identity: Option<super::TlsIdentity>,
@@ -135,6 +136,7 @@ impl PendingRequest {
             redact_payload: false,
             redact_response: false,
             connect_timeout: CONNECT_TIMEOUT,
+            distinguish_connection_setup_failure: false,
             verify_tls: true,
             tls_ca: None,
             tls_identity: None,
@@ -525,6 +527,12 @@ impl PendingRequest {
         self
     }
 
+    /// 单独报告首次发送之前可确认的建连失败。其余网络错误沿用原类型。
+    pub fn distinguish_connection_setup_failure(mut self) -> Self {
+        self.distinguish_connection_setup_failure = true;
+        self
+    }
+
     /// 将请求固定到调用者已验证的 Socket 地址，保留 URL 的主机名和 TLS 校验。
     /// 固定请求禁止重定向、自定义 Host 和 Unix socket。每次实际发送都会复核目的地。
     pub fn pin_destination(
@@ -829,6 +837,7 @@ impl PendingRequest {
             max_redirects: self.redirects.filter(|_| self.destination.is_none()),
             destination: self.destination.as_ref(),
             timeout: self.timeout,
+            distinguish_connection_setup_failure: self.distinguish_connection_setup_failure,
             body_limit: self.body_limit,
             sink: self.sink.as_ref(),
             stream: self.stream,
@@ -861,7 +870,10 @@ impl PendingRequest {
             };
             let retryable = matches!(
                 error,
-                Error::Connection | Error::Timeout | Error::RequestFailed(_)
+                Error::Connection
+                    | Error::ConnectionNotEstablished
+                    | Error::Timeout
+                    | Error::RequestFailed(_)
             ) && match &when {
                 Some(condition) => condition.permits(&error, replay.as_mut())?,
                 None => true,

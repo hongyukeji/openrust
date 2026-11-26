@@ -896,6 +896,7 @@ pub(crate) fn validate(response: client::Result<Response>) -> AiResult<Response>
 
 pub(crate) fn transport_error(error: client::Error) -> AiError {
     match error {
+        client::Error::ConnectionNotEstablished => AiError::ProviderConnectionFailed,
         client::Error::Timeout => AiError::Timeout,
         client::Error::RequestFailed(response) => {
             AiError::ProviderStatus(response.status().as_u16())

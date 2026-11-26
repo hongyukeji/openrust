@@ -98,6 +98,7 @@ pub enum AiError {
     MediaStorageUnavailable,
     EmbeddingCacheUnavailable,
     Transport,
+    ProviderConnectionFailed,
     Timeout,
     ProviderStatus(u16),
     ProviderOverloaded(u16),
@@ -111,8 +112,7 @@ pub enum AiError {
 impl AiError {
     pub(crate) fn allows_provider_failover(&self) -> bool {
         match self {
-            Self::Transport
-            | Self::Timeout
+            Self::ProviderConnectionFailed
             | Self::ProviderOverloaded(_)
             | Self::ProviderInsufficientCredits(_) => true,
             Self::ProviderStatus(status) => {
@@ -217,7 +217,9 @@ impl fmt::Display for AiError {
             Self::MediaTooLarge => formatter.write_str("AI 媒体超出大小限制"),
             Self::MediaStorageUnavailable => formatter.write_str("AI 媒体存储暂不可用"),
             Self::EmbeddingCacheUnavailable => formatter.write_str("Embeddings 缓存暂不可用"),
-            Self::Transport => formatter.write_str("AI 供应商请求失败"),
+            Self::Transport | Self::ProviderConnectionFailed => {
+                formatter.write_str("AI 供应商请求失败")
+            }
             Self::Timeout => formatter.write_str("AI 供应商请求超时"),
             Self::ProviderStatus(status)
             | Self::ProviderOverloaded(status)

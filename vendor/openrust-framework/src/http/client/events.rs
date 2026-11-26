@@ -45,7 +45,9 @@ impl Event for ConnectionFailed {
 impl ConnectionFailure {
     pub(super) fn from_error(error: &super::Error) -> Option<Self> {
         match error {
-            super::Error::Connection => Some(Self::Connection),
+            super::Error::Connection | super::Error::ConnectionNotEstablished => {
+                Some(Self::Connection)
+            }
             super::Error::Timeout => Some(Self::Timeout),
             _ => None,
         }

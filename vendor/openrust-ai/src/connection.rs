@@ -423,7 +423,13 @@ impl Connection {
         stream: bool,
         timeout: Option<Duration>,
     ) -> AiResult<Response> {
-        send_with_retry_after(endpoint, || self.send(endpoint, body, stream, timeout)).await
+        send_with_retry_after(endpoint, || async {
+            let request = self
+                .request(timeout)?
+                .distinguish_connection_setup_failure();
+            Self::post(request, endpoint, body, stream).await
+        })
+        .await
     }
 
     pub(crate) async fn send(
@@ -433,7 +439,15 @@ impl Connection {
         stream: bool,
         timeout: Option<Duration>,
     ) -> AiResult<Response> {
-        let mut request = self.request(timeout)?;
+        Self::post(self.request(timeout)?, endpoint, body, stream).await
+    }
+
+    async fn post(
+        mut request: PendingRequest,
+        endpoint: TextEndpoint,
+        body: &impl Serialize,
+        stream: bool,
+    ) -> AiResult<Response> {
         if stream {
             request = request.stream();
         }

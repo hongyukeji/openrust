@@ -174,7 +174,7 @@ fn error_message(error: &AiError) -> String {
         AiError::MissingCredential => "missing_credential",
         AiError::MissingModel => "missing_model",
         AiError::ModelsNotSupported => "models_not_supported",
-        AiError::Transport => "transport",
+        AiError::Transport | AiError::ProviderConnectionFailed => "transport",
         AiError::Timeout => "timeout",
         AiError::ProviderStatus(status)
         | AiError::ProviderOverloaded(status)

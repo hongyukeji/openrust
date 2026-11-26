@@ -4,7 +4,7 @@ use openrust::{
     config::Environment,
     http::{
         HttpFuture,
-        client::{Factory, Response},
+        client::{Factory, PendingRequest, Response},
     },
     support::Str,
 };
@@ -43,13 +43,12 @@ impl GeminiTextProvider {
         )?)))
     }
 
-    async fn relay_model(
+    fn model_request(
         &self,
         endpoint: TextEndpoint,
         model: &str,
-        body: &Value,
         timeout: Option<Duration>,
-    ) -> AiResult<Response> {
+    ) -> AiResult<(PendingRequest, String)> {
         if !self.supports_endpoint(endpoint) {
             return Err(AiError::EndpointNotSupported);
         }
@@ -61,7 +60,7 @@ impl GeminiTextProvider {
                 .with_query_parameters([("alt".into(), "sse".into())])
                 .stream();
         }
-        request.post(&path, body).await.map_err(transport_error)
+        Ok((request, path))
     }
 
     async fn send_sdk_text(
@@ -71,8 +70,13 @@ impl GeminiTextProvider {
         body: &Value,
         timeout: Option<Duration>,
     ) -> AiResult<Response> {
-        send_with_retry_after(endpoint, || {
-            self.relay_model(endpoint, model, body, timeout)
+        send_with_retry_after(endpoint, || async {
+            let (request, path) = self.model_request(endpoint, model, timeout)?;
+            request
+                .distinguish_connection_setup_failure()
+                .post(&path, body)
+                .await
+                .map_err(transport_error)
         })
         .await
     }
@@ -325,7 +329,8 @@ impl TextProvider for GeminiTextProvider {
                     _ => unreachable!(),
                 }
             }
-            self.relay_model(endpoint, &model, &body, None).await
+            let (request, path) = self.model_request(endpoint, &model, None)?;
+            request.post(&path, &body).await.map_err(transport_error)
         })
     }
 }
