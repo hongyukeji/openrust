@@ -663,6 +663,14 @@ async fn binary_cache_groups_follow_the_storage_driver_and_keep_distinct_metrics
         String::from_utf8_lossy(response.body())
     );
     let cards: serde_json::Value = serde_json::from_slice(response.body()).unwrap();
+    let warm = app.get("/pulse/api/metrics?period=1h").await.unwrap();
+    warm.assert_ok();
+    let warm: serde_json::Value = serde_json::from_slice(warm.body()).unwrap();
+    assert_eq!(warm["cache"], cards["cache"]);
+    if redis_ingest {
+        let pulse = app.app().make::<Pulse>().await.unwrap();
+        assert_eq!(pulse.digest().await.unwrap(), 0);
+    }
     let cache = cards["cache"].as_array().unwrap();
 
     match driver {

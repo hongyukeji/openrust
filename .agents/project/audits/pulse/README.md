@@ -146,6 +146,12 @@ SQLite、PostgreSQL 18.7、MySQL 8.4.13 及 Redis 8.10.3 的授权 HTTP 通过�
 
 实际 HTTP 前态缺少时间字段。修复后在 SQLite、PostgreSQL 18.7、MySQL 8.4.13 和具名 Redis 8.10.3 验证首次执行时间精确到秒、缓存命中沿用原时间与结果、到期后更新。缓存已热时仍验证生产模式拒绝未授权的指标访问。Pulse Provider 24 项和 Telescope Provider 20 项通过，另一个 Telescope 测试沿用独占 Redis 验收条件。实际 Chrome 以受控指标响应验证原生脚本在 375 和 1440 像素宽度渲染各类时间提示，包括切换排序。格式、严格 Clippy、三语构建及六组文档浏览器检查通过。证据为 `target/tmp/observability-parity/pulse-query-timing-{macos-baseline,macos-final,browser-baseline,browser,docs}.log`。
 
+### 卡片缓存的自采集隔离
+
+固定 PHP 8.5.12 调用 `Pulse::defaultVendorCacheKeys`，确认默认模式 `/^laravel:pulse:/` 排除卡片查询的缓存键。原生组合在自定义 CacheInteractions 分组下发现查询缓存的冷请求写入了额外的应用缓存计数。原生卡片通过已有的 `Pulse::ignore` 执行内部缓存操作，冷热请求均保持原有查询快照和缓存仓储，避免自有诊断计入用户的缓存 Recorder。 [固定缓存键](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Livewire/Concerns/RemembersQueries.php)
+
+SQLite、PostgreSQL 18.7、MySQL 8.4.13 的严格与非严格模式及独占 Redis 8.10.3 Ingest 验证真实缓存键、冷热请求和指标稳定。专用 Redis 消费入口确认两次面板查询未产生待消费计数。基于干净 `8df774457` 加本批两个源码／测试文件，三扩展默认测试 138 项通过，25 项使用独立环境。全仓格式与 Pulse 严格 Clippy 通过。证据为 `target/tmp/observability-parity/observability-release-candidate-macos.log` 及 `target/tmp/observability-parity/pulse-card-cache-suppression-{upstream,macos}.log`。
+
 ### 缓存汇总和采样展示
 
 固定 PHP 8.5.12 与 SQLite 执行 Cache 的实际 `render` 和数据库聚合。102 个命中键加一次未命中得到全量汇总 102 与 1，明细查询 101 项，Blade 取前 100 项。用固定模板实际表达式核对采样率 0.5、一次命中及两次未命中显示 `~2`、`~4` 和 `33.33%`。证据为 `target/tmp/observability-parity/pulse-dashboard-cache-upstream.log`。 [固定 Cache 组件](https://github.com/laravel/pulse/blob/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/src/Livewire/Cache.php)

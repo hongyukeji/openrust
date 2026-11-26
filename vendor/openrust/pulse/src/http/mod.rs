@@ -160,7 +160,7 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
             } else {
                 format!("{name}:{order}:{period}")
             };
-            let rows = remember_card(&cache, &key, async {
+            let rows = remember_card(&pulse, &cache, &key, async {
                 let stored = pulse
                     .aggregate(kind, &aggregates, interval, Some(order), "desc", limit)
                     .await?;
@@ -187,7 +187,7 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
             timings.insert(name, rows.timing);
         }
         let cache_types = ["cache_hit".into(), "cache_miss".into()];
-        let keys = remember_card(&cache, &format!("cache:keys:{period}"), async {
+        let keys = remember_card(&pulse, &cache, &format!("cache:keys:{period}"), async {
             let rows = pulse
                 .aggregate_types(&cache_types, "count", interval, None, "desc", 101)
                 .await?;
@@ -196,7 +196,7 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
         .await?;
         cards.insert("cache".into(), keys.value);
         timings.insert("cache", keys.timing);
-        let mut totals = remember_card(&cache, &format!("cache:all:{period}"), async {
+        let mut totals = remember_card(&pulse, &cache, &format!("cache:all:{period}"), async {
             let totals = pulse
                 .aggregate_total(&cache_types, "count", interval)
                 .await?;
@@ -217,7 +217,7 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
             .insert("sample_rate".into(), sample_rate.into());
         cards.insert("cache_totals".into(), totals.value);
         timings.insert("cache_totals", totals.timing);
-        let queues = remember_card(&cache, &format!("queues:{period}"), async {
+        let queues = remember_card(&pulse, &cache, &format!("queues:{period}"), async {
             let values = pulse
                 .graph(
                     &["queued", "processing", "processed", "released", "failed"].map(str::to_owned),
@@ -236,7 +236,7 @@ fn metrics(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
             value => Some(server_max_age(value)?),
         };
         let key = format!("servers:{period}:{:x}", md5::compute(options.to_string()));
-        let snapshot = remember_card(&cache, &key, async {
+        let snapshot = remember_card(&pulse, &cache, &key, async {
             let (systems, graphs) = servers(&pulse, interval, &options, ignore_after).await?;
             Ok(Value::Array(vec![Value::Array(systems), graphs]))
         })
@@ -276,13 +276,14 @@ struct QueryTiming {
 }
 
 async fn remember_card(
+    pulse: &crate::Pulse,
     cache: &CacheRepository,
     key: &str,
     query: impl Future<Output = crate::Result<Value>>,
 ) -> Result<CardSnapshot, HttpError> {
     let key = format!("openrust:pulse:card:query:{key}");
-    let value = cache
-        .remember(&key, Some(Ttl::Seconds(5)), async {
+    let value = pulse
+        .ignore(cache.remember(&key, Some(Ttl::Seconds(5)), async {
             let run_at = Date::now(Some(DateTimezone::UTC))
                 .and_then(|date| date.format("Y-m-d H:i:s"))
                 .map_err(|source| CacheError::Backend {
@@ -304,7 +305,7 @@ async fn remember_card(
                 .map_err(|source| CacheError::Backend {
                     source: Box::new(source),
                 })
-        })
+        }))
         .await?;
     let CacheValue::Json(value) = value else {
         return Err(CacheError::InvalidValue.into());
