@@ -976,7 +976,8 @@ async fn run_command_with_events(
             Some(constructor.make(input, super::AsOutput::as_output(output))?);
     }
 
-    let status = match command.handle(application, input, output).await {
+    let result = super::command_signals::scope(command.handle(application, input, output)).await;
+    let status = match result {
         Ok(status) => status,
         Err(error) => {
             let Some(message) = error.manual_failure_message() else {

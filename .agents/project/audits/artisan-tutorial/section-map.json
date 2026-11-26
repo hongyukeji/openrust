@@ -530,8 +530,13 @@
     },
     {
       "anchor": "signal-handling",
-      "status": "pending_public_contract_review",
-      "evidence": []
+      "status": "verified_tutorial_scope",
+      "evidence": [
+        "artisan-signals-contracts.json",
+        "accepted-artisan-signals.json",
+        "console_artisan_signals",
+        "formal_signal_handling_example"
+      ]
     },
     {
       "anchor": "the-dev-command",
@@ -876,5 +881,13 @@
     "status": "verified_tutorial_scope",
     "contract": "artisan-queue-named-contracts.json",
     "remaining": []
+  },
+  "artisan_signal_handling": {
+    "status": "verified_tutorial_scope",
+    "contract": "artisan-signals-contracts.json",
+    "remaining": [
+      "Windows 控制台的 Ctrl+C／Ctrl+Break 使用原生异步监听；本批只登记 Unix 实机信号结果，Windows 实机留到发布验收。",
+      "异步运行时保留进程级 OS 信号处理器。命令退出解除命令回调和订阅，避免改变同一进程内的 Runner 或其他信号消费者。"
+    ]
   }
 }

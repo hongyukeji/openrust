@@ -17,6 +17,29 @@ impl Input {
     }
 }
 impl<'a> CommandIo<'a> {
+    /// 在当前命令中收到指定信号时调用回调。
+    pub fn trap(
+        &self,
+        signal: super::CommandSignal,
+        callback: impl Fn(super::CommandSignal) + Send + Sync + 'static,
+    ) -> Result<(), ConsoleError> {
+        self.trap_many([signal], callback)
+    }
+
+    /// 用同一个回调处理多个信号。每种信号先执行最新注册的回调。
+    pub fn trap_many(
+        &self,
+        signals: impl IntoIterator<Item = super::CommandSignal>,
+        callback: impl Fn(super::CommandSignal) + Send + Sync + 'static,
+    ) -> Result<(), ConsoleError> {
+        super::command_signals::trap(signals, callback)
+    }
+
+    /// 清除本次命令注册的回调，保留外层命令的注册。
+    pub fn untrap(&self) {
+        super::command_signals::untrap();
+    }
+
     /// 手动失败使用执行期间绑定的组件输出及 Artisan 退出码。
     pub fn fail<T>(&self, message: impl Into<String>) -> Result<T, ConsoleError> {
         self.input.fail(message)

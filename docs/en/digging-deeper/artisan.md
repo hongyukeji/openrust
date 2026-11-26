@@ -418,6 +418,51 @@ The build discovers default command files and any extra directories listed in `C
 
 Artisan resolves a bound type during console registration and uses its same instance for future calls in that application. Call it by signature name or use `Artisan::call_type::<Type>`. Type-based calls reuse the registered instance when finding its name.
 
+## Signal Handling {#signal-handling}
+
+Use `io.trap` for one signal or `io.trap_many` for a group. When a signal arrives, the most recently registered callback runs first. Keep callbacks short and notify the async command so it can finish its own work and release resources.
+
+```rust
+use openrust::{
+    console::{AsyncCommandCallback, CommandSignal, ConsoleError},
+    support::facades::Artisan,
+};
+use std::sync::Arc;
+use tokio::sync::Notify;
+
+fn register_signal_command() -> Result<(), ConsoleError> {
+    Artisan::command_with(
+        "reports:watch {--once}",
+        AsyncCommandCallback::new(|_, input, output| {
+            Box::pin(async move {
+                let mut io = input.io(output);
+                let stop = Arc::new(Notify::new());
+                let signal_stop = Arc::clone(&stop);
+
+                #[cfg(unix)]
+                let signals = [CommandSignal::Terminate, CommandSignal::Quit];
+                #[cfg(windows)]
+                let signals = [CommandSignal::Interrupt, CommandSignal::Break];
+
+                io.trap_many(signals, move |_| signal_stop.notify_one())?;
+
+                if io.option("once") != Some(serde_json::Value::Bool(true)) {
+                    stop.notified().await;
+                }
+
+                io.line("Report watcher stopped")?;
+                Ok(0)
+            })
+        }),
+    )?;
+    Ok(())
+}
+```
+
+On Unix, use `kill -TERM <pid>` against a running `./artisan reports:watch`. On Windows, the matching console events are Ctrl+C and Ctrl+Break. Run `./artisan reports:watch --once` to exit without waiting for a signal.
+
+Returning, failing, or cancelling the command releases its callbacks. Call `io.untrap()` to release them earlier. Nested commands share signal subscriptions with their caller and release only their own registrations. The async runtime owns the process-level handlers, which may stay installed after the command ends.
+
 ## Stub Customization {#stub-customization}
 
 Publish the generator templates to the application’s `stubs/` directory. The command publishes templates for structs, traits, enums, commands, factories, migrations, models, policies, seeders and feature and unit tests. Edit the published template to change the next file that its generator creates.

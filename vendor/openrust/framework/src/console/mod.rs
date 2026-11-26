@@ -7,6 +7,7 @@ mod command;
 pub(crate) mod command_arguments;
 mod command_input;
 mod command_io;
+mod command_signals;
 pub mod contracts;
 mod descriptor;
 pub mod events;
@@ -60,6 +61,7 @@ pub use command::{
 };
 pub use command_input::CommandInput;
 pub use command_io::CommandIo;
+pub use command_signals::CommandSignal;
 pub use formatter::{
     FormatterHandle, OutputFormatter, OutputFormatterInterface, WrappableOutputFormatterInterface,
 };

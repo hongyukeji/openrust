@@ -1,0 +1,48 @@
+{
+  "base": "c5e89ab2a7dd89f19bfb1e47eed9cccc59c22f4c",
+  "contract": "artisan-signals-contracts.json",
+  "results": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 0.35s",
+    "test result: ok. 246 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.69s",
+    "test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.17s",
+    "test result: ok. 4 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.09s",
+    "test result: ok. 4 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.11s",
+    "test result: ok. 5 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.13s",
+    "test result: ok. 1 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.15s",
+    "test result: ok. 1 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.09s",
+    "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s",
+    "test result: ok. 13 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.27s",
+    "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.37s",
+    "test result: ok. 6 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.10s"
+  ],
+  "runtime": {
+    "source_callback_deliveries": 6,
+    "framework_parent_tests": 48,
+    "isolated_real_consumers": {
+      "Artisan subprocesses": 1,
+      "HTTP subprocesses": 1
+    },
+    "formal_document_consumers": 246,
+    "browser_checks": 12
+  },
+  "logs": [
+    "target/tmp/artisan-tutorial-20261125/artisan-signals-check-first.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-signals-first.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-signals-second.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-signals-gates.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-signals-site.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-signals-php-extension.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-signals-source.json",
+    "target/tmp/artisan-tutorial-20261125/artisan-signals-source-first.log",
+    "target/tmp/artisan-tutorial-20261125/artisan-signals-gates-first.log"
+  ],
+  "unaccepted_attempts": [
+    "固定源码首轮夹具缺少独立交互库的恢复钩子，绕开夹具无关提示后实跑；Rust 首轮修正接收器借用和测试对移动式命令入口的调用，留存失败日志。",
+    "三语正文首轮使用根应用未直接依赖的 CancellationToken，改用现有 Tokio Notify 后重新提取编译和执行。"
+  ],
+  "remaining": [
+    "Windows 控制台的 Ctrl+C／Ctrl+Break 使用原生异步监听；本批只登记 Unix 实机信号结果，Windows 实机留到发布验收。",
+    "异步运行时保留进程级 OS 信号处理器。命令退出解除命令回调和订阅，避免改变同一进程内的 Runner 或其他信号消费者。"
+  ],
+  "pushed": false
+}

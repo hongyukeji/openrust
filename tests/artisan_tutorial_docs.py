@@ -567,6 +567,25 @@ async fn formal_queued_artisan_arguments_example() {
 '''
     parts.append('mod '+locale.replace('-','_').lower()+'_queue_named{\n'+queue_named_snippet+queue_named_checks+'}\n')
 
+    signal_snippet = re.search(r'```rust\n(.*?)```', text.split('{#signal-handling}',1)[1], re.S).group(1)
+    signal_checks = r'''
+use openrust::{foundation::{Application,configuration::Routing},support::facades::{App,Facade as _}};
+#[tokio::test]
+async fn formal_signal_handling_example() {
+    let root=std::env::temp_dir().join(format!("artisan-signal-{}-{}",std::process::id(),module_path!()));
+    std::fs::create_dir_all(&root).unwrap();
+    let mut app=Application::configure(root.clone()).with_routing(Routing::default().commands(register_signal_command)).create().unwrap();
+    app.boot().await.unwrap();
+    App::set_facade_application(Some(&app),async {
+        let (status,output)=Artisan::call_captured("reports:watch", &["--once".into()]).await.unwrap();
+        assert_eq!(status,0);
+        assert_eq!(output.stdout.trim(),"Report watcher stopped");
+    }).await;
+    std::fs::remove_dir_all(root).unwrap();
+}
+'''
+    parts.append('#[cfg(any(unix,windows))]\nmod '+locale.replace('-','_').lower()+'_signal_handling{\n'+signal_snippet+signal_checks+'}\n')
+
 
 target=source/'tests/artisan_docs_generated.rs';target.write_text('\n'.join(parts));subprocess.run(['rustfmt','+1.94.0','--edition','2024',str(target)],check=True)
 print('generated',len(parts),'direct formal consumers')

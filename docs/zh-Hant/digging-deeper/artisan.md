@@ -418,6 +418,51 @@ async fn report_from_handler(user: &str, output: &mut Output) -> Result<i32, Con
 
 Artisan 在主控台組裝時從容器解析型別，之後同一應用程式重用該命令實例。可依簽章名稱呼叫，也可用 `Artisan::call_type::<Type>`。依型別呼叫會使用已註冊實例所對應的名稱。
 
+## 訊號處理 {#signal-handling}
+
+用 `io.trap` 監聽一個訊號，或用 `io.trap_many` 監聽一組訊號。收到訊號後，最後註冊的回呼先執行。讓回呼保持簡短，通知非同步命令自行完成工作並釋放資源。
+
+```rust
+use openrust::{
+    console::{AsyncCommandCallback, CommandSignal, ConsoleError},
+    support::facades::Artisan,
+};
+use std::sync::Arc;
+use tokio::sync::Notify;
+
+fn register_signal_command() -> Result<(), ConsoleError> {
+    Artisan::command_with(
+        "reports:watch {--once}",
+        AsyncCommandCallback::new(|_, input, output| {
+            Box::pin(async move {
+                let mut io = input.io(output);
+                let stop = Arc::new(Notify::new());
+                let signal_stop = Arc::clone(&stop);
+
+                #[cfg(unix)]
+                let signals = [CommandSignal::Terminate, CommandSignal::Quit];
+                #[cfg(windows)]
+                let signals = [CommandSignal::Interrupt, CommandSignal::Break];
+
+                io.trap_many(signals, move |_| signal_stop.notify_one())?;
+
+                if io.option("once") != Some(serde_json::Value::Bool(true)) {
+                    stop.notified().await;
+                }
+
+                io.line("Report watcher stopped")?;
+                Ok(0)
+            })
+        }),
+    )?;
+    Ok(())
+}
+```
+
+在 Unix 上，對執行中的 `./artisan reports:watch` 程序送出 `kill -TERM <pid>`。Windows 上對應的主控台事件為 Ctrl+C 和 Ctrl+Break。執行 `./artisan reports:watch --once` 可立即結束。
+
+命令返回、失敗或取消時會釋放回呼。呼叫 `io.untrap()` 可提早釋放。巢狀命令與呼叫端共用訊號訂閱，結束時只釋放本次註冊。程序層級處理器由非同步執行環境管理，命令結束後可能仍處於安裝狀態。
+
 ## 自訂產生樣板 {#stub-customization}
 
 將產生器樣板發佈到應用程式的 `stubs/` 目錄。命令會發佈結構體、trait、列舉、命令、工廠、遷移、模型、策略、Seeder、功能測試和單元測試樣板。編輯已發佈的樣板即可修改對應產生器下一次產生的內容。

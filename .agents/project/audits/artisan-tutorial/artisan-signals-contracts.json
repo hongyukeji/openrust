@@ -1,0 +1,42 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "status": "verified_tutorial_scope",
+  "bindings": {
+    "CommandIo": [
+      "trap",
+      "trap_many",
+      "untrap"
+    ],
+    "CommandSignal": [
+      "Interrupt",
+      "Terminate",
+      "Quit",
+      "Hangup",
+      "Break",
+      "Raw"
+    ]
+  },
+  "source_oracle": [
+    "artisan-signals-oracle.json"
+  ],
+  "runtime": {
+    "source_callback_deliveries": 6,
+    "framework_parent_tests": 48,
+    "isolated_real_consumers": {
+      "Artisan subprocesses": 1,
+      "HTTP subprocesses": 1
+    },
+    "formal_document_consumers": 246,
+    "browser_checks": 12
+  },
+  "decisions": [
+    "固定源码用真实 Unix SIGTERM／SIGQUIT 核对多个注册顺序及嵌套作用域。",
+    "Rust 用显式类型和单／多信号接口。需要动态计算选择时，调用前可以任意计算迭代器。",
+    "等待异步命令的同一任务派发回调，结束前解除订阅；嵌套共享接收器，清除时仅移除当次注册。",
+    "CLI 消费者结束后又在另一应用执行取消、错误、无效批次和新注册，校验实际新信号只流向有效回调。"
+  ],
+  "remaining": [
+    "Windows 控制台的 Ctrl+C／Ctrl+Break 使用原生异步监听；本批只登记 Unix 实机信号结果，Windows 实机留到发布验收。",
+    "异步运行时保留进程级 OS 信号处理器。命令退出解除命令回调和订阅，避免改变同一进程内的 Runner 或其他信号消费者。"
+  ]
+}

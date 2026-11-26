@@ -1,0 +1,30 @@
+{
+    "status": 0,
+    "observed": [
+        [
+            "inner-last",
+            "Terminate"
+        ],
+        [
+            "inner-many",
+            "Terminate"
+        ],
+        [
+            "outer",
+            "Terminate"
+        ],
+        [
+            "inner-many",
+            "Quit"
+        ],
+        [
+            "outer",
+            "Terminate"
+        ],
+        [
+            "replacement",
+            "Terminate"
+        ]
+    ],
+    "os_handler_restored": true
+}
