@@ -848,6 +848,8 @@ For Amazon Bedrock Converse, set `AI_PROVIDER=bedrock`, `BEDROCK_MODEL`, and you
 
 Use `Agent::stream` for Bedrock ConverseStream. The SDK reads the native AWS event stream and delivers text and visible reasoning as SSE. It reports the finish reason and token usage from the final metadata. A truncated stream or invalid AWS event produces a stream error, and the configured request timeout also applies while reading events.
 
+Bedrock supports local functions configured with `with_tools` in both Converse and ConverseStream. The SDK retains the original tool IDs and replays provider-signed reasoning with the tool result in the next step. Set `ToolChoice::Required` or `ToolChoice::tool` only on models that support the corresponding Bedrock tool choice. Streamed tools execute after the complete stop and usage events arrive.
+
 For xAI text, set `AI_PROVIDER=xai`, `XAI_API_KEY`, and `XAI_MODEL`. Override the default `https://api.x.ai/v1` with `XAI_URL`. Use `XAI_MODEL_CHEAPEST` and `XAI_MODEL_SMARTEST` for model tiers. The connection uses native Responses with SSE, structured output, local function calls, and image input on supported models. Local tool rounds carry encrypted reasoning in the request when the provider returns it. Run `./artisan ai:models xai` to see discovered and configured models.
 
 With the native xAI connection, SDK usage and the gateway ledger count reasoning tokens once in the output total and keep the reasoning count available separately. If xAI also reports a total, the accounting checks whether the output count already includes reasoning. Native gateway responses retain the upstream usage fields on the wire.

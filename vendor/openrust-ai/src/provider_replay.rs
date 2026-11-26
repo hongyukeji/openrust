@@ -16,6 +16,7 @@ enum ReplayContent {
     ChatReasoning(String),
     OllamaThinking(String),
     ResponsesItems(Vec<Value>),
+    BedrockBlocks(Vec<Value>),
     AnthropicBlocks(Vec<Value>),
     GeminiContent(Value),
 }
@@ -49,6 +50,8 @@ impl ProviderReplay {
                 ReplayContent::OllamaThinking(thinking.to_owned())
             } else if let Some(items) = source.get("responses_items").and_then(Value::as_array) {
                 ReplayContent::ResponsesItems(items.clone())
+            } else if let Some(blocks) = source.get("bedrock_blocks").and_then(Value::as_array) {
+                ReplayContent::BedrockBlocks(blocks.clone())
             } else if let Some(blocks) = source
                 .as_array()
                 .filter(|blocks| anthropic_replayable(blocks))
@@ -84,6 +87,13 @@ impl ProviderReplay {
     pub(crate) fn responses_items(&self, scope: &str, model: &str) -> Option<&[Value]> {
         match self.for_scope(scope, model)? {
             ReplayContent::ResponsesItems(items) => Some(items),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn bedrock_blocks(&self, scope: &str, model: &str) -> Option<&[Value]> {
+        match self.for_scope(scope, model)? {
+            ReplayContent::BedrockBlocks(blocks) => Some(blocks),
             _ => None,
         }
     }

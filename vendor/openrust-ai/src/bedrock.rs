@@ -1,3 +1,5 @@
+mod tools;
+
 use std::{collections::BTreeMap, path::Path, sync::Arc, time::Duration};
 
 use aws_config::{BehaviorVersion, sts::AssumeRoleProvider};
@@ -11,23 +13,26 @@ use aws_sdk_bedrockruntime::{
         ContentBlock, ContentBlockDelta, ConversationRole, ConverseStreamOutput, DocumentBlock,
         DocumentFormat, DocumentSource, ImageBlock, ImageFormat, ImageSource,
         InferenceConfiguration, Message as BedrockMessage, ReasoningContentBlock,
-        ReasoningContentBlockDelta, SystemContentBlock, TokenUsage,
+        ReasoningContentBlockDelta, SystemContentBlock, TokenUsage, ToolConfiguration,
         error::ConverseStreamOutputError,
     },
 };
 use aws_smithy_runtime_api::client::auth::http::HTTP_BEARER_AUTH_SCHEME_ID;
+use openrust::support::Str;
 use openrust::{
     config::Environment,
     http::{HttpFuture, client::Factory},
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use tokio::sync::OnceCell;
 
 use crate::{
     AgentPrompt, AgentResponse, AiError, AiResult, Attachment, FinishReason, MessageRole,
-    ModelCatalog, ReasoningPart, StepEvent, StepEventStream, StepResponse, StreamableAgentResponse,
-    TextModelTier, TextPrompt, TextProvider, Usage,
+    ModelCatalog, ReasoningPart, StepEvent, StepEventStream, StepResponse, StepTextGateway,
+    StreamableAgentResponse, TextModelTier, TextPrompt, TextProvider, ToolCall, ToolDefinition,
+    ToolStep, Usage,
     connection::{Authorization, Connection},
 };
 
@@ -45,7 +50,7 @@ fn default_chain() -> bool {
     true
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 struct AssumeRole {
     arn: String,
     session_name: Option<String>,
@@ -110,6 +115,15 @@ impl BedrockProvider {
             .map_err(|_| AiError::InvalidConfiguration("providers.<name>.credentials"))
     }
 
+    fn bearer_key(&self) -> AiResult<Option<String>> {
+        self.env(
+            self.settings
+                .key_env
+                .as_deref()
+                .unwrap_or("AWS_BEARER_TOKEN_BEDROCK"),
+        )
+    }
+
     async fn client(&self) -> AiResult<&Client> {
         self.client
             .get_or_try_init(|| async {
@@ -120,10 +134,7 @@ impl BedrockProvider {
                         .unwrap_or_else(|| "us-east-1".into()),
                 );
                 let retry = RetryConfig::standard().with_max_attempts(1);
-                let key = match self.settings.key_env.as_deref() {
-                    Some(name) => self.env(name)?,
-                    None => self.env("AWS_BEARER_TOKEN_BEDROCK")?,
-                };
+                let key = self.bearer_key()?;
                 let mut config = if let Some(key) = key {
                     aws_sdk_bedrockruntime::config::Builder::new()
                         .behavior_version(BehaviorVersion::latest())
@@ -199,9 +210,86 @@ impl TextProvider for BedrockProvider {
         self.generate(prompt.into())
     }
 
+    fn step_text_gateway(&self) -> Option<&dyn StepTextGateway> {
+        Some(self)
+    }
+
     fn generate<'a>(&'a self, prompt: AgentPrompt<'a>) -> HttpFuture<'a, AiResult<AgentResponse>> {
         Box::pin(async move {
-            let input = ConverseInput::prepare(&prompt)?;
+            let completed = self.generate_text_step(&prompt, &[], &[]).await?;
+            let text = completed
+                .text
+                .filter(|text| !text.is_empty())
+                .ok_or(AiError::InvalidResponse)?;
+            let mut result =
+                AgentResponse::new(text, completed.usage, self.name(), prompt.text.model);
+            result.reasoning = completed.reasoning;
+            Ok(result.with_step(completed.finish_reason))
+        })
+    }
+
+    fn stream_text<'a>(
+        &'a self,
+        prompt: TextPrompt<'a>,
+    ) -> HttpFuture<'a, AiResult<StreamableAgentResponse>> {
+        self.stream(prompt.into())
+    }
+
+    fn stream<'a>(
+        &'a self,
+        prompt: AgentPrompt<'a>,
+    ) -> HttpFuture<'a, AiResult<StreamableAgentResponse>> {
+        Box::pin(async move {
+            let events = self.stream_text_step(&prompt, &[], &[]).await?;
+            Ok(crate::tool_stream::single_step_response(
+                Arc::new(self.clone()),
+                prompt,
+                events,
+            ))
+        })
+    }
+}
+
+impl StepTextGateway for BedrockProvider {
+    fn approval_replay_scope(&self) -> AiResult<Option<String>> {
+        let auth = if let Some(token) = self.bearer_key()? {
+            serde_json::json!(["bearer", token])
+        } else if let (Some(id), Some(secret)) = (
+            self.env("AWS_ACCESS_KEY_ID")?,
+            self.env("AWS_SECRET_ACCESS_KEY")?,
+        ) {
+            serde_json::json!([
+                "sigv4",
+                id,
+                secret,
+                self.env("AWS_SESSION_TOKEN")?,
+                self.settings.assume_role
+            ])
+        } else {
+            // 默认凭证链的调用身份无法在同步恢复检查中确认。
+            return Ok(None);
+        };
+        let scope = serde_json::to_vec(&(
+            "bedrock",
+            self.name(),
+            &self.settings.region,
+            &self.settings.url,
+            auth,
+        ))
+        .map_err(|_| AiError::InvalidConfiguration("providers.<name>"))?;
+        Ok(Some(format!("{:x}", Sha256::digest(scope))))
+    }
+
+    fn generate_text_step<'a>(
+        &'a self,
+        prompt: &'a AgentPrompt<'a>,
+        definitions: &'a [ToolDefinition],
+        history: &'a [ToolStep],
+    ) -> HttpFuture<'a, AiResult<StepResponse>> {
+        Box::pin(async move {
+            let scope = self.approval_replay_scope()?;
+            let input = ConverseInput::prepare(prompt, definitions, history, scope.as_deref())?;
+            let allow_tools = input.tool_config.is_some();
             let request = self
                 .client()
                 .await?
@@ -209,7 +297,8 @@ impl TextProvider for BedrockProvider {
                 .model_id(prompt.text.model)
                 .set_messages(Some(input.messages))
                 .set_system(input.system)
-                .set_inference_config(input.inference);
+                .set_inference_config(input.inference)
+                .set_tool_config(input.tool_config);
             let response = request
                 .customize()
                 .config_override(input.timeout)
@@ -231,33 +320,36 @@ impl TextProvider for BedrockProvider {
                     _ => {}
                 }
             }
-            if text.is_empty() {
-                return Err(AiError::InvalidResponse);
+            let blocks = tools::read_output(message.content())?;
+            let (calls, replay) = tools::output_state(&blocks)?;
+            if !calls.is_empty() && !allow_tools {
+                return Err(AiError::ToolsNotSupported);
             }
-            let mut result = AgentResponse::new(
-                text,
-                usage(response.usage()),
-                self.name(),
-                prompt.text.model,
-            );
-            result.reasoning = reasoning.join("\n\n");
-            Ok(result.with_step(finish_reason(response.stop_reason().as_str())))
+            let reason = finish_reason(response.stop_reason().as_str());
+            validate_tool_stop(reason, &calls)?;
+            Ok(StepResponse {
+                model: None,
+                text: (!text.is_empty()).then_some(text),
+                reasoning: reasoning.join("\n\n"),
+                finish_reason: reason,
+                usage: usage(response.usage()),
+                citations: Vec::new(),
+                tool_calls: calls,
+                provider_content: replay,
+            })
         })
     }
 
-    fn stream_text<'a>(
+    fn stream_text_step<'a>(
         &'a self,
-        prompt: TextPrompt<'a>,
-    ) -> HttpFuture<'a, AiResult<StreamableAgentResponse>> {
-        self.stream(prompt.into())
-    }
-
-    fn stream<'a>(
-        &'a self,
-        prompt: AgentPrompt<'a>,
-    ) -> HttpFuture<'a, AiResult<StreamableAgentResponse>> {
+        prompt: &'a AgentPrompt<'a>,
+        definitions: &'a [ToolDefinition],
+        history: &'a [ToolStep],
+    ) -> HttpFuture<'a, AiResult<StepEventStream>> {
         Box::pin(async move {
-            let input = ConverseInput::prepare(&prompt)?;
+            let scope = self.approval_replay_scope()?;
+            let input = ConverseInput::prepare(prompt, definitions, history, scope.as_deref())?;
+            let allow_tools = input.tool_config.is_some();
             let client = self.client().await?;
             let deadline = tokio::time::Instant::now()
                 .checked_add(input.duration)
@@ -268,17 +360,13 @@ impl TextProvider for BedrockProvider {
                 .set_messages(Some(input.messages))
                 .set_system(input.system)
                 .set_inference_config(input.inference)
+                .set_tool_config(input.tool_config)
                 .customize()
                 .config_override(input.timeout)
                 .send()
                 .await
                 .map_err(converse_error)?;
-            let events = stream_events(response, deadline);
-            Ok(crate::tool_stream::single_step_response(
-                Arc::new(self.clone()),
-                prompt,
-                events,
-            ))
+            Ok(stream_events(response, deadline, allow_tools))
         })
     }
 }
@@ -287,12 +375,18 @@ struct ConverseInput {
     messages: Vec<BedrockMessage>,
     system: Option<Vec<SystemContentBlock>>,
     inference: Option<InferenceConfiguration>,
+    tool_config: Option<ToolConfiguration>,
     duration: Duration,
     timeout: aws_sdk_bedrockruntime::config::Builder,
 }
 
 impl ConverseInput {
-    fn prepare(prompt: &AgentPrompt<'_>) -> AiResult<Self> {
+    fn prepare(
+        prompt: &AgentPrompt<'_>,
+        definitions: &[ToolDefinition],
+        history: &[ToolStep],
+        scope: Option<&str>,
+    ) -> AiResult<Self> {
         if prompt.structured_output.is_some() {
             return Err(AiError::StructuredOutputNotSupported);
         }
@@ -304,24 +398,34 @@ impl ConverseInput {
         }
         let mut messages = Vec::with_capacity(prompt.messages.len() + 1);
         for message in prompt.messages {
-            let role = match message.role {
-                MessageRole::User => ConversationRole::User,
-                MessageRole::Assistant if message.tool_calls.is_empty() => {
-                    ConversationRole::Assistant
+            messages.push(match message.role {
+                MessageRole::User => message_content(
+                    ConversationRole::User,
+                    &message.content,
+                    &message.attachments,
+                )?,
+                MessageRole::Assistant if message.attachments.is_empty() => {
+                    let replay =
+                        scope
+                            .zip(message.provider_replay.as_ref())
+                            .and_then(|(scope, replay)| {
+                                replay.bedrock_blocks(scope, prompt.text.model)
+                            });
+                    tools::assistant(&message.content, &message.tool_calls, replay)?
                 }
-                _ => return Err(AiError::ToolsNotSupported),
-            };
-            messages.push(message_content(
-                role,
-                &message.content,
-                &message.attachments,
-            )?);
+                MessageRole::ToolResult if message.attachments.is_empty() => {
+                    tools::results(&message.tool_results)?
+                }
+                _ => return Err(AiError::AttachmentsNotSupported),
+            });
         }
         messages.push(message_content(
             ConversationRole::User,
             prompt.text.prompt,
             prompt.attachments,
         )?);
+        messages.extend(tools::messages(history)?);
+        let tool_config = tools::configuration(definitions, prompt.tool_choice)?;
         let options = prompt.options;
         let max_tokens = options
             .max_tokens
@@ -344,6 +448,7 @@ impl ConverseInput {
             messages,
             system,
             inference,
+            tool_config,
             duration,
             timeout,
         })
@@ -354,10 +459,17 @@ impl ConverseInput {
 struct StreamBlock {
     text: String,
     reasoning: String,
+    signature: String,
+    redacted: Vec<u8>,
+    tool: Option<(String, String, String)>,
     closed: bool,
 }
 
-fn stream_events(mut response: StreamOutput, deadline: tokio::time::Instant) -> StepEventStream {
+fn stream_events(
+    mut response: StreamOutput,
+    deadline: tokio::time::Instant,
+    allow_tools: bool,
+) -> StepEventStream {
     Box::pin(async_stream::try_stream! {
         let mut started = false;
         let mut stopped = None;
@@ -368,6 +480,18 @@ fn stream_events(mut response: StreamOutput, deadline: tokio::time::Instant) -> 
             match event {
                 ConverseStreamOutput::MessageStart(event) if !started && event.role() == &ConversationRole::Assistant => {
                     started = true;
+                }
+                ConverseStreamOutput::ContentBlockStart(event) if started && stopped.is_none() => {
+                    let index = u64::try_from(event.content_block_index()).map_err(|_| AiError::InvalidResponse)?;
+                    let tool = event.start().and_then(|start| start.as_tool_use().ok())
+                        .ok_or(AiError::InvalidResponse)?;
+                    if !allow_tools || blocks.contains_key(&index) {
+                        Err(AiError::InvalidResponse)?;
+                    }
+                    blocks.insert(index, StreamBlock {
+                        tool: Some((tool.tool_use_id().into(), tool.name().into(), String::new())),
+                        ..StreamBlock::default()
+                    });
                 }
                 ConverseStreamOutput::ContentBlockDelta(event) if started && stopped.is_none() => {
                     let index = u64::try_from(event.content_block_index()).map_err(|_| AiError::InvalidResponse)?;
@@ -385,7 +509,16 @@ fn stream_events(mut response: StreamOutput, deadline: tokio::time::Instant) -> 
                             block.reasoning.push_str(delta);
                             yield StepEvent::Reasoning(ReasoningPart::Delta { part, delta: delta.clone() });
                         }
-                        ContentBlockDelta::ToolUse(_) => Err(AiError::ToolsNotSupported)?,
+                        ContentBlockDelta::ReasoningContent(ReasoningContentBlockDelta::Signature(delta)) => {
+                            block.signature.push_str(delta);
+                        }
+                        ContentBlockDelta::ReasoningContent(ReasoningContentBlockDelta::RedactedContent(delta)) => {
+                            block.redacted.extend_from_slice(delta.as_ref());
+                        }
+                        ContentBlockDelta::ToolUse(delta) => {
+                            let (_, _, arguments) = block.tool.as_mut().ok_or(AiError::InvalidResponse)?;
+                            arguments.push_str(delta.input());
+                        }
                         _ => {}
                     }
                 }
@@ -415,15 +548,18 @@ fn stream_events(mut response: StreamOutput, deadline: tokio::time::Instant) -> 
                     let text = blocks.values().map(|block| block.text.as_str()).collect::<String>();
                     let reasoning = blocks.values().map(|block| block.reasoning.as_str())
                         .filter(|text| !text.is_empty()).collect::<Vec<_>>().join("\n\n");
+                    let replay = blocks.into_values().filter_map(stream_block).collect::<AiResult<Vec<_>>>()?;
+                    let (calls, replay) = tools::output_state(&replay)?;
+                    validate_tool_stop(reason, &calls)?;
                     let response = StepResponse {
                         model: None,
-                        text: Some(text),
+                        text: (!text.is_empty()).then_some(text),
                         reasoning,
                         finish_reason: reason,
                         usage: usage(Some(tokens)),
                         citations: Vec::new(),
-                        tool_calls: Vec::new(),
-                        provider_content: None,
+                        tool_calls: calls,
+                        provider_content: replay,
                     };
                     yield StepEvent::Finished { response: Box::new(response), reason: reason.as_str().into() };
                     return;
@@ -434,6 +570,44 @@ fn stream_events(mut response: StreamOutput, deadline: tokio::time::Instant) -> 
         }
         Err(AiError::InvalidResponse)?;
     })
+}
+
+fn validate_tool_stop(reason: FinishReason, calls: &[ToolCall]) -> AiResult<()> {
+    if (reason == FinishReason::ToolCalls) == calls.is_empty() {
+        return Err(AiError::InvalidResponse);
+    }
+    Ok(())
+}
+
+fn stream_block(block: StreamBlock) -> Option<AiResult<tools::ReplayBlock>> {
+    use tools::ReplayBlock;
+    if let Some((id, name, arguments)) = block.tool {
+        let arguments = if arguments.trim().is_empty() {
+            Ok(serde_json::Map::new())
+        } else {
+            serde_json::from_str(&arguments).map_err(|_| AiError::InvalidToolArguments)
+        };
+        return Some(arguments.map(|arguments| {
+            ReplayBlock::Tool(ToolCall {
+                id,
+                name,
+                arguments,
+                result_id: None,
+            })
+        }));
+    }
+    if !block.signature.is_empty() {
+        return Some(Ok(ReplayBlock::SignedReasoning {
+            text: block.reasoning,
+            signature: block.signature,
+        }));
+    }
+    if !block.redacted.is_empty() {
+        return Some(Ok(ReplayBlock::RedactedReasoning(Str::to_base64(
+            block.redacted,
+        ))));
+    }
+    (!block.text.is_empty()).then_some(Ok(ReplayBlock::Text(block.text)))
 }
 
 fn message_content(
