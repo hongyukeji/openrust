@@ -34,3 +34,13 @@
 在 `699ad83cd` 冻结 Rust 源码上实测 PostgreSQL 18.7、MySQL 8.4.13 各搭配 database 及 Redis 8.10.3，四组均通过。MySQL＋Redis 首轮在磁盘停线时由守卫中断，持锁清理后用同一源码及 Rust 1.94.0 重新构建并单独通过。Rust 源码沿用前述格式与严格 Clippy 结果，本批另核对 Python 语法和改动差异。
 
 此验收覆盖 WH-V25、WH-V26 和 WH-V27 的上述路径。WH-V26 已补[同主机双节点共享 S3 附件](shared-object-storage.md)，真实跨主机、托管对象存储、生产入口和目标操作系统仍待验。WH-V27 已补[共享主写库和 Redis 断连与恢复](backend-interruption.md)及[Scheduler 退出、旧 Worker 回归、端点撤销与凭据缺失](cluster-ownership.md)。[同主机两版本滚动升级](rolling-upgrade.md)已覆盖选定的增量迁移。节点时差、真实跨主机与生产升级仍待验收。完整 Webhook 门禁保持开放。
+
+<a id="separate-vm-guests"></a>
+
+## Linux 与 Windows 双虚机
+
+复用 [ARM64 原生验收](native-platforms.md) 的 Rust 1.94.0 验收应用。Linux HTTP 接收进程运行在 Docker Desktop 的 Linux 虚机，Windows HTTP 生产进程及两个独立 Worker 运行在 Parallels Windows 11 ARM64 虚机。两端使用各自的应用目录。接收地址和 PostgreSQL 18.7 只发布到宿主的 Parallels 私有接口，Linux 端通过容器网络访问数据库，Windows 端通过私有接口访问同一个数据库队列。
+
+在 Windows 执行 Artisan 迁移、配置缓存和路由缓存。实际 HTTP 写入出站记录，Artisan 入队，Windows 出站 Worker 将签名 JSON 发送到 Linux 的 `retention-digest` 接收配置。Linux 验签后同库原子入队，Windows 接收 Worker 执行领取和完成，在独立目录输出逐字节相同的正文。Artisan 查询确认出站成功。PostgreSQL 保留一条已处理记录和一条完成的领取尝试，双方队列和失败账本为空。
+
+前两次使用普通接收配置和通用原子配置，均完成跨虚机投递及读取。两个配置的测试 Job 不写租约完成字段，最终用同时启用原子入队和领取的配置验证持久终态。日志保存在 `target/tmp/webhook-guest-topology/`，本批应用目录、数据库、容器和网络已清理。双虚机共享同一物理宿主，物理跨机、托管服务、生产 TLS 入口和独立节点时钟仍按发布部署复验。
