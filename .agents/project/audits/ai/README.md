@@ -175,3 +175,11 @@ Anthropic Messages 与 Gemini GenerateContent 的 `Agent::stream` 接入现有 `
 沿用 `for_participant` 和 `r#continue` 的归属校验与历史构造。持久会话的 `stream` 与 `stream_structured` 在返回流时提供会话 ID，采用任一已有 SSE 渲染器。流式正文照常交付。最后的完成事件在成功落库后发送，截断或客户端提前丢弃的流不会生成半轮记录。工具流的各步用量按已报告的值合并，结构化调用使用现有 Schema 和 JSON 对象解析后再写入。
 
 包测试验证 Fake 的会话输入、结构化输出、流内可见的持久化边界和取消。独立 Artisan 从结构化入口创建会话，独立 HTTP 进程恢复历史、实时发送首段文本、提供存储后的最终事件，并对截断流返回错误。三种真实数据库 SQLite、MySQL 8.4.13 和 PostgreSQL 18.7 均通过 HTTP／Artisan 与迁移回滚。可替换存储、附件、原始工具步骤重放及审批暂停／恢复仍待相应批次。
+
+## AI-05 Reranking Fake 与 Collection
+
+`Reranking::fake` 可接收结果列表或完整响应，`fake_with` 接收闭包。默认使用框架 Collection 打乱输入索引并按限制返回，支持阻止意外调用及 Laravel 风格断言。Fake 使用应用内状态，在 SDK 的正常入口拦截并通过与供应商相同的索引和数量校验。包测试覆盖元数据、回调、随机结果、耗尽和无出站请求。
+
+`Reranks` 为框架 Collection 提供 `rerank` 与 `rerank_with`，应用用闭包选择条目中的文本，返回原始条目和上游排名顺序。独立 HTTP 通过 TCP 模拟 Voyage 验证条目关联，独立 Artisan 验证 Fake 拦截、记录和耗尽。固定 Laravel 的字段路径及多字段提取、Bedrock 和供应商专用选项继续保留为待核对项。
+
+- [Laravel 固定 Collection 与 Reranking 注册逻辑](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/AiServiceProvider.php)

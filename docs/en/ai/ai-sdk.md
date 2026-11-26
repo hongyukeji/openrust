@@ -201,3 +201,8 @@ let result = Reranking::of(["Shipping", "Exchanges", "Returns"])?
 ```
 
 Results keep the provider’s ranking order. Each `index` points to the document’s original position, so you can select the ranked items from the input collection.
+
+Import `Reranks` to call `collection.rerank(|item| item.title.clone(), query).await?`. The result contains the original items in ranked order. Use `rerank_with` and `RerankingOptions` to change the result limit, timeout, connection, or model.
+
+Use `Reranking::fake([])?` to generate a fake ranking without an outbound request. Supply scripted results or use `Reranking::fake_with` for a callback. Assert calls with `assert_reranked`, `assert_not_reranked`, or `assert_nothing_reranked`. Call `prevent_stray_rerankings(true)` on the fake to reject unconfigured responses.
+

@@ -201,3 +201,8 @@ let result = Reranking::of(["配送", "換貨", "退貨"])?
 ```
 
 結果保留供應商回傳的排序順序。各項的 `index` 都指向原始文件位置，可用來取得輸入集合中的原始紀錄。
+
+匯入 `Reranks` 後，可呼叫 `collection.rerank(|item| item.title.clone(), query).await?`，依相關性回傳集合中的原始項目。需要覆寫回傳筆數、逾時、連線或模型時，使用 `rerank_with` 和 `RerankingOptions`。
+
+用 `Reranking::fake([])?` 產生測試排名，呼叫不會連線到供應商。也可預設結果，或用 `Reranking::fake_with` 撰寫回呼。透過 `assert_reranked`、`assert_not_reranked` 和 `assert_nothing_reranked` 驗證呼叫。替身的 `prevent_stray_rerankings(true)` 會拒絕未設定回應的呼叫。
+

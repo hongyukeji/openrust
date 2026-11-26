@@ -182,3 +182,116 @@ async fn native_reranking_drivers_preserve_original_indexes() -> TestResult {
     hits.await?;
     Ok(())
 }
+
+#[tokio::test]
+async fn reranking_fake_intercepts_the_sdk_and_preserves_collection_items() -> TestResult {
+    use openrust::support::Collection;
+    use openrust_ai::{RankedDocument, RerankingOptions, RerankingResponse, Reranks, Usage};
+
+    let upstream = TcpListener::bind("127.0.0.1:0").await?;
+    let mut app = TestApp::create(|builder| {
+        builder
+            .with_providers(openrust_ai::openrust_providers())
+            .with_routing(Routing::default().web(|| {
+                Route::get("/fake-rerank", || async {
+                    assert!(!Reranking::is_faked().unwrap());
+                    let result = RankedDocument {
+                        index: 1,
+                        relevance_score: 0.97,
+                    };
+                    let fake = Reranking::fake([RerankingResponse {
+                        results: vec![result],
+                        usage: Usage {
+                            prompt_tokens: Some(6),
+                            completion_tokens: None,
+                        },
+                        provider: "fixture".into(),
+                        model: "selected-model".into(),
+                    }
+                    .into()])
+                    .unwrap();
+                    fake.prevent_stray_rerankings(true);
+                    Reranking::assert_nothing_reranked().unwrap();
+                    let response = Reranking::of(["shipping", "returns"])
+                        .unwrap()
+                        .limit(1)
+                        .rerank("refund")
+                        .await
+                        .unwrap();
+                    assert_eq!(response.results[0].index, 1);
+                    assert_eq!(response.usage.prompt_tokens, Some(6));
+                    assert_eq!(response.model, "selected-model");
+                    Reranking::assert_reranked(|request| {
+                        request.query == "refund"
+                            && request.provider.as_deref() == Some("cohere")
+                            && request.model.as_deref() == Some("cohere-default")
+                    })
+                    .unwrap();
+                    Reranking::assert_not_reranked(|request| request.query == "other").unwrap();
+                    assert!(matches!(
+                        Reranking::of(["shipping"]).unwrap().rerank("other").await,
+                        Err(AiError::FakeExhausted)
+                    ));
+
+                    let fake = Reranking::fake_with(|request| {
+                        assert_eq!(request.documents, ["shipping", "returns"]);
+                        assert_eq!(request.query, "refund");
+                        assert_eq!(request.limit, Some(1));
+                        assert_eq!(request.timeout, Duration::from_secs(2));
+                        Ok(vec![RankedDocument {
+                            index: 1,
+                            relevance_score: 0.8,
+                        }]
+                        .into())
+                    })
+                    .unwrap();
+                    let catalog = Collection::make([(10, "shipping"), (42, "returns")]);
+                    let ranked = catalog
+                        .rerank_with(
+                            |item| item.1.to_owned(),
+                            "refund",
+                            RerankingOptions {
+                                limit: Some(1),
+                                timeout: Some(Duration::from_secs(2)),
+                                ..Default::default()
+                            },
+                        )
+                        .await
+                        .unwrap();
+                    assert_eq!(
+                        ranked.all().values().copied().collect::<Vec<_>>(),
+                        [(42, "returns")]
+                    );
+                    assert_eq!(fake.recorded().len(), 1);
+
+                    Reranking::fake([]).unwrap();
+                    let default = Reranking::of(["a", "b", "c"])
+                        .unwrap()
+                        .limit(2)
+                        .rerank("x")
+                        .await
+                        .unwrap();
+                    assert_eq!(default.results.len(), 2);
+                    assert_ne!(default.results[0].index, default.results[1].index);
+                    assert!(
+                        default.results[0].relevance_score > default.results[1].relevance_score
+                    );
+                    Ok::<_, HttpError>(Response::empty(StatusCode::OK))
+                })
+            }))
+    })?;
+    fs::write(
+        app.root().join(".env.testing"),
+        format!(
+            "AI_RERANKING_PROVIDER=cohere\nCOHERE_API_KEY=unused-fixture\nCOHERE_RERANK_MODEL=cohere-default\nCOHERE_URL=http://{}/v2\n",
+            upstream.local_addr()?,
+        ),
+    )?;
+    assert_eq!(app.get("/fake-rerank").await?.status(), StatusCode::OK);
+    assert!(
+        timeout(Duration::from_millis(100), upstream.accept())
+            .await
+            .is_err()
+    );
+    Ok(())
+}

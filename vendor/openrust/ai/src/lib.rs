@@ -25,6 +25,7 @@ mod error;
 mod facade;
 mod fake;
 mod fake_embedding_gateway;
+mod fake_reranking_gateway;
 mod gemini;
 mod manager;
 mod messages;
@@ -55,13 +56,14 @@ pub use error::{AiError, AiResult};
 pub use facade::Ai;
 pub use fake::{FakeTextGateway, RecordedPrompt};
 pub use fake_embedding_gateway::{FakeEmbeddingGateway, RecordedEmbeddings};
+pub use fake_reranking_gateway::{FakeRerankingGateway, FakeRerankingResult, RecordedReranking};
 pub use manager::AiManager;
 pub use messages::{AgentPrompt, Message, MessageRole};
 pub use middleware::{AgentMiddleware, NextStep, PendingStep};
 pub use models::{ModelCatalog, ModelInfo};
 pub use reranking::{
-    PendingReranking, RankedDocument, Reranking, RerankingPrompt, RerankingProvider,
-    RerankingResponse,
+    PendingReranking, RankedDocument, Reranking, RerankingOptions, RerankingPrompt,
+    RerankingProvider, RerankingResponse, Reranks,
 };
 pub use streaming::{
     AgentEventStream, AgentUserInteractionProtocol, StreamEvent, StreamEventData, StreamProtocol,

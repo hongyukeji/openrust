@@ -15,8 +15,9 @@ use serde_json::Value;
 
 use crate::{
     Agent, AgentPrompt, AgentResponse, AiError, AiResult, EmbeddingProvider, FakeEmbeddingGateway,
-    FakeTextGateway, PromptOptions, RecordedEmbeddings, RerankingProvider, StreamableAgentResponse,
-    StructuredOutput, TextPrompt, TextProvider,
+    FakeRerankingGateway, FakeRerankingResult, FakeTextGateway, PromptOptions, RecordedEmbeddings,
+    RecordedReranking, RerankingProvider, StreamableAgentResponse, StructuredOutput, TextPrompt,
+    TextProvider,
     anthropic::AnthropicTextProvider,
     connection::{Authorization, Connection},
     gemini::GeminiTextProvider,
@@ -35,6 +36,7 @@ pub struct AiManager {
     providers: Mutex<HashMap<String, ProviderSlot>>,
     fakes: RwLock<HashMap<TypeId, Arc<FakeTextGateway>>>,
     embeddings_fake: RwLock<Option<Arc<FakeEmbeddingGateway>>>,
+    reranking_fake: RwLock<Option<Arc<FakeRerankingGateway>>>,
     on_demand: Arc<OnDemandProviders>,
 }
 
@@ -50,6 +52,7 @@ impl AiManager {
             providers: Mutex::default(),
             fakes: RwLock::default(),
             embeddings_fake: RwLock::default(),
+            reranking_fake: RwLock::default(),
             on_demand: Arc::new(OnDemandProviders::new(Arc::new(()))),
         };
         for (driver, protocol) in [
@@ -296,18 +299,45 @@ impl AiManager {
     }
 
     pub fn reranking_provider(&self, name: Option<&str>) -> AiResult<Arc<dyn RerankingProvider>> {
-        let configured = if name.is_none() {
-            match self.config.get("ai.default_for_reranking") {
-                Some(Value::String(name)) if !name.trim().is_empty() => Some(name),
-                None | Some(Value::Null) => None,
-                _ => return Err(AiError::InvalidConfiguration("default_for_reranking")),
-            }
-        } else {
-            None
-        };
-        self.text_provider(name.or(configured.as_deref()))?
+        let name = self.reranking_provider_name(name)?;
+        self.text_provider(Some(&name))?
             .reranking_provider()
             .ok_or(AiError::RerankingNotSupported)
+    }
+
+    pub(crate) fn reranking_provider_name(&self, name: Option<&str>) -> AiResult<String> {
+        if let Some(name) = name {
+            return Ok(name.into());
+        }
+        match self.config.get("ai.default_for_reranking") {
+            Some(Value::String(name)) if !name.trim().is_empty() => Ok(name),
+            Some(Value::Null) | None => self.get_default_instance(),
+            _ => Err(AiError::InvalidConfiguration("default_for_reranking")),
+        }
+    }
+
+    pub fn fake_reranking(
+        &self,
+        responses: impl IntoIterator<Item = FakeRerankingResult>,
+    ) -> Arc<FakeRerankingGateway> {
+        self.install_reranking_fake(FakeRerankingGateway::new(responses))
+    }
+
+    pub fn fake_reranking_with(
+        &self,
+        resolve: impl Fn(&RecordedReranking) -> AiResult<FakeRerankingResult> + Send + Sync + 'static,
+    ) -> Arc<FakeRerankingGateway> {
+        self.install_reranking_fake(FakeRerankingGateway::with(resolve))
+    }
+
+    fn install_reranking_fake(&self, fake: FakeRerankingGateway) -> Arc<FakeRerankingGateway> {
+        let fake = Arc::new(fake);
+        *self.reranking_fake.write().unwrap() = Some(fake.clone());
+        fake
+    }
+
+    pub fn reranking_fake(&self) -> Option<Arc<FakeRerankingGateway>> {
+        self.reranking_fake.read().unwrap().clone()
     }
 
     pub fn text_provider_for(

@@ -3,8 +3,9 @@ use std::sync::Arc;
 use openrust::{container::ServiceKey, support::facades::Facade};
 
 use crate::{
-    Agent, AiError, AiManager, AiResult, EmbeddingProvider, FakeEmbeddingGateway, FakeTextGateway,
-    ModelCatalog, RerankingProvider, TextProvider,
+    Agent, AiError, AiManager, AiResult, EmbeddingProvider, FakeEmbeddingGateway,
+    FakeRerankingGateway, FakeRerankingResult, FakeTextGateway, ModelCatalog, RerankingProvider,
+    TextProvider,
 };
 
 pub struct Ai;
@@ -49,6 +50,16 @@ impl Ai {
 
     pub fn embeddings_are_faked() -> AiResult<bool> {
         Ok(Self::manager()?.embeddings_fake().is_some())
+    }
+
+    pub fn fake_reranking(
+        responses: impl IntoIterator<Item = FakeRerankingResult>,
+    ) -> AiResult<Arc<FakeRerankingGateway>> {
+        Ok(Self::manager()?.fake_reranking(responses))
+    }
+
+    pub fn reranking_is_faked() -> AiResult<bool> {
+        Ok(Self::manager()?.reranking_fake().is_some())
     }
 
     pub fn reranking_provider(name: Option<&str>) -> AiResult<Arc<dyn RerankingProvider>> {
