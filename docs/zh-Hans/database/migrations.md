@@ -1354,7 +1354,7 @@ async fn import_order() -> DatabaseResult<()> {
 
 需要手动切换时，调用 `Schema::session().await?` 或具名连接构建器的 `session().await?` 获取写会话，再在此会话上调用 `disable_foreign_key_constraints` 或 `enable_foreign_key_constraints`，最后用 `close().await?` 归还。SQLite 表重建继续使用连接的 Schema Builder，由它管理重建所需的会话和事务。
 
-在 PostgreSQL 上，入口在回调前执行 `SET CONSTRAINTS ALL DEFERRED`，结束时执行 `SET CONSTRAINTS ALL IMMEDIATE`。这两条语句只影响事务内的约束检查时机。需要在事务内推迟检查时，调用当前 PostgreSQL 事务的 `transaction.without_foreign_key_constraints(...)`，并通过回调收到的事务执行 SQL。只有可延迟约束会推迟检查，退出时会立即验证仍待检查的写入。
+在 PostgreSQL 上，入口在回调前执行 `SET CONSTRAINTS ALL DEFERRED`，结束时执行 `SET CONSTRAINTS ALL IMMEDIATE`。这两条语句只影响事务内的约束检查时机。需要在事务内推迟检查时，调用当前 PostgreSQL 事务的 `transaction.without_foreign_key_constraints(...)`，并通过回调收到的事务执行 SQL。只有可延迟约束会推迟检查，退出时会立即验证仍待检查的写入。取消已开始的包装会关闭事务并回滚未提交写入。
 
 ## 事件 {#events}
 

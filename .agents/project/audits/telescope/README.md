@@ -143,7 +143,9 @@ macOS 的 SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 各用真实 HTTP 验证五�
 
 修复前，PostgreSQL 包装错误地读取 MySQL 会话变量。Rust 的 `SchemaSession` 现走 PostgreSQL 约束语句。显式事务通过 `Transaction::without_foreign_key_constraints` 在同一事务运行回调，回调结束时执行立即检查。SQLite 和 MySQL 继续恢复各自的会话初始设置。
 
-macOS 用 PostgreSQL 18.7 的真实 HTTP 分别验证外层调用行、回调写入行、事务内补齐和失败回滚、事务外约束仍生效以及非延迟约束始终立即检查。默认 SQLite Watchers、MySQL 8.4.13 的 Schema HTTP 专项、隔离快照全仓格式、相关严格 Clippy、三语站点构建与六个正文视口通过。证据为 `target/tmp/observability-parity/query-pgsql-constraints-{baseline,verified,docs}.log`。显式事务包装 Future 被单独取消、调用方随后复用该事务的行为仍须验收。
+macOS 用 PostgreSQL 18.7 的真实 HTTP 分别验证外层调用行、回调写入行、事务内补齐和失败回滚、事务外约束仍生效以及非延迟约束始终立即检查。默认 SQLite Watchers、MySQL 8.4.13 的 Schema HTTP 专项、隔离快照全仓格式、相关严格 Clippy、三语站点构建与六个正文视口通过。证据为 `target/tmp/observability-parity/query-pgsql-constraints-{baseline,verified,docs}.log`。
+
+Rust 独有的 Future 取消路径也用 PostgreSQL 18.7 实测。前态在已推迟外键检查并写入待检查数据后取消包装，仍可通过同一事务查询。现关闭该活跃事务，拒绝继续 SQL 或提交，丢弃租约并回滚未提交的父行和子行。单连接池下一次取得的连接可以正常查询，即时外键检查仍生效。两个 PostgreSQL HTTP 来源回归、默认 Watchers、全仓格式、相关严格 Clippy、三语站点和六个正文视口复跑通过。证据为 `target/tmp/observability-parity/query-pgsql-constraints-cancellation-{baseline,verified,docs}.log`。
 
 ### 出站响应内容形状与大小限制
 

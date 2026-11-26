@@ -50,6 +50,22 @@ struct SqliteSchemaSession {
     legacy_alter: bool,
 }
 
+struct PostgresConstraintScope<'a> {
+    transaction: &'a mut Transaction,
+    finished: bool,
+}
+
+impl Drop for PostgresConstraintScope<'_> {
+    fn drop(&mut self) {
+        if !self.finished {
+            // 约束切换可能已经到达服务器。释放活跃租约会关闭连接并回滚事务。
+            self.transaction.physical.take();
+            self.transaction.level = 0;
+            self.transaction.transactions.discard();
+        }
+    }
+}
+
 pub(super) fn mysql_deadlock(error: &sqlx::Error) -> bool {
     error.as_database_error().is_some_and(|error| {
         error
@@ -296,6 +312,7 @@ impl Transaction {
     }
 
     /// 在当前 PostgreSQL 事务中延迟可延迟约束，并在回调结束时立即校验。
+    /// 取消已开始的包装会关闭事务并回滚未提交写入。
     #[track_caller]
     pub fn without_foreign_key_constraints<T>(
         &mut self,
@@ -310,15 +327,26 @@ impl Transaction {
                     "此事务约束包装仅支持 PostgreSQL",
                 ));
             }
-            self.statement(super::schema::postgres_foreign_key_sql(false), &[])
-                .await?;
-            let result = callback(self).await;
-            let restore = self
-                .statement(super::schema::postgres_foreign_key_sql(true), &[])
-                .await;
-            let output = result?;
-            restore?;
-            Ok(output)
+            let mut scope = PostgresConstraintScope {
+                transaction: self,
+                finished: false,
+            };
+            let result = async {
+                let transaction = &mut *scope.transaction;
+                transaction
+                    .statement(super::schema::postgres_foreign_key_sql(false), &[])
+                    .await?;
+                let result = callback(transaction).await;
+                let restore = transaction
+                    .statement(super::schema::postgres_foreign_key_sql(true), &[])
+                    .await;
+                let output = result?;
+                restore?;
+                Ok(output)
+            }
+            .await;
+            scope.finished = true;
+            result
         })
     }
 

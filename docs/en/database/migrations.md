@@ -1354,7 +1354,7 @@ async fn import_order() -> DatabaseResult<()> {
 
 For manual control, acquire a write session with `Schema::session().await?` or the named builder’s `session().await?`, then call `disable_foreign_key_constraints` or `enable_foreign_key_constraints` on the session and finish with `close().await?`. SQLite operations that rebuild a table continue to use the connection’s Schema Builder, which manages its own session and transaction.
 
-On PostgreSQL, the scope issues `SET CONSTRAINTS ALL DEFERRED` before the callback and `SET CONSTRAINTS ALL IMMEDIATE` afterwards. These statements only change constraint timing inside a transaction. Use `transaction.without_foreign_key_constraints(...)` on your active PostgreSQL transaction and run queries through the transaction supplied to the callback. Only deferrable constraints are delayed. The closing statement checks pending violations immediately.
+On PostgreSQL, the scope issues `SET CONSTRAINTS ALL DEFERRED` before the callback and `SET CONSTRAINTS ALL IMMEDIATE` afterwards. These statements only change constraint timing inside a transaction. Use `transaction.without_foreign_key_constraints(...)` on your active PostgreSQL transaction and run queries through the transaction supplied to the callback. Only deferrable constraints are delayed. The closing statement checks pending violations immediately. Cancelling the scope after it starts closes the transaction and rolls back uncommitted writes.
 
 ## Events {#events}
 

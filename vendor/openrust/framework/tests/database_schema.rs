@@ -5474,6 +5474,73 @@ async fn mysql_bulk_drop_restores_the_leased_session_after_cancellation() {
 }
 
 #[tokio::test]
+async fn postgres_cancelled_constraint_scope_cannot_reuse_the_transaction() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_POSTGRES_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_POSTGRES").is_none());
+        return;
+    };
+    let connection = connection(json!({"url":url,"max_connections":1}));
+    let suffix = format!("{:x}", fastrand::u64(..));
+    let parents = format!("constraint_parent_{suffix}");
+    let children = format!("constraint_child_{suffix}");
+    connection
+        .statement(&format!("create table {parents} (id int primary key)"), &[])
+        .await
+        .unwrap();
+    connection
+        .statement(
+            &format!("create table {children} (id int primary key, parent int references {parents}(id) deferrable initially immediate)"),
+            &[],
+        )
+        .await
+        .unwrap();
+    let mut transaction = connection.begin_transaction().await.unwrap();
+    let parent_insert = format!("insert into {parents} values (42)");
+    transaction.statement(&parent_insert, &[]).await.unwrap();
+
+    let orphan_insert = format!("insert into {children} values (1, 43)");
+    let (arrived, pending) = tokio::sync::oneshot::channel();
+    {
+        let pending_scope = transaction.without_foreign_key_constraints(|transaction| {
+            Box::pin(async move {
+                transaction.statement(&orphan_insert, &[]).await?;
+                arrived.send(()).unwrap();
+                std::future::pending::<Result<(), DatabaseError>>().await
+            })
+        });
+        tokio::select! {
+            outcome = pending_scope => panic!("约束包装过早结束：{outcome:?}"),
+            marker = tokio::time::timeout(std::time::Duration::from_secs(5), pending) => {
+                marker.unwrap().unwrap();
+            }
+        }
+    }
+    assert!(matches!(
+        transaction.scalar("select 1", &[]).await,
+        Err(DatabaseError::TransactionClosed)
+    ));
+    assert!(matches!(
+        transaction.commit().await,
+        Err(DatabaseError::TransactionClosed)
+    ));
+    let deadline = std::time::Duration::from_secs(5);
+    for table in [&parents, &children] {
+        let sql = format!("select count(*) from {table}");
+        let count = tokio::time::timeout(deadline, connection.scalar(&sql, &[]))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(count, Value::Integer(0));
+    }
+    let error = connection
+        .statement(&format!("insert into {children} values (2, 43)"), &[])
+        .await
+        .unwrap_err();
+    assert!(matches!(error, DatabaseError::Driver { source, .. }
+        if source.as_database_error().and_then(|error| error.code()).as_deref() == Some("23503")));
+}
+
+#[tokio::test]
 async fn sqlite_bulk_drop_keeps_objects_in_other_schemas() {
     let db = connection(json!({"driver":"sqlite","database":":memory:","max_connections":1}));
     let mut schema = db.get_schema_builder();
