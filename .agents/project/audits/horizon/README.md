@@ -76,7 +76,9 @@ Linux ARM64 的同一低优化框架 Release 另做了写入未复制的切换�
 
 固定提交 `63dd69a31` 的干净归档，以 Rust 1.94.0 和默认优化交叉构建 `x86_64-unknown-linux-gnu` Release。Docker Desktop 在 ARM64 宿主上运行 linux/amd64，验证 ELF 架构、完整进程与 HTTP 矩阵，以及 Redis 8.10.3 上四组主从切换。进程和切换共五组通过。证据为 `target/tmp/observability-parity/horizon-metadata-amd64-{source-commit,build.log,runtime.log}`。
 
-Linux ARM64 默认优化构建和物理 x86_64 主机继续验收。固定地址由夹具代理提供，实际 Redis 故障转移端点、切换时已经发出的领取请求、部署拓扑的写入耐久性和应用重放策略仍需验收。
+固定提交 `42e89b6f7` 的干净归档以 Rust 1.94.0 和默认优化构建 ARM64 Release。生成的程序在 Linux 7.0.14 ARM64 原生执行，使用 Redis 8.10.3 通过完整进程与 HTTP 矩阵及四组主从切换。证据为 `target/tmp/observability-parity/horizon-metadata-arm64-standard-{source-commit,build.log,runtime.log}`。
+
+物理 x86_64 主机继续验收。固定地址由夹具代理提供，实际 Redis 故障转移端点、切换时已经发出的领取请求、部署拓扑的写入耐久性和应用重放策略仍需验收。
 
 ### Master 命令队列与动态部署
 
