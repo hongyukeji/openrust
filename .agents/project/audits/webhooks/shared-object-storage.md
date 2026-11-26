@@ -14,3 +14,11 @@ RustFS 1.0.5 真实测试中的 `GetBucketOwnershipControls` 返回 `501 NotImpl
 验收应用以 `661ba7ff5` 冻结源码和本批夹具构建。应用及两 Webhook 包的格式检查、验收应用严格 Clippy、Python 语法检查通过。快照全工作区格式检查仍报告 [上一批记录的三处既有差异](backend-interruption.md)。旧版 `6d1a81924` 未找到可复用的 Webhook 附件流程。
 
 生产对象存储和真实跨主机仍待 WH-V26／WH-V27。该路径使用可核验的私有 ACL，AWS 默认 `BucketOwnerEnforced`、无 ACL 的服务以及上述 RustFS 版本的 Webhook 私有对象写入未验收通过。 [AWS S3 对象所有权](https://docs.aws.amazon.com/AmazonS3/latest/userguide/about-object-ownership.html)
+
+<a id="separate-vm-guests"></a>
+
+## 双虚机共享对象
+
+复用 [Linux 与 Windows 双虚机](topology.md#separate-vm-guests) 的 PostgreSQL 18.7、独立目录和实际 Artisan／Worker，并在同一隔离容器网络启用固定 SeaweedFS 4.53。两端以不同地址连接同一个私有桶。Windows 通过私有网络向 Linux 发送经 HMAC 签名的二进制 multipart，Linux 验签、写私有对象并同库入队。Windows 独立 Worker 走实际 S3 协议重建 multipart 并核对整个原文和文件字节。数据库仅保留附件磁盘名、长度和摘要，匿名 GET 返回 403，双方队列和失败账本为空。
+
+将隔离桶改为 `BucketOwnerEnforced` 后发送另一份正确签名的附件。HTTP 返回 500，数据库没有新增收件和任务，桶中保持原有的一个对象。保留显式私有可见性校验。实验覆盖同一物理宿主的两个虚机和自托管 S3 兼容服务，托管对象存储的策略及权限仍待发布环境验收。证据保存在 `target/tmp/webhook-guest-storage/`，临时数据库、对象、应用目录、容器和网络已清理。
