@@ -194,6 +194,8 @@ let recommendation = result.decision(&[Modality::Text]);
 
 `ImageInput::inline` 接受最多 10 MiB 的圖片位元組。驅動須核對實際格式，並可進一步縮小上限。私有物件使用 `StoredMedia`，影片使用 `VideoInput`。驅動應透過設定的儲存核對物件版本。
 
+私有 S3 磁碟透過 TLS 反向代理提供下載時，將審核設定的 `media_origin` 與磁碟的 `temporary_url` 設為同一個 HTTPS 來源。預設 S3 磁碟使用 `AWS_TEMPORARY_URL`。代理轉送至儲存端點時保留簽章中的原始 Host、路徑與查詢字串。保持儲存貯體私有，代理存取日誌應省略簽章查詢字串。[S3 暫時連結](../digging-deeper/filesystem.md#s3-temporary-url-origin)
+
 需要延後查詢時，在 `moderation.profile_revisions.<名稱>.<修訂>` 下宣告完整設定，加入 `account`、`policy_revision`、`credential_ref`、`credential_revision` 和非空的 `required_modalities`。可用的模態為 `text`、`visual`、`speech` 和 `ocr`。`account` 填寫部署時與該憑證配對的帳號或專案別名。位址、模型、策略或憑證修訂變更時建立新設定修訂，並保留未完成任務參照的舊設定。
 
 提交前用 `Moderation::pin_profile(name, revision)` 固定設定，用 `Moderation::driver_for_revision(&profile)` 解析驅動。應用程式將傳回的設定定位符、遠端 `TaskId` 和原始物件版本一起持久化，查詢時依該定位符重新解析。原設定遭直接修改、移除或對應憑證無法讀取時，復原失敗。待處理、失敗或必檢涵蓋不完整時均無法核准發布。

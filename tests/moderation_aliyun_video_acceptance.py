@@ -9,6 +9,7 @@ from pathlib import Path
 import runpy
 import socket
 import sqlite3
+import ssl
 import subprocess
 import tempfile
 import threading
@@ -41,15 +42,8 @@ class Supplier(ALIYUN["Supplier"]):
             fields = parse_qs(source.query, strict_parsing=True)
             version, = fields["versionId"]
             assert "X-Amz-Signature" in fields and 0 < int(fields["X-Amz-Expires"][0]) <= 300
-            backend = self.server.storage
-            connection = http.client.HTTPConnection(backend.hostname, backend.port, timeout=5)
-            try:
-                connection.request("GET", source.path + "?" + source.query, headers={"Host": backend.netloc})
-                response = connection.getresponse()
-                payload = response.read()
-                assert response.status == 200
-            finally:
-                connection.close()
+            status, payload = OBJECTS["download_media"](self.server, source)
+            assert status == 200
             with self.server.lock:
                 mode = self.server.submit_mode
                 self.server.submissions.append((version, payload))
@@ -122,15 +116,20 @@ def generate(directory, name, color, audio):
     return path.read_bytes()
 
 
-def exercise(binary, root, storage_env, storage):
-    storage("PUT", query="versioning", content=(
+def exercise(binary, root, storage_env, storage, *, media_ca=None, video_dir=None):
+    storage("PUT", query="versioning=", content=(
         b'<VersioningConfiguration xmlns="http://s3.amazonaws.com/doc/2006-03-01/">'
         b'<Status>Enabled</Status></VersioningConfiguration>'))
-    first_clip = generate(root, "video-with-audio.mp4", "blue", True)
-    new_clip = generate(root, "video-visual-only.mp4", "red", False)
+    if video_dir is None:
+        first_clip = generate(root, "video-with-audio.mp4", "blue", True)
+        new_clip = generate(root, "video-visual-only.mp4", "red", False)
+    else:
+        first_clip = (video_dir / "video-with-audio.mp4").read_bytes()
+        new_clip = (video_dir / "video-visual-only.mp4").read_bytes()
+        assert first_clip and new_clip and first_clip != new_clip
     storage("PUT", KEY, content=first_clip)
     storage("PUT", KEY, content=new_clip)
-    listing = XML.fromstring(storage("GET", query="versions&prefix=versions%2Fclip.mp4"))
+    listing = XML.fromstring(storage("GET", query="versions="))
     versions = {node.findtext("{*}IsLatest"): node.findtext("{*}VersionId")
                 for node in listing.findall("{*}Version") if node.findtext("{*}Key") == KEY}
     first, last = versions["false"], versions["true"]
@@ -145,6 +144,9 @@ def exercise(binary, root, storage_env, storage):
     supplier.submissions, supplier.queries = [], []
     supplier.submit_mode = "accepted"
     supplier.storage = urlsplit(storage_env["AWS_ENDPOINT"])
+    supplier.media_tls = ssl.create_default_context(cafile=media_ca) if media_ca else None
+    supplier.tls_verified = False
+    supplier.latest = last
     thread = threading.Thread(target=supplier.serve_forever, daemon=True)
     thread.start()
 
@@ -259,6 +261,7 @@ def exercise(binary, root, storage_env, storage):
         assert supplier.submissions == [(first, first_clip), (last, new_clip)] + [(first, first_clip)] * 3
         assert supplier.queries[-3:] == [TASK, TASK, TASK] and not supplier.unexpected
         assert len(supplier.nonces) == len(supplier.queries) + len(supplier.submissions)
+        assert supplier.tls_verified == (media_ca is not None)
     finally:
         supplier.shutdown()
         supplier.server_close()
@@ -269,7 +272,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("binary", type=Path)
     args = parser.parse_args()
+    media_ca = os.environ.get("OPENRUST_TEST_MODERATION_MEDIA_CA")
+    video_dir = os.environ.get("OPENRUST_TEST_MODERATION_VIDEO_DIR")
     with tempfile.TemporaryDirectory(dir=ROOT / "target/tmp", prefix="moderation-aliyun-video-") as work, \
-            OBJECTS["TOPOLOGY"]["object_storage"](True) as (env, request):
-        exercise(args.binary.resolve(), Path(work), env, request)
+            OBJECTS["storage_fixture"](media_ca) as (env, request):
+        exercise(args.binary.resolve(), Path(work), env, request, media_ca=media_ca,
+                 video_dir=Path(video_dir) if video_dir else None)
     print("阿里云点播：HTTP／Artisan／独立 Worker、ACS3、私有视频版本、时间证据和状态通过")

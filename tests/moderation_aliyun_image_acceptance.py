@@ -1,6 +1,7 @@
 """阿里云图片替身签名验收，实际读取同一私有 S3 对象的不同版本。"""
 
 import argparse
+from contextlib import contextmanager
 import http.client
 import http.server
 import json
@@ -8,6 +9,7 @@ import os
 from pathlib import Path
 import runpy
 import socket
+import ssl
 import struct
 import subprocess
 import tempfile
@@ -22,6 +24,59 @@ TOPOLOGY = runpy.run_path(str(ROOT / "tests/webhooks_topology_acceptance.py"))
 ALIYUN = runpy.run_path(str(ROOT / "tests/moderation_aliyun_acceptance.py"))
 ORIGIN = "https://moderation-media.fixture.invalid"
 KEY = "versions/image.png"
+
+
+@contextmanager
+def storage_fixture(media_ca):
+    if media_ca is None:
+        with TOPOLOGY["object_storage"](True) as fixture:
+            yield fixture
+        return
+    keys = ("AWS_ENDPOINT", "AWS_BUCKET", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY")
+    env = {key: os.environ[key] for key in keys}
+    env.update(AWS_SESSION_TOKEN="", AWS_DEFAULT_REGION="us-east-1",
+               AWS_USE_PATH_STYLE_ENDPOINT="true")
+    request = TOPOLOGY["s3_requests"](*(env[key] for key in keys))
+    request("PUT", content=b"")
+    yield env, request
+
+
+def download_media(server, source):
+    def get(connection, path, headers=None):
+        try:
+            connection.request("GET", path, headers=headers or {})
+            response = connection.getresponse()
+            return response.status, response.read()
+        finally:
+            connection.close()
+
+    target = source.path + "?" + source.query
+    if getattr(server, "media_tls", None) is None:
+        backend = server.storage
+        return get(http.client.HTTPConnection(backend.hostname, backend.port, timeout=5),
+                   target, {"Host": backend.netloc})
+
+    def https(context):
+        return http.client.HTTPSConnection(source.hostname, source.port, context=context, timeout=5)
+
+    with server.lock:
+        if not server.tls_verified:
+            try:
+                get(https(ssl.create_default_context()), target)
+            except ssl.SSLCertVerificationError:
+                pass
+            else:
+                raise AssertionError("私有 CA 未配置时仍可下载")
+            assert get(https(server.media_tls), source.path)[0] == 403
+            version, = parse_qs(source.query)["versionId"]
+            assert version != server.latest
+            replaced = target.replace(f"versionId={version}", f"versionId={server.latest}", 1)
+            assert replaced != target and get(https(server.media_tls), replaced)[0] == 403
+            signature, = parse_qs(source.query)["X-Amz-Signature"]
+            forged = ("0" if signature[0] != "0" else "1") + signature[1:]
+            assert get(https(server.media_tls), target.replace(signature, forged, 1))[0] == 403
+            server.tls_verified = True
+    return get(https(server.media_tls), target)
 
 
 def png(red, green, blue):
@@ -44,18 +99,10 @@ class Supplier(ALIYUN["Supplier"]):
         assert 0 < int(query["X-Amz-Expires"][0]) <= 300
         assert public.path.endswith("/" + KEY)
 
-        # 模拟厂商从 HTTPS 公共入口下载：转发原始签名路径到隔离存储，并还原 SDK 签名时的 Host。
-        backend = self.server.storage
-        connection = http.client.HTTPConnection(backend.hostname, backend.port, timeout=5)
-        try:
-            connection.request("GET", public.path + "?" + public.query, headers={"Host": backend.netloc})
-            response = connection.getresponse()
-            payload = response.read()
-        finally:
-            connection.close()
+        status, payload = download_media(self.server, public)
         with self.server.lock:
-            self.server.results.append((version, response.status, payload if response.status == 200 else None))
-        if response.status == 200:
+            self.server.results.append((version, status, payload if status == 200 else None))
+        if status == 200:
             result = {"RiskLevel": "none", "Result": []}
             if version == self.server.latest:
                 result = {"RiskLevel": "high", "Result": [{"Label": "violent_explosion", "Confidence": 88.5}]}
@@ -69,7 +116,7 @@ class Supplier(ALIYUN["Supplier"]):
                 result = {"RiskLevel": "none", "Result": [{"Label": "nonLabel"}]}
             envelope = {"Code": 200, "Data": result, "RequestId": "image-reference"}
         else:
-            assert response.status == 404
+            assert status == 404
             envelope = {"Code": 400, "RequestId": "missing-image"}
         body = json.dumps(envelope).encode()
         self.send_response(200)
@@ -79,15 +126,15 @@ class Supplier(ALIYUN["Supplier"]):
         self.wfile.write(body)
 
 
-def exercise(binary, root, storage_env, storage_request):
-    storage_request("PUT", query="versioning", content=(
+def exercise(binary, root, storage_env, storage_request, *, media_ca=None):
+    storage_request("PUT", query="versioning=", content=(
         b'<VersioningConfiguration xmlns="http://s3.amazonaws.com/doc/2006-03-01/">'
         b'<Status>Enabled</Status></VersioningConfiguration>'
     ))
     original, changed = png(0, 123, 42), png(205, 4, 7)
     storage_request("PUT", KEY, content=original)
     storage_request("PUT", KEY, content=changed)
-    version_document = XML.fromstring(storage_request("GET", query="versions&prefix=versions%2Fimage.png"))
+    version_document = XML.fromstring(storage_request("GET", query="versions="))
     versions = {version.findtext("{*}IsLatest"): version.findtext("{*}VersionId")
                 for version in version_document.findall("{*}Version") if version.findtext("{*}Key") == KEY}
     first, latest = versions["false"], versions["true"]
@@ -99,6 +146,8 @@ def exercise(binary, root, storage_env, storage_request):
     supplier = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Supplier)
     supplier.lock, supplier.nonces, supplier.results = threading.Lock(), set(), []
     supplier.storage = urlsplit(storage_env["AWS_ENDPOINT"])
+    supplier.media_tls = ssl.create_default_context(cafile=media_ca) if media_ca else None
+    supplier.tls_verified = False
     supplier.latest = latest
     supplier.response_mode = None
     thread = threading.Thread(target=supplier.serve_forever, daemon=True)
@@ -176,6 +225,7 @@ def exercise(binary, root, storage_env, storage_request):
                                     (latest, 200, changed), (latest, 200, changed), (first, 200, original),
                                     (first, 200, original), (first, 200, original),
                                     ("00000000-0000-0000-0000-000000000000", 404, None)]
+        assert supplier.tls_verified == (media_ca is not None)
     finally:
         supplier.shutdown()
         supplier.server_close()
@@ -186,7 +236,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("binary", type=Path)
     args = parser.parse_args()
+    media_ca = os.environ.get("OPENRUST_TEST_MODERATION_MEDIA_CA")
     with tempfile.TemporaryDirectory(dir=ROOT / "target/tmp", prefix="moderation-aliyun-image-") as directory, \
-            TOPOLOGY["object_storage"](True) as (storage_env, storage_request):
-        exercise(args.binary.resolve(), Path(directory), storage_env, storage_request)
+            storage_fixture(media_ca) as (storage_env, storage_request):
+        exercise(args.binary.resolve(), Path(directory), storage_env, storage_request, media_ca=media_ca)
     print("阿里云图片：真实 HTTP／Artisan、ACS3、私有 S3 指定版本与置信分通过")

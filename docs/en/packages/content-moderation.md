@@ -194,6 +194,8 @@ Call `Moderation::driver("comments")` to select an explicit profile. `Moderation
 
 `ImageInput::inline` accepts up to 10 MiB. The driver checks the actual format and may impose a lower limit. Use `StoredMedia` for private objects and `VideoInput` for video. Drivers must verify the object's version using the configured storage.
 
+When serving a private S3 disk through a TLS reverse proxy, set the profile's `media_origin` and the disk's `temporary_url` to the same HTTPS origin. For the default S3 disk, set `AWS_TEMPORARY_URL`. Forward the original signed Host, path and query to the storage endpoint. Keep the bucket private and omit signed query strings from proxy access logs. [S3 temporary URLs](../digging-deeper/filesystem.md#s3-temporary-url-origin)
+
 For delayed queries, declare the full profile under `moderation.profile_revisions.<name>.<revision>`. Add `account`, `policy_revision`, `credential_ref`, `credential_revision` and a nonempty `required_modalities` array using `text`, `visual`, `speech` or `ocr`. Record the account or project alias you provisioned with that credential. Use a new profile revision whenever the endpoint, model, policy, or credential revision changes. Keep earlier revisions in configuration until their tasks finish.
 
 Call `Moderation::pin_profile(name, revision)` before submission and resolve the driver with `Moderation::driver_for_revision(&profile)`. Persist the returned profile locator with the remote `TaskId` and the original object version. Use the locator to resolve the driver again when querying. Recovery fails if the configuration was edited in place or removed, or the recorded credential can no longer be resolved. A pending task, execution failure, or incomplete required coverage cannot authorize publication.

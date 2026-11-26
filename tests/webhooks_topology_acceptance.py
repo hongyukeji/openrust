@@ -215,27 +215,7 @@ def object_storage(enabled):
 
         bucket = "webhook-attachments"
 
-        def request(method, key="", *, content=None, status=200, signed=True, query=""):
-            headers = f'user = "{access}:{secret}"\naws-sigv4 = "aws:amz:us-east-1:s3"\n'
-            with ExitStack() as stack:
-                command = ["curl", "--silent", "--show-error", "--noproxy", "*", "--max-time", "10",
-                           "--request", method, "--write-out", "\n%{http_code}"]
-                if signed:
-                    command += ["--config", "-"]
-                if content is not None:
-                    data = stack.enter_context(tempfile.NamedTemporaryFile(dir=ROOT / "target/tmp"))
-                    data.write(content)
-                    data.flush()
-                    command += ["--data-binary", f"@{data.name}"]
-                address = f"{endpoint}/{bucket}" + (f"/{key}" if key else "")
-                if query:
-                    address += "?" + query
-                result = subprocess.run(command + [address], input=headers.encode() if signed else b"",
-                                        capture_output=True, timeout=12, check=True)
-                body, code = result.stdout.rsplit(b"\n", 1)
-                assert int(code) == status, (method, key, code, body[:300])
-                return body
-
+        request = s3_requests(endpoint, bucket, access, secret)
         request("PUT", content=b"")
         request("PUT", query="ownershipControls", status=200, content=(
             b'<OwnershipControls xmlns="http://s3.amazonaws.com/doc/2006-03-01/">'
@@ -249,6 +229,33 @@ def object_storage(enabled):
         }, request
     finally:
         docker_command("rm", "-f", name)
+
+
+def s3_requests(endpoint, bucket, access, secret):
+    def request(method, key="", *, content=None, status=200, signed=True, query=""):
+        headers = f'user = "{access}:{secret}"\naws-sigv4 = "aws:amz:us-east-1:s3"\n'
+        with ExitStack() as stack:
+            command = ["curl", "--silent", "--show-error", "--noproxy", "*", "--max-time", "10",
+                       "--request", method, "--write-out", "\n%{http_code}"]
+            if signed:
+                command += ["--config", "-"]
+            if content is not None:
+                data = stack.enter_context(tempfile.NamedTemporaryFile(dir=ROOT / "target/tmp"))
+                data.write(content)
+                data.flush()
+                if signed:
+                    command += ["--header", f"x-amz-content-sha256: {hashlib.sha256(content).hexdigest()}"]
+                command += ["--data-binary", f"@{data.name}"]
+            address = f"{endpoint}/{bucket}" + (f"/{key}" if key else "")
+            if query:
+                address += "?" + query
+            result = subprocess.run(command + [address], input=headers.encode() if signed else b"",
+                                    capture_output=True, timeout=12, check=True)
+            body, code = result.stdout.rsplit(b"\n", 1)
+            assert int(code) == status, (method, key, code, body[:300])
+            return body
+
+    return request
 
 
 def exercise(binary, driver, url, redis, redis_url, interruption, storage_env, object_request, ownership,
