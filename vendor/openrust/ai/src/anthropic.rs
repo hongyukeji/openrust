@@ -11,8 +11,8 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 use crate::{
-    AgentResponse, AiError, AiResult, ModelCatalog, StreamableAgentResponse, TextEndpoint,
-    TextPrompt, TextProvider, Usage,
+    AgentPrompt, AgentResponse, AiError, AiResult, ModelCatalog, StreamableAgentResponse,
+    TextEndpoint, TextPrompt, TextProvider, Usage,
     connection::{Authorization, Connection},
     models::ListedModel,
     text::{transport_error, validate},
@@ -34,21 +34,27 @@ impl AnthropicTextProvider {
         )?))
     }
 
-    async fn send(&self, prompt: &TextPrompt<'_>, stream: bool) -> AiResult<Response> {
+    async fn send(&self, prompt: &AgentPrompt<'_>, stream: bool) -> AiResult<Response> {
+        let mut messages: Vec<_> = prompt
+            .messages
+            .iter()
+            .map(|message| json!({"role":message.role.as_str(), "content":message.content}))
+            .collect();
+        messages.push(json!({"role":"user","content":prompt.text.prompt}));
         let mut body = json!({
-            "model": prompt.model,
+            "model": prompt.text.model,
             "max_tokens": 64_000,
-            "messages": [{"role": "user", "content": prompt.prompt}],
+            "messages": messages,
         });
-        if !prompt.instructions.is_empty() {
-            body["system"] = prompt.instructions.into();
+        if !prompt.text.instructions.is_empty() {
+            body["system"] = prompt.text.instructions.into();
         }
         if stream {
             body["stream"] = true.into();
         }
         validate(Ok(self
             .0
-            .send(TextEndpoint::Messages, &body, stream, prompt.timeout)
+            .send(TextEndpoint::Messages, &body, stream, prompt.text.timeout)
             .await?))
     }
 
@@ -97,6 +103,17 @@ impl TextProvider for AnthropicTextProvider {
         &'a self,
         prompt: TextPrompt<'a>,
     ) -> HttpFuture<'a, AiResult<AgentResponse>> {
+        self.generate(prompt.into())
+    }
+
+    fn stream_text<'a>(
+        &'a self,
+        prompt: TextPrompt<'a>,
+    ) -> HttpFuture<'a, AiResult<StreamableAgentResponse>> {
+        self.stream(prompt.into())
+    }
+
+    fn generate<'a>(&'a self, prompt: AgentPrompt<'a>) -> HttpFuture<'a, AiResult<AgentResponse>> {
         Box::pin(async move {
             let response: Value = self
                 .send(&prompt, false)
@@ -123,14 +140,17 @@ impl TextProvider for AnthropicTextProvider {
                     completion_tokens: response["usage"]["output_tokens"].as_u64(),
                 },
                 provider: self.name().into(),
-                model: response["model"].as_str().unwrap_or(prompt.model).into(),
+                model: response["model"]
+                    .as_str()
+                    .unwrap_or(prompt.text.model)
+                    .into(),
             })
         })
     }
 
-    fn stream_text<'a>(
+    fn stream<'a>(
         &'a self,
-        prompt: TextPrompt<'a>,
+        prompt: AgentPrompt<'a>,
     ) -> HttpFuture<'a, AiResult<StreamableAgentResponse>> {
         Box::pin(async move {
             let response = self.send(&prompt, true).await?;
@@ -141,7 +161,7 @@ impl TextProvider for AnthropicTextProvider {
                 TextEndpoint::Messages,
                 response.into_stream().map_err(transport_error)?,
                 self.name().into(),
-                prompt.model.to_owned(),
+                prompt.text.model.to_owned(),
             ))
         })
     }

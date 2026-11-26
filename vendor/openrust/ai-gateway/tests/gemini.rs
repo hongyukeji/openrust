@@ -7,7 +7,7 @@ use openrust::{
     support::facades::Route,
     testing::{TestApp, TestResponse},
 };
-use openrust_ai::{Agent, Ai, agent};
+use openrust_ai::{Agent, Ai, Message, agent};
 use serde_json::{Value, json};
 use tokio::{
     io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
@@ -89,7 +89,12 @@ async fn gemini_sdk_and_google_native_routes() -> TestResult {
                 let mut body = vec![0; headers["content-length"].parse().unwrap()];
                 socket.read_exact(&mut body).await.unwrap();
                 let body: Value = serde_json::from_slice(&body).unwrap();
-                assert_eq!(body["contents"][0]["parts"][0]["text"], "Hi.");
+                let contents = body["contents"].as_array().unwrap();
+                assert_eq!(contents.last().unwrap()["parts"][0]["text"], "Hi.");
+                if body.get("systemInstruction").is_some() {
+                    assert_eq!(contents[0], json!({"role":"user","parts":[{"text":"Earlier"}]}));
+                    assert_eq!(contents[1], json!({"role":"model","parts":[{"text":"Earlier reply"}]}));
+                }
                 assert!(body.get("model").is_none());
             }
             let headers = format!("HTTP/1.1 200 OK\r\nContent-Type: {kind}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", payload.len());
@@ -105,7 +110,14 @@ async fn gemini_sdk_and_google_native_routes() -> TestResult {
             .with_config(config)
             .with_routing(Routing::default().web(|| {
                 Route::get("/sdk-gemini", || async {
-                    let response = agent("Please reply.").prompt("Hi.").await.unwrap();
+                    let response = agent("Please reply.")
+                        .with_messages([
+                            Message::user("Earlier"),
+                            Message::assistant("Earlier reply"),
+                        ])
+                        .prompt("Hi.")
+                        .await
+                        .unwrap();
                     assert_eq!(response.text, "内容");
                     assert_eq!(response.usage.prompt_tokens, Some(8));
                     Ok::<_, openrust::http::HttpError>(Response::empty(StatusCode::OK))

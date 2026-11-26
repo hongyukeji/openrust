@@ -8,8 +8,8 @@ use openrust::{config::Environment, contracts::config::Repository, http::client:
 use serde_json::Value;
 
 use crate::{
-    Agent, AgentResponse, AiError, AiResult, EmbeddingProvider, FakeTextGateway, PromptOptions,
-    StreamableAgentResponse, TextPrompt, TextProvider,
+    Agent, AgentPrompt, AgentResponse, AiError, AiResult, EmbeddingProvider, FakeTextGateway,
+    PromptOptions, StreamableAgentResponse, TextPrompt, TextProvider,
     anthropic::AnthropicTextProvider,
     gemini::GeminiTextProvider,
     text::{OpenAiProtocol, OpenAiTextProvider},
@@ -225,16 +225,19 @@ impl AiManager {
                         .ok()
                         .and_then(|resolved| resolved.default_text_model().ok().map(str::to_owned))
                 });
-            return fake.respond(prompt, provider, model);
+            return fake.respond(prompt, agent.messages(), provider, model);
         }
         let provider = self.text_provider_for(agent, options.provider)?;
         let model = resolve_model(provider.as_ref(), options.model.or_else(|| agent.model()))?;
         provider
-            .generate_text(TextPrompt {
-                instructions: agent.instructions(),
-                prompt,
-                model,
-                timeout: options.timeout,
+            .generate(AgentPrompt {
+                text: TextPrompt {
+                    instructions: agent.instructions(),
+                    prompt,
+                    model,
+                    timeout: options.timeout,
+                },
+                messages: agent.messages(),
             })
             .await
     }
@@ -257,11 +260,14 @@ impl AiManager {
         let provider = self.text_provider_for(agent, options.provider)?;
         let model = resolve_model(provider.as_ref(), options.model.or_else(|| agent.model()))?;
         provider
-            .stream_text(TextPrompt {
-                instructions: agent.instructions(),
-                prompt,
-                model,
-                timeout: options.timeout,
+            .stream(AgentPrompt {
+                text: TextPrompt {
+                    instructions: agent.instructions(),
+                    prompt,
+                    model,
+                    timeout: options.timeout,
+                },
+                messages: agent.messages(),
             })
             .await
     }

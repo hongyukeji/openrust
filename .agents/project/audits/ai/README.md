@@ -8,7 +8,7 @@
 |---|---|
 | `src/AiServiceProvider.php` 的包配置、Manager 单例、配置发布 | `AiServiceProvider` 通过已有 Cargo 包发现启用，`Ai::manager` 与容器的 `AiManager` 指向应用级单例。发布标签为 `ai`、`ai-config`。stub 与迁移发布归 AI-03／04。 |
 | `src/AiManager.php` 的 `getDefaultInstance`、`setDefaultInstance`、`getInstanceConfig`、`textProvider`、`textProviderFor` 及继承的实例缓存、扩展 | `AiManager` 对应的 Rust 方法为 `get_default_instance`、`set_default_instance`、`get_instance_config`、`text_provider`、`text_provider_for`、`extend`、`forget_instance`。按具名配置惰性解析，应用缺默认连接时错误留在调用时。尚待核对基本方法完整的消费者覆盖、按需实例 `build`／`flushState`、驱动别名及其他能力和生命周期。 |
-| `src/Contracts/Agent.php`、`src/Promptable.php`、`functions.php` 的 `instructions`、`prompt`、`agent()` | `Agent::instructions`、`Agent::prompt` 与 `agent()` 可用于单条文本；Rust 以 `prompt_with` 加 `PromptOptions` 实现 Provider／模型／超时覆盖。普通和显式配置验收见包测试。Trait 的 `provider`／`model` 钩子保留单连接的选择优先级。待补消息、schema、数组／按需 Provider 选择、附件、事件及其余成员。 |
+| `src/Contracts/Agent.php`、`src/Promptable.php`、`functions.php` 的 `instructions`、`prompt`、`agent()` | `Agent::instructions`、`Agent::prompt` 与 `agent()` 可用于单条文本；Rust 以 `prompt_with` 加 `PromptOptions` 实现 Provider／模型／超时覆盖。普通和显式配置验收见包测试。Trait 的 `provider`／`model` 钩子保留单连接的选择优先级。普通用户和助手历史消息在 AI-02 实现。待补 schema、数组／按需 Provider 选择、附件、事件及其余成员。 |
 | `src/Providers/OpenAiProvider.php`、`OpenAiCompatibleProvider.php` 和对应 Gateway 的非流式请求与响应 | 用 `async-openai` 的请求类型，OpenRust HTTP 工厂实际发送两种协议。由内部投影解析文本及上游用量，非成功状态返回不带上游载荷的错误。用户确认预设不指定默认模型，各上游模型需显式选择。待补高级模型选项、普通与流式终止细节、响应元数据完整契约和供应商实机。 |
 | `src/Promptable.php` 的文本 Fake 及 `Gateway/FakeTextGateway.php` | 可从 `Agent::fake` 或 `Ai::fake` 在作用域内对 Agent 类型安装字符串响应序列。已提供记录、匹配、反向、计数和防止非预期请求。待补按需响应闭包、结构化输出、排队和流式等。 |
 
@@ -67,3 +67,9 @@ SDK 的 `gemini` 连接支持 `Agent::prompt`、`stream` 与 `Ai::models`，使�
 `artisan ai:select-model [provider] [--model=...] [--save] [--default]` 复用当前默认连接、已有凭证清单、模型目录与 Artisan 交互。用户可选择已发现或手填的模型。无 `--save` 不写入。保存调用框架 `EnvironmentFile`，可一并保存模型和 `AI_PROVIDER`，保留已有条目与注释、拒绝覆盖生效的进程环境，并提示刷新配置缓存。已存在的文件使用快照冲突检测。首次创建使用框架的安全创建及编码路径。
 
 独立 Artisan 进程加伪终端与本地 HTTP 模型服务验收选择、拒绝、确认、进程覆盖、全新应用的环境文件，以及新进程默认模型生效后的 HTTP 上游调用。应用内测试覆盖 `.env.testing` 的落点。通过这一命令保存的是当前连接的模型设置，供应商 Key 及 URL 沿用应用配置，后续仍需 DSH 客户端连接验收。
+
+## AI-02 多轮文本
+
+按固定 `Messages/Message.php`、`MessageRole.php` 和 `Prompts/AgentPrompt.php` 增加 User／Assistant 文本历史。应用可用 `AnonymousAgent::with_messages`，或实现 `Agent::messages`。历史与本次提示一起进入正常 `prompt` 和 `stream`，Fake 可断言历史。扩展 Provider 继续支持既有纯文本接口，接收历史时需实现新的 `AgentPrompt` 入口。
+
+OpenAI Chat Completions、Responses、Anthropic Messages 和 Gemini 的 Rust 消费者均通过 HTTP Kernel 和本地 TCP 协议服务核对历史顺序与角色。独立 Artisan 用 `ai:prompt --messages=...` 验证历史进入 Anthropic 上游。会话持久化、工具结果角色、附件和结构化输出仍待对应批次。

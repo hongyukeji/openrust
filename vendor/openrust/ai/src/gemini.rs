@@ -11,8 +11,8 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 use crate::{
-    AgentResponse, AiError, AiResult, ModelCatalog, StreamableAgentResponse, TextEndpoint,
-    TextPrompt, TextProvider, Usage,
+    AgentPrompt, AgentResponse, AiError, AiResult, MessageRole, ModelCatalog,
+    StreamableAgentResponse, TextEndpoint, TextPrompt, TextProvider, Usage,
     connection::{Authorization, Connection},
     models::ListedModel,
     text::{transport_error, validate},
@@ -66,10 +66,22 @@ impl GeminiTextProvider {
         request.post(&path, body).await.map_err(transport_error)
     }
 
-    fn prompt_body(prompt: &TextPrompt<'_>) -> Value {
-        let mut body = json!({"contents":[{"role":"user","parts":[{"text":prompt.prompt}]}]});
-        if !prompt.instructions.is_empty() {
-            body["systemInstruction"] = json!({"parts":[{"text":prompt.instructions}]});
+    fn prompt_body(prompt: &AgentPrompt<'_>) -> Value {
+        let mut contents: Vec<_> = prompt
+            .messages
+            .iter()
+            .map(|message| {
+                let role = match message.role {
+                    MessageRole::User => "user",
+                    MessageRole::Assistant => "model",
+                };
+                json!({"role":role,"parts":[{"text":message.content}]})
+            })
+            .collect();
+        contents.push(json!({"role":"user","parts":[{"text":prompt.text.prompt}]}));
+        let mut body = json!({"contents":contents});
+        if !prompt.text.instructions.is_empty() {
+            body["systemInstruction"] = json!({"parts":[{"text":prompt.text.instructions}]});
         }
         body
     }
@@ -136,13 +148,24 @@ impl TextProvider for GeminiTextProvider {
         &'a self,
         prompt: TextPrompt<'a>,
     ) -> HttpFuture<'a, AiResult<AgentResponse>> {
+        self.generate(prompt.into())
+    }
+
+    fn stream_text<'a>(
+        &'a self,
+        prompt: TextPrompt<'a>,
+    ) -> HttpFuture<'a, AiResult<StreamableAgentResponse>> {
+        self.stream(prompt.into())
+    }
+
+    fn generate<'a>(&'a self, prompt: AgentPrompt<'a>) -> HttpFuture<'a, AiResult<AgentResponse>> {
         Box::pin(async move {
             let response = self
                 .relay_model(
                     TextEndpoint::GeminiGenerateContent,
-                    prompt.model,
+                    prompt.text.model,
                     &Self::prompt_body(&prompt),
-                    prompt.timeout,
+                    prompt.text.timeout,
                 )
                 .await?;
             let value: Value = validate(Ok(response))?
@@ -160,23 +183,23 @@ impl TextProvider for GeminiTextProvider {
                 provider: self.name().into(),
                 model: value["modelVersion"]
                     .as_str()
-                    .unwrap_or(prompt.model)
+                    .unwrap_or(prompt.text.model)
                     .into(),
             })
         })
     }
 
-    fn stream_text<'a>(
+    fn stream<'a>(
         &'a self,
-        prompt: TextPrompt<'a>,
+        prompt: AgentPrompt<'a>,
     ) -> HttpFuture<'a, AiResult<StreamableAgentResponse>> {
         Box::pin(async move {
             let response = validate(Ok(self
                 .relay_model(
                     TextEndpoint::GeminiStreamGenerateContent,
-                    prompt.model,
+                    prompt.text.model,
                     &Self::prompt_body(&prompt),
-                    prompt.timeout,
+                    prompt.text.timeout,
                 )
                 .await?))?;
             if !crate::streaming::is_event_stream(&response) {
@@ -186,7 +209,7 @@ impl TextProvider for GeminiTextProvider {
                 TextEndpoint::GeminiStreamGenerateContent,
                 response.into_stream().map_err(transport_error)?,
                 self.name().into(),
-                prompt.model.to_owned(),
+                prompt.text.model.to_owned(),
             ))
         })
     }

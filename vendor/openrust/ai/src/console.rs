@@ -5,7 +5,7 @@ use openrust::{
 };
 use serde_json::json;
 
-use crate::{Agent, Ai, PromptOptions, agent};
+use crate::{Agent, Ai, Message, PromptOptions, agent};
 
 mod select_model;
 
@@ -17,7 +17,7 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
     }))?;
     Artisan::add(Box::new(Prompt {
         definition: CommandDefinition::from_signature(
-            "ai:prompt {prompt : 提示词} {--provider= : AI 连接名称} {--model= : 上游模型 ID}",
+            "ai:prompt {prompt : 提示词} {--provider= : AI 连接名称} {--model= : 上游模型 ID} {--messages= : JSON 格式的历史消息}",
         )?,
     }))?;
     select_model::register()
@@ -98,7 +98,17 @@ impl Command for Prompt {
                     .map(String::as_str),
                 timeout: None,
             };
+            let messages = input
+                .matches()
+                .get_one::<String>("messages")
+                .map(|history| serde_json::from_str::<Vec<Message>>(history))
+                .transpose()
+                .map_err(|_| {
+                    ConsoleError::new("--messages 必须为带 role 和 content 的 JSON 消息数组")
+                })?
+                .unwrap_or_default();
             let response = agent("")
+                .with_messages(messages)
                 .prompt_with(prompt, options)
                 .await
                 .map_err(console_error)?;

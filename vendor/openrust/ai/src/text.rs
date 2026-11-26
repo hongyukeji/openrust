@@ -2,12 +2,13 @@ use std::{sync::Arc, time::Duration};
 
 use async_openai::types::{
     chat::{
+        ChatCompletionRequestAssistantMessage, ChatCompletionRequestAssistantMessageContent,
         ChatCompletionRequestMessage, ChatCompletionRequestSystemMessage,
         ChatCompletionRequestSystemMessageContent, ChatCompletionRequestUserMessage,
         ChatCompletionRequestUserMessageContent, ChatCompletionStreamOptions,
         CreateChatCompletionRequest,
     },
-    responses::{CreateResponse, InputParam},
+    responses::{CreateResponse, EasyInputContent, EasyInputMessage, InputItem, InputParam, Role},
 };
 use openrust::{
     config::Environment,
@@ -20,7 +21,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
-    AiError, AiResult, EmbeddingProvider, ModelCatalog, StreamableAgentResponse,
+    AgentPrompt, AiError, AiResult, EmbeddingProvider, MessageRole, ModelCatalog,
+    StreamableAgentResponse,
     connection::{Authorization, Connection},
     embeddings::OpenAiEmbeddingProvider,
     models::ListedModel,
@@ -60,6 +62,25 @@ pub trait TextProvider: Send + Sync {
         _prompt: TextPrompt<'a>,
     ) -> HttpFuture<'a, AiResult<StreamableAgentResponse>> {
         Box::pin(async { Err(AiError::StreamingNotSupported) })
+    }
+
+    fn generate<'a>(&'a self, prompt: AgentPrompt<'a>) -> HttpFuture<'a, AiResult<AgentResponse>> {
+        if prompt.messages.is_empty() {
+            self.generate_text(prompt.text)
+        } else {
+            Box::pin(async { Err(AiError::MessagesNotSupported) })
+        }
+    }
+
+    fn stream<'a>(
+        &'a self,
+        prompt: AgentPrompt<'a>,
+    ) -> HttpFuture<'a, AiResult<StreamableAgentResponse>> {
+        if prompt.messages.is_empty() {
+            self.stream_text(prompt.text)
+        } else {
+            Box::pin(async { Err(AiError::MessagesNotSupported) })
+        }
     }
 
     fn models(&self) -> HttpFuture<'_, ModelCatalog> {
@@ -158,26 +179,38 @@ impl OpenAiTextProvider {
         Ok(response.data)
     }
 
-    fn chat_body(prompt: &TextPrompt<'_>, stream: bool) -> CreateChatCompletionRequest {
+    fn chat_body(prompt: &AgentPrompt<'_>, stream: bool) -> CreateChatCompletionRequest {
+        let user = |text: &str| {
+            ChatCompletionRequestMessage::User(ChatCompletionRequestUserMessage {
+                content: ChatCompletionRequestUserMessageContent::Text(text.into()),
+                name: None,
+            })
+        };
         let mut messages = Vec::new();
-        if !prompt.instructions.is_empty() {
+        if !prompt.text.instructions.is_empty() {
             messages.push(ChatCompletionRequestMessage::System(
                 ChatCompletionRequestSystemMessage {
                     content: ChatCompletionRequestSystemMessageContent::Text(
-                        prompt.instructions.into(),
+                        prompt.text.instructions.into(),
                     ),
                     name: None,
                 },
             ));
         }
-        messages.push(ChatCompletionRequestMessage::User(
-            ChatCompletionRequestUserMessage {
-                content: ChatCompletionRequestUserMessageContent::Text(prompt.prompt.into()),
-                name: None,
-            },
-        ));
+        messages.extend(prompt.messages.iter().map(|message| match message.role {
+            MessageRole::User => user(&message.content),
+            MessageRole::Assistant => {
+                ChatCompletionRequestMessage::Assistant(ChatCompletionRequestAssistantMessage {
+                    content: Some(ChatCompletionRequestAssistantMessageContent::Text(
+                        message.content.clone(),
+                    )),
+                    ..Default::default()
+                })
+            }
+        }));
+        messages.push(user(prompt.text.prompt));
         CreateChatCompletionRequest {
-            model: prompt.model.into(),
+            model: prompt.text.model.into(),
             messages,
             stream: stream.then_some(true),
             stream_options: stream.then_some(ChatCompletionStreamOptions {
@@ -188,18 +221,45 @@ impl OpenAiTextProvider {
         }
     }
 
-    fn responses_body(&self, prompt: &TextPrompt<'_>, stream: bool) -> CreateResponse {
+    fn responses_body(&self, prompt: &AgentPrompt<'_>, stream: bool) -> CreateResponse {
+        let input = if prompt.messages.is_empty() {
+            InputParam::Text(prompt.text.prompt.into())
+        } else {
+            let message = |role, content: &str| {
+                InputItem::EasyMessage(EasyInputMessage {
+                    r#type: Default::default(),
+                    role,
+                    content: EasyInputContent::Text(content.into()),
+                    phase: None,
+                })
+            };
+            InputParam::Items(
+                prompt
+                    .messages
+                    .iter()
+                    .map(|entry| {
+                        let role = match entry.role {
+                            MessageRole::User => Role::User,
+                            MessageRole::Assistant => Role::Assistant,
+                        };
+                        message(role, &entry.content)
+                    })
+                    .chain(std::iter::once(message(Role::User, prompt.text.prompt)))
+                    .collect(),
+            )
+        };
         CreateResponse {
-            instructions: (!prompt.instructions.is_empty()).then(|| prompt.instructions.into()),
-            input: InputParam::Text(prompt.prompt.into()),
-            model: Some(prompt.model.into()),
+            instructions: (!prompt.text.instructions.is_empty())
+                .then(|| prompt.text.instructions.into()),
+            input,
+            model: Some(prompt.text.model.into()),
             store: Some(self.connection.store()),
             stream: stream.then_some(true),
             ..Default::default()
         }
     }
 
-    async fn send_text(&self, prompt: &TextPrompt<'_>, stream: bool) -> AiResult<Response> {
+    async fn send_text(&self, prompt: &AgentPrompt<'_>, stream: bool) -> AiResult<Response> {
         let endpoint = self.protocol.endpoint();
         let response = match self.protocol {
             OpenAiProtocol::ChatCompletions => {
@@ -208,7 +268,7 @@ impl OpenAiTextProvider {
                         endpoint,
                         &Self::chat_body(prompt, stream),
                         stream,
-                        prompt.timeout,
+                        prompt.text.timeout,
                     )
                     .await?
             }
@@ -218,7 +278,7 @@ impl OpenAiTextProvider {
                         endpoint,
                         &self.responses_body(prompt, stream),
                         stream,
-                        prompt.timeout,
+                        prompt.text.timeout,
                     )
                     .await?
             }
@@ -272,6 +332,17 @@ impl TextProvider for OpenAiTextProvider {
         &'a self,
         prompt: TextPrompt<'a>,
     ) -> HttpFuture<'a, AiResult<AgentResponse>> {
+        self.generate(prompt.into())
+    }
+
+    fn stream_text<'a>(
+        &'a self,
+        prompt: TextPrompt<'a>,
+    ) -> HttpFuture<'a, AiResult<StreamableAgentResponse>> {
+        self.stream(prompt.into())
+    }
+
+    fn generate<'a>(&'a self, prompt: AgentPrompt<'a>) -> HttpFuture<'a, AiResult<AgentResponse>> {
         Box::pin(async move {
             let response = self.send_text(&prompt, false).await?;
             let result = match self.protocol {
@@ -282,13 +353,13 @@ impl TextProvider for OpenAiTextProvider {
                 text: result.text,
                 usage: result.usage,
                 provider: self.name().into(),
-                model: result.model.unwrap_or_else(|| prompt.model.into()),
+                model: result.model.unwrap_or_else(|| prompt.text.model.into()),
             })
         })
     }
-    fn stream_text<'a>(
+    fn stream<'a>(
         &'a self,
-        prompt: TextPrompt<'a>,
+        prompt: AgentPrompt<'a>,
     ) -> HttpFuture<'a, AiResult<StreamableAgentResponse>> {
         Box::pin(async move {
             let response = self.send_text(&prompt, true).await?;
@@ -299,7 +370,7 @@ impl TextProvider for OpenAiTextProvider {
                 self.protocol.endpoint(),
                 response.into_stream().map_err(transport_error)?,
                 self.name().into(),
-                prompt.model.to_owned(),
+                prompt.text.model.to_owned(),
             ))
         })
     }

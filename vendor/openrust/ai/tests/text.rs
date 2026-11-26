@@ -9,7 +9,8 @@ use openrust::{
     testing::TestApp,
 };
 use openrust_ai::{
-    Agent, Ai, AiError, AiManager, PromptOptions, StreamEventData, agent, openrust_providers,
+    Agent, Ai, AiError, AiManager, Message, PromptOptions, StreamEventData, agent,
+    openrust_providers,
 };
 use serde_json::{Value, json};
 use tokio::{
@@ -124,7 +125,14 @@ async fn application_routes_call_both_openai_protocols() -> TestResult {
             .with_providers(openrust_providers())
             .with_routing(Routing::default().web(|| {
                 Route::get("/chat", || async {
-                    let result = agent("请使用中文").prompt("回应").await.unwrap();
+                    let result = agent("请使用中文")
+                        .with_messages([
+                            Message::user("之前的问题"),
+                            Message::assistant("之前的回答"),
+                        ])
+                        .prompt("回应")
+                        .await
+                        .unwrap();
                     assert_eq!(result.provider, "deepseek");
                     assert_eq!(result.model, "resolved-chat");
                     assert_eq!(result.usage.prompt_tokens, Some(3));
@@ -133,6 +141,7 @@ async fn application_routes_call_both_openai_protocols() -> TestResult {
                 })?;
                 Route::get("/responses", || async {
                     let result = agent("Use English")
+                        .with_messages([Message::user("Earlier"), Message::assistant("Answer")])
                         .prompt_with(
                             "Respond",
                             PromptOptions {
@@ -182,10 +191,19 @@ async fn application_routes_call_both_openai_protocols() -> TestResult {
         chat[0]["messages"],
         json!([
             {"role":"system","content":"请使用中文"},
+            {"role":"user","content":"之前的问题"},
+            {"role":"assistant","content":"之前的回答"},
             {"role":"user","content":"回应"}
         ])
     );
-    assert_eq!(responses[0]["input"], "Respond");
+    assert_eq!(
+        responses[0]["input"],
+        json!([
+            {"type":"message","role":"user","content":"Earlier"},
+            {"type":"message","role":"assistant","content":"Answer"},
+            {"type":"message","role":"user","content":"Respond"}
+        ])
+    );
     assert_eq!(responses[0]["instructions"], "Use English");
     assert_eq!(responses[0]["store"], true);
     assert_eq!(responses[0]["model"], "explicit-model");
@@ -196,6 +214,13 @@ struct Support;
 impl Agent for Support {
     fn instructions(&self) -> &str {
         "回答问题"
+    }
+
+    fn messages(&self) -> &[Message] {
+        static HISTORY: std::sync::LazyLock<Vec<Message>> = std::sync::LazyLock::new(|| {
+            vec![Message::user("历史问题"), Message::assistant("历史回答")]
+        });
+        HISTORY.as_slice()
     }
 }
 
@@ -231,7 +256,9 @@ async fn fake_and_manager_are_application_local() -> TestResult {
         second.get("/probe").await?.json::<Value>()?,
         json!({"result":"no default","faked":false})
     );
-    fake.assert_prompted(|prompt| prompt.text == "测试问题");
+    fake.assert_prompted(|prompt| {
+        prompt.text == "测试问题" && prompt.messages[0] == Message::user("历史问题")
+    });
     fake.assert_not_prompted(|prompt| prompt.text == "其他问题");
     fake.assert_prompted_times(1);
     fake.prevent_stray_prompts(true);

@@ -262,7 +262,7 @@ async fn native_routes_authorize_models_relay_and_record_usage() -> TestResult {
 #[tokio::test]
 async fn anthropic_native_routes_and_sdk_share_transport() -> TestResult {
     use openrust::{foundation::configuration::Routing, http::Response, support::facades::Route};
-    use openrust_ai::{Agent, Ai, agent};
+    use openrust_ai::{Agent, Ai, Message, agent};
 
     fn load(
         base: &std::path::Path,
@@ -329,7 +329,12 @@ async fn anthropic_native_routes_and_sdk_share_transport() -> TestResult {
                     assert!(body.get("store").is_none());
                     assert_eq!(body["messages"][0]["content"][0]["text"], "  Hi!  ");
                 } else {
-                    assert_eq!(body["messages"][0]["content"], "Hi!");
+                    let messages = body["messages"].as_array().unwrap();
+                    assert_eq!(messages.last().unwrap()["content"], "Hi!");
+                    if body["system"] == "日本語で答えて" {
+                        assert_eq!(messages[0], json!({"role":"user","content":"Earlier"}));
+                        assert_eq!(messages[1], json!({"role":"assistant","content":"Earlier reply"}));
+                    }
                 }
                 assert_eq!(body["stream"] == true, expected_stream);
             }
@@ -346,7 +351,14 @@ async fn anthropic_native_routes_and_sdk_share_transport() -> TestResult {
             .with_config(load)
             .with_routing(Routing::default().web(|| {
                 Route::get("/sdk-native", || async {
-                    let response = agent("日本語で答えて").prompt("Hi!").await.unwrap();
+                    let response = agent("日本語で答えて")
+                        .with_messages([
+                            Message::user("Earlier"),
+                            Message::assistant("Earlier reply"),
+                        ])
+                        .prompt("Hi!")
+                        .await
+                        .unwrap();
                     assert_eq!(response.text, "こんにちは");
                     assert_eq!(response.usage.prompt_tokens, Some(6));
                     Ok::<_, openrust::http::HttpError>(Response::empty(StatusCode::OK))

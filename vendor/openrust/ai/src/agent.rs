@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use openrust::http::HttpFuture;
 
-use crate::{AgentResponse, Ai, AiResult, FakeTextGateway, StreamableAgentResponse};
+use crate::{AgentResponse, Ai, AiResult, FakeTextGateway, Message, StreamableAgentResponse};
 
 #[derive(Clone, Copy, Default)]
 pub struct PromptOptions<'a> {
@@ -21,6 +21,10 @@ pub trait Agent: Send + Sync + 'static {
 
     fn model(&self) -> Option<&str> {
         None
+    }
+
+    fn messages(&self) -> &[Message] {
+        &[]
     }
 
     fn fake(responses: impl IntoIterator<Item = String>) -> AiResult<Arc<FakeTextGateway>>
@@ -75,16 +79,29 @@ pub trait Agent: Send + Sync + 'static {
 
 pub struct AnonymousAgent {
     instructions: String,
+    messages: Vec<Message>,
 }
 
 pub fn agent(instructions: impl Into<String>) -> AnonymousAgent {
     AnonymousAgent {
         instructions: instructions.into(),
+        messages: Vec::new(),
+    }
+}
+
+impl AnonymousAgent {
+    pub fn with_messages(mut self, messages: impl IntoIterator<Item = Message>) -> Self {
+        self.messages = messages.into_iter().collect();
+        self
     }
 }
 
 impl Agent for AnonymousAgent {
     fn instructions(&self) -> &str {
         &self.instructions
+    }
+
+    fn messages(&self) -> &[Message] {
+        &self.messages
     }
 }
