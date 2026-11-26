@@ -585,7 +585,21 @@ impl AiManager {
         &self,
         responses: impl IntoIterator<Item = String>,
     ) -> Arc<FakeTextGateway> {
-        let fake = Arc::new(FakeTextGateway::new(responses));
+        self.install_text_fake::<A>(FakeTextGateway::new(responses))
+    }
+
+    pub fn fake_with<A: Agent>(
+        &self,
+        resolve: impl Fn(&crate::RecordedPrompt) -> AiResult<crate::FakeTextResult>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Arc<FakeTextGateway> {
+        self.install_text_fake::<A>(FakeTextGateway::with(resolve))
+    }
+
+    fn install_text_fake<A: Agent>(&self, fake: FakeTextGateway) -> Arc<FakeTextGateway> {
+        let fake = Arc::new(fake);
         self.fakes
             .write()
             .unwrap()

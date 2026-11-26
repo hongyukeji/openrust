@@ -98,7 +98,7 @@ pub use embeddings::{
 };
 pub use error::{AiError, AiResult};
 pub use facade::Ai;
-pub use fake::{FakeTextGateway, RecordedPrompt};
+pub use fake::{FakeTextGateway, FakeTextResult, RecordedPrompt};
 pub use fake_embedding_gateway::{FakeEmbeddingGateway, RecordedEmbeddings};
 pub use fake_reranking_gateway::{FakeRerankingGateway, FakeRerankingResult, RecordedReranking};
 pub use files::{

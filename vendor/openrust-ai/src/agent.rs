@@ -3,10 +3,10 @@ use std::{collections::BTreeMap, sync::Arc, time::Duration};
 use openrust::{broadcasting::BroadcastChannel, http::HttpFuture, json_schema::types::ObjectType};
 
 use crate::{
-    AgentMiddleware, AgentResponse, Ai, AiResult, Attachment, FakeTextGateway, Message,
-    ProviderOptions, QueueableAgent, QueuedAgentResponse, StreamableAgentResponse,
-    StructuredAnonymousAgent, TextGenerationOptions, TextModelTier, Tool, ToolChoice,
-    agent_broadcast::StreamBroadcast,
+    AgentMiddleware, AgentResponse, Ai, AiResult, Attachment, FakeTextGateway, FakeTextResult,
+    Message, ProviderOptions, QueueableAgent, QueuedAgentResponse, RecordedPrompt,
+    StreamableAgentResponse, StructuredAnonymousAgent, TextGenerationOptions, TextModelTier, Tool,
+    ToolChoice, agent_broadcast::StreamBroadcast,
 };
 
 #[derive(Clone, Copy, Default)]
@@ -98,6 +98,15 @@ pub trait Agent: Send + Sync + 'static {
         Self: Sized,
     {
         Ai::fake::<Self>(responses)
+    }
+
+    fn fake_with(
+        resolve: impl Fn(&RecordedPrompt) -> AiResult<FakeTextResult> + Send + Sync + 'static,
+    ) -> AiResult<Arc<FakeTextGateway>>
+    where
+        Self: Sized,
+    {
+        Ai::fake_with::<Self>(resolve)
     }
 
     fn is_faked() -> AiResult<bool>

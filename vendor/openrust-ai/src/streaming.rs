@@ -348,29 +348,47 @@ impl StreamableAgentResponse {
     }
 
     pub(crate) fn from_text(response: AgentResponse) -> Self {
-        let invocation = Str::ulid().to_string();
-        let message_id = Str::ulid().to_string();
-        let events = [
-            StreamEventData::StreamStart {
-                provider: response.provider,
-                model: response.model,
-            },
-            StreamEventData::TextStart {
-                message_id: message_id.clone(),
-            },
-            StreamEventData::TextDelta {
-                message_id: message_id.clone(),
-                delta: response.text,
-            },
-            StreamEventData::TextEnd { message_id },
-            StreamEventData::StreamEnd {
-                reason: "stop".into(),
-                usage: response.usage,
-            },
-        ];
-        Self::from_events(Box::pin(futures_util::stream::iter(
-            events.map(|data| Ok(event(&invocation, data))),
-        )))
+        let invocation =
+            crate::request_context::invocation_id().unwrap_or_else(|| Str::ulid().to_string());
+        let steps = if response.steps.is_empty() {
+            vec![response.public_step(crate::FinishReason::Stop)]
+        } else {
+            response.steps
+        };
+        let events = async_stream::stream! {
+            for step in steps {
+                yield Ok(event(&invocation, StreamEventData::StreamStart {
+                    provider: step.provider,
+                    model: step.model,
+                }));
+                if !step.reasoning.is_empty() {
+                    let reasoning_id = Str::ulid().to_string();
+                    yield Ok(event(&invocation, StreamEventData::ReasoningStart { reasoning_id: reasoning_id.clone() }));
+                    yield Ok(event(&invocation, StreamEventData::ReasoningDelta {
+                        reasoning_id: reasoning_id.clone(), delta: step.reasoning,
+                    }));
+                    yield Ok(event(&invocation, StreamEventData::ReasoningEnd { reasoning_id }));
+                }
+                let message_id = Str::ulid().to_string();
+                yield Ok(event(&invocation, StreamEventData::TextStart { message_id:message_id.clone() }));
+                yield Ok(event(&invocation, StreamEventData::TextDelta { message_id:message_id.clone(), delta:step.text }));
+                for citation in step.citations {
+                    yield Ok(event(&invocation, StreamEventData::Citation { message_id:message_id.clone(), citation }));
+                }
+                yield Ok(event(&invocation, StreamEventData::TextEnd { message_id }));
+                for call in step.tool_calls {
+                    yield Ok(event(&invocation, StreamEventData::ToolCall { call }));
+                }
+                for result in step.tool_results {
+                    yield Ok(event(&invocation, StreamEventData::ToolResult { result }));
+                }
+                yield Ok(event(&invocation, StreamEventData::StreamEnd {
+                    reason:step.finish_reason.as_str().into(),
+                    usage:step.usage,
+                }));
+            }
+        };
+        Self::from_events(Box::pin(events))
     }
 
     pub(crate) fn from_upstream(

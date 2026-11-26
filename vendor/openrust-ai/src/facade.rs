@@ -153,4 +153,13 @@ impl Ai {
     ) -> AiResult<Arc<FakeTextGateway>> {
         Ok(Self::manager()?.fake::<A>(responses))
     }
+
+    pub fn fake_with<A: Agent>(
+        resolve: impl Fn(&crate::RecordedPrompt) -> AiResult<crate::FakeTextResult>
+        + Send
+        + Sync
+        + 'static,
+    ) -> AiResult<Arc<FakeTextGateway>> {
+        Ok(Self::manager()?.fake_with::<A>(resolve))
+    }
 }

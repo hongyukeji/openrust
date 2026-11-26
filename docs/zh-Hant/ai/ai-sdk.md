@@ -756,6 +756,10 @@ Agent 和工具分別產生在 `app/ai/agents` 和 `app/ai/tools`。在父模組
 
 可在回傳前用 `result.response().await` 讀取完整步驟。這會緩衝該步驟並將事件保留給呼叫方。若要結束串流，在呼叫 `next.run` 前回傳 `StepResult::stop()`，串流會以取消狀態結束，回應保留已產生的步驟和用量。
 
+### 測試 Agent {#agent-fake}
+
+使用 `SupportAgent::fake` 提供有序字串，也可用 `SupportAgent::fake_with` 根據 `RecordedPrompt` 決定結果。回呼可用 `.into()` 回傳文字、JSON 物件或完整的 `AgentResponse`。Fake 記錄成功取得結果的提示，可透過 `assert_prompted` 和 `assert_prompted_times` 驗證。串流回應保留所提供的模型、用量、公開推理摘要、引文和工具結果。
+
 ## Embeddings {#embeddings}
 
 設定 `AI_EMBEDDINGS_PROVIDER=openai`，並將供應商的模型 ID 填入 `OPENAI_EMBEDDING_MODEL`。SDK 批次傳送文字，並依輸入順序回傳向量。

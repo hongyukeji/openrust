@@ -756,6 +756,10 @@ Implement `handle` for buffered calls and `handle_stream` for streaming calls. T
 
 Call `result.response().await` to inspect a complete step before returning it. This buffers that step and preserves its events for the caller. Return `StepResult::stop()` before `next.run` to end the stream with a cancellation status. The response retains the steps and usage already produced.
 
+### Testing Agents {#agent-fake}
+
+Use `SupportAgent::fake` to supply an ordered list of strings, or `SupportAgent::fake_with` to return a result based on the `RecordedPrompt`. A callback can return text, a JSON object, or a complete `AgentResponse` using `.into()`. The Fake records successful prompt resolutions for `assert_prompted` and `assert_prompted_times`. A streamed response keeps the supplied model, usage, public reasoning, citations, and tool outcomes.
+
 ## Embeddings {#embeddings}
 
 Set `AI_EMBEDDINGS_PROVIDER=openai` and `OPENAI_EMBEDDING_MODEL` to the model ID from your provider. The SDK sends text inputs as a batch and orders the vectors by the original input index.

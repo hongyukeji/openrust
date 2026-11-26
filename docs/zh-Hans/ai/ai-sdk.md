@@ -756,6 +756,10 @@ Agent 和工具分别生成到 `app/ai/agents` 和 `app/ai/tools`。在父模块
 
 可在返回前用 `result.response().await` 读取完整步骤。这会缓冲该步并将事件保留给调用方。要结束流，在调用 `next.run` 前返回 `StepResult::stop()`，流会以取消状态结束，响应保留已经产生的步骤和用量。
 
+### 测试 Agent {#agent-fake}
+
+使用 `SupportAgent::fake` 提供有序字符串，也可用 `SupportAgent::fake_with` 根据 `RecordedPrompt` 决定结果。回调可用 `.into()` 返回文本、JSON 对象或完整的 `AgentResponse`。Fake 记录成功取得结果的提示，可通过 `assert_prompted` 和 `assert_prompted_times` 断言。流式响应保留所提供的模型、用量、公开推理摘要、引文和工具结果。
+
 ## Embeddings {#embeddings}
 
 设置 `AI_EMBEDDINGS_PROVIDER=openai`，并将供应商的模型 ID 填入 `OPENAI_EMBEDDING_MODEL`。SDK 批量发送文本，按输入顺序返回向量。
