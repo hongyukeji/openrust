@@ -1,3 +1,7 @@
+mod types;
+
+use types::ControllerTypes;
+
 use std::{
     borrow::Cow,
     io::{self, ErrorKind},
@@ -27,6 +31,20 @@ pub(super) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
                 .help("选择控制器模板类型"),
         );
     for (key, short, help) in [
+        ("model", 'm', "使用具名资源模型生成控制器"),
+        ("parent", 'p', "使用具名父模型生成嵌套资源控制器"),
+    ] {
+        syntax = syntax.arg(
+            Arg::new(key)
+                .long(key)
+                .short(short)
+                .value_name("MODEL")
+                .num_args(0..=1)
+                .help(help),
+        );
+    }
+    for (key, short, help) in [
+        ("requests", Some('R'), "生成存储和更新用的表单请求"),
         ("invokable", Some('i'), "生成单动作控制器"),
         ("resource", Some('r'), "生成资源控制器"),
         ("singleton", Some('s'), "生成单例资源控制器"),
@@ -70,7 +88,16 @@ impl Command for ControllerMakeCommand {
                 .expect("控制器路径位于应用目录")
                 .to_owned();
             let force = input.matches().get_flag("force");
+            check_target(&root, &path)
+                .map_err(|error| super::source_edit::file_error(&relative, error))?;
+            if !force && path.try_exists().map_err(ConsoleError::from_source)? {
+                output.stderr.push_str("控制器已存在。\n");
+                return Ok(0);
+            }
             let template = self.get_stub(app, input)?;
+            ControllerTypes::parse(input)?
+                .generate_related(&root, &mut input.io(output))
+                .await?;
             let result = tokio::task::spawn_blocking(move || {
                 check_target(&root, &path)?;
                 write_generated(&path, template.as_bytes(), force)
@@ -110,7 +137,8 @@ impl GeneratorCommand for ControllerMakeCommand {
     ) -> Result<Cow<'static, str>, ConsoleError> {
         let (_, relative) = relative_name(name(input));
         let class = name_parts(relative)?.last().expect("名称至少包含类型");
-        let template = template(input)?;
+        let types = ControllerTypes::parse(input)?;
+        let template = template(input, &types)?;
         let source = match template {
             Template::BuiltIn(stub) => stub
                 .load(app.base_path())
@@ -126,13 +154,15 @@ impl GeneratorCommand for ControllerMakeCommand {
         };
         let creatable = input.matches().get_flag("creatable");
         let actions = match template {
-            Template::BuiltIn(stub) => methods(stub, creatable),
+            Template::BuiltIn(stub) => methods(stub, creatable, &types),
             Template::Custom(..) => String::new(),
         };
         Ok(Cow::Owned(
-            source
-                .replace("{{class}}", class)
-                .replace("{{actions}}", &actions),
+            types.replace_placeholders(
+                source
+                    .replace("{{class}}", class)
+                    .replace("{{actions}}", &actions),
+            ),
         ))
     }
 }
@@ -143,7 +173,10 @@ enum Template<'a> {
     Custom(&'a str, bool),
 }
 
-fn template(input: &Input) -> Result<Template<'_>, ConsoleError> {
+fn template<'a>(
+    input: &'a Input,
+    types: &ControllerTypes<'_>,
+) -> Result<Template<'a>, ConsoleError> {
     let matches = input.matches();
     let api = matches.get_flag("api");
     let stub = if let Some(kind) = matches.get_one::<String>("type") {
@@ -151,6 +184,14 @@ fn template(input: &Input) -> Result<Template<'_>, ConsoleError> {
         match (kind.as_str(), api) {
             ("plain", false) => Stub::PlainController,
             ("invokable", false) => Stub::InvokableController,
+            ("model", false) => Stub::ModelController,
+            ("model", true) | ("model.api", false) => Stub::ApiModelController,
+            ("nested", false) => Stub::NestedController,
+            ("nested", true) | ("nested.api", false) => Stub::ApiNestedController,
+            ("nested.singleton", false) => Stub::NestedSingletonController,
+            ("nested.singleton", true) | ("nested.singleton.api", false) => {
+                Stub::ApiNestedSingletonController
+            }
             ("api", false) => Stub::ApiController,
             ("singleton", false) => Stub::SingletonController,
             ("singleton", true) | ("singleton.api", false) => Stub::ApiSingletonController,
@@ -168,6 +209,19 @@ fn template(input: &Input) -> Result<Template<'_>, ConsoleError> {
                     "控制器模板类型只能包含字母、数字、点、连字符和下划线。",
                 ));
             }
+        }
+    } else if types.parent.is_some() {
+        match (matches.get_flag("singleton"), api) {
+            (true, true) => Stub::ApiNestedSingletonController,
+            (true, false) => Stub::NestedSingletonController,
+            (false, true) => Stub::ApiNestedController,
+            (false, false) => Stub::NestedController,
+        }
+    } else if types.model.is_some() {
+        if api {
+            Stub::ApiModelController
+        } else {
+            Stub::ModelController
         }
     } else if matches.get_flag("invokable") {
         Stub::InvokableController
@@ -187,20 +241,29 @@ fn template(input: &Input) -> Result<Template<'_>, ConsoleError> {
     Ok(Template::BuiltIn(stub))
 }
 
-fn methods(stub: Stub, creatable: bool) -> String {
+fn methods(stub: Stub, creatable: bool, types: &ControllerTypes<'_>) -> String {
     let names: &[&str] = match stub {
         Stub::InvokableController => &["invoke"],
-        Stub::ResourceController => &[
+        Stub::ResourceController | Stub::ModelController | Stub::NestedController => &[
             "index", "create", "store", "show", "edit", "update", "destroy",
         ],
-        Stub::ApiController => &["index", "store", "show", "update", "destroy"],
-        Stub::SingletonController => &["create", "store", "show", "edit", "update", "destroy"],
-        Stub::ApiSingletonController => &["store", "show", "update", "destroy"],
+        Stub::ApiController | Stub::ApiModelController | Stub::ApiNestedController => {
+            &["index", "store", "show", "update", "destroy"]
+        }
+        Stub::SingletonController | Stub::NestedSingletonController => {
+            &["create", "store", "show", "edit", "update", "destroy"]
+        }
+        Stub::ApiSingletonController | Stub::ApiNestedSingletonController => {
+            &["store", "show", "update", "destroy"]
+        }
         _ => &[],
     };
     let singleton = matches!(
         stub,
-        Stub::SingletonController | Stub::ApiSingletonController
+        Stub::SingletonController
+            | Stub::ApiSingletonController
+            | Stub::NestedSingletonController
+            | Stub::ApiNestedSingletonController
     );
     names
         .iter()
@@ -211,9 +274,23 @@ fn methods(stub: Stub, creatable: bool) -> String {
                 } else {
                     "NOT_IMPLEMENTED"
                 };
+            let bindings = types.bindings(name, singleton);
+            let request = if bindings.is_empty() {
+                "_request"
+            } else {
+                "request"
+            };
+            let form_request = if matches!(stub, Stub::ModelController | Stub::ApiModelController) {
+                types.validated_request(name)
+            } else {
+                String::new()
+            };
             include_str!("stubs/controller.method.rs.stub")
                 .replace("{{action}}", name)
                 .replace("{{status}}", status)
+                .replace("{{request}}", request)
+                .replace("{{bindings}}", &bindings)
+                .replace("{{form_request}}", &form_request)
         })
         .collect::<Vec<_>>()
         .join("\n")

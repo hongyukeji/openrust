@@ -1,0 +1,17 @@
+{
+  "base": "1bd3ce7b749a3d02e96390dba212d36fa4a7026e",
+  "fixed_php": "8.5.12",
+  "upstream_generator_cases": 4,
+  "actual_artisan_invocations": 3,
+  "sqlite_http_requests": 9,
+  "regression_tests": 82,
+  "formal_artisan_examples": 255,
+  "browser_checks": 12,
+  "logs": [
+    "target/tmp/artisan-tutorial-20261125/controller-types-source-native.json",
+    "target/tmp/artisan-tutorial-20261125/controller-types-live-updated.log",
+    "target/tmp/artisan-tutorial-20261125/controller-types-gates.log",
+    "target/tmp/artisan-tutorial-20261125/controller-types-and-repl-site.log"
+  ],
+  "pushed": false
+}

@@ -1,0 +1,205 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "docs_commit": "960eedf0911155ad16326ade49c0ea5d18eda0b8",
+  "sections": [
+    {
+      "anchor": "introduction",
+      "status": "pending_public_contract_review",
+      "evidence": [
+        "04-02 控制器基础消费者"
+      ]
+    },
+    {
+      "anchor": "writing-controllers",
+      "status": "pending_public_contract_review",
+      "evidence": [
+        "04-02 基础控制器与 Artisan 生成器"
+      ]
+    },
+    {
+      "anchor": "basic-controllers",
+      "status": "pending_public_contract_review",
+      "evidence": [
+        "04-02 基础分派、请求体和应用隔离"
+      ]
+    },
+    {
+      "anchor": "single-action-controllers",
+      "status": "pending_public_contract_review",
+      "evidence": [
+        "Artisan 88 实际 --invokable 生成；需复核正式教程消费者"
+      ]
+    },
+    {
+      "anchor": "controller-middleware",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "middleware-attributes",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "authorization-attributes",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "resource-controllers",
+      "status": "pending_public_contract_review",
+      "evidence": [
+        "04-02 常规和 API 资源；批量及软删除未覆盖"
+      ]
+    },
+    {
+      "anchor": "actions-handled-by-resource-controllers",
+      "status": "pending_public_contract_review",
+      "evidence": [
+        "04-02 常规资源注册与 11 条 Artisan 路由对照"
+      ]
+    },
+    {
+      "anchor": "customizing-missing-model-behavior",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "soft-deleted-models",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "specifying-the-resource-model",
+      "status": "verified_tutorial_scope",
+      "evidence": [
+        "model-generation-oracle.json",
+        "accepted-model-generation.json"
+      ]
+    },
+    {
+      "anchor": "generating-form-requests",
+      "status": "verified_tutorial_scope",
+      "evidence": [
+        "model-generation-oracle.json",
+        "accepted-model-generation.json"
+      ]
+    },
+    {
+      "anchor": "restful-partial-resource-routes",
+      "status": "pending_public_contract_review",
+      "evidence": [
+        "04-02 only 和 except"
+      ]
+    },
+    {
+      "anchor": "api-resource-routes",
+      "status": "pending_public_contract_review",
+      "evidence": [
+        "04-02 API 剪裁；Artisan 88 实际 --api 生成；批量尚缺"
+      ]
+    },
+    {
+      "anchor": "restful-nested-resources",
+      "status": "pending_public_contract_review",
+      "evidence": [
+        "04-02 嵌套与浅层路由；另见本批生成消费者"
+      ]
+    },
+    {
+      "anchor": "scoping-nested-resources",
+      "status": "pending_public_contract_review",
+      "evidence": [
+        "04-02 模型绑定已验；资源父子作用域仍须直接复核"
+      ]
+    },
+    {
+      "anchor": "shallow-nesting",
+      "status": "pending_public_contract_review",
+      "evidence": [
+        "04-02 浅层成员路由"
+      ]
+    },
+    {
+      "anchor": "restful-naming-resource-routes",
+      "status": "pending_public_contract_review",
+      "evidence": [
+        "04-02 路由名称与 Artisan 对照"
+      ]
+    },
+    {
+      "anchor": "restful-naming-resource-route-parameters",
+      "status": "pending_public_contract_review",
+      "evidence": [
+        "04-02 参数别名与 Artisan 对照"
+      ]
+    },
+    {
+      "anchor": "restful-scoping-resource-routes",
+      "status": "pending_public_contract_review",
+      "evidence": [
+        "04-02 typed Model 与绑定字段"
+      ]
+    },
+    {
+      "anchor": "restful-localizing-resource-uris",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "restful-supplementing-resource-controllers",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "singleton-resource-controllers",
+      "status": "pending_public_contract_review",
+      "evidence": [
+        "04-02 常规与嵌套单例"
+      ]
+    },
+    {
+      "anchor": "creatable-singleton-resources",
+      "status": "pending_public_contract_review",
+      "evidence": [
+        "04-02 creatable 和 destroyable"
+      ]
+    },
+    {
+      "anchor": "api-singleton-resources",
+      "status": "pending_public_contract_review",
+      "evidence": [
+        "04-02 API 单例"
+      ]
+    },
+    {
+      "anchor": "middleware-and-resource-controllers",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "dependency-injection-and-controllers",
+      "status": "pending_public_contract_review",
+      "evidence": []
+    },
+    {
+      "anchor": "constructor-injection",
+      "status": "pending_public_contract_review",
+      "evidence": [
+        "04-02 由应用容器构造控制器；须复核当前正式示例"
+      ]
+    },
+    {
+      "anchor": "method-injection",
+      "status": "pending_public_contract_review",
+      "evidence": [
+        "Request Facade 专项含控制器方法调用；须复核教程的任意服务与路由参数组合"
+      ]
+    }
+  ],
+  "unanchored_examples": [
+    "Applying Middleware to all Methods",
+    "Applying Middleware to Specific Methods",
+    "Excluding Middleware from Specific Methods"
+  ]
+}

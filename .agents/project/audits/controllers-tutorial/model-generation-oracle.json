@@ -1,0 +1,65 @@
+{
+    "model": {
+        "status": 0,
+        "actions": [
+            "index",
+            "create",
+            "store",
+            "show",
+            "edit",
+            "update",
+            "destroy"
+        ],
+        "uses_model": true,
+        "uses_parent": false,
+        "store_request": false,
+        "update_request": false
+    },
+    "requests": {
+        "status": 0,
+        "actions": [
+            "index",
+            "create",
+            "store",
+            "show",
+            "edit",
+            "update",
+            "destroy"
+        ],
+        "uses_model": true,
+        "uses_parent": false,
+        "store_request": true,
+        "update_request": true
+    },
+    "nested-api": {
+        "status": 0,
+        "actions": [
+            "index",
+            "store",
+            "show",
+            "update",
+            "destroy"
+        ],
+        "uses_model": true,
+        "uses_parent": true,
+        "store_request": false,
+        "update_request": false
+    },
+    "nested-singleton": {
+        "status": 0,
+        "actions": [
+            "store",
+            "show",
+            "update",
+            "destroy"
+        ],
+        "uses_model": false,
+        "uses_parent": true,
+        "store_request": false,
+        "update_request": false
+    },
+    "form_requests": {
+        "store": true,
+        "update": true
+    }
+}

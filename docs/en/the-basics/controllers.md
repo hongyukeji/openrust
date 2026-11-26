@@ -52,6 +52,26 @@ Register conventional routes with `Route::resource("photos", controller)` or `Ro
 
 Use `only` and `except` to select actions, `names` to override route names, and `parameters` to override wildcard names. Dot-separated resources such as `albums.photos` register nested paths. `shallow` keeps collection routes nested and exposes member routes under `photos/{photo}`. `scoped` sets route binding fields. Use the descriptor's `configure` method to attach middleware or typed bindings to individual routes.
 
+### Specifying the Resource Model {#specifying-the-resource-model}
+
+Pass `--model=Photo` to have the generated member actions read a typed `Photo` from the route. In your resource registration, configure model binding for the `photo` parameter on the corresponding routes. The generator can create a missing model using `make:model`.
+
+```sh
+./artisan make:controller PhotoController --model=Photo --resource
+```
+
+Use `--parent=Album` for a nested resource. The generated actions read the typed album from the `album` route parameter. Declare model and controller source files in their parent Rust modules.
+
+### Generating Form Requests {#generating-form-requests}
+
+Use `--requests` with a model to generate `StorePhotoRequest` and `UpdatePhotoRequest`. Declare both request modules and pass the generated store and update actions to `ResourceController::action_with_form_request`. Edit the authorization and rules in the generated form requests.
+
+```sh
+./artisan make:controller PhotoFormController --model=Photo --resource --requests
+```
+
+Nested templates keep the ordinary request argument and generate the requested FormRequest files for application use. Existing request files are preserved, including when you regenerate the controller with `--force`.
+
 ### Singleton Resources
 
 Register one instance at a fixed URL with `Route::singleton("profile", controller)`. The default actions are show, edit, and update. Use `destroyable` to add deletion or `creatable` to add create, store, and destroy. `Route::api_singleton` selects show and update by default, plus store and destroy when enabled. An explicit `only` can select a supported lifecycle action.

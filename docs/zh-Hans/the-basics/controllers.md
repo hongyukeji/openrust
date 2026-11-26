@@ -52,6 +52,26 @@ fn register() -> Result<(), RoutingError> {
 
 用 `only`、`except` 选择动作，用 `names` 覆盖路由名，用 `parameters` 覆盖参数名。`albums.photos` 这样的点号资源会生成嵌套路径。`shallow` 保留嵌套集合路径，并将成员路由注册到 `photos/{photo}`。`scoped` 设置绑定字段，`configure` 可为单条路由接入中间件或类型化绑定。
 
+### 指定资源模型 {#specifying-the-resource-model}
+
+传入 `--model=Photo`，生成的成员动作会从路由读取类型化的 `Photo`。注册资源时，对对应路由的 `photo` 参数配置模型绑定。缺少模型时，生成器可调用 `make:model` 创建。
+
+```sh
+./artisan make:controller PhotoController --model=Photo --resource
+```
+
+嵌套资源使用 `--parent=Album`，生成的动作从 `album` 路由参数读取类型化的父模型。在父 Rust 模块中声明模型和控制器文件。
+
+### 生成表单请求 {#generating-form-requests}
+
+指定模型并传入 `--requests` 可生成 `StorePhotoRequest` 和 `UpdatePhotoRequest`。声明两个请求模块，并用 `ResourceController::action_with_form_request` 注册生成的存储与更新动作。在生成的表单请求中编辑授权和校验规则。
+
+```sh
+./artisan make:controller PhotoFormController --model=Photo --resource --requests
+```
+
+嵌套模板继续使用普通请求参数，并生成表单请求文件供应用使用。已有请求文件会保留，使用 `--force` 重新生成控制器时也是如此。
+
 ### 单例资源
 
 用 `Route::singleton("profile", controller)` 在固定 URL 上注册单个资源，默认动作是查看、编辑和更新。`destroyable` 增加删除，`creatable` 增加创建表单、保存和删除。`Route::api_singleton` 默认选择查看与更新，并在启用相应选项时加入保存和删除。也可用 `only` 显式选择已启用的动作。

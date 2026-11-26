@@ -110,6 +110,12 @@ pub(crate) enum Stub {
     ApiController,
     SingletonController,
     ApiSingletonController,
+    ModelController,
+    ApiModelController,
+    NestedController,
+    ApiNestedController,
+    NestedSingletonController,
+    ApiNestedSingletonController,
     Factory,
     Migration,
     MigrationCreate,
@@ -160,6 +166,12 @@ impl Stub {
         Self::ApiController,
         Self::SingletonController,
         Self::ApiSingletonController,
+        Self::ModelController,
+        Self::ApiModelController,
+        Self::NestedController,
+        Self::ApiNestedController,
+        Self::NestedSingletonController,
+        Self::ApiNestedSingletonController,
         Self::Factory,
         Self::Migration,
         Self::MigrationCreate,
@@ -231,6 +243,30 @@ impl Stub {
             ),
             Self::ApiSingletonController => (
                 "controller.singleton.api.rs.stub",
+                include_str!("../foundation/console/stubs/controller.actions.rs.stub"),
+            ),
+            Self::ModelController => (
+                "controller.model.rs.stub",
+                include_str!("../foundation/console/stubs/controller.actions.rs.stub"),
+            ),
+            Self::ApiModelController => (
+                "controller.model.api.rs.stub",
+                include_str!("../foundation/console/stubs/controller.actions.rs.stub"),
+            ),
+            Self::NestedController => (
+                "controller.nested.rs.stub",
+                include_str!("../foundation/console/stubs/controller.actions.rs.stub"),
+            ),
+            Self::ApiNestedController => (
+                "controller.nested.api.rs.stub",
+                include_str!("../foundation/console/stubs/controller.actions.rs.stub"),
+            ),
+            Self::NestedSingletonController => (
+                "controller.nested.singleton.rs.stub",
+                include_str!("../foundation/console/stubs/controller.actions.rs.stub"),
+            ),
+            Self::ApiNestedSingletonController => (
+                "controller.nested.singleton.api.rs.stub",
                 include_str!("../foundation/console/stubs/controller.actions.rs.stub"),
             ),
             Self::Class => (

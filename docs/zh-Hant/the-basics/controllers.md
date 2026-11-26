@@ -52,6 +52,26 @@ fn register() -> Result<(), RoutingError> {
 
 使用 `only`、`except` 選取動作，透過 `names` 覆寫路由名稱，透過 `parameters` 覆寫參數名稱。`albums.photos` 這類點號資源會產生巢狀路徑。`shallow` 保留巢狀集合路徑，並將成員路由註冊於 `photos/{photo}`。`scoped` 設定繫結欄位，`configure` 可為個別路由加入中介層或型別化繫結。
 
+### 指定資源模型 {#specifying-the-resource-model}
+
+傳入 `--model=Photo`，產生的成員動作會從路由讀取型別化的 `Photo`。註冊資源時，請在對應路由的 `photo` 參數設定模型繫結。缺少模型時，產生器可呼叫 `make:model` 建立。
+
+```sh
+./artisan make:controller PhotoController --model=Photo --resource
+```
+
+巢狀資源使用 `--parent=Album`，產生的動作從 `album` 路由參數讀取型別化的父模型。在父 Rust 模組中宣告模型和控制器檔案。
+
+### 產生表單請求 {#generating-form-requests}
+
+指定模型並傳入 `--requests` 可產生 `StorePhotoRequest` 和 `UpdatePhotoRequest`。宣告兩個請求模組，並用 `ResourceController::action_with_form_request` 註冊產生的儲存與更新動作。在產生的表單請求中編輯授權及驗證規則。
+
+```sh
+./artisan make:controller PhotoFormController --model=Photo --resource --requests
+```
+
+巢狀範本繼續使用一般請求參數，並產生表單請求檔案供應用程式使用。既有請求檔案會保留，使用 `--force` 重新產生控制器時也一樣。
+
 ### 單例資源
 
 用 `Route::singleton("profile", controller)` 在固定 URL 註冊單一資源，預設動作為檢視、編輯與更新。`destroyable` 加入刪除，`creatable` 加入建立表單、儲存與刪除。`Route::api_singleton` 預設選取檢視與更新，並在啟用相應選項時加入儲存與刪除。也可用 `only` 明確選取已啟用的動作。
