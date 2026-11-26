@@ -1,4 +1,4 @@
-use super::{DatabaseWebhookStore, attempts, scope_key};
+use super::{DatabaseWebhookStore, attempts, scope_key, update_time};
 use crate::{Error, Result, jobs::DeferredProcessingPolicy, models::WebhookCall};
 use openrust::{
     database::{
@@ -102,6 +102,7 @@ impl DatabaseWebhookStore {
                             Expression::new("processing_generation + 1"),
                         ),
                         assignment("exception", Value::Null),
+                        assignment("updated_at", update_time(clock)),
                     ]
                     .into_iter()
                     .collect(),
@@ -203,6 +204,7 @@ impl DatabaseWebhookStore {
                 assignment("processing_until", Value::Null),
                 assignment("processed_at", processed_at),
                 assignment("exception", exception),
+                assignment("updated_at", update_time(clock)),
             ]
             .into_iter()
             .collect(),
@@ -255,6 +257,7 @@ impl DatabaseWebhookStore {
                             assignment("processing_deferred_route", route),
                             assignment("processing_token", Value::Null),
                             assignment("processing_until", Value::Null),
+                            assignment("updated_at", update_time(clock)),
                         ]
                         .into_iter()
                         .collect(),
@@ -306,9 +309,12 @@ impl DatabaseWebhookStore {
                     vec![],
                 )
                 .update_with(
-                    [assignment("processing_next_at", Expression::new(clock))]
-                        .into_iter()
-                        .collect(),
+                    [
+                        assignment("processing_next_at", Expression::new(clock)),
+                        assignment("updated_at", update_time(clock)),
+                    ]
+                    .into_iter()
+                    .collect(),
                 )
                 .await?;
             if changed == 0 {
@@ -402,6 +408,7 @@ pub(super) fn stopped_assignments(clock: &str) -> BTreeMap<String, UpdateValue<'
         assignment("processing_next_at", Value::Null),
         assignment("processing_deferred_route", Value::Null),
         assignment("processing_stopped_at", Expression::new(clock)),
+        assignment("updated_at", update_time(clock)),
         assignment(
             "exception",
             Value::Text(

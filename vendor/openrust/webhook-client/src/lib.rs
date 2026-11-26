@@ -48,6 +48,8 @@ pub use payload_migration::AddPayloadToWebhookCallsTable;
 mod processor;
 mod signature_validator;
 mod storage;
+#[path = "../database/migrations/2026_11_25_000001_extend_webhook_calls_for_update_time.rs"]
+mod update_time_migration;
 pub mod verification;
 #[path = "../database/migrations/2026_11_25_000010_create_webhook_verification_audits_table.rs"]
 mod verification_migration;
@@ -155,6 +157,7 @@ impl ServiceProvider for WebhookClientServiceProvider {
 }
 openrust::compiled_migration_assets!("webhook-client";
     "2026_11_25_000001_create_webhook_calls_table.rs" => migration,
+    "2026_11_25_000001_extend_webhook_calls_for_update_time.rs" => update_time_migration,
     "2026_11_25_000002_add_payload_to_webhook_calls_table.rs" => payload_migration,
     "2026_11_25_000003_add_processing_lease_to_webhook_calls_table.rs" => lease_migration,
     "2026_11_25_000004_create_webhook_event_receipts_table.rs" => identity_migration,

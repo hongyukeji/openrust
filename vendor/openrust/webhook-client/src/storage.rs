@@ -19,7 +19,10 @@ use http::{
 };
 pub(crate) use lease::{DeferredWakeup, ProcessingClaim, ProcessingOutcome};
 use openrust::{
-    database::{Connection, Row, Transaction, Value, query::Builder},
+    database::{
+        Connection, Row, Transaction, Value,
+        query::{Builder, Expression},
+    },
     http::HttpFuture,
     support::Str,
 };
@@ -58,6 +61,9 @@ pub trait WebhookStore: Send + Sync {
         Box::pin(async { Err(Error::RetentionUnsupported) })
     }
     fn find<'a>(&'a self, id: &'a str) -> HttpFuture<'a, Result<Option<WebhookCall>>>;
+    fn updated_at<'a>(&'a self, _id: &'a str) -> HttpFuture<'a, Result<Option<i64>>> {
+        Box::pin(async { Ok(None) })
+    }
     fn set_exception<'a>(
         &'a self,
         call: &'a WebhookCall,
@@ -155,6 +161,7 @@ impl DatabaseWebhookStore {
             ),
             ("raw_body".into(), STANDARD.encode(&call.raw_body).into()),
             ("created_at".into(), created_at.into()),
+            ("updated_at".into(), created_at.into()),
             ("exception".into(), Value::Null),
             (
                 "payload".into(),
@@ -403,6 +410,27 @@ impl WebhookStore for DatabaseWebhookStore {
         })
     }
 
+    fn updated_at<'a>(&'a self, id: &'a str) -> HttpFuture<'a, Result<Option<i64>>> {
+        Box::pin(async move {
+            let row = self.row(id, &["scope", "created_at", "updated_at"]).await?;
+            row.map(|row| {
+                let field = if matches!(row.get("updated_at"), Some(Value::Null)) {
+                    "created_at"
+                } else {
+                    "updated_at"
+                };
+                match row.get(field) {
+                    Some(Value::Integer(value)) => Ok(*value),
+                    Some(Value::Unsigned(value)) => {
+                        i64::try_from(*value).map_err(|_| Error::InvalidRecord)
+                    }
+                    _ => Err(Error::InvalidRecord),
+                }
+            })
+            .transpose()
+        })
+    }
+
     fn set_exception<'a>(
         &'a self,
         call: &'a WebhookCall,
@@ -423,11 +451,14 @@ impl WebhookStore for DatabaseWebhookStore {
                 .table("webhook_calls")
                 .r#where("scope_key", "=", scope_key(&self.scope))
                 .r#where("id", "=", call.id.clone())
-                .update(
-                    [(
-                        "exception".into(),
-                        value.map(Value::Text).unwrap_or(Value::Null),
-                    )]
+                .update_with(
+                    [
+                        lease::assignment("exception", value.map_or(Value::Null, Value::Text)),
+                        lease::assignment(
+                            "updated_at",
+                            update_time(database_clock(&self.connection)),
+                        ),
+                    ]
                     .into_iter()
                     .collect(),
                 )
@@ -527,4 +558,10 @@ pub(crate) fn database_clock(connection: &Connection) -> &'static str {
         "sqlsrv" => "datediff_big(second, '19700101', sysutcdatetime())",
         _ => "unix_timestamp()",
     }
+}
+
+fn update_time(clock: &str) -> Expression {
+    Expression::new(format!(
+        "case when coalesce(updated_at, created_at) > {clock} then coalesce(updated_at, created_at) else {clock} end"
+    ))
 }

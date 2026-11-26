@@ -43,6 +43,11 @@ impl WebhookCall {
     pub fn created_at(&self) -> i64 {
         self.created_at
     }
+
+    /// 从所属存储读取接收记录最近一次更新的 Unix 秒数。
+    pub async fn updated_at(&self, store: &dyn WebhookStore) -> Result<Option<i64>> {
+        store.updated_at(self.id()).await
+    }
     pub fn exception(&self) -> Option<&Value> {
         self.exception.as_ref()
     }

@@ -135,6 +135,8 @@ Provider 注册 `webhook_calls` 迁移，使用 `DatabaseWebhookStore` 前运行
 
 默认不保存请求头。`with_store_headers(&["X-Source"])` 不区分头名大小写，`with_store_headers(&["*"])` 明确保存全部头，可能包含敏感值。配置文件的全选值使用字符串 `"*"`，不能写成包含 `"*"` 的数组。异常 JSON 最多8192字节，请求目标最多8192字节，持久方法名最多32字节；手动传入的异常详情须由应用脱敏。
 
+用 `call.created_at()` 读取接收时间，用 `call.updated_at(&store).await?` 读取最近一次持久更新，两者均以 Unix 秒表示。旧记录在下一次写入前沿用接收时间。跟踪更新时间的自定义存储可实现 `WebhookStore::updated_at`。
+
 读取可信的 Spatie 数据库导出时，可将解码后的 JSON 列交给 `WebhookCall::restore_legacy_attachments(attachments, payload)`。附件列缺失或为 `null` 时，才从载荷读取。该方法最多还原 128 个上传对象，解码后总量上限 16 MiB，并忽略归档中的文件路径。此入口供迁移或归档读取使用。实时 JSON 请求的 `attachments` 字段仍是普通载荷数据。
 
 #### 将 multipart 附件保存在私有 Storage 磁盘 {#attachment-disk}

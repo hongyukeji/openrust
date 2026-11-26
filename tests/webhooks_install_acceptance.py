@@ -244,15 +244,19 @@ def verify_migration_publication(binary, database, port):
     for package in ("webhook-client", "webhook-server"):
         command(binary, "vendor:publish", f"--tag={package}-migrations")
         vendor_dir = source / "vendor/openrust" / package / "database/migrations"
-        for original in vendor_dir.glob("*.rs"):
+        originals = sorted(vendor_dir.glob("*.rs"))
+        assert originals, package
+        for original in originals:
             destination = application_dir / original.name
             data = original.read_bytes() + b"\npub(crate) use self::MIGRATION as Definition;\n"
+            assert destination not in published, destination.name
             assert destination.read_bytes() == data, destination.name
             published[destination] = data
         if package == "webhook-client":
             server_dir = source / "vendor/openrust/webhook-server/database/migrations"
             assert all(not (application_dir / original.name).exists() for original in server_dir.glob("*.rs"))
-    assert len(published) == 30
+    timestamp = application_dir / "2026_11_25_000001_extend_webhook_calls_for_update_time.rs"
+    assert timestamp in published
     custom = application_dir / "2026_11_25_000001_create_webhook_calls_table.rs"
     marker = b'                    table.string("name", 128);'
     assert published[custom].count(marker) == 1
@@ -276,7 +280,7 @@ def verify_migration_publication(binary, database, port):
 
     before = ledger()
     assert {path.stem for path in published} <= set(before)
-    assert "fixture_override" not in columns()
+    assert "updated_at" in columns() and "fixture_override" not in columns()
     command(binary, "migrate", "--force")
     assert ledger() == before
     build = subprocess.run(["cargo", "build", "--locked", "--bin", "main"], cwd=source, env=env,
@@ -294,7 +298,7 @@ def verify_migration_publication(binary, database, port):
     command(binary, "config:cache")
     command(binary, "route:cache")
     live_http(binary, port, source.parent / f"{driver}-published-http.log")
-    print(f"{driver}: 发布 30 条可编译迁移、保留定制、原账本不重跑、包路径回滚及应用迁移重建通过", flush=True)
+    print(f"{driver}: 发布 {len(published)} 条可编译迁移、保留定制、原账本不重跑、包路径回滚及应用迁移重建通过", flush=True)
 
 
 manifest = source / "Cargo.toml"

@@ -260,10 +260,23 @@ impl Command for Record {
                 scope,
             )
             .map_err(ConsoleError::from_source)?;
-            let mut call = openrust_webhook_client::models::WebhookCall::find(&store, id)
+            let call = openrust_webhook_client::models::WebhookCall::find(&store, id)
                 .await
-                .map_err(ConsoleError::from_source)?
-                .ok_or_else(|| ConsoleError::new("未找到当前范围的接收记录"))?;
+                .map_err(ConsoleError::from_source)?;
+            if input.matches().get_flag("updated-at") {
+                let timestamp = if let Some(call) = call {
+                    call.updated_at(&store)
+                        .await
+                        .map_err(ConsoleError::from_source)?
+                } else {
+                    None
+                };
+                output
+                    .write_raw(&format!("{}\n", json!(timestamp)))
+                    .map_err(ConsoleError::from_source)?;
+                return Ok(0);
+            }
+            let mut call = call.ok_or_else(|| ConsoleError::new("未找到当前范围的接收记录"))?;
             if let Some(value) = input.matches().get_one::<String>("save-exception") {
                 call.save_exception(
                     &store,
@@ -1598,6 +1611,12 @@ fn commands(artisan: &mut Artisan) -> Result<(), ConsoleError> {
             .arg(clap::Arg::new("id").required(true))
             .arg(clap::Arg::new("scope").required(true))
             .arg(clap::Arg::new("save-exception").long("save-exception"))
+            .arg(
+                clap::Arg::new("updated-at")
+                    .long("updated-at")
+                    .conflicts_with_all(["save-exception", "clear-exception"])
+                    .action(clap::ArgAction::SetTrue),
+            )
             .arg(
                 clap::Arg::new("clear-exception")
                     .long("clear-exception")

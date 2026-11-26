@@ -135,6 +135,8 @@ The provider registers the `webhook_calls` migration. Run `./artisan migrate` be
 
 No headers are stored by default. `with_store_headers(&["X-Source"])` selects names case-insensitively; `with_store_headers(&["*"])` explicitly stores all headers, including potentially sensitive values. The config-file equivalent is the string `"*"`, not an array containing `"*"`. Exception JSON is limited to 8192 bytes, request targets to 8192 bytes and stored methods to 32 bytes. Applications must redact manually supplied exception details.
 
+Use `call.created_at()` for receipt creation and `call.updated_at(&store).await?` for its latest persisted change, both expressed in Unix seconds. The database store reports creation time for older records until the next saved change. A custom store can implement `WebhookStore::updated_at` when it tracks update time.
+
 For trusted Spatie database exports, call `WebhookCall::restore_legacy_attachments(attachments, payload)` with the decoded JSON columns. A non-null attachment column takes precedence, even when it is empty. The method rebuilds up to 128 uploads with a combined decoded limit of 16 MiB, without opening archived filesystem paths. Use it in migration or archival readers. A live JSON request’s `attachments` field remains regular payload data.
 
 #### Keep multipart attachments on a private Storage disk {#attachment-disk}

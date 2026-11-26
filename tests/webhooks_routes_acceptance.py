@@ -74,6 +74,9 @@ def check_processing_lease(binary, env, root, port, driver, sql):
         return json.loads(command(binary, current, "webhook-client:inspect", receipt,
                                   "--scope", scope, *options))
 
+    def updated_at(receipt, scope="webhook-acceptance"):
+        return json.loads(command(binary, current, "webhooks:record", receipt, scope, "--updated-at"))
+
     def inspect_http(receipt, kind, expected=200, scope="webhook-acceptance", authorized=True):
         conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
         try:
@@ -102,6 +105,19 @@ def check_processing_lease(binary, env, root, port, driver, sql):
             assert inspect_http(released, "receipt", 403, scope="outside") == {}
             assert inspect_http("00000000-0000-0000-0000-000000000000", "receipt", 404) == {}
             assert inspect(released, scope="outside") is None
+            assert updated_at(released) == fresh["received_at"]
+            assert updated_at(released, "outside") is None
+
+            write_database(driver, sql, f"UPDATE webhook_calls SET created_at=1, updated_at=NULL WHERE id='{released}'")
+            assert updated_at(released) == 1
+            command(binary, current, "webhooks:record", released, "webhook-acceptance",
+                    '--save-exception={"message":"timestamp-fixture"}')
+            assert updated_at(released) > 1
+            future = int(time.time()) + 3600
+            write_database(driver, sql, f"UPDATE webhook_calls SET updated_at={future} WHERE id='{released}'")
+            command(binary, current, "webhooks:record", released, "webhook-acceptance", "--clear-exception")
+            assert updated_at(released) == future
+            write_database(driver, sql, f"UPDATE webhook_calls SET created_at={fresh['received_at']}, updated_at=NULL WHERE id='{released}'")
             run("release")
             assert state(released) == "1\t0\t0" and not (root / "release").exists()
             run("release")
@@ -131,6 +147,7 @@ def check_processing_lease(binary, env, root, port, driver, sql):
                 "SELECT queue,payload,0,NULL,available_at,created_at FROM jobs"
             )
             halted = dispatch(b"leased-stop-on-error")
+            write_database(driver, sql, f"UPDATE webhook_calls SET created_at=1, updated_at=NULL WHERE id='{halted}'")
             failed_count = int(sql("SELECT COUNT(*) FROM failed_jobs"))
             write_database(driver, sql, duplicate)
             run("halted")
@@ -158,8 +175,10 @@ def check_processing_lease(binary, env, root, port, driver, sql):
             assert record["exception"] == {"code":0,"message":"Webhook 处理已终止"}
             stopped = inspect(halted)
             assert stopped["state"] == "stopped" and stopped["stopped_at"] > 0 and stopped["has_exception"]
+            assert updated_at(halted) >= stopped["stopped_at"]
             assert not {"exception", "body", "url", "headers", "payload", "scope"}.intersection(stopped)
             assert inspect_http(halted, "receipt") == stopped
+            write_database(driver, sql, f"UPDATE webhook_calls SET created_at={fresh['received_at']} WHERE id='{halted}'")
             write_database(driver, sql, f"DELETE FROM failed_jobs WHERE payload LIKE '%{halted}%'")
 
             completed = dispatch(b"leased-stop-on-success")
@@ -1882,6 +1901,14 @@ def main():
   assert "add_payload_to_webhook_calls_table" in command(binary,env,"migrate","--force")
   legacy=json.loads(command(binary,env,"webhooks:record",legacy_id,"webhook-acceptance"))
   assert bytes(legacy["body"])==b"default" and legacy["payload"] is None and legacy["attachments"] is None
+  created_at = int(sql(f"SELECT created_at FROM webhook_calls WHERE id='{legacy_id}'"))
+  update_time = "2026_11_25_000001_extend_webhook_calls_for_update_time"
+  migration = f"--path=vendor/openrust/webhook-client/database/migrations/{update_time}.rs"
+  assert update_time in command(binary,env,"migrate:rollback",migration,"--step=1000","--force")
+  assert update_time in command(binary,env,"migrate",migration,"--force")
+  assert sql(f"SELECT CASE WHEN updated_at IS NULL THEN 1 ELSE 0 END FROM webhook_calls WHERE id='{legacy_id}'") == "1"
+  assert json.loads(command(binary,env,"webhooks:record",legacy_id,"webhook-acceptance","--updated-at")) == created_at
+  assert json.loads(command(binary,env,"webhooks:record",legacy_id,"webhook-acceptance")) == legacy
 
   print(f"{driver}: 公开路由／控制器 {requests} 个真实 HTTP、{workers} 个独立 Worker；方法／HEAD／Allow／组／覆盖／参数／约束／局部 CSRF／工厂／缓存与唯一名称通过")
 if __name__=="__main__":main()

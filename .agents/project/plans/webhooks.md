@@ -75,7 +75,7 @@
 | WC-06 签名 | SignatureValidator／DefaultSignatureValidator与`is_valid`，Spatie默认HMAC兼容、配置签名Header、自定义验证器 | 缺签名、重复Header、错误／轮换秘钥、原始body、时效协议差异与恒定时间比较 |
 | WC-07 Profile | WebhookProfile／ProcessEverythingWebhookProfile与`should_process`，自定义筛选 | 拒绝／忽略事件的响应／是否存储沿基线核对，不能漏验就算可信 |
 | WC-08 Response | RespondsToWebhook／DefaultRespondsTo与`respond_to_valid_webhook`，状态／body／Header可替换 | 供应商特定确认、持久失败不假ACK、业务失败不混淆收件结果 |
-| WC-09 WebhookCall模型 | `store_webhook`、`headers_to_store`、`header_bag`、`headers`、`save_exception`、`clear_exception`、`prunable`、`get_attachments`的公开语义 | 模型定制保留；实际查询／异常存储／清理委托storage，不能都写进模型文件。[可信旧版附件恢复](../audits/webhooks/legacy-attachments.md)独立于在线 JSON 接收 |
+| WC-09 WebhookCall模型 | `store_webhook`、`headers_to_store`、`header_bag`、`headers`、`save_exception`、`clear_exception`、`prunable`、`get_attachments`的公开语义 | 模型定制保留；实际查询／异常存储／清理委托storage，不能都写进模型文件。[可信旧版附件恢复](../audits/webhooks/legacy-attachments.md)独立于在线 JSON 接收，已补[接收模型更新时间](../audits/webhooks/receipt-update-time.md) |
 | WC-10 载荷／Header／附件 | 正文类型、选定Header／全部Header选项、大小限制、附件提取开关及Storage引用 | JSON／form／raw／multipart分别裁决；不在验签前重编码body，附件不暴露上传临时路径；权限／关联清理／恶意类型 |
 | WC-11 ProcessWebhookJob | 定制业务处理入口、连接／队列／尝试／超时，保存及清除异常 | 工厂／handler可由独立crate注册；Worker独立恢复，失败可追踪／重试不重复业务效果。[显式终态失败](../audits/webhooks/processing-terminal-control.md)与接收租约同事务结束，[终态回调](../audits/webhooks/processing-failed-hook.md)由原生队列结算后触发 |
 | WC-12 清理 | `delete_after_days`、prunable和定时执行；实际固定配置默认30天，null不自动清理的契约单独核对 | 成功／失败／处理中保留策略、附件和墓碑、分页清理、防止清理仍在用的载荷 |

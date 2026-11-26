@@ -1,7 +1,7 @@
 use super::{
     DatabaseWebhookStore, attempts,
     lease::{assignment, settle_transaction},
-    scope_key, text,
+    scope_key, text, update_time,
 };
 use crate::{
     Error, Result,
@@ -87,6 +87,7 @@ impl DatabaseWebhookStore {
                         assignment("processing_deadline", expires_at.clone()),
                         assignment("processing_token", Value::Null),
                         assignment("processing_until", Value::Null),
+                        assignment("updated_at", update_time(clock)),
                     ]
                     .into_iter()
                     .collect(),
