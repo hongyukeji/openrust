@@ -482,7 +482,9 @@ SDK 将完成的用户消息和助手消息一起保存。下一次提示默认�
 
 已完成的 SDK 助手消息会保存模型、汇总用量，以及 `steps` 中每步的实际模型、用量、结束原因和工具结果。既有历史可继续读取其原有步骤数据。
 
-需要其他会话后端时，实现 `ConversationStore`，并在应用启动时通过 `Ai::set_conversation_store(Arc::new(store))` 注册。`Ai::conversation_store()` 返回当前存储。实现负责校验参与者归属，并以原子操作保存用户和助手消息。需要持久工具审批时使用 `DatabaseConversationStore`。
+默认数据库存储把内联图片和文档随用户消息一并保存，同一参与者继续会话时自动带入历史。更新包后需要发布并运行 `ai-migrations`。MySQL 和 MariaDB 会将附件列扩展为 `LONGTEXT`。单独回滚该迁移时保留已扩展的列和附件数据。
+
+需要其他会话后端时，实现 `ConversationStore`，并在应用启动时通过 `Ai::set_conversation_store(Arc::new(store))` 注册。`Ai::conversation_store()` 返回当前存储。实现负责校验参与者归属，并以原子操作保存用户和助手消息。需要持久工具审批时使用 `DatabaseConversationStore`。自定义存储可以实现 `supports_attachments` 和 `store_turn_with_message` 来支持附件。
 
 ## 文本生成选项 {#text-generation-options}
 
@@ -547,7 +549,7 @@ let response = agent("Describe the scene.")
 
 上传图片用 `ImageAttachment::from_upload(&file)` 读取，本地文件用 `ImageAttachment::from_path(path).await`，字节用 `ImageAttachment::from_bytes(bytes)`。具名 Agent 通过 `Agent::attachments` 提供附件，匿名 Agent 可以用 `with_attachments`。
 
-所选模型需支持图片输入。OpenAI Responses、Chat Completions、Anthropic Messages 和 Gemini 分别使用原生图片格式。SDK 接收 PNG、JPEG 和 WebP，单次最多 16 张，原始图片总量须小于 50 MB，同时受供应商限制。可以只发送图片，也可以附上文字。附件跟随本轮调用及工具续步，文本会话存储只记录文本。
+所选模型需支持图片输入。OpenAI Responses、Chat Completions、Anthropic Messages 和 Gemini 分别使用原生图片格式。SDK 接收 PNG、JPEG 和 WebP，单次最多 16 张，原始图片总量须小于 50 MB，同时受供应商限制。可以只发送图片，也可以附上文字。附件跟随本轮调用及工具续步。
 
 ### 文档附件 {#document-attachments}
 
@@ -566,7 +568,7 @@ let response = agent("Review the quarterly report.")
 
 请选择支持文档的模型。Responses、Anthropic Messages 和 Gemini 接收这三种格式。Chat Completions 仅接收 PDF。图片和文档共用每次提示词的附件数量及大小限额。
 
-通过 `Message::user_with_attachments(text, attachments)` 和 `with_messages` 可为指定的历史用户消息添加附件。历史和本轮合计最多 16 个文件，原始数据须小于 50 MB。在 Rust 中通过 `Message::attachments` 读取文件。普通消息的 JSON 表示包含角色和文本。会话存储支持附件前，请通过该方法直接提供历史。
+通过 `Message::user_with_attachments(text, attachments)` 和 `with_messages` 可为指定的历史用户消息添加附件。历史和本轮合计最多 16 个文件，原始数据须小于 50 MB。在 Rust 中通过 `Message::attachments` 读取文件。普通消息的 JSON 表示包含角色和文本。
 
 ## Agent 工具 {#agent-tools}
 

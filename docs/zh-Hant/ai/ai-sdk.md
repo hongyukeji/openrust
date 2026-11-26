@@ -482,7 +482,9 @@ SDK 將已完成的使用者訊息和助理訊息一起儲存。下一次提示�
 
 已完成的 SDK 助手訊息會儲存模型、彙總用量，以及 `steps` 中各步驟的實際模型、用量、結束原因和工具結果。既有歷史可繼續讀取原有步驟資料。
 
-需要其他對話後端時，實作 `ConversationStore`，並在應用程式啟動時透過 `Ai::set_conversation_store(Arc::new(store))` 登錄。`Ai::conversation_store()` 回傳目前的儲存實作。實作負責檢查參與者歸屬，並以原子操作儲存使用者和助手訊息。需要持久工具審批時使用 `DatabaseConversationStore`。
+預設資料庫儲存會將內嵌圖片和文件與使用者訊息一併儲存，相同參與者繼續對話時會自動帶入歷史。更新套件後請發佈並執行 `ai-migrations`。MySQL 和 MariaDB 會將附件欄位擴充為 `LONGTEXT`。單獨回復該遷移時會保留已擴充的欄位和附件資料。
+
+需要其他對話後端時，實作 `ConversationStore`，並在應用程式啟動時透過 `Ai::set_conversation_store(Arc::new(store))` 登錄。`Ai::conversation_store()` 回傳目前的儲存實作。實作負責檢查參與者歸屬，並以原子操作儲存使用者和助手訊息。需要持久工具審批時使用 `DatabaseConversationStore`。自訂儲存可實作 `supports_attachments` 和 `store_turn_with_message` 以支援附件。
 
 ## 文字生成選項 {#text-generation-options}
 
@@ -547,7 +549,7 @@ let response = agent("Describe the scene.")
 
 上傳圖片用 `ImageAttachment::from_upload(&file)` 讀取，本機檔案用 `ImageAttachment::from_path(path).await`，位元組用 `ImageAttachment::from_bytes(bytes)`。具名 Agent 透過 `Agent::attachments` 提供附件，匿名 Agent 可用 `with_attachments`。
 
-所選模型須支援圖片輸入。OpenAI Responses、Chat Completions、Anthropic Messages 與 Gemini 分別使用原生圖片格式。SDK 接收 PNG、JPEG 與 WebP，單次最多 16 張，原始圖片總量須小於 50 MB，同時受供應商限制。可只傳送圖片，也可附上文字。附件會跟隨本輪呼叫與工具續步，文字對話儲存只記錄文字。
+所選模型須支援圖片輸入。OpenAI Responses、Chat Completions、Anthropic Messages 與 Gemini 分別使用原生圖片格式。SDK 接收 PNG、JPEG 與 WebP，單次最多 16 張，原始圖片總量須小於 50 MB，同時受供應商限制。可只傳送圖片，也可附上文字。附件會隨本輪呼叫及工具續步。
 
 ### 文件附件 {#document-attachments}
 
@@ -566,7 +568,7 @@ let response = agent("Review the quarterly report.")
 
 請選擇支援文件的模型。Responses、Anthropic Messages 與 Gemini 接收這三種格式。Chat Completions 僅接收 PDF。圖片與文件共用每次提示詞的附件數量及大小上限。
 
-透過 `Message::user_with_attachments(text, attachments)` 和 `with_messages` 可為指定的歷史使用者訊息新增附件。歷史與本輪合計最多 16 個檔案，原始資料必須小於 50 MB。在 Rust 中透過 `Message::attachments` 讀取檔案。一般訊息的 JSON 表示包含角色和文字。對話儲存支援附件前，請透過此方法直接提供歷史。
+透過 `Message::user_with_attachments(text, attachments)` 和 `with_messages` 可為指定的歷史使用者訊息新增附件。歷史與本輪合計最多 16 個檔案，原始資料必須小於 50 MB。在 Rust 中透過 `Message::attachments` 讀取檔案。一般訊息的 JSON 表示包含角色和文字。
 
 ## Agent 工具 {#agent-tools}
 

@@ -2,6 +2,7 @@ use std::{fmt, path::Path};
 
 use bytes::Bytes;
 use openrust::{http::UploadedFile, support::Str};
+use serde::{Deserialize, Serialize};
 
 use crate::{AiError, AiResult, ImageAttachment, Message, MessageRole, media_storage};
 
@@ -37,15 +38,35 @@ impl Attachment {
     }
 }
 
+#[derive(Default)]
+pub(crate) struct AttachmentBudget {
+    count: usize,
+    bytes: usize,
+}
+
+impl AttachmentBudget {
+    pub(crate) fn include(&mut self, attachments: &[Attachment]) -> AiResult<()> {
+        self.count = self.count.saturating_add(attachments.len());
+        if self.count > MAX_ATTACHMENTS {
+            return Err(AiError::TooManyAttachments);
+        }
+        self.bytes = attachments
+            .iter()
+            .map(Attachment::len)
+            .fold(self.bytes, usize::saturating_add);
+        if self.bytes >= MAX_ATTACHMENT_BYTES {
+            return Err(AiError::MediaTooLarge);
+        }
+        Ok(())
+    }
+}
+
 pub(crate) fn validate_prompt_attachments(
     attachments: &[Attachment],
     messages: &[Message],
 ) -> AiResult<()> {
-    let mut count = attachments.len();
-    let mut bytes = attachments
-        .iter()
-        .map(Attachment::len)
-        .fold(0usize, usize::saturating_add);
+    let mut budget = AttachmentBudget::default();
+    budget.include(attachments)?;
     for message in messages
         .iter()
         .filter(|message| !message.attachments.is_empty())
@@ -53,20 +74,79 @@ pub(crate) fn validate_prompt_attachments(
         if message.role != MessageRole::User {
             return Err(AiError::AttachmentsNotSupported);
         }
-        count = count.saturating_add(message.attachments.len());
-        bytes = message
-            .attachments
-            .iter()
-            .map(Attachment::len)
-            .fold(bytes, usize::saturating_add);
-    }
-    if count > MAX_ATTACHMENTS {
-        return Err(AiError::TooManyAttachments);
-    }
-    if bytes >= MAX_ATTACHMENT_BYTES {
-        return Err(AiError::MediaTooLarge);
+        budget.include(&message.attachments)?;
     }
     Ok(())
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(tag = "type")]
+enum StoredAttachment<'a> {
+    #[serde(rename = "base64-image")]
+    Image {
+        base64: String,
+        mime: std::borrow::Cow<'a, str>,
+    },
+    #[serde(rename = "base64-document")]
+    Document {
+        base64: String,
+        mime: std::borrow::Cow<'a, str>,
+        name: std::borrow::Cow<'a, str>,
+    },
+}
+
+pub(crate) fn encode_stored_attachments(attachments: &[Attachment]) -> AiResult<String> {
+    validate_prompt_attachments(attachments, &[])?;
+    let stored: Vec<_> = attachments
+        .iter()
+        .map(|attachment| match attachment {
+            Attachment::Image(image) => StoredAttachment::Image {
+                base64: Str::to_base64(image.content()),
+                mime: image.mime().into(),
+            },
+            Attachment::Document(document) => StoredAttachment::Document {
+                base64: Str::to_base64(document.content()),
+                mime: document.mime().into(),
+                name: document.filename().into(),
+            },
+        })
+        .collect();
+    serde_json::to_string(&stored).map_err(|_| AiError::InvalidResponse)
+}
+
+pub(crate) fn decode_stored_attachments(json: &str) -> AiResult<Vec<Attachment>> {
+    const MAX_JSON_BYTES: usize = MAX_ATTACHMENT_BYTES.div_ceil(3) * 4 + MAX_ATTACHMENTS * 4096;
+    if json.len() > MAX_JSON_BYTES {
+        return Err(AiError::MediaTooLarge);
+    }
+    let stored: Vec<StoredAttachment<'_>> =
+        serde_json::from_str(json).map_err(|_| AiError::InvalidResponse)?;
+    if stored.len() > MAX_ATTACHMENTS {
+        return Err(AiError::TooManyAttachments);
+    }
+    let mut attachments = Vec::with_capacity(stored.len());
+    for attachment in stored {
+        match attachment {
+            StoredAttachment::Image { base64, mime } => {
+                let bytes = Str::from_base64(&base64).map_err(|_| AiError::InvalidImage)?;
+                let image = ImageAttachment::from_bytes(bytes)?;
+                if image.mime() != mime {
+                    return Err(AiError::InvalidImage);
+                }
+                attachments.push(image.into());
+            }
+            StoredAttachment::Document { base64, mime, name } => {
+                let bytes = Str::from_base64(&base64).map_err(|_| AiError::InvalidDocument)?;
+                let document = DocumentAttachment::from_bytes(name.into_owned(), bytes)?;
+                if document.mime() != mime {
+                    return Err(AiError::InvalidDocument);
+                }
+                attachments.push(document.into());
+            }
+        }
+    }
+    validate_prompt_attachments(&attachments, &[])?;
+    Ok(attachments)
 }
 
 pub(crate) fn data_url(mime: &str, content: &[u8]) -> String {

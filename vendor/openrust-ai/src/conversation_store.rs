@@ -1,5 +1,7 @@
 use std::{any::Any, time::SystemTime};
 
+use futures_util::TryStreamExt;
+
 use openrust::{
     contracts::config::Repository,
     database::{Connection, DatabaseError, DatabaseResult, Row, Value, query::Record},
@@ -12,8 +14,10 @@ use serde_json::{Value as Json, json};
 use sha2::{Digest, Sha256};
 
 use crate::{
-    AgentResponse, AiError, AiResult, Message, MessageRole, approval_store::ApprovalScope,
+    AgentResponse, AiError, AiResult, Message, MessageRole,
+    approval_store::ApprovalScope,
     approval_turn::ApprovalSession,
+    attachments::{AttachmentBudget, decode_stored_attachments, encode_stored_attachments},
 };
 
 const CONVERSATIONS: &str = "agent_conversations";
@@ -116,6 +120,33 @@ pub trait ConversationStore: Any + Send + Sync {
         prompt: &'a str,
         response: &'a AgentResponse,
     ) -> HttpFuture<'a, AiResult<bool>>;
+
+    fn supports_attachments(&self) -> bool {
+        false
+    }
+
+    /// 保存用户附件以及本轮其余消息。仅处理文本的后端可沿用 `store_turn`。
+    fn store_turn_with_message<'a>(
+        &'a self,
+        conversation: &'a str,
+        participant: &'a ConversationParticipant,
+        agent: &'a str,
+        existing: bool,
+        message: &'a Message,
+        response: &'a AgentResponse,
+    ) -> HttpFuture<'a, AiResult<bool>> {
+        if !message.attachments.is_empty() || message.role != MessageRole::User {
+            return Box::pin(async { Err(AiError::ConversationStorageUnavailable) });
+        }
+        self.store_turn(
+            conversation,
+            participant,
+            agent,
+            existing,
+            &message.content,
+            response,
+        )
+    }
 }
 
 impl dyn ConversationStore {
@@ -215,21 +246,26 @@ impl DatabaseConversationStore {
         if limit == 0 {
             return Ok(Some(Vec::new()));
         }
-        let rows = self
+        let mut rows = self
             .connection
             .table(&self.messages)
             .use_write_pdo()
-            .select(["role", "content"])
+            .select(["role", "content", "attachments"])
             .r#where("conversation_id", "=", conversation)
             .order_by_desc("id")
             .limit(limit)
-            .get()
-            .await?;
-        rows.iter()
-            .rev()
-            .map(message)
-            .collect::<DatabaseResult<_>>()
-            .map(Some)
+            .cursor();
+        let mut messages = Vec::new();
+        let mut budget = AttachmentBudget::default();
+        while let Some(row) = rows.try_next().await? {
+            let message = message(&row)?;
+            budget
+                .include(&message.attachments)
+                .map_err(|_| DatabaseError::InvalidQuery("AI 会话历史附件超限"))?;
+            messages.push(message);
+        }
+        messages.reverse();
+        Ok(Some(messages))
     }
 
     pub async fn paginate_conversation_messages(
@@ -258,6 +294,7 @@ impl DatabaseConversationStore {
                     "agent",
                     "role",
                     "content",
+                    "attachments",
                     "steps",
                     "usage",
                     "meta",
@@ -279,11 +316,11 @@ impl DatabaseConversationStore {
         }))
     }
 
-    pub(crate) async fn store_turn(
+    pub(crate) async fn store_turn_with_approval(
         &self,
         scope: ApprovalScope<'_>,
         existing: bool,
-        prompt: &str,
+        user: &Message,
         response: &AgentResponse,
         approval: Option<&ApprovalSession>,
     ) -> DatabaseResult<bool> {
@@ -296,6 +333,11 @@ impl DatabaseConversationStore {
         if !valid_field(agent) {
             return Err(DatabaseError::InvalidQuery("AI 会话 Agent 名称无效"));
         }
+        if user.role != MessageRole::User {
+            return Err(DatabaseError::InvalidQuery("AI 会话首条消息角色无效"));
+        }
+        let attachments = encode_stored_attachments(&user.attachments)
+            .map_err(|_| DatabaseError::InvalidQuery("AI 会话附件无效"))?;
         let user_id = uuid();
         let assistant_id = uuid();
         let timestamp = now();
@@ -305,7 +347,8 @@ impl DatabaseConversationStore {
                 id,
                 participant,
                 agent,
-                Message::user(prompt),
+                user,
+                attachments,
                 timestamp,
             ),
             message_record(
@@ -313,7 +356,8 @@ impl DatabaseConversationStore {
                 id,
                 participant,
                 agent,
-                Message::assistant(&response.text),
+                &Message::assistant(&response.text),
+                "[]".into(),
                 timestamp,
             ),
         ];
@@ -350,7 +394,8 @@ impl DatabaseConversationStore {
                 .update(Record::from([("updated_at".into(), timestamp.into())]))
                 .await?;
         } else {
-            let title: String = prompt
+            let title: String = user
+                .content
                 .split_whitespace()
                 .collect::<Vec<_>>()
                 .join(" ")
@@ -448,14 +493,40 @@ impl ConversationStore for DatabaseConversationStore {
         response: &'a AgentResponse,
     ) -> HttpFuture<'a, AiResult<bool>> {
         Box::pin(async move {
-            self.store_turn(
+            self.store_turn_with_message(
+                conversation,
+                participant,
+                agent,
+                existing,
+                &Message::user(prompt),
+                response,
+            )
+            .await
+        })
+    }
+
+    fn supports_attachments(&self) -> bool {
+        true
+    }
+
+    fn store_turn_with_message<'a>(
+        &'a self,
+        conversation: &'a str,
+        participant: &'a ConversationParticipant,
+        agent: &'a str,
+        existing: bool,
+        message: &'a Message,
+        response: &'a AgentResponse,
+    ) -> HttpFuture<'a, AiResult<bool>> {
+        Box::pin(async move {
+            self.store_turn_with_approval(
                 ApprovalScope {
                     conversation_id: conversation,
                     participant,
                     agent,
                 },
                 existing,
-                prompt,
+                message,
                 response,
                 None,
             )
@@ -474,7 +545,8 @@ fn message_record(
     conversation: &str,
     participant: &ConversationParticipant,
     agent: &str,
-    message: Message,
+    message: &Message,
+    attachments: String,
     timestamp: i64,
 ) -> Record {
     Record::from([
@@ -485,8 +557,8 @@ fn message_record(
         ("participant_key".into(), participant.key(agent).into()),
         ("agent".into(), agent.into()),
         ("role".into(), message.role.as_str().into()),
-        ("content".into(), message.content.into()),
-        ("attachments".into(), "[]".into()),
+        ("content".into(), message.content.as_str().into()),
+        ("attachments".into(), attachments.into()),
         ("steps".into(), "[]".into()),
         ("meta".into(), "{}".into()),
         ("usage".into(), "{}".into()),
@@ -507,7 +579,14 @@ fn message(row: &Row) -> DatabaseResult<Message> {
         "assistant" => MessageRole::Assistant,
         _ => return Err(DatabaseError::InvalidScalar),
     };
-    Ok(Message::new(role, text(row, "content")?))
+    let content = text(row, "content")?;
+    if role == MessageRole::User {
+        let attachments = decode_stored_attachments(text(row, "attachments")?)
+            .map_err(|_| DatabaseError::InvalidScalar)?;
+        Ok(Message::user_with_attachments(content, attachments))
+    } else {
+        Ok(Message::assistant(content))
+    }
 }
 
 fn stored_message(row: &Row) -> DatabaseResult<StoredMessage> {

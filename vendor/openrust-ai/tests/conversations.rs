@@ -9,8 +9,8 @@ use openrust::{
     testing::TestApp,
 };
 use openrust_ai::{
-    Agent, Ai, AiError, ConversationParticipant, HasStructuredOutput, Message, PromptOptions,
-    RemembersConversations, StreamEventData,
+    Agent, Ai, AiError, Attachment, ConversationParticipant, DocumentAttachment,
+    HasStructuredOutput, Message, PromptOptions, RemembersConversations, StreamEventData,
 };
 use serde_json::json;
 
@@ -37,6 +37,20 @@ impl HasStructuredOutput for Support {
         schema.object([("answer", schema.string().required(true).into())])
     }
 }
+
+struct ReportAgent(Vec<Attachment>);
+
+impl Agent for ReportAgent {
+    fn instructions(&self) -> &str {
+        "Read the report."
+    }
+
+    fn attachments(&self) -> &[Attachment] {
+        &self.0
+    }
+}
+
+impl RemembersConversations for ReportAgent {}
 
 #[tokio::test]
 async fn conversation_history_is_owned_and_paginates_newest_first()
@@ -138,6 +152,36 @@ async fn assert_conversation_history(
                     );
                     Ok::<_, HttpError>(Response::empty(StatusCode::OK))
                 })?;
+                Route::get("/conversation-files", || async {
+                    let attachment =
+                        DocumentAttachment::from_bytes("report.pdf", b"%PDF-1.4".as_slice())
+                            .unwrap()
+                            .into();
+                    let fake = ReportAgent::fake(["first".into(), "second".into()]).unwrap();
+                    let owner = ConversationParticipant::new("Customer", "FileAccount");
+                    let first = ReportAgent(vec![attachment])
+                        .for_participant(owner.clone())
+                        .prompt("")
+                        .await
+                        .unwrap();
+                    ReportAgent(Vec::new())
+                        .r#continue(&first.conversation_id, owner.clone())
+                        .prompt("Follow up")
+                        .await
+                        .unwrap();
+                    let calls = fake.recorded();
+                    assert_eq!(calls[1].messages[0].attachments, calls[0].attachments);
+                    let store = Ai::conversation_store().unwrap();
+                    let page = store
+                        .paginate_conversation_messages(&first.conversation_id, &owner, 10, None)
+                        .await
+                        .unwrap()
+                        .unwrap();
+                    let source = &page.messages[3].message;
+                    assert_eq!(source.attachments, calls[0].attachments);
+                    assert_eq!(json!(source), json!({"role":"user","content":""}));
+                    Ok::<_, HttpError>(Response::empty(StatusCode::OK))
+                })?;
                 Route::get("/conversation-stream", || async {
                     let fake = Support::fake(
                         [
@@ -223,6 +267,10 @@ async fn assert_conversation_history(
         .await
         .assert_successful();
     assert_eq!(app.get("/conversation").await?.status(), StatusCode::OK);
+    assert_eq!(
+        app.get("/conversation-files").await?.status(),
+        StatusCode::OK
+    );
     assert_eq!(
         app.get("/conversation-stream").await?.status(),
         StatusCode::OK

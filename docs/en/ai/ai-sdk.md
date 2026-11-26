@@ -482,7 +482,9 @@ Override the table names before running the published migration. Set `conversati
 
 Assistant history for completed SDK turns includes the model, total usage, and `steps` with each step’s reported model, usage, finish reason, and tool outcomes. Older records retain their stored steps.
 
-Implement `ConversationStore` and install it during application boot with `Ai::set_conversation_store(Arc::new(store))` to use a different backend. `Ai::conversation_store()` returns the configured store. Each implementation checks participant ownership and saves the user and assistant messages atomically. Use `DatabaseConversationStore` for durable tool approvals.
+The database store saves inline pictures and documents with the user message and replays them when the same participant continues. Run the published `ai-migrations` after updating the package. On MySQL and MariaDB, the attachment migration widens the column to `LONGTEXT`. Rolling back only that migration preserves the wider column and any saved files.
+
+Implement `ConversationStore` and install it during application boot with `Ai::set_conversation_store(Arc::new(store))` to use a different backend. `Ai::conversation_store()` returns the configured store. Each implementation checks participant ownership and saves the user and assistant messages atomically. Use `DatabaseConversationStore` for durable tool approvals. A custom store can opt into attachments through `supports_attachments` and `store_turn_with_message`.
 
 ## Text generation options {#text-generation-options}
 
@@ -547,7 +549,7 @@ let response = agent("Describe the scene.")
 
 Read an uploaded image with `ImageAttachment::from_upload(&file)`, a local file with `ImageAttachment::from_path(path).await`, or raw bytes with `ImageAttachment::from_bytes(bytes)`. Supply the attachments through `Agent::attachments` on a named agent or `with_attachments` on an anonymous agent.
 
-The selected model must support image input. OpenAI Responses, Chat Completions, Anthropic Messages, and Gemini each use their native image format. The SDK accepts PNG, JPEG, and WebP, with at most 16 attachments and less than 50 MB of raw images per prompt. Provider limits also apply. Attachments can accompany text or be the only input. They travel with the current turn and its tool steps. The text conversation store keeps only text.
+The selected model must support image input. OpenAI Responses, Chat Completions, Anthropic Messages, and Gemini each use their native image format. The SDK accepts PNG, JPEG, and WebP, with at most 16 attachments and less than 50 MB of raw images per prompt. Provider limits also apply. Attachments can accompany text or be the only input. They travel with the current turn and its tool steps.
 
 ### Document attachments {#document-attachments}
 
@@ -566,7 +568,7 @@ let response = agent("Review the quarterly report.")
 
 Use a document-capable model. Responses, Anthropic Messages, and Gemini accept these three document formats. Chat Completions accepts PDF only. Documents and images share the per-prompt count and size limits.
 
-Use `Message::user_with_attachments(text, attachments)` with `with_messages` to supply attachments on a specific earlier user message. The current turn and its history share the attachment limits of 16 files and less than 50 MB of raw data. Read the files through `Message::attachments` in Rust. The standard JSON representation of `Message` contains the role and text. Until conversation storage supports attachments, use this method to supply the history directly.
+Use `Message::user_with_attachments(text, attachments)` with `with_messages` to supply attachments on a specific earlier user message. The current turn and its history share the attachment limits of 16 files and less than 50 MB of raw data. Read the files through `Message::attachments` in Rust. The standard JSON representation of `Message` contains the role and text.
 
 ## Agent tools {#agent-tools}
 

@@ -190,7 +190,7 @@ Anthropic Messages 与 Gemini GenerateContent 的 `Agent::stream` 接入现有 `
 
 `ai.conversations.connection` 沿用框架 Database 连接，可通过 `AI_CONVERSATIONS_CONNECTION` 选择。应用通过 `vendor:publish --tag=ai-migrations` 发布迁移，重新编译后迁移和回滚。无状态 SDK 启动不查询会话表。独立 Artisan 创建、独立 HTTP 恢复对话，使用协议模拟上游和真实 SQLite、MySQL 8.4.13 与 PostgreSQL 18.7 验证持久化、大小写不同参与者拒绝访问、游标、用量与回滚。包测试另外覆盖历史裁剪与上一会话。
 
-完成的一轮原子持久化，并从第一条提示生成短标题。固定 Laravel 的单独落库及队列标题、附件与原始工具历史重建继续核对。
+完成的一轮原子持久化，并从第一条提示生成短标题。固定 Laravel 的单独落库及队列标题、原始工具历史重建继续核对。
 
 `ConversationStore` 接入创建、继续、历史和原子写入。应用使用 `Ai::set_conversation_store` 注册实现。真实 Artisan 与 HTTP 在数据库连接未配置时使用独立内存实现，核对按 Agent 查找最近会话、参与者不符时 404 且无模型请求、历史分页、流式落库及工具需审批时的安全返回。默认数据库实现仍提供持久审批。SQLite、PostgreSQL 18.7、MySQL 8.4.13 实测默认具名连接、落库、截断和迁移回滚，另复验隔离进程审批恢复。SDK 回归 14 项、严格 Clippy 和三语站点通过。
 
@@ -376,15 +376,21 @@ Azure 预设沿用 `openai` 协议驱动，按需追加 `/openai/v1`，使用敏
 
 ## AI-02／AI-03 Agent 图片附件
 
-匿名 Agent 用 `with_attachments`，具名 Agent 实现 `attachments`。复用图像生成的 `ImageAttachment`，支持字节、应用磁盘、本地路径与 HTTP 上传。允许图片作为唯一输入。OpenAI Chat Completions／Responses、Anthropic Messages 与 Gemini 各自以原生格式接收图片。流式工具续步保留本轮图片，文本 Fake 记录图片并支持断言。此处的附件随本轮调用发送，会话存储仍按文本契约保存。
+匿名 Agent 用 `with_attachments`，具名 Agent 实现 `attachments`。复用图像生成的 `ImageAttachment`，支持字节、应用磁盘、本地路径与 HTTP 上传。允许图片作为唯一输入。OpenAI Chat Completions／Responses、Anthropic Messages 与 Gemini 各自以原生格式接收图片。流式工具续步保留本轮图片，文本 Fake 记录图片并支持断言。此前批次覆盖本轮调用。会话历史与落库见下文。
 
 独立 Artisan 验证本地、私有磁盘、Fake、图片数量上限和真实 Responses 请求。真实 HTTP Kernel 解析 multipart，四个本地 TCP 协议入口逐一核对鉴权、图片字节、普通响应、SSE 及仅图片输入。Chat 工具流验证第二步仍保留同一张图片与工具结果。文档、供应商存储 ID、远端附件、单次调用及历史附件、真实供应商视觉模型仍列为后续验收。
 
 - [固定 Laravel Promptable](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Promptable.php) · [固定 Laravel Image](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Files/Image.php)
 
-手动历史通过 `Message::user_with_attachments` 与 `with_messages` 传入。四种协议复用各自的用户附件内容构造，保留消息角色、附件顺序以及其后的无附件提示结构。普通消息 JSON 继续只有角色和文本，Fake 可直接断言历史附件。历史与本轮共用 16 个文件和小于 50 MB 的原始数据上限。独立 Artisan 发送图片和 PDF 并验证 Fake、超限拒绝。真实 HTTP 通过 multipart 接收 PDF 和 Markdown 并验证四路原生协议的普通响应与 PDF SSE，Chat 的 Markdown 在发送前拒绝。OpenAI 请求结构回归、SDK 15 项、严格 Clippy、三语站点通过。会话落库、数据库触发的历史回填和含附件的审批恢复继续核对。
+手动历史通过 `Message::user_with_attachments` 与 `with_messages` 传入。四种协议复用各自的用户附件内容构造，保留消息角色、附件顺序以及其后的无附件提示结构。普通消息 JSON 继续只有角色和文本，Fake 可直接断言历史附件。历史与本轮共用 16 个文件和小于 50 MB 的原始数据上限。独立 Artisan 发送图片和 PDF 并验证 Fake、超限拒绝。真实 HTTP 通过 multipart 接收 PDF 和 Markdown 并验证四路原生协议的普通响应与 PDF SSE，Chat 的 Markdown 在发送前拒绝。OpenAI 请求结构回归、SDK 15 项、严格 Clippy、三语站点通过。会话落库及历史回填见下文。含附件的审批恢复继续核对。
 
 - [固定 Laravel UserMessage](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Messages/UserMessage.php)
+
+默认 `ConversationStore` 同一事务保存用户消息、内联图片和文档，以及助手响应。历史逐行读取并按请求附件预算校验，保存格式对应固定 Laravel Base64 图片及文档类型，普通 JSON 消息不带附件字节。自定义存储可通过 `supports_attachments` 和 `store_turn_with_message` 启用附件。已发布的 MySQL／MariaDB 迁移把附件列扩为 `LONGTEXT`，单独回滚保留宽列以保存既有数据。
+
+SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 实测自定义表上的旧文本数据、110 KB PDF 和图片随 Artisan 落库、独立 HTTP 自动回放以及分页读取和跨参与者拒绝。三库均验证 SSE 终帧前完成落库、截断无半轮记录。MySQL 另验证预演 DDL、实际扩容以及单独回滚后仍能读取附件。默认／自定义表的 SDK 回归、严格 Clippy、三语文档通过。MariaDB 的扩容沿用 MySQL 方言，未另行实机验收。
+
+- [固定 Laravel DatabaseConversationStore](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Storage/DatabaseConversationStore.php)
 
 ## AI-02 模型档位与文本摘要
 

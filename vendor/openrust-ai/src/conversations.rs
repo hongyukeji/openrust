@@ -3,7 +3,7 @@ use std::{any::type_name, sync::Arc};
 use openrust::{contracts::auth::Authenticatable, support::Str};
 
 use crate::{
-    Agent, AgentResponse, Ai, AiError, AiManager, AiResult, ApprovalResponse,
+    Agent, AgentResponse, Ai, AiError, AiManager, AiResult, ApprovalResponse, Attachment,
     ConversationParticipant, ConversationStore, Decisions, HasStructuredOutput, Message,
     PendingToolApprovals, PromptOptions, StreamableAgentResponse, StructuredAgentResponse,
     StructuredOutput,
@@ -88,6 +88,7 @@ struct ConversationTurn {
     existing: bool,
     participant: ConversationParticipant,
     agent_name: &'static str,
+    attachments: Vec<Attachment>,
 }
 
 impl ConversationTurn {
@@ -101,14 +102,15 @@ impl ConversationTurn {
         response: &AgentResponse,
         approval: Option<&ApprovalSession>,
     ) -> AiResult<()> {
+        let user = Message::user_with_attachments(prompt, self.attachments.iter().cloned());
         let stored = if let Some(approval) = approval {
             self.store
                 .as_database()
                 .ok_or(AiError::ConversationStorageUnavailable)?
-                .store_turn(
+                .store_turn_with_approval(
                     self.approval_scope(),
                     self.existing,
-                    prompt,
+                    &user,
                     response,
                     Some(approval),
                 )
@@ -116,12 +118,12 @@ impl ConversationTurn {
                 .map_err(|_| AiError::ConversationStorageUnavailable)?
         } else {
             self.store
-                .store_turn(
+                .store_turn_with_message(
                     &self.id,
                     &self.participant,
                     self.agent_name,
                     self.existing,
-                    prompt,
+                    &user,
                     response,
                 )
                 .await?
@@ -247,6 +249,7 @@ impl<A: Agent> PendingConversation<'_, A> {
             existing: checkpoint.existing,
             participant: self.participant.clone(),
             agent_name: type_name::<A>(),
+            attachments: Vec::new(),
             store,
         };
         let mut session = turn.approval_session().ok_or(AiError::ApprovalNotFound)?;
@@ -348,10 +351,14 @@ impl<A: Agent> PendingConversation<'_, A> {
         manager: &AiManager,
         prompt: &str,
     ) -> AiResult<(ConversationTurn, Vec<Message>)> {
-        if prompt.trim().is_empty() {
+        let attachments = self.agent.attachments();
+        if prompt.trim().is_empty() && attachments.is_empty() {
             return Err(AiError::InvalidPrompt);
         }
         let (store, history_limit) = manager.conversation_store()?;
+        if !attachments.is_empty() && !store.supports_attachments() {
+            return Err(AiError::ConversationStorageUnavailable);
+        }
         self.participant
             .validate()
             .map_err(|_| AiError::InvalidConversationParticipant)?;
@@ -385,6 +392,7 @@ impl<A: Agent> PendingConversation<'_, A> {
             id: existing.unwrap_or_else(|| Str::uuid7().to_string()),
             participant: self.participant.clone(),
             agent_name,
+            attachments: attachments.to_vec(),
         };
         Ok((turn, history))
     }
