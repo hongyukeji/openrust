@@ -405,3 +405,11 @@ Azure 预设沿用 `openai` 协议驱动，按需追加 `/openai/v1`，使用敏
 独立 Artisan 依次调用 `Stringable` 和 Query Builder，从真实 PostgreSQL 18.7 与 pgvector 0.8.2 查询过滤、顺序和投影距离。独立 HTTP 的 Eloquent 查询共用同一文件缓存。关闭 SDK 缓存后两次文本转换均实际出站。应用手动替换旧数据库绑定后可在 SDK 无凭证时查询，全程不会调用 SDK。保留框架数据库嵌入回归测试，包测试、严格 Clippy 与三语文档通过。
 
 - [Laravel Query Builder 向量相似度查询](https://laravel.com/docs/13.x/queries#vector-similarity-clauses) · [pgvector 0.8.2](https://github.com/pgvector/pgvector/tree/v0.8.2)
+
+## AI-03 相似度搜索工具
+
+`SimilaritySearch` 复用模型查询、SDK 文本嵌入及集合重排。`using_model` 接收向量列、相似度阈值和条数。`using_model_with` 允许应用附加约束，`using` 支持自定义异步检索。结果保留业务字段并移除向量列。支持自定义工具说明、空结果和按候选重排。工具名沿用固定 Laravel 的 `SimilaritySearch`。
+
+独立 Artisan 通过真实 Responses 工具循环检索 PostgreSQL 18.7 上的 pgvector 0.8.2。独立 HTTP 验证模型查询过滤、结果数量、SDK 缓存复用、Cohere 协议重排、注入自定义查询、空结果和无效参数。协议上游使用本地 TCP 服务。相关包测试与严格 Clippy 均通过。
+
+- [固定 Laravel SimilaritySearch](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Tools/SimilaritySearch.php) · [固定 Laravel 工具名称解析](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Tools/ToolNameResolver.php)

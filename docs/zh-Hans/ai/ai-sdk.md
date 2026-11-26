@@ -354,6 +354,21 @@ let response = agent("Check inventory before answering.")
     .await?;
 ```
 
+### 相似度搜索工具 {#similarity-search}
+
+`SimilaritySearch::using_model` 把工具收到的查询文字转成向量，再通过 Eloquent 查询文档并返回业务字段。需要附加应用查询条件时使用 `using_model_with`，也可以用 `using` 提供异步检索函数。`rerank` 接收从每条结果提取文本的函数和可选的返回条数，用已配置的重排连接排序。
+
+```rust
+use std::sync::Arc;
+use openrust_ai::{Agent, SimilaritySearch, agent};
+
+let search = SimilaritySearch::using_model::<PolicyDocument>("embedding", 0.6, 15)?;
+let response = agent("Search the policy documents before answering.")
+    .with_tools(vec![Arc::new(search)])
+    .prompt("When can I return an order?")
+    .await?;
+```
+
 ## Agent 排队 {#queued-agents}
 
 给具名 Agent 派生 `Serialize` 和 `Deserialize`，实现 `QueueableAgent` 并提供稳定的 `QUEUE_JOB` 名称。在应用服务提供者的 `boot` 方法中，从应用取得 `QueueManager`，调用 `TicketAgent::register_queue(queue.as_ref())` 注册。

@@ -354,6 +354,21 @@ let response = agent("Check inventory before answering.")
     .await?;
 ```
 
+### Similarity search tool {#similarity-search}
+
+`SimilaritySearch::using_model` converts a tool’s search text into a vector and queries an Eloquent model, returning document fields. Use `using_model_with` to add your application’s query constraints or `using` to supply an async search function. Pass `rerank` a function that extracts text from each result and an optional limit to rank the candidates with your configured reranking connection.
+
+```rust
+use std::sync::Arc;
+use openrust_ai::{Agent, SimilaritySearch, agent};
+
+let search = SimilaritySearch::using_model::<PolicyDocument>("embedding", 0.6, 15)?;
+let response = agent("Search the policy documents before answering.")
+    .with_tools(vec![Arc::new(search)])
+    .prompt("When can I return an order?")
+    .await?;
+```
+
 ## Queued agents {#queued-agents}
 
 Implement `QueueableAgent` on a named Agent that derives `Serialize` and `Deserialize`. Give it a stable `QUEUE_JOB` name. Register it in the application service provider’s `boot` method with `TicketAgent::register_queue(queue.as_ref())`, where `queue` is the application’s `QueueManager`.

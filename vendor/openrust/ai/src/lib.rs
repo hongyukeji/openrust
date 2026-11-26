@@ -46,6 +46,7 @@ mod native_tool_stream;
 mod on_demand;
 mod provider_options;
 mod reranking;
+mod similarity_search;
 mod stores;
 mod streaming;
 mod structured;
@@ -103,6 +104,7 @@ pub use reranking::{
     PendingReranking, RankedDocument, Reranking, RerankingOptions, RerankingPrompt,
     RerankingProvider, RerankingResponse, Reranks,
 };
+pub use similarity_search::SimilaritySearch;
 pub use stores::{
     FakeStoreGateway, ProviderStoreFilePage, ProviderStorePage, RecordedStoreCreation,
     RecordedStoreDeletion, Store, StoreFile, StoreFileCounts, StoreFileInfo, StoreFilePage,
