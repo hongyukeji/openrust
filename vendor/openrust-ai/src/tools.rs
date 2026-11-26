@@ -213,6 +213,8 @@ pub trait StepTextGateway: Send + Sync {
 pub(crate) struct ToolRun {
     pub(crate) invocation_id: String,
     pub(crate) history: Vec<ToolStep>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    requested_models: Vec<Option<String>>,
     usage: Option<Usage>,
     max_steps: usize,
 }
@@ -228,6 +230,8 @@ pub(crate) struct ApprovalCheckpoint {
     replay_scope: String,
     run: ToolRun,
     response: StepResponse,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    requested_model: Option<String>,
     allowed: BTreeSet<String>,
     invocation_ids: Vec<Option<String>>,
 }
@@ -281,7 +285,8 @@ impl ApprovalCheckpoint {
             .collect();
         session.record_resolution(self.invocation_id(), pending_record.0, resolved);
         let mut run = self.run;
-        run.add_step(self.response, results);
+        let requested_model = self.requested_model.or_else(|| self.response.model.clone());
+        run.add_step(self.response, results, requested_model);
         run.generate(
             provider,
             prompt,
@@ -323,6 +328,7 @@ impl ToolRun {
             invocation_id: crate::request_context::invocation_id()
                 .unwrap_or_else(|| Str::ulid().to_string()),
             history: Vec::new(),
+            requested_models: Vec::new(),
             usage: None,
             max_steps,
         }
@@ -360,7 +366,15 @@ impl ToolRun {
         }
     }
 
-    pub(crate) fn add_step(&mut self, response: StepResponse, results: Vec<ToolResult>) {
+    pub(crate) fn add_step(
+        &mut self,
+        response: StepResponse,
+        results: Vec<ToolResult>,
+        requested_model: Option<String>,
+    ) {
+        self.requested_models
+            .resize_with(self.history.len(), || None);
+        self.requested_models.push(requested_model);
         self.usage = Some(match self.usage.as_ref() {
             Some(previous) => response.usage.clone().combine(previous),
             None => response.usage.clone(),
@@ -383,9 +397,8 @@ impl ToolRun {
         approval: Option<&ApprovalSession>,
         provider: &dyn TextProvider,
         prompt: AgentPrompt<'_>,
-        response: StepResponse,
+        step: crate::middleware::CompletedStep,
         plan: ApprovalPlan,
-        allowed: BTreeSet<String>,
     ) -> AiResult<PendingToolApprovals> {
         let Some(session) = approval else {
             return Err(AiError::ApprovalNotResumable {
@@ -410,8 +423,9 @@ impl ToolRun {
                 attachments: None,
                 replay_scope,
                 run: self,
-                response,
-                allowed,
+                response: step.response,
+                requested_model: step.requested_model,
+                allowed: step.allowed,
                 invocation_ids: plan.invocation_ids,
             })
             .await
@@ -433,7 +447,7 @@ impl ToolRun {
             .collect::<HashSet<_>>();
         for step in self.history.len()..self.max_steps {
             let final_step = step + 1 == self.max_steps;
-            let (response, allowed) = crate::middleware::generate_step(
+            let generated = crate::middleware::generate_step(
                 provider,
                 self.pending_step(provider.name(), &prompt, definitions),
                 middleware,
@@ -446,22 +460,23 @@ impl ToolRun {
                     ProviderAttemptError::Committed(error)
                 }
             })?;
-            validate_calls(&response.tool_calls, &mut seen)?;
+            validate_calls(&generated.response.tool_calls, &mut seen)?;
             let plan = plan_execution(
-                &response.tool_calls,
+                &generated.response.tool_calls,
                 tools,
-                Some(&allowed),
+                Some(&generated.allowed),
                 final_step,
                 None,
             )?;
             if plan.requires_approval() {
                 let approval = plan.for_pause();
                 let pending = self
-                    .pause(approvals, provider, prompt, response, approval, allowed)
+                    .pause(approvals, provider, prompt, generated, approval)
                     .await?;
                 return Err(AiError::ApprovalPaused(pending).into());
             }
             let results = plan.run().await;
+            let response = generated.response;
             let finished = response.tool_calls.is_empty() || final_step;
             if finished
                 && response.text.is_none()
@@ -470,37 +485,42 @@ impl ToolRun {
             {
                 return Err(AiError::InvalidResponse.into());
             }
-            self.add_step(response, results);
+            self.add_step(response, results, generated.requested_model);
             if finished {
                 let replay_scope = provider
                     .step_text_gateway()
                     .and_then(|gateway| gateway.approval_replay_scope().ok().flatten());
-                let steps: Vec<_> = self
-                    .history
-                    .into_iter()
-                    .map(|step| {
-                        let model = step.model.unwrap_or_else(|| prompt.text.model.into());
-                        let provider_replay = crate::provider_replay::ProviderReplay::capture(
-                            replay_scope.as_deref(),
-                            &model,
-                            step.provider_content
-                                .as_ref()
-                                .filter(|_| !step.calls.is_empty()),
-                        );
-                        Step {
-                            text: step.text.unwrap_or_default(),
-                            tool_calls: step.calls,
-                            tool_results: step.results,
-                            finish_reason: step.finish_reason,
-                            usage: step.usage,
-                            provider: provider.name().into(),
-                            model,
-                            citations: step.citations,
-                            reasoning: step.reasoning,
-                            provider_replay,
-                        }
-                    })
-                    .collect();
+                let steps: Vec<_> =
+                    self.history
+                        .into_iter()
+                        .enumerate()
+                        .map(|(index, step)| {
+                            let model = step.model.unwrap_or_else(|| prompt.text.model.into());
+                            let provider_replay = self.requested_models[index].as_deref().and_then(
+                                |requested_model| {
+                                    crate::provider_replay::ProviderReplay::capture(
+                                        replay_scope.as_deref(),
+                                        requested_model,
+                                        step.provider_content
+                                            .as_ref()
+                                            .filter(|_| !step.calls.is_empty()),
+                                    )
+                                },
+                            );
+                            Step {
+                                text: step.text.unwrap_or_default(),
+                                tool_calls: step.calls,
+                                tool_results: step.results,
+                                finish_reason: step.finish_reason,
+                                usage: step.usage,
+                                provider: provider.name().into(),
+                                model,
+                                citations: step.citations,
+                                reasoning: step.reasoning,
+                                provider_replay,
+                            }
+                        })
+                        .collect();
                 let last = steps.last().ok_or(AiError::InvalidResponse)?;
                 return Ok(AgentResponse {
                     text: last.text.clone(),

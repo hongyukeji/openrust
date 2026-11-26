@@ -226,6 +226,10 @@ SQLite 分别通过普通和流式 Artisan 记录两种协议的签名，Postgre
 
 - [固定 Laravel Anthropic 消息映射](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Gateway/Anthropic/Concerns/MapsMessages.php) · [现有 OpenRust Gemini 原生工具流](../../../vendor/openrust-ai/src/native_tool_stream.rs)
 
+历史私有块按中间件处理后的实际请求模型识别，公开步骤仍报告供应商返回的模型版本。旧审批快照保留读取兼容，缺少请求模型时采用原有流程；流式与普通请求均使用有效请求模型。
+
+SQLite、PostgreSQL 18.7 和 MySQL 8.4.13 实测中间件从初始模型重写到请求别名，供应商报告不同的具体版本。独立 Artisan 记录后，HTTP 通过同一别名重放私有块，更换模型或凭证时回退公开历史。旧审批快照移除新字段后仍可恢复，SDK 15 项、严格 Clippy 及三语站点复验通过。
+
 ## AI-05 Reranking Fake 与 Collection
 
 `Reranking::fake` 可接收结果列表或完整响应，`fake_with` 接收闭包。默认使用框架 Collection 打乱输入索引并按限制返回，支持阻止意外调用及 Laravel 风格断言。Fake 使用应用内状态，在 SDK 的正常入口拦截并通过与供应商相同的索引和数量校验。包测试覆盖元数据、回调、随机结果、耗尽和无出站请求。

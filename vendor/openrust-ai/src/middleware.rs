@@ -363,8 +363,15 @@ pub(crate) async fn generate_stream_step(
     })
 }
 
+pub(crate) struct CompletedStep {
+    pub(crate) response: StepResponse,
+    pub(crate) allowed: BTreeSet<String>,
+    pub(crate) requested_model: Option<String>,
+}
+
 struct StepContext<'a> {
     provider: &'a dyn TextProvider,
+    requested_model: Option<String>,
     allowed: BTreeSet<String>,
     observation: Option<StepObservation>,
 }
@@ -373,9 +380,10 @@ pub(crate) async fn generate_step(
     provider: &dyn TextProvider,
     step: PendingStep<'_>,
     middleware: &[Arc<dyn AgentMiddleware>],
-) -> AiResult<(StepResponse, BTreeSet<String>)> {
+) -> AiResult<CompletedStep> {
     let mut context = StepContext {
         provider,
+        requested_model: None,
         allowed: BTreeSet::new(),
         observation: None,
     };
@@ -395,6 +403,7 @@ pub(crate) async fn generate_step(
                     .allowed
                     .extend(step.tools.iter().map(|tool| tool.name.clone()));
                 let request = step.as_prompt();
+                context.requested_model = Some(request.text.model.to_owned());
                 context.observation = StepObservation::start(
                     context.provider.name(),
                     &request,
@@ -461,5 +470,9 @@ pub(crate) async fn generate_step(
             Err(error) => observation.fail(error).await,
         }
     }
-    Ok((response?, context.allowed))
+    Ok(CompletedStep {
+        response: response?,
+        allowed: context.allowed,
+        requested_model: context.requested_model,
+    })
 }

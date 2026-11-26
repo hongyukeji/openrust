@@ -159,7 +159,7 @@ pub(crate) fn response(
             }
             tools::validate_calls(&completed.tool_calls, &mut seen)?;
             let replay = crate::provider_replay::ProviderReplay::capture(
-                replay_scope.as_deref(), completed.model.as_deref().unwrap_or(&model),
+                replay_scope.as_deref(), &model,
                 completed.provider_content.as_ref().filter(|_| !completed.tool_calls.is_empty()),
             );
             observed.record(completed.model.clone(), completed.usage.clone(), completed.finish_reason, replay);
@@ -172,7 +172,12 @@ pub(crate) fn response(
                 let calls = completed.tool_calls.clone();
                 let pause = run.pause(
                     approvals.as_ref(), provider.as_ref(), prompt.as_prompt(0),
-                    completed, plan, allowed,
+                    crate::middleware::CompletedStep {
+                        response: completed,
+                        allowed,
+                        requested_model: Some(model),
+                    },
+                    plan,
                 );
                 let pending = in_tool_scope(application.as_deref(), locale.as_deref(), pause).await??;
                 let conversation_id = approvals.as_ref().expect("已保存审批会话").conversation_id.clone();
@@ -200,7 +205,7 @@ pub(crate) fn response(
             if completed.tool_calls.is_empty() || step == max_steps {
                 return;
             }
-            run.add_step(completed, results);
+            run.add_step(completed, results, Some(model));
             let request = prompt.as_prompt(0);
             let open = crate::request_context::in_agent_invocation(
                 &invocation_id, step, agent,
