@@ -448,3 +448,11 @@ Azure 预设沿用 `openai` 协议驱动，按需追加 `/openai/v1`，使用敏
 独立 Artisan 发布并安装迁移，在隔离应用创建待审批。SQLite 和原生 PostgreSQL 18.7 的实际 HTTP 进程核对参与者、连接凭证变更、过期、缺失与额外决定，跨两个进程并发提交仅一个调用完成。验证编辑、拒绝、上游仅续接一次、会话历史和累计用量。包测试、严格 Clippy 和三语文档均通过。
 
 - [固定 Laravel ResolvesPendingApprovals](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Contracts/ResolvesPendingApprovals.php) · [固定 Laravel ResumesToolApprovals](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Providers/Concerns/ResumesToolApprovals.php)
+
+## AI-03 流式工具审批事件
+
+具名会话的 `stream_with_approvals` 与普通审批复用数据库快照、领取和连接范围。当前批次的任一工具需要审批时，先保存快照，再交付工具声明及 `tool_approval_request`。流在审批处结束，会话历史等恢复完成后再持久化。默认 SSE 携带会话 ID 和审批批次 ID，Vercel 发送标准的逐工具审批帧及批次数据，AG-UI 用中断结果及元数据交付。后续可从另一进程用 `resume_approval` 提交决定并取得普通响应。流式继续输出、框架级审批事件以及审批输入适配仍待验收。
+
+SQLite 和原生 PostgreSQL 18.7 上，以独立 Artisan 消费 SDK 流，检查审批项已保存。真实 HTTP 分别通过默认 SSE、Vercel 与 AG-UI 读取审批，在另一进程恢复一次，再验证旧审批无法重用。OpenAI Responses 上游使用本地 TCP 服务，相关包测试、严格 Clippy 和三语文档通过。
+
+- [固定 Laravel ToolApprovalRequest](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Streaming/Events/ToolApprovalRequest.php) · [Vercel 数据协议](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Streaming/Protocols/VercelDataProtocol.php) · [AG-UI 协议](https://github.com/laravel/ai/blob/1d269f2359aa166aaf10b212151bf556dd86a02e/src/Streaming/Protocols/AgentUserInteractionProtocol.php)

@@ -44,6 +44,10 @@ where
             }
             let response = response.as_mut().ok_or(AiError::InvalidResponse)?;
             match &event.data {
+                StreamEventData::ToolApprovalRequest { .. } => {
+                    yield event;
+                    return;
+                }
                 StreamEventData::TextDelta { delta, .. } => response.text.push_str(delta),
                 StreamEventData::ToolCall { call } => response.tool_calls.push(call.clone()),
                 StreamEventData::ToolResult { result } => response.tool_results.push(result.clone()),

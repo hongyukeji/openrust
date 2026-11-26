@@ -2,7 +2,7 @@ use openrust::database::{DatabaseError, DatabaseResult, Transaction};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    AgentResponse, AiError, AiResult, PendingApproval,
+    AgentResponse, AiError, AiResult, ConversationParticipant, PendingApproval,
     approval_store::{ApprovalScope, ApprovalStore},
     tools::ApprovalCheckpoint,
 };
@@ -18,9 +18,11 @@ pub struct PendingToolApprovals {
     pub approvals: Vec<PendingApproval>,
 }
 
-pub(crate) struct ApprovalSession<'a> {
+pub(crate) struct ApprovalSession {
     store: ApprovalStore,
-    scope: ApprovalScope<'a>,
+    pub(crate) conversation_id: String,
+    participant: ConversationParticipant,
+    agent: String,
     pub(crate) existing: bool,
     claim: Option<ApprovalClaim>,
 }
@@ -31,24 +33,30 @@ struct ApprovalClaim {
     token: String,
 }
 
-impl ApprovalSession<'_> {
-    pub(crate) fn new(
-        store: ApprovalStore,
-        scope: ApprovalScope<'_>,
-        existing: bool,
-    ) -> ApprovalSession<'_> {
+impl ApprovalSession {
+    pub(crate) fn new(store: ApprovalStore, scope: ApprovalScope<'_>, existing: bool) -> Self {
         ApprovalSession {
             store,
-            scope,
+            conversation_id: scope.conversation_id.into(),
+            participant: scope.participant.clone(),
+            agent: scope.agent.into(),
             existing,
             claim: None,
+        }
+    }
+
+    fn scope(&self) -> ApprovalScope<'_> {
+        ApprovalScope {
+            conversation_id: &self.conversation_id,
+            participant: &self.participant,
+            agent: &self.agent,
         }
     }
 
     pub(crate) async fn claim(&mut self, id: &str, revision: i64) -> AiResult<()> {
         let token = self
             .store
-            .claim(&self.scope, id, revision)
+            .claim(&self.scope(), id, revision)
             .await
             .map_err(|_| AiError::ConversationStorageUnavailable)?
             .ok_or(AiError::ApprovalConsumed)?;
@@ -60,13 +68,16 @@ impl ApprovalSession<'_> {
         Ok(())
     }
 
-    pub(crate) async fn pause(&self, checkpoint: &ApprovalCheckpoint) -> AiResult<AiError> {
+    pub(crate) async fn pause(
+        &self,
+        checkpoint: &ApprovalCheckpoint,
+    ) -> AiResult<PendingToolApprovals> {
         let id = match &self.claim {
             Some(claim) => {
                 if !self
                     .store
                     .settle(
-                        &self.scope,
+                        &self.scope(),
                         &claim.id,
                         &claim.token,
                         Some((claim.revision, checkpoint)),
@@ -80,14 +91,14 @@ impl ApprovalSession<'_> {
             }
             None => self
                 .store
-                .insert(&self.scope, checkpoint)
+                .insert(&self.scope(), checkpoint)
                 .await
                 .map_err(|_| AiError::ConversationStorageUnavailable)?,
         };
-        Ok(AiError::ApprovalPaused(PendingToolApprovals {
+        Ok(PendingToolApprovals {
             id,
             approvals: checkpoint.pending.clone(),
-        }))
+        })
     }
 
     pub(crate) async fn settle(&self) -> AiResult<()> {
@@ -96,7 +107,7 @@ impl ApprovalSession<'_> {
         };
         if self
             .store
-            .settle::<ApprovalCheckpoint>(&self.scope, &claim.id, &claim.token, None)
+            .settle::<ApprovalCheckpoint>(&self.scope(), &claim.id, &claim.token, None)
             .await
             .map_err(|_| AiError::ConversationStorageUnavailable)?
         {
@@ -111,7 +122,7 @@ impl ApprovalSession<'_> {
             return Err(DatabaseError::InvalidQuery("AI 工具审批尚未领取"));
         };
         self.store
-            .complete(transaction, &self.scope, &claim.id, &claim.token)
+            .complete(transaction, &self.scope(), &claim.id, &claim.token)
             .await
     }
 }

@@ -635,7 +635,7 @@ impl AiManager {
         options: PromptOptions<'_>,
         structured_output: Option<StructuredOutput<'_>>,
         messages: &[crate::Message],
-        approvals: Option<&crate::approval_turn::ApprovalSession<'_>>,
+        approvals: Option<&crate::approval_turn::ApprovalSession>,
     ) -> AiResult<AgentResponse> {
         let attachments = agent.attachments();
         let generation = agent.generation_options();
@@ -757,6 +757,19 @@ impl AiManager {
         structured_output: Option<StructuredOutput<'_>>,
         messages: &[crate::Message],
     ) -> AiResult<StreamableAgentResponse> {
+        self.stream_in_session(agent, prompt, options, structured_output, messages, None)
+            .await
+    }
+
+    pub(crate) async fn stream_in_session<A: Agent>(
+        &self,
+        agent: &A,
+        prompt: &str,
+        options: PromptOptions<'_>,
+        structured_output: Option<StructuredOutput<'_>>,
+        messages: &[crate::Message],
+        approvals: Option<crate::approval_turn::ApprovalSession>,
+    ) -> AiResult<StreamableAgentResponse> {
         let attachments = agent.attachments();
         let generation = agent.generation_options();
         generation.validate()?;
@@ -804,7 +817,14 @@ impl AiManager {
         if tools.is_empty() {
             provider.stream(request).await
         } else {
-            crate::tool_stream::stream(provider.clone(), request, tools, agent.max_steps()).await
+            crate::tool_stream::stream(
+                provider.clone(),
+                request,
+                tools,
+                agent.max_steps(),
+                approvals,
+            )
+            .await
         }
     }
 }

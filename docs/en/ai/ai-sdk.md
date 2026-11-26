@@ -424,7 +424,9 @@ if let ApprovalResponse::Pending(pending) = result.response {
 
 Keep the conversation ID and approval ID. For the same authenticated participant and agent, use `pending_approvals_for` to reload the requests before showing them to the user. Call `resume_approval` with a decision for each request. `Decisions::new` accepts per-call approval, rejection or edited arguments and can apply a default to the remaining requests.
 
-The SDK verifies participant, agent and provider connection before resuming. Only one request can claim a pending batch. The current approval window is 24 hours. A failed or interrupted request after claiming approval may already have executed a tool. The SDK does not automatically replay it. This workflow covers buffered text prompts. Streamed and attachment-based approval flows remain pending.
+The SDK verifies participant, agent and provider connection before resuming. Only one request can claim a pending batch. The current approval window is 24 hours. A failed or interrupted request after claiming approval may already have executed a tool. The SDK does not automatically replay it. Approval checkpoints currently support text prompts.
+
+For streamed text, start with `stream_with_approvals` and pass the result through your usual SSE response adapter. The SDK saves the checkpoint before sending the approval event. The default `tool_approval_request` event carries `conversation_id` and `approval_id`. Vercel sends the batch IDs in `data-tool-approval` and one `tool-approval-request` per call. AG-UI sends the IDs in each interrupt's metadata. Submit the decisions with `resume_approval` to continue the conversation and receive the buffered result.
 
 ## Queued agents {#queued-agents}
 

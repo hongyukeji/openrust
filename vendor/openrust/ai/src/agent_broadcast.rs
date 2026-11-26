@@ -31,6 +31,7 @@ impl StreamBroadcast {
             StreamEventData::TextEnd { .. } => "text_end",
             StreamEventData::ToolCall { .. } => "tool_call",
             StreamEventData::ToolResult { .. } => "tool_result",
+            StreamEventData::ToolApprovalRequest { .. } => "tool_approval_request",
             StreamEventData::StreamEnd { .. } => "stream_end",
         };
         if !self.excluded.contains(&kind) {

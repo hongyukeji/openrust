@@ -211,7 +211,7 @@ impl DatabaseConversationStore {
         existing: bool,
         prompt: &str,
         response: &AgentResponse,
-        approval: Option<&ApprovalSession<'_>>,
+        approval: Option<&ApprovalSession>,
     ) -> DatabaseResult<bool> {
         let ApprovalScope {
             conversation_id: id,

@@ -5,7 +5,8 @@ use openrust::support::{Str, facades::App};
 
 use crate::{
     AgentPrompt, AiError, AiResult, StepEvent, StreamEventData, StreamableAgentResponse,
-    TextProvider, Tool, ToolStep, messages::OwnedPrompt, streaming::event, tools,
+    TextProvider, Tool, approval_turn::ApprovalSession, messages::OwnedPrompt, streaming::event,
+    tools,
 };
 
 pub(crate) async fn stream(
@@ -13,6 +14,7 @@ pub(crate) async fn stream(
     prompt: AgentPrompt<'_>,
     registered: Vec<Arc<dyn Tool>>,
     max_steps: Option<usize>,
+    approvals: Option<ApprovalSession>,
 ) -> AiResult<StreamableAgentResponse> {
     let application = App::get_instance().ok();
     let max_steps = tools::step_limit(registered.len(), max_steps);
@@ -26,8 +28,8 @@ pub(crate) async fn stream(
     let mut upstream = gateway.stream_text_step(&prompt, &definitions, &[]).await?;
     let prompt = OwnedPrompt::from(prompt);
     let stream = async_stream::try_stream! {
-        let invocation_id = Str::ulid().to_string();
-        let mut history = Vec::new();
+        let mut run = tools::ToolRun::new(max_steps);
+        let invocation_id = run.invocation_id.clone();
         let mut seen = HashSet::new();
         for step in 1..=max_steps {
             yield event(&invocation_id, StreamEventData::StreamStart {
@@ -73,12 +75,36 @@ pub(crate) async fn stream(
                 choice.validate_calls(&completed.tool_calls)?;
             }
             tools::validate_calls(&completed.tool_calls, &mut seen)?;
+            let plan = || tools::plan_execution(
+                &completed.tool_calls, &registered, None, step == max_steps, None,
+            );
             let execution = match &application {
-                Some(application) => application.scope(async {
-                    tools::prepare_execution(&completed.tool_calls, &registered, None, step == max_steps)
-                }).await?,
-                None => tools::prepare_execution(&completed.tool_calls, &registered, None, step == max_steps)?,
+                Some(application) => application.scope(async { plan() }).await?,
+                None => plan()?,
             };
+            if execution.requires_approval() {
+                let plan = execution.for_pause();
+                let calls = completed.tool_calls.clone();
+                let allowed = registered.keys().cloned().collect();
+                let pause = run.pause(
+                    approvals.as_ref(), provider.as_ref(), prompt.as_prompt(0),
+                    completed, plan, allowed,
+                );
+                let pending = match &application {
+                    Some(application) => application.scope(pause).await?,
+                    None => pause.await?,
+                };
+                let conversation_id = approvals.as_ref().expect("已保存审批会话").conversation_id.clone();
+                for call in calls {
+                    yield event(&invocation_id, StreamEventData::ToolCall { call });
+                }
+                yield event(&invocation_id, StreamEventData::ToolApprovalRequest {
+                    conversation_id,
+                    approval_id: pending.id,
+                    approvals: pending.approvals,
+                });
+                return;
+            }
             for call in &completed.tool_calls {
                 yield event(&invocation_id, StreamEventData::ToolCall { call: call.clone() });
             }
@@ -90,18 +116,13 @@ pub(crate) async fn stream(
             for result in &results {
                 yield event(&invocation_id, StreamEventData::ToolResult { result: result.clone() });
             }
-            yield event(&invocation_id, StreamEventData::StreamEnd { reason, usage: completed.usage });
+            yield event(&invocation_id, StreamEventData::StreamEnd { reason, usage: completed.usage.clone() });
             if completed.tool_calls.is_empty() || step == max_steps {
                 return;
             }
-            history.push(ToolStep {
-                text: completed.text,
-                calls: completed.tool_calls,
-                results,
-                provider_content: completed.provider_content,
-            });
+            run.add_step(completed, results);
             upstream = provider.step_text_gateway().ok_or(AiError::ToolsNotSupported)?
-                .stream_text_step(&prompt.as_prompt(step), &definitions, &history).await?;
+                .stream_text_step(&prompt.as_prompt(step), &definitions, &run.history).await?;
         }
     };
     Ok(StreamableAgentResponse::from_events(Box::pin(stream)))

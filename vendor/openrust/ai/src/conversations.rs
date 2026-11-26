@@ -99,7 +99,7 @@ impl ConversationTurn {
         &self,
         prompt: &str,
         response: &AgentResponse,
-        approval: Option<&ApprovalSession<'_>>,
+        approval: Option<&ApprovalSession>,
     ) -> AiResult<()> {
         let stored = self
             .store
@@ -125,6 +125,14 @@ impl ConversationTurn {
             participant: &self.participant,
             agent: self.agent_name,
         }
+    }
+
+    fn approval_session(&self) -> ApprovalSession {
+        ApprovalSession::new(
+            self.store.approval_store(),
+            self.approval_scope(),
+            self.existing,
+        )
     }
 
     fn reply<R>(self, response: R) -> ConversationResponse<R> {
@@ -176,11 +184,7 @@ impl<A: Agent> PendingConversation<'_, A> {
     ) -> AiResult<ConversationResponse<ApprovalResponse>> {
         let manager = Ai::manager()?;
         let (turn, history) = self.prepare(&manager, prompt).await?;
-        let session = ApprovalSession::new(
-            turn.store.approval_store(),
-            turn.approval_scope(),
-            turn.existing,
-        );
+        let session = turn.approval_session();
         let outcome = manager
             .prompt_in_session(self.agent, prompt, options, None, &history, Some(&session))
             .await;
@@ -267,7 +271,15 @@ impl<A: Agent> PendingConversation<'_, A> {
         prompt: &str,
         options: PromptOptions<'_>,
     ) -> AiResult<ConversationResponse<StreamableAgentResponse>> {
-        self.stream_inner(prompt, options, None).await
+        self.stream_inner(prompt, options, None, false).await
+    }
+
+    pub async fn stream_with_approvals(
+        self,
+        prompt: &str,
+        options: PromptOptions<'_>,
+    ) -> AiResult<ConversationResponse<StreamableAgentResponse>> {
+        self.stream_inner(prompt, options, None, true).await
     }
 
     async fn stream_inner(
@@ -275,11 +287,19 @@ impl<A: Agent> PendingConversation<'_, A> {
         prompt: &str,
         options: PromptOptions<'_>,
         schema: Option<StructuredOutput<'_>>,
+        with_approvals: bool,
     ) -> AiResult<ConversationResponse<StreamableAgentResponse>> {
         let manager = Ai::manager()?;
         let (turn, history) = self.prepare(&manager, prompt).await?;
         let response = manager
-            .stream_with_history(self.agent, prompt, options, schema, &history)
+            .stream_in_session(
+                self.agent,
+                prompt,
+                options,
+                schema,
+                &history,
+                with_approvals.then(|| turn.approval_session()),
+            )
             .await?;
         let conversation_id = turn.id.clone();
         let prompt = prompt.to_owned();
@@ -355,7 +375,7 @@ async fn resolve_approval_turn(
     turn: ConversationTurn,
     prompt: &str,
     outcome: AiResult<AgentResponse>,
-    approval: Option<&ApprovalSession<'_>>,
+    approval: Option<&ApprovalSession>,
 ) -> AiResult<ConversationResponse<ApprovalResponse>> {
     match outcome {
         Ok(response) => {
@@ -407,6 +427,7 @@ impl<A: HasStructuredOutput> PendingConversation<'_, A> {
             schema: &schema,
             strict: self.agent.strict_schema(),
         };
-        self.stream_inner(prompt, options, Some(schema)).await
+        self.stream_inner(prompt, options, Some(schema), false)
+            .await
     }
 }

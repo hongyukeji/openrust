@@ -37,13 +37,35 @@ pub struct StreamEvent {
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum StreamEventData {
-    StreamStart { provider: String, model: String },
-    TextStart { message_id: String },
-    TextDelta { message_id: String, delta: String },
-    TextEnd { message_id: String },
-    ToolCall { call: ToolCall },
-    ToolResult { result: ToolResult },
-    StreamEnd { reason: String, usage: Usage },
+    StreamStart {
+        provider: String,
+        model: String,
+    },
+    TextStart {
+        message_id: String,
+    },
+    TextDelta {
+        message_id: String,
+        delta: String,
+    },
+    TextEnd {
+        message_id: String,
+    },
+    ToolCall {
+        call: ToolCall,
+    },
+    ToolResult {
+        result: ToolResult,
+    },
+    ToolApprovalRequest {
+        conversation_id: String,
+        approval_id: String,
+        approvals: Vec<crate::PendingApproval>,
+    },
+    StreamEnd {
+        reason: String,
+        usage: Usage,
+    },
 }
 
 pub struct StreamableAgentResponse {

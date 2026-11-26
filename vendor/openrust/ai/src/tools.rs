@@ -16,8 +16,8 @@ use serde_json::{Map, Value};
 
 use crate::{
     AgentMiddleware, AgentPrompt, AgentResponse, AiError, AiResult, Decision, Decisions,
-    PendingApproval, PendingStep, TextProvider, Usage, approval_turn::ApprovalSession,
-    messages::OwnedPrompt,
+    PendingApproval, PendingStep, PendingToolApprovals, TextProvider, Usage,
+    approval_turn::ApprovalSession, messages::OwnedPrompt,
 };
 
 /// 由应用声明并执行的 Agent 工具。
@@ -138,9 +138,9 @@ pub trait StepTextGateway: Send + Sync {
 }
 
 #[derive(Serialize, Deserialize)]
-struct ToolRun {
-    invocation_id: String,
-    history: Vec<ToolStep>,
+pub(crate) struct ToolRun {
+    pub(crate) invocation_id: String,
+    pub(crate) history: Vec<ToolStep>,
     usage: Option<Usage>,
     max_steps: usize,
 }
@@ -165,7 +165,7 @@ impl ApprovalCheckpoint {
         registered: Vec<Arc<dyn Tool>>,
         middleware: Vec<Arc<dyn AgentMiddleware>>,
         decisions: &Decisions,
-        session: &mut ApprovalSession<'_>,
+        session: &mut ApprovalSession,
         pending_record: (&str, i64),
     ) -> AiResult<AgentResponse> {
         let replay_scope = provider
@@ -209,29 +209,33 @@ pub(crate) async fn run(
     tools: Vec<Arc<dyn Tool>>,
     max_steps: Option<usize>,
     middleware: Vec<Arc<dyn AgentMiddleware>>,
-    approvals: Option<&ApprovalSession<'_>>,
+    approvals: Option<&ApprovalSession>,
 ) -> AiResult<AgentResponse> {
     let max_steps = step_limit(tools.len(), max_steps);
     let (definitions, tools) = prepare(tools)?;
-    ToolRun {
-        invocation_id: Str::ulid().to_string(),
-        history: Vec::new(),
-        usage: None,
-        max_steps,
-    }
-    .generate(
-        provider,
-        prompt,
-        &definitions,
-        &tools,
-        &middleware,
-        approvals,
-    )
-    .await
+    ToolRun::new(max_steps)
+        .generate(
+            provider,
+            prompt,
+            &definitions,
+            &tools,
+            &middleware,
+            approvals,
+        )
+        .await
 }
 
 impl ToolRun {
-    fn add_step(&mut self, response: StepResponse, results: Vec<ToolResult>) {
+    pub(crate) fn new(max_steps: usize) -> Self {
+        Self {
+            invocation_id: Str::ulid().to_string(),
+            history: Vec::new(),
+            usage: None,
+            max_steps,
+        }
+    }
+
+    pub(crate) fn add_step(&mut self, response: StepResponse, results: Vec<ToolResult>) {
         self.usage = Some(match self.usage.as_ref() {
             Some(previous) => response.usage.combine(previous),
             None => response.usage,
@@ -244,6 +248,44 @@ impl ToolRun {
         });
     }
 
+    pub(crate) async fn pause(
+        self,
+        approval: Option<&ApprovalSession>,
+        provider: &dyn TextProvider,
+        prompt: AgentPrompt<'_>,
+        response: StepResponse,
+        plan: ApprovalPlan,
+        allowed: BTreeSet<String>,
+    ) -> AiResult<PendingToolApprovals> {
+        let Some(session) = approval.filter(|_| prompt.attachments.is_empty()) else {
+            return Err(AiError::ApprovalNotResumable {
+                pending: plan.pending,
+            });
+        };
+        let Some(replay_scope) = provider
+            .step_text_gateway()
+            .ok_or(AiError::ToolsNotSupported)?
+            .approval_replay_scope()?
+        else {
+            return Err(AiError::ApprovalNotResumable {
+                pending: plan.pending,
+            });
+        };
+        session
+            .pause(&ApprovalCheckpoint {
+                provider: provider.name().to_owned(),
+                prompt: OwnedPrompt::from(prompt),
+                pending: plan.pending,
+                existing: session.existing,
+                replay_scope,
+                run: self,
+                response,
+                allowed,
+                invocation_ids: plan.invocation_ids,
+            })
+            .await
+    }
+
     async fn generate(
         mut self,
         provider: &dyn TextProvider,
@@ -251,7 +293,7 @@ impl ToolRun {
         definitions: &[ToolDefinition],
         tools: &ToolHandlers,
         middleware: &[Arc<dyn AgentMiddleware>],
-        approvals: Option<&ApprovalSession<'_>>,
+        approvals: Option<&ApprovalSession>,
     ) -> AiResult<AgentResponse> {
         let mut seen = self
             .history
@@ -295,36 +337,12 @@ impl ToolRun {
                 final_step,
                 None,
             )?;
-            if !plan.pending.is_empty() {
-                let Some(session) = approvals.filter(|_| prompt.attachments.is_empty()) else {
-                    return Err(AiError::ApprovalNotResumable {
-                        pending: plan.pending,
-                    });
-                };
-                let Some(replay_scope) = provider
-                    .step_text_gateway()
-                    .ok_or(AiError::ToolsNotSupported)?
-                    .approval_replay_scope()?
-                else {
-                    return Err(AiError::ApprovalNotResumable {
-                        pending: plan.pending,
-                    });
-                };
-                let invocation_ids = plan.invocation_ids();
-                let pending = plan.pending;
-                return Err(session
-                    .pause(&ApprovalCheckpoint {
-                        provider: provider.name().to_owned(),
-                        prompt: OwnedPrompt::from(prompt),
-                        pending,
-                        existing: session.existing,
-                        replay_scope,
-                        run: self,
-                        response,
-                        allowed,
-                        invocation_ids,
-                    })
-                    .await?);
+            if plan.requires_approval() {
+                let approval = plan.for_pause();
+                let pending = self
+                    .pause(approvals, provider, prompt, response, approval, allowed)
+                    .await?;
+                return Err(AiError::ApprovalPaused(pending));
             }
             let results = plan.run().await;
             let finished = response.tool_calls.is_empty() || final_step;
@@ -413,23 +431,12 @@ enum ToolAction<'a> {
     Skip(&'static str),
 }
 
-pub(crate) fn prepare_execution<'a>(
-    calls: &'a [ToolCall],
-    tools: &'a ToolHandlers,
-    allowed: Option<&BTreeSet<String>>,
-    final_step: bool,
-) -> AiResult<ExecutionPlan<'a>> {
-    let plan = plan_execution(calls, tools, allowed, final_step, None)?;
-    if plan.pending.is_empty() {
-        Ok(plan)
-    } else {
-        Err(AiError::ApprovalNotResumable {
-            pending: plan.pending,
-        })
-    }
+pub(crate) struct ApprovalPlan {
+    pending: Vec<PendingApproval>,
+    invocation_ids: Vec<Option<String>>,
 }
 
-fn plan_execution<'a>(
+pub(crate) fn plan_execution<'a>(
     calls: &'a [ToolCall],
     tools: &'a ToolHandlers,
     allowed: Option<&BTreeSet<String>>,
@@ -482,14 +489,23 @@ fn plan_execution<'a>(
 }
 
 impl ExecutionPlan<'_> {
-    fn invocation_ids(&self) -> Vec<Option<String>> {
-        self.actions
-            .iter()
+    pub(crate) fn requires_approval(&self) -> bool {
+        !self.pending.is_empty()
+    }
+
+    pub(crate) fn for_pause(self) -> ApprovalPlan {
+        let invocation_ids = self
+            .actions
+            .into_iter()
             .map(|action| match action {
-                ToolAction::Run { invocation_id, .. } => Some(invocation_id.clone()),
+                ToolAction::Run { invocation_id, .. } => Some(invocation_id),
                 _ => None,
             })
-            .collect()
+            .collect();
+        ApprovalPlan {
+            pending: self.pending,
+            invocation_ids,
+        }
     }
 
     fn apply_decisions(&mut self, decisions: &Decisions) -> AiResult<()> {

@@ -424,7 +424,9 @@ if let ApprovalResponse::Pending(pending) = result.response {
 
 保留会话 ID 和审批 ID。在同一已认证参与者和 Agent 下，用 `pending_approvals_for` 重新读取待审批项，再展示给用户。使用 `resume_approval` 提交每条请求的决定。`Decisions::new` 支持逐项批准、拒绝或编辑参数，也可为剩余项应用默认决定。
 
-SDK 在恢复前核对参与者、Agent 和供应商连接，同一待审批批次仅能被一个请求领取。当前审批有效期为 24 小时。领取后的请求失败或中断时，工具可能已经执行，SDK 不会自动重放。当前流程适用于非流式文本提示词，流式和带附件的审批仍待支持。
+SDK 在恢复前核对参与者、Agent 和供应商连接，同一待审批批次仅能被一个请求领取。当前审批有效期为 24 小时。领取后的请求失败或中断时，工具可能已经执行，SDK 不会自动重放。当前审批快照支持文本提示词。
+
+需要流式输出时，通过 `stream_with_approvals` 创建响应，并使用现有的 SSE 适配器。SDK 先保存快照，再发出审批事件。默认的 `tool_approval_request` 事件包含 `conversation_id` 与 `approval_id`。Vercel 在 `data-tool-approval` 中交付批次 ID，并为每个调用发送 `tool-approval-request`。AG-UI 在各中断项的元数据中交付 ID。用 `resume_approval` 提交决定，恢复会话并接收普通响应。
 
 ## Agent 排队 {#queued-agents}
 

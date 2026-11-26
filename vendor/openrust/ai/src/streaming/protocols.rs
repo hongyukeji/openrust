@@ -7,7 +7,7 @@ use openrust::{
 };
 use serde_json::{Value, json};
 
-use crate::{AgentEventStream, StreamEventData, Usage};
+use crate::{AgentEventStream, PendingApproval, StreamEventData, Usage};
 
 /// 将 Agent 事件封装成公开 HTTP 流。
 pub trait StreamProtocol: Send {
@@ -66,6 +66,25 @@ impl StreamProtocol for VercelDataProtocol {
                                 json!({"type":"tool-output-available","toolCallId":result.id,"output":result.result})
                             };
                             yield payload(data);
+                        }
+                        StreamEventData::ToolApprovalRequest { conversation_id, approval_id, approvals } => {
+                            yield payload(json!({
+                                "type":"data-tool-approval",
+                                "data":{"conversationId":conversation_id,"approvalBatchId":approval_id},
+                            }));
+                            for approval in approvals {
+                                yield payload(json!({
+                                    "type":"tool-approval-request",
+                                    "toolCallId":approval.id,
+                                    "approvalId":approval.id,
+                                    "reason":approval.reason,
+                                }));
+                            }
+                            if started {
+                                yield payload(json!({"type":"finish-step"}));
+                            }
+                            yield Ok("data: [DONE]\n\n".into());
+                            return;
                         }
                         StreamEventData::StreamEnd { reason, usage } => record_completion(&mut completion, reason, usage),
                     },
@@ -147,6 +166,19 @@ impl StreamProtocol for AgentUserInteractionProtocol {
                         StreamEventData::ToolResult { result } => {
                             yield payload(json!({"type":"TOOL_CALL_RESULT","messageId":event.id,"toolCallId":result.id,"content":result.result,"role":"tool"}));
                         }
+                        StreamEventData::ToolApprovalRequest { conversation_id, approval_id, approvals } => {
+                            let interrupts: Vec<_> = approvals.into_iter().map(|approval| {
+                                approval_interrupt(approval, &conversation_id, &approval_id)
+                            }).collect();
+                            if step > 0 {
+                                yield payload(json!({"type":"STEP_FINISHED","stepName":step.to_string()}));
+                            }
+                            yield payload(json!({
+                                "type":"RUN_FINISHED","threadId":self.thread_id,"runId":self.run_id,
+                                "outcome":{"type":"interrupt","interrupts":interrupts},
+                            }));
+                            return;
+                        }
                         StreamEventData::StreamEnd { reason, usage } => record_completion(&mut completion, reason, usage),
                     },
                     Err(_) => {
@@ -190,6 +222,30 @@ pub(super) fn headers() -> HeaderMap {
         "no-cache, no-transform".parse().expect("valid header"),
     );
     headers
+}
+
+fn approval_interrupt(
+    approval: PendingApproval,
+    conversation_id: &str,
+    approval_id: &str,
+) -> Value {
+    let mut interrupt = json!({
+        "id": approval.id,
+        "reason": "approval_required",
+        "toolCallId": approval.id,
+        "metadata": {
+            "kind": "approval", "toolName": approval.tool, "input": approval.arguments,
+            "conversationId": conversation_id, "approvalBatchId": approval_id,
+        },
+        "responseSchema": {
+            "type": "object", "properties": {"approved": {"type": "boolean"}},
+            "required": ["approved"],
+        },
+    });
+    if let Some(reason) = approval.reason {
+        interrupt["message"] = reason.into();
+    }
+    interrupt
 }
 
 fn payload(value: Value) -> Result<String, Infallible> {

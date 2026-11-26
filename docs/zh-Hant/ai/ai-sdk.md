@@ -424,7 +424,9 @@ if let ApprovalResponse::Pending(pending) = result.response {
 
 保留對話 ID 和審批 ID。在同一已驗證的參與者和 Agent 下，用 `pending_approvals_for` 重新讀取待審批項目，再顯示給使用者。使用 `resume_approval` 提交每筆請求的決定。`Decisions::new` 支援逐項核准、拒絕或編輯參數，也可為其餘項目套用預設決定。
 
-SDK 在恢復前驗證參與者、Agent 和供應商連線，同一待審批批次只能由一個請求領取。目前審批有效期為 24 小時。領取後的請求失敗或中斷時，工具可能已執行，SDK 不會自動重播。目前流程適用於非串流文字提示詞，串流與帶附件的審批仍待支援。
+SDK 在恢復前驗證參與者、Agent 和供應商連線，同一待審批批次只能由一個請求領取。目前審批有效期為 24 小時。領取後的請求失敗或中斷時，工具可能已執行，SDK 不會自動重播。目前審批快照支援文字提示詞。
+
+需要串流輸出時，透過 `stream_with_approvals` 建立回應，並使用既有的 SSE 配接器。SDK 先儲存快照，再發出審批事件。預設的 `tool_approval_request` 事件包含 `conversation_id` 與 `approval_id`。Vercel 在 `data-tool-approval` 中交付批次 ID，並為每個呼叫傳送 `tool-approval-request`。AG-UI 在各中斷項目的中繼資料中交付 ID。用 `resume_approval` 提交決定，恢復對話並接收一般回應。
 
 ## Agent 排隊 {#queued-agents}
 
