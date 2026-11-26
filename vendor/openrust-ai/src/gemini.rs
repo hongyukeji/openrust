@@ -555,7 +555,7 @@ pub(crate) fn parse_step(mut value: Value) -> AiResult<StepResponse> {
     })
 }
 
-fn citations(candidate: &Value) -> Vec<UrlCitation> {
+pub(crate) fn citations(candidate: &Value) -> Vec<UrlCitation> {
     let sources = candidate["groundingMetadata"]["groundingChunks"]
         .as_array()
         .into_iter()

@@ -55,7 +55,7 @@ Artisan 使用應用程式目前的語言顯示連線和供應商診斷。可在
 
 OpenAI Responses 文字串流的網頁引文在原生 SSE 中使用 `citation` 事件，在 Vercel 中使用 `source-url`，在 AG-UI 中使用名為 `citation` 的 `CUSTOM` 事件。原生引文會附上對應的文字訊息 ID。可在完成回呼中透過 `StreamedAgentResponse::citations()` 依序讀取引文和上游回報的文字位置。 工具續輪會依事件順序保留各次模型呼叫的引文。
 
-Anthropic Messages 串流透過同一套原生 SSE、Vercel 和 AG-UI 格式傳送網頁搜尋與擷取引文。每個模型步驟傳送每個 URL 的首次出現，並保留公開標題。
+Anthropic Messages 串流透過同一套原生 SSE、Vercel 和 AG-UI 格式傳送網頁搜尋與擷取引文。每個模型步驟傳送每個 URL 的首次出現，並保留公開標題。 Gemini GenerateContent 串流也透過這些格式傳送選中候選的 Grounding 網頁來源。同一模型步驟內，跨資料框重複的來源只傳送一次。
 
 OpenAI Responses 的一般回應可透過 `response.meta()` 讀取來源連線、模型與網頁引文。引文沿用上游順序與各文字分段回報的位置。結構化回應也提供該方法。自訂文字驅動可使用 `AgentResponse::new` 建立回應，再填入引文。 非串流工具呼叫的回應中繼資料取自最後一個模型步驟。
 

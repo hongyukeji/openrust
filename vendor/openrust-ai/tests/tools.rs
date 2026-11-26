@@ -643,7 +643,7 @@ async fn sdk_gemini_usage_only_frames_and_incomplete_tool_steps() -> TestResult 
         "candidates":[{"content":{"parts":[
             {"text":"Checking"},
             {"functionCall":{"id":"call_fixture","name":"lookup","args":{"sku":"demo"}}}
-        ]}}]
+        ]},"groundingMetadata":{"groundingChunks":[{"web":{"uri":"https://example.test/first","title":"Planning"}}]}}]
     });
     let sse = |frames: &[Value]| {
         (
@@ -662,7 +662,9 @@ async fn sdk_gemini_usage_only_frames_and_incomplete_tool_steps() -> TestResult 
         vec![
             sse(&[
                 tool.clone(),
-                json!({"candidates":[{"finishReason":"STOP"}]}),
+                json!({"candidates":[{"finishReason":"STOP","groundingMetadata":{
+                    "groundingChunks":[{"web":{"uri":"https://example.test/first","title":"Duplicate"}}]
+                }}]}),
                 json!({"usageMetadata":{"promptTokenCount":4,"candidatesTokenCount":2}}),
             ]),
             sse(&[
@@ -717,6 +719,8 @@ async fn sdk_gemini_usage_only_frames_and_incomplete_tool_steps() -> TestResult 
     assert_eq!(response.status(), StatusCode::OK);
     let body = std::str::from_utf8(response.streamed_content())?;
     assert!(body.contains("four remaining") && body.contains("\"totalTokens\":14"));
+    assert_eq!(body.matches("\"type\":\"source-url\"").count(), 1);
+    assert!(body.contains("\"url\":\"https://example.test/first\""));
     assert_eq!(
         app.get("/gemini-incomplete-tools").await?.status(),
         StatusCode::OK

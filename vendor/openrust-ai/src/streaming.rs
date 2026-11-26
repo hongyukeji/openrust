@@ -301,7 +301,9 @@ impl StreamableAgentResponse {
                     }
                 }
                 for citation in part.citations {
-                    if protocol != TextEndpoint::Messages || cited_urls.insert(citation.url.clone()) {
+                    if !matches!(protocol, TextEndpoint::Messages | TextEndpoint::GeminiStreamGenerateContent)
+                        || cited_urls.insert(citation.url.clone())
+                    {
                         yield event(&invocation, messages.citation(part.output_part.as_ref(), citation));
                     }
                 }
@@ -589,6 +591,7 @@ impl TextEndpoint {
                     delta: (!delta.is_empty()).then_some(delta),
                     reason,
                     usage: value.get("usageMetadata").map(Usage::from_gemini),
+                    citations: crate::gemini::citations(candidate),
                     ..Default::default()
                 })
             }

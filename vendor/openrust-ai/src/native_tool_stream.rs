@@ -169,6 +169,7 @@ pub(crate) fn gemini(upstream: ResponseStream) -> StepEventStream {
         let mut usage = Map::new();
         let mut model = Value::Null;
         let mut finish = Value::Null;
+        let mut cited_urls = HashSet::new();
         while let Some(frame) = source.next().await {
             let frame = frame.map_err(frame_error)?;
             if frame.data == "[DONE]" {
@@ -195,6 +196,11 @@ pub(crate) fn gemini(upstream: ResponseStream) -> StepEventStream {
                             yield StepEvent::TextDelta(text.into());
                         }
                         parts.push(part);
+                    }
+                }
+                for citation in gemini::citations(candidate) {
+                    if cited_urls.insert(citation.url.clone()) {
+                        yield StepEvent::Citation { part: None, citation };
                     }
                 }
             }

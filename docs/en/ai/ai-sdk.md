@@ -55,7 +55,7 @@ Register `stream.then(callback)` to receive a `StreamedAgentResponse` when consu
 
 OpenAI Responses text streams expose web citations as `citation` events in native SSE, `source-url` in Vercel, and `CUSTOM` events named `citation` in AG-UI. Each native citation is associated with its text message. Use `StreamedAgentResponse::citations()` in a completion callback to read the ordered citations and their reported text offsets. Tool continuations keep the citations from every model step in emission order.
 
-Anthropic Messages streams emit web search and web fetch citations through the same native SSE, Vercel, and AG-UI formats. Each model turn emits the first occurrence of a source URL and retains its title.
+Anthropic Messages streams emit web search and web fetch citations through the same native SSE, Vercel, and AG-UI formats. Each model turn emits the first occurrence of a source URL and retains its title. Gemini GenerateContent streams emit the selected candidate’s grounding sources in those formats. Sources repeated across frames are emitted once per model turn.
 
 Buffered OpenAI Responses results expose the connection, model, and URL citations through `response.meta()`. Citations keep the upstream order and each text part’s reported offsets. The method is also available on structured results. Custom text providers can use `AgentResponse::new` to initialize a response and then fill its citations. For buffered tool calls, the top-level metadata belongs to the final model step.
 
