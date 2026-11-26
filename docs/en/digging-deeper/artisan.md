@@ -2314,3 +2314,31 @@ fn register_time_helpers() -> Result<(), ConsoleError> {
     Ok(())
 }
 ```
+
+### Console helper tools {#console-helper-tools}
+
+Use `Helper` for display width, grapheme count, and substring operations. `width` follows the fixed console width tables and counts each consecutive run of control characters once. `length` and `substr` use Unicode 17 grapheme clusters. A negative start counts from the end, a negative length trims from the end, and slices use NFC. The corresponding byte methods accept non-UTF-8 input and use byte counts and offsets for it.
+
+`format_time` uses one unit of precision by default and `format_time_with` accepts an explicit precision. `format_memory` formats a signed byte count. `remove_decoration` uses the supplied formatter, strips SGR and terminal hyperlinks, and restores the previous decoration setting on success. A formatter error is returned with decoration disabled, matching the fixed helper lifecycle. The QuestionHelper types expose these inherited tools directly.
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, Helper, OutputFormatter, QuestionHelper};
+use openrust::support::facades::Artisan;
+
+fn register_helper_tools() -> Result<(), ConsoleError> {
+    Artisan::command_with("helpers:measure", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let text = Some("界e\u{301}");
+            let width = Helper::width(text);
+            let length = QuestionHelper::length(text);
+            let last = Helper::substr(text, -1, None);
+            let elapsed = Helper::format_time_with(61.001, 2)?;
+            let formatter = OutputFormatter::new(true);
+            let label = Helper::remove_decoration(&formatter, Some("<info>Ready</info>"))?;
+            output.comment(&format!("{label} {width}/{length} {last} {elapsed}"));
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```

@@ -1,29 +1,16 @@
-use super::ConsoleFormatError;
-use std::{borrow::Cow, sync::LazyLock};
-static GRAPHEME: LazyLock<pcre2::bytes::Regex> = LazyLock::new(|| {
-    pcre2::bytes::RegexBuilder::new()
-        .utf(true)
-        .ucp(true)
-        .build(r"\X")
-        .expect("合法字素表达式")
-});
-fn starts(text: &str) -> Result<Vec<usize>, ConsoleFormatError> {
-    GRAPHEME
-        .find_iter(text.as_bytes())
-        .map(|item| {
-            item.map(|span| span.start())
-                .map_err(ConsoleFormatError::UnicodeSegmentation)
-        })
+use std::borrow::Cow;
+use unicode_segmentation::UnicodeSegmentation;
+
+fn starts(text: &str) -> Vec<usize> {
+    text.grapheme_indices(true)
+        .map(|(position, _)| position)
         .collect()
 }
-pub(in crate::console) fn length(text: &str) -> Result<usize, ConsoleFormatError> {
-    GRAPHEME
-        .find_iter(text.as_bytes())
-        .try_fold(0, |count, item| {
-            item.map(|_| count + 1)
-                .map_err(ConsoleFormatError::UnicodeSegmentation)
-        })
+
+pub(in crate::console) fn length(text: &str) -> usize {
+    text.graphemes(true).count()
 }
+
 /// 只为可见片段建立规范化字素索引，解析样式仍使用原始标签。
 pub(in crate::console) struct Slices<'a> {
     text: Cow<'a, str>,
@@ -31,20 +18,20 @@ pub(in crate::console) struct Slices<'a> {
     normalized: Vec<usize>,
 }
 impl<'a> Slices<'a> {
-    pub fn new(text: &'a str) -> Result<Self, ConsoleFormatError> {
+    pub fn new(text: &'a str) -> Self {
         let normalized = icu_normalizer::ComposingNormalizer::new_nfc().normalize(text);
-        let original = starts(text)?;
+        let original = starts(text);
         let mut bounds = if matches!(normalized, Cow::Borrowed(_)) {
             original.clone()
         } else {
-            starts(normalized.as_ref())?
+            starts(normalized.as_ref())
         };
         bounds.push(normalized.len());
-        Ok(Self {
+        Self {
             text: normalized,
             original,
             normalized: bounds,
-        })
+        }
     }
     pub fn prefix_length(&self, byte: usize) -> usize {
         self.original.partition_point(|position| *position < byte)

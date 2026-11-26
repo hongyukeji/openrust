@@ -1,0 +1,107 @@
+{
+  "framework_commit": "1449bf241017087fbd38c118ecaabef3f6797fdc",
+  "console_and_string_version": "7.4.0",
+  "status": "verified_static_console_helper_tools",
+  "bindings": [
+    {
+      "source": "width",
+      "native": "width"
+    },
+    {
+      "source": "length",
+      "native": "length"
+    },
+    {
+      "source": "substr",
+      "native": "substr"
+    },
+    {
+      "source": "formatTime",
+      "native": "format_time / format_time_with"
+    },
+    {
+      "source": "formatMemory",
+      "native": "format_memory"
+    },
+    {
+      "source": "removeDecoration",
+      "native": "remove_decoration"
+    }
+  ],
+  "native_types": [
+    "console::Helper",
+    "console::DefaultQuestionHelper",
+    "console::QuestionHelper"
+  ],
+  "source_oracle": {
+    "file": "helper-tools-oracle.json",
+    "rows": {
+      "texts": 1942,
+      "times": 90,
+      "memory": 12,
+      "format": 12
+    },
+    "slices": 17478,
+    "runtime": {
+      "icu": "78.1",
+      "unicode": [
+        17,
+        0,
+        0,
+        0
+      ],
+      "pcre": "10.44 2024-06-07"
+    },
+    "reference_files": [
+      {
+        "url": "https://raw.githubusercontent.com/symfony/console/v7.4.0/Helper/Helper.php",
+        "sha256": "9b6d9a93ce75a35112574d031f4fe91e97e44988399c86a7ba8c86a6423e3c4f",
+        "verified": true
+      },
+      {
+        "url": "https://raw.githubusercontent.com/symfony/string/v7.4.0/UnicodeString.php",
+        "sha256": "da00e64d63e5ec302f768174ef4cdbd1fc16a18c1954887ba6dc160130c08e41",
+        "verified": true
+      },
+      {
+        "url": "https://raw.githubusercontent.com/symfony/string/v7.4.0/Resources/data/wcswidth_table_zero.php",
+        "sha256": "50572fa551d75c250ed1f37937cd38d684ab2a18290143296a97fd178cd0d34d",
+        "verified": true
+      },
+      {
+        "url": "https://raw.githubusercontent.com/symfony/string/v7.4.0/Resources/data/wcswidth_table_wide.php",
+        "sha256": "01706ea220f004f0e8d5ddc5ad0929dfb14ff8926895ca262002c4a92691deca",
+        "verified": true
+      }
+    ]
+  },
+  "runtime": {
+    "framework_targets": 11,
+    "framework_parent_tests": 71,
+    "new_artisan_processes": 3,
+    "new_http_requests": 15,
+    "formal_document_consumers": 183,
+    "browser_checks": 12
+  },
+  "dependency": {
+    "name": "unicode-segmentation",
+    "version": "1.13.3",
+    "git": "66a032fd8d667bc47ac5b640b151dff3f5356d07",
+    "sha256": "c6f5d3c3b1bf09027a88a6bc961fc00497d651009560b5463668dc81b0fa87a8",
+    "new_packages": 1,
+    "transitive_runtime_packages": 0,
+    "license": "MIT OR Apache-2.0",
+    "unicode": "17.0.0"
+  },
+  "decisions": [
+    "固定宽度使用 Unicode 16 零宽与双宽表，连续 Cc 控制序列只计一次。固定验收环境的长度和切片采用 ICU78.1 对应的 Unicode17 扩展字素。",
+    "无效 UTF-8 使用显式字节方法并匹配固定 ASCII/UTF-8 检测后的字节回退。Rust 字符串 API 保持 UTF-8。",
+    "耗时精度默认1，进度条传2。超范围数值按源严格错误路径返回错误。进度内存数值仍读取原生进程指标。",
+    "格式器成功恢复装饰，源错误路径留下关闭状态。直接和继承入口均验证。TreeHelper 在固定源码中只实现递归迭代。",
+    "共享宽度接表格和进度条，统一字素分段接格式器、进度、表格及补全，不对原 PCRE 分段误差加特判。"
+  ],
+  "remaining": [
+    "实例 Helper 关联、HelperInterface、HelperSet 的构造/注册/查询/迭代以及命令装配继续逐项验收。",
+    "样式/颜色仓库与独立扩展对象、通用 HTML 恢复、Factory 容器覆盖及 Artisan 其余锚点仍开放。"
+  ]
+}

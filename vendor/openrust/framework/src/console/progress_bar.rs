@@ -483,24 +483,18 @@ impl<'a> ProgressBar<'a> {
             "current" => format!("{:>width$}", self.state.step, width = self.state.step_width),
             "max" => self.get_max_steps().to_string(),
             "percent" => (self.state.percent * 100.0).floor().to_string(),
-            "elapsed" => format_time(integer_difference(now_seconds(), self.state.start_time)),
-            "remaining" => format_time(self.get_remaining()),
-            "estimated" => format_time(self.get_estimated()),
+            "elapsed" => format_time(integer_difference(now_seconds(), self.state.start_time))?,
+            "remaining" => format_time(self.get_remaining())?,
+            "estimated" => format_time(self.get_estimated())?,
             "memory" => {
                 let bytes = memory_stats::memory_stats()
                     .ok_or_else(|| {
                         ConsoleError::from_source(ConsoleProgressError::MemoryUnavailable)
                     })?
                     .physical_mem;
-                if bytes >= 1 << 30 {
-                    format!("{:.1} GiB", bytes as f64 / (1u64 << 30) as f64)
-                } else if bytes >= 1 << 20 {
-                    format!("{:.1} MiB", bytes as f64 / (1u64 << 20) as f64)
-                } else if bytes >= 1 << 10 {
-                    format!("{} KiB", bytes / 1024)
-                } else {
-                    format!("{bytes} B")
-                }
+                super::Helper::format_memory(
+                    i64::try_from(bytes).map_err(ConsoleError::from_source)?,
+                )
             }
             "bar" => {
                 let offset = self.get_bar_offset();
@@ -518,8 +512,7 @@ impl<'a> ProgressBar<'a> {
                         &progress,
                     )
                     .map_err(ConsoleError::from_source)?;
-                    let count = super::formatting::grapheme_length(&plain)
-                        .map_err(ConsoleError::from_source)?;
+                    let count = super::formatting::grapheme_length(&plain);
                     let empty =
                         self.state
                             .width
@@ -621,43 +614,10 @@ fn built_in_format(name: &str) -> Option<&'static str> {
         _ => return None,
     })
 }
-fn format_time(seconds: f64) -> String {
-    let mut milliseconds = crate::support::input_scalars::double_integer(seconds * 1000.0);
-    if milliseconds == 0 {
-        return "< 1 ms".into();
-    }
-    let formats = [
-        (1, "ms"),
-        (1000, "s"),
-        (60000, "min"),
-        (3600000, "h"),
-        (86400000, "d"),
-    ];
-    let mut values = BTreeMap::new();
-    for (index, (unit, label)) in formats.iter().enumerate() {
-        let part = formats
-            .get(index + 1)
-            .map_or(milliseconds, |(next, _)| milliseconds % next);
-        if index >= 2 {
-            values.remove(&(index - 2));
-        }
-        if part == 0 {
-            continue;
-        }
-        values.insert(
-            index,
-            format!(
-                "{} {label}",
-                crate::support::input_scalars::double_string(part as f64 / *unit as f64)
-            ),
-        );
-        if part == milliseconds {
-            break;
-        }
-        milliseconds -= part;
-    }
-    values.into_values().rev().collect::<Vec<_>>().join(", ")
+fn format_time(seconds: f64) -> Result<String, ConsoleError> {
+    super::Helper::format_time_with(seconds, 2)
 }
+
 impl<'o> OutputStyle<'o> {
     pub fn create_progress_bar(&mut self, max: i64) -> Result<ProgressBar<'_>, ConsoleError> {
         let mut bar = ProgressBar::new(self.get_output(), max)?;

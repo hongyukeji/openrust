@@ -2314,3 +2314,31 @@ fn register_time_helpers() -> Result<(), ConsoleError> {
     Ok(())
 }
 ```
+
+### 控制台辅助工具 {#console-helper-tools}
+
+使用 `Helper` 计算显示宽度、字素数量和子串。`width` 采用固定控制台宽度表，连续控制字符只计一次。`length` 和 `substr` 使用 Unicode 17 字素边界。负起点从末尾计算，负长度从末尾裁掉对应数量，子串采用 NFC 规范化。字节入口同时接受非 UTF-8 数据，此时按字节计算宽度、长度和偏移。
+
+`format_time` 默认精度为 1，`format_time_with` 接收显式精度。`format_memory` 格式化有符号字节数。`remove_decoration` 使用传入的格式器，去除 SGR 和终端超链接，成功后恢复原装饰设置。格式化失败时返回错误并保留关闭装饰的状态，遵循固定版助手的执行顺序。QuestionHelper 类型也直接提供这些继承工具。
+
+```rust
+use openrust::console::{AsyncCommandCallback, ConsoleError, Helper, OutputFormatter, QuestionHelper};
+use openrust::support::facades::Artisan;
+
+fn register_helper_tools() -> Result<(), ConsoleError> {
+    Artisan::command_with("helpers:measure", AsyncCommandCallback::new(|_, _, output| {
+        Box::pin(async move {
+            let text = Some("界e\u{301}");
+            let width = Helper::width(text);
+            let length = QuestionHelper::length(text);
+            let last = Helper::substr(text, -1, None);
+            let elapsed = Helper::format_time_with(61.001, 2)?;
+            let formatter = OutputFormatter::new(true);
+            let label = Helper::remove_decoration(&formatter, Some("<info>Ready</info>"))?;
+            output.comment(&format!("{label} {width}/{length} {last} {elapsed}"));
+            Ok(0)
+        })
+    }))?;
+    Ok(())
+}
+```

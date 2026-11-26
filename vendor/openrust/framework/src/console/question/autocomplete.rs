@@ -64,10 +64,8 @@ pub(super) async fn read(
             KeyCode::Backspace => {
                 if available == 0 && count != 0 {
                     count -= 1;
-                    let length = crate::console::formatting::grapheme_length(&full)
-                        .map_err(ConsoleError::from_source)?;
-                    let slices = crate::console::formatting::unicode::Slices::new(&full)
-                        .map_err(ConsoleError::from_source)?;
+                    let length = crate::console::formatting::grapheme_length(&full);
+                    let slices = crate::console::formatting::unicode::Slices::new(&full);
                     let width = crate::console::formatting::display_width(
                         slices.slice(length.saturating_sub(1), None),
                     );

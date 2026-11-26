@@ -31,8 +31,8 @@ impl OutputFormatter {
             let first = lines.next().unwrap_or_default();
             let rest = lines.next().map(str::to_owned);
             let available = width.saturating_sub(i64::try_from(*line_length).unwrap_or(i64::MAX));
-            let slices = super::super::formatting::unicode::Slices::new(first)?;
-            let count = super::super::formatting::unicode::length(first)?;
+            let slices = super::super::formatting::unicode::Slices::new(first);
+            let count = super::super::formatting::unicode::length(first);
             let end = if available >= 0 {
                 usize::try_from(available).unwrap_or(usize::MAX).min(count)
             } else {
@@ -61,7 +61,7 @@ impl OutputFormatter {
         let lines: Vec<&str> = rendered.split('\n').collect();
         let mut output = String::new();
         for (index, line) in lines.iter().enumerate() {
-            let length = super::super::formatting::unicode::length(line)?;
+            let length = super::super::formatting::unicode::length(line);
             *line_length = if index == 0 {
                 line_length.saturating_add(length)
             } else {
@@ -88,8 +88,8 @@ fn word_wrap(text: &str, width: i64) -> Result<String, ConsoleFormatError> {
     }
     let mut chars = Vec::<String>::new();
     let mut mask = String::new();
-    let slices = super::super::formatting::unicode::Slices::new(text)?;
-    for index in 0..super::super::formatting::unicode::length(text)? {
+    let slices = super::super::formatting::unicode::Slices::new(text);
+    for index in 0..super::super::formatting::unicode::length(text) {
         let character = slices.slice(index, Some(index + 1));
         chars.push(character.to_owned());
         mask.push(match character {

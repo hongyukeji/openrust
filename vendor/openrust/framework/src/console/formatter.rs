@@ -182,7 +182,7 @@ impl OutputFormatter {
                 continue;
             }
             if non_ascii && unicode.is_none() {
-                unicode = Some(super::formatting::unicode::Slices::new(text)?);
+                unicode = Some(super::formatting::unicode::Slices::new(text));
             }
             let position = unicode
                 .as_ref()
@@ -194,7 +194,7 @@ impl OutputFormatter {
             let part = self.apply_current(visible, &output, width, &mut line_length)?;
             output.push_str(&part);
             offset = if unicode.is_some() {
-                position + super::formatting::unicode::length(span.as_str())?
+                position + super::formatting::unicode::length(span.as_str())
             } else {
                 span.end()
             };

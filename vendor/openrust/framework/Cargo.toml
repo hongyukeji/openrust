@@ -68,6 +68,7 @@ icu_experimental = "=0.7.0"
 icu_locale = "=2.4.0"
 icu_plurals = "=2.4.0"
 icu_normalizer = "=2.4.0"
+unicode-segmentation = "=1.13.3"
 icu_properties = "=2.4.0"
 icu_provider = "=2.4.0"
 intl = { version = "=0.6.5", default-features = false, features = ["currency", "number", "confusables", "idna"] }

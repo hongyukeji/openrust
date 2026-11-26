@@ -87,7 +87,7 @@ impl Table<'_> {
             .map_err(ConsoleError::from_source)?;
             let format_length =
                 i64::try_from(width(&visible)).map_err(ConsoleError::from_source)?;
-            let prefix = grapheme_prefix(title, limit - format_length - 3)?;
+            let prefix = grapheme_prefix(title, limit - format_length - 3);
             formatted = template(format, &format!("{prefix}..."))?;
         }
         let start = (markup_length - title_length) / 2;
@@ -102,15 +102,13 @@ impl Table<'_> {
         ))
     }
 }
-fn grapheme_prefix(text: &str, length: i64) -> Result<String, ConsoleError> {
-    let slices =
-        super::super::formatting::unicode::Slices::new(text).map_err(ConsoleError::from_source)?;
-    let count =
-        super::super::formatting::grapheme_length(text).map_err(ConsoleError::from_source)?;
+fn grapheme_prefix(text: &str, length: i64) -> String {
+    let slices = super::super::formatting::unicode::Slices::new(text);
+    let count = super::super::formatting::grapheme_length(text);
     let end = if length < 0 {
         count.saturating_sub(usize::try_from(length.unsigned_abs()).unwrap_or(usize::MAX))
     } else {
         usize::try_from(length).unwrap_or(usize::MAX).min(count)
     };
-    Ok(slices.slice(0, Some(end)).to_owned())
+    slices.slice(0, Some(end)).to_owned()
 }

@@ -234,22 +234,12 @@ pub(super) fn color(value: &str, background: bool) -> Result<String, ConsoleForm
 }
 
 /// 可见字符的字素计数复用已有Unicode解析。
-pub(super) fn grapheme_length(text: &str) -> Result<usize, ConsoleFormatError> {
+pub(super) fn grapheme_length(text: &str) -> usize {
     unicode::length(text)
 }
 
 pub(super) fn display_width(value: &str) -> usize {
-    value
-        .chars()
-        .map(|ch| {
-            if ch.is_control() {
-                1
-            } else {
-                let mut bytes = [0; 4];
-                ::console::measure_text_width(ch.encode_utf8(&mut bytes))
-            }
-        })
-        .sum()
+    super::Helper::width(Some(value))
 }
 
 pub(super) fn format_template(
@@ -266,10 +256,13 @@ pub(super) fn unformatted_text(
 ) -> Result<String, ConsoleFormatError> {
     let previous = formatter.is_decorated();
     formatter.set_decorated(false);
-    let mut plain = formatter.format_current(text)?;
+    let plain = formatter.format_current(text)?;
     formatter.set_decorated(previous);
+    Ok(strip_decoration(plain))
+}
+pub(super) fn strip_decoration(mut plain: String) -> String {
     if !plain.contains('\x1b') {
-        return Ok(plain);
+        return plain;
     }
     static SGR: LazyLock<Regex> =
         LazyLock::new(|| Regex::new(r"\x1b\[[^m]*m").expect("合法SGR表达式"));
@@ -281,7 +274,7 @@ pub(super) fn unformatted_text(
     if LINK.is_match(&plain) {
         plain = LINK.replace_all(&plain, "").into_owned();
     }
-    Ok(plain)
+    plain
 }
 
 pub(super) fn style_option(value: &str) -> Result<(u8, u8), ConsoleFormatError> {

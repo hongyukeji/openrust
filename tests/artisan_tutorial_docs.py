@@ -331,6 +331,10 @@ async fn formal_progress_example(){
 
 
 
+    helper_snippet=re.search(r'```rust\n(.*?)```',text.split('{#console-helper-tools}',1)[1],re.S).group(1)
+    helper_checks=time_checks.replace('formal_time_helpers_example','formal_helper_tools_example').replace('register_time_helpers)','register_helper_tools)').replace('"components:time"','"helpers:measure"').replace('assert!(output.stdout.contains("delay=-5; runtime=100.00ms"));','assert!(output.stdout.contains("Ready 3/2 é 1 min, 1 s"));')
+    parts.append('mod '+locale.replace('-','_').lower()+'_helper_tools{\n'+helper_snippet+helper_checks+'}\n')
+
 
 target=source/'tests/artisan_docs_generated.rs';target.write_text('\n'.join(parts));subprocess.run(['rustfmt','+1.94.0','--edition','2024',str(target)],check=True)
 print('generated',len(parts),'direct formal consumers')

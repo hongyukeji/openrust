@@ -288,3 +288,6 @@ fn write_suffix(style: &mut OutputStyle<'_>, prompt: &str) -> Result<String, Con
     style.write(prompt, false, OutputOptions::default())?;
     Ok(rendered)
 }
+
+crate::console::helper::impl_helper_tools!(QuestionHelper);
+crate::console::helper::impl_helper_tools!(DefaultQuestionHelper);
