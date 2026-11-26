@@ -124,7 +124,8 @@ try{
   console.log(`native Pulse ${mobile?'mobile':'desktop'}: authorization, live metrics, 4 periods, SVG, meters, text escaping and refresh PASS`);
   await page.close();
  }
- const isolated=await context.newPage({viewport:{width:375,height:620}});
+ const isolated=await context.newPage();
+ await isolated.setViewportSize({width:375,height:620});
  let delayedServers;
  const initialCards=[];
  await isolated.route('**/api/metrics?*', async route=>{
@@ -209,6 +210,32 @@ try{
  console.log('native Pulse dashboard: keyboard explanation and focus survive refresh PASS');
  console.log('native Pulse dashboard: background throttle, offline pause and detached stop PASS');
  await polling.close();
+
+ const backgroundCards=await context.newPage();
+ await backgroundCards.setViewportSize({width:1440,height:220});
+ await backgroundCards.clock.install({time});
+ const selectedCards=[];
+ backgroundCards.on('request',request=>{
+  const url=new URL(request.url());
+  if (url.pathname.endsWith('/api/metrics')) selectedCards.push(url.searchParams.get('cards'));
+ });
+ assert.equal((await backgroundCards.goto(base+'/operations/pulse')).status(),200);
+ for (const name of ['servers','requests']) {
+  await backgroundCards.locator(`[data-card="${name}"]:not([aria-busy])`).waitFor({state:'attached'});
+ }
+ assert.deepEqual([...selectedCards].sort(),['requests','servers']);
+ await backgroundCards.evaluate(()=>{
+  Object.defineProperty(document,'hidden',{configurable:true,value:true});
+  let sample=0;
+  Math.random=()=>sample++===0 ? 0.94 : 0.95;
+ });
+ const sampled=backgroundCards.waitForResponse(response=>response.url().includes('/api/metrics'));
+ await backgroundCards.clock.runFor(5000);
+ assert.equal((await sampled).status(),200);
+ assert.equal(selectedCards.length,3);
+ assert(['servers','requests'].includes(selectedCards.at(-1)));
+ console.log('native Pulse dashboard: samples background updates separately for each card PASS');
+ await backgroundCards.close();
  await context.close();
 
  const touch=await browser.newContext({hasTouch:true,isMobile:true,viewport:{width:375,height:812},

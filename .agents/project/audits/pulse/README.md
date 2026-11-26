@@ -136,6 +136,8 @@ SQLite、PostgreSQL 18.7、MySQL 8.4.13、具名 Redis 8.10.3 的授权 HTTP 验
 
 受控 Chrome 复现后台仍发请求，修复后通过可控时钟和采样值验证两侧边界。真实 SQLite 看板在 Chrome 测试客户端离线、恢复和移除容器时的 HTTP 请求数，并通过已有桌面、手机、定时刷新及图表焦点回归。三语构建和六组浏览器检查通过。证据为 `target/tmp/observability-parity/pulse-poll-pauses-{upstream,browser-baseline,browser,macos,docs}.log`。
 
+两个固定 Livewire 版本还验证了同一时钟下分别采样每个组件。原生前态对整个批次只抽样一次，导致两张卡片一起跳过。修复后每张已加载卡片独立抽样，选中的卡片共用一次 HTTP 请求。受控页面和真实 Chrome 中各用 0.94 和 0.95 验证只请求其中一张卡，公开指标、轮询、授权、桌面与移动回归及三语文档均通过。证据为 `target/tmp/observability-parity/pulse-poll-card-samples-{upstream,baseline,browser,macos-retry,docs}.log`。
+
 ### 慢操作、异常和用量的采样计数
 
 固定 PHP 8.5.12 使用实际 Blade 编译器渲染四类慢操作、异常和用量计数。采样率 0.4 时原始计数 3 显示为 `~8`，提示包含采样率与原始值。全量计数按千位分隔。用量的请求、慢请求、任务分别读 UserRequests、SlowRequests、UserJobs。Rust 的 `sample_rates` 随当前配置返回，卡片原始行及五秒缓存仍保留数据库计数。面板识别数据库返回的数值和数字文本。采样率为零时保留历史原始计数。 [固定卡片模板](https://github.com/laravel/pulse/tree/33cc6fc68cd3052aa06227e88e8d933dd3d70a51/resources/views/livewire)

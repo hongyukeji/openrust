@@ -466,11 +466,13 @@ async function mountCard(name) {
     if (initialLoads.get(name) === controller) initialLoads.delete(name);
 }
 
-async function refresh(keepInitial = false) {
-    const requested = [...mountedCards].filter(name => !keepInitial || !initialLoads.has(name));
+async function refresh(automatic = false) {
+    const requested = [...mountedCards].filter(name => !automatic || (
+        !initialLoads.has(name) && (!document.hidden || Math.random() >= 0.95)
+    ));
     if (requested.length === 0) return;
     activeRefresh?.abort();
-    if (!keepInitial) {
+    if (!automatic) {
         for (const pending of initialLoads.values()) pending.abort();
         initialLoads.clear();
     }
@@ -520,6 +522,6 @@ const polling = setInterval(() => {
         clearInterval(polling);
         return;
     }
-    if (activeRefresh || !navigator.onLine || (document.hidden && Math.random() < 0.95)) return;
+    if (activeRefresh || !navigator.onLine) return;
     refresh(true);
 }, 5000);
