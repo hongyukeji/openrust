@@ -44,7 +44,10 @@ impl Command for SelectModel {
             let save = input.matches().get_flag("save");
             let make_default = input.matches().get_flag("default");
             if make_default && !save {
-                return Err(ConsoleError::new("保存默认连接时须同时指定 --save"));
+                return Err(ConsoleError::new(message(
+                    "default_requires_save",
+                    "保存默认连接时须同时指定 --save",
+                )));
             }
             let provider = match input.matches().get_one::<String>("provider") {
                 Some(provider) => provider.clone(),
@@ -56,28 +59,38 @@ impl Command for SelectModel {
             let model = match input.matches().get_one::<String>("model") {
                 Some(model) => model.clone(),
                 None if !interactive => {
-                    return Err(ConsoleError::new("非交互模式请用 --model 指定要选择的模型"));
+                    return Err(ConsoleError::new(message(
+                        "model_required_non_interactive",
+                        "非交互模式请用 --model 指定要选择的模型",
+                    )));
                 }
                 None => choose(input, output, &provider).await?,
             };
             if model.trim().is_empty() || model.chars().any(char::is_control) {
-                return Err(ConsoleError::new("模型 ID 不能为空或包含控制字符"));
+                return Err(ConsoleError::new(message(
+                    "invalid_model",
+                    "模型 ID 不能为空或包含控制字符",
+                )));
             }
             if save {
                 let variable = profile["models"]["text"]["default_env"]
                     .as_str()
                     .filter(|name| !name.is_empty())
                     .ok_or_else(|| {
-                        ConsoleError::new(
+                        ConsoleError::new(message(
+                            "model_variable_missing",
                             "当前连接由 config/ai.rs 管理，未配置可写入的模型环境变量",
-                        )
+                        ))
                     })?;
                 let profile_key = profile["key_env"].as_str();
                 if !valid_variable(variable)
                     || profile_key == Some(variable)
                     || variable == "AI_PROVIDER"
                 {
-                    return Err(ConsoleError::new("模型的环境变量配置无效"));
+                    return Err(ConsoleError::new(message(
+                        "invalid_variable",
+                        "模型的环境变量配置无效",
+                    )));
                 }
                 let mut changes = vec![(variable, model.as_str())];
                 if make_default {
@@ -85,8 +98,10 @@ impl Command for SelectModel {
                 }
                 for (name, _) in &changes {
                     if std::env::var_os(name).is_some() {
-                        return Err(ConsoleError::new(format!(
-                            "进程环境中的 {name} 优先，请在设置该变量的位置更新"
+                        return Err(ConsoleError::new(localization::text(
+                            "ai::console.select_model.variable_overridden",
+                            &[("variable".into(), (*name).into())].into(),
+                            &format!("进程环境中的 {name} 优先，请在设置该变量的位置更新"),
                         )));
                     }
                 }
@@ -156,9 +171,9 @@ async fn choose_provider(
         .map_err(ConsoleError::from_source)?;
     let repository = app.config().map_err(ConsoleError::from_source)?;
     let profiles = repository.get("ai.providers").unwrap_or_default();
-    let profiles = profiles
-        .as_object()
-        .ok_or_else(|| ConsoleError::new("没有可用的 AI 连接"))?;
+    let profiles = profiles.as_object().ok_or_else(|| {
+        ConsoleError::new(message("connections_unavailable", "没有可用的 AI 连接"))
+    })?;
     let mut available: Vec<_> = profiles
         .iter()
         .filter(|(_, profile)| {
@@ -177,13 +192,19 @@ async fn choose_provider(
         return Ok(available.remove(0));
     }
     if !interactive {
-        return Err(ConsoleError::new("非交互模式请指定 AI 连接名称"));
+        return Err(ConsoleError::new(message(
+            "connection_required_non_interactive",
+            "非交互模式请指定 AI 连接名称",
+        )));
     }
     if available.is_empty() {
         available.extend(profiles.keys().cloned());
     }
     if available.is_empty() {
-        return Err(ConsoleError::new("没有可供选择的 AI 连接"));
+        return Err(ConsoleError::new(message(
+            "no_connections",
+            "没有可供选择的 AI 连接",
+        )));
     }
     available.sort();
     input
@@ -192,7 +213,7 @@ async fn choose_provider(
         .await?
         .as_str()
         .map(str::to_owned)
-        .ok_or_else(|| ConsoleError::new("请选择 AI 连接"))
+        .ok_or_else(|| ConsoleError::new(message("connection_required", "请选择 AI 连接")))
 }
 
 async fn choose(
@@ -241,7 +262,7 @@ async fn choose(
     }
     io.ask(&message("input_model", "输入模型 ID"))
         .await?
-        .ok_or_else(|| ConsoleError::new("请提供模型 ID"))
+        .ok_or_else(|| ConsoleError::new(message("model_required", "请提供模型 ID")))
 }
 
 fn message(key: &str, fallback: &str) -> String {

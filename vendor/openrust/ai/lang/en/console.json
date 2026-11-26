@@ -6,7 +6,18 @@
     "model_label": "Model :model",
     "input_model": "Enter the model ID",
     "confirm_save": "Save the model for :provider in :variable?",
-    "saved_cached": "The model was saved. Rebuild the application configuration cache before using it."
+    "saved_cached": "The model was saved. Rebuild the application configuration cache before using it.",
+    "default_requires_save": "Saving the default connection requires --save.",
+    "model_required_non_interactive": "Specify the model with --model in non-interactive mode.",
+    "invalid_model": "The model ID must be nonempty and contain no control characters.",
+    "model_variable_missing": "This connection is managed in config/ai.rs and has no writable model environment variable.",
+    "invalid_variable": "The model environment variable configuration is invalid.",
+    "variable_overridden": "The process variable :variable takes precedence. Update it where it is set.",
+    "connections_unavailable": "No AI connections are available.",
+    "connection_required_non_interactive": "Specify the AI connection name in non-interactive mode.",
+    "no_connections": "There are no AI connections to choose from.",
+    "connection_required": "Choose an AI connection.",
+    "model_required": "Enter a model ID."
   },
   "commands": {
     "ai:models": {

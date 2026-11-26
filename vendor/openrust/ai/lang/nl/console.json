@@ -6,7 +6,18 @@
     "model_label": "Model :model",
     "input_model": "Voer de model-ID in",
     "confirm_save": "Het model voor :provider opslaan in :variable?",
-    "saved_cached": "Het model is opgeslagen. Genereer de configuratiecache van de applicatie opnieuw voordat je het model gebruikt."
+    "saved_cached": "Het model is opgeslagen. Genereer de configuratiecache van de applicatie opnieuw voordat je het model gebruikt.",
+    "default_requires_save": "Voor het opslaan van de standaardverbinding is --save vereist.",
+    "model_required_non_interactive": "Geef het model op met --model in niet-interactieve modus.",
+    "invalid_model": "De model-ID mag niet leeg zijn of besturingstekens bevatten.",
+    "model_variable_missing": "Deze verbinding wordt beheerd in config/ai.rs en heeft geen schrijfbare omgevingsvariabele voor het model.",
+    "invalid_variable": "De omgevingsvariabele voor het model is ongeldig geconfigureerd.",
+    "variable_overridden": "De procesvariabele :variable heeft voorrang. Werk deze bij op de plaats waar ze is ingesteld.",
+    "connections_unavailable": "Er zijn geen AI-verbindingen beschikbaar.",
+    "connection_required_non_interactive": "Geef de naam van de AI-verbinding op in niet-interactieve modus.",
+    "no_connections": "Er zijn geen AI-verbindingen om uit te kiezen.",
+    "connection_required": "Kies een AI-verbinding.",
+    "model_required": "Voer een model-ID in."
   },
   "commands": {
     "ai:models": {

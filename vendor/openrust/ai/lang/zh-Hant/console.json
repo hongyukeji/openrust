@@ -6,7 +6,18 @@
     "model_label": "模型：:model",
     "input_model": "輸入模型 ID",
     "confirm_save": "將 :provider 的模型儲存至 :variable？",
-    "saved_cached": "已儲存模型。使用前請重新產生應用程式設定快取。"
+    "saved_cached": "已儲存模型。使用前請重新產生應用程式設定快取。",
+    "default_requires_save": "儲存預設連線時須一併指定 --save",
+    "model_required_non_interactive": "非互動模式請用 --model 指定要選擇的模型",
+    "invalid_model": "模型 ID 不可為空或包含控制字元",
+    "model_variable_missing": "目前的連線由 config/ai.rs 管理，尚未設定可寫入的模型環境變數",
+    "invalid_variable": "模型的環境變數設定無效",
+    "variable_overridden": "程序環境中的 :variable 優先，請在設定該變數的位置更新",
+    "connections_unavailable": "沒有可用的 AI 連線",
+    "connection_required_non_interactive": "非互動模式請指定 AI 連線名稱",
+    "no_connections": "沒有可供選擇的 AI 連線",
+    "connection_required": "請選擇 AI 連線",
+    "model_required": "請提供模型 ID"
   },
   "commands": {
     "ai:models": {

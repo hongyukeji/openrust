@@ -37,7 +37,7 @@ AI command help follows the application locale. Run `./artisan help ai:select-mo
 
 `make:agent`, `make:tool`, and `make:agent-middleware` use the application locale for prompts, generation results, and name validation. Override these messages under `make` in `lang/vendor/ai/<locale>/console.json`. The `:path` placeholder in `created` expands to the generated file path.
 
-Interactive connection and model selection follow the application locale. Numeric menu choices and the returned model ID stay stable across languages. Override the prompts through `lang/vendor/ai/<locale>/console.json` under `select_model`.
+Interactive connection and model selection, including validation messages, follow the application locale. Numeric menu choices and the returned model ID stay stable across languages. Override the prompts and validation messages through `lang/vendor/ai/<locale>/console.json` under `select_model`.
 
 Use `agent(instructions).with_messages(history)` to include earlier turns. Build the history in order with `Message::user(text)` and `Message::assistant(text)`. Both `prompt` and `stream` send those turns before the latest prompt. Artisan accepts the same history as a JSON array of `role` and `content` entries in `--messages`.
 

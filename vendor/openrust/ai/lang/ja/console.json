@@ -6,7 +6,18 @@
     "model_label": "モデル :model",
     "input_model": "モデル ID を入力",
     "confirm_save": "接続 :provider のモデルを :variable に保存しますか？",
-    "saved_cached": "モデルを保存しました。利用する前にアプリケーションの設定キャッシュを再生成してください。"
+    "saved_cached": "モデルを保存しました。利用する前にアプリケーションの設定キャッシュを再生成してください。",
+    "default_requires_save": "既定の接続を保存するには --save が必要です。",
+    "model_required_non_interactive": "非対話モードでは --model でモデルを指定してください。",
+    "invalid_model": "モデル ID は空にできず、制御文字も使用できません。",
+    "model_variable_missing": "この接続は config/ai.rs で管理され、書き込み可能なモデル環境変数が設定されていません。",
+    "invalid_variable": "モデルの環境変数設定が無効です。",
+    "variable_overridden": "プロセスの環境変数 :variable が優先されます。設定元で更新してください。",
+    "connections_unavailable": "使用できる AI 接続がありません。",
+    "connection_required_non_interactive": "非対話モードでは AI 接続名を指定してください。",
+    "no_connections": "選択できる AI 接続がありません。",
+    "connection_required": "AI 接続を選択してください。",
+    "model_required": "モデル ID を入力してください。"
   },
   "commands": {
     "ai:models": {

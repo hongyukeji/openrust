@@ -6,7 +6,18 @@
     "model_label": "Modelo :model",
     "input_model": "Introduza o ID do modelo",
     "confirm_save": "Guardar o modelo de :provider em :variable?",
-    "saved_cached": "O modelo foi guardado. Volte a gerar a cache de configuração da aplicação antes de o utilizar."
+    "saved_cached": "O modelo foi guardado. Volte a gerar a cache de configuração da aplicação antes de o utilizar.",
+    "default_requires_save": "Salvar a conexão padrão exige --save.",
+    "model_required_non_interactive": "Informe o modelo com --model no modo não interativo.",
+    "invalid_model": "O ID do modelo não pode estar vazio nem conter caracteres de controle.",
+    "model_variable_missing": "A conexão é gerenciada em config/ai.rs e não tem uma variável de ambiente de modelo gravável.",
+    "invalid_variable": "A configuração da variável de ambiente do modelo é inválida.",
+    "variable_overridden": "A variável de processo :variable tem prioridade. Atualize-a onde foi definida.",
+    "connections_unavailable": "Nenhuma conexão de IA está disponível.",
+    "connection_required_non_interactive": "Informe o nome da conexão de IA no modo não interativo.",
+    "no_connections": "Não há conexões de IA para selecionar.",
+    "connection_required": "Selecione uma conexão de IA.",
+    "model_required": "Informe o ID do modelo."
   },
   "commands": {
     "ai:models": {

@@ -6,7 +6,18 @@
     "model_label": "모델 :model",
     "input_model": "모델 ID를 입력하세요",
     "confirm_save": "연결 :provider 에서 사용할 모델을 :variable 에 저장할까요?",
-    "saved_cached": "모델을 저장했습니다. 사용하기 전에 애플리케이션 설정 캐시를 다시 생성하세요."
+    "saved_cached": "모델을 저장했습니다. 사용하기 전에 애플리케이션 설정 캐시를 다시 생성하세요.",
+    "default_requires_save": "기본 연결을 저장하려면 --save가 필요합니다.",
+    "model_required_non_interactive": "비대화형 모드에서는 --model로 모델을 지정하세요.",
+    "invalid_model": "모델 ID는 비워 두거나 제어 문자를 포함할 수 없습니다.",
+    "model_variable_missing": "이 연결은 config/ai.rs에서 관리하며 쓸 수 있는 모델 환경 변수가 없습니다.",
+    "invalid_variable": "모델 환경 변수 설정이 올바르지 않습니다.",
+    "variable_overridden": "프로세스의 :variable 환경 변수가 우선합니다. 이 변수를 설정한 곳에서 변경하세요.",
+    "connections_unavailable": "사용할 수 있는 AI 연결이 없습니다.",
+    "connection_required_non_interactive": "비대화형 모드에서는 AI 연결 이름을 지정하세요.",
+    "no_connections": "선택할 수 있는 AI 연결이 없습니다.",
+    "connection_required": "AI 연결을 선택하세요.",
+    "model_required": "모델 ID를 입력하세요."
   },
   "commands": {
     "ai:models": {

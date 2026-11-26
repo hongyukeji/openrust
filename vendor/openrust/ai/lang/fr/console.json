@@ -6,7 +6,18 @@
     "model_label": "Modèle :model",
     "input_model": "Saisissez l’identifiant du modèle",
     "confirm_save": "Enregistrer le modèle de :provider dans :variable ?",
-    "saved_cached": "Le modèle a été enregistré. Régénérez le cache de configuration de l’application avant de l’utiliser."
+    "saved_cached": "Le modèle a été enregistré. Régénérez le cache de configuration de l’application avant de l’utiliser.",
+    "default_requires_save": "L’enregistrement de la connexion par défaut exige --save.",
+    "model_required_non_interactive": "Indiquez le modèle avec --model en mode non interactif.",
+    "invalid_model": "L’identifiant du modèle doit être renseigné et ne contenir aucun caractère de contrôle.",
+    "model_variable_missing": "Cette connexion est gérée dans config/ai.rs et ne dispose d’aucune variable d’environnement modifiable pour le modèle.",
+    "invalid_variable": "La configuration de la variable d’environnement du modèle est invalide.",
+    "variable_overridden": "La variable de processus :variable est prioritaire. Modifiez-la à l’endroit où elle est définie.",
+    "connections_unavailable": "Aucune connexion IA n’est disponible.",
+    "connection_required_non_interactive": "Indiquez le nom de la connexion IA en mode non interactif.",
+    "no_connections": "Aucune connexion IA ne peut être sélectionnée.",
+    "connection_required": "Choisissez une connexion IA.",
+    "model_required": "Saisissez un identifiant de modèle."
   },
   "commands": {
     "ai:models": {

@@ -6,7 +6,18 @@
     "model_label": "Mô hình :model",
     "input_model": "Nhập mã mô hình",
     "confirm_save": "Lưu mô hình của :provider vào :variable?",
-    "saved_cached": "Đã lưu mô hình. Hãy tạo lại bộ nhớ đệm cấu hình của ứng dụng trước khi sử dụng."
+    "saved_cached": "Đã lưu mô hình. Hãy tạo lại bộ nhớ đệm cấu hình của ứng dụng trước khi sử dụng.",
+    "default_requires_save": "Cần dùng --save để lưu kết nối mặc định.",
+    "model_required_non_interactive": "Chỉ định mô hình bằng --model trong chế độ không tương tác.",
+    "invalid_model": "ID mô hình không được để trống hoặc chứa ký tự điều khiển.",
+    "model_variable_missing": "Kết nối được quản lý trong config/ai.rs và không có biến môi trường mô hình có thể ghi.",
+    "invalid_variable": "Cấu hình biến môi trường cho mô hình không hợp lệ.",
+    "variable_overridden": "Biến tiến trình :variable được ưu tiên. Hãy cập nhật tại nơi biến được thiết lập.",
+    "connections_unavailable": "Không có kết nối AI khả dụng.",
+    "connection_required_non_interactive": "Chỉ định tên kết nối AI trong chế độ không tương tác.",
+    "no_connections": "Không có kết nối AI để chọn.",
+    "connection_required": "Hãy chọn một kết nối AI.",
+    "model_required": "Nhập ID mô hình."
   },
   "commands": {
     "ai:models": {

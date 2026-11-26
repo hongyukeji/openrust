@@ -6,7 +6,18 @@
     "model_label": "Modell :model",
     "input_model": "Modell-ID eingeben",
     "confirm_save": "Das Modell für :provider in :variable speichern?",
-    "saved_cached": "Das Modell wurde gespeichert. Erstellen Sie den Anwendungskonfigurationscache vor der Verwendung neu."
+    "saved_cached": "Das Modell wurde gespeichert. Erstellen Sie den Anwendungskonfigurationscache vor der Verwendung neu.",
+    "default_requires_save": "Zum Speichern der Standardverbindung ist --save erforderlich.",
+    "model_required_non_interactive": "Geben Sie das Modell im nicht interaktiven Modus mit --model an.",
+    "invalid_model": "Die Modell-ID darf weder leer sein noch Steuerzeichen enthalten.",
+    "model_variable_missing": "Die Verbindung wird in config/ai.rs verwaltet und hat keine beschreibbare Modell-Umgebungsvariable.",
+    "invalid_variable": "Die Modell-Umgebungsvariable ist ungültig konfiguriert.",
+    "variable_overridden": "Die Prozessvariable :variable hat Vorrang. Aktualisieren Sie sie dort, wo sie gesetzt wird.",
+    "connections_unavailable": "Es sind keine KI-Verbindungen verfügbar.",
+    "connection_required_non_interactive": "Geben Sie im nicht interaktiven Modus den Namen der KI-Verbindung an.",
+    "no_connections": "Es stehen keine KI-Verbindungen zur Auswahl.",
+    "connection_required": "Wählen Sie eine KI-Verbindung aus.",
+    "model_required": "Geben Sie eine Modell-ID ein."
   },
   "commands": {
     "ai:models": {

@@ -6,7 +6,18 @@
     "model_label": "मॉडल :model",
     "input_model": "मॉडल आईडी दर्ज करें",
     "confirm_save": "क्या :provider के मॉडल को :variable में सहेजना है?",
-    "saved_cached": "मॉडल सहेज लिया गया है। उपयोग से पहले ऐप की कॉन्फ़िगरेशन कैश फिर से बनाएँ।"
+    "saved_cached": "मॉडल सहेज लिया गया है। उपयोग से पहले ऐप की कॉन्फ़िगरेशन कैश फिर से बनाएँ।",
+    "default_requires_save": "डिफ़ॉल्ट कनेक्शन सेव करने के लिए --save ज़रूरी है।",
+    "model_required_non_interactive": "गैर-इंटरैक्टिव मोड में --model से मॉडल बताएँ।",
+    "invalid_model": "मॉडल आईडी खाली नहीं हो सकती और उसमें नियंत्रण वर्ण नहीं हो सकते।",
+    "model_variable_missing": "यह कनेक्शन config/ai.rs से प्रबंधित होता है और इसके मॉडल के लिए लिखने योग्य परिवेश चर नहीं है।",
+    "invalid_variable": "मॉडल का परिवेश चर कॉन्फ़िगरेशन अमान्य है।",
+    "variable_overridden": "प्रक्रिया के :variable चर को प्राथमिकता मिलती है। इसे वहीं बदलें जहाँ यह सेट किया गया है।",
+    "connections_unavailable": "कोई AI कनेक्शन उपलब्ध नहीं है।",
+    "connection_required_non_interactive": "गैर-इंटरैक्टिव मोड में AI कनेक्शन का नाम बताएँ।",
+    "no_connections": "चुनने के लिए कोई AI कनेक्शन नहीं है।",
+    "connection_required": "एक AI कनेक्शन चुनें।",
+    "model_required": "मॉडल आईडी दर्ज करें।"
   },
   "commands": {
     "ai:models": {

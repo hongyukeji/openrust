@@ -6,7 +6,18 @@
     "model_label": "โมเดล :model",
     "input_model": "กรอกรหัสโมเดล",
     "confirm_save": "บันทึกโมเดลสำหรับ :provider ใน :variable หรือไม่",
-    "saved_cached": "บันทึกโมเดลแล้ว โปรดสร้างแคชการกำหนดค่าแอปพลิเคชันใหม่ก่อนใช้งาน"
+    "saved_cached": "บันทึกโมเดลแล้ว โปรดสร้างแคชการกำหนดค่าแอปพลิเคชันใหม่ก่อนใช้งาน",
+    "default_requires_save": "ต้องใช้ --save เพื่อบันทึกการเชื่อมต่อเริ่มต้น",
+    "model_required_non_interactive": "ระบุโมเดลด้วย --model ในโหมดไม่โต้ตอบ",
+    "invalid_model": "รหัสโมเดลต้องไม่ว่างและไม่มีอักขระควบคุม",
+    "model_variable_missing": "การเชื่อมต่อนี้จัดการใน config/ai.rs และไม่ได้กำหนดตัวแปรสภาพแวดล้อมของโมเดลที่เขียนได้",
+    "invalid_variable": "การตั้งค่าตัวแปรสภาพแวดล้อมของโมเดลไม่ถูกต้อง",
+    "variable_overridden": "ตัวแปรของโปรเซส :variable มีลำดับความสำคัญสูงกว่า ให้แก้ไขในตำแหน่งที่กำหนดตัวแปร",
+    "connections_unavailable": "ไม่มีการเชื่อมต่อ AI ที่พร้อมใช้งาน",
+    "connection_required_non_interactive": "ระบุชื่อการเชื่อมต่อ AI ในโหมดไม่โต้ตอบ",
+    "no_connections": "ไม่มีการเชื่อมต่อ AI ให้เลือก",
+    "connection_required": "เลือกการเชื่อมต่อ AI",
+    "model_required": "ป้อนรหัสโมเดล"
   },
   "commands": {
     "ai:models": {

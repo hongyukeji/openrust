@@ -6,7 +6,18 @@
     "model_label": "النموذج :model",
     "input_model": "أدخل معرّف النموذج",
     "confirm_save": "هل تريد حفظ نموذج :provider في :variable؟",
-    "saved_cached": "تم حفظ النموذج. أعد إنشاء ذاكرة التخزين المؤقت لإعدادات التطبيق قبل استخدامه."
+    "saved_cached": "تم حفظ النموذج. أعد إنشاء ذاكرة التخزين المؤقت لإعدادات التطبيق قبل استخدامه.",
+    "default_requires_save": "يتطلب حفظ الاتصال الافتراضي الخيار --save.",
+    "model_required_non_interactive": "استخدم --model لتحديد النموذج في الوضع غير التفاعلي.",
+    "invalid_model": "لا يجوز أن يكون معرّف النموذج فارغًا أو أن يحتوي على محارف تحكم.",
+    "model_variable_missing": "يُدار الاتصال الحالي في config/ai.rs ولا يتضمن متغير بيئة قابلاً للكتابة للنموذج.",
+    "invalid_variable": "إعداد متغير البيئة للنموذج غير صالح.",
+    "variable_overridden": "لمتغير العملية :variable الأولوية. حدّثه حيث يتم تعيينه.",
+    "connections_unavailable": "لا تتوفر اتصالات بالذكاء الاصطناعي.",
+    "connection_required_non_interactive": "حدد اسم اتصال الذكاء الاصطناعي في الوضع غير التفاعلي.",
+    "no_connections": "لا توجد اتصالات بالذكاء الاصطناعي للاختيار من بينها.",
+    "connection_required": "اختر اتصال ذكاء اصطناعي.",
+    "model_required": "أدخل معرّف النموذج."
   },
   "commands": {
     "ai:models": {

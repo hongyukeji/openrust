@@ -6,7 +6,18 @@
     "model_label": "Model :model",
     "input_model": "Masukkan ID model",
     "confirm_save": "Simpan model untuk :provider di :variable?",
-    "saved_cached": "Model telah disimpan. Buat ulang cache konfigurasi aplikasi sebelum memakainya."
+    "saved_cached": "Model telah disimpan. Buat ulang cache konfigurasi aplikasi sebelum memakainya.",
+    "default_requires_save": "Menyimpan koneksi default memerlukan --save.",
+    "model_required_non_interactive": "Tentukan model dengan --model dalam mode noninteraktif.",
+    "invalid_model": "ID model tidak boleh kosong atau berisi karakter kontrol.",
+    "model_variable_missing": "Koneksi ini dikelola di config/ai.rs dan tidak memiliki variabel lingkungan model yang dapat ditulis.",
+    "invalid_variable": "Konfigurasi variabel lingkungan model tidak valid.",
+    "variable_overridden": "Variabel proses :variable diprioritaskan. Perbarui di tempat variabel itu ditetapkan.",
+    "connections_unavailable": "Tidak ada koneksi AI yang tersedia.",
+    "connection_required_non_interactive": "Tentukan nama koneksi AI dalam mode noninteraktif.",
+    "no_connections": "Tidak ada koneksi AI yang dapat dipilih.",
+    "connection_required": "Pilih koneksi AI.",
+    "model_required": "Masukkan ID model."
   },
   "commands": {
     "ai:models": {

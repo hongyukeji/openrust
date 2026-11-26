@@ -6,7 +6,18 @@
     "model_label": "Model :model",
     "input_model": "Model kimliğini girin",
     "confirm_save": ":provider için modeli :variable değişkenine kaydetmek istiyor musunuz?",
-    "saved_cached": "Model kaydedildi. Kullanmadan önce uygulama yapılandırmasının önbelleğini yeniden oluşturun."
+    "saved_cached": "Model kaydedildi. Kullanmadan önce uygulama yapılandırmasının önbelleğini yeniden oluşturun.",
+    "default_requires_save": "Varsayılan bağlantıyı kaydetmek için --save gerekir.",
+    "model_required_non_interactive": "Etkileşimsiz modda modeli --model ile belirtin.",
+    "invalid_model": "Model kimliği boş olamaz veya kontrol karakterleri içeremez.",
+    "model_variable_missing": "Bu bağlantı config/ai.rs içinde yönetiliyor ve yazılabilir bir model ortam değişkeni yok.",
+    "invalid_variable": "Model ortam değişkeni yapılandırması geçersiz.",
+    "variable_overridden": ":variable süreç değişkeni önceliklidir. Değişkeni tanımlandığı yerde güncelleyin.",
+    "connections_unavailable": "Kullanılabilir yapay zekâ bağlantısı yok.",
+    "connection_required_non_interactive": "Etkileşimsiz modda yapay zekâ bağlantısının adını belirtin.",
+    "no_connections": "Seçilebilecek yapay zekâ bağlantısı yok.",
+    "connection_required": "Bir yapay zekâ bağlantısı seçin.",
+    "model_required": "Bir model kimliği girin."
   },
   "commands": {
     "ai:models": {
