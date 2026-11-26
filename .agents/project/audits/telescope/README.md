@@ -63,7 +63,7 @@ database缓存此前把引擎毫秒时间戳及i64::MAX永久哨兵直接写入L
 - 面板为原生安全诊断UI，未使用上游Vue前端或avatar；列表、过滤、详情、监控标签、暂停恢复均已实际验收。18类公开Watcher已在下节补齐独立注册，内部共用格式化帮助器，不再用私有总监听器替代公开结构。
 - Gate 已覆盖授权入口及同应用嵌套授权。Query 已覆盖核心数据库、分页、模型写入、直接关系读取、关联写入、模型与集合关系加载、多对多中间表和常规 Schema。普通异步包装器、关系变体和驱动特有的 Schema 操作仍待核对。源码重映射的已验范围与部署条件见[发布构建的源码路径重映射](../extension-parity.md#发布构建的源码路径重映射)。EventWatcher 默认忽略框架事件，应用内共享的 ignoreFrameworkEvents 开关已在下节补齐。
 - 服务端已捕获已知缓冲正文及实际处理器／控制器、已解析路由中间件类型；不透明Body／流仍不读取。HTTP 客户端记录构建器提供的 multipart 元数据，来源边界见下文。View的闭包composer名称为null。通知Mail响应为实际收件人快照；不冒充PHP SentMessage对象反射。
-- 命令以原生纯文本表格和绝对时间戳输出，18 类条目详情和批次统计已通过专项验收。相对时间和上游终端颜色仍在对账。`--full`、JSON与查询语义已经验证。保留时间的应用时钟和小时选项见[截止时间审计](#prune-命令的截止时间)。
+- 命令以原生表格输出，18 类条目详情、批次统计和 UTC 相对时间已通过专项验收。上游终端颜色继续对账。`--full`、JSON与查询语义已经验证。保留时间的应用时钟和小时选项见[截止时间审计](#prune-命令的截止时间)。
 - 正式托管服务、其他操作系统和最终全扩展组合／完整API导出未由本批通过结果覆盖。
 
 缓存保留供后续验收复用；未到32GB停线时不清热target。夹具只回收本批标签容器和子进程，不删除任何数据卷。后续开发应按本节真实差异接续，不能把包测试通过等同完整上游移植。
@@ -101,7 +101,13 @@ Rust 前态的两个 Artisan 命令都直接解析 EntriesRepository，调用会
 
 固定 `ListCommand::tableColumns` 的 PHP 8.5.12 探针读取实际列和值。入站 Request 缺状态时显示 `0`，出站 ClientRequest 缺状态时显示 `N/A`，已有数值文本按整数输出。缓存动作显示 `HIT`、`MISS`、`SET` 和 `FORGET`，未知值原样保留。41 列以上的宽字符 URI 按显示宽度截断后追加省略号。证据为 `target/tmp/observability-parity/telescope-list-cells-upstream.log`。 [固定 ListCommand](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Console/ListCommand.php#L110-L208)
 
-Rust 复用框架的字符串宽度截断及标量整数转换。用真实 Artisan 和已存条目在 SQLite、PostgreSQL 18.7、MySQL 8.4.13 验证八种行。Provider、仓储、快照全仓格式、相关严格 Clippy、三语站点构建及六组桌面／移动检查通过。命令使用原生纯文本表格及时间戳。相对时间与颜色继续对账，`show` 分类详情见后续专项。证据为 `target/tmp/observability-parity/telescope-list-cells-{macos-baseline,macos-final,docs}.log`。
+Rust 复用框架的字符串宽度截断及标量整数转换。用真实 Artisan 和已存条目在 SQLite、PostgreSQL 18.7、MySQL 8.4.13 验证八种行。Provider、仓储、快照全仓格式、相关严格 Clippy、三语站点构建及六组桌面／移动检查通过。证据为 `target/tmp/observability-parity/telescope-list-cells-{macos-baseline,macos-final,docs}.log`。
+
+## list 与 show 的相对时间
+
+固定 PHP 8.5.12 调用 Telescope 的 `FormatsOutput::humanTime`，以 Carbon 实际输出核对 UTC 过去及未来、亚秒、星期、月底和闰日。Rust 以应用时钟显示最大的完整单位，在 `show` 中同时显示原始 UTC 时间戳。自定义仓储提供无法解析的时间文本时保留该文本。当前对照覆盖原生 UTC 存储和默认英文相对时间，Carbon 自定义语言和夏令时本地时间另计。 [固定 Telescope 时间格式化](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Console/Concerns/FormatsOutput.php#L54-L63) [PHP 日历区间](https://github.com/php/php-src/blob/php-8.5.12/ext/date/lib/tm2unixtime.c)
+
+实际 Rust 格式化函数和 3,016 组固定 PHP UTC 结果一致。SQLite、PostgreSQL 18.7、MySQL 8.4.13 的真实 Artisan 在冻结时钟下验证 14 组 `list`、`show` 和原始 JSON 时间戳。首轮前态构建触及磁盘停线，自动清理后重跑确认原先只显示绝对时间。Pulse Provider 25 项、Telescope Provider 28 项通过，独占 Telescope Redis 用例沿用环境条件。隔离快照全仓格式、Telescope 全目标严格 Clippy、三语文档及六组浏览器检查通过。证据为 `target/tmp/observability-parity/telescope-console-time-{upstream,rust-probe,macos-baseline,macos-baseline-retry,macos,docs}.log`。
 
 ## 出站 multipart
 

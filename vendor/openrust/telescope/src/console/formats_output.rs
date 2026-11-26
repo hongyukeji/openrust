@@ -1,6 +1,7 @@
 mod entry_details;
 
 use crate::{EntryResult, EntryType};
+use jiff::{Timestamp, ToSpan, civil::DateTime, tz::TimeZone};
 use openrust::{
     console::Output,
     support::{
@@ -43,6 +44,57 @@ fn unit(content: &Value, key: &str, suffix: &str) -> String {
 fn basename(value: &str) -> &str {
     value.rsplit(['\\', ':']).next().unwrap_or(value)
 }
+
+fn human_time(created_at: &str, now: DateTime) -> Option<String> {
+    let created = created_at
+        .parse::<Timestamp>()
+        .map(|timestamp| timestamp.to_zoned(TimeZone::UTC).datetime())
+        .or_else(|_| created_at.parse::<DateTime>())
+        .ok()?;
+    let future = created > now;
+    let (start, end) = if future {
+        (now, created)
+    } else {
+        (created, now)
+    };
+    let mut months = (i32::from(end.year()) - i32::from(start.year())) * 12
+        + i32::from(end.month())
+        - i32::from(start.month());
+    let mut days =
+        i32::from(end.day()) - i32::from(start.day()) - i32::from(end.time() < start.time());
+
+    // PHP 从日期区间的一端借用整月的天数，月底不会直接截断为满月。
+    let mut month = if future {
+        start.date().first_of_month()
+    } else {
+        end.date().first_of_month()
+    };
+    while days < 0 {
+        if !future {
+            month = month.checked_sub(1.month()).ok()?;
+        }
+        days += i32::from(month.days_in_month());
+        months -= 1;
+        if future && days < 0 {
+            month = month.checked_add(1.month()).ok()?;
+        }
+    }
+
+    let seconds = end.duration_since(start).as_secs() % 86_400;
+    let (value, unit) = match (months, days, seconds) {
+        (12.., _, _) => (i64::from(months / 12), "year"),
+        (1.., _, _) => (i64::from(months), "month"),
+        (_, 7.., _) => (i64::from(days / 7), "week"),
+        (_, 1.., _) => (i64::from(days), "day"),
+        (_, _, 3600..) => (seconds / 3600, "hour"),
+        (_, _, 60..) => (seconds / 60, "minute"),
+        _ => (seconds, "second"),
+    };
+    let plural = if value == 1 { "" } else { "s" };
+    let direction = if future { "from now" } else { "ago" };
+    Some(format!("{value} {unit}{plural} {direction}"))
+}
+
 fn summary(entry: &EntryResult, full: bool) -> String {
     let c = &entry.content;
     let t = |key| text(c, key);
@@ -87,7 +139,12 @@ fn summary(entry: &EntryResult, full: bool) -> String {
     };
     single_line(&limit(&value, 80, full))
 }
-pub(super) fn list(output: &mut Output, entries: &[EntryResult], kind: Option<EntryType>) {
+pub(super) fn list(
+    output: &mut Output,
+    entries: &[EntryResult],
+    kind: Option<EntryType>,
+    now: DateTime,
+) {
     let headers: &[&str] = match kind {
         Some(EntryType::Request | EntryType::ClientRequest) => {
             &["Method", "URI", "Status", "Duration"]
@@ -166,7 +223,7 @@ pub(super) fn list(output: &mut Output, entries: &[EntryResult], kind: Option<En
                 .map(|value| single_line(value))
                 .collect::<Vec<_>>()
                 .join("\t"),
-            entry.created_at
+            human_time(&entry.created_at, now).unwrap_or_else(|| single_line(&entry.created_at))
         ));
     }
 }
@@ -177,11 +234,16 @@ pub(super) fn show(
     batch: &[EntryResult],
     kinds: &[EntryType],
     full: bool,
+    now: DateTime,
 ) {
     output.info(&single_line(&entry_details::heading(entry)));
+    let created = single_line(&entry.created_at);
+    let time = human_time(&created, now)
+        .map(|relative| format!("{relative}  ({created})"))
+        .unwrap_or(created);
     output.stdout.push_str(&format!(
-        "UUID\t{}\nTime\t{}\nBatch\t{}\n",
-        entry.id, entry.created_at, entry.batch_id
+        "UUID\t{}\nTime\t{time}\nBatch\t{}\n",
+        entry.id, entry.batch_id
     ));
     if !entry.tags.is_empty() {
         output

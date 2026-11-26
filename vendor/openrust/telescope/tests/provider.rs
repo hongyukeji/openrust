@@ -2902,6 +2902,99 @@ async fn list_renders_fixed_plain_text_values_for_request_and_cache_rows() {
 }
 
 #[tokio::test]
+async fn console_list_and_show_format_utc_relative_timestamps() {
+    use openrust::support::{Date, DateTimezone};
+
+    let mut app = application();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
+    let batch = uuid::Uuid::now_v7();
+    for (created, now, expected) in [
+        (
+            "2026-11-26 12:00:00",
+            "2026-11-26T12:00:00Z",
+            "0 seconds ago",
+        ),
+        (
+            "2026-11-26 12:00:00",
+            "2026-11-26T11:59:59.6Z",
+            "0 seconds from now",
+        ),
+        (
+            "2026-11-26 11:59:00",
+            "2026-11-26T11:59:59.999999Z",
+            "59 seconds ago",
+        ),
+        (
+            "2026-11-26 11:59:00",
+            "2026-11-26T12:00:00Z",
+            "1 minute ago",
+        ),
+        (
+            "2026-11-26 15:00:00",
+            "2026-11-26T12:00:00Z",
+            "3 hours from now",
+        ),
+        ("2026-11-25 12:00:00", "2026-11-26T12:00:00Z", "1 day ago"),
+        ("2026-11-19 12:00:00", "2026-11-26T12:00:00Z", "1 week ago"),
+        ("2026-10-26 12:00:00", "2026-11-26T12:00:00Z", "1 month ago"),
+        ("2026-01-31 12:00:00", "2026-02-28T12:00:00Z", "4 weeks ago"),
+        ("2026-01-31 12:00:00", "2026-03-03T11:00:00Z", "4 weeks ago"),
+        ("2026-01-31 12:00:00", "2026-03-03T12:00:00Z", "1 month ago"),
+        (
+            "2026-03-03 11:00:00",
+            "2026-01-31T12:00:00Z",
+            "1 month from now",
+        ),
+        (
+            "2024-02-29 12:00:00",
+            "2025-02-28T12:00:00Z",
+            "11 months ago",
+        ),
+        ("2024-02-29 12:00:00", "2025-03-01T12:00:00Z", "1 year ago"),
+    ] {
+        let mut entry = IncomingEntry::make(serde_json::Map::new())
+            .unwrap()
+            .r#type(EntryType::Log)
+            .batch_id(batch);
+        entry.recorded_at = format!("{created}Z").parse().unwrap();
+        let id = entry.uuid.to_string();
+        repository.store(&[entry]).await.unwrap();
+        app.travel_to(Date::from_utc(now.parse().unwrap(), DateTimezone::UTC));
+
+        let list = app.artisan(["telescope:list", "log"]).await;
+        list.assert_successful();
+        let row = list
+            .stdout
+            .lines()
+            .find(|line| line.starts_with(&id[..8]))
+            .unwrap();
+        assert_eq!(
+            row.split('\t').next_back(),
+            Some(expected),
+            "{created} at {now}"
+        );
+
+        let show = app.artisan(["telescope:show", &id]).await;
+        show.assert_successful();
+        assert!(
+            show.stdout
+                .contains(&format!("Time\t{expected}  ({created})")),
+            "{}",
+            show.stdout
+        );
+        let json = app.artisan(["telescope:show", &id, "--json"]).await;
+        json.assert_successful();
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&json.stdout).unwrap()["entry"]["created_at"],
+            created
+        );
+    }
+}
+
+#[tokio::test]
 async fn prune_fractional_hours_updates_real_storage_and_preserves_exceptions() {
     use openrust::support::{Date, DateTimezone};
 

@@ -9,7 +9,7 @@ use clap::{Arg, ArgAction, Command as Syntax};
 use openrust::{
     console::{Command, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output},
     foundation::Application,
-    support::{Date, facades::Artisan, php_float_string},
+    support::{Date, DateTimezone, facades::Artisan, php_float_string},
 };
 use serde_json::json;
 use uuid::Uuid;
@@ -246,7 +246,8 @@ impl Command for TelescopeCommand {
                     } else if entries.is_empty() {
                         output.comment("No entries found.");
                     } else {
-                        formats_output::list(output, &entries, kind);
+                        let now = Date::now(Some(DateTimezone::UTC)).map_err(error)?;
+                        formats_output::list(output, &entries, kind, now.as_date_time().datetime());
                         let next = if entries.len() as u64 >= limit {
                             format!(
                                 "Use --before={} for next page",
@@ -336,6 +337,7 @@ impl Command for TelescopeCommand {
                     if matches.get_flag("json") {
                         json_output(output, &json!({"entry":entry,"batch":batch}))?;
                     } else {
+                        let now = Date::now(Some(DateTimezone::UTC)).map_err(error)?;
                         formats_output::show(
                             output,
                             &entry,
@@ -343,6 +345,7 @@ impl Command for TelescopeCommand {
                             &batch,
                             &kinds,
                             matches.get_flag("full"),
+                            now.as_date_time().datetime(),
                         );
                     }
                 }

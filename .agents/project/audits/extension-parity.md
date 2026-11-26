@@ -6,6 +6,8 @@
 
 Telescope 的原生命令已验证批次查询统计和全部 18 类条目详情。请求完成链路已在 SQLite、PostgreSQL 18.7、MySQL 8.4.13 核对可信代理地址、脱敏会话、请求筛选、缓冲响应和 Blade 模板来源。已缓存纯文本与 multipart 上传元数据通过相同三库。 [Telescope 专项审计](telescope/README.md)
 
+Telescope 的 `list` 和 `show` 已通过三库 Artisan 验证 UTC 相对时间，`show` 同时保留原始时间戳。格式化函数与 3,016 组固定上游结果一致。 [Telescope 相对时间](telescope/README.md#list-与-show-的相对时间)
+
 Pulse 的慢操作、用量、异常、缓存、队列和服务器卡片复用五秒查询快照。查询耗时与执行时间和缓存结果一起刷新，已授权 HTTP 和原生浏览器均有专项证据。 [Pulse 卡片查询审计](pulse/README.md#查询耗时和执行时间)
 
 Pulse 队列卡片的采样峰值、连接标签及逐点读数已在真实看板验收，刷新时保留仍在图中的时间点。卡片内部缓存和看板轮询的自采集已分别修复，后者沿用应用的请求 Recorder 忽略规则。三库定向结果与桌面、手机版面证据均随批次记录。 [Pulse 队列采样点](pulse/README.md#队列采样点读数与刷新) [Pulse 请求采集](pulse/README.md#面板刷新与请求采集)
@@ -72,7 +74,7 @@ Horizon包与其已验快照逐文件一致；当前核心的Worker／事件／A
 
 三库／缓存／Worker、实际服务器Chrome桌面手机、安装、发布保留定制、根配置缓存／骨架及全部扩展组合见包审计与[最终组合](extension-final.md)。先前公开Watcher、ignoreFrameworkEvents、缓冲响应／路由字段缺口已关闭。
 
-与PHP仍有明确差异：原生安全UI替代Vue／avatar，Query 部分入口和 Gate 外层调用帧选择仍待核对，不透明 Body／流及原生 `Part` 仍有元数据边界，CLI 使用普通表格与时间戳。HTTP 客户端已支持构建器提供的 multipart 元数据，见[包审计](telescope/README.md#出站-multipart)。正式服务／其他OS需要独立验证。
+原生面板覆盖列表、详情、监控标签与授权。Query 部分入口和 Gate 外层调用帧选择仍待核对。不透明 Body／流及原生 `Part` 仍有元数据边界。CLI 使用原生表格，颜色继续对账。HTTP 客户端已支持构建器提供的 multipart 元数据，见[包审计](telescope/README.md#出站-multipart)。正式服务和其他操作系统需要独立验证。
 
 ## O03–O06 与完成条件
 
