@@ -339,6 +339,47 @@ pub fn php_integer_cast(value: &Value) -> i64 {
     super::input_scalars::integer(value)
 }
 
+/// 固定 PHP 的 (float) JSON 输入转换，供编译型扩展复用。
+#[doc(hidden)]
+#[must_use]
+pub fn php_float_cast(value: &Value) -> f64 {
+    super::input_scalars::float(value)
+}
+
+/// JSON 标量或 PHP 关联数组的布尔转换，供编译型扩展复用。
+#[doc(hidden)]
+#[must_use]
+pub fn php_value_truthy(value: &Value) -> bool {
+    super::arr::truthy(value)
+}
+
+/// 复用固定 PHP 的中点远离零舍入，倍率为 10 的整数次幂。
+/// 比较原值与舍入中点，避免先乘后 round 造成可观察的二进制中点偏差。
+#[allow(
+    clippy::float_cmp,
+    reason = "PHP half-up 算法以精确 IEEE754 比较识别可逆整数，不用 epsilon 改变边界"
+)]
+#[doc(hidden)]
+#[must_use]
+pub fn php_round_half_up(value: f64, exponent: f64) -> f64 {
+    if !value.is_finite() || value == 0.0 {
+        return value;
+    }
+    let mut integral = (value * exponent).trunc();
+    let corrected = integral + 1.0_f64.copysign(value);
+    if corrected / exponent == value {
+        integral = corrected;
+    }
+    if integral.abs() >= 1e16 {
+        return value;
+    }
+    let edge = ((integral + 0.5_f64.copysign(integral)) / exponent).abs();
+    if value.abs() >= edge {
+        integral += 1.0_f64.copysign(integral);
+    }
+    integral / exponent
+}
+
 /// 校验规则复用同一标量比较桥；JSON 数组及映射都表示 PHP 数组。
 pub(crate) fn php_loose_value_equal(left: &Value, right: &Value) -> bool {
     if left.is_boolean() || right.is_boolean() {

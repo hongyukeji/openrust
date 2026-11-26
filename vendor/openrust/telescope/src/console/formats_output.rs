@@ -1,9 +1,14 @@
 use crate::{EntryResult, EntryType};
 use openrust::{
     console::Output,
-    support::{Str, php_integer_cast},
+    support::{
+        Str, php_float_cast, php_float_string, php_integer_cast, php_round_half_up,
+        php_value_truthy,
+    },
 };
 use serde_json::Value;
+use std::collections::HashMap;
+use uuid::Uuid;
 
 fn text(content: &Value, key: &str) -> String {
     match &content[key] {
@@ -131,17 +136,10 @@ pub(super) fn list(output: &mut Output, entries: &[EntryResult], kind: Option<En
                 },
             ],
             Some(EntryType::Job) => vec![basename(&t("name")).into(), t("queue"), t("status")],
-            Some(EntryType::Cache) => {
-                let action = t("type");
-                let label = match action.as_str() {
-                    "hit" => "HIT",
-                    "missed" => "MISS",
-                    "set" => "SET",
-                    "forget" => "FORGET",
-                    other => other,
-                };
-                vec![label.to_owned(), limit(&t("key"), 50, false)]
-            }
+            Some(EntryType::Cache) => vec![
+                cache_action(&t("type")).to_owned(),
+                limit(&t("key"), 50, false),
+            ],
             Some(EntryType::Log) => vec![t("level"), limit(&t("message"), 60, false)],
             Some(EntryType::Mail) => vec![
                 basename(&t("mailable")).into(),
@@ -170,7 +168,14 @@ pub(super) fn list(output: &mut Output, entries: &[EntryResult], kind: Option<En
         ));
     }
 }
-pub(super) fn show(output: &mut Output, entry: &EntryResult, batch: &[EntryResult], full: bool) {
+pub(super) fn show(
+    output: &mut Output,
+    entry: &EntryResult,
+    batch_id: Uuid,
+    batch: &[EntryResult],
+    kinds: &[EntryType],
+    full: bool,
+) {
     output.info(&format!(
         "{}: {}",
         entry.r#type.as_str(),
@@ -208,36 +213,209 @@ pub(super) fn show(output: &mut Output, entry: &EntryResult, batch: &[EntryResul
             .push_str(&limit(&entry.content.to_string(), 1000, full));
         output.stdout.push('\n');
     }
-    if !batch.is_empty() {
-        output.info("Related Entries");
+    show_batch(output, batch_id, batch, kinds, full);
+}
+
+fn show_batch(
+    output: &mut Output,
+    batch_id: Uuid,
+    batch: &[EntryResult],
+    kinds: &[EntryType],
+    full: bool,
+) {
+    if batch.is_empty() {
+        if !kinds.is_empty() {
+            let requested = kinds.iter().map(|kind| kind.as_str()).collect::<Vec<_>>();
+            output.info(&format!(
+                "No batch entries of type {}.",
+                requested.join(", ")
+            ));
+        }
+        return;
     }
-    for kind in EntryType::all() {
-        let related = batch
-            .iter()
-            .filter(|entry| entry.r#type == *kind)
-            .collect::<Vec<_>>();
-        if related.is_empty() {
-            continue;
+
+    output.info(&format!(
+        "Related Entries - batch {}",
+        &batch_id.to_string()[..8]
+    ));
+    let mut groups: Vec<(EntryType, Vec<&EntryResult>)> = Vec::new();
+    for entry in batch {
+        if let Some((_, entries)) = groups.iter_mut().find(|(kind, _)| *kind == entry.r#type) {
+            entries.push(entry);
+        } else {
+            groups.push((entry.r#type, vec![entry]));
         }
-        output.info(&format!("{} ({})", kind.as_str(), related.len()));
-        let max = match kind {
-            EntryType::Query => 20,
-            EntryType::Exception | EntryType::Cache | EntryType::Log => 10,
-            _ => 5,
+    }
+    for kind in [
+        EntryType::Query,
+        EntryType::Exception,
+        EntryType::Cache,
+        EntryType::Log,
+    ] {
+        if let Some(index) = groups.iter().position(|(group, _)| *group == kind) {
+            let (_, rows) = groups.remove(index);
+            let count = rows.len();
+            match kind {
+                EntryType::Query => show_batch_queries(output, &rows, full),
+                EntryType::Exception => {
+                    output.info(&format!("Exceptions - {count}"));
+                    write_row(output, ["UUID", "Exception", "Location"]);
+                    for entry in rows.iter().take(10) {
+                        let c = &entry.content;
+                        write_row(
+                            output,
+                            [
+                                &entry.id.to_string()[..8],
+                                &format!(
+                                    "{}: {}",
+                                    text(c, "class"),
+                                    limit(&text(c, "message"), 80, full)
+                                ),
+                                &format!("{}:{}", text(c, "file"), text(c, "line")),
+                            ],
+                        );
+                    }
+                    more(output, count, 10, "exceptions");
+                }
+                EntryType::Cache => show_batch_cache(output, &rows, full),
+                EntryType::Log => {
+                    output.info(&format!("Logs - {count}"));
+                    write_row(output, ["Level", "Message"]);
+                    for entry in rows.iter().take(10) {
+                        write_row(
+                            output,
+                            [
+                                &text(&entry.content, "level"),
+                                &limit(&text(&entry.content, "message"), 80, full),
+                            ],
+                        );
+                    }
+                    more(output, count, 10, "logs");
+                }
+                _ => unreachable!(),
+            }
+        }
+    }
+    for (kind, rows) in groups {
+        let label = Str::plural(&Str::headline(kind.as_str()), 2);
+        output.info(&format!("{label} ({})", rows.len()));
+        for entry in rows.iter().take(5) {
+            output.info(&summary(entry, full));
+        }
+        more(output, rows.len(), 5, &label);
+    }
+}
+
+fn query_identity(content: &Value) -> String {
+    if content["hash"].is_null() {
+        text(content, "sql")
+    } else {
+        text(content, "hash")
+    }
+}
+
+fn show_batch_queries(output: &mut Output, rows: &[&EntryResult], full: bool) {
+    let mut duplicates = HashMap::new();
+    let mut total = 0.0;
+    let mut slow = 0;
+    for entry in rows {
+        let c = &entry.content;
+        total += php_float_cast(&c["time"]);
+        slow += usize::from(php_value_truthy(&c["slow"]));
+        *duplicates.entry(query_identity(c)).or_insert(0) += 1;
+    }
+    let groups = duplicates.values().filter(|count| **count > 1).count();
+    let time = php_float_string(php_round_half_up(total, 100.0));
+    let mut heading = format!("Queries - {} total, {time}ms", rows.len());
+    if slow > 0 {
+        heading.push_str(&format!(", {slow} slow"));
+    }
+    if groups > 0 {
+        let noun = if groups == 1 { "group" } else { "groups" };
+        heading.push_str(&format!(", {groups} duplicate {noun}"));
+    }
+    output.info(&heading);
+    write_row(output, ["#", "UUID", "Time", "SQL", "Source", "Flags"]);
+    for (index, entry) in rows.iter().take(20).enumerate() {
+        let c = &entry.content;
+        let time = php_float_string(php_round_half_up(php_float_cast(&c["time"]), 100.0));
+        let source = c["file"].as_str().map_or_else(String::new, |file| {
+            let filename = file.rsplit(['/', '\\']).next().unwrap_or(file);
+            format!("{filename}:{}", text(c, "line"))
+        });
+        let slow = php_value_truthy(&c["slow"]);
+        let duplicate = duplicates
+            .get(&query_identity(c))
+            .is_some_and(|count| *count > 1);
+        let flags = match (slow, duplicate) {
+            (true, true) => "SLOW DUP",
+            (true, false) => "SLOW",
+            (false, true) => "DUP",
+            (false, false) => "",
         };
-        for entry in related.iter().take(max) {
-            output.stdout.push_str(&format!(
-                "{}\t{}\n",
+        write_row(
+            output,
+            [
+                &(index + 1).to_string(),
                 &entry.id.to_string()[..8],
-                summary(entry, full)
-            ));
+                &format!("{time}ms"),
+                &limit(&text(c, "sql"), 60, full),
+                &source,
+                flags,
+            ],
+        );
+    }
+    more(output, rows.len(), 20, "queries");
+}
+
+fn show_batch_cache(output: &mut Output, rows: &[&EntryResult], full: bool) {
+    let mut hits = 0_u32;
+    let mut misses = 0_u32;
+    for entry in rows {
+        match entry.content["type"].as_str() {
+            Some("hit") => hits += 1,
+            Some("missed") => misses += 1,
+            _ => {}
         }
-        if related.len() > max {
-            output.stdout.push_str(&format!(
-                "... and {} more {} entries\n",
-                related.len() - max,
-                kind.as_str()
-            ));
-        }
+    }
+    let mut heading = format!("Cache - {hits} hits, {misses} misses");
+    if hits + misses > 0 {
+        let rate = f64::from(hits) / f64::from(hits + misses) * 100.0;
+        let rate = php_float_string(php_round_half_up(rate, 10.0));
+        heading.push_str(&format!(" - {rate}% hit rate"));
+    }
+    output.info(&heading);
+    write_row(output, ["Action", "Key"]);
+    for entry in rows.iter().take(10) {
+        let c = &entry.content;
+        write_row(
+            output,
+            [
+                cache_action(&text(c, "type")),
+                &limit(&text(c, "key"), 60, full),
+            ],
+        );
+    }
+    more(output, rows.len(), 10, "cache entries");
+}
+
+fn cache_action(action: &str) -> &str {
+    match action {
+        "hit" => "HIT",
+        "missed" => "MISS",
+        "set" => "SET",
+        "forget" => "FORGET",
+        other => other,
+    }
+}
+
+fn write_row<const N: usize>(output: &mut Output, values: [&str; N]) {
+    output.stdout.push_str(&values.map(single_line).join("\t"));
+    output.stdout.push('\n');
+}
+
+fn more(output: &mut Output, count: usize, limit: usize, label: &str) {
+    if count > limit {
+        output.info(&format!("... and {} more {label}", count - limit));
     }
 }

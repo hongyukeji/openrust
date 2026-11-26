@@ -1437,6 +1437,118 @@ async fn console_show_full_preserves_unicode_payload_and_list_uses_type_columns(
     );
 }
 
+#[tokio::test]
+async fn console_show_renders_fixed_batch_statistics_and_limits() {
+    let mut app = application();
+    app.artisan(["migrate", "--force"])
+        .await
+        .assert_successful();
+    let repository = app.app().make::<DatabaseEntriesRepository>().await.unwrap();
+    let batch_id = uuid::Uuid::now_v7();
+    let make = |kind, content: serde_json::Value| {
+        IncomingEntry::make(content.as_object().unwrap().clone())
+            .unwrap()
+            .r#type(kind)
+            .batch_id(batch_id)
+    };
+    let request = make(EntryType::Request, json!({"method":"GET","uri":"/article"}));
+    let id = request.uuid.to_string();
+    let sql = format!("{}TAIL", "界".repeat(32));
+    let mut rows = vec![
+        request,
+        make(
+            EntryType::Job,
+            json!({"name":"App::Translate","status":"processed"}),
+        ),
+        make(
+            EntryType::Query,
+            json!({"time":"1.005ms","sql":sql,"hash":"shared","slow":true,"file":"/srv/User.php","line":17}),
+        ),
+        make(EntryType::Cache, json!({"type":"hit","key":"article"})),
+        make(
+            EntryType::Query,
+            json!({"time":2.346,"sql":"SELECT 2","hash":"shared","slow":"0"}),
+        ),
+        make(
+            EntryType::Exception,
+            json!({"class":"App::Failure","message":"broken","file":"/srv/Foo.php","line":9}),
+        ),
+        make(EntryType::Cache, json!({"type":"missed","key":"other"})),
+        make(EntryType::Cache, json!({"type":"set","key":"updated"})),
+        make(
+            EntryType::Log,
+            json!({"level":"warning","message":"threshold"}),
+        ),
+        make(EntryType::Event, json!({"name":"Translated"})),
+    ];
+    rows.extend((0..19).map(|i| {
+        make(
+            EntryType::Query,
+            json!({"time":0,"sql":format!("SELECT {i} AS extra")}),
+        )
+    }));
+    repository.store(&rows).await.unwrap();
+
+    let result = app.artisan(["telescope:show", &id]).await;
+    result.assert_successful();
+    let batch = result
+        .stdout
+        .split_once("Related Entries - batch ")
+        .unwrap()
+        .1;
+    assert!(batch.starts_with(&batch_id.to_string()[..8]));
+    let mut ordered = batch;
+    for text in [
+        "Queries - 21 total, 3.35ms, 1 slow, 1 duplicate group",
+        "#\tUUID\tTime\tSQL\tSource\tFlags",
+        "\t1.01ms\t",
+        "User.php:17\tSLOW DUP",
+        "\t2.35ms\tSELECT 2\t\tDUP",
+        "... and 1 more queries",
+        "Exceptions - 1",
+        "App::Failure: broken\t/srv/Foo.php:9",
+        "Cache - 1 hits, 1 misses - 50% hit rate",
+        "HIT\tarticle",
+        "MISS\tother",
+        "SET\tupdated",
+        "Logs - 1",
+        "warning\tthreshold",
+        "Jobs (1)",
+        "Events (1)",
+    ] {
+        ordered = ordered
+            .split_once(text)
+            .unwrap_or_else(|| panic!("missing {text:?} in {batch}"))
+            .1;
+    }
+    assert!(!batch.contains("TAIL"));
+    assert!(!batch.contains("SELECT 18 AS extra"));
+
+    let full = app
+        .artisan(["telescope:show", &id, "--type=query", "--full"])
+        .await;
+    full.assert_successful();
+    assert!(full.stdout.contains(&sql));
+    assert!(!full.stdout.contains("Cache - "));
+    assert!(!full.stdout.contains("SELECT 18 AS extra"));
+    let empty = app
+        .artisan(["telescope:show", &id, "--type=mail, redis"])
+        .await;
+    empty.assert_successful();
+    assert!(
+        empty
+            .stdout
+            .contains("No batch entries of type mail, redis.")
+    );
+    let result = app
+        .artisan(["telescope:show", &id, "--type=query", "--json"])
+        .await;
+    result.assert_successful();
+    let result: serde_json::Value = serde_json::from_str(result.stdout.trim()).unwrap();
+    assert_eq!(result["batch"].as_array().unwrap().len(), 21);
+    assert_eq!(result["batch"][0]["content"]["sql"], sql);
+}
+
 impl openrust::contracts::auth::Authenticatable for ObservedModel {
     fn get_auth_identifier_name(&self) -> &str {
         "id"

@@ -2,7 +2,7 @@
 
 use serde_json::Value;
 
-use crate::support::input_scalars;
+use crate::support::{input_scalars, php_round_half_up};
 use std::fmt;
 
 /// 输入区间解析失败的安全分类，不包含用户输入。
@@ -107,7 +107,7 @@ impl InputInterval {
             }
             // 先按 10 位小数格式化，再交给 Carbon。
             // 先作十位 half-up，再转定点，避免 Rust ties-even 格式化改变中点。
-            let formatted = format!("{:.10}", php_round(value, 10_000_000_000.0));
+            let formatted = format!("{:.10}", php_round_half_up(value, 10_000_000_000.0));
             let mut result = Self::default();
             result.add_text(&formatted, unit)?;
             return Ok(Some(result));
@@ -185,7 +185,7 @@ impl InputInterval {
             return Err(IntervalError::OutOfRange);
         }
         // Carbon fromString 只用六位 rounding 修正接近零/一的误差，不先量化其他分数。
-        match php_round(fraction, 1_000_000.0) {
+        match php_round_half_up(fraction, 1_000_000.0) {
             1.0 => {
                 integer = integer.checked_add(1).ok_or(IntervalError::OutOfRange)?;
                 fraction = 0.0;
@@ -220,7 +220,7 @@ impl InputInterval {
                 increment(&mut self.microseconds, integer, 1000)?;
                 increment(
                     &mut self.microseconds,
-                    checked_integer(php_round(fraction * 1000.0, 1.0))?,
+                    checked_integer(php_round_half_up(fraction * 1000.0, 1.0))?,
                     1,
                 )
             }
@@ -647,31 +647,6 @@ fn human_space(c: char) -> bool {
 
 fn php_empty_space(c: char) -> bool {
     matches!(c, ' ' | '\t' | '\n' | '\r' | '\x0b' | '\0')
-}
-
-// PHP 8.5 ext/standard/math.c::_php_math_round / PHP_ROUND_HALF_UP；这里只用 0/6/10 位。
-// 比较原值与舍入中点，避免先乘后 round 造成可观察的二进制中点偏差。
-#[allow(
-    clippy::float_cmp,
-    reason = "PHP half-up 算法以精确 IEEE754 比较识别可逆整数，不用 epsilon 改变边界"
-)]
-fn php_round(value: f64, exponent: f64) -> f64 {
-    if !value.is_finite() || value == 0.0 {
-        return value;
-    }
-    let mut integral = (value * exponent).trunc();
-    let corrected = integral + 1.0_f64.copysign(value);
-    if corrected / exponent == value {
-        integral = corrected;
-    }
-    if integral.abs() >= 1e16 {
-        return value;
-    }
-    let edge = ((integral + 0.5_f64.copysign(integral)) / exponent).abs();
-    if value.abs() >= edge {
-        integral += 1.0_f64.copysign(integral);
-    }
-    integral / exponent
 }
 
 #[allow(

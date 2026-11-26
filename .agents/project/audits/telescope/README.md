@@ -63,7 +63,7 @@ database缓存此前把引擎毫秒时间戳及i64::MAX永久哨兵直接写入L
 - 面板为原生安全诊断UI，未使用上游Vue前端或avatar；列表、过滤、详情、监控标签、暂停恢复均已实际验收。18类公开Watcher已在下节补齐独立注册，内部共用格式化帮助器，不再用私有总监听器替代公开结构。
 - Gate 已覆盖授权入口及同应用嵌套授权。Query 已覆盖核心数据库、分页、模型写入、直接关系读取、关联写入、模型与集合关系加载、多对多中间表和常规 Schema。普通异步包装器、关系变体和驱动特有的 Schema 操作仍待核对。源码重映射的已验范围与部署条件见[发布构建的源码路径重映射](../extension-parity.md#发布构建的源码路径重映射)。EventWatcher 默认忽略框架事件，应用内共享的 ignoreFrameworkEvents 开关已在下节补齐。
 - 服务端已捕获已知缓冲正文及实际处理器／控制器、已解析路由中间件类型；不透明Body／流仍不读取。HTTP 客户端记录构建器提供的 multipart 元数据，来源边界见下文。View的闭包composer名称为null。通知Mail响应为实际收件人快照；不冒充PHP SentMessage对象反射。
-- 命令以普通文本表格及通用字段详情输出，尚未逐项复现上游颜色、相对时间、分类详情布局／batch统计。`--full`、JSON与查询语义已经验证。保留时间的应用时钟和小时选项见[截止时间审计](#prune-命令的截止时间)。
+- 命令以原生纯文本表格输出，尚待核对上游颜色、相对时间和条目分类详情。批次统计见[同批次统计](#show-命令的同批次统计)。`--full`、JSON与查询语义已经验证。保留时间的应用时钟和小时选项见[截止时间审计](#prune-命令的截止时间)。
 - 正式托管服务、其他操作系统和最终全扩展组合／完整API导出未由本批通过结果覆盖。
 
 缓存保留供后续验收复用；未到32GB停线时不清热target。夹具只回收本批标签容器和子进程，不删除任何数据卷。后续开发应按本节真实差异接续，不能把包测试通过等同完整上游移植。
@@ -134,6 +134,16 @@ Linux 7.0.14 ARM64 同源码通过框架 HTTP 客户端 23 项、Telescope Provi
 浮点专项通过两种真实输入验证 12 个发送样例和对应部件字节长度，覆盖正负零、舍入后的指数切换、极大值和次正规数。框架录制核对原浮点位值，Telescope 入库核对长小数诊断。macOS 和 Linux ARM64 各通过客户端 25 项、Provider 15 项，Windows 11 ARM64 通过四项 multipart 真实传输和一项 Telescope SQLite 入库。macOS 另通过 PostgreSQL 18.7、MySQL 8.4.13 和 Redis 8.10.3 缓存专项。相关目标严格 Clippy、隔离快照格式及三语站点构建和浏览器检查通过。证据为 `target/tmp/observability-parity/multipart-float-{macos,macos-redis,linux,windows,docs}.log`。
 
 中间件回归在实际回环传输和拒绝连接上逐项验证 23 条入库记录，其中 10 条为失败，另有 3 条空列表回退。断言覆盖线上媒体类型和正文、原始描述顺序和重复项、附件、字节替换及嵌套脱敏。macOS 与 Linux ARM64 各通过客户端 25 项和 Provider 16 项，Windows 11 ARM64 通过客户端 multipart 四项及 23 条记录的 SQLite 回归。macOS 另通过 PostgreSQL 18.7、MySQL 8.4.13 及 Redis 8.10.3 缓存专项。相关目标严格 Clippy、隔离快照全仓格式、三语站点构建和浏览器检查通过。证据为 `target/tmp/observability-parity/multipart-media-{macos,macos-redis,linux,windows,docs}.log`。
+
+### Show 命令的同批次统计
+
+固定 PHP 8.5.12 调用实际 `ShowCommand::renderBatchContext` 核对详细分组。查询汇总包含总耗时、慢查询及重复组，按 `hash` 或 SQL 分组，耗时在半值时远离零舍入。缓存命中率只统计读取命中及未命中，写入和删除仍显示在明细。查询最多显示 20 行，异常、缓存和日志各最多 10 行，其余分类最多 5 行。显式类型筛选没有匹配项时有提示。证据为 `target/tmp/observability-parity/telescope-show-batch-upstream.log`。 [固定 ShowCommand](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Console/ShowCommand.php#L365-L490)
+
+原生 Artisan 已按这些规则输出批次统计和分类表格，包括批次短标识、慢查询与重复标记、宽度截断以及 `--full`。框架现有 PHP 数值转换和中点舍入算法供批次统计复用。SQLite、PostgreSQL 18.7、MySQL 8.4.13 使用已存记录验收汇总、筛选、超限提示、长 SQL 和完整 JSON。Pulse Provider 24 项、Telescope Provider 21 项、仓储 14 项和框架日期区间单元测试 12 项通过。独占 Redis 用例沿用环境条件。隔离快照全仓格式、三扩展相关目标严格 Clippy、三语构建与六组文档浏览器检查通过。证据为 `target/tmp/observability-parity/telescope-show-batch-{macos-baseline,macos-final,docs}.log`。
+
+### RequestWatcher 的请求完成字段
+
+对账请求详情发现，固定 `RequestWatcher` 在请求结束时记录客户端 IP、会话数据和 PHP 分配器峰值。当前原生条目缺少这三项。客户端地址待复用框架的可信代理解析，会话待核对真实 HTTP 路径和脱敏。并发 Rust 进程中的全进程内存峰值不能直接当作单请求内存，需单列度量边界。 [固定 RequestWatcher](https://github.com/laravel/telescope/blob/39a8ea8ad79915df6c3ac9b4e72659ade808eba3/src/Watchers/RequestWatcher.php#L41-L62)
 
 ### Query 事务和保存点的调用来源
 

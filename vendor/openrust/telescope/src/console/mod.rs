@@ -336,7 +336,14 @@ impl Command for TelescopeCommand {
                     if matches.get_flag("json") {
                         json_output(output, &json!({"entry":entry,"batch":batch}))?;
                     } else {
-                        formats_output::show(output, &entry, &batch, matches.get_flag("full"));
+                        formats_output::show(
+                            output,
+                            &entry,
+                            batch_id,
+                            &batch,
+                            &kinds,
+                            matches.get_flag("full"),
+                        );
                     }
                 }
                 _ => unreachable!(),
